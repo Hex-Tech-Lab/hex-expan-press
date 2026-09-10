@@ -1,0 +1,24 @@
+registry_report.ts
+  s_68cee303f5d60a::t_1ffa6701aeda1b 88
+  s_68cee303f5d60a::t_1f71e224dfc1cc 70
+  s_68cee303f5d60a::t_5e04e94944a3cb 46
+  s_68cee303f5d60a::t_5fcd414f5be6f1 52
+  s_68cee303f5d60a::t_ad8c6170faeaff 24,29
+  s_68cee303f5d60a::t_d29669587d1833 10-23,25-28,30-31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d4f1e0ed4ce5eb5663b3afa59817f32a97023466",
+  "prompts": {},
+  "sessions": {
+    "s_68cee303f5d60a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "232d5c74-fe01-4143-8ca7-c8eea6291162",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
