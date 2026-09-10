@@ -1,0 +1,21 @@
+creator_scan.ts
+  s_68cee303f5d60a::t_4b8882d5b97d0e 335-346,350-353,355-358
+  s_68cee303f5d60a::t_15091fde8c466a 748,752-755,758-761
+  s_68cee303f5d60a::t_fb3c9056faa293 762
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "72bcdc2ebf95ee1ccfeb106cc52f7869fdb6d581",
+  "prompts": {},
+  "sessions": {
+    "s_68cee303f5d60a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "232d5c74-fe01-4143-8ca7-c8eea6291162",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
