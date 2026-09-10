@@ -1,0 +1,25 @@
+typst_prototype/hello.typ
+  s_68cee303f5d60a::t_a2569c662c17eb 1-19
+.gitignore
+  s_68cee303f5d60a::t_70d9d362a29874 14-16
+package.json
+  s_68cee303f5d60a::t_42959a863bb76a 39-40
+pnpm-lock.yaml
+  s_68cee303f5d60a::t_34065ad3dd9e56 125-127,287-306,317-320,365-368,374-377,381-384,389-406,410-413,423-430,434-449,455-458,472-476,557-571,597-602,673-684,688-689,697-698,703-714,719-722,736-739,742-751,758-767,775-778
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "dc476d84d99dfff88166ec16cd2d3a63f959c352",
+  "prompts": {},
+  "sessions": {
+    "s_68cee303f5d60a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "232d5c74-fe01-4143-8ca7-c8eea6291162",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
