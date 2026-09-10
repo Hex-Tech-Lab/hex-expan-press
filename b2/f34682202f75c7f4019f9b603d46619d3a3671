@@ -1,0 +1,20 @@
+trends.ts
+  s_68cee303f5d60a::t_3c260b8c40ca6d 106-139
+  s_68cee303f5d60a::t_079089b61a68dd 210-250,252
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "b2f34682202f75c7f4019f9b603d46619d3a3671",
+  "prompts": {},
+  "sessions": {
+    "s_68cee303f5d60a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "232d5c74-fe01-4143-8ca7-c8eea6291162",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
