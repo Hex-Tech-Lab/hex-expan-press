@@ -1,0 +1,22 @@
+scripts/scheduled_creator_scan.sh
+  s_68cee303f5d60a::t_09e62905c29d81 1-32
+AGENTS.md
+  s_68cee303f5d60a::t_3aaad705d46bda 3,15,19-27
+  s_68cee303f5d60a::t_f38c87aa3e276b 28
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "52a74261ea6e0a68a4e97433d65a042c27a05c94",
+  "prompts": {},
+  "sessions": {
+    "s_68cee303f5d60a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "232d5c74-fe01-4143-8ca7-c8eea6291162",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
