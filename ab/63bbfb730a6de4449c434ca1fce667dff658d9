@@ -1,0 +1,36 @@
+.gitignore
+  s_68cee303f5d60a::t_547d2284fea65a 6-13
+  s_68cee303f5d60a::t_02274deb8cd023 3-5
+creator_scan.ts
+  s_814741664a33c5::t_5a2db575007ac4 1-836
+package.json
+  s_814741664a33c5::t_3279440955184b 1-41
+registry.ts
+  s_814741664a33c5::t_f63b8daab28d8a 1-170
+registry_report.ts
+  s_814741664a33c5::t_317e278fa7156a 1-76
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ab63bbfb730a6de4449c434ca1fce667dff658d9",
+  "prompts": {},
+  "sessions": {
+    "s_68cee303f5d60a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "232d5c74-fe01-4143-8ca7-c8eea6291162",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_814741664a33c5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f6cb758f-a216-4127-b85c-6e3a94e35d35",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
