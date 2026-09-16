@@ -14,3 +14,6 @@ candidates.json
 
 # Compiled Typst output — regenerable from .typ source, don't track binaries
 typst_prototype/*.pdf
+
+# Strategic/confidential decision ledger (Rule #0: never in the public repo)
+.memory/

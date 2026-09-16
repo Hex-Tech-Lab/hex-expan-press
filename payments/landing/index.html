@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PDF Product</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: #f6f6f4; color: #1c1c1a; line-height: 1.55;
+    display: flex; justify-content: center; padding: 48px 20px;
+  }
+  .card {
+    background: #fff; border: 1px solid #e4e2dd; border-radius: 14px;
+    max-width: 560px; width: 100%; padding: 40px 36px;
+    box-shadow: 0 1px 2px rgba(0,0,0,.04);
+  }
+  .kicker { font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: #8a877e; margin-bottom: 14px; }
+  h1 { font-size: 28px; line-height: 1.2; font-weight: 700; letter-spacing: -.01em; margin-bottom: 12px; }
+  .blurb { color: #57544c; margin-bottom: 24px; }
+  .price { font-size: 34px; font-weight: 700; letter-spacing: -.02em; margin-bottom: 4px; }
+  .price small { font-size: 14px; font-weight: 500; color: #8a877e; }
+  .taxnote { font-size: 13px; color: #8a877e; margin-bottom: 28px; }
+  .buy {
+    display: block; width: 100%; text-align: center; text-decoration: none;
+    background: #1c1c1a; color: #fff; font-weight: 600; font-size: 16px;
+    padding: 14px 20px; border-radius: 10px; margin-bottom: 8px;
+  }
+  .buy:hover { background: #33322e; }
+  .secure { font-size: 12px; color: #8a877e; text-align: center; margin-bottom: 32px; }
+  .creator {
+    border-top: 1px solid #ece9e2; padding-top: 20px; font-size: 14px; color: #57544c;
+  }
+  .creator b { color: #1c1c1a; }
+  .disclaimers { margin-top: 20px; padding: 16px; background: #f6f6f4; border-radius: 10px; font-size: 12.5px; color: #6b685f; }
+  .disclaimers li { margin-bottom: 6px; }
+  .disclaimers ul { padding-left: 18px; }
+</style>
+</head>
+<body>
+<!-- Inline config block: mirrors payments/config.example.json. Edit these values per product/creator. -->
+<script id="product-config" type="application/json">
+{
+  "product_id": "prod_demo_001",
+  "title": "The Micro-Creator Pricing Playbook",
+  "price_usd": 19,
+  "creator_id": "creator_007",
+  "creator_split_pct": 70,
+  "provider": "lemonsqueezy",
+  "checkout_url": "https://YOUR-STORE.lemonsqueezy.com/buy/REPLACE_ME?checkout[custom][product_id]=prod_demo_001",
+  "pdf_file": "payments/assets/prod_demo_001.pdf",
+  "currency": "USD"
+}
+</script>
+<main class="card">
+  <p class="kicker">Digital PDF &middot; Instant Download</p>
+  <h1 id="p-title">Product</h1>
+  <p class="blurb" id="p-blurb"></p>
+  <p class="price"><span id="p-price">$0</span> <small>USD &middot; one-time</small></p>
+  <p class="taxnote">Sales tax / VAT is calculated and collected at checkout by our merchant of record.</p>
+  <a class="buy" id="p-buy" href="#">Buy now &mdash; get the PDF instantly</a>
+  <p class="secure">Secure checkout hosted by our payment provider &middot; PDF delivered by email</p>
+  <p class="creator">Created by <b id="p-creator">the creator</b> &middot; <span id="p-split">70%</span> of every sale
+     (net of payment fees) goes directly to the creator.</p>
+  <div class="disclaimers">
+    <ul>
+      <li>This is a digital product (PDF); no physical item will be shipped.</li>
+      <li><span id="p-finance-disclaimer">Educational content only &mdash; nothing in this document is financial advice. Do your own research.</span></li>
+      <li>Results are not guaranteed; the content reflects the creator&rsquo;s personal experience.</li>
+      <li>Due to the digital nature of this product, all sales are final except where local law requires refunds.</li>
+    </ul>
+  </div>
+</main>
+<script>
+  (function () {
+    var cfg = JSON.parse(document.getElementById("product-config").textContent);
+    var set = function (id, v) { var el = document.getElementById(id); if (el) el.textContent = v; };
+    set("p-title", cfg.title || "Product");
+    set("p-price", "$" + Number(cfg.price_usd).toFixed(2));
+    set("p-creator", cfg.creator_id || "the creator");
+    set("p-split", cfg.creator_split_pct + "%");
+    set("p-blurb", cfg.blurb || "A practical PDF guide from an independent creator.");
+    var buy = document.getElementById("p-buy");
+    if (buy && cfg.checkout_url) buy.setAttribute("href", cfg.checkout_url);
+    document.title = cfg.title || "PDF Product";
+  })();
+</script>
+</body>
+</html>

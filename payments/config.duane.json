@@ -1,0 +1,29 @@
+{
+  "product_id": "duane_retirement_playbook_v1",
+  "title": "Retire on $500K: The Early-Retirement Money Playbook",
+  "working_note": "WORKING TITLE - rename pending Duane signature. Store must remain UNPUBLISHED on every provider until the data-use + revenue-split agreement is signed (creator likeness rights, per council compliance gate 2026-09-14).",
+  "description": "A practical money-management playbook for the retirement years: the instruments, the sequence, and the recovery playbook after a market crash \u2014 built on one early retiree's real $500K journey. Not financial advice.",
+  "price_usd": 19,
+  "currency": "USD",
+  "creator_id": "duane_retirearly500",
+  "creator_split_pct": 50,
+  "provider": "polar",
+  "checkout_url": "https://sandbox-api.polar.sh/v1/checkout-links/polar_cl_g84ByoGAeZiahkWtCasYmeu1ShLtZIwwayzyI4ZdZsM/redirect",
+  "checkout_mode": "sandbox",
+  "checkout_note": "SANDBOX ONLY (baked 2026-09-16): Polar sandbox product f9376e27-13bf-4a88-9f73-cc1168ad2923, checkout link 580f69a8-fc34-4118-9553-d83c6165fc00, resolves 307 -> sandbox.polar.sh/checkout session. No real charge. NO LIVE SELLING until the data-use + revenue-split agreement with Duane is signed (legal gate 2026-09-14). After any change here, re-bake the site buttons: node_modules/.bin/tsx payments/bake_checkout.ts",
+  "polar_product_id_sandbox": "f9376e27-13bf-4a88-9f73-cc1168ad2923",
+  "polar_checkout_link_id_sandbox": "580f69a8-fc34-4118-9553-d83c6165fc00",
+  "pdf_file": "SET-AFTER-FULL-PDF-GENERATION",
+  "disclaimers": [
+    "not-financial-advice",
+    "past-performance"
+  ],
+  "legal_pages_required": [
+    "privacy-policy",
+    "terms-of-service"
+  ],
+  "support_email": "support@expanpress.com",
+  "smoke_test": true,
+  "same_details_on_all_providers": true,
+  "split_note": "AUTHORITATIVE terms now live in data/settings/terms.json (compound creator x product, effective-dated); this field is a legacy seed only."
+}

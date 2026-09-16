@@ -16,5 +16,17 @@
   "braveContactHuntResultCount": 6,
   "promptTextExcerptMaxChars": 1000,
   "structuringModel": "x-ai/grok-4.3",
-  "trendFreshnessHours": 6
+  "trendFreshnessHours": 6,
+  "structuringTemperature": 0.1,
+  "emailJunkRegex": "(png|jpg|jpeg|gif|webp|svg|css|js|example\\.)$",
+  "storeSignalRegex": "linktr\\.ee|linkin\\.bio|shop\\b|store\\b|course\\b|gumroad|etsy\\.com|\"buy now\"",
+  "contactHuntQueryTmpl": "\"{name}\" {niche} email contact business -site:youtube.com",
+  "contactHuntTopPages": 2,
+  "maxEmailsPerCreator": 2,
+  "minHtmlChars": 200,
+  "contactFetch": {
+    "timeoutS": 60,
+    "maxBufferBytes": 33554432,
+    "timeoutMs": 70000
+  }
 }
