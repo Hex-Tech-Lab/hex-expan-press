@@ -37,6 +37,8 @@
   "devDependencies": {
     "esbuild": "^0.28.2",
     "tsx": "^4.23.13",
-    "typst": "0.10.0-8"
+    "typescript": "^7.0.2",
+    "typst": "0.10.0-8",
+    "vercel": "^59.16.0"
   }
 }

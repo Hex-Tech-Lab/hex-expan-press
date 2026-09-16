@@ -1,0 +1,11 @@
+{
+  "product_id": "pdf_vre_playbook_v1",
+  "title": "The VRE Playbook (PDF)",
+  "price_usd": 19.99,
+  "creator_id": "creator_alpha",
+  "creator_split_pct": 85,
+  "provider": "polar",
+  "checkout_url": "https://checkout.example.com/vre-playbook",
+  "pdf_file": "products/vre_playbook_v1.pdf",
+  "currency": "USD"
+}

@@ -1,7 +1,7 @@
 // score.ts — PHASE 3 dual-engine qualification. Run ONLY after GLM candidate list exists.
 // Usage: pnpm score -- candidates.json
 import { readFileSync, writeFileSync, mkdirSync, appendFileSync, existsSync } from "node:fs";
-import { fetchSerpAdDensity, fetchDecodo } from "./harvest.ts";
+import { fetchSerpAdDensity, fetchDecodo } from "@/harvest";
 
 const RUN_ID = new Date().toISOString().replace(/[:.]/g, "-");
 const OUT_DIR = `data/scored_${RUN_ID}`;

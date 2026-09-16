@@ -2,6 +2,7 @@
 import { writeFileSync, mkdirSync, existsSync, readFileSync, appendFileSync } from "node:fs";
 import { createHash } from "node:crypto";
 import dotenv from "dotenv";
+import { HARVEST, decodoScrapingEndpoint } from "@/harvest_settings";
 dotenv.config({ override: true });
 
 const RUN_ID = new Date().toISOString().replace(/[:.]/g, "-");
@@ -69,21 +70,21 @@ async function fetchSonar() {
 products/templates/micro-tools with documented recent sales velocity or
 recurring complaint threads. Do NOT invent categories — only report items
 with a traceable source (URL, subreddit, product listing). Return a JSON
-array of 8 to 15 items:
+array of ${HARVEST.prompt_item_range.min} to ${HARVEST.prompt_item_range.max} items:
 [{title, category, evidence_url, evidence_quote, signal_type}]
-If fewer than 8 fully-sourced items exist, include the strongest
+If fewer than ${HARVEST.prompt_item_range.min} fully-sourced items exist, include the strongest
 partial-evidence candidates and set their signal_type to "partial".`;
   return cachedFetch(`sonar:${prompt}`, TTL_6H, () =>
     postJson(
       "https://openrouter.ai/api/v1/chat/completions",
       { Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}` },
       {
-        model: process.env.SONAR_MODEL || "perplexity/sonar",
+        model: process.env.SONAR_MODEL || HARVEST.models.sonar,
         messages: [
           { role: "system", content: "Return valid JSON only. No commentary." },
           { role: "user", content: prompt },
         ],
-        temperature: 0.2,
+        temperature: HARVEST.engines.sonar.temperature,
       }
     )
   );
@@ -92,22 +93,22 @@ partial-evidence candidates and set their signal_type to "partial".`;
 // --- 2. Grok (via OpenRouter) — GROUNDED, X-native signals only ---
 async function fetchGrok() {
   const prompt = `Search the web (X, Reddit, forums) for operator/founder
-complaints and "is there a tool for X" posts from the last 90 days. Only
+complaints and "is there a tool for X" posts from the last ${HARVEST.recency_days} days. Only
 report posts you can quote or paraphrase from actual content, with source
-links where available. Return a JSON array of 8 to 15 items:
+links where available. Return a JSON array of ${HARVEST.prompt_item_range.min} to ${HARVEST.prompt_item_range.max} items:
 [{topic, quote_summary, urgency, source_context, source_url}]`;
   return cachedFetch(`grok:${prompt}`, TTL_6H, () =>
     postJson(
       "https://openrouter.ai/api/v1/chat/completions",
       { Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}` },
       {
-        model: process.env.GROK_MODEL || "x-ai/grok-4.3",
-        plugins: [{ id: "web" }],
+        model: process.env.GROK_MODEL || HARVEST.models.grok,
+        plugins: HARVEST.engines.grok.plugins,
         messages: [
           { role: "system", content: "Return valid JSON only. No commentary." },
           { role: "user", content: prompt },
         ],
-        temperature: 0.3,
+        temperature: HARVEST.engines.grok.temperature,
       }
     )
   );
@@ -116,7 +117,7 @@ links where available. Return a JSON array of 8 to 15 items:
 // --- 3. SerpAPI: Google Trends breakouts ---
 async function fetchSerpTrends() {
   return cachedFetch("serp:trends", TTL_6H, () =>
-    getJson(`https://serpapi.com/search.json?engine=google_trends_trending_now&geo=US&api_key=${process.env.SERPAPI_API_KEY}`)
+    getJson(`https://serpapi.com/search.json?engine=${HARVEST.engines.serp.engine}&geo=${HARVEST.engines.serp.geo}&api_key=${process.env.SERPAPI_API_KEY}`)
   );
 }
 
@@ -124,14 +125,14 @@ async function fetchSerpTrends() {
 export async function fetchSerpAdDensity(query: string) {
   const encoded = encodeURIComponent(query);
   return cachedFetch(`serp:ads:${query}`, TTL_6H, () =>
-    getJson(`https://serpapi.com/search.json?engine=google&q=${encoded}&api_key=${process.env.SERPAPI_API_KEY}`)
+    getJson(`https://serpapi.com/search.json?engine=${HARVEST.engines.serp_ads.engine}&q=${encoded}&api_key=${process.env.SERPAPI_API_KEY}`)
   );
 }
 
 export async function fetchDecodo(targetUrl: string) {
   return cachedFetch(`decodo:${targetUrl}`, TTL_6H, () =>
     postJson(
-      "https://scraper-api.decodo.com/v2/scrape",
+      decodoScrapingEndpoint(),
       { Authorization: `Basic ${process.env.DECODO_SCRAPING_API_AUTH}` },
       { url: targetUrl }
     )
@@ -145,9 +146,9 @@ async function fetchExa() {
       "https://api.exa.ai/search",
       { "x-api-key": process.env.EXA_API_KEY ?? "" },
       {
-        query: "there's no good tool for OR I built a spreadsheet to solve",
+        query: HARVEST.engines.exa.query,
         type: "neural",
-        numResults: 15,
+        numResults: HARVEST.engines.exa.num_results,
         contents: { text: true },
       }
     )
@@ -157,7 +158,7 @@ async function fetchExa() {
 // --- 5. Brave Search — primary + backup key fallback ---
 async function fetchBrave() {
   return cachedFetch("brave:trending-tools", TTL_6H, async () => {
-    const url = "https://api.search.brave.com/res/v1/web/search?q=new+trending+digital+product+2026";
+    const url = `https://api.search.brave.com/res/v1/web/search?q=${HARVEST.engines.brave.query}`;
     const primary = await getJson(url, { "X-Subscription-Token": process.env.BRAVE_API_KEY ?? "" });
     if ("error" in (primary as object)) {
       return getJson(url, { "X-Subscription-Token": process.env.BRAVE_API_KEY_BACKUP ?? "" });

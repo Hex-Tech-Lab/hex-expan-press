@@ -3,7 +3,7 @@
 // creators.json} (written by registry.ts via creator_scan.ts) — does not fire any API calls.
 // run via `pnpm registry-report`
 import { writeFileSync, mkdirSync } from "node:fs";
-import { loadCreatorsList, loadRuns } from "./registry.ts";
+import { loadCreatorsList, loadRuns } from "@/registry";
 
 const esc = (s: unknown) => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 

@@ -23,76 +23,28 @@ import { createHash } from "node:crypto";
 import { promisify } from "node:util";
 import path from "node:path";
 import dotenv from "dotenv";
-import { appendRun, upsertCreators } from "./registry.ts";
-import { getTrendingNiches } from "./trends.ts";
+import { appendRun, upsertCreators } from "@/registry";
+import { getTrendingNiches } from "@/trends";
+import {
+  loadCreatorScanConfig,
+  instagramRecentPosts,
+  creatorScanUserAgent,
+  creatorScanOpenrouterChatUrl,
+  hikerapiUserEndpoint,
+  hikerapiMediasEndpoint,
+  hikerapiAuthHeader,
+  youtubeEndpoint,
+  type CreatorScanConfig,
+} from "@/creator_scan_settings";
 
 dotenv.config({ override: true });
 
-// --- Settings registry (added 2026-09-10) --- all tunables (niches, follower band, activity
-// window, rate limits, model name, result counts) live in config/creator_scan.json, not as
-// hardcoded consts in this file. Pass --config=<path> to point at a different file (e.g. a
-// per-tenant config once this becomes self-serve). Defaults here only cover a missing/partial
-// file — the checked-in config/creator_scan.json is the source of truth, not this object.
-interface CreatorScanConfig {
-  niches: string[];
-  followerMin: number;
-  followerMax: number;
-  activityWindowDays: number;
-  countryFilter: string;
-  language: string;
-  defaultN: number;
-  cacheTtlHours: number;
-  braveRateLimitMs: number;
-  instagramRateLimitMs: number;
-  decodoFetchDelayMs: number;
-  exaNumResults: number;
-  exaTextMaxChars: number;
-  braveNicheResultCount: number;
-  braveContactHuntResultCount: number;
-  promptTextExcerptMaxChars: number;
-  structuringModel: string;
-  trendFreshnessHours: number;
-}
-
-const CONFIG_DEFAULTS: CreatorScanConfig = {
-  niches: ["business coaching", "personal finance", "fitness training", "self-improvement", "creative skills"],
-  followerMin: 10_000,
-  followerMax: 150_000,
-  activityWindowDays: 60,
-  countryFilter: "US",
-  language: "English",
-  defaultN: 20,
-  cacheTtlHours: 6,
-  braveRateLimitMs: 1100,
-  instagramRateLimitMs: 500,
-  decodoFetchDelayMs: 800,
-  exaNumResults: 12,
-  exaTextMaxChars: 500,
-  braveNicheResultCount: 10,
-  braveContactHuntResultCount: 6,
-  promptTextExcerptMaxChars: 1000,
-  structuringModel: "x-ai/grok-4.3",
-  trendFreshnessHours: 6,
-};
-
-function loadConfig(): CreatorScanConfig {
-  const argv = process.argv.slice(2);
-  const configArg = argv.find((a) => a.startsWith("--config="));
-  const configPath = configArg ? configArg.split("=")[1] : "config/creator_scan.json";
-  if (!existsSync(configPath)) {
-    console.log(`==> config file ${configPath} not found — using built-in defaults`);
-    return CONFIG_DEFAULTS;
-  }
-  try {
-    const fileConfig = JSON.parse(readFileSync(configPath, "utf-8"));
-    return { ...CONFIG_DEFAULTS, ...fileConfig };
-  } catch (err) {
-    console.error(`==> failed to parse ${configPath}, using built-in defaults:`, (err as Error).message);
-    return CONFIG_DEFAULTS;
-  }
-}
-
-const CONFIG = loadConfig();
+// --- Settings registry (added 2026-09-10; audit wiring 2026-09-16) --- all tunables live in
+// config/creator_scan.json (own tunables incl. structuring/contact/regex keys added per the
+// 2026-09-14 audit) + data/settings/{global,providers,sampling}.json (endpoints, UA, recent-posts
+// sample) — loaders in creator_scan_settings.ts with inline fallbacks. Pass --config=<path> to
+// point the tunables file elsewhere. Nothing below is a literal constant.
+const CONFIG: CreatorScanConfig = loadCreatorScanConfig();
 const TTL_6H = CONFIG.cacheTtlHours * 60 * 60 * 1000;
 
 // Deliberately NOT importing from harvest.ts — it runs its own 5-engine harvest at module
@@ -352,17 +304,22 @@ function parseFollowerCount(raw: string): number | undefined {
 // no og:description/og:title meta tags) to unauthenticated/proxy fetches for EVERY handle tested
 // (6/6 real URLs from that run). The og:description-parse approach this function was built on
 // assumed the old static-meta behavior IG used to expose logged-out — that assumption is now
-// false. Every call currently returns null (logged below, not silently swallowed). Real fix
-// requires either an authenticated IG session/cookie jar, a paid scraping API tier that handles
-// JS rendering (Decodo's scraper-api product, already in the stack, is the natural next try), or
-// accepting IG follower counts as LLM-snippet-estimated only (same honesty tier as unverified
-// YouTube hits) until one of those is built. Do not remove this function or pretend it works —
-// leave it wired so it starts working for free the moment IG's page behavior changes back, and
-// so the log line below makes the gap visible instead of a silent zero.
+// false. Every call currently returns null (logged below, not silently swallowed).
+//
+// RCA ADDENDUM (2026-09-13, cost-leak): the original decision — "leave it wired so it starts
+// working for free the moment IG's page behavior changes back" — ignored the cost side. Each
+// attempt still pulls ~620KB through the PAID Decodo residential proxy for a guaranteed null.
+// Measured from the user's own Decodo dashboard: 311 instagram.com requests in 72h, all traced
+// to our own DECODO_RESIDENTIAL_USER (18 cron runs x ~17 IG handles; the 6h cache TTL expires
+// between 4h runs, so nothing is reused). ~0.5GB of paid residential bandwidth burned for 0
+// results. Decision change: this probe no longer runs by default — it is opt-in via
+// IG_RESIDENTIAL_PROBE=1 in .env. The recorded fallback ("unknown - verify manually") requires
+// no fetch at all, so default behavior is unchanged in outcome and stops the burn.
 async function fetchInstagramProfilePublicParse(handle: string): Promise<Record<string, unknown> | null> {
+  if (process.env.IG_RESIDENTIAL_PROBE !== "1") return null;
   try {
     const html = await cachedFetch(`ig:profile:${handle}`, TTL_6H, () => fetchPageHtml(`https://www.instagram.com/${handle}/`));
-    if (!html || html.length < 200) {
+    if (!html || html.length < CONFIG.minHtmlChars) {
       console.log(`==> [ig-verify:${handle}] page fetch returned ${html?.length ?? 0} bytes — unusable`);
       return null;
     }
@@ -391,55 +348,102 @@ async function fetchInstagramProfilePublicParse(handle: string): Promise<Record<
   }
 }
 
-// Tier 2 fallback (added 2026-09-10, per user direction: "add it as a cascade module") — HikerAPI
-// is a paid, Instagram-specialized, pay-per-request API (~$0.60-$1.00/1K requests, no
-// subscription, per this session's vendor research). ONLY fires when HIKERAPI_API_KEY is set in
-// .env — absent key means this tier is skipped entirely, so nothing spends money by accident.
-// Endpoint/response shape below is HikerAPI's documented user-by-username lookup as of this
-// session's research; CONFIRM against https://hikerapi.com's current docs before relying on this
-// in a real paid run — schema drift on a third-party API is a real risk and this has not been
-// tested against a live key yet.
+// Tier 1 (since 2026-09-13) — HikerAPI, LIVE-VERIFIED against a real key this session.
+// Auth RCA: the hikerapi.com dashboard's "API key" is a dapi MANAGER key (X-API-Key on
+// hikerapi.com/dapi/*, manages tokens/promocodes) — it is NOT the data-API credential. The
+// data API (api.hikerapi.com) wants a TOKEN created under it (dapi POST /users/token), passed
+// as `x-access-key`. Two 401s were burned before resolving this via GET /dapi/users/token.
+// Response schema verified live (public profile): follower/media counts, is_private,
+// is_verified, is_business, public_email, contact_phone_number, biography, external_url,
+// category_name. NOTE: `country` does NOT exist in the response — only city_name (usually
+// empty for personal accounts), so country stays an honest "unknown" here.
+// Cost: 2 requests per creator (~$0.002 at $1/1K base). Medias chunk = [ [items...], cursor ].
 async function fetchInstagramProfileViaHikerApi(handle: string): Promise<Record<string, unknown> | null> {
   const key = process.env.HIKERAPI_API_KEY;
   if (!key) return null;
   const res = await cachedFetch(`hikerapi:user:${handle}`, TTL_6H, () =>
-    getJson<{ follower_count?: number; following_count?: number; biography?: string; public_email?: string; is_business?: boolean; country?: string }>(
-      `https://api.hikerapi.com/v1/user/by/username?username=${encodeURIComponent(handle)}`,
-      { "x-access-key": key }
+    getJson<Record<string, unknown>>(
+      `${hikerapiUserEndpoint()}?username=${encodeURIComponent(handle)}`,
+      { [hikerapiAuthHeader()]: key }
     )
   );
   if ("error" in (res as object)) {
     console.error(`==> [ig-hikerapi:${handle}] failed:`, (res as { error: string }).error);
     return null;
   }
-  const u = res as { follower_count?: number; biography?: string; public_email?: string; country?: string };
+  const u = res as {
+    pk?: number; follower_count?: number; following_count?: number; media_count?: number;
+    full_name?: string; biography?: string; external_url?: string; public_email?: string;
+    contact_phone_number?: string; is_private?: boolean; is_verified?: boolean; is_business?: boolean;
+    category_name?: string; city_name?: string;
+  };
   if (typeof u.follower_count !== "number") {
     console.log(`==> [ig-hikerapi:${handle}] response had no follower_count — schema may have drifted, check HikerAPI docs`);
     return null;
   }
-  const bioEmails = u.biography ? [...new Set((u.biography.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g) ?? []).filter((e) => !EMAIL_JUNK.test(e)))] : [];
-  const storeSignal = u.biography ? /linktr\.ee|linkin\.bio|shop\b|store\b|course\b/i.test(u.biography) : false;
+  const bio = u.biography ?? "";
+  const linkBlock = `${bio} ${u.external_url ?? ""}`;
+  const bioEmails = [...new Set((bio.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g) ?? []).filter((e) => !EMAIL_JUNK.test(e)))];
+  const storeSignal = new RegExp(CONFIG.storeSignalRegex, "i").test(linkBlock);
+  if (u.is_private) {
+    return {
+      igHandle: handle, channelTitle: u.full_name ?? handle, country: "unknown",
+      followerCount: u.follower_count, descriptionEmail: undefined,
+      storeSignalDetected: false, activityRecent: undefined,
+      verificationSource: "hikerapi", isPrivate: true, isVerified: u.is_verified ?? false,
+    };
+  }
+  let activityRecent: string | undefined;
+  let engagement: { posts: number; avgLikes: number; avgComments: number } | undefined;
+  try {
+    const med = await cachedFetch(`hikerapi:medias:${handle}`, TTL_6H, () =>
+      getJson<unknown>(
+        `${hikerapiMediasEndpoint()}?user_id=${u.pk}`,
+        { [hikerapiAuthHeader()]: key }
+      )
+    );
+    const items = Array.isArray(med) && Array.isArray(med[0]) ? (med[0] as Record<string, unknown>[]) : [];
+    const recent = items.filter((x) => typeof x.taken_at_ts === "number").slice(0, instagramRecentPosts());
+    if (recent.length) {
+      activityRecent = new Date((recent[0].taken_at_ts as number) * 1000).toISOString();
+      const avg = (k: string) => Math.round(recent.reduce((s, x) => s + ((typeof x[k] === "number" ? (x[k] as number) : 0)), 0) / recent.length);
+      engagement = { posts: recent.length, avgLikes: avg("like_count"), avgComments: avg("comment_count") };
+    }
+  } catch (err) {
+    console.error(`==> [ig-hikerapi:${handle}] medias fetch failed (non-fatal):`, String((err as Error).message).slice(0, 100));
+  }
   return {
     igHandle: handle,
-    channelTitle: handle,
-    country: u.country ?? "unknown",
+    channelTitle: u.full_name ?? handle,
+    country: u.city_name || "unknown",
     followerCount: u.follower_count,
-    descriptionEmail: u.public_email ?? bioEmails[0],
+    descriptionEmail: u.public_email || bioEmails[0],
     storeSignalDetected: storeSignal,
-    activityRecent: undefined, // this endpoint's user-lookup doesn't return recent-post timestamps
+    activityRecent,
     verificationSource: "hikerapi",
+    isPrivate: false,
+    isVerified: u.is_verified ?? false,
+    isBusiness: u.is_business ?? false,
+    contactPhone: u.contact_phone_number || undefined,
+    igCategory: u.category_name || undefined,
+    engagement,
   };
 }
 
-// Cascade entry point — this is what callers use. Tier 1 (free) first, Tier 2 (paid, gated on
-// key presence) only if Tier 1 comes back empty. Add further tiers (e.g. a confirmed Decodo
-// Instagram-template product) by inserting another `if (!result) result = await ...` step here —
-// keep the cascade shape, don't fork call sites.
+// Cascade entry point — this is what callers use. ORDER FIXED 2026-09-13: cheap-and-working
+// tier first (HikerAPI, ~$0.001/req × 2 req/creator per ig_verification_vendor_research_2026-09-13.md),
+// broken-and-expensive tier last, and only when explicitly opted in via IG_RESIDENTIAL_PROBE=1.
+// Note: the "Decodo IG template" idea from earlier sessions is dead — Decodo's current Web
+// Scraping API has NO Instagram target (verified 2026-09-13, same research doc). Add further
+// tiers by inserting another `if (!result) result = await ...` step here — keep the cascade
+// shape, don't fork call sites.
 async function fetchInstagramProfileStats(handle: string): Promise<Record<string, unknown> | null> {
-  let result = await fetchInstagramProfilePublicParse(handle);
-  if (!result && process.env.HIKERAPI_API_KEY) {
-    console.log(`==> [ig-verify:${handle}] public-parse tier failed, falling back to HikerAPI...`);
+  let result: Record<string, unknown> | null = null;
+  if (process.env.HIKERAPI_API_KEY) {
     result = await fetchInstagramProfileViaHikerApi(handle);
+  }
+  if (!result) {
+    result = await fetchInstagramProfilePublicParse(handle);
   }
   return result;
 }
@@ -463,7 +467,7 @@ async function fetchYoutubeChannelStats(videoId: string): Promise<Record<string,
   if (!key) return null;
   const video = await cachedFetch(`yt:video:${videoId}`, TTL_6H, () =>
     getJson<{ items?: { snippet?: { channelId?: string; publishedAt?: string } }[] }>(
-      `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoId}&key=${key}`
+      `${youtubeEndpoint("videos")}?part=snippet&id=${videoId}&key=${key}`
     )
   );
   const videoSnippet = (video as { items?: { snippet?: { channelId?: string; publishedAt?: string } }[] }).items?.[0]?.snippet;
@@ -476,7 +480,7 @@ async function fetchYoutubeChannelStats(videoId: string): Promise<Record<string,
         snippet?: { title?: string; country?: string; publishedAt?: string; description?: string };
         statistics?: { subscriberCount?: string; videoCount?: string; hiddenSubscriberCount?: boolean };
       }[];
-    }>(`https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&id=${channelId}&key=${key}`)
+    }>(`${youtubeEndpoint("channels")}?part=snippet,statistics&id=${channelId}&key=${key}`)
   );
   const item = (channel as { items?: { snippet?: Record<string, unknown>; statistics?: Record<string, unknown> }[] }).items?.[0];
   if (!item) return null;
@@ -620,7 +624,7 @@ ${JSON.stringify(
  )}`;
 
   const res = await postJson<{ choices?: { message?: { content?: string } }[] }>(
-    "https://openrouter.ai/api/v1/chat/completions",
+    creatorScanOpenrouterChatUrl(),
     { Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}` },
     {
       model: process.env.CREATOR_SCAN_MODEL || CONFIG.structuringModel,
@@ -628,7 +632,7 @@ ${JSON.stringify(
         { role: "system", content: "Return valid JSON only. No commentary, no markdown fences." },
         { role: "user", content: prompt },
       ],
-      temperature: 0.1,
+      temperature: CONFIG.structuringTemperature,
     }
   );
   if ("error" in (res as object)) {
@@ -662,16 +666,16 @@ async function fetchPageHtml(url: string): Promise<string> {
   if (!user || !pass || !gateway) throw new Error("Decodo residential proxy creds missing");
   const { execFileP } = await import("node:child_process").then((m) => ({ execFileP: promisify(m.execFile) }));
   const { stdout } = await execFileP("curl", [
-    "-s", "-k", "--max-time", "60",
+    "-s", "-k", "--max-time", String(CONFIG.contactFetch.timeoutS),
     "--proxy", `https://${gateway}`,
     "--proxy-user", `${user}:${pass}`,
-    "-A", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+    "-A", creatorScanUserAgent(),
     url,
-  ], { maxBuffer: 32 * 1024 * 1024, timeout: 70000 });
+  ], { maxBuffer: CONFIG.contactFetch.maxBufferBytes, timeout: CONFIG.contactFetch.timeoutMs });
   return stdout;
 }
 
-const EMAIL_JUNK = /(png|jpg|jpeg|gif|webp|svg|css|js|example\.)$/i;
+const EMAIL_JUNK = new RegExp(CONFIG.emailJunkRegex, "i");
 
 // Stage 3.6: per-creator contact hunt. Niche-level Brave hits are mostly generic how-to
 // articles that never name a specific creator, so group-merging alone can't fill
@@ -680,7 +684,7 @@ const EMAIL_JUNK = /(png|jpg|jpeg|gif|webp|svg|css|js|example\.)$/i;
 async function huntContacts(candidates: CreatorCandidate[]): Promise<void> {
   for (const c of candidates) {
     if (c.contact_method && !c.contact_method.startsWith("unknown")) continue;
-    const q = encodeURIComponent(`"${c.handle_or_name}" ${c.niche} email contact business -site:youtube.com`);
+    const q = encodeURIComponent(CONFIG.contactHuntQueryTmpl.replace("{name}", c.handle_or_name).replace("{niche}", c.niche));
     try {
       const search = await cachedFetch(`brave:contact-hunt:${c.handle_or_name}`, TTL_6H, async () => {
         const primary = await getJson<{ web?: { results?: { url: string; title?: string; description?: string }[] } }>(
@@ -697,13 +701,13 @@ async function huntContacts(candidates: CreatorCandidate[]): Promise<void> {
         continue;
       }
       const hits = (search as { web?: { results?: { url: string; title?: string; description?: string }[] } }).web?.results ?? [];
-      const pages = hits.map((h) => h.url).filter((u) => !u.includes("youtube.com") && !u.includes("youtu.be")).slice(0, 2);
+      const pages = hits.map((h) => h.url).filter((u) => !u.includes("youtube.com") && !u.includes("youtu.be")).slice(0, CONFIG.contactHuntTopPages);
       for (const url of pages) {
         const html = await cachedFetch(`contact-page:${url}`, TTL_6H, () => fetchPageHtml(url));
-        if (!html || html.length < 200) continue;
+        if (!html || html.length < CONFIG.minHtmlChars) continue;
         const emails = [...new Set((html.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g) ?? []).filter((e) => !EMAIL_JUNK.test(e)))];
         if (emails.length > 0) {
-          c.contact_method = emails.slice(0, 2).join(", ");
+          c.contact_method = emails.slice(0, CONFIG.maxEmailsPerCreator).join(", ");
           console.log(`==> [hunt] ${c.handle_or_name}: FOUND ${c.contact_method} (via ${url.slice(0, 60)})`);
           break;
         }
@@ -736,13 +740,13 @@ async function enrichContacts(candidates: CreatorCandidate[]): Promise<void> {
     for (const url of pages) {
       try {
         const html = await cachedFetch(`contact-page:${url}`, TTL_6H, () => fetchPageHtml(url));
-        if (!html || html.length < 200) {
+        if (!html || html.length < CONFIG.minHtmlChars) {
           console.log(`==> [contact] ${c.handle_or_name}: ${url.slice(0, 60)} returned ${html?.length ?? 0} bytes — skipping`);
           continue;
         }
         const emails = [...new Set((html.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g) ?? []).filter((e) => !EMAIL_JUNK.test(e)))];
         if (emails.length > 0) {
-          c.contact_method = emails.slice(0, 2).join(", ");
+          c.contact_method = emails.slice(0, CONFIG.maxEmailsPerCreator).join(", ");
           console.log(`==> [contact] ${c.handle_or_name}: FOUND ${c.contact_method}`);
           found = true;
           break;
@@ -816,8 +820,9 @@ async function main() {
       if (stats) console.log(`==> [yt:${r.video_id}] ${stats.channelTitle} · subscriberCount=${stats.subscriberCount ?? "hidden"} · country=${stats.country} · activityRecent=${stats.activityRecent}`);
     })
   );
-  // Instagram profile fetches go through the same Decodo residential proxy as contact-hunt —
-  // no per-second published rate limit documented, but stagger anyway to stay a polite scraper.
+  // Instagram profile fetches go through the HikerAPI tier since 2026-09-13 (direct HTTPS to
+  // api.hikerapi.com — no residential proxy). Only the opt-in IG_RESIDENTIAL_PROBE=1 fallback
+  // and contact-hunt still use the Decodo residential proxy; stagger kept for politeness.
   let igVerifiedCount = 0;
   for (const [hit, handle] of igHandleByHit) {
     const stats = await fetchInstagramProfileStats(handle);
