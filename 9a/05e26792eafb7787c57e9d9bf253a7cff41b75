@@ -1,0 +1,444 @@
+payments/site/refund-policy.html
+  s_8a62c51f464f20::t_2eb25e46787170 1-50,52-56,58-66
+  s_0c572983f90840::t_e01699ebfffff0 51,57
+typst_prototype/proto_selfimprovement_v2.typ
+  s_de9c0954c988aa::t_42fcf447609547 86
+  s_de9c0954c988aa::t_cfc97ba08fe0ee 1-21,23-26,28,31,35-44,46-85,87-100,102-176,178-181,184,187-189,191-196,198-200,202-205,208,215,218-228,234-264,266-272,277-312,316-341,343-361
+  s_de9c0954c988aa::t_8dffdec63abfbc 29-30,32-33
+  s_de9c0954c988aa::t_13a0a10ad61218 34
+  s_de9c0954c988aa::t_7b3e3afcd8f3e1 265
+  s_de9c0954c988aa::t_8e087fb33c2ad6 273-276
+  s_de9c0954c988aa::t_a5c25305d02667 177,183,185,190,197,201,206-207,209-214,216-217
+  s_de9c0954c988aa::t_9d15dde39d06cc 313-315
+  s_de9c0954c988aa::t_fa175e58088caa 101
+  s_de9c0954c988aa::t_d1a5366d133fd8 22
+  s_de9c0954c988aa::t_25f7609ff59887 182,186
+  s_de9c0954c988aa::t_31d73c85d03894 342
+  s_de9c0954c988aa::t_67cbb7a30c7631 45
+  s_de9c0954c988aa::t_def1688974abc7 229-233
+  s_de9c0954c988aa::t_af6fa8ca5eb456 27
+payments/src/rails.ts
+  s_92a430a7e919fd::t_4c192249384c9e 55,57-58,60
+  s_92a430a7e919fd::t_653d8a4c0e73cf 97
+  s_92a430a7e919fd::t_13e0b396f4995b 1-54,56,59,61-96,98-128
+harvest_settings.ts
+  s_cfaccd15b37700::t_96f8136fdf297f 1-74,77,79
+  s_cfaccd15b37700::t_55a18618d616e1 75-76,78
+payments/config.example.json
+  s_6110113dd83d72::t_2ed476dfd27bd7 1,10-11
+  s_14c013f4154a1d::t_4730ec360faf16 2-6,8-9
+  s_31266e1c9c4a11::t_ec8bea92c5d996 7
+typst_prototype/proto_selfimprovement_warmreset.typ
+  s_87983e432e3152::t_92b6d02ede77a6 35-44
+  s_87983e432e3152::t_aaaacfae390175 55-61
+  s_87983e432e3152::t_492a02a5536b81 1-17,20,23,25-26,28,46,63,70,80,87,95,99-123,126-149,154-158,160-161,163-169
+  s_87983e432e3152::t_c8dba59fddeefb 159
+  s_87983e432e3152::t_2515cbcce6e6a3 24
+  s_87983e432e3152::t_318952b47093c6 18-19
+  s_87983e432e3152::t_624d058e121948 162
+  s_87983e432e3152::t_f47414627e5054 150-153
+  s_87983e432e3152::t_5bd8ccf167c340 124-125
+  s_87983e432e3152::t_5b365598d9992b 21-22,27,29-34,45,47-54,62,64-69,71-79,81-86,88-94,96-98
+payments/demo_reports.sh
+  s_14c013f4154a1d::t_f628c79d79be97 26
+  s_14c013f4154a1d::t_c17c54237ff55c 1-12,16,25,27-75
+  s_0c572983f90840::t_db905bf526fcbf 13-15,19-22
+  s_14c013f4154a1d::t_3db38f84b13fff 17-18,23-24
+payments/src/split.ts
+  s_14c013f4154a1d::t_dc08e8db13739f 1-42
+payments/bake_checkout.ts
+  s_7f4d8b03487da0::t_52d96ed8d36eef 1-61
+payments/site/index.html
+  s_8a62c51f464f20::t_4dfbc8d89e52f5 1-79,81-108,110-113
+  s_0c572983f90840::t_316a2c424b59e8 109
+  s_7f4d8b03487da0::t_96439f13fba259 80
+payments/src/settings_registry.ts
+  s_cfaccd15b37700::t_82b7131f28b905 272-326
+  s_cfaccd15b37700::t_d912f311130c5f 169-172,174-185
+  s_81197135aba619::t_e2e678c45113f9 1-117,119-120,123-168,173,186-203,209-210,225,246-271,327-346
+  s_cfaccd15b37700::t_38feda5c9368de 118,121-122
+  s_cfaccd15b37700::t_25313208ec5864 204-208,211-224
+  s_081bb8f0861ec4::t_05982c9d8b9019 226-245
+payments/README-REPORTS.md
+  s_14c013f4154a1d::t_6e9f69704e1727 1-16
+payments/src/providers/lemonsqueezy.ts
+  s_81197135aba619::t_7314348090ea58 7-13,16,20-25,29-31,44,48-53,58
+  s_6110113dd83d72::t_3b52d4060c88f0 1-6,14-15,17-19,26-28,32-43,45-47,54-57,59-73
+payments/demo_payhip_route.sh
+  s_cfaccd15b37700::t_3b1357a13d5557 1-196
+payments/src/reports.ts
+  s_de06a274032baf::t_972fb558542639 133-134
+  s_14c013f4154a1d::t_8905e05e347c71 1-4,6-7,11-18,20-22,24-29,31-35,37-38,46-99,106-128,135-137,140-235,237-251,253,255-301,311,315-320
+  s_de06a274032baf::t_46f29103b9e72e 100-104
+  s_92a430a7e919fd::t_44ee5e5ee51490 23,30,36,39-45
+  s_92a430a7e919fd::t_e4cba2af6f8a6e 105
+  s_de06a274032baf::t_24271cb60199b6 19
+  s_81197135aba619::t_9bf3d82eb22faf 5,8-10
+  s_92a430a7e919fd::t_0a560c709bd024 129-132,138-139
+  s_81197135aba619::t_62619adc33533d 236
+  s_14c013f4154a1d::t_c225706c77f0c9 302-310,312-314
+  s_14c013f4154a1d::t_868dc00b76e49f 252,254
+payments/config.duane.json
+  s_96809044a0fcac::t_5277cb0e4de756 5,9,17-24,27,29
+  s_de06a274032baf::t_8dd23cc05e4f56 28
+  s_0c572983f90840::t_492d38c3dc5b5b 25
+  s_96809044a0fcac::t_9fa04cb834688d 1-4,6-8,10,16,26
+  s_7f4d8b03487da0::t_457b19b840085d 11-15
+payments/src/ledger.ts
+  s_81197135aba619::t_c230f6a228ce1e 184
+  s_81197135aba619::t_f6f2a39b6dbd61 117
+  s_81197135aba619::t_f735fa155e199b 1,4,20,23-24
+  s_6110113dd83d72::t_c392e711d2f156 5,21-22,25,60-61,150,185
+  s_14c013f4154a1d::t_7d2e1891518515 2-3,8-14,16-18,26-27,29-46,48-49,54-56,118-125,127-130
+  s_de06a274032baf::t_98cf28d3ea8cca 47,50-53
+  s_92a430a7e919fd::t_6a4995735f3c4f 162
+  s_de06a274032baf::t_3ff7fa6f28120e 15
+  s_92a430a7e919fd::t_c90182f11882f1 6-7,19
+  s_92a430a7e919fd::t_ff02891a5b8cde 84-116,132-149,151-161,163-183
+  s_81197135aba619::t_869d28037efe66 62-83
+  s_de06a274032baf::t_9cdf6aaedd0cc2 126
+  s_92a430a7e919fd::t_f32f582b2b8765 57-59
+  s_81197135aba619::t_e27100069c5749 131
+  s_de06a274032baf::t_166798dfc47679 28
+harvest.ts
+  s_cfaccd15b37700::t_510c4e36944525 5
+  s_cfaccd15b37700::t_2224fa86fff60c 73,75,82,87,96,98,105-106,111,120,128,135,149,151,161
+config/creator_scan.json
+  s_cfaccd15b37700::t_a94de0dd2eedfd 19-31
+payments/site/privacy.html
+  s_8a62c51f464f20::t_0732d862a6ace7 1-34,36-56,58-62,64-72
+  s_0c572983f90840::t_54246dab3097a6 35,57,63
+AGENTS.md
+  s_96809044a0fcac::t_b6d3ba0061ffb1 40
+  s_0c572983f90840::t_28a737ddb4a761 72
+  s_96809044a0fcac::t_312e8585e82bd9 81
+  s_96809044a0fcac::t_e09f202315ab1c 21-31
+  s_96809044a0fcac::t_e40cd346665dc7 39,41-42
+  s_96809044a0fcac::t_dd532ba3318d4d 73-74
+payments/src/providers/polar.ts
+  s_15ef288767567a::t_b921d8245a5d9d 6-7,20,27-28,30,53-65,73-75,77-80,120
+  s_81197135aba619::t_b9011dd3e676a6 31,34-41
+  s_15ef288767567a::t_eb97d377c2975e 1-5,8-19,21-26,29,32-33,42-52,66-72,76,81-88,92-106,108-115,129-132,134-148
+  s_81197135aba619::t_85de0c6c1187c1 89-91,107,116-119,121-128,133
+payments/demo_fastspring_route.sh
+  s_cfaccd15b37700::t_88ff50dc1ef45e 227,231
+  s_cfaccd15b37700::t_35ab8571ba65cb 1-163,166-170,173,188-226,228-230,232-235
+  s_cfaccd15b37700::t_792cb650fec020 164-165,171-172,174-187
+payments/demo_sale.sh
+  s_0c572983f90840::t_5f1baed99c6dd6 90-93
+  s_0c572983f90840::t_31ed2d0e135bb5 83
+  s_0c572983f90840::t_e3ec43ec8404d4 145
+  s_de06a274032baf::t_f117c021291b2d 7-8,11-28,30-37,39-47,49-55,59-82,84-89,94-114,116-144,147-149,151-152
+  s_6110113dd83d72::t_c734e0079bb557 1-6,9-10,29,38,48,56-58,115,146,150,153
+payments/src/providers/payhip.ts
+  s_6110113dd83d72::t_916bc98358d2b0 2,30,33-34,46,51,53-56,115,125-127
+  s_cfaccd15b37700::t_54e96d9c251829 69
+  s_cfaccd15b37700::t_c21a9ba5d60329 1,3-29,31-32,35-45,47-50,52,57-68,70-114,116-124
+package.json
+  s_96809044a0fcac::t_f3485ca4b1bb87 40
+  s_96809044a0fcac::t_4c3174c75aac8d 41-42
+payments/src/providers/fastspring.ts
+  s_cfaccd15b37700::t_9c958a39c8d3e4 102-104,110,114-115,120,134-139
+  s_cfaccd15b37700::t_140e5857ecec86 1-101,105-109,111-113,116-119,121-133,140-165
+payments/site/DEPLOY-NOTES.md
+  s_8a62c51f464f20::t_4bb0a14358f774 1-6,9-18,21-23,48-81,84-95
+  s_0c572983f90840::t_d5144df4cc450a 7-8
+  s_7f4d8b03487da0::t_35492f75f3e695 19-20,24-47
+  s_7f4d8b03487da0::t_4c6618be4fa9ac 82-83
+typst_prototype/proto_fitness_kinetic.typ
+  s_87983e432e3152::t_324cbbb74d9b54 75-77,79-80
+  s_87983e432e3152::t_4f061b88d002c1 21,58-59,64,66-73,78,81,83-88,90-92,95-98,100,103-104,106,139,141-150,157,163,209-213,218-221,229,231-245,247-249,251,253-256,258-261
+  s_87983e432e3152::t_c2099646873cbc 250
+  s_87983e432e3152::t_8bf0be2b4aaa59 203
+  s_87983e432e3152::t_c3ec29eb8cf800 40-41
+  s_87983e432e3152::t_0766661f786ace 131-138
+  s_87983e432e3152::t_c8dba59fddeefb 33,140,164,230,246
+  s_87983e432e3152::t_956fad1df53ff1 94,102,109-124,126-128
+  s_87983e432e3152::t_491214bcdecee1 19-20
+  s_87983e432e3152::t_6f8b3741bbcbeb 182-183
+  s_87983e432e3152::t_d0abfb807bdb0f 1-18,22-32,34-39,42-57,60-63,65,74,82,89,93,99,101,105,107,151-156,158-159,161-162,166-168,177-181,184-202,204-208,214-217,222-228,252,257,262-263
+  s_87983e432e3152::t_8af822c438c4cf 108,129-130
+  s_87983e432e3152::t_24759ee9a0d833 125
+  s_87983e432e3152::t_eb74f04d0f1153 165
+  s_87983e432e3152::t_954aea98590bd3 169-176
+  s_87983e432e3152::t_7588c9037e1bfa 160
+creator_scan.ts
+  s_cfaccd15b37700::t_4e14a12578a9fb 669,672,674
+  s_cfaccd15b37700::t_24957b94358941 687
+  s_2da471993f711b::t_37e0bb08dec0b8 26-27
+  s_96809044a0fcac::t_92dbe932153db7 351-360,365,374-379,384-386,388-400,403-405,407-414,417-418,420,422,424-429,447
+  s_96809044a0fcac::t_37470ab05296e2 823-825
+  s_cfaccd15b37700::t_9e738f0e38c21e 470
+  s_cfaccd15b37700::t_fcae82848c555b 678
+  s_cfaccd15b37700::t_cf37ac2526779b 366-367
+  s_96809044a0fcac::t_5bba300da392dd 307-317,319
+  s_cfaccd15b37700::t_1e14e60bc12e98 28-38,42-47
+  s_cfaccd15b37700::t_2b5a639d114d66 704,707,710
+  s_cfaccd15b37700::t_9088b0400225d8 401-402,406
+  s_cfaccd15b37700::t_dba5d72bb20564 743,749
+  s_cfaccd15b37700::t_a780f2d7887d5b 387
+  s_96809044a0fcac::t_261c095b3267ad 433-439,441-442,445-446
+  s_cfaccd15b37700::t_04a1110401eeae 483
+  s_cfaccd15b37700::t_3a5de80bfa240f 627,635
+  s_cfaccd15b37700::t_7f0144b549e490 322
+payments/src/terms.ts
+  s_de06a274032baf::t_6a642959ef2862 1-107
+tsconfig.json
+  s_2da471993f711b::t_73ffdce63d99a4 1-14
+registry_report.ts
+  s_2da471993f711b::t_bc89a1203010e3 6
+typst_prototype/img_v3/CREDITS.md
+  s_3dcf0f3bc67b1c::t_ec3f47c8e263c4 1-47
+.lsp_probe.ts
+  s_0c572983f90840::t_064f25b892ee5c 1
+  s_0c572983f90840::t_c4f111ad48bb95 2
+payments/site/.gitignore
+  s_8a62c51f464f20::t_e76bcfb06422e5 1
+payments/site/terms.html
+  s_0c572983f90840::t_e0773e06df463e 57
+  s_8a62c51f464f20::t_fed72a333632a2 1-56,58-66
+payments/src/provider.ts
+  s_cfaccd15b37700::t_b6d5b466f8a207 27
+  s_6110113dd83d72::t_015134b831a55f 1-6,8-17,24-25,28-54
+  s_cfaccd15b37700::t_c58ce2196a99de 7
+  s_92a430a7e919fd::t_6ff6971957f7fb 18-23,26
+payments/README.md
+  s_15ef288767567a::t_e2fbc777ef7043 28-35
+  s_6110113dd83d72::t_c82261f4893a5b 1-27,36-38
+payments/landing/index.html
+  s_6110113dd83d72::t_793f2cb4ea87fc 1-91
+payments/src/settings.ts
+  s_81197135aba619::t_c25bd40ee4ef3a 25-29,31,35,42,48,52,54,105-114
+  s_92a430a7e919fd::t_217e8463eb1262 2,4-10,21-22
+  s_92a430a7e919fd::t_5225a8009f5c2a 55-91,102-103
+  s_14c013f4154a1d::t_9b0c8f805d2010 1,3,11-20,23-24,30,32-34,36-41,43-47,49-51,53,92-101,104,115
+opencode.json
+  s_0c572983f90840::t_6cf34735a3d3ce 1-39
+payments/site/c/duane500k/index.html
+  s_7f4d8b03487da0::t_96439f13fba259 103,110
+  s_7f4d8b03487da0::t_acf1d7b0b9722e 1-102,104-109,111-142
+.gitignore
+  s_0c572983f90840::t_f63e94c83504ca 17-19
+creator_scan_settings.ts
+  s_cfaccd15b37700::t_f9271ef00a7152 1-142
+payments/src/providers/paddle.ts
+  s_81197135aba619::t_4c9f36bd99b3ec 9-12,15,19-24,28,31,33,54,58-63,68
+  s_6110113dd83d72::t_e7261a1c9ff783 1-8,13-14,16-18,25-27,29-30,32,34-53,55-57,64-67,69-83
+payments/src/webhook_server.ts
+  s_92a430a7e919fd::t_0bb71c09a0c045 11
+  s_cfaccd15b37700::t_d3b6fc89851f71 251-252,255-262,264-265,268-269
+  s_31266e1c9c4a11::t_6276f6325eb211 32
+  s_81197135aba619::t_88d5ea01f12327 2-6,8-9,12-18,27-28,37-43,47-124,222,224,227,231-233,253-254,272-274
+  s_31266e1c9c4a11::t_8b00f414188ccb 23
+  s_cfaccd15b37700::t_c9760afafea140 10,25,34,45
+  s_cfaccd15b37700::t_5f606bdd5a97e7 146-199,201-203,205-220
+  s_de06a274032baf::t_99994a603f867f 19
+  s_081bb8f0861ec4::t_9cdd938e484e07 24,33,44
+  s_cfaccd15b37700::t_1d78b957ef21af 200,204
+  s_6110113dd83d72::t_551d0bc08de7ea 1,7,20-22,26,29-31,35-36,46,125-145,221,223,225-226,228-230,234-249,267,270-271,275
+  s_92a430a7e919fd::t_421f2073eb9170 250
+  s_de06a274032baf::t_b8c0dcd0a26cd5 263,266
+transcribe.ts
+  s_2da471993f711b::t_abfd2bb8f37165 6
+  s_81197135aba619::t_cae451db947d34 172
+  s_81197135aba619::t_e5dfc50655efb1 180
+  s_81197135aba619::t_dc0cb7fbac3e19 200
+  s_81197135aba619::t_0f15b3b489ad91 9,11-58,64-65,71-76,80,82,88,90,94-102,105,107,114-116,118,125-133
+  s_81197135aba619::t_7fffcd3de439ab 149
+  s_81197135aba619::t_eb8a7bdaa78f0e 134
+score.ts
+  s_2da471993f711b::t_55920c9baec959 4
+payments/src/providers/fungies.ts
+  s_081bb8f0861ec4::t_2019653a7d4ae7 1-31,40-83,86-88,90,101-115,117-138
+  s_92a430a7e919fd::t_799018ec3ee1c6 116
+  s_92a430a7e919fd::t_be8a9a481530a3 84-85,89,91-100
+  s_92a430a7e919fd::t_2c95d16ababea0 32-39
+typst_prototype/proto_selfimprovement_v3.typ
+  s_c8ab0a4b1c1b7e::t_1b83aba7a55b8a 400-401,403-411
+  s_c8ab0a4b1c1b7e::t_5e8f0b48e7af69 81
+  s_3dcf0f3bc67b1c::t_e81d69d6b1a756 58
+  s_c8ab0a4b1c1b7e::t_9bf73a84c7ce8a 106,114
+  s_c8ab0a4b1c1b7e::t_80ae934935e363 307-308
+  s_3dcf0f3bc67b1c::t_2857afa79cbcb9 506
+  s_96809044a0fcac::t_21d557de97f9cb 125-128
+  s_c8ab0a4b1c1b7e::t_7d75935fae9dca 469,473-474,476-477,480-481,488-489,493-494,498,502,505,509,515,517
+  s_c8ab0a4b1c1b7e::t_69de5de352b681 330
+  s_3dcf0f3bc67b1c::t_1144f59383e412 204
+  s_c8ab0a4b1c1b7e::t_bc07531a046243 89-90,92,98,103-105,107-113,115-121
+  s_c8ab0a4b1c1b7e::t_28fe14cea35adc 341-343
+  s_c8ab0a4b1c1b7e::t_2aba26488256b7 97,99
+  s_c8ab0a4b1c1b7e::t_f4fc1d93b56028 309-311
+  s_3dcf0f3bc67b1c::t_657d2338ccd6f3 239
+  s_3dcf0f3bc67b1c::t_c4eee16f3fb647 1-57,59-80,82-88,91,93-96,100-102,122-124,129-185,188-189,191-193,195-203,205-238,240-268,271-274,276-282,285-286,290-306,312-329,331-340,344-399,412-468,470-472,475,478-479,482-487,490-492,495-497,499-501,503-504,507-508,510-514,516,518-523
+  s_c8ab0a4b1c1b7e::t_6da69841fe6771 402
+  s_c8ab0a4b1c1b7e::t_bfa44d5aafaa9d 275,283-284,287-289
+  s_c8ab0a4b1c1b7e::t_1e978493e541f7 186-187,190,194
+  s_3dcf0f3bc67b1c::t_d9da961ae6ba62 269-270
+payments/demo_rails.sh
+  s_92a430a7e919fd::t_845187461a2354 1-20,22-107,109-116,118-144,146-154,156-174,176-195
+  s_92a430a7e919fd::t_4d314edc0f68f8 145,155,175
+  s_92a430a7e919fd::t_5512e795e514f5 21
+  s_92a430a7e919fd::t_6210b32973bec6 108,117
+payments/fungies_activation_answers.md
+  s_0c572983f90840::t_019d0393346beb 1-52
+payments/demo_fungies_route.sh
+  s_081bb8f0861ec4::t_d4f3f923ea6978 104-107
+  s_081bb8f0861ec4::t_90a125e061ea8e 1-36,38-40,42-45,47-103,108-169,176,207,211-213,215-218
+  s_92a430a7e919fd::t_b67a94de25b9e5 37
+  s_92a430a7e919fd::t_a658bc6d6490c4 170-175,177-206,208-210,214
+  s_92a430a7e919fd::t_99390c60b7706d 41,46
+pnpm-lock.yaml
+  s_96809044a0fcac::t_bc337d00529fb8 125-127,131-133,137-174,181-186,193-198,205-210,217-222,229-234,241-246,253-258,265-270,277-282,289-294,301-306,313-318,325-330,337-342,349-354,361-366,373-378,385-390,397-402,409-414,421-426,433-438,445-450,457-462,469-474,481-505,508-511,514-518,520-523,526-531,533-538,540-545,547-552,554-559,561-565,567-571,573-577,579-581,583-588,590-592,594-596,598-600,602-606,608-612,614-618,620-623,626-630,632-636,638-642,644-649,651-656,658-1738,1743-2582,2584-2585,2587-2588,2590-2591,2593-2594,2596-2597,2599-2600,2602-2608,2610-2611,2613-2614,2616-2617,2619,2621,2623-2624,2626-2627,2629-2630,2632-2633,2635-2636,2638-2639,2641-2642,2644-2645,2647,2650,2653,2656,2659,2662,2665,2668,2671-2676,2679,2682,2685,2688-2690,2693,2696,2699,2702,2705,2708,2711,2714,2717,2720-2725,2728,2731,2734-2823,2841-3282,3285-3301,3325-3342,3359-3372,3393-3404,3410-3417,3424-3456,3486-3522,3535-3572,3576-3585,3588-3603,3611-3629,3632-3635,3640-3657,3660-3663,3666-3700,3703-3723,3726-3775,3784-3795,3800-3865,3879-3880,3885-3969,3972-3995,4002-4005,4008-4036,4039-4104,4111-4135,4146-4159,4162-4230,4237-4241,4245-4283
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "9a05e26792eafb7787c57e9d9bf253a7cff41b75",
+  "prompts": {},
+  "sessions": {
+    "s_081bb8f0861ec4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f59bc7063ffeRln2XMsFOsAiax",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_0c572983f90840": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5c043d1cffe9JlSHWgIX7NqBD",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_14c013f4154a1d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5ec3a216ffeRtf0QeWtJZPwPI",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_15ef288767567a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5e9e935fffekprGxbOg7Rpj8g",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_2da471993f711b": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f59c69584ffeCtuZMKu6zTLqjL",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_31266e1c9c4a11": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5e854faaffeLjLKHV3L3EAcQ5",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_3dcf0f3bc67b1c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f634e3c9dffegpE0xGEBRe1ic0",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_6110113dd83d72": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5ec3ff0effeCafYm7v8YLCzjy",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_7f4d8b03487da0": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f55584979ffeaf0cuRCStJ5y0M",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_81197135aba619": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5e07dbb6ffebrO5BWkAYr49jL",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_87983e432e3152": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f640c71b8ffe7LVc8UPHYVohGN",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_8a62c51f464f20": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5e2d6faaffeIn6l63Bc6cWkOm",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_92a430a7e919fd": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5993f91effevOpt3njRv1BmZg",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_96809044a0fcac": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f642932f6ffejKeQZP1G1Y7eEB",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_c8ab0a4b1c1b7e": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f617e161bffeDVoogJl3BQLMFq",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_cfaccd15b37700": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5557a99bffe14xGzouKe65E2O",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_de06a274032baf": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5bb8e749ffeRazp6Ff3h0Wj0J",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_de9c0954c988aa": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f63b6e1dcffeaMc3KQXACdsxho",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
