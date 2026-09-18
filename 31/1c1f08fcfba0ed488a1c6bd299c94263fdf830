@@ -1,0 +1,19 @@
+.gitignore
+  s_9c31a5b474c567::t_b3e5de9542bcf1 24-30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "311c1f08fcfba0ed488a1c6bd299c94263fdf830",
+  "prompts": {},
+  "sessions": {
+    "s_9c31a5b474c567": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dc54c46b-b7a8-418b-89ed-78172141baf8",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
