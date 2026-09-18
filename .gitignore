@@ -21,3 +21,10 @@ adr/
 
 .playwright-mcp/
 .sourcerer/
+
+# Strategic/confidential — local only, never public (CLAUDE.md Rule #0)
+docs/council/
+docs/compliance/
+docs/creator-lifecycle-and-samples.md
+docs/infra-cost-registry.md
+docs/infra-cost-registry.html
