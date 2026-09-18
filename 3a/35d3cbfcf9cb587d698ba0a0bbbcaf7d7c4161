@@ -1,0 +1,560 @@
+docs/creator-lifecycle-and-samples.md
+  s_9c31a5b474c567::t_ab87a171d9a702 1-80
+docs/council/2026-09-17-flagship-round2/advisors.json
+  s_9c31a5b474c567::t_3e1d79472a010f 1-80
+docs/council/2026-09-17-copyright-ownership/advisors.json
+  s_9c31a5b474c567::t_7c4ca2b40f380b 1-80
+docs/council/2026-09-17-flagship-round2/reviews.json
+  s_9c31a5b474c567::t_3e1d79472a010f 1-14
+docs/council/2026-09-18-flagship-round3-final/DECISION.md
+  s_9c31a5b474c567::t_3e1d79472a010f 1-132
+docs/council/2026-09-18-flagship-round3-final/advisors.json
+  s_9c31a5b474c567::t_3e1d79472a010f 1-80
+docs/council/2026-09-18-flagship-round3-final/chairman.md
+  s_9c31a5b474c567::t_3e1d79472a010f 1-23
+payments/DEPLOY-NOTES.md
+  s_83659cbf0a02c5::t_1b4f26a2931aa8 61-62
+  s_83659cbf0a02c5::t_3001761ebe9459 19
+  s_38e0c49194678c::t_002bed08e59baf 21
+  s_38e0c49194678c::t_2b35598677de6f 20
+  s_ac88e4bf09df94::t_929aa2cec8755d 36-37
+  s_38e0c49194678c::t_72151c6752f275 41
+  s_ac88e4bf09df94::t_fc2767fe6c8e4d 28
+  s_38e0c49194678c::t_334a831eb15228 22-23
+  s_9c31a5b474c567::t_67feaacfade1be 47,51-52
+harvest.ts
+  s_40423fc40712af::t_2635adbf0e5b30 134,144-145
+  s_a64730f13bdc83::t_a7a300ca35535d 160-161
+  s_40423fc40712af::t_7334cb00a56cb3 57-112
+  s_a64730f13bdc83::t_7deae1586331c4 136-138
+  s_40423fc40712af::t_e9a45e32c4e51a 157,167-168
+trends.ts
+  s_40423fc40712af::t_05ace3095db313 163-206,209-211,213
+docs/council/2026-09-16-pricing-band-duane-slot2/council_run_chairman6000.cjs
+  s_9c31a5b474c567::t_3e1d79472a010f 1-174
+typst_prototype/proto_selfimprovement_v3.typ
+  s_8414953a8009c1::t_09739874cf1d5f 407
+  s_8414953a8009c1::t_2a72917cac3929 451
+  s_8414953a8009c1::t_61c87597005bef 66
+  s_8414953a8009c1::t_8fcf4ed8948313 20-28
+  s_8414953a8009c1::t_402901f0da2a33 258,262,264
+  s_8414953a8009c1::t_6fae2a291bf715 238
+  s_8414953a8009c1::t_0a892a6f0a868e 301
+  s_8414953a8009c1::t_7607e7b4950bfa 394
+docs/council/2026-09-14-profile-first/council_run.cjs
+  s_9c31a5b474c567::t_7c4ca2b40f380b 1-184
+docs/council/2026-09-16-pricing-band-duane-slot2/anon_mapping.json
+  s_9c31a5b474c567::t_3e1d79472a010f 1-54
+docs/council/2026-09-17-copyright-ownership/mc_results.json
+  s_9c31a5b474c567::t_7c4ca2b40f380b 1-64
+docs/council/2026-09-14-profile-first/council-transcript-2026-09-14.md
+  s_9c31a5b474c567::t_7c4ca2b40f380b 1-477
+docs/council/2026-09-14-profile-first/stats_spec.md
+  s_9c31a5b474c567::t_7c4ca2b40f380b 1-111
+payments/src/providers/fungies.ts
+  s_9c31a5b474c567::t_1d17820331793a 136
+  s_9c31a5b474c567::t_40031de3a63ba5 153
+  s_9c31a5b474c567::t_144420d4d0c739 40-56
+docs/council/2026-09-16-pricing-band-duane-slot2/mc_run.cjs
+  s_9c31a5b474c567::t_3e1d79472a010f 1-140
+docs/council/2026-09-18-flagship-round3-final/council_run.cjs
+  s_9c31a5b474c567::t_3e1d79472a010f 1-155
+docs/council/2026-09-14-timeline-window-mini/DECISION.md
+  s_9c31a5b474c567::t_0f8877fe18f0c2 1-109
+docs/council/2026-09-16-pricing-band-duane-slot2/stats_spec.md
+  s_9c31a5b474c567::t_3e1d79472a010f 1-128
+payments/src/providers/lemonsqueezy.ts
+  s_9c31a5b474c567::t_e26f990b317536 76
+  s_9c31a5b474c567::t_7fee260e93b842 54-59
+.gitignore
+  s_28c4c55a451d94::t_798cc40d00311b 20
+AGENTS.md
+  s_0c572983f90840::t_5e69b3dde3b641 89
+  s_40423fc40712af::t_7147143718c6a2 111
+  s_9c31a5b474c567::t_ec9e461b5143d4 3-11
+payments/bake_creator_pages.ts
+  s_9c31a5b474c567::t_bac5971d239c15 146-153
+  s_38e0c49194678c::t_e25f0ee717291b 231-235
+  s_38e0c49194678c::t_4d3ba91399c11c 125,130-132,134
+  s_3731d3993df48d::t_69e285415ccc0d 165
+  s_b9f2d61cf7e4f6::t_347cc3eb512fe8 1-29,31-35,51-70,73-124,127-129,133,135-138,140-145,154-164,167-193,195-230,236-243
+  s_38e0c49194678c::t_dbdcfcf2db1184 166
+  s_9c31a5b474c567::t_72e858fc0472b5 30,36-50
+  s_3731d3993df48d::t_bd0a39c52566c8 71-72
+  s_3731d3993df48d::t_3206a975816f58 194
+  s_b9f2d61cf7e4f6::t_332da7066b584e 139
+  s_9c31a5b474c567::t_ea3096a7b32a16 126
+youtube_format.ts
+  s_637cf753b7f212::t_728e617f559a47 1-59
+docs/council/2026-09-17-flagship-round2/DECISION.md
+  s_9c31a5b474c567::t_3e1d79472a010f 1-143
+docs/council/2026-09-18-flagship-round3-final/mc_results.json
+  s_9c31a5b474c567::t_3e1d79472a010f 1-67
+docs/council/2026-09-14-profile-first/chairman.md
+  s_9c31a5b474c567::t_7c4ca2b40f380b 1-104
+docs/council/2026-09-17-copyright-ownership/chairman.md
+  s_9c31a5b474c567::t_7c4ca2b40f380b 1-45
+docs/council/2026-09-17-agreement-review/reviews.json
+  s_9c31a5b474c567::t_7c4ca2b40f380b 1-14
+payments/config.duane.json
+  s_38e0c49194678c::t_e5d946d24ba79b 30
+  s_3731d3993df48d::t_91648a8ca2c0c6 34
+  s_24f69acaa27456::t_9fef3e5f6632cb 31-32
+  s_38e0c49194678c::t_30a516cfb56b27 37
+  s_9c31a5b474c567::t_362b8c04e50d1c 6-7
+  s_0c572983f90840::t_0ca12a9aeeb9d9 9,29,33,35-36
+payments/site/vercel.json
+  s_24f69acaa27456::t_c672b45e17bfe9 1
+transcribe.ts
+  s_0c572983f90840::t_d0cdd2cd2dc51f 110-111
+docs/council/2026-09-16-pricing-band-duane-slot2/advisors.json
+  s_9c31a5b474c567::t_3e1d79472a010f 1-80
+docs/council/2026-09-14-profile-first/advisors.json
+  s_9c31a5b474c567::t_7c4ca2b40f380b 1-80
+docs/council/2026-09-14-profile-first/anon_mapping.json
+  s_9c31a5b474c567::t_7c4ca2b40f380b 1-54
+payments/site/c/retirearly500k/index.html
+  s_b9f2d61cf7e4f6::t_0f67fa5fa96ac9 6,11,15,31-34,37-44,49-71,91-93,97-99,101,105-106
+  s_0c572983f90840::t_0ca12a9aeeb9d9 1-5,8-10,13-14,17-30,45-48,72-90,96,102-104,107-118
+  s_c5214a4d951ebf::t_67205a4682f1d9 7,12,16,95
+  s_3731d3993df48d::t_6edc7d9e7df537 35-36,94
+  s_b9f2d61cf7e4f6::t_24e0f09060a624 100
+docs/council/2026-09-16-pricing-band-duane-slot2/reviews.json
+  s_9c31a5b474c567::t_3e1d79472a010f 1-14
+docs/council/2026-09-17-agreement-review/mc_results.json
+  s_9c31a5b474c567::t_7c4ca2b40f380b 1-56
+docs/infra-cost-registry.html
+  s_9c31a5b474c567::t_ebc9dd07068f73 1-4,10,23,40,57,66,289-291,552-553
+  s_9c31a5b474c567::t_916103dbd18e1f 5-9
+  s_9c31a5b474c567::t_3322934f6c6573 11-13,20-22
+  s_9c31a5b474c567::t_f810921ef5bbf2 24-26,37-39
+  s_9c31a5b474c567::t_9be53de3d826a6 41-43,54-56
+  s_9c31a5b474c567::t_b07b04a362f6a5 58-60,63-65
+  s_9c31a5b474c567::t_bd2efd81af0efd 67-69,286-288
+  s_9c31a5b474c567::t_c6843aacd4362f 292-294,549-551
+  s_9c31a5b474c567::t_4744ccb012231d 14-19,27-36,44-53,61-62,70-285,295-548
+payments/src/cascade.ts
+  s_9c31a5b474c567::t_5d504788b96985 1-131
+docs/council/2026-09-17-flagship-round2/anon_mapping.json
+  s_9c31a5b474c567::t_3e1d79472a010f 1-54
+package.json
+  s_d3ae8ce3cb4d78::t_7c9a005a6d4abd 14-15
+  s_9c31a5b474c567::t_5b471499d78e9b 43-44
+docs/council/2026-09-17-flagship-round2/mc_run.cjs
+  s_9c31a5b474c567::t_3e1d79472a010f 1-117
+docs/council/2026-09-18-flagship-round3-final/mc_run.cjs
+  s_9c31a5b474c567::t_3e1d79472a010f 1-118
+payments/src/cascade_signals.ts
+  s_9c31a5b474c567::t_689ba39f399188 1-81
+typst_prototype/duane_retirearly500k_v1.typ
+  s_669f6220df4575::t_be5e4a5e28910b 217
+  s_669f6220df4575::t_a4d5a6a2f5e6c1 480-491,493-503,505-530,532-535,537-545,547-576,578-590,592-593,595-601,775-778,780,783
+  s_669f6220df4575::t_59ca3ace69303b 365,375,380,383-385
+  s_669f6220df4575::t_f9f5a8e6aaf256 784-787,789-800,802-827,829-866,868-876,878-879,881-890,892-893,895-896
+  s_669f6220df4575::t_29968d2e9911c9 1015-1026,1028-1037,1039-1069,1071-1082,1084-1085,1087-1096,1098-1099,1101-1155
+  s_637cf753b7f212::t_afea498a04b1a9 354,477,608,686,781,894,1012,1100
+  s_669f6220df4575::t_6726e68cc259cd 355
+  s_669f6220df4575::t_6980f1fefd9b7a 356-364,366-368,370-374,376-378,386-389,392-406,408-410,418-419,421-422,424-434,476
+  s_637cf753b7f212::t_0dd1e580baee35 478,782
+  s_669f6220df4575::t_2b9d137f706e22 330-334
+  s_637cf753b7f212::t_be4d1e45d2fa39 59-62
+  s_637cf753b7f212::t_ac6091beeadae2 290,329,379,407,504,531,546,577,632,659,758,801,828,867,920,944,1038,1070
+  s_637cf753b7f212::t_ea4a7e6c5e332c 44-45,47,49
+  s_669f6220df4575::t_c5bf151d196fb8 661-665,674-676,681-685
+  s_637cf753b7f212::t_ea24eeb3362f0d 247,249,251,253,255,257
+  s_669f6220df4575::t_119823360ee8f3 381-382
+  s_669f6220df4575::t_8f41077ce0aedc 699
+  s_669f6220df4575::t_7adf8a30056cff 719,726
+  s_637cf753b7f212::t_8450e67778d5dc 337,340,420,423,591,594,765,768,877,880,996,999,1083,1086
+  s_669f6220df4575::t_ae63658cfa7dcd 90,96-97
+  s_669f6220df4575::t_fa483121469871 310-320,326-328
+  s_669f6220df4575::t_d9830583656b3b 602-604,606-607,609-622,624-631,633-658,660,666,668-673,677-680,687-698,700-704,707-710,712-716,718,720,723,727-731,735-757,759-764,766-767,769-774
+  s_669f6220df4575::t_f85ad8eae0ffd7 897-908,910-919,921-943,945-951,953-995,997-998,1000-1009,1011,1013-1014
+  s_637cf753b7f212::t_1d2d76991a819e 322,536,667,952
+  s_669f6220df4575::t_73c3ecc2aea8de 788
+  s_637cf753b7f212::t_34c84b51bb4e98 87-89,91-95
+  s_669f6220df4575::t_ea104465992d2b 1-43,46,48,50-58,63-86,98-109,112,114,116,118,120,122-216,218-246,248,250,252,254,256,258-263
+  s_637cf753b7f212::t_d7868f49423812 352,435,605,779,891,1010,1097
+  s_669f6220df4575::t_e1037574598c11 292-295
+  s_637cf753b7f212::t_1cd7d27bee016e 369,492,623,909,1027
+  s_669f6220df4575::t_17235fd06c1af1 733-734
+  s_669f6220df4575::t_4d0043fc6fcd38 110-111
+  s_669f6220df4575::t_4a6fdda614241c 390-391,411-417,436-475
+  s_669f6220df4575::t_927348aeceda66 264-289,291,296-309,321,323-325,335-336,338-339,341-351,353,479
+  s_669f6220df4575::t_a91a3825fd435d 113
+  s_669f6220df4575::t_fe48ef12ca27f4 115
+  s_669f6220df4575::t_069c6e0c6c34ea 117
+  s_669f6220df4575::t_b0fbf616d145f8 119
+  s_669f6220df4575::t_cd6ea6833e2f5f 121
+  s_669f6220df4575::t_1af20473da1474 705-706
+  s_669f6220df4575::t_7120de3e74d50a 711
+  s_669f6220df4575::t_551a4b54da971d 717
+  s_669f6220df4575::t_b98382ae4ad407 721-722
+  s_669f6220df4575::t_fb93609e2dfc2d 724-725
+  s_669f6220df4575::t_99c5b7ccee79d5 732
+docs/council/2026-09-17-copyright-ownership/stats_spec.md
+  s_9c31a5b474c567::t_7c4ca2b40f380b 1-84
+payments/src/providers/polar.ts
+  s_9c31a5b474c567::t_468f760d345183 57
+  s_9c31a5b474c567::t_6750abde935fcb 27-37,40,51-53
+  s_9c31a5b474c567::t_d54e84d5adc4b5 121-137
+  s_9c31a5b474c567::t_99d70dfed6ea51 160-165,182
+docs/council/2026-09-17-agreement-review/advisors.json
+  s_9c31a5b474c567::t_7c4ca2b40f380b 1-80
+docs/council/2026-09-17-agreement-review/stats_spec.md
+  s_9c31a5b474c567::t_7c4ca2b40f380b 1-76
+docs/council/2026-09-17-agreement-review/DECISION.md
+  s_9c31a5b474c567::t_0f8877fe18f0c2 1-39
+docs/council/2026-09-17-agreement-review/chairman.md
+  s_9c31a5b474c567::t_7c4ca2b40f380b 1-39
+payments/site/index.html
+  s_9c31a5b474c567::t_4c2e7e1c14d9c8 75
+  s_9c31a5b474c567::t_8f4f2cde82300c 89-97
+payments/site/c/retirearly500k/500k-playbook/index.html
+  s_9c31a5b474c567::t_4c2e7e1c14d9c8 92,102-130
+  s_9c31a5b474c567::t_43d6f5d6fcd7e4 143-149
+  s_9c31a5b474c567::t_9f5e04dcea10fe 95
+  s_38e0c49194678c::t_66bb144e0a8d79 13
+  s_38e0c49194678c::t_040ea8992d5083 8
+  s_9c31a5b474c567::t_8a313aebc709f5 27-29
+docs/council/2026-09-18-flagship-round3-final/report.html
+  s_9c31a5b474c567::t_3e1d79472a010f 1-256
+docs/council/2026-09-18-flagship-round3-final/reviews.json
+  s_9c31a5b474c567::t_3e1d79472a010f 1-14
+docs/council/2026-09-14-profile-first/reviews.json
+  s_9c31a5b474c567::t_7c4ca2b40f380b 1-14
+docs/council/2026-09-17-copyright-ownership/reviews.json
+  s_9c31a5b474c567::t_7c4ca2b40f380b 1-14
+payments/src/ledger.ts
+  s_9c31a5b474c567::t_f338d0884b1bb7 153
+  s_9c31a5b474c567::t_41d6f6012de856 133,138-152,154-158
+  s_9c31a5b474c567::t_bd7bf7330caf20 208
+  s_9c31a5b474c567::t_2726440f53a55d 31,77,99
+  s_9c31a5b474c567::t_01dca31cd415aa 21
+  s_9c31a5b474c567::t_2ae026ee08ef8f 159-160
+docs/council/2026-09-17-agreement-review/council_run.cjs
+  s_9c31a5b474c567::t_7c4ca2b40f380b 1-186
+payments/src/providers/fastspring.ts
+  s_9c31a5b474c567::t_a7261dc33e1f6c 162-165
+payments/src/providers/paddle.ts
+  s_9c31a5b474c567::t_35cdbdba8860c8 64-69
+  s_9c31a5b474c567::t_692ce77a90c650 86
+docs/council/2026-09-16-pricing-band-duane-slot2/council_run.cjs
+  s_9c31a5b474c567::t_3e1d79472a010f 1-173
+docs/council/2026-09-17-copyright-ownership/council_run.cjs
+  s_9c31a5b474c567::t_7c4ca2b40f380b 1-174
+docs/council/2026-09-17-agreement-review/mc_sim.cjs
+  s_9c31a5b474c567::t_7c4ca2b40f380b 1-36
+payments/bake_checkout.ts
+  s_b9f2d61cf7e4f6::t_40a5cc5057f2c4 182,184-185
+  s_38e0c49194678c::t_50fc2c678e17ad 17-19,30,34-35,43-60
+  s_ac88e4bf09df94::t_b58c5c9bb3711d 171-175,187-191,193-196,198-199
+  s_ac88e4bf09df94::t_68c70336160211 6,13-16,20-29,31-33,36-42,61-95,97,101,103,107,109,160,162
+  s_9c31a5b474c567::t_1f826fed8c5d86 112-159
+  s_9c31a5b474c567::t_6ec6689fd51d8d 192
+  s_38e0c49194678c::t_8b9fa2767c2e76 1
+  s_38e0c49194678c::t_a364f95b786581 179-180,183,186,197,201
+docs/council/2026-09-18-flagship-round3-final/anon_mapping.json
+  s_9c31a5b474c567::t_3e1d79472a010f 1-54
+docs/council/2026-09-16-pricing-band-duane-slot2/DECISION.md
+  s_9c31a5b474c567::t_3e1d79472a010f 1-104
+docs/council/2026-09-16-pricing-band-duane-slot2/chairman.md
+  s_9c31a5b474c567::t_3e1d79472a010f 1-32
+docs/council/2026-09-17-flagship-round2/mc_results.json
+  s_9c31a5b474c567::t_3e1d79472a010f 1-67
+docs/council/2026-09-17-copyright-ownership/anon_mapping.json
+  s_9c31a5b474c567::t_7c4ca2b40f380b 1-54
+docs/agent_ledger.jsonl
+  s_9c31a5b474c567::t_c070464931b0d2 1
+docs/council/2026-09-17-flagship-round2/chairman.md
+  s_9c31a5b474c567::t_3e1d79472a010f 1-23
+docs/council/2026-09-14-profile-first/mc_results.json
+  s_9c31a5b474c567::t_7c4ca2b40f380b 1-24
+docs/infra-cost-registry.md
+  s_9c31a5b474c567::t_3ef9f10abfcd07 44
+  s_9c31a5b474c567::t_4b5b7cc8402fe2 1-2,9-28,41
+  s_9c31a5b474c567::t_ff57a4ffcedb9a 3-8
+  s_9c31a5b474c567::t_eec1147c1f75ad 29-31,38-40
+  s_9c31a5b474c567::t_ff3db6cebd7d27 42-43
+  s_9c31a5b474c567::t_6c079f9e9c5307 45-47
+  s_9c31a5b474c567::t_abab32835f0022 32-37,48-61
+payments/fungies_activation_answers.md
+  s_28c4c55a451d94::t_326df1f58487d5 1,5-14
+  s_9c31a5b474c567::t_6ddc7f186c9db2 28
+  s_9c31a5b474c567::t_e08c64ffe0d914 30
+  s_38e0c49194678c::t_ffbe50ea6a9e30 44
+  s_38e0c49194678c::t_8b0debf878cc99 26
+  s_28c4c55a451d94::t_5b85a4f0ba4881 39,41
+  s_28c4c55a451d94::t_816a630c11b8ba 58-66,68-75
+tsconfig.json
+  s_9c31a5b474c567::t_efb967194a8d06 11-12
+  s_9c31a5b474c567::t_20da5f4aa2ee5a 5
+typst_prototype/proto_selfimprovement_v4.typ
+  s_16e3f77cd6ae9a::t_44c3c9b88dc311 509,514,518
+  s_16e3f77cd6ae9a::t_7d8339a92ac6db 88-89,94,97,99
+  s_8414953a8009c1::t_7854673a85043f 315
+  s_8414953a8009c1::t_deb56b5a80b78a 13-18
+  s_8414953a8009c1::t_18baffb36f2b1c 438
+  s_16e3f77cd6ae9a::t_efbc4420fd4d89 534
+  s_16e3f77cd6ae9a::t_63d7257cf525bc 326-342
+  s_16e3f77cd6ae9a::t_c29bead8925d59 2-12
+  s_16e3f77cd6ae9a::t_2dab50d1e68432 234-236,242,247,249
+  s_16e3f77cd6ae9a::t_9155674c97fb57 394
+  s_c5901e7e113049::t_0123be3334321d 228
+  s_8414953a8009c1::t_3f23dc23d6f88c 286
+  s_16e3f77cd6ae9a::t_de3a6bd3631334 56
+  s_16e3f77cd6ae9a::t_61d1d1f3f39765 451-468
+  s_16e3f77cd6ae9a::t_1bc1425fa75826 1,19-55,57-87,90-93,95-96,98,100-227,229-233,237-241,243-246,248,250-285,287-314,316-325,343-380,382-393,395-437,439-450,469-484,486-488,491-503,505-508,510-513,515-517,519-530,542-549
+  s_16e3f77cd6ae9a::t_f4d492a00637f6 504,531-533,535-541
+  s_8414953a8009c1::t_aa5e017dcc21ea 381
+  s_16e3f77cd6ae9a::t_c341812fc1f16a 485,489-490
+payments/src/provider.ts
+  s_9c31a5b474c567::t_784bc8cc8ce9fc 16-24
+payments/landing/index.html
+  s_83659cbf0a02c5::t_ff47699bfab207 64-68
+docs/council/2026-09-16-pricing-band-duane-slot2/mc_results.json
+  s_9c31a5b474c567::t_3e1d79472a010f 1-96
+certify_gates.ts
+  s_40423fc40712af::t_96ab6c1819b192 418
+  s_d3ae8ce3cb4d78::t_76b4c84abd301f 524
+  s_d3ae8ce3cb4d78::t_02814a9511d1ea 551
+  s_40423fc40712af::t_6f6254ae8e2534 24
+  s_d3ae8ce3cb4d78::t_a4d3c4547b7059 1-23,25-30,39,55-86,92-93,98,108-109,111-113,118-223,225-369,371,375-383,389-417,419-420,423-425,429-431,443-444,455-469,478-483,486-496,498-499,503,509-514,516-523,525-550,552-554,556-571
+  s_a64730f13bdc83::t_e816428351f661 421-422,428
+  s_d3ae8ce3cb4d78::t_deb8bd8d26dafa 370,372-374,384-388
+  s_d3ae8ce3cb4d78::t_00a72e9c9593e3 426-427
+  s_d3ae8ce3cb4d78::t_abac59045fb6a8 99-107,110,114-117
+  s_d3ae8ce3cb4d78::t_c95197d0efc4d8 95-97
+  s_d3ae8ce3cb4d78::t_54dde3de149ef7 442
+  s_40423fc40712af::t_cc99c0536a7735 438-440
+  s_40423fc40712af::t_8c123ef2ffc6b4 472-477,501-502,504
+  s_d3ae8ce3cb4d78::t_287565f3a2bd48 224
+  s_d3ae8ce3cb4d78::t_c95b292ed619a4 31-38,40-54
+  s_40423fc40712af::t_e629f9716e9186 515
+  s_d3ae8ce3cb4d78::t_bb95a5ec48dc10 94
+  s_a64730f13bdc83::t_eb3452536a22a6 445-447,451-454
+  s_40423fc40712af::t_3bc2d08eec96ec 555
+  s_a64730f13bdc83::t_86594ce6a6a5ca 470-471
+  s_0c572983f90840::t_1bca385bc17f4e 484-485
+  s_a64730f13bdc83::t_785b6024ae2b0b 497,500
+  s_40423fc40712af::t_dbbcb9b5b9d80e 432-437,441,448-450
+  s_d3ae8ce3cb4d78::t_076f446a46e504 87-91
+  s_d3ae8ce3cb4d78::t_74dc9040571d58 505-508
+docs/council/2026-09-17-flagship-round2/council_run.cjs
+  s_9c31a5b474c567::t_3e1d79472a010f 1-151
+docs/council/2026-09-14-profile-first/council-report-2026-09-14.html
+  s_9c31a5b474c567::t_7c4ca2b40f380b 1-139
+docs/council/2026-09-17-copyright-ownership/DECISION.md
+  s_9c31a5b474c567::t_7c4ca2b40f380b 1-222
+payments/site/assets/expanpress-logo.svg
+  s_9c31a5b474c567::t_4ec3ca7dc70d82 1-5
+docs/council/2026-09-17-copyright-ownership/mc_sim.cjs
+  s_9c31a5b474c567::t_7c4ca2b40f380b 1-36
+docs/council/2026-09-16-pricing-band-duane-slot2/council_run_chairman4000.cjs
+  s_9c31a5b474c567::t_3e1d79472a010f 1-173
+creator_scan.ts
+  s_40423fc40712af::t_54a4cf0173893f 626-668,670-671,673
+certify_asset.ts
+  s_d3ae8ce3cb4d78::t_a6c7d00cda7e33 1-54,90-102,108
+  s_d3ae8ce3cb4d78::t_51f9267adcceec 84-89,103-105,109
+  s_d3ae8ce3cb4d78::t_39a806ee398517 55-83
+  s_d3ae8ce3cb4d78::t_49f5aa302cdb93 106-107
+payments/creators.json
+  s_b9f2d61cf7e4f6::t_929175e775608c 1,3-8,10-11,46-56
+  s_c5214a4d951ebf::t_27bc07368d8373 12-13
+  s_38e0c49194678c::t_e623d9f74f1e41 2
+  s_3731d3993df48d::t_ba7bf5ebd23f65 9
+  s_c5214a4d951ebf::t_c425e1fed336ce 17
+  s_abdb9ef7601743::t_a251b486eab631 14-16,18-45
+docs/council/2026-09-17-agreement-review/anon_mapping.json
+  s_9c31a5b474c567::t_7c4ca2b40f380b 1-54
+opencode.json
+  s_637cf753b7f212::t_77589ea07e5496 122-137
+  s_0c572983f90840::t_a17aa4ee28e105 4-121,138-140,142
+payments/fungies_activation_answers.v1-2026-09-16.md
+  s_28c4c55a451d94::t_0be4bdfb3c0d8c 1-52
+.playwright-mcp/page-2026-09-17T13-13-44-109Z.yml
+  s_9c31a5b474c567::t_de19ff81454ddb 1-211
+.playwright-mcp/page-2026-09-17T13-16-50-923Z.yml
+  s_9c31a5b474c567::t_36474297d2e798 1-17
+.playwright-mcp/page-2026-09-17T13-17-20-013Z.yml
+  s_9c31a5b474c567::t_ef9d13e3ab5d79 1-1021
+.playwright-mcp/page-2026-09-17T13-17-58-090Z.yml
+  s_9c31a5b474c567::t_97672b58d7674a 1-534
+.playwright-mcp/page-2026-09-17T13-18-19-656Z.yml
+  s_9c31a5b474c567::t_8ea69a1a3d3247 1-148
+docs/compliance/dodo_appeal_passport_override.html
+  s_9c31a5b474c567::t_ef0fc72419aeef 1-461
+docs/compliance/dodo_appeal_passport_override.md
+  s_9c31a5b474c567::t_41b253c20ea80e 1-112
+payments/test/cascade.test.ts
+  s_9c31a5b474c567::t_1f438a03968202 1-123
+payments/test/ledger.test.ts
+  s_9c31a5b474c567::t_f9a9cade84760c 1-70
+pnpm-lock.yaml
+  s_9c31a5b474c567::t_797169561e11b9 134-136,500-509,748-750,882-887,894-899,906-911,918-923,930-935,942-947,955-961,969-989,997-1003,1011-1017,1024-1029,1041-1046,1053-1058,1062-1064,1087-1092,1420-1433,1467-1470,1535-1538,1665-1667,1681-1683,1706-1709,1726-1734,1887-1960,1976-1978,2048-2052,2100-2103,2196-2199,2253-2257,2293-2295,2311-2314,2320-2322,2330-2332,2374-2377,2381-2388,2479-2562,2586-2590,2842-2850,3003-3004,3072-3074,3078-3080,3084-3086,3090-3092,3096-3098,3102-3104,3108-3110,3114-3122,3126-3128,3132-3134,3138-3140,3152-3154,3158-3160,3163-3164,3187-3193,3670-3680,3706-3707,3751-3752,3879-3880,3941-3944,3992-3993,4014-4017,4154-4202,4213-4216,4270-4271,4302-4303,4428-4433,4492-4512,4549-4550,4559-4560,4563-4564,4569-4570,4631-4632,4635-4641,4791-4823,4843-4847
+pnpm-workspace.yaml
+  s_9c31a5b474c567::t_f56d8fd06e9a6d 2-3
+vitest.config.ts
+  s_9c31a5b474c567::t_49446c4e87ed4c 1-8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "3a35d3cbfcf9cb587d698ba0a0bbbcaf7d7c4161",
+  "prompts": {},
+  "sessions": {
+    "s_0c572983f90840": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5c043d1cffe9JlSHWgIX7NqBD",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_16e3f77cd6ae9a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f54d2a66affe7UC3Ctq71AufV7",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_24f69acaa27456": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f547761b2ffe6pL2tWTA3wEgs8",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_28c4c55a451d94": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "34855163-c3d9-4b9a-8c84-254e2545d555",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_3731d3993df48d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f542881bcffeiXZV0WOKdSyv6H",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_38e0c49194678c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f540aa105ffeQN1ouqgB5IohPf",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_40423fc40712af": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f541a1c76ffefCC0oU1315EgoB",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_637cf753b7f212": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9c496f6e-6f10-483d-bedc-9bfd25fb46e7",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_669f6220df4575": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f53e7dbfdffec8PkuIaGK2m8Fx",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_83659cbf0a02c5": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f543ac929ffe8xh5ShxS79IAfA",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_8414953a8009c1": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5458383affeiIp33kpyX3AMoi",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_9c31a5b474c567": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "dc54c46b-b7a8-418b-89ed-78172141baf8",
+        "model": "claude-sonnet-5"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_a64730f13bdc83": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f543b5adeffexUuY5ck2VjE9qa",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_abdb9ef7601743": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f544a5dedffeeP7DfiGL6xtPpq",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_ac88e4bf09df94": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f541656b8ffeGb8k5jKARz3Jj7",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_b9f2d61cf7e4f6": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f5457f8cbffeS1SWuT2J83F14Z",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_c5214a4d951ebf": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f54111430ffe17XjEQNZJkQeBz",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_c5901e7e113049": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f544aadcbffeEJ05gRB2QT4FbQ",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_d3ae8ce3cb4d78": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f54921c25ffeGR3E2IfQWCPztB",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
