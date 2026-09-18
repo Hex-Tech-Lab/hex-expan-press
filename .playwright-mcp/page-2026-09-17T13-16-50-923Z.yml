@@ -1,0 +1,17 @@
+- generic [ref=f3e2]:
+  - paragraph [ref=f3e3]: We need to verify you are human before you can continue. Please solve this Captcha and we will get you to your requested site. Sorry for the inconvenience.
+  - iframe [ref=f3e6]:
+    - generic [ref=f5e2] [cursor=pointer]:
+      - checkbox "'I am human', Select in order to trigger the challenge, or to bypass it if you have an accessibility cookie" [ref=f5e7]
+      - generic [ref=f5e8]: I am human
+      - generic [ref=f5e12]:
+        - generic "hCaptcha" [ref=f5e13]:
+          - button "hCaptcha logo, opens new window with more information" [ref=f5e14]
+        - generic [ref=f5e78]:
+          - link "hCaptcha Privacy Policy, opens in a new tab" [ref=f5e79]:
+            - /url: https://hcaptcha.com/privacy?ref=opencorporates.com&utm_campaign=5ddae562-c25e-4910-85ae-e758f8841672&utm_medium=checkbox&hl=en
+            - text: Privacy
+          - text: "-"
+          - link "hCaptcha Terms of Service, opens in a new tab" [ref=f5e80]:
+            - /url: https://hcaptcha.com/terms?ref=opencorporates.com&utm_campaign=5ddae562-c25e-4910-85ae-e758f8841672&utm_medium=checkbox&hl=en
+            - text: Terms

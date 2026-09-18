@@ -18,6 +18,7 @@ export interface SaleRecord {
   currency: string;
   event_type?: LedgerEventType; // absent = "sale" (legacy records predate the field)
   email_hash?: string; // buyer-email sha256 from the webhook event (optional; never raw email)
+  attribution_id?: string; // our own canonical cross-provider attribution ID (see provider.ts SaleEvent)
 }
 
 // settings registry: global.json paths.sales_ledger (inline fallback keeps standalone runs working)
@@ -27,7 +28,7 @@ function assertSale(sale: SaleRecord): void {
   if (typeof sale !== "object" || sale === null) {
     throw new TypeError('ledger: sale must be an object with fields ts, sale_id, provider, product_id, amount_usd, creator_id, creator_split_pct, creator_split_usd, our_split_usd, currency');
   }
-  const s = sale as Record<string, unknown>;
+  const s = sale as unknown as Record<string, unknown>;
   const needStr = (key: string): void => {
     if (typeof s[key] !== "string" || (s[key] as string).trim() === "") {
       throw new TypeError(`ledger: "${key}" must be a non-empty string`);
@@ -73,7 +74,7 @@ export function findSale(provider: string, saleId: string, salesFile: string = S
     if (trimmed === "") continue;
     try {
       const o = JSON.parse(trimmed) as Record<string, unknown>;
-      if (o.provider === provider && o.sale_id === saleId) return o as SaleRecord;
+      if (o.provider === provider && o.sale_id === saleId) return o as unknown as SaleRecord;
     } catch {
       continue;
     }
@@ -95,7 +96,7 @@ export function findRefund(provider: string, saleId: string, salesFile: string =
     if (trimmed === "") continue;
     try {
       const o = JSON.parse(trimmed) as Record<string, unknown>;
-      if (o.event_type === "refund" && o.provider === provider && o.sale_id === saleId) return o as SaleRecord;
+      if (o.event_type === "refund" && o.provider === provider && o.sale_id === saleId) return o as unknown as SaleRecord;
     } catch {
       continue;
     }
@@ -129,8 +130,32 @@ export async function appendSale(sale: SaleRecord, salesFile: string = SALES_FIL
     currency: sale.currency,
   };
   if (typeof sale.email_hash === "string" && sale.email_hash !== "") record.email_hash = sale.email_hash;
+  if (typeof sale.attribution_id === "string" && sale.attribution_id !== "") record.attribution_id = sale.attribution_id;
   await appendRecord(record, salesFile);
   return record;
+}
+
+/** Find all recorded sales matching a canonical attribution_id (cross-provider join).
+ *  Tolerant read: missing file or malformed lines are skipped (same posture as findSale). */
+export function findSalesByAttribution(attributionId: string, salesFile: string = SALES_FILE): SaleRecord[] {
+  let lines: string[];
+  try {
+    lines = readFileSync(salesFile, "utf8").split("\n");
+  } catch {
+    return [];
+  }
+  const out: SaleRecord[] = [];
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed === "") continue;
+    try {
+      const o = JSON.parse(trimmed) as Record<string, unknown>;
+      if (o.attribution_id === attributionId) out.push(o as unknown as SaleRecord);
+    } catch {
+      continue;
+    }
+  }
+  return out;
 }
 
 export interface RefundSpec {
@@ -180,6 +205,7 @@ export async function appendRefund(refund: RefundSpec, salesFile: string = SALES
     event_type: "refund",
   };
   if (typeof original.email_hash === "string" && original.email_hash !== "") record.email_hash = original.email_hash;
+  if (typeof original.attribution_id === "string" && original.attribution_id !== "") record.attribution_id = original.attribution_id;
   await appendRecord(record, salesFile);
   return record;
 }

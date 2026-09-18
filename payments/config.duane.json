@@ -3,9 +3,10 @@
   "title": "Retire on $500K: The Early-Retirement Money Playbook",
   "working_note": "WORKING TITLE - rename pending Duane signature. Store must remain UNPUBLISHED on every provider until the data-use + revenue-split agreement is signed (creator likeness rights, per council compliance gate 2026-09-14).",
   "description": "A practical money-management playbook for the retirement years: the instruments, the sequence, and the recovery playbook after a market crash \u2014 built on one early retiree's real $500K journey. Not financial advice.",
-  "price_usd": 19,
+  "price_usd": 39,
+  "price_usd_note": "SOURCE OF TRUTH is data/settings/pricing_cascade.duane_retirement_playbook_v1.json — this field is synced FROM the cascade config by payments/src/cascade.ts's currentTierPriceUsd()/bake step, never edited by hand independently. Founder directive 2026-09-18: prices are variables, never hardcoded.",
   "currency": "USD",
-  "creator_id": "duane_retirearly500",
+  "creator_id": "retirearly500k",
   "provider": "polar",
   "checkout_url": "https://sandbox-api.polar.sh/v1/checkout-links/polar_cl_g84ByoGAeZiahkWtCasYmeu1ShLtZIwwayzyI4ZdZsM/redirect",
   "checkout_mode": "sandbox",
@@ -24,5 +25,13 @@
   "support_email": "support@expanpress.com",
   "smoke_test": true,
   "same_details_on_all_providers": true,
-  "split_note": "AUTHORITATIVE terms now live in data/settings/terms.json (compound creator x product, effective-dated); this field is a legacy seed only."
+  "split_note": "AUTHORITATIVE terms now live in data/settings/terms.json (compound creator x product, effective-dated); this field is a legacy seed only.",
+  "site_slug": "retirearly500k/500k-playbook",
+  "product_slug": "500k-playbook",
+  "product_internal_id": "retirearly500k-500k-playbook",
+  "platform_handles": {
+    "youtube": "retirearly500k59",
+    "instagram": "retirearly500"
+  },
+  "slug_rule": "TWO NAMESPACES, DO NOT CONFLATE (standing rule 2026-09-16, revised same day when the hub page shipped): (1) SKU/internalId = COMPOSITE <creator_handle>-<product_slug> (kebab-case, from the product title) — e.g. retirearly500k-500k-playbook — required for Fungies/Polar because one creator can carry multiple products (base playbook + identity-after-exit companion) and a handle-only id collides the second product. (2) SITE URL = NESTED /c/<handle>/<product_slug>/ (e.g. /c/retirearly500k/500k-playbook/) — the product page lives under the creator's own directory next to their hub page /c/<handle>/; the composite is NEVER the URL path. NEVER email-derived; creator handle must be a verified platform handle (YouTube retirearly500k59 — handle corrected 2026-09-16T23:14+03:00 from retirearly500k which 404s / Instagram retirearly500)."
 }

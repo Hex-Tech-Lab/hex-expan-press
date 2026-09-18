@@ -107,6 +107,8 @@ async function sttRequest(file: string, model: string): Promise<{ text: string; 
   const res = await fetch(STT_ENDPOINT, {
     method: "POST",
     headers: {
+      "X-Title": "hex-expan",
+      "HTTP-Referer": "https://github.com/TechHypeXP/hex-expan",
       Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
       "Content-Type": "application/json",
     },

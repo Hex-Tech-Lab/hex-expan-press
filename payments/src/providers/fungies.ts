@@ -37,6 +37,23 @@ function isoTs(...vals: unknown[]): string {
   return new Date().toISOString();
 }
 
+const ATTRIBUTION_FIELD_KEY = String(FM.custom_fields_attribution_id ?? "attribution_id");
+
+// Our own canonical attribution ID (added 2026-09-18) — see field_map.attribution_id /
+// attribution_note in data/settings/providers.json. Server-side extraction only; client-side
+// checkout-link wiring to actually SET this Fungies Custom Field is not yet built (Fungies
+// custom fields are configured per-checkout-link in their dashboard/API, not a raw URL param).
+function resolveAttributionId(items: any[]): string | undefined {
+  for (const item of items) {
+    const cf = item?.customFields;
+    if (cf && typeof cf === "object" && !Array.isArray(cf)) {
+      const v = (cf as Record<string, unknown>)[ATTRIBUTION_FIELD_KEY];
+      if (typeof v === "string" && v.trim() !== "") return v;
+    }
+  }
+  return undefined;
+}
+
 function resolveProductId(body: any, items: any[]): unknown {
   for (const item of items) {
     const cf = item?.customFields;
@@ -116,6 +133,7 @@ export const fungiesProvider: CheckoutProvider = {
     const ts = isoTs(rawTs);
     const email = getPath(body, FM.email) ?? data.user?.email ?? data.customer?.email;
     const decimals = currencyDecimalsOf(payment?.currencyDecimals, order?.currencyDecimals);
+    const attributionId = resolveAttributionId(items);
 
     if (!productId) return { ok: false, status: 400, error: "missing product identity (items[].customFields / product.internalId / product.id)" };
     if (!saleId) return { ok: false, status: 400, error: "missing data.payment.id (sale identity)" };
@@ -132,6 +150,7 @@ export const fungiesProvider: CheckoutProvider = {
         amount_usd: Math.round(totalMinor) / 10 ** decimals,
         ts,
         email_hash: hashEmail(email),
+        ...(attributionId ? { attribution_id: attributionId } : {}),
       },
     };
   },

@@ -1,14 +1,14 @@
 {
   "compilerOptions": {
-    "baseUrl": ".",
     "paths": {
       "@/*": ["./*"],
-      "@payments/*": ["payments/src/*"]
+      "@payments/*": ["./payments/src/*"]
     },
     "module": "nodenext",
     "moduleResolution": "nodenext",
     "target": "es2022",
     "strict": true,
-    "noEmit": true
+    "noEmit": true,
+    "allowImportingTsExtensions": true
   }
 }

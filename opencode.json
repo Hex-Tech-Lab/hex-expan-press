@@ -1,39 +1,142 @@
 {
   "$schema": "https://opencode.ai/config.json",
   "lsp": {
-    "zls": { "disabled": true },
-    "yaml-ls": { "disabled": true },
-    "vue": { "disabled": true },
-    "texlab": { "disabled": true },
-    "terraform": { "disabled": true },
-    "svelte": { "disabled": true },
-    "sourcekit-lsp": { "disabled": true },
-    "rust": { "disabled": true },
-    "ruby-lsp": { "disabled": true },
-    "razor": { "disabled": true },
-    "pyright": { "disabled": true },
-    "prisma": { "disabled": true },
-    "php intelephense": { "disabled": true },
-    "oxlint": { "disabled": true },
-    "ocaml-lsp": { "disabled": true },
-    "nixd": { "disabled": true },
-    "lua-ls": { "disabled": true },
-    "kotlin-ls": { "disabled": true },
-    "julials": { "disabled": true },
-    "jdtls": { "disabled": true },
-    "haskell-language-server": { "disabled": true },
-    "gopls": { "disabled": true },
-    "gleam": { "disabled": true },
-    "fsharp": { "disabled": true },
-    "elixir-ls": { "disabled": true },
-    "eslint": { "disabled": true },
-    "dockerfile": { "disabled": true },
-    "deno": { "disabled": true },
-    "dart": { "disabled": true },
-    "clojure-lsp": { "disabled": true },
-    "clangd": { "disabled": true },
-    "csharp": { "disabled": true },
-    "biome": { "disabled": true },
-    "astro": { "disabled": true }
+    "zls": {
+      "disabled": true
+    },
+    "yaml-ls": {
+      "disabled": true
+    },
+    "vue": {
+      "disabled": true
+    },
+    "texlab": {
+      "disabled": true
+    },
+    "terraform": {
+      "disabled": true
+    },
+    "svelte": {
+      "disabled": true
+    },
+    "sourcekit-lsp": {
+      "disabled": true
+    },
+    "rust": {
+      "disabled": true
+    },
+    "ruby-lsp": {
+      "disabled": true
+    },
+    "razor": {
+      "disabled": true
+    },
+    "pyright": {
+      "disabled": true
+    },
+    "prisma": {
+      "disabled": true
+    },
+    "php intelephense": {
+      "disabled": true
+    },
+    "oxlint": {
+      "disabled": true
+    },
+    "ocaml-lsp": {
+      "disabled": true
+    },
+    "nixd": {
+      "disabled": true
+    },
+    "lua-ls": {
+      "disabled": true
+    },
+    "kotlin-ls": {
+      "disabled": true
+    },
+    "julials": {
+      "disabled": true
+    },
+    "jdtls": {
+      "disabled": true
+    },
+    "haskell-language-server": {
+      "disabled": true
+    },
+    "gopls": {
+      "disabled": true
+    },
+    "gleam": {
+      "disabled": true
+    },
+    "fsharp": {
+      "disabled": true
+    },
+    "elixir-ls": {
+      "disabled": true
+    },
+    "eslint": {
+      "disabled": true
+    },
+    "dockerfile": {
+      "disabled": true
+    },
+    "deno": {
+      "disabled": true
+    },
+    "dart": {
+      "disabled": true
+    },
+    "clojure-lsp": {
+      "disabled": true
+    },
+    "clangd": {
+      "disabled": true
+    },
+    "csharp": {
+      "disabled": true
+    },
+    "biome": {
+      "disabled": true
+    },
+    "astro": {
+      "disabled": true
+    }
+  },
+  "provider": {
+    "openrouter": {
+      "models": {
+        "z-ai/glm-5.3-flash": {
+          "options": {
+            "provider": {
+              "order": [
+                "relace"
+              ],
+              "only": [
+                "relace"
+              ],
+              "allow_fallbacks": false
+            }
+          }
+        },
+        "openai/gpt-oss-120b": {
+          "options": {
+            "provider": {
+              "order": [
+                "groq"
+              ],
+              "only": [
+                "groq"
+              ],
+              "allow_fallbacks": false
+            },
+            "reasoning": {
+              "enabled": false
+            }
+          }
+        }
+      }
+    }
   }
 }

@@ -1,0 +1,56 @@
+{
+  "_note": "Creators index for the /c/<handle>/ hub pages. Rendered by payments/bake_creator_pages.ts (run: node_modules/.bin/tsx payments/bake_creator_pages.ts, then deploy payments/site per payments/DEPLOY-NOTES.md). Adding a creator = add an entry here + re-run the baker; no hand-written HTML. Product title/price/working-title state are read live from each product's config_file at bake time (config stays the single source of truth). Product-page card links are NESTED (2026-09-16): /c/<handle>/<product_slug>/ — the product page lives under the creator's own directory, composite_slug is the SKU/internalId namespace only and never a URL path. photo: null renders a monogram placeholder — NO fabricated photos; a real photo ships only after the creator agreement covers likeness rights (legal gate 2026-09-14). The baker reads only bio/bio_source. The retirearly500k enhanced bio was PROMOTED into `bio` on 2026-09-16T23:14+03:00 (operator go-ahead); the remaining draft_* fields are audit trail only and never render.",
+  "site_origin": "https://expanpress.com",
+  "creators": [
+    {
+      "handle": "retirearly500k",
+      "display_name": "Duane",
+      "platform_handles": {
+        "youtube": "retirearly500k59",
+        "instagram": "retirearly500"
+      },
+      "bio": "Duane retired on his 59th birthday in late 2021 with just over $500K — living proof of his own thesis: you don't need a million dollars to retire. Before that came 20 years in the music industry (publicity, album sequencing, sales forecasting — work built on hard numbers and forecasting).\n\nSoon afterwards, the market — and his portfolio — tanked. He's shared the real numbers ever since on his YouTube channel: monthly portfolio updates, the withdrawal math, and the honest ups and downs of retirement life, and how to optimize a moderate-income retirement. Along the way, he's built the channel into a collaborative community of people navigating pre- and post-retirement together.\n\nThat journey is now available below as a written playbook — a practical money-management guide for the retirement years: the instruments, the sequence, and how to recover after a market crash — built on his own real $500K numbers.\n\nEducational content only: Duane is not a licensed financial advisor, so please check with a professional before acting on anything here.\n\nMBA — UC Berkeley · Sociology — UCLA",
+      "bio_source": "promoted from bio_enhanced_draft 2026-09-16T23:14+03:00 (operator go-ahead); built 2026-09-16 from his own live-scraped IG/YT/BuyMeACoffee text — per-claim provenance in draft_sources_note; data/intel/duane_persona_v2_2026-09-16.md used for emphasis only; storefront-context rewrite 2026-09-16T23:39+03:00 (operator task): third-person adaptation for the /c/ hub page (introduces him to a new visitor, not addressed to his subscribers) — community line converted from direct-address CTA to a description of what he built, publication line added (product title deliberately NOT quoted in bio — working title lives in config.duane.json and renders on the card); same fact base, phrasing re-adapted, no new claims",
+      "draft_approval_note": "Built from your own words across YouTube/Instagram — yours to edit however you want. If you're happy with it, great; if not, send back what you want it to say instead.",
+      "draft_built_at": "2026-09-16T22:35+03:00",
+      "draft_sources_note": {
+        "_purpose": "Internal audit trail (per-claim provenance). NOT rendered, NOT shown to the creator. Draft was PROMOTED to the live `bio` on 2026-09-16T23:14+03:00 (operator go-ahead 2026-09-16T23:0x — published before creator sign-off; creator edit-window stays open per draft_approval_note). Re-voiced 2026-09-16T23:39+03:00 into third-person storefront copy (same fact base, phrasing adapted for the hub page's purpose; verbatim_fidelity_rule below still holds — no new claims).",
+        "fetched_live_2026-09-16": "IG @retirearly500 via api.instagrapi.com mirror (HTTP 200); YouTube channels.list part=snippet,brandingSettings for UCVvjgOCaCDrLST1XX1PMc1g (HTTP 200); YouTube About page HTML (HTTP 200); buymeacoffee.com/retirearly500k (HTTP 200); amazon.com/dp/B0DPBB25J1 (HTTP 200). Cross-checked against persona-run captures in data/db/samples/duane_retirearly500/metadata.json (identical text).",
+        "youtube_about_channel_description": [
+          "Hook: 'You don't need a million dollars to retire. Let me show you how I did it.' (also on IG in shortened form)",
+          "20-year music industry career — publicity/album sequencing/sales forecasting",
+          "Retired on his 59th birthday, late 2021, with just over $500K",
+          "Soon afterwards the stock market (and his investment portfolio) tanked",
+          "Posts monthly investment portfolio updates; ups and downs of retirement life; OPTIMIZE a moderate income retirement",
+          "Collaborative community helping each other through pre and post-retirement",
+          "'I AM NOT A LICENSED FINANCIAL ADVISOR... CHECK WITH A PROFESSIONAL' disclaimer",
+          "MBA - UC Berkeley; Sociology - UCLA"
+        ],
+        "instagram_bio": [
+          "Hook (short form): 'You don't need a million dollars to retire. Here's how I did it.'",
+          "'Also, tips on retirement life'",
+          "'77K sub YT channel (for deeper dives)' — sub count not used in draft (stale-fast)"
+        ],
+        "buymeacoffee_retirearly500k": [
+          "'Hey there, If you found anything useful in my content, please feel free to buy me a coffee. Thanks!' — tone reference (friendly direct address) only; no factual claims taken"
+        ],
+        "persona_v2_insight_data_intel_duane_persona_v2_2026-09-16_md": [
+          "Demonstrated focus = money management in retirement: portfolio mechanics, withdrawal math, real-number transparency — used to choose EMPHASIS only; zero new facts introduced"
+        ],
+        "discovered_not_used": [
+          "Amazon novel 'The Monster Who Loves Me' (B0DPBB25J1, author 'Duane') — linked from YT About; fiction copy is not biographical; flagged as a future conversation topic for outreach, excluded from draft",
+          "No Facebook (or Twitter/TikTok/Substack/Patreon) bio found on any linked touchpoint: YT About 'Links' = instagram.com/retirearly500, buymeacoffee.com/retirearly500k, amazon.com/dp/B0DPBB25J1; IG external_url = his own YouTube channel"
+        ],
+        "verbatim_fidelity_rule": "Every biographical fact in the draft traces to a sentence above; phrasing rearranged/polished only, no invented events, numbers, or credentials."
+      },
+      "photo": null,
+      "products": [
+        {
+          "composite_slug": "retirearly500k-500k-playbook",
+          "product_slug": "500k-playbook",
+          "config_file": "payments/config.duane.json"
+        }
+      ]
+    }
+  ]
+}

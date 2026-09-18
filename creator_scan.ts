@@ -623,35 +623,54 @@ ${JSON.stringify(
    }))
  )}`;
 
-  const res = await postJson<{ choices?: { message?: { content?: string } }[] }>(
-    creatorScanOpenrouterChatUrl(),
-    { Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}` },
-    {
-      model: process.env.CREATOR_SCAN_MODEL || CONFIG.structuringModel,
-      messages: [
-        { role: "system", content: "Return valid JSON only. No commentary, no markdown fences." },
-        { role: "user", content: prompt },
-      ],
-      temperature: CONFIG.structuringTemperature,
+  // Validated same-provider retry (provider-pin hardening 2026-09-16): HTTP 200 is NOT
+  // acceptance — the content must parse to a JSON array (the prompt's required shape).
+  // HTTP errors and 200-but-garbage responses retry the SAME pinned provider with backoff,
+  // max 3 attempts; never a different provider. After 3: THROW — the caller records it in
+  // incomplete_reasons, so an API failure can never masquerade as a legitimate
+  // 0-candidate scan night (the old silent `return { candidates: [] }` on HTTP error was
+  // exactly that masquerade).
+  const MAX_ATTEMPTS = 3;
+  let lastError = "";
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    const res = await postJson<{ choices?: { message?: { content?: string } }[] }>(
+      creatorScanOpenrouterChatUrl(),
+      // attribution headers added 2026-09-16: this was the one OR call site the 22:47
+      // attribution patch missed (standing rule: every house OR call sends X-Title/Referer).
+      { "X-Title": "hex-expan", "HTTP-Referer": "https://github.com/TechHypeXP/hex-expan", Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}` },
+      {
+        model: process.env.CREATOR_SCAN_MODEL || CONFIG.structuringModel,
+        // structuring model = x-ai/grok-4.3 (xAI-exclusive); direct OR calls bypass the CLI
+        // relace pin (RCA 2026-09-16). Override env with a non-xAI model => adjust this pin.
+        provider: { order: ["x-ai"], allow_fallbacks: false },
+        messages: [
+          { role: "system", content: "Return valid JSON only. No commentary, no markdown fences." },
+          { role: "user", content: prompt },
+        ],
+        temperature: CONFIG.structuringTemperature,
+      }
+    );
+    if ("error" in (res as object)) {
+      lastError = (res as { error: string }).error;
+    } else {
+      const content = (res as { choices?: { message?: { content?: string } }[] }).choices?.[0]?.message?.content ?? "";
+      try {
+        const start = content.indexOf("[");
+        const end = content.lastIndexOf("]");
+        if (start === -1 || end === -1) throw new Error("no JSON array found in LLM output");
+        const parsed = JSON.parse(content.slice(start, end + 1)) as CreatorCandidate[];
+        if (!Array.isArray(parsed)) throw new Error("LLM output is not a JSON array");
+        return { candidates: parsed, droppedByHardFilter };
+      } catch (e) {
+        // Distinguish "LLM returned zero qualified creators" from "LLM output was unparseable" —
+        // the prior version silently returned [] for both, indistinguishable in the output file.
+        lastError = `HTTP 200 but content invalid: ${(e as Error).message} (${content.slice(0, 100)}...)`;
+      }
     }
-  );
-  if ("error" in (res as object)) {
-    console.error("==> structuring failed:", (res as { error: string }).error);
-    return { candidates: [], droppedByHardFilter };
+    console.error(`==> structuring attempt ${attempt}/${MAX_ATTEMPTS} rejected: ${lastError}`);
+    if (attempt < MAX_ATTEMPTS) await new Promise<void>((r) => setTimeout(r, 3_000));
   }
-  const content = (res as { choices?: { message?: { content?: string } }[] }).choices?.[0]?.message?.content ?? "[]";
-  try {
-    const start = content.indexOf("[");
-    const end = content.lastIndexOf("]");
-    if (start === -1 || end === -1) throw new Error("no JSON array found in LLM output");
-    const candidates = JSON.parse(content.slice(start, end + 1)) as CreatorCandidate[];
-    return { candidates, droppedByHardFilter };
-  } catch {
-    // Distinguish "LLM returned zero qualified creators" from "LLM output was unparseable" —
-    // the prior version silently returned [] for both, indistinguishable in the output file.
-    console.error("==> failed to parse LLM output as JSON — this run's candidate list is INCOMPLETE, not genuinely empty:", content.slice(0, 300));
-    throw new Error(`structureCandidates: unparseable LLM output (${content.slice(0, 100)}...)`);
-  }
+  throw new Error(`structureCandidates: failed after ${MAX_ATTEMPTS} same-provider attempts; last: ${lastError}`);
 }
 
 // --- Stage 3.5: contact enrichment (added 2026-09-09) ---

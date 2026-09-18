@@ -160,32 +160,57 @@ would plausibly cover. Return a JSON array, same order/length as the input list:
 Topics:
 ${JSON.stringify(topics.map((t) => ({ query: t.query, search_volume: t.search_volume, increase_percentage: t.increase_percentage, categories: t.categories?.map((c) => c.name) })))}`;
 
-  const res = await postJson<{ choices?: { message?: { content?: string } }[] }>(
-    "https://openrouter.ai/api/v1/chat/completions",
-    { Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}` },
-    {
-      model: process.env.TREND_CLASSIFIER_MODEL || "x-ai/grok-4.3",
-      messages: [
-        { role: "system", content: "Return valid JSON only. No commentary, no markdown fences." },
-        { role: "user", content: prompt },
-      ],
-      temperature: 0.1,
+  // Validated same-provider retry (provider-pin hardening 2026-09-16): a 200-but-garbage
+  // response (unparseable, or length != input length — the prompt demands same order/length)
+  // is rejected and retried on the SAME pinned provider with backoff, max 3 attempts; never
+  // a different provider. After 3: loud console.error, then the file's documented fallback
+  // contract (getTrendingNiches must never return fewer pairs than requested — a failed
+  // classification falls back per-niche and is recorded in usedFallbackFor/incomplete
+  // reasons, NOT silently swallowed).
+  const MAX_ATTEMPTS = 3;
+  let classified: { topic: string; niche: string | null; reason: string }[] | null = null;
+  let lastError = "";
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS && !classified; attempt++) {
+    const res = await postJson<{ choices?: { message?: { content?: string } }[] }>(
+      "https://openrouter.ai/api/v1/chat/completions",
+      { "X-Title": "hex-expan", "HTTP-Referer": "https://github.com/TechHypeXP/hex-expan", Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}` },
+      {
+        model: process.env.TREND_CLASSIFIER_MODEL || "x-ai/grok-4.3",
+        // grok-4.3 is xAI-exclusive; direct OR calls bypass the CLI relace pin (RCA 2026-09-16).
+        provider: { order: ["x-ai"], allow_fallbacks: false },
+        messages: [
+          { role: "system", content: "Return valid JSON only. No commentary, no markdown fences." },
+          { role: "user", content: prompt },
+        ],
+        temperature: 0.1,
+      }
+    );
+    if ("error" in (res as object)) {
+      lastError = (res as { error: string }).error;
+    } else {
+      const content = (res as { choices?: { message?: { content?: string } }[] }).choices?.[0]?.message?.content ?? "";
+      try {
+        const start = content.indexOf("[");
+        const end = content.lastIndexOf("]");
+        if (start === -1 || end === -1) throw new Error("no JSON array in output");
+        const parsed = JSON.parse(content.slice(start, end + 1)) as { topic: string; niche: string | null; reason: string }[];
+        if (!Array.isArray(parsed)) throw new Error("classification output is not a JSON array");
+        if (parsed.length !== topics.length) throw new Error(`length mismatch: ${parsed.length} classifications for ${topics.length} topics`);
+        classified = parsed;
+      } catch (e) {
+        lastError = `HTTP 200 but content invalid: ${(e as Error).message}`;
+      }
     }
-  );
-  if ("error" in (res as object)) {
-    console.error("==> [trends] classification call failed:", (res as { error: string }).error);
-    return topics.map((t) => ({ topic: t.query, niche: null, reason: "classification call failed" }));
+    if (!classified) {
+      console.error(`==> [trends] classification attempt ${attempt}/${MAX_ATTEMPTS} rejected: ${lastError}`);
+      if (attempt < MAX_ATTEMPTS) await new Promise<void>((r) => setTimeout(r, 3_000));
+    }
   }
-  const content = (res as { choices?: { message?: { content?: string } }[] }).choices?.[0]?.message?.content ?? "[]";
-  try {
-    const start = content.indexOf("[");
-    const end = content.lastIndexOf("]");
-    if (start === -1 || end === -1) throw new Error("no JSON array in output");
-    return JSON.parse(content.slice(start, end + 1));
-  } catch {
-    console.error("==> [trends] failed to parse classification output:", content.slice(0, 200));
-    return topics.map((t) => ({ topic: t.query, niche: null, reason: "parse failure" }));
+  if (!classified) {
+    console.error(`==> [trends] classification FAILED after ${MAX_ATTEMPTS} same-provider attempts — falling back per documented contract (niches logged as fallback, not silent)`);
+    return topics.map((t) => ({ topic: t.query, niche: null, reason: `classification failed after ${MAX_ATTEMPTS} validated attempts (${lastError.slice(0, 120)})` }));
   }
+  return classified;
 }
 
 // Main entry point. Returns exactly one {niche, topic} pair per requested evergreen niche —

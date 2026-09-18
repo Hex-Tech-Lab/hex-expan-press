@@ -45,11 +45,6 @@
     width: 12px; height: 12px; border-radius: 3px; background: #F2C14E;
   }
   .inside li b { font-weight: 650; }
-  .partnership {
-    border-left: 3px solid #2E7D5B; background: #FFFDF9; border-radius: 0 12px 12px 0;
-    padding: 18px 20px; font-size: 14.5px; color: #2B2520; margin-bottom: 36px;
-  }
-  .partnership b { color: #2E7D5B; }
   .disclaimers {
     padding: 18px 20px; background: #F3ECDF; border-radius: 12px;
     font-size: 12.5px; color: #6E5F53; margin-bottom: 40px;
@@ -77,7 +72,7 @@
   <div class="pricebox">
     <p class="price">$19 <small>USD &middot; one-time</small></p>
     <p class="taxnote">Sales tax / VAT is calculated and collected at checkout by our payment partners.</p>
-    <a class="buy pending" id="buy" href="#buy-link-pending" data-checkout-slot="primary" data-config-source="payments/config.duane.json" data-checkout-mode="gated" data-baked-at="2026-09-16T14:48:15.898Z">Checkout coming online &mdash; provider review in progress</a>
+    <a class="buy pending" id="buy" href="#buy-link-pending" data-checkout-slot="primary" data-config-source="payments/config.duane.json" data-checkout-mode="gated" data-baked-at="2026-09-18T08:56:13.066Z">Checkout coming online &mdash; provider review in progress</a>
     <p class="secure">Secure checkout hosted by our payment partners &middot; PDF delivered by email</p>
   </div>
 
@@ -91,9 +86,15 @@
     </ul>
   </div>
 
-  <div class="partnership">
-    <p><b>Creator partnership:</b> this playbook is published in partnership with the creator &mdash; <b>50% of every sale goes directly to the creator</b>, split automatically at checkout.</p>
-  </div>
+  <!-- STANDING RULE (2026-09-16, revised 2026-09-17): revenue-share terms and payout
+       specifics (split percentages, payout mechanics, deal status) are never
+       public-facing copy on any page served from this site.
+       REVISED: do not use "partner"/"partnership" anywhere in public-facing copy
+       (previously this rule allowed generic "in partnership with the creator"
+       language — that created risk of an implied-partnership/joint-venture claim
+       contradicting the agreement's own no-partnership clause; see
+       data/intel/creator_agreement_template_2026-09-17_v5.md §10.5). Use
+       "creator program," "publishing engagement," or "book project" instead. -->
 
   <div class="disclaimers">
     <p><b>Educational content only &mdash; not financial advice.</b> Nothing in this playbook is a recommendation to buy, sell, or hold any security or to make any investment decision. Do your own research and consult a licensed professional where appropriate.</p>

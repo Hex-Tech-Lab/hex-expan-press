@@ -1,0 +1,211 @@
+- generic [ref=e1]:
+  - link "Skip to main content" [ref=e2] [cursor=pointer]:
+    - /url: ""
+  - generic [ref=e3]:
+    - generic [ref=e8]:
+      - textbox "Enter keywords to search this site" [ref=e9]
+      - button "Submit" [ref=e10] [cursor=pointer]
+    - generic [ref=e11]:
+      - generic [ref=e13]:
+        - link "Wyoming Secretary of State" [ref=e15] [cursor=pointer]:
+          - /url: https://sos.wyo.gov
+        - navigation [ref=e19]:
+          - list [ref=e22]:
+            - listitem [ref=e23]:
+              - link "Home" [ref=e24] [cursor=pointer]:
+                - /url: https://sos.wyo.gov/default.aspx
+            - listitem [ref=e25]:
+              - link "About Us" [ref=e26] [cursor=pointer]:
+                - /url: "#"
+            - listitem [ref=e28]:
+              - link "Business E-Filing" [ref=e29] [cursor=pointer]:
+                - /url: https://wyobiz.wyo.gov/Business/Default.aspx
+            - listitem [ref=e30]:
+              - link "Business/UCC" [ref=e31] [cursor=pointer]:
+                - /url: "#"
+            - listitem [ref=e33]:
+              - link "Elections" [ref=e34] [cursor=pointer]:
+                - /url: "#"
+            - listitem [ref=e36]:
+              - link "Forms" [ref=e37] [cursor=pointer]:
+                - /url: https://sos.wyo.gov/Forms/default.aspx
+            - listitem [ref=e38]:
+              - link "Investing" [ref=e39] [cursor=pointer]:
+                - /url: "#"
+            - listitem [ref=e41]:
+              - link "Services & Information" [ref=e42] [cursor=pointer]:
+                - /url: "#"
+            - listitem [ref=e44]:
+              - link "Contact" [ref=e45] [cursor=pointer]:
+                - /url: https://sos.wyo.gov/contactus.aspx
+      - generic [ref=e50]:
+        - generic [ref=e51]:
+          - heading "Business Center" [level=1] [ref=e53]
+          - generic [ref=e54]:
+            - list:
+              - listitem [ref=e55]:
+                - link "Online Services" [ref=e56] [cursor=pointer]:
+                  - /url: https://wyobiz.wyo.gov/Business/Default.aspx
+        - generic [ref=e58]:
+          - article [ref=e60]:
+            - list [ref=e61]:
+              - listitem [ref=e62]:
+                - link "Business & UCC Home" [ref=e63] [cursor=pointer]:
+                  - /url: https://sos.wyo.gov/Business/Default.aspx
+              - listitem [ref=e64]:
+                - link "Annual Report Online Filing" [ref=e65] [cursor=pointer]:
+                  - /url: https://wyobiz.wyo.gov/Business/AnnualReport.aspx
+              - listitem [ref=e66]:
+                - link "FAQs" [ref=e67] [cursor=pointer]:
+                  - /url: https://sos.wyo.gov/faqs.aspx?root=BUS
+              - listitem [ref=e68]:
+                - link "Commercial Registered Agents" [ref=e69] [cursor=pointer]:
+                  - /url: https://sos.wyo.gov/Business/CRAHome.aspx
+              - listitem [ref=e70]:
+                - link "FinCEN / CTA Information" [ref=e71] [cursor=pointer]:
+                  - /url: https://sos.wyo.gov/FinCEN
+              - listitem [ref=e72]:
+                - link "Forms" [ref=e73] [cursor=pointer]:
+                  - /url: https://sos.wyo.gov/Forms/Default.aspx?root=Business
+              - listitem [ref=e74]:
+                - link "Good Standing Certificates Online" [ref=e75] [cursor=pointer]:
+                  - /url: https://wyobiz.wyo.gov/Business/ViewCertificate.aspx
+              - listitem [ref=e76]:
+                - link "Maintaining Your Business" [ref=e77] [cursor=pointer]:
+                  - /url: https://sos.wyo.gov/Business/MaintainBusiness.aspx
+              - listitem [ref=e78]:
+                - link "Media Releases" [ref=e79] [cursor=pointer]:
+                  - /url: https://sos.wyo.gov/Media/MediaReleases.aspx
+              - listitem [ref=e80]:
+                - link "Online Business Services" [ref=e81] [cursor=pointer]:
+                  - /url: https://sos.wyo.gov/Business/OnlineBusinessServices.aspx
+              - listitem [ref=e82]:
+                - link "Questions and Answers" [ref=e83] [cursor=pointer]:
+                  - /url: https://sos.wyo.gov/Business/QuestionsAndAnswers.aspx
+              - listitem [ref=e84]:
+                - link "Reinstate Online" [ref=e85] [cursor=pointer]:
+                  - /url: https://wyobiz.wyo.gov/Business/Reinstatement.aspx
+              - listitem [ref=e86]:
+                - link "Report Business Filing Fraud" [ref=e87] [cursor=pointer]:
+                  - /url: https://sos.wyo.gov/Business/ReportFraud
+              - listitem [ref=e88]:
+                - link "Start a Business" [ref=e89] [cursor=pointer]:
+                  - /url: https://sos.wyo.gov/Business/StartABusiness.aspx
+              - listitem [ref=e90]:
+                - link "Search for Business Names/Filings" [ref=e91] [cursor=pointer]:
+                  - /url: https://wyobiz.wyo.gov/Business/FilingSearch.aspx
+              - listitem [ref=e92]:
+                - link "Statistics" [ref=e93] [cursor=pointer]:
+                  - /url: https://sos.wyo.gov/Business/Statistics.aspx
+              - listitem [ref=e94]:
+                - link "UCC / EFS / Buyers" [ref=e95] [cursor=pointer]:
+                  - /url: https://sos.wyo.gov/Business/UCCEFSBuyerHome.aspx
+          - main [ref=e96]:
+            - generic [ref=e97]:
+              - generic [ref=e98]: Search
+              - generic [ref=e99]:
+                - generic [ref=e100]:
+                  - paragraph [ref=e101]: Please enter a filing name or a valid Filing ID and click 'Search'. Click any result to view details.
+                  - paragraph [ref=e102]: If using this tool to check for name availability, click the documents in the "Database Tips" section below for information on how to search the name to ensure compliance with Wyoming statutes.
+                - generic [ref=e103]:
+                  - generic [ref=e104]:
+                    - text: Filing Name
+                    - textbox "Filing Name" [active] [ref=e105]
+                  - generic [ref=e106]:
+                    - generic [ref=e107]:
+                      - radio "Starts With" [checked] [ref=e108] [cursor=pointer]
+                      - text: Starts With
+                    - generic [ref=e109]:
+                      - radio "Contains" [ref=e110] [cursor=pointer]
+                      - text: Contains
+                  - generic [ref=e111]:
+                    - text: Filing ID
+                    - textbox "Filing ID" [ref=e112]
+                    - text: "Example: 2000-000123456"
+                - button "Search" [ref=e115] [cursor=pointer]
+              - generic [ref=e118]: "Database Tips:"
+              - generic [ref=e119]:
+                - generic [ref=e120]:
+                  - text: Before forming a business, use these
+                  - link "helpful search tips" [ref=e121] [cursor=pointer]:
+                    - /url: https://sos.wyo.gov/Forms/WyoBiz/Name_Search_Tips.pdf
+                  - text: and information on
+                  - link "how to choose a company name" [ref=e122] [cursor=pointer]:
+                    - /url: https://sos.wyo.gov/Business/Docs/HowToChooseACompanyName.pdf
+                  - text: to ensure compliance when choosing a name for your new company.
+                - generic [ref=e123]: Filing ID refers to the identification number assigned to the business entity by the Secretary of State's Office. If you do not know your Filing ID, please search by the name of the business entity.
+                - generic [ref=e124]: The statement that a company is in "good standing" simply notifies the public that all paperwork or fees required to form or maintain registration has been filed with the Secretary of State and is current. "Good Standing" in no way implies endorsement of the business nor does it reflect on the quality of the products or services provided by the business.
+      - generic [ref=e126]:
+        - generic [ref=e127]:
+          - figure [ref=e128]:
+            - heading "Office Information" [level=2] [ref=e129]
+            - paragraph [ref=e130]: Herschler Building East 122 W 25th St Suites 100 and 101 Cheyenne, WY 82002-0020
+            - paragraph [ref=e131]:
+              - text: For additional information, including driving directions, please see the
+              - link "Contact Us" [ref=e132] [cursor=pointer]:
+                - /url: https://sos.wyo.gov/ContactUs.aspx
+              - text: page.
+          - figure [ref=e133]:
+            - heading "Office Hours" [level=2] [ref=e134]
+            - paragraph [ref=e135]: 8:00 a.m. to 5:00 p.m. MST Monday through Friday (except for official state holidays)
+            - link "Facebook" [ref=e136] [cursor=pointer]:
+              - /url: https://www.facebook.com/wyosos
+              - img "facebook" [ref=e137]
+            - link "Twitter" [ref=e138] [cursor=pointer]:
+              - /url: https://twitter.com/wyomingsos
+              - img "twitter" [ref=e139]
+            - link "Instagram" [ref=e140] [cursor=pointer]:
+              - /url: https://www.instagram.com/wyomingsos/
+              - img "instagram" [ref=e141]
+            - link "Great Seal of Wyoming" [ref=e142] [cursor=pointer]:
+              - /url: https://drive.google.com/drive/folders/18OpOlf4FLDKBxloB3MdFOFFf5wQzzVZl?usp=sharing
+              - img "Great Seal of Wyoming" [ref=e143]
+          - figure [ref=e144]:
+            - heading "About Our Office" [level=2] [ref=e145]
+            - paragraph [ref=e146]: We have a long history of serving the public. Beginning in April 1869 with the appointment of the first Secretary of the Territory of Wyoming, Edward M. Lee, by United States President Ulysses S. Grant, this office has always served the public from the State Capitol Building. However, following the completion of the Capitol Renovation Project in 2019, the Office is now located at Herschler Building East, Suites 100 and 101.
+        - generic [ref=e147]:
+          - list [ref=e150]:
+            - listitem [ref=e151]:
+              - link "Open State of Wyoming Government Website in new tab" [ref=e152] [cursor=pointer]:
+                - /url: https://www.wyo.gov/state-government
+                - text: Government
+            - listitem [ref=e153]
+            - listitem [ref=e154]:
+              - link "Open State of Wyoming Citizen Information Website in new tab" [ref=e155] [cursor=pointer]:
+                - /url: https://www.wyo.gov/resources/citizen
+                - text: Citizen
+            - listitem [ref=e156]
+            - listitem [ref=e157]:
+              - link "Open Travel Wyoming Website for Visitors in new tab" [ref=e158] [cursor=pointer]:
+                - /url: https://travelwyoming.com/
+                - text: Visitor
+            - listitem [ref=e159]
+            - listitem [ref=e160]:
+              - link "Open State of Wyoming Business Website in new tab" [ref=e161] [cursor=pointer]:
+                - /url: https://www.wyo.gov/resources/business
+                - text: Business
+            - listitem [ref=e162]:
+              - link "Open State of Wyoming Home Website in new tab" [ref=e163] [cursor=pointer]:
+                - /url: https://www.wyo.gov
+                - text: State Home
+            - listitem [ref=e164]
+            - listitem [ref=e165]:
+              - link "Open State of Wyoming Privacy Policy in new tab" [ref=e166] [cursor=pointer]:
+                - /url: https://sites.google.com/a/wyo.gov/wy-ag/privacy
+                - text: Privacy Policy
+            - listitem [ref=e167]
+            - listitem [ref=e168]:
+              - link "Open Site Map" [ref=e169] [cursor=pointer]:
+                - /url: https://sos.wyo.gov/SiteMap.aspx
+                - text: Site Map
+            - listitem [ref=e170]
+            - listitem [ref=e171]:
+              - link "Open About Wyoming Website in new tab" [ref=e172] [cursor=pointer]:
+                - /url: https://www.wyo.gov/about-wyoming
+                - text: About Wyoming
+            - listitem [ref=e173]
+            - listitem [ref=e174]:
+              - link "Open Photo Credits" [ref=e175] [cursor=pointer]:
+                - /url: https://sos.wyo.gov/PhotoCredits.aspx
+                - text: Photo Credits
+          - paragraph [ref=e176]: © 2025 Wyoming Secretary of State's Office. All Rights Reserved.
