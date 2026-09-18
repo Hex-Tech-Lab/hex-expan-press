@@ -61,6 +61,12 @@ export const paddleProvider: CheckoutProvider = {
     const saleId = String(getPath(body, FM.sale_id) ?? data?.id ?? "");
     const email = getPath(body, FM.email) ?? data?.custom_data?.email; // UNVERIFIED vs provider docs — verify before go-live (Paddle redacts emails unless stored)
     const changeTs = Number(getPath(body, FM.ts_epoch_s) ?? data?.changed_at); // UNVERIFIED vs provider docs — epoch seconds
+    // Our own canonical attribution ID (added 2026-09-18) — see field_map.attribution_id /
+    // attribution_note in data/settings/providers.json. Server-side extraction only; client-side
+    // checkout-link wiring to actually SET custom_data.attribution_id at checkout is not yet
+    // built for Paddle (its JS overlay uses a customData init option, not a URL param).
+    const attributionIdRaw = getPath(body, FM.attribution_id) ?? data?.custom_data?.attribution_id;
+    const attributionId = typeof attributionIdRaw === "string" && attributionIdRaw !== "" ? attributionIdRaw : undefined;
 
     if (!productId) return { ok: false, status: 400, error: "missing custom_data.product_id (set it on the checkout)" };
     if (!saleId) return { ok: false, status: 400, error: "missing data.id" };
@@ -77,6 +83,7 @@ export const paddleProvider: CheckoutProvider = {
         amount_usd: Math.round(totalCents) / 100, // UNVERIFIED vs provider docs — confirm cents denomination
         ts: Number.isFinite(changeTs) && changeTs > 0 ? new Date(changeTs * 1000).toISOString() : new Date().toISOString(),
         email_hash: hashEmail(email),
+        ...(attributionId ? { attribution_id: attributionId } : {}),
       },
     };
   },

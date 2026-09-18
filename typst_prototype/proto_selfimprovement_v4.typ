@@ -1,31 +1,21 @@
 // ============================================================
-// PROTOTYPE v3 — "The Morning Reset" — illustrated trade build
-// Keeps v2's typographic foundation (Fraunces Display + Libre
-// Caslon Text, cream/ink/oxblood) and adds what round 2 lacked,
-// benchmarked against the Synthesize.ai reference:
-//   1. front cover w/ full-bleed warm photo (bottom two-thirds)
-//   2. dedication + preface with real copy
-//   3. dotted-leader contents w/ page numbers
-//   4. two chapter openers w/ warm photos (ch1 full-bleed)
-//   5. pure-Typst vertical timeline w/ amber tag chips
-//   6. two thin-border callout boxes
-//   7. back cover: photo panel, blurb, fake barcode block
-//   8. folios + running heads as in v2
-// Images: Openverse API (keyless), credits in img_v3/CREDITS.md.
+// PROTOTYPE v4 — "The Morning Reset" — round 4 polish on v3
+// (v3 = warm-cream trade build, Fraunces Display + Libre Caslon
+// Text, cream/ink/oxblood). Round 4 changes:
+//   1. spacing/flow pass (section rhythm normalized; flow check)
+//   2. simpler TOC: flat one-level, generous leading, no dots
+//   3. drop caps on chapter openers kept (Fraunces, wine accent)
+//   4. back cover: pitch + explicit not-financial-advice and
+//      past-performance small print
+//   5. chapter-close takeaway blocks (existing copy, relocated)
+// Typst 0.15: counter display wrapped in `context` (was 0.10-era).
+// Copy unchanged from v3 — typography/structure only.
 //
-// Typst 0.10 traps honored: no par(spacing:)/text(line-height:)/
-// grid(align:); spacing via block(above:); no leading #page();
-// fonts verified with `typst fonts` (0.10 silently falls back).
-// All author/publisher/quotes/ISBN are invented; sample copy.
-//
-// 2026-09-16 layout-certification fixes (typst 0.15.1 engine):
-//   1. TOC: #v(8pt) between grouped entry rows — 0.10-era zero-gap
-//      stacking rendered 7.84pt pitch on 12.7pt rows (glyph collision)
-//   2. body flows folded into their `block(above: 0pt)` container:
-//      0.13+ treats inline-only container text as a non-paragraph, and
-//      junctions between it and adjacent paragraph flow lose one line
-//      of leading (8.07pt pitch on 13pt lines = fused bands)
-//   3. folio counter display wrapped in `context` (0.15 requirement)
+// 2026-09-16 layout-certification fix: body flows folded into their
+// `block(above: 0pt)` container. Typst 0.13+ treats inline-only
+// container text as a non-paragraph, and junctions between it and
+// adjacent paragraph flow lose one line of leading (8.07pt pitch on
+// 13pt lines = two lines fused into one band; pages 3,5,6,7,9).
 // ============================================================
 
 #let paper  = rgb("#F7F1E3") // warm cream stock
@@ -95,18 +85,18 @@
   #text(size: 9.8pt)[#body]
 ]
 
-// Dotted-leader TOC row: a bare inline dotted line in a 1fr grid cell
-// (box+place wrapper resolved to the wrong region and overflowed in 0.10)
+// Flat one-level TOC row (round 4): no leader dots, generous gaps
+// between rows; number hangs right in a fixed-width cell.
 #let tocentry(ttl, num, indent: 0pt, strong: false) = grid(
   columns: (auto, 1fr, 26pt), column-gutter: 6pt,
 )[
   #box(inset: (left: indent))[
-    #text(font: bodyf, size: 10.3pt, weight: if strong { 600 } else { 400 }, fill: ink)[#ttl]
+    #text(font: bodyf, size: 11pt, weight: if strong { 600 } else { 400 }, fill: ink)[#ttl]
   ]
 ][
-  #line(length: 100%, stroke: (thickness: 0.55pt, paint: leaderc, dash: "dotted"))
+  // round 4: leader dots dropped
 ][
-  #text(font: bodyf, size: 10.3pt, fill: ink)[#num]
+  #text(font: bodyf, size: 11pt, fill: ink)[#num]
 ]
 
 // Timeline row: dot + connector of FIXED length (a height:100% cell in an
@@ -241,28 +231,23 @@
 ]
 
 // ------------------------------------------------------------
-// PAGE 4 — CONTENTS. Dotted leaders, hardcoded folios matching
-// the layout below (front matter roman, chapters arabic).
+// PAGE 4 — CONTENTS. Round 4: flat one-level list, generous
+// leading, no leader dots. Hardcoded folios match layout below
+// (front matter roman, chapters arabic).
 // ------------------------------------------------------------
 #page(margin: (left: 68pt, right: 50pt, top: 78pt, bottom: 60pt), fill: paper,
   footer: align(center)[#folior("iii")]
 )[
   #text(font: display, weight: 600, size: 21pt, fill: wine)[Contents]
-  #v(20pt)
+  #v(26pt)
   #set par(justify: false, first-line-indent: 0pt)
   #block(above: 0pt)[
     #set block(above: 0pt, below: 0pt)
     #tocentry("Preface", "ii", strong: true)
-    #v(11pt)
+    #v(20pt)
     #tocentry("One · The Hour Before the World Wakes", "1", strong: true)
-    #v(8pt)
-    #tocentry("The Snooze Is a Small, Patient Lie", "2", indent: 15pt)
-    #v(11pt)
+    #v(20pt)
     #tocentry("Two · The Reset Is Plumbing", "3", strong: true)
-    #v(8pt)
-    #tocentry("The Reset Sequence", "4", indent: 15pt)
-    #v(8pt)
-    #tocentry("What the Reset Is Not", "5", indent: 15pt)
   ]
   #v(1fr)
   #line(length: 100%, stroke: 0.5pt + quiet)
@@ -322,27 +307,12 @@
     that was yours, and it collects in a currency you notice only at noon:
     attention. Fragmented waking is not rest; it is three appetizers
     and no meal. You wake three times and arrive rested never.
-  ]
-
-  #block(above: 14pt, below: 14pt)[
-    #set par(justify: false, first-line-indent: 0pt)
-    #align(center)[
-      #line(length: 58pt, stroke: 0.8pt + wine)
-      #v(9pt)
-      #text(font: display, weight: 400, style: "italic", size: 14.5pt, fill: ink)[
-        You will never control the whole day. You can control the first hour —
-        and the first hour decides who shows up for all the rest.
-      ]
-      #v(9pt)
-      #line(length: 58pt, stroke: 0.8pt + wine)
-    ]
-  ]
-
   The reset asks three things of you, and none of them is five a.m. Before you
   speak to anyone: stand at a window for two
   minutes of daylight; drink a full glass of water; write one sentence about
   what today is for. On a good morning this takes ninety seconds. On a bad
   morning, it is the reason you keep the day.
+  ]
   #callout("Room Check")[
     If the first hour keeps disappearing, fix the room, not your willpower. The
     repeat offender is almost always furniture: where the phone slept, where the
@@ -353,6 +323,23 @@
   This is the quiet secret of every working morning I have studied:
   discipline is mostly a story we tell about furniture. Pilots run a
   checklist, not a pep talk.
+
+  // Round 4: chapter-close takeaway (existing quote text, relocated)
+  #block(above: 14pt, below: 10pt)[
+    #set par(justify: false, first-line-indent: 0pt)
+    #align(center)[
+      #caps("The takeaway", size: 7.6pt, fill: wine, weight: 600, track: 0.26em)
+      #v(6pt)
+      #line(length: 58pt, stroke: 0.8pt + wine)
+      #v(9pt)
+      #text(font: display, weight: 400, style: "italic", size: 14.5pt, fill: ink)[
+        You will never control the whole day. You can control the first hour —
+        and the first hour decides who shows up for all the rest.
+      ]
+      #v(9pt)
+      #line(length: 58pt, stroke: 0.8pt + wine)
+    ]
+  ]
   #v(10pt)
   #align(center)[
     #box(width: 40pt)[
@@ -461,7 +448,24 @@
   make its claims soon enough, and loudly. The reset is not a productivity
   system and it is not a personality upgrade. It is the deed to that first
   hour, signed at first light, one ordinary morning at a time.
-  #v(12pt)
+
+  // Round 4: chapter-close takeaway (existing sentence, quoted back)
+  #block(above: 12pt, below: 10pt)[
+    #set par(justify: false, first-line-indent: 0pt)
+    #align(center)[
+      #caps("The takeaway", size: 7.6pt, fill: wine, weight: 600, track: 0.26em)
+      #v(6pt)
+      #line(length: 58pt, stroke: 0.8pt + wine)
+      #v(9pt)
+      #text(font: display, weight: 400, style: "italic", size: 14pt, fill: ink)[
+        Plumbing works at 6:47 in the dark, on a Tuesday in February, when
+        nobody is watching and nobody is inspired.
+      ]
+      #v(9pt)
+      #line(length: 58pt, stroke: 0.8pt + wine)
+    ]
+  ]
+  #v(6pt)
   #align(center)[
     #box(width: 40pt)[
       #place(top + left, dx: 17pt)[#circle(radius: 1.6pt, fill: wine)]
@@ -478,12 +482,12 @@
 // ------------------------------------------------------------
 #page(margin: 0pt, fill: paper)[
   #place(top + left)[
-    #box(width: 432pt, height: 330pt)[
+    #box(width: 432pt, height: 290pt)[
       #image("img_v3/back_bedroom.jpg", width: 100%, height: 100%, fit: "cover")
     ]
   ]
-  #place(top + left, dy: 330pt)[#rect(width: 432pt, height: 318pt, fill: wine)]
-  #place(top + left, dy: 350pt, dx: 46pt)[
+  #place(top + left, dy: 290pt)[#rect(width: 432pt, height: 358pt, fill: wine)]
+  #place(top + left, dy: 306pt, dx: 46pt)[
     #box(width: 340pt)[
       #set par(justify: false, first-line-indent: 0pt, leading: 0.55em)
       #text(font: display, weight: 400, style: "italic", size: 12.5pt, fill: paper)[
@@ -497,21 +501,21 @@
         where the glass stands, what the first sentence says. Read it in an
         hour; keep the hour.
       ]
-      #v(9pt)
+      #v(8pt)
       #text(size: 8.5pt, style: "italic", fill: rgb("#E8D9BC"))[
         “Calloway writes about furniture the way poets write about weather.”
         — The Ordinary Review
       ]
-      #v(5pt)
+      #v(3pt)
       #text(size: 8.5pt, style: "italic", fill: rgb("#E8D9BC"))[
         “Finally, a morning book that does not ask you to become a different
         person by Thursday.” — Housemate Quarterly
       ]
-      #v(10pt)
+      #v(7pt)
       #align(center)[
         #text(font: display, weight: 600, size: 11pt, fill: paper, tracking: 0.28em)[JUNE CALLOWAY]
       ]
-      #v(10pt)
+      #v(7pt)
       #let barcode = {
         for p in ((2, 1), (1, 2), (3, 1), (1, 1), (2, 2), (1, 1), (3, 1), (2, 1), (1, 2), (2, 1), (1, 1), (3, 1), (2, 2), (1, 1), (2, 1), (3, 1), (1, 1), (2, 1)) {
           box(width: p.at(0) * 1.35pt, height: 26pt, fill: ink)
@@ -524,7 +528,17 @@
         #v(3pt)
         #caps("ISBN 978-0-00-000000-0 · US $19.99", size: 6.3pt, fill: ink, weight: 600, track: 0.12em)
       ]
-      #v(6pt)
+      #v(8pt)
+      // Round 4: small-print disclaimers (kept verbatim requirements:
+      // not-financial-advice + past-performance), sample note preserved.
+      #text(size: 6.8pt, fill: rgb("#E8D9BC"))[
+        #set par(justify: true, first-line-indent: 0pt, leading: 0.42em)
+        The Morning Reset is general self-help about habits and mornings. It is
+        not financial advice, and nothing in it is a recommendation to buy or
+        sell anything. Past performance of any routine — the author's included —
+        is no guarantee of future mornings.
+      ]
+      #v(5pt)
       #align(center)[
         #text(size: 6.4pt, fill: rgb("#D9C8A8"), style: "italic")[
           Design prototype · author, publisher, reviews, and ISBN are invented · sample copy, not advice

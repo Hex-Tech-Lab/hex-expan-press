@@ -51,6 +51,12 @@ export const lemonsqueezyProvider: CheckoutProvider = {
     const saleId = String(getPath(body, FM.sale_id) ?? body?.data?.id ?? attrs?.identifier ?? "");
     const createdAt = getPath(body, FM.ts) ?? attrs?.created_at;
     const email = getPath(body, FM.email) ?? attrs?.user_email;
+    // Our own canonical attribution ID (added 2026-09-18) — see field_map.attribution_id /
+    // attribution_note in data/settings/providers.json. Server-side extraction only; client-side
+    // checkout-link wiring to actually SET meta.custom_data.attribution_id (via the analogous
+    // checkout[custom][attribution_id] URL param) is not yet built.
+    const attributionIdRaw = getPath(body, FM.attribution_id) ?? body?.meta?.custom_data?.attribution_id;
+    const attributionId = typeof attributionIdRaw === "string" && attributionIdRaw !== "" ? attributionIdRaw : undefined;
 
     if (!productId) return { ok: false, status: 400, error: "missing meta.custom_data.product_id (set it in the checkout URL)" };
     if (!saleId) return { ok: false, status: 400, error: "missing sale id" };
@@ -67,6 +73,7 @@ export const lemonsqueezyProvider: CheckoutProvider = {
         amount_usd: Math.round(totalCents) / 100, // UNVERIFIED vs provider docs — confirm cents denomination
         ts: typeof createdAt === "string" ? createdAt : new Date().toISOString(),
         email_hash: hashEmail(email),
+        ...(attributionId ? { attribution_id: attributionId } : {}),
       },
     };
   },

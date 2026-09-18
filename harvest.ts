@@ -54,6 +54,62 @@ async function postJson<T = unknown>(url: string, headers: Record<string, string
   }
 }
 
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+interface OrChatResponse {
+  choices?: { message?: { content?: string } }[];
+}
+
+// Validated same-provider retry for direct OpenRouter LLM calls (provider-pin hardening
+// 2026-09-16): HTTP 200 is NOT acceptance — the response content must actually validate
+// (validator returns null when the expected shape is present, else a reason). A
+// 200-but-garbage response is retried on the SAME pinned provider with backoff, max 3
+// attempts; it never falls through to a different provider (that would reintroduce the
+// budget-provider drift/cache-loss the pin exists to prevent). After 3 attempts: loud
+// console.error + {error} return — cachedFetch refuses to cache error objects, so the
+// failed engine is visibly absent from the run instead of poisoning the cache.
+async function postOrValidated(
+  what: string,
+  body: unknown,
+  validate: (content: string) => string | null
+): Promise<OrChatResponse | { error: string; body?: string }> {
+  const MAX_ATTEMPTS = 3;
+  let lastError = "";
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    const res = await postJson<OrChatResponse>(
+      "https://openrouter.ai/api/v1/chat/completions",
+      { "X-Title": "hex-expan", "HTTP-Referer": "https://github.com/TechHypeXP/hex-expan", Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}` },
+      body
+    );
+    if ("error" in (res as object)) {
+      lastError = (res as { error: string }).error;
+    } else {
+      const content = (res as OrChatResponse).choices?.[0]?.message?.content ?? "";
+      const reason = validate(content);
+      if (reason === null) return res as OrChatResponse;
+      lastError = `HTTP 200 but content invalid: ${reason}`;
+    }
+    console.error(`==> [${what}] attempt ${attempt}/${MAX_ATTEMPTS} rejected: ${lastError}`);
+    if (attempt < MAX_ATTEMPTS) await sleep(3_000);
+  }
+  console.error(`==> [${what}] FAILED after ${MAX_ATTEMPTS} same-provider attempts — recorded as engine error (not cached)`);
+  return { error: `${what}: gave up after ${MAX_ATTEMPTS} validated attempts; last: ${lastError}` };
+}
+
+// Shape validator for the harvest engine prompts (both demand a JSON array of items):
+// content must contain a parseable JSON array. Empty arrays are legal data (sparse signal
+// night), not a validation failure — but they flow through cachedFetch's empty-array guard.
+function jsonArrayValidator(content: string): string | null {
+  try {
+    const start = content.indexOf("[");
+    const end = content.lastIndexOf("]");
+    if (start === -1 || end === -1) return "no JSON array found in LLM output";
+    return Array.isArray(JSON.parse(content.slice(start, end + 1))) ? null : "LLM output is not a JSON array";
+  } catch (e) {
+    return (e as Error).message;
+  }
+}
+
 async function getJson<T = unknown>(url: string, headers: Record<string, string> = {}): Promise<T | { error: string }> {
   try {
     const res = await fetch(url, { headers });
@@ -75,18 +131,18 @@ array of ${HARVEST.prompt_item_range.min} to ${HARVEST.prompt_item_range.max} it
 If fewer than ${HARVEST.prompt_item_range.min} fully-sourced items exist, include the strongest
 partial-evidence candidates and set their signal_type to "partial".`;
   return cachedFetch(`sonar:${prompt}`, TTL_6H, () =>
-    postJson(
-      "https://openrouter.ai/api/v1/chat/completions",
-      { Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}` },
-      {
+    postOrValidated("sonar", {
         model: process.env.SONAR_MODEL || HARVEST.models.sonar,
+        // Direct OR calls bypass the opencode CLI relace pin (RCA 2026-09-16); pin to the
+        // model's only serving provider — sonar is Perplexity-exclusive, a GLM-style pin would 400.
+        provider: { order: ["perplexity"], allow_fallbacks: false },
         messages: [
           { role: "system", content: "Return valid JSON only. No commentary." },
           { role: "user", content: prompt },
         ],
         temperature: HARVEST.engines.sonar.temperature,
-      }
-    )
+      },
+      jsonArrayValidator)
   );
 }
 
@@ -98,19 +154,18 @@ report posts you can quote or paraphrase from actual content, with source
 links where available. Return a JSON array of ${HARVEST.prompt_item_range.min} to ${HARVEST.prompt_item_range.max} items:
 [{topic, quote_summary, urgency, source_context, source_url}]`;
   return cachedFetch(`grok:${prompt}`, TTL_6H, () =>
-    postJson(
-      "https://openrouter.ai/api/v1/chat/completions",
-      { Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}` },
-      {
+    postOrValidated("grok", {
         model: process.env.GROK_MODEL || HARVEST.models.grok,
         plugins: HARVEST.engines.grok.plugins,
+        // grok-4.3 is xAI-exclusive (OR endpoints API) — provider pin for direct-OR-call determinism.
+        provider: { order: ["x-ai"], allow_fallbacks: false },
         messages: [
           { role: "system", content: "Return valid JSON only. No commentary." },
           { role: "user", content: prompt },
         ],
         temperature: HARVEST.engines.grok.temperature,
-      }
-    )
+      },
+      jsonArrayValidator)
   );
 }
 

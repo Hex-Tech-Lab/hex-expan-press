@@ -159,7 +159,10 @@ export const fastspringProvider: CheckoutProvider = {
     if (actions.length === 0) {
       return { ok: false, status: 202, error: `ignored non-sale events: ${ignored.join(", ") || "<none>"}` };
     }
-    if (actions.length === 1) return actions[0]!.sale ? { ok: true, sale: actions[0]!.sale } : { ok: true, refund: actions[0]!.refund };
+    if (actions.length === 1) {
+      const first = actions[0]!;
+      return "sale" in first ? { ok: true, sale: first.sale } : { ok: true, refund: first.refund };
+    }
     return { ok: true, batch: actions };
   },
 };

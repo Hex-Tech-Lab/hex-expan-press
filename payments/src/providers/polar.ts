@@ -24,9 +24,20 @@
 // (lowercase, e.g. "usd"), billing_reason, customer.email, product_id, product, metadata.
 // product_id is NATIVE on the order — no checkout custom-data passthrough needed (config.json
 // product_id should hold the Polar product UUID).
+//
+// REFUNDS (added 2026-09-18): event `refund.created`, "sent when a refund is created regardless
+// of status" per polar.sh/docs/integrate/webhooks/events. Field-level payload schema could NOT be
+// confirmed this session (Polar's OpenAPI refund_created page returned an empty paths object via
+// doc fetch) — implemented against the Order-centric convention used everywhere else in Polar's
+// webhook design (data.order_id links back to the Order, data.created_at is the event time,
+// amounts in cents like Order.total_amount). UNVERIFIED-WITH-REASON, same posture as the sale-side
+// signature note below — re-verify field paths against a real sandbox refund.created delivery
+// (`polar listen` tunnel + trigger a sandbox refund) before go-live. If data.order_id turns out
+// wrong, the ledger's appendRefund() fails loudly (no matching sale) rather than silently
+// mis-recording, so a schema mismatch is safe-fail, not silent corruption.
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { IncomingHttpHeaders } from "node:http";
-import type { CheckoutProvider, ParseResult, ProviderName } from "../provider.ts";
+import type { CheckoutProvider, ParseResult, ProviderName, RefundEvent } from "../provider.ts";
 import { hashEmail } from "../provider.ts";
 import { getPath, isAllowedCurrency, paymentProviderSetting } from "../settings_registry.ts";
 
@@ -37,10 +48,13 @@ const SIG_HEADER = String(CFG?.signature_header ?? "webhook-signature").toLowerC
 const SALE_EVENTS: string[] = Array.isArray(CFG?.sale_events) && CFG.sale_events.length > 0
   ? CFG.sale_events.map(String)
   : ["order.created", "order.paid"];
+const REFUND_EVENTS: string[] = Array.isArray(CFG?.refund_events) && CFG.refund_events.length > 0
+  ? CFG.refund_events.map(String)
+  : ["refund.created"];
 const SECRET_ENV = String(CFG?.secret_env ?? "POLAR_WEBHOOK_SECRET");
 const FM = (CFG?.field_map ?? {}) as Record<string, string | undefined>;
 
-function parseSignatureHeader(header: string | undefined): string[] {
+function parseSignatureHeader(header: string | string[] | undefined): string[] {
   if (typeof header !== "string" || !header) return [];
   return header
     .split(" ")
@@ -104,6 +118,23 @@ export const polarProvider: CheckoutProvider = {
     }
 
     const eventName = body?.type;
+
+    if (REFUND_EVENTS.includes(eventName)) {
+      const refundData = body?.data;
+      const saleId = String(getPath(body, FM.refund_sale_id) ?? refundData?.order_id ?? "");
+      if (!saleId) {
+        return { ok: false, status: 400, error: "refund.created missing data.order_id — refund cannot be linked to a recorded sale" };
+      }
+      const ts =
+        typeof getPath(body, FM.refund_ts) === "string"
+          ? (getPath(body, FM.refund_ts) as string)
+          : typeof refundData?.created_at === "string"
+            ? refundData.created_at
+            : new Date().toISOString();
+      const refund: RefundEvent = { provider: NAME, sale_id: saleId, ts };
+      return { ok: true, refund };
+    }
+
     if (!SALE_EVENTS.includes(eventName)) {
       return { ok: false, status: 202, error: `ignored non-sale event: ${eventName ?? "<none>"}` };
     }
@@ -126,6 +157,12 @@ export const polarProvider: CheckoutProvider = {
             ? body.timestamp
             : new Date().toISOString();
     const email = getPath(body, FM.email) ?? order?.customer?.email;
+    // Our own canonical attribution ID (added 2026-09-18) — see field_map.attribution_id /
+    // attribution_note in data/settings/providers.json. Optional: absent on direct/organic
+    // sales with no captured source, or until the client-side/server-side path is fully
+    // reconciled (UNVERIFIED-WITH-REASON, see provider registry note).
+    const attributionIdRaw = getPath(body, FM.attribution_id) ?? order?.metadata?.reference_id;
+    const attributionId = typeof attributionIdRaw === "string" && attributionIdRaw !== "" ? attributionIdRaw : undefined;
 
     if (!productId) return { ok: false, status: 400, error: "missing data.product_id" };
     if (!saleId) return { ok: false, status: 400, error: "missing data.id (order id)" };
@@ -142,6 +179,7 @@ export const polarProvider: CheckoutProvider = {
         amount_usd: Math.round(totalCents) / 100, // total_amount is in CENTS (schema-verified 2026-10 spec)
         ts,
         email_hash: hashEmail(email),
+        ...(attributionId ? { attribution_id: attributionId } : {}),
       },
     };
   },

@@ -17,3 +17,4 @@ typst_prototype/*.pdf
 
 # Strategic/confidential decision ledger (Rule #0: never in the public repo)
 .memory/
+adr/

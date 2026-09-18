@@ -1,0 +1,534 @@
+- generic [active] [ref=f9e1]:
+  - link "Skip to main content" [ref=f9e2] [cursor=pointer]:
+    - /url: "#main-content"
+  - generic [ref=f9e3]:
+    - generic [ref=f9e5]:
+      - navigation "Main navigation" [ref=f9e6]:
+        - generic [ref=f9e7]:
+          - link "Bizee homepage" [ref=f9e9] [cursor=pointer]:
+            - /url: https://bizee.com
+            - img "Bizee Logo Header V2" [ref=f9e11]
+          - generic [ref=f9e12]:
+            - link "Get Started" [ref=f9e14] [cursor=pointer]:
+              - /url: https://orders.bizee.com/form-order-now.php
+            - button "Open menu" [ref=f9e18] [cursor=pointer]
+      - navigation "Mobile navigation":
+        - generic [ref=f9e23]:
+          - search "Site search":
+            - generic [ref=f9e24]: Search the site
+        - generic [ref=f9e25]:
+          - generic [ref=f9e26]:
+            - button "Business Formation" [ref=f9e27] [cursor=pointer]
+            - region "Careers":
+              - generic [ref=f9e31]:
+                - link "Form a Business" [ref=f9e32] [cursor=pointer]:
+                  - /url: https://bizee.com/business-formation
+                - separator [ref=f9e34]
+                - list [ref=f9e35]:
+                  - listitem [ref=f9e36]:
+                    - link "Form an LLC" [ref=f9e37] [cursor=pointer]:
+                      - /url: https://bizee.com/llc
+                  - listitem [ref=f9e38]:
+                    - link "Form an S Corporation" [ref=f9e39] [cursor=pointer]:
+                      - /url: https://bizee.com/taxes/s-corporation
+                  - listitem [ref=f9e40]:
+                    - link "Form a C Corporation" [ref=f9e41] [cursor=pointer]:
+                      - /url: https://bizee.com/corporation
+                  - listitem [ref=f9e42]:
+                    - link "Form a Nonprofit" [ref=f9e43] [cursor=pointer]:
+                      - /url: https://bizee.com/nonprofit
+                  - listitem [ref=f9e44]:
+                    - link "Menu link" [ref=f9e45] [cursor=pointer]:
+                      - /url: https://bizee.com/articles
+              - generic [ref=f9e46]:
+                - link "Services" [ref=f9e47] [cursor=pointer]:
+                  - /url: https://bizee.com/business-formation/services
+                - separator [ref=f9e49]
+                - list [ref=f9e50]:
+                  - listitem [ref=f9e51]:
+                    - link "Virtual Address" [ref=f9e52] [cursor=pointer]:
+                      - /url: /business-formation/virtual-address
+                  - listitem [ref=f9e53]:
+                    - link "EIN / Tax ID" [ref=f9e54] [cursor=pointer]:
+                      - /url: https://bizee.com/ein
+                  - listitem [ref=f9e55]:
+                    - link "Assumed Business Name (DBA)" [ref=f9e56] [cursor=pointer]:
+                      - /url: https://bizee.com/dba
+                  - listitem [ref=f9e57]:
+                    - link "Business License Research Package" [ref=f9e58] [cursor=pointer]:
+                      - /url: https://bizee.com/business-formation/business-license-research-package
+                  - listitem [ref=f9e59]:
+                    - link "Trademark Registration" [ref=f9e60] [cursor=pointer]:
+                      - /url: https://bizee.com/business-formation/trademark-registration
+                  - listitem [ref=f9e61]:
+                    - link "Corporate LLC Kit" [ref=f9e62] [cursor=pointer]:
+                      - /url: https://bizee.com/business-formation/corporate-llc-kit
+              - generic [ref=f9e63]:
+                - link "Support" [ref=f9e64] [cursor=pointer]:
+                  - /url: https://bizee.com/business-formation/support
+                - separator [ref=f9e66]
+                - list [ref=f9e67]:
+                  - listitem [ref=f9e68]:
+                    - link "Guide to Starting a Business" [ref=f9e69] [cursor=pointer]:
+                      - /url: https://bizee.com/start-a-business/guides/guide-to-starting-your-business
+                  - listitem [ref=f9e70]:
+                    - link "Choosing a Business Structure" [ref=f9e71] [cursor=pointer]:
+                      - /url: https://bizee.com/start-a-business/ideas/choosing-the-right-business-structure
+                  - listitem [ref=f9e72]:
+                    - link "Business Name Generator" [ref=f9e73] [cursor=pointer]:
+                      - /url: https://bizee.com/resources/business-name-generator
+                  - listitem [ref=f9e74]:
+                    - link "Business Name Search" [ref=f9e75] [cursor=pointer]:
+                      - /url: https://bizee.com/business-formation/business-name-search
+                  - listitem [ref=f9e76]:
+                    - link "LLC Information by State" [ref=f9e77] [cursor=pointer]:
+                      - /url: https://bizee.com/llc-formation-by-state
+                  - listitem [ref=f9e78]:
+                    - link "Corp Information by State" [ref=f9e79] [cursor=pointer]:
+                      - /url: https://bizee.com/corp-formation-by-state
+                  - listitem [ref=f9e80]:
+                    - link "Startup Central" [ref=f9e81] [cursor=pointer]:
+                      - /url: https://bizee.com/articles
+                  - listitem [ref=f9e82]:
+                    - link "Contact" [ref=f9e83] [cursor=pointer]:
+                      - /url: https://bizee.com/company/contact-us
+          - generic [ref=f9e84]:
+            - button "Business Management" [ref=f9e85] [cursor=pointer]
+            - region "Contact":
+              - generic [ref=f9e89]:
+                - link "Services" [ref=f9e90] [cursor=pointer]:
+                  - /url: https://bizee.com/business-management
+                - separator [ref=f9e92]
+                - list [ref=f9e93]:
+                  - listitem [ref=f9e94]:
+                    - link "Annual Report" [ref=f9e95] [cursor=pointer]:
+                      - /url: https://bizee.com/business-management/annual-report
+                  - listitem [ref=f9e96]:
+                    - link "Registered Agent Service" [ref=f9e97] [cursor=pointer]:
+                      - /url: https://bizee.com/business-management/registered-agent
+                  - listitem [ref=f9e98]:
+                    - link "Articles of Amendment" [ref=f9e99] [cursor=pointer]:
+                      - /url: https://bizee.com/compliance/articles-of-amendment
+                  - listitem [ref=f9e100]:
+                    - link "Foreign Qualification" [ref=f9e101] [cursor=pointer]:
+                      - /url: https://bizee.com/compliance/foreign-qualification
+                  - listitem [ref=f9e102]:
+                    - link "Certificate of Good Standing" [ref=f9e103] [cursor=pointer]:
+                      - /url: https://bizee.com/compliance/certificate-of-good-standing
+                  - listitem [ref=f9e104]:
+                    - link "Form 2553 (S Corp Tax)" [ref=f9e105] [cursor=pointer]:
+                      - /url: https://bizee.com/taxes/s-corp-election
+                  - listitem [ref=f9e106]:
+                    - link "Change Registered Agent" [ref=f9e107] [cursor=pointer]:
+                      - /url: https://bizee.com/compliance/registered-agent/change-agent
+                  - listitem [ref=f9e108]:
+                    - link "Reinstatement" [ref=f9e109] [cursor=pointer]:
+                      - /url: https://bizee.com/compliance/reinstatement
+                  - listitem [ref=f9e110]:
+                    - link "Dissolve Your Company" [ref=f9e111] [cursor=pointer]:
+                      - /url: https://bizee.com/dissolution
+              - generic [ref=f9e112]:
+                - generic [ref=f9e113]: Support
+                - separator [ref=f9e115]
+                - list [ref=f9e116]:
+                  - listitem [ref=f9e117]:
+                    - link "Tax & Accounting Consult (Free)" [ref=f9e118] [cursor=pointer]:
+                      - /url: https://bizee.com/business-management/bookkeeping-consultation
+                  - listitem [ref=f9e119]:
+                    - link "Startup Central" [ref=f9e120] [cursor=pointer]:
+                      - /url: https://bizee.com/articles
+                  - listitem [ref=f9e121]:
+                    - link "Contact" [ref=f9e122] [cursor=pointer]:
+                      - /url: https://bizee.com/company/contact-us
+                  - listitem [ref=f9e123]:
+                    - link "Menu link" [ref=f9e124] [cursor=pointer]:
+                      - /url: https://bizee.com/articles
+          - generic [ref=f9e125]:
+            - button "About Bizee" [ref=f9e126] [cursor=pointer]
+            - region:
+              - list [ref=f9e131]:
+                - listitem [ref=f9e132]:
+                  - link "About Us" [ref=f9e133] [cursor=pointer]:
+                    - /url: https://bizee.com/company/about-us
+                - listitem [ref=f9e134]:
+                  - link "What Makes Us Different" [ref=f9e135] [cursor=pointer]:
+                    - /url: https://bizee.com/company/what-makes-us-different
+                - listitem [ref=f9e136]:
+                  - link "Incfile Is Now Bizee" [ref=f9e137] [cursor=pointer]:
+                    - /url: https://bizee.com/incfile-is-now-bizee
+                - listitem [ref=f9e138]:
+                  - link "Contact" [ref=f9e139] [cursor=pointer]:
+                    - /url: https://bizee.com/company/contact-us
+                - listitem [ref=f9e140]:
+                  - link "Careers" [ref=f9e141] [cursor=pointer]:
+                    - /url: https://bizee.com/company/careers
+          - generic [ref=f9e142]:
+            - button [ref=f9e143] [cursor=pointer]
+            - generic [ref=f9e147]:
+              - generic [ref=f9e148]:
+                - generic [ref=f9e149]: "Phone Support:"
+                - link "1 (888) 462-3453" [ref=f9e150] [cursor=pointer]:
+                  - /url: tel:+1 (888) 462-3453
+              - separator [ref=f9e152]
+              - generic [ref=f9e153]:
+                - generic [ref=f9e154]: "Available at:"
+                - generic [ref=f9e155]: "Monday - Friday: 9 am - 6 pm CST"
+        - generic [ref=f9e156]:
+          - link "Log in" [ref=f9e157] [cursor=pointer]:
+            - /url: https://orders.bizee.com/dashboard/login
+          - link "Get Started" [ref=f9e159] [cursor=pointer]:
+            - /url: https://orders.bizee.com/form-order-now.php
+    - main [ref=f9e161]:
+      - generic [ref=f9e163]:
+        - button "Share" [ref=f9e168] [cursor=pointer]
+        - generic [ref=f9e175]:
+          - generic [ref=f9e176]: 7 min read
+          - 'heading "Wyoming LLC Name Rules: How to Search, Reserve, and Register Your Business Name" [level=1] [ref=f9e183]'
+          - paragraph [ref=f9e185]: Learn the rules for naming a Wyoming LLC, how to search the Wyoming Secretary of State business database, reserve a name, and register your LLC. Step-by-step guide.
+          - generic [ref=f9e186]:
+            - img "Bizee Brand" [ref=f9e189]
+            - generic [ref=f9e190]:
+              - paragraph [ref=f9e191]: Bizee Editorial Staff
+              - paragraph [ref=f9e192]: Editorial Team
+        - generic [ref=f9e195]:
+          - generic [ref=f9e196]:
+            - button "Table of contents" [ref=f9e197] [cursor=pointer]
+            - generic [ref=f9e205]:
+              - generic [ref=f9e209]:
+                - link [ref=f9e210] [cursor=pointer]:
+                  - /url: "#pwyoming-llc-at-a-glancep"
+                  - text: Wyoming LLC at a glance
+                - link [ref=f9e211] [cursor=pointer]:
+                  - /url: "#pwyoming-llc-naming-requirementsp"
+                  - text: Wyoming LLC naming requirements
+                - link [ref=f9e212] [cursor=pointer]:
+                  - /url: "#pfaqp"
+                  - text: FAQ
+              - generic [ref=f9e213]: RELATED CONTENT
+              - list [ref=f9e217]:
+                - listitem [ref=f9e218]:
+                  - link [ref=f9e219] [cursor=pointer]:
+                    - /url: /llc/wyoming/business-names
+              - generic [ref=f9e224]:
+                - link [ref=f9e225] [cursor=pointer]:
+                  - /url: https://www.trustpilot.com/review/bizee.com
+                  - generic [ref=f9e228]: Trustpilot
+                - generic [ref=f9e230]:
+                  - generic [ref=f9e231]: Excellent
+                  - generic [ref=f9e232]: 4.8 out of 5
+          - generic [ref=f9e234]:
+            - generic [ref=f9e236]:
+              - heading "Wyoming LLC at a glance" [level=2] [ref=f9e237]
+              - generic [ref=f9e238]:
+                - paragraph [ref=f9e239]:
+                  - strong [ref=f9e240]: "Filing fee:"
+                  - text: $100 (online) / $102 (paper)
+                - paragraph [ref=f9e241]:
+                  - strong [ref=f9e242]: "Processing time:"
+                  - text: Up to 15 business days (standard); expedited options available
+                - paragraph [ref=f9e243]:
+                  - strong [ref=f9e244]: "State agency:"
+                  - text: Wyoming Secretary of State
+                - paragraph [ref=f9e245]:
+                  - strong [ref=f9e246]: "Annual report due:"
+                  - text: On or before the first day of the anniversary month of formation
+                - paragraph [ref=f9e247]:
+                  - strong [ref=f9e248]: "State tax rate:"
+                  - text: No state income tax
+            - generic [ref=f9e250]:
+              - heading "Wyoming LLC naming requirements" [level=2] [ref=f9e251]
+              - generic [ref=f9e252]:
+                - paragraph [ref=f9e253]: "Naming a Wyoming LLC comes down to 3 requirements: your name must include an LLC designator, it must be distinguishable from every other business name on file with the Wyoming Secretary of State, and it can't use words that misidentify your entity type. Get those right, and you're ready to file."
+                - heading "Wyoming LLC naming requirements" [level=3] [ref=f9e254]
+                - paragraph [ref=f9e255]: "Wyoming law (Wyo. Stat. § 17-29-108) sets out the naming rules every LLC must follow. The name has to include a term or abbreviation that signals limited liability company status. Acceptable designators are: \"limited liability company,\" \"limited company,\" \"LLC,\" \"L.L.C.,\" \"LC,\" or \"L.C.\" You can't use corporate designators like \"Inc.\" or \"Corp.\" — those misidentify the entity type and the Wyoming Secretary of State will reject the filing."
+                - paragraph [ref=f9e256]: "Beyond the designator, your name must be distinguishable from every other business entity already registered in Wyoming. The state's distinguishability rules are stricter than people expect: swapping \"LLC\" for \"Inc.,\" adding punctuation, or inserting words like \"The\" or \"And\" does not make a name distinguishable. The core words have to be different."
+                - list [ref=f9e257]:
+                  - listitem [ref=f9e258]:
+                    - paragraph [ref=f9e259]: Name must include "limited liability company," "limited company," "LLC," "L.L.C.," "LC," or "L.C."
+                  - listitem [ref=f9e260]:
+                    - paragraph [ref=f9e261]: Name must be distinguishable from all other registered Wyoming business entities
+                  - listitem [ref=f9e262]:
+                    - paragraph [ref=f9e263]: Differences only in entity designators (LLC vs. Inc.), punctuation, spacing, or words like "The" or "And" do not create a distinguishable name
+                  - listitem [ref=f9e264]:
+                    - paragraph [ref=f9e265]: Name cannot use corporate designators like "Inc.," "Corp.," or "Co." for an LLC
+                  - listitem [ref=f9e266]:
+                    - paragraph [ref=f9e267]: Name cannot contain words that imply a different type of entity or a government affiliation without approval
+                - heading "How to search for a Wyoming LLC name" [level=3] [ref=f9e268]
+                - paragraph [ref=f9e269]:
+                  - text: Check name availability using the Wyoming Secretary of State's
+                  - link "Business Entity Search" [ref=f9e270] [cursor=pointer]:
+                    - /url: /llc/wyoming/business-names
+                  - text: at wyobiz.wyo.gov. Search before you file — if another business already has your name (or something close to it), the state will reject your Articles of Organization.
+                - paragraph [ref=f9e271]: For the most accurate results, search the core words of your name without the LLC designator. Use the "Contains" filter to catch similar names, not just exact matches. A name like "Teton Peak Consulting LLC" could conflict with "Teton Peak Consulting Inc." — the designator difference doesn't matter under Wyoming's rules.
+                - paragraph [ref=f9e272]:
+                  - text: A clear search result from the state database doesn't guarantee trademark protection. Run a separate search on the
+                  - link "USPTO database" [ref=f9e273] [cursor=pointer]:
+                    - /url: /llc/wyoming/business-names
+                  - text: to check whether your name conflicts with a federally registered trademark before you commit to it.
+                - heading "How to reserve a Wyoming LLC name" [level=3] [ref=f9e274]
+                - paragraph [ref=f9e275]: Name reservation is optional in Wyoming, but it's worth doing if you've found the right name and aren't ready to file your Articles of Organization yet. Reserving the name holds it while you get everything else in order.
+                - paragraph [ref=f9e276]:
+                  - text: To
+                  - link "reserve a name" [ref=f9e277] [cursor=pointer]:
+                    - /url: /llc/wyoming/business-names
+                  - text: ", complete the \"Limited Liability Company Application for Reservation of Name\" form and mail it to the Wyoming Secretary of State at Herschler Building East, Suite 101, 122 W 25th Street, Cheyenne, WY 82002-0020. The filing fee is $60, payable by check or money order. Processing takes up to 15 business days after the state receives your application."
+                - heading "Wyoming trade names (DBA)" [level=3] [ref=f9e278]
+                - paragraph [ref=f9e279]:
+                  - text: Wyoming calls a DBA a "
+                  - link "trade name" [ref=f9e280] [cursor=pointer]:
+                    - /url: /llc/wyoming/business-names
+                  - text: ." If you want to run your business under a name that's different from your LLC's legal name — for a product line, a local brand, or a different market — you can register a trade name with the Wyoming Secretary of State.
+                - paragraph [ref=f9e281]: "A trade name doesn't create a separate legal entity. Your LLC remains the legal owner of the business. The trade name is just the name you use publicly. You'll still need to meet all the same naming rules: the trade name must be distinguishable from other registered names in Wyoming."
+                - heading "How to register your Wyoming LLC name" [level=3] [ref=f9e282]
+                - paragraph [ref=f9e283]: Your LLC name is registered when you file your Articles of Organization with the Wyoming Secretary of State. There's no separate name registration step — the name you list on the Articles becomes your official registered name the moment the state approves the filing.
+                - paragraph [ref=f9e284]: Write the full legal name exactly as you want it to appear in the public registry — including the LLC designator, correct spelling, punctuation, and spacing. The name on your Articles must match the name you confirmed as available in the state's business search. Any discrepancy can delay or reject your filing.
+                - list [ref=f9e285]:
+                  - listitem [ref=f9e286]:
+                    - paragraph [ref=f9e287]: Confirm name availability at wyobiz.wyo.gov before filing
+                  - listitem [ref=f9e288]:
+                    - paragraph [ref=f9e289]: Include a valid LLC designator (LLC, L.L.C., LC, L.C., "limited liability company," or "limited company")
+                  - listitem [ref=f9e290]:
+                    - paragraph [ref=f9e291]: Write the name exactly as it should appear in the public registry
+                  - listitem [ref=f9e292]:
+                    - paragraph [ref=f9e293]: File Articles of Organization with the Wyoming Secretary of State — online filing fee is $100
+                  - listitem [ref=f9e294]:
+                    - paragraph [ref=f9e295]: Optionally reserve the name first for $60 if you need more time before filing
+            - generic [ref=f9e300]:
+              - heading "FAQ" [level=2] [ref=f9e302]
+              - generic [ref=f9e303]:
+                - generic [ref=f9e304]:
+                  - button [ref=f9e305] [cursor=pointer]:
+                    - heading "How do I search for a Wyoming LLC name?" [level=3] [ref=f9e306]
+                  - region "How do I search for a Wyoming LLC name? Use the Wyoming Secretary of State's Business Entity Search at wyobiz.wyo.gov. Enter the core words of your proposed name — without the LLC designator — and use the \"Contains\" filter to catch similar names. A name that differs only in its entity designator (LLC vs. Inc.) or in punctuation is not considered distinguishable under Wyoming law, so search broadly.":
+                    - paragraph [ref=f9e310]: Use the Wyoming Secretary of State's Business Entity Search at wyobiz.wyo.gov. Enter the core words of your proposed name — without the LLC designator — and use the "Contains" filter to catch similar names. A name that differs only in its entity designator (LLC vs. Inc.) or in punctuation is not considered distinguishable under Wyoming law, so search broadly.
+                - generic [ref=f9e311]:
+                  - button [ref=f9e312] [cursor=pointer]:
+                    - heading "What are the rules for naming a Wyoming LLC?" [level=3] [ref=f9e313]
+                  - region "What are the rules for naming a Wyoming LLC? Yes, there are specific rules. Under Wyo. Stat. § 17-29-108, your LLC name must include a designator like \"LLC,\" \"L.L.C.,\" \"LC,\" \"L.C.,\" \"limited liability company,\" or \"limited company.\" The name must also be distinguishable from all other business entities registered in Wyoming. You can't use corporate designators like \"Inc.\" or \"Corp.,\" and you can't use words that imply a different entity type or a government connection without approval.":
+                    - paragraph [ref=f9e317]: Yes, there are specific rules. Under Wyo. Stat. § 17-29-108, your LLC name must include a designator like "LLC," "L.L.C.," "LC," "L.C.," "limited liability company," or "limited company." The name must also be distinguishable from all other business entities registered in Wyoming. You can't use corporate designators like "Inc." or "Corp.," and you can't use words that imply a different entity type or a government connection without approval.
+                - generic [ref=f9e318]:
+                  - button [ref=f9e319] [cursor=pointer]:
+                    - heading "Can I do business under a different name than my LLC name in Wyoming?" [level=3] [ref=f9e320]
+                  - region "Can I do business under a different name than my LLC name in Wyoming? Yes. Wyoming calls this a trade name (what other states call a DBA). You can register a trade name with the Wyoming Secretary of State to run your business publicly under a name that's different from your LLC's legal name. The trade name doesn't create a separate legal entity — your LLC remains the legal owner. The trade name still has to be distinguishable from other registered names in Wyoming.":
+                    - paragraph [ref=f9e324]: Yes. Wyoming calls this a trade name (what other states call a DBA). You can register a trade name with the Wyoming Secretary of State to run your business publicly under a name that's different from your LLC's legal name. The trade name doesn't create a separate legal entity — your LLC remains the legal owner. The trade name still has to be distinguishable from other registered names in Wyoming.
+                - generic [ref=f9e325]:
+                  - button [ref=f9e326] [cursor=pointer]:
+                    - heading "Can I reserve a name for my Wyoming LLC?" [level=3] [ref=f9e327]
+                  - region "Can I reserve a name for my Wyoming LLC? Yes. Wyoming allows you to reserve an LLC name before filing your Articles of Organization. File the \"Limited Liability Company Application for Reservation of Name\" by mail to the Wyoming Secretary of State. The fee is $60, and processing takes up to 15 business days. Name reservation is optional — it's useful if you've confirmed your name is available but aren't ready to file yet.":
+                    - paragraph [ref=f9e331]: Yes. Wyoming allows you to reserve an LLC name before filing your Articles of Organization. File the "Limited Liability Company Application for Reservation of Name" by mail to the Wyoming Secretary of State. The fee is $60, and processing takes up to 15 business days. Name reservation is optional — it's useful if you've confirmed your name is available but aren't ready to file yet.
+                - generic [ref=f9e332]:
+                  - button [ref=f9e333] [cursor=pointer]:
+                    - heading "What makes a Wyoming LLC name distinguishable?" [level=3] [ref=f9e334]
+                  - region "What makes a Wyoming LLC name distinguishable? It depends on the core words. Wyoming's rules say that differences only in entity designators (LLC vs. Inc.), punctuation, spacing, or common words like \"The\" or \"And\" do not make a name distinguishable. The distinctive words in your name — the part that identifies your specific business — have to be different from every other registered entity in the state. When in doubt, run a broad search using the \"Contains\" filter on the state's business search tool.":
+                    - paragraph [ref=f9e338]: It depends on the core words. Wyoming's rules say that differences only in entity designators (LLC vs. Inc.), punctuation, spacing, or common words like "The" or "And" do not make a name distinguishable. The distinctive words in your name — the part that identifies your specific business — have to be different from every other registered entity in the state. When in doubt, run a broad search using the "Contains" filter on the state's business search tool.
+                - generic [ref=f9e339]:
+                  - button [ref=f9e340] [cursor=pointer]:
+                    - heading "How much does it cost to register a Wyoming LLC name?" [level=3] [ref=f9e341]
+                  - region "How much does it cost to register a Wyoming LLC name? Your LLC name is registered as part of your Articles of Organization filing — there's no separate name registration fee. The state filing fee for a Wyoming LLC is $100 online or $102 by paper. If you want to reserve a name before filing, that's a separate $60 fee submitted by mail to the Wyoming Secretary of State.":
+                    - paragraph [ref=f9e345]: Your LLC name is registered as part of your Articles of Organization filing — there's no separate name registration fee. The state filing fee for a Wyoming LLC is $100 online or $102 by paper. If you want to reserve a name before filing, that's a separate $60 fee submitted by mail to the Wyoming Secretary of State.
+        - generic [ref=f9e349]:
+          - img "Business formation and compliance dashboard displaying LLC status, EIN tracking, annual report deadlines, and corporate documents" [ref=f9e351]
+          - generic [ref=f9e352]:
+            - generic [ref=f9e353]:
+              - link [ref=f9e354] [cursor=pointer]:
+                - /url: https://www.trustpilot.com/review/bizee.com
+                - generic [ref=f9e355]:
+                  - strong [ref=f9e356]: Excellent 4.8
+                  - text: out of 5
+                - strong [ref=f9e359]: Trustpilot
+              - heading [level=2] [ref=f9e360]:
+                - paragraph [ref=f9e361]: Start your business today
+            - generic [ref=f9e362]: From formation to compliance, we handle the details so you can focus on what you do best.
+            - link "Get started" [ref=f9e365] [cursor=pointer]:
+              - /url: https://orders.bizee.com/form-order-now.php
+  - contentinfo [ref=f9e368]:
+    - generic [ref=f9e369]:
+      - generic [ref=f9e371]:
+        - generic [ref=f9e373]:
+          - generic [ref=f9e374]:
+            - generic [ref=f9e375]:
+              - paragraph [ref=f9e376]: Support is available
+              - paragraph [ref=f9e377]: Monday - Friday from 9 a.m. to 6 p.m. CST
+            - generic [ref=f9e378]:
+              - link "1 (888) 462-3453" [ref=f9e379] [cursor=pointer]:
+                - /url: tel:+1 (888) 462-3453
+              - link "support@bizee.com" [ref=f9e380] [cursor=pointer]:
+                - /url: mailto:support@bizee.com
+          - list [ref=f9e381]:
+            - listitem [ref=f9e382]:
+              - link "Contact" [ref=f9e383] [cursor=pointer]:
+                - /url: https://bizee.com/company/contact-us
+            - listitem [ref=f9e384]:
+              - link "Cancellation Policy" [ref=f9e385] [cursor=pointer]:
+                - /url: https://bizee.com/cancellation-policy
+            - listitem [ref=f9e386]:
+              - link "Privacy Policy" [ref=f9e387] [cursor=pointer]:
+                - /url: https://bizee.com/privacy-policy
+            - listitem [ref=f9e388]:
+              - link "Legal Disclaimer" [ref=f9e389] [cursor=pointer]:
+                - /url: https://bizee.com/disclaimer
+            - listitem [ref=f9e390]:
+              - link "Glossary" [ref=f9e391] [cursor=pointer]:
+                - /url: https://bizee.com/glossary
+            - listitem [ref=f9e392]: Cookie Settings
+        - generic [ref=f9e394]:
+          - button "Entity Types" [ref=f9e395] [cursor=pointer]
+          - list:
+            - listitem [ref=f9e401]:
+              - link "LLC" [ref=f9e402] [cursor=pointer]:
+                - /url: https://bizee.com/llc
+            - listitem [ref=f9e403]:
+              - link "S Corporation" [ref=f9e404] [cursor=pointer]:
+                - /url: https://bizee.com/corporation/what-is-s-corporation
+            - listitem [ref=f9e405]:
+              - link "C Corporation" [ref=f9e406] [cursor=pointer]:
+                - /url: https://bizee.com/corporation/what-is-c-corporation
+            - listitem [ref=f9e407]:
+              - link "Nonprofit" [ref=f9e408] [cursor=pointer]:
+                - /url: https://bizee.com/nonprofit/what-is-nonprofit
+        - generic [ref=f9e410]:
+          - button "Resources" [ref=f9e411] [cursor=pointer]
+          - list:
+            - listitem [ref=f9e417]:
+              - link "Renew Registered Agent" [ref=f9e418] [cursor=pointer]:
+                - /url: https://orders.bizee.com/dashboard/login
+            - listitem [ref=f9e419]:
+              - link "Filing Times" [ref=f9e420] [cursor=pointer]:
+                - /url: https://bizee.com/business-management/state-filing-times
+            - listitem [ref=f9e421]:
+              - link "Why Choose Us" [ref=f9e422] [cursor=pointer]:
+                - /url: https://bizee.com/company/what-makes-us-different
+            - listitem [ref=f9e423]:
+              - link "Testimonials" [ref=f9e424] [cursor=pointer]:
+                - /url: https://bizee.com/reviews
+            - listitem [ref=f9e425]:
+              - link "Entity Comparison Chart" [ref=f9e426] [cursor=pointer]:
+                - /url: https://bizee.com/business-formation/business-entity-comparison
+            - listitem [ref=f9e427]:
+              - link "LLC State Info" [ref=f9e428] [cursor=pointer]:
+                - /url: https://bizee.com/llc-formation-by-state
+            - listitem [ref=f9e429]:
+              - link "Corporate State Info" [ref=f9e430] [cursor=pointer]:
+                - /url: https://bizee.com/corp-formation-by-state
+            - listitem [ref=f9e431]:
+              - link "Corporate/LLC Kit" [ref=f9e432] [cursor=pointer]:
+                - /url: https://bizee.com/business-formation/corporate-llc-kit
+        - generic [ref=f9e434]:
+          - button "Services" [ref=f9e435] [cursor=pointer]
+          - list:
+            - listitem [ref=f9e441]:
+              - link "Registered Agent" [ref=f9e442] [cursor=pointer]:
+                - /url: https://bizee.com/business-management/registered-agent
+            - listitem [ref=f9e443]:
+              - link "Annual Report" [ref=f9e444] [cursor=pointer]:
+                - /url: https://bizee.com/business-management/annual-report
+            - listitem [ref=f9e445]:
+              - link "Certificate Of Good Standing" [ref=f9e446] [cursor=pointer]:
+                - /url: https://bizee.com/compliance/certificate-of-good-standing
+            - listitem [ref=f9e447]:
+              - link "Change Of Registered Agent" [ref=f9e448] [cursor=pointer]:
+                - /url: https://bizee.com/compliance/registered-agent/change-agent
+            - listitem [ref=f9e449]:
+              - link "Foreign Qualification" [ref=f9e450] [cursor=pointer]:
+                - /url: https://bizee.com/compliance/foreign-qualification
+            - listitem [ref=f9e451]:
+              - link "Articles of Amendment" [ref=f9e452] [cursor=pointer]:
+                - /url: https://bizee.com/compliance/articles-of-amendment
+            - listitem [ref=f9e453]:
+              - link "Dissolution" [ref=f9e454] [cursor=pointer]:
+                - /url: https://bizee.com/dissolution
+            - listitem [ref=f9e455]:
+              - link "Business License Search" [ref=f9e456] [cursor=pointer]:
+                - /url: https://bizee.com/business-formation/business-license-research-package
+            - listitem [ref=f9e457]:
+              - link "File Business Taxes" [ref=f9e458] [cursor=pointer]:
+                - /url: https://bizee.com/business-management/bookkeeping-consultation
+            - listitem [ref=f9e459]:
+              - link "Fictitious Business Name" [ref=f9e460] [cursor=pointer]:
+                - /url: https://bizee.com/dba
+            - listitem [ref=f9e461]:
+              - link "File S Corp Tax Election" [ref=f9e462] [cursor=pointer]:
+                - /url: https://bizee.com/taxes/s-corp-election
+        - generic [ref=f9e464]:
+          - button "Quick Links" [ref=f9e465] [cursor=pointer]
+          - list:
+            - listitem [ref=f9e471]:
+              - link "Home" [ref=f9e472] [cursor=pointer]:
+                - /url: https://bizee.com/
+            - listitem [ref=f9e473]:
+              - link "Review Entity Types" [ref=f9e474] [cursor=pointer]:
+                - /url: https://bizee.com/start-a-business/guides/guide-to-starting-your-business
+            - listitem [ref=f9e475]:
+              - link "Manage Your Company" [ref=f9e476] [cursor=pointer]:
+                - /url: https://bizee.com/manage-your-company
+            - listitem [ref=f9e477]:
+              - link "Check Order Status" [ref=f9e478] [cursor=pointer]:
+                - /url: https://orders.bizee.com/dashboard/login
+            - listitem [ref=f9e479]:
+              - link "Pricing" [ref=f9e480] [cursor=pointer]:
+                - /url: https://orders.bizee.com/form-order-now.php
+            - listitem [ref=f9e481]:
+              - link "Blog" [ref=f9e482] [cursor=pointer]:
+                - /url: https://bizee.com/articles
+            - listitem [ref=f9e483]:
+              - link "About" [ref=f9e484] [cursor=pointer]:
+                - /url: https://bizee.com/company/about-us
+            - listitem [ref=f9e485]:
+              - link "Bizee for Professionals" [ref=f9e486] [cursor=pointer]:
+                - /url: https://bizee.com/company/bizee-pro-suite
+            - listitem [ref=f9e487]:
+              - link "Partnerships" [ref=f9e488] [cursor=pointer]:
+                - /url: https://bizee.com/partner-with-bizee
+            - listitem [ref=f9e489]:
+              - link "Affiliates" [ref=f9e490] [cursor=pointer]:
+                - /url: https://bizee.com/affiliates
+            - listitem [ref=f9e491]:
+              - link "Careers" [ref=f9e492] [cursor=pointer]:
+                - /url: https://bizee.com/company/careers
+      - generic [ref=f9e493]:
+        - link "Trustpilot Excellent 4.8 out of 5" [ref=f9e496] [cursor=pointer]:
+          - /url: https://www.trustpilot.com/review/bizee.com
+          - generic [ref=f9e497]: Trustpilot
+          - generic [ref=f9e501]: Excellent
+          - generic [ref=f9e502]: 4.8 out of 5
+        - generic [ref=f9e504]:
+          - generic [ref=f9e505]: Follow us
+          - generic [ref=f9e506]:
+            - link "Instagram" [ref=f9e507] [cursor=pointer]:
+              - /url: https://www.instagram.com/bizee
+              - img "Bizee Instagram Link" [ref=f9e509]
+            - link "Facebook" [ref=f9e510] [cursor=pointer]:
+              - /url: https://www.facebook.com/getbizee
+              - img "Bizee Facebook Link" [ref=f9e512]
+            - link "X" [ref=f9e513] [cursor=pointer]:
+              - /url: https://x.com/bizeeofficial
+              - img "Bizee X Link" [ref=f9e515]
+            - link "LinkedIn" [ref=f9e516] [cursor=pointer]:
+              - /url: https://www.linkedin.com/company/bizee-com
+              - img "Bizee LinkedIn Link" [ref=f9e518]
+            - link "Youtube" [ref=f9e519] [cursor=pointer]:
+              - /url: https://www.youtube.com/@getbizee
+              - img "Bizee Youtube Link" [ref=f9e521]
+        - link [ref=f9e523] [cursor=pointer]:
+          - /url: https://bizee.com
+          - img "Bizee Logo Header V2" [ref=f9e525]
+        - generic [ref=f9e527]:
+          - paragraph [ref=f9e528]:
+            - text: Bizee is NOT a law firm and does NOT provide legal advice. Use of our products and services is governed by our
+            - link "Terms of Service" [ref=f9e529] [cursor=pointer]:
+              - /url: https://bizee.com/disclaimer
+            - text: and
+            - link "Privacy Policy" [ref=f9e530] [cursor=pointer]:
+              - /url: https://bizee.com/privacy-policy
+            - text: . The information you provide to Bizee is NOT protected by attorney-client privilege.
+          - paragraph [ref=f9e531]: © 2026 Bizee All Rights Reserved
+      - img "just start" [ref=f9e534]
+  - generic:
+    - generic:
+      - generic [ref=f9e536]:
+        - iframe [ref=f9e537]:
+          - button "Close message from company" [ref=f11e3] [cursor=pointer]
+        - iframe
+      - iframe [ref=f9e538]:
+        - button "Open messaging window" [ref=f13e4] [cursor=pointer]
+  - generic: Cookie Settings
