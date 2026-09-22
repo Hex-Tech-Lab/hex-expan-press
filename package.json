@@ -7,12 +7,13 @@
     "harvest": "tsx harvest.ts",
     "score": "tsx score.ts",
     "scrape": "tsx getinsight_id_br.ts",
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "vitest run",
     "report": "tsx report.ts",
     "creator-scan": "tsx creator_scan.ts",
     "registry-report": "tsx registry_report.ts",
     "transcribe": "tsx transcribe.ts",
-    "certify": "tsx certify_asset.ts"
+    "certify": "tsx certify_asset.ts",
+    "freeze:check": "tsx scripts/verify_freeze.ts"
   },
   "keywords": [],
   "author": "",
@@ -32,15 +33,14 @@
   },
   "type": "module",
   "dependencies": {
-    "cheerio": "^1.2.0",
-    "dotenv": "^17.4.2"
+    "cheerio": "1.2.0",
+    "dotenv": "17.4.2"
   },
   "devDependencies": {
-    "esbuild": "^0.28.2",
-    "tsx": "^4.23.13",
-    "typescript": "^7.0.2",
-    "typst": "0.10.0-8",
-    "vercel": "^59.16.0",
-    "vitest": "^5.0.1"
+    "esbuild": "0.28.2",
+    "tsx": "4.23.13",
+    "typescript": "7.0.2",
+    "vercel": "59.16.0",
+    "vitest": "5.0.1"
   }
 }

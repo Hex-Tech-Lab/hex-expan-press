@@ -1,0 +1,16 @@
+{
+  "_note": "Machine-readable tech freeze (method copied from hex-yt-intel's Frozen Stack Protocol). Source of truth for versions; docs/TECH_FREEZE.md explains it. Verify with: pnpm freeze:check. Change a pin only with founder approval, in the same commit as this file.",
+  "frozen_on": "2026-09-19",
+  "policy": "Stable releases only: no beta, no RC, no nightly/master builds. LTS where the tool has one. Versions must be known to work together. No self-updating tools (never run yt-dlp -U or an auto-updater).",
+  "runtime": { "node": "24.16.0", "pnpm": "12.3.4", "python": "3.12.3" },
+  "npm_exact": { "cheerio": "1.2.0", "dotenv": "17.4.2", "esbuild": "0.28.2", "tsx": "4.23.13", "typescript": "7.0.2", "vercel": "59.16.0", "vitest": "5.0.1" },
+  "binaries": {
+    "typst": { "version": "0.15.1", "path": ".tools/typst-0.15.1/typst", "sha256": "29273eaa04f6d00edd0c2bec578f565fc9c65be856bfbffc894567c68ed0b237", "source": "https://github.com/typst/typst/releases/download/v0.15.1/typst-x86_64-unknown-linux-musl.tar.xz", "archive_sha256": "a6d077d0a95eed5a2eba715b2dae06be954f624ccbf85758a03f389ded33118c" },
+    "yt-dlp": { "version": "2026.08.19", "path": "~/.local/bin/yt-dlp", "sha256": "1fa6733c37ea6fb51c99ad8fe785e7b7e5f3246c9b980230329d4fb72ed8d4d6" },
+    "opencode": { "version": "1.17.8" },
+    "ffmpeg": { "version": "6.1.1", "path": "/usr/bin/ffmpeg", "distro": "Ubuntu 24.04 LTS (noble), package ffmpeg 7:6.1.1-3ubuntu5", "note": "tagged LTS distro release; replaced git-master N-126455 on 2026-09-21 with founder approval; old build kept at ~/.local/bin/ffmpeg.gitmaster.bak-2026-09-21" }
+  },
+  "decisions": [
+    { "tool": "pnpm", "installed": "12.3.4", "decision": "keep, founder-approved 2026-09-21", "note": "hex-yt-intel is on 11.9.0; cross-project parity is not worth a lockfile migration on a verified-working frozen stack" }
+  ]
+}
