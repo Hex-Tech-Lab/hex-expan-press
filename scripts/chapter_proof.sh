@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# Build a proof PDF of the book up to the end of chapter N (N = One..Ten word as in chaphead),
+# same Pandoc->Typst pipeline, then run the tracking->Tc pass. Main release untouched.
+# Usage: scripts/chapter_proof.sh Two   -> data/intel/duane_book/releases/proofs/proof_to_ch_Two.pdf
+set -euo pipefail
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"; B="$REPO/manuscript/book"
+NEXT="${2:-}"; N="$1"
+OUT="$REPO/data/intel/duane_book/releases/proofs/proof_to_ch_${N}.pdf"; mkdir -p "$(dirname "$OUT")"
+M="$B/manuscript.md"; W="$(mktemp -d)"; trap 'rm -rf "$W"' EXIT; ln -s "$B/img_v3" "$W/img_v3"; ln -s "$REPO/data/intel/duane_book/qa/design_rules.json" "$W/design_rules.json"
+if [ -n "$NEXT" ]; then
+  L=$(grep -n "#chaphead(\"Chapter $NEXT\"" "$M" | cut -d: -f1); while [ "$(sed -n "${L}p" "$M")" != '```{=typst}' ]; do L=$((L-1)); done
+  head -n $((L-1)) "$M" > "$W/m.md"
+else cp "$M" "$W/m.md"; fi
+cp "$B/template.typ" "$W/"
+cd "$W" && "$REPO/.tools/pandoc/bin/pandoc" m.md --to typst --template=template.typ -o b.typ
+"$REPO/.tools/typst-0.15.1/typst" compile --font-path "$REPO/typst_prototype/fonts" --font-path "$REPO/typst_prototype/fonts_variable" b.typ "$OUT"
+"$REPO/.tools/pdfenv/bin/python" "$REPO/scripts/pdf_tracking_to_tc.py" "$OUT"
+echo "proof: $OUT"
+# Gate: never more than one breakout box on a page.
+PAGES=$(pdfinfo "$OUT" 2>/dev/null | awk '/^Pages/{print $2}'); FAIL=0
+for p in $(seq 1 "$PAGES"); do
+  n=$(pdftotext -f "$p" -l "$p" "$OUT" - 2>/dev/null | tr -d ' ' | grep -cE '^(LENS|YOURWORKSHEET|CORROBORATED|SIDEBAR)·' || true)
+  if [ "$n" -gt 1 ]; then echo "GATE FAIL: page $p has $n boxes"; FAIL=1; fi
+done
+[ "$FAIL" = 0 ] && echo "gate: one box per page OK" || exit 2
+# Full rule-set QA (ADR 0043). QA_CHAPTERS=One,Four overrides; default = the chapter just built.
+"$REPO/.tools/pdfenv/bin/python" "$REPO/scripts/book_qa.py" --pdf "$OUT" --chapters "${QA_CHAPTERS:-$N}" \
+  --out "$REPO/data/intel/duane_book/qa/qa_report_${N}.md" | tail -1
+# Visual regression for chapters with an approved baseline (skips the rest).
+"$REPO/.tools/pdfenv/bin/python" "$REPO/scripts/visual_regress.py" --pdf "$OUT" --chapters "${QA_CHAPTERS:-$N}"

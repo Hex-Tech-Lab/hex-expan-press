@@ -4,6 +4,12 @@ data/
 *.log
 ideabrowser_vault.json
 
+# IP: generated/authored book output and layout source never go to the public repo, full stop
+# (Rule #0). data/ above already catches releases/; these are the belt-and-suspenders global
+# rules so no future *.pdf or *.typ anywhere in the tree is ever tracked by accident.
+*.pdf
+*.typ
+
 # Raw capture media (multi-GB video/audio) — never belongs in git, regenerable via yt-dlp/transcribe.ts
 downloads/
 *.part
@@ -57,3 +63,5 @@ manuscript/book/build.typ
 # THOS handovers and templates - contain pricing/strategy/session internals (Rule #0)
 docs/history/
 docs/templates/
+manuscript/book/design_rules.json
+scripts/__pycache__/
