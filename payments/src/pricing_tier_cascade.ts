@@ -1,4 +1,4 @@
-// cascade.ts — reads pricing-cascade config + live signals (payments/src/cascade_signals.ts) and
+// pricing_tier_cascade.ts — reads pricing-cascade config + live signals (payments/src/cascade_signals.ts) and
 // decides / applies automated tier drops. Founder directive 2026-09-18: prices are variables that
 // live in settings, never hardcoded; the cascade itself must actually execute, not just be
 // designed. This module owns the decision AND the write-back — cascade_signals.ts stays read-only.

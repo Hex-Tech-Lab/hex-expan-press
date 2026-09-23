@@ -10,6 +10,7 @@ export class ExpanRedisClient {
   private url?: string;
   private token?: string;
   private readonly prefix: string = "expan:";
+  private static readonly TIMEOUT_MS = 3000;
 
   constructor(url?: string, token?: string) {
     if (url) this.url = url.replace(/\/$/, "");
@@ -42,14 +43,27 @@ export class ExpanRedisClient {
       throw new Error("ExpanRedisClient: Missing UPSTASH_REDIS_REST_URL or UPSTASH_REDIS_REST_TOKEN");
     }
 
-    const res = await fetch(url, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(args),
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), ExpanRedisClient.TIMEOUT_MS);
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(args),
+        signal: controller.signal,
+      });
+    } catch (err) {
+      if ((err as Error).name === "AbortError") {
+        throw new Error(`Upstash Redis timeout after ${ExpanRedisClient.TIMEOUT_MS}ms`);
+      }
+      throw err;
+    } finally {
+      clearTimeout(timeout);
+    }
 
 
     if (!res.ok) {

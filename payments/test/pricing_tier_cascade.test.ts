@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { evaluateCascade, applyCascadeDrop, currentTierPriceUsd, CascadeConfig } from "../src/cascade.ts";
+import { evaluateCascade, applyCascadeDrop, currentTierPriceUsd, CascadeConfig } from "../src/pricing_tier_cascade.ts";
 import { appendSale, SaleRecord } from "../src/ledger.ts";
 
 describe("payments/src/cascade", () => {

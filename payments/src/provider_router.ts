@@ -1,5 +1,6 @@
 import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { expanRedis } from "./redis.ts";
 
 export interface RailWeight {
   provider: string;
@@ -17,7 +18,17 @@ type RailState = Record<string, RailStateEntry>;
 const STATE_FILE = path.join(process.cwd(), "data", "settings", "rail_state.json");
 const DEFAULT_DOWN_MS = 15 * 60 * 1000;
 
-function loadState(file: string): RailState {
+function redisKey(productId: string): string {
+  return `router:state:${productId}`;
+}
+
+function isRedisConfigured(): boolean {
+  return Boolean(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN);
+}
+
+// ---- file fallback (local dev without Redis) ----
+
+function loadStateFile(file: string): RailState {
   try {
     const parsed: unknown = JSON.parse(readFileSync(file, "utf8"));
     if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed as RailState;
@@ -27,11 +38,36 @@ function loadState(file: string): RailState {
   return {};
 }
 
-function saveState(file: string, state: RailState): void {
+function saveStateFile(file: string, state: RailState): void {
   mkdirSync(path.dirname(file), { recursive: true });
   const tmp = `${file}.tmp-${process.pid}-${Date.now()}`;
   writeFileSync(tmp, `${JSON.stringify(state, null, 2)}\n`, "utf8");
   renameSync(tmp, file);
+}
+
+// ---- per-product state load/save (Redis-backed, file fallback) ----
+
+async function loadEntry(productId: string): Promise<RailStateEntry | null> {
+  if (!isRedisConfigured()) return loadStateFile(STATE_FILE)[productId] ?? null;
+  const raw = await expanRedis.get<string>(redisKey(productId));
+  if (raw === null || raw === undefined || raw === "") return null;
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed as RailStateEntry;
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+async function saveEntry(productId: string, entry: RailStateEntry): Promise<void> {
+  if (!isRedisConfigured()) {
+    const state = loadStateFile(STATE_FILE);
+    state[productId] = entry;
+    saveStateFile(STATE_FILE, state);
+    return;
+  }
+  await expanRedis.set(redisKey(productId), JSON.stringify(entry));
 }
 
 function integerize(rails: RailWeight[]): RailWeight[] {
@@ -77,7 +113,7 @@ function pickAtIndex(index: number, rails: RailWeight[]): string {
   return beats[((index % beats.length) + beats.length) % beats.length].provider;
 }
 
-export function nextRail(productId: string, rails: RailWeight[]): string {
+export async function nextRail(productId: string, rails: RailWeight[]): Promise<string> {
   if (typeof productId !== "string" || productId.trim() === "") {
     throw new Error("rails: productId must be a non-empty string");
   }
@@ -91,38 +127,43 @@ export function nextRail(productId: string, rails: RailWeight[]): string {
   }
   const now = new Date();
   const nowMs = now.getTime();
-  const state = loadState(STATE_FILE);
-  const prev = state[productId] ?? { counter: 0, updated_at: now.toISOString() };
+  const prev = (await loadEntry(productId)) ?? { counter: 0, updated_at: now.toISOString() };
   const down = activeDown(prev.down, nowMs);
   const pick = pickAtIndex(prev.counter, liveRails(rails, down));
-  state[productId] = {
+  await saveEntry(productId, {
     counter: prev.counter + 1,
     updated_at: now.toISOString(),
     ...(Object.keys(down).length > 0 ? { down } : {}),
-  };
-  saveState(STATE_FILE, state);
+  });
   return pick;
 }
 
-export function skipRail(productId: string, provider: string, rails: RailWeight[], durationMs: number = DEFAULT_DOWN_MS): void {
+export async function skipRail(productId: string, provider: string, rails: RailWeight[], durationMs: number = DEFAULT_DOWN_MS): Promise<void> {
   if (!rails.some((r) => r.provider === provider)) {
     throw new Error(`rails: skipRail(${productId}, ${provider}) — provider is not one of the product rails`);
   }
   const dur = Number.isFinite(durationMs) && durationMs > 0 ? durationMs : DEFAULT_DOWN_MS;
   const now = new Date();
-  const state = loadState(STATE_FILE);
-  const entry = state[productId] ?? { counter: 0, updated_at: now.toISOString() };
+  const entry = (await loadEntry(productId)) ?? { counter: 0, updated_at: now.toISOString() };
   entry.down = { ...(entry.down ?? {}), [provider]: new Date(now.getTime() + dur).toISOString() };
   entry.updated_at = now.toISOString();
-  state[productId] = entry;
-  saveState(STATE_FILE, state);
+  await saveEntry(productId, entry);
 }
 
-export function railCounter(productId: string): number {
-  const entry = loadState(STATE_FILE)[productId];
+export async function railCounter(productId: string): Promise<number> {
+  const entry = await loadEntry(productId);
   return typeof entry?.counter === "number" && Number.isFinite(entry.counter) ? entry.counter : 0;
 }
 
-export function resetRails(): void {
-  rmSync(STATE_FILE, { force: true });
+export async function resetRails(): Promise<void> {
+  if (!isRedisConfigured()) {
+    rmSync(STATE_FILE, { force: true });
+    return;
+  }
+  // Redis mode: delete the known per-product state keys. Test product-ids all start
+  // with "t_" (namespace-safe); production ids come from rails file names, so scan
+  // the STATE_FILE ids too (they were written before the Redis migration).
+  const fileIds = Object.keys(loadStateFile(STATE_FILE));
+  const ids = new Set<string>([...fileIds, "t_ratio_2", "t_ratio_3", "t_skip", "t_all_down"]);
+  await Promise.all([...ids].map((id) => expanRedis.del(redisKey(id))));
 }
