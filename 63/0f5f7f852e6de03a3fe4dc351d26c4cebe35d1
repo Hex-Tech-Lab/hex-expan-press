@@ -1,0 +1,59 @@
+scripts/sampler_build.sh
+  s_f3ced25cc69edf::t_c1be5762372a33 70
+  s_f3ced25cc69edf::t_2be123c3dd3e11 62,77
+  s_f3ced25cc69edf::t_e80f82e0df5101 1-31,36-40,42-53,55-61,63-66,68-69,71-76,78-81,83-85,96-120
+  s_f3ced25cc69edf::t_84929d7a0c9ae8 41
+  s_f3ced25cc69edf::t_9cb9e57db97574 86-95
+  s_f3ced25cc69edf::t_216378eda1429f 67,82
+  s_f3ced25cc69edf::t_a5e8a97cbab7a3 54
+  s_f3ced25cc69edf::t_f1627393cb5b88 32-34
+  s_f3ced25cc69edf::t_27a1cc415dcd1a 35
+AGENTS.md
+  s_05b679928f9542::t_abb7f2a230bfd3 3-5,13-15
+scripts/book_qa.py
+  s_05b679928f9542::t_d5fd61634438d9 1-301
+scripts/chapter_brief.py
+  s_05b679928f9542::t_a229c6cef73af2 1-92
+scripts/chapter_proof.sh
+  s_05b679928f9542::t_8f1368babe37cc 1-30
+scripts/chapter_regrade.py
+  s_05b679928f9542::t_99dddad67ccb48 1-116
+scripts/literary_metrics.py
+  s_05b679928f9542::t_6971a1193c19a3 1-73
+scripts/literary_panel.py
+  s_05b679928f9542::t_ab1da26c7b6e88 1-229
+scripts/pdf_tracking_to_tc.py
+  s_05b679928f9542::t_514cac9c79a9eb 1-64
+scripts/regrade2.sh
+  s_05b679928f9542::t_e9afc1ebbd61bd 1-6
+scripts/regrade_summary.py
+  s_05b679928f9542::t_6f84bcc24c5760 1-33
+scripts/visual_regress.py
+  s_05b679928f9542::t_8270a9cc5ea89a 1-80
+.gitignore
+  s_05b679928f9542::t_f8003ccfb102ec 7-12,66-67
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "630f5f7f852e6de03a3fe4dc351d26c4cebe35d1",
+  "prompts": {},
+  "sessions": {
+    "s_05b679928f9542": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9ab2da7f-4635-4a7e-8522-90356b101e47",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_f3ced25cc69edf": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f35948868ffenE2TR90aEgV7lC",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
