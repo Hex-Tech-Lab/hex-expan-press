@@ -1,0 +1,228 @@
+scripts/rubric_loader.py
+  s_34f9cebe456f58::t_886157443aef2b 22-25
+  s_34f9cebe456f58::t_ace6d8b5e6be95 2
+  s_34f9cebe456f58::t_8392687ddde1cc 26-27
+  s_edb2c2e8486a45::t_52b1b6829aee36 17
+scripts/render_report.sh
+  s_45f9aa946d0403::t_ae0d4a5bd25538 14
+  s_0ab251026747c7::t_ddbc1b8cfce345 1-13,15-22
+scripts/layout_autofix.py
+  s_b0fe9519cdbf6f::t_8d91ae5eba4751 6-7
+  s_b0fe9519cdbf6f::t_7098ca3517254a 36
+scripts/agent_watch.sh
+  s_45f9aa946d0403::t_62243858e48fd3 59
+  s_45f9aa946d0403::t_4ab69d8047c883 1-38,40-54,58,60-70
+  s_45f9aa946d0403::t_96dfb0024b97d2 39
+  s_45f9aa946d0403::t_110d7ae9f52e24 55-57
+scripts/layout_fixers.py
+  s_0ab251026747c7::t_82d4e5f7d6c2fb 4
+  s_0ab251026747c7::t_3402e9dd8d1d64 107-155
+  s_b0fe9519cdbf6f::t_27b6904c9c2196 608
+  s_0ab251026747c7::t_66ed9852ba4f7d 22
+  s_b0fe9519cdbf6f::t_10e865816990d9 8,20-21,23
+  s_0ab251026747c7::t_8c373f0a0b2a0c 609-611,621-622
+  s_bc3fcc3bfd7064::t_584d3733b145f1 468
+scripts/book_qa.py
+  s_0ab251026747c7::t_ea69058a341255 44-47
+  s_b0fe9519cdbf6f::t_d08ca4603c5201 54
+  s_0ab251026747c7::t_7839174e8a27c1 283-302,304-335,340-343,345-346,350-351,353-354,373,375,377,380-389
+  s_0ab251026747c7::t_4bd5f0928422b4 303
+  s_0ab251026747c7::t_be1c38c728e786 336-339,344,347-349,352,355-372,374,376,378-379
+  s_b0fe9519cdbf6f::t_516dc5597535da 2,14-17
+  s_0ab251026747c7::t_41f727ba6f66c2 702-703
+  s_0ab251026747c7::t_cd7c673a9c3352 606-607
+scripts/book_build.sh
+  s_c123e753c8aeb0::t_8ce274c76f5f7e 12
+  s_c123e753c8aeb0::t_1b4baa2c93d8dc 22-23
+  s_c123e753c8aeb0::t_63fd169fae5c9b 8,11
+scripts/sampler_build.sh
+  s_c123e753c8aeb0::t_382fa183e2275d 115-116
+  s_c123e753c8aeb0::t_336ed1ab88f9c3 27
+  s_c123e753c8aeb0::t_79b213950a59cb 10,13
+  s_c123e753c8aeb0::t_8b1344ea06fca5 101
+  s_c123e753c8aeb0::t_e27ae472c6adc8 33
+  s_c123e753c8aeb0::t_aafe498d46f39e 43-44,46-49
+  s_c123e753c8aeb0::t_da386895619cc6 85,90,92,94,97
+scripts/trim_apply.py
+  s_b0fe9519cdbf6f::t_d197aa51909f09 14-20,28-30,32,34-35
+  s_b0fe9519cdbf6f::t_5ce8b32d5870d6 45
+  s_b0fe9519cdbf6f::t_836dc737baf211 33
+  s_b0fe9519cdbf6f::t_98ca57c7c09bbd 82
+scripts/book_engine.py
+  s_34f9cebe456f58::t_bf5937cb6c4f2f 14
+  s_34f9cebe456f58::t_984391bf334ff6 15
+  s_edb2c2e8486a45::t_cd0dbcf1ebdc34 221
+scripts/quality_dashboard.py
+  s_34f9cebe456f58::t_b830a51caa41b9 93,140,211,994
+  s_34f9cebe456f58::t_e6de0fcc140e42 8-10,13,25-26,28-30
+scripts/crossref_check.py
+  s_0ab251026747c7::t_e6af4b56a668d3 115-116
+  s_0ab251026747c7::t_75c1449988537d 36,70,74
+  s_0ab251026747c7::t_ee4985494341c4 102-106
+  s_34f9cebe456f58::t_257797a9a30fda 12,19,22-23
+  s_0ab251026747c7::t_6aa8d413062566 25-28
+scripts/backup.py
+  s_c6bcacad8c7200::t_eb621446b2f67d 1-32
+scripts/literary_metrics.py
+  s_34f9cebe456f58::t_62e290e951648c 3
+  s_34f9cebe456f58::t_a911d2bfb7118b 9,13-17
+  s_34f9cebe456f58::t_642e4b144d6c74 18-19
+  s_edb2c2e8486a45::t_5b4a85e75885b3 25-26,66-67
+scripts/premise_router.py
+  s_bc3fcc3bfd7064::t_61d7ad878cd9fd 155,157-163
+  s_bc3fcc3bfd7064::t_2bee851c36600c 179,182-183,187,192
+  s_bc3fcc3bfd7064::t_9a2647f1461896 231
+  s_bc3fcc3bfd7064::t_9d6c3d7dd2df35 130,133,138-141,145
+  s_34f9cebe456f58::t_da8c41ba88f792 134,137
+  s_34f9cebe456f58::t_511bf3cbed67ed 227,230
+  s_34f9cebe456f58::t_d5de876fd99a86 5-7,9,16-17,19-20,22-23
+  s_bc3fcc3bfd7064::t_cbeb73893e001c 21
+  s_bc3fcc3bfd7064::t_50f31e15837db6 200-202,212-224
+  s_bc3fcc3bfd7064::t_fb46df7f078607 177-178
+  s_bc3fcc3bfd7064::t_b0e1c7a99ab54b 41-71
+scripts/agent_audit.py
+  s_45f9aa946d0403::t_63d3c829477b9b 1-114
+scripts/trim_check.py
+  s_b0fe9519cdbf6f::t_f50dc5fd06a0a7 4
+  s_b0fe9519cdbf6f::t_548aae424adbf8 15
+scripts/review_sheet.py
+  s_b0fe9519cdbf6f::t_bbb773a1360125 14-18
+  s_b0fe9519cdbf6f::t_2b304a3c4d02f1 60
+scripts/chapter_regrade.py
+  s_c6bcacad8c7200::t_d9bfbbfb66b478 135-139,141-152,156-160,163-166,168-180,182-185
+  s_c6bcacad8c7200::t_1eb6fbc1dc295a 167
+  s_c6bcacad8c7200::t_28516c297161de 222
+  s_c6bcacad8c7200::t_0c5816423723ef 3,8-15,17,23-24,28-85
+  s_34f9cebe456f58::t_c3bfda4dca4edc 26
+  s_c6bcacad8c7200::t_0c1243c06dcb08 109-122
+  s_c6bcacad8c7200::t_6d906e849332c2 206-209,211
+  s_34f9cebe456f58::t_67fc80ae4342ef 22,27
+  s_34f9cebe456f58::t_620f67ff955d44 238
+  s_c6bcacad8c7200::t_322acaac4bd678 186-187
+  s_34f9cebe456f58::t_a5697c8f5033f7 153
+  s_edb2c2e8486a45::t_c7cd87c065d5fb 25,89-90,92
+scripts/chapter_brief.py
+  s_34f9cebe456f58::t_39d3b8ba7bd3ac 7,13,16-17
+  s_34f9cebe456f58::t_7dbc7885595b58 86
+scripts/regrade_summary.py
+  s_34f9cebe456f58::t_5c056c71b2a649 7,11-12
+scripts/review_build.sh
+  s_c123e753c8aeb0::t_5b3a0cc2c6e8dd 6-7,9-10,12-20
+scripts/pdf_tracking_to_tc.py
+  s_45f9aa946d0403::t_0668d6c79fa5a0 79-80,84
+  s_45f9aa946d0403::t_51a7d2203ed592 60-68,73-78,85-88
+  s_45f9aa946d0403::t_64a72657ebfbd8 9-13
+  s_bc3fcc3bfd7064::t_649f161711ca50 89
+scripts/literary_panel.py
+  s_bc3fcc3bfd7064::t_9923c2f08cf56f 246-247
+  s_bc3fcc3bfd7064::t_e09766ec7a9b61 27-28
+  s_bc3fcc3bfd7064::t_e7e9e5a1071e85 15
+  s_bc3fcc3bfd7064::t_9e7e181ef0bd41 151
+  s_bc3fcc3bfd7064::t_6b55f76c71ac57 259-267
+  s_34f9cebe456f58::t_244165bbd9e4c0 17,20
+  s_34f9cebe456f58::t_8a9b1adaca2431 2
+  s_bc3fcc3bfd7064::t_ba47d49dd4b9ea 116,118-145
+  s_34f9cebe456f58::t_d75b6fac5072b7 39
+  s_34f9cebe456f58::t_b4a2a46e0a8553 187
+  s_bc3fcc3bfd7064::t_0a8a24f0079c9b 213,219-221
+  s_bc3fcc3bfd7064::t_e72e3ddb11a160 82-110
+  s_bc3fcc3bfd7064::t_2ee63360ac712c 201,203,208
+  s_bc3fcc3bfd7064::t_0a94152230ec0d 222-224
+  s_edb2c2e8486a45::t_e4f8c2b905a385 32,112-114
+scripts/visual_regress.py
+  s_b0fe9519cdbf6f::t_0f682137a549de 7,16
+scripts/chapter_proof.sh
+  s_c123e753c8aeb0::t_f16d123418194e 9
+  s_c123e753c8aeb0::t_3a0dd2f4c9b0df 6,8
+  s_c123e753c8aeb0::t_112057c49c441a 15
+  s_c123e753c8aeb0::t_e4ea8233610b32 28
+  s_c123e753c8aeb0::t_074404c1919b2b 14
+  s_c123e753c8aeb0::t_d680d8f3e92d98 16
+  s_c123e753c8aeb0::t_e11815f599b4a2 4
+scripts/regrade2.sh
+  s_c123e753c8aeb0::t_48048b66996ae5 3-5
+scripts/qa_selftest.py
+  s_b0fe9519cdbf6f::t_eac6bc728f7a27 15-17,20-21
+books/duane.json
+  s_edb2c2e8486a45::t_857d243e8cfb22 1-17
+books/smoke.json
+  s_edb2c2e8486a45::t_5e400973462c84 1-17
+scripts/rawblock_parbreak.lua
+  s_edb2c2e8486a45::t_603be6ba30214f 1-9
+.claude/skills/book-quality-engine/SKILL.md
+  s_edb2c2e8486a45::t_5cdc93bb5f393c 25-46,54
+scripts/book_config.py
+  s_edb2c2e8486a45::t_d3ddf1bcc9bd35 1-82
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "16d522ff490a31a0fe999286bd0a8cbdf5da6225",
+  "prompts": {},
+  "sessions": {
+    "s_0ab251026747c7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f2bdde174ffeqx7gXuQy6LM09j",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_34f9cebe456f58": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f2be779f6ffeW9WZ3PWMT6ndBw",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_45f9aa946d0403": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f2bdccd17ffev6p45Uf6WrUZd7",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_b0fe9519cdbf6f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f2be7f041ffecCpjyoucz5dDXA",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_bc3fcc3bfd7064": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f2bde58cbffe4sUUbEatppWSJ9",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_c123e753c8aeb0": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f2be86874ffeXw245sEXzdMep8",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_c6bcacad8c7200": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f2bdece3dffe95QaQhE96dgBuN",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_edb2c2e8486a45": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0a257329-0d8f-470d-9be0-65ec49a8a9db",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}

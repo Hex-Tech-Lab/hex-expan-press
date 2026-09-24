@@ -1,0 +1,40 @@
+scripts/review_sheet.py
+  s_cfc826baeb6ce0::t_ca42dc5d0dd93d 1-108
+scripts/book_qa.py
+  s_71493696246d6c::t_fe9d916c32541b 324
+  s_edb2c2e8486a45::t_7f3ef89e563258 8,501-503
+scripts/layout_fixers.py
+  s_edb2c2e8486a45::t_b4c00ceb0738f7 50
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f3db54c7acd39234e2fe0bda702bcc89048183aa",
+  "prompts": {},
+  "sessions": {
+    "s_71493696246d6c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f2d0c2abfffeyioCUi9ZKSesLt",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_cfc826baeb6ce0": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f2d0c2a55ffeoftuq39xB93X86",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_edb2c2e8486a45": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0a257329-0d8f-470d-9be0-65ec49a8a9db",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}

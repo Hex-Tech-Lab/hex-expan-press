@@ -1,0 +1,29 @@
+.claude/skills/book-quality-engine/SKILL.md
+  s_8840014c0848c9::t_914a73b74d1105 38
+scripts/literary_panel.py
+  s_edb2c2e8486a45::t_6f58ef0e7b0f4a 125,222,271-276
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "56c5a12caf94974484a46bc3548346dd440b7bb2",
+  "prompts": {},
+  "sessions": {
+    "s_8840014c0848c9": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f2bc7de30ffeCgQWFVosphgaOo",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_edb2c2e8486a45": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0a257329-0d8f-470d-9be0-65ec49a8a9db",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}

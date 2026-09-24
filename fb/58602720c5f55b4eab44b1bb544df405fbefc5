@@ -1,0 +1,231 @@
+scripts/layout_fixers.py
+  s_cf3dfafb91ed86::t_34f70b6e0e93c3 550
+  s_89e448cfd2d60f::t_7c6bb831a9155e 160
+  s_cf3dfafb91ed86::t_2f90d31552ae53 481-542
+  s_f3167bd69554c1::t_7875e33da569d1 547
+  s_268263caf55055::t_c2c016152fe76e 216,218-219,221
+  s_f3167bd69554c1::t_59980be280c992 356-403,405-414
+  s_268263caf55055::t_2911595c0f1f34 116-122
+  s_89e448cfd2d60f::t_bcada3f474a6f8 454,458,462
+  s_cf3dfafb91ed86::t_6ef06f8de0c8a0 29
+  s_268263caf55055::t_de4d43323ab411 223,231
+  s_268263caf55055::t_bf4f5a32df7e50 244
+  s_268263caf55055::t_25225eea7574b0 327,332,348-349
+  s_89e448cfd2d60f::t_d913474d4b21e4 1-28,30-54,62-115,123-159,161-167,251-326,328-331,333-345,347,350-355,415-420,422-448,451-453,455,459-461,463-480,543-546,548-549,551-606
+  s_268263caf55055::t_ed8ee901ca4e38 55-61
+  s_268263caf55055::t_7adde5e7c32f76 168-215,217,220,222,224-230,232-243,245-250
+  s_f3167bd69554c1::t_a4cd4027a0d5d1 404
+  s_89e448cfd2d60f::t_ce5f6dd51b07a7 346
+  s_f44856a4977ca3::t_487726ae08a129 421,449-450,456-457
+scripts/literary_panel.py
+  s_98c1de760ae1b2::t_8e7dabc9ee2038 34-42
+  s_98c1de760ae1b2::t_d7873765ea056e 15
+scripts/layout_autofix.py
+  s_54b41c6f0db40a::t_a1c645f091dd5c 15,17-21
+  s_54b41c6f0db40a::t_5bc0e2b3cf9b79 1-14,16,22-97
+scripts/qa_selftest.py
+  s_f3167bd69554c1::t_95184f570d6fcc 20
+  s_4a71788d942201::t_28b28ef8534eb2 1-19,21-41,48-82
+  s_4a71788d942201::t_7ff9223432641c 42-47
+scripts/book_engine.py
+  s_89e448cfd2d60f::t_57ede4b1f5fd46 151
+  s_e1ab5390823061::t_43e9c7e2a68dfd 24
+  s_e1ab5390823061::t_32d6af5e5a38f1 1-23,25-37,39-127,196-235,237-243,247-252,254-260
+  s_89e448cfd2d60f::t_f1c6b34c141ff9 253
+  s_e1ab5390823061::t_c83a8d6b21f7fe 38
+  s_89e448cfd2d60f::t_f0f0fd197c3fd5 128,131-150,152-159,161,163-195
+  s_cf3dfafb91ed86::t_5d4afb093df2f5 129-130
+  s_89e448cfd2d60f::t_c6679e5aceead4 236,244-246
+  s_f44856a4977ca3::t_fa6189b74d620e 160,162
+scripts/premise_router.py
+  s_2fbb35dee6bf43::t_6a421033a8097b 1-106,108-134,136-167
+  s_2fbb35dee6bf43::t_a713312163625c 107
+  s_2fbb35dee6bf43::t_fcf9795fa52632 135
+scripts/book_qa.py
+  s_9f3a3971f27c7c::t_65c3a0c9f89835 190,199,203-204
+  s_5636c9dccd72f4::t_a79cca7e5ebf3b 228
+  s_cf3dfafb91ed86::t_039d80e4dd3e8e 251-252
+  s_5636c9dccd72f4::t_e447f171787338 237-245,247-250
+  s_5636c9dccd72f4::t_3502ac71b9ebc0 330,332-350
+  s_b29f7dd706643a::t_27d656dd98e1d5 504-506
+  s_9f3a3971f27c7c::t_515646b79bb297 191-198,200-202,205-225
+  s_b29f7dd706643a::t_d0d22256b019dc 262-263
+  s_5636c9dccd72f4::t_18a636c4114347 271
+  s_9f3a3971f27c7c::t_49bf0a59b46018 229,236
+  s_9f3a3971f27c7c::t_dcc126228cc46d 351
+  s_cf3dfafb91ed86::t_bb70af74b3407e 405-406
+  s_4a71788d942201::t_a4009183ab02ca 419-432,435-436,439-440
+  s_5636c9dccd72f4::t_3e5d0d2e565ccd 509-510
+  s_4a71788d942201::t_89cc643be3dc5f 374-375
+  s_5636c9dccd72f4::t_93df7dba49a0a4 270,274
+  s_cf3dfafb91ed86::t_311511daa25f19 386-387
+  s_cf3dfafb91ed86::t_0b042154e3e39d 134-189
+  s_f3167bd69554c1::t_2ddcf2d949f404 394-395
+  s_5636c9dccd72f4::t_4b80119a8bdf98 246
+  s_4a71788d942201::t_5ca0bf63e17c5c 357,359-360,365
+  s_cf3dfafb91ed86::t_ff4ceb4ab5504e 412-414
+  s_5636c9dccd72f4::t_87eab0f9c611ae 454-488
+  s_b29f7dd706643a::t_26d7abbae9043b 114-133
+  s_2583f56ecde189::t_2a8c0b05e087a9 301-310,442,448-449
+scripts/review_marks.py
+  s_9bdd791e2b49a2::t_f12c1c7c697004 1-61
+scripts/review_build.sh
+  s_9bdd791e2b49a2::t_a8fba9b13280c7 1-18,20-22
+  s_9bdd791e2b49a2::t_5d91f7c6108503 19
+scripts/rubric_loader.py
+  s_98c1de760ae1b2::t_98c277ca44d062 1-90
+.claude/skills/book-quality-engine/SKILL.md
+  s_2583f56ecde189::t_1031ff236a0e6b 1-71
+scripts/book_build.sh
+  s_2583f56ecde189::t_1c1afaafc6bed2 23
+scripts/chapter_proof.sh
+  s_2583f56ecde189::t_ec865ad09b973b 15
+scripts/crossref_check.py
+  s_2583f56ecde189::t_a3257577fd49d1 1-118
+scripts/jev.py
+  s_2583f56ecde189::t_1f6fcb88089314 1-51
+scripts/literary_metrics.py
+  s_2583f56ecde189::t_cd0ae8d1548ad0 20,27
+scripts/sampler_build.sh
+  s_2583f56ecde189::t_38288d132ebf70 116
+.gitignore
+  s_2583f56ecde189::t_84ddc602d6f26c 68-72
+scripts/quality_dashboard.py
+  s_2583f56ecde189::t_c5e53ad007c3ae 1-1021
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "fb58602720c5f55b4eab44b1bb544df405fbefc5",
+  "prompts": {},
+  "sessions": {
+    "s_2583f56ecde189": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "da18be14-3674-40f8-9f4a-97dfd56fa724",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_268263caf55055": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f2f8e8d96ffebORQby14j4Y2yI",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_2fbb35dee6bf43": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f3121426cffecfaOtv23ZW745D",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_4a71788d942201": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f311ca89cffeHwJB6CXdELU5eB",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_54b41c6f0db40a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f313b70b5ffeLT0UT0uTtRs12S",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_5636c9dccd72f4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f2fd25cefffeAtuvpHs7yd0Bz9",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_89e448cfd2d60f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f2fa12c59ffejxpePQVVFFzDTU",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_98c1de760ae1b2": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f31326e9fffeWcwdUgF3dPWXMX",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_9bdd791e2b49a2": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f31326e91ffelmTwY9n95LyUtI",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_9f3a3971f27c7c": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f2d53ae69ffejmoPC3vBKK2MMD",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_b29f7dd706643a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f2f8e8d95ffeWVCYelhCkZMilN",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_cf3dfafb91ed86": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f2f7c9ff9ffei2tgns6Z5OLXqM",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_d2531553bc30d6": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f2f9cf6fdffeyU5NPOa0jcLh9w",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_e1ab5390823061": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f313cace1ffetv8WGZ5Plfx6NX",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_f3167bd69554c1": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f2f96916fffe9alEtSUgnPnOIh",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_f44856a4977ca3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f2f7ca1e9ffeGf9A7d2qrGmyNs",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
