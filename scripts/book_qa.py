@@ -372,10 +372,15 @@ def check_pdf(pdf, first, last, res, is_opener_page):
                 if prev.kind == "body":
                     pitch_ok = near(d, R["BODY-PITCH"]["target"], R["BODY-PITCH"]["tol"])
                     gap_ok = near(d, R["BODY-PARA-GAP"]["target"], R["BODY-PARA-GAP"]["tol"])
+                    # A section ornament (three small dots) between the two lines is a deliberate break, not a gap.
+                    after_orn = any(c["x1"] - c["x0"] < 5 and prev.y < c["top"] < l.y for c in p.curves)
+                    if not gap_ok and after_orn:
+                        gap_ok = True
                     res.check("BODY-PITCH" if d < 23 else "BODY-PARA-GAP", pitch_ok or gap_ok, f"p{pno}: {d} '{snip(l)}'")
                     in_dropcap = opener and any(x.kind == "dropcap" for x in content) and l.x > LEFT + 2 and i < 8
                     if gap_ok:
-                        res.check("BODY-INDENT", near(l.x, LEFT + INDENT, 0.5), f"p{pno}: new paragraph at x={l.x:.1f} (want {LEFT+INDENT}) '{snip(l)}'")
+                        want = LEFT if after_orn else LEFT + INDENT  # flush after a section ornament, like after a heading
+                        res.check("BODY-INDENT", near(l.x, want, 0.5), f"p{pno}: new paragraph at x={l.x:.1f} (want {want}) '{snip(l)}'")
                     elif pitch_ok and not in_dropcap:
                         res.check("BODY-INDENT", near(l.x, LEFT, 0.5) or near(l.x, LEFT + INDENT, 0.5), f"p{pno}: x={l.x:.1f} '{snip(l)}'")
                 elif prev.kind == "heading":
