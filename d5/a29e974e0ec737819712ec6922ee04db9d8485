@@ -1,0 +1,55 @@
+.github/workflows/commit-guard.yml
+  s_a7405a349c886b::t_f9e81513bdf7c6 1-30
+.gitignore
+  s_a7405a349c886b::t_2fc736fc9d7cb5 74-79
+payments/DEPLOY-NOTES.md
+  s_a7405a349c886b::t_7fc576c29ec56e 51-52
+payments/bake_checkout.ts
+  s_a7405a349c886b::t_14d869a308b3c4 67,165-186,196-197,216
+payments/config.duane.json
+  s_a7405a349c886b::t_c8dc1ee1f65350 3,5,28,37
+payments/site/c/retirearly500k/500k-playbook/index.html
+  s_a7405a349c886b::t_f6a4f39092a5ec 6-7,11-12,15-16,92,94,100,102-103,130
+payments/site/c/retirearly500k/index.html
+  s_a7405a349c886b::t_ea4f60b29e9b8b 100
+payments/site/index.html
+  s_a7405a349c886b::t_58b5226c25dd6a 6-7,68,73,75
+payments/site/privacy.html
+  s_a7405a349c886b::t_0966623fa2edef 6
+payments/site/refund-policy.html
+  s_a7405a349c886b::t_1722ce84ce1112 6
+payments/site/terms.html
+  s_a7405a349c886b::t_4358a9dbc49317 6
+payments/src/settings.ts
+  s_a7405a349c886b::t_1db7925f2585cf 16,50-53
+scripts/backref_check.py
+  s_a7405a349c886b::t_1d3684a955b631 13-14,18,56-59,80-88,91-153
+scripts/book_engine.py
+  s_a7405a349c886b::t_66b78d7ae9c9f8 214-236,253-254,257,261,265,270,272-294
+scripts/commit_guard.py
+  s_a7405a349c886b::t_e5596939b2df1d 28,83-90
+scripts/jev.py
+  s_a7405a349c886b::t_18f784095eb96a 25-26
+scripts/live_site_check.py
+  s_a7405a349c886b::t_46eff3f8042f68 1-95
+scripts/site_claims_check.py
+  s_a7405a349c886b::t_a5613376d61554 15,92-118,122,147,154,173,178
+scripts/transcript_numbers_check.py
+  s_a7405a349c886b::t_5a2eadbb627c69 14-15,27,68,107,110-132,135-140
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d5a29e974e0ec737819712ec6922ee04db9d8485",
+  "prompts": {},
+  "sessions": {
+    "s_a7405a349c886b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b8fb2bc-7e7d-4d6e-8cf1-42ef2a94b764",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
