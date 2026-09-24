@@ -30,6 +30,19 @@ for _r in R.values():
     if "token" in _r:
         _r["target"] = _tok(_r["token"])
 R["BOX-PARA-GAP"]["target"] = {"lens": _tok("box.pitch+box.lens_extra"), "worksheet": _tok("box.pitch+box.worksheet_extra")}
+# T27 rules: design_rules.json is frozen for this task, so the two new rules are
+# defined here (same schema) and appended to the report rule list in code.
+EXTRA_RULES = [
+    {"id": "TAKEAWAY-ORPHAN", "object": "rendered PDF", "kind": "pdf",
+     "target": {"top_frac": 0.30, "empty_frac": 0.12}, "severity": "major",
+     "source": "T27 2026-09-24: takeaway block stranded at top of a page while the previous page ends high"},
+    {"id": "IMG-UNIQUE", "object": "manuscript source", "kind": "source",
+     "target": "each img/#image path used at most once across the whole book", "severity": "blocker",
+     "source": "T27 2026-09-24: duplicate cover/opener/back-cover image paths"},
+]
+for _r in EXTRA_RULES:
+    R[_r["id"]] = _r
+    RULES["rules"].append(_r)
 MS = REPO / "manuscript/book/manuscript.md"
 LEFT, INDENT = RULES["page"]["left_text_edge"], RULES["page"]["indent"]
 CALLBG = (0.925, 0.894, 0.824)
@@ -224,6 +237,53 @@ def page_gap_check(page_info, page_body_pos, boxes_in_chapter, first, last, res)
                 res.check("PAGE-GAP", False, f"p{pno}: box ends y={bbot:.0f}, {len(after)} body lines, {empty_frac*100:.0f}% empty before box on p{pno+1}: move the box up / reflow")
 
 
+def takeaway_orphan_check(page_info, first, last, res):
+    """TAKEAWAY-ORPHAN: a chapter's THE TAKEAWAY block starting in the top 30% of
+    a page's text area while the previous page's last body/box content leaves
+    >= 12% of the text area empty below it (the block was pushed over)."""
+    tgt = R["TAKEAWAY-ORPHAN"]["target"]
+    pg = R["PAGE-GAP"]["target"]
+    for pno in range(first, last + 1):
+        info = page_info.get(pno)
+        if info is None:
+            continue
+        content, boxes, opener, part, ph = info
+        if not content:
+            continue
+        res.check("TAKEAWAY-ORPHAN", True)
+        tk = [l for l in content if l.kind == "takeaway"]
+        if not tk or pno == first:
+            continue
+        tb_bot = ph - pg["bottom_margin"]
+        tbh = tb_bot - pg["top_margin"]
+        if not (tk[0].y <= pg["top_margin"] + tgt["top_frac"] * tbh):
+            continue
+        prev = page_info.get(pno - 1)
+        if prev is None:
+            continue
+        pcontent, _, popener, ppart, _ = prev
+        if popener or ppart or not pcontent:
+            continue
+        lowest = max(l.y for l in pcontent)
+        empty_frac = (tb_bot - lowest) / tbh
+        if empty_frac >= tgt["empty_frac"]:
+            res.check("TAKEAWAY-ORPHAN", False,
+                      f"p{pno}: takeaway pushed to p{pno} with {empty_frac*100:.0f}% empty on p{pno-1}")
+
+
+IMG_RE = re.compile(r'#chaphead\([^)]*?img:\s*"([^"]+)"')
+IMAGE_RE = re.compile(r'#image\("([^"]+)"\)')
+
+
+def img_unique_uses(src):
+    """All cover/opener/back-cover image paths in manuscript order (1-based lines)."""
+    uses = []
+    for i, l in enumerate(src):
+        for m in (*IMG_RE.findall(l), *IMAGE_RE.findall(l)):
+            uses.append((m, i + 1))
+    return uses
+
+
 def check_pdf(pdf, first, last, res, is_opener_page):
     boxes_in_chapter = []
     body_pos = {}
@@ -350,6 +410,7 @@ def check_pdf(pdf, first, last, res, is_opener_page):
             res.check("BOX-SEPARATION", between >= 3,
                       f"p{pa}({ha[:14]}) -> p{pb}({hb[:14]}): {between} body lines between")
     page_gap_check(page_info, body_pos, boxes_in_chapter, first, last, res)
+    takeaway_orphan_check(page_info, first, last, res)
 
 
 # ---------------------------------------------------------------- source lint
@@ -496,6 +557,16 @@ def main():
     pdf = pdfplumber.open(a.pdf)
     src = MS.read_text().split("\n")
     pr, sr = pdf_chapter_ranges(pdf), chapter_src_ranges(src)
+    # IMG-UNIQUE: book-wide duplicate scan, reported under the chapter holding the 2nd use
+    img_uses = {}
+    for path, line in img_unique_uses(src):
+        img_uses.setdefault(path, []).append(line)
+    img_fail_by_ch = defaultdict(list)
+    for path, ls in img_uses.items():
+        if len(ls) < 2:
+            continue
+        ch = next((c for c, (s, e) in sr.items() if s <= ls[1] <= e), a.chapters.split(",")[0])
+        img_fail_by_ch[ch].append(f"{path} used {len(ls)}x (lines {', '.join(map(str, ls))})")
     out = [f"# Book QA report — `{Path(a.pdf).name}`", "", f"Rule set: `{RULES['adr']}` v{RULES['version']}", ""]
     blockers = 0
     unknown = [c for c in a.chapters.split(",") if c not in pr]
@@ -514,6 +585,9 @@ def main():
             check_frontmatter(pdf, pr, res)
         if ch in sr:
             check_src(src, *sr[ch], res)
+        for m in img_fail_by_ch.get(ch, []):
+            res.check("IMG-UNIQUE", False, m)
+        res.check("IMG-UNIQUE", True)
         out += [f"## Chapter {ch}" + (f" (pp. {pr[ch][0]}–{pr[ch][1]})" if ch in pr else ""), "",
                 "| Rule | Object / relationship | Target | Checks | Result |", "|---|---|---|---|---|"]
         for r in RULES["rules"]:

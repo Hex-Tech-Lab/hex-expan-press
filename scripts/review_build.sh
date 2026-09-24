@@ -16,7 +16,7 @@ W="$(mktemp -d "$QA/work_review.XXXXXX")"; trap 'rm -rf "$W"' EXIT
 ln -s "$B/img_v3" "$W/img_v3"; ln -s "$QA/design_rules.json" "$W/design_rules.json"
 "$REPO/.tools/pdfenv/bin/python" "$REPO/scripts/review_marks.py" "$B/manuscript.md" "$MARKS" "$W/m.md"
 cp "$B/template.typ" "$W/"
-cd "$W" && "$REPO/.tools/pandoc/bin/pandoc" m.md --to typst --wrap=none --template=template.typ -o b.typ
+cd "$W" && "$REPO/.tools/pandoc/bin/pandoc" m.md --to typst --wrap=none --shift-heading-level-by=-1 --template=template.typ -o b.typ
 "$REPO/.tools/typst-0.15.1/typst" compile --font-path "$REPO/typst_prototype/fonts" --font-path "$REPO/typst_prototype/fonts_variable" b.typ "$OUT"
 "$REPO/.tools/pdfenv/bin/python" "$REPO/scripts/pdf_tracking_to_tc.py" "$OUT"
 echo "review copy: $OUT"

@@ -12,7 +12,7 @@ if [ -n "$NEXT" ]; then
   head -n $((L-1)) "$M" > "$W/m.md"
 else cp "$M" "$W/m.md"; fi
 cp "$B/template.typ" "$W/"
-cd "$W" && "$REPO/.tools/pandoc/bin/pandoc" m.md --to typst --wrap=none --template=template.typ -o b.typ
+cd "$W" && "$REPO/.tools/pandoc/bin/pandoc" m.md --to typst --wrap=none --shift-heading-level-by=-1 --template=template.typ -o b.typ
 "$REPO/.tools/typst-0.15.1/typst" compile --font-path "$REPO/typst_prototype/fonts" --font-path "$REPO/typst_prototype/fonts_variable" b.typ "$OUT"
 "$REPO/.tools/pdfenv/bin/python" "$REPO/scripts/pdf_tracking_to_tc.py" "$OUT"
 echo "proof: $OUT"

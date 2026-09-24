@@ -32,9 +32,28 @@ def classify(page, n, total):
     return "other"
 
 
+ROMAN = re.compile(r"^[ivxlcdm]+$")
+
+
 def folio(page):
-    lines = (page.extract_text() or "").strip().splitlines()
-    return lines[-1].strip() if lines else "—"
+    words = page.extract_words()
+    bottom = [w for w in words if float(w["top"]) > float(page.height) - 60]
+    for w in bottom:
+        t = w["text"].strip()
+        if t.isdigit() or ROMAN.match(t):
+            return t
+    return "—"
+
+
+def side(idx):
+    return "recto" if (idx + 1) % 2 == 1 else "verso"
+
+
+def chapter_name(page):
+    text = page.extract_text() or ""
+    flat = re.sub(r"(?<=[A-Z]) (?=[A-Z])", "", text)  # kicker is letter-spaced: "C H A P T E R  N I N E"
+    m = re.search(r"CHAPTER\s*(ONE|TWO|THREE|FOUR|FIVE|SIX|SEVEN|EIGHT|NINE|TEN)", flat)
+    return f"Chapter {m.group(1).title()}" if m else None
 
 
 def render(pdf, pages, dpi=60, per_row=4, tile_w=488, tile_h=660, out_path=None):
@@ -48,13 +67,13 @@ def render(pdf, pages, dpi=60, per_row=4, tile_w=488, tile_h=660, out_path=None)
             "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 13)
     except OSError:
         font = ImageFont.load_default()
-    for i, (idx, cls, fol) in enumerate(pages):
+    for i, (idx, cls, fol, sd, chap) in enumerate(pages):
         r, c = divmod(i, per_row)
         im = pdf.pages[idx].to_image(resolution=dpi).original.convert("RGB")
         im.thumbnail((tile_w - 8, tile_h - 28))
         x, y = c * tile_w, r * tile_h
         draw.rectangle([x, y, x + tile_w, y + 22], fill="black")
-        draw.text((x + 4, y + 4), f"PDF p{idx+1} · folio {fol} · {cls}",
+        draw.text((x + 4, y + 4), f"PDF p{idx+1} · folio {fol} · {sd} · {chap or cls}",
                   fill="white", font=font)
         sheet.paste(im, (x + 4, y + 26))
         draw.rectangle([x, y, x + tile_w - 1, y + tile_h - 1],
@@ -73,7 +92,9 @@ def main():
     total = len(pdf.pages)
     info = []
     for i, page in enumerate(pdf.pages):
-        info.append((i, classify(page, i + 1, total), folio(page)))
+        cls = classify(page, i + 1, total)
+        chap = chapter_name(page) if cls == "opener" else None
+        info.append((i, cls, folio(page), side(i), chap))
 
     covers = [x for x in info if x[1] in ("cover", "back-cover", "part")]
     openers = [x for x in info if x[1] == "opener"]
@@ -91,14 +112,14 @@ def main():
                 "back cover\n")
         f.write("- `boxes.png` — box pages\n\n")
         f.write("## All classified pages\n\n")
-        f.write("| pdf page | class | folio |\n|---|---|---|\n")
-        for idx, cls, fol in info:
+        f.write("| pdf page | class | folio | side | chapter |\n|---|---|---|---|---|\n")
+        for idx, cls, fol, sd, chap in info:
             if cls != "other":
-                f.write(f"| {idx+1} | {cls} | {fol} |\n")
+                f.write(f"| {idx+1} | {cls} | {fol} | {sd} | {chap or ''} |\n")
         f.write("\n## All pages (incl. other)\n\n")
-        f.write("| pdf page | class | folio |\n|---|---|---|\n")
-        for idx, cls, fol in info:
-            f.write(f"| {idx+1} | {cls} | {fol} |\n")
+        f.write("| pdf page | class | folio | side |\n|---|---|---|---|\n")
+        for idx, cls, fol, sd, chap in info:
+            f.write(f"| {idx+1} | {cls} | {fol} | {sd} |\n")
     pdf.close()
     print(f"classified: {len(covers)} cover/part, {len(openers)} openers, "
           f"{len(boxes)} box pages")

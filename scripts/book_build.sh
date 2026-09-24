@@ -20,7 +20,8 @@ done
 mkdir -p "$(dirname "$OUT_PDF")"
 
 cd "$BOOK_DIR"
-"$PANDOC" manuscript.md --to typst --wrap=none --template=template.typ -o build.typ
-"$TYPST" compile --font-path "$FONT_DIR_1" --font-path "$FONT_DIR_2" build.typ "$OUT_PDF"
+"$PANDOC" manuscript.md --to typst --wrap=none --shift-heading-level-by=-1 --template=template.typ -o build.typ
+"$TYPST" compile --pdf-standard ua-1 --font-path "$FONT_DIR_1" --font-path "$FONT_DIR_2" build.typ "$OUT_PDF"
 
+"$REPO_ROOT/.tools/pdfenv/bin/python" "$REPO_ROOT/scripts/pdf_viewer_prefs.py" "$OUT_PDF"
 echo "built: $OUT_PDF"
