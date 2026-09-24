@@ -159,6 +159,8 @@ def main():
 
     hits = [(r, in_card(r)) for r in flags if r["kind"] != "false_alarm"]
     hits = sorted([(r, h) for r, h in hits if h], key=lambda x: -x[0]["p"])
+    (QA / "transcript_numbers_book_hits.json").write_text(json.dumps(
+        [dict(r, cards=[{"chapter": c, "card": t} for c, t in h]) for r, h in hits], indent=1))
     out += ["## Reaches the book: flagged number appears in a fact card from the same video", "",
             f"**{len(hits)} items.** These are the ones to check first against the transcript audio/video.", ""]
     for r, h in hits:
