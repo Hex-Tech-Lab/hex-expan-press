@@ -35,7 +35,7 @@ Order: M stable for a chapter → then P for that chapter.
 
 ## Jev (typed decisions, `scripts/jev.py`)
 Bands: ≥0.8 act · 0.5–0.8 act and FLAG · <0.5 or unavailable → current behaviour, UNCHECKED. Send only minimal spans. Every call site has `--no-jev` and a fallback.
-- LIVE: `trim_check.py` (meaning_kept/drops_fact), `crossref_check.py` (banded), `chapter_regrade.py` (no-new-facts guard per changed paragraph; pairwise old/new), `literary_panel.py` (G2 unsourced-claim pre-check), `premise_router.py` (contradiction triage, reader-stop themes), `layout_fixers.py` (changes_meaning on prose hunks), `agent_audit.py` / `agent_watch.sh` (agent REPORT evidence, stalls).
+- LIVE: `trim_check.py` (meaning_kept/drops_fact), `crossref_check.py` (banded), `chapter_regrade.py` (no-new-facts guard per changed paragraph; pairwise old/new), `literary_panel.py` (G2 unsourced-claim pre-check, reported beside the grades and NEVER fed to the judges), `premise_router.py` (contradiction triage, reader-stop themes), `layout_fixers.py` (changes_meaning on prose hunks), `agent_audit.py` / `agent_watch.sh` (agent REPORT evidence, stalls).
 - Wording trims: `trim_check.py` → `trim_apply.py [--fillback --page N --marker …]` (puts text back while the box still fits). Every trim ends in a before/after table.
 
 ## Accessibility (enforced)

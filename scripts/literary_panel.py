@@ -122,7 +122,7 @@ def g2_precheck(text):
     0.5-0.8 act and FLAG, <0.5 or None -> not flagged (fallback = current behaviour: judges grade G2
     without the pre-check list). Grading weights unchanged."""
     out = []
-    for s in re.findall(r"[^.!?\n]+[.!?]", text):
+    for s in re.split(r"(?<=[.!?])\s+", text):  # split only at sentence ends followed by whitespace ("$1.26" stays whole)
         s = s.strip()
         if len(s) < 15 or not G2_SCAN.search(s):
             continue
@@ -219,7 +219,7 @@ def main():
         if use_jev:
             # pre-check runs BEFORE the judges so its list can go into their prompts as context
             precheck = {n: g2_precheck(x) for n, t, x in ch}
-        jobs = {("judge", n, j): (j, judge_prompt(n, t, x, precheck[n])) for n, t, x in ch for j in JUDGES}
+        jobs = {("judge", n, j): (j, judge_prompt(n, t, x, None)) for n, t, x in ch for j in JUDGES}  # pre-check is reported, never fed to judges (keeps runs comparable)
         jobs.update({("facts", m): (m, fact_prompt(book)) for m in FACT_CHECKERS})
         jobs.update({("reader", p): (READER, reader_prompt(d, book)) for p, d in PERSONAS.items()})
         with ThreadPoolExecutor(4) as ex:
@@ -268,7 +268,12 @@ def main():
     out += ["", "## 2. Chapter verdicts (median ≥ B+, no dimension < B-, G2 pass)", ""]
     ch_pass = {}
     for n in names:
-        mins = min(v for v in table[n].values() if v is not None)
+        vals = [v for v in table[n].values() if v is not None]
+        if not vals or n not in g2 or chap_overall.get(n) is None:
+            ch_pass[n] = False
+            out.append(f"- **Ch {n}: INCOMPLETE** — a judge call failed; re-run with --from-run --patch")
+            continue
+        mins = min(vals)
         ok = chap_overall[n] >= gi("B+") and mins >= gi("B-") and g2[n][0]
         ch_pass[n] = ok
         low = [d for d, v in table[n].items() if v is not None and v < gi("B-")]
