@@ -113,7 +113,7 @@ OUT_PDF="$RELEASES_DIR/${TARGET_KIND}_$(date +%Y-%m-%d_%H%M).pdf"
 
 (
   cd "$BOOK_DIR"
-  "$PANDOC" "$TMP_MANUSCRIPT" --to typst --template=template.typ -o "$TMP_BUILD"
+  "$PANDOC" "$TMP_MANUSCRIPT" --to typst --wrap=none --template=template.typ -o "$TMP_BUILD"
   "$TYPST" compile --font-path "$FONT_DIR_1" --font-path "$FONT_DIR_2" "$TMP_BUILD" "$OUT_PDF"
 )
 

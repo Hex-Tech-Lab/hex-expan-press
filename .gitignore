@@ -65,3 +65,8 @@ docs/history/
 docs/templates/
 manuscript/book/design_rules.json
 scripts/__pycache__/
+
+# photo-search candidates and agent scratch (not book assets)
+typst_prototype/img_v3/_search/
+/parse_*.py
+/scratch_box_analysis.py

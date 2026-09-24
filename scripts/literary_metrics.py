@@ -17,13 +17,14 @@ PARTS = {"I": ["One", "Two", "Three"], "II": ["Four", "Five", "Six", "Seven"], "
 
 
 def prose(block):
+    block = re.sub(r'#dropcap\("(\w)"[^)]*\)\[', r"[\1", block)  # rejoin the drop-cap letter, else judges read "o what" as a typo
     t = re.sub(r"```\{=typst\}\n(.*?)```", lambda m: " ".join(re.findall(r"\[([^\[\]#]{20,})", m.group(1))), block, flags=re.S)
     t = re.sub(r"\\u\{201[CD]\}", '"', t)
     t = re.sub(r"\\u\{[0-9A-Fa-f]+\}", "", t)
     t = t.replace("\\$", "$").replace("\\_", "_")
     t = re.sub(r"^#+ .*$", "", t, flags=re.M)
     t = re.sub(r"`[^`]*`\{=typst\}|#\w+\([^)]*\)", "", t)
-    return re.sub(r"\s+", " ", t).strip()
+    return re.sub(r"\s+", " ", t.replace("```", "")).strip()
 
 
 def syllables(w):

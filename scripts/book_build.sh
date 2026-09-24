@@ -20,7 +20,7 @@ done
 mkdir -p "$(dirname "$OUT_PDF")"
 
 cd "$BOOK_DIR"
-"$PANDOC" manuscript.md --to typst --template=template.typ -o build.typ
+"$PANDOC" manuscript.md --to typst --wrap=none --template=template.typ -o build.typ
 "$TYPST" compile --font-path "$FONT_DIR_1" --font-path "$FONT_DIR_2" build.typ "$OUT_PDF"
 
 echo "built: $OUT_PDF"

@@ -12,6 +12,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from literary_metrics import MS, PARTS, prose  # noqa: E402
+import rubric_loader  # noqa: E402
 
 REPO = Path(__file__).resolve().parent.parent
 QA = REPO / "data/intel/duane_book/qa"
@@ -30,6 +31,15 @@ BOOK = ("A first-person retirement memoir-guide by 'Duane', who retired at 59 in
 ANCHORS = ("Grade anchors: A = publishable at a top trade publisher as is; B = solid, needs an edit pass on this dimension; "
            "C = weaknesses a typical reader would notice; D/F = undermines the chapter. Use the full scale; do not inflate. "
            "Length-neutral: longer text is NOT better; judge quality per page, penalise padding.")
+THRESHOLDS = {}
+
+# Rubric data layer (T4b): if RUBRIC_PROFILE is set or the default profile file exists, the
+# constants above are replaced by data from data/intel/duane_book/qa/rubric/ (byte-identical
+# prompts required). Otherwise the hard-coded constants stay in effect.
+_ACTIVE_PROFILE = rubric_loader.active_profile()
+if _ACTIVE_PROFILE:
+    _loaded = rubric_loader.load(_ACTIVE_PROFILE)
+    DIMS, ANCHORS, PERSONAS, THRESHOLDS = _loaded[0], _loaded[1], _loaded[2], _loaded[3]
 
 
 def call(spec, prompt, max_tokens=None):

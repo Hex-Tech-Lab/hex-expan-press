@@ -111,14 +111,145 @@ def snip(l):
     return l.text.strip()[:48]
 
 
+PART_RE = re.compile(r"PART[IVXLCDM]+$")
+
+
+def is_part_page(lines):
+    """A part page begins with 'PART' + roman numeral (may be letter-spaced)."""
+    content = [l for l in lines if l.kind not in ("runhead", "folio")]
+    return any(PART_RE.fullmatch(re.sub(r"\s+", "", l.text).upper()) for l in content[:3])
+
+
+def last_content_page(pdf, first, last):
+    """Trim trailing pages (part pages / furniture remnants / blanks) left by a proof build."""
+    while last > first:
+        lines, _ = page_model(pdf.pages[last - 1])
+        content = [l for l in lines if l.kind not in ("runhead", "folio")]
+        if content and not is_part_page(lines):
+            break
+        last -= 1
+    return last
+
+
+def dropcap_gap_check(p, res, pno):
+    """DROPCAP-GAP: first body-text char x0 on the drop-cap rows minus the right
+    ink edge of the drop-cap glyph (wine ink found at 600 dpi render)."""
+    dc = [c for c in p.chars if c["fontname"].split("+")[-1].startswith("FrauncesDisplay") and c["size"] >= 30]
+    if not dc:
+        return
+    bx0 = min(c["x0"] for c in dc)
+    bx1 = max(c["x1"] for c in dc)
+    btop = min(c["top"] for c in dc)
+    bbot = max(c["bottom"] for c in dc)
+    body = [c for c in p.chars if c["fontname"].split("+")[-1].startswith("LibreCaslonText")
+            and near(c["size"], 11.5, 0.05) and c["bottom"] > btop and c["top"] < bbot and c["x0"] > bx0]
+    if not body:
+        return
+    body_x0 = min(c["x0"] for c in body)
+    pad = 2
+    crop = (max(0, bx0 - pad), max(0, btop - pad), min(p.width, bx1 + pad), min(p.height, bbot + pad))
+    pil = p.crop(crop).to_image(resolution=600).original.convert("RGB")
+    W, H = pil.size
+    px = pil.load()
+    right_px = None
+    for x in range(W - 1, -1, -1):
+        for y in range(H):
+            r, g, b = px[x, y]
+            if r < 200 and (r - b) > 30:
+                right_px = x
+                break
+        if right_px is not None:
+            break
+    if right_px is None:
+        res.check("DROPCAP-GAP", False, f"p{pno}: drop-cap ink not found in glyph bbox")
+        return
+    ink_right = crop[0] + right_px * 72.0 / 600
+    gap_mm = (body_x0 - ink_right) * 25.4 / 72
+    r_ = R["DROPCAP-GAP"]
+    res.check("DROPCAP-GAP", near(gap_mm, r_["target_mm"], r_["tol"]),
+              f"p{pno}: visible gap {gap_mm:.2f}mm (want {r_['target_mm']}±{r_['tol']}mm)")
+
+
+def opener_img_check(p, res, pno):
+    """OPENER-IMG-SIZE: every opener photo placed at width 432pt x opener.image_h,
+    top-left at the page's top-left bleed. pdfplumber reports the unclipped image
+    object for fit:'cover' placements; the visible box is the intersection with the
+    432 x img_h clip box at the top-left corner."""
+    tok_h = TOK["opener"]["image_h"]
+    imgs = [im for im in p.images if (im["x1"] - im["x0"]) >= 0.8 * p.width and im["top"] <= 0.3 * p.height]
+    for im in imgs:
+        px0, px1 = max(im["x0"], 0.0), min(im["x1"], p.width)
+        ptop, pbot = max(im["top"], 0.0), min(im["bottom"], float(tok_h))
+        w, h = px1 - px0, pbot - ptop
+        ok = near(w, p.width, 0.5) and near(h, tok_h, 0.5) and near(px0, 0.0, 0.5) and near(ptop, 0.0, 0.5)
+        res.check("OPENER-IMG-SIZE", ok,
+                  f"p{pno}: placed {w:.2f}x{h:.2f}pt at ({px0:.2f},{ptop:.2f}) "
+                  f"(want {p.width:.0f}x{tok_h} at (0,0))")
+
+
+def page_gap_check(page_info, page_body_pos, boxes_in_chapter, first, last, res):
+    """PAGE-GAP: a text page that ends with a large empty area before a breakout
+    box on the next page; or a box followed by < 3 body lines and a >= 30% empty
+    bottom before the next box on the following page (the Ch3 pattern)."""
+    tgt = R["PAGE-GAP"]["target"]
+    for pno in range(first, last + 1):
+        info = page_info[pno]
+        if info is None:
+            continue
+        content, boxes, opener, part, ph = info
+        if not content:
+            continue
+        res.check("PAGE-GAP", True)
+        tb_bot = ph - tgt["bottom_margin"]
+        tbh = tb_bot - tgt["top_margin"]
+        lowest = max(l.y for l in content)
+        empty_frac = (tb_bot - lowest) / tbh
+        next_boxes = [(ppb_top) for (pn, ppb_top, _, _) in boxes_in_chapter if pn == pno + 1]
+        next_box_top = min(next_boxes) if next_boxes else None
+        text_page = any(l.kind in ("body", "heading", "boxbody", "boxhead", "takeaway", "table", "caps") for l in content)
+        # pattern A: mostly-empty text page, no box on it, box on the next page
+        if (not opener and not part and text_page and not boxes and pno < last
+                and empty_frac > tgt["empty_frac"] and next_box_top is not None
+                and next_box_top < 0.5 * ph):
+            res.check("PAGE-GAP", False, f"p{pno}: {empty_frac*100:.0f}% empty before box on p{pno+1}: move the box up / reflow")
+        # pattern B: box, < 3 body lines, >= 30% empty bottom, next box on the following page
+        for i, (pa, ba, bbot, ha) in enumerate(boxes_in_chapter):
+            if pa != pno or opener or part:
+                continue
+            after = [y for y in page_body_pos.get(pno, []) if y > bbot]
+            nxt = boxes_in_chapter[i + 1] if i + 1 < len(boxes_in_chapter) else None
+            if (len(after) < tgt["min_body_after_box"] and empty_frac >= tgt["gap_frac"]
+                    and nxt and nxt[0] == pno + 1 and nxt[1] < 0.5 * ph):
+                res.check("PAGE-GAP", False, f"p{pno}: box ends y={bbot:.0f}, {len(after)} body lines, {empty_frac*100:.0f}% empty before box on p{pno+1}: move the box up / reflow")
+
+
 def check_pdf(pdf, first, last, res, is_opener_page):
     boxes_in_chapter = []
+    body_pos = {}
+    page_info = {}
     for pno in range(first, last + 1):
         p = pdf.pages[pno - 1]
         lines, boxes = page_model(p)
         text = "".join(l.text for l in lines)
         content = [l for l in lines if l.kind not in ("runhead", "folio")]
         opener = pno == first
+        page_info[pno] = (content, boxes, opener, is_part_page(lines), p.height)
+        if opener:
+            missing = []
+            imgs = [im for im in p.images if (im["x1"] - im["x0"]) >= 0.8 * p.width and im["top"] <= 0.3 * p.height]
+            if not imgs:
+                missing.append("full-width image in top 30%")
+            if not any(l.kind == "kicker" for l in lines):
+                missing.append("CHAPTER <N>")
+            if not any(l.kind == "title" for l in lines):
+                missing.append("chapter title")
+            if not any(c["fontname"].split("+")[-1].startswith("FrauncesDisplay") and c["size"] >= 30 for c in p.chars):
+                missing.append("drop-cap glyph")
+            if not any(l.kind == "body" for l in content):
+                missing.append("first body text")
+            res.check("OPENER-MODEL", not missing, f"p{pno}: missing {', '.join(missing)}")
+            opener_img_check(p, res, pno)
+            dropcap_gap_check(p, res, pno)
         # NO-LEAK
         leak = re.search(r"```|\{=typst\}|#(callout|worksheet|set|show|block|grid|h\(|enum|stack|place)", text)
         res.check("NO-LEAK", not leak, f"p{pno}: …{leak.group(0) if leak else ''}")
@@ -128,15 +259,19 @@ def check_pdf(pdf, first, last, res, is_opener_page):
         text_page = any(l.kind in ("body", "heading", "boxbody", "boxhead", "takeaway", "table", "caps") for l in content)
         if opener:
             res.check("FURNITURE", not has_rh and not has_fo, f"p{pno}: opener page has header/folio")
+        elif is_part_page(lines):
+            res.check("FURNITURE", not has_rh and not has_fo, f"p{pno}: part page has header/folio")
         elif text_page:
             res.check("FURNITURE", has_rh and has_fo, f"p{pno}: text page missing header or folio")
         else:
             res.check("FURNITURE", not has_rh and not has_fo, f"p{pno}: blank/photo page has header/folio")
         # BOX-ONE-PER-PAGE
         res.check("BOX-ONE-PER-PAGE", len(boxes) <= 1, f"p{pno}: {len(boxes)} boxes")
+        # BOX-SEPARATION inputs
+        body_pos[pno] = [l.y for l in content if l.kind == "body" and l.box is None]
         for bi, b in enumerate(boxes):
             head = [l for l in lines if l.box == bi and l.kind == "boxhead"]
-            boxes_in_chapter.append((pno, "".join(l.text for l in head).replace(" ", "").upper()))
+            boxes_in_chapter.append((pno, b["top"], b["bottom"], "".join(l.text for l in head).replace(" ", "").upper()))
         # per-line rules
         for i, l in enumerate(content):
             prev = content[i - 1] if i else None
@@ -163,7 +298,16 @@ def check_pdf(pdf, first, last, res, is_opener_page):
                         gap = R["BOX-PARA-GAP"]["target"]["worksheet" if ws else "lens"]
                         ok = near(d, R["BOX-BODY-PITCH"]["target"], R["BOX-BODY-PITCH"]["tol"]) or near(d, gap, R["BOX-PARA-GAP"]["tol"])
                         res.check("BOX-BODY-PITCH" if d < gap - 2 else "BOX-PARA-GAP", ok, f"p{pno}: {d} '{snip(l)}'")
-            if l.kind == "body" and prev is not None:
+            # List items (bullet/number marker) and their hanging continuation lines are not body
+            # paragraphs: skip the indent checks for them (they keep the pitch checks).
+            lst = l.kind == "body" and (l.text.lstrip()[:1] in "•–" or re.match(r"^\d+\.", l.text.strip()) is not None)
+            lst_cont = (l.kind == "body" and prev is not None and getattr(prev, "_list", False)
+                        and not near(l.x, LEFT, 0.5) and not near(l.x, LEFT + INDENT, 0.5))
+            l._list = lst or lst_cont
+            if l.kind == "body" and prev is not None and l._list:
+                if prev.kind == "body":
+                    res.check("BODY-PITCH" if d < 23 else "BODY-PARA-GAP", near(d, R["BODY-PITCH"]["target"], R["BODY-PITCH"]["tol"]) or near(d, R["BODY-PARA-GAP"]["target"], R["BODY-PARA-GAP"]["tol"]) or d < 18, f"p{pno}: {d} '{snip(l)}'")
+            elif l.kind == "body" and prev is not None:
                 if prev.kind == "body":
                     pitch_ok = near(d, R["BODY-PITCH"]["target"], R["BODY-PITCH"]["tol"])
                     gap_ok = near(d, R["BODY-PARA-GAP"]["target"], R["BODY-PARA-GAP"]["tol"])
@@ -183,20 +327,42 @@ def check_pdf(pdf, first, last, res, is_opener_page):
             rows = [l for l in lines if l.kind == "table" and l.fam == "Inter" and re.match(r"(AUG|EOY|FEB|JAN|JUL|JUN|MAR|APR|MAY|SEP|OCT|NOV|DEC)\d{4}", l.text.replace(" ", "").upper())]
             res.check("TABLE-ONE-PAGE", len(rows) >= 9, f"p{pno}: only {len(rows)} table rows on the table's first page")
     if boxes_in_chapter:
-        ws = [i for i, (_, h) in enumerate(boxes_in_chapter) if h.startswith("YOURWORKSHEET")]
+        ws = [i for i, (_, _, _, h) in enumerate(boxes_in_chapter) if h.startswith("YOURWORKSHEET")]
         res.check("BOX-WORKSHEET-LAST", bool(ws) and ws[-1] == len(boxes_in_chapter) - 1,
-                  f"box order: {[h[:14] for _, h in boxes_in_chapter]}")
+                  f"box order: {[h[:14] for _, _, _, h in boxes_in_chapter]}")
+        for i in range(len(boxes_in_chapter) - 1):
+            pa, _, ba, ha = boxes_in_chapter[i]
+            pb, tb, _, hb = boxes_in_chapter[i + 1]
+            between = 0
+            for p in range(pa, pb + 1):
+                for y in body_pos.get(p, []):
+                    if p == pa == pb and ba < y < tb:
+                        between += 1
+                    elif pa == pb:
+                        continue
+                    elif p == pa and y > ba:
+                        between += 1
+                    elif p == pb and p != pa and y < tb:
+                        between += 1
+                    elif pa < p < pb:
+                        between += 1
+            res.check("BOX-SEPARATION", between >= 3,
+                      f"p{pa}({ha[:14]}) -> p{pb}({hb[:14]}): {between} body lines between")
+    page_gap_check(page_info, body_pos, boxes_in_chapter, first, last, res)
 
 
 # ---------------------------------------------------------------- source lint
 def chapter_src_ranges(lines):
     starts = {}
+    cut = len(lines)
     for i, l in enumerate(lines):
+        if "// BACK COVER" in l:
+            cut = i
         m = re.search(r'#chaphead\("Chapter (\w+)"', l)
         if m:
             starts[m.group(1)] = i
     order = sorted(starts.items(), key=lambda kv: kv[1])
-    return {n: (s, order[k + 1][1] if k + 1 < len(order) else len(lines)) for k, (n, s) in enumerate(order)}
+    return {n: (s, order[k + 1][1] if k + 1 < len(order) else cut) for k, (n, s) in enumerate(order)}
 
 
 def check_src(lines, a, b, res):
@@ -205,6 +371,8 @@ def check_src(lines, a, b, res):
     ws_depth = None
     for i in range(a, b):
         l, n = lines[i], i + 1
+        if "```" in l and l.strip() not in ("```", "```{=typst}"):
+            res.check("SRC-FENCE-LINE", False, f"line {n}: {l.strip()[:50]}")
         if re.match(r"^\s+```", l):
             res.check("SRC-FENCE", False, f"line {n}: indented fence")
             continue
@@ -215,12 +383,16 @@ def check_src(lines, a, b, res):
         if fence:
             code = re.sub(r'"[^"]*"', "", l)
             stripped = code.strip()
+            if "#highlight(" in l:
+                res.check("SRC-HIGHLIGHT", False, f"line {n}")
             if re.match(r"#(set|show)\b", stripped):
                 res.check("SRC-TOPLEVEL-SET", depth > 0, f"line {n}: {stripped[:50]}")
             if re.match(r"#v\(", stripped) and depth == 0:
                 res.check("SRC-MANUAL-SPACE", False, f"line {n}: {stripped[:40]}")
             if "#block(above: 0pt" in code:
                 res.check("SRC-ABOVE0", False, f"line {n}")
+            if re.search(r"#par\((?:leading|spacing):", code) or re.search(r"#set\s+par\(", code):
+                res.check("SRC-PAR-OVERRIDE", False, f"line {n}: {stripped[:50]}")
             if "#worksheet(" in code:
                 ws_depth = depth
             if ws_depth is not None and re.search(r"#stack\(|#grid\(|^\s*\d+\.\s", code):
@@ -230,29 +402,88 @@ def check_src(lines, a, b, res):
                 ws_depth = None
         else:
             body = l.strip()
+            if "#highlight(" in l:
+                res.check("SRC-HIGHLIGHT", False, f"line {n}")
             if re.search(r"\S {2,}\S", body):
                 res.check("SRC-DOUBLE-SPACE", False, f"line {n}: '{body[:60]}'")
             prev = lines[i - 1] if i else ""
             if re.match(r"^\s{2,}[A-Z]", l) and prev.strip() and not prev.startswith("#") and re.search(r"[.?!”\"}]$", prev.rstrip()):
                 res.check("SRC-MERGED-PARA", False, f"line {n}: '{body[:50]}'")
-    for rid in ("SRC-MANUAL-SPACE", "SRC-TOPLEVEL-SET", "SRC-ABOVE0", "SRC-HANDBUILT-LIST", "SRC-DOUBLE-SPACE", "SRC-MERGED-PARA", "SRC-FENCE"):
+    for rid in ("SRC-MANUAL-SPACE", "SRC-TOPLEVEL-SET", "SRC-ABOVE0", "SRC-PAR-OVERRIDE",
+                "SRC-HANDBUILT-LIST", "SRC-DOUBLE-SPACE", "SRC-MERGED-PARA", "SRC-FENCE",
+                "SRC-FENCE-LINE", "SRC-HIGHLIGHT"):
         res.check(rid, True)
 
 
 # ---------------------------------------------------------------- main
+def backcover_phrase():
+    lines = MS.read_text().split("\n")
+    seen = False
+    for l in lines:
+        if "// BACK COVER" in l:
+            seen = True
+            continue
+        if seen:
+            m = re.search(r"\bDuane retired at fifty-nine on\b", l)
+            if m:
+                return m.group(0).replace(" ", "").upper()
+    return None
+
+
 def pdf_chapter_ranges(pdf):
     openers = {}
+    back = None
+    phrase = backcover_phrase()
     for i, p in enumerate(pdf.pages):
         t = "".join(c["text"] for c in p.chars).replace(" ", "").upper()
+        if back is None and phrase and phrase in t:
+            back = i
         for w in NUMWORDS:
-            if f"CHAPTER{w.upper()}" in t and w not in openers:
+            if t.startswith(f"CHAPTER{w.upper()}") and w not in openers:  # openers begin with it; prose mentions ("chapter five is…") must not count
                 openers[w] = i + 1
     order = sorted(openers.items(), key=lambda kv: kv[1])
     out = {}
     for k, (w, s) in enumerate(order):
         e = order[k + 1][1] - 1 if k + 1 < len(order) else len(pdf.pages)
+        if back is not None and e > back:
+            e = back  # back is the 0-based index of the back-cover page, i.e. the 1-based number of the page before it
         out[w] = (s, e)
     return out
+
+
+def check_frontmatter(pdf, pr, res):
+    fails = []
+    cpage = None
+    one = pr.get("One")
+    limit = one[0] if one else len(pdf.pages)
+    for i, p in enumerate(pdf.pages[:limit]):
+        t = "".join(c["text"] for c in p.chars).replace(" ", "").upper()
+        if "CONTENTS" in t:
+            cpage = i + 1
+            break
+    if cpage:
+        lines, _ = page_model(pdf.pages[cpage - 1])
+        fols = [l.text.strip() for l in lines if l.kind == "folio"]
+        if not any(re.fullmatch(r"[ivxlcdm]+", f) for f in fols):
+            fails.append(f"p{cpage}: contents page lacks lowercase roman folio")
+    else:
+        fails.append("contents page not found")
+    if one:
+        pre = one[0] - 1
+        if pre >= 1:
+            lines, _ = page_model(pdf.pages[pre - 1])
+            fols = [l.text.strip() for l in lines if l.kind == "folio"]
+            if any(f.isdigit() for f in fols):
+                fails.append(f"p{pre}: arabic folio before Ch One opener")
+        post = one[0] + 1
+        if post <= len(pdf.pages):
+            lines, _ = page_model(pdf.pages[post - 1])
+            fols = [l.text.strip() for l in lines if l.kind == "folio"]
+            if "2" not in fols:
+                fails.append(f"p{post}: folio '2' missing after Ch One opener")
+    else:
+        fails.append("Ch One range not found")
+    res.check("FRONTMATTER-FOLIO", not fails, "; ".join(fails))
 
 
 def main():
@@ -270,8 +501,13 @@ def main():
         res = Results()
         if ch in pr:
             s, e = pr[ch]
+            # proof builds cut before the next chapter: ignore trailing pages after the chapter's last content page
+            if e == len(pdf.pages):
+                e = last_content_page(pdf, s, e)
             # stop at the chapter's last page before any photo/part page: last page with body text is fine either way
             check_pdf(pdf, s, e, res, None)
+        if ch == a.chapters.split(",")[0]:
+            check_frontmatter(pdf, pr, res)
         if ch in sr:
             check_src(src, *sr[ch], res)
         out += [f"## Chapter {ch}" + (f" (pp. {pr[ch][0]}–{pr[ch][1]})" if ch in pr else ""), "",
