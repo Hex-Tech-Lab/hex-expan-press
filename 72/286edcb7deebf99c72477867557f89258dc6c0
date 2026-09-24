@@ -1,0 +1,19 @@
+scripts/book_qa.py
+  s_edb2c2e8486a45::t_bfbf355bfdbede 375-378,382-383
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "72286edcb7deebf99c72477867557f89258dc6c0",
+  "prompts": {},
+  "sessions": {
+    "s_edb2c2e8486a45": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0a257329-0d8f-470d-9be0-65ec49a8a9db",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
