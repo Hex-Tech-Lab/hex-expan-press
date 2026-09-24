@@ -211,18 +211,29 @@ def cmd_release(args):
         return lint_rc
     lit, _ = parse_literary()
     lay = parse_layout_blockers()
-    if not args.force:
-        bad = []
-        for name in CHAPTERS:
-            st = lit.get(name, (None, None))[0]
-            b = lay.get(name)
-            if st != "PASS" or (b is not None and b > 0):
-                bad.append(f"{name}: literary={st or '—'}, blockers={b if b is not None else '—'}")
-        if bad:
-            print("release gate FAILED (use --force to override):")
-            for b in bad:
-                print(f"  - {b}")
-            return 3
+    # Blind-spot audit 2026-09-25: a --force release must say exactly what it overrode, never look clean.
+    overrides = []
+    copied = []  # release PDF once copied: a later refusal removes it so no unchecked PDF sits in releases/
+
+    def refuse(failure):
+        """True -> caller returns (no --force). With --force the failure is recorded instead."""
+        if args.force:
+            overrides.append(failure)
+            return False
+        print(f"release REFUSED: {failure} (use --force to override)", file=sys.stderr)
+        for f in copied:
+            f.unlink(missing_ok=True)
+            print(f"removed refused release file {f}", file=sys.stderr)
+        return True
+
+    bad = []
+    for name in CHAPTERS:
+        st = lit.get(name, (None, None))[0]
+        b = lay.get(name)
+        if st != "PASS" or (b is not None and b > 0):
+            bad.append(f"{name}: literary={st or '—'}, blockers={b if b is not None else '—'}")
+    if bad and any([refuse(f"chapter gate: {b}") for b in bad]):
+        return 3
     env = dict(os.environ)
     env["QA_CHAPTERS"] = ",".join(CHAPTERS)
     rc = run(["scripts/chapter_proof.sh", "FULL"], args.dry_run, env=env)
@@ -239,25 +250,48 @@ def cmd_release(args):
     dest = dest_dir / f"{__import__('book_config').CFG.get('release_prefix', __import__('book_config').BOOK_ID)}_{args.label}.pdf"
     print(f"[cmd] copy {src} -> {dest}")
     if not args.dry_run:
+        for stale in dest_dir.glob("FORCED_OVERRIDES.*"):  # a re-run must not inherit an old verdict
+            stale.unlink()
         shutil.copyfile(src, dest)
         shutil.copyfile(QA / "qa_report_FULL.md", dest_dir / "qa_report_FULL.md")
+        copied += [dest, dest_dir / "qa_report_FULL.md"]
     print(dest.resolve())
     # T35-K4: automated accessibility gate (veraPDF PDF/UA-1 + contrast) on the release PDF.
     rc = run(["bash", "scripts/pdf_a11y_check.sh", str(dest)], args.dry_run)
-    if rc != 0 and not args.force:
-        print("release REFUSED: pdf_a11y_check failed (use --force to override)", file=sys.stderr)
+    if rc != 0 and refuse("pdf_a11y_check failed"):
         return rc
     # T36-J8: financial-advice compliance gate on the manuscript before shipping.
     rc = run(["python3", "scripts/compliance_check.py"], args.dry_run)
-    if rc != 0 and not args.force:
-        print("release REFUSED: compliance_check BLOCKed a sentence (use --force to override)", file=sys.stderr)
+    if rc != 0 and refuse("compliance_check BLOCKed a sentence"):
         return rc
     # T37-W1a: cover-promise + blurb-figure gate (B13/B14) and author-voice gate (A24).
     for chk in ["surface_claims_check.py", "voice_check.py"]:
         rc = run(["python3", "scripts/" + chk], args.dry_run)
-        if rc != 0 and not args.force:
-            print(f"release REFUSED: {chk} failed (use --force to override)", file=sys.stderr)
+        if rc != 0 and refuse(f"{chk} failed"):
             return rc
+    # T37-W1b / audit risk 5: back-references after moves, against the newest manuscript backup.
+    # Advisory (its FLAGs are borderline, human-judged): never refuses, but always runs and prints.
+    backups = sorted((QA / "revisions").glob("manuscript_*.md"), key=lambda f: f.stat().st_mtime)
+    if backups:
+        run(["python3", "scripts/backref_check.py", "--before", str(backups[-1])], args.dry_run)
+    # Blind-spot audit risk 6: Jev down makes advisory checks exit 0 with UNCHECKED rows. A release
+    # with unchecked rows is not a checked release.
+    for rep_name in ["compliance_report.md", "surface_claims_report.md", "voice_report.md"]:
+        rep = QA / rep_name
+        if args.dry_run or not rep.exists():
+            continue
+        n_unc = len(re.findall(r"\*\*UNCHECKED|UNCHECKED \(Jev", rep.read_text()))
+        if n_unc and refuse(f"{rep_name} has {n_unc} UNCHECKED row(s) (Jev down? rerun)"):
+            return 4
+    if overrides:
+        rec = dest_dir / "FORCED_OVERRIDES.md"
+        body = ["# FORCED RELEASE — not a clean pass", "",
+                f"`{dest.name}` was released with --force. These checks FAILED and were overridden:", ""]
+        body += [f"- {o}" for o in overrides]
+        print("\n".join(["", "*** FORCED RELEASE: overridden checks ***"] + [f"  - {o}" for o in overrides]))
+        if not args.dry_run:
+            rec.write_text("\n".join(body) + "\n")
+            subprocess.run(["bash", "scripts/render_report.sh", str(rec)], cwd=REPO)
     win = subprocess.run(["wslpath", "-w", str(dest)], capture_output=True, text=True, cwd=REPO)
     if win.returncode == 0 and win.stdout.strip():  # P-12: hand over a real Windows path
         print(win.stdout.strip())

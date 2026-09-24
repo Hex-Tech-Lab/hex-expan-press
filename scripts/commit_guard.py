@@ -25,7 +25,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from jev import decide  # noqa: E402
 
 LO, HI = 0.5, 0.8
-FORBIDDEN_DIRS = ("data/", "adr/", "manuscript/book/", "docs/history/")
+FORBIDDEN_DIRS = ("data/", "adr/", "manuscript/book/", "docs/history/", "typst_prototype/img_v3/")
 QUESTIONS = {
     "business_sensitive": {"type": "noul",
         "instructions": "Does this diff hunk expose business-sensitive material: pricing strategy, revenue split, "
@@ -80,7 +80,14 @@ def main():
         diff = subprocess.run(["git", "diff", "--cached"], capture_output=True, text=True).stdout
 
     worst, flags = 0, []
-    for path in re.findall(r"^\+\+\+ b/(.+)$", diff, re.M):
+    # binary files (images) have no "+++ b/" line, so take staged names from git itself as well
+    paths = set(re.findall(r"^\+\+\+ b/(.+)$", diff, re.M))
+    paths |= set(re.findall(r"^Binary files .* and b/(.+) differ$", diff, re.M))
+    if not args.diff_file:
+        # --diff-filter=d: deletions are allowed (untracking a forbidden file is the fix, not a leak)
+        paths |= set(subprocess.run(["git", "diff", "--cached", "--name-only", "--diff-filter=d", "-z"],
+                                    capture_output=True, text=True).stdout.split("\0")) - {""}
+    for path in sorted(paths):
         if any(path == d.rstrip("/") or path.startswith(d) for d in FORBIDDEN_DIRS):
             print(f"BLOCK: forbidden path staged: {path}")
             worst = 1

@@ -48,6 +48,8 @@ node_modules/.bin/tsx payments/bake_creator_pages.ts   # re-bakes all /c/<handle
 cd payments/site && ../../node_modules/.bin/vercel --prod --yes
 ```
 
+**Before and after every deploy (blind-spot audit 2026-09-25):** `python3 scripts/live_site_check.py --local` before (must be 0 failing), `python3 scripts/live_site_check.py` after (checks live expanpress.com price/title against config, and that buy buttons stay gated until `checkout_mode: "live"`).
+
 The two bakers are independent but both re-runnable: `bake_checkout.ts` touches only pages carrying `data-checkout-slot` anchors (master + per-product pages) and now **skips pages without checkout slots** (creator hub pages — they carry no checkout, only internal links to product pages, so the sandbox/gated policy never applies to them).
 
 Current baked state (2026-09-16, `checkout_mode: "sandbox"`): sandbox link = `https://sandbox-api.polar.sh/v1/checkout-links/polar_cl_g84ByoGAeZiahkWtCasYmeu1ShLtZIwwayzyI4ZdZsM/redirect` (resolves 307 → `sandbox.polar.sh/checkout/polar_c_…` session). Polar SANDBOX artifact ids, recorded in `config.duane.json`: product `f9376e27-13bf-4a88-9f73-cc1168ad2923`, checkout link `580f69a8-fc34-4118-9553-d83c6165fc00`.

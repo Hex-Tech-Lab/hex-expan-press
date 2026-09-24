@@ -12,6 +12,7 @@ Never edits the site. Writes <QA>/site_claims_report.md (+ .html via render_repo
 Usage: python3 scripts/site_claims_check.py [--no-jev]
 """
 import html
+import json
 import re
 import subprocess
 import sys
@@ -88,10 +89,37 @@ def pages():
         yield from sorted((REPO / d).rglob("*.html"))
 
 
+# Audit risk 9: separate lines the book can never back (legal pages, price/checkout/tax/refund mechanics,
+# the creator bio, whose owner is creators.json bio_source) from real product claims. Only the latter
+# stay UNSUPPORTED and need triage.
+POLICY_PAGES = {"privacy.html", "terms.html", "refund-policy.html"}
+NOT_BOOK = re.compile(r"\$\d+ USD|one-time|checkout|sales tax|VAT|refund|support@|payment partner"
+                      r"|we respond|last updated", re.I)
+
+
+def owner_of(page, sentence):
+    # short lines only: a long merged sentence may carry a real content claim next to "checkout"
+    if page.name in POLICY_PAGES or (len(sentence) < 160 and NOT_BOOK.search(sentence)):
+        return "NOT-BOOK (policy/price)"
+    # only sentences that are part of a creator's bio text (creators.json), never the whole hub page
+    tail = _norm(sentence)[-80:]
+    if len(tail) >= 30 and any(tail in b for b in BIOS):
+        return "NOT-BOOK (creator bio)"
+    return None
+
+
+def _norm(s):
+    return re.sub(r"\s+", " ", html.unescape(s)).replace("’", "'").strip()
+
+
+BIOS = [_norm(c.get("bio", "")) for c in
+        json.loads((REPO / "payments/creators.json").read_text()).get("creators", [])]
+
+
 def main():
     use_jev = "--no-jev" not in sys.argv
     corpus = book_corpus()
-    report, tot = [], {"BLOCK": 0, "FLAG": 0, "UNSUPPORTED": 0, "UNCHECKED": 0}
+    report, tot = [], {"BLOCK": 0, "FLAG": 0, "UNSUPPORTED": 0, "UNCHECKED": 0, "NOT-BOOK": 0}
     for p in pages():
         text = strip_html(p.read_text(errors="replace"))
         title_m = re.search(r"<title>(.*?)</title>", p.read_text(errors="replace"), re.I | re.S)
@@ -116,13 +144,14 @@ def main():
             elif max(rec, gar) >= LO:
                 v = "FLAG"
             elif sup < LO:
-                v = "UNSUPPORTED"
+                v = owner_of(p, s) or "UNSUPPORTED"
             else:
                 v = "PASS"
             rows.append((s, max(rec, gar), v, exc))
         for v in ("BLOCK", "FLAG", "UNSUPPORTED"):
             tot[v] += sum(r[2] == v for r in rows)
         tot["UNCHECKED"] += sum(r[2].startswith("UNCHECKED") for r in rows)
+        tot["NOT-BOOK"] += sum(r[2].startswith("NOT-BOOK") for r in rows)
         report.append((p.relative_to(REPO), title, disclaim, rows))
     out = ["# SITE CLAIMS — public-page gate (T37-W1b, H1+D3+D4)", ""]
     for rel, title, disclaim, rows in report:
@@ -141,12 +170,12 @@ def main():
                     out.append(f"  - book: {e}")
         out.append("")
     out.append(f"## TOTALS — {tot['BLOCK']} BLOCK, {tot['FLAG']} FLAG, {tot['UNSUPPORTED']} UNSUPPORTED, "
-               f"{tot['UNCHECKED']} UNCHECKED")
+               f"{tot['UNCHECKED']} UNCHECKED, {tot['NOT-BOOK']} NOT-BOOK (not a book claim; owned by legal/config)")
     rep = QA / "site_claims_report.md"
     rep.write_text("\n".join(out))
     subprocess.run(["bash", "scripts/render_report.sh", str(rep)])
     print(f"SITE-CLAIMS: {tot['BLOCK']} BLOCK, {tot['FLAG']} FLAG, {tot['UNSUPPORTED']} UNSUPPORTED, "
-          f"{tot['UNCHECKED']} UNCHECKED -> {rep}")
+          f"{tot['UNCHECKED']} UNCHECKED, {tot['NOT-BOOK']} NOT-BOOK -> {rep}")
     print(f"Disclaimer: " + "; ".join(f"{rel}={disclaim}" for rel, _, disclaim, _ in report))
 
 

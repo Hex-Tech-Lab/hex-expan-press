@@ -71,3 +71,9 @@ typst_prototype/img_v3/_search/
 /parse_*.py
 /scratch_box_analysis.py
 manuscript/book/cover_data.json
+
+# Book photos (incl. founder/Gemini images) — never newly tracked; public repo (blind-spot audit 2026-09-25)
+typst_prototype/img_v3/
+manuscript/book/img_v3
+# Stray agent scratch scripts at repo root
+/test_parse_*.py

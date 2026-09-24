@@ -13,7 +13,7 @@ export interface ProductConfig {
   title: string;
   price_usd: number;
   creator_id: string;
-  creator_split_pct: number;
+  creator_split_pct?: number;
   provider: string;
   checkout_url: string;
   pdf_file: string;
@@ -47,8 +47,10 @@ export function parseProduct(raw: unknown, source: string): ProductConfig {
   if (price_usd <= 0) {
     throw new Error(`settings: ${source} "price_usd" must be > 0 (got ${price_usd})`);
   }
-  const creator_split_pct = needNum("creator_split_pct");
-  if (creator_split_pct < 0 || creator_split_pct > 100) {
+  // Legacy seed only: the real split comes from data/settings/terms.json (private, Rule #0), so a
+  // public product config may omit it. Validated when present.
+  const creator_split_pct = c.creator_split_pct === undefined ? undefined : needNum("creator_split_pct");
+  if (creator_split_pct !== undefined && (creator_split_pct < 0 || creator_split_pct > 100)) {
     throw new Error(`settings: ${source} "creator_split_pct" must be within 0-100 (got ${creator_split_pct})`);
   }
   const currency = c.currency === undefined ? GLOBAL.defaults.currency : needStr("currency");
