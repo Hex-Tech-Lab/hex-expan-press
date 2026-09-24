@@ -1,0 +1,30 @@
+# Server-side copy of scripts/commit_guard.py (blind-spot audit 2026-09-25, risk 4): the local
+# pre-commit hook can be skipped with --no-verify and does not travel with clones. This runs the
+# deterministic rules (keys, .env, forbidden paths) on every push/PR. No Jev, no secrets needed.
+name: commit-guard
+on:
+  push:
+  pull_request:
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Deterministic commit guard, every commit in the push / PR
+        # Per commit, not the net diff: a key added in one commit and deleted in the next is still public.
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            RANGE="${{ github.event.pull_request.base.sha }}..${{ github.sha }}"
+          elif git cat-file -e "${{ github.event.before }}" 2>/dev/null; then
+            RANGE="${{ github.event.before }}..${{ github.sha }}"
+          else
+            RANGE="${{ github.sha }} --not --remotes=origin --exclude=refs/remotes/origin/${{ github.ref_name }}"  # new branch / force-push
+          fi
+          fail=0
+          for c in $(git rev-list $RANGE); do
+            git show --format= "$c" > guard.diff
+            python3 scripts/commit_guard.py --diff-file guard.diff --no-jev || { echo "::error::commit $c"; fail=1; }
+          done
+          exit $fail

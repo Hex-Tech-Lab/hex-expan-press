@@ -10,9 +10,12 @@ Usage: python3 scripts/backref_check.py --before data/intel/duane_book/qa/revisi
 """
 import argparse
 import difflib
+import hashlib
+import json
 import re
 import subprocess
 import sys
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
@@ -50,6 +53,10 @@ def units(text):
     return out
 
 
+def unit_at(us, i):
+    return us[i] if 0 <= i < len(us) else ""
+
+
 def chap_of(text, idx):
     """Chapter name owning the offset idx in the raw manuscript text."""
     last = None
@@ -70,42 +77,80 @@ def main():
     old, new = before.read_text(), MS.read_text()
     ou, nu = units(old), units(new)
     sm = difflib.SequenceMatcher(None, ou, nu, autojunk=False)
-    flags, moved_n, neigh_n = [], 0, 0
+    # Index shift after an insertion is NOT a move. A unit is MOVED only when the diff deletes it in one
+    # place and inserts the same text elsewhere; any surviving unit is examined only if its actual
+    # neighbours changed.
+    moved_at = set()  # new-side indices, not texts: an unchanged copy of a repeated unit is never "moved"
+    deleted = {u for tag, i1, i2, _, _ in sm.get_opcodes() if tag in ("delete", "replace") for u in ou[i1:i2]}
+    first_old = {}
+    for i, u in enumerate(ou):
+        first_old.setdefault(u, i)
+    old_pos = {}
     for tag, i1, i2, j1, j2 in sm.get_opcodes():
         if tag == "equal":
-            for k, u in enumerate(nu[j1:j2]):
-                oi = i1 + k  # equal blocks preserve order: old index maps positionally
-                j = j1 + k
-                # old neighbour indices
-                prev_o = ou[oi - 1] if oi > 0 else ""
-                next_o = ou[oi + 1] if oi + 1 < len(ou) else ""
-                prev_n = nu[j - 1] if j > 0 else ""
-                next_n = nu[j + 1] if j + 1 < len(nu) else ""
-                moved = oi != j
-                neigh_changed = moved or prev_o != prev_n or next_o != next_n
-                if not neigh_changed:
-                    continue
-                moved_n += moved
-                neigh_n += not moved
-                for who, txt in ((u and "self", u), (1, prev_n), (2, next_n)):
-                    hits = DEICTIC.findall(txt) if txt else []
-                    if not hits:
-                        continue
-                    chap = chap_of(new, new.find(u) if u else 0)
-                    ctx_prev = prev_n[:400]
-                    ctx_next = next_n[:400]
-                    if args.no_jev:
-                        p = None; v = "UNCHECKED (Jev off)"
-                    else:
-                        a = decide({"paragraph": txt[:900], "preceding_paragraph": ctx_prev,
-                                    "following_paragraph": ctx_next}, Q, timeout=20)
-                        if a is None:
-                            p = None; v = "UNCHECKED (Jev unavailable)"
-                        else:
-                            p = a["reference_broken"]["noul"]
-                            v = "FLAG" if p >= 0.5 else "PASS"
-                    flags.append((chap, "self" if who == "self" else ("prev" if who == 1 else "next"),
-                                  v, p, ", ".join(hits)[:120], txt[:300]))
+            for k in range(i2 - i1):
+                old_pos[j1 + k] = i1 + k
+        elif tag in ("insert", "replace"):
+            for j in range(j1, j2):
+                if nu[j] in deleted:
+                    moved_at.add(j)
+                    old_pos[j] = first_old[nu[j]]
+    # offset of each new unit found sequentially, so repeated blocks resolve to their own chapter
+    offs, pos = [], 0
+    for u in nu:
+        k = new.find(u, pos)
+        offs.append(k if k >= 0 else pos)
+        pos = max(pos, k + len(u)) if k >= 0 else pos
+    jobs, seen, moved_n, neigh_n = [], set(), 0, 0
+    for j, oi in sorted(old_pos.items()):
+        u = nu[j]
+        prev_n = nu[j - 1] if j > 0 else ""
+        next_n = nu[j + 1] if j + 1 < len(nu) else ""
+        prev_o = ou[oi - 1] if oi > 0 else ""
+        next_o = ou[oi + 1] if oi + 1 < len(ou) else ""
+        moved = j in moved_at
+        if not moved and prev_o == prev_n and next_o == next_n:
+            continue
+        moved_n += moved
+        neigh_n += not moved
+        for who, at in (("self", j), ("prev", j - 1), ("next", j + 1)):
+            txt = unit_at(nu, at)
+            hits = DEICTIC.findall(txt) if txt else []
+            if not hits:
+                continue
+            chap = chap_of(new, offs[at])
+            # context is the checked paragraph's OWN neighbours (for prev/next that includes the moved unit u)
+            cp, cn = unit_at(nu, at - 1)[:400], unit_at(nu, at + 1)[:400]
+            key = hashlib.sha1(f"{txt[:900]}|{cp}|{cn}".encode()).hexdigest()
+            if key in seen:
+                continue
+            seen.add(key)
+            jobs.append((key, chap, who, ", ".join(hits)[:120], txt, cp, cn))
+
+    cache_path = QA / "jev_cache_backref.json"
+    cache = json.loads(cache_path.read_text()) if cache_path.exists() else {}
+
+    def ask(job):
+        key, _, _, _, txt, cp, cn = job
+        if args.no_jev:
+            return None
+        if key in cache:
+            return cache[key]
+        a = decide({"paragraph": txt[:900], "preceding_paragraph": cp, "following_paragraph": cn}, Q, timeout=20)
+        return None if a is None else a["reference_broken"]["noul"]
+
+    with ThreadPoolExecutor(max_workers=8) as ex:
+        answers = list(ex.map(ask, jobs))
+    flags = []
+    for job, p in zip(jobs, answers):
+        key, chap, who, hits, txt = job[:5]
+        if p is None:
+            v = "UNCHECKED (Jev off)" if args.no_jev else "UNCHECKED (Jev unavailable)"
+        else:
+            cache[key] = p
+            v = "FLAG" if p >= 0.5 else "PASS"
+        flags.append((chap, who, v, p, hits, txt[:300]))
+    cache_path.write_text(json.dumps(cache, indent=0))
     out = ["# BACK-REF CHECK — deictic references after moves (T37-W1b, B7)", ""]
     out.append(f"before={args.before}  current={MS.name}")
     out.append(f"moved units: {moved_n}  neighbour-changed units: {neigh_n}  checked refs: {len(flags)}")

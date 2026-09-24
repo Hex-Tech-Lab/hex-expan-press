@@ -22,6 +22,8 @@ def _key():
     if os.environ.get("OPENROUTER_API_KEY"):
         return os.environ["OPENROUTER_API_KEY"]
     env = pathlib.Path(__file__).resolve().parent.parent / ".env"
+    if not env.exists():  # CI / fresh clone: no key -> callers fall back to UNCHECKED
+        return None
     for line in env.read_text().splitlines():
         if line.startswith("OPENROUTER_API_KEY="):
             return line.split("=", 1)[1].strip().strip('"')

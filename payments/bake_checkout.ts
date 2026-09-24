@@ -64,7 +64,7 @@ const loadProductConfig = (assoc: ProductAssoc | undefined) => {
   const cfg = JSON.parse(readFileSync(path, "utf8")) as {
     checkout_url?: string;
     checkout_mode?: string;
-  };
+  } & Facts;
   return { cfg, source: assoc ? assoc.config_file : "payments/config.duane.json" };
 };
 
@@ -162,6 +162,28 @@ const sandboxOff = (source: string) =>
   `data-config-source="${source}" data-checkout-mode="gated" ` +
   `data-baked-at="${now}">Sandbox test checkout &mdash; not configured</a>`;
 
+// Product facts baked from config (2026-09-25): price and title used to be hand-typed HTML the
+// baker never touched, so $19 survived a $39 config. Every price slot, the <h1>, <title>,
+// og/twitter titles and the "$N." in meta descriptions now come from config on every bake.
+type Facts = { title?: string; price_usd?: number };
+const bakeFacts = (html: string, cfg: Facts, page: string): string => {
+  if (!cfg.title || cfg.price_usd === undefined) {
+    console.log(`warn: ${page}: config lacks title/price_usd — facts NOT baked`);
+    return html;
+  }
+  const safeTitle = esc(cfg.title);
+  const price = String(cfg.price_usd);
+  let out = html
+    .replace(/(<p class="price">)\$\d+/g, `$1$${price}`)
+    .replace(/(<h1>)[\s\S]*?(<\/h1>)/, `$1${safeTitle}$2`)
+    .replace(/(<title>)[^<—]*?( — [^<]*)?(<\/title>)/,
+      (_m, openTag, suffix, closeTag) => `${openTag}${safeTitle}${suffix ?? ""}${closeTag}`)
+    .replace(/(<meta (?:property|name)="(?:og|twitter):title" content=")[^"]*(")/g, `$1${safeTitle}$2`)
+    .replace(/(<meta (?:property|name)="(?:og:|twitter:)?description" content="[^"]*?)\$\d+\./g, `$1$${price}.`);
+  if (!/<p class="price">/.test(out)) console.log(`warn: ${page}: no price slot found`);
+  return out;
+};
+
 const swap = (html: string, slot: string, replacement: string): string => {
   const re = new RegExp(`<a\\b[^>]*data-checkout-slot="${slot}"[^>]*>[\\s\\S]*?</a>`);
   if (!re.test(html)) return html;
@@ -171,7 +193,8 @@ const swap = (html: string, slot: string, replacement: string): string => {
 const master = readFileSync(join(siteRoot, "index.html"), "utf8");
 writeFileSync(
   join(siteRoot, "index.html"),
-  swap(master, "primary", primaryGated("payments/config.duane.json")),
+  bakeFacts(swap(master, "primary", primaryGated("payments/config.duane.json")),
+            loadProductConfig(undefined).cfg, "site/index.html"),
 );
 console.log(`baked ${join("site", "index.html")} primary=gated (master page: always gated)`);
 
@@ -190,6 +213,7 @@ for (const rel of walkSiteCDirs(cRoot)) {
   let out = swap(html, "primary", perCreatorMode === "live" ? primaryLive(cfg.checkout_url as string, source) : primaryGated(source));
   out = swap(out, "sandbox", perCreatorMode === "sandbox" && isRealUrl(cfg.checkout_url) ? sandboxLive(cfg.checkout_url, source) : sandboxOff(source));
   out = injectAttributionScript(out);
+  out = bakeFacts(out, cfg, join("site", "c", rel, "index.html"));
 
   if (assoc) {
     out = bakeCrumb(out, assoc.handle, assoc.display_name);
