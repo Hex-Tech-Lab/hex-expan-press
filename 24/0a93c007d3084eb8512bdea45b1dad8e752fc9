@@ -1,0 +1,220 @@
+scripts/model_router_hook.py
+  s_67ee6994ddb021::t_5449a06c334a6e 1-49
+scripts/chapter_brief.py
+  s_1850bba3358136::t_196b98f136e86f 82-94
+scripts/crossref_check.py
+  s_74a7585ab7229d::t_a7e46e4d18ee65 51-74
+  s_74a7585ab7229d::t_bea3d6a01d9e9c 132-133
+scripts/engine_lint.py
+  s_15874a293d8404::t_cc301e96b431a5 1-100
+jev.ts
+  s_d8f98f6d82604f::t_35f90428fdb9af 1-15,19-20,24,26-43,49-51
+  s_d8f98f6d82604f::t_e0eed6ecc60e9d 16-18,21-23,25,44-48,52-77
+scripts/book_run_all.ts
+  s_d8f98f6d82604f::t_c9fcca669f42ea 134-135,188
+score.ts
+  s_d8f98f6d82604f::t_8e1f01122de0f7 12
+  s_d8f98f6d82604f::t_2e9784620b517d 46-77,80,82,85-89,91-99,101,105
+  s_d8f98f6d82604f::t_68a355f49dbb29 90
+  s_d8f98f6d82604f::t_cc2d439e66a385 5
+  s_d8f98f6d82604f::t_046d7aaf93bc0b 135
+  s_d8f98f6d82604f::t_61f2bb91c2fd86 149-156
+  s_d8f98f6d82604f::t_3bc508fb431cda 2
+scripts/book_build.sh
+  s_e085f361927b82::t_6b6638bfb17589 22
+scripts/engine_lint_mx.py
+  s_1850bba3358136::t_6592da1efdddbb 45-48,51-52
+  s_1850bba3358136::t_bb1726f11efe78 56,58,60
+  s_1850bba3358136::t_c378bde2deb0be 1-30,33-44,49-50,53-55,57,59,61-85
+  s_1850bba3358136::t_573934d6ad03e2 31-32
+scripts/book_check.ts
+  s_d8f98f6d82604f::t_132348194b0086 209,211,213,217,222,226
+  s_d8f98f6d82604f::t_315aa1f0552c1f 242-262
+  s_d8f98f6d82604f::t_7f123d35e97e33 4-5,10-13,16-18
+  s_d8f98f6d82604f::t_1363059e7c3960 310-313,317-320,322
+  s_d8f98f6d82604f::t_0b770afe9b417f 29-76
+  s_d8f98f6d82604f::t_1382c990ce3a76 28
+  s_d8f98f6d82604f::t_1d0122a77f3de3 174,186-190,199
+  s_d8f98f6d82604f::t_fedcc0a5582d9c 266,269-270,280-298
+scripts/alt_text_check.py
+  s_67ee6994ddb021::t_87408f28068350 1-26,29-31,34,37,41-65
+  s_67ee6994ddb021::t_93330ffbe0da04 27-28
+  s_67ee6994ddb021::t_90b5c76d6d662a 35
+  s_67ee6994ddb021::t_04e9905aadbd9e 36,38-39
+  s_67ee6994ddb021::t_f05736fd0a4cb8 32-33
+  s_67ee6994ddb021::t_9d3ef0b22dfc12 40
+scripts/compliance_check.py
+  s_67ee6994ddb021::t_ab00d58b8633c0 1-26,36,38,43-59,61-67,69-71,73-75,79-111
+  s_b71ad25f5f25f7::t_0f40cb101a019d 27-35,37,39-42,60,68,72,76-78
+scripts/premise_router.py
+  s_74a7585ab7229d::t_de8c5b71fb56cd 116-127,135-142,144-162
+  s_74a7585ab7229d::t_3813e35d0b69be 201-202
+  s_74a7585ab7229d::t_a50f4cec65dad7 240-241
+  s_74a7585ab7229d::t_13c74e442eaf84 128-134
+  s_74a7585ab7229d::t_41d3ca435b036a 143
+  s_74a7585ab7229d::t_ad1b3940522da8 254-255
+scripts/layout_autofix.py
+  s_0b74d43f070916::t_e63035329944e5 8-36,80,89-91,98-121
+  s_0b74d43f070916::t_97153faf1de6d4 69
+  s_0b74d43f070916::t_fe1f0f7e7aa65b 92-97
+books/duane.json
+  s_e085f361927b82::t_9382d63069bcad 17-22,30
+  s_e085f361927b82::t_e51223c7023b03 15-16,23-27
+scripts/book_engine.py
+  s_5f4105a520df26::t_c4103c3feb7ddb 80-84,88-90,97-98,108-112
+  s_15874a293d8404::t_8e95722c26c824 284
+  s_67ee6994ddb021::t_c8009ed8305494 250-254
+  s_d46582ebec3981::t_866a427b775dee 245-249
+  s_15874a293d8404::t_fd9c7ee872d35d 202-206,208-211
+  s_15874a293d8404::t_71e4f0e85cec59 266
+  s_15874a293d8404::t_dcd3605ecfddfd 255-259
+scripts/book_qa.py
+  s_15874a293d8404::t_b2a776c8bbf267 248
+  s_15874a293d8404::t_b1e3cad30843ac 684-703,707-708,711-719
+  s_15874a293d8404::t_d7cf3a41c0c0f7 44-47
+  s_15874a293d8404::t_6bb6430ebf558f 584,588
+  s_15874a293d8404::t_4820bc366a46fe 733-735
+  s_15874a293d8404::t_404973a8622f17 247
+  s_15874a293d8404::t_c684941223fdda 237-238
+  s_d8f98f6d82604f::t_3f6c4d82b03c5a 90-91
+  s_d8f98f6d82604f::t_c9fcca669f42ea 583,587
+  s_15874a293d8404::t_780b82f37be910 608
+  s_15874a293d8404::t_6ff8b41510c9ee 600-605
+books/smoke.json
+  s_e085f361927b82::t_cf4b3f9b8c3f76 15-22
+scripts/textedit.py
+  s_1850bba3358136::t_ef88c90da10241 1-32
+scripts/trim_apply.py
+  s_1850bba3358136::t_8cb81565340923 93-95
+  s_1850bba3358136::t_dbbdb04f1225af 17
+  s_1850bba3358136::t_5ec081f2f5e03b 74-78
+scripts/pdf_a11y_check.sh
+  s_1850bba3358136::t_d4a72cab2bf63f 24
+  s_d46582ebec3981::t_d051627339f211 88-90,96,101-103
+  s_15874a293d8404::t_bf1f8b7675ae3e 1-23,25-87,91-95,97-100,104-130
+scripts/quality_dashboard.py
+  s_5f4105a520df26::t_f817e9c17401cc 27
+  s_5f4105a520df26::t_6e25ef8855286f 723-727,731-734,742-748
+  s_5f4105a520df26::t_5d0cd66fa86492 761,770-776,784-786
+scripts/flipbook_build.py
+  s_944d2fd5b70c0f::t_db970469ed56af 1-121
+scripts/panel_median.py
+  s_5f4105a520df26::t_dd163000c1ebda 1-145
+scripts/qa_selftest.py
+  s_15874a293d8404::t_68b412e1d8db20 79,85-117
+  s_15874a293d8404::t_f6dc71c8712fb2 9-10
+  s_d46582ebec3981::t_0b60ea5bd2ded9 118-119
+scripts/literary_panel.py
+  s_74a7585ab7229d::t_d4d25a0a3f1939 357-360
+  s_74a7585ab7229d::t_3668a51f35e5ff 270,277-288
+  s_1850bba3358136::t_b4d96404497ff0 116-138
+  s_1850bba3358136::t_1dda79049e76d3 240
+  s_74a7585ab7229d::t_b10f58ceae7ff9 183-197
+  s_d8f98f6d82604f::t_c9fcca669f42ea 57
+.gitignore
+  s_edb2c2e8486a45::t_06f39bf3ba11dc 73
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "240a93c007d3084eb8512bdea45b1dad8e752fc9",
+  "prompts": {},
+  "sessions": {
+    "s_0b74d43f070916": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f2b741711ffeUyb6woYdw7Khzz",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_15874a293d8404": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f2b87183ffferfamG9uRb5QjFk",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_1850bba3358136": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f2b8696acffeUBhLE6IuAc8hRh",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_5f4105a520df26": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f2bab3366ffemea8C3n6YZ3n8X",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_67ee6994ddb021": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f2b7fdf71ffeK7L7rNBhb6SAQ1",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_74a7585ab7229d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f2b83c4b1ffedwAzTagX4oVFyH",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_944d2fd5b70c0f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f2b81b91affexTH6LxxNryBJi7",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_b71ad25f5f25f7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f2b835344ffeWSWCWXFP7UeE8N",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_d46582ebec3981": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f2b858f23ffeUzQj7GzRz4w43I",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_d8f98f6d82604f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f2b80ae6dffeJhilAppla6VKa6",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_e085f361927b82": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f2b878cffffeVE8SRUcq8M5ubi",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_edb2c2e8486a45": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "0a257329-0d8f-470d-9be0-65ec49a8a9db",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
