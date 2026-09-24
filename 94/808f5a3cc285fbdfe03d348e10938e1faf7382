@@ -1,0 +1,21 @@
+scripts/transcript_numbers_check.py
+  s_a7405a349c886b::t_32a7b9524b6458 141-142
+scripts/transcript_numbers_stats.py
+  s_a7405a349c886b::t_8c477c94f6abbf 1-188
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "94808f5a3cc285fbdfe03d348e10938e1faf7382",
+  "prompts": {},
+  "sessions": {
+    "s_a7405a349c886b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b8fb2bc-7e7d-4d6e-8cf1-42ef2a94b764",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
