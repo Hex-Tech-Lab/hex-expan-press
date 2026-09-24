@@ -47,7 +47,7 @@ def find_slice(lines, ch):
             if f'#chaphead("Chapter {ch}"' in line:
                 start = i
         else:
-            if "#chaphead(" in line or line.strip() == "// BACK COVER":
+            if "#chaphead(" in line or line.strip().startswith("// BACK COVER"):
                 end = i
                 break
     if start is None:

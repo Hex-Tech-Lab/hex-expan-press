@@ -5,6 +5,7 @@ exits 2 if any blocker rule fails in the selected chapters.
 
 Usage: book_qa.py --pdf proof.pdf --chapters One,Four [--out report.md]
 """
+import sys
 import argparse, json, re, sys
 from collections import Counter, defaultdict
 from pathlib import Path
@@ -320,7 +321,7 @@ def check_pdf(pdf, first, last, res, is_opener_page):
                 elif prev.kind == "heading":
                     res.check("HEAD-AFTER", near(d, R["HEAD-AFTER"]["target"], R["HEAD-AFTER"]["tol"]), f"p{pno}: {d} after '{snip(prev)}'")
                     res.check("BODY-INDENT", near(l.x, LEFT, 0.5), f"p{pno}: first line after heading indented '{snip(l)}'")
-                elif prev.kind in ("boxbody", "boxnote", "boxhead", "table", "dropcap"):
+                elif prev.kind in ("boxbody", "boxnote", "boxhead", "table"):  # text beside a drop cap is the same paragraph
                     res.check("BODY-INDENT", near(l.x, LEFT + INDENT, 0.5), f"p{pno}: paragraph after {prev.kind} not indented '{snip(l)}'")
         # TABLE-ONE-PAGE
         if any(l.kind == "table" and l.text.replace(" ", "").upper() == "DATE" or l.text.replace(" ", "").upper().startswith("DATETOTAL") for l in lines):
@@ -497,6 +498,9 @@ def main():
     pr, sr = pdf_chapter_ranges(pdf), chapter_src_ranges(src)
     out = [f"# Book QA report — `{Path(a.pdf).name}`", "", f"Rule set: `{RULES['adr']}` v{RULES['version']}", ""]
     blockers = 0
+    unknown = [c for c in a.chapters.split(",") if c not in pr]
+    if unknown:  # e.g. "3" instead of "Three" would otherwise run zero checks and report PASS
+        sys.exit(f"book_qa: unknown chapter name(s) {unknown}; use {list(pr)}")
     for ch in a.chapters.split(","):
         res = Results()
         if ch in pr:
