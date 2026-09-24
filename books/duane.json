@@ -12,6 +12,19 @@
   ],
   "panel_brief": "A first-person retirement memoir-guide by 'Duane', who retired at 59 in 2021 on $548,000 (no pension) and publishes his real balance monthly on YouTube. Audience: 55+ with $250K-$750K. Promise: 'you don't need a million dollars to retire' — real numbers, a boring repeatable method. 10 chapters in 3 parts.",
   "backcover_marker": "Duane retired at fifty-nine on",
+  "cover": {
+    "kicker": "A REAL-NUMBERS CASE STUDY",
+    "title-lines": [
+      "YOU DON’T",
+      "NEED A",
+      "MILLION",
+      "DOLLARS"
+    ],
+    "subtitle": "TO RETIRE",
+    "numbers-line": "$438,000 → $595,000 — FIVE YEARS, THE REAL BALANCES",
+    "tagline": "How I retired at 59 on $548,000 — my real numbers, five years in.",
+    "author": "DUANE"
+  },
   "rubric_profile": "duane",
   "release_prefix": "duane_book"
 }

@@ -48,6 +48,30 @@ def best_window(sent, text, w=900):
     return text[bi:bi + w]
 
 
+def best_window_jev(sent, text, w=900):
+    """N6: among the top-3 keyword windows, Jev choice picks the one actually about the referenced
+    topic; falls back to max overlap when Jev is down or choice p < LO."""
+    keys = {k for k in re.findall(r"[a-z]{5,}", sent.lower())} - {"chapter", "about", "there", "which", "their"}
+    scored = [(sum(1 for k in keys if k in text[i:i + w].lower()), i)
+              for i in range(0, max(1, len(text) - w), 150)]
+    top = [i for _, i in sorted(scored, reverse=True)[:3]]
+    if len(top) < 2:
+        return best_window(sent, text)
+    windows = [text[i:i + w] for i in top]
+    names = [f"window_{k + 1}" for k in range(len(windows))]
+    a = decide({"reference": sent,
+                "windows": [re.sub(r"\s+", " ", x[:220]) for x in windows]},
+               {"pick": {"type": "choice",
+                         "instructions": "Which passage is about the topic the reference describes?",
+                         "criteria": {nm: "this passage is about what the reference describes" for nm in names}}})
+    if a is not None:
+        pick = a["pick"].get("choice")
+        p = max((a["pick"].get("probabilities") or {"": 1}).values())
+        if pick in names and p >= LO:
+            return windows[names.index(pick)]
+    return windows[0]  # fallback: max keyword overlap
+
+
 def chapter_at(pos):
     return next(c for c in chapters if c["start"] <= pos < c["end"])
 
@@ -105,7 +129,8 @@ for ch, ln, ref, kind, res, sent in rows:
                     ok = t != chapters[[c["name"] for c in chapters].index(ch)]["title"]
                     res = f"{'PASS' if ok else 'FAIL'}: -> '{t}' (p={p:.2f})" + (" FLAG" if p < HI else "")
         else:
-            a = decide({"reference": sent, "target_title": tgt["title"], "target_passage": best_window(sent, tgt["text"])},
+            passage = best_window_jev(sent, tgt["text"]) if use_jev else best_window(sent, tgt["text"])
+            a = decide({"reference": sent, "target_title": tgt["title"], "target_passage": passage},
                        {"matches": {"type": "noul", "instructions": "Does the target chapter really cover what the reference sentence says it covers?",
                                     "criteria": {"true": "the target matches the reference", "false": "the reference describes something else"}}})
             if a is None:

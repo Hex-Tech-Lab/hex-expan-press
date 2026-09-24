@@ -1,13 +1,15 @@
 // score.ts — PHASE 3 dual-engine qualification. Run ONLY after GLM candidate list exists.
-// Usage: pnpm score -- candidates.json
+// Usage: pnpm score -- candidates.json [--no-jev]
 import { readFileSync, writeFileSync, mkdirSync, appendFileSync, existsSync } from "node:fs";
 import { fetchSerpAdDensity, fetchDecodo } from "@/harvest";
+import { decide as jevDecide, type JevAnswers } from "./jev.js";
 
 const RUN_ID = new Date().toISOString().replace(/[:.]/g, "-");
 const OUT_DIR = `data/scored_${RUN_ID}`;
 
 interface Candidate {
   title: string;
+  description?: string;
   format?: string;
   P: number;
   E: number;
@@ -41,21 +43,66 @@ function jaccard(a: string[], b: string[]): number {
   return union === 0 ? 0 : inter / union;
 }
 
-export function dedupe(candidates: Candidate[], threshold = 0.85): { kept: Candidate[]; dropped: number } {
+// Duplicate check (plan point 9): Jaccard token overlap >0.5 is only a PRE-FILTER —
+// candidate pairs are then judged by Jev (`same_product_idea`, noul) on the two
+// titles + one-line descriptions. p >= 0.8 -> drop as duplicate; 0.5-0.8 -> keep
+// both and FLAG (listed in output); < 0.5 -> keep. Jev unavailable / None for a
+// pair -> current behaviour for that pair (0.85 Jaccard rule) + counted UNCHECKED.
+// With --no-jev (or Jev down for every pair) this collapses to today's 0.85 rule.
+export const SAME_PRODUCT_IDEA = {
+  type: "noul" as const,
+  instructions:
+    "Two candidate ideas for a digital product. Are they the SAME underlying product idea — " +
+    "same audience and same deliverable, differing only in wording/renaming — or two distinct ideas?",
+  criteria: {
+    true: "Same audience and same core deliverable; one is a renaming or rewording of the other.",
+    false: "Different audience, different deliverable, or a materially different angle/offer.",
+  },
+};
+
+export interface DedupeResult {
+  kept: Candidate[];
+  dropped: number;
+  flagged: string[];
+  unchecked: number;
+}
+
+const ideaText = (c: Candidate) => `${c.title}${c.description ? ` — ${c.description}` : ""}`;
+
+export async function dedupe(
+  candidates: Candidate[],
+  opts: { useJev?: boolean; threshold?: number; decide?: typeof jevDecide } = {}
+): Promise<DedupeResult> {
+  const threshold = opts.threshold ?? 0.85;
+  const ask: typeof jevDecide | null = opts.decide ?? (opts.useJev === false ? null : jevDecide);
   const kept: Candidate[] = [];
   const keptTokens: string[][] = [];
+  const flagged: string[] = [];
   let dropped = 0;
+  let unchecked = 0;
   for (const c of candidates) {
     const tokens = normalizeTokens(c.title);
-    const dup = keptTokens.some((t) => jaccard(t, tokens) > threshold);
-    if (dup) {
-      dropped++;
-      continue;
+    let dup = false;
+    for (const [i, t] of keptTokens.entries()) {
+      const j = jaccard(t, tokens);
+      if (j <= 0.5) continue; // pre-filter: not a candidate pair
+      let answers: JevAnswers | null = null;
+      if (ask) answers = await ask({ idea_a: ideaText(kept[i]), idea_b: ideaText(c) }, { same_product_idea: SAME_PRODUCT_IDEA });
+      const p = answers?.same_product_idea && typeof answers.same_product_idea.noul === "number" ? (answers.same_product_idea.noul as number) : null;
+      if (p !== null) {
+        if (p >= 0.8) { dup = true; break; }
+        if (p >= 0.5) flagged.push(`"${kept[i].title}" ~ "${c.title}" (same_product_idea=${p.toFixed(2)})`);
+        continue;
+      }
+      // Jev down / None -> current behaviour for this pair + UNCHECKED
+      unchecked++;
+      if (j > threshold) { dup = true; break; }
     }
+    if (dup) { dropped++; continue; }
     kept.push(c);
     keptTokens.push(tokens);
   }
-  return { kept, dropped };
+  return { kept, dropped, flagged, unchecked };
 }
 
 function saturationFromSerp(resp: unknown): { S: number; unverified: boolean } {
@@ -85,6 +132,7 @@ async function pool<T, R>(items: T[], limit: number, fn: (item: T) => Promise<R>
 async function main() {
   const args = process.argv.slice(2).filter((a) => a !== "--");
   const topArg = args.find((a) => a.startsWith("--top="));
+  const noJev = args.includes("--no-jev");
   const positional = args.find((a) => !a.startsWith("--"));
   const input = positional ?? "candidates.json";
   if (!existsSync(input)) {
@@ -98,8 +146,14 @@ async function main() {
   const invalid = raw.length - valid.length;
   if (invalid > 0) console.log(`==> Dropped ${invalid} malformed candidates (missing title or P/E/T/F)`);
 
-  const { kept, dropped } = dedupe(valid);
-  console.log(`==> De-dup: ${kept.length} candidates kept, ${dropped} near-duplicates collapsed (>0.85 token overlap)`);
+  const { kept, dropped, flagged, unchecked } = await dedupe(valid, { useJev: !noJev });
+  console.log(`==> De-dup: ${kept.length} candidates kept, ${dropped} duplicates collapsed (Jaccard pre-filter >0.5 + Jev same_product_idea >=0.8; fallback 0.85 rule)`);
+  if (flagged.length) {
+    console.log(`==> FLAG ${flagged.length} Jev-ambiguous pair(s) — both kept, founder to review:`);
+    flagged.forEach((f) => console.log(`  FLAG ${f}`));
+  }
+  if (noJev) console.log("==> Jev disabled (--no-jev): plain 0.85 Jaccard rule");
+  if (unchecked > 0) console.log(`==> UNCHECKED ${unchecked} pair(s) judged by fallback Jaccard (Jev unavailable)`);
 
   const topN = topArg ? Number(topArg.split("=")[1]) : kept.length;
   const shortlist = [...kept]

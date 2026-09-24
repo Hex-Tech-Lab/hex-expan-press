@@ -5,6 +5,35 @@ from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from book_config import MS, QA
+from jev import decide  # noqa: E402
+
+CTX_CHARS, HI, LO = 80, 0.8, 0.5
+
+
+def jev_target(text, item, matches):
+    """Ask Jev which occurrence (or none) is the intended edit target.
+    Returns (match_or_None, top_p) or (None, None) when Jev is down."""
+    ctxs, names = [], []
+    for k, m in enumerate(matches, 1):
+        a = max(0, m.start() - CTX_CHARS)
+        b = min(len(text), m.end() + CTX_CHARS)
+        ctxs.append(re.sub(r"\s+", " ", text[a:b]))
+        names.append(f"match_{k}")
+    crit = {n: "this occurrence is the intended target for this edit" for n in names}
+    crit["none"] = "no listed occurrence is the intended target; the edit must not be applied"
+    ans = decide({"before": item["before"], "after": item["after"], "matches": ctxs},
+                 {"target": {"type": "choice",
+                             "instructions": "Which occurrence is the intended target to replace with the after text?",
+                             "criteria": crit}})
+    if ans is None:
+        return None, None
+    tgt = ans.get("target") or {}
+    pick = tgt.get("choice")
+    probs = tgt.get("probabilities") or {}
+    top_p = max(probs.values()) if probs else 0.0
+    if pick in names:
+        return matches[names.index(pick)], top_p
+    return None, top_p
 
 
 def ws_tolerant(before: str) -> re.Pattern:
@@ -37,6 +66,7 @@ def main():
     g = ap.add_mutually_exclusive_group(required=True)
     g.add_argument("--dry-run", action="store_true")
     g.add_argument("--apply", action="store_true")
+    ap.add_argument("--no-jev", action="store_true")
     args = ap.parse_args()
 
     with open(args.triage) as f:
@@ -47,6 +77,7 @@ def main():
         original = f.read()
 
     text, results = original, []
+    use_jev = "--no-jev" not in sys.argv
     for it in items:
         pat = ws_tolerant(it["before"])
         matches = list(pat.finditer(text))
@@ -55,9 +86,39 @@ def main():
             text = text[:m.start()] + it["after"] + text[m.end():]
             results.append((it, "APPLIED", ""))
         elif not matches:
-            results.append((it, "SKIPPED", "no match"))
-        else:
-            results.append((it, "SKIPPED", f"ambiguous ({len(matches)})"))
+            if use_jev:
+                _, p = jev_target(text, it, [])
+                if p is not None:
+                    if p >= LO:
+                        flag = " FLAG" if p < HI else ""
+                        results.append((it, "SKIPPED",
+                                        f"no match (jev: none p={p:.2f}){flag}"))
+                    else:
+                        results.append((it, "SKIPPED", f"no match (jev p={p:.2f}) UNCHECKED"))
+                else:
+                    results.append((it, "SKIPPED", "no match UNCHECKED"))
+            else:
+                results.append((it, "SKIPPED", "no match UNCHECKED"))
+        elif len(matches) >= 2:
+            if not use_jev:
+                results.append((it, "SKIPPED", f"ambiguous ({len(matches)}) UNCHECKED"))
+                continue
+            m, p = jev_target(text, it, matches)
+            if m is None and p is None:
+                results.append((it, "SKIPPED", f"ambiguous ({len(matches)}) UNCHECKED"))
+            elif m is None:
+                flag = " FLAG" if LO <= p < HI else ""
+                results.append((it, "SKIPPED",
+                                f"ambiguous ({len(matches)}) -> jev: none p={p:.2f}{flag}"))
+            elif p >= HI:
+                text = text[:m.start()] + it["after"] + text[m.end():]
+                results.append((it, "APPLIED", f"jev p={p:.2f}"))
+            elif p >= LO:
+                text = text[:m.start()] + it["after"] + text[m.end():]
+                results.append((it, "APPLIED", f"jev p={p:.2f} FLAG"))
+            else:
+                results.append((it, "SKIPPED",
+                                f"ambiguous ({len(matches)}) jev p={p:.2f} UNCHECKED"))
 
     text, ds_count = double_space_pass(text)
 

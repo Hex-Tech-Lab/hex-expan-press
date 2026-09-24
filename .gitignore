@@ -70,3 +70,4 @@ scripts/__pycache__/
 typst_prototype/img_v3/_search/
 /parse_*.py
 /scratch_box_analysis.py
+manuscript/book/cover_data.json

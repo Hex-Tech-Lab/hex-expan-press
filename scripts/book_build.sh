@@ -19,6 +19,7 @@ done
 mkdir -p "$(dirname "$OUT_PDF")"
 
 cd "$BOOK_DIR"
+python3 -c 'import json,sys; cfg=json.load(open(sys.argv[1])); print(json.dumps(cfg.get("cover",{}),indent=1))' "$REPO_ROOT/books/$BOOK_ID.json" > cover_data.json
 "$PANDOC" "$MS" $PANDOC_FLAGS --template="$TEMPLATE" -o build.typ
 "$TYPST" compile $TYPST_FLAGS --font-path "$FONT_DIR_1" --font-path "$FONT_DIR_2" build.typ "$OUT_PDF"
 

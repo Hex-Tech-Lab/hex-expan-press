@@ -131,7 +131,8 @@ function check(c: Ch, file: string) {
   const out = ban.stdout ?? "";
   const test = `typst_prototype/duane__test_ch${pad(c.n)}.typ`;
   fs.writeFileSync(test, DRAFT.slice(0, 188).join("\n") + "\n" + fs.readFileSync(file, "utf8"));
-  const pdf = `/tmp/duane_test_ch${pad(c.n)}.pdf`;
+  fs.mkdirSync(`${OUTD}/qa/scratch`, { recursive: true });
+  const pdf = `${OUTD}/qa/scratch/test_ch${pad(c.n)}.pdf`;
   const cc = sh(TYPST, ["compile", "--font-path", "typst_prototype/fonts", "--font-path", "typst_prototype/fonts_variable", test, pdf]);
   fs.rmSync(test, { force: true });
   const pages = cc.status === 0 ? Number((sh("pdfinfo", [pdf]).stdout.match(/Pages:\s+(\d+)/) ?? [])[1] ?? 0) : 0;
@@ -184,7 +185,7 @@ function check(c: Ch, file: string) {
   const rows: Record<string, unknown>[] = [];
   for (const c of want) {
     const outName = c.isNew ? `ch${pad(c.n)}.typ` : `ch${pad(c.n)}_add.typ`;
-    if (c.n === 7) for (let i = 0; i < 120 && !/exit=/.test(fs.existsSync("/tmp/oc-ch07-draft.log") ? fs.readFileSync("/tmp/oc-ch07-draft.log", "utf8") : "exit="); i++) await new Promise((r) => setTimeout(r, 10_000));
+    if (c.n === 7) for (let i = 0; i < 120 && !/exit=/.test(fs.existsSync(`${OUTD}/qa/scratch/oc-ch07-draft.log`) ? fs.readFileSync(`${OUTD}/qa/scratch/oc-ch07-draft.log`, "utf8") : "exit="); i++) await new Promise((r) => setTimeout(r, 10_000));
     if (!fs.existsSync(W(`chapters/${outName}`)) || fs.statSync(W(`chapters/${outName}`)).size < 500) {
       fs.writeFileSync(W("src/video_dates.txt"), c.ids.map((i) => dates.get(i)).filter(Boolean).join("\n") + "\n");
       const card = (n: number) => (MAP.match(new RegExp(`### Ch ${n} — [\\s\\S]*?(?=\\n### Ch |\\n## )`)) ?? [""])[0];

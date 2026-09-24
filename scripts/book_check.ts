@@ -1,14 +1,21 @@
 // scripts/book_check.ts — mechanical checks for the Duane book chapter loop.
 // Exists so chapter review never rests on the writing model's own report.
 //
-//   pnpm exec tsx scripts/book_check.ts chapter <chapter.typ> [--facts=<facts.md>]
-//   pnpm exec tsx scripts/book_check.ts facts <facts.md>
+//   pnpm exec tsx scripts/book_check.ts chapter <chapter.typ> [--facts=<facts.md>] [--no-jev]
+//   pnpm exec tsx scripts/book_check.ts facts <facts.md> [--no-jev]
 //
 // chapter: FAILS on ban-list hits; WARNS on em-dash density, repeated sentence openers and
 //          three-similar-length runs; LISTS every figure not found in the source pool for a
 //          human trace (a listed figure is "unverified", not "wrong").
+//          N3 (Jev, unless --no-jev): each over-quota style WARN span is judged by Jev
+//          `deliberate_style`; >=0.8 suppresses the WARN (listed as "kept by Jev"),
+//          0.5-0.8 keeps the WARN and FLAGS it; <0.5 / Jev unavailable keeps today's WARN
+//          (unavailable = UNCHECKED).
 // facts:   FAILS when a card's quote is not found verbatim (after normalising case/punctuation/
 //          whitespace) in the transcript of the video id it cites.
+//          N4 (Jev, unless --no-jev): a non-verbatim quote goes to Jev `faithful_paraphrase`
+//          against the cited transcript window; >=0.8 -> PASS (paraphrase, listed),
+//          else today's FAIL/WARN (Jev unavailable = UNCHECKED, current behaviour).
 //
 // Fact-card format (one block per fact):
 //   ### F1
@@ -18,6 +25,55 @@
 
 import * as fs from "node:fs";
 import * as path from "node:path";
+import { decide as jevDecide, type JevQuestion } from "../jev.js";
+
+// N3/N4 gate (Jev, bands per engine_workflow): >=0.8 act, 0.5-0.8 act+FLAG, <0.5 or
+// Jev unavailable -> current behaviour + UNCHECKED. --no-jev -> today's behaviour.
+const DELIBERATE_STYLE: JevQuestion = {
+  type: "noul",
+  instructions:
+    "A style linter flagged this span in a personal-finance memoir chapter. Is the flagged device " +
+    "deliberate and effective in context — an intentional rhetorical/style choice consistent with " +
+    "the book's voice — rather than an accidental AI/prose tell?",
+  criteria: {
+    true: "Deliberate, effective, and consistent with the book's voice here.",
+    false: "An accidental AI/prose tell that adds nothing in this context.",
+  },
+};
+
+const FAITHFUL_PARAPHRASE: JevQuestion = {
+  type: "noul",
+  instructions:
+    "A fact card quotes a source, but the quote is not verbatim in the transcript. Against the " +
+    "transcript window given, is the quote a faithful paraphrase of what was actually said — " +
+    "meaning, substance and every number unchanged?",
+  criteria: {
+    true: "Faithful paraphrase: same claims, advice and figures, only wording differs.",
+    false: "Misquotes, drops or contradicts what was said, or a number differs/has no basis here.",
+  },
+};
+
+function jevNoul(answers: unknown, key: string): number | null {
+  const a = answers as Record<string, { noul?: unknown }> | null;
+  const v = a?.[key]?.noul;
+  return typeof v === "number" ? v : null;
+}
+
+// ~600-char transcript window with the highest token overlap with the quote — keeps
+// the state minimal (the book is IP) while giving Jev the surrounding context.
+function transcriptWindow(transcript: string, quote: string): string {
+  const qt = new Set(norm(quote).split(/\s+/).filter(Boolean));
+  const size = 600;
+  let best = "";
+  let bestScore = -1;
+  for (let i = 0; i < transcript.length; i += Math.floor(size / 2)) {
+    const w = transcript.slice(i, i + size);
+    const wt = norm(w).split(/\s+/).filter(Boolean);
+    const hits = wt.filter((t) => qt.has(t)).length;
+    if (hits > bestScore) { bestScore = hits; best = w; }
+  }
+  return best;
+}
 
 const SAMPLE = "data/db/samples/duane_retirearly500";
 const TRANSCRIPTS = path.join(SAMPLE, "transcripts");
@@ -115,7 +171,7 @@ function loadPool(factsPath?: string): string {
   return parts.join("\n");
 }
 
-function checkChapter(file: string, factsPath?: string): number {
+async function checkChapter(file: string, factsPath?: string, useJev = true): Promise<number> {
   const typ = fs.readFileSync(file, "utf8");
   const prose = proseOf(typ);
   let fails = 0;
@@ -127,6 +183,11 @@ function checkChapter(file: string, factsPath?: string): number {
     if (hits) { fails += hits.length; console.log(`FAIL ban "${name}" x${hits.length}: ${[...new Set(hits)].slice(0, 3).join(" | ")}`); }
   }
 
+  // N3: over-quota style WARNs are buffered (span + message) so a single Jev pass can
+  // judge them together; Jev >=0.8 suppresses ("kept by Jev"), 0.5-0.8 keeps + FLAGs,
+  // <0.5 or Jev unavailable keeps today's WARN (unavailable = UNCHECKED).
+  const styleWarns: { msg: string; span: string }[] = [];
+
   // R4 quota (founder rule 2026-09-21: max 2, lean 1, bias closers).
   let warns = 0;
   const r4 = r4Hits(prose);
@@ -135,9 +196,7 @@ function checkChapter(file: string, factsPath?: string): number {
     console.log(`FAIL R4 negative parallelism x${r4.length} (founder quota: max 2, lean 1):`);
     r4.forEach((h) => console.log(`  R4 [${h.kind}] para ${h.para}${h.inCloser ? " (CLOSER)" : ""}: ...${h.excerpt}...`));
   } else if (r4.length === 2) {
-    warns++;
-    console.log(`WARN R4 x2 at quota edge (keep only if BOTH are the strongest; lean 1):`);
-    r4.forEach((h) => console.log(`  R4 [${h.kind}] para ${h.para}${h.inCloser ? " (CLOSER)" : ""}: ...${h.excerpt}...`));
+    r4.forEach((h) => styleWarns.push({ msg: `R4 x2 at quota edge (keep only if BOTH are the strongest; lean 1) [${h.kind}] para ${h.para}${h.inCloser ? " (CLOSER)" : ""}: ...${h.excerpt}...`, span: h.excerpt }));
   } else if (r4.length === 1) {
     console.log(`ok    R4 x1 (within founder quota): [${r4[0].kind}] para ${r4[0].para}${r4[0].inCloser ? " (CLOSER)" : ""}`);
   }
@@ -147,24 +206,24 @@ function checkChapter(file: string, factsPath?: string): number {
   const totalDash = (prose.match(/—/g) ?? []).length;
   if (totalDash > 3) { fails++; console.log(`FAIL ${totalDash} em dashes (founder rule: almost none; use commas and semicolons)`); }
   const boldN = (prose.match(/\*[^*\n]{2,40}\*/g) ?? []).length;
-  if (boldN > 6) { warns++; console.log(`WARN boldface used ${boldN} times (Wikipedia tell: overuse of boldface)`); }
+  if (boldN > 6) styleWarns.push({ msg: `boldface used ${boldN} times (Wikipedia tell: overuse of boldface)`, span: (prose.match(/\*[^*\n]{2,40}\*/g) ?? []).slice(0, 12).join(" | ") });
   const inlineHdr = (prose.match(/\*[^*\n]{2,40}\*\s*:/g) ?? []).length;
-  if (inlineHdr > 1) { warns++; console.log(`WARN ${inlineHdr} inline-header list items (bold term then colon)`); }
+  if (inlineHdr > 1) styleWarns.push({ msg: `${inlineHdr} inline-header list items (bold term then colon)`, span: (prose.match(/\*[^*\n]{2,40}\*\s*:/g) ?? []).slice(0, 12).join(" | ") });
   const triples = (prose.match(/\b\w+, \w+(?: \w+)?, and \w+/g) ?? []).length;
-  if (triples > 4) { warns++; console.log(`WARN ${triples} three-item lists (rule-of-three tell)`); }
+  if (triples > 4) styleWarns.push({ msg: `${triples} three-item lists (rule-of-three tell)`, span: (prose.match(/\b\w+, \w+(?: \w+)?, and \w+/g) ?? []).slice(0, 12).join(" | ") });
   for (const [i, p] of paras.entries()) {
     const label = `para ${i + 1} ("${p.slice(0, 40)}...")`;
     const dashes = (p.match(/—/g) ?? []).length;
-    if (dashes > 0) { warns++; console.log(`WARN em-dashes x${dashes} in ${label}`); }
+    if (dashes > 0) styleWarns.push({ msg: `em-dashes x${dashes} in ${label}`, span: p.slice(0, 400) });
     const sents = p.split(/(?<=[.!?])\s+/).filter((s) => words(s) > 2);
     for (let k = 0; k + 2 < sents.length; k++) {
       const [a, b, c] = [sents[k], sents[k + 1], sents[k + 2]];
       const first = (s: string) => s.split(/\s+/)[0].toLowerCase();
-      if (first(a) === first(b) && first(b) === first(c)) { warns++; console.log(`WARN 3 sentences open "${first(a)}" in ${label}`); break; }
+      if (first(a) === first(b) && first(b) === first(c)) { styleWarns.push({ msg: `3 sentences open "${first(a)}" in ${label}`, span: `${a} ${b} ${c}`.slice(0, 400) }); break; }
     }
     for (let k = 0; k + 2 < sents.length; k++) {
       const [x, y, z] = [words(sents[k]), words(sents[k + 1]), words(sents[k + 2])];
-      if (Math.max(x, y, z) - Math.min(x, y, z) <= 3) { warns++; console.log(`WARN 3 similar-length sentences (${x},${y},${z}) in ${label}`); break; }
+      if (Math.max(x, y, z) - Math.min(x, y, z) <= 3) { styleWarns.push({ msg: `3 similar-length sentences (${x},${y},${z}) in ${label}`, span: `${sents[k]} ${sents[k + 1]} ${sents[k + 2]}`.slice(0, 400) }); break; }
     }
   }
 
@@ -180,13 +239,35 @@ function checkChapter(file: string, factsPath?: string): number {
   }
   console.log(`\nfigures found: ${figs.size}; not located in source pool: ${unverified.length}`);
   unverified.forEach((f) => console.log(`  UNVERIFIED ${f}  -> trace by hand or cut`));
-  console.log(`\nresult: ${fails} ban-list FAIL(s), ${warns} style WARN(s), ${unverified.length} unverified figure(s)`);
+
+  // N3 Jev pass — one batched call for all buffered style WARN spans.
+  let uncheckedStyle = 0;
+  if (styleWarns.length && useJev) {
+    const questions: Record<string, JevQuestion> = {};
+    styleWarns.forEach((_, i) => (questions[`w${i}`] = DELIBERATE_STYLE));
+    const answers = await jevDecide(styleWarns.map((w) => w.span), questions, 20000);
+    for (const [i, w] of styleWarns.entries()) {
+      const p = jevNoul(answers, `w${i}`);
+      if (p !== null && p >= 0.8) { console.log(`kept by Jev (deliberate_style=${p.toFixed(2)}): ${w.msg}`); continue; }
+      warns++;
+      if (p !== null && p >= 0.5) console.log(`WARN FLAG by Jev (0.5-0.8): ${w.msg}`);
+      else if (p !== null) console.log(`WARN ${w.msg}`);
+      else { uncheckedStyle++; console.log(`WARN UNCHECKED (Jev unavailable): ${w.msg}`); }
+    }
+  } else {
+    for (const w of styleWarns) { warns++; console.log(`WARN ${w.msg}`); }
+    if (styleWarns.length && !useJev) console.log(`  (style WARNs unchecked by Jev: --no-jev)`);
+  }
+
+  console.log(`\nresult: ${fails} ban-list FAIL(s), ${warns} style WARN(s)${styleWarns.length ? ` (${styleWarns.length} judged by Jev${uncheckedStyle ? `, ${uncheckedStyle} UNCHECKED` : ""})` : ""}, ${unverified.length} unverified figure(s)`);
   return fails ? 1 : 0;
 }
 
-function checkFacts(file: string): number {
+async function checkFacts(file: string, useJev = true): Promise<number> {
   let drift = 0;
   let looseQuote = 0;
+  let paraphrasePass = 0;
+  let uncheckedParaphrase = 0;
   const cards = fs.readFileSync(file, "utf8").split(/^###\s+/m).slice(1);
   let bad = 0;
   for (const c of cards) {
@@ -196,7 +277,25 @@ function checkFacts(file: string): number {
     if (!quote || !src) { bad++; console.log(`FAIL ${id}: missing quote or source`); continue; }
     const tPath = path.join(TRANSCRIPTS, `${src}.txt`);
     if (!fs.existsSync(tPath)) { bad++; console.log(`FAIL ${id}: no transcript for ${src}`); continue; }
-    if (!norm(fs.readFileSync(tPath, "utf8")).includes(norm(quote))) { bad++; console.log(`FAIL ${id}: quote not found in ${src}: "${quote.slice(0, 70)}"`); continue; }
+    const transcript = fs.readFileSync(tPath, "utf8");
+    if (!norm(transcript).includes(norm(quote))) {
+      // N4: not verbatim. Jev `faithful_paraphrase` against the transcript window;
+      // >=0.8 -> PASS (paraphrase, listed), else today's FAIL (Jev down = FAIL + UNCHECKED).
+      if (useJev) {
+        const answers = await jevDecide(
+          { quote, transcript_window: transcriptWindow(transcript, quote) },
+          { faithful_paraphrase: FAITHFUL_PARAPHRASE },
+          20000
+        );
+        const p = jevNoul(answers, "faithful_paraphrase");
+        if (p !== null && p >= 0.8) { paraphrasePass++; console.log(`PASS ${id}: non-verbatim quote is a faithful paraphrase (Jev ${p.toFixed(2)}) of ${src}`); continue; }
+        bad++;
+        if (p !== null) console.log(`FAIL ${id}: quote not verbatim and not a faithful paraphrase (Jev ${p.toFixed(2)}): "${quote.slice(0, 70)}"`);
+        else { uncheckedParaphrase++; console.log(`FAIL UNCHECKED (Jev unavailable) ${id}: quote not found in ${src}: "${quote.slice(0, 70)}"`); }
+        continue;
+      }
+      bad++; console.log(`FAIL ${id}: quote not found in ${src}: "${quote.slice(0, 70)}"`); continue;
+    }
     // Claim fidelity, two tiers. A claim number missing from its QUOTE but present elsewhere in the
     // same video is fine (the quote is just short). A claim number found NOWHERE in the video is an
     // inference or a fabrication, and is flagged.
@@ -208,11 +307,16 @@ function checkFacts(file: string): number {
     const ghost = /^reviewed:/m.test(c) ? [] : nums.filter((n) => !inVideo.has(n)); // a human-reviewed card carries a `reviewed:` line explaining the gap
     if (ghost.length) { drift++; console.log(`WARN ${id} (${src}): claim number(s) ${ghost.join(", ")} appear nowhere in the video -> "${claim.slice(0, 100)}"`); }
   }
-  console.log(`facts: ${cards.length} cards, ${bad} failed quotes, ${drift} claim number(s) not found in source video (${looseQuote} claims carry numbers beyond their quote, still inside the video)`);
+  const extras: string[] = [];
+  if (paraphrasePass) extras.push(`${paraphrasePass} paraphrase pass(es) via Jev`);
+  if (uncheckedParaphrase) extras.push(`${uncheckedParaphrase} UNCHECKED (Jev unavailable)`);
+  console.log(`facts: ${cards.length} cards, ${bad} failed quotes, ${drift} claim number(s) not found in source video (${looseQuote} claims carry numbers beyond their quote, still inside the video)${extras.length ? ` [${extras.join("; ")}]` : ""}`);
   return bad ? 1 : 0;
 }
 
-const [mode, file, ...rest] = process.argv.slice(2);
-if (!mode || !file) { console.error("usage: book_check.ts chapter <file.typ> [--facts=f] | facts <file.md>"); process.exit(2); }
+const argv = process.argv.slice(2);
+const useJev = !argv.includes("--no-jev");
+const [mode, file, ...rest] = argv.filter((a) => a !== "--no-jev");
+if (!mode || !file) { console.error("usage: book_check.ts chapter <file.typ> [--facts=f] [--no-jev] | facts <file.md> [--no-jev]"); process.exit(2); }
 const factsArg = rest.find((a) => a.startsWith("--facts="))?.slice(8);
-process.exit(mode === "facts" ? checkFacts(file) : checkChapter(file, factsArg));
+process.exit(mode === "facts" ? await checkFacts(file, useJev) : await checkChapter(file, factsArg, useJev));

@@ -14,6 +14,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from book_config import (BOOK_DIR, MS, TEMPLATE, QA, FONTS, PANDOC, TYPST,
                          PDF_PY, PANDOC_FLAGS, TYPST_FLAGS)
+from textedit import RepError, rep  # lesson M-15: whitespace-tolerant, exactly-one-match edits
 
 FILLBACK_DIR = QA / "trim/fillback"
 EXP_MD = BOOK_DIR / "exp_t28.md"
@@ -70,9 +71,11 @@ def main():
             v = tr.get("jev", {}).get("verdict")
             if v not in ("ACCEPT", "FLAG"):
                 print(f"skip {tr['id']} ({v})"); continue
-            if t.count(tr["old"]) != 1:
-                print(f"skip {tr['id']} (old not unique/found)"); continue
-            t = t.replace(tr["old"], tr["new"]); print(f"applied {tr['id']} ({v})")
+            try:
+                t = rep(t, tr["old"], tr["new"])  # raises unless the match is unique (whitespace-tolerant)
+            except RepError as e:
+                print(f"skip {tr['id']} ({e})"); continue
+            print(f"applied {tr['id']} ({v})")
             applied.append(tr)
 
     if not args.fillback:
@@ -87,9 +90,10 @@ def main():
         print(f"baseline: marker NOT on page {args.page} even with all trims applied — nothing to fill back")
     else:
         for tr in sorted(applied, key=lambda x: x["jev"]["meaning_kept"]):
-            if t.count(tr["new"]) != 1:
+            try:
+                cand = rep(t, tr["new"], tr["old"])
+            except RepError:
                 table.append((tr["id"], "no")); continue
-            cand = t.replace(tr["new"], tr["old"])
             EXP_MD.write_text(cand)
             if build_and_page_check(EXP_MD, out_pdf, args.marker, args.page):
                 t = cand

@@ -41,6 +41,10 @@ EXTRA_RULES = [
     {"id": "IMG-UNIQUE", "object": "manuscript source", "kind": "source",
      "target": "each img/#image path used at most once across the whole book", "severity": "blocker",
      "source": "T27 2026-09-24: duplicate cover/opener/back-cover image paths"},
+    {"id": "SRC-WORKSHEET-HANDSPACE", "object": "manuscript source", "kind": "source",
+     "target": "no hand-typed spacing (#v(), spacing:/above: args) inside a worksheet fence or on the worksheet call",
+     "severity": "warning",
+     "source": "P-08 2026-09-24: recurring objects are components; spacing belongs to the component, not the call site"},
     {"id": "BODY-MERGED", "object": "rendered PDF", "kind": "pdf",
      "target": "each source paragraph's first 6 words begin a PDF line at left margin ±1pt or left margin+indent ±1pt",
      "severity": "blocker",
@@ -83,8 +87,8 @@ def page_model(p):
         rows[(bi, y)].append(c)
     lines = [Line(y, cs, bi) for (bi, y), cs in rows.items() if any(c["text"].strip() for c in cs)]
     lines.sort(key=lambda l: l.y)
-    has_table = any(l.fam == "Inter" and near(l.size, 7.2, 0.05) for l in lines)
-    tb = [l.y for l in lines if l.fam == "Inter" and near(l.size, 7.2, 0.05)]
+    has_table = any(l.fam == "Inter" and near(l.size, 7.5, 0.05) for l in lines)
+    tb = [l.y for l in lines if l.fam == "Inter" and near(l.size, 7.5, 0.05)]
     for l in lines:
         t = l.text.replace(" ", "").upper()
         if l.y < 45 and l.fam == "Inter":
@@ -230,7 +234,8 @@ def page_gap_check(page_info, page_body_pos, boxes_in_chapter, first, last, res)
         if (not opener and not part and text_page and not boxes and pno < last
                 and empty_frac > tgt["empty_frac"] and next_box_top is not None
                 and next_box_top < 0.5 * ph):
-            res.check("PAGE-GAP", False, f"p{pno}: {empty_frac*100:.0f}% empty before box on p{pno+1}: move the box up / reflow")
+            recover = empty_frac * tbh  # P-35: number-back every gap promise
+            res.check("PAGE-GAP", False, f"p{pno}: {empty_frac*100:.0f}% empty before box on p{pno+1} (~{recover:.0f}pt recoverable): move the box up / reflow")
         # pattern B: box, < 3 body lines, >= 30% empty bottom, next box on the following page
         for i, (pa, ba, bbot, ha) in enumerate(boxes_in_chapter):
             if pa != pno or opener or part:
@@ -239,7 +244,8 @@ def page_gap_check(page_info, page_body_pos, boxes_in_chapter, first, last, res)
             nxt = boxes_in_chapter[i + 1] if i + 1 < len(boxes_in_chapter) else None
             if (len(after) < tgt["min_body_after_box"] and empty_frac >= tgt["gap_frac"]
                     and nxt and nxt[0] == pno + 1 and nxt[1] < 0.5 * ph):
-                res.check("PAGE-GAP", False, f"p{pno}: box ends y={bbot:.0f}, {len(after)} body lines, {empty_frac*100:.0f}% empty before box on p{pno+1}: move the box up / reflow")
+                recover = empty_frac * tbh  # P-35: number-back every gap promise
+                res.check("PAGE-GAP", False, f"p{pno}: box ends y={bbot:.0f}, {len(after)} body lines, {empty_frac*100:.0f}% empty before box on p{pno+1} (~{recover:.0f}pt recoverable): move the box up / reflow")
 
 
 def takeaway_orphan_check(page_info, first, last, res):
@@ -574,8 +580,12 @@ def check_src(lines, a, b, res):
                 res.check("SRC-PAR-OVERRIDE", False, f"line {n}: {stripped[:50]}")
             if "#worksheet(" in code:
                 ws_depth = depth
+                if re.search(r"\b(?:spacing|above)\s*:\s*-?[\d.]", code):  # P-08: component owns its spacing
+                    res.check("SRC-WORKSHEET-HANDSPACE", False, f"line {n}: inline spacing on worksheet call")
             if ws_depth is not None and re.search(r"#stack\(|#grid\(|^\s*\d+\.\s", code):
                 res.check("SRC-HANDBUILT-LIST", False, f"line {n}: {stripped[:50]}")
+            if ws_depth is not None and (re.search(r"#v\(", code) or re.search(r"\b(?:spacing|above)\s*:\s*-?[\d.]", code)):
+                res.check("SRC-WORKSHEET-HANDSPACE", False, f"line {n}: hand spacing inside worksheet")
             depth += code.count("[") - code.count("]")
             if ws_depth is not None and depth <= ws_depth:
                 ws_depth = None
@@ -587,10 +597,15 @@ def check_src(lines, a, b, res):
                 res.check("SRC-DOUBLE-SPACE", False, f"line {n}: '{body[:60]}'")
             prev = lines[i - 1] if i else ""
             if re.match(r"^\s{2,}[A-Z]", l) and prev.strip() and not prev.startswith("#") and re.search(r"[.?!”\"}]$", prev.rstrip()):
-                res.check("SRC-MERGED-PARA", False, f"line {n}: '{body[:50]}'")
+                # P-32: only flag when the indented line is itself a complete sentence
+                # (ends with a terminator) — a wrapped continuation inside the same
+                # paragraph can start with a capital after a mid-paragraph "." and
+                # must not be flagged.
+                if re.search(r"[.?!”\"}]$", body):
+                    res.check("SRC-MERGED-PARA", False, f"line {n}: '{body[:50]}'")
     for rid in ("SRC-MANUAL-SPACE", "SRC-TOPLEVEL-SET", "SRC-ABOVE0", "SRC-PAR-OVERRIDE",
                 "SRC-HANDBUILT-LIST", "SRC-DOUBLE-SPACE", "SRC-MERGED-PARA", "SRC-FENCE",
-                "SRC-FENCE-LINE", "SRC-HIGHLIGHT"):
+                "SRC-FENCE-LINE", "SRC-HIGHLIGHT", "SRC-WORKSHEET-HANDSPACE"):
         res.check(rid, True)
 
 
@@ -666,12 +681,42 @@ def check_frontmatter(pdf, pr, res):
     res.check("FRONTMATTER-FOLIO", not fails, "; ".join(fails))
 
 
+def geometry_report(pdf_path, pages):
+    """P-01 helper: print the measured geometry (kind, y, x0/x1 span, size, pitch to
+    previous line) for the quoted pages, so any disputed reading is settled by this
+    conversion instead of by argument. `<x0..x1>:<pitch>` readings are read off here."""
+    doc = pdfplumber.open(pdf_path)
+    for pno in pages:
+        if not 1 <= pno <= len(doc.pages):
+            print(f"page {pno}: out of range (1..{len(doc.pages)})")
+            continue
+        p = doc.pages[pno - 1]
+        lines, _ = page_model(p)
+        print(f"page {pno} ({p.width:.0f}x{p.height:.0f}pt): kind | y | x0..x1 | size | pitch | text")
+        prev = None
+        for l in lines:
+            x1 = max((c["x1"] for c in l.chars if c["text"].strip()), default=l.x)
+            d = f"{l.y - prev.y:.2f}" if prev is not None else "-"
+            print(f"  {l.kind:9s} y={l.y:7.2f} x0={l.x:6.2f} x1={x1:7.2f} size={l.size:5.2f} pitch={d:>7s} '{snip(l)}'")
+            prev = l
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--pdf", required=True)
-    ap.add_argument("--chapters", required=True)
+    ap.add_argument("--chapters")
+    ap.add_argument("--geometry", help="P-01: comma-separated 1-based page numbers; prints measured line geometry instead of running the gate")
     ap.add_argument("--out")
     a = ap.parse_args()
+    if a.geometry:
+        try:
+            pages = [int(x) for x in a.geometry.split(",")]
+        except ValueError:
+            sys.exit("book_qa: --geometry wants comma-separated page numbers")
+        geometry_report(a.pdf, pages)
+        return
+    if not a.chapters:
+        sys.exit("book_qa: --chapters is required unless --geometry is given")
     pdf = pdfplumber.open(a.pdf)
     src = MS.read_text().split("\n")
     pr, sr = pdf_chapter_ranges(pdf), chapter_src_ranges(src)
@@ -685,7 +730,9 @@ def main():
             continue
         ch = next((c for c, (s, e) in sr.items() if s <= ls[1] <= e), a.chapters.split(",")[0])
         img_fail_by_ch[ch].append(f"{path} used {len(ls)}x (lines {', '.join(map(str, ls))})")
-    out = [f"# Book QA report — `{Path(a.pdf).name}`", "", f"Rule set: `{RULES['adr']}` v{RULES['version']}", ""]
+    out = [f"# Book QA report — `{Path(a.pdf).name}`", "",
+           f"Rule set: `{RULES['adr']}` v{RULES['version']}", "",
+           "P-14 reminder: a new defect class gets a rule before closing this report.", ""]
     blockers = 0
     unknown = [c for c in a.chapters.split(",") if c not in pr]
     if unknown:  # e.g. "3" instead of "Three" would otherwise run zero checks and report PASS

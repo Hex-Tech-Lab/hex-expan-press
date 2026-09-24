@@ -12,6 +12,14 @@
   ],
   "panel_brief": "A two-chapter placeholder book used to smoke-test the engine.",
   "backcover_marker": null,
+  "cover": {
+    "kicker": "A SMOKE-TEST RUN",
+    "title-lines": ["SMOKE", "TEST", "BOOK"],
+    "subtitle": "PLACEHOLDER",
+    "numbers-line": "$0 → $0 — ZERO YEARS, THE FAKE BALANCES",
+    "tagline": "How nothing was built on $0 — the smoke numbers, in.",
+    "author": "TEST AUTHOR"
+  },
   "rubric_profile": "duane",
   "release_prefix": "smoke"
 }

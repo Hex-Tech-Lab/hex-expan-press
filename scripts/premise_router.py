@@ -113,16 +113,53 @@ def g1_contradictions():
     return newest, out
 
 
-def known_ids(topic, queue_lines):
-    words = [w for w in re.findall(r"[a-z]{4,}", topic.lower())]
-    hits = []
-    for line in queue_lines:
-        ll = line.lower()
-        if sum(1 for w in words if w in ll) >= 2:
-            m = re.match(r"\|\s*(B\d+)\s*\|", line)
-            if m:
-                hits.append(m.group(1))
-    return hits
+def known_ids(c, queue_lines, use_jev=True):
+    """N1: Jev noul `matches_queue_row` per pre-filtered queue row (>= 1 shared keyword) replaces the
+    old >=2-shared-words match. Bands: p >= 0.8 -> matched; 0.5-0.8 -> matched + FLAG;
+    p < 0.5 or Jev unavailable -> today's keyword behaviour + UNCHECKED.
+    Returns (ids, uncertain) — uncertain marks rows decided by the keyword fallback."""
+    words = [w for w in re.findall(r"[a-z]{4,}", c["topic"].lower())]
+
+    def row_id(line):
+        m = re.match(r"\|\s*(B\d+)\s*\|", line)
+        return m.group(1) if m else None
+
+    def kw_match(min_words):
+        out = []
+        for l in queue_lines:
+            if sum(1 for w in words if w in l.lower()) >= min_words:
+                rid = row_id(l)
+                if rid:
+                    out.append(rid)
+        return out
+
+    if not use_jev:
+        return kw_match(2), True
+
+    cand = " · ".join(filter(None, [c["topic"],
+                                    f"Version A (Ch {c['a'].get('chapter')}): {c['a'].get('quote')}",
+                                    f"Version B (Ch {c['b'].get('chapter')}): {c['b'].get('quote')}"]))
+    pre = [l for l in queue_lines if any(w in l.lower() for w in words)]
+    hits, flags, fallback = [], [], False
+    for line in pre:
+        rid = row_id(line)
+        if not rid:
+            continue
+        a = decide({"candidate": cand, "queue_row": line}, {"matches_queue_row": {
+            "type": "noul",
+            "instructions": "Is the candidate contradiction about the same underlying fact as this existing review-queue row?",
+            "criteria": {"true": "The same fact is stated in both places (a row already tracks this contradiction)",
+                         "false": "Different facts that merely share vocabulary"}}}, timeout=10)
+        if a is None or a["matches_queue_row"]["noul"] < 0.5:
+            fallback = True
+            continue
+        p = a["matches_queue_row"]["noul"]
+        hits.append(rid)
+        if p < 0.8:
+            flags.append(rid)
+    if fallback:
+        return kw_match(2), True
+    return hits, False
 
 
 def main():
@@ -161,7 +198,8 @@ def main():
             continue
         if p is not None and p < 0.8:
             c["jev_flag"] = True  # 0.5-0.8: act (keep in the normal flow) and FLAG for the founder
-        ids = known_ids(c["topic"], queue_lines)
+        ids, uncertain = known_ids(c, queue_lines, use_jev)
+        c["jev_uncertain"] = uncertain
         (known if ids else new).append((c, ids))
 
     lines = []
@@ -199,6 +237,8 @@ def main():
         for c, _ in new:
             mark = f" (jev p={c['jev_p']:.2f}, FLAG 0.5-0.8 band)" if c.get("jev_flag") else \
                    f" (jev p={c['jev_p']:.2f})" if c.get("jev_p") is not None else " (UNCHECKED — Jev unavailable)" if use_jev else ""
+            if c.get("jev_uncertain"):
+                mark += " (UNCHECKED — keyword fallback for known-id match)"
             lines.append(f"- **{c['topic']}**{mark}")
             lines.append(f"  - Version A (Ch {c['a'].get('chapter')}): \"{c['a'].get('quote')}\"")
             lines.append(f"  - Version B (Ch {c['b'].get('chapter')}): \"{c['b'].get('quote')}\"")
@@ -211,6 +251,8 @@ def main():
     for c, ids in known:
         mark = f" (jev p={c['jev_p']:.2f}, FLAG 0.5-0.8 band)" if c.get("jev_flag") else \
                f" (jev p={c['jev_p']:.2f})" if c.get("jev_p") is not None else " (UNCHECKED — Jev unavailable)" if use_jev else ""
+        if c.get("jev_uncertain"):
+            mark += " (UNCHECKED — keyword fallback for known-id match)"
         lines.append(f"- {', '.join(ids)} — {c['topic']}{mark}")
     lines.append("")
     lines.append("## D. Dismissed (Jev triage p < 0.5 — likely NOT real contradictions)")

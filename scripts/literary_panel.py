@@ -54,7 +54,7 @@ def call(spec, prompt, max_tokens=None):
             if backend == "agy":
                 model, effort = rest.rsplit(":", 1)
                 r = subprocess.run(["agy", "-p", prompt + "\n\nReturn ONLY the JSON object, no prose.", "--model", model,
-                                    "--effort", effort, "--print-timeout", "0"], cwd="/tmp", stdin=subprocess.DEVNULL,
+                                    "--effort", effort, "--print-timeout", "0"], cwd="/tmp", stdin=subprocess.DEVNULL,  # lint-allow: /tmp (AGY must not scan the repo as its workspace)
                                    capture_output=True, text=True, timeout=900)
                 txt = r.stdout
             else:
@@ -113,6 +113,29 @@ def chapters():
     return [(n, title, prose(src)) for n, title, src in chapter_sources(MS)]
 
 
+def judge_text_guard():
+    """New lesson (judge-text leak): the panel judges grade PROSE. Refuse to run if any chapter's
+    judge text (book_config.chapter_sources + literary_metrics.prose) still contains markup
+    (`#word`, backticks, `{=typst}` fences) or is under 1,000 words — a leak or a bad chunk
+    would silently corrupt every grade."""
+    bad = []
+    for n, _, x in chapters():
+        leaks = []
+        if re.search(r"#\w+", x):
+            leaks.append("residual `#markup`")
+        if "`" in x:
+            leaks.append("backtick/fence")
+        if "{=typst}" in x:
+            leaks.append("{=typst}")
+        if len(x.split()) < 1000:
+            leaks.append(f"only {len(x.split())} words (< 1,000)")
+        if leaks:
+            bad.append(f"Ch {n}: " + "; ".join(leaks))
+    if bad:
+        raise SystemExit("JUDGE-TEXT GUARD: chapter text not clean prose — refusing to run the panel:\n"
+                         + "\n".join(f"- {b}" for b in bad))
+
+
 G2_SCAN = re.compile(r"\$[\d,.]+|\d+%|\b\d[\d,.]*\b|studies show|reports said|research|survey", re.I)
 
 
@@ -157,6 +180,21 @@ CHAPTER TEXT:
 {text}"""
 
 
+def real_disagreement_jev(dim, graded):
+    """N5: Jev noul `real_disagreement` for a disputed dimension. graded = [(judge, grade_idx,
+    quote, why)]. Returns (p or None) — None when Jev is down (caller keeps today's behaviour)."""
+    a = decide({"dimension": dim,
+                "grades": {j: gname(g) for j, g, _, _ in graded},
+                "evidence": {j: {"quote": q, "why": w} for j, _, q, w in graded}},
+               {"real_disagreement": {
+                   "type": "noul",
+                   "instructions": "Two or more judges gave these grades for the same dimension, each citing evidence. Is this a genuine dispute about quality?",
+                   "criteria": {"true": "The judges are describing genuinely different quality of the chapter on this dimension",
+                                "false": "The judges agree in substance and only differ on which rubric point to apply (wording/rubric ambiguity)"}}},
+               timeout=10)
+    return None if a is None else a["real_disagreement"]["noul"]
+
+
 def fact_prompt(book):
     return f"""{BOOK}
 Act as a fact-checker. Find every CONTRADICTION inside this manuscript: the same number, date, amount, age, rate or biographical fact stated differently in two places, or a statement contradicted by the book's own ledger/figures. Only real contradictions, not rounding (e.g. $548,000 vs 'a little over $500,000' is fine). Quote both places verbatim.
@@ -199,6 +237,7 @@ def gname(i):
 
 def main():
     model_guard()
+    judge_text_guard()
     ch = chapters()
     use_jev = "--no-jev" not in sys.argv
     book = "\n\n".join(f"=== Chapter {n}: {t} ===\n{x}" for n, t, x in ch)
@@ -228,15 +267,25 @@ def main():
     run = {"ts": datetime.now(timezone.utc).isoformat(timespec="seconds"), "judges": JUDGES,
            "raw": {"|".join(k): v for k, v in res.items()}}
     # ---- aggregate
-    out, table, chap_overall, disagreements, g2 = [], {}, {}, [], {}
+    out, table, chap_overall, disagreements, rubric_amb, g2 = [], {}, {}, [], [], {}
     for n, t, _ in ch:
         per = {}
         for d in DIMS:
             gs = [gi(((res[("judge", n, j)].get("dims") or {}).get(d) or {}).get("grade")) for j in JUDGES]
             gs = [g for g in gs if g is not None]
             per[d] = statistics.median(gs) if gs else None
-            if gs and max(gs) - min(gs) > 3:
-                disagreements.append(f"Ch {n} · {d}: {[gname(g) for g in gs]}")
+            if gs and max(gs) - min(gs) >= 2:
+                graded = [(j, gi(v["grade"]), (v.get("quote") or ""), (v.get("why") or ""))
+                          for j in JUDGES if (v := ((res[("judge", n, j)].get("dims") or {}).get(d) or {})) and gi(v.get("grade")) is not None]
+                label = f"Ch {n} · {d}: {[gname(g) for g in gs]}"
+                p = real_disagreement_jev(d, graded) if use_jev else None
+                if p is None:
+                    if max(gs) - min(gs) > 3:  # Jev down -> today's behaviour + UNCHECKED
+                        disagreements.append(label + " [UNCHECKED]")
+                elif p >= 0.5:
+                    disagreements.append(label + f" (Jev p={p:.2f})" + (" FLAG" if p < 0.8 else ""))
+                else:
+                    rubric_amb.append(label + f" (rubric ambiguity, Jev p={p:.2f})")
         table[n] = per
         vals = [v for v in per.values() if v is not None]
         chap_overall[n] = statistics.median(vals) if vals else None
@@ -305,8 +354,10 @@ def main():
         for n, v in ((res[("reader", p)].get("chapters") or {}).items()):
             if isinstance(v, dict) and v.get("stop_at"):
                 out.append(f"- {p} · Ch {n}: “{v['stop_at']}”")
-    out += ["", "## 7. Judge disagreements (> 1 grade step — human review)", ""] + [f"- {d}" for d in disagreements] + \
-           ["", "## 8. Revision notes (per chapter, from the judges)", ""]
+    out += ["", "## 7. Judge disagreements — human review", ""]
+    out += [f"- {d}" for d in disagreements]
+    out += ["", "Rubric ambiguity (judges differ on the scale but Jev says the substance agrees):"] + \
+           [f"- {d}" for d in rubric_amb] + ["", "## 8. Revision notes (per chapter, from the judges)", ""]
     for n in names:
         edits = [e for j in JUDGES for e in (res[("judge", n, j)].get("top_edits") or [])][:5]
         out.append(f"**Ch {n}**\n" + "\n".join(f"- {e}" for e in edits))

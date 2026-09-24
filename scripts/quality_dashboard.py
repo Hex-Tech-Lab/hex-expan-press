@@ -24,6 +24,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from book_config import QA as QA_DIR, CHAPTERS  # noqa: E402
+import panel_median  # noqa: E402
 
 CHAPTER_NAMES = list(CHAPTERS)
 
@@ -719,9 +720,18 @@ def build_dashboard_html(base_dir):
 
     # Section 1: Header with SVG line chart
     svg_chart = generate_svg_line_chart(runs_chronological)
+    try:
+        med = panel_median.compute(3)
+    except Exception:
+        med = None
+    median_label = f"Median of last {med['n_requested'] if med else 3} runs"
     latest_run_summary = ""
     if runs_newest_first:
         lr = runs_newest_first[0]
+        med_grade_html = (f"""<span class="cell-grade {get_grade_color_class(med['book_overall'])}">{med['book_overall']}</span>
+              <span style="font-size:0.9rem; font-weight:normal; color:var(--text-muted);">({median_label}; {med['runs_used']} of {med['n_requested']} runs)</span>"""
+                          if med and med["book_overall"] else
+                          f"""<span style="font-size:0.9rem; color:var(--text-muted);">— ({median_label})</span>""")
         latest_run_summary = f"""
         <div class="runs-meta-grid">
           <div class="run-card">
@@ -729,7 +739,13 @@ def build_dashboard_html(base_dir):
             <div class="run-card-val">{html.escape(lr['timestamp'][:16].replace('T', ' '))}</div>
           </div>
           <div class="run-card">
-            <div class="run-card-label">Overall Grade</div>
+            <div class="run-card-label">Overall Grade ({median_label})</div>
+            <div class="run-card-val">
+              {med_grade_html}
+            </div>
+          </div>
+          <div class="run-card">
+            <div class="run-card-label">Latest Single-Run Grade</div>
             <div class="run-card-val">
               <span class="cell-grade {get_grade_color_class(lr['overall_grade'])}">{lr['overall_grade']}</span>
               <span style="font-size:0.9rem; font-weight:normal; color:var(--text-muted);">({lr['mean_gpa']:.2f} GPA)</span>
@@ -742,7 +758,7 @@ def build_dashboard_html(base_dir):
         </div>
         """
 
-    # Section 2: Chapter x run grid of overall grades (newest run first)
+    # Section 2: Chapter x run grid of overall grades (newest run first) + median column
     grid_rows = []
     for ch_name in CHAPTER_NAMES:
         ch_num = CHAPTER_NAME_TO_NUM[ch_name]
@@ -751,6 +767,13 @@ def build_dashboard_html(base_dir):
             g = r["chapter_overall"].get(ch_name, "—")
             c_class = get_grade_color_class(g)
             tds.append(f"<td style='text-align:center;'><span class='cell-grade {c_class}'>{g}</span></td>")
+        if med and ch_name in med["chapters"]:
+            mc = med["chapters"][ch_name]
+            mg = mc["overall_letter"] or "—"
+            tds.append(f"<td style='text-align:center;'><span class='cell-grade {get_grade_color_class(mg)}'>{mg}</span>"
+                       f"<div style='font-size:0.7rem; color:var(--text-muted);'>{mc['verdict']} &middot; spread {mc['spread']}</div></td>")
+        else:
+            tds.append("<td style='text-align:center;'>—</td>")
         grid_rows.append(f"<tr>{''.join(tds)}</tr>")
 
     # Header row for Section 2
@@ -758,6 +781,9 @@ def build_dashboard_html(base_dir):
     for r in runs_newest_first:
         ts_display = r["timestamp"].split("T")[-1][:5]
         grid_th.append(f"<th style='text-align:center;'>Run {ts_display}<br><span style='font-size:0.7rem; font-weight:normal;'>{r['overall_grade']}</span></th>")
+    med_overall = med["book_overall"] if med and med["book_overall"] else "—"
+    med_runs_note = (f"{med['runs_used']} of {med['n_requested']} runs" if med else "no runs")
+    grid_th.append(f"<th style='text-align:center;'>Median of last {med['n_requested'] if med else 3} runs<br><span style='font-size:0.7rem; font-weight:normal;'>{med_overall} ({med_runs_note})</span></th>")
 
     # Section 3: Reader heat map for newest run (persona x chapter engagement 1-5, stop quotes)
     reader_rows = []

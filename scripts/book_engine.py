@@ -75,22 +75,27 @@ def newest_literary_run():
 
 
 def cmd_status(args):
-    lit, overall = parse_literary()
     lay = parse_layout_blockers()
     base = parse_baselines()
+    import panel_median
+    med = panel_median.compute(3)
+    k = med["runs_used"] if med else 0
+    print(f"Literary grades: median of {k} runs (panel_median.py, last {med['n_requested'] if med else 3})"
+          if med else "Literary grades: — (no valid panel runs)")
     print("| Chapter | Literary | Layout blockers | Baseline approved |")
     print("|---|---|---|---|")
     for name in CHAPTERS:
-        if name in lit:
-            st, grade = lit[name]
-            literary = f"{st} ({grade})"
+        if med and name in med["chapters"]:
+            c = med["chapters"][name]
+            literary = f"{c['verdict']} ({c['overall_letter'] or '—'})"
         else:
             literary = "—"
         b = lay.get(name)
         blockers = str(b) if b is not None else "—"
         print(f"| {name} | {literary} | {blockers} | {'yes' if base.get(name) else 'no'} |")
     print()
-    print(f"**Overall: {overall}**" if overall else "**Overall: —**")
+    print(f"**Overall: {med['book_overall']}** (median of {k} runs)"
+          if med and med["book_overall"] else "**Overall: —**")
     nr = newest_literary_run()
     print(f"Newest literary run: {nr}" if nr else "Newest literary run: —")
     return 0
@@ -100,7 +105,11 @@ def cmd_m_baseline(args):
     rc = run(["python3", "scripts/literary_metrics.py"], args.dry_run)
     if rc != 0:
         return rc
-    return run(["python3", "scripts/literary_panel.py"], args.dry_run)
+    for _ in range(3):  # three sequential panel runs; panel_median then grades on their median
+        rc = run(["python3", "scripts/literary_panel.py"], args.dry_run)
+        if rc != 0:
+            return rc
+    return run(["python3", "scripts/panel_median.py"], args.dry_run)
 
 
 def cmd_m_chapter(args):
@@ -190,7 +199,16 @@ def cmd_p_fix(args):
     return 0
 
 
+def cmd_lint(args):
+    """T35-K2: engine_lint.py — every mechanical P-lesson check in one command."""
+    return run(["python3", "scripts/engine_lint.py"], args.dry_run)
+
+
 def cmd_release(args):
+    lint_rc = run(["python3", "scripts/engine_lint.py"], args.dry_run)
+    if lint_rc != 0:
+        print("release REFUSED: engine_lint failed (fix the P-lesson checks first)", file=sys.stderr)
+        return lint_rc
     lit, _ = parse_literary()
     lay = parse_layout_blockers()
     if not args.force:
@@ -224,13 +242,28 @@ def cmd_release(args):
         shutil.copyfile(src, dest)
         shutil.copyfile(QA / "qa_report_FULL.md", dest_dir / "qa_report_FULL.md")
     print(dest.resolve())
+    # T35-K4: automated accessibility gate (veraPDF PDF/UA-1 + contrast) on the release PDF.
+    rc = run(["bash", "scripts/pdf_a11y_check.sh", str(dest)], args.dry_run)
+    if rc != 0 and not args.force:
+        print("release REFUSED: pdf_a11y_check failed (use --force to override)", file=sys.stderr)
+        return rc
+    # T36-J8: financial-advice compliance gate on the manuscript before shipping.
+    rc = run(["python3", "scripts/compliance_check.py"], args.dry_run)
+    if rc != 0 and not args.force:
+        print("release REFUSED: compliance_check BLOCKed a sentence (use --force to override)", file=sys.stderr)
+        return rc
+    win = subprocess.run(["wslpath", "-w", str(dest)], capture_output=True, text=True, cwd=REPO)
+    if win.returncode == 0 and win.stdout.strip():  # P-12: hand over a real Windows path
+        print(win.stdout.strip())
+    else:
+        print(f"(Windows path: \\\\wsl$\\<distro>{dest.resolve()})")
     return 0
 
 
 def main():
     p = argparse.ArgumentParser(prog="book_engine.py")
     sub = p.add_subparsers(dest="cmd", required=True)
-    for name in ["status", "m-baseline", "m-chapter", "p-chapter", "p-fix", "release"]:
+    for name in ["status", "m-baseline", "m-chapter", "p-chapter", "p-fix", "lint", "release"]:
         sp = sub.add_parser(name)
         sp.add_argument("--dry-run", action="store_true")
     sub.choices["m-chapter"].add_argument("name", choices=CHAPTERS)
@@ -248,6 +281,7 @@ def main():
     sub.choices["m-chapter"].set_defaults(func=cmd_m_chapter)
     sub.choices["p-chapter"].set_defaults(func=cmd_p_chapter)
     sub.choices["p-fix"].set_defaults(func=cmd_p_fix)
+    sub.choices["lint"].set_defaults(func=cmd_lint)
     sub.choices["release"].set_defaults(func=cmd_release)
     args = p.parse_args()
     sys.exit(args.func(args))

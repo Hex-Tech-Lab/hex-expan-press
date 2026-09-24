@@ -79,6 +79,19 @@ def main():
             chs = [str(c.get(x, {}).get("chapter", "")) for x in ("a", "b")]
             if any(ch in s for s in chs):
                 L.append(f"- [{c.get('severity')}] {c.get('fact')} ({fc.split(':')[1].split('/')[-1]})")
+    L += ["", "## 9. Stories owned by OTHER chapters — do not duplicate them in the rewrite (lesson M-11, book_graph.json)", ""]
+    bg = QA / "book_graph.json"
+    if bg.exists():
+        g = json.loads(bg.read_text())
+        owned = [n for n in g.get("nodes", []) if n.get("owner") and n["owner"] != ch]
+        if owned:
+            for n in owned:
+                L.append(f"- **{n.get('label', n.get('id', '?'))}** — owned by Chapter {n['owner']}"
+                         + (f"; {n['note']}" if n.get("note") else ""))
+        else:
+            L.append("- (no cross-chapter story owners recorded)")
+    else:
+        L.append(f"- ({bg} not found — skipped)")
     out = QA / "chapter_briefs"
     out.mkdir(exist_ok=True)
     md = out / f"ch{NUM.index(ch) + 1}_brief.md"
