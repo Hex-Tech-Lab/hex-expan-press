@@ -2,19 +2,25 @@
 """T5: route reader-stop clusters + contradictions to the creator queue as proposals.
 
 Read-only inputs:
-  data/intel/duane_book/qa/literary_runs/2026*.json   (patch_* excluded)
-  data/intel/duane_book/qa/chapter_briefs/ch*_regrade_run*.json
-  data/intel/duane_book/qa/duane_review_queue.md      (read-only, never edited)
+  <QA>/literary_runs/2026*.json   (patch_* excluded)
+  <QA>/chapter_briefs/ch*_regrade_run*.json
+  <QA>/duane_review_queue.md      (read-only, never edited)
 Writes:
-  data/intel/duane_book/qa/creator_queue_proposals.md
+  <QA>/creator_queue_proposals.md
 Python 3 stdlib only.
 """
 import glob
 import json
 import os
 import re
+import sys
+from pathlib import Path
 
-QA = os.path.join("data", "intel", "duane_book", "qa")
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from book_config import QA as QA_DIR, CHAPTERS  # noqa: E402
+from jev import decide  # noqa: E402
+
+QA = str(QA_DIR)
 OUT = os.path.join(QA, "creator_queue_proposals.md")
 QUEUE = os.path.join(QA, "duane_review_queue.md")
 
@@ -30,6 +36,37 @@ def classify(text):
         if rx.search(text):
             return name
     return "other"
+
+
+def classify_jev(quote):
+    """Jev choice over the theme names + 'other'; falls back to the keyword classifier when Jev is
+    down or the top probability < 0.5. Returns (theme, p, via)."""
+    a = decide({"quote": quote}, {"theme": {
+        "type": "choice",
+        "instructions": "Which reader-stop theme best fits this reader's stop-at quote?",
+        "criteria": {"side_income": "about earning extra money, a side business, channels, ads, income flows",
+                     "job_loss": "about losing or finding a job, ageism, layoffs, applications",
+                     "debt": "about loans or borrowing",
+                     "other": "none of the themes above"}}}, timeout=10)
+    if a is None:
+        return classify(quote), None, "keyword"
+    t = a["theme"].get("choice")
+    p = max((a["theme"].get("probabilities") or {"": 1}).values())
+    if p < 0.5 or t not in {n for n, _ in THEMES} | {"other"}:
+        return classify(quote), p, "keyword"
+    return t, p, "jev"
+
+
+def triage_jev(c):
+    """Plan point 3a: Jev noul `real_contradiction` triage for a G1 candidate pair. Returns
+    (p or None). p < 0.5 -> dismiss; None -> keep (Jev down, current behaviour)."""
+    a = decide({"statement_a": f"(Ch {c['a'].get('chapter')}) {c['a'].get('quote')}",
+                "statement_b": f"(Ch {c['b'].get('chapter')}) {c['b'].get('quote')}"}, {"real_contradiction": {
+                    "type": "noul",
+                    "instructions": "Do these two statements genuinely contradict each other, rather than describe different things/times?",
+                    "criteria": {"true": "Both cannot be true at the same time about the same thing",
+                                 "false": "They describe different things, times, scopes or are merely rounding/wording differences"}}}, timeout=10)
+    return None if a is None else a["real_contradiction"]["noul"]
 
 
 def iter_reader_stops():
@@ -90,17 +127,22 @@ def known_ids(topic, queue_lines):
 
 def main():
     queue_lines = open(QUEUE, encoding="utf-8").read().splitlines()
+    use_jev = "--no-jev" not in sys.argv
 
     stops = list(iter_reader_stops())
-    themes = {}
-    words = "One Two Three Four Five Six Seven Eight Nine Ten".split()
+    themes, theme_src = {}, {}
+    words = CHAPTERS
     for run, persona, ch, quote in stops:
         ch = str(ch).replace("Chapter ", "").strip()
-        ch = words[int(ch) - 1] if ch.isdigit() and 0 < int(ch) <= 10 else ch
-        t = classify(quote)
+        ch = words[int(ch) - 1] if ch.isdigit() and 0 < int(ch) <= len(words) else ch
+        if use_jev:
+            t, p, via = classify_jev(quote)
+        else:
+            t, p, via = classify(quote), None, "keyword"
         themes.setdefault(t, []).append(
             {"run": run, "persona": persona, "chapter": ch, "quote": quote}
         )
+        theme_src.setdefault(t, set()).add(via)
 
     signals = []
     for t, rows in sorted(themes.items()):
@@ -110,8 +152,15 @@ def main():
             signals.append((t, rows))
 
     newest, conds = g1_contradictions()
-    known, new = [], []
+    known, new, dismissed = [], [], []
     for c in conds:
+        p = triage_jev(c) if use_jev else None
+        c["jev_p"] = p
+        if p is not None and p < 0.5:
+            dismissed.append((c, p))
+            continue
+        if p is not None and p < 0.8:
+            c["jev_flag"] = True  # 0.5-0.8: act (keep in the normal flow) and FLAG for the founder
         ids = known_ids(c["topic"], queue_lines)
         (known if ids else new).append((c, ids))
 
@@ -125,18 +174,22 @@ def main():
     lines.append("## A. Reader-stop theme clusters flagged as premise signals")
     lines.append("")
     lines.append("Rule: >= 3 stops of the same theme, spanning >= 2 chapters or >= 2 personas.")
+    lines.append("Theme classification: Jev choice over theme names + 'other'; keyword fallback when "
+                 "Jev is down or top p < 0.5." if use_jev else
+                 "Theme classification: keyword classifier (Jev off, --no-jev).")
     lines.append("")
     if signals:
-        lines.append("| Theme | Stops | Chapters | Personas | Sample quotes (up to 3) |")
-        lines.append("|---|---|---|---|---|")
+        lines.append("| Theme | Classified via | Stops | Chapters | Personas | Sample quotes (up to 3) |")
+        lines.append("|---|---|---|---|---|---|")
         for t, rows in signals:
             chapters = ", ".join(sorted({r["chapter"] for r in rows}))
             personas = ", ".join(sorted({r["persona"] for r in rows}))
+            via = " + ".join(sorted(theme_src.get(t, {"keyword"})))
             samples = " · ".join(
                 '"' + r["quote"][:90] + '" (' + r["chapter"] + ", " + r["persona"] + ")"
                 for r in rows[:3]
             )
-            lines.append(f"| {t} | {len(rows)} | {chapters} | {personas} | {samples} |")
+            lines.append(f"| {t} | {via} | {len(rows)} | {chapters} | {personas} | {samples} |")
     else:
         lines.append("(none)")
     lines.append("")
@@ -144,7 +197,9 @@ def main():
     lines.append("")
     if new:
         for c, _ in new:
-            lines.append(f"- **{c['topic']}**")
+            mark = f" (jev p={c['jev_p']:.2f}, FLAG 0.5-0.8 band)" if c.get("jev_flag") else \
+                   f" (jev p={c['jev_p']:.2f})" if c.get("jev_p") is not None else " (UNCHECKED — Jev unavailable)" if use_jev else ""
+            lines.append(f"- **{c['topic']}**{mark}")
             lines.append(f"  - Version A (Ch {c['a'].get('chapter')}): \"{c['a'].get('quote')}\"")
             lines.append(f"  - Version B (Ch {c['b'].get('chapter')}): \"{c['b'].get('quote')}\"")
     else:
@@ -154,13 +209,26 @@ def main():
     lines.append("")
     lines.append(f"Source run: `{newest}`")
     for c, ids in known:
-        lines.append(f"- {', '.join(ids)} — {c['topic']}")
+        mark = f" (jev p={c['jev_p']:.2f}, FLAG 0.5-0.8 band)" if c.get("jev_flag") else \
+               f" (jev p={c['jev_p']:.2f})" if c.get("jev_p") is not None else " (UNCHECKED — Jev unavailable)" if use_jev else ""
+        lines.append(f"- {', '.join(ids)} — {c['topic']}{mark}")
+    lines.append("")
+    lines.append("## D. Dismissed (Jev triage p < 0.5 — likely NOT real contradictions)")
+    lines.append("")
+    if dismissed:
+        for c, p in dismissed:
+            lines.append(f"- **{c['topic']}** (jev p={p:.2f})")
+            lines.append(f"  - Version A (Ch {c['a'].get('chapter')}): \"{c['a'].get('quote')}\"")
+            lines.append(f"  - Version B (Ch {c['b'].get('chapter')}): \"{c['b'].get('quote')}\"")
+    else:
+        lines.append("(none)")
     lines.append("")
 
+    out_label = os.path.relpath(OUT, os.getcwd())
     with open(OUT, "w", encoding="utf-8") as f:
         f.write("\n".join(lines))
-    print(f"wrote {OUT}: {len(stops)} stops, {len(signals)} premise signals, "
-          f"{len(new)} NEW + {len(known)} KNOWN contradictions")
+    print(f"wrote {out_label}: {len(stops)} stops, {len(signals)} premise signals, "
+          f"{len(new)} NEW + {len(known)} KNOWN + {len(dismissed)} dismissed(Jev) contradictions")
 
 
 if __name__ == "__main__":

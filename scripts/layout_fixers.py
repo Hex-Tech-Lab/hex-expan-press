@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 """layout_fixers.py — rule-driven, line-based fixers for manuscript.md chapters.
 
-Usage: layout_fixers.py <Ch> [--dry-run|--apply] [--manuscript PATH]
+Usage: layout_fixers.py <Ch> [--dry-run|--apply] [--manuscript PATH] [--no-jev]
 
 Operates ONLY on the slice of manuscript.md from `#chaphead("Chapter <Ch>"` to
 the next `#chaphead(` (or `// BACK COVER`). --dry-run (default) prints a unified
-diff + per-fixer counts; --apply backs up to
-data/intel/duane_book/qa/revisions/manuscript_before_fix_<Ch>_<stamp>.md,
+diff + per-fixer counts; --apply backs up to <QA>/revisions/manuscript_before_fix_<Ch>_<stamp>.md,
 writes, prints the counts. The orchestrator decides when to run --apply.
 
 Python 3 stdlib only.
@@ -18,12 +17,11 @@ import re
 import sys
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parent.parent
-QA = REPO / "data" / "intel" / "duane_book" / "qa"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from book_config import MS, QA, CHAPTERS
+from jev import decide
+
 REVISIONS = QA / "revisions"
-DEFAULT_MS = REPO / "manuscript" / "book" / "manuscript.md"
-CHAPTERS = ["One", "Two", "Three", "Four", "Five",
-            "Six", "Seven", "Eight", "Nine", "Ten"]
 BOX_NAMES = ("#callout", "#worksheet", "#sidebar", "#corroborated")
 FIX_IDS = ["SRC-HANDBUILT-LIST", "SRC-MANUAL-SPACE", "SRC-ABOVE0",
            "SRC-PAR-OVERRIDE", "BODY-INDENT", "SRC-DOUBLE-SPACE", "SRC-HIGHLIGHT"]
@@ -104,6 +102,55 @@ def apply_edits(lines, edits):
     for start, end, repl in sorted(edits, key=lambda e: (e[0], e[1]), reverse=True):
         lines[start:end] = repl
     return lines
+
+
+# ---------------------------------------------------------------- Jev prose-hunk gate (T33-J3)
+
+MARKUP_SPAN = re.compile(r"`[^`]*`\{=typst\}")
+TYPS_CALL = re.compile(r"#\w+(?:\((?:[^()]|\([^()]*\))*\))?")
+
+MEANING_Q = {"changes_meaning": {
+    "type": "noul",
+    "instructions": "A layout fixer rewrote part of a manuscript. Does AFTER change the meaning of BEFORE "
+                    "(new/lost claims, facts, advice, examples or tone), as opposed to only reformatting, "
+                    "re-listing or re-wrapping the same words?",
+    "criteria": {"true": "the meaning changed", "false": "only formatting/structure changed; same words and meaning"}}}
+
+
+def prose_of(lines):
+    """Markup/whitespace-free prose view of a hunk (fences, typst calls, list
+    markers, escapes stripped; whitespace collapsed). Pure-markup hunks compare equal."""
+    s = "\n".join(lines)
+    s = re.sub(r"^```.*$", "", s, flags=re.M)
+    s = MARKUP_SPAN.sub("", s)
+    s = TYPS_CALL.sub(" ", s)
+    s = s.replace("\\[", "[").replace("\\]", "]").replace("\\_", "_").replace("\\$", "$").replace("\\", "")
+    s = re.sub(r"[\[\]`*{}]", " ", s)
+    s = re.sub(r"^[-*] |\d+\. ", " ", s, flags=re.M)
+    return re.sub(r"\s+", " ", s).strip()
+
+
+def gate_prose_hunks(lines, edits, notes, use_jev):
+    """T33-J3 point 1: a hunk that changes PROSE (not pure markup/whitespace) must
+    pass Jev changes_meaning: p >= 0.5 (0.8 auto / 0.5-0.8 + FLAG) -> DROP the hunk;
+    p < 0.5 -> keep; Jev unavailable -> keep (current behaviour) and mark UNCHECKED."""
+    kept = []
+    for start, end, repl in edits:
+        before, after = prose_of(lines[start:end]), prose_of(repl)
+        if before == after or not use_jev:
+            kept.append((start, end, repl))
+            continue
+        a = decide({"before": before, "after": after}, MEANING_Q, timeout=20)
+        p = a["changes_meaning"]["noul"] if a else None
+        if p is None:
+            kept.append((start, end, repl))
+            notes.append(f"JEV-UNCHECKED: prose hunk lines {start + 1}-{end} KEPT (Jev unavailable; current behaviour)")
+        elif p >= 0.5:
+            notes.append(f"JEV-DROP{' (FLAG)' if p < 0.8 else ''}: prose hunk lines {start + 1}-{end} DROPPED, changes_meaning={p:.2f}")
+        else:
+            kept.append((start, end, repl))
+            notes.append(f"JEV-KEEP: prose hunk lines {start + 1}-{end} kept, changes_meaning={p:.2f}")
+    return kept
 
 
 # ---------------------------------------------------------------- fixer 1: hand-built lists
@@ -418,7 +465,7 @@ def is_box_fence(lines, states, block):
     open_i, cs, ce, close_i = block
     for k in range(cs, ce):
         if lines[k].strip():
-            return any(lines[k].strip().startswith(n) for n in BOX_NAMES + ("#list(", "#enum("))
+            return any(lines[k].strip().startswith(n) for n in BOX_NAMES + ("#list(", "#enum(", "#dropcap("))
     return False
 
 
@@ -558,8 +605,10 @@ def main():
     ap.add_argument("chapter", choices=CHAPTERS)
     ap.add_argument("--dry-run", dest="mode", action="store_const", const="dry")
     ap.add_argument("--apply", dest="mode", action="store_const", const="apply")
-    ap.add_argument("--manuscript", default=str(DEFAULT_MS))
-    ap.set_defaults(mode="dry")
+    ap.add_argument("--manuscript", default=str(MS))
+    ap.add_argument("--no-jev", dest="use_jev", action="store_false",
+                    help="skip the Jev prose-hunk gate (fallback: today's behaviour)")
+    ap.set_defaults(mode="dry", use_jev=True)
     args = ap.parse_args()
 
     ms = Path(args.manuscript)
@@ -569,6 +618,8 @@ def main():
     counts, notes = {}, []
     for fid in FIX_IDS:
         edits = FIXERS[fid](lines)
+        if edits:
+            edits = gate_prose_hunks(lines, edits, notes, args.use_jev)
         counts[fid] = len(edits)
         for s, e, repl in edits:
             notes.append(f"{fid}: lines {start + s + 1}-" +

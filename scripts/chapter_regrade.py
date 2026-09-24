@@ -1,28 +1,95 @@
 #!/usr/bin/env python3
 """Re-grade one revised chapter against its previous version (layer D, pairwise) — ADR 0044.
-Usage: chapter_regrade.py Five <before_manuscript.md>
+Usage: chapter_regrade.py Five <before_manuscript.md> [--no-jev]
 - absolute grades: same 3-judge panel on the new text (median)
 - pairwise: each judge compares OLD vs NEW per dimension, in BOTH orders (position-bias control)
 - readers: the 3 personas re-read the chapter (previous chapter given as context)
 Writes qa/chapter_briefs/ch<N>_regrade.md + .html and a json next to it.
+
+Jev gates (T33-J1):
+- backup: the manuscript is backed up to qa/revisions/<name>_<ts>_pre-regrade-<ch>.md at start.
+- NO-NEW-FACTS guard: old/new chapter paragraphs are paired (difflib); a changed pair whose AFTER
+  adds a concrete fact (Jev adds_fact >= 0.5) is rejected (old paragraph kept); 0.3-0.5 kept+FLAG;
+  Jev unavailable -> UNCHECKED, current behaviour (paragraph kept as-is). --no-jev skips the guard.
+- pairwise: per dimension Jev is asked choice {old,new,tie}; top p >= 0.8 decides for all 6 votes
+  and the judge LLM pair call is skipped; otherwise the existing LLM call is used (fallback).
 """
-import json, re, statistics, subprocess, sys
+import difflib, json, re, statistics, subprocess, sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from literary_panel import DIMS, JUDGES, PERSONAS, READER, BOOK, ANCHORS, call, judge_prompt, gi, gname, prose  # noqa: E402
+from book_config import QA as QA_DIR, MS as MS_PATH, PANDOC, CHAPTERS  # noqa: E402
+from backup import backup  # noqa: E402
+from jev import decide  # noqa: E402
 
-REPO = Path(__file__).resolve().parent.parent
-QA = REPO / "data/intel/duane_book/qa"
-NUM = "One Two Three Four Five Six Seven Eight Nine Ten".split()
+QA = QA_DIR
+NUM = CHAPTERS
+
+FACT_QUESTIONS = {
+    "adds_fact": {"type": "noul",
+                  "instructions": "Does AFTER state any concrete fact — number, date, amount, name, event — that BEFORE does not?",
+                  "criteria": {"true": "AFTER contains at least one concrete fact absent from BEFORE.",
+                               "false": "No new concrete facts in AFTER."}},
+    "drops_fact": {"type": "noul",
+                   "instructions": "Is any concrete fact in BEFORE (number, date, amount, name, event) missing from AFTER?",
+                   "criteria": {"true": "At least one concrete fact is missing or altered.",
+                                "false": "Every concrete fact survives unchanged."}},
+}
+
+
+def plain(s):
+    """Strip Typst escapes/markup so Jev sees prose."""
+    return re.sub(r"\s+", " ", s.replace("\\$", "$").replace("\\_", "_")).strip()
+
+
+def fact_guard(old, new, use_jev=True):
+    """NO-NEW-FACTS guard: pair old/new paragraphs (difflib) and ask Jev per changed pair.
+    Returns (guarded_new_text, table_lines, flags). add >= 0.5 -> reject (keep old paragraph);
+    0.3 <= add < 0.5 -> keep + FLAG; Jev down/off -> UNCHECKED, keep (current behaviour)."""
+    po, pn = [p.strip() for p in old.split("\n\n") if p.strip()], [p.strip() for p in new.split("\n\n") if p.strip()]
+    sm = difflib.SequenceMatcher(a=po, b=pn, autojunk=False)
+    out, rows, flags = [], [], []
+    for tag, i1, i2, j1, j2 in sm.get_opcodes():
+        if tag == "equal":
+            out.extend(po[i1:i2])
+            continue
+        for k in range(max(i2 - i1, j2 - j1)):
+            o = po[i1 + k] if i1 + k < i2 else None
+            n = pn[j1 + k] if j1 + k < j2 else None
+            if o is None or n is None:
+                out.append(o if o is not None else n)
+                continue
+            add = drop = None
+            if use_jev:
+                a = decide({"before": plain(o), "after": plain(n)}, FACT_QUESTIONS, timeout=20)
+                if a is not None:
+                    add, drop = a["adds_fact"]["noul"], a["drops_fact"]["noul"]
+            if add is None:
+                verdict, keep = "UNCHECKED", n
+            elif add >= 0.5:
+                verdict, keep = "REJECT", o
+            elif add >= 0.3:
+                verdict, keep = "FLAG", n
+            else:
+                verdict, keep = "KEEP", n
+            if verdict == "FLAG":
+                flags.append(f"[{verdict}] {plain(n)[:120]}")
+            rows.append((verdict, add, drop))
+            out.append(keep)
+    table = ["", "| Pair | Jev adds_fact | drops_fact | Verdict |", "|---|---|---|---|"]
+    for i, (v, add, drop) in enumerate(rows, 1):
+        table.append(f"| {i} | {'—' if add is None else f'{add:.2f}'} | {'—' if drop is None else f'{drop:.2f}'} | {v} |")
+    for f in flags:
+        table.append(f)
+    return "\n\n".join(out), table, flags
 
 
 def chapter_text(ms, n):
-    marks = [(m.start(), m.group(1), m.group(2)) for m in re.finditer(r'#chaphead\("Chapter (\w+)", "\d+", "([^"]+)"', ms)]
-    for i, (s, name, t) in enumerate(marks):
+    from book_config import chapter_sources
+    for name, title, src in chapter_sources(ms):
         if name == n:
-            return t, prose(ms[s:(marks[i + 1][0] if i + 1 < len(marks) else (ms.find('// BACK COVER') if '// BACK COVER' in ms else len(ms)))])
+            return title, prose(src)
 
 
 def pair_prompt(n, t, first, second):
@@ -31,6 +98,20 @@ def pair_prompt(n, t, first, second):
 Two versions of Chapter {n}, "{t}", follow: VERSION 1 and VERSION 2. {ANCHORS}
 For each dimension ({dims}) say which version is better: "1", "2" or "tie". Judge quality, not length.
 Return JSON only: {{"dims": {{"<dimension>": "1|2|tie"}}, "overall": "1|2|tie", "why": "<= 40 words"}}
+
+VERSION 1:
+{first}
+
+VERSION 2:
+{second}"""
+
+
+def pair_prompt_dim(n, t, first, second, dim, first_is_old):
+    return f"""You are a senior nonfiction editor. {BOOK}
+Two versions of Chapter {n}, "{t}", follow: VERSION 1 and VERSION 2. {ANCHORS}
+Which version is better on the dimension "{dim}"? Say "1", "2" or "tie". Judge quality, not length.
+VERSION 1 is the {'OLD' if first_is_old else 'NEW'} text; VERSION 2 is the {'NEW' if first_is_old else 'OLD'} text.
+Return JSON only: {{"{dim}": "1|2|tie"}}
 
 VERSION 1:
 {first}
@@ -51,16 +132,59 @@ CHAPTER {n}:
 {text}"""
 
 
+def usage():
+    print(__doc__)
+    sys.exit(0)
+
+
 def main():
-    n, before = sys.argv[1], Path(sys.argv[2])
-    new_ms, old_ms = (REPO / "manuscript/book/manuscript.md").read_text(), before.read_text()
+    argv = sys.argv[1:]
+    if "--help" in argv or "-h" in argv:
+        usage()
+    use_jev = "--no-jev" not in argv
+    argv = [a for a in argv if a != "--no-jev"]
+    if len(argv) != 2:
+        usage()
+    n, before = argv[0], Path(argv[1])
+    from literary_panel import DIMS, JUDGES, PERSONAS, READER, BOOK, ANCHORS, call, judge_prompt, gi, gname, prose  # noqa: E402
+    # backup before ANY manuscript write (none expected in this script, but guaranteed)
+    bak = backup(MS_PATH, f"pre-regrade-{n}")
+    print(f"backup: {bak}")
+    new_ms, old_ms = MS_PATH.read_text(), before.read_text()
     t, new = chapter_text(new_ms, n)
     _, old = chapter_text(old_ms, n)
+    if use_jev:
+        new, guard_table, flags = fact_guard(old, new, use_jev=True)
+        print("\n".join(guard_table))
+        if flags:
+            print(f"FLAGGED for founder review: {len(flags)} paragraph(s)")
     _, prev = chapter_text(new_ms, NUM[NUM.index(n) - 1])
     jobs = {("abs", j): (j, judge_prompt(n, t, new)) for j in JUDGES}
+    # Jev pairwise pre-decision per dimension (plan point 5): p >= 0.8 decides and skips the LLM call
+    jev_pair = {}
+    if use_jev:
+        for d in DIMS:
+            a = decide({"before": plain(old)[:4000], "after": plain(new)[:4000]},
+                       {f"pair": {"type": "choice", "instructions": f"Old vs new chapter text: which is better on the dimension '{d}'? "
+                                                          "Judge quality, not length.",
+                                  "criteria": {"old": "BEFORE is better on this dimension.",
+                                               "new": "AFTER is better on this dimension.",
+                                               "tie": "Both are equal on this dimension."}}}, timeout=20)
+            if a is not None:
+                c = a["pair"].get("choice")
+                p = max((a["pair"].get("probabilities") or {"": 0}).values())
+                if p >= 0.8:
+                    jev_pair[d] = (c, p)
+        if jev_pair:
+            print("Jev-decided dimensions (LLM pair call skipped): "
+                  + ", ".join(f"{d} -> {c} (p={p:.2f})" for d, (c, p) in jev_pair.items()))
     for j in JUDGES:
-        jobs[("pair", j, "old-first")] = (j, pair_prompt(n, t, old, new))
-        jobs[("pair", j, "new-first")] = (j, pair_prompt(n, t, new, old))
+        for d in DIMS:
+            if d not in jev_pair:
+                jobs[("pair", j, "old-first", d)] = (j, pair_prompt_dim(n, t, old, new, d, True))
+                jobs[("pair", j, "new-first", d)] = (j, pair_prompt_dim(n, t, new, old, d, False))
+        jobs[("overall", j, "old-first")] = (j, pair_prompt(n, t, old, new))
+        jobs[("overall", j, "new-first")] = (j, pair_prompt(n, t, new, old))
     for p, d in PERSONAS.items():
         jobs[("reader", p)] = (READER, reader_prompt(d, prev, n, t, new))
     with ThreadPoolExecutor(6) as ex:
@@ -79,8 +203,12 @@ def main():
         b, a = [x for x in b if x is not None], [x for x in a if x is not None]
         w = [0, 0, 0]
         for j in JUDGES:
+            if d in jev_pair:
+                c = jev_pair[d][0]
+                w[0 if c == "new" else (2 if c == "tie" else 1)] += 2
+                continue
             for order in ("old-first", "new-first"):
-                v = str(((res[("pair", j, order)].get("dims") or {}).get(d)) or "tie")
+                v = str((res[("pair", j, order, d)].get(d)) or "tie")
                 new_is = "2" if order == "old-first" else "1"
                 w[0 if v == new_is else (2 if v == "tie" else 1)] += 1
         wins_total = [x + y for x, y in zip(wins_total, w)]
@@ -91,7 +219,7 @@ def main():
           "## Overall pairwise verdicts", ""]
     for j in JUDGES:
         for order in ("old-first", "new-first"):
-            r = res[("pair", j, order)]
+            r = res[("overall", j, order)]
             ov = str(r.get("overall"))
             winner = "NEW" if ov == ("2" if order == "old-first" else "1") else ("tie" if ov == "tie" else "OLD")
             L.append(f"- {j.split(':')[1].split('/')[-1]} ({order}): **{winner}** — {r.get('why', r.get('_error', ''))}")
@@ -107,7 +235,7 @@ def main():
     out = QA / "chapter_briefs" / f"ch{NUM.index(n) + 1}_regrade.md"
     out.write_text("\n".join(L))
     (out.with_suffix(".json")).write_text(json.dumps({"|".join(k): v for k, v in res.items()}, indent=1, ensure_ascii=False))
-    subprocess.run([str(REPO / ".tools/pandoc/bin/pandoc"), "-f", "markdown-yaml_metadata_block", str(out), "-s", "--metadata",
+    subprocess.run([str(PANDOC), "-f", "markdown-yaml_metadata_block", str(out), "-s", "--metadata",
                     f"title=Re-grade — Chapter {n}", "--embed-resources", "--css", str(QA / "report.css"), "-o", str(out.with_suffix(".html"))], check=False)
     print("\n".join(L))
 

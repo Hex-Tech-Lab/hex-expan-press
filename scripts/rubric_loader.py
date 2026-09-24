@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Load the literary-panel rubric from data files (data/intel/duane_book/qa/rubric/).
+"""Load the literary-panel rubric from data files (<QA>/rubric/).
 
 Layout:
   rubric/core.json                 {"anchors": "...", "dimensions": [{"id", "name", "definition", "anchors": {...}}]}
@@ -14,13 +14,17 @@ DIMS is a list of dimension-name strings (core first in file order, then each mo
 profile's module order; the profile's optional "order" list wins if present).
 ANCHORS is the anchors paragraph string; PERSONAS a dict name -> description; THRESHOLDS a dict.
 """
+import sys
 import json
 import os
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parent.parent
-RUBRIC = REPO / "data/intel/duane_book/qa/rubric"
-DEFAULT_PROFILE = "duane"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from book_config import QA as QA_DIR  # noqa: E402
+
+RUBRIC = QA_DIR / "rubric"
+from book_config import CFG as _CFG, BOOK_ID as _BID  # noqa: E402
+DEFAULT_PROFILE = _CFG.get("rubric_profile", _BID)
 
 
 def _load_dimensions(path):

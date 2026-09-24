@@ -11,16 +11,13 @@ the revert only if the marker text is still on PDF page N; else undo it.
 import argparse, json, shutil, subprocess, sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
-BOOK = ROOT / "manuscript/book"
-MS = BOOK / "manuscript.md"
-PANDOC = ROOT / ".tools/pandoc/bin/pandoc"
-TYPST = ROOT / ".tools/typst-0.15.1/typst"
-FONTS = [ROOT / "typst_prototype/fonts", ROOT / "typst_prototype/fonts_variable"]
-PDFENV_PY = ROOT / ".tools/pdfenv/bin/python"
-FILLBACK_DIR = ROOT / "data/intel/duane_book/qa/trim/fillback"
-EXP_MD = BOOK / "exp_t28.md"
-EXP_TYP = BOOK / "build_t28.typ"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from book_config import (BOOK_DIR, MS, TEMPLATE, QA, FONTS, PANDOC, TYPST,
+                         PDF_PY, PANDOC_FLAGS, TYPST_FLAGS)
+
+FILLBACK_DIR = QA / "trim/fillback"
+EXP_MD = BOOK_DIR / "exp_t28.md"
+EXP_TYP = BOOK_DIR / "build_t28.typ"
 
 
 def build_and_page_check(md_path: Path, out_pdf: Path, marker: str, page: int) -> bool:
@@ -28,13 +25,14 @@ def build_and_page_check(md_path: Path, out_pdf: Path, marker: str, page: int) -
     return True if marker text appears on PDF page `page` (whitespace-normalized)."""
     out_pdf.parent.mkdir(parents=True, exist_ok=True)
     subprocess.run(
-        [str(PANDOC), str(md_path), "--to", "typst", "--wrap=none", "--shift-heading-level-by=-1",
-         "--template=template.typ", "-o", str(EXP_TYP)],  # keep in step with scripts/book_build.sh
-        cwd=BOOK, check=True, capture_output=True, text=True)
+        [str(PANDOC), str(md_path), *PANDOC_FLAGS,
+         f"--template={TEMPLATE.name}", "-o", str(EXP_TYP)],  # keep in step with scripts/book_build.sh
+        cwd=BOOK_DIR, check=True, capture_output=True, text=True)
     subprocess.run(
-        [str(TYPST), "compile", "--pdf-standard", "ua-1", "--font-path", str(FONTS[0]),
-         "--font-path", str(FONTS[1]), str(EXP_TYP), str(out_pdf)],
-        cwd=BOOK, check=True, capture_output=True, text=True)
+        [str(TYPST), "compile", *TYPST_FLAGS,
+         *sum((["--font-path", str(f)] for f in FONTS), []),
+         str(EXP_TYP), str(out_pdf)],
+        cwd=BOOK_DIR, check=True, capture_output=True, text=True)
     code = (
         "import sys, pdfplumber\n"
         "marker, page, pdf_path = sys.argv[1], int(sys.argv[2]), sys.argv[3]\n"
@@ -44,7 +42,7 @@ def build_and_page_check(md_path: Path, out_pdf: Path, marker: str, page: int) -
         "    txt = pdf.pages[page - 1].extract_text() or ''\n"
         "norm = lambda s: ' '.join(s.split())\n"
         "print('YES' if norm(marker) in norm(txt) else 'NO')\n")
-    r = subprocess.run([str(PDFENV_PY), "-c", code, marker, str(page), str(out_pdf)],
+    r = subprocess.run([str(PDF_PY), "-c", code, marker, str(page), str(out_pdf)],
                        capture_output=True, text=True)
     if r.returncode != 0 or "PAGE_OUT_OF_RANGE" in r.stdout:
         raise SystemExit(f"marker check failed: {r.stdout.strip()} {r.stderr.strip()}")
@@ -81,7 +79,7 @@ def main():
         target.write_text(t)
         return
 
-    # Fill-back needs a stable working copy inside manuscript/book for the build.
+    # Fill-back needs a stable working copy inside the book dir for the build.
     EXP_MD.write_text(t)  # the trimmed text, not the file on disk
     out_pdf = FILLBACK_DIR / (EXP_MD.stem + f"_p{args.page}.pdf")
     table = []

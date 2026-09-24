@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Literary Quality Gate v2 (ADR 0044, rubric: data/intel/duane_book/qa/literary_rubric_v2.md).
+"""Literary Quality Gate v2 (ADR 0044, rubric via qa/rubric/ data files).
 Layer B  fact scan -> G1 candidates (two models, whole book; Claude verifies before relaying)
 Layer C  3-family panel (Gemini 3.1 Pro/AGY, GLM 5.3 Flash, Muse Spark 1.3) -> 12 graded dimensions + G2, median grades
 Layer E  simulated reader panel (3 personas, whole book) -> drop-off map
@@ -12,29 +12,31 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from literary_metrics import MS, PARTS, prose  # noqa: E402
+from jev import decide  # noqa: E402
 import rubric_loader  # noqa: E402
+from book_config import QA as QA_DIR, PANDOC  # noqa: E402
 
 REPO = Path(__file__).resolve().parent.parent
-QA = REPO / "data/intel/duane_book/qa"
+QA = QA_DIR
 # Panel = 3 model families, all cost-effective (founder 2026-09-23). Sonnet/Opus 4.6 via AGY only for disputed grades.
 JUDGES = ["agy:gemini-3.1-pro:low", "or:z-ai/glm-5.3-flash", "or:meta/muse-spark-1.3-contributor"]
 FACT_CHECKERS = ["agy:gemini-3.1-pro:low", "or:deepseek/deepseek-v4.1-flash"]
 READER = "agy:gemini-3.8-flash:low"
 OR_PROVIDER = {"z-ai/glm-5.3-flash": "coreweave", "meta/muse-spark-1.3-contributor": "meta", "deepseek/deepseek-v4.1-flash": "coreweave"}
 OR_KEY = next(l.split("=", 1)[1].strip().strip('"') for l in (Path(__file__).resolve().parent.parent / ".env").read_text().splitlines() if l.startswith("OPENROUTER_API_KEY="))
+AGY_ALLOWLIST = {"gemini-3.1-pro", "gemini-3.8-flash"}  # lesson M-05: only verified AGY model names
+_MODELS_CACHE = None
 DIMS = ["Promise delivery", "Actionability", "Information value", "Originality", "Structure & arc", "Hook & ending",
         "Voice & prose", "Clarity & cohesion", "Pacing & density", "Stakes & momentum", "Human texture & example range", "Audience fit (55+)"]
 SCALE = ["F", "D", "C-", "C", "C+", "B-", "B", "B+", "A-", "A", "A+"]
-BOOK = ("A first-person retirement memoir-guide by 'Duane', who retired at 59 in 2021 on $548,000 (no pension) and "
-        "publishes his real balance monthly on YouTube. Audience: 55+ with $250K-$750K. Promise: 'you don't need a million "
-        "dollars to retire' — real numbers, a boring repeatable method. 10 chapters in 3 parts.")
+BOOK = __import__("book_config").CFG["panel_brief"]  # book description for the judges lives in books/<id>.json
 ANCHORS = ("Grade anchors: A = publishable at a top trade publisher as is; B = solid, needs an edit pass on this dimension; "
            "C = weaknesses a typical reader would notice; D/F = undermines the chapter. Use the full scale; do not inflate. "
            "Length-neutral: longer text is NOT better; judge quality per page, penalise padding.")
 THRESHOLDS = {}
 
 # Rubric data layer (T4b): if RUBRIC_PROFILE is set or the default profile file exists, the
-# constants above are replaced by data from data/intel/duane_book/qa/rubric/ (byte-identical
+# constants above are replaced by data from the rubric data dir (qa/rubric/) (byte-identical
 # prompts required). Otherwise the hard-coded constants stay in effect.
 _ACTIVE_PROFILE = rubric_loader.active_profile()
 if _ACTIVE_PROFILE:
@@ -77,18 +79,76 @@ def call(spec, prompt, max_tokens=None):
     return {"_error": f"{spec}: {err}"}
 
 
+def _configured_models():
+    or_ids, agy_names = set(), set()
+    for spec in JUDGES + FACT_CHECKERS + [READER]:
+        if spec.startswith("or:"):
+            or_ids.add(spec.split(":", 1)[1])
+        elif spec.startswith("agy:"):
+            agy_names.add(spec.split(":", 1)[1].rsplit(":", 1)[0])
+    return sorted(or_ids), sorted(agy_names)
+
+
+def model_guard():
+    """Lesson M-05: verify every configured model name before any panel run; abort loudly on bad names.
+    OpenRouter ids are checked live (GET /api/v1/models, cached for the run); AGY names against AGY_ALLOWLIST."""
+    global _MODELS_CACHE
+    or_ids, agy_names = _configured_models()
+    bad = [n for n in agy_names if n not in AGY_ALLOWLIST]
+    if or_ids and _MODELS_CACHE is None:
+        import urllib.request
+        req = urllib.request.Request("https://openrouter.ai/api/v1/models", headers={
+            "Authorization": f"Bearer {OR_KEY}",
+            "HTTP-Referer": "https://github.com/Hex-Tech-Lab/hex-expan-press", "X-Title": "ExpanPress Literary QA"})
+        _MODELS_CACHE = {m["id"] for m in json.load(urllib.request.urlopen(req, timeout=30))["data"]}
+    bad += [m for m in or_ids if m not in _MODELS_CACHE]
+    if bad:
+        raise SystemExit(f"MODEL-NAME GUARD: unknown model name(s): {', '.join(bad)} "
+                         f"(AGY allow-list: {', '.join(sorted(AGY_ALLOWLIST))}). Fix JUDGES/FACT_CHECKERS/READER in "
+                         "scripts/literary_panel.py — no silent fallbacks.")
+
+
 def chapters():
-    marks = [(m.start(), m.group(1), m.group(2)) for m in re.finditer(r'#chaphead\("Chapter (\w+)", "\d+", "([^"]+)"', MS)]
-    return [(n, t, prose(MS[s:(marks[i + 1][0] if i + 1 < len(marks) else (MS.find('// BACK COVER') if '// BACK COVER' in MS else len(MS)))])) for i, (s, n, t) in enumerate(marks)]
+    from book_config import chapter_sources
+    return [(n, title, prose(src)) for n, title, src in chapter_sources(MS)]
 
 
-def judge_prompt(n, title, text):
+G2_SCAN = re.compile(r"\$[\d,.]+|\d+%|\b\d[\d,.]*\b|studies show|reports said|research|survey", re.I)
+
+
+def g2_precheck(text):
+    """G2 credibility pre-check (plan point 6): sentences with a number/percent/$ amount or phrases like
+    'studies show' are screened by Jev (`unsourced_claim`). Jev bands: p>=0.8 act automatically,
+    0.5-0.8 act and FLAG, <0.5 or None -> not flagged (fallback = current behaviour: judges grade G2
+    without the pre-check list). Grading weights unchanged."""
+    out = []
+    for s in re.findall(r"[^.!?\n]+[.!?]", text):
+        s = s.strip()
+        if len(s) < 15 or not G2_SCAN.search(s):
+            continue
+        a = decide({"sentence": s}, {"unsourced_claim": {
+            "type": "noul",
+            "instructions": "Does this sentence state an external statistic or research finding without naming its source?",
+            "criteria": {"true": "Cites or implies external data, studies or reports with no named source",
+                         "false": "A source is named, or the figure is the author's own arithmetic/plan, not an external finding"}}}, timeout=10)
+        if a and a["unsourced_claim"]["noul"] >= 0.5:
+            p = a["unsourced_claim"]["noul"]
+            out.append({"sentence": s, "p": round(p, 2), "band": "auto" if p >= 0.8 else "FLAG"})
+    return out
+
+
+def judge_prompt(n, title, text, precheck=None):
+    ctx = ""
+    if precheck:
+        ctx = ("\nG2 pre-check context — sentences a pre-scan flagged as possibly unsourced external claims "
+               "(verify each against the text; the list is advisory, not a verdict):\n"
+               + "\n".join(f"- (p={p['p']}, {p['band']}) {p['sentence']}" for p in precheck) + "\n")
     dims = "\n".join(f"- {d}" for d in DIMS)
     return f"""You are one judge on a panel of senior nonfiction editors. {BOOK}
 Grade Chapter {n}, "{title}", on each dimension with a letter grade ({' '.join(SCALE[::-1])}). {ANCHORS}
 Dimensions (see definitions in parentheses):
 {dims}
-(Promise delivery = pays off the book's promise; Actionability = a 60-year-old can do something concrete after reading; Information value = specific, non-obvious, useful; Originality = what standard retirement books don't say; Structure & arc = hook→story→lesson→tool; Hook & ending = opening pull + landing; Voice & prose = distinct voice, clean sentences; Clarity & cohesion = easy to follow, transitions; Pacing & density = no drag, padding or repetition; Stakes & momentum = reader feels the risk, wants the next page; Human texture & example range = scenes, other voices, range of situations; Audience fit (55+) = reading level, jargon explained, respectful.)
+{ctx}
 Also judge gate G2 Credibility & compliance: PASS only if opinions are labelled, limits are stated where advice is given, external claims are sourced, and nothing reads as individual financial advice.
 Every grade needs a verbatim quote (<= 20 words) from the chapter as evidence.
 Return JSON only: {{"dims": {{"<dimension>": {{"grade": "B+", "quote": "...", "why": "<= 20 words"}}}}, "G2": {{"pass": true, "issues": ["..."]}}, "top_edits": ["<= 3 concrete edits, where and what"]}}
@@ -124,7 +184,7 @@ BOOK:
 def to_html(md):
     """Every report also as HTML (founder preference)."""
     import subprocess
-    subprocess.run([str(REPO / ".tools/pandoc/bin/pandoc"), "-f", "markdown-yaml_metadata_block", str(md), "-s", "--metadata", f"title={md.stem}",
+    subprocess.run([str(PANDOC), "-f", "markdown-yaml_metadata_block", str(md), "-s", "--metadata", f"title={md.stem}",
                     "--embed-resources", "--css", str(QA / "report.css"), "-o", str(md.with_suffix(".html"))], check=False)
 
 
@@ -138,20 +198,30 @@ def gname(i):
 
 
 def main():
+    model_guard()
     ch = chapters()
+    use_jev = "--no-jev" not in sys.argv
     book = "\n\n".join(f"=== Chapter {n}: {t} ===\n{x}" for n, t, x in ch)
     jobs = {("judge", n, j): (j, judge_prompt(n, t, x)) for n, t, x in ch for j in JUDGES}
     jobs.update({("facts", m): (m, fact_prompt(book)) for m in FACT_CHECKERS})
     jobs.update({("reader", p): (READER, reader_prompt(d, book)) for p, d in PERSONAS.items()})
+    precheck = {n: None for n, _, _ in ch}
     if "--from-run" in sys.argv:
         # rebuild the report from a saved run, optionally patched with re-run calls (no new model calls)
         src = json.loads(Path(sys.argv[sys.argv.index("--from-run") + 1]).read_text())
         res = {tuple(k.split("|")): v for k, v in src["raw"].items()}
+        precheck = src.get("g2_precheck") or {n: None for n, _, _ in ch}
         if "--patch" in sys.argv:
             for k, v in json.loads(Path(sys.argv[sys.argv.index("--patch") + 1]).read_text()).items():
                 if "_error" not in v:
                     res[tuple(k.split("|"))] = v
     else:
+        if use_jev:
+            # pre-check runs BEFORE the judges so its list can go into their prompts as context
+            precheck = {n: g2_precheck(x) for n, t, x in ch}
+        jobs = {("judge", n, j): (j, judge_prompt(n, t, x, precheck[n])) for n, t, x in ch for j in JUDGES}
+        jobs.update({("facts", m): (m, fact_prompt(book)) for m in FACT_CHECKERS})
+        jobs.update({("reader", p): (READER, reader_prompt(d, book)) for p, d in PERSONAS.items()})
         with ThreadPoolExecutor(4) as ex:
             futs = {k: ex.submit(call, m, pr) for k, (m, pr) in jobs.items()}
             res = {k: f.result() for k, f in futs.items()}
@@ -173,7 +243,8 @@ def main():
         passes = [(res[("judge", n, j)].get("G2") or {}).get("pass") for j in JUDGES]
         g2[n] = (sum(1 for p in passes if p) >= 2, [i for j in JUDGES for i in ((res[("judge", n, j)].get("G2") or {}).get("issues") or [])][:4])
     run.update({"table": {n: {d: (gname(v) if v is not None else None) for d, v in per.items()} for n, per in table.items()},
-                "chapter_overall": {n: gname(v) for n, v in chap_overall.items() if v is not None}})
+                "chapter_overall": {n: gname(v) for n, v in chap_overall.items() if v is not None},
+                "g2_precheck": {n: pc for n, pc in precheck.items() if pc is not None}})
     (QA / "literary_runs").mkdir(exist_ok=True)
     (QA / "literary_runs" / f"{run['ts'].replace(':', '')}.json").write_text(json.dumps(run, indent=1, ensure_ascii=False))
     # ---- report
@@ -185,6 +256,15 @@ def main():
     for d in DIMS:
         out.append(f"| {d} | " + " | ".join(gname(table[n][d]) if table[n][d] is not None else "—" for n in names) + " |")
     out.append("| **Chapter overall** | " + " | ".join(f"**{gname(chap_overall[n])}**" for n in names) + " |")
+    out += ["", "## G2 pre-check (unsourced-claim scan, run before the judges' G2 verdict)" + ("" if use_jev else " — Jev off (`--no-jev`)"), ""]
+    for n in names:
+        pc = precheck.get(n)
+        if pc is None:
+            out.append(f"- Ch {n}: (skipped — current behaviour, no pre-check list)")
+        elif pc:
+            out.append(f"- Ch {n}: " + "; ".join(f"“{p['sentence']}” (p={p['p']}, {p['band']})" for p in pc))
+        else:
+            out.append(f"- Ch {n}: (no sentences flagged)")
     out += ["", "## 2. Chapter verdicts (median ≥ B+, no dimension < B-, G2 pass)", ""]
     ch_pass = {}
     for n in names:

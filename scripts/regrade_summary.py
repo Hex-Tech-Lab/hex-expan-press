@@ -4,11 +4,12 @@ Usage: regrade_summary.py Ten run1.json run2.json"""
 import json, statistics, sys, glob
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from book_config import QA as QA_DIR  # noqa: E402
 from literary_panel import DIMS, JUDGES, PERSONAS, gi, gname  # noqa: E402
 ch, files = sys.argv[1], sys.argv[2:]
 runs = [json.load(open(f)) for f in files]
-base = json.load(open(sorted(glob.glob(str(Path(__file__).resolve().parent.parent / "data/intel/duane_book/qa/literary_runs/2026*.json")))[-1]))["raw"]
-patch = Path(__file__).resolve().parent.parent / "data/intel/duane_book/qa/literary_runs/patch_1.json"
+base = json.load(open(sorted(glob.glob(str(QA_DIR / "literary_runs" / "2026*.json")))[-1]))["raw"]
+patch = QA_DIR / "literary_runs/patch_1.json"
 if patch.exists():
     base.update({k: v for k, v in json.load(open(patch)).items() if "_error" not in v})
 tot, meds, bm = [0, 0, 0], [], []

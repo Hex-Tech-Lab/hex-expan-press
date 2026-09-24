@@ -3,8 +3,8 @@
 import argparse, difflib, json, os, re, shutil, sys
 from datetime import datetime
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-QA = os.path.join(ROOT, "data/intel/duane_book/qa")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from book_config import MS, QA
 
 
 def ws_tolerant(before: str) -> re.Pattern:
@@ -33,7 +33,7 @@ def double_space_pass(text: str):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--triage", default=os.path.join(QA, "autofix_triage.json"))
-    ap.add_argument("--manuscript", default=os.path.join(ROOT, "manuscript/book/manuscript.md"))
+    ap.add_argument("--manuscript", default=str(MS))
     g = ap.add_mutually_exclusive_group(required=True)
     g.add_argument("--dry-run", action="store_true")
     g.add_argument("--apply", action="store_true")

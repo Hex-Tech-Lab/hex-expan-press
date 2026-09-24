@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Book QA gate: checks the rule set (data/intel/duane_book/qa/design_rules.json) against the
+"""Book QA gate: checks the rule set (design_rules.json under the book's QA dir) against the
 manuscript source and the rendered PDF, chapter by chapter. Writes a Markdown checklist and
 exits 2 if any blocker rule fails in the selected chapters.
 
@@ -11,8 +11,10 @@ from collections import Counter, defaultdict
 from pathlib import Path
 import pdfplumber
 
-REPO = Path(__file__).resolve().parent.parent
-RULES = json.loads((REPO / "data/intel/duane_book/qa/design_rules.json").read_text())
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from book_config import MS, QA, CHAPTERS
+
+RULES = json.loads((QA / "design_rules.json").read_text())
 R = {r["id"]: r for r in RULES["rules"]}
 TOK = RULES["tokens"]
 
@@ -39,14 +41,17 @@ EXTRA_RULES = [
     {"id": "IMG-UNIQUE", "object": "manuscript source", "kind": "source",
      "target": "each img/#image path used at most once across the whole book", "severity": "blocker",
      "source": "T27 2026-09-24: duplicate cover/opener/back-cover image paths"},
+    {"id": "BODY-MERGED", "object": "rendered PDF", "kind": "pdf",
+     "target": "each source paragraph's first 6 words begin a PDF line at left margin ±1pt or left margin+indent ±1pt",
+     "severity": "blocker",
+     "source": "T33-J3 2026-09-24: raw typst fence swallowing the next paragraph (merged-paragraph bug)"},
 ]
 for _r in EXTRA_RULES:
     R[_r["id"]] = _r
     RULES["rules"].append(_r)
-MS = REPO / "manuscript/book/manuscript.md"
 LEFT, INDENT = RULES["page"]["left_text_edge"], RULES["page"]["indent"]
 CALLBG = (0.925, 0.894, 0.824)
-NUMWORDS = "One Two Three Four Five Six Seven Eight Nine Ten".split()
+NUMWORDS = list(CHAPTERS)
 
 
 def near(a, b, tol):
@@ -275,6 +280,113 @@ IMG_RE = re.compile(r'#chaphead\([^)]*?img:\s*"([^"]+)"')
 IMAGE_RE = re.compile(r'#image\("([^"]+)"\)')
 
 
+# ---------------------------------------------------------------- BODY-MERGED (T33-J3)
+MARKUP_SPAN = re.compile(r"`[^`]*`\{=typst\}")
+TYPS_CALL = re.compile(r"#\w+(?:\((?:[^()]|\([^()]*\))*\))?")
+NOT_PARA = re.compile(r"^(#{1,6} |#|[-*] |\d+\. |\||!|>)")
+
+
+def _norm_prose(s):
+    """Lowercase alnum+space view of text: markup, typst calls, punctuation gone."""
+    s = MARKUP_SPAN.sub("", s)
+    s = TYPS_CALL.sub(" ", s)
+    s = s.replace("\\_", "_").replace("\\$", "$").replace("\\[", "[").replace("\\]", "]").replace("\\", "")
+    s = re.sub(r"[^A-Za-z0-9 ]+", " ", s)
+    return re.sub(r"\s+", " ", s).strip().lower()
+
+
+def prose_paragraphs(src, a, b):
+    """[(first_line_no, first_words_raw, match_seq)] for markdown prose paragraphs in
+    src[a:b]: blank-line-separated blocks outside fences, not heading/list/markup;
+    the first prose block after every fence close is also a paragraph."""
+    fence = sum(1 for l in src[:a] if l.startswith("```")) % 2 == 1
+    paras, block = [], {"lines": [], "start": None}
+
+    def flush():
+        if block["lines"]:
+            t = _norm_prose(" ".join(block["lines"]))
+            w = t.split()
+            if len(w) >= 4:
+                paras.append((block["start"], " ".join(w[:6]), " ".join(w[:6])))
+        block["lines"], block["start"] = [], None
+
+    for i in range(a, b):
+        l = src[i]
+        s = l.strip()
+        if l.startswith("```"):
+            fence = not fence
+            flush()
+            continue
+        if fence:
+            continue
+        if not s:
+            flush()
+            continue
+        if block["start"] is None:
+            if NOT_PARA.match(s):
+                continue
+            block["start"] = i + 1
+        block["lines"].append(s)
+    flush()
+    return paras
+
+
+def body_merged_check(pdf, first, last, src, a, b, res):
+    """BODY-MERGED: a source paragraph's first 6 words must begin a PDF line whose
+    x0 is at the left margin or left margin + indent (±1pt). If they appear only
+    mid-line — wholly inside one line, or split so the first k words end the
+    previous line — the paragraph was merged into the previous one (raw typst
+    fence with no parbreak). Unfindable sequences (hyphenation) pass."""
+    paras = prose_paragraphs(src, a, b)
+    res.check("BODY-MERGED", True)
+    if not paras:
+        return
+    models, flat, opener_dc = {}, [], False
+    for pno in range(first, last + 1):
+        lines, _ = page_model(pdf.pages[pno - 1])
+        lines = [l for l in lines if l.kind not in ("runhead", "folio")]
+        models[pno] = lines
+        flat += [(pno, l, _norm_prose(l.text)) for l in lines]
+    opener_dc = any(l.kind == "dropcap" for l in models.get(first, []))
+    for _, raw, seq in paras:
+        words = seq.split()
+        ok = fail = None
+        only_dropcap = False
+        for j, (pno, l, t) in enumerate(flat):
+            if not t:
+                continue
+            idx = t.find(seq)
+            if idx == 0 and (near(l.x, LEFT, 1.0) or near(l.x, LEFT + INDENT, 1.0)):
+                ok = pno
+                break
+            if idx >= 0:
+                if opener_dc and pno == first and l.x > LEFT + 2:
+                    only_dropcap = True  # drop-cap opener paragraph: x0 beside the glyph, unjudgeable
+                elif fail is None:
+                    fail = (pno, raw)
+                continue
+            # split across a line boundary: first k words end line j mid-line, rest begin line j+1
+            for k in range(1, len(words)):
+                pre, suf = " ".join(words[:k]), " ".join(words[k:])
+                pidx = t.find(pre)
+                if pidx <= 0:
+                    continue
+                if j + 1 >= len(flat) or not flat[j + 1][2].startswith(suf):
+                    continue
+                npno, nl, _ = flat[j + 1]
+                if opener_dc and pno == first and l.x > LEFT + 2:
+                    only_dropcap = True
+                    break
+                if fail is None:
+                    fail = (pno, raw)
+                break
+        if ok or (only_dropcap and fail is None):
+            continue
+        if fail:
+            res.check("BODY-MERGED", False, f"p{fail[0]}: paragraph merged into previous: '{fail[1]}'")
+
+
+
 def img_unique_uses(src):
     """All cover/opener/back-cover image paths in manuscript order (1-based lines)."""
     uses = []
@@ -491,7 +603,8 @@ def backcover_phrase():
             seen = True
             continue
         if seen:
-            m = re.search(r"\bDuane retired at fifty-nine on\b", l)
+            mk = __import__("book_config").CFG.get("backcover_marker")
+            m = re.search(r"\b" + re.escape(mk) + r"\b", l) if mk else None
             if m:
                 return m.group(0).replace(" ", "").upper()
     return None
@@ -586,6 +699,8 @@ def main():
                 e = last_content_page(pdf, s, e)
             # stop at the chapter's last page before any photo/part page: last page with body text is fine either way
             check_pdf(pdf, s, e, res, None)
+            if ch in sr:
+                body_merged_check(pdf, s, e, src, sr[ch][0], sr[ch][1], res)
         if ch == a.chapters.split(",")[0]:
             check_frontmatter(pdf, pr, res)
         if ch in sr:

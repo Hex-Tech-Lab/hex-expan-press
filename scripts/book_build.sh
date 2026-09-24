@@ -5,12 +5,11 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-BOOK_DIR="$REPO_ROOT/manuscript/book"
+eval "$(python3 "$REPO_ROOT/scripts/book_config.py" --shell)"
 PANDOC="$REPO_ROOT/.tools/pandoc/bin/pandoc"
 TYPST="$REPO_ROOT/.tools/typst-0.15.1/typst"
-FONT_DIR_1="$REPO_ROOT/typst_prototype/fonts"
-FONT_DIR_2="$REPO_ROOT/typst_prototype/fonts_variable"
-OUT_PDF="${1:-$REPO_ROOT/data/intel/duane_book/book_pandoc_$(date +%Y-%m-%d_%H%M).pdf}"
+OUT_PDF="${1:-$DATA/book_pandoc_$(date +%Y-%m-%d_%H%M).pdf}"
+[ "${OUT_PDF#/}" = "$OUT_PDF" ] && OUT_PDF="$REPO_ROOT/$OUT_PDF"
 
 for bin in "$PANDOC" "$TYPST"; do
   [ -x "$bin" ] || { echo "missing/non-executable: $bin (run pnpm freeze:check)" >&2; exit 1; }
@@ -20,8 +19,8 @@ done
 mkdir -p "$(dirname "$OUT_PDF")"
 
 cd "$BOOK_DIR"
-"$PANDOC" manuscript.md --to typst --wrap=none --shift-heading-level-by=-1 --template=template.typ -o build.typ
-"$TYPST" compile --pdf-standard ua-1 --font-path "$FONT_DIR_1" --font-path "$FONT_DIR_2" build.typ "$OUT_PDF"
+"$PANDOC" "$MS" $PANDOC_FLAGS --template="$TEMPLATE" -o build.typ
+"$TYPST" compile $TYPST_FLAGS --font-path "$FONT_DIR_1" --font-path "$FONT_DIR_2" build.typ "$OUT_PDF"
 
 "$REPO_ROOT/.tools/pdfenv/bin/python" "$REPO_ROOT/scripts/pdf_viewer_prefs.py" "$OUT_PDF"
 echo "built: $OUT_PDF"

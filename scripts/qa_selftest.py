@@ -12,12 +12,13 @@ Exit 1 on any FAIL. Usage: .tools/pdfenv/bin/python scripts/qa_selftest.py
 import json, sys
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(REPO / "scripts"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from book_config import QA
+
 import book_qa as bq
 
-FIX = REPO / "data/intel/duane_book/qa/fixtures"
-PDF = REPO / "data/intel/duane_book/qa/fixtures/selftest_book.pdf"
+FIX = QA / "fixtures"
+PDF = QA / "fixtures/selftest_book.pdf"
 EXPECTED = FIX / "expected_ranges.json"
 BAD = FIX / "fence_line_bad.md"
 GOOD = FIX / "fence_line_good.md"

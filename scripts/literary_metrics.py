@@ -1,24 +1,29 @@
 #!/usr/bin/env python3
 """Literary QA, layer A: deterministic prose metrics per chapter, part and book (ADR 0044).
-Strips Typst/Markdown, then measures the prose. Writes data/intel/duane_book/qa/literary_metrics.json
+Strips Typst/Markdown, then measures the prose. Writes <QA>/literary_metrics.json
 and prints a Markdown table.
 - burstiness: coefficient of variation of sentence length (human prose ~0.5-0.8; flat AI-like prose < 0.4)
 - predictability: gzip compression ratio (a perplexity proxy; lower = more repetitive/predictable)
 - fk_grade: Flesch-Kincaid grade level; mattr: moving-average type-token ratio (500-word window)
 """
-import json, re, statistics, zlib
+import json, re, statistics, sys, zlib
 from collections import Counter
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parent.parent
-MS = (REPO / "manuscript/book/manuscript.md").read_text()
-OUT = REPO / "data/intel/duane_book/qa/literary_metrics.json"
-PARTS = {"I": ["One", "Two", "Three"], "II": ["Four", "Five", "Six", "Seven"], "III": ["Eight", "Nine", "Ten"]}
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from book_config import MS as MS_PATH, QA, CHAPTERS  # noqa: E402
+
+MS = MS_PATH.read_text()
+OUT = QA / "literary_metrics.json"
+# Part structure comes from the manuscript's #partpage markers (book_config.parts); never assumed.
+from book_config import PARTS  # noqa: E402
 
 
 def prose(block):
     block = re.sub(r'#dropcap\("(\w)"[^)]*\)\[', r"[\1", block)  # rejoin the drop-cap letter, else judges read "o what" as a typo
     t = re.sub(r"```\{=typst\}\n(.*?)```", lambda m: " ".join(re.findall(r"\[([^\[\]#]{20,})", m.group(1))), block, flags=re.S)
+    t = re.sub(r"```\{=typst\}(?:(?!```).)*$", "", t, flags=re.S)  # unclosed fence at the slice end (leaked "` #oddbreak")
+    t = re.sub(r"^\s*#[A-Za-z_]\w*.*$", "", t, flags=re.M)        # bare Typst command lines (#oddbreak, #orn, ...)
     t = re.sub(r"\\u\{201[CD]\}", '"', t)
     t = re.sub(r"\\u\{[0-9A-Fa-f]+\}", "", t)
     t = t.replace("\\$", "$").replace("\\_", "_")
@@ -58,8 +63,8 @@ def metrics(text):
 
 
 def main():
-    marks = [(m.start(), m.group(1)) for m in re.finditer(r'#chaphead\("Chapter (\w+)"', MS)]
-    chapters = {n: prose(MS[s:(marks[i + 1][0] if i + 1 < len(marks) else (MS.find('// BACK COVER') if '// BACK COVER' in MS else len(MS)))]) for i, (s, n) in enumerate(marks)}
+    from book_config import chapter_sources
+    chapters = {n: prose(src) for n, _, src in chapter_sources(MS)}
     res = {"chapters": {n: metrics(t) for n, t in chapters.items()},
            "parts": {p: metrics(" ".join(chapters[c] for c in cs if c in chapters)) for p, cs in PARTS.items()},
            "book": metrics(" ".join(chapters.values()))}

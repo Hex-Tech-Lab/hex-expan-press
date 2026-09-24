@@ -5,12 +5,12 @@ Generates a self-contained HTML quality dashboard over time.
 Python 3 stdlib only; output one self-contained HTML file (inline CSS + inline SVG; no external JS/CSS/fonts).
 
 Inputs:
-- data/intel/duane_book/qa/literary_runs/2026*.json (skip patch_*)
-- data/intel/duane_book/qa/chapter_briefs/ch*_regrade_summary.md
-- data/intel/duane_book/qa/qa_report_FULL.md
+- <QA>/literary_runs/2026*.json (skip patch_*)
+- <QA>/chapter_briefs/ch*_regrade_summary.md
+- <QA>/qa_report_FULL.md
 
 Output:
-- data/intel/duane_book/qa/dashboard.html
+- <QA>/dashboard.html
 """
 
 import os
@@ -22,15 +22,12 @@ import html
 import statistics
 from pathlib import Path
 
-CHAPTER_NAMES = [
-    "One", "Two", "Three", "Four", "Five",
-    "Six", "Seven", "Eight", "Nine", "Ten"
-]
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from book_config import QA as QA_DIR, CHAPTERS  # noqa: E402
 
-CHAPTER_NUM_TO_NAME = {
-    1: "One", 2: "Two", 3: "Three", 4: "Four", 5: "Five",
-    6: "Six", 7: "Seven", 8: "Eight", 9: "Nine", 10: "Ten"
-}
+CHAPTER_NAMES = list(CHAPTERS)
+
+CHAPTER_NUM_TO_NAME = {i + 1: n for i, n in enumerate(CHAPTER_NAMES)}
 
 CHAPTER_NAME_TO_NUM = {v: k for k, v in CHAPTER_NUM_TO_NAME.items()}
 
@@ -93,7 +90,7 @@ def get_engagement_color_class(score):
         return "eng-1"
 
 def load_runs(base_dir):
-    runs_dir = os.path.join(base_dir, "data/intel/duane_book/qa/literary_runs")
+    runs_dir = os.path.join(str(QA_DIR), "literary_runs")
     run_files = sorted(glob.glob(os.path.join(runs_dir, "2026*.json")))
     runs = []
     for rf in run_files:
@@ -140,7 +137,7 @@ def load_runs(base_dir):
     return runs
 
 def parse_regrades(base_dir):
-    briefs_dir = os.path.join(base_dir, "data/intel/duane_book/qa/chapter_briefs")
+    briefs_dir = os.path.join(str(QA_DIR), "chapter_briefs")
     summary_files = sorted(glob.glob(os.path.join(briefs_dir, "ch*_regrade_summary.md")))
     regrades = {}
 
@@ -211,7 +208,7 @@ def parse_regrades(base_dir):
     return regrades
 
 def parse_qa_report(base_dir):
-    report_path = os.path.join(base_dir, "data/intel/duane_book/qa/qa_report_FULL.md")
+    report_path = os.path.join(str(QA_DIR), "qa_report_FULL.md")
     if not os.path.exists(report_path):
         return {}
     
@@ -994,7 +991,7 @@ def build_dashboard_html(base_dir):
 
 def main():
     repo_root = os.getcwd()
-    output_path = os.path.join(repo_root, "data/intel/duane_book/qa/dashboard.html")
+    output_path = os.path.join(str(QA_DIR), "dashboard.html")
     
     print(f"Generating dashboard from repository root: {repo_root}")
     html_content = build_dashboard_html(repo_root)

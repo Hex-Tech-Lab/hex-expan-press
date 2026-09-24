@@ -22,6 +22,28 @@ Order: M stable for a chapter → then P for that chapter.
 - `scripts/quality_dashboard.py` → `qa/dashboard.html`.
 - Rubric = `qa/rubric/{core.json,modules/*.json,profiles/<book>.json}`, loaded by `scripts/rubric_loader.py`.
 
+## New book (any book, not just Duane)
+1. Create `books/<id>.json` (id, title, author, book_dir, manuscript, template, data_dir, fonts, panel_brief, backcover_marker, rubric_profile, release_prefix). Put the book dir under `data/` (gitignored) with symlinks to the house `template.typ`, `design_rules.json` and `img_v3`.
+2. `export BOOK=<id>`. Every script reads paths, chapters (from `#chaphead`), parts (from `#partpage`) and build flags from `scripts/book_config.py`. Never hard-code a path, a chapter list or a book description.
+3. Smoke-test: `BOOK=smoke` (2 chapters, `data/intel/smoke_book`) must build → gate PASS after `p-fix` before any engine change ships.
+4. Still book-specific in the template: the front cover (design D). Move it to book metadata before book 2.
+
+## Build (one set of flags for every tool)
+- `book_config.PANDOC_FLAGS`: `--shift-heading-level-by=-1` (### → level 2, PDF/UA heading order) and the `rawblock_parbreak.lua` filter (a paragraph right after a Typst block otherwise merges into it). `TYPST_FLAGS`: `--pdf-standard ua-1` (tagged, alt text required on every image). Any tool that compiles the book must use these flags, or its layout measurements are wrong.
+- After the compile: `pdf_viewer_prefs.py` (true spreads, cover alone) and `pdf_tracking_to_tc.py` (it verifies itself: "tracking verify: OK").
+- Chapter slices come only from `book_config.chapter_sources()`: they end at the next chapter, the next part page or the back cover.
+
+## Jev (typed decisions, `scripts/jev.py`)
+Bands: ≥0.8 act · 0.5–0.8 act and FLAG · <0.5 or unavailable → current behaviour, UNCHECKED. Send only minimal spans. Every call site has `--no-jev` and a fallback.
+- LIVE: `trim_check.py` (meaning_kept/drops_fact), `crossref_check.py` (banded), `chapter_regrade.py` (no-new-facts guard per changed paragraph; pairwise old/new), `literary_panel.py` (G2 unsourced-claim pre-check), `premise_router.py` (contradiction triage, reader-stop themes), `layout_fixers.py` (changes_meaning on prose hunks), `agent_audit.py` / `agent_watch.sh` (agent REPORT evidence, stalls).
+- Wording trims: `trim_check.py` → `trim_apply.py [--fillback --page N --marker …]` (puts text back while the box still fits). Every trim ends in a before/after table.
+
+## Accessibility (enforced)
+PDF/UA-1 build = blocker. Alt text on every `chaphead(img:, alt:)` and `#image(alt:)`. Contrast ≥ 4.5:1 for small text (quiet grey `#736351`), text ≥ 7.5pt. Before release: veraPDF + PAC 2024.
+
+## Agents
+- OC: `opencode run --model openrouter/z-ai/glm-5.3-flash --variant minimal`, at most 3 at once, staggered 25–30s ("database is locked" otherwise), no /tmp, /dev or `<(...)` in the prompts. They work on private copies and propose; the orchestrator applies. Run `agent_audit.py <log>` on every REPORT and repeat its acceptance command yourself (T28/T29 died mid-edit and still looked done).
+
 ## Phase M: Manuscript
 
 **Loop.** Remediation (every dimension ≥ B), then Optimization (toward book ≥ A-). Priority: reader drop-off first, then worst grade [M-12].
@@ -29,7 +51,7 @@ Order: M stable for a chapter → then P for that chapter.
 1. **Baseline.** `python3 scripts/literary_metrics.py`, then the full panel `python3 scripts/literary_panel.py` (20–30 min). Run it in the background with a done-file [X-01]. The newest `qa/literary_runs/*.json` becomes the "before" reference.
 2. **Per chapter:**
    1. `python3 scripts/chapter_brief.py <Ch> [--patch …]` builds the brief: all layers plus the book graph.
-   2. Back up the manuscript to `qa/revisions/manuscript_before_ch<N>_v<k>.md` [M-14].
+   2. Back up: `python3 scripts/backup.py <file> <tag>` (automatic in `chapter_regrade.py`) [M-14].
    3. Edit `manuscript/book/manuscript.md`.
    4. `scripts/regrade2.sh <Ch> <backup>` runs 2 re-grade runs, then `regrade_summary.py` gives the median grades and the side-by-side votes.
    5. **Accept** if the side-by-side favours the new version and no dimension regresses [M-03]. At most 2 passes, then escalate [M-16].

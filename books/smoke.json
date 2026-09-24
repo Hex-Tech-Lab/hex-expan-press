@@ -1,0 +1,17 @@
+{
+  "id": "smoke",
+  "title": "Smoke Test Book",
+  "author": "Test Author",
+  "book_dir": "data/intel/smoke_book/book",
+  "manuscript": "manuscript.md",
+  "template": "template.typ",
+  "data_dir": "data/intel/smoke_book",
+  "fonts": [
+    "typst_prototype/fonts",
+    "typst_prototype/fonts_variable"
+  ],
+  "panel_brief": "A two-chapter placeholder book used to smoke-test the engine.",
+  "backcover_marker": null,
+  "rubric_profile": "duane",
+  "release_prefix": "smoke"
+}

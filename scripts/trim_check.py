@@ -1,7 +1,7 @@
 """Jev gate for wording trims (Phase M, layer M3c): every proposed trim must keep the meaning and
 drop no fact. Reads a trims.json ({id, old, new, ...}); sends Jev only the two spans.
 
-    python3 scripts/trim_check.py data/intel/duane_book/qa/trim/ch4/trims.json
+    python3 scripts/trim_check.py <QA>/trim/ch4/trims.json
 
 Bands (engine_workflow): p >= 0.8 ACCEPT, 0.5-0.8 FLAG (accept, list for the founder),
 < 0.5 or Jev unavailable REJECT/UNCHECKED. Exit 1 if any trim is rejected or unchecked.
@@ -12,9 +12,8 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from book_config import MS  # noqa: E402
 from jev import decide  # noqa: E402
-
-MS = Path(__file__).resolve().parent.parent / "manuscript/book/manuscript.md"
 
 QUESTIONS = {
     "meaning_kept": {"type": "noul",

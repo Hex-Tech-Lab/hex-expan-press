@@ -1,0 +1,17 @@
+{
+  "id": "duane",
+  "title": "You Don't Need a Million Dollars to Retire",
+  "author": "Duane",
+  "book_dir": "manuscript/book",
+  "manuscript": "manuscript.md",
+  "template": "template.typ",
+  "data_dir": "data/intel/duane_book",
+  "fonts": [
+    "typst_prototype/fonts",
+    "typst_prototype/fonts_variable"
+  ],
+  "panel_brief": "A first-person retirement memoir-guide by 'Duane', who retired at 59 in 2021 on $548,000 (no pension) and publishes his real balance monthly on YouTube. Audience: 55+ with $250K-$750K. Promise: 'you don't need a million dollars to retire' — real numbers, a boring repeatable method. 10 chapters in 3 parts.",
+  "backcover_marker": "Duane retired at fifty-nine on",
+  "rubric_profile": "duane",
+  "release_prefix": "duane_book"
+}

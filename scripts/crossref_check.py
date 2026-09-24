@@ -9,21 +9,23 @@ Two layers:
      really covers what the sentence says. If Jev is unavailable, those rows are reported UNCHECKED
      (never silently passed).
 
-Usage: python3 scripts/crossref_check.py [--no-jev]  -> data/intel/duane_book/qa/crossref_report.md; exit 1 on FAIL.
+Usage: python3 scripts/crossref_check.py [--no-jev]  -> <QA>/crossref_report.md; exit 1 on FAIL.
 """
 import re
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from book_config import MS as MS_PATH, QA as QA_DIR  # noqa: E402
 from jev import decide  # noqa: E402
 
-REPO = Path(__file__).resolve().parent.parent
-MS = (REPO / "manuscript/book/manuscript.md").read_text()
-OUT = REPO / "data/intel/duane_book/qa/crossref_report.md"
+MS = MS_PATH.read_text()
+OUT = QA_DIR / "crossref_report.md"
 WORDS = "one two three four five six seven eight nine ten".split()
-NUM = {w: i + 1 for i, w in enumerate(WORDS)}
-THRESH = 0.5  # Jev noul below this = the reference does not match its target
+WORD_NUM = {w: i + 1 for i, w in enumerate(WORDS)}
+# Jev noul bands (engine_workflow): >= HI act automatically, LO-HI act + FLAG,
+# < LO fail / don't act. Confidence gate: choice answers with top p < LO are UNCHECKED.
+LO, HI = 0.5, 0.8
 
 heads = [(m.start(), m.group(1), m.group(2)) for m in re.finditer(r'#chaphead\("Chapter (\w+)", "\d+", "([^"]+)"', MS)]
 end = MS.find("// BACK COVER") if "// BACK COVER" in MS else len(MS)
@@ -31,7 +33,7 @@ chapters = []
 for i, (s, name, title) in enumerate(heads):
     e = heads[i + 1][0] if i + 1 < len(heads) else end
     text = re.sub(r"`[^`]*`\{=typst\}|#\w+\([^)]*\)|[\[\]]|```\{=typst\}|```", " ", MS[s:e])
-    chapters.append({"name": name, "n": NUM[name.lower()], "title": title, "start": s, "end": e,
+    chapters.append({"name": name, "n": WORD_NUM[name.lower()], "title": title, "start": s, "end": e,
                      "text": re.sub(r"\s+", " ", text)})
 
 
@@ -65,11 +67,11 @@ use_jev = "--no-jev" not in sys.argv
 body = MS[chapters[0]["start"]:end]
 off = chapters[0]["start"]
 for m in re.finditer(r"\b(after|in|across|over|by) (one|two|three|four|five|six|seven|eight|nine|ten) chapters\b", body, re.I):
-    pos = off + m.start(); ch = chapter_at(pos); n = NUM[m.group(2).lower()]
+    pos = off + m.start(); ch = chapter_at(pos); n = WORD_NUM[m.group(2).lower()]
     ok = n == ch["n"] - 1 if m.group(1).lower() in ("after", "by") else n <= len(chapters)
     rows.append((ch["name"], line_of(pos), m.group(0), "count", "PASS" if ok else f"FAIL: chapter {ch['n']} has {ch['n'] - 1} chapters before it", sentence(pos)))
 for m in re.finditer(r"\bchapter (one|two|three|four|five|six|seven|eight|nine|ten)\b(?! ?\")", body, re.I):
-    pos = off + m.start(); ch = chapter_at(pos); tgt = next(c for c in chapters if c["n"] == NUM[m.group(1).lower()])
+    pos = off + m.start(); ch = chapter_at(pos); tgt = next(c for c in chapters if c["n"] == WORD_NUM[m.group(1).lower()])
     rows.append((ch["name"], line_of(pos), m.group(0), "named", ("jev", tgt), sentence(pos)))
 for m in re.finditer(r"\bthe (next|previous|last|final|[a-z-]+) chapter\b", body, re.I):
     if m.group(1).lower() in ("this", "each", "every", "same", "one"):
@@ -97,8 +99,11 @@ for ch, ln, ref, kind, res, sent in rows:
                 res = "UNCHECKED (Jev unavailable)"
             else:
                 t = a["target"].get("choice"); p = max((a["target"].get("probabilities") or {"": 1}).values())
-                ok = t != chapters[[c["name"] for c in chapters].index(ch)]["title"]
-                res = f"{'PASS' if ok else 'FAIL'}: -> '{t}' (p={p:.2f})"
+                if p < LO:
+                    res = "UNCHECKED (choice p<0.5)"
+                else:
+                    ok = t != chapters[[c["name"] for c in chapters].index(ch)]["title"]
+                    res = f"{'PASS' if ok else 'FAIL'}: -> '{t}' (p={p:.2f})" + (" FLAG" if p < HI else "")
         else:
             a = decide({"reference": sent, "target_title": tgt["title"], "target_passage": best_window(sent, tgt["text"])},
                        {"matches": {"type": "noul", "instructions": "Does the target chapter really cover what the reference sentence says it covers?",
@@ -107,7 +112,8 @@ for ch, ln, ref, kind, res, sent in rows:
                 res = "UNCHECKED (Jev unavailable)"
             else:
                 p = a["matches"]["noul"]
-                res = f"{'PASS' if p >= THRESH else 'FAIL'}: -> Ch {tgt['name']} '{tgt['title']}' (p={p:.2f})"
+                band = "PASS" if p >= HI else ("PASS+FLAG" if p >= LO else "FAIL")
+                res = f"{band}: -> Ch {tgt['name']} '{tgt['title']}' (p={p:.2f})"
     out.append(f"| {ch} | {ln} | {ref} | {kind} | {res} | {sent.replace('|', '/')} |")
 
 fails = sum("FAIL" in o for o in out)

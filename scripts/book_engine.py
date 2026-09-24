@@ -11,11 +11,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parent.parent
-QA = REPO / "data" / "intel" / "duane_book" / "qa"
-RELEASES = REPO / "data" / "intel" / "duane_book" / "releases"
-CHAPTERS = ["One", "Two", "Three", "Four", "Five",
-            "Six", "Seven", "Eight", "Nine", "Ten"]
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from book_config import REPO, QA, RELEASES, CHAPTERS  # noqa: E402
 
 
 def run(cmd, dry_run, env=None):
@@ -221,7 +218,7 @@ def cmd_release(args):
     stamp = datetime.date.today().isoformat()
     dest_dir = RELEASES / f"{stamp}_{args.label}"
     dest_dir.mkdir(parents=True, exist_ok=True)
-    dest = dest_dir / f"duane_book_{args.label}.pdf"
+    dest = dest_dir / f"{__import__('book_config').CFG.get('release_prefix', __import__('book_config').BOOK_ID)}_{args.label}.pdf"
     print(f"[cmd] copy {src} -> {dest}")
     if not args.dry_run:
         shutil.copyfile(src, dest)

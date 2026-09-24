@@ -4,7 +4,7 @@ Renders each page of a chapter and compares it pixel-by-pixel with the approved 
   compare: visual_regress.py --pdf proof.pdf --chapters One,Four
   approve: visual_regress.py --pdf proof.pdf --chapters One,Four --approve   (founder sign-off only)
 Fails (exit 3) if a page changed beyond tolerance or the page count changed; writes red-overlay
-diffs to data/intel/duane_book/qa/visual_diff/<Chapter>/. Chapters without a baseline are skipped.
+diffs to <QA>/visual_diff/<Chapter>/. Chapters without a baseline are skipped.
 """
 import argparse, hashlib, json, shutil, subprocess, sys, tempfile
 from datetime import datetime, timezone
@@ -13,10 +13,9 @@ from PIL import Image, ImageChops
 import pdfplumber
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from book_config import QA  # noqa: E402
 from book_qa import pdf_chapter_ranges  # noqa: E402
 
-REPO = Path(__file__).resolve().parent.parent
-QA = REPO / "data/intel/duane_book/qa"
 DPI, PIXEL_DELTA, MAX_CHANGED = 100, 24, 0.0005  # 0.05% of pixels may differ (anti-aliasing noise)
 
 

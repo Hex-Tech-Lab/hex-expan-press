@@ -11,6 +11,11 @@ import re
 import pdfplumber
 from PIL import Image, ImageDraw, ImageFont
 
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from book_config import CHAPTERS
+
 
 def classify(page, n, total):
     text = page.extract_text() or ""
@@ -52,7 +57,7 @@ def side(idx):
 def chapter_name(page):
     text = page.extract_text() or ""
     flat = re.sub(r"(?<=[A-Z]) (?=[A-Z])", "", text)  # kicker is letter-spaced: "C H A P T E R  N I N E"
-    m = re.search(r"CHAPTER\s*(ONE|TWO|THREE|FOUR|FIVE|SIX|SEVEN|EIGHT|NINE|TEN)", flat)
+    m = re.search(r"CHAPTER\s*(" + "|".join(CHAPTERS) + ")", flat)
     return f"Chapter {m.group(1).title()}" if m else None
 
 
