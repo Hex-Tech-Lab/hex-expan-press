@@ -138,6 +138,8 @@ def main():
         else:
             p, v = None, "UNCHECKED (Jev off)" if not use_jev else "UNCHECKED (Jev unavailable)"
         rows.append((name, ln, num, s[:110], p, v))
+    (QA / "transcript_numbers_rows.json").write_text(json.dumps(
+        [{"file": n, "line": ln, "num": num, "sentence": s, "p": p, "v": v} for n, ln, num, s, p, v in rows]))
     out = [f"# TRANSCRIPT NUMBERS — misheard check ({root})", ""]
     flags = [r for r in rows if r[5] == "FLAG"]
     unc = sum(r[5].startswith("UNCHECKED") for r in rows)
