@@ -252,6 +252,12 @@ def cmd_release(args):
     if rc != 0 and not args.force:
         print("release REFUSED: compliance_check BLOCKed a sentence (use --force to override)", file=sys.stderr)
         return rc
+    # T37-W1a: cover-promise + blurb-figure gate (B13/B14) and author-voice gate (A24).
+    for chk in ["surface_claims_check.py", "voice_check.py"]:
+        rc = run(["python3", "scripts/" + chk], args.dry_run)
+        if rc != 0 and not args.force:
+            print(f"release REFUSED: {chk} failed (use --force to override)", file=sys.stderr)
+            return rc
     win = subprocess.run(["wslpath", "-w", str(dest)], capture_output=True, text=True, cwd=REPO)
     if win.returncode == 0 and win.stdout.strip():  # P-12: hand over a real Windows path
         print(win.stdout.strip())
