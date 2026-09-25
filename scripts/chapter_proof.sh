@@ -12,6 +12,8 @@ if [ -n "$NEXT" ]; then
   head -n $((L-1)) "$M" > "$W/m.md"
 else cp "$M" "$W/m.md"; fi
 cp "$TEMPLATE" "$W/"
+# cover_data.json: same input the release build generates (book_build.sh) — template.typ reads it directly.
+python3 -c 'import json,sys; cfg=json.load(open(sys.argv[1])); print(json.dumps(cfg.get("cover",{}),indent=1))' "$REPO/books/$BOOK_ID.json" > "$W/cover_data.json"
 cd "$W" && "$REPO/.tools/pandoc/bin/pandoc" m.md $PANDOC_FLAGS --template="$(basename "$TEMPLATE")" -o b.typ
 "$REPO/.tools/typst-0.15.1/typst" compile $TYPST_FLAGS --font-path "$FONT_DIR_1" --font-path "$FONT_DIR_2" b.typ "$OUT"
 "$REPO/.tools/pdfenv/bin/python" "$REPO/scripts/pdf_tracking_to_tc.py" "$OUT"
@@ -23,8 +25,10 @@ for p in $(seq 1 "$PAGES"); do
   if [ "$n" -gt 1 ]; then echo "GATE FAIL: page $p has $n boxes"; FAIL=1; fi
 done
 [ "$FAIL" = 0 ] && echo "gate: one box per page OK" || exit 2
-# Full rule-set QA (ADR 0043). QA_CHAPTERS=One,Four overrides; default = the chapter just built.
-"$REPO/.tools/pdfenv/bin/python" "$REPO/scripts/book_qa.py" --pdf "$OUT" --chapters "${QA_CHAPTERS:-$N}" \
+# Full rule-set QA (ADR 0043). QA_CHAPTERS=One,Four overrides; default = the chapters
+# actually included in this proof (derived from its chapheads, so FULL = all).
+QA_CH="${QA_CHAPTERS:-$(grep -o 'chaphead("Chapter [A-Za-z]*' "$W/m.md" | sed 's/.*Chapter //' | paste -sd, -)}"
+"$REPO/.tools/pdfenv/bin/python" "$REPO/scripts/book_qa.py" --pdf "$OUT" --chapters "$QA_CH" \
   --out "$QA/qa_report_${N}.md" | tail -1
 # Visual regression for chapters with an approved baseline (skips the rest).
-"$REPO/.tools/pdfenv/bin/python" "$REPO/scripts/visual_regress.py" --pdf "$OUT" --chapters "${QA_CHAPTERS:-$N}"
+"$REPO/.tools/pdfenv/bin/python" "$REPO/scripts/visual_regress.py" --pdf "$OUT" --chapters "$QA_CH"
