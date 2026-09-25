@@ -1,0 +1,36 @@
+payments/DEPLOY-NOTES.md
+  h_90c2451a76ba0d 1,48,51,66,89,103,108
+payments/bake_checkout.ts
+  h_90c2451a76ba0d 7
+payments/bake_creator_pages.ts
+  h_90c2451a76ba0d 6
+scripts/live_site_check.py
+  h_90c2451a76ba0d 38
+scripts/site_claims_check.py
+  h_90c2451a76ba0d 88
+supabase/migrations/20260927000100_submit_consent_rpc.sql
+  h_90c2451a76ba0d 1-80
+web/account/consents/index.html
+  h_90c2451a76ba0d 1-139
+web/api/firma/create.ts
+  h_90c2451a76ba0d 1-47
+web/api/firma/webhook.ts
+  h_90c2451a76ba0d 1-49
+web/c/retirearly500k/500k-playbook/index.html
+  h_90c2451a76ba0d 92,102-103,130
+web/c/retirearly500k/index.html
+  h_90c2451a76ba0d 100
+web/index.html
+  h_90c2451a76ba0d 75
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "6d8283a94e9b3fd7ba6694cdb5beb15b247c34a9",
+  "prompts": {},
+  "humans": {
+    "h_90c2451a76ba0d": {
+      "author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
