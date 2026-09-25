@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign in &middot; ExpanPress</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    font-family: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: #FAF5EE; color: #2B2520; line-height: 1.6;
+    padding: 56px 20px 40px;
+  }
+  .wrap { max-width: 640px; margin: 0 auto; }
+  .kicker { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: #E8622C; font-weight: 600; margin-bottom: 16px; }
+  h1 {
+    font-family: "Fraunces", Georgia, "Times New Roman", serif;
+    font-size: 34px; line-height: 1.15; font-weight: 700; letter-spacing: -.015em; margin-bottom: 10px;
+  }
+  .intro { font-size: 16.5px; color: #6E5F53; margin-bottom: 28px; }
+  .card {
+    background: #FFFDF9; border: 1px solid #EADFD1; border-radius: 14px;
+    padding: 26px 26px 22px; margin-bottom: 28px;
+  }
+  .btn {
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    width: 100%; min-height: 44px; text-align: center; text-decoration: none;
+    background: #2B2520; color: #FAF5EE; font-weight: 600; font-size: 18px;
+    font-family: inherit; padding: 10px 20px; border-radius: 10px;
+    border: 1px solid #2B2520; cursor: pointer; margin-bottom: 12px;
+  }
+  .btn:hover { background: #3d352d; }
+  .btn:focus-visible, a:focus-visible, input:focus-visible, [role="dialog"]:focus-visible {
+    outline: 3px solid #E8622C; outline-offset: 2px;
+  }
+  .btn.outline { background: #FFFDF9; color: #2B2520; border-color: #2B2520; }
+  .btn.outline:hover { background: #F3ECDF; }
+  .btn[hidden] { display: none; }
+  .divider { display: flex; align-items: center; gap: 12px; color: #6E5F53; font-size: 13px; margin: 18px 0; }
+  .divider::before, .divider::after { content: ""; flex: 1; border-top: 1px solid #EADFD1; }
+  label { display: block; font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+  .emailrow { display: flex; gap: 10px; flex-wrap: wrap; }
+  input[type="email"] {
+    flex: 1 1 240px; min-height: 44px; font-size: 18px; font-family: inherit;
+    padding: 10px 14px; border: 1px solid #EADFD1; border-radius: 10px; background: #fff; color: #2B2520;
+  }
+  .btn.send { flex: 0 0 auto; margin-bottom: 0; padding: 10px 22px; }
+  .optin { display: flex; align-items: flex-start; gap: 12px; margin: 18px 0 6px; }
+  .optin input[type="checkbox"] { width: 26px; height: 26px; margin-top: 4px; flex: 0 0 auto; accent-color: #E8622C; }
+  .optin label { font-size: 16px; font-weight: 400; margin: 0; }
+  .msg { font-size: 16.5px; margin-top: 14px; }
+  .msg.ok { color: #2E7D5B; font-weight: 600; }
+  .msg.err { color: #B3401E; font-weight: 600; }
+  .hidden { display: none; }
+  /* modal */
+  .modal-backdrop {
+    position: fixed; inset: 0; background: rgba(43,37,32,.5);
+    display: none; align-items: center; justify-content: center; padding: 20px; z-index: 10;
+  }
+  .modal-backdrop.open { display: flex; }
+  .modal {
+    background: #FFFDF9; border: 1px solid #EADFD1; border-radius: 14px;
+    max-width: 420px; width: 100%; padding: 26px; position: relative;
+  }
+  .modal h2 { font-family: "Fraunces", Georgia, serif; font-size: 21px; margin-bottom: 10px; }
+  .modal p { font-size: 16.5px; margin-bottom: 18px; }
+  .modal .close {
+    position: absolute; top: 10px; right: 10px; min-width: 44px; min-height: 44px;
+    background: none; border: none; font-size: 24px; line-height: 1; cursor: pointer; color: #6E5F53;
+  }
+  footer {
+    border-top: 1px solid #EADFD1; padding-top: 22px;
+    font-size: 13px; color: #6E5F53;
+    display: flex; flex-wrap: wrap; gap: 8px 22px; align-items: center;
+  }
+  footer a { color: #2E7D5B; text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
+  footer .sep { color: #CBB3A7; }
+  @media (max-width: 480px) { h1 { font-size: 27px; } body { padding: 36px 16px 32px; } .card { padding: 20px 18px 16px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="kicker">Account</p>
+  <h1>Sign in</h1>
+  <p class="intro">Access your guides and account details.</p>
+
+  <div class="card">
+    <button class="btn" id="google" type="button">
+      <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24"><path fill="#4285F4" d="M23.5 12.27c0-.79-.07-1.54-.2-2.27H12v4.51h6.47a5.53 5.53 0 0 1-2.4 3.63v3h3.87c2.26-2.09 3.56-5.17 3.56-8.87z"/><path fill="#34A853" d="M12 24c3.24 0 5.96-1.08 7.94-2.86l-3.87-3c-1.08.72-2.45 1.15-4.07 1.15-3.13 0-5.78-2.11-6.73-4.96H1.29v3.09A12 12 0 0 0 12 24z"/><path fill="#FBBC05" d="M5.27 14.33a7.2 7.2 0 0 1 0-4.66V6.58H1.29a12 12 0 0 0 0 10.84l3.98-3.09z"/><path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.43-3.43C17.95 1.19 15.24 0 12 0A12 12 0 0 0 1.29 6.58l3.98 3.09C6.22 6.86 8.87 4.75 12 4.75z"/></svg>
+      Continue with Google
+    </button>
+
+    <button class="btn outline" id="apple" type="button" aria-haspopup="dialog">
+      <svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24"><path fill="currentColor" d="M16.36 12.76c.03 3.26 2.85 4.34 2.88 4.36-.02.07-.45 1.54-1.48 3.05-.9 1.3-1.82 2.6-3.28 2.63-1.44.03-1.9-.86-3.55-.86s-2.16.83-3.52.89c-1.41.05-2.49-1.41-3.4-2.71-1.85-2.68-3.27-7.57-1.37-10.87a5.28 5.28 0 0 1 4.45-2.7c1.39-.02 2.7.94 3.55.94.85 0 2.44-1.16 4.12-.99.7.03 2.67.28 3.94 2.14-.1.06-2.35 1.37-2.34 4.12zM13.7 3.4c.75-.9 1.25-2.16 1.11-3.4-1.08.04-2.38.72-3.15 1.62-.69.8-1.3 2.08-1.13 3.3 1.2.1 2.42-.61 3.17-1.52z"/></svg>
+      Continue with Apple
+    </button>
+
+    <div class="divider" aria-hidden="true">or</div>
+
+    <form id="otpform" novalidate>
+      <label for="email">Email me a sign-in link</label>
+      <div class="emailrow">
+        <input type="email" id="email" name="email" autocomplete="email" inputmode="email" placeholder="you@example.com" required>
+        <button class="btn send" type="submit">Send link</button>
+      </div>
+    </form>
+
+    <p class="msg ok hidden" id="inboxed" role="status">Check your inbox &mdash; we sent you a sign-in link. It expires shortly, so use it soon.</p>
+    <p class="msg err hidden" id="err" role="alert"></p>
+
+    <div class="optin">
+      <input type="checkbox" id="optin" name="optin">
+      <label for="optin">Send me occasional emails about new guides and tools (you can unsubscribe anytime)</label>
+    </div>
+  </div>
+
+  <footer>
+    <a href="/privacy.html">Privacy Policy</a><span class="sep">&middot;</span>
+    <a href="/terms.html">Terms of Service</a>
+  </footer>
+</div>
+
+<div class="modal-backdrop" id="modalBackdrop">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle" id="modal" tabindex="-1">
+    <button class="close" type="button" aria-label="Close dialog" id="modalClose">&times;</button>
+    <h2 id="modalTitle">Coming soon</h2>
+    <p>Sign in with Apple is coming soon. Please use Google or an email link for now.</p>
+  </div>
+</div>
+
+<script type="module">
+  import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+  const supabase = createClient(
+    "https://hywqftbcjhfjegypzpzd.supabase.co",
+    "sb_publishable_opBZHqmhQFUGQhNXmsQ7nA_yhh_WMfr"
+  );
+  const REDIRECT = "https://expanpress.com/account/";
+  const errEl = document.getElementById("err");
+  const inboxEl = document.getElementById("inboxed");
+  function fail(e) {
+    inboxEl.classList.add("hidden");
+    errEl.textContent = e && e.message ? e.message : "Something went wrong. Please try again.";
+    errEl.classList.remove("hidden");
+  }
+
+  document.getElementById("google").addEventListener("click", async () => {
+    errEl.classList.add("hidden");
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: REDIRECT }
+    });
+    if (error) fail(error);
+  });
+
+  document.getElementById("otpform").addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    errEl.classList.add("hidden");
+    inboxEl.classList.add("hidden");
+    const email = document.getElementById("email").value.trim();
+    if (!email || !email.includes("@")) {
+      errEl.textContent = "Please enter a valid email address.";
+      errEl.classList.remove("hidden");
+      return;
+    }
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: { emailRedirectTo: REDIRECT }
+    });
+    if (error) { fail(error); return; }
+    errEl.classList.add("hidden");
+    inboxEl.classList.remove("hidden");
+  });
+
+  const optin = document.getElementById("optin");
+  optin.addEventListener("change", () => {
+    localStorage.setItem("ep_marketing_optin", new FormData(document.getElementById("otpform")).get("optin") ? "true" : "false");
+  });
+
+  // Apple modal
+  const backdrop = document.getElementById("modalBackdrop");
+  const modal = document.getElementById("modal");
+  const closeBtn = document.getElementById("modalClose");
+  let lastFocus = null;
+  function openModal() {
+    lastFocus = document.activeElement;
+    backdrop.classList.add("open");
+    modal.focus();
+  }
+  function closeModal() {
+    backdrop.classList.remove("open");
+    if (lastFocus) lastFocus.focus();
+  }
+  document.getElementById("apple").addEventListener("click", openModal);
+  closeBtn.addEventListener("click", closeModal);
+  backdrop.addEventListener("click", (ev) => { if (ev.target === backdrop) closeModal(); });
+  document.addEventListener("keydown", (ev) => {
+    if (ev.key === "Escape" && backdrop.classList.contains("open")) closeModal();
+    if (ev.key === "Tab" && backdrop.classList.contains("open")) {
+      const focusables = [closeBtn, modal];
+      if (ev.shiftKey && document.activeElement === modal) { ev.preventDefault(); closeBtn.focus(); }
+      else if (!ev.shiftKey && document.activeElement === closeBtn) { ev.preventDefault(); modal.focus(); }
+    }
+  });
+</script>
+</body>
+</html>
