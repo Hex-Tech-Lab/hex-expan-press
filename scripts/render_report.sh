@@ -18,5 +18,6 @@ TITLE="$("$REPO/.tools/pandoc/bin/pandoc" "$IN" -t plain 2>/dev/null | grep -m1 
   -f markdown-yaml_metadata_block \
   --metadata "title=$TITLE" \
   --standalone \
+  --embed-resources --css "$REPO/data/intel/duane_book/qa/report.css" \
   --output="$OUT"
 echo "rendered: $OUT"
