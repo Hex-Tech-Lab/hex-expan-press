@@ -63,7 +63,7 @@ def main():
                 if A.size != B.size:
                     print(f"visual FAIL: Chapter {ch} p{i} size changed"); failed = True; continue
                 mask = ImageChops.difference(A, B).convert("L").point(lambda v: 255 if v > PIXEL_DELTA else 0)
-                frac = sum(1 for v in mask.get_flattened_data() if v) / (A.size[0] * A.size[1])
+                frac = sum(1 for v in mask.getdata() if v) / (A.size[0] * A.size[1])
                 if frac > MAX_CHANGED:
                     failed = True
                     diffdir.mkdir(parents=True, exist_ok=True)
