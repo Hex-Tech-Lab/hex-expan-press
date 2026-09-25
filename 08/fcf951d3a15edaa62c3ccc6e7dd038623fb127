@@ -1,0 +1,88 @@
+payments/site/terms.html
+  s_df55e99a08f348::t_57e6ee9846b663 29,65
+payments/site/refund-policy.html
+  s_df55e99a08f348::t_57e6ee9846b663 31,65
+payments/site/account/review/index.html
+  s_7be6add549f7bc::t_c99663bbe2939a 1-46,48-189,194-225,230-242,244-266
+  s_7be6add549f7bc::t_a32d9986ac4325 47
+  s_7be6add549f7bc::t_32fd7520b4dbb5 243
+  s_7be6add549f7bc::t_beb1c85aaa081a 190-193
+  s_7be6add549f7bc::t_ee9744c2ccfb43 226-229
+supabase/seed/duane_review_items.sql
+  s_7be6add549f7bc::t_3ec347f98274d4 5,13,22,26-28
+  s_7be6add549f7bc::t_3e29cde759d5e3 1-4,6-12,14-21,23-25
+scripts/fetch_duane_transcripts.ts
+  s_1ee929e2125783::t_f497166a8d4896 45-55
+  s_1ee929e2125783::t_931b049858ff9a 313,316-320,323-326,328-333,335-341,349-358,366-369,378
+  s_1ee929e2125783::t_8581830598da7d 264
+  s_1ee929e2125783::t_0aeb713a18efc0 163-230
+  s_1ee929e2125783::t_3bc4a65e8a9fe7 382
+docs/agent_ledger.jsonl
+  s_7be6add549f7bc::t_347ce4f357adeb 253
+  s_df55e99a08f348::t_dbd87960a9979d 251
+  s_1ee929e2125783::t_14512d216f1578 254
+  s_1ee929e2125783::t_43c5737b31e728 250
+  s_7be6add549f7bc::t_849189bfea090f 252
+payments/site/assets/backlink.js
+  s_df55e99a08f348::t_af3e843a49b118 1-18
+supabase/migrations/20260927000000_submit_review_answer_rpc.sql
+  s_7be6add549f7bc::t_8d9e93193f95e7 1-56
+scripts/seed_review_items.py
+  s_7be6add549f7bc::t_93ff6839d92bb3 120-124
+  s_7be6add549f7bc::t_3ec347f98274d4 31,35-40,72,85-86,89-95,99,104
+  s_7be6add549f7bc::t_cca81b4c881d4b 1-30,32-34,41-71,73-84,87-88,96-98,100-103,105-119,125-152
+payments/site/privacy.html
+  s_df55e99a08f348::t_57e6ee9846b663 29,71
+supabase/.temp/cli-latest
+  s_b6c78d5106546d::t_d7b63afc71501a 1
+scripts/render_report.sh
+  s_a7405a349c886b::t_bdf3890d602246 21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "08fcf951d3a15edaa62c3ccc6e7dd038623fb127",
+  "prompts": {},
+  "sessions": {
+    "s_1ee929e2125783": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f25b33a03ffebjHO3stNWY8EQP",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_7be6add549f7bc": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f25b2520cffev13aeBnFITDA8x",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_a7405a349c886b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b8fb2bc-7e7d-4d6e-8cf1-42ef2a94b764",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_b6c78d5106546d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f265afdd5fferNo45ALpcxsYeH",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_df55e99a08f348": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f25b2c809ffe7yroCpD07QZWJI",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
