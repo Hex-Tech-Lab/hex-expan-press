@@ -1,0 +1,45 @@
+package.json
+  s_5da6aa4f2d57c7::t_cc3942486e2839 37-38
+payments/test/email.test.ts
+  s_5da6aa4f2d57c7::t_525330238681e7 1-56
+docs/agent_ledger.jsonl
+  s_5da6aa4f2d57c7::t_bb09f3678f4871 237
+supabase/migrations/20260926000200_profiles_marketing.sql
+  s_5da6aa4f2d57c7::t_1f13329697e276 1-61
+  s_5da6aa4f2d57c7::t_bca12cca069efc 62-64
+  s_a7405a349c886b::t_fd3bef35b53120 65-66
+payments/src/email.ts
+  s_5da6aa4f2d57c7::t_e3efb2e4449d8f 1-30
+pnpm-lock.yaml
+  s_5da6aa4f2d57c7::t_d544c99be699a9 118-120,1077-1079,1699-1701,2150-2152,2186-2194,2285-2287,3130-3131,3938-3939,4344-4345,4378-4382,4486-4490
+payments/DEPLOY-NOTES.md
+  s_a7405a349c886b::t_70b649f50ba7c2 51-52
+.gitignore
+  s_a7405a349c886b::t_9e4cb1cdba2e24 80-83
+scripts/commit_guard.py
+  s_a7405a349c886b::t_bd5a8c015c2230 96-97
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "1370ecff7092eb2ea34f466adafbceee8d22040a",
+  "prompts": {},
+  "sessions": {
+    "s_5da6aa4f2d57c7": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f27606d6dffemrU8VSMLvCmDCN",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_a7405a349c886b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b8fb2bc-7e7d-4d6e-8cf1-42ef2a94b764",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
