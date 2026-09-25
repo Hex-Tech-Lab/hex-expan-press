@@ -32,7 +32,7 @@ export default async function handler(req: IncomingMessage & { query: Record<str
       template_id: "revenue-split-template",
       signers: [{ email: user.email, name: user.email }],
       metadata: { productId, userId: user.id },
-      redirect_url: `https://expanpress.com/account/consents/firma_done`,
+      redirect_url: `https://expanpress.com/creator/consents/firma_done`,
       webhook_url: `https://expanpress.com/api/firma/webhook`
     })
   });

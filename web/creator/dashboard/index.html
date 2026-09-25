@@ -76,7 +76,7 @@
 
     supabase.auth.getSession().then(function (res) {
       if (!res.data || !res.data.session) {
-        window.location.replace("/account/signin/");
+        window.location.replace("/creator/signin/");
         return;
       }
       var user = res.data.session.user;
@@ -94,12 +94,12 @@
           acct.hidden = false;
         });
     }).catch(function () {
-      window.location.replace("/account/signin/");
+      window.location.replace("/creator/signin/");
     });
 
     document.getElementById("signout").addEventListener("click", function () {
       supabase.auth.signOut().then(function () {
-        window.location.replace("/account/signin/");
+        window.location.replace("/creator/signin/");
       });
     });
   });
