@@ -34,7 +34,8 @@
   "type": "module",
   "dependencies": {
     "cheerio": "1.2.0",
-    "dotenv": "17.4.2"
+    "dotenv": "17.4.2",
+    "resend": "^6.28.1"
   },
   "devDependencies": {
     "esbuild": "0.28.2",
