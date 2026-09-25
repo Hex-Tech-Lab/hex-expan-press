@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Your account &middot; ExpanPress</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" defer></script>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    font-family: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: #FAF5EE; color: #2B2520; line-height: 1.6;
+    padding: 56px 20px 40px;
+  }
+  .wrap { max-width: 640px; margin: 0 auto; }
+  .kicker { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: #E8622C; font-weight: 600; margin-bottom: 16px; }
+  h1 {
+    font-family: "Fraunces", Georgia, "Times New Roman", serif;
+    font-size: 34px; line-height: 1.15; font-weight: 700; letter-spacing: -.015em; margin-bottom: 18px;
+  }
+  .card {
+    background: #FFFDF9; border: 1px solid #EADFD1; border-radius: 14px;
+    padding: 26px; margin-bottom: 28px;
+  }
+  .who { font-size: 18px; margin-bottom: 6px; }
+  .who b { font-weight: 650; }
+  .email { font-size: 16px; color: #6E5F53; margin-bottom: 20px; }
+  .btn {
+    display: block; width: 100%; min-height: 44px; text-align: center; text-decoration: none;
+    background: #2B2520; color: #FAF5EE; font-weight: 600; font-size: 18px;
+    font-family: inherit; padding: 10px 20px; border-radius: 10px;
+    border: 1px solid #2B2520; cursor: pointer;
+  }
+  .btn:hover { background: #3d352d; }
+  .btn:focus-visible, a:focus-visible { outline: 3px solid #E8622C; outline-offset: 2px; }
+  .loading { color: #6E5F53; font-size: 16px; }
+  footer {
+    border-top: 1px solid #EADFD1; padding-top: 22px;
+    font-size: 13px; color: #6E5F53;
+    display: flex; flex-wrap: wrap; gap: 8px 22px; align-items: center;
+  }
+  footer a { color: #2E7D5B; text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
+  @media (max-width: 480px) { h1 { font-size: 27px; } body { padding: 36px 16px 32px; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="kicker">Account</p>
+  <h1>Your account</h1>
+
+  <div class="card">
+    <p class="loading" id="loading">Loading your account&hellip;</p>
+    <div id="acct" hidden>
+      <p class="who">Signed in as <b id="pname"></b></p>
+      <p class="email" id="pemail"></p>
+      <button class="btn" id="signout" type="button">Sign out</button>
+    </div>
+  </div>
+
+  <footer>
+    <a href="/privacy.html">Privacy Policy</a><span class="sep">&middot;</span>
+    <a href="/terms.html">Terms of Service</a>
+  </footer>
+</div>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    var supabase = window.supabase.createClient(
+      "https://hywqftbcjhfjegypzpzd.supabase.co",
+      "sb_publishable_opBZHqmhQFUGQhNXmsQ7nA_yhh_WMfr"
+    );
+    var loading = document.getElementById("loading");
+    var acct = document.getElementById("acct");
+
+    supabase.auth.getSession().then(function (res) {
+      if (!res.data || !res.data.session) {
+        window.location.replace("/account/signin/");
+        return;
+      }
+      var user = res.data.session.user;
+      return supabase
+        .from("profiles")
+        .select("name, email")
+        .eq("id", user.id)
+        .maybeSingle()
+        .then(function (r) {
+          var name = (r.data && r.data.name) || user.email || "";
+          var email = (r.data && r.data.email) || user.email || "";
+          document.getElementById("pname").textContent = name;
+          document.getElementById("pemail").textContent = email;
+          loading.hidden = true;
+          acct.hidden = false;
+        });
+    }).catch(function () {
+      window.location.replace("/account/signin/");
+    });
+
+    document.getElementById("signout").addEventListener("click", function () {
+      supabase.auth.signOut().then(function () {
+        window.location.replace("/account/signin/");
+      });
+    });
+  });
+</script>
+</body>
+</html>
