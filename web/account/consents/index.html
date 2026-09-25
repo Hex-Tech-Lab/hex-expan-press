@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Consents &middot; ExpanPress</title>
+<style>
+  :root { color-scheme: light; font-size: 18px; }
+  * { box-sizing: border-box; margin: 0; }
+  body { font-family: "Inter", sans-serif; background: #FAF5EE; color: #2B2520; padding: 40px 20px; line-height: 1.6; }
+  .wrap { max-width: 800px; margin: 0 auto; }
+  h1 { font-family: "Fraunces", serif; font-size: 30px; margin-bottom: 8px; }
+  .card { background: #FFFDF9; border: 1px solid #EADFD1; border-radius: 14px; padding: 24px; margin-bottom: 24px; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; background: #2B2520; color: #FAF5EE; padding: 10px 24px; border-radius: 10px; cursor: pointer; border: none; font-size: 18px; font-weight: 600; text-decoration: none; }
+  .btn:hover { background: #3d352d; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  input[type="text"] { width: 100%; padding: 10px; font-size: 18px; border: 1px solid #EADFD1; border-radius: 8px; margin: 10px 0; }
+  .hidden { display: none; }
+  .msg { font-size: 14px; color: #B3401E; margin-top: 10px; }
+  .success { color: #2E7D5B; }
+  iframe { width: 100%; height: 600px; border: none; border-radius: 8px; margin-top: 20px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Final Consents</h1>
+  <p>Please review and sign the final approvals to publish your book.</p>
+  
+  <div class="card" id="c1-card">
+    <h3>1. Data Accuracy</h3>
+    <p>I confirm that my answers to the review questions are true and accurate to the best of my knowledge.</p>
+    <input type="text" id="c1-name" placeholder="Type your full name to sign">
+    <button class="btn" id="c1-btn">Sign Data Accuracy</button>
+    <p id="c1-msg" class="msg hidden"></p>
+  </div>
+
+  <div class="card" id="c2-card">
+    <h3>2. Release Approval</h3>
+    <p>I approve the release of the final PDF for publication.</p>
+    <input type="text" id="c2-name" placeholder="Type your full name to sign">
+    <button class="btn" id="c2-btn">Sign Release Approval</button>
+    <p id="c2-msg" class="msg hidden"></p>
+  </div>
+
+  <div class="card hidden" id="c3-card">
+    <h3>3. Revenue Split Agreement</h3>
+    <p>Please sign the revenue split agreement below.</p>
+    <button class="btn" id="c3-start">Open Agreement</button>
+    <div id="firma-container"></div>
+  </div>
+</div>
+
+<script type="module">
+  import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+  const supabase = createClient("https://hywqftbcjhfjegypzpzd.supabase.co", "sb_publishable_opBZHqmhQFUGQhNXmsQ7nA_yhh_WMfr");
+
+  const $ = (id) => document.getElementById(id);
+  const { data: sessData } = await supabase.auth.getSession();
+  if (!sessData?.session) {
+    location.replace("/account/signin/");
+    throw new Error("redirecting");
+  }
+
+  const { data: products } = await supabase.from("products").select("*").limit(1);
+  const product = products?.[0];
+  if (!product) throw new Error("No product");
+
+  // Basic IP fetch for RPC
+  let ip = "0.0.0.0";
+  try { const res = await fetch("https://api.ipify.org?format=json"); const d = await res.json(); ip = d.ip; } catch(e){}
+
+  async function submitConsent(kind, nameInput, btn, msg, textVersion, docHash) {
+    const typedName = $(nameInput).value.trim();
+    if (typedName.length < 2) { $(msg).textContent = "Please type your full name."; $(msg).classList.remove("hidden"); return false; }
+    
+    btn.disabled = true;
+    $(msg).textContent = "Saving..."; $(msg).classList.remove("hidden"); $(msg).className = "msg";
+    
+    const { data, error } = await supabase.rpc("submit_consent", {
+      p_product_id: product.id,
+      p_kind: kind,
+      p_decision: "given",
+      p_text_version: textVersion,
+      p_document_sha256: docHash || "0000000000000000000000000000000000000000000000000000000000000000",
+      p_typed_name: typedName,
+      p_ip: ip,
+      p_user_agent: navigator.userAgent,
+      p_auth_provider: sessData.session.user.app_metadata.provider || "email"
+    });
+
+    if (error) {
+      $(msg).textContent = error.message; $(msg).className = "msg"; btn.disabled = false;
+      return false;
+    } else {
+      $(msg).textContent = "Signed successfully."; $(msg).className = "msg success";
+      $(nameInput).disabled = true; btn.style.display = "none";
+      return true;
+    }
+  }
+
+  let c1Done = false, c2Done = false;
+  $("c1-btn").onclick = async () => {
+    c1Done = await submitConsent("C1_data_accuracy", "c1-name", $("c1-btn"), "c1-msg", "v1.0", null);
+    checkNext();
+  };
+  
+  $("c2-btn").onclick = async () => {
+    c2Done = await submitConsent("C2_release_approval", "c2-name", $("c2-btn"), "c2-msg", "v1.0", product.release_sha256);
+    checkNext();
+  };
+
+  function checkNext() {
+    if (c1Done && c2Done) {
+      $("c3-card").classList.remove("hidden");
+    }
+  }
+
+  $("c3-start").onclick = async () => {
+    $("c3-start").disabled = true;
+    $("c3-start").textContent = "Loading agreement...";
+    
+    const res = await fetch("/api/firma/create", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${sessData.session.access_token}` },
+      body: JSON.stringify({ productId: product.id })
+    });
+    
+    if (res.ok) {
+      const data = await res.json();
+      $("c3-start").style.display = "none";
+      $("firma-container").innerHTML = `<iframe src="${data.url}"></iframe>`;
+    } else {
+      $("c3-start").disabled = false;
+      $("c3-start").textContent = "Error loading. Try again.";
+    }
+  };
+</script>
+</body>
+</html>

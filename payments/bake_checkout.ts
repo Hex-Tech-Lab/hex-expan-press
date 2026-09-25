@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const defaultConfigPath = join(here, "config.duane.json");
-const siteRoot = join(here, "site");
+const siteRoot = join(here, "../web");
 
 const now = new Date().toISOString();
 const isRealUrl = (u: string | undefined): u is string =>

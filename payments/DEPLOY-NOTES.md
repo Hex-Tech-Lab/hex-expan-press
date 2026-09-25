@@ -1,4 +1,4 @@
-# Deploy Notes — expan-payments (payments/site/)
+# Deploy Notes — expan-payments (web/)
 
 **Deployed: 2026-09-15** via Vercel CLI (account `techhypexp`, project `expan-payments`).
 
@@ -45,10 +45,10 @@ Source of truth: `payments/config.duane.json` → `checkout_url` + `checkout_mod
 ```bash
 node_modules/.bin/tsx payments/bake_checkout.ts
 node_modules/.bin/tsx payments/bake_creator_pages.ts   # re-bakes all /c/<handle>/ hub pages from creators.json
-cd payments/site && ../../node_modules/.bin/vercel --prod --yes
+cd web && ../../node_modules/.bin/vercel --prod --yes
 ```
 
-**Deploy from a non-git copy while on Vercel Hobby (2026-09-26):** the GitHub repo is private, and Hobby blocks deploys whose commit author isn't the account owner ("Deployment Blocked … Hobby Plan does not support collaboration for private repositories"). Deploy a plain copy of the folder instead, so there is no commit metadata: `D=$(mktemp -d) && cp -a payments/site/. $D/ && (cd $D && ../../<repo>/node_modules/.bin/vercel --prod --yes)`. Vercel Pro is needed before launch anyway, because Hobby forbids commercial use.
+**Deploy from a non-git copy while on Vercel Hobby (2026-09-26):** the GitHub repo is private, and Hobby blocks deploys whose commit author isn't the account owner ("Deployment Blocked … Hobby Plan does not support collaboration for private repositories"). Deploy a plain copy of the folder instead, so there is no commit metadata: `D=$(mktemp -d) && cp -a web/. $D/ && (cd $D && ../../<repo>/node_modules/.bin/vercel --prod --yes)`. Vercel Pro is needed before launch anyway, because Hobby forbids commercial use.
 
 **Before and after every deploy (blind-spot audit 2026-09-25):** `python3 scripts/live_site_check.py --local` before (must be 0 failing), `python3 scripts/live_site_check.py` after (checks live expanpress.com price/title against config, and that buy buttons stay gated until `checkout_mode: "live"`).
 
@@ -63,7 +63,7 @@ Current baked state (2026-09-16, `checkout_mode: "sandbox"`): sandbox link = `ht
 - Buy button href is the literal placeholder `#buy-link-pending` — **no live checkout anywhere**; store stays unpublished until the creator signs (per `config.duane.json` working_note).
 - Product marked as a **working title** on the page ("final title may change before publication").
 - **No named creator, no testimonials, no reviews, no fabricated social proof.** Creator is referenced only as "the creator".
-- **STANDING RULE (2026-09-16, user mandate): revenue-share terms and payout specifics are NEVER public-facing.** Split percentages, payout mechanics ("split automatically at checkout"), and deal status must not appear on any page served from `payments/site/`. This file lives OUTSIDE the web root for exactly that reason (it contains internal deal/provider-form terms).
+- **STANDING RULE (2026-09-16, user mandate): revenue-share terms and payout specifics are NEVER public-facing.** Split percentages, payout mechanics ("split automatically at checkout"), and deal status must not appear on any page served from `web/`. This file lives OUTSIDE the web root for exactly that reason (it contains internal deal/provider-form terms).
 - "Not financial advice" + "past performance" disclaimers present on index and in ToS §3.
 
 ## Provider review form answer sheet (paste-ready)
@@ -86,7 +86,7 @@ For Fungies "business details", Polar "Account Review", Creem review — identic
 
 ### Remaining founder FILLs (only the founder can decide)
 
-1. **Support email** — `[FILL: support email]` (7 occurrences: index ×1, privacy ×3, terms ×1, refund ×2). Replace with the real support address, e.g. via a quick sed, then `vercel --prod --yes` from `payments/site/` to redeploy.
+1. **Support email** — `[FILL: support email]` (7 occurrences: index ×1, privacy ×3, terms ×1, refund ×2). Replace with the real support address, e.g. via a quick sed, then `vercel --prod --yes` from `web/` to redeploy.
 2. **Monthly volume estimate** — `[FILL: user]` (form answer only, not on the site).
 3. Optional: legal/trade name (privacy §1, terms §1) and postal address (privacy §7) — currently marked `[FILL: legal / trade name if registered]` / `[FILL: postal address, optional per provider requirements]`; blank-as-individual is acceptable on most provider forms.
 
@@ -100,9 +100,9 @@ For Fungies "business details", Polar "Account Review", Creem review — identic
 ## Deploy commands (for reference)
 
 ```bash
-cd payments/site
+cd web
 vercel link --yes --project expan-payments   # already done
 vercel --prod --yes
 ```
 
-Vercel auth used the existing CLI session (`vercel whoami` → `techhypexp`); no `VERCEL_TOKEN` in `.env` was needed. `payments/site/.vercel/` holds link settings and is gitignored via `payments/site/.gitignore`.
+Vercel auth used the existing CLI session (`vercel whoami` → `techhypexp`); no `VERCEL_TOKEN` in `.env` was needed. `web/.vercel/` holds link settings and is gitignored via `web/.gitignore`.

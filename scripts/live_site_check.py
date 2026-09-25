@@ -35,7 +35,7 @@ PRIMARY = re.compile(r'<a[^>]*data-checkout-slot="primary"[^>]*>')
 
 def fetch(path, local):
     if local:
-        return (REPO / "payments/site" / PAGES[path]).read_text()
+        return (REPO / "web" / PAGES[path]).read_text()
     req = urllib.request.Request(BASE + path + "?nocache=1", headers={"User-Agent": "expan-site-check"})
     with urllib.request.urlopen(req, timeout=20) as r:
         return r.read().decode()

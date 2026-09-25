@@ -85,7 +85,7 @@ def similar(claim_toks, corpus, k=3):
 
 
 def pages():
-    for d in ("payments/site", "payments/landing"):
+    for d in ("web", "payments/landing"):
         yield from sorted((REPO / d).rglob("*.html"))
 
 
