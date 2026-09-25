@@ -1,0 +1,43 @@
+docs/agent_ledger.jsonl
+  s_f6e48997206066::t_56e24658ebda9c 246
+  s_853d1b0c4b92d1::t_8af534ba9e7b30 245
+  s_f6e48997206066::t_d7abb48a03c1c7 248
+  s_492319ad365c52::t_eb614f84796c0f 247
+payments/site/account/signin/index.html
+  s_f6e48997206066::t_ee39a8d9325408 1-177,179-208
+  s_f6e48997206066::t_abbec4328ea1ed 178
+payments/site/account/index.html
+  s_f6e48997206066::t_1aac36e88d3e75 1-108
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d6326866e405c7584ea091df45cbedc56b560f12",
+  "prompts": {},
+  "sessions": {
+    "s_492319ad365c52": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f2624fbdeffeoz6DZfGc9NutSH",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_853d1b0c4b92d1": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f2624838affebcqDwSwRZgj0JZ",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_f6e48997206066": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f26240eeaffe0uqXfUXKTatSB8",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
