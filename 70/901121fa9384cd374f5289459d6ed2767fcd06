@@ -1,0 +1,54 @@
+scripts/chapter_proof.sh
+  s_3da772b3980d0a::t_6a996afcab1a38 15-16
+  s_3da772b3980d0a::t_e04cbcd87adbe4 28-31,34
+docs/agent_ledger.jsonl
+  s_815d943eba924b::t_0c5e75ab6cae50 238
+  s_b6c78d5106546d::t_da123f751c2f99 241
+  s_b6c78d5106546d::t_0d0bae3a3cbec7 242
+  s_b2c602dddf5955::t_ddd5d258fb50d5 240
+  s_3da772b3980d0a::t_d989130d4c6138 243
+  s_3da772b3980d0a::t_fcd61d528d3143 244
+  s_b2c602dddf5955::t_d73b54f45c9d8f 239
+scripts/visual_regress.py
+  s_3da772b3980d0a::t_a372479979340a 66
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "70901121fa9384cd374f5289459d6ed2767fcd06",
+  "prompts": {},
+  "sessions": {
+    "s_3da772b3980d0a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f2655f8a5ffeUaMlxhy48NZR0F",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_815d943eba924b": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f2672d3adffezTmNqy51vDIW6G",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_b2c602dddf5955": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f265fc9a3ffeeqeLZsE0FW2OEL",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_b6c78d5106546d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f265afdd5fferNo45ALpcxsYeH",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
