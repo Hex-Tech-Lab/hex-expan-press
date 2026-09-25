@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Review your facts &middot; ExpanPress</title>
+<style>
+  :root { color-scheme: light; font-size: 18px; }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    font-family: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: #FAF5EE; color: #2B2520; line-height: 1.6;
+    padding: 40px 20px;
+  }
+  .wrap { max-width: 1280px; margin: 0 auto; }
+  .kicker { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: #E8622C; font-weight: 600; margin-bottom: 12px; }
+  h1 {
+    font-family: "Fraunces", Georgia, "Times New Roman", serif;
+    font-size: 30px; line-height: 1.15; font-weight: 700; letter-spacing: -.015em; margin-bottom: 8px;
+  }
+  .intro { font-size: 16.5px; color: #6E5F53; margin-bottom: 22px; }
+  .progress { font-size: 16px; font-weight: 600; color: #2B2520; margin-bottom: 14px; }
+  .bar { height: 6px; background: #EADFD1; border-radius: 3px; margin-bottom: 22px; overflow: hidden; }
+  .bar > span { display: block; height: 100%; background: #E8622C; width: 0; transition: width .2s; }
+
+  .cols { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 24px; align-items: start; }
+  .card {
+    background: #FFFDF9; border: 1px solid #EADFD1; border-radius: 14px;
+    padding: 24px 24px 20px;
+  }
+  .code { font-size: 13px; font-weight: 600; color: #E8622C; letter-spacing: .06em; margin-bottom: 8px; }
+  .q { font-size: 18px; font-weight: 600; margin-bottom: 16px; }
+  .opt { display: flex; align-items: flex-start; gap: 12px; margin: 0 0 12px; padding: 8px 10px; border-radius: 8px; }
+  .opt:hover { background: #F3ECDF; }
+  .opt input[type="radio"] { width: 24px; height: 24px; margin-top: 3px; flex: 0 0 auto; accent-color: #E8622C; cursor: pointer; }
+  .opt label { font-size: 18px; font-weight: 400; cursor: pointer; }
+  .otherlabel { display: block; font-size: 16px; font-weight: 600; margin: 18px 0 8px; }
+  textarea {
+    width: 100%; min-height: 88px; font-size: 18px; font-family: inherit; line-height: 1.5;
+    padding: 10px 14px; border: 1px solid #EADFD1; border-radius: 10px; background: #fff; color: #2B2520; resize: vertical;
+  }
+  .quote {
+    background: #FFF7C2; border: 1px solid #EADFC1; border-radius: 8px;
+    padding: 10px 14px; margin-bottom: 12px; font-size: 16.5px; color: #4A4136;
+  }
+  .quote .qlabel { font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #8A7A20; display: block; margin-bottom: 4px; }
+  .pdflink { font-size: 15px; margin-bottom: 10px; display: none; }
+  .pdflink a { color: #2E7D5B; text-decoration: underline; }
+  iframe { width: 100%; height: 640px; border: 1px solid #EADFD1; border-radius: 10px; background: #fff; }
+  .actions { display: flex; gap: 12px; margin-top: 20px; flex-wrap: wrap; }
+  .btn {
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    min-height: 44px; text-align: center; text-decoration: none;
+    background: #2B2520; color: #FAF5EE; font-weight: 600; font-size: 18px;
+    font-family: inherit; padding: 10px 24px; border-radius: 10px;
+    border: 1px solid #2B2520; cursor: pointer;
+  }
+  .btn:hover { background: #3d352d; }
+  .btn.outline { background: #FFFDF9; color: #2B2520; border-color: #2B2520; }
+  .btn.outline:hover { background: #F3ECDF; }
+  .btn[disabled] { opacity: .45; cursor: not-allowed; }
+  .btn:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible {
+    outline: 3px solid #E8622C; outline-offset: 2px;
+  }
+  .msg { font-size: 16.5px; margin-top: 14px; }
+  .msg.err { color: #B3401E; font-weight: 600; }
+  .hidden { display: none; }
+  .done { text-align: center; padding: 40px 0; }
+  .done h1 { margin-bottom: 14px; }
+  .done p { font-size: 18px; color: #6E5F53; margin-bottom: 26px; }
+  footer {
+    border-top: 1px solid #EADFD1; margin-top: 36px; padding-top: 22px;
+    font-size: 13px; color: #6E5F53;
+    display: flex; flex-wrap: wrap; gap: 8px 22px; align-items: center;
+  }
+  footer a { color: #2E7D5B; text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
+  footer .sep { color: #CBB3A7; }
+  @media (max-width: 900px) {
+    .cols { grid-template-columns: 1fr; }          /* small screens: PDF sits under the question */
+    iframe { height: 480px; }
+    .pdflink { display: block; }                    /* "Open PDF at this page" link shown */
+    body { padding: 28px 16px; }
+    h1 { font-size: 25px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="kicker">Creator portal</p>
+  <h1>Review your facts</h1>
+  <p class="intro">One question at a time. Your answers are dated and logged, and they count as your review and sign-off on these points.</p>
+
+  <div id="app">
+    <p class="progress" id="progress" aria-live="polite"></p>
+    <div class="bar" aria-hidden="true"><span id="bar"></span></div>
+
+    <div class="cols">
+      <section class="card" id="question-card" aria-label="Review question">
+        <p class="code" id="item-code"></p>
+        <p class="q" id="item-question"></p>
+        <div id="options" role="radiogroup" aria-labelledby="item-question"></div>
+        <label class="otherlabel" for="freetext">Other / the correct fact</label>
+        <textarea id="freetext" name="freetext"></textarea>
+        <p class="msg err hidden" id="err" role="alert"></p>
+        <div class="actions">
+          <button class="btn outline" id="back" type="button">Back</button>
+          <button class="btn" id="next" type="button">Save & next</button>
+        </div>
+      </section>
+
+      <section class="card" id="pdf-card" aria-label="Book excerpt">
+        <p class="quote hidden" id="quote"><span class="qlabel">In the book</span><span id="quote-text"></span></p>
+        <p class="pdflink hidden" id="pdflink"><a id="pdflink-a" href="#" target="_blank" rel="noopener">Open PDF at this page</a></p>
+        <iframe id="pdf" title="Review copy of the book, opened to the relevant page"></iframe>
+      </section>
+    </div>
+  </div>
+
+  <div id="done" class="done hidden">
+    <h1>Review complete</h1>
+    <p>Thank you &mdash; every answer above has been saved and logged.</p>
+    <a class="btn" href="/account/consents/">Continue to consents</a>
+  </div>
+
+  <footer>
+    <a href="/privacy.html">Privacy Policy</a><span class="sep">&middot;</span>
+    <a href="/terms.html">Terms of Service</a>
+  </footer>
+</div>
+
+<script type="module">
+  import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+  const supabase = createClient(
+    "https://hywqftbcjhfjegypzpzd.supabase.co",
+    "sb_publishable_opBZHqmhQFUGQhNXmsQ7nA_yhh_WMfr"
+  );
+  const STORAGE_BUCKET = "review-pdfs";
+
+  const $ = (id) => document.getElementById(id);
+  const app = $("app"), doneEl = $("done");
+  let items = [], pdfUrl = null, i = 0;
+
+  // 1. Requires sign-in
+  const { data: sessData } = await supabase.auth.getSession();
+  if (!sessData?.session) {
+    location.replace("/account/signin/");
+    throw new Error("redirecting to sign-in");
+  }
+
+  // Load the signed-in creator's product and review_items (RLS limits them to their own)
+  const { data: products, error: pErr } = await supabase
+    .from("products")
+    .select("id, slug, title, release_path")
+    .order("created_at", { ascending: true })
+    .limit(1);
+  if (pErr || !products || products.length === 0) {
+    $("item-code").textContent = "";
+    $("item-question").textContent = pErr ? "Could not load your review: " + pErr.message : "No review assigned to your account yet.";
+    $("back").classList.add("hidden"); $("next").classList.add("hidden");
+    throw new Error("no product");
+  }
+  const product = products[0];
+
+  const { data: rows, error: rErr } = await supabase
+    .from("review_items")
+    .select("id, code, kind, question, options, anchor")
+    .eq("product_id", product.id)
+    .order("code", { ascending: true });
+  if (rErr) { $("item-question").textContent = "Could not load review items: " + rErr.message; throw new Error("load items"); }
+  // order by code naturally: A1, B1, B2 … B10, B13, C1 …
+  const nat = (c) => c.split(/(\d+)/).map((p, k) => (k % 2 ? Number(p) : p));
+  items = (rows || []).sort((a, b) => {
+    const x = nat(a.code), y = nat(b.code);
+    for (let k = 0; k < Math.min(x.length, y.length); k++) {
+      if (x[k] !== y[k]) return x[k] < y[k] ? -1 : 1;
+    }
+    return 0;
+  });
+  if (items.length === 0) { $("item-question").textContent = "No review items yet."; throw new Error("no items"); }
+
+  // Signed URL for the private review PDF
+  if (product.release_path) {
+    const { data: sf, error: sErr } = await supabase.storage
+      .from(STORAGE_BUCKET)
+      .createSignedUrl(product.release_path, 3600);
+    if (!sErr && sf) pdfUrl = sf.signedUrl;
+  }
+
+  function answered() {
+    const r = document.querySelector('#options input[type="radio"]:checked');
+    const t = $("freetext").value.trim();
+    return { choice: r ? r.value : null, free_text: t ? t : null };
+  }
+
+  function show(idx) {
+    const it = items[idx];
+    $("progress").textContent = `Item ${idx + 1} of ${items.length}`;
+    $("bar").style.width = `${((idx) / items.length) * 100}%`;
+    $("item-code").textContent = `${it.code} — ${it.kind}`;
+    $("item-question").textContent = it.question;
+    const box = $("options");
+    box.innerHTML = "";
+    (it.options || []).forEach((o) => {
+      const wrap = document.createElement("div");
+      wrap.className = "opt";
+      const input = document.createElement("input");
+      input.type = "radio"; input.name = "choice"; input.id = "opt-" + o.key; input.value = o.label;
+      const label = document.createElement("label");
+      label.htmlFor = "opt-" + o.key; label.textContent = o.label;
+      wrap.append(input, label);
+      box.append(wrap);
+    });
+    $("freetext").value = "";
+    $("err").classList.add("hidden");
+    $("back").disabled = idx === 0;
+
+    const anchor = it.anchor || {};
+    if (anchor.quote) {
+      $("quote").classList.remove("hidden");
+      $("quote-text").textContent = "“" + anchor.quote + "”";
+    } else {
+      $("quote").classList.add("hidden");
+    }
+    const src = pdfUrl ? pdfUrl + (anchor.page ? "#page=" + anchor.page : "") : null;
+    if (anchor.page && pdfUrl) {
+      $("pdflink-a").href = pdfUrl + "#page=" + anchor.page;
+    } else if (pdfUrl) {
+      $("pdflink-a").href = pdfUrl;
+    }
+  }
+
+  function lastSave() {
+    $("progress").textContent = "Review complete";
+    $("bar").style.width = "100%";
+    app.classList.add("hidden");
+    doneEl.classList.remove("hidden");
+    $("back").disabled = true; $("next").disabled = true;
+  }
+
+  $("back").addEventListener("click", () => { if (i > 0) { i--; show(i); } });
+  $("next").addEventListener("click", async () => {
+    const a = answered();
+    if (!a.choice && !a.free_text) {
+      $("err").textContent = "Choose an option or write the correct fact before continuing.";
+      $("err").classList.remove("hidden");
+      return;
+    }
+    $("next").disabled = true;
+    const { error } = await supabase.rpc("submit_review_answer", {
+      item_id: items[i].id, choice: a.choice, free_text: a.free_text
+    });
+    $("next").disabled = false;
+    if (error) {
+      $("err").textContent = "Could not save: " + error.message;
+      $("err").classList.remove("hidden");
+      return;
+    }
+    if (i === items.length - 1) { lastSave(); return; }
+    i++; show(i);
+  });
+
+  show(i);
+</script>
+</body>
+</html>

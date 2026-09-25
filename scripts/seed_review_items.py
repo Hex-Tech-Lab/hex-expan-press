@@ -1,0 +1,152 @@
+#!/usr/bin/env python3
+"""Parse data/intel/duane_book/qa/duane_review_queue.md (sections A, B, C) into
+SQL INSERT statements for public.review_items, written to
+supabase/seed/duane_review_items.sql. The file is NOT executed here.
+
+Kinds: A -> premise, B -> contradiction, C -> confirm.
+Options come from the ☐ choices; anchor.page is left null (orchestrator fills pages later).
+Run: pnpm exec python3 scripts/seed_review_items.py  (or plain python3)
+"""
+import json
+import re
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+QUEUE = ROOT / "data/intel/duane_book/qa/duane_review_queue.md"
+OUT = ROOT / "supabase/seed/duane_review_items.sql"
+PRODUCT_SLUG = "retirearly500k"
+
+KIND = {"A": "premise", "B": "contradiction", "C": "confirm"}
+
+
+def sql_str(s: str) -> str:
+    return "'" + s.replace("'", "''") + "'"
+
+
+def clean_label(s: str) -> str:
+    s = s.strip()
+    # drop trailing fill-in blanks like "____" and trailing colons before blanks
+    s = re.sub(r"[:\s]*_+\s*$", "", s).strip()
+    s = re.sub(r"\s+-\s*$", "", s)  # bullet hyphen from a wrapped list line
+    return s
+
+
+def strip_md(s: str) -> str:
+    s = re.sub(r"\*\*(.+?)\*\*", r"\1", s)
+    s = re.sub(r"\*(.+?)\*", r"\1", s)
+    return s
+
+
+def extract_options(text: str) -> list[dict]:
+    """Options from ☐ choices; a pure fill-in blank is not an option label."""
+    opts = []
+    for i, seg in enumerate(re.split(r"☐", text)[1:]):
+        label = clean_label(seg)
+        if not label:
+            continue
+        opts.append({"key": chr(ord("A") + i), "label": label})
+    return opts
+
+
+def parse(md: str):
+    items = []
+    section = None
+    in_b_table = False
+    current_a = None  # (code, question, pending answer lines)
+
+    for raw in md.splitlines():
+        line = raw.rstrip()
+        m = re.match(r"^## ([ABC])\. ", line)
+        if m:
+            section = m.group(1)
+            in_b_table = False
+            current_a = None
+            continue
+        if section == "A":
+            m = re.match(r"^\*\*([ABC]\d+)\. (.+?)\*\*\s*$", line)
+            if m:
+                current_a = {"code": m.group(1), "question": m.group(2), "body": []}
+                items.append(current_a)
+            elif current_a is not None:
+                current_a["body"].append(re.sub(r"^\s*-\s+", "", line))
+        elif section == "B":
+            if line.startswith("| # | Topic"):
+                in_b_table = True
+                continue
+            if in_b_table and line.startswith("|") and not line.startswith("|---"):
+                cols = [c.strip() for c in line.strip("|").split("|")]
+                if len(cols) < 4:
+                    continue
+                code = cols[0]
+                if not re.match(r"^[ABC]\d+$", code):
+                    continue
+                topic = cols[1]
+                struck = re.match(r"^~~(.+)~~$", cols[2].strip())
+                v1 = strip_md(cols[2].strip("~~ ").strip())
+                v2 = cols[3].strip() if len(cols) > 3 else ""
+                opts = extract_options(" ".join(cols[3:]))
+                if struck:
+                    q = (f"{topic}. Resolved by the editor: {strip_md(v1)} "
+                         "(it was an editing error, not a fact). No answer needed.")
+                else:
+                    q = f"{topic}. Which is right? In the book: {v1}"
+                    if v2:
+                        q += f" — and also: {strip_md(v2)}"
+                items.append({"code": code, "question": q, "options": opts})
+        elif section == "C":
+            if line.startswith("- "):
+                text = strip_md(line[2:].strip())
+                # a numbered item may run until the last ☐; capture options within this bullet
+                opts = extract_options(text)
+                items.append({"code": None, "question": text, "options": opts})
+            elif line.startswith("  - ") and items and items[-1]["code"] is None:
+                text = strip_md(line[4:].strip())
+                items[-1]["question"] += "\n" + text
+                for o in extract_options(text):
+                    o["key"] = chr(ord("A") + len(items[-1]["options"]))
+                    items[-1]["options"].append(o)
+
+    # assign codes for section C in order
+    c_n = 1
+    for it in items:
+        if it["code"] is None:
+            it["code"] = f"C{c_n}"
+            c_n += 1
+    return items
+
+
+def main() -> int:
+    md = QUEUE.read_text(encoding="utf-8")
+    items = parse(md)
+    for it in items:
+        if "options" not in it:  # section A: options live in the body ☐ lines
+            it["options"] = extract_options(" ".join(it["body"]))
+    if not items:
+        print("no items parsed", file=sys.stderr)
+        return 1
+
+    lines = [
+        "-- Seed: Duane review items from data/intel/duane_book/qa/duane_review_queue.md (sections A, B, C).",
+        "-- Generated by scripts/seed_review_items.py. NOT executed by that script.",
+        "-- anchor.page is null where unknown; the orchestrator fills pages later.",
+        "",
+    ]
+    for it in items:
+        kind = KIND[it["code"][0]]
+        opts = json.dumps(it["options"], ensure_ascii=False)
+        lines.append(
+            "insert into public.review_items (product_id, code, kind, question, options) "
+            "select p.id, %s, %s::public.review_kind, %s, %s::jsonb "
+            "from public.products p where p.slug = %s "
+            "on conflict (product_id, code) do nothing;"
+            % (sql_str(it["code"]), sql_str(kind), sql_str(it["question"]), sql_str(opts), sql_str(PRODUCT_SLUG))
+        )
+    OUT.parent.mkdir(parents=True, exist_ok=True)
+    OUT.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    print(f"wrote {OUT} with {len(items)} items")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -42,6 +42,17 @@ const INVENTORY_FILE = path.join(SAMPLE_DIR, "channel_inventory_2026-09-26.json"
 const PRIORITY_FILE = path.join(SAMPLE_DIR, "fetch_priority_2026-09-26.json");
 const SLEEP_MS = 1500; // be a polite client; yt-dlp throttles hard otherwise
 const MAX_ATTEMPTS = 3; // YouTube throttles transiently; retry the same call, never a fallback
+const TAPI_BASE = "https://transcriptapi.com/api/v2";
+const CREDIT_BUDGET = 100; // per T48: stop before exceeding 100 transcript credits
+
+type TranscriptApiResult = {
+  video_id?: string;
+  language?: string;
+  transcript: { text: string; start?: number; duration?: number }[] | string;
+  length_seconds?: number | null;
+  lengthText?: string | null;
+  metadata?: { title?: string };
+};
 
 type Candidate = {
   id: string;
@@ -149,6 +160,74 @@ function fetchCaptions(id: string): void {
   throw new Error(maskProxy(lastErr));
 }
 
+// --provider=transcriptapi: TranscriptAPI.com REST endpoint (docs 2026-09-25).
+// GET {TAPI_BASE}/youtube/transcript?video_url=<id>&format=json&include_timestamp=true
+// with `Authorization: Bearer <key>`. 1 credit per 200 (cached hits included), 0 on errors.
+// Retryable: 408/429/503 (docs' retry strategy). 402 = out of credits -> stop the run.
+// No VTT track exists on this path — <id>.en.vtt is skipped and noted in the meta.
+class OutOfCreditsError extends Error {}
+
+function segmentsToText(segments: { text: string }[]): string {
+  const lines: string[] = [];
+  for (const seg of segments) {
+    const line = seg.text.replace(/\s+/g, " ").trim();
+    if (!line) continue;
+    if (lines.slice(-4).includes(line)) continue;
+    lines.push(line);
+  }
+  const words = lines.join(" ").replace(/\s+/g, " ").trim().split(" ");
+  const out: string[] = [];
+  let cur = "";
+  for (const w of words) {
+    if (cur.length + w.length + 1 > 110) {
+      out.push(cur);
+      cur = w;
+    } else {
+      cur = cur ? `${cur} ${w}` : w;
+    }
+  }
+  if (cur) out.push(cur);
+  return out.join("\n");
+}
+
+// Returns the deduped, wrapped prose for one video. Throws OutOfCreditsError on 402
+// so the caller can stop the whole run without burning further attempts.
+async function fetchTranscriptApiText(id: string): Promise<string> {
+  const key = process.env.TRANSCRIPTAPI_API_KEY;
+  if (!key) throw new Error("TRANSCRIPTAPI_API_KEY missing from .env");
+  const url = `${TAPI_BASE}/youtube/transcript?video_url=${encodeURIComponent(id)}&format=json&include_timestamp=true`;
+  let lastErr = "";
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      const res = await fetch(url, {
+        headers: { Authorization: `Bearer ${key}` },
+        signal: AbortSignal.timeout(120_000),
+      });
+      if (res.status === 402) throw new OutOfCreditsError("HTTP 402 — out of credits");
+      if (res.status === 200) {
+        const data = JSON.parse(await res.text()) as TranscriptApiResult;
+        const segs = Array.isArray(data.transcript) ? data.transcript : [];
+        const prose = segmentsToText(segs);
+        if (!prose) throw new Error("empty transcript returned");
+        return prose;
+      }
+      if (res.status === 404) {
+        const body = (await res.json().catch(() => ({}))) as { detail?: string };
+        throw new Error(`HTTP 404 — ${body.detail ?? "no transcript available"}`);
+      }
+      // 408/429/503 are retryable per docs; anything else: report and stop retrying.
+      lastErr = `HTTP ${res.status}`;
+      if (![408, 429, 503].includes(res.status)) break;
+    } catch (e: unknown) {
+      if (e instanceof OutOfCreditsError) throw e;
+      if (e instanceof SyntaxError) throw new Error("malformed JSON response");
+      lastErr = e instanceof Error ? e.message.split("\n")[0] : String(e);
+    }
+    if (attempt < MAX_ATTEMPTS) sleep(SLEEP_MS * 2 ** attempt);
+  }
+  throw new Error(lastErr);
+}
+
 function buildInventoryCandidates(): Candidate[] {
   if (!fs.existsSync(INVENTORY_FILE)) {
     throw new Error(`missing ${INVENTORY_FILE}`);
@@ -182,7 +261,7 @@ function buildInventoryCandidates(): Candidate[] {
   }));
 }
 
-function main() {
+async function main() {
   const source = arg("source") ?? "gap";
   if (arg("proxy")) {
     const user = process.env.DECODO_RESIDENTIAL_USER;
@@ -231,27 +310,52 @@ function main() {
   }
 
   let ok = 0;
+  let credits = 0;
   const failed: { id: string; reason: string }[] = [];
+
+  const provider = arg("provider") ?? "ytdlp";
+  if (provider !== "ytdlp" && provider !== "transcriptapi") {
+    throw new Error(`unknown provider: ${provider} (ytdlp | transcriptapi)`);
+  }
 
   for (const [i, c] of picked.entries()) {
     const tag = `[${i + 1}/${picked.length}] ${c.id}`;
+    if (provider === "transcriptapi" && credits >= CREDIT_BUDGET) {
+      console.log(`${tag} SKIP — credit budget ${CREDIT_BUDGET} reached, stopping`);
+      break;
+    }
     try {
-      fetchCaptions(c.id);
+      let body: string;
+      if (provider === "transcriptapi") {
+        body = await fetchTranscriptApiText(c.id);
+        credits++;
+      } else {
+        fetchCaptions(c.id);
 
-      const vttPath = path.join(OUT_DIR, `${c.id}.en.vtt`);
-      if (!fs.existsSync(vttPath)) {
-        failed.push({ id: c.id, reason: "no en auto-captions published" });
-        console.log(`${tag} SKIP — no captions`);
-        continue;
+        const vttPath = path.join(OUT_DIR, `${c.id}.en.vtt`);
+        if (!fs.existsSync(vttPath)) {
+          failed.push({ id: c.id, reason: "no en auto-captions published" });
+          console.log(`${tag} SKIP — no captions`);
+          continue;
+        }
+        body = vttToText(fs.readFileSync(vttPath, "utf8"));
       }
 
       const title = c.title.replace(/\*/g, "").trim();
-      const body = vttToText(fs.readFileSync(vttPath, "utf8"));
       fs.writeFileSync(path.join(OUT_DIR, `${c.id}.txt`), `### ${c.id} — ${title}\n${body}\n`);
       fs.writeFileSync(
         path.join(OUT_DIR, `${c.id}.meta.json`),
         JSON.stringify(
-          { id: c.id, title: c.title, published_at: c.published_at, duration_sec: c.duration_sec },
+          provider === "transcriptapi"
+            ? {
+                id: c.id,
+                title: c.title,
+                published_at: c.published_at,
+                duration_sec: c.duration_sec,
+                provider: "transcriptapi",
+                en_vtt: "skipped — API provides no VTT track",
+              }
+            : { id: c.id, title: c.title, published_at: c.published_at, duration_sec: c.duration_sec },
           null,
           1,
         ) + "\n",
@@ -259,6 +363,10 @@ function main() {
       ok++;
       console.log(`${tag} ok — ${title.slice(0, 60)}`);
     } catch (e: unknown) {
+      if (e instanceof OutOfCreditsError) {
+        console.log(`${tag} STOP — ${e.message}`);
+        break;
+      }
       const reason = maskProxy(e instanceof Error ? e.message.split("\n")[0] : String(e));
       failed.push({ id: c.id, reason });
       console.log(`${tag} FAIL — ${reason}`);
@@ -267,6 +375,7 @@ function main() {
   }
 
   console.log(`\ndone: ${ok} fetched, ${failed.length} failed/skipped`);
+  if (provider === "transcriptapi") console.log(`credits used: ${credits} / budget ${CREDIT_BUDGET}`);
   if (failed.length) failed.forEach((f) => console.log(`  ${f.id}: ${f.reason}`));
 }
 
