@@ -68,7 +68,11 @@ def main():
     measured = m.group(1) if m else None
     rows = json.loads((QA / "transcript_numbers_rows.json").read_text())
     meta = json.loads((SAMPLES / "metadata.json").read_text())
-    channel_total = meta.get("youtube", {}).get("total_videos_seen")
+    # Live channel inventory (YouTube uploads playlist). NOT metadata.json's total_videos_seen, which
+    # is how many videos an old scraper looked at (capped at 300), not the channel size.
+    invs = sorted(SAMPLES.glob("channel_inventory_*.json"))
+    inv = json.loads(invs[-1].read_text()) if invs else []
+    channel_total = f"{len(inv)} ({invs[-1].stem.split('_')[-1]})" if inv else "unknown (no channel_inventory_*.json)"
     txts = list((SAMPLES / "transcripts").glob("*.txt"))
     words = sum(len(t.read_text(errors="replace").split()) for t in txts)
     srcs = fact_sources()

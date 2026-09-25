@@ -123,8 +123,10 @@ function main() {
   const limit = Number(arg("limit") ?? Infinity);
   const dryRun = hasFlag("dry-run");
 
+  // --ids keeps the caller's order, so a priority-ranked list is fetched most-important first.
+  const byId = new Map(all.map((c) => [c.id, c]));
   let picked = idsArg
-    ? all.filter((c) => idsArg.split(",").includes(c.id))
+    ? idsArg.split(",").map((id) => byId.get(id)).filter((c): c is Candidate => c !== undefined)
     : all.filter((c) => tiers.includes(c.tier));
 
   const already = new Set(
