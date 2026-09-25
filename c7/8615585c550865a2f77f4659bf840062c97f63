@@ -1,0 +1,19 @@
+web/tsconfig.json
+  s_3ff13f537f1fcb::t_7930287864bf7b 6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c78615585c550865a2f77f4659bf840062c97f63",
+  "prompts": {},
+  "sessions": {
+    "s_3ff13f537f1fcb": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f253ddc15ffe3J27MtM6Cu36Dd",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
