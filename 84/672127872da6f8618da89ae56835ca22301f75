@@ -1,0 +1,47 @@
+scripts/fetch_duane_transcripts.ts
+  s_853d1b0c4b92d1::t_037ecf9266658c 137
+  s_853d1b0c4b92d1::t_d57787ddee3054 262
+  s_853d1b0c4b92d1::t_b609c2f6596ddf 19-26
+  s_853d1b0c4b92d1::t_4b09fc74843750 55-77,150
+  s_853d1b0c4b92d1::t_494cf602b189fb 149
+  s_853d1b0c4b92d1::t_2633d5727ef723 152-182,186-205,217-219
+  s_853d1b0c4b92d1::t_de7acf8d521819 34-36,41-42
+  s_853d1b0c4b92d1::t_b3919de9d55c71 78
+  s_853d1b0c4b92d1::t_d4007bcc5e7e47 151
+docs/agent_ledger.jsonl
+  s_853d1b0c4b92d1::t_a2ec64bd475b87 249
+payments/config.duane.json
+  s_a7405a349c886b::t_f9d24f8674f4de 5
+payments/creators.json
+  s_a7405a349c886b::t_a51bdc375d495e 12
+payments/site/c/retirearly500k/500k-playbook/index.html
+  s_a7405a349c886b::t_da586fe1b1e80c 7,12,16,92,97,102-103,130,138,152
+payments/site/c/retirearly500k/index.html
+  s_a7405a349c886b::t_45c5b5e26b508e 95,100
+payments/site/index.html
+  s_a7405a349c886b::t_c4cb5d3f8758e0 7,70,75,84,100
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "84672127872da6f8618da89ae56835ca22301f75",
+  "prompts": {},
+  "sessions": {
+    "s_853d1b0c4b92d1": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f2624838affebcqDwSwRZgj0JZ",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_a7405a349c886b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b8fb2bc-7e7d-4d6e-8cf1-42ef2a94b764",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
