@@ -1,0 +1,27 @@
+scripts/fetch_duane_transcripts.ts
+  s_a7405a349c886b::t_93990cba02a404 126-127,129
+payments/site/vercel.json
+  s_a7405a349c886b::t_5a99dbe75443c6 1-3
+scripts/transcript_numbers_stats.py
+  s_a7405a349c886b::t_b5ddfbc1310516 71-75
+supabase/migrations/20260926000000_creator_portal.sql
+  s_a7405a349c886b::t_59a63f0c16ff6b 1-144
+supabase/migrations/20260926000100_private_helper_schema.sql
+  s_a7405a349c886b::t_cdff751e438c0d 1-6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d087adf39137bd6a3514a075bc8741b0aa61af81",
+  "prompts": {},
+  "sessions": {
+    "s_a7405a349c886b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b8fb2bc-7e7d-4d6e-8cf1-42ef2a94b764",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
