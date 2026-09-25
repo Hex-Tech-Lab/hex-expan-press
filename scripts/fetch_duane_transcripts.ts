@@ -16,6 +16,14 @@
 //   pnpm exec tsx scripts/fetch_duane_transcripts.ts --tiers=A-highview,B-topical
 //   pnpm exec tsx scripts/fetch_duane_transcripts.ts --ids=RrnEAi75xno,ftwSvkAoOFE
 //   pnpm exec tsx scripts/fetch_duane_transcripts.ts --tiers=A-highview --limit=5 --dry-run
+//   pnpm exec tsx scripts/fetch_duane_transcripts.ts --source=inventory --proxy=decodo
+//
+// --source=inventory: candidates = every channel video in channel_inventory_2026-09-26.json
+//   with no <id>.txt (long-form AND Shorts), excluding titles containing "Gigi". Order =
+//   fetch_priority_2026-09-26.json ids first, then remaining long-form, then Shorts.
+// --proxy=decodo: route yt-dlp through the Decodo residential proxy, built from
+//   DECODO_RESIDENTIAL_USER / DECODO_RESIDENTIAL_PASS / DECODO_RESIDENTIAL_GATEWAY in .env.
+//   The proxy URL is never printed — commands are logged with it masked.
 //
 // Already-present ids are skipped, so the script is resumable: re-run it after a partial
 // or interrupted pass and it picks up only what is still missing.
@@ -23,10 +31,15 @@
 import { execFileSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import dotenv from "dotenv";
+
+dotenv.config({ override: true });
 
 const SAMPLE_DIR = "data/db/samples/duane_retirearly500";
 const OUT_DIR = path.join(SAMPLE_DIR, "transcripts");
 const GAP_FILE = path.join(SAMPLE_DIR, "transcript_gap_2026-09-19.json");
+const INVENTORY_FILE = path.join(SAMPLE_DIR, "channel_inventory_2026-09-26.json");
+const PRIORITY_FILE = path.join(SAMPLE_DIR, "fetch_priority_2026-09-26.json");
 const SLEEP_MS = 1500; // be a polite client; yt-dlp throttles hard otherwise
 const MAX_ATTEMPTS = 3; // YouTube throttles transiently; retry the same call, never a fallback
 
@@ -38,6 +51,30 @@ type Candidate = {
   views: number | null;
   tier: string;
 };
+
+type InvEntry = {
+  id: string;
+  title: string;
+  date: string;
+  secs: number;
+  kind: string;
+  has: boolean;
+};
+
+// Decodo residential proxy (https scheme required — plain http CONNECT is flaky/aborts).
+// Built once from env; never logged. Mask in any printed command string.
+let proxyUrl: string | undefined;
+function proxyArgs(): string[] {
+  if (!proxyUrl) return [];
+  return ["--proxy", proxyUrl];
+}
+function maskProxy(s: string): string {
+  if (!proxyUrl) return s;
+  const proto = proxyUrl.indexOf("//");
+  const at = proxyUrl.indexOf("@");
+  if (proto >= 0 && at > proto) return s.replaceAll(proxyUrl, `${proxyUrl.slice(0, proto + 2)}***:***@${proxyUrl.slice(at + 1)}`);
+  return s;
+}
 
 const sleep = (ms: number) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
 
@@ -97,6 +134,7 @@ function fetchCaptions(id: string): void {
           "--sub-format", "vtt",
           "--no-warnings",
           "-o", path.join(OUT_DIR, "%(id)s.%(ext)s"),
+          ...proxyArgs(),
           `https://www.youtube.com/watch?v=${id}`,
         ],
         { stdio: ["ignore", "pipe", "pipe"], timeout: 120_000 },
@@ -108,15 +146,64 @@ function fetchCaptions(id: string): void {
       if (attempt < MAX_ATTEMPTS) sleep(SLEEP_MS * 2 ** attempt);
     }
   }
-  throw new Error(lastErr);
+  throw new Error(maskProxy(lastErr));
+}
+
+function buildInventoryCandidates(): Candidate[] {
+  if (!fs.existsSync(INVENTORY_FILE)) {
+    throw new Error(`missing ${INVENTORY_FILE}`);
+  }
+  const inv: InvEntry[] = JSON.parse(fs.readFileSync(INVENTORY_FILE, "utf8"));
+  const priority: { id: string }[] = fs.existsSync(PRIORITY_FILE)
+    ? JSON.parse(fs.readFileSync(PRIORITY_FILE, "utf8"))
+    : [];
+
+  const already = new Set(
+    fs.readdirSync(OUT_DIR).filter((f) => f.endsWith(".txt")).map((f) => f.replace(/\.txt$/, "")),
+  );
+  const toFetch = inv.filter(
+    (v) => v.has === false && !already.has(v.id) && !/gigi/i.test(v.title),
+  );
+
+  const rank = new Map(priority.map((p, i) => [p.id, i]));
+  const isShort = (v: InvEntry) => v.kind !== "long-form";
+  const sorted = [...toFetch].sort((a, b) => {
+    const ra = rank.has(a.id) ? rank.get(a.id)! : priority.length + (isShort(a) ? 1 : 0);
+    const rb = rank.has(b.id) ? rank.get(b.id)! : priority.length + (isShort(b) ? 1 : 0);
+    return ra - rb;
+  });
+  return sorted.map((v) => ({
+    id: v.id,
+    title: v.title,
+    published_at: v.date,
+    duration_sec: v.secs,
+    views: null,
+    tier: v.kind,
+  }));
 }
 
 function main() {
-  if (!fs.existsSync(GAP_FILE)) {
-    throw new Error(`missing ${GAP_FILE} — run the catalog cross-reference first`);
+  const source = arg("source") ?? "gap";
+  if (arg("proxy")) {
+    const user = process.env.DECODO_RESIDENTIAL_USER;
+    const pass = process.env.DECODO_RESIDENTIAL_PASS;
+    const gateway = process.env.DECODO_RESIDENTIAL_GATEWAY;
+    if (!user || !pass || !gateway) {
+      throw new Error("proxy=decodo requires DECODO_RESIDENTIAL_USER/PASS/GATEWAY in .env");
+    }
+    proxyUrl = `https://${encodeURIComponent(user)}:${encodeURIComponent(pass)}@${gateway}`;
   }
-  const gap = JSON.parse(fs.readFileSync(GAP_FILE, "utf8"));
-  const all: Candidate[] = gap.candidates;
+
+  let all: Candidate[];
+  if (source === "inventory") {
+    all = buildInventoryCandidates();
+  } else {
+    if (!fs.existsSync(GAP_FILE)) {
+      throw new Error(`missing ${GAP_FILE} — run the catalog cross-reference first`);
+    }
+    const gap = JSON.parse(fs.readFileSync(GAP_FILE, "utf8"));
+    all = gap.candidates;
+  }
 
   const idsArg = arg("ids");
   const tiers = (arg("tiers") ?? "A-highview,B-topical").split(",");
@@ -127,7 +214,9 @@ function main() {
   const byId = new Map(all.map((c) => [c.id, c]));
   let picked = idsArg
     ? idsArg.split(",").map((id) => byId.get(id)).filter((c): c is Candidate => c !== undefined)
-    : all.filter((c) => tiers.includes(c.tier));
+    : source === "inventory"
+      ? all
+      : all.filter((c) => tiers.includes(c.tier));
 
   const already = new Set(
     fs.readdirSync(OUT_DIR).filter((f) => f.endsWith(".txt")).map((f) => f.replace(/\.txt$/, "")),
@@ -170,7 +259,7 @@ function main() {
       ok++;
       console.log(`${tag} ok — ${title.slice(0, 60)}`);
     } catch (e: unknown) {
-      const reason = e instanceof Error ? e.message.split("\n")[0] : String(e);
+      const reason = maskProxy(e instanceof Error ? e.message.split("\n")[0] : String(e));
       failed.push({ id: c.id, reason });
       console.log(`${tag} FAIL — ${reason}`);
     }
