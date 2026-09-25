@@ -81,3 +81,6 @@ manuscript/book/img_v3
 # Any .env variant (backups, locals) holds live keys
 .env*
 !.env.example
+
+# Supabase CLI local state
+supabase/.temp/
