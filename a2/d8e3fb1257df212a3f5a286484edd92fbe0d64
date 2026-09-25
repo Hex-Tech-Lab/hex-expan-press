@@ -1,0 +1,19 @@
+.gitignore
+  s_a7405a349c886b::t_6d485fe8cd9235 84-86
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a2d8e3fb1257df212a3f5a286484edd92fbe0d64",
+  "prompts": {},
+  "sessions": {
+    "s_a7405a349c886b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b8fb2bc-7e7d-4d6e-8cf1-42ef2a94b764",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
