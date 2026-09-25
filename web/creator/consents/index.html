@@ -57,7 +57,7 @@
   const $ = (id) => document.getElementById(id);
   const { data: sessData } = await supabase.auth.getSession();
   if (!sessData?.session) {
-    location.replace("/account/signin/");
+    location.replace("/creator/signin/");
     throw new Error("redirecting");
   }
 
