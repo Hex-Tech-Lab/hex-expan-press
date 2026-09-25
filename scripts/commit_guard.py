@@ -93,7 +93,8 @@ def main():
             worst = 1
     for fname, adds in hunks(diff):
         blob = "\n".join(adds)
-        if fname.endswith(".env") or ENV_ASSIGN.search(blob):
+        base = fname.rsplit("/", 1)[-1]
+        if (base.startswith(".env") and base != ".env.example") or ENV_ASSIGN.search(blob):
             print(f"BLOCK: .env / secret assignment content in {fname}")
             worst = 1
             continue

@@ -77,3 +77,7 @@ typst_prototype/img_v3/
 manuscript/book/img_v3
 # Stray agent scratch scripts at repo root
 /test_parse_*.py
+
+# Any .env variant (backups, locals) holds live keys
+.env*
+!.env.example

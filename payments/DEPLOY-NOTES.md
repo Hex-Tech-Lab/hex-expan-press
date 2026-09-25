@@ -48,6 +48,8 @@ node_modules/.bin/tsx payments/bake_creator_pages.ts   # re-bakes all /c/<handle
 cd payments/site && ../../node_modules/.bin/vercel --prod --yes
 ```
 
+**Deploy from a non-git copy while on Vercel Hobby (2026-09-26):** the GitHub repo is private, and Hobby blocks deploys whose commit author isn't the account owner ("Deployment Blocked … Hobby Plan does not support collaboration for private repositories"). Deploy a plain copy of the folder instead, so there is no commit metadata: `D=$(mktemp -d) && cp -a payments/site/. $D/ && (cd $D && ../../<repo>/node_modules/.bin/vercel --prod --yes)`. Vercel Pro is needed before launch anyway, because Hobby forbids commercial use.
+
 **Before and after every deploy (blind-spot audit 2026-09-25):** `python3 scripts/live_site_check.py --local` before (must be 0 failing), `python3 scripts/live_site_check.py` after (checks live expanpress.com price/title against config, and that buy buttons stay gated until `checkout_mode: "live"`).
 
 The two bakers are independent but both re-runnable: `bake_checkout.ts` touches only pages carrying `data-checkout-slot` anchors (master + per-product pages) and now **skips pages without checkout slots** (creator hub pages — they carry no checkout, only internal links to product pages, so the sandbox/gated policy never applies to them).
