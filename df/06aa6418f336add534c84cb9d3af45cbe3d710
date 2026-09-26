@@ -1,0 +1,28 @@
+src/adapters/settings/env_settings.adapter.ts
+  s_c21d2da1fc16d4::t_42f42f714f0e60 14
+src/use_cases/create_esign_envelope.ts
+  s_c21d2da1fc16d4::t_9d9ad9ee5176a0 3,16-28,35-57,60,63-64,69
+docs/agent_ledger.jsonl
+  s_c21d2da1fc16d4::t_4e86062ffe53a5 264
+  s_c21d2da1fc16d4::t_7226f8ff5770d8 266
+  s_c21d2da1fc16d4::t_f76d1f04b3bebe 265
+src/adapters/esign/firma.adapter.ts
+  s_c21d2da1fc16d4::t_2ab5d8d969d78a 64,66
+  s_c21d2da1fc16d4::t_ab1d3fd76d0767 70
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "df06aa6418f336add534c84cb9d3af45cbe3d710",
+  "prompts": {},
+  "sessions": {
+    "s_c21d2da1fc16d4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f22c8265dffemQYfwVqfzfjXD9",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
