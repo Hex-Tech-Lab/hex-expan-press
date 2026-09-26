@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { nextRail, type RailWeight } from "../../../src/provider_router.ts";
+import { nextRail, type RailWeight } from "../../../payments/src/provider_router.ts";
 
 type CheckoutRail = RailWeight & { checkout_url?: string };
 
