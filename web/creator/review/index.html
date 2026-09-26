@@ -1,89 +1,145 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Review your facts &middot; ExpanPress</title>
-<style>
-  :root { color-scheme: light; font-size: 18px; }
-  * { box-sizing: border-box; margin: 0; }
-  body {
-    font-family: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    background: #FAF5EE; color: #2B2520; line-height: 1.6;
-    padding: 40px 20px;
-  }
-  .wrap { max-width: 1280px; margin: 0 auto; }
-  .kicker { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: #E8622C; font-weight: 600; margin-bottom: 12px; }
-  h1 {
-    font-family: "Fraunces", Georgia, "Times New Roman", serif;
-    font-size: 30px; line-height: 1.15; font-weight: 700; letter-spacing: -.015em; margin-bottom: 8px;
-  }
-  .intro { font-size: 16.5px; color: #6E5F53; margin-bottom: 22px; }
-  .progress { font-size: 16px; font-weight: 600; color: #2B2520; margin-bottom: 14px; }
-  .bar { height: 6px; background: #EADFD1; border-radius: 3px; margin-bottom: 22px; overflow: hidden; }
-  .bar > span { display: block; height: 100%; background: #E8622C; width: 0; transition: width .2s; }
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Review your facts &middot; ExpanPress</title>
+  <style>
+    :root { color-scheme: light; font-size: 18px; }
+    * { box-sizing: border-box; margin: 0; }
+    body {
+      font-family: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: #FAF5EE; color: #2B2520; line-height: 1.6;
+      padding: 40px 20px;
+    }
+    .wrap { max-width: 1400px; margin: 0 auto; }
+    .kicker { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: #E8622C; font-weight: 600; margin-bottom: 12px; }
+    h1 {
+      font-family: "Fraunces", Georgia, "Times New Roman", serif;
+      font-size: 30px; line-height: 1.15; font-weight: 700; letter-spacing: -.015em; margin-bottom: 8px;
+    }
+    .intro { font-size: 16.5px; color: #6E5F53; margin-bottom: 22px; }
+    .progress { font-size: 16px; font-weight: 600; color: #2B2520; margin-bottom: 14px; }
+    .bar { height: 6px; background: #EADFD1; border-radius: 3px; margin-bottom: 22px; overflow: hidden; }
+    .bar > span { display: block; height: 100%; background: #E8622C; width: 0; transition: width .2s; }
 
-  .cols { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 24px; align-items: start; }
-  .card {
-    background: #FFFDF9; border: 1px solid #EADFD1; border-radius: 14px;
-    padding: 24px 24px 20px;
-  }
-  .code { font-size: 13px; font-weight: 600; color: #E8622C; letter-spacing: .06em; margin-bottom: 8px; }
-  .q { font-size: 18px; font-weight: 600; margin-bottom: 16px; }
-  .opt { display: flex; align-items: flex-start; gap: 12px; margin: 0 0 12px; padding: 8px 10px; border-radius: 8px; }
-  .opt:hover { background: #F3ECDF; }
-  .opt input[type="radio"] { width: 24px; height: 24px; margin-top: 3px; flex: 0 0 auto; accent-color: #E8622C; cursor: pointer; }
-  .opt label { font-size: 18px; font-weight: 400; cursor: pointer; }
-  .otherlabel { display: block; font-size: 16px; font-weight: 600; margin: 18px 0 8px; }
-  textarea {
-    width: 100%; min-height: 88px; font-size: 18px; font-family: inherit; line-height: 1.5;
-    padding: 10px 14px; border: 1px solid #EADFD1; border-radius: 10px; background: #fff; color: #2B2520; resize: vertical;
-  }
-  .quote {
-    background: #FFF7C2; border: 1px solid #EADFC1; border-radius: 8px;
-    padding: 10px 14px; margin-bottom: 12px; font-size: 16.5px; color: #4A4136;
-  }
-  .quote .qlabel { font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #8A7A20; display: block; margin-bottom: 4px; }
-  .pdflink { font-size: 15px; margin-bottom: 10px; display: none; }
-  .pdflink a { color: #2E7D5B; text-decoration: underline; }
-  iframe { width: 100%; height: 640px; border: 1px solid #EADFD1; border-radius: 10px; background: #fff; }
-  .actions { display: flex; gap: 12px; margin-top: 20px; flex-wrap: wrap; }
-  .btn {
-    display: flex; align-items: center; justify-content: center; gap: 10px;
-    min-height: 44px; text-align: center; text-decoration: none;
-    background: #2B2520; color: #FAF5EE; font-weight: 600; font-size: 18px;
-    font-family: inherit; padding: 10px 24px; border-radius: 10px;
-    border: 1px solid #2B2520; cursor: pointer;
-  }
-  .btn:hover { background: #3d352d; }
-  .btn.outline { background: #FFFDF9; color: #2B2520; border-color: #2B2520; }
-  .btn.outline:hover { background: #F3ECDF; }
-  .btn[disabled] { opacity: .45; cursor: not-allowed; }
-  .btn:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible {
-    outline: 3px solid #E8622C; outline-offset: 2px;
-  }
-  .msg { font-size: 16.5px; margin-top: 14px; }
-  .msg.err { color: #B3401E; font-weight: 600; }
-  .hidden { display: none; }
-  .done { text-align: center; padding: 40px 0; }
-  .done h1 { margin-bottom: 14px; }
-  .done p { font-size: 18px; color: #6E5F53; margin-bottom: 26px; }
-  footer {
-    border-top: 1px solid #EADFD1; margin-top: 36px; padding-top: 22px;
-    font-size: 13px; color: #6E5F53;
-    display: flex; flex-wrap: wrap; gap: 8px 22px; align-items: center;
-  }
-  footer a { color: #2E7D5B; text-decoration: none; }
-  footer a:hover { text-decoration: underline; }
-  footer .sep { color: #CBB3A7; }
-  @media (max-width: 900px) {
-    .cols { grid-template-columns: 1fr; }          /* small screens: PDF sits under the question */
-    iframe { height: 480px; }
-    .pdflink { display: block; }                    /* "Open PDF at this page" link shown */
-    body { padding: 28px 16px; }
-    h1 { font-size: 25px; }
-  }
-</style>
+    /* Two columns; the book panel stays visible and fits the viewport */
+    .cols { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 24px; align-items: start; }
+    .card {
+      background: #FFFDF9; border: 1px solid #EADFD1; border-radius: 14px;
+      padding: 24px 24px 20px;
+    }
+    #pdf-card {
+      position: sticky; top: 20px;
+      display: flex; flex-direction: column;
+      height: calc(100vh - 60px); max-height: 1000px;
+      padding: 16px;
+    }
+    .pdf-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+    .pdf-title { font-size: 14px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: #6E5F53; }
+    .pdflink { font-size: 14px; display: none; }
+    .pdflink a { color: #2E7D5B; text-decoration: underline; white-space: nowrap; }
+    .viewer {
+      flex: 1; min-height: 0; position: relative; overflow: hidden;
+      border: 1px solid #EADFD1; border-radius: 10px; background: #4A4136;
+      perspective: 1600px;
+    }
+    .viewer .page-wrap {
+      position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+      transform-origin: left center; backface-visibility: hidden;
+      transition: transform .45s cubic-bezier(.4,.1,.2,1), opacity .45s;
+    }
+    .viewer .page-wrap.flip-next { animation: flipNext .55s cubic-bezier(.4,.1,.2,1); }
+    .viewer .page-wrap.flip-prev { animation: flipPrev .55s cubic-bezier(.4,.1,.2,1); }
+    @keyframes flipNext {
+      0%   { transform: rotateY(0deg); opacity: 1; }
+      45%  { transform: rotateY(-84deg); opacity: .55; }
+      100% { transform: rotateY(0deg); opacity: 1; }
+    }
+    @keyframes flipPrev {
+      0%   { transform: rotateY(0deg); opacity: 1; }
+      45%  { transform: rotateY(84deg); opacity: .55; }
+      100% { transform: rotateY(0deg); opacity: 1; }
+    }
+    .viewer canvas { max-width: 100%; max-height: 100%; box-shadow: 0 2px 14px rgba(43,37,32,.35); }
+    .viewer .loading {
+      position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+      color: #FAF5EE; font-size: 16px; z-index: 2;
+    }
+    .viewer .error {
+      position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+      color: #F3C9B5; font-size: 15px; padding: 20px; text-align: center; z-index: 2;
+    }
+    .pdf-nav {
+      display: flex; align-items: center; gap: 10px; justify-content: center; margin-top: 10px;
+    }
+    .pdf-nav button {
+      min-height: 36px; padding: 4px 14px; font: inherit; font-size: 15px; cursor: pointer;
+      background: #FFFDF9; border: 1px solid #EADFD1; border-radius: 8px; color: #2B2520;
+    }
+    .pdf-nav button:hover { background: #F3ECDF; }
+    .pdf-nav button:disabled { opacity: .4; cursor: not-allowed; }
+    .pdf-nav .pnum { font-size: 15px; color: #6E5F53; }
+    .pdf-nav .pnum b { color: #2B2520; }
+
+    .code { font-size: 13px; font-weight: 600; color: #E8622C; letter-spacing: .06em; margin-bottom: 8px; }
+    .q { font-size: 18px; font-weight: 600; margin-bottom: 16px; }
+    .opt { display: flex; align-items: flex-start; gap: 12px; margin: 0 0 12px; padding: 8px 10px; border-radius: 8px; }
+    .opt:hover { background: #F3ECDF; }
+    .opt input[type="radio"] { width: 24px; height: 24px; margin-top: 3px; flex: 0 0 auto; accent-color: #E8622C; cursor: pointer; }
+    .opt label { font-size: 18px; font-weight: 400; cursor: pointer; }
+    .blankhint {
+      background: #F3ECDF; border: 1px dashed #CBB3A7; border-radius: 8px;
+      padding: 8px 12px; margin: 0 0 14px; font-size: 15px; color: #6E5F53;
+    }
+    .otherlabel { display: block; font-size: 16px; font-weight: 600; margin: 18px 0 4px; }
+    .othersub { font-size: 14.5px; color: #6E5F53; margin-bottom: 8px; }
+    textarea {
+      width: 100%; min-height: 96px; font-size: 18px; font-family: inherit; line-height: 1.5;
+      padding: 10px 14px; border: 1px solid #EADFD1; border-radius: 10px; background: #fff; color: #2B2520; resize: vertical;
+    }
+    .quote {
+      background: #FFF7C2; border: 1px solid #EADFC1; border-radius: 8px;
+      padding: 10px 14px; margin-bottom: 12px; font-size: 16.5px; color: #4A4136;
+    }
+    .quote .qlabel { font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #8A7A20; display: block; margin-bottom: 4px; }
+    .actions { display: flex; gap: 12px; margin-top: 20px; flex-wrap: wrap; }
+    .btn {
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      min-height: 44px; text-align: center; text-decoration: none;
+      background: #2B2520; color: #FAF5EE; font-weight: 600; font-size: 18px;
+      font-family: inherit; padding: 10px 24px; border-radius: 10px;
+      border: 1px solid #2B2520; cursor: pointer;
+    }
+    .btn:hover { background: #3d352d; }
+    .btn.outline { background: #FFFDF9; color: #2B2520; border-color: #2B2520; }
+    .btn.outline:hover { background: #F3ECDF; }
+    .btn[disabled] { opacity: .45; cursor: not-allowed; }
+    .btn:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible {
+      outline: 3px solid #E8622C; outline-offset: 2px;
+    }
+    .msg { font-size: 16.5px; margin-top: 14px; }
+    .msg.err { color: #B3401E; font-weight: 600; }
+    .hidden { display: none; }
+    .done { text-align: center; padding: 40px 0; }
+    .done h1 { margin-bottom: 14px; }
+    .done p { font-size: 18px; color: #6E5F53; margin-bottom: 26px; }
+    footer {
+      border-top: 1px solid #EADFD1; margin-top: 36px; padding-top: 22px;
+      font-size: 13px; color: #6E5F53;
+      display: flex; flex-wrap: wrap; gap: 8px 22px; align-items: center;
+    }
+    footer a { color: #2E7D5B; text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+    footer .sep { color: #CBB3A7; }
+    @media (max-width: 900px) {
+      .cols { grid-template-columns: 1fr; }                 /* small screens: book sits under the question */
+      #pdf-card { position: static; height: 78vh; }
+      .pdflink { display: block; }                          /* "Open PDF at this page" link shown */
+      body { padding: 28px 16px; }
+      h1 { font-size: 25px; }
+    }
+  </style>
 </head>
 <body>
 <div class="wrap">
@@ -99,9 +155,17 @@
       <section class="card" id="question-card" aria-label="Review question">
         <p class="code" id="item-code"></p>
         <p class="q" id="item-question"></p>
+        <p class="blankhint hidden" id="blankhint">
+          Some choices have a blank (<b>____</b>) for a figure. Pick the closest one, then complete it in the
+          <b>Other / the correct fact</b> box below &mdash; write amounts in full, for example
+          &ldquo;about $12,000 a year, covered by dividends&rdquo;.
+        </p>
         <div id="options" role="radiogroup" aria-labelledby="item-question"></div>
         <label class="otherlabel" for="freetext">Other / the correct fact</label>
-        <textarea id="freetext" name="freetext"></textarea>
+        <p class="othersub">Use this box for anything the choices don't cover &mdash; especially blanks:
+          write the dollar figure and the reason in full (e.g. &ldquo;the gap is about $9,000 a year, and I cover it by tutoring&rdquo;).</p>
+        <textarea id="freetext" name="freetext"
+          placeholder="Write the correct fact here. For a blank: the dollar amount, in full, plus how it's covered."></textarea>
         <p class="msg err hidden" id="err" role="alert"></p>
         <div class="actions">
           <button class="btn outline" id="back" type="button">Back</button>
@@ -110,9 +174,20 @@
       </section>
 
       <section class="card" id="pdf-card" aria-label="Book excerpt">
-        <p class="quote hidden" id="quote"><span class="qlabel">In the book</span><span id="quote-text"></span></p>
-        <p class="pdflink hidden" id="pdflink"><a id="pdflink-a" href="#" target="_blank" rel="noopener">Open PDF at this page</a></p>
-        <iframe id="pdf" title="Review copy of the book, opened to the relevant page"></iframe>
+        <div class="pdf-head">
+          <span class="pdf-title">The book &mdash; review copy</span>
+          <span class="pdflink" id="pdflink"><a id="pdflink-a" href="#" target="_blank" rel="noopener">Open at this page ↗</a></span>
+        </div>
+        <div class="viewer" id="viewer">
+          <div class="loading" id="viewer-loading">Loading the book…</div>
+          <div class="error hidden" id="viewer-error"></div>
+          <div class="page-wrap" id="page-wrap"><canvas id="page-canvas"></canvas></div>
+        </div>
+        <div class="pdf-nav" id="pdf-nav">
+          <button id="pg-prev" type="button" aria-label="Previous page">‹ Prev</button>
+          <span class="pnum">page <b id="pg-cur">–</b> of <span id="pg-total">–</span></span>
+          <button id="pg-next" type="button" aria-label="Next page">Next ›</button>
+        </div>
       </section>
     </div>
   </div>
@@ -131,6 +206,9 @@
 
 <script type="module">
   import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+  import * as pdfjsLib from "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/+esm";
+  pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.min.mjs";
+
   const supabase = createClient(
     "https://hywqftbcjhfjegypzpzd.supabase.co",
     "sb_publishable_opBZHqmhQFUGQhNXmsQ7nA_yhh_WMfr"
@@ -140,6 +218,128 @@
   const $ = (id) => document.getElementById(id);
   const app = $("app"), doneEl = $("done");
   let items = [], pdfUrl = null, i = 0;
+  let pdfDoc = null, pdfPage = 0, pdfTotal = 0, rendering = 0;
+
+  // ---------- PDF viewer (PDF.js, page-flip on jumps) ----------
+  async function viewerError(msg) {
+    $("viewer-loading").classList.add("hidden");
+    const e = $("viewer-error");
+    e.textContent = msg;
+    e.classList.remove("hidden");
+  }
+
+  async function loadPdf() {
+    if (!pdfUrl) {
+      viewerError("No review PDF was attached to your product yet. You can still answer from the quotes shown.");
+      $("pg-prev").disabled = true; $("pg-next").disabled = true;
+      return;
+    }
+    try {
+      pdfDoc = await pdfjsLib.getDocument(pdfUrl).promise;
+      pdfTotal = pdfDoc.numPages;
+      $("pg-total").textContent = pdfTotal;
+      $("viewer-loading").classList.add("hidden");
+      await renderPage(1, false);
+    } catch (err) {
+      viewerError("Could not load the book (" + (err?.message || "unknown error") + "). You can still answer from the quotes shown.");
+    }
+  }
+
+  function sizeCanvas(canvas, page) {
+    const vp = page.getViewport({ scale: 1 });
+    const box = $("viewer").getBoundingClientRect();
+    const scale = Math.min((box.width - 24) / vp.width, (box.height - 24) / vp.height);
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.floor(vp.width * scale * dpr);
+    canvas.height = Math.floor(vp.height * scale * dpr);
+    canvas.style.width = Math.floor(vp.width * scale) + "px";
+    canvas.style.height = Math.floor(vp.height * scale) + "px";
+    return page.getViewport({ scale: scale * dpr });
+  }
+
+  async function renderPage(n, flip) {
+    if (!pdfDoc || n < 1 || n > pdfTotal) return;
+    const my = ++rendering;
+    pdfPage = n;
+    if (flip) {
+      const w = $("page-wrap");
+      w.classList.remove("flip-next", "flip-prev");
+      void w.offsetWidth; // restart animation
+      w.classList.add(flip > 0 ? "flip-next" : "flip-prev");
+    }
+    const page = await pdfDoc.getPage(n);
+    if (my !== rendering) return;
+    const canvas = $("page-canvas");
+    const vp = sizeCanvas(canvas, page);
+    const ctx = canvas.getContext("2d");
+    await page.render({ canvasContext: ctx, viewport: vp }).promise;
+    if (my !== rendering) return;
+    $("pg-cur").textContent = n;
+    $("pg-prev").disabled = n <= 1;
+    $("pg-next").disabled = n >= pdfTotal;
+  }
+
+  async function jumpToPage(n) {
+    if (!pdfDoc || n === pdfPage) return;
+    const dir = n > pdfPage ? 1 : -1;
+    await renderPage(n, dir);
+  }
+
+  $("pg-prev").addEventListener("click", () => renderPage(pdfPage - 1, -1));
+  $("pg-next").addEventListener("click", () => renderPage(pdfPage + 1, 1));
+  window.addEventListener("resize", () => { if (pdfDoc) renderPage(pdfPage, 0); });
+
+  // ---------- Review flow ----------
+  function answered() {
+    const r = document.querySelector('#options input[type="radio"]:checked');
+    const t = $("freetext").value.trim();
+    return { choice: r ? r.value : null, free_text: t ? t : null };
+  }
+
+  function show(idx) {
+    const it = items[idx];
+    $("progress").textContent = `Item ${idx + 1} of ${items.length}`;
+    $("bar").style.width = `${((idx) / items.length) * 100}%`;
+    $("item-code").textContent = `${it.code} — ${it.kind}`;
+    $("item-question").textContent = it.question;
+    const box = $("options");
+    box.innerHTML = "";
+    (it.options || []).forEach((o) => {
+      const wrap = document.createElement("div");
+      wrap.className = "opt";
+      const input = document.createElement("input");
+      input.type = "radio"; input.name = "choice"; input.id = "opt-" + o.key; input.value = o.label;
+      const label = document.createElement("label");
+      label.htmlFor = "opt-" + o.key; label.textContent = o.label;
+      wrap.append(input, label);
+      box.append(wrap);
+    });
+    // Show the blank-completion instruction only when a blank actually appears
+    const hasBlank = it.question.includes("____") || (it.options || []).some((o) => o.label.includes("____"));
+    $("blankhint").classList.toggle("hidden", !hasBlank);
+    $("freetext").value = "";
+    $("err").classList.add("hidden");
+    $("back").disabled = idx === 0;
+
+    const anchor = it.anchor || {};
+    if (anchor.quote) {
+      $("quote-slot")?.remove();
+      const q = document.createElement("p");
+      q.className = "quote"; q.id = "quote-slot";
+      q.innerHTML = '<span class="qlabel">In the book</span>';
+      q.append(document.createTextNode("“" + anchor.quote + "”"));
+      $("question-card").insertBefore(q, $("blankhint"));
+    } else {
+      $("quote-slot")?.remove();
+    }
+    if (anchor.page) {
+      $("pdflink-a").href = pdfUrl ? pdfUrl + "#page=" + anchor.page : "#";
+      $("pdflink").style.display = "inline";
+      if (pdfDoc) jumpToPage(anchor.page);
+    } else {
+      $("pdflink").style.display = "none";
+    }
+  }
 
   // 1. Requires sign-in
   const { data: sessData } = await supabase.auth.getSession();
@@ -187,56 +387,8 @@
     if (!sErr && sf) pdfUrl = sf.signedUrl;
   }
 
-  function answered() {
-    const r = document.querySelector('#options input[type="radio"]:checked');
-    const t = $("freetext").value.trim();
-    return { choice: r ? r.value : null, free_text: t ? t : null };
-  }
-
-  function show(idx) {
-    const it = items[idx];
-    $("progress").textContent = `Item ${idx + 1} of ${items.length}`;
-    $("bar").style.width = `${((idx) / items.length) * 100}%`;
-    $("item-code").textContent = `${it.code} — ${it.kind}`;
-    $("item-question").textContent = it.question;
-    const box = $("options");
-    box.innerHTML = "";
-    (it.options || []).forEach((o) => {
-      const wrap = document.createElement("div");
-      wrap.className = "opt";
-      const input = document.createElement("input");
-      input.type = "radio"; input.name = "choice"; input.id = "opt-" + o.key; input.value = o.label;
-      const label = document.createElement("label");
-      label.htmlFor = "opt-" + o.key; label.textContent = o.label;
-      wrap.append(input, label);
-      box.append(wrap);
-    });
-    $("freetext").value = "";
-    $("err").classList.add("hidden");
-    $("back").disabled = idx === 0;
-
-    const anchor = it.anchor || {};
-    if (anchor.quote) {
-      $("quote").classList.remove("hidden");
-      $("quote-text").textContent = "“" + anchor.quote + "”";
-    } else {
-      $("quote").classList.add("hidden");
-    }
-    const src = pdfUrl ? pdfUrl + (anchor.page ? "#page=" + anchor.page : "") : null;
-    if (anchor.page && pdfUrl) {
-      $("pdflink-a").href = pdfUrl + "#page=" + anchor.page;
-    } else if (pdfUrl) {
-      $("pdflink-a").href = pdfUrl;
-    }
-  }
-
-  function lastSave() {
-    $("progress").textContent = "Review complete";
-    $("bar").style.width = "100%";
-    app.classList.add("hidden");
-    doneEl.classList.remove("hidden");
-    $("back").disabled = true; $("next").disabled = true;
-  }
+  show(i);
+  loadPdf(); // then the first item may auto-jump once pages are ready
 
   $("back").addEventListener("click", () => { if (i > 0) { i--; show(i); } });
   $("next").addEventListener("click", async () => {
@@ -260,7 +412,13 @@
     i++; show(i);
   });
 
-  show(i);
+  function lastSave() {
+    $("progress").textContent = "Review complete";
+    $("bar").style.width = "100%";
+    app.classList.add("hidden");
+    doneEl.classList.remove("hidden");
+    $("back").disabled = true; $("next").disabled = true;
+  }
 </script>
 </body>
 </html>
