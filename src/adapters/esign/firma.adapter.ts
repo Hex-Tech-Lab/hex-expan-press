@@ -53,6 +53,7 @@ export class FirmaAdapter implements EsignProviderPort, EsignWebhookPort {
       
       return {
         isValid: true,
+        providerName: "firma",
         event: {
           eventType,
           envelopeId: payload.envelope_id || "unknown",

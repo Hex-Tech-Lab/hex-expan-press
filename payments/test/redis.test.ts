@@ -1,7 +1,7 @@
 import { describe, it, expect, afterAll } from "vitest";
 import dotenv from "dotenv";
 dotenv.config({ path: ".env", override: true });
-import { expanRedis } from "../src/redis.ts";
+import { expanRedis } from "../../src/infrastructure/redis/redis.client.ts";
 
 describe("payments/src/redis (Namespace Isolation Safety)", () => {
   const testKey = "test:safety_check_" + Date.now();

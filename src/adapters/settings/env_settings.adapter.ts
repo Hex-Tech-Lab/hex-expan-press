@@ -2,12 +2,26 @@ import { SettingsRegistryPort, PortalSettings } from "../../domain/settings/sett
 
 export class EnvSettingsAdapter implements SettingsRegistryPort {
   async getPortalSettings(): Promise<PortalSettings> {
-    // In the future, this might read from a Postgres table or JSON file.
-    // For now, it respects the environment/JSON registry pattern.
     return {
       esign: {
-        activeProvider: process.env.ESIGN_PROVIDER || "firma",
+        strategy: {
+          mode: '2d',
+          distribution: [
+            { provider: process.env.ESIGN_PRIMARY_PROVIDER || "firma", weight: 100 }
+          ],
+          fallbacks: process.env.ESIGN_FALLBACKS ? process.env.ESIGN_FALLBACKS.split(',') : []
+        },
         revenueSplitTemplateId: process.env.ESIGN_REVENUE_SPLIT_TEMPLATE_ID || "revenue-split-template"
+      },
+      payments: {
+        checkoutStrategy: {
+          mode: '2d',
+          distribution: [
+            { provider: "polar", weight: 50 },
+            { provider: "paddle", weight: 50 }
+          ],
+          fallbacks: ["lemonsqueezy", "fastspring"]
+        }
       }
     };
   }

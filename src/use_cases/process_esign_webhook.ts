@@ -41,10 +41,10 @@ export async function processEsignWebhookUseCase(
       decision: "given",
       textVersion: "v1.0", // Can be dynamic based on settings in future
       documentSha256: event.documentHash,
-      typedName: `Signed via ${settings.esign.activeProvider}`,
+      typedName: `Signed via ${validation.providerName || "unknown"}`,
       ip: req.ip,
       userAgent: req.userAgent,
-      authProvider: settings.esign.activeProvider,
+      authProvider: validation.providerName || "unknown",
       externalRef: envelopeId,
       evidencePath: pdfPath
     });
