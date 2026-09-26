@@ -1,0 +1,50 @@
+.gitignore
+  h_90c2451a76ba0d 87
+package.json
+  h_90c2451a76ba0d 36
+payments/test/redis.test.ts
+  h_90c2451a76ba0d 20,22
+pnpm-lock.yaml
+  h_90c2451a76ba0d 112-114,1083-1114,1821-1824,3171-3202,4096-4097,4656
+src/adapters/database/supabase.adapter.ts
+  h_90c2451a76ba0d 1-30
+src/adapters/esign/esign.factory.ts
+  h_90c2451a76ba0d 1-16
+src/adapters/esign/firma.adapter.ts
+  h_90c2451a76ba0d 1-67
+src/adapters/settings/env_settings.adapter.ts
+  h_90c2451a76ba0d 1-14
+src/domain/esign/esign.port.ts
+  h_90c2451a76ba0d 1-42
+src/domain/governance/consent.port.ts
+  h_90c2451a76ba0d 1-21
+src/domain/settings/settings.port.ts
+  h_90c2451a76ba0d 1-16
+src/use_cases/create_esign_envelope.ts
+  h_90c2451a76ba0d 1-40
+src/use_cases/process_esign_webhook.ts
+  h_90c2451a76ba0d 1-52
+tsconfig.json
+  h_90c2451a76ba0d 3-7,9-13
+web/api/checkout/[product].ts
+  h_90c2451a76ba0d 4
+web/api/esign/create.ts
+  h_90c2451a76ba0d 3-4,15-18,20-26,28-31,33-40,42-46
+web/api/esign/webhook.ts
+  h_90c2451a76ba0d 2-4,15-17,19-20,22-23,25-34,36-43
+web/api/webhook/[provider].ts
+  h_90c2451a76ba0d 2
+web/creator/consents/index.html
+  h_90c2451a76ba0d 49,122,131
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d8a158bd50c0ac7cadeaeb5771845627332cb0d9",
+  "prompts": {},
+  "humans": {
+    "h_90c2451a76ba0d": {
+      "author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
