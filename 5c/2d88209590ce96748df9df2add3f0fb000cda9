@@ -1,0 +1,30 @@
+web/creator/review/index.html
+  s_c21d2da1fc16d4::t_dbed7cf9426805 722-723,734,736-737,741-742
+  s_c21d2da1fc16d4::t_6bf9aa906b75d3 182,184-187,190-195
+  s_c21d2da1fc16d4::t_7f024b40d7b2f6 337-344
+  s_c21d2da1fc16d4::t_00c60b2a8a1117 615-616,625,629-630,632-643
+  s_c21d2da1fc16d4::t_f2a278b4c6c053 448-453,456-465
+  s_c21d2da1fc16d4::t_d7298db4ba44a3 41-43
+  s_c21d2da1fc16d4::t_ec73bbf4ca73c6 204
+  s_c21d2da1fc16d4::t_7779f63e1d74ff 224-227
+  s_c21d2da1fc16d4::t_74044f0e40ba51 120
+  s_c21d2da1fc16d4::t_7dc1b6d6edd5f7 747,749-751
+  s_c21d2da1fc16d4::t_1debca6a78729e 779
+  s_c21d2da1fc16d4::t_db2f9cb844fea8 379-382
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "5c2d88209590ce96748df9df2add3f0fb000cda9",
+  "prompts": {},
+  "sessions": {
+    "s_c21d2da1fc16d4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f22c8265dffemQYfwVqfzfjXD9",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
