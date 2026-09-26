@@ -1,0 +1,30 @@
+package.json
+  h_90c2451a76ba0d 39-40
+pnpm-lock.yaml
+  h_90c2451a76ba0d 124-126,2641-2643,3653,4527,4878-4879
+src/adapters/payments/legacy.adapter.ts
+  h_90c2451a76ba0d 1-81
+src/adapters/payments/paddle.adapter.ts
+  h_90c2451a76ba0d 1-93
+src/adapters/payments/polar.adapter.ts
+  h_90c2451a76ba0d 1-126
+src/domain/payments/payments.port.ts
+  h_90c2451a76ba0d 1-52
+src/use_cases/billing/process_billing_webhook.ts
+  h_90c2451a76ba0d 1-80
+web/api/billing/checkout.ts
+  h_90c2451a76ba0d 4,6-10,25,31,44,47,49-50,52,55,63,65,67,69
+web/api/billing/webhook.ts
+  h_90c2451a76ba0d 2,4-6,8-11,13-20,23-44
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ff8403fe6aa7f2e966d03616f69c9f4bb052a34c",
+  "prompts": {},
+  "humans": {
+    "h_90c2451a76ba0d": {
+      "author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
