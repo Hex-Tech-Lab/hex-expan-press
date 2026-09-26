@@ -1,0 +1,26 @@
+web/creator/review/index.html
+  s_c21d2da1fc16d4::t_6a78bb5432bfcb 157-161
+  s_c21d2da1fc16d4::t_561e16a45da539 87-88
+  s_c21d2da1fc16d4::t_436ef9513eab5f 176-179
+  s_c21d2da1fc16d4::t_04a44ca3a24eba 99-102
+  s_c21d2da1fc16d4::t_f77a0f911e7ed5 28-29,34,37
+  s_c21d2da1fc16d4::t_b93300e69695e9 337-340
+  s_c21d2da1fc16d4::t_9977919cda4a5c 13-14,16-17
+  s_c21d2da1fc16d4::t_bbe022fd7be6e1 136-137,145-149
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f05d03a140601d2beb1535f046ed637492b695d2",
+  "prompts": {},
+  "sessions": {
+    "s_c21d2da1fc16d4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f22c8265dffemQYfwVqfzfjXD9",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
