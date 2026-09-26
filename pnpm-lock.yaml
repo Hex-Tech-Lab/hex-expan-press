@@ -121,6 +121,9 @@ importers:
       resend:
         specifier: ^6.28.1
         version: 6.28.1
+      zod:
+        specifier: ^4.6.5
+        version: 4.6.5
     devDependencies:
       esbuild:
         specifier: 0.28.2
@@ -2635,6 +2638,9 @@ packages:
   zod@4.1.11:
     resolution: {integrity: sha512-WPsqwxITS2tzx1bzhIKsEs19ABD5vmCVa4xBo2tq/SrV4RNZtfws1EnCWQXM6yh8bD08a1idvkB5MZSBiZsjwg==}
 
+  zod@4.6.5:
+    resolution: {integrity: sha512-v5l/aFXZQeai4awLbOpSoHecE9UiMrnfx75tEXLjNonXVARxQ5mOeipTjROUchszUNCqnE+hqAMujRsRHsut2Q==}
+
 snapshots:
 
   '@bytecodealliance/preview2-shim@0.17.6': {}
@@ -3644,7 +3650,7 @@ snapshots:
       tar-stream: 3.1.7
       undici: 7.29.1
       xdg-app-paths: 5.1.0
-      zod: 4.1.11
+      zod: 4.6.5
     transitivePeerDependencies:
       - bare-abort-controller
       - react-native-b4a
@@ -4518,7 +4524,7 @@ snapshots:
       async-retry: 1.3.3
       debug: 4.4.3
       ws: 8.21.3
-      zod: 4.1.11
+      zod: 4.6.5
     transitivePeerDependencies:
       - bare-abort-controller
       - bufferutil
@@ -4869,3 +4875,5 @@ snapshots:
   zod@3.22.4: {}
 
   zod@4.1.11: {}
+
+  zod@4.6.5: {}
