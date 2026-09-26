@@ -55,28 +55,36 @@
       border: 1px solid #EADFD1; border-radius: 10px; background: #4A4136;
       perspective: 2200px;
     }
-    .book { position: relative; margin: auto; padding: 10px; perspective: 2200px; }
+    .book { position: relative; margin: auto; padding: 10px; width: max-content; perspective: 2400px; }
     .book canvas { display: block; box-shadow: 0 2px 14px rgba(43,37,32,.35); background: #fff; }
     #leaf {
-      position: absolute; top: 10px; bottom: 10px; left: 50%; width: 50.2%;
-      transform-origin: left center; transform-style: preserve-3d; backface-visibility: hidden;
-      pointer-events: none; display: none;
-    }
-    #leaf canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
-    #leaf .shade {
-      position: absolute; inset: 0;
-      background: linear-gradient(to left, rgba(0,0,0,.42), rgba(0,0,0,.06) 55%, rgba(255,255,255,.14));
+      position: absolute; top: 10px; left: 10px; height: calc(100% - 20px); width: calc(100% - 20px);
+      transform-style: preserve-3d; pointer-events: none; display: none;
     }
     #leaf.turning { display: block; }
-    #leaf.fwd { animation: peelFwd .72s cubic-bezier(.55,.06,.35,.95); }
-    #leaf.rev { animation: peelRev .72s cubic-bezier(.55,.06,.35,.95); }
+    #leaf.fwd { transform-origin: left center; animation: peelFwd .72s cubic-bezier(.5,.08,.32,.97); }
+    #leaf.rev { transform-origin: right center; animation: peelRev .72s cubic-bezier(.5,.08,.32,.97); }
     @keyframes peelFwd {
       0%   { transform: rotateY(0deg); }
-      100% { transform: rotateY(-179deg); }
+      100% { transform: rotateY(-180deg); }
     }
     @keyframes peelRev {
       0%   { transform: rotateY(0deg); }
-      100% { transform: rotateY(179deg); }
+      100% { transform: rotateY(180deg); }
+    }
+    #leaf .face {
+      position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden;
+      overflow: hidden;
+    }
+    #leaf .face canvas { width: 100%; height: 100%; box-shadow: none; }
+    #leaf .face.back { transform: rotateY(180deg); }
+    #leaf .face .shade {
+      position: absolute; inset: 0; pointer-events: none; opacity: 0;
+      background: linear-gradient(to right, rgba(0,0,0,.38), rgba(0,0,0,.05) 45%, rgba(255,255,255,.12));
+    }
+    #leaf.fwd .face .shade, #leaf.rev .face .shade { animation: shadeFwd .72s linear; }
+    @keyframes shadeFwd {
+      0% { opacity: 0; } 45% { opacity: 1; } 100% { opacity: 0; }
     }
     #hl-layer { position: absolute; inset: 10px; pointer-events: none; }
     #hl-layer .hl {
@@ -224,7 +232,7 @@
             <span class="pdf-title">The book &mdash; review copy</span>
             <span class="zoomctl">
               <button id="z-out" type="button" aria-label="Zoom out" title="Zoom out">−</button>
-              <button id="z-reset" type="button" aria-label="Reset zoom" title="Fit page">Fit</button>
+              <button id="z-reset" type="button" aria-label="Reset zoom" title="Reset to fit-page">Reset</button>
               <button id="z-in" type="button" aria-label="Zoom in" title="Zoom in">+</button>
             </span>
             <span class="pdflink" id="pdflink"><a id="pdflink-a" href="#" target="_blank" rel="noopener">Open at this page ↗</a></span>
@@ -235,7 +243,10 @@
             <div class="book" id="book">
               <canvas id="page-canvas"></canvas>
               <div id="hl-layer"></div>
-              <div id="leaf"><canvas id="leaf-canvas"></canvas><div class="shade"></div></div>
+              <div id="leaf">
+                <div class="face front"><canvas id="leaf-front"></canvas><div class="shade"></div></div>
+                <div class="face back"><canvas id="leaf-back"></canvas><div class="shade"></div></div>
+              </div>
             </div>
           </div>
           <div class="pdf-nav" id="pdf-nav">
@@ -372,31 +383,33 @@
     updatePageLabel();
     $("pg-prev").disabled = n <= 1;
     $("pg-next").disabled = n >= pdfTotal;
-    await drawHighlights(page, scale, cssVp);
+    try { await drawHighlights(my, page, scale, cssVp); } catch { /* highlights are best-effort */ }
     markActiveThumb();
   }
 
-  // Highlight the passage under discussion on the rendered page
-  async function drawHighlights(page, scale, cssVp) {
+  // Highlight the passage under discussion on the rendered page.
+  // Runs after EVERY render (page change, zoom, resize) so it can never "fall off".
+  async function drawHighlights(mySeq, page, scale, cssVp) {
     const layer = $("hl-layer");
-    layer.innerHTML = "";
     const it = items[i];
     const tps = it?.anchor?.touchpoints || [];
     const tp = tps.find((t) => t.page === pdfPage) || (it?.anchor?.page === pdfPage ? it.anchor : null);
-    if (!tp || !tp.quote) return;
+    if (!tp || !tp.quote) { layer.innerHTML = ""; return; }
     const qWords = norm(tp.quote).split(" ").filter(Boolean);
-    if (!qWords.length) return;
+    if (!qWords.length) { layer.innerHTML = ""; return; }
     const tc = await page.getTextContent();
+    if (mySeq !== renderSeq) return; // a newer render superseded us — drop stale result
     const itemsTc = tc.items.filter((t) => t.str && t.str.trim());
-    const words = []; // {str(item idx), word, x, y, h}
+    const words = [];
     itemsTc.forEach((t, idx) => {
-      t.str.split(/\s+/).filter(Boolean).forEach((w, wi) => {
-        words.push({ item: idx, wi, w: norm(w), t });
+      t.str.split(/\s+/).filter(Boolean).forEach((w) => {
+        words.push({ item: idx, w: norm(w), t });
       });
     });
     const seq = qWords.join(" ");
     const hay = words.map((w) => w.w).join(" ");
     const pos = hay.indexOf(seq);
+    layer.innerHTML = "";
     if (pos < 0) return;
     // find which items the match spans
     let ci = 0;
@@ -406,9 +419,8 @@
       if (end > pos && start < pos + seq.length) hitItems.set(w.item, w.t);
       ci = end + 1;
     }
-    const dpr = Math.min(window.devicePixelRatio || 1, 2);
     for (const t of hitItems.values()) {
-      const x = (t.transform[4] - 0) * scale;
+      const x = t.transform[4] * scale;
       const yTop = (cssVp.height - (t.transform[5] + t.height)) * scale;
       const div = document.createElement("div");
       div.className = "hl";
@@ -420,32 +432,68 @@
     }
   }
 
-  // Real page peel: render target page into a leaf, rotate it like a turning page
+  // Real page flip: front face = a snapshot of the current page, back face = the next page.
+  // The leaf pivots at the page edge (left for forward turns, right for going back).
+  let flipping = false;
   async function flipTo(n) {
-    if (!pdfDoc || n === pdfPage || n < 1 || n > pdfTotal) return;
+    if (!pdfDoc || n === pdfPage || n < 1 || n > pdfTotal || flipping) return;
+    flipping = true;
     const dir = n > pdfPage ? 1 : -1;
-    const leaf = $("leaf"), leafCanvas = $("leaf-canvas");
-    // render target into leaf
-    const page = await pdfDoc.getPage(n);
-    const box = $("book").getBoundingClientRect();
-    const scale = (box.height - 20) / page.getViewport({ scale: 1 }).height;
-    const vp = page.getViewport({ scale: scale * 1.4 });
-    leafCanvas.width = Math.floor(vp.width);
-    leafCanvas.height = Math.floor(vp.height);
-    await page.render({ canvasContext: leafCanvas.getContext("2d"), viewport: vp }).promise;
-    // main canvas beneath should show the page we are turning TO (leaf covers it mid-flip)
+    const leaf = $("leaf");
+    const front = $("leaf-front"), back = $("leaf-back");
+    const curCanvas = $("page-canvas");
+    const boxW = curCanvas.width, boxH = curCanvas.height;
+
+    // back face: render the destination page at the same size as the current view
+    try {
+      const page = await pdfDoc.getPage(n);
+      const scale = boxW / page.getViewport({ scale: 1 }).width;
+      const vp = page.getViewport({ scale: scale * Math.min(window.devicePixelRatio || 1, 2) });
+      back.width = Math.floor(vp.width);
+      back.height = Math.floor(vp.height);
+      await page.render({ canvasContext: back.getContext("2d"), viewport: vp }).promise;
+    } catch { /* fall back: flip with blank back face */ }
+
+    // front face: snapshot of the page being turned away
+    front.width = boxW; front.height = boxH;
+    front.getContext("2d").drawImage(curCanvas, 0, 0);
+
     leaf.classList.remove("fwd", "rev");
     void leaf.offsetWidth;
     leaf.classList.add("turning", dir > 0 ? "fwd" : "rev");
     setTimeout(async () => {
+      renderSeq++;                     // cancel any stale renders
       await renderPage(n, 0);
-      setTimeout(() => leaf.classList.remove("turning", "fwd", "rev"), 80);
-    }, 340);
+      setTimeout(() => {
+        leaf.classList.remove("turning", "fwd", "rev");
+        flipping = false;
+      }, 60);
+    }, 360);
   }
 
   $("pg-prev").addEventListener("click", () => flipTo(pdfPage - 1));
   $("pg-next").addEventListener("click", () => flipTo(pdfPage + 1));
   window.addEventListener("resize", () => { if (pdfDoc) renderPage(pdfPage, 0); });
+
+  // Drag-to-pan (works whenever the page overflows the viewer, e.g. zoomed in)
+  (() => {
+    const v = $("viewer");
+    let down = null;
+    v.addEventListener("pointerdown", (e) => {
+      if (v.scrollWidth <= v.clientWidth && v.scrollHeight <= v.clientHeight) return;
+      down = { x: e.clientX, y: e.clientY, sl: v.scrollLeft, st: v.scrollTop };
+      v.classList.add("panning");
+      v.setPointerCapture(e.pointerId);
+    });
+    v.addEventListener("pointermove", (e) => {
+      if (!down) return;
+      v.scrollLeft = down.sl - (e.clientX - down.x);
+      v.scrollTop = down.st - (e.clientY - down.y);
+    });
+    const end = (e) => { down = null; v.classList.remove("panning"); };
+    v.addEventListener("pointerup", end);
+    v.addEventListener("pointercancel", end);
+  })();
 
   // Zoom
   function setZoom(z) {
@@ -494,7 +542,12 @@
           thumbCanvases[tp.page] = tc;
         } catch { /* skip thumb on error */ }
       }
-      if (thumbCanvases[tp.page]) c.replaceWith(thumbCanvases[tp.page].cloneNode());
+      if (thumbCanvases[tp.page]) {
+        // cloneNode() would copy the element but NOT its bitmap — always drawImage
+        c.width = thumbCanvases[tp.page].width;
+        c.height = thumbCanvases[tp.page].height;
+        c.getContext("2d").drawImage(thumbCanvases[tp.page], 0, 0);
+      }
     }
     markActiveThumb();
   }
@@ -566,7 +619,8 @@
       $("pdflink").style.display = "none";
     }
     prefill(it);
-    showThumbs();
+    // defer sidebar work off the interaction path (keeps Next/Back snappy)
+    requestAnimationFrame(() => setTimeout(() => showThumbs(), 0));
     const target = first.page;
     if (pdfDoc && target && target !== pdfPage) flipTo(target);
   }
