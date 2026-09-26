@@ -32,6 +32,7 @@ export interface WebhookEvent {
 }
 
 export interface WebhookValidationResult {
+  providerName?: string;
   isValid: boolean;
   event?: WebhookEvent;
   error?: string;

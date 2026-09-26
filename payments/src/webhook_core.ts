@@ -5,7 +5,7 @@ import { isRegisteredPaymentProvider, paymentProviderSetting } from "./settings_
 import { loadConfig, type ProductConfig } from "./settings.ts";
 import { computeSplit } from "./split.ts";
 import { effectiveCreatorSplitPct } from "./terms.ts";
-import { expanRedis } from "./redis.ts";
+import { expanRedis } from "../../src/infrastructure/redis/redis.client.ts";
 import { lemonsqueezyProvider } from "./providers/lemonsqueezy.ts";
 import { payhipProvider } from "./providers/payhip.ts";
 import { paddleProvider } from "./providers/paddle.ts";

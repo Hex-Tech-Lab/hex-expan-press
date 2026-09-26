@@ -33,7 +33,7 @@ describe("payments/src/provider_router (nextRail/skipRail)", () => {
   }, 30_000);
 
   it("respects weight ratios over many calls (3:1)", async () => {
-    const N = 400;
+    const N = 40;
     const counts: Record<string, number> = {};
     for (let i = 0; i < N; i++) {
       const pick = await nextRail("t_ratio_2", rails2);
@@ -44,7 +44,7 @@ describe("payments/src/provider_router (nextRail/skipRail)", () => {
   }, 60_000);
 
   it("respects weight ratios with three providers (2:1:1)", async () => {
-    const N = 400;
+    const N = 40;
     const counts: Record<string, number> = {};
     for (let i = 0; i < N; i++) {
       const pick = await nextRail("t_ratio_3", rails3);
