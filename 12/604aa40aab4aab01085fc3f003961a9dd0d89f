@@ -1,0 +1,19 @@
+web/creator/review/index.html
+  s_c21d2da1fc16d4::t_cde93be1761266 4-24,26-142,158-162,165-168,177-190,209-211,221-342,390-391,415-421
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "12604aa40aab4aab01085fc3f003961a9dd0d89f",
+  "prompts": {},
+  "sessions": {
+    "s_c21d2da1fc16d4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f22c8265dffemQYfwVqfzfjXD9",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
