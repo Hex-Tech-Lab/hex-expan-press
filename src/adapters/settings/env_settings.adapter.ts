@@ -11,7 +11,7 @@ export class EnvSettingsAdapter implements SettingsRegistryPort {
           ],
           fallbacks: process.env.ESIGN_FALLBACKS ? process.env.ESIGN_FALLBACKS.split(',') : []
         },
-        revenueSplitDocumentPath: process.env.ESIGN_REVENUE_SPLIT_DOCUMENT_PATH || "legal-docs/revenue_split_agreement_v0.1.pdf"
+        revenueSplitDocumentPath: process.env.ESIGN_REVENUE_SPLIT_DOCUMENT_PATH || "legal-docs/revenue_split_agreement_v0.2.pdf"
       },
       payments: {
         checkoutStrategy: {

@@ -61,14 +61,13 @@ export class FirmaAdapter implements EsignProviderPort, EsignWebhookPort {
     });
 
     // Anchor tags in the agreement PDF are converted to positioned fields.
+    // Only the signature is interactive — name/date live in the audit trail (v0.2).
     const anchorTags: Array<{ anchor_string: string; type: string; recipient_id: string }> = [
-      { anchor_string: "{{CREATOR_SIGN}}", type: "signature", recipient_id: "temp_1" },
-      { anchor_string: "{{CREATOR_NAME}}", type: "text", recipient_id: "temp_1" },
-      { anchor_string: "{{CREATOR_DATE}}", type: "date", recipient_id: "temp_1" }
+      { anchor_string: "{{CREATOR_SIGN}}", type: "signature", recipient_id: "temp_1" }
     ];
 
     const body: Record<string, unknown> = {
-      name: `Creator Revenue-Split Agreement — ${command.metadata.productId ?? ""}`.trim(),
+      name: `Creator Revenue-Split Agreement — ${command.metadata.creatorName ?? command.metadata.productId ?? ""}`.trim(),
       document: Buffer.from(pdf).toString("base64"),
       expiration_hours: 168,
       recipients,
