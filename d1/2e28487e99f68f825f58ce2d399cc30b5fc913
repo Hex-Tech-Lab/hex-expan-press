@@ -1,0 +1,45 @@
+AGENTS.md
+  s_c21d2da1fc16d4::t_b7c064668a8c6c 122
+src/use_cases/create_esign_envelope.ts
+  s_c21d2da1fc16d4::t_d04d961e69ee23 27
+src/domain/esign/esign.port.ts
+  s_c21d2da1fc16d4::t_e4e0149491a17e 7-11
+  s_c21d2da1fc16d4::t_bcbc4bccaad62a 36-37
+docs/agent_ledger.jsonl
+  s_c21d2da1fc16d4::t_765ca970992ae5 260
+  s_c21d2da1fc16d4::t_86bafa7d6ac0d4 262
+  s_c21d2da1fc16d4::t_bd77044a347972 259
+  s_c21d2da1fc16d4::t_a7d8f0021e8f4c 258
+  s_c21d2da1fc16d4::t_3f1571bd5b4899 263
+  s_c21d2da1fc16d4::t_04dd638cc736e3 261
+  s_c21d2da1fc16d4::t_50b552a158ea40 257
+src/adapters/settings/env_settings.adapter.ts
+  s_c21d2da1fc16d4::t_aac5ee2836ac0c 14
+src/adapters/esign/firma.adapter.ts
+  s_c21d2da1fc16d4::t_23316005041c3c 4-15,17-21,23-35,37-39,41-52,54-59,61-101,105-106,113,116,123-126,129,131-134,137
+web/creator/consents/index.html
+  s_c21d2da1fc16d4::t_79f3ee436c0490 128,137-139,146,152,156,159-163
+  s_c21d2da1fc16d4::t_9c692c86799657 68-73,75-84
+  s_c21d2da1fc16d4::t_f7f2fb6275eca5 91-98
+  s_c21d2da1fc16d4::t_38b347cdaeebc2 74
+src/domain/settings/settings.port.ts
+  s_c21d2da1fc16d4::t_8d7170b79fd73c 15
+opencode.json
+  s_c21d2da1fc16d4::t_6ee1088e4f41f9 114-117,120-123,148
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d12e28487e99f68f825f58ce2d399cc30b5fc913",
+  "prompts": {},
+  "sessions": {
+    "s_c21d2da1fc16d4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f22c8265dffemQYfwVqfzfjXD9",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
