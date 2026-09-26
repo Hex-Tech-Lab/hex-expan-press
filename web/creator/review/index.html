@@ -38,9 +38,9 @@
       padding: 16px;
     }
     .pdf-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-    .pdf-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 10px; flex: 0 0 auto; }
-    .pdf-title { font-size: 14px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: #6E5F53; }
-    .zoomctl { display: flex; gap: 6px; }
+    .pdf-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 10px; flex: 0 0 auto; min-width: 0; }
+    .pdf-title { font-size: 14px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: #6E5F53; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+    .zoomctl { display: flex; gap: 6px; flex: 0 0 auto; }
     .zoomctl button {
       min-width: 34px; height: 30px; font: inherit; font-size: 14px; cursor: pointer;
       background: #FFFDF9; border: 1px solid #EADFD1; border-radius: 7px; color: #2B2520; padding: 0 8px;
@@ -117,7 +117,7 @@
       border: 1px solid #EADFD1; border-radius: 10px; background: #F3ECDF;
     }
     .thumbs.has { display: flex; }
-    .thumb { cursor: pointer; text-align: center; padding: 4px 2px; border-radius: 7px; border: 2px solid transparent; }
+    .thumb { cursor: pointer; text-align: center; padding: 4px 2px; border-radius: 7px; border: 2px solid transparent; flex: 0 0 auto; }
     .thumb:hover { background: #EADFD1; }
     .thumb.active { border-color: #E8622C; background: #FFF7C2; }
     .thumb canvas { width: 100%; border-radius: 4px; box-shadow: 0 1px 4px rgba(43,37,32,.3); background: #fff; }
@@ -179,10 +179,20 @@
     @media (max-width: 900px) {
       body { height: auto; overflow: auto; }                 /* small screens: normal page flow */
       .wrap { height: auto; }
+      .intro { margin-bottom: 12px; }
       .cols { grid-template-columns: 1fr; }                  /* book sits under the question */
-      #pdf-card { height: 78vh; }
+      #pdf-card { height: 82vh; flex-direction: column; }    /* thumbs become a horizontal strip on top */
+      .thumbs { flex: 0 0 auto; flex-direction: row; overflow-x: auto; overflow-y: hidden; width: 100%; }
+      .thumbs.has { display: flex; }
+      .thumb { flex: 0 0 72px; }
       .pdflink { display: block; }                           /* "Open PDF at this page" link shown */
       h1 { font-size: 25px; }
+      .pdf-nav { margin-top: 8px; }
+    }
+    @media (max-width: 480px) {
+      .zoomctl button { min-width: 30px; padding: 0 6px; }
+      .pdflink { max-width: 40%; }
+      .pdf-title { max-width: 45%; }
     }
   </style>
 </head>
@@ -191,7 +201,7 @@
   <div class="head">
     <p class="kicker">Creator portal</p>
     <h1>Review your facts</h1>
-    <p class="intro">One question at a time. Your answers are dated and logged, and they count as your review and sign-off on these points.</p>
+    <p class="intro">One question at a time. Your answers are logged and count as your sign-off &mdash; you can stop and continue anytime.</p>
   </div>
 
   <div id="app">
@@ -210,6 +220,10 @@
         <p class="nooptions hidden" id="nooptions">
           This one has <b>no preset choices</b> on purpose &mdash; it needs the actual figure or fact from you.
           Write it in the <b>Other / the correct fact</b> box below (for money, the full dollar amount, e.g. &ldquo;$350 a month, for a little over a year&rdquo;).
+        </p>
+        <p class="nooptions hidden" id="noanswer">
+          <b>No answer is needed</b> &mdash; the editor already resolved this (editing error, not a fact).
+          Just type <b>OK</b> in the box below to confirm you understand, then continue.
         </p>
         <div id="options" role="radiogroup" aria-labelledby="item-question"></div>
         <label class="otherlabel" for="freetext">Other / the correct fact</label>
@@ -320,6 +334,14 @@
     }
   }
 
+  function finishReview() {
+    $("progress").textContent = "Review complete";
+    $("bar").style.width = "100%";
+    app.classList.add("hidden");
+    doneEl.classList.remove("hidden");
+    $("back").disabled = true; $("next").disabled = true;
+  }
+
   // Discover where printed numbers sit (physical -> printed) from the PDF text itself
   async function buildFolioMap() {
     try {
@@ -354,7 +376,10 @@
   function computeScale(page) {
     const vp = page.getViewport({ scale: 1 });
     const box = $("viewer").getBoundingClientRect();
-    fitScale = Math.min((box.width - 40) / vp.width, (box.height - 40) / vp.height);
+    const fitW = (box.width - 40) / vp.width;
+    const fitH = (box.height - 40) / vp.height;
+    // narrow screens: default to fit-WIDTH (readable) rather than fit-height (tiny)
+    fitScale = window.innerWidth <= 900 ? Math.min(fitW, fitH * 2.2) : Math.min(fitW, fitH);
     return fitScale * zoom;
   }
 
@@ -420,15 +445,24 @@
       ci = end + 1;
     }
     for (const t of hitItems.values()) {
+      // Multi-line text items (callout boxes etc.) come as one item with \n —
+      // split into per-line rects so boxes stay one text line tall.
+      const lines = (t.str || "").split("\n").filter((s) => s.trim());
+      const lineH = Math.abs(t.transform[3]) || t.height; // font-size in text space
+      const fullH = (t.height || lineH) * scale;
+      const perLine = lines.length > 1 ? fullH / lines.length : fullH;
       const x = t.transform[4] * scale;
       const yTop = (cssVp.height - (t.transform[5] + t.height)) * scale;
-      const div = document.createElement("div");
-      div.className = "hl";
-      div.style.left = (x - 2) + "px";
-      div.style.top = (yTop - 2) + "px";
-      div.style.width = (t.width * scale + 4) + "px";
-      div.style.height = (t.height * scale + 5) + "px";
-      layer.append(div);
+      const count = Math.max(1, lines.length);
+      for (let k = 0; k < count; k++) {
+        const div = document.createElement("div");
+        div.className = "hl";
+        div.style.left = (x - 2) + "px";
+        div.style.top = (yTop + k * perLine - 1) + "px";
+        div.style.width = (t.width * scale + 4) + "px";
+        div.style.height = (perLine + 2) + "px";
+        layer.append(div);
+      }
     }
   }
 
@@ -578,7 +612,8 @@
     const answeredCount = items.filter((x) => saved[x.id]).length;
     $("bar").style.width = `${(answeredCount / items.length) * 100}%`;
     $("item-code").textContent = `${it.code} — ${it.kind}`;
-    $("item-question").textContent = it.question;
+    // strip raw checkbox glyphs from sheet text — options render as real radios below
+    $("item-question").textContent = it.question.replace(/[☐☑✓]\s*/g, "");
     const box = $("options");
     box.innerHTML = "";
     (it.options || []).forEach((o) => {
@@ -587,15 +622,25 @@
       const input = document.createElement("input");
       input.type = "radio"; input.name = "choice"; input.id = "opt-" + o.key; input.value = o.label;
       const label = document.createElement("label");
-      label.htmlFor = "opt-" + o.key; label.textContent = o.label;
+      label.htmlFor = "opt-" + o.key; label.textContent = o.label.replace(/[☐☑✓]\s*/g, "");
       wrap.append(input, label);
       box.append(wrap);
     });
+    const isNoAnswerNeeded = /no answer needed/i.test(it.question);
+    const hasOptions = (it.options || []).length > 0;
     const hasBlank = it.question.includes("____") || (it.options || []).some((o) => o.label.includes("____"));
-    $("blankhint").classList.toggle("hidden", !hasBlank);
-    const hasNoOptions = !(it.options || []).length;
-    $("nooptions").classList.toggle("hidden", !hasNoOptions);
-    if (hasNoOptions) $("freetext").focus();
+    $("blankhint").classList.toggle("hidden", !(hasOptions && hasBlank));
+    $("nooptions").classList.toggle("hidden", isNoAnswerNeeded || hasOptions);
+    $("noanswer").classList.toggle("hidden", !isNoAnswerNeeded);
+    if (isNoAnswerNeeded) {
+      $("freetext").placeholder = "Type OK to confirm you understand (or write a comment).";
+      $("freetext").focus();
+    } else {
+      $("freetext").placeholder = "Write the correct fact here. For a blank: the dollar amount, in full, plus how it's covered.";
+      if (!hasOptions) $("freetext").focus();
+    }
+    // reset the textarea size each question (content is restored by prefill)
+    $("freetext").style.height = "";
     $("err").classList.add("hidden");
     $("savednote").classList.add("hidden");
     $("back").disabled = idx === 0;
@@ -674,10 +719,8 @@
   }
   // resume at the first item that has no saved answer
   const firstOpen = items.findIndex((x) => !saved[x.id]);
-  i = firstOpen === -1 ? items.length - 1 : firstOpen;
-  if (firstOpen === -1) {
-    // everything answered — show all pre-filled, user can review
-  }
+  i = firstOpen === -1 ? 0 : firstOpen;
+  const allAnswered = firstOpen === -1;
 
   // Signed URL for the private review PDF
   if (product.release_path) {
@@ -688,20 +731,24 @@
   }
 
   show(i);
-  loadPdf(); // viewer loads; the item's target page flip happens on doc ready below
+  const pdfReady = loadPdf(); // resolves after first page render
 
-  // once the PDF is ready, jump to this item's first touchpoint
-  setTimeout(() => {
+  // once the PDF is ready, jump to the current item's first touchpoint
+  pdfReady.then(() => {
     const it = items[i];
     const t = it?.anchor?.touchpoints?.[0]?.page || it?.anchor?.page;
     if (pdfDoc && t && t !== pdfPage) flipTo(t);
-  }, 2500);
+    if (allAnswered) finishReview();
+  });
 
   $("back").addEventListener("click", () => { if (i > 0) { i--; show(i); } });
   $("next").addEventListener("click", async () => {
     const a = answered();
+    const isNoAnswerNeeded = /no answer needed/i.test(items[i].question);
     if (!a.choice && !a.free_text) {
-      $("err").textContent = "Choose an option or write the correct fact before continuing.";
+      $("err").textContent = isNoAnswerNeeded
+        ? "Type OK to confirm you've read this, then continue."
+        : "Choose an option or write the correct fact before continuing.";
       $("err").classList.remove("hidden");
       return;
     }
@@ -729,11 +776,7 @@
   });
 
   function lastSave() {
-    $("progress").textContent = "Review complete";
-    $("bar").style.width = "100%";
-    app.classList.add("hidden");
-    doneEl.classList.remove("hidden");
-    $("back").disabled = true; $("next").disabled = true;
+    finishReview();
   }
 </script>
 </body>
