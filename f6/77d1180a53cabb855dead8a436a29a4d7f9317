@@ -1,0 +1,36 @@
+payments/src/provider_router.ts
+  h_90c2451a76ba0d 1-2,21-22,25,29,32,34-41,45-46
+payments/src/webhook_core.ts
+  h_90c2451a76ba0d 8
+payments/test/provider_router.test.ts
+  h_90c2451a76ba0d 36,47
+payments/test/redis.test.ts
+  h_90c2451a76ba0d 4
+src/adapters/esign/esign.factory.ts
+  h_90c2451a76ba0d 1,3-4,8-56,58-73
+src/adapters/esign/firma.adapter.ts
+  h_90c2451a76ba0d 56
+src/adapters/settings/env_settings.adapter.ts
+  h_90c2451a76ba0d 7-13,15-24
+src/domain/esign/esign.port.ts
+  h_90c2451a76ba0d 35
+src/domain/settings/settings.port.ts
+  h_90c2451a76ba0d 1-12,14,18-21,24
+src/infrastructure/matrix_router/matrix_router.ts
+  h_90c2451a76ba0d 1-97
+src/infrastructure/redis/redis.client.ts
+  h_90c2451a76ba0d 1
+src/use_cases/process_esign_webhook.ts
+  h_90c2451a76ba0d 44,47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f677d1180a53cabb855dead8a436a29a4d7f9317",
+  "prompts": {},
+  "humans": {
+    "h_90c2451a76ba0d": {
+      "author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
