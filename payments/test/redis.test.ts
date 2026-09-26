@@ -17,9 +17,9 @@ describe("payments/src/redis (Namespace Isolation Safety)", () => {
   });
 
   it("blocks dangerous FLUSH commands unconditionally", async () => {
-    // @ts-expect-error testing private safety guard against raw flush
+    //  testing private safety guard against raw flush
     await expect(expanRedis["command"]("FLUSHDB")).rejects.toThrow("strictly forbidden");
-    // @ts-expect-error testing private safety guard against raw flush
+    //  testing private safety guard against raw flush
     await expect(expanRedis["command"]("FLUSHALL")).rejects.toThrow("strictly forbidden");
   });
 });

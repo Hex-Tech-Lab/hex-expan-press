@@ -84,3 +84,4 @@ manuscript/book/img_v3
 
 # Supabase CLI local state
 supabase/.temp/
+.vercel

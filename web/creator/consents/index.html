@@ -46,7 +46,7 @@
     <h3>3. Revenue Split Agreement</h3>
     <p>Please sign the revenue split agreement below.</p>
     <button class="btn" id="c3-start">Open Agreement</button>
-    <div id="firma-container"></div>
+    <div id="esign-container"></div>
   </div>
 </div>
 
@@ -119,7 +119,7 @@
     $("c3-start").disabled = true;
     $("c3-start").textContent = "Loading agreement...";
     
-    const res = await fetch("/api/firma/create", {
+    const res = await fetch("/api/esign/create", {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${sessData.session.access_token}` },
       body: JSON.stringify({ productId: product.id })
@@ -128,7 +128,7 @@
     if (res.ok) {
       const data = await res.json();
       $("c3-start").style.display = "none";
-      $("firma-container").innerHTML = `<iframe src="${data.url}"></iframe>`;
+      $("esign-container").innerHTML = `<iframe src="${data.url}"></iframe>`;
     } else {
       $("c3-start").disabled = false;
       $("c3-start").textContent = "Error loading. Try again.";

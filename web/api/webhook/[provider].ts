@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { handleWebhookPayload } from "../../../src/webhook_core.ts";
+import { handleWebhookPayload } from "../../../payments/src/webhook_core.ts";
 
 export const config = {
   api: {
