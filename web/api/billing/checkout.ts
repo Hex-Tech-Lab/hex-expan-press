@@ -1,9 +1,13 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { nextRail, type RailWeight } from "../../../payments/src/provider_router.ts";
+import { MatrixRouter } from "../../../src/infrastructure/matrix_router/matrix_router.ts";
 
-type CheckoutRail = RailWeight & { checkout_url?: string };
+interface CheckoutRail {
+  provider: string;
+  weight: number;
+  checkout_url?: string;
+}
 
 interface RailsFile {
   product_id: string;
@@ -18,15 +22,13 @@ function json(res: ServerResponse, status: number, payload: unknown): void {
 
 export default async function handler(req: IncomingMessage & { query: Record<string, string | string[]> }, res: ServerResponse) {
   if (req.method !== "GET") {
-    json(res, 405, { ok: false, error: "Method Not Allowed" });
-    return;
+    return json(res, 405, { ok: false, error: "Method Not Allowed" });
   }
 
   const product = typeof req.query.product === "string" ? req.query.product : Array.isArray(req.query.product) ? req.query.product[0] : "";
 
   if (!product) {
-    json(res, 400, { ok: false, error: "Missing product parameter in URL" });
-    return;
+    return json(res, 400, { ok: false, error: "Missing product parameter in URL" });
   }
 
   let rails: CheckoutRail[];
@@ -39,21 +41,18 @@ export default async function handler(req: IncomingMessage & { query: Record<str
     }
     rails = cfg.rails;
   } catch {
-    json(res, 404, { ok: false, error: `No rails configuration found for product '${product}'` });
-    return;
+    return json(res, 404, { ok: false, error: `No rails configuration found for product '${product}'` });
   }
 
-  let provider: string;
+  let providerName: string;
   try {
-    provider = await nextRail(product, rails);
+    // 10x Upgrade: Use MatrixRouter directly in the new clean namespace
+    providerName = await MatrixRouter.getNextProvider("payments", product, rails);
   } catch (err) {
-    // Redis unavailable/timed out (or any other router error): fall back to the
-    // highest-weight rail with a usable checkout_url rather than failing the request.
-    console.error(`checkout: nextRail(${product}) failed, falling back to default rail: ${(err as Error).message}`);
+    console.error(`checkout: MatrixRouter failed, falling back to default rail: ${(err as Error).message}`);
     const fallback = [...rails].sort((a, b) => b.weight - a.weight).find((r) => typeof r.checkout_url === "string" && r.checkout_url !== "");
     if (!fallback) {
-      json(res, 503, { ok: false, error: `Router unavailable and no fallback rail configured: ${(err as Error).message}` });
-      return;
+      return json(res, 503, { ok: false, error: `Router unavailable and no fallback rail configured: ${(err as Error).message}` });
     }
     res.statusCode = 302;
     res.setHeader("Location", fallback.checkout_url as string);
@@ -61,12 +60,13 @@ export default async function handler(req: IncomingMessage & { query: Record<str
     return;
   }
 
-  const rail = rails.find((r) => r.provider === provider);
+  const rail = rails.find((r) => r.provider === providerName);
   const url = rail?.checkout_url;
+  
   if (typeof url !== "string" || url === "") {
-    json(res, 503, { ok: false, error: `Rail '${provider}' has no checkout_url configured` });
-    return;
+    return json(res, 503, { ok: false, error: `Rail '${providerName}' has no checkout_url configured` });
   }
+  
   res.statusCode = 302;
   res.setHeader("Location", url);
   res.end();
