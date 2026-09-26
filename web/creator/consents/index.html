@@ -65,14 +65,37 @@
   const product = products?.[0];
   if (!product) throw new Error("No product");
 
+  // Reflect consents already signed (e.g. user returns later)
+  let c1Done = false, c2Done = false;
+  {
+    const { data: prior } = await supabase
+      .from("consents")
+      .select("kind, decision")
+      .eq("product_id", product.id)
+      .eq("decision", "given");
+    for (const c of prior || []) {
+      if (c.kind === "C1_data_accuracy") c1Done = true;
+      if (c.kind === "C2_release_approval") c2Done = true;
+    }
+    if (c1Done) { $("c1-name").disabled = true; $("c1-btn").style.display = "none"; $("c1-msg").textContent = "Signed."; $("c1-msg").className = "msg success"; $("c1-msg").classList.remove("hidden"); }
+    if (c2Done) { $("c2-name").disabled = true; $("c2-btn").style.display = "none"; $("c2-msg").textContent = "Signed."; $("c2-msg").className = "msg success"; $("c2-msg").classList.remove("hidden"); }
+    if (c1Done && c2Done) checkNext();
+  }
+
   // Basic IP fetch for RPC
   let ip = "0.0.0.0";
   try { const res = await fetch("https://api.ipify.org?format=json"); const d = await res.json(); ip = d.ip; } catch(e){}
 
   async function submitConsent(kind, nameInput, btn, msg, textVersion, docHash) {
     const typedName = $(nameInput).value.trim();
-    if (typedName.length < 2) { $(msg).textContent = "Please type your full name."; $(msg).classList.remove("hidden"); return false; }
-    
+    // Legal signature: at least a first and a last name (as on passport/ID)
+    const words = typedName.split(/\s+/).filter(Boolean);
+    if (words.length < 2 || !words.every(w => /^[\p{L}'’-]{2,}$/u.test(w))) {
+      $(msg).textContent = "Please type your full legal name — first and last name, as in your passport (e.g. “Duane Smith”).";
+      $(msg).className = "msg"; $(msg).classList.remove("hidden");
+      return false;
+    }
+
     btn.disabled = true;
     $(msg).textContent = "Saving..."; $(msg).classList.remove("hidden"); $(msg).className = "msg";
     
@@ -98,12 +121,11 @@
     }
   }
 
-  let c1Done = false, c2Done = false;
   $("c1-btn").onclick = async () => {
     c1Done = await submitConsent("C1_data_accuracy", "c1-name", $("c1-btn"), "c1-msg", "v1.0", null);
     checkNext();
   };
-  
+
   $("c2-btn").onclick = async () => {
     c2Done = await submitConsent("C2_release_approval", "c2-name", $("c2-btn"), "c2-msg", "v1.0", product.release_sha256);
     checkNext();
@@ -112,26 +134,33 @@
   function checkNext() {
     if (c1Done && c2Done) {
       $("c3-card").classList.remove("hidden");
+      // Bring the contract into view and focus it — the user must not have to hunt for it.
+      $("c3-card").scrollIntoView({ behavior: "smooth", block: "start" });
+      setTimeout(() => $("c3-start")?.focus(), 450);
     }
   }
 
   $("c3-start").onclick = async () => {
     $("c3-start").disabled = true;
     $("c3-start").textContent = "Loading agreement...";
-    
+
     const res = await fetch("/api/esign/create", {
       method: "POST",
       headers: { "Content-Type": "application/json", "Authorization": `Bearer ${sessData.session.access_token}` },
       body: JSON.stringify({ productId: product.id })
     });
-    
+
     if (res.ok) {
       const data = await res.json();
       $("c3-start").style.display = "none";
-      $("esign-container").innerHTML = `<iframe src="${data.url}"></iframe>`;
+      $("esign-container").innerHTML = `<iframe src="${data.url}" style="width:100%;height:600px;border:none;border-radius:8px"></iframe>`;
     } else {
       $("c3-start").disabled = false;
-      $("c3-start").textContent = "Error loading. Try again.";
+      $("c3-start").textContent = "Open Agreement";
+      let detail = "";
+      try { detail = (await res.json())?.error || ""; } catch {}
+      $("c3-start").insertAdjacentHTML("afterend",
+        `<p class="msg" style="color:#B3401E;margin-top:8px">Could not open the agreement (${res.status}${detail ? ": " + detail : ""}). Try again; if it keeps failing, contact us at support@expanpress.com.</p>`);
     }
   };
 </script>

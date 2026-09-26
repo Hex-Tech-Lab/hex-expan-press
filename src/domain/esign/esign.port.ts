@@ -4,7 +4,11 @@ export interface Signer {
 }
 
 export interface CreateEnvelopeCommand {
-  templateId: string;
+  /**
+   * Provider-agnostic reference to the agreement PDF to sign.
+   * Adapters resolve this to their own storage/document fetch.
+   */
+  agreementPath: string;
   signers: Signer[];
   metadata: Record<string, string>;
   redirectUrl: string;
@@ -29,6 +33,8 @@ export interface WebhookEvent {
   envelopeId: string;
   metadata: Record<string, string>;
   documentHash: string;
+  /** Raw signed document / certificate download reference, when the provider supplies one. */
+  documentUrl?: string;
 }
 
 export interface WebhookValidationResult {

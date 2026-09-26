@@ -111,10 +111,16 @@
           "options": {
             "provider": {
               "order": [
-                "coreweave"
+                "morph",
+                "together",
+                "coreweave",
+                "relace"
               ],
               "only": [
-                "coreweave"
+                "morph",
+                "together",
+                "coreweave",
+                "relace"
               ],
               "allow_fallbacks": false
             }

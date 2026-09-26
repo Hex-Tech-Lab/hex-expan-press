@@ -12,7 +12,7 @@ export interface ProviderStrategy {
 
 export interface EsignSettings {
   strategy: ProviderStrategy;
-  revenueSplitTemplateId: string;
+  revenueSplitDocumentPath: string;
 }
 
 export interface PaymentsSettings {

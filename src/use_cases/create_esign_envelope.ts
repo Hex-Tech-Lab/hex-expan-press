@@ -24,7 +24,7 @@ export async function createEsignEnvelopeUseCase(
 
   // 3. Build the provider-agnostic domain command
   const command = {
-    templateId: settings.esign.revenueSplitTemplateId,
+    agreementPath: settings.esign.revenueSplitDocumentPath,
     signers: [{ email: req.userEmail, name: req.userEmail }], // Name uses email for now per original logic
     metadata: { productId: req.productId, userId: req.userId },
     redirectUrl: `${req.hostUrl}/creator/consents/esign_done`,
