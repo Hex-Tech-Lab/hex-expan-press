@@ -111,16 +111,16 @@
           "options": {
             "provider": {
               "order": [
+                "baseten",
                 "morph",
                 "together",
-                "coreweave",
-                "relace"
+                "deepinfra"
               ],
               "only": [
+                "baseten",
                 "morph",
                 "together",
-                "coreweave",
-                "relace"
+                "deepinfra"
               ],
               "allow_fallbacks": false
             }

@@ -1,6 +1,6 @@
 import { mkdirSync, readFileSync } from "node:fs";
 import { open } from "node:fs/promises";
-import { dirname } from "node:path";
+import { dirname, join, basename } from "node:path";
 import { GLOBAL } from "./settings_registry.ts";
 
 export type LedgerEventType = "sale" | "refund";
@@ -105,6 +105,11 @@ export function findRefund(provider: string, saleId: string, salesFile: string =
 }
 
 async function appendRecord(record: SaleRecord, salesFile: string): Promise<void> {
+  // Serverless runtimes (Vercel/Lambda) have a read-only FS outside /tmp — keep the
+  // ledger writable there by redirecting to the basename under /tmp.
+  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+    salesFile = join("/tmp", basename(salesFile));
+  }
   mkdirSync(dirname(salesFile), { recursive: true });
   const fh = await open(salesFile, "a");
   try {

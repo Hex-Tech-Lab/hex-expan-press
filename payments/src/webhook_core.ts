@@ -51,6 +51,12 @@ export function loadProductIndex(): Map<string, ProductConfig> {
       try {
         const c = loadConfig(path.join(paymentsDir, f));
         idx.set(c.product_id, c);
+        // Aliases: webhook events may arrive keyed by provider product id, internal id, or site slug
+        const raw = JSON.parse(readFileSync(path.join(paymentsDir, f), "utf8")) as Record<string, unknown>;
+        if (typeof raw.product_internal_id === "string") idx.set(raw.product_internal_id, c);
+        if (typeof raw.polar_product_id_sandbox === "string") idx.set(raw.polar_product_id_sandbox, c);
+        if (typeof raw.polar_product_id_live === "string") idx.set(raw.polar_product_id_live, c);
+        if (typeof raw.site_slug === "string") idx.set(raw.site_slug, c);
       } catch (err) {
         console.error(`[webhook] failed to load ${f}: ${(err as Error).message}`);
       }

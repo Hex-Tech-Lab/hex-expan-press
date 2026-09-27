@@ -41,7 +41,14 @@ export default async function handler(req: IncomingMessage & { query: Record<str
     }
     rails = cfg.rails;
   } catch {
-    return json(res, 404, { ok: false, error: `No rails configuration found for product '${product}'` });
+    // Serverless fallback: data/ is not bundled on Vercel — serve known products from env/default rail
+    if (product === "retirearly500k-500k-playbook" || product === "duane_retirement_playbook_v1") {
+      rails = [
+        { provider: "polar", weight: 100, checkout_url: process.env.POLAR_CHECKOUT_URL || "https://sandbox-api.polar.sh/v1/checkout-links/polar_cl_g84ByoGAeZiahkWtCasYmeu1ShLtZIwwayzyI4ZdZsM/redirect" },
+      ];
+    } else {
+      return json(res, 404, { ok: false, error: `No rails configuration found for product '${product}'` });
+    }
   }
 
   let providerName: string;
