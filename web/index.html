@@ -3,13 +3,13 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ExpanPress &middot; The Autonomous Digital Publisher</title>
-  <meta name="description" content="Infrastructure for elite creators: transform transcripts into cryptographically secured, high-converting digital books with automated multi-rail checkouts and zero-touch revenue splits.">
+  <title>ExpanPress &middot; Your Voice Deserves to Be a Book</title>
+  <meta name="description" content="A private publishing house for elite creators. We study your life's work, craft your digital book, and build your passive revenue stream. Zero writing required.">
   <link rel="canonical" href="https://expanpress.com/">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="ExpanPress">
-  <meta property="og:title" content="ExpanPress &middot; The Autonomous Digital Publisher">
-  <meta property="og:description" content="Infrastructure for elite creators: transform transcripts into cryptographically secured, high-converting digital books.">
+  <meta property="og:title" content="ExpanPress &middot; Your Voice Deserves to Be a Book">
+  <meta property="og:description" content="We study your life's work, craft your digital book, and handle everything from publishing to payouts. Zero writing required.">
   <meta property="og:url" content="https://expanpress.com/">
   <meta name="twitter:card" content="summary_large_image">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -21,12 +21,12 @@
       theme: {
         extend: {
           fontFamily: {
-            sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+            sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'sans-serif'],
           },
           colors: {
-            canvas: '#FAF7F2',
-            peach: '#FF9E80',
+            canvas: '#F9F6F0',
             charcoal: '#181818',
+            peach: '#FF9E80',
           }
         }
       }
@@ -35,172 +35,291 @@
   <style>
     :root { color-scheme: light; }
     body { font-feature-settings: "cv02", "cv03", "cv04", "cv11"; }
+    .glass-card {
+      background: rgba(255, 255, 255, 0.78);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(0, 0, 0, 0.04);
+    }
+    .dock-shadow {
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.03), 0 1px 3px rgba(0, 0, 0, 0.02);
+    }
+    .card-shadow {
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.03), 0 1px 3px rgba(0, 0, 0, 0.02);
+    }
+    .card-shadow:hover {
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.06), 0 2px 6px rgba(0, 0, 0, 0.03);
+    }
   </style>
 </head>
-<body class="bg-[#FAF7F2] text-[#181818] font-sans antialiased selection:bg-[#FF9E80]/20 min-h-screen relative overflow-x-hidden">
+<body class="bg-[#F9F6F0] text-[#181818] font-sans antialiased selection:bg-[#FF9E80]/20 min-h-screen p-4 sm:p-8 md:p-12 flex flex-col justify-between">
 
-  <!-- Diffuse Warm Background Glow Blobs -->
-  <div class="fixed top-0 left-1/2 -translate-x-1/2 w-[700px] h-[450px] bg-[#FF9E80]/15 rounded-full blur-[140px] pointer-events-none -z-10"></div>
-  <div class="fixed bottom-0 right-10 w-[500px] h-[400px] bg-[#FF9E80]/10 rounded-full blur-[140px] pointer-events-none -z-10"></div>
+  <div class="max-w-[1240px] w-full mx-auto flex flex-col gap-6 md:gap-8">
 
-  <!-- Top Floating Nav Dock -->
-  <header class="fixed top-5 inset-x-0 z-50 flex justify-center px-4 pointer-events-none">
-    <nav class="pointer-events-auto max-w-fit px-5 py-2.5 rounded-full bg-white/75 backdrop-blur-xl border border-black/5 shadow-[0_4px_24px_rgba(0,0,0,0.04)] flex items-center gap-4 sm:gap-7 transition-all">
-      <a href="/" class="flex items-center gap-2 group">
-        <span class="font-bold tracking-tight text-gray-900 text-sm group-hover:text-black transition-colors">{expanpress}</span>
-      </a>
-
-      <div class="hidden sm:flex items-center gap-2 px-3 py-1 rounded-full bg-black/[0.03] text-[11px] font-medium text-gray-600 border border-black/[0.03]">
-        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-        <span>Pipeline Active</span>
+    <!-- Top Navigation & Brand Header -->
+    <header class="flex items-start justify-between">
+      <div>
+        <h1 class="text-3xl sm:text-4xl md:text-5xl tracking-tight text-gray-900 font-normal">
+          Hello, <span class="font-bold">creator</span>
+        </h1>
+        <p class="text-sm sm:text-base text-gray-500 mt-1 sm:mt-2">
+          A dedicated publishing house for <b class="text-gray-700 font-medium">your lived wisdom</b> and <b class="text-gray-700 font-medium">lasting legacy</b>.
+        </p>
       </div>
 
-      <a href="/creator/signin/" class="text-xs font-semibold text-gray-800 hover:text-black px-3.5 py-1.5 rounded-full bg-black/[0.04] hover:bg-black/[0.08] transition-all flex items-center gap-1.5 active:scale-95">
-        <span>Creator Portal</span>
-        <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M5 12h14M12 5l7 7-7 7"/>
-        </svg>
-      </a>
-    </nav>
-  </header>
-
-  <!-- Main Hero Section -->
-  <main class="max-w-4xl mx-auto px-4 pt-28 sm:pt-32 pb-8">
-
-    <!-- Deep Charcoal Anchor Card -->
-    <div class="relative rounded-[36px] bg-gradient-to-br from-[#1E1E1E] via-[#161616] to-[#111111] p-8 sm:p-12 md:p-16 text-white border border-white/[0.08] shadow-[0_24px_70px_rgba(0,0,0,0.12)] overflow-hidden">
-      <!-- Ambient corner glow inside card -->
-      <div class="absolute -top-24 -right-24 w-80 h-80 bg-[#FF9E80]/10 rounded-full blur-3xl pointer-events-none"></div>
-
-      <!-- Kicker Tag -->
-      <div class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-white/[0.08] border border-white/[0.06] text-[#FF9E80] text-xs font-mono tracking-wider uppercase mb-7 sm:mb-8">
-        <span class="w-1.5 h-1.5 rounded-full bg-[#FF9E80]"></span>
-        <span>Infrastructure for Elite Creators</span>
+      <div class="flex items-center gap-4">
+        <a href="/" class="text-xl sm:text-2xl font-bold tracking-tight text-gray-900 group">
+          <span class="text-gray-400 font-light">{</span><span class="text-gray-900">expanpress</span><span class="text-gray-400 font-light">}</span>
+        </a>
       </div>
+    </header>
 
-      <!-- Main Headline -->
-      <h1 class="text-4xl sm:text-5xl md:text-6xl font-bold tracking-[-0.03em] leading-[1.08] text-white">
-        The Autonomous<br>
-        <span class="text-transparent bg-clip-text bg-gradient-to-r from-white via-white to-gray-400">Digital Publisher.</span>
-      </h1>
+    <!-- Main Workspace Grid (Left Dock + Hero Anchor Card + 2x2 Feature Grid) -->
+    <div class="flex flex-col lg:flex-row gap-5 md:gap-7 items-stretch">
 
-      <!-- Subheadline -->
-      <p class="mt-6 text-base sm:text-lg md:text-xl text-gray-300 max-w-2xl leading-relaxed">
-        Transform your transcripts into cryptographically secured, high-converting digital books &mdash; with automated multi-rail checkouts and zero-touch revenue splits.
-      </p>
-
-      <!-- CTA & Status Row -->
-      <div class="mt-8 sm:mt-10 flex flex-wrap items-center gap-5 sm:gap-6">
-        <a href="/creator/signin/" class="group inline-flex items-center gap-3.5 px-6 py-3.5 rounded-full bg-[#2A2A2A] hover:bg-[#363636] border border-white/10 text-white font-medium text-sm sm:text-base transition-all duration-200 shadow-md active:scale-[0.98]">
-          <span>Enter Creator Portal</span>
-          <span class="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center group-hover:translate-x-0.5 transition-transform">
-            <svg class="w-3.5 h-3.5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M5 12h14M12 5l7 7-7 7"/>
-            </svg>
-          </span>
+      <!-- Left Vertical Pill Dock (Tactile Icons) -->
+      <nav class="hidden lg:flex flex-col justify-center items-center gap-4 py-6 px-3 rounded-full glass-card dock-shadow shrink-0 self-center" aria-label="Quick Navigation">
+        <!-- Creator Profile -->
+        <a href="/creator/signin/" title="Creator Sign In" class="w-11 h-11 rounded-2xl flex items-center justify-center text-gray-500 hover:text-gray-900 hover:bg-black/5 transition-all">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+          </svg>
         </a>
 
-        <div class="flex items-center gap-2 text-xs text-gray-400 font-mono">
-          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-          <span>Invite &amp; Verified Creator Access</span>
+        <!-- Community / Audience -->
+        <a href="#voice" title="Your Audience" class="w-11 h-11 rounded-2xl flex items-center justify-center text-gray-500 hover:text-gray-900 hover:bg-black/5 transition-all">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>
+          </svg>
+        </a>
+
+        <!-- Active Focus { } with subtle peach halo glow -->
+        <div class="w-11 h-11 rounded-2xl bg-white shadow-[0_2px_14px_rgba(255,158,128,0.45)] border border-[#FF9E80]/50 flex items-center justify-center text-gray-900 font-bold text-sm">
+          { }
+        </div>
+
+        <!-- Automated Pathway / Flow -->
+        <a href="#how-it-works" title="How It Works" class="w-11 h-11 rounded-2xl flex items-center justify-center text-gray-500 hover:text-gray-900 hover:bg-black/5 transition-all">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M6 3v12"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/>
+          </svg>
+        </a>
+
+        <!-- Notifications / Status -->
+        <a href="/creator/signin/" title="Notifications" class="w-11 h-11 rounded-2xl flex items-center justify-center text-gray-500 hover:text-gray-900 hover:bg-black/5 transition-all">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>
+          </svg>
+        </a>
+      </nav>
+
+      <!-- Center Deep Charcoal Anchor Card -->
+      <div class="lg:w-[46%] rounded-[32px] bg-[#181818] text-white p-8 sm:p-10 md:p-12 relative overflow-hidden flex flex-col justify-between shadow-[0_20px_50px_rgba(0,0,0,0.12)] min-h-[460px] md:min-h-[520px]">
+        <!-- Soft Warm Peach Glow on Left Edge (matching reference image) -->
+        <div class="absolute -left-12 top-1/4 w-36 h-72 bg-[#FF9E80]/20 rounded-full blur-3xl pointer-events-none"></div>
+
+        <!-- Decorative Curly Brace Line on Right Edge (matching reference image) -->
+        <div class="hidden sm:block absolute right-8 top-12 bottom-12 w-28 pointer-events-none opacity-30">
+          <svg class="w-full h-full text-white" viewBox="0 0 100 300" fill="none" preserveAspectRatio="none">
+            <path d="M 90 20 L 50 20 C 30 20 20 50 20 80 L 20 130 C 20 145 10 150 0 150 C 10 150 20 155 20 170 L 20 220 C 20 250 30 280 50 280 L 90 280" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <circle cx="90" cy="20" r="3" fill="#FF9E80"/>
+            <circle cx="90" cy="280" r="3" fill="#FF9E80"/>
+          </svg>
+        </div>
+
+        <div>
+          <!-- Kicker -->
+          <div class="text-[11px] sm:text-xs font-mono font-medium tracking-[0.16em] uppercase text-gray-400 mb-6">
+            EXPANPRESS &middot; YOUR PUBLISHING HOUSE
+          </div>
+
+          <!-- Main Human Headline -->
+          <h2 class="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight text-white leading-[1.12] max-w-sm">
+            Your voice deserves to be a book.
+          </h2>
+
+          <!-- Emotion & Problem-Solving Paragraph -->
+          <p class="mt-5 text-sm sm:text-base text-gray-300 leading-relaxed max-w-sm">
+            You've spent years sharing your story on camera. We study your life's work, distill your core philosophy, and build a beautiful, author-grade book with you.
+          </p>
+
+          <p class="mt-3 text-xs sm:text-sm text-gray-400 font-medium">
+            Zero writing required. We take your hand every step of the way.
+          </p>
+        </div>
+
+        <!-- Bottom Action CTA -->
+        <div class="mt-8 flex items-center justify-between z-10">
+          <a href="/creator/signin/" class="group inline-flex items-center gap-4 text-sm font-semibold text-white hover:text-[#FF9E80] transition-colors">
+            <span>Tap to begin</span>
+            <span class="group-hover:translate-x-1 transition-transform">&rarr;</span>
+          </a>
+
+          <!-- Circular Arrow Button (matching reference image) -->
+          <a href="/creator/signin/" title="Start your publishing journey" class="w-14 h-14 rounded-full bg-[#2A2A2A] hover:bg-[#383838] active:scale-95 text-white flex items-center justify-center transition-all shadow-md">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M5 12h14M12 5l7 7-7 7"/>
+            </svg>
+          </a>
         </div>
       </div>
+
+      <!-- Right 2x2 Feature Grid (Warm Light Floating Cards) -->
+      <div class="lg:w-[54%] grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-5" id="how-it-works">
+
+        <!-- Card 1: We Study You (Connections aesthetic) -->
+        <div class="rounded-[32px] glass-card card-shadow p-6 sm:p-7 flex flex-col justify-between transition-all duration-300 relative overflow-hidden group">
+          <div>
+            <h3 class="text-lg sm:text-xl font-bold tracking-tight text-gray-900">We Learn Your Voice</h3>
+            <p class="text-xs sm:text-sm text-gray-500 mt-1.5 leading-relaxed">
+              We immerse ourselves in your videos, capturing your exact phrasing, cadence, and lived insights.
+            </p>
+          </div>
+
+          <!-- Tactile Glowing Orb Illustration (matching reference card 1) -->
+          <div class="my-4 py-3 flex items-center justify-center relative">
+            <div class="relative w-32 h-20 flex items-center justify-center">
+              <div class="w-16 h-16 rounded-full bg-gradient-to-tr from-[#FF9E80]/40 to-[#FF9E80]/10 blur-sm absolute -left-1"></div>
+              <div class="w-16 h-16 rounded-full bg-gradient-to-bl from-[#FF9E80]/60 to-[#FF9E80]/20 blur-xs absolute right-1"></div>
+              <div class="w-10 h-10 rounded-full bg-white/60 backdrop-blur-md border border-[#FF9E80]/30 z-10 flex items-center justify-center">
+                <span class="w-2 h-2 rounded-full bg-[#FF9E80]"></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Bottom Button -->
+          <a href="/creator/signin/" class="w-9 h-9 rounded-full bg-white shadow-sm border border-black/5 flex items-center justify-center self-end group-hover:scale-110 group-hover:bg-[#181818] group-hover:text-white transition-all text-gray-700">
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          </a>
+        </div>
+
+        <!-- Card 2: Zero Writing (Insights aesthetic) -->
+        <div class="rounded-[32px] glass-card card-shadow p-6 sm:p-7 flex flex-col justify-between transition-all duration-300 relative overflow-hidden group">
+          <div>
+            <h3 class="text-lg sm:text-xl font-bold tracking-tight text-gray-900">Zero Writing Required</h3>
+            <p class="text-xs sm:text-sm text-gray-500 mt-1.5 leading-relaxed">
+              No blank pages or writer's block. We assemble the complete manuscript; you simply review and sign off.
+            </p>
+          </div>
+
+          <!-- Tactile Faceted Gem / Manuscript Illustration (matching reference card 2) -->
+          <div class="my-4 py-3 flex items-center justify-center relative">
+            <div class="relative w-24 h-20 flex items-center justify-center">
+              <div class="w-16 h-16 rotate-45 rounded-xl bg-gradient-to-br from-[#FF9E80]/40 via-[#FF9E80]/20 to-transparent border border-[#FF9E80]/30 shadow-sm flex items-center justify-center">
+                <div class="w-8 h-8 rounded-lg bg-white/70 backdrop-blur-xs flex items-center justify-center text-xs font-mono text-[#E8622C]">
+                  &para;
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Bottom Button -->
+          <a href="/creator/signin/" class="w-9 h-9 rounded-full bg-white shadow-sm border border-black/5 flex items-center justify-center self-end group-hover:scale-110 group-hover:bg-[#181818] group-hover:text-white transition-all text-gray-700">
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          </a>
+        </div>
+
+        <!-- Card 3: Royalties While You Sleep (Events aesthetic) -->
+        <div class="rounded-[32px] glass-card card-shadow p-6 sm:p-7 flex flex-col justify-between transition-all duration-300 relative overflow-hidden group">
+          <div>
+            <h3 class="text-lg sm:text-xl font-bold tracking-tight text-gray-900">Income As You Sleep</h3>
+            <p class="text-xs sm:text-sm text-gray-500 mt-1.5 leading-relaxed">
+              A permanent digital asset that sells directly to your followers, depositing fair revenue splits automatically.
+            </p>
+          </div>
+
+          <!-- Tactile Compass / Growth Dial Illustration (matching reference card 3) -->
+          <div class="my-4 py-3 flex items-center justify-center relative">
+            <div class="relative w-20 h-20 rounded-full border border-[#FF9E80]/30 bg-gradient-to-br from-[#FF9E80]/15 to-transparent flex items-center justify-center">
+              <div class="w-12 h-12 rounded-full border border-dashed border-[#FF9E80]/40 flex items-center justify-center">
+                <div class="w-5 h-5 rounded-full bg-[#FF9E80]/60 blur-[2px]"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Bottom Button -->
+          <a href="/creator/signin/" class="w-9 h-9 rounded-full bg-white shadow-sm border border-black/5 flex items-center justify-center self-end group-hover:scale-110 group-hover:bg-[#181818] group-hover:text-white transition-all text-gray-700">
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          </a>
+        </div>
+
+        <!-- Card 4: 100% Protected (Your Journey aesthetic) -->
+        <div class="rounded-[32px] glass-card card-shadow p-6 sm:p-7 flex flex-col justify-between transition-all duration-300 relative overflow-hidden group">
+          <div>
+            <div class="flex items-center justify-between">
+              <h3 class="text-lg sm:text-xl font-bold tracking-tight text-gray-900">Your Journey</h3>
+            </div>
+            <p class="text-xs sm:text-sm text-gray-500 mt-1.5 leading-relaxed">
+              Step-by-step author review. Digitally signed, watermarked, and legally protected under your own name.
+            </p>
+          </div>
+
+          <!-- Progress Stepper Dots + 3D Isometric Box (matching reference card 4) -->
+          <div class="my-4 flex flex-col items-center gap-3">
+            <!-- Stepper line with 5 dots -->
+            <div class="flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-[#E8622C]"></span>
+              <span class="w-1.5 h-1.5 rounded-full bg-gray-300"></span>
+              <span class="w-1.5 h-1.5 rounded-full bg-gray-300"></span>
+              <span class="w-1.5 h-1.5 rounded-full bg-gray-300"></span>
+              <span class="w-1.5 h-1.5 rounded-full bg-gray-300"></span>
+            </div>
+            <!-- Translucent Isometric Cube -->
+            <div class="w-16 h-14 rounded-lg bg-gradient-to-tr from-[#FF9E80]/40 to-transparent border border-[#FF9E80]/30 shadow-xs flex items-center justify-center">
+              <span class="text-[10px] font-mono text-gray-600 font-medium">3 steps</span>
+            </div>
+          </div>
+
+          <!-- Bottom Button -->
+          <a href="/creator/signin/" class="w-9 h-9 rounded-full bg-white shadow-sm border border-black/5 flex items-center justify-center self-end group-hover:scale-110 group-hover:bg-[#181818] group-hover:text-white transition-all text-gray-700">
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          </a>
+        </div>
+
+      </div>
+
     </div>
 
-    <!-- Infrastructure Grid (Light Floating Cards) -->
-    <section class="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6" aria-label="Core Infrastructure Capabilities">
-
-      <!-- Card 1: Universal Matrix Router (Spans 2 cols on desktop for asymmetrical bento aesthetic) -->
-      <div class="md:col-span-2 relative rounded-[32px] bg-white/70 backdrop-blur-xl border border-black/[0.05] p-8 sm:p-10 shadow-[0_8px_30px_rgb(0,0,0,0.03)] hover:shadow-[0_16px_40px_rgb(0,0,0,0.06)] hover:-translate-y-0.5 transition-all duration-300 overflow-hidden flex flex-col justify-between">
-        <div class="absolute -right-10 -bottom-10 w-44 h-44 bg-[#FF9E80]/15 rounded-full blur-2xl pointer-events-none"></div>
-
-        <div>
-          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-black/[0.04] text-[11px] font-semibold uppercase tracking-wider text-gray-700 mb-5">
-            <span>Rail Architecture</span>
-          </div>
-          <h2 class="text-2xl font-bold tracking-tight text-gray-900 mb-3">Universal Matrix Router</h2>
-          <p class="text-gray-600 text-sm sm:text-base leading-relaxed max-w-xl">
-            Dynamic weighted traffic distribution and automatic zero-downtime failover across Polar, Paddle, and Stripe. No single checkout provider dependency or payment gateway lock-in.
-          </p>
+    <!-- Bottom Floating Notification / Spotlight Bar (matching reference layout) -->
+    <aside class="rounded-full glass-card dock-shadow px-4 sm:px-6 py-3.5 flex items-center justify-between gap-4 transition-all hover:bg-white">
+      <div class="flex items-center gap-3 sm:gap-4 overflow-hidden">
+        <!-- Bell / Spotlight Icon Badge -->
+        <div class="w-8 h-8 rounded-xl bg-[#181818] text-white shrink-0 flex items-center justify-center shadow-xs">
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>
+          </svg>
         </div>
 
-        <div class="mt-6 pt-5 border-t border-black/[0.05] flex flex-wrap items-center gap-3 text-xs font-mono text-gray-500">
-          <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200/50">
-            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Primary: Polar
-          </span>
-          <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-gray-50 text-gray-700 border border-black/5">
-            Hot Standby: Paddle
-          </span>
-          <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-gray-50 text-gray-700 border border-black/5">
-            Failover: Stripe
-          </span>
+        <div class="text-xs sm:text-sm text-gray-600 truncate">
+          <span class="font-bold text-gray-900 tracking-tight">FEATURED RELEASE</span>
+          <span class="mx-1 text-gray-300">&middot;</span>
+          <span>Duane's <i>You Don't Need a Million Dollars to Retire</i> is published and live.</span>
         </div>
       </div>
 
-      <!-- Card 2: Cryptographic Provenance -->
-      <div class="relative rounded-[32px] bg-white/70 backdrop-blur-xl border border-black/[0.05] p-8 shadow-[0_8px_30px_rgb(0,0,0,0.03)] hover:shadow-[0_16px_40px_rgb(0,0,0,0.06)] hover:-translate-y-0.5 transition-all duration-300 overflow-hidden flex flex-col justify-between">
-        <div class="absolute -top-8 -right-8 w-32 h-32 bg-[#FF9E80]/15 rounded-full blur-2xl pointer-events-none"></div>
-
-        <div>
-          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-black/[0.04] text-[11px] font-semibold uppercase tracking-wider text-gray-700 mb-5">
-            <span>Asset Security</span>
-          </div>
-          <h2 class="text-xl font-bold tracking-tight text-gray-900 mb-3">Deterministic Provenance</h2>
-          <p class="text-gray-600 text-sm leading-relaxed">
-            Per-creator HMAC-SHA256 visual watermarking and automated audit trails. Legal consent gates ensure unpublished books cannot leak uncertified.
-          </p>
-        </div>
-
-        <div class="mt-6 pt-4 border-t border-black/[0.05] text-xs font-mono text-gray-500 flex items-center gap-2">
-          <span class="w-1.5 h-1.5 rounded-full bg-[#FF9E80]"></span>
-          <span>SHA-256 Verified Assets</span>
-        </div>
-      </div>
-
-      <!-- Card 3: Zero-Touch Splits (Full span row) -->
-      <div class="md:col-span-3 relative rounded-[32px] bg-white/70 backdrop-blur-xl border border-black/[0.05] p-8 sm:p-10 shadow-[0_8px_30px_rgb(0,0,0,0.03)] hover:shadow-[0_16px_40px_rgb(0,0,0,0.06)] hover:-translate-y-0.5 transition-all duration-300 overflow-hidden flex flex-col sm:flex-row sm:items-center justify-between gap-6">
-        <div class="max-w-xl">
-          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-black/[0.04] text-[11px] font-semibold uppercase tracking-wider text-gray-700 mb-4">
-            <span>Financial Invariants</span>
-          </div>
-          <h2 class="text-2xl font-bold tracking-tight text-gray-900 mb-2">Zero-Touch Revenue Splits</h2>
-          <p class="text-gray-600 text-sm sm:text-base leading-relaxed">
-            Mathematical cascade pricing models with dual-written database order ledgers. Automated payout calculations without manual invoicing or monthly reconciliation delays.
-          </p>
-        </div>
-
-        <div class="shrink-0 flex sm:flex-col items-center sm:items-end gap-2 text-right">
-          <div class="text-3xl font-bold tracking-tight text-gray-900">100%</div>
-          <div class="text-xs text-gray-500 font-mono uppercase tracking-wider">Automated Ledger Accounting</div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Creator Flagship Spotlight Pill -->
-    <aside class="mt-8 flex justify-center" aria-label="Featured Publication">
-      <a href="/c/retirearly500k/500k-playbook/" class="group max-w-fit px-5 py-2.5 rounded-full bg-white/80 hover:bg-white backdrop-blur-md border border-black/[0.06] shadow-[0_4px_16px_rgba(0,0,0,0.02)] flex items-center gap-3 text-xs sm:text-sm text-gray-700 hover:text-black transition-all">
-        <span class="w-2 h-2 rounded-full bg-[#E8622C]"></span>
-        <span>Featured Publication: <b>You Don't Need a Million Dollars to Retire</b> &middot; with Duane</span>
-        <span class="group-hover:translate-x-0.5 transition-transform text-gray-400 group-hover:text-black">&rarr;</span>
+      <a href="/c/retirearly500k/500k-playbook/" class="shrink-0 text-xs sm:text-sm font-semibold text-gray-800 hover:text-black flex items-center gap-1.5 group">
+        <span>View Book</span>
+        <span class="group-hover:translate-x-0.5 transition-transform">&rarr;</span>
       </a>
     </aside>
 
-  </main>
+    <!-- Subtle Legal & Support Footer -->
+    <footer class="flex flex-wrap items-center justify-between gap-3 text-xs text-gray-400 px-2 pb-4">
+      <div class="flex items-center gap-2">
+        <span>&copy; 2026 ExpanPress</span>
+        <span>&middot;</span>
+        <span>A private publishing house for creators</span>
+      </div>
 
-  <!-- Floating Pill Footer -->
-  <footer class="mt-8 mb-12 flex justify-center px-4">
-    <div class="max-w-fit px-6 py-3 rounded-full bg-white/75 backdrop-blur-xl border border-black/5 shadow-[0_4px_24px_rgba(0,0,0,0.03)] flex flex-wrap items-center justify-center gap-4 sm:gap-6 text-xs text-gray-500 font-medium">
-      <span class="text-gray-800 font-semibold">{expanpress}</span>
-      <span class="text-gray-300">&middot;</span>
-      <span>Infrastructure for elite creators</span>
-      <span class="text-gray-300">&middot;</span>
-      <a href="/privacy.html" class="hover:text-gray-900 transition-colors">Privacy</a>
-      <a href="/terms.html" class="hover:text-gray-900 transition-colors">Terms</a>
-      <a href="/refund-policy.html" class="hover:text-gray-900 transition-colors">Refunds</a>
-      <span class="text-gray-300">&middot;</span>
-      <a href="mailto:support@expanpress.com" class="hover:text-gray-900 transition-colors">support@expanpress.com</a>
-    </div>
-  </footer>
+      <div class="flex items-center gap-4">
+        <a href="/privacy.html" class="hover:text-gray-700 transition-colors">Privacy</a>
+        <a href="/terms.html" class="hover:text-gray-700 transition-colors">Terms</a>
+        <a href="/refund-policy.html" class="hover:text-gray-700 transition-colors">Refunds</a>
+        <a href="mailto:support@expanpress.com" class="hover:text-gray-700 transition-colors">support@expanpress.com</a>
+      </div>
+    </footer>
+
+  </div>
 
 </body>
 </html>
