@@ -1,0 +1,14 @@
+web/api/billing/checkout.ts
+  h_90c2451a76ba0d 24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "69ca28746fba18deff3c55de2d3aa5822a73b989",
+  "prompts": {},
+  "humans": {
+    "h_90c2451a76ba0d": {
+      "author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
