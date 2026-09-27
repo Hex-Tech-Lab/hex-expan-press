@@ -1,0 +1,27 @@
+web/vercel.json
+  s_c21d2da1fc16d4::t_38564079682967 2-10
+web/c/retirearly500k/index.html
+  s_c21d2da1fc16d4::t_7d8e79a454af56 8
+  s_c21d2da1fc16d4::t_84d4cf0e94b951 13
+web/c/retirearly500k/500k-playbook/index.html
+  s_c21d2da1fc16d4::t_1f43f081b508de 13
+  s_c21d2da1fc16d4::t_b6f0e2a1807b6b 8
+web/robots.txt
+  s_c21d2da1fc16d4::t_74ed0f116e76f3 1-2
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "35dd3b3cc38aabc92f077a7fbd1f94bfd1bbe025",
+  "prompts": {},
+  "sessions": {
+    "s_c21d2da1fc16d4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f22c8265dffemQYfwVqfzfjXD9",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
