@@ -1,0 +1,19 @@
+web/index.html
+  s_c21d2da1fc16d4::t_5b888b31a99e3b 294,296,300-301
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "fd9e26f89c21a713e06086bd23b902b2e95a8db1",
+  "prompts": {},
+  "sessions": {
+    "s_c21d2da1fc16d4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f22c8265dffemQYfwVqfzfjXD9",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
