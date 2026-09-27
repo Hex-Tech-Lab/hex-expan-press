@@ -21,7 +21,7 @@ function json(res: ServerResponse, status: number, payload: unknown): void {
 }
 
 export default async function handler(req: IncomingMessage & { query: Record<string, string | string[]> }, res: ServerResponse) {
-  if (req.method !== "GET") {
+  if (req.method !== "GET" && req.method !== "HEAD") {
     return json(res, 405, { ok: false, error: "Method Not Allowed" });
   }
 
