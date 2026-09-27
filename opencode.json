@@ -113,14 +113,12 @@
               "order": [
                 "baseten",
                 "morph",
-                "together",
-                "deepinfra"
+                "together"
               ],
               "only": [
                 "baseten",
                 "morph",
-                "together",
-                "deepinfra"
+                "together"
               ],
               "allow_fallbacks": false
             }

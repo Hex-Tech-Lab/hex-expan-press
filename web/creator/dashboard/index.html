@@ -153,11 +153,62 @@
           var email = (r.data && r.data.email) || user.email || "";
           document.getElementById("pname").textContent = name;
           document.getElementById("pemail").textContent = email;
-          loading.hidden = true;
-          acct.hidden = false;
-          portalSteps.hidden = false;
+
+          return Promise.all([
+            supabase.from("review_answers").select("id", { count: "exact" }),
+            supabase.from("consents").select("kind, decision").eq("decision", "given")
+          ]).then(function (results) {
+            var answersRes = results[0];
+            var consentsRes = results[1];
+
+            var answerCount = (answersRes && answersRes.count) || (answersRes.data && answersRes.data.length) || 0;
+            if (answerCount >= 29) {
+              document.getElementById("step-1-status").textContent = "Completed (" + answerCount + " of 29)";
+              document.getElementById("step-1-status").style.color = "#2E7D5B";
+            } else if (answerCount > 0) {
+              document.getElementById("step-1-status").textContent = "In Progress (" + answerCount + " of 29)";
+              document.getElementById("step-1-status").style.color = "#E8622C";
+            }
+
+            var consents = (consentsRes && consentsRes.data) || [];
+            var hasC1 = consents.some(function(c) { return c.kind === "C1_data_accuracy"; });
+            var hasC2 = consents.some(function(c) { return c.kind === "C2_marketing_release"; });
+            var hasC3 = consents.some(function(c) { return c.kind === "C3_revenue_split"; });
+
+            if (hasC1 && hasC2) {
+              document.getElementById("step-2-status").textContent = "Completed & Signed";
+              document.getElementById("step-2-status").style.color = "#2E7D5B";
+              var cta2 = document.querySelector("#step-2 .step-cta");
+              if (cta2) cta2.textContent = "Consents on file \u2713";
+            }
+
+            if (hasC3) {
+              document.getElementById("step-3-status").textContent = "Executed";
+              document.getElementById("step-3-status").style.color = "#2E7D5B";
+              var cta3 = document.querySelector("#step-3 .step-cta");
+              if (cta3) cta3.textContent = "Agreement Executed \u2713";
+              var step3Card = document.getElementById("step-3");
+              if (step3Card) {
+                step3Card.removeAttribute("href");
+                step3Card.style.opacity = "0.85";
+                step3Card.style.cursor = "default";
+              }
+
+              var badgeText = document.querySelector(".badge span:last-child");
+              var badgeDot = document.querySelector(".badge-dot");
+              if (badgeText && badgeDot) {
+                badgeText.textContent = "Publication Status: Agreement Signed \u2014 Ready for Release";
+                badgeDot.style.background = "#2E7D5B";
+              }
+            }
+
+            loading.hidden = true;
+            acct.hidden = false;
+            portalSteps.hidden = false;
+          });
         });
-    }).catch(function () {
+    }).catch(function (err) {
+      console.error("Dashboard error:", err);
       window.location.replace("/creator/signin/");
     });
 

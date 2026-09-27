@@ -41,7 +41,7 @@ describe("payments/src/email", () => {
     const out = await sendEmail({ to: "a@b.c", subject: "s", html: "<p>hi</p>" });
     expect(out).toEqual({ id: "abc-123" });
     expect(sendMock).toHaveBeenCalledWith(
-      expect.objectContaining({ from: "ExpanPress <onboarding@resend.dev>", to: "a@b.c" }),
+      expect.objectContaining({ from: "ExpanPress <support@esign.expanpress.com>", to: "a@b.c" }),
     );
   });
 
