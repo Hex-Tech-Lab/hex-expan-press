@@ -42,6 +42,10 @@ export default async function handler(req: IncomingMessage & { query: Record<str
     return json(res, 200, { ok: true, url: result.signUrl });
   } catch (err: any) {
     console.error("Error creating esign envelope:", err);
+    const msg = String(err?.message || "");
+    if (/insufficient credits|402/i.test(msg)) {
+      return json(res, 503, { ok: false, error: "The signing service is awaiting credit activation. Please try again shortly." });
+    }
     return json(res, 500, { ok: false, error: "Internal Server Error" });
   }
 }
