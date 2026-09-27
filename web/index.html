@@ -1,114 +1,206 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>You Don&#39;t Need a Million Dollars to Retire</title>
-<meta name="description" content="A practical money guide for the retirement years: the instruments, the order to use them in, and how to recover after a market crash. Digital PDF, $39.">
-<style>
-  :root { color-scheme: light; }
-  * { box-sizing: border-box; margin: 0; }
-  body {
-    font-family: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    background: #FAF5EE; color: #2B2520; line-height: 1.6;
-    padding: 56px 20px 40px;
-  }
-  .wrap { max-width: 640px; margin: 0 auto; }
-  .kicker { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: #E8622C; font-weight: 600; margin-bottom: 16px; }
-  h1 {
-    font-family: "Fraunces", Georgia, "Times New Roman", serif;
-    font-size: 34px; line-height: 1.15; font-weight: 700; letter-spacing: -.015em; margin-bottom: 10px;
-  }
-  .wt-note { font-size: 12.5px; color: #6E5F53; font-style: italic; margin-bottom: 22px; }
-  .blurb { font-size: 16.5px; color: #2B2520; margin-bottom: 28px; }
-  .pricebox { background: #FFFDF9; border: 1px solid #EADFD1; border-radius: 14px; padding: 26px 26px 22px; margin-bottom: 36px; }
-  .price { font-size: 34px; font-weight: 700; letter-spacing: -.02em; }
-  .price small { font-size: 14px; font-weight: 500; color: #6E5F53; }
-  .taxnote { font-size: 12.5px; color: #6E5F53; margin: 4px 0 18px; }
-  .buy {
-    display: block; width: 100%; text-align: center; text-decoration: none;
-    background: #2B2520; color: #FAF5EE; font-weight: 600; font-size: 16px;
-    padding: 14px 20px; border-radius: 10px; margin-bottom: 10px;
-  }
-  .buy:hover { background: #3d352d; }
-  .buy.pending { background: #CBB3A7; cursor: not-allowed; }
-  .secure { font-size: 12px; color: #6E5F53; text-align: center; }
-  h2 {
-    font-family: "Fraunces", Georgia, "Times New Roman", serif;
-    font-size: 21px; font-weight: 700; margin-bottom: 14px;
-  }
-  .inside { margin-bottom: 36px; }
-  .inside ul { list-style: none; padding: 0; }
-  .inside li { position: relative; padding-left: 26px; margin-bottom: 12px; color: #2B2520; }
-  .inside li::before {
-    content: ""; position: absolute; left: 0; top: 9px;
-    width: 12px; height: 12px; border-radius: 3px; background: #F2C14E;
-  }
-  .inside li b { font-weight: 650; }
-  .disclaimers {
-    padding: 18px 20px; background: #F3ECDF; border-radius: 12px;
-    font-size: 12.5px; color: #6E5F53; margin-bottom: 40px;
-  }
-  .disclaimers p { margin-bottom: 8px; }
-  .disclaimers p:last-child { margin-bottom: 0; }
-  footer {
-    border-top: 1px solid #EADFD1; padding-top: 22px;
-    font-size: 13px; color: #6E5F53;
-    display: flex; flex-wrap: wrap; gap: 8px 22px; align-items: center;
-  }
-  footer a { color: #2E7D5B; text-decoration: none; }
-  footer a:hover { text-decoration: underline; }
-  footer .sep { color: #CBB3A7; }
-  @media (max-width: 480px) { h1 { font-size: 27px; } body { padding: 36px 16px 32px; } }
-</style>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ExpanPress &middot; The Autonomous Digital Publisher</title>
+  <meta name="description" content="Infrastructure for elite creators: transform transcripts into cryptographically secured, high-converting digital books with automated multi-rail checkouts and zero-touch revenue splits.">
+  <link rel="canonical" href="https://expanpress.com/">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="ExpanPress">
+  <meta property="og:title" content="ExpanPress &middot; The Autonomous Digital Publisher">
+  <meta property="og:description" content="Infrastructure for elite creators: transform transcripts into cryptographically secured, high-converting digital books.">
+  <meta property="og:url" content="https://expanpress.com/">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+          },
+          colors: {
+            canvas: '#FAF7F2',
+            peach: '#FF9E80',
+            charcoal: '#181818',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    :root { color-scheme: light; }
+    body { font-feature-settings: "cv02", "cv03", "cv04", "cv11"; }
+  </style>
 </head>
-<body>
-<div class="wrap">
-  <p class="kicker">Digital PDF &middot; Instant Download</p>
-  <h1>You Don&#39;t Need a Million Dollars to Retire</h1>
-  <p class="wt-note">Product shown under a working title &mdash; final title may change before publication.</p>
-  <p class="blurb">A practical money guide for the retirement years: the instruments, the order to use them in, and how to recover after a market crash &mdash; built on one early retiree&rsquo;s real $500K journey. Not financial advice.</p>
+<body class="bg-[#FAF7F2] text-[#181818] font-sans antialiased selection:bg-[#FF9E80]/20 min-h-screen relative overflow-x-hidden">
 
-  <div class="pricebox">
-    <p class="price">$39 <small>USD &middot; one-time</small></p>
-    <p class="taxnote">Sales tax / VAT is calculated and collected at checkout by our payment partners.</p>
-    <a class="buy pending" id="buy" href="#buy-link-pending" data-checkout-slot="primary" data-config-source="payments/config.duane.json" data-checkout-mode="gated" data-baked-at="2026-09-27T15:13:14.707Z">Checkout coming online &mdash; provider review in progress</a>
-    <p class="secure">Secure checkout hosted by our payment partners &middot; PDF delivered by email</p>
-  </div>
+  <!-- Diffuse Warm Background Glow Blobs -->
+  <div class="fixed top-0 left-1/2 -translate-x-1/2 w-[700px] h-[450px] bg-[#FF9E80]/15 rounded-full blur-[140px] pointer-events-none -z-10"></div>
+  <div class="fixed bottom-0 right-10 w-[500px] h-[400px] bg-[#FF9E80]/10 rounded-full blur-[140px] pointer-events-none -z-10"></div>
 
-  <div class="inside">
-    <h2>What&rsquo;s inside</h2>
-    <ul>
-      <li><b>The instruments</b> &mdash; where a ~$500K retirement portfolio actually goes: the asset classes and account types, and the trade-offs between them.</li>
-      <li><b>The sequence</b> &mdash; the withdrawal order designed to keep the money outlasting the years, and why the order matters more than the rate alone.</li>
-      <li><b>The recovery plan</b> &mdash; what to do in the days and weeks after a market crash, when the instinct to sell is strongest.</li>
-      <li><b>A real $500K journey</b> &mdash; the whole framework is built on one early retiree&rsquo;s actual numbers, not hypothetical averages.</li>
-    </ul>
-  </div>
+  <!-- Top Floating Nav Dock -->
+  <header class="fixed top-5 inset-x-0 z-50 flex justify-center px-4 pointer-events-none">
+    <nav class="pointer-events-auto max-w-fit px-5 py-2.5 rounded-full bg-white/75 backdrop-blur-xl border border-black/5 shadow-[0_4px_24px_rgba(0,0,0,0.04)] flex items-center gap-4 sm:gap-7 transition-all">
+      <a href="/" class="flex items-center gap-2 group">
+        <span class="font-bold tracking-tight text-gray-900 text-sm group-hover:text-black transition-colors">{expanpress}</span>
+      </a>
 
-  <!-- STANDING RULE (2026-09-16, revised 2026-09-17): revenue-share terms and payout
-       specifics (split percentages, payout mechanics, deal status) are never
-       public-facing copy on any page served from this site.
-       REVISED: do not use "partner"/"partnership" anywhere in public-facing copy
-       (previously this rule allowed generic "in partnership with the creator"
-       language — that created risk of an implied-partnership/joint-venture claim
-       contradicting the agreement's own no-partnership clause; see
-       data/intel/creator_agreement_template_2026-09-17_v5.md §10.5). Use
-       "creator program," "publishing engagement," or "book project" instead. -->
+      <div class="hidden sm:flex items-center gap-2 px-3 py-1 rounded-full bg-black/[0.03] text-[11px] font-medium text-gray-600 border border-black/[0.03]">
+        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+        <span>Pipeline Active</span>
+      </div>
 
-  <div class="disclaimers">
-    <p><b>Educational content only &mdash; not financial advice.</b> Nothing in this guide is a recommendation to buy, sell, or hold any security or to make any investment decision. Do your own research and consult a licensed professional where appropriate.</p>
-    <p><b>Past performance disclaimer:</b> the $500K journey described is one individual&rsquo;s experience. Past performance is not indicative of future results, and no outcome is guaranteed.</p>
-    <p><b>Digital product:</b> this is a downloadable PDF; no physical item will be shipped.</p>
-  </div>
+      <a href="/creator/signin/" class="text-xs font-semibold text-gray-800 hover:text-black px-3.5 py-1.5 rounded-full bg-black/[0.04] hover:bg-black/[0.08] transition-all flex items-center gap-1.5 active:scale-95">
+        <span>Creator Portal</span>
+        <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M5 12h14M12 5l7 7-7 7"/>
+        </svg>
+      </a>
+    </nav>
+  </header>
 
-  <footer>
-    <a href="privacy.html">Privacy Policy</a><span class="sep">&middot;</span>
-    <a href="terms.html">Terms of Service</a><span class="sep">&middot;</span>
-    <a href="refund-policy.html">Refund Policy</a>
-    <span class="sep">&middot;</span>
-    <span>Support: support@expanpress.com</span>
+  <!-- Main Hero Section -->
+  <main class="max-w-4xl mx-auto px-4 pt-28 sm:pt-32 pb-8">
+
+    <!-- Deep Charcoal Anchor Card -->
+    <div class="relative rounded-[36px] bg-gradient-to-br from-[#1E1E1E] via-[#161616] to-[#111111] p-8 sm:p-12 md:p-16 text-white border border-white/[0.08] shadow-[0_24px_70px_rgba(0,0,0,0.12)] overflow-hidden">
+      <!-- Ambient corner glow inside card -->
+      <div class="absolute -top-24 -right-24 w-80 h-80 bg-[#FF9E80]/10 rounded-full blur-3xl pointer-events-none"></div>
+
+      <!-- Kicker Tag -->
+      <div class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-white/[0.08] border border-white/[0.06] text-[#FF9E80] text-xs font-mono tracking-wider uppercase mb-7 sm:mb-8">
+        <span class="w-1.5 h-1.5 rounded-full bg-[#FF9E80]"></span>
+        <span>Infrastructure for Elite Creators</span>
+      </div>
+
+      <!-- Main Headline -->
+      <h1 class="text-4xl sm:text-5xl md:text-6xl font-bold tracking-[-0.03em] leading-[1.08] text-white">
+        The Autonomous<br>
+        <span class="text-transparent bg-clip-text bg-gradient-to-r from-white via-white to-gray-400">Digital Publisher.</span>
+      </h1>
+
+      <!-- Subheadline -->
+      <p class="mt-6 text-base sm:text-lg md:text-xl text-gray-300 max-w-2xl leading-relaxed">
+        Transform your transcripts into cryptographically secured, high-converting digital books &mdash; with automated multi-rail checkouts and zero-touch revenue splits.
+      </p>
+
+      <!-- CTA & Status Row -->
+      <div class="mt-8 sm:mt-10 flex flex-wrap items-center gap-5 sm:gap-6">
+        <a href="/creator/signin/" class="group inline-flex items-center gap-3.5 px-6 py-3.5 rounded-full bg-[#2A2A2A] hover:bg-[#363636] border border-white/10 text-white font-medium text-sm sm:text-base transition-all duration-200 shadow-md active:scale-[0.98]">
+          <span>Enter Creator Portal</span>
+          <span class="w-7 h-7 rounded-full bg-white/10 flex items-center justify-center group-hover:translate-x-0.5 transition-transform">
+            <svg class="w-3.5 h-3.5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M5 12h14M12 5l7 7-7 7"/>
+            </svg>
+          </span>
+        </a>
+
+        <div class="flex items-center gap-2 text-xs text-gray-400 font-mono">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+          <span>Invite &amp; Verified Creator Access</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Infrastructure Grid (Light Floating Cards) -->
+    <section class="mt-8 grid grid-cols-1 md:grid-cols-3 gap-6" aria-label="Core Infrastructure Capabilities">
+
+      <!-- Card 1: Universal Matrix Router (Spans 2 cols on desktop for asymmetrical bento aesthetic) -->
+      <div class="md:col-span-2 relative rounded-[32px] bg-white/70 backdrop-blur-xl border border-black/[0.05] p-8 sm:p-10 shadow-[0_8px_30px_rgb(0,0,0,0.03)] hover:shadow-[0_16px_40px_rgb(0,0,0,0.06)] hover:-translate-y-0.5 transition-all duration-300 overflow-hidden flex flex-col justify-between">
+        <div class="absolute -right-10 -bottom-10 w-44 h-44 bg-[#FF9E80]/15 rounded-full blur-2xl pointer-events-none"></div>
+
+        <div>
+          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-black/[0.04] text-[11px] font-semibold uppercase tracking-wider text-gray-700 mb-5">
+            <span>Rail Architecture</span>
+          </div>
+          <h2 class="text-2xl font-bold tracking-tight text-gray-900 mb-3">Universal Matrix Router</h2>
+          <p class="text-gray-600 text-sm sm:text-base leading-relaxed max-w-xl">
+            Dynamic weighted traffic distribution and automatic zero-downtime failover across Polar, Paddle, and Stripe. No single checkout provider dependency or payment gateway lock-in.
+          </p>
+        </div>
+
+        <div class="mt-6 pt-5 border-t border-black/[0.05] flex flex-wrap items-center gap-3 text-xs font-mono text-gray-500">
+          <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200/50">
+            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> Primary: Polar
+          </span>
+          <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-gray-50 text-gray-700 border border-black/5">
+            Hot Standby: Paddle
+          </span>
+          <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-gray-50 text-gray-700 border border-black/5">
+            Failover: Stripe
+          </span>
+        </div>
+      </div>
+
+      <!-- Card 2: Cryptographic Provenance -->
+      <div class="relative rounded-[32px] bg-white/70 backdrop-blur-xl border border-black/[0.05] p-8 shadow-[0_8px_30px_rgb(0,0,0,0.03)] hover:shadow-[0_16px_40px_rgb(0,0,0,0.06)] hover:-translate-y-0.5 transition-all duration-300 overflow-hidden flex flex-col justify-between">
+        <div class="absolute -top-8 -right-8 w-32 h-32 bg-[#FF9E80]/15 rounded-full blur-2xl pointer-events-none"></div>
+
+        <div>
+          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-black/[0.04] text-[11px] font-semibold uppercase tracking-wider text-gray-700 mb-5">
+            <span>Asset Security</span>
+          </div>
+          <h2 class="text-xl font-bold tracking-tight text-gray-900 mb-3">Deterministic Provenance</h2>
+          <p class="text-gray-600 text-sm leading-relaxed">
+            Per-creator HMAC-SHA256 visual watermarking and automated audit trails. Legal consent gates ensure unpublished books cannot leak uncertified.
+          </p>
+        </div>
+
+        <div class="mt-6 pt-4 border-t border-black/[0.05] text-xs font-mono text-gray-500 flex items-center gap-2">
+          <span class="w-1.5 h-1.5 rounded-full bg-[#FF9E80]"></span>
+          <span>SHA-256 Verified Assets</span>
+        </div>
+      </div>
+
+      <!-- Card 3: Zero-Touch Splits (Full span row) -->
+      <div class="md:col-span-3 relative rounded-[32px] bg-white/70 backdrop-blur-xl border border-black/[0.05] p-8 sm:p-10 shadow-[0_8px_30px_rgb(0,0,0,0.03)] hover:shadow-[0_16px_40px_rgb(0,0,0,0.06)] hover:-translate-y-0.5 transition-all duration-300 overflow-hidden flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+        <div class="max-w-xl">
+          <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-black/[0.04] text-[11px] font-semibold uppercase tracking-wider text-gray-700 mb-4">
+            <span>Financial Invariants</span>
+          </div>
+          <h2 class="text-2xl font-bold tracking-tight text-gray-900 mb-2">Zero-Touch Revenue Splits</h2>
+          <p class="text-gray-600 text-sm sm:text-base leading-relaxed">
+            Mathematical cascade pricing models with dual-written database order ledgers. Automated payout calculations without manual invoicing or monthly reconciliation delays.
+          </p>
+        </div>
+
+        <div class="shrink-0 flex sm:flex-col items-center sm:items-end gap-2 text-right">
+          <div class="text-3xl font-bold tracking-tight text-gray-900">100%</div>
+          <div class="text-xs text-gray-500 font-mono uppercase tracking-wider">Automated Ledger Accounting</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Creator Flagship Spotlight Pill -->
+    <aside class="mt-8 flex justify-center" aria-label="Featured Publication">
+      <a href="/c/retirearly500k/500k-playbook/" class="group max-w-fit px-5 py-2.5 rounded-full bg-white/80 hover:bg-white backdrop-blur-md border border-black/[0.06] shadow-[0_4px_16px_rgba(0,0,0,0.02)] flex items-center gap-3 text-xs sm:text-sm text-gray-700 hover:text-black transition-all">
+        <span class="w-2 h-2 rounded-full bg-[#E8622C]"></span>
+        <span>Featured Publication: <b>You Don't Need a Million Dollars to Retire</b> &middot; with Duane</span>
+        <span class="group-hover:translate-x-0.5 transition-transform text-gray-400 group-hover:text-black">&rarr;</span>
+      </a>
+    </aside>
+
+  </main>
+
+  <!-- Floating Pill Footer -->
+  <footer class="mt-8 mb-12 flex justify-center px-4">
+    <div class="max-w-fit px-6 py-3 rounded-full bg-white/75 backdrop-blur-xl border border-black/5 shadow-[0_4px_24px_rgba(0,0,0,0.03)] flex flex-wrap items-center justify-center gap-4 sm:gap-6 text-xs text-gray-500 font-medium">
+      <span class="text-gray-800 font-semibold">{expanpress}</span>
+      <span class="text-gray-300">&middot;</span>
+      <span>Infrastructure for elite creators</span>
+      <span class="text-gray-300">&middot;</span>
+      <a href="/privacy.html" class="hover:text-gray-900 transition-colors">Privacy</a>
+      <a href="/terms.html" class="hover:text-gray-900 transition-colors">Terms</a>
+      <a href="/refund-policy.html" class="hover:text-gray-900 transition-colors">Refunds</a>
+      <span class="text-gray-300">&middot;</span>
+      <a href="mailto:support@expanpress.com" class="hover:text-gray-900 transition-colors">support@expanpress.com</a>
+    </div>
   </footer>
-</div>
+
 </body>
 </html>
