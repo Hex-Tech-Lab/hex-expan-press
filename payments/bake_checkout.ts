@@ -98,14 +98,19 @@ const primaryGated = (source: string) =>
   `data-checkout-mode="gated" data-baked-at="${now}">` +
   `Checkout coming online &mdash; provider review in progress</a>`;
 
-const primaryLive = (url: string, source: string) =>
-  `<a class="buy" id="buy" href="${url}" rel="noopener" ` +
+// Checkout links are obfuscated through the internal router
+// (/api/billing/checkout) so the raw provider URL never ships in public
+// HTML. The product slug selects the provider URL server-side.
+const ROUTER_HREF = "/api/billing/checkout?product=retirearly500k-500k-playbook";
+
+const primaryLive = (source: string) =>
+  `<a class="buy" id="buy" href="${ROUTER_HREF}" rel="noopener" ` +
   `data-checkout-slot="primary" data-config-source="${source}" ` +
   `data-checkout-mode="live" data-baked-at="${now}">` +
   `Buy now &mdash; get the PDF instantly</a>`;
 
-const sandboxLive = (url: string, source: string) =>
-  `<a href="${url}" rel="noopener" data-checkout-slot="sandbox" ` +
+const sandboxLive = (source: string) =>
+  `<a href="${ROUTER_HREF}" rel="noopener" data-checkout-slot="sandbox" ` +
   `data-config-source="${source}" data-checkout-mode="sandbox" ` +
   `data-baked-at="${now}">Open sandbox test checkout &rarr;</a>`;
 
@@ -210,8 +215,8 @@ for (const rel of walkSiteCDirs(cRoot)) {
   const { cfg, source } = loadProductConfig(assoc);
   const perCreatorMode = isRealUrl(cfg.checkout_url) ? cfg.checkout_mode ?? "gated" : "gated";
 
-  let out = swap(html, "primary", perCreatorMode === "live" ? primaryLive(cfg.checkout_url as string, source) : primaryGated(source));
-  out = swap(out, "sandbox", perCreatorMode === "sandbox" && isRealUrl(cfg.checkout_url) ? sandboxLive(cfg.checkout_url, source) : sandboxOff(source));
+  let out = swap(html, "primary", perCreatorMode === "live" ? primaryLive(source) : primaryGated(source));
+  out = swap(out, "sandbox", perCreatorMode === "sandbox" && isRealUrl(cfg.checkout_url) ? sandboxLive(source) : sandboxOff(source));
   out = injectAttributionScript(out);
   out = bakeFacts(out, cfg, join("site", "c", rel, "index.html"));
 

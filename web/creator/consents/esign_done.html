@@ -25,7 +25,7 @@
       <h1>Revenue-split agreement signed</h1>
       <p>Thank you — your signature and the completion certificate have been recorded.</p>
       <p>A copy of the signed agreement and its audit-trail certificate will arrive in your inbox within a few minutes. Keep both for your records.</p>
-      <a class="btn" href="/creator/dashboard/">Back to your dashboard</a>
+      <a class="btn" href="/creator/dashboard/" target="_top">Back to your dashboard</a>
       <p class="note">
         <b>Confidentiality.</b> This agreement contains confidential commercial and financial terms. Please keep it
         private &mdash; it may be shared only with your legal or financial advisors for the purpose of reviewing it on
@@ -33,5 +33,14 @@
       </p>
     </div>
   </div>
+  <script>
+    // If loaded inside an iframe, breakout automatically or on click
+    if (window.top && window.top !== window.self) {
+      document.addEventListener('DOMContentLoaded', function() {
+        var btn = document.querySelector('a.btn');
+        if (btn) btn.onclick = function() { window.top.location.href = '/creator/dashboard/'; return false; };
+      });
+    }
+  </script>
 </body>
 </html>

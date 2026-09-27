@@ -10,7 +10,8 @@ create or replace function public.submit_consent(
   p_user_agent text,
   p_auth_provider text,
   p_external_ref text default null,
-  p_evidence_path text default null
+  p_evidence_path text default null,
+  p_user_id uuid default null
 )
 returns uuid
 language plpgsql
@@ -18,23 +19,43 @@ security definer
 set search_path = ''
 as $$
 declare
-  caller    uuid := (select auth.uid());
-  v_creator uuid;
-  v_consent uuid;
+  caller      uuid := (select auth.uid());
+  is_service  boolean := (auth.role() = 'service_role' or current_user = 'service_role');
+  v_creator   uuid;
+  v_consent   uuid;
   v_supersedes uuid;
+  v_signer    uuid;
 begin
-  if caller is null then
+  if caller is null and not is_service then
     raise exception 'not authenticated';
   end if;
 
-  -- Verify product belongs to caller's creators
-  select p.creator_id into v_creator
-  from public.products p
-  where p.id = p_product_id
-    and p.creator_id in (select private.my_creator_ids());
+  if is_service then
+    -- service_role (backend webhook/system): resolve creator directly from the product
+    select p.creator_id into v_creator
+    from public.products p
+    where p.id = p_product_id;
+  else
+    -- Verify product belongs to caller's creators
+    select p.creator_id into v_creator
+    from public.products p
+    where p.id = p_product_id
+      and p.creator_id in (select private.my_creator_ids());
+  end if;
 
   if v_creator is null then
     raise exception 'product not found or not authorized';
+  end if;
+
+  v_signer := coalesce(
+    caller,
+    p_user_id,
+    (select cu.user_id from public.creator_users cu where cu.creator_id = v_creator limit 1),
+    (select c.signed_by from public.consents c where c.product_id = p_product_id and c.kind = 'C1_data_accuracy' and c.decision = 'given' order by c.signed_at desc limit 1)
+  );
+
+  if v_signer is null then
+    raise exception 'signed_by user cannot be determined';
   end if;
 
   if p_kind not in ('C1_data_accuracy', 'C2_release_approval', 'C3_revenue_split') then
@@ -64,17 +85,20 @@ begin
   )
   values (
     p_kind::public.consent_kind, p_product_id, v_creator, p_decision, p_text_version,
-    p_document_sha256, p_typed_name, caller, p_auth_provider, p_ip, p_user_agent,
+    p_document_sha256, p_typed_name,
+    v_signer,
+    p_auth_provider, p_ip, p_user_agent,
     p_external_ref, p_evidence_path, v_supersedes
   )
   returning id into v_consent;
 
   insert into public.audit_log (actor, creator_id, event, details)
-  values (caller, v_creator, 'consent_submitted',
-          jsonb_build_object('consent_id', v_consent, 'kind', p_kind, 'decision', p_decision));
+  values (v_signer, v_creator, 'consent_submitted',
+          jsonb_build_object('consent_id', v_consent, 'kind', p_kind, 'decision', p_decision,
+                             'via_service_role', is_service));
 
   return v_consent;
 end $$;
 
-revoke all on function public.submit_consent(uuid, text, text, text, text, text, inet, text, text, text, text) from public, anon;
-grant execute on function public.submit_consent(uuid, text, text, text, text, text, inet, text, text, text, text) to authenticated;
+revoke all on function public.submit_consent(uuid, text, text, text, text, text, inet, text, text, text, text, uuid) from public, anon;
+grant execute on function public.submit_consent(uuid, text, text, text, text, text, inet, text, text, text, text, uuid) to authenticated, service_role;

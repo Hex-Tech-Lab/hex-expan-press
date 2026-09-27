@@ -20,7 +20,8 @@ export class SupabaseAdapter implements ConsentDatabasePort {
       p_user_agent: command.userAgent,
       p_auth_provider: command.authProvider,
       p_external_ref: command.externalRef,
-      p_evidence_path: command.evidencePath
+      p_evidence_path: command.evidencePath,
+      p_user_id: command.userId
     });
 
     if (error) {
