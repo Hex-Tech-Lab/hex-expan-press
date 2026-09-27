@@ -1,0 +1,19 @@
+web/creator/consents/esign_done.html
+  s_c21d2da1fc16d4::t_012b03bb5946b7 1-36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "c701aa6d9e2566d5c3b47067d7945b74a1f268ae",
+  "prompts": {},
+  "sessions": {
+    "s_c21d2da1fc16d4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f22c8265dffemQYfwVqfzfjXD9",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
