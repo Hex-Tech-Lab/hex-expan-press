@@ -41,8 +41,15 @@ export default async function handler(req: IncomingMessage & { query: Record<str
     }
     rails = cfg.rails;
   } catch {
-    // Serverless fallback: data/ is not bundled on Vercel — serve known products from env/default rail
-    if (product === "retirearly500k-500k-playbook" || product === "duane_retirement_playbook_v1") {
+    // Serverless fallback: data/ is not bundled on Vercel — serve products from env/default rail
+    const envSlugKey = `CHECKOUT_URL_${product.toUpperCase().replace(/[^A-Z0-9]/g, "_")}`;
+    const dynamicCheckoutUrl = process.env[envSlugKey];
+
+    if (dynamicCheckoutUrl) {
+      rails = [
+        { provider: "polar", weight: 100, checkout_url: dynamicCheckoutUrl }
+      ];
+    } else if (product === "retirearly500k-500k-playbook" || product === "duane_retirement_playbook_v1") {
       rails = [
         { provider: "polar", weight: 100, checkout_url: process.env.POLAR_CHECKOUT_URL || "https://sandbox-api.polar.sh/v1/checkout-links/polar_cl_g84ByoGAeZiahkWtCasYmeu1ShLtZIwwayzyI4ZdZsM/redirect" },
       ];

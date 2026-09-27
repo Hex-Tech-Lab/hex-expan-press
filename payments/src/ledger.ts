@@ -60,9 +60,48 @@ function assertSale(sale: SaleRecord): void {
   }
 }
 
+export function resolveSalesFile(salesFile: string = SALES_FILE): string {
+  if ((process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) && salesFile === SALES_FILE) {
+    return join("/tmp", basename(salesFile));
+  }
+  return salesFile;
+}
+
+/** Dual-write an order record to Supabase public.orders for permanent serverless persistence. */
+async function persistToSupabaseOrder(record: SaleRecord): Promise<void> {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SECRET_KEY;
+  if (!url || !key) return;
+  try {
+    const { createClient } = await import("@supabase/supabase-js");
+    const supabase = createClient(url, key);
+    const { error } = await supabase.from("orders").upsert({
+      provider: record.provider,
+      sale_id: record.sale_id,
+      product_id: record.product_id,
+      creator_id: record.creator_id,
+      amount_usd: record.amount_usd,
+      creator_split_pct: record.creator_split_pct,
+      creator_split_usd: record.creator_split_usd,
+      our_split_usd: record.our_split_usd,
+      currency: record.currency,
+      event_type: record.event_type || "sale",
+      email_hash: record.email_hash || null,
+      attribution_id: record.attribution_id || null,
+      occurred_at: record.ts
+    }, { onConflict: "provider,sale_id,event_type" });
+    if (error) {
+      console.error("ledger: Supabase orders upsert error:", error.message);
+    }
+  } catch (err) {
+    console.error("ledger: Supabase dual-write error:", err);
+  }
+}
+
 /** Find an already-recorded sale by provider + sale_id (webhook idempotency guard).
  *  Tolerant read: missing file or malformed lines are skipped (same posture as reports). */
 export function findSale(provider: string, saleId: string, salesFile: string = SALES_FILE): SaleRecord | null {
+  salesFile = resolveSalesFile(salesFile);
   let lines: string[];
   try {
     lines = readFileSync(salesFile, "utf8").split("\n");
@@ -82,9 +121,52 @@ export function findSale(provider: string, saleId: string, salesFile: string = S
   return null;
 }
 
+/** Asynchronously finds a sale, falling back to Supabase public.orders if not found in local file. */
+export async function findSaleAsync(provider: string, saleId: string, salesFile: string = SALES_FILE): Promise<SaleRecord | null> {
+  const local = findSale(provider, saleId, salesFile);
+  if (local) return local;
+
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SECRET_KEY;
+  if (!url || !key) return null;
+
+  try {
+    const { createClient } = await import("@supabase/supabase-js");
+    const supabase = createClient(url, key);
+    const { data } = await supabase
+      .from("orders")
+      .select("*")
+      .eq("provider", provider)
+      .eq("sale_id", saleId)
+      .eq("event_type", "sale")
+      .maybeSingle();
+
+    if (!data) return null;
+
+    return {
+      ts: data.occurred_at || data.created_at,
+      sale_id: data.sale_id,
+      provider: data.provider,
+      product_id: data.product_id,
+      amount_usd: Number(data.amount_usd),
+      creator_id: data.creator_id,
+      creator_split_pct: Number(data.creator_split_pct),
+      creator_split_usd: Number(data.creator_split_usd),
+      our_split_usd: Number(data.our_split_usd),
+      currency: data.currency,
+      event_type: data.event_type as LedgerEventType,
+      email_hash: data.email_hash || undefined,
+      attribution_id: data.attribution_id || undefined
+    };
+  } catch {
+    return null;
+  }
+}
+
 /** Find an already-recorded REFUND by provider + sale_id (refund idempotency guard).
  *  Tolerant read: missing file or malformed lines are skipped (same posture as reports). */
 export function findRefund(provider: string, saleId: string, salesFile: string = SALES_FILE): SaleRecord | null {
+  salesFile = resolveSalesFile(salesFile);
   let lines: string[];
   try {
     lines = readFileSync(salesFile, "utf8").split("\n");
@@ -107,9 +189,7 @@ export function findRefund(provider: string, saleId: string, salesFile: string =
 async function appendRecord(record: SaleRecord, salesFile: string): Promise<void> {
   // Serverless runtimes (Vercel/Lambda) have a read-only FS outside /tmp — keep the
   // ledger writable there by redirecting to the basename under /tmp.
-  if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
-    salesFile = join("/tmp", basename(salesFile));
-  }
+  salesFile = resolveSalesFile(salesFile);
   mkdirSync(dirname(salesFile), { recursive: true });
   const fh = await open(salesFile, "a");
   try {
@@ -137,12 +217,14 @@ export async function appendSale(sale: SaleRecord, salesFile: string = SALES_FIL
   if (typeof sale.email_hash === "string" && sale.email_hash !== "") record.email_hash = sale.email_hash;
   if (typeof sale.attribution_id === "string" && sale.attribution_id !== "") record.attribution_id = sale.attribution_id;
   await appendRecord(record, salesFile);
+  await persistToSupabaseOrder(record);
   return record;
 }
 
 /** Find all recorded sales matching a canonical attribution_id (cross-provider join).
  *  Tolerant read: missing file or malformed lines are skipped (same posture as findSale). */
 export function findSalesByAttribution(attributionId: string, salesFile: string = SALES_FILE): SaleRecord[] {
+  salesFile = resolveSalesFile(salesFile);
   let lines: string[];
   try {
     lines = readFileSync(salesFile, "utf8").split("\n");
@@ -188,7 +270,10 @@ export async function appendRefund(refund: RefundSpec, salesFile: string = SALES
   if (typeof ts !== "string" || Number.isNaN(Date.parse(ts))) {
     throw new TypeError('ledger: refund "ts" must be a parseable timestamp (UTC ISO string)');
   }
-  const original = findSale(refund.provider, refund.sale_id, salesFile);
+  let original = findSale(refund.provider, refund.sale_id, salesFile);
+  if (!original) {
+    original = await findSaleAsync(refund.provider, refund.sale_id, salesFile);
+  }
   if (!original || original.event_type === "refund") {
     throw new Error(`ledger: refund refused — no recorded sale for provider=${refund.provider} sale_id=${refund.sale_id} (refunds must reference a recorded sale)`);
   }
@@ -212,5 +297,6 @@ export async function appendRefund(refund: RefundSpec, salesFile: string = SALES
   if (typeof original.email_hash === "string" && original.email_hash !== "") record.email_hash = original.email_hash;
   if (typeof original.attribution_id === "string" && original.attribution_id !== "") record.attribution_id = original.attribution_id;
   await appendRecord(record, salesFile);
+  await persistToSupabaseOrder(record);
   return record;
 }

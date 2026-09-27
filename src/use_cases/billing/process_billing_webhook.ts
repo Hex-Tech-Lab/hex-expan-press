@@ -7,7 +7,7 @@
  * ADR: ADR-0049, ADR-0050
  */
 import { PaymentProviderPort, SaleCompletedEvent, RefundIssuedEvent } from "../../domain/payments/payments.port.ts";
-import { appendSale, appendRefund } from "../../../payments/src/ledger.ts";
+import { appendSale, appendRefund, findSaleAsync } from "../../../payments/src/ledger.ts";
 import { computeSplit } from "../../../payments/src/split.ts";
 import { effectiveCreatorSplitPct } from "../../../payments/src/terms.ts";
 import { loadProductIndex } from "../../../payments/src/webhook_core.ts";
@@ -65,7 +65,13 @@ export async function processBillingWebhookUseCase(
   if (event.eventType === "sale_completed") {
     const e = event as SaleCompletedEvent;
 
-    // 5a. Resolve product config to determine creator and split
+    // 5a. Idempotency guard: if sale already recorded, exit early without duplicating splits
+    const existing = await findSaleAsync(e.providerName, e.saleId);
+    if (existing) {
+      return;
+    }
+
+    // 5b. Resolve product config to determine creator and split
     const cfg = loadProductIndex().get(e.productId);
     if (!cfg) throw new Error(`Unknown product_id: ${e.productId}`);
 
