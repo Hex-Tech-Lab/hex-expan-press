@@ -1,0 +1,28 @@
+opencode.json
+  h_90c2451a76ba0d 116,121
+payments/src/email.ts
+  h_90c2451a76ba0d 15
+payments/src/ledger.ts
+  h_90c2451a76ba0d 63-100,104,124-165,169,192,220,227,273-276,300
+payments/test/email.test.ts
+  h_90c2451a76ba0d 44
+src/use_cases/billing/process_billing_webhook.ts
+  h_90c2451a76ba0d 10,68-74
+supabase/migrations/20260927000200_orders_ledger.sql
+  h_90c2451a76ba0d 1-52
+web/api/billing/checkout.ts
+  h_90c2451a76ba0d 44-52
+web/creator/dashboard/index.html
+  h_90c2451a76ba0d 156-208,210-211
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "2ba5d808ee63b9b9bdaff170e4e8a0f3af30c6ee",
+  "prompts": {},
+  "humans": {
+    "h_90c2451a76ba0d": {
+      "author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
