@@ -1,0 +1,55 @@
+web/app/api/billing/webhook/route.ts
+  s_850ecf3d00f9ca::t_366f43bc6eec81 6-11
+web/next.config.ts
+  s_850ecf3d00f9ca::t_063ebd05e14ed3 33-37
+  s_850ecf3d00f9ca::t_306eadf361f209 1
+payments/test/legacy_bridge.test.ts
+  s_850ecf3d00f9ca::t_b66d8095048485 13-14
+  s_850ecf3d00f9ca::t_b640220110d1ab 40
+  s_850ecf3d00f9ca::t_b38b144ac90566 91-101
+  s_850ecf3d00f9ca::t_36f89681a4ca6b 112
+  s_850ecf3d00f9ca::t_9a6d989f83e658 1-12,15-39,41-90,102-103,105-106,110-111,113-114
+  s_850ecf3d00f9ca::t_91a6948eda492f 104,107-109
+web/app/api/esign/create/route.ts
+  s_850ecf3d00f9ca::t_66cbf8254fa065 6-11
+web/api/esign/create.ts
+  s_850ecf3d00f9ca::t_f25e6c72a96262 6-8,15-20
+web/api/esign/webhook.ts
+  s_850ecf3d00f9ca::t_a53a832d6e2e93 6-8,15-20
+web/api/billing/webhook.ts
+  s_850ecf3d00f9ca::t_adc1374706bc76 13-15,22-27
+web/app/api/_legacy/shim.ts
+  s_850ecf3d00f9ca::t_b2b03203745146 30-35
+  s_850ecf3d00f9ca::t_0063ad831e6db3 25-27,36-52
+  s_850ecf3d00f9ca::t_5d9cb8636fad27 69-73
+  s_850ecf3d00f9ca::t_c6ca6750398dc0 54-57
+  s_850ecf3d00f9ca::t_204d8a45903738 91-92,98-101,110-112
+  s_850ecf3d00f9ca::t_c822a1d2b78128 53
+payments/src/webhook_core.ts
+  s_850ecf3d00f9ca::t_82df5db59ff8c4 70-74,78,84
+  s_850ecf3d00f9ca::t_5a183d2d7094d8 44-50
+web/api/billing/checkout.ts
+  s_850ecf3d00f9ca::t_352c84bb4d912b 17-19,26-32
+web/app/api/billing/checkout/route.ts
+  s_850ecf3d00f9ca::t_f0c68765ac9d6f 6-10
+web/app/api/esign/webhook/route.ts
+  s_850ecf3d00f9ca::t_f7617bb2f7978e 6-10
+pnpm-lock.yaml
+  s_850ecf3d00f9ca::t_7bc38b251fb5ec 128-130,145,288-291,2193-2209,2312-2314,3246-3248,3504-3506,4182-4185,4645-4646,6198-6215,6340-6345,7475-7476,7674-7679,8465-8466,8721,8740
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "3cbf6f4a3a302cb6215803b95fe4e18c676af899",
+  "prompts": {},
+  "sessions": {
+    "s_850ecf3d00f9ca": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f19732d4dffe264nY0gJ7Z9XgG",
+        "model": "@preset/glm-53-flash-on-cheap"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
