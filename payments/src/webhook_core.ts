@@ -47,8 +47,27 @@ export function loadProductIndex(): Map<string, ProductConfig> {
   // its static file tracer evaluates path.join(HERE, "..") to the payments/
   // DIRECTORY and hard-fails hashing a directory asset ("Invalid file type
   // Directory"). With the env-gated branch the tracer cannot statically
-  // resolve the path and skips it. Runtime behavior is identical.
-  const paymentsDir = process.env.PAYMENTS_CONFIG_DIR || path.join(HERE, "..");
+  // resolve the path and skips it; the config files are instead bundled via
+  // web/next.config.ts outputFileTracingIncludes for the webhook route.
+  // Candidate order (first dir containing config.*.json wins):
+  //   1. PAYMENTS_CONFIG_DIR env override (deployment pin)
+  //   2. module-relative payments/ (classic standalone/serverless layout)
+  //   3. process.cwd()/payments (scripts run from repo root)
+  //   4. process.cwd()/../payments (next start runs with cwd=web/)
+  const candidates = [
+    process.env.PAYMENTS_CONFIG_DIR,
+    path.join(HERE, ".."),
+    path.join(process.cwd(), "payments"),
+    path.join(process.cwd(), "..", "payments"),
+  ].filter((d): d is string => typeof d === "string");
+  const paymentsDir =
+    candidates.find((dir) => {
+      try {
+        return readdirSync(dir).some((f) => f.startsWith("config.") && f.endsWith(".json"));
+      } catch {
+        return false;
+      }
+    }) ?? candidates[0];
   try {
     const files = readdirSync(paymentsDir).filter((f) => f.startsWith("config.") && f.endsWith(".json"));
     for (const f of files) {

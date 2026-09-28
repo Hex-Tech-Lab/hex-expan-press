@@ -24,6 +24,14 @@ const nextConfig: NextConfig = {
   trailingSlash: false,
   typescript: { ignoreBuildErrors: false },
   eslint: { ignoreDuringBuilds: false },
+  // The legacy billing webhook enumerates payments/config.*.json at runtime.
+  // Explicitly bundle those server-only files with the function (they were
+  // previously bundled only because the old NFT tracer statically resolved
+  // the readdir path, which the Turbopack fix removed). Keep them OUT of
+  // public/ — this ships them only inside the server function artifact.
+  outputFileTracingIncludes: {
+    "/api/billing/webhook": ["../payments/config.*.json"],
+  },
   async rewrites() {
     return [
       { source: "/", destination: "/index.html" },
