@@ -8,9 +8,9 @@ import type { NextConfig } from "next";
 // are served by public/ directly and need no rewrite. Re-introduce real
 // app/ routes in later waves and DELETE the corresponding rewrite here.
 // Wave 5: /creator/signin is now a real app route — rewrite removed.
+// Wave 6.1: /creator/review + /creator/consents are real app routes —
+// rewrites removed, legacy HTML deleted.
 const DIR_ROUTES = [
-  "/creator/review",
-  "/creator/consents",
   "/c/retirearly500k",
   "/c/retirearly500k/500k-playbook",
 ];
