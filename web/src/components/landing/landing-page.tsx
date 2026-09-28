@@ -241,11 +241,11 @@ function TiltCard({
   const sheen = useMotionTemplate`radial-gradient(340px circle at ${mx}% ${my}%, rgba(255,158,128,0.07), transparent 72%)`;
   const shadow = useMotionTemplate`${shadowX}px ${shadowY}px 60px rgba(0,0,0,0.045)`;
 
-  const onMove = (e: React.PointerEvent<HTMLDivElement>) => {
+  const onMove = (event: React.PointerEvent<HTMLDivElement>) => {
     if (reduced || active) return;
-    const r = e.currentTarget.getBoundingClientRect();
-    const px = (e.clientX - r.left) / r.width;
-    const py = (e.clientY - r.top) / r.height;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const px = (event.clientX - rect.left) / rect.width;
+    const py = (event.clientY - rect.top) / rect.height;
     ry.set((px - 0.5) * 9);
     rx.set((0.5 - py) * 7);
     mx.set(px * 100);
@@ -427,9 +427,9 @@ export default function LandingPage({ onboarding }: { onboarding: boolean }) {
                               </button>
                             </div>
                             <ol className="mt-4 flex-1 flex flex-col justify-center gap-3">
-                              {steps?.map((s, si) => (
+                              {steps?.map((step, si) => (
                                 <motion.li
-                                  key={s}
+                                  key={step}
                                   initial={reduced ? { opacity: 0 } : { opacity: 0, x: 40 }}
                                   animate={reduced ? { opacity: 1 } : { opacity: 1, x: 0 }}
                                   transition={{ duration: 0.45, ease: EASE, delay: 0.62 + si * BEAT * 4 }}
@@ -438,7 +438,7 @@ export default function LandingPage({ onboarding }: { onboarding: boolean }) {
                                   <span className="w-7 h-7 rounded-full border border-peach/50 text-peach font-mono text-xs flex items-center justify-center shrink-0">
                                     {si + 1}
                                   </span>
-                                  <span className="font-medium">{s}</span>
+                                  <span className="font-medium">{step}</span>
                                 </motion.li>
                               ))}
                             </ol>

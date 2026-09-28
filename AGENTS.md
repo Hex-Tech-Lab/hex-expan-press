@@ -131,3 +131,7 @@ Order is fixed: **harvest → GLM generates `candidates.json` → score**. Never
 ## OR pin diversification (2026-09-28 evening, founder-directed)
 
 - hex-expan project opencode.json (repo ROOT, not .opencode/): glm-5.3-flash order now **decart → baseten → inference-net → open-inference → modal, allow_fallbacks:false** — provider DIVERSIFICATION across agents: founder-managed preset sessions keep baseten/modal; hex-expan CLI sessions start decart; gmicloud dropped from this project's order (latency); modal parked last (claimed by preset sessions). Cost note: same standard $0.15/$0.50 tier; order rationale = spread load across providers during concurrent-agent sessions, decart cheapest of the front three, latency-ranked. Endpoint numbers churn ~2x/day — re-verify via endpoints API before further changes. Standing rule intact: never pin a different model/provider without a cost note.
+
+## Gate order (updated 2026-09-28 evening, founder directive)
+
+- **qa-intel diff + full are standing gates now, every time** — order: lint → `pnpm qa:intel` (diff vs origin/master, compared against `.qa-intel/baseline.json`) → tsc → build → vitest; `pnpm qa:intel:full` at milestones/before merges. Engine invoked via hex-yt-intel's tsx binary directly (corepack version pin in hex-yt-intel breaks `pnpm --dir` — ERR_PNPM_BAD_PM_VERSION; binary path bypasses it). Baseline: `.qa-intel/baseline.json` (established 2026-09-28, full scan). Re-run `--mode full --baseline` after accepting new rule classes.
