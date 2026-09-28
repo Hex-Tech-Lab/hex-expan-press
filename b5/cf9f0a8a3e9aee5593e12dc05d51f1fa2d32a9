@@ -1,0 +1,22 @@
+web/app/globals.css
+  s_850ecf3d00f9ca::t_b2fcfc418942e4 25,29
+web/src/components/landing/landing-page.tsx
+  s_850ecf3d00f9ca::t_3ae17bd83c0f0f 389
+  s_850ecf3d00f9ca::t_b2fcfc418942e4 51,239-240,250-251,368,387,390,398,402
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "b5cf9f0a8a3e9aee5593e12dc05d51f1fa2d32a9",
+  "prompts": {},
+  "sessions": {
+    "s_850ecf3d00f9ca": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f19732d4dffe264nY0gJ7Z9XgG",
+        "model": "@preset/glm-53-flash-on-cheap"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
