@@ -1,0 +1,71 @@
+src/use_cases/process_esign_webhook.ts
+  s_850ecf3d00f9ca::t_d0d8274b4a8b4e 30-40
+src/adapters/esign/__tests__/firma.adapter.test.ts
+  s_850ecf3d00f9ca::t_b1b7ac4018a8a6 1-69
+web/middleware.ts
+  s_850ecf3d00f9ca::t_1e5a192e8d4ff0 2,53,56-58
+  s_850ecf3d00f9ca::t_a39fc4b1339623 1,3-52,54-55,59-66
+AGENTS.md
+  s_850ecf3d00f9ca::t_7a56aba93cb337 124-161
+web/app/auth/callback/route.ts
+  s_850ecf3d00f9ca::t_1198b9b3f6baa9 22-27
+web/package.json
+  s_850ecf3d00f9ca::t_ccdd41514b46dd 36
+src/adapters/esign/firma.adapter.ts
+  s_850ecf3d00f9ca::t_4f034888a7fd12 8,74,137,163-164
+  s_850ecf3d00f9ca::t_fa94328c9006d5 33-49,56,109
+  s_850ecf3d00f9ca::t_421748f3d7b184 3-7,117,123
+  s_850ecf3d00f9ca::t_06fe185a327afa 75,80
+  s_850ecf3d00f9ca::t_d0d8274b4a8b4e 134,136,138-144
+  s_850ecf3d00f9ca::t_1e5a192e8d4ff0 67-68
+  s_850ecf3d00f9ca::t_24a83911c65dcd 9
+web/app/creator/dashboard/actions.ts
+  s_850ecf3d00f9ca::t_3ab72d334973f9 15-19,21
+web/app/creator/signin/actions.ts
+  s_850ecf3d00f9ca::t_11d93076b9d137 66-67
+  s_850ecf3d00f9ca::t_5d425696c5a9a7 50,55-59
+  s_850ecf3d00f9ca::t_8230494ffbaae5 68-70,72
+vitest.config.ts
+  s_850ecf3d00f9ca::t_06fe185a327afa 11
+  s_850ecf3d00f9ca::t_1e5a192e8d4ff0 12
+web/src/lib/supabase-server.ts
+  s_850ecf3d00f9ca::t_1198b9b3f6baa9 59-61
+docs/agent_ledger.jsonl
+  s_850ecf3d00f9ca::t_91ade40cc312ed 314
+  s_850ecf3d00f9ca::t_966b97641c05c1 315
+web/src/lib/__tests__/esign-webhook.test.ts
+  s_850ecf3d00f9ca::t_369ff834e8c8ac 45
+  s_850ecf3d00f9ca::t_0acf3cf78c4fb5 44,46-48,50-55
+  s_850ecf3d00f9ca::t_8782db963addd5 19,49
+scripts/e2e-otp-roundtrip.mjs
+  s_850ecf3d00f9ca::t_9c0ba956e77ffa 8-12
+  s_850ecf3d00f9ca::t_fed34b11287ab8 38-39,42
+  s_850ecf3d00f9ca::t_b107b0815e3b73 1-7,13-37,40-41,43-76
+scripts/e2e-auth.mjs
+  s_850ecf3d00f9ca::t_a3c3aa9a843473 70-77
+  s_850ecf3d00f9ca::t_392aee8257ae1c 1-9,14-69,78-112
+  s_850ecf3d00f9ca::t_5f93e295b36dac 10-13
+CLAUDE.md
+  s_850ecf3d00f9ca::t_7a56aba93cb337 15-16
+web/__tests__/middleware.test.ts
+  s_850ecf3d00f9ca::t_1e5a192e8d4ff0 1-20,22-62
+  s_850ecf3d00f9ca::t_e27aff1fa00662 21
+pnpm-lock.yaml
+  s_850ecf3d00f9ca::t_a8d09ff10b21cb 213-215,4330-4334,9026-9027
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "1018fcf314753db4abca1381f93a721f3d6a0329",
+  "prompts": {},
+  "sessions": {
+    "s_850ecf3d00f9ca": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f19732d4dffe264nY0gJ7Z9XgG",
+        "model": "@preset/glm-53-flash-on-cheap"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
