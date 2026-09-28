@@ -9,7 +9,6 @@ import type { NextConfig } from "next";
 // app/ routes in later waves and DELETE the corresponding rewrite here.
 const DIR_ROUTES = [
   "/creator/signin",
-  "/creator/dashboard",
   "/creator/review",
   "/creator/consents",
   "/c/retirearly500k",
