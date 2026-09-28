@@ -22,6 +22,11 @@ export interface ShimResult {
   body: string;
 }
 
+// Webhooks from Firma/Polar are small JSON bodies (KBs). The shim buffers the
+// entire request body in memory, so cap it: larger POSTs are rejected 413
+// instead of creating memory pressure on the serverless function.
+const MAX_BODY_BYTES = 1_048_576;
+
 function parseQuery(url: string): LegacyQuery {
   const query: LegacyQuery = {};
   for (const [key, value] of new URL(url).searchParams) {
@@ -39,7 +44,24 @@ export async function runLegacyHandler(
 ): Promise<Response> {
   const url = new URL(request.url);
 
+  // Note: Object.fromEntries(request.headers) collapses duplicate header
+  // names into a comma-joined value. Node's own parser does the same for
+  // most duplicated headers, and no provider in use (Firma X-Firma-Signature,
+  // Polar/Paddle signature schemes) sends duplicate signature headers.
+  const contentLength = Number(request.headers.get("content-length") || "0");
+  if (Number.isFinite(contentLength) && contentLength > MAX_BODY_BYTES) {
+    return new Response(JSON.stringify({ ok: false, error: "Payload Too Large" }), {
+      status: 413,
+      headers: { "content-type": "application/json" },
+    });
+  }
   const bodyBuffer = request.body ? Buffer.from(await request.arrayBuffer()) : Buffer.alloc(0);
+  if (bodyBuffer.length > MAX_BODY_BYTES) {
+    return new Response(JSON.stringify({ ok: false, error: "Payload Too Large" }), {
+      status: 413,
+      headers: { "content-type": "application/json" },
+    });
+  }
   let offset = 0;
   const req = {
     headers: Object.fromEntries(request.headers.entries()),
