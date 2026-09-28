@@ -48,6 +48,7 @@ const SIGNIN = "/creator/signin/";
    No bouncy springs anywhere: layout/orchestration use high-damping springs,
    fades and micro-interactions use the settle bezier at 0.6s. */
 const HEAVY = { type: "spring" as const, stiffness: 100, damping: 25, mass: 1 };
+const APPLE = { duration: 0.5, ease: [0.32, 0.72, 0, 1] as const }; // swift-out layout easing
 const EASE = [0.16, 1, 0.3, 1] as const;
 const settle = (duration = 0.6, delay = 0) => ({ duration, ease: EASE, delay });
 const BEAT = 0.09; // seconds between staggered constructions — the page's pulse
@@ -235,8 +236,8 @@ function TiltCard({
   const my = useMotionValue(50);
   // Soft slab shadow: drifts gently opposite the tilt over a wide, faint base.
   // NOTE: all hooks hoisted here — conditional hook calls inside JSX crash React.
-  const shadowX = useTransform(sry, [-8, 8], [5, -5]);
-  const shadowYRaw = useTransform(srx, [-8, 8], [-5, 5]);
+  const shadowX = useTransform(sry, [-8, 8], [3, -3]);
+  const shadowYRaw = useTransform(srx, [-8, 8], [-3, 3]);
   const shadowY = useTransform(shadowYRaw, (v) => 26 + v);
   const sheen = useMotionTemplate`radial-gradient(340px circle at ${mx}% ${my}%, rgba(255,158,128,0.07), transparent 72%)`;
   const shadow = useMotionTemplate`${shadowX}px ${shadowY}px 60px rgba(0,0,0,0.045)`;
@@ -246,8 +247,8 @@ function TiltCard({
     const rect = event.currentTarget.getBoundingClientRect();
     const px = (event.clientX - rect.left) / rect.width;
     const py = (event.clientY - rect.top) / rect.height;
-    ry.set((px - 0.5) * 9);
-    rx.set((0.5 - py) * 7);
+    ry.set((px - 0.5) * 5);
+    rx.set((0.5 - py) * 5);
     mx.set(px * 100);
     my.set(py * 100);
   };
@@ -266,7 +267,6 @@ function TiltCard({
       style={{
         rotateX: srx,
         rotateY: sry,
-        transformPerspective: 900,
         boxShadow: reduced ? undefined : shadow,
       }}
       className={className}
@@ -365,7 +365,7 @@ export default function LandingPage({ onboarding }: { onboarding: boolean }) {
 
           {/* Bento — pointer-3D cards; click splits the page */}
           <motion.div
-            className="lg:w-[54%] grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-5 [perspective:1000px]"
+            className="lg:w-[54%] grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-5 [perspective:1200px]"
             id="how-it-works"
             variants={bentoContainer}
             initial="hidden"
@@ -384,9 +384,10 @@ export default function LandingPage({ onboarding }: { onboarding: boolean }) {
                                         layout
                     layoutId={`bento-${i}`}
                     variants={bentoItem}
-                    transition={HEAVY}
+                    transition={APPLE}
                     style={{ transformStyle: "preserve-3d", scrollMarginTop: "6rem" }}
-                    className={isActive ? "sm:col-span-2 z-10" : isRail ? "opacity-80 scale-[0.97]" : ""}
+                    animate={isRail ? { opacity: 0, scale: 0.95, pointerEvents: "none", transition: { duration: 0.3, ease: EASE } } : undefined}
+                    className={isActive ? "sm:col-span-2 z-10" : ""}
                   >
                     <TiltCard
                       reduced={Boolean(reduced) || !fine}
@@ -394,11 +395,11 @@ export default function LandingPage({ onboarding }: { onboarding: boolean }) {
                       onOpen={() => setActive(i)}
                       className={`rounded-[32px] glass-card p-6 sm:p-7 flex flex-col justify-between relative overflow-hidden ${isActive ? "card-shadow" : "card-shadow"}`}
                     >
-                      <div className={isRail ? "pointer-events-none" : undefined}>
+                      <div>
                         <h3 className="text-lg sm:text-xl font-bold tracking-tight text-gray-900">{card.title}</h3>
                         <p className="text-xs sm:text-sm text-gray-500 mt-1.5 leading-relaxed">{card.body}</p>
                       </div>
-                      <div className={`my-4 py-3 flex items-center justify-center relative ${isRail ? "opacity-70" : ""}`}>
+                      <div className="my-4 py-3 flex items-center justify-center relative">
                         <Art reduced={Boolean(reduced)} />
                       </div>
                       <AnimatePresence mode="wait">
