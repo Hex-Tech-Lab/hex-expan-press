@@ -1,0 +1,24 @@
+web/src/components/landing/landing-page.tsx
+  s_850ecf3d00f9ca::t_16718de2cc0e7a 211,215
+  s_850ecf3d00f9ca::t_fa3525ceb88a08 242
+web/app/error.tsx
+  s_850ecf3d00f9ca::t_baf19ebca4432f 1-2,5-27,29,31-35
+  s_850ecf3d00f9ca::t_ed35ff45b6c180 3-4
+  s_850ecf3d00f9ca::t_6385d5027be658 28,30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ef0896bfe083fe39fec00e9824b5e1e7a1335910",
+  "prompts": {},
+  "sessions": {
+    "s_850ecf3d00f9ca": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f19732d4dffe264nY0gJ7Z9XgG",
+        "model": "@preset/glm-53-flash-on-cheap"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
