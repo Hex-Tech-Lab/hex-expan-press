@@ -11,12 +11,22 @@ import { createSsrClient } from "../../../src/lib/supabase-ssr";
  * /auth/callback code exchange.
  */
 
-function resolveOrigin(): string {
-  // Explicit override wins; production MUST be the canonical domain —
-  // VERCEL_URL points at the deployment URL, which is not on the OAuth
-  // provider's redirect allow-list and would break production sign-in.
-  if (process.env.NEXT_PUBLIC_SITE_ORIGIN) return process.env.NEXT_PUBLIC_SITE_ORIGIN;
-  if (process.env.VERCEL_ENV === "production") return "https://expanpress.com";
+async function resolveOrigin(): Promise<string> {
+  // Strictly production keeps the canonical pin: the OAuth provider
+  // allow-list and every deployed asset expect one domain there.
+  if (process.env.VERCEL_ENV === "production") {
+    return process.env.NEXT_PUBLIC_SITE_ORIGIN ?? "https://expanpress.com";
+  }
+  // Previews/local: bind the OAuth round-trip to the EXACT host the user is
+  // on (request-scoped, not env-scoped). The PKCE verifier cookie is
+  // host-scoped — a redirectTo on any other domain alias (pinned env origin,
+  // bare VERCEL_URL vs the open deployment alias) makes Google return to a
+  // host where that cookie does not exist, and the exchange fails as
+  // "Sign-in link expired or already used" (P0 2026-09-29, founder report).
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host");
+  const proto = h.get("x-forwarded-proto") ?? "https";
+  if (host) return `${proto}://${host}`;
   if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
   return "http://localhost:3000";
 }
@@ -24,7 +34,7 @@ function resolveOrigin(): string {
 /** Google OAuth via PKCE — the ssr client persists the verifier in a cookie. */
 export async function signInWithGoogleAction(): Promise<void> {
   void headers; // Server Action context; origin resolved from env (static host)
-  const origin = resolveOrigin();
+  const origin = await resolveOrigin();
   try {
     const supabase = await createSsrClient();
     const { data, error } = await supabase.auth.signInWithOAuth({
@@ -53,7 +63,7 @@ export async function signInWithOtpAction(formData: FormData): Promise<void> {
   const email = String(formData.get("email") ?? "").trim();
   if (!email || !email.includes("@")) redirect("/creator/signin?error=invalid_email");
 
-  const origin = resolveOrigin();
+  const origin = await resolveOrigin();
   try {
     const supabase = await createSsrClient();
     const { data, error } = await supabase.auth.signInWithOtp({
