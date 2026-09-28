@@ -208,11 +208,11 @@ function TiltCard({
   const mx = useMotionValue(50);
   const my = useMotionValue(50);
   // Hard offset shadow moves opposite the tilt — the card reads as a real slab.
+  // NOTE: all hooks hoisted here — conditional hook calls inside JSX crash React.
   const shadowX = useTransform(sry, [-8, 8], [10, -10]);
   const shadowY = useTransform(srx, [-8, 8], [-10, 10]);
   const sheen = useMotionTemplate`radial-gradient(240px circle at ${mx}% ${my}%, rgba(255,158,128,0.16), transparent 65%)`;
-  const shadow = useMotionTemplate`drop-shadow(0 0 0 rgba(0,0,0,0))`;
-  void shadow;
+  const shadow = useMotionTemplate`${shadowX}px ${shadowY}px 0 0 rgba(24,24,24,0.10)`;
 
   const onMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (reduced || active) return;
@@ -239,7 +239,7 @@ function TiltCard({
         rotateX: srx,
         rotateY: sry,
         transformPerspective: 900,
-        boxShadow: reduced ? undefined : useMotionTemplate`${shadowX}px ${shadowY}px 0 0 rgba(24,24,24,0.10)`,
+        boxShadow: reduced ? undefined : shadow,
       }}
       className={className}
     >
