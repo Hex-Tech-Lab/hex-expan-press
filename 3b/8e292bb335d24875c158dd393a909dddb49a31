@@ -1,0 +1,45 @@
+docs/agent_ledger.jsonl
+  s_850ecf3d00f9ca::t_69c00e974abb6f 303
+  s_850ecf3d00f9ca::t_cf09f26e410db5 296
+  s_850ecf3d00f9ca::t_5cff5c31a7a554 300
+  s_850ecf3d00f9ca::t_b8aaa1f2a28431 301
+  s_c21d2da1fc16d4::t_8e59811baf415e 290
+  s_850ecf3d00f9ca::t_e83a24e2411083 295
+  s_c21d2da1fc16d4::t_14f087f2e0e109 289
+  s_850ecf3d00f9ca::t_7f7d57120422b1 291
+  s_c21d2da1fc16d4::t_49e2996f75d4cc 288
+  s_c21d2da1fc16d4::t_369b9aa6ae4319 286
+  s_850ecf3d00f9ca::t_11bbae6283848c 302
+  s_850ecf3d00f9ca::t_ec062f499787e5 299
+  s_850ecf3d00f9ca::t_3d22f74425b9fe 297
+  s_850ecf3d00f9ca::t_a2c7706691769f 298
+  s_850ecf3d00f9ca::t_820e6c46e2f5cc 292
+  s_c21d2da1fc16d4::t_5efd8a50e124e1 287
+  s_850ecf3d00f9ca::t_46dadf9337948d 294
+  s_850ecf3d00f9ca::t_2093190cc1f867 293
+  s_850ecf3d00f9ca::t_bf461064610dc5 304
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "3b8e292bb335d24875c158dd393a909dddb49a31",
+  "prompts": {},
+  "sessions": {
+    "s_850ecf3d00f9ca": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f19732d4dffe264nY0gJ7Z9XgG",
+        "model": "@preset/glm-53-flash-on-cheap"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_c21d2da1fc16d4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f22c8265dffemQYfwVqfzfjXD9",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
