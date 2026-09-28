@@ -1,0 +1,56 @@
+web/app/globals.css
+  s_850ecf3d00f9ca::t_04358cfd0cc453 60-70
+web/package.json
+  s_850ecf3d00f9ca::t_6591b60f6e2fde 15-16,18
+web/app/creator/dashboard/dashboard-client.tsx
+  s_850ecf3d00f9ca::t_04358cfd0cc453 18,164
+  s_850ecf3d00f9ca::t_a7dca0af5ab575 1-17,19-20,24-163,165-249
+  s_850ecf3d00f9ca::t_19dffabe0a114c 21-23
+web/app/creator/dashboard/actions.ts
+  s_850ecf3d00f9ca::t_345fed2ce98952 1-10
+web/src/lib/supabase-server.ts
+  s_850ecf3d00f9ca::t_9c535f84fc864a 1-102
+web/app/creator/dashboard/page.tsx
+  s_850ecf3d00f9ca::t_fb5f692acd2a06 1,3-16,26-29,38,42,49-50,52-64,73-83,85-98,108-109
+  s_850ecf3d00f9ca::t_3c8604a6b38b7b 2,39
+  s_850ecf3d00f9ca::t_fc43919da058bd 17-25,40-41,43-48,51,99-107
+  s_850ecf3d00f9ca::t_19dffabe0a114c 30-37,65-72,84
+web/app/creator/dashboard/auth-bridge.tsx
+  s_850ecf3d00f9ca::t_b78f42d90f9fe0 1-24,26-35,45-47,52,55-66,68-70
+  s_850ecf3d00f9ca::t_22dee54005a1ae 67
+  s_850ecf3d00f9ca::t_fc43919da058bd 25,36-44,48-51,53-54
+web/src/components/landing/landing-page.tsx
+  s_850ecf3d00f9ca::t_bcec3b50fb08aa 26
+  s_850ecf3d00f9ca::t_04358cfd0cc453 171-173,185
+web/app/creator/dashboard/astryx-tokens.css
+  s_850ecf3d00f9ca::t_d40c962bf2d6f0 1-175
+web/instrumentation-client.ts
+  s_850ecf3d00f9ca::t_0b63a6339cea0f 1-2
+scripts/extract_astryx_tokens.mjs
+  s_850ecf3d00f9ca::t_d40c962bf2d6f0 1-14
+web/src/components/journey/journey-dots.tsx
+  s_850ecf3d00f9ca::t_3296f5a3e3b878 1-60
+web/app/creator/dashboard/layout.tsx
+  s_850ecf3d00f9ca::t_17b1c052208d08 2,5-19,24-26,28-31
+  s_850ecf3d00f9ca::t_d40c962bf2d6f0 3,20-23,27
+  s_850ecf3d00f9ca::t_bcec3b50fb08aa 1
+  s_850ecf3d00f9ca::t_0e3a8ba23458ce 4
+pnpm-lock.yaml
+  s_850ecf3d00f9ca::t_942ab386cad538 155-160,164-166,734-744,1953-1957,2873-2876,5354-5364,6160-6164,7202-7203
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a5d29f612625778ca8284eb2aa5b5713321f88ca",
+  "prompts": {},
+  "sessions": {
+    "s_850ecf3d00f9ca": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f19732d4dffe264nY0gJ7Z9XgG",
+        "model": "@preset/glm-53-flash-on-cheap"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
