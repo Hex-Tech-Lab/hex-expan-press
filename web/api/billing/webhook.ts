@@ -38,9 +38,10 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     await processBillingWebhookUseCase({ headers: req.headers, body }, adapters);
 
     return json(res, 200, { ok: true });
-  } catch (err: any) {
+  } catch (err) {
     console.error("Billing webhook error:", err);
-    const isValidationErr = err.message.includes("validation failed") || err.message.includes("No payment provider");
-    return json(res, isValidationErr ? 400 : 500, { ok: false, error: err.message });
+    const message = err instanceof Error ? err.message : String(err);
+    const isValidationErr = message.includes("validation failed") || message.includes("No payment provider");
+    return json(res, isValidationErr ? 400 : 500, { ok: false, error: message });
   }
 }

@@ -1,0 +1,16 @@
+@import "tailwindcss";
+
+/* ExpanPress palette — mirrors web/src/design/tokens.ts exactly. */
+@theme {
+  --color-canvas: #F9F6F0;
+  --color-charcoal: #181818;
+  --color-peach: #FF9E80;
+}
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+}
