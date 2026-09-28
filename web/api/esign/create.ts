@@ -3,12 +3,21 @@ import { createClient } from "@supabase/supabase-js";
 import { EnvSettingsAdapter } from "../../../src/adapters/settings/env_settings.adapter.ts";
 import { createEsignEnvelopeUseCase } from "../../../src/use_cases/create_esign_envelope.ts";
 
+/**
+ * Writes a JSON response through the legacy Node ServerResponse surface.
+ */
 function json(res: ServerResponse, status: number, payload: unknown): void {
   res.statusCode = status;
   res.setHeader("Content-Type", "application/json");
   res.end(JSON.stringify(payload));
 }
 
+/**
+ * Legacy Vercel esign-envelope creation handler (bridged into Next.js via
+ * shim.ts): authenticates the caller via Supabase using the Authorization
+ * Bearer token, then creates the Firma envelope for the requested product.
+ * 405 non-POST, 401 missing/invalid token, 400 bad input.
+ */
 export default async function handler(req: IncomingMessage & { query: Record<string, string | string[]> }, res: ServerResponse) {
   if (req.method !== "POST") return json(res, 405, { ok: false, error: "Method Not Allowed" });
 
@@ -40,9 +49,9 @@ export default async function handler(req: IncomingMessage & { query: Record<str
     }, settingsRegistry);
 
     return json(res, 200, { ok: true, url: result.signUrl });
-  } catch (err: any) {
+  } catch (err) {
     console.error("Error creating esign envelope:", err);
-    const msg = String(err?.message || "");
+    const msg = err instanceof Error ? err.message : String(err);
     if (/insufficient credits|402/i.test(msg)) {
       return json(res, 503, { ok: false, error: "The signing service is awaiting credit activation. Please try again shortly." });
     }

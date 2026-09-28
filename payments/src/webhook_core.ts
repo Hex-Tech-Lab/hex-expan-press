@@ -41,13 +41,48 @@ export function getSecret(provider: ProviderName): string | undefined {
   return envName ? process.env[envName] : undefined;
 }
 
+/**
+ * Loads every active product config into a lookup index keyed by internal
+ * product id, provider product ids (sandbox/live), and site slug. Config
+ * directory resolution order: PAYMENTS_CONFIG_DIR override, module-relative
+ * payments/, cwd-relative payments/ — first directory that actually contains
+ * product config files wins. config.example.json is never indexed.
+ */
 export function loadProductIndex(): Map<string, ProductConfig> {
   const idx = new Map<string, ProductConfig>();
-  const paymentsDir = path.join(HERE, "..");
+  // PAYMENTS_CONFIG_DIR indirection exists for the Next.js/Turbopack build:
+  // its static file tracer evaluates path.join(HERE, "..") to the payments/
+  // DIRECTORY and hard-fails hashing a directory asset ("Invalid file type
+  // Directory"). With the env-gated branch the tracer cannot statically
+  // resolve the path and skips it; the config files are instead bundled via
+  // web/next.config.ts outputFileTracingIncludes for the webhook route.
+  // Candidate order (first dir containing config.*.json wins):
+  //   1. PAYMENTS_CONFIG_DIR env override (deployment pin)
+  //   2. module-relative payments/ (classic standalone/serverless layout)
+  //   3. process.cwd()/payments (scripts run from repo root)
+  //   4. process.cwd()/../payments (next start runs with cwd=web/)
+  const candidates = [
+    process.env.PAYMENTS_CONFIG_DIR,
+    path.join(HERE, ".."),
+    path.join(process.cwd(), "payments"),
+    path.join(process.cwd(), "..", "payments"),
+  ].filter((d): d is string => typeof d === "string");
+  // Same predicate for directory SELECTION and file LOADING: config.example.json
+  // must not win the selection (a directory holding only the example file would
+  // otherwise be chosen, then skipped, leaving an empty product index).
+  const isProductConfigFile = (f: string): boolean =>
+    f.startsWith("config.") && f.endsWith(".json") && f !== "config.example.json";
+  const paymentsDir =
+    candidates.find((dir) => {
+      try {
+        return readdirSync(dir).some(isProductConfigFile);
+      } catch {
+        return false;
+      }
+    }) ?? candidates[0];
   try {
-    const files = readdirSync(paymentsDir).filter((f) => f.startsWith("config.") && f.endsWith(".json"));
+    const files = readdirSync(paymentsDir).filter(isProductConfigFile);
     for (const f of files) {
-      if (f === "config.example.json") continue;
       try {
         const c = loadConfig(path.join(paymentsDir, f));
         idx.set(c.product_id, c);

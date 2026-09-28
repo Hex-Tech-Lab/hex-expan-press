@@ -178,6 +178,10 @@ ${JSON.stringify(topics.map((t) => ({ query: t.query, search_volume: t.search_vo
         model: process.env.TREND_CLASSIFIER_MODEL || "x-ai/grok-4.3",
         // grok-4.3 is xAI-exclusive; direct OR calls bypass the CLI relace pin (RCA 2026-09-16).
         provider: { order: ["x-ai"], allow_fallbacks: false },
+        // Standing block (2026-09-28): reasoning minimal+exclude, caching on for all direct OR calls.
+        reasoning: { effort: "minimal", enabled: true, exclude: true },
+        cache_enabled: true,
+        cache_ttl_seconds: 10800,
         messages: [
           { role: "system", content: "Return valid JSON only. No commentary, no markdown fences." },
           { role: "user", content: prompt },
