@@ -12,10 +12,13 @@ import { createSsrClient } from "../../../src/lib/supabase-ssr";
  */
 
 function resolveOrigin(): string {
+  // Explicit override wins; production MUST be the canonical domain —
+  // VERCEL_URL points at the deployment URL, which is not on the OAuth
+  // provider's redirect allow-list and would break production sign-in.
   if (process.env.NEXT_PUBLIC_SITE_ORIGIN) return process.env.NEXT_PUBLIC_SITE_ORIGIN;
-  const host = process.env.VERCEL_URL ?? "expanpress.com";
-  const proto = process.env.VERCEL_ENV === "production" ? "https" : "https";
-  return `${proto}://${host}`;
+  if (process.env.VERCEL_ENV === "production") return "https://expanpress.com";
+  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
+  return "http://localhost:3000";
 }
 
 /** Google OAuth via PKCE — the ssr client persists the verifier in a cookie. */
