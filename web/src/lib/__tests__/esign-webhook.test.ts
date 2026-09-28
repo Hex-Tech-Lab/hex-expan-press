@@ -1,13 +1,13 @@
 // Regression coverage for the Firma e-sign webhook contract
-// (web/_legacy_handlers/esign/webhook.ts bridged via app/api/esign/webhook/
-// route.ts into src/use_cases/process_esign_webhook.ts).
+// (web/app/api/esign/webhook/route.ts -> src/use_cases/process_esign_webhook.ts;
+// legacy handler bridge retired in Wave 6).
 //
 // The real signature scheme (src/adapters/esign/firma.adapter.ts): Firma
 // HMAC-SHA256 over the RAW body, hex digest, compared against the exact
-// header `x-firma-signature`. When FIRMA_WEBHOOK_SECRET is unset the
-// adapter skips HMAC verification (still parses JSON) — the webhook's
-// "invalid" contract (400) comes from `validation failed` errors thrown by
-// the use case, and the legacy handler maps those to HTTP 400.
+// header `x-firma-signature`. Fail-closed since Wave 5.1: an unconfigured
+// FIRMA_WEBHOOK_SECRET rejects instead of skipping verification. The
+// webhook's "invalid" contract (400) comes from `validation failed` errors
+// thrown by the use case, which the route maps to HTTP 400.
 //
 // Scenarios (Supabase adapter + settings mocked — never hit the live DB):
 //   1. Invalid/missing `x-firma-signature` → 400.

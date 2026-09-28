@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { MatrixRouter } from "../../../../../src/infrastructure/matrix_router/matrix_router";
 
@@ -27,17 +27,21 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   if (!product) return jsonError(400, "Missing product parameter in URL");
 
   let rails: CheckoutRail[];
+  const file = path.join(process.cwd(), "data", "settings", `rails.${product}.json`);
   try {
-    const file = path.join(process.cwd(), "data", "settings", `rails.${product}.json`);
     const parsed: unknown = JSON.parse(readFileSync(file, "utf8"));
     const cfg = parsed as RailsFile;
     if (!cfg || typeof cfg !== "object" || !Array.isArray(cfg.rails) || cfg.rails.length === 0) {
       throw new Error("rails file has no usable rails array");
     }
     rails = cfg.rails;
-  } catch {
-    // Serverless fallback: data/ is not bundled on Vercel — env override or
-    // the built-in default rail for the launch product.
+  } catch (err) {
+    // Serverless fallback: data/ is not bundled on Vercel, so the file being
+    // ABSENT is the normal path (silent); log only when a file exists but
+    // was unusable — that is a real misconfiguration.
+    if (existsSync(file)) {
+      console.error(`[billing/checkout] unusable rails file for '${product}': ${(err as Error).message}`);
+    }
     const envSlugKey = `CHECKOUT_URL_${product.toUpperCase().replace(/[^A-Z0-9]/g, "_")}`;
     const dynamicCheckoutUrl = process.env[envSlugKey];
     if (dynamicCheckoutUrl) {
@@ -60,7 +64,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     providerName = await MatrixRouter.getNextProvider("payments", product, rails);
   } catch (err) {
     console.error(`checkout: MatrixRouter failed, falling back to default rail: ${(err as Error).message}`);
-    const fallback = [...rails].sort((a, b) => b.weight - a.weight).find((r) => typeof r.checkout_url === "string" && r.checkout_url !== "");
+    const fallback = [...rails].sort((lhs, rhs) => rhs.weight - lhs.weight).find((r) => typeof r.checkout_url === "string" && r.checkout_url !== "");
     if (!fallback) {
       return jsonError(503, `Router unavailable and no fallback rail configured: ${(err as Error).message}`);
     }
