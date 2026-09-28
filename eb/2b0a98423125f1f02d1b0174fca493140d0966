@@ -1,0 +1,14 @@
+docs/agent_ledger.jsonl
+  h_90c2451a76ba0d 333
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "eb2b0a98423125f1f02d1b0174fca493140d0966",
+  "prompts": {},
+  "humans": {
+    "h_90c2451a76ba0d": {
+      "author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
