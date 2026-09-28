@@ -25,13 +25,21 @@ function resolveOrigin(): string {
 export async function signInWithGoogleAction(): Promise<void> {
   void headers; // Server Action context; origin resolved from env (static host)
   const origin = resolveOrigin();
-  const supabase = await createSsrClient();
-  const { data, error } = await supabase.auth.signInWithOAuth({
-    provider: "google",
-    options: { redirectTo: `${origin}/auth/callback` },
-  });
-  if (error || !data.url) redirect("/creator/signin?error=oauth");
-  redirect(data.url);
+  try {
+    const supabase = await createSsrClient();
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: `${origin}/auth/callback` },
+    });
+    if (error || !data.url) redirect("/creator/signin?error=oauth");
+    redirect(data.url);
+  } catch (err) {
+    // Env gaps must surface as the OAuth error param, never an action crash
+    // (same defect class as the 2026-09-29 middleware/callback P0 fix).
+    if (err && typeof err === "object" && "digest" in err) throw err; // re-throw NEXT_REDIRECT
+    console.error("[signin/google] failed:", err instanceof Error ? err.message : err);
+    redirect("/creator/signin?error=oauth");
+  }
 }
 
 /**
@@ -46,18 +54,24 @@ export async function signInWithOtpAction(formData: FormData): Promise<void> {
   if (!email || !email.includes("@")) redirect("/creator/signin?error=invalid_email");
 
   const origin = resolveOrigin();
-  const supabase = await createSsrClient();
-  const { data, error } = await supabase.auth.signInWithOtp({
-    email,
-    options: { emailRedirectTo: `${origin}/auth/callback` },
-  });
-  if (error) redirect("/creator/signin?error=otp");
-  // Auto-confirm projects return the session INLINE (no email leg) — the ssr
-  // client has already written the HttpOnly cookies, so land the creator
-  // straight on the dashboard. Email-confirm projects (our production state)
-  // fall through to the "check your inbox" notice.
-  if (data.session) redirect("/creator/dashboard");
-  redirect("/creator/signin?sent=1");
+  try {
+    const supabase = await createSsrClient();
+    const { data, error } = await supabase.auth.signInWithOtp({
+      email,
+      options: { emailRedirectTo: `${origin}/auth/callback` },
+    });
+    if (error) redirect("/creator/signin?error=otp");
+    // Auto-confirm projects return the session INLINE (no email leg) — the ssr
+    // client has already written the HttpOnly cookies, so land the creator
+    // straight on the dashboard. Email-confirm projects (our production state)
+    // fall through to the "check your inbox" notice.
+    if (data.session) redirect("/creator/dashboard");
+    redirect("/creator/signin?sent=1");
+  } catch (err) {
+    if (err && typeof err === "object" && "digest" in err) throw err; // re-throw NEXT_REDIRECT
+    console.error("[signin/otp] failed:", err instanceof Error ? err.message : err);
+    redirect("/creator/signin?error=otp");
+  }
 }
 
 /** Marketing opt-in preference (legacy signin persisted it client-side). */

@@ -14,9 +14,18 @@ export async function GET(request: NextRequest): Promise<Response> {
   const code = searchParams.get("code");
 
   if (code) {
-    const supabase = await createSsrClient();
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (!error) return NextResponse.redirect(`${origin}/creator/dashboard`);
+    try {
+      // Construction INSIDE the failure boundary (P0 2026-09-29, same class
+      // as the middleware fix): an env gap must fail closed to the sign-in
+      // redirect, never 500 the callback route.
+      const supabase = await createSsrClient();
+      const { error } = await supabase.auth.exchangeCodeForSession(code);
+      if (!error) return NextResponse.redirect(`${origin}/creator/dashboard`);
+    } catch (err) {
+      // Unexpected throws (e.g. unconfigured Supabase env) — log for
+      // observability, then the fail-closed redirect below still runs.
+      console.error("[auth/callback] exchange failed:", err instanceof Error ? err.message : err);
+    }
   }
 
   // Fail-closed redirect with FRAGMENT SANITIZATION (Wave 5.1): if an
