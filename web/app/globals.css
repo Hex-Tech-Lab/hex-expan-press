@@ -19,8 +19,8 @@ body {
    and elevation ladder — see THOS §35 for the token contract. */
 .glass-card {
   background: rgba(255, 255, 255, 0.78);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
   border: 1px solid rgba(0, 0, 0, 0.04);
 }
 .dock-shadow {
@@ -30,7 +30,7 @@ body {
 }
 .card-shadow {
   box-shadow:
-    0 10px 30px rgba(0, 0, 0, 0.03),
+    0 24px 60px rgba(0, 0, 0, 0.04),
     0 1px 3px rgba(0, 0, 0, 0.02);
 }
 html {
