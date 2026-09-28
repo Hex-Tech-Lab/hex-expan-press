@@ -23,6 +23,7 @@ import {
   type Variants,
 } from "framer-motion";
 import Link from "next/link";
+import JourneyDots from "../journey/journey-dots";
 import { useRef, useState, useSyncExternalStore } from "react";
 
 /** True only when the device has a fine pointer (hover-capable mouse) — tilt
@@ -167,9 +168,9 @@ function IncomeArt({ reduced }: { reduced: boolean }) {
   );
 }
 
-/** Card 4 — journey: THREE connected stations, PRESSABLE. The active station
- * reads "you are here" (onboarding cue, NEMA-style); pressed stations move the
- * marker. Past = filled, active = lit + breathing, upcoming = hollow. */
+/** Card 4 — journey: THREE connected stations, PRESSABLE. Uses the shared
+ * JourneyDots track (extracted in Wave 4 so the dashboard tracker and this
+ * art stay one implementation). */
 function JourneyArt({
   reduced,
   active = 0,
@@ -181,40 +182,7 @@ function JourneyArt({
 }) {
   return (
     <div className="flex flex-col items-center gap-3">
-      <div className="relative flex items-center gap-1.5">
-        {[0, 1, 2].map((i) => (
-          <span key={i} className="flex items-center gap-1.5">
-            {i > 0 && <span className="w-4 h-px bg-gray-300" />}
-            {i === active ? (
-              <motion.button
-                type="button"
-                aria-label={`Step ${i + 1} — you are here`}
-                aria-current="step"
-                onClick={() => onSelect(i)}
-                className="w-3.5 h-3.5 rounded-full bg-[#E8622C] ring-4 ring-[#E8622C]/15 cursor-pointer"
-                animate={reduced ? undefined : { scale: [1, 1.25, 1] }}
-                transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
-              />
-            ) : (
-              <button
-                type="button"
-                aria-label={`Step ${i + 1}`}
-                onClick={() => onSelect(i)}
-                className={`w-2.5 h-2.5 rounded-full cursor-pointer transition-colors ${
-                  i < active ? "bg-[#E8622C]/50 border-2 border-[#E8622C]/40" : "border-2 border-gray-300 bg-white hover:border-gray-400"
-                }`}
-              />
-            )}
-          </span>
-        ))}
-        {!reduced && (
-          <motion.span
-            className="absolute top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-peach"
-            animate={{ left: ["6%", "94%"], opacity: [0, 1, 1, 0] }}
-            transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut", times: [0, 0.15, 0.85, 1] }}
-          />
-        )}
-      </div>
+      <JourneyDots active={active} reduced={reduced} onSelect={onSelect} />
       <motion.div
         className="w-16 h-14 rounded-lg bg-gradient-to-tr from-peach/40 to-transparent border border-peach/30 shadow-xs flex items-center justify-center"
         animate={reduced ? undefined : { y: [0, -3, 0] }}
