@@ -1,0 +1,72 @@
+web/src/lib/__tests__/supabase-server.test.ts
+  s_7ec1014d439a49::t_8fa1cdbc913dd0 4-5,7-12,16,18,46,50,56,60,64-65,68-70,73-75,79,83,85,87-88,90-92,96,106-107,109-110
+  s_7ec1014d439a49::t_c504f0e5db1945 82,84,86,93-95,100,105,108
+web/next.config.ts
+  s_7ec1014d439a49::t_ac77146429aeef 10
+web/app/creator/signin/layout.tsx
+  s_7ec1014d439a49::t_7793290a5e17ac 1-28
+web/src/lib/supabase-server.ts
+  s_7ec1014d439a49::t_dc5671d4d8289d 7,9-15,47-48,54-66,68-73,75-86,90
+docs/agent_ledger.jsonl
+  s_7ec1014d439a49::t_9f9b6604e6754a 310
+  s_850ecf3d00f9ca::t_e349844626d12e 308
+  s_850ecf3d00f9ca::t_a949a97563825a 306
+  s_7ec1014d439a49::t_7d0e56c340f54d 307
+  s_7ec1014d439a49::t_ee1cb3a8559c13 309
+  s_7ec1014d439a49::t_6644142d82d3ab 311
+web/app/auth/callback/route.ts
+  s_7ec1014d439a49::t_10a0b3fe9e41fc 1-23
+web/src/lib/__tests__/esign-webhook.test.ts
+  s_7ec1014d439a49::t_a6a52c872c7f7d 1-18,20-112,116-179
+  s_7ec1014d439a49::t_457ec79a656696 19
+  s_7ec1014d439a49::t_2369353db03f0a 113-115
+web/app/creator/dashboard/actions.ts
+  s_7ec1014d439a49::t_d6c62009149d3f 4,7-11,13-20
+web/src/lib/supabase-ssr.ts
+  s_7ec1014d439a49::t_6e84b65d006524 1-20,36
+  s_7ec1014d439a49::t_aeb95ed06c2d6c 21-35
+src/use_cases/process_esign_webhook.ts
+  s_7ec1014d439a49::t_418d27ada23c8b 31-37
+web/app/creator/signin/page.tsx
+  s_7ec1014d439a49::t_aa03c50614ca2d 23
+  s_7ec1014d439a49::t_c8b97f7c47c2cd 1-22,24-41
+web/app/creator/signin/actions.ts
+  s_7ec1014d439a49::t_2e58c99f51d070 14-20,23-24,26,30-62
+  s_7ec1014d439a49::t_739087566de391 1-13,21-22,25,27-29,63
+web/app/creator/signin/signin-client.tsx
+  s_7ec1014d439a49::t_1c83ba5fbafaee 1-130
+web/app/creator/signin/icons.tsx
+  s_7ec1014d439a49::t_08681cd5376943 1-22
+web/app/creator/dashboard/sign-out-button.tsx
+  s_7ec1014d439a49::t_d03297e189060d 4-7,19-21
+web/src/lib/marketing-optin.ts
+  s_7ec1014d439a49::t_d211fd923c3acf 1-26
+web/app/creator/dashboard/page.tsx
+  s_7ec1014d439a49::t_b046101384cdcb 36
+  s_7ec1014d439a49::t_cd36b76643547e 68
+  s_7ec1014d439a49::t_17eb7f883b9317 13,15-20
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e357dcbbbcd21cfc1c7ad9eb05c44bf0f67d48af",
+  "prompts": {},
+  "sessions": {
+    "s_7ec1014d439a49": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f17e8680fffeJG6pFmi3RGKk73",
+        "model": "@preset/glm-53-flash-on-cheap"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_850ecf3d00f9ca": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f19732d4dffe264nY0gJ7Z9XgG",
+        "model": "@preset/glm-53-flash-on-cheap"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
