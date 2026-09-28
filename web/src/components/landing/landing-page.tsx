@@ -44,9 +44,15 @@ const SIGNIN = "/creator/signin/";
 
 /* ---------------------------------------------------------------- tokens */
 
-const SPRING = { type: "spring" as const, stiffness: 420, damping: 30, mass: 0.9 };
-const POP = { type: "spring" as const, stiffness: 600, damping: 24 };
+/* Motion physics — Wave 3.1 founder spec: heavy, deliberate, premium.
+   No bouncy springs anywhere: layout/orchestration use high-damping springs,
+   fades and micro-interactions use the settle bezier at 0.6s. */
+const HEAVY = { type: "spring" as const, stiffness: 100, damping: 25, mass: 1 };
+const EASE = [0.16, 1, 0.3, 1] as const;
+const settle = (duration = 0.6, delay = 0) => ({ duration, ease: EASE, delay });
 const BEAT = 0.09; // seconds between staggered constructions — the page's pulse
+/* Shared soft shadow ladder (extremely wide, barely-there opacity). */
+const SHADOW_LIFT = "0 32px 72px rgba(0,0,0,0.05), 0 2px 6px rgba(0,0,0,0.02)";
 
 /* ----------------------------------------------------------------- icons */
 
@@ -77,6 +83,26 @@ const DETAILS: { steps: string[] }[] = [
   { steps: ["Release ships", "Storefront goes live", "Payouts run themselves"] },
   { steps: ["Author review", "Signed and watermarked", "Published under your name"] },
 ];
+
+/* ------------------------------------------- variant factories (altitude) */
+
+function riseVariants(reduced: boolean | null): Variants {
+  return {
+    hidden: reduced ? { opacity: 0 } : { opacity: 0, y: 40, scale: 0.98 },
+    show: reduced
+      ? { opacity: 1, transition: { duration: 0.25 } }
+      : { opacity: 1, y: 0, scale: 1, transition: settle(0.6) },
+  };
+}
+function bentoVariants(reduced: boolean | null): Variants {
+  return { hidden: {}, show: { transition: { staggerChildren: reduced ? 0 : BEAT } } };
+}
+function bentoItemVariants(reduced: boolean | null): Variants {
+  return {
+    hidden: reduced ? { opacity: 0 } : { opacity: 0, y: 52, scale: 0.95 },
+    show: reduced ? { opacity: 1 } : { opacity: 1, y: 0, scale: 1, transition: settle(0.6) },
+  };
+}
 
 /* -------------------------------------------------------------- bento art */
 
@@ -203,24 +229,25 @@ function TiltCard({
 }) {
   const rx = useMotionValue(0);
   const ry = useMotionValue(0);
-  const srx = useSpring(rx, SPRING);
-  const sry = useSpring(ry, SPRING);
+  const srx = useSpring(rx, HEAVY);
+  const sry = useSpring(ry, HEAVY);
   const mx = useMotionValue(50);
   const my = useMotionValue(50);
-  // Hard offset shadow moves opposite the tilt — the card reads as a real slab.
+  // Soft slab shadow: drifts gently opposite the tilt over a wide, faint base.
   // NOTE: all hooks hoisted here — conditional hook calls inside JSX crash React.
-  const shadowX = useTransform(sry, [-8, 8], [10, -10]);
-  const shadowY = useTransform(srx, [-8, 8], [-10, 10]);
-  const sheen = useMotionTemplate`radial-gradient(240px circle at ${mx}% ${my}%, rgba(255,158,128,0.16), transparent 65%)`;
-  const shadow = useMotionTemplate`${shadowX}px ${shadowY}px 0 0 rgba(24,24,24,0.10)`;
+  const shadowX = useTransform(sry, [-8, 8], [5, -5]);
+  const shadowYRaw = useTransform(srx, [-8, 8], [-5, 5]);
+  const shadowY = useTransform(shadowYRaw, (v) => 26 + v);
+  const sheen = useMotionTemplate`radial-gradient(340px circle at ${mx}% ${my}%, rgba(255,158,128,0.07), transparent 72%)`;
+  const shadow = useMotionTemplate`${shadowX}px ${shadowY}px 60px rgba(0,0,0,0.045)`;
 
   const onMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (reduced || active) return;
     const r = e.currentTarget.getBoundingClientRect();
     const px = (e.clientX - r.left) / r.width;
     const py = (e.clientY - r.top) / r.height;
-    ry.set((px - 0.5) * 14);
-    rx.set((0.5 - py) * 12);
+    ry.set((px - 0.5) * 9);
+    rx.set((0.5 - py) * 7);
     mx.set(px * 100);
     my.set(py * 100);
   };
@@ -235,6 +262,7 @@ function TiltCard({
     <motion.div
       onPointerMove={onMove}
       onPointerLeave={onLeave}
+      whileHover={reduced ? undefined : { y: -6, boxShadow: SHADOW_LIFT, transition: settle(0.45) }}
       style={{
         rotateX: srx,
         rotateY: sry,
@@ -270,18 +298,10 @@ export default function LandingPage({ onboarding }: { onboarding: boolean }) {
   const blobY = useTransform(scrollYProgress, [0, 1], [-20, 20]);
   const blobY2 = useTransform(scrollYProgress, [0, 1], [16, -16]);
 
-  /* Entrance construction — the page builds itself with a beat. */
-  const rise: Variants = {
-    hidden: reduced ? { opacity: 0 } : { opacity: 0, y: 42, scale: 0.97, rotate: -1.2 },
-    show: reduced
-      ? { opacity: 1, transition: { duration: 0.2 } }
-      : { opacity: 1, y: 0, scale: 1, rotate: 0, transition: { ...SPRING, delay: 0 } },
-  };
-  const bentoContainer: Variants = { hidden: {}, show: { transition: { staggerChildren: reduced ? 0 : BEAT } } };
-  const bentoItem: Variants = {
-    hidden: reduced ? { opacity: 0 } : { opacity: 0, y: 56, scale: 0.92 },
-    show: reduced ? { opacity: 1 } : { opacity: 1, y: 0, scale: 1, transition: SPRING },
-  };
+  /* Entrance construction — the page builds itself with a beat (hoisted factories). */
+  const rise = riseVariants(reduced);
+  const bentoContainer = bentoVariants(reduced);
+  const bentoItem = bentoItemVariants(reduced);
 
   const steps = active === null ? null : DETAILS[active].steps;
 
@@ -328,7 +348,7 @@ export default function LandingPage({ onboarding }: { onboarding: boolean }) {
 
           <motion.nav
             initial={reduced ? { opacity: 0 } : { opacity: 0, y: 70 }}
-            animate={reduced ? { opacity: 1 } : { opacity: 1, y: 0, transition: { ...SPRING, delay: 0.35 } }}
+            animate={reduced ? { opacity: 1 } : { opacity: 1, y: 0, transition: settle(0.6, 0.35) }}
             style={{ bottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}
             className="lg:hidden fixed inset-x-3 z-50 flex justify-center items-center gap-3 px-4 py-2.5 rounded-full glass-card dock-shadow"
             aria-label="Quick Navigation"
@@ -364,7 +384,7 @@ export default function LandingPage({ onboarding }: { onboarding: boolean }) {
                                         layout
                     layoutId={`bento-${i}`}
                     variants={bentoItem}
-                    transition={SPRING}
+                    transition={HEAVY}
                     style={{ transformStyle: "preserve-3d", scrollMarginTop: "6rem" }}
                     className={isActive ? "sm:col-span-2 z-10" : isRail ? "opacity-80 scale-[0.97]" : ""}
                   >
@@ -385,10 +405,10 @@ export default function LandingPage({ onboarding }: { onboarding: boolean }) {
                         {isActive && (
                           <motion.div
                             key="slide"
-                            initial={reduced ? { opacity: 0 } : { opacity: 0, x: 64 }}
+                            initial={reduced ? { opacity: 0 } : { opacity: 0, x: 56 }}
                             animate={{ opacity: 1, x: 0 }}
-                            exit={reduced ? { opacity: 0 } : { opacity: 0, x: -48 }}
-                            transition={SPRING}
+                            exit={reduced ? { opacity: 0 } : { opacity: 0, x: -40, transition: { duration: 0.25, ease: EASE } }}
+                            transition={settle(0.45, 0.5)}
                             className="absolute inset-0 rounded-[32px] bg-charcoal text-white p-6 sm:p-8 flex flex-col"
                           >
                             <div className="flex items-center justify-between">
@@ -412,7 +432,7 @@ export default function LandingPage({ onboarding }: { onboarding: boolean }) {
                                   key={s}
                                   initial={reduced ? { opacity: 0 } : { opacity: 0, x: 40 }}
                                   animate={reduced ? { opacity: 1 } : { opacity: 1, x: 0 }}
-                                  transition={{ ...SPRING, delay: 0.12 + si * BEAT * 3 }}
+                                  transition={{ duration: 0.45, ease: EASE, delay: 0.62 + si * BEAT * 4 }}
                                   className="flex items-center gap-3 text-sm text-gray-200"
                                 >
                                   <span className="w-7 h-7 rounded-full border border-peach/50 text-peach font-mono text-xs flex items-center justify-center shrink-0">
@@ -442,6 +462,20 @@ export default function LandingPage({ onboarding }: { onboarding: boolean }) {
 
         {/* Spotlight bar — launch-state driven (no stale hard-coded claim) */}
         <SpotlightBar onboarding={onboarding} reduced={Boolean(reduced)} />
+
+        <footer className="flex flex-wrap items-center justify-between gap-3 text-xs text-gray-400 px-2 pb-6 lg:pb-4">
+          <div className="flex items-center gap-2">
+            <span>&copy; 2026 ExpanPress</span>
+            <span>&middot;</span>
+            <span>A private publishing house for creators</span>
+          </div>
+          <div className="flex items-center gap-4">
+            <a href="/privacy.html" className="hover:text-gray-700 transition-colors">Privacy</a>
+            <a href="/terms.html" className="hover:text-gray-700 transition-colors">Terms</a>
+            <a href="/refund-policy.html" className="hover:text-gray-700 transition-colors">Refunds</a>
+            <a href="mailto:support@expanpress.com" className="hover:text-gray-700 transition-colors">support@expanpress.com</a>
+          </div>
+        </footer>
       </div>
     </div>
   );
@@ -475,8 +509,8 @@ function HeroCard({
     <motion.div
       ref={heroRef}
       variants={reduced ? { hidden: { opacity: 0 }, show: { opacity: 1 } } : {
-        hidden: { opacity: 0, y: 64, rotate: 1.5, scale: 0.97 },
-        show: { opacity: 1, y: 0, rotate: 0, scale: 1, transition: { ...SPRING, delay: 0.12 } },
+        hidden: { opacity: 0, y: 60, scale: 0.98 },
+        show: { opacity: 1, y: 0, scale: 1, transition: settle(0.6, 0.12) },
       }}
       initial="hidden"
       animate="show"
@@ -517,9 +551,9 @@ function HeroCard({
           title="Start your publishing journey"
           aria-label="Start your publishing journey"
           className="relative w-14 h-14 rounded-full bg-[#2A2A2A] hover:bg-[#383838] text-white flex items-center justify-center transition-colors"
-          whileHover={reduced ? undefined : { scale: 1.08 }}
-          whileTap={reduced ? undefined : { scale: 0.92 }}
-          transition={POP}
+          whileHover={reduced ? undefined : { scale: 1.07 }}
+          whileTap={reduced ? undefined : { scale: 0.94 }}
+          transition={settle(0.3)}
         >
           {!reduced && (
             <motion.span
@@ -548,7 +582,7 @@ function SpotlightBar({ onboarding, reduced }: { onboarding: boolean; reduced: b
       initial={reduced ? { opacity: 0 } : { opacity: 0, y: 20 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
-      transition={SPRING}
+      transition={settle(0.6)}
       id="spotlight"
       className="rounded-full glass-card dock-shadow px-4 sm:px-6 py-3.5 flex items-center justify-between gap-4 transition-colors hover:bg-white mb-24 lg:mb-0"
     >
