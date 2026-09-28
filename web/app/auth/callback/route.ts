@@ -19,5 +19,10 @@ export async function GET(request: NextRequest): Promise<Response> {
     if (!error) return NextResponse.redirect(`${origin}/creator/dashboard`);
   }
 
-  return NextResponse.redirect(`${origin}/creator/signin?error=auth`);
+  // Fail-closed redirect with FRAGMENT SANITIZATION (Wave 5.1): if an
+  // implicit-flow provider ever appends #access_token=… to this URL, that
+  // fragment must not survive into the redirect chain and leak to client JS.
+  const safeTarget = new URL("/creator/signin?error=auth", origin);
+  safeTarget.hash = "";
+  return NextResponse.redirect(safeTarget);
 }

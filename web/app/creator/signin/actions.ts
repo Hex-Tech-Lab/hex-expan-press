@@ -47,20 +47,28 @@ export async function signInWithOtpAction(formData: FormData): Promise<void> {
 
   const origin = resolveOrigin();
   const supabase = await createSsrClient();
-  const { error } = await supabase.auth.signInWithOtp({
+  const { data, error } = await supabase.auth.signInWithOtp({
     email,
     options: { emailRedirectTo: `${origin}/auth/callback` },
   });
   if (error) redirect("/creator/signin?error=otp");
+  // Auto-confirm projects return the session INLINE (no email leg) — the ssr
+  // client has already written the HttpOnly cookies, so land the creator
+  // straight on the dashboard. Email-confirm projects (our production state)
+  // fall through to the "check your inbox" notice.
+  if (data.session) redirect("/creator/dashboard");
   redirect("/creator/signin?sent=1");
 }
 
 /** Marketing opt-in preference (legacy signin persisted it client-side). */
 export async function setMarketingOptInAction(formData: FormData): Promise<void> {
   const optin = formData.get("optin") === "on";
-  const supabase = await createSsrClient();
-  void supabase; // preference storage lands with the portal profile work
+  // Preference storage is a server cookie; the Supabase client is not needed
+  // for this action (profile-table storage lands with the portal work).
+  // Await BEFORE the redirect — a Server Action redirect aborts remaining
+  // execution, so a fire-and-forget write silently loses the preference
+  // (Wave 5.1 race-condition fix).
   const { storeMarketingOptIn } = await import("../../../src/lib/marketing-optin");
-  storeMarketingOptIn(optin);
+  await storeMarketingOptIn(optin);
   redirect("/creator/signin?optin=1");
 }
