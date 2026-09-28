@@ -16,6 +16,7 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Icon, addCollection } from "@iconify/react";
 import JourneyDots from "../../../src/components/journey/journey-dots";
 import SignOutButton from "./sign-out-button";
+import { startPublisherAgreementAction } from "./actions";
 
 const EASE = [0.16, 1, 0.3, 1] as const;
 /* NOTE: `.neu-card` in globals.css carries the same bevel stack; when an
@@ -32,7 +33,15 @@ export interface DashboardClientProps {
   hasC2: boolean;
   hasC3: boolean;
   journeyActive: number;
+  /** Dashboard ?error= param from a failed Step 3 Server Action redirect. */
+  actionError?: "credits" | "esign" | "no_product";
 }
+
+const ACTION_ERROR_COPY: Record<NonNullable<DashboardClientProps["actionError"]>, string> = {
+  credits: "The signing service is awaiting credit activation — please try again shortly.",
+  esign: "Something went wrong starting your agreement — please try again.",
+  no_product: "No product is linked to your account yet — contact support@expanpress.com.",
+};
 
 const JOURNEY_LABELS = ["Bio & Content", "Legal & Assets", "Revenue & Publish"];
 
@@ -56,6 +65,7 @@ export default function DashboardClient({
   hasC2,
   hasC3,
   journeyActive,
+  actionError,
 }: DashboardClientProps) {
   const [iconsReady, setIconsReady] = useState(false);
   const reduced = useReducedMotion();
@@ -191,43 +201,93 @@ export default function DashboardClient({
         Required Release Steps
       </motion.h2>
 
-      {/* Staggered spring entrance for the step cards (Wave 4 mandate) */}
+      {/* Staggered spring entrance for the step cards (Wave 4 mandate).
+          Pending Step 3 (Wave 6) renders as a Server-Action form — the card
+          is the submit button (320/12 paper wobble on press); the consents
+          page stays reachable as a secondary "review documents" link, since
+          a link cannot live inside a button. */}
+      {actionError && (
+        <motion.p
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0, transition: { duration: 0.4, ease: EASE } }}
+          className="mb-3.5 rounded-xl border border-[#EADFD1] bg-[#F3ECDF] p-(--space-4) text-[length:var(--font-size-sm)] font-medium text-[#8A4B2D]"
+          role="alert"
+        >
+          {ACTION_ERROR_COPY[actionError]}
+        </motion.p>
+      )}
       <AnimatePresence>
-        {steps.map((step, i) => (
-          <motion.a
-            key={step.num}
-            href={step.done && i === 2 ? undefined : step.href}
-            initial={{ opacity: 0, y: 40, scale: 0.97 }}
-            animate={{ opacity: step3Done && i === 2 ? 0.85 : 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.5, ease: EASE, delay: 0.34 + i * 0.09 }}
-            whileTap={{ scale: 1.01, transition: WOBBLE }}
-            aria-disabled={step.done && i === 2}
-            className={`neu-card mb-3.5 block rounded-xl p-(--space-5) no-underline text-inherit transition-shadow ${
-              step.done ? "hover:shadow-none" : "hover:shadow-[0_4px_12px_rgba(43,37,32,0.05)]"
-            } ${step.done && i === 2 ? "cursor-default" : ""}`}
-          >
-            <div className="mb-2.5 flex items-center justify-between">
-              <span className="text-[length:var(--font-size-2xs)] font-bold uppercase tracking-[0.08em] text-[#E8622C]">
-                {step.num}
-              </span>
-              <span
-                className="inline-flex items-center gap-1.5 text-[length:var(--font-size-2xs)] font-semibold"
-                style={{ color: step.done ? "#2E7D5B" : "#6E5F53" }}
+        {steps.map((step, i) => {
+          const body = (
+            <>
+              <div className="mb-2.5 flex items-center justify-between">
+                <span className="text-[length:var(--font-size-2xs)] font-bold uppercase tracking-[0.08em] text-[#E8622C]">
+                  {step.num}
+                </span>
+                <span
+                  className="inline-flex items-center gap-1.5 text-[length:var(--font-size-2xs)] font-semibold"
+                  style={{ color: step.done ? "#2E7D5B" : "#6E5F53" }}
+                >
+                  {iconsReady && (
+                    <Icon icon={step.done ? "lucide:check-circle" : step.icon} width={14} height={14} aria-hidden />
+                  )}
+                  {step.status}
+                </span>
+              </div>
+              <p className="font-serif text-[length:var(--text-heading-3-size)] font-bold text-[#2B2520]">{step.title}</p>
+              <p className="mt-1 text-[length:var(--font-size-sm)] leading-relaxed text-[#6E5F53]">{step.desc}</p>
+              <p className="mt-2 inline-flex items-center gap-1 text-[length:var(--font-size-sm)] font-semibold text-[#2E7D5B]">
+                {step.cta}
+              </p>
+            </>
+          );
+
+          if (i === 2 && !step.done) {
+            return (
+              <motion.form
+                key={step.num}
+                action={startPublisherAgreementAction}
+                initial={{ opacity: 0, y: 40, scale: 0.97 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.5, ease: EASE, delay: 0.34 + i * 0.09 }}
+                className="neu-card mb-3.5 block rounded-xl p-(--space-5) transition-shadow hover:shadow-[0_4px_12px_rgba(43,37,32,0.05)]"
               >
-                {iconsReady && (
-                  <Icon icon={step.done ? "lucide:check-circle" : step.icon} width={14} height={14} aria-hidden />
-                )}
-                {step.status}
-              </span>
-            </div>
-            <p className="font-serif text-[length:var(--text-heading-3-size)] font-bold text-[#2B2520]">{step.title}</p>
-            <p className="mt-1 text-[length:var(--font-size-sm)] leading-relaxed text-[#6E5F53]">{step.desc}</p>
-            <p className="mt-2 inline-flex items-center gap-1 text-[length:var(--font-size-sm)] font-semibold text-[#2E7D5B]">
-              {step.cta}
-            </p>
-          </motion.a>
-        ))}
+                <motion.button
+                  type="submit"
+                  whileTap={{ scale: 1.01, transition: WOBBLE }}
+                  className="block w-full text-left"
+                >
+                  {body}
+                </motion.button>
+                <a
+                  href={step.href}
+                  className="mt-2 inline-flex items-center gap-1 text-[length:var(--font-size-sm)] text-[#6E5F53] no-underline hover:underline"
+                >
+                  Review documents first →
+                </a>
+              </motion.form>
+            );
+          }
+
+          return (
+            <motion.a
+              key={step.num}
+              href={step.done && i === 2 ? undefined : step.href}
+              initial={{ opacity: 0, y: 40, scale: 0.97 }}
+              animate={{ opacity: step3Done && i === 2 ? 0.85 : 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.5, ease: EASE, delay: 0.34 + i * 0.09 }}
+              whileTap={{ scale: 1.01, transition: WOBBLE }}
+              aria-disabled={step.done && i === 2}
+              className={`neu-card mb-3.5 block rounded-xl p-(--space-5) no-underline text-inherit transition-shadow ${
+                step.done ? "hover:shadow-none" : "hover:shadow-[0_4px_12px_rgba(43,37,32,0.05)]"
+              } ${step.done && i === 2 ? "cursor-default" : ""}`}
+            >
+              {body}
+            </motion.a>
+          );
+        })}
       </AnimatePresence>
 
       <footer className="mt-9 flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-[#EADFD1] pt-5 text-[length:var(--font-size-sm)] text-[#6E5F53]">

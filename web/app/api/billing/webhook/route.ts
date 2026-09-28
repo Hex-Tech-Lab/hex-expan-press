@@ -1,14 +1,71 @@
-import { runLegacyHandler } from "../../_legacy/shim.ts";
-import legacyHandler from "../../../../_legacy_handlers/billing/webhook.ts";
+import { NextRequest, NextResponse } from "next/server";
+import { processBillingWebhookUseCase } from "../../../../../src/use_cases/billing/process_billing_webhook";
+import { PolarAdapter } from "../../../../../src/adapters/payments/polar.adapter";
+import { PaddleAdapter } from "../../../../../src/adapters/payments/paddle.adapter";
+import { LegacyPaymentAdapterWrapper } from "../../../../../src/adapters/payments/legacy.adapter";
+import { lemonsqueezyProvider } from "../../../../../payments/src/providers/lemonsqueezy";
+import { payhipProvider } from "../../../../../payments/src/providers/payhip";
+import { fungiesProvider } from "../../../../../payments/src/providers/fungies";
+import { fastspringProvider } from "../../../../../payments/src/providers/fastspring";
 
 export const runtime = "nodejs";
 
+// Webhooks are small JSON bodies (KBs) — cap buffering at 1 MiB (the Wave 4
+// contract carried over from the shim era) so a flood of oversized POSTs
+// cannot create memory pressure.
+const MAX_BODY_BYTES = 1_048_576;
+
+/** Streams the request body with the byte cap enforced mid-read. */
+async function readBodyCapped(request: NextRequest): Promise<Buffer | null> {
+  if (!request.body) return Buffer.alloc(0);
+  const reader = request.body.getReader();
+  const chunks: Buffer[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > MAX_BODY_BYTES) {
+      await reader.cancel();
+      return null;
+    }
+    chunks.push(Buffer.from(value));
+  }
+  return Buffer.concat(chunks);
+}
+
 /**
- * Next.js App Router entry for the billing webhook: bridges the legacy
- * Vercel handler (Polar/Paddle/legacy-provider signature verification and
- * ledger recording) via the req/res shim. Called by providers with
- * signed POSTs; responses follow the legacy status contract (200/400/500).
+ * Billing webhook (Wave 6, native route handler — replaces the shim-bridged
+ * legacy handler). Signature-based provider routing with strict HMAC
+ * verification (fail-closed, verified in Wave 5.1); raw body comes from
+ * request.text() byte-exactly.
  */
-export async function POST(request: Request): Promise<Response> {
-  return runLegacyHandler(request, legacyHandler);
+export async function POST(request: NextRequest): Promise<NextResponse> {
+  const bodyBuffer = await readBodyCapped(request);
+  if (bodyBuffer === null) {
+    return NextResponse.json({ ok: false, error: "Payload Too Large" }, { status: 413 });
+  }
+  const body = bodyBuffer.toString("utf8");
+  const headers = Object.fromEntries(request.headers);
+
+  const adapters = [
+    new PolarAdapter(),
+    new PaddleAdapter(),
+    new LegacyPaymentAdapterWrapper(lemonsqueezyProvider),
+    new LegacyPaymentAdapterWrapper(payhipProvider),
+    new LegacyPaymentAdapterWrapper(fungiesProvider),
+    new LegacyPaymentAdapterWrapper(fastspringProvider),
+  ];
+
+  try {
+    await processBillingWebhookUseCase({ headers, body }, adapters);
+    return NextResponse.json({ ok: true });
+  } catch (err) {
+    console.error("Billing webhook error:", err);
+    const message = err instanceof Error ? err.message : String(err);
+    const isValidationErr = message.includes("validation failed") || message.includes("No payment provider");
+    return NextResponse.json({ ok: false, error: isValidationErr ? "Bad Request" : "Internal Server Error" }, {
+      status: isValidationErr ? 400 : 500,
+    });
+  }
 }

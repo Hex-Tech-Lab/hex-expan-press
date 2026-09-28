@@ -1,15 +1,25 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import { ConsentDatabasePort, SubmitConsentCommand } from "../../domain/governance/consent.port.ts";
 
+/**
+ * Consent database adapter (service-role). The Supabase client is created
+ * LAZILY on first use rather than in the constructor: webhook routes must
+ * be able to reject unsigned requests (HMAC fail-closed) BEFORE any env /
+ * DB dependency is touched — an unconfigured environment must surface as a
+ * clean error at the point of real DB work, never as a pre-auth 500.
+ */
 export class SupabaseAdapter implements ConsentDatabasePort {
-  private client: SupabaseClient;
+  private client: SupabaseClient | null = null;
 
-  constructor() {
-    this.client = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SECRET_KEY!);
+  private ensureClient(): SupabaseClient {
+    if (!this.client) {
+      this.client = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SECRET_KEY!);
+    }
+    return this.client;
   }
 
   async submitConsent(command: SubmitConsentCommand): Promise<void> {
-    const { error } = await this.client.rpc("submit_consent", {
+    const { error } = await this.ensureClient().rpc("submit_consent", {
       p_product_id: command.productId,
       p_kind: command.kind,
       p_decision: command.decision,
