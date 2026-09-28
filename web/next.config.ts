@@ -40,7 +40,7 @@ const nextConfig: NextConfig = {
   },
   async rewrites() {
     return [
-      { source: "/", destination: "/index.html" },
+      // "/" is served by app/page.tsx since Wave 3 — no rewrite needed.
       ...DIR_ROUTES.map((route) => ({
         source: route,
         destination: `${route}/index.html`,

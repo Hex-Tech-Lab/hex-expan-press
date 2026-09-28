@@ -14,3 +14,30 @@
 body {
   font-feature-settings: "cv02", "cv03", "cv04", "cv11";
 }
+
+/* Ported from legacy web/public/index.html (phased migration). Glass surfaces
+   and elevation ladder — see THOS §35 for the token contract. */
+.glass-card {
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(0, 0, 0, 0.04);
+}
+.dock-shadow {
+  box-shadow:
+    0 4px 20px rgba(0, 0, 0, 0.03),
+    0 1px 3px rgba(0, 0, 0, 0.02);
+}
+.card-shadow {
+  box-shadow:
+    0 10px 30px rgba(0, 0, 0, 0.03),
+    0 1px 3px rgba(0, 0, 0, 0.02);
+}
+html {
+  scroll-behavior: smooth;
+}
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}
