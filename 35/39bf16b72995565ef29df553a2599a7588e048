@@ -1,0 +1,24 @@
+harvest.ts
+  s_c21d2da1fc16d4::t_a661e6dace6292 139-142
+  s_c21d2da1fc16d4::t_f2836b8946490d 166-169
+certify_gates.ts
+  s_c21d2da1fc16d4::t_49eae76290e3f6 442-445
+trends.ts
+  s_c21d2da1fc16d4::t_2799b0c91c82cc 181-184
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "3539bf16b72995565ef29df553a2599a7588e048",
+  "prompts": {},
+  "sessions": {
+    "s_c21d2da1fc16d4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f22c8265dffemQYfwVqfzfjXD9",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
