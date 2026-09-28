@@ -1,0 +1,21 @@
+package.json
+  s_850ecf3d00f9ca::t_db539191b5bbd4 43
+.gitignore
+  s_850ecf3d00f9ca::t_145947c5325c6a 88-90
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "88932de4f95cbffb06b56252ac38e58ada48ee5d",
+  "prompts": {},
+  "sessions": {
+    "s_850ecf3d00f9ca": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f19732d4dffe264nY0gJ7Z9XgG",
+        "model": "@preset/glm-53-flash-on-cheap"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
