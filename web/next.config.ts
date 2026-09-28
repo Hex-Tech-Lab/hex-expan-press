@@ -1,3 +1,4 @@
+import { withSentryConfig } from "@sentry/nextjs/config";
 import { join } from "node:path";
 import type { NextConfig } from "next";
 
@@ -49,4 +50,11 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default withSentryConfig(nextConfig, {
+  org: process.env.SENTRY_ORG || "hex-org",
+  project: process.env.SENTRY_PROJECT || "hex-expan-press",
+  // Uploads are skipped silently when no token is present (local dev)
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  silent: true,
+  disableLogger: true,
+});

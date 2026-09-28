@@ -167,23 +167,43 @@ function IncomeArt({ reduced }: { reduced: boolean }) {
   );
 }
 
-/** Card 4 — journey: exactly THREE connected dots, first highlighted, with a
- * pulse traveling the connector. (Fixes the previous 5-dot contradiction.) */
-function JourneyArt({ reduced }: { reduced: boolean }) {
+/** Card 4 — journey: THREE connected stations, PRESSABLE. The active station
+ * reads "you are here" (onboarding cue, NEMA-style); pressed stations move the
+ * marker. Past = filled, active = lit + breathing, upcoming = hollow. */
+function JourneyArt({
+  reduced,
+  active = 0,
+  onSelect = () => {},
+}: {
+  reduced: boolean;
+  active?: number;
+  onSelect?: (i: number) => void;
+}) {
   return (
     <div className="flex flex-col items-center gap-3">
       <div className="relative flex items-center gap-1.5">
         {[0, 1, 2].map((i) => (
           <span key={i} className="flex items-center gap-1.5">
             {i > 0 && <span className="w-4 h-px bg-gray-300" />}
-            {i === 0 ? (
-              <motion.span
-                className="w-3 h-3 rounded-full bg-[#E8622C] ring-4 ring-[#E8622C]/15"
+            {i === active ? (
+              <motion.button
+                type="button"
+                aria-label={`Step ${i + 1} — you are here`}
+                aria-current="step"
+                onClick={() => onSelect(i)}
+                className="w-3.5 h-3.5 rounded-full bg-[#E8622C] ring-4 ring-[#E8622C]/15 cursor-pointer"
                 animate={reduced ? undefined : { scale: [1, 1.25, 1] }}
                 transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
               />
             ) : (
-              <span className="w-2.5 h-2.5 rounded-full border-2 border-gray-300 bg-white" />
+              <button
+                type="button"
+                aria-label={`Step ${i + 1}`}
+                onClick={() => onSelect(i)}
+                className={`w-2.5 h-2.5 rounded-full cursor-pointer transition-colors ${
+                  i < active ? "bg-[#E8622C]/50 border-2 border-[#E8622C]/40" : "border-2 border-gray-300 bg-white hover:border-gray-400"
+                }`}
+              />
             )}
           </span>
         ))}
@@ -200,7 +220,7 @@ function JourneyArt({ reduced }: { reduced: boolean }) {
         animate={reduced ? undefined : { y: [0, -3, 0] }}
         transition={{ duration: 3.2, repeat: Infinity, ease: "easeInOut" }}
       >
-        <span className="text-[10px] font-mono text-gray-600 font-medium">3 steps</span>
+        <span className="text-[10px] font-mono text-gray-600 font-medium">{`Step ${active + 1} / 3`}</span>
       </motion.div>
     </div>
   );
@@ -240,7 +260,9 @@ function TiltCard({
   const shadowYRaw = useTransform(srx, [-8, 8], [-3, 3]);
   const shadowY = useTransform(shadowYRaw, (v) => 26 + v);
   const sheen = useMotionTemplate`radial-gradient(340px circle at ${mx}% ${my}%, rgba(255,158,128,0.07), transparent 72%)`;
-  const shadow = useMotionTemplate`${shadowX}px ${shadowY}px 60px rgba(0,0,0,0.045)`;
+  const shadow = useMotionTemplate`${shadowX}px ${shadowY}px 60px rgba(0,0,0,0.045),
+    inset 0 2px 2px rgba(255,255,255,0.95),
+    inset 0 -16px 24px -12px rgba(196,148,118,0.18)`;
 
   const onMove = (event: React.PointerEvent<HTMLDivElement>) => {
     if (reduced || active) return;
@@ -264,6 +286,7 @@ function TiltCard({
       onPointerMove={onMove}
       onPointerLeave={onLeave}
       whileHover={reduced ? undefined : { y: -6, boxShadow: SHADOW_LIFT, transition: settle(0.45) }}
+      whileTap={reduced ? undefined : { scale: 1.015, transition: { type: "spring", stiffness: 320, damping: 12 } }}
       style={{
         rotateX: srx,
         rotateY: sry,
@@ -293,6 +316,7 @@ export default function LandingPage({ onboarding }: { onboarding: boolean }) {
   const reduced = useReducedMotion();
   const fine = useFinePointer();
   const [active, setActive] = useState<number | null>(null);
+  const [journeyStep, setJourneyStep] = useState(0);
   const heroRef = useRef<HTMLDivElement>(null);
   const { scrollYProgress } = useScroll({ target: heroRef, offset: ["start end", "end start"] });
   const blobY = useTransform(scrollYProgress, [0, 1], [-20, 20]);
@@ -332,7 +356,7 @@ export default function LandingPage({ onboarding }: { onboarding: boolean }) {
             variants={rise}
             initial="hidden"
             animate="show"
-            className="hidden lg:flex flex-col justify-center items-center gap-4 py-6 px-3 rounded-full glass-card dock-shadow shrink-0 self-center"
+            className="hidden lg:flex flex-col justify-center items-center gap-4 py-6 px-3 rounded-full glass-card dock-shadow shrink-0 self-center border border-white/90"
             aria-label="Quick Navigation"
           >
             {DOCK_ITEMS.slice(0, 2).map((it) => <DockLink key={it.title} {...it} />)}
@@ -350,7 +374,7 @@ export default function LandingPage({ onboarding }: { onboarding: boolean }) {
             initial={reduced ? { opacity: 0 } : { opacity: 0, y: 70 }}
             animate={reduced ? { opacity: 1 } : { opacity: 1, y: 0, transition: settle(0.6, 0.35) }}
             style={{ bottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}
-            className="lg:hidden fixed inset-x-3 z-50 flex justify-center items-center gap-3 px-4 py-2.5 rounded-full glass-card dock-shadow"
+            className="lg:hidden fixed inset-x-3 z-50 flex justify-center items-center gap-3 px-4 py-2.5 rounded-full glass-card dock-shadow border border-[#dcc7b4]"
             aria-label="Quick Navigation"
           >
             {DOCK_ITEMS.slice(0, 2).map((it) => <DockLink key={it.title} {...it} compact />)}
@@ -393,14 +417,18 @@ export default function LandingPage({ onboarding }: { onboarding: boolean }) {
                       reduced={Boolean(reduced) || !fine}
                       active={isActive}
                       onOpen={() => setActive(i)}
-                      className={`rounded-[32px] glass-card p-6 sm:p-7 flex flex-col justify-between relative overflow-hidden ${isActive ? "card-shadow" : "card-shadow"}`}
+                      className={`rounded-[32px] glass-card h-full p-6 sm:p-7 flex flex-col justify-between relative overflow-hidden border-[1.5px] border-[#fff2e4] ${isActive ? "card-shadow" : "card-shadow"}`}
                     >
                       <div>
                         <h3 className="text-lg sm:text-xl font-bold tracking-tight text-gray-900">{card.title}</h3>
                         <p className="text-xs sm:text-sm text-gray-500 mt-1.5 leading-relaxed">{card.body}</p>
                       </div>
-                      <div className="my-4 py-3 flex items-center justify-center relative">
-                        <Art reduced={Boolean(reduced)} />
+                      <div className="my-4 py-3 flex-1 flex items-center justify-center relative">
+                        {i === 3 ? (
+                          <JourneyArt reduced={Boolean(reduced)} active={journeyStep} onSelect={setJourneyStep} />
+                        ) : (
+                          <Art reduced={Boolean(reduced)} />
+                        )}
                       </div>
                       <AnimatePresence mode="wait">
                         {isActive && (
@@ -434,12 +462,26 @@ export default function LandingPage({ onboarding }: { onboarding: boolean }) {
                                   initial={reduced ? { opacity: 0 } : { opacity: 0, x: 40 }}
                                   animate={reduced ? { opacity: 1 } : { opacity: 1, x: 0 }}
                                   transition={{ duration: 0.45, ease: EASE, delay: 0.62 + si * BEAT * 4 }}
-                                  className="flex items-center gap-3 text-sm text-gray-200"
+                                  className={`flex items-center gap-3 text-sm rounded-xl ${
+                                    i === 3 ? "cursor-pointer" : ""
+                                  } ${i === 3 && journeyStep === si ? "text-white bg-white/5 ring-1 ring-peach/40 px-2 py-1 -mx-2" : "text-gray-200"}`}
+                                  onClick={i === 3 ? () => setJourneyStep(si) : undefined}
                                 >
-                                  <span className="w-7 h-7 rounded-full border border-peach/50 text-peach font-mono text-xs flex items-center justify-center shrink-0">
+                                  <span
+                                    className={`w-7 h-7 rounded-full font-mono text-xs flex items-center justify-center shrink-0 ${
+                                      i === 3 && journeyStep === si
+                                        ? "bg-peach text-charcoal border border-peach"
+                                        : "border border-peach/50 text-peach"
+                                    }`}
+                                  >
                                     {si + 1}
                                   </span>
                                   <span className="font-medium">{step}</span>
+                                  {i === 3 && journeyStep === si && (
+                                    <span className="ml-auto text-[10px] font-mono uppercase tracking-[0.14em] text-peach">
+                                      You are here
+                                    </span>
+                                  )}
                                 </motion.li>
                               ))}
                             </ol>
@@ -552,7 +594,7 @@ function HeroCard({
           title="Start your publishing journey"
           aria-label="Start your publishing journey"
           className="relative w-14 h-14 rounded-full bg-[#2A2A2A] hover:bg-[#383838] text-white flex items-center justify-center transition-colors"
-          whileHover={reduced ? undefined : { scale: 1.07 }}
+          whileHover={reduced ? undefined : { scale: 1.07, y: -2 }}
           whileTap={reduced ? undefined : { scale: 0.94 }}
           transition={settle(0.3)}
         >
@@ -585,7 +627,7 @@ function SpotlightBar({ onboarding, reduced }: { onboarding: boolean; reduced: b
       viewport={{ once: true }}
       transition={settle(0.6)}
       id="spotlight"
-      className="rounded-full glass-card dock-shadow px-4 sm:px-6 py-3.5 flex items-center justify-between gap-4 transition-colors hover:bg-white mb-24 lg:mb-0"
+      className="rounded-full glass-card dock-shadow border border-[#dcc7b4] px-4 sm:px-6 py-3.5 flex items-center justify-between gap-4 transition-colors hover:bg-white mb-24 lg:mb-0"
     >
       <div className="flex items-center gap-3 sm:gap-4 overflow-hidden">
         <div className="w-8 h-8 rounded-xl bg-charcoal text-white shrink-0 flex items-center justify-center shadow-xs">
