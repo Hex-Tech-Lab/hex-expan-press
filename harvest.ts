@@ -136,6 +136,10 @@ partial-evidence candidates and set their signal_type to "partial".`;
         // Direct OR calls bypass the opencode CLI relace pin (RCA 2026-09-16); pin to the
         // model's only serving provider — sonar is Perplexity-exclusive, a GLM-style pin would 400.
         provider: { order: ["perplexity"], allow_fallbacks: false },
+        // Standing block (2026-09-28): reasoning minimal+exclude, caching on for all direct OR calls.
+        reasoning: { effort: "minimal", enabled: true, exclude: true },
+        cache_enabled: true,
+        cache_ttl_seconds: 10800,
         messages: [
           { role: "system", content: "Return valid JSON only. No commentary." },
           { role: "user", content: prompt },
@@ -159,6 +163,10 @@ links where available. Return a JSON array of ${HARVEST.prompt_item_range.min} t
         plugins: HARVEST.engines.grok.plugins,
         // grok-4.3 is xAI-exclusive (OR endpoints API) — provider pin for direct-OR-call determinism.
         provider: { order: ["x-ai"], allow_fallbacks: false },
+        // Standing block (2026-09-28): reasoning minimal+exclude, caching on for all direct OR calls.
+        reasoning: { effort: "minimal", enabled: true, exclude: true },
+        cache_enabled: true,
+        cache_ttl_seconds: 10800,
         messages: [
           { role: "system", content: "Return valid JSON only. No commentary." },
           { role: "user", content: prompt },
