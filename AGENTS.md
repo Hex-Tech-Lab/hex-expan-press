@@ -135,3 +135,5 @@ Order is fixed: **harvest → GLM generates `candidates.json` → score**. Never
 ## Gate order (updated 2026-09-28 evening, founder directive)
 
 - **qa-intel diff + full are standing gates now, every time** — order: lint → `pnpm qa:intel` (diff vs origin/master, compared against `.qa-intel/baseline.json`) → tsc → build → vitest; `pnpm qa:intel:full` at milestones/before merges. Engine invoked via hex-yt-intel's tsx binary directly (corepack version pin in hex-yt-intel breaks `pnpm --dir` — ERR_PNPM_BAD_PM_VERSION; binary path bypasses it). Baseline: `.qa-intel/baseline.json` (established 2026-09-28, full scan). Re-run `--mode full --baseline` after accepting new rule classes.
+
+- 2026-09-28 (AGY session): universal registry synced across ALL agents — Claude Code SSOT 91 skills, OpenCode 110, AGY 98, projects symlinked. Aliases live: `code-graph`=build-graph, `code-graph-view`=explore-codebase, `code-refactor`=refactor-safely, `review`=review-changes/review-delta; `book-quality-engine` synced globally. The "not installed" note above is superseded — all Layer-1/3 skills are available everywhere now.
