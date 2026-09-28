@@ -20,7 +20,7 @@ export interface JourneyDotsProps {
 export default function JourneyDots({ active, total = 3, reduced = false, onSelect, className }: JourneyDotsProps) {
   return (
     <div className={`relative flex items-center gap-1.5 ${className ?? ""}`} role="list" aria-label="Journey stations">
-      {Array.from({ length: total }, (_, i) => (
+      {Array.from({ length: total }, (_station, i) => (
         <span key={i} className="flex items-center gap-1.5" role="listitem">
           {i > 0 && <span className="w-4 h-px bg-gray-300" />}
           {i === active ? (
