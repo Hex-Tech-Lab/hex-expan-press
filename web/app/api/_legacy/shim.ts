@@ -22,11 +22,39 @@ export interface ShimResult {
   body: string;
 }
 
-// Webhooks from Firma/Polar are small JSON bodies (KBs). The shim buffers the
-// entire request body in memory, so cap it: larger POSTs are rejected 413
-// instead of creating memory pressure on the serverless function.
+// Webhooks from Firma/Polar are small JSON bodies (KBs). Cap the buffered
+// body: larger POSTs are rejected 413 instead of creating memory pressure on
+// the serverless function.
 const MAX_BODY_BYTES = 1_048_576;
 
+/**
+ * Reads the request stream chunk by chunk and aborts (cancelling the stream)
+ * as soon as the cumulative size exceeds MAX_BODY_BYTES. Never buffers more
+ * than the cap regardless of Content-Length honesty.
+ * @returns The buffered body, or null when the cap is exceeded.
+ */
+async function readBodyCapped(request: Request): Promise<Buffer | null> {
+  if (!request.body) return Buffer.alloc(0);
+  const reader = request.body.getReader();
+  const chunks: Buffer[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > MAX_BODY_BYTES) {
+      await reader.cancel();
+      return null;
+    }
+    chunks.push(Buffer.from(value));
+  }
+  return Buffer.concat(chunks);
+}
+
+/**
+ * Parses a URL's query string into the flat map shape legacy handlers expect,
+ * preserving repeated keys as arrays (last-wins is NOT applied).
+ */
 function parseQuery(url: string): LegacyQuery {
   const query: LegacyQuery = {};
   for (const [key, value] of new URL(url).searchParams) {
@@ -38,6 +66,11 @@ function parseQuery(url: string): LegacyQuery {
   return query;
 }
 
+/**
+ * Bridges a Fetch-API Request into a legacy IncomingMessage/ServerResponse
+ * handler and translates the legacy res.* calls back into a Fetch Response.
+ * Enforces the body cap (413) and emits the buffered body as a single chunk.
+ */
 export async function runLegacyHandler(
   request: Request,
   handler: (req: ShimRequest, res: ServerResponse) => Promise<void> | void,
@@ -55,14 +88,17 @@ export async function runLegacyHandler(
       headers: { "content-type": "application/json" },
     });
   }
-  const bodyBuffer = request.body ? Buffer.from(await request.arrayBuffer()) : Buffer.alloc(0);
-  if (bodyBuffer.length > MAX_BODY_BYTES) {
+  const bodyBuffer = await readBodyCapped(request);
+  if (bodyBuffer === null) {
     return new Response(JSON.stringify({ ok: false, error: "Payload Too Large" }), {
       status: 413,
       headers: { "content-type": "application/json" },
     });
   }
-  let offset = 0;
+  // The buffered body is emitted as ONE chunk: legacy handlers accumulate
+  // chunks with string concatenation (`body += chunk`), which would corrupt
+  // any multi-byte UTF-8 sequence split across a chunk boundary.
+  let consumed = false;
   const req = {
     headers: Object.fromEntries(request.headers.entries()),
     method: request.method,
@@ -71,10 +107,9 @@ export async function runLegacyHandler(
     [Symbol.asyncIterator]() {
       return {
         next() {
-          if (offset >= bodyBuffer.length) return Promise.resolve({ value: undefined, done: true });
-          const chunk = bodyBuffer.subarray(offset, offset + 64 * 1024);
-          offset += chunk.length;
-          return Promise.resolve({ value: chunk, done: false });
+          if (consumed) return Promise.resolve({ value: undefined, done: true });
+          consumed = true;
+          return Promise.resolve({ value: bodyBuffer, done: false });
         },
       };
     },

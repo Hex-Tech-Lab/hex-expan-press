@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import type { NextConfig } from "next";
 
 // Legacy-URL preservation during the phased static->Next migration.
@@ -29,6 +30,11 @@ const nextConfig: NextConfig = {
   // previously bundled only because the old NFT tracer statically resolved
   // the readdir path, which the Turbopack fix removed). Keep them OUT of
   // public/ — this ships them only inside the server function artifact.
+  // Pin the tracing root to the repo root: payments/config.*.json included
+  // below lives OUTSIDE web/ (the project dir). Without an explicit root the
+  // tracer's workspace-root detection can vary by build environment and drop
+  // out-of-project files from the serverless artifact.
+  outputFileTracingRoot: join(__dirname, ".."),
   outputFileTracingIncludes: {
     "/api/billing/webhook": ["../payments/config.*.json"],
   },

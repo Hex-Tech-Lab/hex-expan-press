@@ -14,12 +14,22 @@ interface RailsFile {
   rails: CheckoutRail[];
 }
 
+/**
+ * Writes a JSON response through the legacy Node ServerResponse surface.
+ */
 function json(res: ServerResponse, status: number, payload: unknown): void {
   res.statusCode = status;
   res.setHeader("Content-Type", "application/json");
   res.end(JSON.stringify(payload));
 }
 
+/**
+ * Legacy Vercel checkout handler (bridged into Next.js via shim.ts):
+ * resolves the product's rail config (repo data/ file, env override, or
+ * default rail in serverless) and redirects (302) to the weighted-selected
+ * provider checkout URL via MatrixRouter. 405 non-GET/HEAD, 400 missing or
+ * unknown product.
+ */
 export default async function handler(req: IncomingMessage & { query: Record<string, string | string[]> }, res: ServerResponse) {
   if (req.method !== "GET" && req.method !== "HEAD") {
     return json(res, 405, { ok: false, error: "Method Not Allowed" });

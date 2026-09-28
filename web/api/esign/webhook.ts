@@ -3,12 +3,21 @@ import { EnvSettingsAdapter } from "../../../src/adapters/settings/env_settings.
 import { SupabaseAdapter } from "../../../src/adapters/database/supabase.adapter.ts";
 import { processEsignWebhookUseCase } from "../../../src/use_cases/process_esign_webhook.ts";
 
+/**
+ * Writes a JSON response through the legacy Node ServerResponse surface.
+ */
 function json(res: ServerResponse, status: number, payload: unknown): void {
   res.statusCode = status;
   res.setHeader("Content-Type", "application/json");
   res.end(JSON.stringify(payload));
 }
 
+/**
+ * Legacy Vercel esign webhook handler (bridged into Next.js via shim.ts):
+ * verifies the Firma provider HMAC and advances the signing workflow
+ * (processEsignWebhookUseCase). 405 non-POST, 400 validation failures
+ * (providers may retry), 500 unexpected errors.
+ */
 export default async function handler(req: IncomingMessage, res: ServerResponse) {
   if (req.method !== "POST") return json(res, 405, { ok: false, error: "Method Not Allowed" });
 
