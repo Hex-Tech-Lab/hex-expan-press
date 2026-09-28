@@ -7,8 +7,8 @@ import type { NextConfig } from "next";
 // moved legacy HTML from public/. Exact-filename URLs (privacy.html, assets)
 // are served by public/ directly and need no rewrite. Re-introduce real
 // app/ routes in later waves and DELETE the corresponding rewrite here.
+// Wave 5: /creator/signin is now a real app route — rewrite removed.
 const DIR_ROUTES = [
-  "/creator/signin",
   "/creator/review",
   "/creator/consents",
   "/c/retirearly500k",
