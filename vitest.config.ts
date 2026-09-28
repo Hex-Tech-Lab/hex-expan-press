@@ -8,6 +8,8 @@ export default defineConfig({
       "payments/test/**/*.test.ts",
       "web/src/lib/__tests__/**/*.test.ts",
       "web/app/**/__tests__/**/*.test.ts",
+      "src/adapters/**/__tests__/**/*.test.ts",
+      "web/__tests__/**/*.test.ts",
     ],
     environment: "node",
   },
