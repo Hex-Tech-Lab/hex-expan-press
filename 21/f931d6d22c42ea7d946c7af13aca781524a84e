@@ -1,0 +1,76 @@
+web/src/components/journey/journey-dots.tsx
+  s_850ecf3d00f9ca::t_1fe9095c1e9b0d 23
+web/src/lib/supabase-server.ts
+  s_850ecf3d00f9ca::t_a4f710421a5a1f 4
+  s_850ecf3d00f9ca::t_93896f1cee85f6 2,56-76,78,80-91,106-107
+web/src/lib/auth-bridge-core.ts
+  s_850ecf3d00f9ca::t_04b01d1e1d4ceb 1-37
+web/app/creator/dashboard/dashboard-client.tsx
+  s_850ecf3d00f9ca::t_9ea0f0295e67a2 18,61,165,182
+  s_850ecf3d00f9ca::t_a0f15ed9dec213 15-16
+web/app/creator/dashboard/__tests__/auth-bridge.test.ts
+  s_850ecf3d00f9ca::t_6747146fd4358c 8,59,69,80
+  s_850ecf3d00f9ca::t_f7990f4a033cb5 1-7,9-33,35-58,60-68,70-79,81-85
+  s_850ecf3d00f9ca::t_15529668d870cb 34
+web/app/creator/dashboard/sign-out-button.tsx
+  s_850ecf3d00f9ca::t_9ea0f0295e67a2 1-8,10-46
+  s_850ecf3d00f9ca::t_a0f15ed9dec213 9
+web/app/creator/dashboard/actions.ts
+  s_850ecf3d00f9ca::t_a0f15ed9dec213 4
+docs/agent_ledger.jsonl
+  s_850ecf3d00f9ca::t_c8c6ff1f0695f3 305
+web/src/lib/__tests__/auth-bridge-core.test.ts
+  s_850ecf3d00f9ca::t_9dc7a6b12ce166 1-33
+web/package.json
+  s_850ecf3d00f9ca::t_4423939938e802 24
+  s_850ecf3d00f9ca::t_35a47b656b86a9 35
+web/src/lib/__tests__/supabase-server.test.ts
+  s_850ecf3d00f9ca::t_ca293ca2a8e4fd 26-28,60,71,80,101
+  s_850ecf3d00f9ca::t_02a18a79403067 1-17,19-21,23-25,29-30,38-59,62-70,72-79,81-98,100,102-106
+  s_850ecf3d00f9ca::t_2cb5e4d38c791b 18,22
+  s_850ecf3d00f9ca::t_f33cebc40a3998 31-37
+  s_850ecf3d00f9ca::t_f7990f4a033cb5 99
+  s_850ecf3d00f9ca::t_7a52a9c1588746 61
+vitest.config.ts
+  s_850ecf3d00f9ca::t_35a47b656b86a9 7-11
+  s_850ecf3d00f9ca::t_f93c9dcc4ab8a2 3-4,14-18
+  s_850ecf3d00f9ca::t_10988f0e33bc4d 19
+web/app/creator/dashboard/auth-bridge.tsx
+  s_850ecf3d00f9ca::t_af4b3eece57929 54-55,61-65,67-68,70,78-79,83,88-91
+  s_850ecf3d00f9ca::t_618d59ecf64687 23-25,38-41,45-50,52-53,56-58
+  s_850ecf3d00f9ca::t_a0f15ed9dec213 20-21
+  s_850ecf3d00f9ca::t_b7b83c63ce6dbc 51
+  s_850ecf3d00f9ca::t_9dc7a6b12ce166 71-77
+  s_850ecf3d00f9ca::t_fd1ca08bcba1ec 69
+web/app/creator/dashboard/layout.tsx
+  s_850ecf3d00f9ca::t_a0eaaa3b4b6a52 4
+  s_850ecf3d00f9ca::t_a0f15ed9dec213 3
+tests/stubs/server-only.js
+  s_850ecf3d00f9ca::t_f93c9dcc4ab8a2 1-4
+web/app/creator/dashboard/page.tsx
+  s_850ecf3d00f9ca::t_9ea0f0295e67a2 3,31-33,42-47,50,74-84,89-106
+  s_850ecf3d00f9ca::t_3db131304a486a 85-88
+  s_850ecf3d00f9ca::t_a0eaaa3b4b6a52 7,37-38
+.qa-intel/baseline.json
+  s_850ecf3d00f9ca::t_026cf8a0dce02b 1-156
+docs/reviews/2026-09-28-pr1-coderabbit-round2.md
+  s_850ecf3d00f9ca::t_9b1f25d9b2e4e6 1-190
+pnpm-lock.yaml
+  s_850ecf3d00f9ca::t_f54c461b0962f6 145,182-184,210-212,226-233,318-321,325-360,755-763,2828-2830,2953-2956,2967-2970,3009-3011,3096-3099,3516-3519,3663-3665,3747-3755,3978-3981,4011-4013,4276-4278,4472-4475,4498-4500,4721-4727,4736-4739,4743-4746,4854-4857,4971-4974,4984-4987,4997-5008,5069-5075,5120-5134,5250-5253,5256-5279,5531-5532,7125,7295-7298,7429-7433,7440-7446,7489-7490,7581-7582,8211-8216,8364-8365,8446-8470,8636-8637,8668-8669,8983-8986,9237-9240,9253-9254,9532-9537,9544-9547,9550-9553,9690-9691,9804,9825,9829-9832,9839-9840,9847-9864,9939-9942
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "21f931d6d22c42ea7d946c7af13aca781524a84e",
+  "prompts": {},
+  "sessions": {
+    "s_850ecf3d00f9ca": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f19732d4dffe264nY0gJ7Z9XgG",
+        "model": "@preset/glm-53-flash-on-cheap"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
