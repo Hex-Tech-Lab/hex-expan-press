@@ -1,5 +1,5 @@
 import { runLegacyHandler } from "../../_legacy/shim.ts";
-import legacyHandler from "../../../../api/billing/checkout.ts";
+import legacyHandler from "../../../../_legacy_handlers/billing/checkout.ts";
 
 export const runtime = "nodejs";
 

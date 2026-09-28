@@ -1,5 +1,5 @@
 import { runLegacyHandler } from "../../_legacy/shim.ts";
-import legacyHandler from "../../../../api/esign/create.ts";
+import legacyHandler from "../../../../_legacy_handlers/esign/create.ts";
 
 export const runtime = "nodejs";
 
