@@ -1,8 +1,7 @@
-import "server-only";
-
-import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { createServerClient } from "@supabase/ssr";
 import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js";
+import "server-only";
 
 /**
  * Server-side Supabase access for the creator portal (Wave 4).
@@ -54,33 +53,43 @@ export async function getPortalSession(): Promise<PortalSession | null> {
   const cookieStore = await cookies();
   const jwtCookie = cookieStore.get(JWT_COOKIE)?.value;
 
-  // Path 1: ssr-format session (cheap local read — no network).
-  try {
-    const ssr = createServerClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
-      cookieOptions: { name: SSR_COOKIE },
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll(cookiesToSet) {
-          try {
-            for (const { name, value, options } of cookiesToSet) {
-              cookieStore.set(name, value, options);
+  // Path 1: ssr-format session (cheap local read — no network). Skipped
+  // entirely when no ssr-format cookie exists (legacy flow writes none).
+  const hasSsrCookie = cookieStore.getAll().some((c) => c.name.startsWith(SSR_COOKIE));
+  if (hasSsrCookie) {
+    try {
+      const ssr = createServerClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+        cookieOptions: { name: SSR_COOKIE },
+        cookies: {
+          getAll() {
+            return cookieStore.getAll();
+          },
+          setAll(cookiesToSet) {
+            try {
+              for (const { name, value, options } of cookiesToSet) {
+                cookieStore.set(name, value, options);
+              }
+            } catch (err) {
+              // Server Components cannot mutate cookies — refresh handles it.
+              if (process.env.NODE_ENV !== "production") {
+                console.warn("[supabase-server] ssr cookie write skipped (RSC render)", err);
+              }
             }
-          } catch {
-            // Server Components cannot mutate cookies — refresh handles it.
-          }
+          },
         },
-      },
-    });
-    const { data } = await ssr.auth.getSession();
-    const session = data.session;
-    if (session?.access_token) {
-      const user = await validateJwt(session.access_token);
-      if (user) return { user, supabase: clientWithJwt(session.access_token) };
+      });
+      const { data } = await ssr.auth.getSession();
+      const session = data.session;
+      if (session?.access_token) {
+        const user = await validateJwt(session.access_token);
+        if (user) return { user, supabase: clientWithJwt(session.access_token) };
+      }
+    } catch (err) {
+      // Malformed/chunked ssr cookies — fall through to the JWT bridge.
+      if (process.env.NODE_ENV !== "production") {
+        console.warn("[supabase-server] ssr session read failed", err);
+      }
     }
-  } catch {
-    // No ssr-format cookies present — fall through to the JWT bridge.
   }
 
   // Path 2: JWT bridge cookie from the legacy localStorage flow.
@@ -94,9 +103,7 @@ export async function getPortalSession(): Promise<PortalSession | null> {
 export async function clearPortalCookies(): Promise<void> {
   const cookieStore = await cookies();
   cookieStore.delete(JWT_COOKIE);
-  try {
-    cookieStore.delete(SSR_COOKIE);
-  } catch {
-    // Chunked ssr cookies may not exist — nothing to clear.
+  for (const name of cookieStore.getAll().map((c) => c.name)) {
+    if (name.startsWith(SSR_COOKIE)) cookieStore.delete(name);
   }
 }

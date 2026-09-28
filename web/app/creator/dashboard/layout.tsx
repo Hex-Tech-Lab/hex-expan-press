@@ -1,7 +1,7 @@
-import type { Metadata } from "next";
 import { Fraunces } from "next/font/google";
-import "./astryx-tokens.css";
 import "../../globals.css";
+import "./astryx-tokens.css";
+import type { Metadata } from "next";
 
 const fraunces = Fraunces({
   subsets: ["latin"],

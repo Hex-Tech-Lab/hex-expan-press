@@ -11,11 +11,11 @@
  * lean per the bundle-size rules). Spacing/typography consume the Astryx
  * neutral theme tokens injected by the dashboard layout.
  */
-import { AnimatePresence, motion } from "framer-motion";
-import { Icon, addCollection } from "@iconify/react";
 import { useEffect, useState } from "react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { Icon, addCollection } from "@iconify/react";
 import JourneyDots from "../../../src/components/journey/journey-dots";
-import { signOutAction } from "./actions";
+import SignOutButton from "./sign-out-button";
 
 const EASE = [0.16, 1, 0.3, 1] as const;
 /* NOTE: `.neu-card` in globals.css carries the same bevel stack; when an
@@ -58,6 +58,7 @@ export default function DashboardClient({
   journeyActive,
 }: DashboardClientProps) {
   const [iconsReady, setIconsReady] = useState(false);
+  const reduced = useReducedMotion();
 
   // Lucide set loads in an async chunk — keeps ~1MB of icon data out of the
   // main bundle (bundle-* rules); icons resolve right after hydration.
@@ -161,15 +162,7 @@ export default function DashboardClient({
           Signed in as <b className="font-semibold">{name}</b>
         </p>
         <p className="mt-1 mb-4 text-[length:var(--font-size-sm)] text-[#6E5F53]">{email}</p>
-        <form action={signOutAction}>
-          <button
-            type="submit"
-            className="inline-flex items-center gap-2 rounded-lg border border-[#EADFD1] px-4 py-2 text-[length:var(--font-size-sm)] font-semibold text-[#6E5F53] transition-colors hover:bg-[#F3ECDF] hover:text-[#2B2520] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-[#E8622C]"
-          >
-            {iconsReady && <Icon icon="lucide:log-out" width={16} height={16} aria-hidden />}
-            Sign out
-          </button>
-        </form>
+        <SignOutButton iconsReady={iconsReady} />
       </motion.section>
 
       {/* Journey tracker — the creator's live status bar (Wave 4) */}
@@ -186,7 +179,7 @@ export default function DashboardClient({
               {JOURNEY_LABELS[journeyActive]} — you are here
             </p>
           </div>
-          <JourneyDots active={journeyActive} reduced={false} className="shrink-0" />
+          <JourneyDots active={journeyActive} reduced={Boolean(reduced)} className="shrink-0" />
         </div>
       </motion.section>
 
