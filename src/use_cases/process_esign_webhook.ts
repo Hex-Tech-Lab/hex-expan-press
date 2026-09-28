@@ -27,12 +27,17 @@ export async function processEsignWebhookUseCase(
 
   // 2. Map domain event to governance actions
   if (event.eventType === "envelope.completed") {
-    const { productId, userId } = event.metadata;
-    // Metadata integrity gate (Wave 5): a completed envelope without the
-    // product/user linkage can never be attributed to a consent record —
-    // reject it (400 via the webhook's validation-failed contract) instead
-    // of writing a partial/garbage consent row.
-    if (!productId || !userId) {
+    // Metadata integrity gate (Wave 5.1, hardened): metadata must BE an
+    // object with non-empty string productId/userId BEFORE destructuring —
+    // a completed envelope without that linkage can never be attributed to
+    // a consent record, so reject (400 via the webhook's validation-failed
+    // contract) instead of writing a partial/garbage consent row.
+    const metadata = event.metadata as unknown;
+    if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+      throw new Error(`Webhook validation failed: completed envelope ${event.envelopeId} has no metadata object`);
+    }
+    const { productId, userId } = metadata as Record<string, unknown>;
+    if (typeof productId !== "string" || productId.trim() === "" || typeof userId !== "string" || userId.trim() === "") {
       throw new Error(`Webhook validation failed: completed envelope ${event.envelopeId} is missing productId/userId metadata`);
     }
     const envelopeId = event.envelopeId;

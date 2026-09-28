@@ -12,11 +12,13 @@ import { clearPortalCookies } from "../../../src/lib/supabase-server";
 export async function signOutAction(): Promise<void> {
   try {
     const supabase = await createSsrClient();
-    await supabase.auth.signOut();
+    const { error } = await supabase.auth.signOut();
+    // signOut RESOLVES with an error on some revocation failures — surface
+    // it (Sentry sees server console errors) but clear cookies regardless:
+    // the portal must never stay authenticated on a revocation blip.
+    if (error) console.error("[signout] remote revocation failed", error);
   } catch (err) {
-    // Revocation is best-effort: cookies are cleared regardless so the
-    // portal never stays authenticated on a network blip.
-    console.error("[signout] server-side revocation failed; clearing cookies anyway", err);
+    console.error("[signout] server-side revocation threw; clearing cookies anyway", err);
   }
   await clearPortalCookies();
   redirect("/creator/signin");

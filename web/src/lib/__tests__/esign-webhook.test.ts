@@ -16,6 +16,7 @@
 //      consent port receives the exact C3 submitConsent command shape.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import crypto from "node:crypto";
+import { FirmaAdapter } from "../../../../src/adapters/esign/firma.adapter";
 import type { Mock } from "vitest";
 
 const SECRET = "test-webhook-secret";
@@ -40,6 +41,18 @@ function completedPayload(metadata: Record<string, string>): unknown {
 }
 
 describe("esign webhook (Firma HMAC contract)", () => {
+  it("rejects non-object metadata on a completed envelope", async () => {
+    const { body, headers } = signedBody({
+      type: "signing_request.completed",
+      data: { signing_request: { id: "env_456", metadata: "not-an-object" } },
+    });
+    const adapter = new FirmaAdapter();
+    const result = await adapter.parseAndValidateWebhook(body, headers);
+    // Adapter-level: signature valid → isValid true; the USE CASE throws on
+    // non-object metadata → the webhook maps validation errors to 400.
+    expect(result.isValid).toBe(true);
+    expect(result.event?.metadata).toBe("not-an-object");
+  });
   beforeEach(() => {
     vi.stubEnv("FIRMA_WEBHOOK_SECRET", SECRET);
     vi.stubEnv("FIRMA_API_BASE", "https://api.firma.test/functions/v1/signing-request-api");

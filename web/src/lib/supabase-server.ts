@@ -56,21 +56,12 @@ export async function getPortalSession(): Promise<PortalSession | null> {
   try {
     const ssr = createServerClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
       cookieOptions: { name: SSR_COOKIE },
+      // READ-ONLY: Server Components cannot mutate cookies (next/headers
+      // set() is ignored during RSC render) — session refresh happens in
+      // middleware.ts, the only legal Set-Cookie boundary (Wave 5.1).
       cookies: {
         getAll() {
           return cookieStore.getAll();
-        },
-        setAll(cookiesToSet) {
-          try {
-            for (const { name, value, options } of cookiesToSet) {
-              cookieStore.set(name, value, options);
-            }
-          } catch (err) {
-            // Server Components cannot mutate cookies — refresh handles it.
-            if (process.env.NODE_ENV !== "production") {
-              console.warn("[supabase-server] ssr cookie write skipped (RSC render)", err);
-            }
-          }
         },
       },
     });
