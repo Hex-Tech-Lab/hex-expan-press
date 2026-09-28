@@ -1,0 +1,33 @@
+web/app/api/esign/create/route.ts
+  s_850ecf3d00f9ca::t_b390dbffb7ac5e 2
+  s_850ecf3d00f9ca::t_7a7650010e5767 1,3-4,9-13,15-54
+web/app/creator/dashboard/actions.ts
+  s_850ecf3d00f9ca::t_12319d1cb9f135 5,28-56
+  s_850ecf3d00f9ca::t_fa89b398a09148 6-7
+  s_850ecf3d00f9ca::t_03bc7def890719 57
+docs/agent_ledger.jsonl
+  s_850ecf3d00f9ca::t_48bbbd605ad430 316
+web/app/api/esign/webhook/route.ts
+  s_850ecf3d00f9ca::t_7303bf62709746 1-4,8-28,30-32,34-57
+web/app/api/billing/webhook/route.ts
+  s_850ecf3d00f9ca::t_7303bf62709746 1-9,13-36,38-41,43-70
+web/app/api/billing/checkout/route.ts
+  s_850ecf3d00f9ca::t_7303bf62709746 75,77-78
+  s_850ecf3d00f9ca::t_cd1c1854ef10ac 1-4,8-13,15-19,21-74,76,79-83
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "7138d678eb6f3d4c83fa5285f12941ee798d3128",
+  "prompts": {},
+  "sessions": {
+    "s_850ecf3d00f9ca": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f19732d4dffe264nY0gJ7Z9XgG",
+        "model": "@preset/glm-53-flash-on-cheap"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
