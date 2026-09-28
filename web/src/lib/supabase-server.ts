@@ -4,16 +4,15 @@ import { createClient, type SupabaseClient, type User } from "@supabase/supabase
 import "server-only";
 
 /**
- * Server-side Supabase access for the creator portal (Wave 4).
+ * Server-side Supabase access for the creator portal (Wave 5).
  *
- * Two auth paths, in priority order:
- *  1. @supabase/ssr cookie session — the Wave 5 target once sign-in migrates
- *     into the app and writes ssr-format cookies.
- *  2. `sb_session` cookie holding the access-token JWT — written by the
- *     dashboard AuthBridge from the legacy (localStorage) supabase-js session.
- *     The JWT is validated against the auth server via getUser() (network
- *     check — never trust an unverified token), and all queries run with it
- *     on the Authorization header so RLS applies as the user.
+ * Single auth path: the @supabase/ssr HttpOnly cookie session (written by
+ * the /auth/callback code exchange and the signin Server Actions). The
+ * legacy `sb_session` JWT-cookie bridge was retired in Wave 5 — no
+ * JS-readable token exists anymore. The access token from the ssr session
+ * is validated against the auth server via getUser() (network check — never
+ * trust an unverified token), and all queries run with it on the
+ * Authorization header so RLS applies as the user.
  *
  * No service_role/secret key is ever used here (publishable key only).
  */
@@ -21,7 +20,6 @@ import "server-only";
 const SUPABASE_URL = process.env.SUPABASE_URL ?? "";
 const SUPABASE_PUBLISHABLE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY ?? "";
 const SSR_COOKIE = "sb-portal-auth";
-const JWT_COOKIE = "sb_session";
 
 export interface PortalSession {
   user: User;
@@ -46,63 +44,55 @@ function clientWithJwt(jwt: string): SupabaseClient {
 }
 
 /**
- * Resolve the portal session. Returns null when unauthenticated — callers
- * redirect to /creator/signin (server-side, per the Wave 4 mandate).
+ * Resolve the portal session from the ssr HttpOnly cookie. Returns null when
+ * unauthenticated — callers redirect to /creator/signin (server-side).
  */
 export async function getPortalSession(): Promise<PortalSession | null> {
   const cookieStore = await cookies();
-  const jwtCookie = cookieStore.get(JWT_COOKIE)?.value;
 
-  // Path 1: ssr-format session (cheap local read — no network). Skipped
-  // entirely when no ssr-format cookie exists (legacy flow writes none).
   const hasSsrCookie = cookieStore.getAll().some((c) => c.name.startsWith(SSR_COOKIE));
-  if (hasSsrCookie) {
-    try {
-      const ssr = createServerClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
-        cookieOptions: { name: SSR_COOKIE },
-        cookies: {
-          getAll() {
-            return cookieStore.getAll();
-          },
-          setAll(cookiesToSet) {
-            try {
-              for (const { name, value, options } of cookiesToSet) {
-                cookieStore.set(name, value, options);
-              }
-            } catch (err) {
-              // Server Components cannot mutate cookies — refresh handles it.
-              if (process.env.NODE_ENV !== "production") {
-                console.warn("[supabase-server] ssr cookie write skipped (RSC render)", err);
-              }
-            }
-          },
+  if (!hasSsrCookie) return null;
+
+  try {
+    const ssr = createServerClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+      cookieOptions: { name: SSR_COOKIE },
+      cookies: {
+        getAll() {
+          return cookieStore.getAll();
         },
-      });
-      const { data } = await ssr.auth.getSession();
-      const session = data.session;
-      if (session?.access_token) {
-        const user = await validateJwt(session.access_token);
-        if (user) return { user, supabase: clientWithJwt(session.access_token) };
-      }
-    } catch (err) {
-      // Malformed/chunked ssr cookies — fall through to the JWT bridge.
-      if (process.env.NODE_ENV !== "production") {
-        console.warn("[supabase-server] ssr session read failed", err);
-      }
+        setAll(cookiesToSet) {
+          try {
+            for (const { name, value, options } of cookiesToSet) {
+              cookieStore.set(name, value, options);
+            }
+          } catch (err) {
+            // Server Components cannot mutate cookies — refresh handles it.
+            if (process.env.NODE_ENV !== "production") {
+              console.warn("[supabase-server] ssr cookie write skipped (RSC render)", err);
+            }
+          }
+        },
+      },
+    });
+    const { data } = await ssr.auth.getSession();
+    const session = data.session;
+    if (session?.access_token) {
+      const user = await validateJwt(session.access_token);
+      if (user) return { user, supabase: clientWithJwt(session.access_token) };
+    }
+  } catch (err) {
+    // Malformed/chunked ssr cookies — fail closed (null).
+    if (process.env.NODE_ENV !== "production") {
+      console.warn("[supabase-server] ssr session read failed", err);
     }
   }
 
-  // Path 2: JWT bridge cookie from the legacy localStorage flow.
-  if (!jwtCookie) return null;
-  const user = await validateJwt(jwtCookie);
-  if (!user) return null;
-  return { user, supabase: clientWithJwt(jwtCookie) };
+  return null;
 }
 
 /** Sign-out: clear every portal auth cookie (Server Action context). */
 export async function clearPortalCookies(): Promise<void> {
   const cookieStore = await cookies();
-  cookieStore.delete(JWT_COOKIE);
   for (const name of cookieStore.getAll().map((c) => c.name)) {
     if (name.startsWith(SSR_COOKIE)) cookieStore.delete(name);
   }

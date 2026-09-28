@@ -28,6 +28,13 @@ export async function processEsignWebhookUseCase(
   // 2. Map domain event to governance actions
   if (event.eventType === "envelope.completed") {
     const { productId, userId } = event.metadata;
+    // Metadata integrity gate (Wave 5): a completed envelope without the
+    // product/user linkage can never be attributed to a consent record —
+    // reject it (400 via the webhook's validation-failed contract) instead
+    // of writing a partial/garbage consent row.
+    if (!productId || !userId) {
+      throw new Error(`Webhook validation failed: completed envelope ${event.envelopeId} is missing productId/userId metadata`);
+    }
     const envelopeId = event.envelopeId;
 
     // The PDF path is abstracted here, but typically bounded to user and envelope
