@@ -1,0 +1,28 @@
+web/app/creator/dashboard/actions.ts
+  s_1c0c12b5f78e15::t_4b459ad6ac6779 53-56
+web/app/creator/signin/actions.ts
+  s_1c0c12b5f78e15::t_66540a8599456c 57-74
+  s_1c0c12b5f78e15::t_7fa9720c15f88e 28-42
+web/middleware.ts
+  s_1c0c12b5f78e15::t_297168ebb256ed 27-53,56,60-61,63
+web/app/auth/callback/route.ts
+  s_1c0c12b5f78e15::t_1c9793ab0225d9 17-28
+docs/agent_ledger.jsonl
+  s_1c0c12b5f78e15::t_09ea671a2aeefd 325
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "272fae308d9b4180a0911f74c4fb18e4e551de71",
+  "prompts": {},
+  "sessions": {
+    "s_1c0c12b5f78e15": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f16d2b389ffeHH33POrKiH1FLh",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
