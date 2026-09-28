@@ -1,9 +1,7 @@
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import Sentry from "@sentry/nextjs";
 import { getPortalSession } from "../../../src/lib/supabase-server";
 import DashboardClient from "./dashboard-client";
-import AuthBridge from "./auth-bridge";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -12,18 +10,14 @@ export const metadata: Metadata = {
 };
 
 /**
- * Creator dashboard — RSC (Wave 4). Replaces the vanilla HTML portal that
- * fetched with client-side document.getElementById + localStorage sessions.
+ * Creator dashboard — RSC (Wave 4), auth hardened (Wave 5).
  *
- * Auth flow (three cases):
- *   a) No cookie at all — first land or OAuth/OTP return. The server cannot
- *      see localStorage sessions, so it renders the AuthBridge shell; the
- *      bridge establishes the cookie (or redirects to signin client-side).
- *   b) Cookie present but invalid/expired — server-side redirect to
- *      /creator/signin (the security-enforced path; getUser is validated
- *      against the auth server, never trusted locally).
- *   c) Cookie valid — server hydrates profile + consents + review progress.
- * No dashboard data is ever rendered without a validated session.
+ * Wave 5: the only session source is the @supabase/ssr HttpOnly cookie
+ * (written server-side by /auth/callback and the signin Server Actions).
+ * The legacy AuthBridge localStorage->JWT-cookie path is retired — no
+ * JS-readable token exists anymore. No valid cookie -> server-side redirect
+ * to /creator/signin. No dashboard data is ever rendered without a
+ * validated session (getUser validates against the auth server).
  */
 
 const REVIEW_ANSWER_TARGET = 29;
@@ -39,24 +33,7 @@ function computeJourneyStep(state: { hasC1: boolean; hasC2: boolean; hasC3: bool
 }
 
 export default async function DashboardPage() {
-  const cookieStore = await cookies();
-  const hasJwtCookie = cookieStore.get("sb_session")?.value;
-  // Any portal cookie (JWT bridge or ssr-format) means server validation owns
-  // the decision; the bridge only handles the truly cookie-less first land.
-  const hasPortalCookie =
-    Boolean(hasJwtCookie) || cookieStore.getAll().some((c) => c.name.startsWith("sb-portal-auth"));
-
-  // Case (a): no cookie — the bridge resolves localStorage/hash sessions.
-  if (!hasPortalCookie) {
-    return (
-      <>
-        <AuthBridge mustHaveSession />
-        <DashboardShellLoading />
-      </>
-    );
-  }
-
-  // Case (b): cookie present but not valid — server-side redirect.
+  // Single auth path: ssr-format HttpOnly cookie -> server-validated session.
   const session = await getPortalSession();
   if (!session) {
     redirect("/creator/signin");
@@ -88,9 +65,7 @@ export default async function DashboardPage() {
       Sentry.captureException(err, { tags: { surface: "dashboard", query: label } });
     }
     return (
-      <>
-        <AuthBridge />
-        <div className="mx-auto max-w-[680px] px-5 py-12" role="alert">
+      <div className="mx-auto max-w-[680px] px-5 py-12" role="alert">
           <h1 className="font-serif text-2xl font-bold text-[#2B2520]">We couldn&apos;t load your dashboard.</h1>
           <p className="mt-2 text-sm text-[#6E5F53]">
             This looks like a temporary problem on our side — your work is safe. Please reload in a moment.
@@ -102,7 +77,6 @@ export default async function DashboardPage() {
             Reload dashboard
           </a>
         </div>
-      </>
     );
   }
 
@@ -131,14 +105,5 @@ export default async function DashboardPage() {
         journeyActive={journeyActive}
       />
     </>
-  );
-}
-
-/** Loading shell shown while the AuthBridge resolves a localStorage session. */
-function DashboardShellLoading(): React.ReactNode {
-  return (
-    <div className="mx-auto max-w-[680px] px-5 py-12">
-      <p className="text-sm text-[#6E5F53]">Loading your dashboard&hellip;</p>
-    </div>
   );
 }

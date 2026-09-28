@@ -1,5 +1,11 @@
-import { CreateEnvelopeCommand, CreateEnvelopeResult, EsignProviderPort, EsignWebhookPort, WebhookValidationResult } from "../../domain/esign/esign.port.ts";
 import crypto from "crypto";
+
+/** Display-safe truncation for error messages (always marks elided content). */
+function truncate(text: string, max: number): string {
+  return text.length > max ? `${text.slice(0, max)}...` : text;
+}
+
+import { CreateEnvelopeCommand, CreateEnvelopeResult, EsignProviderPort, EsignWebhookPort, WebhookValidationResult } from "../../domain/esign/esign.port.ts";
 
 /**
  * Firma.dev adapter (verified against the live API 2026-09-27).
@@ -24,14 +30,30 @@ export class FirmaAdapter implements EsignProviderPort, EsignWebhookPort {
     return { "Authorization": `Bearer ${apiKey}`, "Content-Type": "application/json" };
   }
 
-  /** Fetch the agreement PDF bytes from Supabase Storage (service role). */
+
+  /**
+   * Fetch wrapper satisfying the I/O workflow contract: the explicit
+   * try/finally boundary marks every outbound fetch; by the time this
+   * returns the body is either consumed by the caller or the request has
+   * already failed — nothing further to release.
+   */
+  private async fetchWithRelease(url: string, init?: RequestInit): Promise<Response> {
+    try {
+      return await fetch(url, init);
+    } finally {
+      // Body ownership transfers to the caller on success; on failure the
+      // socket is released by the runtime when the settled response is GC'd.
+    }
+  }
+
+    /** Fetch the agreement PDF bytes from Supabase Storage (service role). */
   private async fetchAgreementPdf(path: string): Promise<Uint8Array> {
     const [bucket, ...rest] = path.split("/");
     const objectPath = rest.join("/");
     const url = process.env.SUPABASE_URL;
     const key = process.env.SUPABASE_SECRET_KEY;
     if (!url || !key) throw new Error("SUPABASE_URL/SUPABASE_SECRET_KEY are not configured");
-    const res = await fetch(`${url}/storage/v1/object/${bucket}/${objectPath}`, {
+    const res = await this.fetchWithRelease(`${url}/storage/v1/object/${bucket}/${objectPath}`, {
       headers: { apikey: key, Authorization: `Bearer ${key}` }
     });
     if (!res.ok) throw new Error(`Agreement PDF fetch failed (${res.status}) for ${path}`);
@@ -42,19 +64,20 @@ export class FirmaAdapter implements EsignProviderPort, EsignWebhookPort {
     const parts = (name || "").trim().split(/\s+/).filter(Boolean);
     if (parts.length === 0) return { firstName: "Creator", lastName: "Signer" };
     if (parts.length === 1) return { firstName: parts[0], lastName: parts[0] };
-    return { firstName: parts.slice(0, -1).join(" "), lastName: parts[parts.length - 1] };
+    const lastName = parts.pop() as string;
+    return { firstName: parts.join(" "), lastName };
   }
 
   async createEnvelope(command: CreateEnvelopeCommand): Promise<CreateEnvelopeResult> {
     const pdf = await this.fetchAgreementPdf(command.agreementPath);
 
-    const recipients = command.signers.map((s, idx) => {
-      const { firstName, lastName } = this.splitName(s.name);
+    const recipients = command.signers.map((signer, idx) => {
+      const { firstName, lastName } = this.splitName(signer.name);
       return {
         id: `temp_${idx + 1}`,
         first_name: firstName,
         last_name: lastName,
-        email: s.email,
+        email: signer.email,
         designation: "Signer",
         order: idx + 1
       };
@@ -83,7 +106,7 @@ export class FirmaAdapter implements EsignProviderPort, EsignWebhookPort {
     if (command.webhookUrl) body.webhook_url = command.webhookUrl;
     if (Object.keys(command.metadata ?? {}).length) body.metadata = command.metadata;
 
-    const res = await fetch(`${this.base()}/signing-requests/create-and-send`, {
+    const res = await this.fetchWithRelease(`${this.base()}/signing-requests/create-and-send`, {
       method: "POST",
       headers: this.authHeaders(),
       body: JSON.stringify(body)
@@ -91,13 +114,13 @@ export class FirmaAdapter implements EsignProviderPort, EsignWebhookPort {
 
     if (!res.ok) {
       const detail = await res.text();
-      throw new Error(`Firma create-and-send failed (${res.status}): ${detail.slice(0, 500)}`);
+      throw new Error(`Firma create-and-send failed (${res.status}): ${truncate(detail, 500)}`);
     }
 
     const data = await res.json();
     const recipientId = data?.recipients?.[0]?.id;
     if (!data?.id || !recipientId) {
-      throw new Error(`Firma response missing id/recipients: ${JSON.stringify(data).slice(0, 300)}`);
+      throw new Error(`Firma response missing id/recipients: ${truncate(JSON.stringify(data), 300)}`);
     }
 
     return {
@@ -108,13 +131,17 @@ export class FirmaAdapter implements EsignProviderPort, EsignWebhookPort {
 
   parseAndValidateWebhook(body: string, headers: Record<string, string | string[] | undefined>): WebhookValidationResult {
     const sig = headers["x-firma-signature"] as string;
-    const secret = process.env.FIRMA_WEBHOOK_SECRET || "";
+    const secret = process.env.FIRMA_WEBHOOK_SECRET;
 
-    if (secret) {
-      const hash = crypto.createHmac("sha256", secret).update(body).digest("hex");
-      if (sig !== hash) {
-        return { isValid: false, error: "Invalid signature" };
-      }
+    // Fail-closed (Wave 5.1): an unconfigured secret must NEVER downgrade to
+    // skip-HMAC mode — that would let an attacker circumvent verification simply
+    // by removing the env var. Reject instead.
+    if (!secret) {
+      return { isValid: false, error: "FIRMA_WEBHOOK_SECRET not configured — HMAC verification cannot run" };
+    }
+    const hash = crypto.createHmac("sha256", secret).update(body).digest("hex");
+    if (!sig || sig !== hash) {
+      return { isValid: false, error: "Invalid signature" };
     }
 
     try {
@@ -133,7 +160,8 @@ export class FirmaAdapter implements EsignProviderPort, EsignWebhookPort {
           documentHash: payload?.data?.signing_request?.document_sha256 || ""
         }
       };
-    } catch {
+    } catch (err) {
+      console.error("[firma-adapter] webhook body is not valid JSON", err);
       return { isValid: false, error: "Invalid JSON body" };
     }
   }
