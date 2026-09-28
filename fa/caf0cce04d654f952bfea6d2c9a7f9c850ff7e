@@ -1,0 +1,26 @@
+payments/src/webhook_core.ts
+  s_c21d2da1fc16d4::t_0fbd03604e3c5a 50-51
+  s_c21d2da1fc16d4::t_ba4e8804dc2b4e 52-70
+web/app/api/_legacy/shim.ts
+  s_c21d2da1fc16d4::t_82a924d7338063 25-29
+  s_c21d2da1fc16d4::t_74d43b77d9f234 51-57
+  s_c21d2da1fc16d4::t_9d118f2e695949 47-50,59-64
+web/next.config.ts
+  s_c21d2da1fc16d4::t_231b9e0daf6623 27-34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "facaf0cce04d654f952bfea6d2c9a7f9c850ff7e",
+  "prompts": {},
+  "sessions": {
+    "s_c21d2da1fc16d4": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f22c8265dffemQYfwVqfzfjXD9",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
