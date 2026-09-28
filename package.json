@@ -13,7 +13,9 @@
     "registry-report": "tsx registry_report.ts",
     "transcribe": "tsx transcribe.ts",
     "certify": "tsx certify_asset.ts",
-    "freeze:check": "tsx scripts/verify_freeze.ts"
+    "freeze:check": "tsx scripts/verify_freeze.ts",
+    "qa:intel": "../hex-yt-intel/node_modules/.bin/tsx ../hex-yt-intel/scripts/verify-quality-engine.ts --mode diff --base origin/master --compare",
+    "qa:intel:full": "../hex-yt-intel/node_modules/.bin/tsx ../hex-yt-intel/scripts/verify-quality-engine.ts --mode full --compare"
   },
   "keywords": [],
   "author": "",

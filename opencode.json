@@ -111,16 +111,18 @@
           "options": {
             "provider": {
               "order": [
-                "baseten",
-                "modal",
                 "decart",
-                "gmicloud"
+                "baseten",
+                "inference-net",
+                "open-inference",
+                "modal"
               ],
               "only": [
-                "baseten",
-                "modal",
                 "decart",
-                "gmicloud"
+                "baseten",
+                "inference-net",
+                "open-inference",
+                "modal"
               ],
               "allow_fallbacks": false
             }
