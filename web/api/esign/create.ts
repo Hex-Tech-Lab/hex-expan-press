@@ -40,9 +40,9 @@ export default async function handler(req: IncomingMessage & { query: Record<str
     }, settingsRegistry);
 
     return json(res, 200, { ok: true, url: result.signUrl });
-  } catch (err: any) {
+  } catch (err) {
     console.error("Error creating esign envelope:", err);
-    const msg = String(err?.message || "");
+    const msg = err instanceof Error ? err.message : String(err);
     if (/insufficient credits|402/i.test(msg)) {
       return json(res, 503, { ok: false, error: "The signing service is awaiting credit activation. Please try again shortly." });
     }

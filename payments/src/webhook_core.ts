@@ -43,7 +43,12 @@ export function getSecret(provider: ProviderName): string | undefined {
 
 export function loadProductIndex(): Map<string, ProductConfig> {
   const idx = new Map<string, ProductConfig>();
-  const paymentsDir = path.join(HERE, "..");
+  // PAYMENTS_CONFIG_DIR indirection exists for the Next.js/Turbopack build:
+  // its static file tracer evaluates path.join(HERE, "..") to the payments/
+  // DIRECTORY and hard-fails hashing a directory asset ("Invalid file type
+  // Directory"). With the env-gated branch the tracer cannot statically
+  // resolve the path and skips it. Runtime behavior is identical.
+  const paymentsDir = process.env.PAYMENTS_CONFIG_DIR || path.join(HERE, "..");
   try {
     const files = readdirSync(paymentsDir).filter((f) => f.startsWith("config.") && f.endsWith(".json"));
     for (const f of files) {

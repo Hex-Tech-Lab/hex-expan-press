@@ -34,11 +34,12 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
     );
 
     return json(res, 200, { ok: true });
-  } catch (err: any) {
+  } catch (err) {
     console.error("Error processing esign webhook:", err);
     // Even on error we often want to return 200 or 400 depending on if it's a provider issue vs bad data.
     // 400 will tell the provider to retry if they support it.
-    const isValidationErr = err.message.includes("validation failed");
+    const message = err instanceof Error ? err.message : String(err);
+    const isValidationErr = message.includes("validation failed");
     return json(res, isValidationErr ? 400 : 500, { ok: false, error: isValidationErr ? "Bad Request" : "Internal Server Error" });
   }
 }
