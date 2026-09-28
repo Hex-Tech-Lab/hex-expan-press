@@ -1,5 +1,5 @@
 import { runLegacyHandler } from "../../_legacy/shim.ts";
-import legacyHandler from "../../../../api/esign/webhook.ts";
+import legacyHandler from "../../../../_legacy_handlers/esign/webhook.ts";
 
 export const runtime = "nodejs";
 
