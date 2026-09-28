@@ -23,6 +23,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const parsed = (await request.json()) as { productId?: string };
     productId = typeof parsed.productId === "string" ? parsed.productId : undefined;
   } catch {
+    // Fixed message only — the raw parse error can embed request-body
+    // fragments, which must never land in logs.
+    console.warn("[esign/create] rejected malformed JSON body");
     return NextResponse.json({ ok: false, error: "Invalid JSON body" }, { status: 400 });
   }
   if (!productId) {
