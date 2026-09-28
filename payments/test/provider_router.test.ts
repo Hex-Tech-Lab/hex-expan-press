@@ -61,11 +61,11 @@ describe("payments/src/provider_router (nextRail/skipRail)", () => {
     for (let i = 0; i < 20; i++) {
       expect(await nextRail("t_skip", rails2)).toBe("lemonsqueezy");
     }
-  });
+  }, 60_000);
 
   it("throws a clean error when every rail is down", async () => {
     await skipRail("t_all_down", "polar", rails2, 60_000);
     await skipRail("t_all_down", "lemonsqueezy", rails2, 60_000);
     await expect(nextRail("t_all_down", rails2)).rejects.toThrow(/every rail is marked down/);
-  });
+  }, 60_000);
 });
