@@ -18,5 +18,9 @@ export const metadata: Metadata = {
 };
 
 export default function Home() {
-  return <LandingPage />;
+  // Launch state: baked at build time from env (defaults to onboarding while
+  // C3 is unsigned). Flip NEXT_PUBLIC_ONBOARDING_ACTIVE=false to retire the
+  // onboarding claim — the spotlight bar copy follows automatically.
+  const onboarding = process.env.NEXT_PUBLIC_ONBOARDING_ACTIVE !== "false";
+  return <LandingPage onboarding={onboarding} />;
 }
