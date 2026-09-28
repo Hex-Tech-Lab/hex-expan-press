@@ -1,7 +1,6 @@
 // Middleware contract tests (qa-intel security rule: the getUser session
 // boundary needs a sibling regression test).
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import type { Mock } from "vitest";
 
 const getUserMock = vi.fn();
 const createServerClientMock = vi.fn(() => ({ auth: { getUser: getUserMock } }));

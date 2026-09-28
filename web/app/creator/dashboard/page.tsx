@@ -32,12 +32,26 @@ function computeJourneyStep(state: { hasC1: boolean; hasC2: boolean; hasC3: bool
   return state.hasC3 ? 2 : state.hasC1 && state.hasC2 ? 1 : 0;
 }
 
-export default async function DashboardPage() {
+const ACTION_ERRORS = ["credits", "esign", "no_product"] as const;
+type ActionError = (typeof ACTION_ERRORS)[number];
+
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>;
+}) {
   // Single auth path: ssr-format HttpOnly cookie -> server-validated session.
   const session = await getPortalSession();
   if (!session) {
     redirect("/creator/signin");
   }
+
+  // Step 3 Server Action failures land back here as ?error= — validated
+  // against the known codes so arbitrary query strings stay inert.
+  const params = await searchParams;
+  const actionError = ACTION_ERRORS.includes(params.error as ActionError)
+    ? (params.error as ActionError)
+    : undefined;
 
   const { user, supabase } = session;
 
@@ -103,6 +117,7 @@ export default async function DashboardPage() {
         hasC2={hasC2}
         hasC3={hasC3}
         journeyActive={journeyActive}
+        actionError={actionError}
       />
     </>
   );

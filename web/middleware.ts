@@ -24,37 +24,43 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
     sameSite: "lax" as const,
   };
 
-  const supabase = createServerClient(
-    process.env.SUPABASE_URL ?? "",
-    process.env.SUPABASE_PUBLISHABLE_KEY ?? "",
-    {
-      cookieOptions,
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll(cookiesToSet) {
-          for (const { name, value } of cookiesToSet) {
-            request.cookies.set(name, value);
-          }
-          // Re-create the response so the middleware chain sees the updated
-          // request cookies, then mirror them onto the outgoing response.
-          response = NextResponse.next({ request });
-          for (const { name, value, options } of cookiesToSet) {
-            response.cookies.set(name, value, { ...options, ...cookieOptions });
-          }
+  try {
+    // Construction INSIDE the failure boundary (P0 2026-09-29): an env gap
+    // must degrade to "no cookie refresh", never crash the middleware — an
+    // uncaught throw here turns every matched route into a 500
+    // MIDDLEWARE_INVOCATION_FAILED, taking the auth surface down harder
+    // than any misconfiguration justifies. Pages enforce their own
+    // fail-closed redirects; the middleware only guarantees fresh cookies.
+    const supabase = createServerClient(
+      process.env.SUPABASE_URL ?? "",
+      process.env.SUPABASE_PUBLISHABLE_KEY ?? "",
+      {
+        cookieOptions,
+        cookies: {
+          getAll() {
+            return request.cookies.getAll();
+          },
+          setAll(cookiesToSet) {
+            for (const { name, value } of cookiesToSet) {
+              request.cookies.set(name, value);
+            }
+            // Re-create the response so the middleware chain sees the updated
+            // request cookies, then mirror them onto the outgoing response.
+            response = NextResponse.next({ request });
+            for (const { name, value, options } of cookiesToSet) {
+              response.cookies.set(name, value, { ...options, ...cookieOptions });
+            }
+          },
         },
       },
-    },
-  );
+    );
 
-  try {
     await supabase.auth.getUser();
   } catch (err) {
-    // Network/auth-service failure must not take pages down — pages enforce
-    // their own fail-closed redirects; the response simply carries on.
+    // Missing env or network/auth-service failure must not take pages down —
+    // pages enforce their own fail-closed redirects; the response carries on.
     if (process.env.NODE_ENV !== "production") {
-      console.warn("[middleware] session refresh probe failed", err);
+      console.warn("[middleware] session refresh skipped:", err instanceof Error ? err.message : err);
     }
   }
 
