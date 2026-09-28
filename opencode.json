@@ -112,13 +112,15 @@
             "provider": {
               "order": [
                 "baseten",
-                "morph",
-                "together"
+                "modal",
+                "decart",
+                "gmicloud"
               ],
               "only": [
                 "baseten",
-                "morph",
-                "together"
+                "modal",
+                "decart",
+                "gmicloud"
               ],
               "allow_fallbacks": false
             }

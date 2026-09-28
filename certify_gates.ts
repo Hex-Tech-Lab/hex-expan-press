@@ -439,6 +439,10 @@ async function visionOverlapCheck(pngPath: string, model: string, timeoutMs: num
     // override (e.g. --vision-model=google/gemini-3.8-flash) needs its own provider list
     // or it 400s "No allowed providers" (relace does not serve non-glm models).
     provider: { order: ["relace"], allow_fallbacks: false },
+    // Standing block (2026-09-28): reasoning minimal+exclude, caching on for all direct OR calls.
+    reasoning: { effort: "minimal", enabled: true, exclude: true },
+    cache_enabled: true,
+    cache_ttl_seconds: 10800,
     max_tokens: 2_500,
     temperature: 0,
     messages: [
