@@ -7,8 +7,10 @@ import "server-only";
  *
  * Used by Server Actions (sign-in, sign-out) and the /auth/callback route —
  * contexts where cookie WRITES are allowed, so the ssr client can set and
- * rotate its session cookies (strictly HttpOnly, Secure in production,
- * SameSite=Lax — the @supabase/ssr defaults when managed server-side).
+ * rotate its session cookies. HttpOnly is enforced EXPLICITLY here: the
+ * @supabase/ssr default is httpOnly:false (verified in v0.12.7 constants.js)
+ * and a JS-readable session token is the exact vulnerability Wave 5 exists
+ * to eliminate. Secure only in production (local http dev would drop it).
  *
  * Cookie name matches supabase-server.ts (SSR_COOKIE) so getPortalSession
  * reads the same session. Publishable key only — no service role here.
@@ -21,7 +23,12 @@ const SUPABASE_PUBLISHABLE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY ?? "";
 export async function createSsrClient() {
   const cookieStore = await cookies();
   return createServerClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
-    cookieOptions: { name: SSR_COOKIE },
+    cookieOptions: {
+      name: SSR_COOKIE,
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+    },
     cookies: {
       getAll() {
         return cookieStore.getAll();
