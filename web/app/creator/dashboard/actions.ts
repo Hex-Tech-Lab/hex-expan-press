@@ -50,6 +50,10 @@ export async function startPublisherAgreementAction(): Promise<void> {
     );
     redirect(result.signUrl);
   } catch (err) {
+    // redirect() unwinds by throwing NEXT_REDIRECT — it must pass through,
+    // or a SUCCESSFUL envelope creation would be eaten by this catch and
+    // misreported as an esign failure (caught in Wave 6 review 2026-09-29).
+    if (err && typeof err === "object" && "digest" in err) throw err;
     console.error("[dashboard] envelope creation failed:", err);
     const msg = err instanceof Error ? err.message : String(err);
     redirect(/insufficient credits|402/i.test(msg) ? "/creator/dashboard?error=credits" : "/creator/dashboard?error=esign");
