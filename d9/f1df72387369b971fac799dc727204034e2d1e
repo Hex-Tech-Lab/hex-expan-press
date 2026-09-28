@@ -1,0 +1,61 @@
+web/package.json
+  s_1c0c12b5f78e15::t_3d17a653247902 22
+web/app/creator/consents/page.tsx
+  s_1c0c12b5f78e15::t_bbf4fff7d2e00e 1-72
+web/public/pdfjs/pdf.worker.min.mjs
+  s_1c0c12b5f78e15::t_a6b78146234ddc 1-21
+web/app/creator/consents/actions.ts
+  s_1c0c12b5f78e15::t_06fa12190dfc0e 1-74
+web/app/creator/review/page.tsx
+  s_1c0c12b5f78e15::t_c8784e4fe143f5 1,3-44,46-48,50-56,58-73,75-133
+  s_1c0c12b5f78e15::t_d369fb03d881e7 49
+  s_1c0c12b5f78e15::t_1860eab20d4dbb 57,74
+  s_1c0c12b5f78e15::t_58c1d17bfc6d0e 2
+  s_1c0c12b5f78e15::t_eb7a8bbbdc3822 45
+web/app/creator/review/review-client.tsx
+  s_1c0c12b5f78e15::t_037323db8003e4 1-90,93-96,98-107,111-117,121-155,158-197,200,202,204-286,288-389,393-429
+  s_1c0c12b5f78e15::t_d369fb03d881e7 156-157
+  s_1c0c12b5f78e15::t_5ddd490d84b5a8 198-199,201,203
+  s_1c0c12b5f78e15::t_eb7a8bbbdc3822 287
+  s_1c0c12b5f78e15::t_163c2b20d2bc85 91-92,97,108-110,118-120,390-392
+web/app/creator/consents/esign_done/page.tsx
+  s_1c0c12b5f78e15::t_3e54b572f060cf 1-42
+web/next.config.ts
+  s_1c0c12b5f78e15::t_ab9adbb098e449 11-12
+web/app/creator/review/__tests__/actions.test.ts
+  s_1c0c12b5f78e15::t_c363f2a0beee81 1-33,35-36,40-52,58-66
+  s_1c0c12b5f78e15::t_43ea7246dff901 34,37-39
+  s_1c0c12b5f78e15::t_70171017d29393 53-57
+web/app/creator/layout.tsx
+  s_1c0c12b5f78e15::t_540f32e3e2ca95 1,3-31
+  s_1c0c12b5f78e15::t_ec0245ff7a3412 2
+web/app/creator/review/actions.ts
+  s_1c0c12b5f78e15::t_43ea7246dff901 23-25,29-30
+  s_1c0c12b5f78e15::t_ae4e5f6d84b24e 1-22,26-28,31-39
+web/app/creator/consents/consent-cards.tsx
+  s_1c0c12b5f78e15::t_10a78f8eafa711 1-26,29-35,38-52,54-64,67-69,71-87,89-98,100,102-111,114-122,125-178
+  s_1c0c12b5f78e15::t_ab29d23be11464 27-28,36-37,53,65-66,70,88,99,101,112-113,123-124
+web/app/creator/consents/__tests__/actions.test.ts
+  s_1c0c12b5f78e15::t_43ea7246dff901 81,100
+  s_1c0c12b5f78e15::t_02a0dabfe86c76 1-80,82-99,101-113
+docs/agent_ledger.jsonl
+  s_1c0c12b5f78e15::t_d5ed934318b8fc 332
+pnpm-lock.yaml
+  s_1c0c12b5f78e15::t_d1fbac74bc297f 176-178,1009-1083,4391-4394,5809-5856,9146-9149
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d9f1df72387369b971fac799dc727204034e2d1e",
+  "prompts": {},
+  "sessions": {
+    "s_1c0c12b5f78e15": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f16d2b389ffeHH33POrKiH1FLh",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
