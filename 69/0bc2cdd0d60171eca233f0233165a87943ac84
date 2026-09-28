@@ -1,0 +1,27 @@
+web/app/globals.css
+  s_850ecf3d00f9ca::t_172f1fd8ff2976 44-55
+web/app/page.tsx
+  s_850ecf3d00f9ca::t_f6049752aa4bd6 21-25
+web/src/components/landing/landing-page.tsx
+  s_850ecf3d00f9ca::t_d3029ea7b4dd50 3-24,45,47-54,59-68,72-84,86-104,108-109,111-115,117-118,120-121,125-126,128,130-132,135-137,139-141,143-169,171-177,183-186,189-260,262-264,267-278,280-283,286-287,289,291-292,307,310-331,334-344,346,348,350,353,355-362,365-367,369-439,443-522,524-535,537-539,541-551,553-576
+  s_850ecf3d00f9ca::t_172f1fd8ff2976 69,332-333,363,552
+  s_850ecf3d00f9ca::t_33ea8910f7db0e 364,368
+  s_850ecf3d00f9ca::t_f0f3cb0f04305f 26,266
+  s_850ecf3d00f9ca::t_cb48fa5a60c907 27-41
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "690bc2cdd0d60171eca233f0233165a87943ac84",
+  "prompts": {},
+  "sessions": {
+    "s_850ecf3d00f9ca": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f19732d4dffe264nY0gJ7Z9XgG",
+        "model": "@preset/glm-53-flash-on-cheap"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
