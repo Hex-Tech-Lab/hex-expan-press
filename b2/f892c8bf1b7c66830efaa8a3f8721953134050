@@ -1,0 +1,37 @@
+src/domain/payments/payments.port.ts
+  s_cf6fc84d66405a::t_fb939dea71e36e 132-138
+payments/src/ledger.ts
+  s_d5ee695bf1a23a::t_181e3e216a307f 200-206
+src/adapters/payments/__tests__/polar.adapter.test.ts
+  s_d5ee695bf1a23a::t_446021da19694b 1-49
+src/adapters/payments/polar.adapter.ts
+  s_d5ee695bf1a23a::t_f14d698ffc2a40 38-42,46-49,102,104-105
+web/app/api/billing/webhook/__tests__/in-flight.test.ts
+  s_d5ee695bf1a23a::t_1ae3ef90fc17da 1-5,9,12,18-26,30-50
+web/app/api/billing/webhook/__tests__/route.test.ts
+  s_d5ee695bf1a23a::t_0bd9975d025166 67-78
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "b2f892c8bf1b7c66830efaa8a3f8721953134050",
+  "prompts": {},
+  "sessions": {
+    "s_cf6fc84d66405a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f1102abf0ffeETP8eX4fkpDUra",
+        "model": "@preset/glm-53-flash-on-cheap"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_d5ee695bf1a23a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1c1a25a9-9f24-4048-af53-aa202091ce7e",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
