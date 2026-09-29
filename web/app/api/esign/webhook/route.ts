@@ -40,7 +40,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   const settingsRegistry = new EnvSettingsAdapter();
   const database = new SupabaseAdapter();
-  const ip = (request.headers.get("x-forwarded-for") ?? "0.0.0.0");
+  const ip = request.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "0.0.0.0";
   const userAgent = request.headers.get("user-agent") ?? "";
 
   try {
