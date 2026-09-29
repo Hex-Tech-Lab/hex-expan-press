@@ -1,5 +1,6 @@
-import type { IncomingHttpHeaders } from "node:http";
-import type { CheckoutProvider, ProviderName, RefundEvent, SaleEvent } from "./provider.ts";
+import { readdirSync, readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { appendRefund, appendSale, findRefund, findSale, SALES_FILE } from "./ledger.ts";
 import { isRegisteredPaymentProvider, paymentProviderSetting } from "./settings_registry.ts";
 import { loadConfig, type ProductConfig } from "./settings.ts";
@@ -12,9 +13,8 @@ import { paddleProvider } from "./providers/paddle.ts";
 import { polarProvider } from "./providers/polar.ts";
 import { fungiesProvider } from "./providers/fungies.ts";
 import { fastspringProvider } from "./providers/fastspring.ts";
-import { readdirSync, readFileSync } from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
+import type { IncomingHttpHeaders } from "node:http";
+import type { CheckoutProvider, ProviderName, RefundEvent, SaleEvent } from "./provider.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
@@ -70,30 +70,31 @@ export function loadProductIndex(): Map<string, ProductConfig> {
   // Same predicate for directory SELECTION and file LOADING: config.example.json
   // must not win the selection (a directory holding only the example file would
   // otherwise be chosen, then skipped, leaving an empty product index).
-  const isProductConfigFile = (f: string): boolean =>
-    f.startsWith("config.") && f.endsWith(".json") && f !== "config.example.json";
+  const isProductConfigFile = (fileName: string): boolean =>
+    fileName.startsWith("config.") && fileName.endsWith(".json") && fileName !== "config.example.json";
   const paymentsDir =
     candidates.find((dir) => {
       try {
         return readdirSync(dir).some(isProductConfigFile);
-      } catch {
-        return false;
+      } catch (probeErr) {
+        console.error(`[webhook] candidate config dir probe failed: ${probeErr instanceof Error ? probeErr.message : probeErr}`);
+        return false; // unreadable candidate dir — try next
       }
     }) ?? candidates[0];
   try {
     const files = readdirSync(paymentsDir).filter(isProductConfigFile);
-    for (const f of files) {
+    for (const configFile of files) {
       try {
-        const c = loadConfig(path.join(paymentsDir, f));
+        const c = loadConfig(path.join(paymentsDir, configFile));
         idx.set(c.product_id, c);
         // Aliases: webhook events may arrive keyed by provider product id, internal id, or site slug
-        const raw = JSON.parse(readFileSync(path.join(paymentsDir, f), "utf8")) as Record<string, unknown>;
+        const raw = JSON.parse(readFileSync(path.join(paymentsDir, configFile), "utf8")) as Record<string, unknown>;
         if (typeof raw.product_internal_id === "string") idx.set(raw.product_internal_id, c);
         if (typeof raw.polar_product_id_sandbox === "string") idx.set(raw.polar_product_id_sandbox, c);
         if (typeof raw.polar_product_id_live === "string") idx.set(raw.polar_product_id_live, c);
         if (typeof raw.site_slug === "string") idx.set(raw.site_slug, c);
       } catch (err) {
-        console.error(`[webhook] failed to load ${f}: ${(err as Error).message}`);
+        console.error(`[webhook] failed to load ${configFile}: ${(err as Error).message}`);
       }
     }
   } catch (err) {
@@ -122,7 +123,7 @@ function isRedisConfigured(): boolean {
   return Boolean(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN);
 }
 
-async function withIdempotencyLock(
+export async function withIdempotencyLock(
   lockKey: string,
   duplicateResponse: { status: number; payload: Record<string, unknown> },
   fn: () => Promise<{ status: number; payload: Record<string, unknown> }>,
@@ -141,25 +142,27 @@ async function withIdempotencyLock(
     }
     return result;
   } catch (err) {
+    console.error(`[webhook] locked fn threw (lock=${lockKey}) — releasing lock:`, err);
     await expanRedis.del(lockKey);
     throw err;
   }
 }
 
-export async function recordRefund(r: RefundEvent): Promise<{ status: number; payload: Record<string, unknown> }> {
+export async function recordRefund(refundEvent: RefundEvent): Promise<{ status: number; payload: Record<string, unknown> }> {
   return withIdempotencyLock(
-    `lock:refund:${r.provider}:${r.sale_id}`,
-    { status: 200, payload: { ok: true, recorded: false, reason: "duplicate-or-inflight", event_type: "refund", sale_id: r.sale_id } },
+    `lock:refund:${refundEvent.provider}:${refundEvent.sale_id}`,
+    { status: 200, payload: { ok: true, recorded: false, reason: "duplicate-or-inflight", event_type: "refund", sale_id: refundEvent.sale_id } },
     async () => {
-      const existingRefund = findRefund(r.provider, r.sale_id);
+      const existingRefund = findRefund(refundEvent.provider, refundEvent.sale_id);
       if (existingRefund) {
-        return { status: 200, payload: { ok: true, recorded: false, reason: "duplicate", event_type: "refund", sale_id: r.sale_id } };
+        return { status: 200, payload: { ok: true, recorded: false, reason: "duplicate", event_type: "refund", sale_id: refundEvent.sale_id } };
       }
       try {
-        const record = await appendRefund({ provider: r.provider, sale_id: r.sale_id, ts: r.ts });
+        const record = await appendRefund({ provider: refundEvent.provider, sale_id: refundEvent.sale_id, ts: refundEvent.ts });
         return { status: 200, payload: { ok: true, recorded: true, event_type: "refund", sale_id: record.sale_id, refund_amount_usd: record.amount_usd } };
       } catch (err) {
-        return { status: 422, payload: { ok: false, error: (err as Error).message } };
+        console.error(`[webhook] refund append failed (provider=${refundEvent.provider} sale=${refundEvent.sale_id}):`, err);
+        return { status: 500, payload: { ok: false, error: (err as Error).message } }; // infra failure → provider retries (4xx = never retried)
       }
     },
   );
@@ -188,6 +191,7 @@ export async function recordSale(result: SaleEvent): Promise<{ status: number; p
         }
         creatorSplitPct = pct;
       } catch (err) {
+        console.error(`[webhook] creator terms lookup failed (creator=${cfg.creator_id} product=${cfg.product_id}):`, err);
         return { status: 500, payload: { ok: false, error: `creator terms lookup failed: ${(err as Error).message}` } };
       }
 
@@ -214,7 +218,8 @@ export async function recordSale(result: SaleEvent): Promise<{ status: number; p
           },
         };
       } catch (err) {
-        return { status: 422, payload: { ok: false, error: (err as Error).message } };
+        console.error(`[webhook] sale append failed (provider=${result.provider} sale=${result.sale_id}):`, err);
+        return { status: 500, payload: { ok: false, error: (err as Error).message } }; // infra failure → provider retries (4xx = never retried)
       }
     },
   );

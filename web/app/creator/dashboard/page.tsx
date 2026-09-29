@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import Sentry from "@sentry/nextjs";
+import * as Sentry from "@sentry/nextjs";
 import { getPortalSession } from "../../../src/lib/supabase-server";
 import DashboardClient from "./dashboard-client";
 import type { Metadata } from "next";

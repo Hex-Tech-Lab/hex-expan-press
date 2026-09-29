@@ -88,3 +88,4 @@ supabase/.temp/
 
 coverage/
 docs/for_sharing/
+!docs/adr/
