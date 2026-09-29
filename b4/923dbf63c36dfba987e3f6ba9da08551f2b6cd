@@ -1,0 +1,27 @@
+payments/src/ledger.ts
+  s_d5ee695bf1a23a::t_feeb963c6300ee 140,147-149,169-170,211,218-220,238-239
+payments/src/webhook_core.ts
+  s_d5ee695bf1a23a::t_4900cb4280d180 165,222
+payments/test/ledger.test.ts
+  s_d5ee695bf1a23a::t_12f1bf78b6b7fe 135-158
+src/use_cases/billing/__tests__/process_billing_webhook.test.ts
+  s_d5ee695bf1a23a::t_5b09e5666e4931 108,129
+src/use_cases/billing/process_billing_webhook.ts
+  s_d5ee695bf1a23a::t_5fa5c854cbc78c 58,84
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "b4923dbf63c36dfba987e3f6ba9da08551f2b6cd",
+  "prompts": {},
+  "sessions": {
+    "s_d5ee695bf1a23a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1c1a25a9-9f24-4048-af53-aa202091ce7e",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
