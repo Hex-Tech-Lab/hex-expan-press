@@ -125,6 +125,7 @@ export default function ReviewClient({ items, saved, pdfUrl, bookTitle }: Review
     const canvas = canvasRef.current;
     if (!doc || !canvas || !page) return;
     const my = ++seqRef.current;
+    let task: { promise: Promise<void>; cancel(): void } | null = null;
     (async () => {
       const pdfPage = await doc.getPage(page);
       if (my !== seqRef.current) return;
@@ -143,8 +144,17 @@ export default function ReviewClient({ items, saved, pdfUrl, bookTitle }: Review
       canvas.style.height = `${Math.floor(cssVp.height)}px`;
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
-      await pdfPage.render({ canvasContext: ctx, viewport: vp }).promise;
-    })();
+      task = pdfPage.render({ canvasContext: ctx, viewport: vp });
+      await task.promise;
+    })().catch((err: unknown) => {
+      // A superseded render (page/zoom changed) is cancelled on purpose — ignore it.
+      if (my !== seqRef.current || (err as { name?: string })?.name === "RenderingCancelledException") return;
+      console.error("[review] page render failed:", err);
+      setViewerError("Could not display this page. You can still answer from the questions shown.");
+    });
+    return () => {
+      task?.cancel();
+    };
   }, [page, zoom, viewerReady]);
 
   // Folio detection (best-effort): printed page numbers from the PDF text.
@@ -170,8 +180,9 @@ export default function ReviewClient({ items, saved, pdfUrl, bookTitle }: Review
             }
           }
         }
-      } catch {
-        /* folio detection is best-effort */
+      } catch (err) {
+        // Folio detection is best-effort — log and fall back to raw page numbers.
+        console.warn("[review] folio detection failed:", err);
       }
     })();
   }, [total, folio]);
@@ -189,8 +200,17 @@ export default function ReviewClient({ items, saved, pdfUrl, bookTitle }: Review
     }
     setBusy(true);
     setError(null);
-    const res = await submitReviewAnswerAction(item.id, a, f);
-    setBusy(false);
+    let res: Awaited<ReturnType<typeof submitReviewAnswerAction>>;
+    try {
+      res = await submitReviewAnswerAction(item.id, a, f);
+    } catch (err) {
+      // Network/runtime rejection: keep the typed answer and let the creator retry.
+      console.error("[review] save failed:", err);
+      setError("Could not save — check your connection and try again.");
+      return;
+    } finally {
+      setBusy(false);
+    }
     if (!res.ok) {
       setError(res.error ?? "Could not save — please try again.");
       return;

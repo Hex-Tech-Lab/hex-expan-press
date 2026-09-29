@@ -39,12 +39,20 @@ export async function signConsentAction(_prev: ConsentFormState, formData: FormD
     return { error: "Please type your full legal name — first and last name, as in your passport (e.g. “Duane Smith”)." };
   }
 
-  const { data: products } = await session.supabase.from("products").select("id, release_sha256").limit(1);
+  const { data: products } = await session.supabase.from("products").select("id, release_sha256").order("created_at", { ascending: true }).limit(1);
   const product = products?.[0];
   if (!product) return { error: "No product is linked to your account yet — contact support@expanpress.com." };
 
-  const documentSha256 =
-    rawKind === SIGNABLE_KINDS.C2 && product.release_sha256 ? product.release_sha256 : ZEROS_HASH;
+  // C2 approves a specific release PDF — it must bind to that file's real hash
+  // (the submit_consent RPC enforces the same rule). C1 has no document.
+  let documentSha256 = ZEROS_HASH;
+  if (rawKind === SIGNABLE_KINDS.C2) {
+    const sha = String(product.release_sha256 ?? "").toLowerCase();
+    if (!/^[0-9a-f]{64}$/.test(sha) || sha === ZEROS_HASH) {
+      return { error: "Your final release file isn't ready to approve yet — we'll email you when it is." };
+    }
+    documentSha256 = sha;
+  }
 
   const h = await headers();
   const ip = (h.get("x-forwarded-for") ?? "0.0.0.0").split(",")[0].trim();
