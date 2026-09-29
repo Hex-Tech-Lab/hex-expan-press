@@ -162,7 +162,7 @@ export async function recordRefund(refundEvent: RefundEvent): Promise<{ status: 
         return { status: 200, payload: { ok: true, recorded: true, event_type: "refund", sale_id: record.sale_id, refund_amount_usd: record.amount_usd } };
       } catch (err) {
         console.error(`[webhook] refund append failed (provider=${refundEvent.provider} sale=${refundEvent.sale_id}):`, err);
-        return { status: 422, payload: { ok: false, error: (err as Error).message } };
+        return { status: 500, payload: { ok: false, error: (err as Error).message } }; // infra failure → provider retries (4xx = never retried)
       }
     },
   );
@@ -219,7 +219,7 @@ export async function recordSale(result: SaleEvent): Promise<{ status: number; p
         };
       } catch (err) {
         console.error(`[webhook] sale append failed (provider=${result.provider} sale=${result.sale_id}):`, err);
-        return { status: 422, payload: { ok: false, error: (err as Error).message } };
+        return { status: 500, payload: { ok: false, error: (err as Error).message } }; // infra failure → provider retries (4xx = never retried)
       }
     },
   );

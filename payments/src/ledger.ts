@@ -137,13 +137,16 @@ export async function findSaleAsync(provider: string, saleId: string, salesFile:
   try {
     const { createClient } = await import("@supabase/supabase-js");
     const supabase = createClient(url, key);
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("orders")
       .select("*")
       .eq("provider", provider)
       .eq("sale_id", saleId)
       .eq("event_type", "sale")
       .maybeSingle();
+    // Fail CLOSED: a lookup error is not "not found" — treating it as such would
+    // let a duplicate delivery through. The route 500s and the provider retries.
+    if (error) throw new Error(`ledger: Supabase sale lookup failed: ${error.message}`);
 
     if (!data) return null;
 
@@ -163,8 +166,8 @@ export async function findSaleAsync(provider: string, saleId: string, salesFile:
       attribution_id: data.attribution_id || undefined
     };
   } catch (err) {
-    console.error("ledger: Supabase sale lookup failed (treated as not found):", err);
-    return null;
+    console.error("ledger: Supabase sale lookup failed:", err);
+    throw err instanceof Error ? err : new Error(String(err));
   }
 }
 
@@ -205,13 +208,16 @@ export async function findRefundAsync(provider: string, saleId: string, salesFil
   try {
     const { createClient } = await import("@supabase/supabase-js");
     const supabase = createClient(url, key);
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("orders")
       .select("*")
       .eq("provider", provider)
       .eq("sale_id", saleId)
       .eq("event_type", "refund")
       .maybeSingle();
+    // Fail CLOSED: a lookup error is not "not found" — treating it as such would
+    // let a duplicate delivery through. The route 500s and the provider retries.
+    if (error) throw new Error(`ledger: Supabase refund lookup failed: ${error.message}`);
 
     if (!data) return null;
 
@@ -229,8 +235,8 @@ export async function findRefundAsync(provider: string, saleId: string, salesFil
       event_type: data.event_type as LedgerEventType
     };
   } catch (err) {
-    console.error("ledger: Supabase refund lookup failed (treated as not found):", err);
-    return null;
+    console.error("ledger: Supabase refund lookup failed:", err);
+    throw err instanceof Error ? err : new Error(String(err));
   }
 }
 

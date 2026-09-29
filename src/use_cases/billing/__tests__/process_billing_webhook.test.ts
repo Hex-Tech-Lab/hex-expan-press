@@ -105,7 +105,7 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
     const rows = readFileSync(salesFilePath, "utf8").split(/\r?\n/).filter(Boolean);
     expect(rows).toHaveLength(1);
     expect(setnx.mock.calls.length).toBeGreaterThan(0);
-    expect(setnx.mock.calls[0]?.[0]).toBe("sale:polar:sale_dup_1");
+    expect(setnx.mock.calls[0]?.[0]).toBe("lock:sale:polar:sale_dup_1");
   });
 
   it("a recorded sale short-circuits inside the lock (recorded:false, no re-write)", async () => {
@@ -126,7 +126,7 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
     await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(SALE)]);
     const rows = readFileSync(salesFilePath, "utf8").split(/\r?\n/).filter(Boolean);
     expect(rows).toHaveLength(1); // only the pre-existing record
-    expect(setnx).toHaveBeenCalledWith("sale:polar:sale_dup_1", "1", expect.anything());
+    expect(setnx).toHaveBeenCalledWith("lock:sale:polar:sale_dup_1", "1", expect.anything());
   });
 
   it("duplicate refund → returns normally, exactly 1 refund row", async () => {

@@ -132,6 +132,30 @@ describe("payments/src/ledger", () => {
     expect(rows).toHaveLength(2); // 1 sale + 1 refund — no duplicate refund row
   });
 
+  // Fail-closed lookups (P1): a Supabase read ERROR must throw, never read as
+  // "not found" — otherwise a transient outage lets a duplicate sale through.
+  it("findSaleAsync / findRefundAsync throw on a Supabase lookup error", async () => {
+    vi.stubEnv("SUPABASE_URL", "https://unit.test.supabase.co");
+    vi.stubEnv("SUPABASE_SECRET_KEY", "unit-test-key");
+    vi.doMock("@supabase/supabase-js", () => ({
+      createClient: () => ({
+        from: () => ({
+          select: () => {
+            const eq = () => ({ eq, maybeSingle: () => Promise.resolve({ data: null, error: { message: "connection reset" } }) });
+            return { eq };
+          },
+        }),
+      }),
+    }));
+    try {
+      const fresh = await import("../src/ledger.ts");
+      await expect(fresh.findSaleAsync("polar", "sale_err", salesFile)).rejects.toThrow(/sale lookup failed: connection reset/);
+      await expect(fresh.findRefundAsync("polar", "sale_err", salesFile)).rejects.toThrow(/refund lookup failed: connection reset/);
+    } finally {
+      vi.doUnmock("@supabase/supabase-js");
+    }
+  });
+
   // Supabase duplicate-check fallback (P1): findRefundAsync queries public.orders
   // with event_type='refund' when Supabase is configured.
   it("findRefundAsync queries public.orders for refunds when Supabase env set", async () => {
