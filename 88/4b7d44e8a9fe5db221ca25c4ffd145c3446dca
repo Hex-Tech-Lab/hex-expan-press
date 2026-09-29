@@ -1,0 +1,29 @@
+payments/src/ledger.ts
+  s_d5ee695bf1a23a::t_30766bd511b940 221-225
+payments/src/webhook_core.ts
+  s_d5ee695bf1a23a::t_4da148ec9901cb 9,123-128,147-155
+src/infrastructure/matrix_router/matrix_router.ts
+  s_d5ee695bf1a23a::t_a204ddbad0725e 1,15,28-29,38-40
+src/infrastructure/redis/redis.client.ts
+  s_d5ee695bf1a23a::t_383e09a3aa85cb 9-25,38,42,60
+src/use_cases/billing/__tests__/process_billing_webhook.test.ts
+  s_d5ee695bf1a23a::t_6d4cc2e883febe 46-48,230-271
+src/use_cases/billing/process_billing_webhook.ts
+  s_d5ee695bf1a23a::t_0945d228962f55 105-111
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "884b7d44e8a9fe5db221ca25c4ffd145c3446dca",
+  "prompts": {},
+  "sessions": {
+    "s_d5ee695bf1a23a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1c1a25a9-9f24-4048-af53-aa202091ce7e",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
