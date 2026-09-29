@@ -6,7 +6,7 @@ import { isRegisteredPaymentProvider, paymentProviderSetting } from "./settings_
 import { loadConfig, type ProductConfig } from "./settings.ts";
 import { computeSplit } from "./split.ts";
 import { effectiveCreatorSplitPct } from "./terms.ts";
-import { expanRedis } from "../../src/infrastructure/redis/redis.client.ts";
+import { expanRedis, isRedisRestConfigured } from "../../src/infrastructure/redis/redis.client.ts";
 import { lemonsqueezyProvider } from "./providers/lemonsqueezy.ts";
 import { payhipProvider } from "./providers/payhip.ts";
 import { paddleProvider } from "./providers/paddle.ts";
@@ -120,7 +120,12 @@ export function loadProductIndex(): Map<string, ProductConfig> {
 const WEBHOOK_LOCK_TTL_SECONDS = 300; // bounds a stuck lock if a process dies mid-write
 
 function isRedisConfigured(): boolean {
-  return Boolean(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN);
+  return isRedisRestConfigured();
+}
+
+/** Strictly Vercel production — previews/local/tests keep the lock optional. */
+function isProduction(): boolean {
+  return process.env.VERCEL_ENV === "production";
 }
 
 /**
@@ -139,7 +144,15 @@ export async function withIdempotencyLock(
   lockKey: string,
   fn: () => Promise<{ status: number; payload: Record<string, unknown> }>,
 ): Promise<{ status: number; payload: Record<string, unknown> }> {
-  if (!isRedisConfigured()) return fn();
+  if (!isRedisConfigured()) {
+    // Production must never process money without the distributed lock: an
+    // unconfigured store throws (→ 500, provider retries) instead of silently
+    // running unlocked. Elsewhere the lock stays optional infra.
+    if (isProduction()) {
+      throw new Error("webhook idempotency lock unavailable: Redis is not configured in production (set UPSTASH_REDIS_REST_* or KV_REST_API_*)");
+    }
+    return fn();
+  }
 
   const acquired = await expanRedis.setnx(lockKey, "1", WEBHOOK_LOCK_TTL_SECONDS);
   if (!acquired) throw new WebhookInFlightError(lockKey);

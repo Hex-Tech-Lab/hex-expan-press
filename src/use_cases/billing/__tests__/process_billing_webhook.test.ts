@@ -43,7 +43,9 @@ function adapter(event: SaleCompletedEvent | RefundIssuedEvent): PaymentProvider
 // held lock (SETNX semantics) — mirrors expanRedis under concurrency.
 const setnx = vi.fn<(...args: unknown[]) => Promise<number>>();
 
-vi.mock("../../../../src/infrastructure/redis/redis.client.ts", () => ({
+vi.mock("../../../../src/infrastructure/redis/redis.client.ts", async (importOriginal) => ({
+  // keep the real env helpers (redisRestEnv / isRedisRestConfigured) — only the client is faked
+  ...(await importOriginal<typeof import("../../../../src/infrastructure/redis/redis.client.ts")>()),
   expanRedis: {
     setnx: (...a: unknown[]) => setnx(...a),
     del: vi.fn(() => Promise.resolve(1)),
@@ -223,6 +225,48 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
     await expect(processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(REFUND)])).rejects.toThrow(
       /refund lookup failed: timeout|in flight/,
     );
+  });
+
+  // Wave 7.2 production readiness.
+  it("Vercel KV env names (KV_REST_API_*) alone enable the lock", async () => {
+    vi.stubEnv("UPSTASH_REDIS_REST_URL", "");
+    vi.stubEnv("UPSTASH_REDIS_REST_TOKEN", "");
+    vi.stubEnv("KV_REST_API_URL", "https://unit.test.kv.example");
+    vi.stubEnv("KV_REST_API_TOKEN", "kv-token");
+    setnx.mockResolvedValue(1);
+    await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(SALE)]);
+    expect(setnx).toHaveBeenCalledWith("lock:sale:polar:sale_dup_1", "1", expect.anything());
+  });
+
+  it("production with no Redis configured → fails closed (throws), never processes unlocked", async () => {
+    vi.stubEnv("UPSTASH_REDIS_REST_URL", "");
+    vi.stubEnv("UPSTASH_REDIS_REST_TOKEN", "");
+    vi.stubEnv("VERCEL_ENV", "production");
+    await expect(processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(SALE)])).rejects.toThrow(
+      /lock unavailable: Redis is not configured in production/,
+    );
+    expect(() => readFileSync(salesFilePath, "utf8")).toThrow(); // nothing written
+  });
+
+  it("production with Supabase unconfigured → mismatched refund is an infra error, not a quiet 400", async () => {
+    await appendSale(BASE_SALE, salesFilePath);
+    vi.stubEnv("VERCEL_ENV", "production");
+    setnx.mockResolvedValue(1);
+    const partial: RefundIssuedEvent = { ...REFUND, totalCents: 1000 };
+    const err = await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(partial)]).catch((e: Error) => e);
+    expect((err as Error).message).toMatch(/manual-review flag cannot be persisted/);
+    expect((err as Error).message).not.toMatch(/validation failed/);
+  });
+
+  it("a mismatched refund for an already-refunded sale is flagged, not acknowledged as a duplicate", async () => {
+    await appendSale(BASE_SALE, salesFilePath);
+    setnx.mockResolvedValue(1);
+    await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter({ ...REFUND, totalCents: 3900 })]); // full refund recorded
+    await expect(
+      processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter({ ...REFUND, totalCents: 500, refundId: "rf_2" })]),
+    ).rejects.toThrow(/validation failed: refund amount 500c != sale 3900c/);
+    const rows = readFileSync(salesFilePath, "utf8").split(/\r?\n/).filter(Boolean);
+    expect(rows.filter((r) => r.includes('"event_type":"refund"'))).toHaveLength(1);
   });
 
   it("full refund with an explicit amount equal to the sale → recorded", async () => {
