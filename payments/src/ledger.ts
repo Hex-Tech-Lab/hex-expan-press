@@ -197,7 +197,13 @@ export function findRefund(provider: string, saleId: string, salesFile: string =
   return null;
 }
 
-/** Durable dead-letter flag for a refund the ledger cannot represent (partial or
+/** AUDIT LOG IS APPEND-ONLY — NOT IDEMPOTENT. A provider that retries after a timed-out
+ *  response (the insert may have committed) can produce duplicate
+ *  MANUAL_REVIEW_REQUIRED_REFUND rows for the same refund. That is intentional: a
+ *  duplicate alert is safer than a lost one. Downstream triage MUST deduplicate on
+ *  (details->>'provider', details->>'sale_id') — plus details->>'refund_id' when present.
+ *
+ *  Durable dead-letter flag for a refund the ledger cannot represent (partial or
  *  mismatched amount). Written to the append-only public.audit_log as
  *  MANUAL_REVIEW_REQUIRED_REFUND so ops can query it after the provider stops
  *  retrying. Throws if Supabase is configured but the write fails, so the webhook

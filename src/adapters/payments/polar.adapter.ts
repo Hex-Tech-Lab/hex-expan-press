@@ -35,11 +35,18 @@ const PolarSaleSchema = z.object({
   })
 });
 
+// Polar's Refund object always carries order_id and amounts in cents: `amount` is the
+// refunded net (Polar caps refunds at the order's net amount, tax excluded) and
+// `tax_amount` the tax refunded with it. Polar supports PARTIAL refunds, so both are
+// REQUIRED here — a refund whose amount is missing or malformed fails schema
+// validation (400) instead of reaching the ledger as an amount-less "full reversal".
 const PolarRefundSchema = z.object({
   type: z.literal("refund.created"),
   data: z.object({
-    id: z.string().optional(),
-    order_id: z.string().optional(),
+    id: z.string().min(1),
+    order_id: z.string().min(1),
+    amount: z.number().int().nonnegative(),
+    tax_amount: z.number().int().nonnegative(),
     created_at: z.string().datetime().optional()
   })
 });
@@ -92,8 +99,10 @@ export class PolarAdapter implements PaymentProviderPort {
         const event: RefundIssuedEvent = {
           eventType: "refund_issued",
           providerName: this.providerName,
-          saleId: validated.data.order_id || validated.data.id || "",
+          saleId: validated.data.order_id,
           refundId: validated.data.id,
+          // Gross refunded = net + tax, comparable to the sale's total_amount (tax-inclusive).
+          totalCents: validated.data.amount + validated.data.tax_amount,
           occurredAt: validated.data.created_at || new Date().toISOString(),
           rawPayload: parsedJson
         };
