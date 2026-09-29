@@ -1,7 +1,7 @@
 // Regression tests for the billing webhook use case (Wave 6.2 P1): both the
 // sale and refund paths must run under the distributed idempotency lock —
-// a held lock or an already-recorded event returns normally (no duplicate
-// ledger writes, no double payout).
+// an already-recorded event returns normally (no duplicate ledger writes, no
+// double payout); a lock held by an unpersisted in-flight delivery is retryable (Wave 7).
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { mkdirSync, rmSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -95,17 +95,56 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
     vi.unstubAllEnvs();
   });
 
-  it("two concurrent duplicate sales → exactly 1 ledger row (lock mocked)", async () => {
-    setnx.mockResolvedValueOnce(1).mockResolvedValue(0); // first acquires, duplicate is held
-    const a = adapter(SALE);
-    await Promise.all([
-      processBillingWebhookUseCase({ headers: {}, body: "" }, [a]),
-      processBillingWebhookUseCase({ headers: {}, body: "" }, [a]),
-    ]);
+  const BASE_SALE: SaleRecord = {
+    ts: "2026-09-27T00:00:00.000Z",
+    sale_id: "sale_dup_1",
+    provider: "polar",
+    product_id: "p1",
+    amount_usd: 39,
+    creator_id: "c1",
+    creator_split_pct: 50,
+    creator_split_usd: 19.5,
+    our_split_usd: 19.5,
+    currency: "USD",
+  };
+
+  // Wave 7 in-flight contract: a held lock is NOT success — the holder may still
+  // fail. Unpersisted + held → WebhookInFlightError (route answers 503, provider retries).
+  it("lock held by an in-flight delivery and nothing persisted → rejects as in-flight, no write", async () => {
+    setnx.mockResolvedValue(0); // another delivery holds the lock
+    await expect(processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(SALE)])).rejects.toMatchObject({
+      name: "WebhookInFlightError",
+    });
+    expect(() => readFileSync(salesFilePath, "utf8")).toThrow(); // ledger never written
+    expect(setnx.mock.calls[0]?.[0]).toBe("lock:sale:polar:sale_dup_1");
+  });
+
+  it("lock held but the sale is already durably recorded → acknowledged (resolves), no re-write", async () => {
+    await appendSale(BASE_SALE, salesFilePath);
+    setnx.mockResolvedValue(0);
+    await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(SALE)]);
     const rows = readFileSync(salesFilePath, "utf8").split(/\r?\n/).filter(Boolean);
     expect(rows).toHaveLength(1);
-    expect(setnx.mock.calls.length).toBeGreaterThan(0);
-    expect(setnx.mock.calls[0]?.[0]).toBe("lock:sale:polar:sale_dup_1");
+  });
+
+  it("partial refund (amount < original sale) → rejected as validation failure, never recorded", async () => {
+    await appendSale(BASE_SALE, salesFilePath);
+    setnx.mockResolvedValue(1);
+    const partial: RefundIssuedEvent = { ...REFUND, totalCents: 1000, refundId: "rf_partial" };
+    await expect(processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(partial)])).rejects.toThrow(
+      /validation failed: partial refund/,
+    );
+    const rows = readFileSync(salesFilePath, "utf8").split(/\r?\n/).filter(Boolean);
+    expect(rows.filter((r) => r.includes('"event_type":"refund"'))).toHaveLength(0);
+  });
+
+  it("full refund with an explicit amount equal to the sale → recorded", async () => {
+    await appendSale(BASE_SALE, salesFilePath);
+    setnx.mockResolvedValue(1);
+    const full: RefundIssuedEvent = { ...REFUND, totalCents: 3900 };
+    await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(full)]);
+    const rows = readFileSync(salesFilePath, "utf8").split(/\r?\n/).filter(Boolean);
+    expect(rows.filter((r) => r.includes('"event_type":"refund"'))).toHaveLength(1);
   });
 
   it("a recorded sale short-circuits inside the lock (recorded:false, no re-write)", async () => {

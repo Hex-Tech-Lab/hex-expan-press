@@ -123,15 +123,26 @@ function isRedisConfigured(): boolean {
   return Boolean(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN);
 }
 
+/**
+ * Thrown when another delivery holds the idempotency lock. The holder may still
+ * FAIL, so this must never be acknowledged as success: callers either confirm the
+ * record is durably persisted (→ 200) or answer 503 so the provider retries.
+ */
+export class WebhookInFlightError extends Error {
+  constructor(readonly lockKey: string) {
+    super(`webhook in flight: lock ${lockKey} is held by another delivery`);
+    this.name = "WebhookInFlightError";
+  }
+}
+
 export async function withIdempotencyLock(
   lockKey: string,
-  duplicateResponse: { status: number; payload: Record<string, unknown> },
   fn: () => Promise<{ status: number; payload: Record<string, unknown> }>,
 ): Promise<{ status: number; payload: Record<string, unknown> }> {
   if (!isRedisConfigured()) return fn();
 
   const acquired = await expanRedis.setnx(lockKey, "1", WEBHOOK_LOCK_TTL_SECONDS);
-  if (!acquired) return duplicateResponse;
+  if (!acquired) throw new WebhookInFlightError(lockKey);
 
   try {
     const result = await fn();
@@ -148,10 +159,17 @@ export async function withIdempotencyLock(
   }
 }
 
+/** Legacy-handler shape for a held lock: retryable, never a success ack. */
+function inFlightResponse(err: unknown): { status: number; payload: Record<string, unknown> } {
+  if (err instanceof WebhookInFlightError) {
+    return { status: 503, payload: { ok: false, retryable: true, reason: "in-flight" } };
+  }
+  throw err;
+}
+
 export async function recordRefund(refundEvent: RefundEvent): Promise<{ status: number; payload: Record<string, unknown> }> {
   return withIdempotencyLock(
     `lock:refund:${refundEvent.provider}:${refundEvent.sale_id}`,
-    { status: 200, payload: { ok: true, recorded: false, reason: "duplicate-or-inflight", event_type: "refund", sale_id: refundEvent.sale_id } },
     async () => {
       const existingRefund = findRefund(refundEvent.provider, refundEvent.sale_id);
       if (existingRefund) {
@@ -165,13 +183,12 @@ export async function recordRefund(refundEvent: RefundEvent): Promise<{ status: 
         return { status: 500, payload: { ok: false, error: (err as Error).message } }; // infra failure → provider retries (4xx = never retried)
       }
     },
-  );
+  ).catch(inFlightResponse);
 }
 
 export async function recordSale(result: SaleEvent): Promise<{ status: number; payload: Record<string, unknown> }> {
   return withIdempotencyLock(
     `lock:sale:${result.provider}:${result.sale_id}`,
-    { status: 200, payload: { ok: true, recorded: false, reason: "duplicate-or-inflight", sale_id: result.sale_id } },
     async () => {
       const existing = findSale(result.provider, result.sale_id);
       if (existing) {
@@ -222,7 +239,7 @@ export async function recordSale(result: SaleEvent): Promise<{ status: number; p
         return { status: 500, payload: { ok: false, error: (err as Error).message } }; // infra failure → provider retries (4xx = never retried)
       }
     },
-  );
+  ).catch(inFlightResponse);
 }
 
 export async function handleWebhookPayload(

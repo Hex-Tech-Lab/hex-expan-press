@@ -10,7 +10,23 @@ import { PaymentProviderPort, SaleCompletedEvent, RefundIssuedEvent } from "../.
 import { appendSale, appendRefund, findSaleAsync, findRefundAsync } from "../../../payments/src/ledger.ts";
 import { computeSplit } from "../../../payments/src/split.ts";
 import { effectiveCreatorSplitPct } from "../../../payments/src/terms.ts";
-import { loadProductIndex, withIdempotencyLock } from "../../../payments/src/webhook_core.ts";
+import { loadProductIndex, withIdempotencyLock, WebhookInFlightError } from "../../../payments/src/webhook_core.ts";
+
+type LockedFn = () => Promise<{ status: number; payload: Record<string, unknown> }>;
+
+/**
+ * Run fn under the idempotency lock. A held lock is NOT success — the holder may
+ * still fail. Acknowledge only when the record is confirmed durable; otherwise
+ * rethrow WebhookInFlightError so the route answers 503 and the provider retries.
+ */
+async function underLockOrConfirmed(lockKey: string, isPersisted: () => Promise<boolean>, fn: LockedFn): Promise<void> {
+  try {
+    await withIdempotencyLock(lockKey, fn);
+  } catch (err) {
+    if (err instanceof WebhookInFlightError && (await isPersisted())) return;
+    throw err;
+  }
+}
 
 export interface ProcessWebhookRequest {
   headers: Record<string, string | string[] | undefined>;
@@ -50,13 +66,27 @@ export async function processBillingWebhookUseCase(
     return;
   }
 
-  // 4. Refund — wrapped in the distributed idempotency lock (refund events only carry
-  // sale_id — no refund id exists to key on). Lock held or duplicate → return normally.
+  // 4. Refund — wrapped in the distributed idempotency lock, keyed on sale_id.
+  // REFUND CONTRACT (ADR-0050/0057): refunds are FULL REVERSALS only — one refund
+  // per sale, stored as the negated split of the original sale. A partial refund
+  // cannot be represented, so it is rejected (400, visible as a failed delivery in
+  // the provider dashboard) for manual handling instead of being silently recorded
+  // as a full reversal or collapsed into an earlier refund.
   if (event.eventType === "refund_issued") {
     const refundEvent = event as RefundIssuedEvent;
-    await withIdempotencyLock(
+    if (refundEvent.totalCents !== undefined) {
+      const original = await findSaleAsync(refundEvent.providerName, refundEvent.saleId);
+      if (original && refundEvent.totalCents < Math.round(original.amount_usd * 100)) {
+        console.error(
+          `[billing] PARTIAL REFUND needs manual handling: provider=${refundEvent.providerName} sale=${refundEvent.saleId} ` +
+            `refund=${refundEvent.totalCents}c original=${Math.round(original.amount_usd * 100)}c refundId=${refundEvent.refundId ?? "n/a"}`,
+        );
+        throw new Error(`Webhook validation failed: partial refund for sale ${refundEvent.saleId} — full reversals only, manual review required`);
+      }
+    }
+    await underLockOrConfirmed(
       `lock:refund:${refundEvent.providerName}:${refundEvent.saleId}`,
-      { status: 200, payload: { ok: true, recorded: false, reason: "duplicate-or-inflight", event_type: "refund", sale_id: refundEvent.saleId } },
+      async () => (await findRefundAsync(refundEvent.providerName, refundEvent.saleId)) !== null,
       async () => {
         const existingRefund = await findRefundAsync(refundEvent.providerName, refundEvent.saleId);
         if (existingRefund) {
@@ -78,11 +108,12 @@ export async function processBillingWebhookUseCase(
     const saleEvent = event as SaleCompletedEvent;
 
     // 5a. Distributed idempotency lock: concurrent/duplicate deliveries for the same sale
-    // take the lock; a held lock or already-recorded sale → return normally (no double payout).
+    // take the lock. Already-recorded sale → return normally (no double payout); lock held
+    // by an in-flight delivery → WebhookInFlightError → 503 so the provider retries.
     // withIdempotencyLock also frees the slot when nothing was written (payload.recorded !== true).
-    await withIdempotencyLock(
+    await underLockOrConfirmed(
       `lock:sale:${saleEvent.providerName}:${saleEvent.saleId}`,
-      { status: 200, payload: { ok: true, recorded: false, reason: "duplicate-or-inflight", sale_id: saleEvent.saleId } },
+      async () => (await findSaleAsync(saleEvent.providerName, saleEvent.saleId)) !== null,
       async () => {
         // Duplicate guard: if sale already recorded, exit early without duplicating splits
         const existing = await findSaleAsync(saleEvent.providerName, saleEvent.saleId);
