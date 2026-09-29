@@ -89,3 +89,4 @@ supabase/.temp/
 coverage/
 docs/for_sharing/
 !docs/adr/
+docs/_archive/legacy_adrs/
