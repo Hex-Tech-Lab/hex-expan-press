@@ -1,6 +1,7 @@
 import { mkdirSync, readFileSync } from "node:fs";
 import { open } from "node:fs/promises";
 import { dirname, join, basename } from "node:path";
+import { z } from "zod";
 import { GLOBAL } from "./settings_registry.ts";
 
 export type LedgerEventType = "sale" | "refund";
@@ -194,6 +195,36 @@ export function findRefund(provider: string, saleId: string, salesFile: string =
     }
   }
   return null;
+}
+
+/** Durable dead-letter flag for a refund the ledger cannot represent (partial or
+ *  mismatched amount). Written to the append-only public.audit_log as
+ *  MANUAL_REVIEW_REQUIRED_REFUND so ops can query it after the provider stops
+ *  retrying. Throws if Supabase is configured but the write fails, so the webhook
+ *  answers 500 and the provider redelivers (the flag is never silently lost). */
+const ManualReviewRefundSchema = z.object({
+  provider: z.string().min(1),
+  sale_id: z.string().min(1),
+  refund_id: z.string().nullable(),
+  refund_cents: z.number().int().nonnegative(),
+  sale_cents: z.number().int().nonnegative(),
+  creator_id: z.string().nullable(),
+  occurred_at: z.string(),
+}).strict();
+export type ManualReviewRefund = z.infer<typeof ManualReviewRefundSchema>;
+
+export async function flagRefundForManualReview(input: ManualReviewRefund): Promise<void> {
+  const details = ManualReviewRefundSchema.parse(input);
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SECRET_KEY;
+  if (!url || !key) {
+    console.error("ledger: MANUAL_REVIEW_REQUIRED_REFUND (Supabase unconfigured, not persisted):", details);
+    return;
+  }
+  const { createClient } = await import("@supabase/supabase-js");
+  const supabase = createClient(url, key);
+  const { error } = await supabase.from("audit_log").insert({ event: "MANUAL_REVIEW_REQUIRED_REFUND", details });
+  if (error) throw new Error(`ledger: manual-review flag write failed: ${error.message}`);
 }
 
 /** Asynchronously finds a refund, falling back to Supabase public.orders if not found in local file. */

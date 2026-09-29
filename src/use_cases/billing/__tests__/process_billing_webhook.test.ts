@@ -49,6 +49,30 @@ vi.mock("../../../../src/infrastructure/redis/redis.client.ts", () => ({
     del: vi.fn(() => Promise.resolve(1)),
   },
 }));
+// Supabase is only reached when a test stubs SUPABASE_URL/SECRET_KEY. orders reads
+// return lookupResult; audit_log inserts are captured for the dead-letter tests.
+const supa = vi.hoisted(() => ({
+  lookupResult: { data: null as unknown, error: null as unknown },
+  auditInserts: [] as Record<string, unknown>[],
+  auditError: null as unknown,
+}));
+vi.mock("@supabase/supabase-js", () => ({
+  createClient: () => ({
+    from: (table: string) => {
+      if (table === "audit_log") {
+        return {
+          insert: async (row: Record<string, unknown>) => {
+            supa.auditInserts.push(row);
+            return { error: supa.auditError };
+          },
+        };
+      }
+      const eq = () => ({ eq, maybeSingle: async () => supa.lookupResult });
+      return { select: () => ({ eq }), upsert: async () => ({ error: null }) };
+    },
+  }),
+}));
+
 // Deterministic product config so the use case resolves creator/split.
 vi.mock("../../../../payments/src/webhook_core.ts", async (importOriginal) => {
   const orig = await importOriginal<typeof import("../../../../payments/src/webhook_core.ts")>();
@@ -83,6 +107,9 @@ vi.mock("../../../../payments/src/settings_registry.ts", () => ({
 describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
   beforeEach(() => {
     setnx.mockReset();
+    supa.lookupResult = { data: null, error: null };
+    supa.auditInserts = [];
+    supa.auditError = null;
     mkdirSync(salesFileDir, { recursive: true });
     // The distributed lock is env-gated (optional infra) — stub the envs so
     // withIdempotencyLock actually consults the mocked expanRedis.
@@ -132,10 +159,70 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
     setnx.mockResolvedValue(1);
     const partial: RefundIssuedEvent = { ...REFUND, totalCents: 1000, refundId: "rf_partial" };
     await expect(processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(partial)])).rejects.toThrow(
-      /validation failed: partial refund/,
+      /validation failed: refund amount 1000c != sale 3900c/,
     );
     const rows = readFileSync(salesFilePath, "utf8").split(/\r?\n/).filter(Boolean);
     expect(rows.filter((r) => r.includes('"event_type":"refund"'))).toHaveLength(0);
+  });
+
+  it("over-refund (amount > original sale) → rejected, never recorded as a full reversal", async () => {
+    await appendSale(BASE_SALE, salesFilePath);
+    setnx.mockResolvedValue(1);
+    const over: RefundIssuedEvent = { ...REFUND, totalCents: 5000 };
+    await expect(processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(over)])).rejects.toThrow(
+      /validation failed: refund amount 5000c != sale 3900c/,
+    );
+    const rows = readFileSync(salesFilePath, "utf8").split(/\r?\n/).filter(Boolean);
+    expect(rows.filter((r) => r.includes('"event_type":"refund"'))).toHaveLength(0);
+  });
+
+  it("mismatched refund writes a durable MANUAL_REVIEW_REQUIRED_REFUND audit row before rejecting", async () => {
+    await appendSale(BASE_SALE, salesFilePath); // recorded locally before Supabase env is on
+    vi.stubEnv("SUPABASE_URL", "https://unit.test.supabase.co");
+    vi.stubEnv("SUPABASE_SECRET_KEY", "unit-test-key");
+    setnx.mockResolvedValue(1);
+    const partial: RefundIssuedEvent = { ...REFUND, totalCents: 1000, refundId: "rf_1" };
+    await expect(processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(partial)])).rejects.toThrow(/validation failed/);
+    expect(supa.auditInserts).toHaveLength(1);
+    expect(supa.auditInserts[0]).toMatchObject({
+      event: "MANUAL_REVIEW_REQUIRED_REFUND",
+      details: { provider: "polar", sale_id: "sale_dup_1", refund_id: "rf_1", refund_cents: 1000, sale_cents: 3900 },
+    });
+  });
+
+  it("dead-letter write failure → infra error (500 path, provider retries), not a silent 400", async () => {
+    await appendSale(BASE_SALE, salesFilePath);
+    vi.stubEnv("SUPABASE_URL", "https://unit.test.supabase.co");
+    vi.stubEnv("SUPABASE_SECRET_KEY", "unit-test-key");
+    supa.auditError = { message: "db down" };
+    setnx.mockResolvedValue(1);
+    const partial: RefundIssuedEvent = { ...REFUND, totalCents: 1000 };
+    const err = await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(partial)]).catch((e: Error) => e);
+    expect((err as Error).message).toMatch(/manual-review flag write failed: db down/);
+    expect((err as Error).message).not.toMatch(/validation failed/);
+  });
+
+  it("refund lock held by an in-flight delivery and no refund persisted → rejects as in-flight", async () => {
+    await appendSale(BASE_SALE, salesFilePath);
+    setnx.mockResolvedValue(0);
+    await expect(processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(REFUND)])).rejects.toMatchObject({
+      name: "WebhookInFlightError",
+    });
+    expect(setnx.mock.calls[0]?.[0]).toBe("lock:refund:polar:sale_dup_1");
+  });
+
+  // Interleaving: the lock holder has not made the refund durable (Supabase write
+  // pending/failed, so no local row either — Supabase is written FIRST). The
+  // contending delivery's durable lookup errors → it must NOT be acknowledged.
+  it("refund contention while the durable lookup fails → rejected, never acknowledged", async () => {
+    await appendSale(BASE_SALE, salesFilePath);
+    vi.stubEnv("SUPABASE_URL", "https://unit.test.supabase.co");
+    vi.stubEnv("SUPABASE_SECRET_KEY", "unit-test-key");
+    supa.lookupResult = { data: null, error: { message: "timeout" } };
+    setnx.mockResolvedValue(0);
+    await expect(processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(REFUND)])).rejects.toThrow(
+      /refund lookup failed: timeout|in flight/,
+    );
   });
 
   it("full refund with an explicit amount equal to the sale → recorded", async () => {
