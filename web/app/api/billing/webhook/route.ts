@@ -61,6 +61,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     await processBillingWebhookUseCase({ headers, body }, adapters);
     return NextResponse.json({ ok: true });
   } catch (err) {
+    // Another delivery of this event holds the idempotency lock and has not
+    // persisted yet — never 200 here (the holder may still fail). 503 +
+    // Retry-After makes the provider redeliver.
+    if (err instanceof Error && err.name === "WebhookInFlightError") {
+      return NextResponse.json(
+        { ok: false, error: "In flight — retry" },
+        { status: 503, headers: { "Retry-After": "30" } },
+      );
+    }
     console.error("Billing webhook error:", err);
     const message = err instanceof Error ? err.message : String(err);
     const isValidationErr = message.includes("validation failed") || message.includes("No payment provider");
