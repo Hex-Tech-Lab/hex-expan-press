@@ -1,0 +1,35 @@
+supabase/migrations/20260929000000_submit_consent_integrity.sql
+  s_d5ee695bf1a23a::t_5575bf8fe918a7 1-121
+supabase/migrations/20260929000100_drop_legacy_submit_consent_overload.sql
+  s_d5ee695bf1a23a::t_a2a10d1f7ecf05 1-4
+web/app/creator/consents/__tests__/actions.test.ts
+  s_d5ee695bf1a23a::t_8fe9e48459f0b5 9,12-14,56,112-120
+web/app/creator/consents/actions.ts
+  s_d5ee695bf1a23a::t_0b0a4317405d59 42,46-55
+web/app/creator/consents/consent-cards.tsx
+  s_d5ee695bf1a23a::t_12a16adcfc91a5 116,127
+web/app/creator/consents/esign_done/page.tsx
+  s_d5ee695bf1a23a::t_202395421dd121 2,9-14,17,21-40,45,47-49,51-53
+web/app/creator/consents/page.tsx
+  s_d5ee695bf1a23a::t_9fe394d923c767 24-26,37
+web/app/creator/review/page.tsx
+  s_d5ee695bf1a23a::t_102fdfad59522c 80-89
+web/app/creator/review/review-client.tsx
+  s_d5ee695bf1a23a::t_63b8636a820deb 128,147-157,183-185,203-213
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "b8f0fb7dcd8b86fef1965a351c8c709999ebc2e2",
+  "prompts": {},
+  "sessions": {
+    "s_d5ee695bf1a23a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1c1a25a9-9f24-4048-af53-aa202091ce7e",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
