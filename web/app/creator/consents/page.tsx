@@ -21,11 +21,9 @@ export default async function ConsentsPage() {
   }
   const { supabase } = session;
 
-  const [productRes, consentsRes] = await Promise.all([
-    supabase.from("products").select("id, title").order("created_at", { ascending: true }).limit(1),
-    supabase.from("consents").select("kind, decision").eq("decision", "given"),
-  ]);
-
+  // Product first, then ITS consents: a creator with several products must never
+  // see one book's consent as another's (same product resolution as the action).
+  const productRes = await supabase.from("products").select("id, title").order("created_at", { ascending: true }).limit(1);
   const product = productRes.data?.[0];
   if (productRes.error || !product) {
     return (
@@ -36,6 +34,7 @@ export default async function ConsentsPage() {
     );
   }
 
+  const consentsRes = await supabase.from("consents").select("kind, decision").eq("decision", "given").eq("product_id", product.id);
   const given = new Set((consentsRes.data ?? []).map((c) => c.kind));
   if (consentsRes.error) {
     return (

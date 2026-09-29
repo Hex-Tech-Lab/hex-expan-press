@@ -113,7 +113,7 @@ export default function ConsentCards({ bookTitle, hasC1, hasC2, hasC3 }: Consent
         label="Data Accuracy"
         heading="Data accuracy (C1)"
         legal="I confirm that my answers to the review questions are true and accurate to the best of my knowledge."
-        done={hasC1}
+        done={!!c1Done}
         state={c1State}
         formAction={c1Action}
         pending={c1Pending}
@@ -124,7 +124,7 @@ export default function ConsentCards({ bookTitle, hasC1, hasC2, hasC3 }: Consent
         label="Release Approval"
         heading="Release approval (C2)"
         legal="I approve the release of the final PDF for publication."
-        done={hasC2}
+        done={!!c2Done}
         state={c2State}
         formAction={c2Action}
         pending={c2Pending}
