@@ -218,6 +218,11 @@ export async function flagRefundForManualReview(input: ManualReviewRefund): Prom
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SECRET_KEY;
   if (!url || !key) {
+    // Production: a flag that cannot be persisted must not become a quiet 400 —
+    // throw so the webhook 500s and the provider retries until config is fixed.
+    if (process.env.VERCEL_ENV === "production") {
+      throw new Error("ledger: manual-review flag cannot be persisted: Supabase is not configured in production");
+    }
     console.error("ledger: MANUAL_REVIEW_REQUIRED_REFUND (Supabase unconfigured, not persisted):", details);
     return;
   }

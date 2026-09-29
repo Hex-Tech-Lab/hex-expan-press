@@ -6,6 +6,23 @@ import { GLOBAL } from "../../../payments/src/settings_registry.ts";
  * Never performs FLUSHDB or un-namespaced operations.
  * Protects hex-yt-intel (which uses budget:*, ci:*, relations:*).
  */
+/**
+ * Redis REST credentials. Raw Upstash uses UPSTASH_REDIS_REST_*; the Vercel
+ * KV / Marketplace integration injects KV_REST_API_*. Accept either so a
+ * Vercel-provisioned store is never silently ignored.
+ */
+export function redisRestEnv(): { url: string; token: string } {
+  return {
+    url: (process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL || "").replace(/\/$/, ""),
+    token: process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN || "",
+  };
+}
+
+export function isRedisRestConfigured(): boolean {
+  const { url, token } = redisRestEnv();
+  return Boolean(url && token);
+}
+
 export class ExpanRedisClient {
   private url?: string;
   private token?: string;
@@ -18,11 +35,11 @@ export class ExpanRedisClient {
   }
 
   private getUrl(): string {
-    return (this.url ?? process.env.UPSTASH_REDIS_REST_URL ?? "").replace(/\/$/, "");
+    return (this.url ?? redisRestEnv().url).replace(/\/$/, "");
   }
 
   private getToken(): string {
-    return this.token ?? process.env.UPSTASH_REDIS_REST_TOKEN ?? "";
+    return this.token ?? redisRestEnv().token;
   }
 
   private key(k: string): string {
@@ -40,7 +57,7 @@ export class ExpanRedisClient {
     const token = this.getToken();
 
     if (!url || !token) {
-      throw new Error("ExpanRedisClient: Missing UPSTASH_REDIS_REST_URL or UPSTASH_REDIS_REST_TOKEN");
+      throw new Error("ExpanRedisClient: Missing UPSTASH_REDIS_REST_URL/TOKEN (or Vercel KV_REST_API_URL/TOKEN)");
     }
 
     const controller = new AbortController();

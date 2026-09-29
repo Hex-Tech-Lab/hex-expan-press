@@ -1,4 +1,4 @@
-import { expanRedis } from "../redis/redis.client.ts";
+import { expanRedis, isRedisRestConfigured } from "../redis/redis.client.ts";
 import { ProviderRoute } from "../../domain/settings/settings.port.ts";
 
 interface RouterState {
@@ -12,7 +12,7 @@ const DEFAULT_DOWN_MS = 15 * 60 * 1000;
 export class MatrixRouter {
   
   private static isRedisConfigured(): boolean {
-    return Boolean(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN);
+    return isRedisRestConfigured();
   }
 
   private static redisKey(namespace: string, id: string): string {
@@ -25,7 +25,8 @@ export class MatrixRouter {
       const raw = await expanRedis.get<string>(this.redisKey(namespace, id));
       if (!raw) return null;
       return JSON.parse(raw) as RouterState;
-    } catch {
+    } catch (err) {
+      console.warn("[matrix_router] routing state read failed — falling back to default route:", err);
       return null;
     }
   }
@@ -34,8 +35,9 @@ export class MatrixRouter {
     if (!this.isRedisConfigured()) return;
     try {
       await expanRedis.set(this.redisKey(namespace, id), JSON.stringify(state));
-    } catch {
-      // ignore silently on save failure if it's a transient network issue
+    } catch (err) {
+      // Non-fatal: a transient save failure only loses routing stickiness.
+      console.warn("[matrix_router] routing state save failed:", err);
     }
   }
 

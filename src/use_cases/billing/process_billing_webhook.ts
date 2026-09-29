@@ -84,10 +84,6 @@ export async function processBillingWebhookUseCase(
       `lock:refund:${refundEvent.providerName}:${refundEvent.saleId}`,
       async () => (await findRefundAsync(refundEvent.providerName, refundEvent.saleId)) !== null,
       async () => {
-        const existingRefund = await findRefundAsync(refundEvent.providerName, refundEvent.saleId);
-        if (existingRefund) {
-          return { status: 200, payload: { ok: true, recorded: false, reason: "duplicate", event_type: "refund", sale_id: refundEvent.saleId } };
-        }
         if (refundEvent.totalCents !== undefined) {
           const original = await findSaleAsync(refundEvent.providerName, refundEvent.saleId);
           const saleCents = original ? Math.round(original.amount_usd * 100) : null;
@@ -105,6 +101,13 @@ export async function processBillingWebhookUseCase(
               `Webhook validation failed: refund amount ${refundEvent.totalCents}c != sale ${saleCents}c for sale ${refundEvent.saleId} — full reversals only, flagged for manual review`,
             );
           }
+        }
+        // Duplicate check AFTER amount validation: a second refund event with a
+        // mismatched amount for an already-refunded sale is a different refund and
+        // must be flagged, not acknowledged as a duplicate of the first.
+        const existingRefund = await findRefundAsync(refundEvent.providerName, refundEvent.saleId);
+        if (existingRefund) {
+          return { status: 200, payload: { ok: true, recorded: false, reason: "duplicate", event_type: "refund", sale_id: refundEvent.saleId } };
         }
         // appendRefund refuses (throws → 500, provider retries) when the sale is not recorded yet.
         await appendRefund({
