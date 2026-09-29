@@ -6,9 +6,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const rpcMock = vi.fn();
+let releaseSha: string | null = "a".repeat(64);
 const productSelect = {
   select: vi.fn(() => ({
-    limit: vi.fn(async () => ({ data: [{ id: "p1", release_sha256: "a".repeat(64) }] })),
+    order: vi.fn(() => ({
+      limit: vi.fn(async () => ({ data: [{ id: "p1", release_sha256: releaseSha }] })),
+    })),
   })),
 };
 
@@ -50,6 +53,7 @@ describe("signConsentAction (Wave 6.1)", () => {
   beforeEach(() => {
     rpcMock.mockReset();
     rpcMock.mockResolvedValue({ error: null });
+    releaseSha = "a".repeat(64);
   });
 
   it("fails closed to the signin redirect when there is no session", async () => {
@@ -103,6 +107,15 @@ describe("signConsentAction (Wave 6.1)", () => {
         p_document_sha256: "a".repeat(64),
       }),
     );
+  });
+
+  it("refuses C2 when the release hash is missing or the zero placeholder — never writes", async () => {
+    for (const bad of [null, "0".repeat(64), "not-a-hash"]) {
+      releaseSha = bad;
+      const res = await signConsentAction({}, fd("C2_release_approval", "Duane Smith"));
+      expect(res.error).toMatch(/isn't ready to approve/);
+    }
+    expect(rpcMock).not.toHaveBeenCalled();
   });
 
   it("maps an RPC failure to a friendly error, never a crash", async () => {

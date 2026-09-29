@@ -77,6 +77,16 @@ export default async function ReviewPage() {
     );
   }
 
+  // A failed answers read must not look like "nothing answered yet".
+  if (answersRes.error) {
+    return (
+      <ReviewNotice
+        title="We couldn't load your saved answers."
+        body="Your work is safe — please reload in a moment."
+      />
+    );
+  }
+
   // First hit per item = most recent answer (resume parity with legacy).
   const saved = new Map<string, { choice: string | null; freeText: string | null }>();
   for (const a of answersRes.data ?? []) {
