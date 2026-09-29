@@ -55,7 +55,7 @@ export async function processBillingWebhookUseCase(
   if (event.eventType === "refund_issued") {
     const refundEvent = event as RefundIssuedEvent;
     await withIdempotencyLock(
-      `refund:${refundEvent.providerName}:${refundEvent.saleId}`,
+      `lock:refund:${refundEvent.providerName}:${refundEvent.saleId}`,
       { status: 200, payload: { ok: true, recorded: false, reason: "duplicate-or-inflight", event_type: "refund", sale_id: refundEvent.saleId } },
       async () => {
         const existingRefund = await findRefundAsync(refundEvent.providerName, refundEvent.saleId);
@@ -81,7 +81,7 @@ export async function processBillingWebhookUseCase(
     // take the lock; a held lock or already-recorded sale → return normally (no double payout).
     // withIdempotencyLock also frees the slot when nothing was written (payload.recorded !== true).
     await withIdempotencyLock(
-      `sale:${saleEvent.providerName}:${saleEvent.saleId}`,
+      `lock:sale:${saleEvent.providerName}:${saleEvent.saleId}`,
       { status: 200, payload: { ok: true, recorded: false, reason: "duplicate-or-inflight", sale_id: saleEvent.saleId } },
       async () => {
         // Duplicate guard: if sale already recorded, exit early without duplicating splits
