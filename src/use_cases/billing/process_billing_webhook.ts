@@ -7,7 +7,7 @@
  * ADR: ADR-0049, ADR-0050
  */
 import { PaymentProviderPort, SaleCompletedEvent, RefundIssuedEvent } from "../../domain/payments/payments.port.ts";
-import { appendSale, appendRefund, findSaleAsync, findRefundAsync } from "../../../payments/src/ledger.ts";
+import { appendSale, appendRefund, findSaleAsync, findRefundAsync, flagRefundForManualReview } from "../../../payments/src/ledger.ts";
 import { computeSplit } from "../../../payments/src/split.ts";
 import { effectiveCreatorSplitPct } from "../../../payments/src/terms.ts";
 import { loadProductIndex, withIdempotencyLock, WebhookInFlightError } from "../../../payments/src/webhook_core.ts";
@@ -66,24 +66,20 @@ export async function processBillingWebhookUseCase(
     return;
   }
 
-  // 4. Refund — wrapped in the distributed idempotency lock, keyed on sale_id.
+  // 4. Refund — every check runs INSIDE the idempotency lock (keyed on sale_id), so
+  // the sale lookup, amount validation and write see one consistent state (no
+  // check-then-lock TOCTOU window).
+  //
   // REFUND CONTRACT (ADR-0050/0057): refunds are FULL REVERSALS only — one refund
-  // per sale, stored as the negated split of the original sale. A partial refund
-  // cannot be represented, so it is rejected (400, visible as a failed delivery in
-  // the provider dashboard) for manual handling instead of being silently recorded
-  // as a full reversal or collapsed into an earlier refund.
+  // per sale, stored as the negated split of the original sale.
+  //  - totalCents present: must EQUAL the original sale amount exactly. Partial and
+  //    over-refunds are flagged durably (audit_log MANUAL_REVIEW_REQUIRED_REFUND)
+  //    and rejected with a validation failure (400).
+  //  - totalCents absent: the adapter's provider does not report a refund amount
+  //    (Polar sends it; Payhip-style legacy providers do not) — treated as a full
+  //    reversal of the linked sale.
   if (event.eventType === "refund_issued") {
     const refundEvent = event as RefundIssuedEvent;
-    if (refundEvent.totalCents !== undefined) {
-      const original = await findSaleAsync(refundEvent.providerName, refundEvent.saleId);
-      if (original && refundEvent.totalCents < Math.round(original.amount_usd * 100)) {
-        console.error(
-          `[billing] PARTIAL REFUND needs manual handling: provider=${refundEvent.providerName} sale=${refundEvent.saleId} ` +
-            `refund=${refundEvent.totalCents}c original=${Math.round(original.amount_usd * 100)}c refundId=${refundEvent.refundId ?? "n/a"}`,
-        );
-        throw new Error(`Webhook validation failed: partial refund for sale ${refundEvent.saleId} — full reversals only, manual review required`);
-      }
-    }
     await underLockOrConfirmed(
       `lock:refund:${refundEvent.providerName}:${refundEvent.saleId}`,
       async () => (await findRefundAsync(refundEvent.providerName, refundEvent.saleId)) !== null,
@@ -92,6 +88,25 @@ export async function processBillingWebhookUseCase(
         if (existingRefund) {
           return { status: 200, payload: { ok: true, recorded: false, reason: "duplicate", event_type: "refund", sale_id: refundEvent.saleId } };
         }
+        if (refundEvent.totalCents !== undefined) {
+          const original = await findSaleAsync(refundEvent.providerName, refundEvent.saleId);
+          const saleCents = original ? Math.round(original.amount_usd * 100) : null;
+          if (saleCents !== null && refundEvent.totalCents !== saleCents) {
+            await flagRefundForManualReview({
+              provider: refundEvent.providerName,
+              sale_id: refundEvent.saleId,
+              refund_id: refundEvent.refundId ?? null,
+              refund_cents: refundEvent.totalCents,
+              sale_cents: saleCents,
+              creator_id: original?.creator_id ?? null,
+              occurred_at: refundEvent.occurredAt,
+            });
+            throw new Error(
+              `Webhook validation failed: refund amount ${refundEvent.totalCents}c != sale ${saleCents}c for sale ${refundEvent.saleId} — full reversals only, flagged for manual review`,
+            );
+          }
+        }
+        // appendRefund refuses (throws → 500, provider retries) when the sale is not recorded yet.
         await appendRefund({
           provider: refundEvent.providerName as any,
           sale_id: refundEvent.saleId,
