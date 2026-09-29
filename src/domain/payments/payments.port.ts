@@ -133,8 +133,9 @@ export interface RefundIssuedEvent {
   //  - Polar: ALWAYS set (schema requires amount + tax_amount; missing/malformed → 400).
   //  - Legacy providers (via LegacyPaymentAdapterWrapper): absent. payhip and fastspring
   //    verify full-vs-partial in their own parsers and refuse partials before emitting a
-  //    refund. lemonsqueezy emits no refund events. fungies does NOT check the amount
-  //    (payment_refunded → full reversal) — KNOWN GAP until its refund payload is mapped.
+  //    refund. lemonsqueezy emits no refund events. fungies payment_refunded carries no
+  //    refunded-amount field (full vs partial unverifiable), so ALL fungies refunds are
+  //    422-refused for manual review — no fungies refund is ever emitted.
   totalCents?: AmountCents;
   currency?: CurrencyCode;
 

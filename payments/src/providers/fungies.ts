@@ -107,14 +107,17 @@ export const fungiesProvider: CheckoutProvider = {
       };
     }
     if (eventName === "payment_refunded") {
-      const rdata = body?.data ?? {};
-      const rpayment = rdata.payment;
-      const rorder = rdata.order;
-      const saleId = String(getPath(body, FM.sale_id) ?? rpayment?.id ?? rorder?.id ?? "");
-      if (!saleId) {
-        return { ok: false, status: 400, error: "payment_refunded missing data.payment.id — refund cannot be linked to a recorded sale" };
-      }
-      return { ok: true, refund: { provider: NAME, sale_id: saleId, ts: isoTs(getPath(body, FM.ts_ms), rpayment?.createdAt, rorder?.createdAt) } };
+      // Fungies' payment_refunded payload carries no refunded-amount field (the field_map in
+      // data/settings/providers.json maps only data.payment.value — the ORIGINAL sale gross,
+      // not the refunded portion; demo payload in payments/demo_fungies_route.sh:71-85 shows
+      // items/order/payment with no refund amount either). A partial refund would therefore
+      // be indistinguishable from a full one, and the ledger's event_type=refund is a
+      // full-reversal record — refuse ALL Fungies refunds for manual review.
+      return {
+        ok: false,
+        status: 422,
+        error: "fungies refund amount not mapped — full vs partial cannot be verified; manual review required",
+      };
     }
     if (!SALE_EVENTS.includes(eventName)) {
       return { ok: false, status: 202, error: `ignored non-sale event: ${eventName ?? "<none>"}` };
