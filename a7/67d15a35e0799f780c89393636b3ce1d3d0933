@@ -1,0 +1,31 @@
+docs/adr/0057-webhook-idempotency-and-fail-closed.md
+  s_d5ee695bf1a23a::t_5a698840c82d45 19,29
+docs/adr/README.md
+  s_d5ee695bf1a23a::t_7093b8ee4bec01 1-13
+payments/src/webhook_core.ts
+  s_d5ee695bf1a23a::t_b7573540b42b51 126-137,145,162-169,186,242
+src/use_cases/billing/__tests__/process_billing_webhook.test.ts
+  s_d5ee695bf1a23a::t_bc56028f1604eb 3-4,98-125,128-147
+src/use_cases/billing/process_billing_webhook.ts
+  s_d5ee695bf1a23a::t_5bad131d381c98 13-29,69-74,77-87,89,111-112,114,116
+web/app/api/billing/webhook/__tests__/in-flight.test.ts
+  s_d5ee695bf1a23a::t_2fcb63bf9e739a 1-24
+web/app/api/billing/webhook/route.ts
+  s_d5ee695bf1a23a::t_f2ebd43cac4e20 64-72
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a767d15a35e0799f780c89393636b3ce1d3d0933",
+  "prompts": {},
+  "sessions": {
+    "s_d5ee695bf1a23a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1c1a25a9-9f24-4048-af53-aa202091ce7e",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
