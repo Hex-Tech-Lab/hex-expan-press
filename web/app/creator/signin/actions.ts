@@ -11,10 +11,31 @@ import { createSsrClient } from "../../../src/lib/supabase-ssr";
  * /auth/callback code exchange.
  */
 
+// Production origin allow-list: the request host is trusted ONLY when it is on
+// this list — anything else (spoofed/proxied Host header) falls back to the
+// canonical origin so the OAuth round-trip can never be steered to an
+// attacker-controlled domain. Extra internal hosts can be added via
+// ALLOWED_AUTH_HOSTS (comma-separated).
+const CANONICAL_PROD_HOSTS = ["expanpress.com", "www.expanpress.com"];
+
+function allowedProdHosts(): Set<string> {
+  return new Set([
+    ...CANONICAL_PROD_HOSTS,
+    ...String(process.env.ALLOWED_AUTH_HOSTS ?? "")
+      .split(",")
+      .map((h) => h.trim().toLowerCase())
+      .filter(Boolean),
+  ]);
+}
+
 async function resolveOrigin(): Promise<string> {
-  // Strictly production keeps the canonical pin: the OAuth provider
-  // allow-list and every deployed asset expect one domain there.
   if (process.env.VERCEL_ENV === "production") {
+    // Production: use the request host only when allow-listed; otherwise pin the
+    // canonical origin (the OAuth provider allow-list and every deployed asset
+    // expect one domain there). Always https.
+    const h = await headers();
+    const host = (h.get("x-forwarded-host") ?? h.get("host") ?? "").split(",")[0].trim().toLowerCase();
+    if (host && allowedProdHosts().has(host)) return `https://${host}`;
     return process.env.NEXT_PUBLIC_SITE_ORIGIN ?? "https://expanpress.com";
   }
   // Previews/local: bind the OAuth round-trip to the EXACT host the user is
@@ -33,7 +54,6 @@ async function resolveOrigin(): Promise<string> {
 
 /** Google OAuth via PKCE — the ssr client persists the verifier in a cookie. */
 export async function signInWithGoogleAction(): Promise<void> {
-  void headers; // Server Action context; origin resolved from env (static host)
   const origin = await resolveOrigin();
   try {
     const supabase = await createSsrClient();
