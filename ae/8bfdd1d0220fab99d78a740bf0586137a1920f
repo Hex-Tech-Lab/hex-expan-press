@@ -1,0 +1,21 @@
+docs/adr/TEMPLATE.md
+  s_d5ee695bf1a23a::t_00d7dc9db09b55 1-29
+CLAUDE.md
+  s_d5ee695bf1a23a::t_5bd8d2fb5f6ff1 17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ae8bfdd1d0220fab99d78a740bf0586137a1920f",
+  "prompts": {},
+  "sessions": {
+    "s_d5ee695bf1a23a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1c1a25a9-9f24-4048-af53-aa202091ce7e",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
