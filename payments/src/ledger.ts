@@ -28,14 +28,14 @@ function assertSale(sale: SaleRecord): void {
   if (typeof sale !== "object" || sale === null) {
     throw new TypeError('ledger: sale must be an object with fields ts, sale_id, provider, product_id, amount_usd, creator_id, creator_split_pct, creator_split_usd, our_split_usd, currency');
   }
-  const s = sale as unknown as Record<string, unknown>;
+  const saleFields = sale as unknown as Record<string, unknown>;
   const needStr = (key: string): void => {
-    if (typeof s[key] !== "string" || (s[key] as string).trim() === "") {
+    if (typeof saleFields[key] !== "string" || (saleFields[key] as string).trim() === "") {
       throw new TypeError(`ledger: "${key}" must be a non-empty string`);
     }
   };
   const needNum = (key: string): void => {
-    if (typeof s[key] !== "number" || !Number.isFinite(s[key] as number)) {
+    if (typeof saleFields[key] !== "number" || !Number.isFinite(saleFields[key] as number)) {
       throw new TypeError(`ledger: "${key}" must be a finite number`);
     }
   };
@@ -48,14 +48,14 @@ function assertSale(sale: SaleRecord): void {
   needNum("creator_split_pct");
   needNum("creator_split_usd");
   needNum("our_split_usd");
-  const creatorSplitPct = s.creator_split_pct as number;
+  const creatorSplitPct = saleFields.creator_split_pct as number;
   if (creatorSplitPct < 0 || creatorSplitPct > 100) {
     throw new TypeError(`ledger: "creator_split_pct" must be within 0-100 (got ${creatorSplitPct})`);
   }
-  if (Number.isNaN(Date.parse(s.ts as string))) {
+  if (Number.isNaN(Date.parse(saleFields.ts as string))) {
     throw new TypeError('ledger: "ts" must be a parseable timestamp (UTC ISO string)');
   }
-  if (s.event_type !== undefined && s.event_type !== "sale") {
+  if (saleFields.event_type !== undefined && saleFields.event_type !== "sale") {
     throw new TypeError('ledger: appendSale refused non-"sale" event_type — use appendRefund for refund records');
   }
 }
@@ -91,10 +91,12 @@ async function persistToSupabaseOrder(record: SaleRecord): Promise<void> {
       occurred_at: record.ts
     }, { onConflict: "provider,sale_id,event_type" });
     if (error) {
-      console.error("ledger: Supabase orders upsert error:", error.message);
+      throw new Error(`ledger: Supabase orders upsert failed: ${error.message}`);
     }
   } catch (err) {
-    console.error("ledger: Supabase dual-write error:", err);
+    if (err instanceof Error && err.message.startsWith("ledger: Supabase orders upsert failed")) throw err;
+    console.error("ledger: Supabase dual-write exception:", err);
+    throw new Error(`ledger: Supabase dual-write failed: ${(err as Error).message}`, { cause: err });
   }
 }
 
@@ -104,8 +106,9 @@ export function findSale(provider: string, saleId: string, salesFile: string = S
   salesFile = resolveSalesFile(salesFile);
   let lines: string[];
   try {
-    lines = readFileSync(salesFile, "utf8").split("\n");
-  } catch {
+    lines = readFileSync(salesFile, "utf8").split(/\r?\n/);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== "ENOENT") console.error("ledger: sales ledger read failed (treated as no ledger yet):", err);
     return null; // no ledger yet
   }
   for (const line of lines) {
@@ -114,8 +117,9 @@ export function findSale(provider: string, saleId: string, salesFile: string = S
     try {
       const o = JSON.parse(trimmed) as Record<string, unknown>;
       if (o.provider === provider && o.sale_id === saleId) return o as unknown as SaleRecord;
-    } catch {
-      continue;
+    } catch (parseErr) {
+      console.error("ledger: malformed ledger line skipped:", parseErr instanceof Error ? parseErr.message : parseErr);
+      continue; // malformed line — tolerated by contract
     }
   }
   return null;
@@ -158,7 +162,8 @@ export async function findSaleAsync(provider: string, saleId: string, salesFile:
       email_hash: data.email_hash || undefined,
       attribution_id: data.attribution_id || undefined
     };
-  } catch {
+  } catch (err) {
+    console.error("ledger: Supabase sale lookup failed (treated as not found):", err);
     return null;
   }
 }
@@ -169,8 +174,9 @@ export function findRefund(provider: string, saleId: string, salesFile: string =
   salesFile = resolveSalesFile(salesFile);
   let lines: string[];
   try {
-    lines = readFileSync(salesFile, "utf8").split("\n");
-  } catch {
+    lines = readFileSync(salesFile, "utf8").split(/\r?\n/);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== "ENOENT") console.error("ledger: sales ledger read failed (treated as no ledger yet):", err);
     return null; // no ledger yet
   }
   for (const line of lines) {
@@ -179,11 +185,53 @@ export function findRefund(provider: string, saleId: string, salesFile: string =
     try {
       const o = JSON.parse(trimmed) as Record<string, unknown>;
       if (o.event_type === "refund" && o.provider === provider && o.sale_id === saleId) return o as unknown as SaleRecord;
-    } catch {
-      continue;
+    } catch (parseErr) {
+      console.error("ledger: malformed ledger line skipped:", parseErr instanceof Error ? parseErr.message : parseErr);
+      continue; // malformed line — tolerated by contract
     }
   }
   return null;
+}
+
+/** Asynchronously finds a refund, falling back to Supabase public.orders if not found in local file. */
+export async function findRefundAsync(provider: string, saleId: string, salesFile: string = SALES_FILE): Promise<SaleRecord | null> {
+  const local = findRefund(provider, saleId, salesFile);
+  if (local) return local;
+
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SECRET_KEY;
+  if (!url || !key) return null;
+
+  try {
+    const { createClient } = await import("@supabase/supabase-js");
+    const supabase = createClient(url, key);
+    const { data } = await supabase
+      .from("orders")
+      .select("*")
+      .eq("provider", provider)
+      .eq("sale_id", saleId)
+      .eq("event_type", "refund")
+      .maybeSingle();
+
+    if (!data) return null;
+
+    return {
+      ts: data.occurred_at || data.created_at,
+      sale_id: data.sale_id,
+      provider: data.provider,
+      product_id: data.product_id,
+      amount_usd: Number(data.amount_usd),
+      creator_id: data.creator_id,
+      creator_split_pct: Number(data.creator_split_pct),
+      creator_split_usd: Number(data.creator_split_usd),
+      our_split_usd: Number(data.our_split_usd),
+      currency: data.currency,
+      event_type: data.event_type as LedgerEventType
+    };
+  } catch (err) {
+    console.error("ledger: Supabase refund lookup failed (treated as not found):", err);
+    return null;
+  }
 }
 
 async function appendRecord(record: SaleRecord, salesFile: string): Promise<void> {
@@ -216,8 +264,10 @@ export async function appendSale(sale: SaleRecord, salesFile: string = SALES_FIL
   };
   if (typeof sale.email_hash === "string" && sale.email_hash !== "") record.email_hash = sale.email_hash;
   if (typeof sale.attribution_id === "string" && sale.attribution_id !== "") record.attribution_id = sale.attribution_id;
-  await appendRecord(record, salesFile);
+  // Durable store FIRST: if Supabase fails the route 500s and the provider retries;
+  // writing the local file first would make that retry look like a duplicate.
   await persistToSupabaseOrder(record);
+  await appendRecord(record, salesFile);
   return record;
 }
 
@@ -227,8 +277,9 @@ export function findSalesByAttribution(attributionId: string, salesFile: string 
   salesFile = resolveSalesFile(salesFile);
   let lines: string[];
   try {
-    lines = readFileSync(salesFile, "utf8").split("\n");
-  } catch {
+    lines = readFileSync(salesFile, "utf8").split(/\r?\n/);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== "ENOENT") console.error("ledger: sales ledger read failed (treated as empty):", err);
     return [];
   }
   const out: SaleRecord[] = [];
@@ -238,8 +289,9 @@ export function findSalesByAttribution(attributionId: string, salesFile: string 
     try {
       const o = JSON.parse(trimmed) as Record<string, unknown>;
       if (o.attribution_id === attributionId) out.push(o as unknown as SaleRecord);
-    } catch {
-      continue;
+    } catch (parseErr) {
+      console.error("ledger: malformed ledger line skipped:", parseErr instanceof Error ? parseErr.message : parseErr);
+      continue; // malformed line — tolerated by contract
     }
   }
   return out;
@@ -277,9 +329,10 @@ export async function appendRefund(refund: RefundSpec, salesFile: string = SALES
   if (!original || original.event_type === "refund") {
     throw new Error(`ledger: refund refused — no recorded sale for provider=${refund.provider} sale_id=${refund.sale_id} (refunds must reference a recorded sale)`);
   }
-  const already = findRefund(refund.provider, refund.sale_id, salesFile);
+  const already = findRefund(refund.provider, refund.sale_id, salesFile)
+    ?? await findRefundAsync(refund.provider, refund.sale_id, salesFile);
   if (already) {
-    throw new Error(`ledger: refund already recorded for provider=${refund.provider} sale_id=${refund.sale_id} (refund idempotency guard)`);
+    return already; // duplicate refund → resolve with the existing record (no throw, no duplicate write)
   }
   const record: SaleRecord = {
     ts,
@@ -296,7 +349,9 @@ export async function appendRefund(refund: RefundSpec, salesFile: string = SALES
   };
   if (typeof original.email_hash === "string" && original.email_hash !== "") record.email_hash = original.email_hash;
   if (typeof original.attribution_id === "string" && original.attribution_id !== "") record.attribution_id = original.attribution_id;
-  await appendRecord(record, salesFile);
+  // Durable store FIRST: if Supabase fails the route 500s and the provider retries;
+  // writing the local file first would make that retry look like a duplicate.
   await persistToSupabaseOrder(record);
+  await appendRecord(record, salesFile);
   return record;
 }

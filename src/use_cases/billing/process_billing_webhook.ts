@@ -7,10 +7,10 @@
  * ADR: ADR-0049, ADR-0050
  */
 import { PaymentProviderPort, SaleCompletedEvent, RefundIssuedEvent } from "../../domain/payments/payments.port.ts";
-import { appendSale, appendRefund, findSaleAsync } from "../../../payments/src/ledger.ts";
+import { appendSale, appendRefund, findSaleAsync, findRefundAsync } from "../../../payments/src/ledger.ts";
 import { computeSplit } from "../../../payments/src/split.ts";
 import { effectiveCreatorSplitPct } from "../../../payments/src/terms.ts";
-import { loadProductIndex } from "../../../payments/src/webhook_core.ts";
+import { loadProductIndex, withIdempotencyLock } from "../../../payments/src/webhook_core.ts";
 
 export interface ProcessWebhookRequest {
   headers: Record<string, string | string[] | undefined>;
@@ -50,52 +50,74 @@ export async function processBillingWebhookUseCase(
     return;
   }
 
-  // 4. Refund
+  // 4. Refund — wrapped in the distributed idempotency lock (refund events only carry
+  // sale_id — no refund id exists to key on). Lock held or duplicate → return normally.
   if (event.eventType === "refund_issued") {
-    const e = event as RefundIssuedEvent;
-    await appendRefund({
-      provider: e.providerName as any,
-      sale_id: e.saleId,
-      ts: e.occurredAt
-    });
+    const refundEvent = event as RefundIssuedEvent;
+    await withIdempotencyLock(
+      `refund:${refundEvent.providerName}:${refundEvent.saleId}`,
+      { status: 200, payload: { ok: true, recorded: false, reason: "duplicate-or-inflight", event_type: "refund", sale_id: refundEvent.saleId } },
+      async () => {
+        const existingRefund = await findRefundAsync(refundEvent.providerName, refundEvent.saleId);
+        if (existingRefund) {
+          return { status: 200, payload: { ok: true, recorded: false, reason: "duplicate", event_type: "refund", sale_id: refundEvent.saleId } };
+        }
+        await appendRefund({
+          provider: refundEvent.providerName as any,
+          sale_id: refundEvent.saleId,
+          ts: refundEvent.occurredAt
+        });
+        return { status: 200, payload: { ok: true, recorded: true, event_type: "refund", sale_id: refundEvent.saleId } };
+      },
+    );
     return;
   }
 
   // 5. Sale completed
   if (event.eventType === "sale_completed") {
-    const e = event as SaleCompletedEvent;
+    const saleEvent = event as SaleCompletedEvent;
 
-    // 5a. Idempotency guard: if sale already recorded, exit early without duplicating splits
-    const existing = await findSaleAsync(e.providerName, e.saleId);
-    if (existing) {
-      return;
-    }
+    // 5a. Distributed idempotency lock: concurrent/duplicate deliveries for the same sale
+    // take the lock; a held lock or already-recorded sale → return normally (no double payout).
+    // withIdempotencyLock also frees the slot when nothing was written (payload.recorded !== true).
+    await withIdempotencyLock(
+      `sale:${saleEvent.providerName}:${saleEvent.saleId}`,
+      { status: 200, payload: { ok: true, recorded: false, reason: "duplicate-or-inflight", sale_id: saleEvent.saleId } },
+      async () => {
+        // Duplicate guard: if sale already recorded, exit early without duplicating splits
+        const existing = await findSaleAsync(saleEvent.providerName, saleEvent.saleId);
+        if (existing) {
+          return { status: 200, payload: { ok: true, recorded: false, reason: "duplicate", sale_id: saleEvent.saleId } };
+        }
 
-    // 5b. Resolve product config to determine creator and split
-    const cfg = loadProductIndex().get(e.productId);
-    if (!cfg) throw new Error(`Unknown product_id: ${e.productId}`);
+        // Resolve product config to determine creator and split
+        const cfg = loadProductIndex().get(saleEvent.productId);
+        if (!cfg) throw new Error(`Unknown product_id: ${saleEvent.productId}`);
 
-    // 5b. Compute split
-    const creatorPct = effectiveCreatorSplitPct(cfg.creator_id, cfg.product_id, e.occurredAt);
-    if (creatorPct === null) throw new Error(`Could not resolve split percentage for creator ${cfg.creator_id}`);
+        // Compute split
+        const creatorPct = effectiveCreatorSplitPct(cfg.creator_id, cfg.product_id, saleEvent.occurredAt);
+        if (creatorPct === null) throw new Error(`Could not resolve split percentage for creator ${cfg.creator_id}`);
 
-    const amountUsd = e.totalCents / 100; // Ledger still stores USD float — convert from canonical cents
-    const split = computeSplit(amountUsd, creatorPct);
+        const amountUsd = saleEvent.totalCents / 100; // Ledger still stores USD float — convert from canonical cents
+        const split = computeSplit(amountUsd, creatorPct);
 
-    // 5c. Append to ledger
-    await appendSale({
-      sale_id: e.saleId,
-      provider: e.providerName as any,
-      product_id: e.productId,
-      amount_usd: amountUsd,
-      ts: e.occurredAt,
-      email_hash: e.buyerEmailHash,
-      creator_id: cfg.creator_id,
-      creator_split_pct: creatorPct,
-      creator_split_usd: split.creator_split_usd,
-      our_split_usd: split.our_split_usd,
-      currency: cfg.currency,
-      ...(e.attributionId ? { attribution_id: e.attributionId } : {})
-    });
+        // Append to ledger
+        await appendSale({
+          sale_id: saleEvent.saleId,
+          provider: saleEvent.providerName as any,
+          product_id: saleEvent.productId,
+          amount_usd: amountUsd,
+          ts: saleEvent.occurredAt,
+          email_hash: saleEvent.buyerEmailHash,
+          creator_id: cfg.creator_id,
+          creator_split_pct: creatorPct,
+          creator_split_usd: split.creator_split_usd,
+          our_split_usd: split.our_split_usd,
+          currency: cfg.currency,
+          ...(saleEvent.attributionId ? { attribution_id: saleEvent.attributionId } : {})
+        });
+        return { status: 200, payload: { ok: true, recorded: true, sale_id: saleEvent.saleId } };
+      },
+    );
   }
 }
