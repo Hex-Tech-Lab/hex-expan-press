@@ -1,0 +1,42 @@
+payments/test/fungies_refund.test.ts
+  s_63d45d5652263a::t_71af9b41e97af0 1-58
+  s_63d45d5652263a::t_55fe98a3edfe32 59-61
+  s_d5ee695bf1a23a::t_22c1377d3ec453 62
+docs/agent_ledger.jsonl
+  s_63d45d5652263a::t_6859f5ab368d2e 336
+  s_63d45d5652263a::t_c7bc5a25471c6b 335
+src/adapters/payments/__tests__/polar.adapter.test.ts
+  s_63d45d5652263a::t_845937c5ddb32d 49-59
+src/domain/payments/payments.port.ts
+  s_63d45d5652263a::t_96dd6a98f6cd7c 136-138
+src/adapters/payments/polar.adapter.ts
+  s_63d45d5652263a::t_26082345fed8b2 43-48,51-52,55-61
+payments/src/providers/fungies.ts
+  s_63d45d5652263a::t_faceb438c9e666 110-120
+web/app/api/billing/webhook/__tests__/polar-partial-refund.test.ts
+  s_63d45d5652263a::t_8b4b83142491f6 1-154
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f4c86e549728384807f3f5fffa19fb106fef188b",
+  "prompts": {},
+  "sessions": {
+    "s_63d45d5652263a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f10e9d4b3ffevSXFUUs0Y0euO1",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_d5ee695bf1a23a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1c1a25a9-9f24-4048-af53-aa202091ce7e",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
