@@ -45,7 +45,9 @@ function ConsentFormCard({
   return (
     <motion.section
       initial={{ opacity: 0, y: 32 }}
-      animate={{ opacity: done ? 0.85 : 1, y: 0, transition: { duration: 0.5, ease: EASE } }}
+      // Completed cards stay at full opacity: dimming the whole card (was 0.85) pulled the
+      // AA text tokens back under 4.5:1. The "Signed" badge carries the completed state.
+      animate={{ opacity: 1, y: 0, transition: { duration: 0.5, ease: EASE } }}
       className="neu-card mb-5 rounded-[14px] p-(--space-5)"
       aria-label={heading}
     >
