@@ -31,6 +31,12 @@ const rails3 = [
   { provider: "payhip", weight: 1 },
 ];
 
+// Selection is DETERMINISTIC, not probabilistic: MatrixRouter.pickAtIndex maps a
+// persisted counter (counter % sum-of-weights) onto the weight-sorted routes — a
+// weighted round-robin with no Math.random. So N calls where N is a multiple of the
+// weight sum yield EXACT counts (40 calls at 3:1 → 30/10; at 2:1:1 → 20/10/10), and
+// exact assertions are correct. Tests in this file run sequentially (no .concurrent);
+// the shared mock store is cleared per test.
 describe("payments/src/provider_router (nextRail/skipRail)", () => {
   beforeEach(async () => {
     // Fake credentials: only switch MatrixRouter onto its Redis path; the client is mocked.
@@ -57,8 +63,8 @@ describe("payments/src/provider_router (nextRail/skipRail)", () => {
       const pick = await nextRail("t_ratio_2", rails2);
       counts[pick] = (counts[pick] ?? 0) + 1;
     }
-    expect(counts.polar).toBeCloseTo(N * 0.75, 1);
-    expect(counts.lemonsqueezy).toBeCloseTo(N * 0.25, 1);
+    expect(counts.polar).toBe(30);
+    expect(counts.lemonsqueezy).toBe(10);
   });
 
   it("respects weight ratios with three providers (2:1:1)", async () => {
@@ -68,9 +74,9 @@ describe("payments/src/provider_router (nextRail/skipRail)", () => {
       const pick = await nextRail("t_ratio_3", rails3);
       counts[pick] = (counts[pick] ?? 0) + 1;
     }
-    expect(counts.polar).toBeCloseTo(N * 0.5, 1);
-    expect(counts.lemonsqueezy).toBeCloseTo(N * 0.25, 1);
-    expect(counts.payhip).toBeCloseTo(N * 0.25, 1);
+    expect(counts.polar).toBe(20);
+    expect(counts.lemonsqueezy).toBe(10);
+    expect(counts.payhip).toBe(10);
   });
 
   it("skipRail removes a provider from rotation until its down-window expires", async () => {
