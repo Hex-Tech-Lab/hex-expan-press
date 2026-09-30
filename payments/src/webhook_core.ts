@@ -181,6 +181,14 @@ function inFlightResponse(err: unknown): { status: number; payload: Record<strin
 }
 
 export async function recordRefund(refundEvent: RefundEvent): Promise<{ status: number; payload: Record<string, unknown> }> {
+  // Legacy direct path: an amount-unverifiable refund (Fungies) is never recorded —
+  // refuse before any lock/append so no full-reversal row is appended.
+  if (refundEvent.amount_unverifiable === true) {
+    return {
+      status: 422,
+      payload: { ok: false, error: "refund amount unverifiable — manual review required" },
+    };
+  }
   return withIdempotencyLock(
     `lock:refund:${refundEvent.provider}:${refundEvent.sale_id}`,
     async () => {

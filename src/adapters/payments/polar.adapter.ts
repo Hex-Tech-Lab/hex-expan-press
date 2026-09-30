@@ -40,15 +40,25 @@ const PolarSaleSchema = z.object({
 // `tax_amount` the tax refunded with it. Polar supports PARTIAL refunds, so both are
 // REQUIRED here — a refund whose amount is missing or malformed fails schema
 // validation (400) instead of reaching the ledger as an amount-less "full reversal".
-const PolarRefundSchema = z.object({
-  type: z.literal("refund.created"),
-  data: z.object({
+// Safe-integer guard (Wave 7.3): refund amounts arrive as JSON numbers — a hostile
+// or broken producer can send values beyond Number.MAX_SAFE_INTEGER where cents
+// arithmetic silently loses precision. Cap amount and tax_amount individually AND
+// their sum (the ledger's totalCents), so every refund value stays exact.
+const PolarRefundDataSchema = z
+  .object({
     id: z.string().min(1),
     order_id: z.string().min(1),
-    amount: z.number().int().nonnegative(),
-    tax_amount: z.number().int().nonnegative(),
+    amount: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+    tax_amount: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
     created_at: z.string().datetime().optional()
   })
+  .refine(
+    (d) => d.amount + d.tax_amount <= Number.MAX_SAFE_INTEGER,
+    { message: "amount + tax_amount exceeds Number.MAX_SAFE_INTEGER" }
+  );
+const PolarRefundSchema = z.object({
+  type: z.literal("refund.created"),
+  data: PolarRefundDataSchema
 });
 
 const PolarWebhookSchema = z.union([PolarSaleSchema, PolarRefundSchema]);

@@ -78,17 +78,38 @@ export async function processBillingWebhookUseCase(
   //  - totalCents absent: the adapter's provider does not report a refund amount
   //    (Polar sends it; Payhip-style legacy providers do not) — treated as a full
   //    reversal of the linked sale.
+  //  - amountUnverifiable: the provider reports no refunded amount at all (Fungies
+  //    payment_refunded carries none). The refund is NEVER recorded; it is flagged
+  //    durably (audit_log MANUAL_REVIEW_REQUIRED_REFUND, reason "amount_unverifiable")
+  //    and rejected with a validation failure (400) for manual review.
   if (event.eventType === "refund_issued") {
     const refundEvent = event as RefundIssuedEvent;
     await underLockOrConfirmed(
       `lock:refund:${refundEvent.providerName}:${refundEvent.saleId}`,
       async () => (await findRefundAsync(refundEvent.providerName, refundEvent.saleId)) !== null,
       async () => {
+        if (refundEvent.amountUnverifiable === true) {
+          const sale = await findSaleAsync(refundEvent.providerName, refundEvent.saleId);
+          await flagRefundForManualReview({
+            reason: "amount_unverifiable",
+            provider: refundEvent.providerName,
+            sale_id: refundEvent.saleId,
+            refund_id: refundEvent.refundId ?? null,
+            refund_cents: null,
+            sale_cents: sale ? Math.round(sale.amount_usd * 100) : null,
+            creator_id: sale?.creator_id ?? null,
+            occurred_at: refundEvent.occurredAt,
+          });
+          throw new Error(
+            `Webhook validation failed: refund amount unverifiable for sale ${refundEvent.saleId} — flagged for manual review`,
+          );
+        }
         if (refundEvent.totalCents !== undefined) {
           const original = await findSaleAsync(refundEvent.providerName, refundEvent.saleId);
           const saleCents = original ? Math.round(original.amount_usd * 100) : null;
           if (saleCents !== null && refundEvent.totalCents !== saleCents) {
             await flagRefundForManualReview({
+              reason: "amount_mismatch",
               provider: refundEvent.providerName,
               sale_id: refundEvent.saleId,
               refund_id: refundEvent.refundId ?? null,
