@@ -1,0 +1,19 @@
+payments/test/provider_router.test.ts
+  s_d5ee695bf1a23a::t_4933674151dd15 1,4-21,36-39,41,45-51,62,74,82,88
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "9be0dddffa68d4cef71650249557da50fabfcee7",
+  "prompts": {},
+  "sessions": {
+    "s_d5ee695bf1a23a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1c1a25a9-9f24-4048-af53-aa202091ce7e",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
