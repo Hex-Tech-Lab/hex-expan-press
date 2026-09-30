@@ -14,7 +14,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { motion, useReducedMotion } from "framer-motion";
+import { m, useReducedMotion } from "framer-motion";
 import { submitReviewAnswerAction } from "./actions";
 import type { ReviewItemView } from "./page";
 
@@ -230,7 +230,7 @@ export default function ReviewClient({ items, saved, pdfUrl, bookTitle }: Review
   if (allAnswered) {
     return (
       <div className="mx-auto max-w-[680px] px-5 py-16 text-center">
-        <motion.div
+        <m.div
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0, transition: { duration: 0.5, ease: EASE } }}
           className="neu-card rounded-[14px] p-(--space-6)"
@@ -246,7 +246,7 @@ export default function ReviewClient({ items, saved, pdfUrl, bookTitle }: Review
           >
             Continue to consents →
           </Link>
-        </motion.div>
+        </m.div>
       </div>
     );
   }
@@ -270,7 +270,7 @@ export default function ReviewClient({ items, saved, pdfUrl, bookTitle }: Review
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[380px_1fr]">
         {/* Question card */}
-        <motion.section
+        <m.section
           initial={{ opacity: 0, y: 32 }}
           animate={{ opacity: 1, y: 0, transition: { duration: 0.5, ease: EASE, delay: 0.06 } }}
           className="neu-card self-start rounded-[14px] p-(--space-5)"
@@ -355,7 +355,7 @@ export default function ReviewClient({ items, saved, pdfUrl, bookTitle }: Review
             >
               ← Back
             </button>
-            <motion.button
+            <m.button
               type="button"
               onClick={() => void saveAndNext()}
               disabled={busy}
@@ -363,12 +363,12 @@ export default function ReviewClient({ items, saved, pdfUrl, bookTitle }: Review
               className="min-h-11 rounded-[10px] bg-[#2B2520] px-6 text-[length:var(--font-size-sm)] font-semibold text-[#FAF7F2] transition-colors hover:bg-[#3d352d] disabled:cursor-not-allowed disabled:opacity-50"
             >
               {busy ? "Saving…" : "Save & next"}
-            </motion.button>
+            </m.button>
           </div>
-        </motion.section>
+        </m.section>
 
         {/* PDF reader */}
-        <motion.section
+        <m.section
           initial={{ opacity: 0, y: 32 }}
           animate={{ opacity: 1, y: 0, transition: { duration: 0.5, ease: EASE, delay: 0.12 } }}
           className="neu-card flex min-h-[70vh] flex-col rounded-[14px] p-(--space-5)"
@@ -442,7 +442,7 @@ export default function ReviewClient({ items, saved, pdfUrl, bookTitle }: Review
               </button>
             </div>
           )}
-        </motion.section>
+        </m.section>
       </div>
     </div>
   );
