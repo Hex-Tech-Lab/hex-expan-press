@@ -1,0 +1,27 @@
+web/app/creator/consents/consent-cards.tsx
+  s_d5ee695bf1a23a::t_96fc72d241cf17 53,55,62,75,105,142,145
+web/app/creator/consents/esign_done/page.tsx
+  s_d5ee695bf1a23a::t_172a89679717b3 16-20
+web/app/creator/dashboard/dashboard-client.tsx
+  s_d5ee695bf1a23a::t_09718ff3c34c00 135,187,224,239,294-295,297
+web/app/creator/review/review-client.tsx
+  s_d5ee695bf1a23a::t_a08405b2316e64 238,256,280,334,344
+web/app/creator/signin/signin-client.tsx
+  s_d5ee695bf1a23a::t_3df1e01081c4f3 26,34,120,124
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "88872487157b90bd4df3fd2810f62a3210e3201e",
+  "prompts": {},
+  "sessions": {
+    "s_d5ee695bf1a23a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1c1a25a9-9f24-4048-af53-aa202091ce7e",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
