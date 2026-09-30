@@ -235,7 +235,7 @@ export default function ReviewClient({ items, saved, pdfUrl, bookTitle }: Review
           animate={{ opacity: 1, y: 0, transition: { duration: 0.5, ease: EASE } }}
           className="neu-card rounded-[14px] p-(--space-6)"
         >
-          <p className="text-[length:var(--font-size-2xs)] font-bold uppercase tracking-[0.08em] text-[#2E7D5B]">Review complete</p>
+          <p className="text-[length:var(--font-size-2xs)] font-bold uppercase tracking-[0.08em] text-[#296E50]">Review complete</p>
           <h1 className="mt-2 font-serif text-[length:var(--text-heading-1-size)] font-bold text-[#2B2520]">Every answer is saved and logged</h1>
           <p className="mt-3 text-[length:var(--font-size-base)] text-[#6E5F53]">
             Thank you — your manuscript review is done. Continue to the legal consents to move your book toward release.
@@ -253,7 +253,7 @@ export default function ReviewClient({ items, saved, pdfUrl, bookTitle }: Review
 
   return (
     <div className="mx-auto max-w-[1100px] px-5 pb-16 pt-10">
-      <p className="mb-1 text-[length:var(--font-size-xs)] font-semibold uppercase tracking-[0.14em] text-[#E8622C]">Creator Portal</p>
+      <p className="mb-1 text-[length:var(--font-size-xs)] font-semibold uppercase tracking-[0.14em] text-[#B3401E]">Creator Portal</p>
       <h1 className="font-serif text-[length:var(--text-heading-1-size)] font-bold leading-[1.15] text-[#2B2520]">Manuscript review</h1>
       <p className="mt-1 mb-4 text-[length:var(--font-size-sm)] text-[#6E5F53]">{bookTitle} — confirm quotes and facts, then sign off.</p>
 
@@ -277,7 +277,7 @@ export default function ReviewClient({ items, saved, pdfUrl, bookTitle }: Review
           aria-label="Review question"
         >
           <div className="mb-2 flex items-center justify-between gap-2">
-            <span className="text-[length:var(--font-size-2xs)] font-bold uppercase tracking-[0.08em] text-[#E8622C]">{item.code}</span>
+            <span className="text-[length:var(--font-size-2xs)] font-bold uppercase tracking-[0.08em] text-[#B3401E]">{item.code}</span>
             <span className="text-[length:var(--font-size-2xs)] font-semibold text-[#6E5F53]">{KIND_LABEL[item.kind] ?? item.kind}</span>
           </div>
           <p className="text-[length:var(--font-size-base)] font-medium leading-relaxed text-[#2B2520]">{item.question}</p>
@@ -331,7 +331,7 @@ export default function ReviewClient({ items, saved, pdfUrl, bookTitle }: Review
             value={freeText}
             onChange={(e) => setFreeText(e.target.value)}
             rows={3}
-            className="mt-2 w-full rounded-lg border border-[#EADFD1] bg-[#FFFDF9] p-3 text-[length:var(--font-size-base)] text-[#2B2520] outline-none focus:border-[#E8622C]"
+            className="mt-2 w-full rounded-lg border border-[#EADFD1] bg-[#FFFDF9] p-3 text-[length:var(--font-size-base)] text-[#2B2520] outline-none focus:border-[#E8622C] focus-visible:ring-2 focus-visible:ring-[#B3401E] focus-visible:ring-offset-2 focus-visible:ring-offset-[#FFFDF9]"
             placeholder="Write the correct fact here."
           />
 
@@ -341,7 +341,7 @@ export default function ReviewClient({ items, saved, pdfUrl, bookTitle }: Review
             </p>
           )}
           {justSaved && !error && (
-            <p className="mt-3 text-[length:var(--font-size-sm)] text-[#2E7D5B]">
+            <p className="mt-3 text-[length:var(--font-size-sm)] text-[#296E50]">
               Saved — you can safely stop here and continue later; your answer is already recorded.
             </p>
           )}

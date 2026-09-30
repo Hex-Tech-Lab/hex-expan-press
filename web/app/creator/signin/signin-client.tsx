@@ -23,7 +23,7 @@ export default function SignInClient({
 }) {
   return (
     <div className="mx-auto max-w-[640px] px-5 pb-10 pt-14 font-sans text-[#2B2520]">
-      <p className="mb-4 text-[12px] font-semibold uppercase tracking-[0.14em] text-[#E8622C]">Account</p>
+      <p className="mb-4 text-[12px] font-semibold uppercase tracking-[0.14em] text-[#B3401E]">Account</p>
       <h1 className="font-serif text-[34px] font-bold leading-[1.15] tracking-[-0.015em] max-md:text-[27px]">
         Sign in
       </h1>
@@ -31,7 +31,7 @@ export default function SignInClient({
 
       {mode === "sent" ? (
         <div className="rounded-[14px] border border-[#EADFD1] bg-[#FFFDF9] p-[26px]">
-          <p className="text-[16.5px] font-semibold text-[#2E7D5B]" role="status">
+          <p className="text-[16.5px] font-semibold text-[#296E50]" role="status">
             Check your inbox — we sent you a sign-in link. It expires shortly, so use it soon.
           </p>
         </div>
@@ -117,11 +117,11 @@ export default function SignInClient({
       )}
 
       <footer className="mt-7 flex flex-wrap items-center gap-x-[22px] gap-y-2 border-t border-[#EADFD1] pt-[22px] text-[13px] text-[#6E5F53]">
-        <a href="/privacy.html" className="text-[#2E7D5B] hover:underline">
+        <a href="/privacy.html" className="text-[#296E50] hover:underline">
           Privacy Policy
         </a>
         <span className="text-[#CBB3A7]">&middot;</span>
-        <a href="/terms.html" className="text-[#2E7D5B] hover:underline">
+        <a href="/terms.html" className="text-[#296E50] hover:underline">
           Terms of Service
         </a>
       </footer>
