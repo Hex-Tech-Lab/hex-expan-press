@@ -1,0 +1,40 @@
+src/domain/payments/payments.port.ts
+  s_3dfb1ebef3dd3b::t_748966358c0ce6 136-138,141
+payments/test/fungies_refund.test.ts
+  s_3dfb1ebef3dd3b::t_6be7aa7732e561 62-64
+  s_3dfb1ebef3dd3b::t_b019af27119bd0 35-36,38-45,49-50,54-58,61,67-68
+docs/agent_ledger.jsonl
+  s_3dfb1ebef3dd3b::t_16e91224ef4367 337
+payments/src/provider.ts
+  s_3dfb1ebef3dd3b::t_c19bb698e7fbb3 31-32
+payments/src/ledger.ts
+  s_3dfb1ebef3dd3b::t_253335bf50d7a0 215-217
+payments/src/providers/fungies.ts
+  s_3dfb1ebef3dd3b::t_a298f8372830e5 115
+  s_3dfb1ebef3dd3b::t_f6d293e51e60a2 112-114,116-124,126-127
+web/app/api/billing/webhook/__tests__/fungies-refund-dlq.test.ts
+  s_3dfb1ebef3dd3b::t_4287fd3dc47c25 79-82
+  s_3dfb1ebef3dd3b::t_8dfe1b4ffb9443 1-78,83-165
+src/use_cases/billing/process_billing_webhook.ts
+  s_3dfb1ebef3dd3b::t_f2e5a4ea88e392 81-84,91-106,112
+src/adapters/payments/legacy.adapter.ts
+  s_3dfb1ebef3dd3b::t_c3406868211f7e 78
+payments/src/webhook_core.ts
+  s_3dfb1ebef3dd3b::t_af474afd65522a 184-191
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "3152418759840d67051b10787f6dfbaabfc9302c",
+  "prompts": {},
+  "sessions": {
+    "s_3dfb1ebef3dd3b": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f0eab8508ffevjoM3onxbVDJZc",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
