@@ -1,0 +1,19 @@
+web/next.config.ts
+  s_d5ee695bf1a23a::t_8535f444d64727 27-42,74-76
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "3fc1020247a1d4de953dec871c5a16875e3c95d0",
+  "prompts": {},
+  "sessions": {
+    "s_d5ee695bf1a23a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1c1a25a9-9f24-4048-af53-aa202091ce7e",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
