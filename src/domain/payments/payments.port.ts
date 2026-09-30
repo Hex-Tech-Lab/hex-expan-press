@@ -129,7 +129,13 @@ export interface RefundIssuedEvent {
   providerName: string;
   saleId: string;                // Links back to the original SaleCompletedEvent.saleId
   refundId?: string;             // Provider-specific refund ID (Polar: refund object ID; Payhip: none)
-  totalCents?: AmountCents;      // Refund amount; absent if provider does not supply it
+  // Refund amount (gross, tax-inclusive). Contract per adapter:
+  //  - Polar: ALWAYS set (schema requires amount + tax_amount; missing/malformed → 400).
+  //  - Legacy providers (via LegacyPaymentAdapterWrapper): absent. payhip and fastspring
+  //    verify full-vs-partial in their own parsers and refuse partials before emitting a
+  //    refund. lemonsqueezy emits no refund events. fungies does NOT check the amount
+  //    (payment_refunded → full reversal) — KNOWN GAP until its refund payload is mapped.
+  totalCents?: AmountCents;
   currency?: CurrencyCode;
 
   occurredAt: IsoTimestamp;

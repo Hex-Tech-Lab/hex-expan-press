@@ -64,6 +64,18 @@ describe("billing webhook native route (Wave 6)", () => {
     expect(await res.json()).toEqual({ ok: true });
   });
 
+  // Wave 7.2: a VALIDLY SIGNED Polar refund whose amount is missing must be a 400
+  // through the real route (adapter schema), never reach the ledger as amount-less.
+  it("rejects a signed Polar refund with no amount → 400 (real adapter, no ledger write)", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("POLAR_WEBHOOK_SECRET", HMAC_TEST_KEY);
+    const payload = JSON.stringify({ type: "refund.created", data: { id: "rf_x", order_id: "ord_x", tax_amount: 0 } });
+    const res = await billingPost(
+      asNextRequest(new Request(WEBHOOK_URL, { method: "POST", headers: signedHeaders(payload), body: payload })),
+    );
+    expect(res.status).toBe(400);
+  });
+
   it("rejects a tampered body with 400 when signatures are enforced", async () => {
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("POLAR_WEBHOOK_SECRET", HMAC_TEST_KEY);
