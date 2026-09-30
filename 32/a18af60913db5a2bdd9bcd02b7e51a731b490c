@@ -1,0 +1,21 @@
+web/next.config.ts
+  s_d5ee695bf1a23a::t_1fed112c319d41 32-33,37-39
+web/src/components/motion/motion-provider.tsx
+  s_d5ee695bf1a23a::t_8eed48109cebb6 11-13,17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "32a18af60913db5a2bdd9bcd02b7e51a731b490c",
+  "prompts": {},
+  "sessions": {
+    "s_d5ee695bf1a23a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1c1a25a9-9f24-4048-af53-aa202091ce7e",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
