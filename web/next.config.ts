@@ -29,12 +29,14 @@ const nextConfig: NextConfig = {
   // runs — so the same compile-time constants are defined here, where both
   // bundlers honour them. Replay is not enabled (no replayIntegration in
   // sentry.client.config.ts); these drop its residual code paths and SDK debug logging.
+  // These defines apply to client, server AND edge bundles — only flags that are safe
+  // everywhere belong here.
   compiler: {
     define: {
       __SENTRY_DEBUG__: false,
-      // Browser performance tracing off: errors are still captured, but client-side
-      // traces stop (tracesSampleRate in sentry.client.config.ts becomes inert).
-      __SENTRY_TRACING__: false,
+      // NOT __SENTRY_TRACING__: compiler.define also reaches the Sentry code bundled into
+      // server + edge chunks, so it would strip server/edge tracing too. Next 16 has no
+      // client-only define under Turbopack (the webpack() hook never runs there).
       __RRWEB_EXCLUDE_IFRAME__: true,
       __RRWEB_EXCLUDE_SHADOW_DOM__: true,
       __SENTRY_EXCLUDE_REPLAY_WORKER__: true,
