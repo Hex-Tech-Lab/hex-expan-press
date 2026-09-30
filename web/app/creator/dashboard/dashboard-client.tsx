@@ -132,7 +132,7 @@ export default function DashboardClient({
       <motion.p
         initial={{ opacity: 0, y: 24 }}
         animate={{ opacity: 1, y: 0, transition: { duration: 0.5, ease: EASE } }}
-        className="mb-3 text-[length:var(--font-size-xs)] font-semibold uppercase tracking-[0.14em] text-[#E8622C]"
+        className="mb-3 text-[length:var(--font-size-xs)] font-semibold uppercase tracking-[0.14em] text-[#B3401E]"
       >
         Creator Portal
       </motion.p>
@@ -184,7 +184,7 @@ export default function DashboardClient({
       >
         <div className="flex items-center justify-between gap-4">
           <div>
-            <p className="text-[length:var(--font-size-2xs)] font-bold uppercase tracking-[0.08em] text-[#E8622C]">Your journey</p>
+            <p className="text-[length:var(--font-size-2xs)] font-bold uppercase tracking-[0.08em] text-[#B3401E]">Your journey</p>
             <p className="mt-0.5 text-[length:var(--font-size-sm)] font-medium text-[#6E5F53]">
               {JOURNEY_LABELS[journeyActive]} — you are here
             </p>
@@ -221,7 +221,7 @@ export default function DashboardClient({
           const body = (
             <>
               <div className="mb-2.5 flex items-center justify-between">
-                <span className="text-[length:var(--font-size-2xs)] font-bold uppercase tracking-[0.08em] text-[#E8622C]">
+                <span className="text-[length:var(--font-size-2xs)] font-bold uppercase tracking-[0.08em] text-[#B3401E]">
                   {step.num}
                 </span>
                 <span
@@ -236,7 +236,7 @@ export default function DashboardClient({
               </div>
               <p className="font-serif text-[length:var(--text-heading-3-size)] font-bold text-[#2B2520]">{step.title}</p>
               <p className="mt-1 text-[length:var(--font-size-sm)] leading-relaxed text-[#6E5F53]">{step.desc}</p>
-              <p className="mt-2 inline-flex items-center gap-1 text-[length:var(--font-size-sm)] font-semibold text-[#2E7D5B]">
+              <p className="mt-2 inline-flex items-center gap-1 text-[length:var(--font-size-sm)] font-semibold text-[#296E50]">
                 {step.cta}
               </p>
             </>
@@ -275,7 +275,9 @@ export default function DashboardClient({
               key={step.num}
               href={step.done && i === 2 ? undefined : step.href}
               initial={{ opacity: 0, y: 40, scale: 0.97 }}
-              animate={{ opacity: step3Done && i === 2 ? 0.85 : 1, y: 0, scale: 1 }}
+              // Full opacity even when complete: whole-card dimming (was 0.85) dropped the
+              // step text under WCAG AA 4.5:1; the done check icon/label carry the state.
+              animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.5, ease: EASE, delay: 0.34 + i * 0.09 }}
               whileTap={{ scale: 1.01, transition: WOBBLE }}
@@ -291,10 +293,10 @@ export default function DashboardClient({
       </AnimatePresence>
 
       <footer className="mt-9 flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-[#EADFD1] pt-5 text-[length:var(--font-size-sm)] text-[#6E5F53]">
-        <a href="/privacy.html" className="text-[#2E7D5B] no-underline hover:underline">Privacy Policy</a>
-        <a href="/terms.html" className="text-[#2E7D5B] no-underline hover:underline">Terms of Service</a>
+        <a href="/privacy.html" className="text-[#296E50] no-underline hover:underline">Privacy Policy</a>
+        <a href="/terms.html" className="text-[#296E50] no-underline hover:underline">Terms of Service</a>
         <span>
-          Support: <a href="mailto:support@expanpress.com" className="text-[#2E7D5B] hover:underline">support@expanpress.com</a>
+          Support: <a href="mailto:support@expanpress.com" className="text-[#296E50] hover:underline">support@expanpress.com</a>
         </span>
       </footer>
     </div>

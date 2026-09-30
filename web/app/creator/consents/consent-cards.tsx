@@ -45,21 +45,23 @@ function ConsentFormCard({
   return (
     <motion.section
       initial={{ opacity: 0, y: 32 }}
-      animate={{ opacity: done ? 0.85 : 1, y: 0, transition: { duration: 0.5, ease: EASE } }}
+      // Completed cards stay at full opacity: dimming the whole card (was 0.85) pulled the
+      // AA text tokens back under 4.5:1. The "Signed" badge carries the completed state.
+      animate={{ opacity: 1, y: 0, transition: { duration: 0.5, ease: EASE } }}
       className="neu-card mb-5 rounded-[14px] p-(--space-5)"
       aria-label={heading}
     >
       <div className="mb-2 flex items-center justify-between gap-2">
-        <span className="text-[length:var(--font-size-2xs)] font-bold uppercase tracking-[0.08em] text-[#E8622C]">{label}</span>
+        <span className="text-[length:var(--font-size-2xs)] font-bold uppercase tracking-[0.08em] text-[#B3401E]">{label}</span>
         {done && (
-          <span className="text-[length:var(--font-size-2xs)] font-bold uppercase tracking-[0.08em] text-[#2E7D5B]">Signed ✓</span>
+          <span className="text-[length:var(--font-size-2xs)] font-bold uppercase tracking-[0.08em] text-[#296E50]">Signed ✓</span>
         )}
       </div>
       <h2 className="font-serif text-[length:var(--text-heading-3-size)] font-bold text-[#2B2520]">{heading}</h2>
       <p className="mt-1.5 text-[length:var(--font-size-base)] leading-relaxed text-[#4A4136]">{legal}</p>
 
       {done ? (
-        <p className="mt-3 text-[length:var(--font-size-sm)] font-medium text-[#2E7D5B]">Consent recorded — thank you.</p>
+        <p className="mt-3 text-[length:var(--font-size-sm)] font-medium text-[#296E50]">Consent recorded — thank you.</p>
       ) : (
         <form action={formAction} className="mt-3">
           <input type="hidden" name="kind" value={kindValue} />
@@ -72,7 +74,7 @@ function ConsentFormCard({
             type="text"
             required
             placeholder="e.g. Duane Smith"
-            className="mt-2 w-full rounded-lg border border-[#EADFD1] bg-[#FFFDF9] p-3 text-[length:var(--font-size-base)] text-[#2B2520] outline-none focus:border-[#E8622C]"
+            className="mt-2 w-full rounded-lg border border-[#EADFD1] bg-[#FFFDF9] p-3 text-[length:var(--font-size-base)] text-[#2B2520] outline-none focus:border-[#E8622C] focus-visible:ring-2 focus-visible:ring-[#B3401E] focus-visible:ring-offset-2 focus-visible:ring-offset-[#FFFDF9]"
           />
           {state.error && (
             <p className="mt-2 text-[length:var(--font-size-sm)] font-medium text-[#B3401E]" role="alert">
@@ -102,7 +104,7 @@ export default function ConsentCards({ bookTitle, hasC1, hasC2, hasC3 }: Consent
 
   return (
     <div className="mx-auto max-w-[680px] px-5 pb-16 pt-10">
-      <p className="mb-1 text-[length:var(--font-size-xs)] font-semibold uppercase tracking-[0.14em] text-[#E8622C]">Creator Portal</p>
+      <p className="mb-1 text-[length:var(--font-size-xs)] font-semibold uppercase tracking-[0.14em] text-[#B3401E]">Creator Portal</p>
       <h1 className="font-serif text-[length:var(--text-heading-1-size)] font-bold leading-[1.15] text-[#2B2520]">Final consents</h1>
       <p className="mt-1 mb-6 text-[length:var(--font-size-base)] text-[#6E5F53]">
         Review and sign the final approvals to publish <b className="font-semibold">{bookTitle}</b>.
@@ -139,10 +141,10 @@ export default function ConsentCards({ bookTitle, hasC1, hasC2, hasC3 }: Consent
             className="neu-card mb-5 rounded-[14px] p-(--space-5)"
             aria-label="Revenue split agreement"
           >
-            <span className="text-[length:var(--font-size-2xs)] font-bold uppercase tracking-[0.08em] text-[#E8622C]">3. Revenue Split Agreement</span>
+            <span className="text-[length:var(--font-size-2xs)] font-bold uppercase tracking-[0.08em] text-[#B3401E]">3. Revenue Split Agreement</span>
             <h2 className="mt-2 font-serif text-[length:var(--text-heading-3-size)] font-bold text-[#2B2520]">Publisher agreement (C3)</h2>
             {hasC3 ? (
-              <p className="mt-3 text-[length:var(--font-size-base)] font-medium text-[#2E7D5B]">Agreement executed ✓ — your book is cleared for release.</p>
+              <p className="mt-3 text-[length:var(--font-size-base)] font-medium text-[#296E50]">Agreement executed ✓ — your book is cleared for release.</p>
             ) : (
               <>
                 <p className="mt-1.5 text-[length:var(--font-size-base)] leading-relaxed text-[#4A4136]">
