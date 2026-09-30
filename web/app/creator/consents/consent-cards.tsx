@@ -9,7 +9,7 @@
  */
 import { useActionState } from "react";
 import Link from "next/link";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, m } from "framer-motion";
 import { signConsentAction, type ConsentFormState } from "./actions";
 import { startPublisherAgreementAction } from "../dashboard/actions";
 
@@ -43,7 +43,7 @@ function ConsentFormCard({
   pending: boolean;
 }) {
   return (
-    <motion.section
+    <m.section
       initial={{ opacity: 0, y: 32 }}
       // Completed cards stay at full opacity: dimming the whole card (was 0.85) pulled the
       // AA text tokens back under 4.5:1. The "Signed" badge carries the completed state.
@@ -81,17 +81,17 @@ function ConsentFormCard({
               {state.error}
             </p>
           )}
-          <motion.button
+          <m.button
             type="submit"
             disabled={pending}
             whileTap={{ scale: 1.015, transition: { type: "spring", stiffness: 320, damping: 12 } }}
             className="mt-3 min-h-11 rounded-[10px] bg-[#2B2520] px-6 text-[length:var(--font-size-sm)] font-semibold text-[#FAF7F2] transition-colors hover:bg-[#3d352d] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {pending ? "Recording…" : `Sign ${label}`}
-          </motion.button>
+          </m.button>
         </form>
       )}
-    </motion.section>
+    </m.section>
   );
 }
 
@@ -134,7 +134,7 @@ export default function ConsentCards({ bookTitle, hasC1, hasC2, hasC3 }: Consent
 
       <AnimatePresence>
         {allLegal && (
-          <motion.section
+          <m.section
             key="c3"
             initial={{ opacity: 0, y: 32 }}
             animate={{ opacity: 1, y: 0, transition: { duration: 0.5, ease: EASE, delay: 0.1 } }}
@@ -151,30 +151,30 @@ export default function ConsentCards({ bookTitle, hasC1, hasC2, hasC3 }: Consent
                   Sign the revenue split agreement electronically — a signed copy and its audit-trail certificate are emailed to you afterwards.
                 </p>
                 <form action={startPublisherAgreementAction} className="mt-3">
-                  <motion.button
+                  <m.button
                     type="submit"
                     whileTap={{ scale: 1.015, transition: { type: "spring", stiffness: 320, damping: 12 } }}
                     className="min-h-11 rounded-[10px] bg-[#2B2520] px-6 text-[length:var(--font-size-sm)] font-semibold text-[#FAF7F2] transition-colors hover:bg-[#3d352d]"
                   >
                     Open the agreement →
-                  </motion.button>
+                  </m.button>
                 </form>
               </>
             )}
-          </motion.section>
+          </m.section>
         )}
       </AnimatePresence>
 
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1, transition: { duration: 0.4, ease: EASE, delay: 0.2 } }} className="mt-7">
-        <motion.div whileHover={{ y: -2, transition: { duration: 0.2, ease: "easeOut" } }} className="inline-block">
+      <m.div initial={{ opacity: 0 }} animate={{ opacity: 1, transition: { duration: 0.4, ease: EASE, delay: 0.2 } }} className="mt-7">
+        <m.div whileHover={{ y: -2, transition: { duration: 0.2, ease: "easeOut" } }} className="inline-block">
           <Link
             href="/creator/dashboard"
             className="inline-flex min-h-11 items-center gap-2 rounded-[10px] border border-[#EADFD1] bg-[#FFFDF9] px-5 text-[length:var(--font-size-sm)] font-semibold text-[#6E5F53] no-underline shadow-[0_1px_3px_rgba(43,37,32,0.04)] transition-colors hover:bg-[#F3ECDF] hover:text-[#2B2520]"
           >
             ← Back to dashboard
           </Link>
-        </motion.div>
-      </motion.div>
+        </m.div>
+      </m.div>
     </div>
   );
 }

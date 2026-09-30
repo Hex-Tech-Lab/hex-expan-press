@@ -12,7 +12,7 @@
  * neutral theme tokens injected by the dashboard layout.
  */
 import { useEffect, useState } from "react";
-import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { AnimatePresence, m, useReducedMotion } from "framer-motion";
 import { Icon, addCollection } from "@iconify/react";
 import JourneyDots from "../../../src/components/journey/journey-dots";
 import SignOutButton from "./sign-out-button";
@@ -129,29 +129,29 @@ export default function DashboardClient({
 
   return (
     <div className="mx-auto max-w-[680px] px-5 pb-16 pt-12">
-      <motion.p
+      <m.p
         initial={{ opacity: 0, y: 24 }}
         animate={{ opacity: 1, y: 0, transition: { duration: 0.5, ease: EASE } }}
         className="mb-3 text-[length:var(--font-size-xs)] font-semibold uppercase tracking-[0.14em] text-[#B3401E]"
       >
         Creator Portal
-      </motion.p>
-      <motion.h1
+      </m.p>
+      <m.h1
         initial={{ opacity: 0, y: 28 }}
         animate={{ opacity: 1, y: 0, transition: { duration: 0.5, ease: EASE, delay: 0.06 } }}
         className="font-serif text-[length:var(--text-heading-1-size)] font-bold leading-[1.15] tracking-[-0.015em] text-[#2B2520]"
       >
         Your creator dashboard
-      </motion.h1>
+      </m.h1>
 
       {/* Publication status badge */}
-      <motion.div
+      <m.div
         initial={{ opacity: 0, y: 28 }}
         animate={{ opacity: 1, y: 0, transition: { duration: 0.5, ease: EASE, delay: 0.12 } }}
         className="mt-5 mb-6 inline-flex items-center gap-2 rounded-full border border-[#EADFD1] bg-[#F3ECDF] px-3 py-1.5 text-[length:var(--font-size-xs)] font-semibold text-[#6E5F53]"
         role="status"
       >
-        <motion.span
+        <m.span
           aria-hidden
           className="h-2 w-2 rounded-full"
           style={{ background: hasC3 ? "#2E7D5B" : "#E8622C" }}
@@ -159,10 +159,10 @@ export default function DashboardClient({
           transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
         />
         <span>{hasC3 ? "Publication Status: Agreement Signed — Ready for Release" : "Publication Status: Pending Review & Release"}</span>
-      </motion.div>
+      </m.div>
 
       {/* Account card */}
-      <motion.section
+      <m.section
         initial={{ opacity: 0, y: 32 }}
         animate={{ opacity: 1, y: 0, transition: { duration: 0.5, ease: EASE, delay: 0.18 } }}
         className="neu-card mb-5 rounded-[14px] p-(--space-5)"
@@ -173,10 +173,10 @@ export default function DashboardClient({
         </p>
         <p className="mt-1 mb-4 text-[length:var(--font-size-sm)] text-[#6E5F53]">{email}</p>
         <SignOutButton iconsReady={iconsReady} />
-      </motion.section>
+      </m.section>
 
       {/* Journey tracker — the creator's live status bar (Wave 4) */}
-      <motion.section
+      <m.section
         initial={{ opacity: 0, y: 32 }}
         animate={{ opacity: 1, y: 0, transition: { duration: 0.5, ease: EASE, delay: 0.24 } }}
         className="neu-card mb-7 rounded-[14px] p-(--space-5)"
@@ -191,15 +191,15 @@ export default function DashboardClient({
           </div>
           <JourneyDots active={journeyActive} reduced={Boolean(reduced)} className="shrink-0" />
         </div>
-      </motion.section>
+      </m.section>
 
-      <motion.h2
+      <m.h2
         initial={{ opacity: 0 }}
         animate={{ opacity: 1, transition: { duration: 0.4, ease: EASE, delay: 0.3 } }}
         className="mb-4 mt-7 font-serif text-[length:var(--text-heading-2-size)] font-bold text-[#2B2520]"
       >
         Required Release Steps
-      </motion.h2>
+      </m.h2>
 
       {/* Staggered spring entrance for the step cards (Wave 4 mandate).
           Pending Step 3 (Wave 6) renders as a Server-Action form — the card
@@ -207,14 +207,14 @@ export default function DashboardClient({
           page stays reachable as a secondary "review documents" link, since
           a link cannot live inside a button. */}
       {actionError && (
-        <motion.p
+        <m.p
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0, transition: { duration: 0.4, ease: EASE } }}
           className="mb-3.5 rounded-xl border border-[#EADFD1] bg-[#F3ECDF] p-(--space-4) text-[length:var(--font-size-sm)] font-medium text-[#8A4B2D]"
           role="alert"
         >
           {ACTION_ERROR_COPY[actionError]}
-        </motion.p>
+        </m.p>
       )}
       <AnimatePresence>
         {steps.map((step, i) => {
@@ -244,7 +244,7 @@ export default function DashboardClient({
 
           if (i === 2 && !step.done) {
             return (
-              <motion.form
+              <m.form
                 key={step.num}
                 action={startPublisherAgreementAction}
                 initial={{ opacity: 0, y: 40, scale: 0.97 }}
@@ -253,25 +253,25 @@ export default function DashboardClient({
                 transition={{ duration: 0.5, ease: EASE, delay: 0.34 + i * 0.09 }}
                 className="neu-card mb-3.5 block rounded-xl p-(--space-5) transition-shadow hover:shadow-[0_4px_12px_rgba(43,37,32,0.05)]"
               >
-                <motion.button
+                <m.button
                   type="submit"
                   whileTap={{ scale: 1.01, transition: WOBBLE }}
                   className="block w-full text-left"
                 >
                   {body}
-                </motion.button>
+                </m.button>
                 <a
                   href={step.href}
                   className="mt-2 inline-flex items-center gap-1 text-[length:var(--font-size-sm)] text-[#6E5F53] no-underline hover:underline"
                 >
                   Review documents first →
                 </a>
-              </motion.form>
+              </m.form>
             );
           }
 
           return (
-            <motion.a
+            <m.a
               key={step.num}
               href={step.done && i === 2 ? undefined : step.href}
               initial={{ opacity: 0, y: 40, scale: 0.97 }}
@@ -287,7 +287,7 @@ export default function DashboardClient({
               } ${step.done && i === 2 ? "cursor-default" : ""}`}
             >
               {body}
-            </motion.a>
+            </m.a>
           );
         })}
       </AnimatePresence>

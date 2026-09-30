@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import LandingPage from "../src/components/landing/landing-page";
+import MaxMotionProvider from "../src/components/motion/max-motion-provider";
 
 export const metadata: Metadata = {
   title: "ExpanPress · Your Voice Deserves to Be a Book",
@@ -22,5 +23,10 @@ export default function Home() {
   // C3 is unsigned). Flip NEXT_PUBLIC_ONBOARDING_ACTIVE=false to retire the
   // onboarding claim — the spotlight bar copy follows automatically.
   const onboarding = process.env.NEXT_PUBLIC_ONBOARDING_ACTIVE !== "false";
-  return <LandingPage onboarding={onboarding} />;
+  // domMax: the landing page uses layout animations (card expand); JourneyDots renders m.*.
+  return (
+    <MaxMotionProvider>
+      <LandingPage onboarding={onboarding} />
+    </MaxMotionProvider>
+  );
 }
