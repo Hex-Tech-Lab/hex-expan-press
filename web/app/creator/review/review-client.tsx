@@ -70,7 +70,7 @@ export default function ReviewClient({ items, saved, pdfUrl, bookTitle }: Review
   const seqRef = useRef(0);
   // Stepper focus: after Back / Save & next, move focus to the new question so
   // screen readers announce it (instead of leaving it on the pressed button).
-  const questionRef = useRef<HTMLDivElement>(null);
+  const questionRef = useRef<HTMLHeadingElement>(null);
   const focusQuestionRef = useRef(false);
   const [page, setPage] = useState(0);
   const [total, setTotal] = useState(0);
@@ -78,6 +78,7 @@ export default function ReviewClient({ items, saved, pdfUrl, bookTitle }: Review
   const [folio, setFolio] = useState<number | null>(null);
   const [viewerError, setViewerError] = useState<string | null>(null);
   const [viewerReady, setViewerReady] = useState(false);
+  const [pageText, setPageText] = useState("");
 
   const item = items[index];
   const answeredCount = items.filter((it) => answers[it.id]).length;
@@ -168,6 +169,25 @@ export default function ReviewClient({ items, saved, pdfUrl, bookTitle }: Review
       task?.cancel();
     };
   }, [page, zoom, viewerReady]);
+
+  // Screen-reader text for the canvas: the real text layer of the shown page.
+  useEffect(() => {
+    const doc = docRef.current;
+    if (!doc || !page) return;
+    let cancelled = false;
+    (async () => {
+      const pdfPage = await doc.getPage(page);
+      const content = await pdfPage.getTextContent();
+      if (cancelled) return;
+      setPageText(content.items.map((it) => it.str ?? "").join(" ").replace(/\s+/g, " ").trim());
+    })().catch((err: unknown) => {
+      console.error("[review] page text extraction failed:", err);
+      if (!cancelled) setPageText("");
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [page, viewerReady]);
 
   // Folio detection (best-effort): printed page numbers from the PDF text.
   useEffect(() => {
@@ -288,17 +308,18 @@ export default function ReviewClient({ items, saved, pdfUrl, bookTitle }: Review
           className="neu-card self-start rounded-[14px] p-(--space-5)"
           aria-label="Review question"
         >
-          <div
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <span className="text-[length:var(--font-size-2xs)] font-bold uppercase tracking-[0.08em] text-[#B3401E]">{item.code}</span>
+            <span className="text-[length:var(--font-size-2xs)] font-semibold text-[#6E5F53]">{KIND_LABEL[item.kind] ?? item.kind}</span>
+          </div>
+          <h2
+            id="review-question-text"
             ref={questionRef}
             tabIndex={-1}
-            className="rounded-md focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#E8622C]"
+            className="text-[length:var(--font-size-base)] font-medium leading-relaxed text-[#2B2520] rounded-md focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#E8622C]"
           >
-            <div className="mb-2 flex items-center justify-between gap-2">
-              <span className="text-[length:var(--font-size-2xs)] font-bold uppercase tracking-[0.08em] text-[#B3401E]">{item.code}</span>
-              <span className="text-[length:var(--font-size-2xs)] font-semibold text-[#6E5F53]">{KIND_LABEL[item.kind] ?? item.kind}</span>
-            </div>
-            <p id="review-question-text" className="text-[length:var(--font-size-base)] font-medium leading-relaxed text-[#2B2520]">{item.question}</p>
-          </div>
+            {item.question}
+          </h2>
 
           {hasBlank && (
             <p className="mt-3 rounded-lg bg-[#F3ECDF] p-3 text-[length:var(--font-size-sm)] text-[#6E5F53]">
@@ -433,13 +454,18 @@ export default function ReviewClient({ items, saved, pdfUrl, bookTitle }: Review
             ) : !viewerReady ? (
               <p className="text-[length:var(--font-size-sm)] text-[#6E5F53]">Loading the book…</p>
             ) : (
-              <canvas
-                ref={canvasRef}
-                role="img"
-                aria-label={`Book page ${printed(page)} of ${printed(total)}, shown for question ${item.code}`}
-                aria-describedby="review-question-text"
-                className="max-w-full rounded-lg shadow-[0_2px_10px_rgba(43,37,32,0.08)]"
-              />
+              <>
+                <canvas
+                  ref={canvasRef}
+                  role="img"
+                  aria-label={`Book page ${printed(page)} of ${printed(total)}, shown for question ${item.code}`}
+                  aria-describedby="review-page-text review-question-text"
+                  className="max-w-full rounded-lg shadow-[0_2px_10px_rgba(43,37,32,0.08)]"
+                />
+                <div id="review-page-text" className="sr-only">
+                  {pageText ? `Text of book page ${printed(page)}: ${pageText}` : `Book page ${printed(page)} has no extractable text.`}
+                </div>
+              </>
             )}
           </div>
 
