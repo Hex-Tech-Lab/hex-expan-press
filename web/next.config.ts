@@ -24,6 +24,22 @@ const nextConfig: NextConfig = {
   // one-hop 308 to the no-slash form, then the rewrite serves the same HTML.
   trailingSlash: false,
   typescript: { ignoreBuildErrors: false },
+  // Sentry bundle trimming (Wave 8.2). @sentry/nextjs v11 applies its treeshake
+  // flags via webpack DefinePlugin only, which Turbopack (Next 16's builder) never
+  // runs — so the same compile-time constants are defined here, where both
+  // bundlers honour them. Replay is not enabled (no replayIntegration in
+  // sentry.client.config.ts); these drop its residual code paths and SDK debug logging.
+  compiler: {
+    define: {
+      __SENTRY_DEBUG__: false,
+      // Browser performance tracing off: errors are still captured, but client-side
+      // traces stop (tracesSampleRate in sentry.client.config.ts becomes inert).
+      __SENTRY_TRACING__: false,
+      __RRWEB_EXCLUDE_IFRAME__: true,
+      __RRWEB_EXCLUDE_SHADOW_DOM__: true,
+      __SENTRY_EXCLUDE_REPLAY_WORKER__: true,
+    },
+  },
   eslint: { ignoreDuringBuilds: false },
   // The legacy billing webhook enumerates payments/config.*.json at runtime.
   // Explicitly bundle those server-only files with the function (they were
@@ -55,5 +71,7 @@ export default withSentryConfig(nextConfig, {
   // Uploads are skipped silently when no token is present (local dev)
   authToken: process.env.SENTRY_AUTH_TOKEN,
   silent: true,
-  disableLogger: true,
+  // v11 removed the top-level disableLogger (it was silently ignored); this is its
+  // replacement for webpack builds — compiler.define above covers Turbopack.
+  webpack: { treeshake: { removeDebugLogging: true } },
 });
