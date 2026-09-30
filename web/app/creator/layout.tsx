@@ -2,6 +2,7 @@ import { Fraunces } from "next/font/google";
 import "../globals.css";
 import "./astryx-tokens.css";
 import type { Metadata } from "next";
+import MotionProvider from "../../src/components/motion/motion-provider";
 
 const fraunces = Fraunces({
   subsets: ["latin"],
@@ -25,7 +26,7 @@ export const metadata: Metadata = {
 export default function CreatorLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className={`${fraunces.className} [--font-serif:var(--font-fraunces)]`} data-creator-portal>
-      {children}
+      <MotionProvider>{children}</MotionProvider>
     </div>
   );
 }
