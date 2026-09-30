@@ -1,0 +1,37 @@
+web/app/creator/consents/consent-cards.tsx
+  s_d5ee695bf1a23a::t_096899596c2880 12,46,84,91,94,137,154,160,164,168-169,176-177
+web/app/creator/dashboard/dashboard-client.tsx
+  s_d5ee695bf1a23a::t_354efbb82f3d9d 15,132,138-139,145,148,154,162,165,176,179,194,196,202,210,217,247,256,262,269,274,290
+web/app/creator/layout.tsx
+  s_d5ee695bf1a23a::t_74948cba8eec00 5,29
+web/app/creator/review/review-client.tsx
+  s_d5ee695bf1a23a::t_96fbfc5a6c3333 17,233,249,273,358,366,368,371,445
+web/app/page.tsx
+  s_d5ee695bf1a23a::t_558b9a7b0be198 3,26-31
+web/src/components/journey/journey-dots.tsx
+  s_d5ee695bf1a23a::t_d64f8703e24135 10,27,51
+web/src/components/motion/dom-animation-features.ts
+  s_d5ee695bf1a23a::t_cfa3ce9724d08f 1-4
+web/src/components/motion/dom-max-features.ts
+  s_d5ee695bf1a23a::t_3b8c50302e19b3 1-3
+web/src/components/motion/max-motion-provider.tsx
+  s_d5ee695bf1a23a::t_fc4c324613732b 1-14
+web/src/components/motion/motion-provider.tsx
+  s_d5ee695bf1a23a::t_a50f86212a1ae5 1-20
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "09f606b3cd0a0a55006d802c4e8fd578e55df38d",
+  "prompts": {},
+  "sessions": {
+    "s_d5ee695bf1a23a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1c1a25a9-9f24-4048-af53-aa202091ce7e",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
