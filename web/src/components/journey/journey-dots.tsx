@@ -7,7 +7,7 @@
  * past = filled, active = lit + breathing ring, upcoming = hollow.
  * Press wobble is the Wave 3.4 paper physics (spring 320/12).
  */
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 
 export interface JourneyDotsProps {
   active: number;
@@ -24,7 +24,7 @@ export default function JourneyDots({ active, total = 3, reduced = false, onSele
         <span key={i} className="flex items-center gap-1.5" role="listitem">
           {i > 0 && <span className="w-4 h-px bg-gray-300" />}
           {i === active ? (
-            <motion.button
+            <m.button
               type="button"
               aria-label={`Step ${i + 1} — you are here`}
               aria-current="step"
@@ -48,7 +48,7 @@ export default function JourneyDots({ active, total = 3, reduced = false, onSele
         </span>
       ))}
       {!reduced && (
-        <motion.span
+        <m.span
           aria-hidden
           className="absolute top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-peach"
           animate={{ left: ["6%", "94%"], opacity: [0, 1, 1, 0] }}
