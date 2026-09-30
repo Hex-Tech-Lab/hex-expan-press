@@ -1,0 +1,19 @@
+web/app/creator/review/review-client.tsx
+  s_0dc509588f18e9::t_454b3932a5b3e9 71-74,95,100-106,291-300,436-442
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ebdc5367ca6f08203261003700cca3d2f929c697",
+  "prompts": {},
+  "sessions": {
+    "s_0dc509588f18e9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fc365f60-a79d-4397-b8a4-2f924d01aba1",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
