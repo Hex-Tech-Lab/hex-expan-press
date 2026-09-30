@@ -275,7 +275,9 @@ export default function DashboardClient({
               key={step.num}
               href={step.done && i === 2 ? undefined : step.href}
               initial={{ opacity: 0, y: 40, scale: 0.97 }}
-              animate={{ opacity: step3Done && i === 2 ? 0.85 : 1, y: 0, scale: 1 }}
+              // Full opacity even when complete: whole-card dimming (was 0.85) dropped the
+              // step text under WCAG AA 4.5:1; the done check icon/label carry the state.
+              animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.5, ease: EASE, delay: 0.34 + i * 0.09 }}
               whileTap={{ scale: 1.01, transition: WOBBLE }}
