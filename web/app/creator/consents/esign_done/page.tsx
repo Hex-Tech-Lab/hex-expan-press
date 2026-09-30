@@ -13,6 +13,11 @@ import { getPortalSession } from "../../../../src/lib/supabase-server";
  * C3 consent row exists for the creator's product; otherwise the page says the
  * signature is being finalised.
  */
+// Explicitly dynamic: the page reads the session cookie. Without this, Next tries a
+// static render at build, cookies() throws its dynamic-bailout signal, and
+// hasRecordedC3's catch swallowed it (logged as a false "C3 status check failed").
+export const dynamic = "force-dynamic";
+
 export const metadata = {
   title: "Agreement signing · ExpanPress",
   robots: { index: false, follow: false },
