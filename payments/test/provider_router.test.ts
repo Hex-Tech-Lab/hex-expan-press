@@ -1,8 +1,24 @@
-import { describe, it, expect, beforeAll, beforeEach, afterEach } from "vitest";
-import dotenv from "dotenv";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { nextRail, skipRail, resetRails } from "../src/provider_router.ts";
 
-dotenv.config({ path: ".env", override: true });
+// Deterministic CI (Wave 7.4): the router's state store is an in-memory Map, not live
+// Upstash. The suite used to dotenv-load .env and hit the real Redis over the network,
+// so network latency made the ratio tests flaky and CI depended on secrets. Only the
+// client is faked — the real env helpers (isRedisRestConfigured) stay, and env is
+// stubbed so MatrixRouter takes its Redis code path (the path under test), never the
+// file fallback. Mirrors the used ExpanRedisClient surface: get / set / del.
+const store = vi.hoisted(() => new Map<string, string>());
+vi.mock("../../src/infrastructure/redis/redis.client.ts", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../src/infrastructure/redis/redis.client.ts")>()),
+  expanRedis: {
+    get: async (key: string) => store.get(key) ?? null,
+    set: async (key: string, value: string | number) => {
+      store.set(key, String(value));
+      return "OK";
+    },
+    del: async (key: string) => (store.delete(key) ? 1 : 0),
+  },
+}));
 
 const rails2 = [
   { provider: "polar", weight: 3 },
@@ -16,21 +32,23 @@ const rails3 = [
 ];
 
 describe("payments/src/provider_router (nextRail/skipRail)", () => {
-  beforeAll(() => {
-    // Fail loud if Redis env is missing — silently exercising the file fallback
-    // would test the wrong code path.
-    if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) {
-      throw new Error("provider_router tests require UPSTASH_REDIS_REST_URL/TOKEN (must hit live Upstash, not the file fallback)");
-    }
-  });
-
   beforeEach(async () => {
+    // Fake credentials: only switch MatrixRouter onto its Redis path; the client is mocked.
+    vi.stubEnv("UPSTASH_REDIS_REST_URL", "https://unit.test.redis.example");
+    vi.stubEnv("UPSTASH_REDIS_REST_TOKEN", "unit-test-token");
+    store.clear();
     await resetRails();
-  }, 30_000);
+  });
 
   afterEach(async () => {
     await resetRails();
-  }, 30_000);
+    vi.unstubAllEnvs();
+  });
+
+  it("uses the (mocked) Redis store, not the file fallback", async () => {
+    await nextRail("t_path", rails2);
+    expect([...store.keys()].some((k) => k.includes("t_path"))).toBe(true);
+  });
 
   it("respects weight ratios over many calls (3:1)", async () => {
     const N = 40;
@@ -41,7 +59,7 @@ describe("payments/src/provider_router (nextRail/skipRail)", () => {
     }
     expect(counts.polar).toBeCloseTo(N * 0.75, 1);
     expect(counts.lemonsqueezy).toBeCloseTo(N * 0.25, 1);
-  }, 60_000);
+  });
 
   it("respects weight ratios with three providers (2:1:1)", async () => {
     const N = 40;
@@ -53,7 +71,7 @@ describe("payments/src/provider_router (nextRail/skipRail)", () => {
     expect(counts.polar).toBeCloseTo(N * 0.5, 1);
     expect(counts.lemonsqueezy).toBeCloseTo(N * 0.25, 1);
     expect(counts.payhip).toBeCloseTo(N * 0.25, 1);
-  }, 60_000);
+  });
 
   it("skipRail removes a provider from rotation until its down-window expires", async () => {
     for (let i = 0; i < 8; i++) await nextRail("t_skip", rails2);
@@ -61,11 +79,11 @@ describe("payments/src/provider_router (nextRail/skipRail)", () => {
     for (let i = 0; i < 20; i++) {
       expect(await nextRail("t_skip", rails2)).toBe("lemonsqueezy");
     }
-  }, 60_000);
+  });
 
   it("throws a clean error when every rail is down", async () => {
     await skipRail("t_all_down", "polar", rails2, 60_000);
     await skipRail("t_all_down", "lemonsqueezy", rails2, 60_000);
     await expect(nextRail("t_all_down", rails2)).rejects.toThrow(/every rail is marked down/);
-  }, 60_000);
+  });
 });
