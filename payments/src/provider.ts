@@ -28,6 +28,8 @@ export interface RefundEvent {
   provider: ProviderName;
   sale_id: string;
   ts: string;
+  // provider cannot report the refunded amount; the engine routes it to manual review
+  amount_unverifiable?: true;
 }
 
 export type ParseResult =

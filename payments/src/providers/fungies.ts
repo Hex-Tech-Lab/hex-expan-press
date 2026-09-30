@@ -107,14 +107,25 @@ export const fungiesProvider: CheckoutProvider = {
       };
     }
     if (eventName === "payment_refunded") {
-      const rdata = body?.data ?? {};
-      const rpayment = rdata.payment;
-      const rorder = rdata.order;
-      const saleId = String(getPath(body, FM.sale_id) ?? rpayment?.id ?? rorder?.id ?? "");
+      // Fungies' payment_refunded payload carries no refunded-amount field (the field_map in
+      // data/settings/providers.json maps only data.payment.value — the ORIGINAL sale gross,
+      // not the refunded portion), so full vs partial cannot be verified here. As a pure
+      // translator, this provider emits a refund with amount_unverifiable=true; the ENGINE
+      // (process_billing_webhook) routes it to manual review. No DB writes here.
+      const data = body?.data ?? {};
+      const saleId = String(getPath(body, FM.sale_id) ?? data?.payment?.id ?? data?.order?.id ?? "");
       if (!saleId) {
-        return { ok: false, status: 400, error: "payment_refunded missing data.payment.id — refund cannot be linked to a recorded sale" };
+        return {
+          ok: false,
+          status: 400,
+          error: "payment_refunded missing data.payment.id — refund cannot be linked to a recorded sale",
+        };
       }
-      return { ok: true, refund: { provider: NAME, sale_id: saleId, ts: isoTs(getPath(body, FM.ts_ms), rpayment?.createdAt, rorder?.createdAt) } };
+      const ts = isoTs(firstDefined(getPath(body, FM.ts_ms), data?.payment?.createdAt, data?.order?.createdAt));
+      return {
+        ok: true,
+        refund: { provider: NAME, sale_id: saleId, ts, amount_unverifiable: true },
+      };
     }
     if (!SALE_EVENTS.includes(eventName)) {
       return { ok: false, status: 202, error: `ignored non-sale event: ${eventName ?? "<none>"}` };

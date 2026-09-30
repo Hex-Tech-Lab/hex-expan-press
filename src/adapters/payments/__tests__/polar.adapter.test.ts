@@ -46,4 +46,15 @@ describe("PolarAdapter refund parsing (Wave 7.2)", () => {
     expect(res.isValid).toBe(false);
     expect((res as { httpStatus?: number }).httpStatus).toBe(400);
   });
+
+  // Wave 7.3 safe-integer guards: JSON numbers past Number.MAX_SAFE_INTEGER (or a
+  // sum past it) would silently lose cents precision in amount + tax_amount.
+  it.each([
+    ["amount beyond MAX_SAFE_INTEGER", { amount: Number.MAX_SAFE_INTEGER + 2, tax_amount: 0 }],
+    ["amount + tax_amount sum beyond MAX_SAFE_INTEGER", { amount: Number.MAX_SAFE_INTEGER, tax_amount: 1 }],
+  ])("rejects a refund with %s → 400 (safe-integer guard)", async (_label, patch) => {
+    const res = await parse(refund(patch));
+    expect(res.isValid).toBe(false);
+    expect((res as { httpStatus?: number }).httpStatus).toBe(400);
+  });
 });
