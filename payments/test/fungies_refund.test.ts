@@ -32,31 +32,40 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-describe("fungies payment_refunded (reject-all — no refund-amount field is mapped)", () => {
-  it("rejects a full-shape refund event with 422 manual review", () => {
+describe("fungies payment_refunded (translator-only — emits amount_unverifiable, engine routes to manual review)", () => {
+  it("parses a full-shape refund event with amount_unverifiable=true and mapped sale id", () => {
     const r = parse(refundBody("pay_001"));
-    expect(r.ok).toBe(false);
-    if (!r.ok) {
-      expect(r.status).toBe(422);
-      expect(r.error).toBe("fungies refund amount not mapped — full vs partial cannot be verified; manual review required");
+    expect(r.ok).toBe(true);
+    if (r.ok && "refund" in r) {
+      expect(r.refund).toEqual({
+        provider: "fungies",
+        sale_id: "pay_001",
+        ts: "2025-09-27T19:06:40.000Z",
+        amount_unverifiable: true,
+      });
     }
   });
 
-  it("rejects a refund event even when the sale id is present in data.order", () => {
-    const body = refundBody("pay_002");
+  it("falls back to data.order.id when data.payment.id is absent", () => {
+    const body = refundBody(undefined);
     (body.data as Record<string, unknown>).order = { id: "order_fallback", createdAt: 1759000000000 };
     (body.data as Record<string, unknown>).payment = undefined;
     const r = parse(body);
-    expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.status).toBe(422);
+    expect(r.ok).toBe(true);
+    if (r.ok && "refund" in r) {
+      expect(r.refund.sale_id).toBe("order_fallback");
+      expect(r.refund.amount_unverifiable).toBe(true);
+    }
   });
 
-  it("rejects a malformed refund with missing sale id the same way (422, not recorded)", () => {
-    const r = parse(refundBody(undefined));
+  it("rejects a refund with missing sale id (400 — refund cannot be linked to a recorded sale)", () => {
+    const body = refundBody(undefined);
+    (body.data as Record<string, unknown>).order = { createdAt: 1759000000000 };
+    const r = parse(body);
     expect(r.ok).toBe(false);
     if (!r.ok) {
-      expect(r.status).toBe(422);
-      expect(r.error).toContain("manual review required");
+      expect(r.status).toBe(400);
+      expect(r.error).toBe("payment_refunded missing data.payment.id — refund cannot be linked to a recorded sale");
     }
   });
 });

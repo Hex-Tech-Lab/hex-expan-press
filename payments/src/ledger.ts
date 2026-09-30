@@ -212,8 +212,9 @@ const ManualReviewRefundSchema = z.object({
   provider: z.string().min(1),
   sale_id: z.string().min(1),
   refund_id: z.string().nullable(),
-  refund_cents: z.number().int().nonnegative(),
-  sale_cents: z.number().int().nonnegative(),
+  reason: z.enum(["amount_mismatch", "amount_unverifiable"]),
+  refund_cents: z.number().int().nonnegative().nullable(),
+  sale_cents: z.number().int().nonnegative().nullable(),
   creator_id: z.string().nullable(),
   occurred_at: z.string(),
 }).strict();

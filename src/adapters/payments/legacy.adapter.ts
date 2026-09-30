@@ -75,6 +75,7 @@ export class LegacyPaymentAdapterWrapper implements PaymentProviderPort {
         providerName: this.providerName,
         saleId: action.refund.sale_id,
         occurredAt: action.refund.ts,
+        ...(action.refund.amount_unverifiable === true ? { amountUnverifiable: true } : {}),
         rawPayload: JSON.parse(body)
       };
       return { isValid: true, event };
