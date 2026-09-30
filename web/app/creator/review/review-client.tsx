@@ -68,6 +68,10 @@ export default function ReviewClient({ items, saved, pdfUrl, bookTitle }: Review
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const docRef = useRef<PdfDoc | null>(null);
   const seqRef = useRef(0);
+  // Stepper focus: after Back / Save & next, move focus to the new question so
+  // screen readers announce it (instead of leaving it on the pressed button).
+  const questionRef = useRef<HTMLDivElement>(null);
+  const focusQuestionRef = useRef(false);
   const [page, setPage] = useState(0);
   const [total, setTotal] = useState(0);
   const [zoom, setZoom] = useState(1);
@@ -88,9 +92,17 @@ export default function ReviewClient({ items, saved, pdfUrl, bookTitle }: Review
     setFreeText(answers[target.id]?.freeText ?? "");
     setError(null);
     setJustSaved(false);
+    focusQuestionRef.current = true;
     const anchor = target.anchorPage;
     if (docRef.current && anchor && anchor >= 1 && anchor <= total) setPage(anchor);
   }
+
+  useEffect(() => {
+    if (!focusQuestionRef.current) return;
+    focusQuestionRef.current = false;
+    // preventScroll: saveAndNext already scrolls to the top.
+    questionRef.current?.focus({ preventScroll: true });
+  }, [index]);
 
   // Load the document once; re-render on page/zoom changes.
   useEffect(() => {
@@ -276,11 +288,17 @@ export default function ReviewClient({ items, saved, pdfUrl, bookTitle }: Review
           className="neu-card self-start rounded-[14px] p-(--space-5)"
           aria-label="Review question"
         >
-          <div className="mb-2 flex items-center justify-between gap-2">
-            <span className="text-[length:var(--font-size-2xs)] font-bold uppercase tracking-[0.08em] text-[#B3401E]">{item.code}</span>
-            <span className="text-[length:var(--font-size-2xs)] font-semibold text-[#6E5F53]">{KIND_LABEL[item.kind] ?? item.kind}</span>
+          <div
+            ref={questionRef}
+            tabIndex={-1}
+            className="rounded-md focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#E8622C]"
+          >
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <span className="text-[length:var(--font-size-2xs)] font-bold uppercase tracking-[0.08em] text-[#B3401E]">{item.code}</span>
+              <span className="text-[length:var(--font-size-2xs)] font-semibold text-[#6E5F53]">{KIND_LABEL[item.kind] ?? item.kind}</span>
+            </div>
+            <p id="review-question-text" className="text-[length:var(--font-size-base)] font-medium leading-relaxed text-[#2B2520]">{item.question}</p>
           </div>
-          <p className="text-[length:var(--font-size-base)] font-medium leading-relaxed text-[#2B2520]">{item.question}</p>
 
           {hasBlank && (
             <p className="mt-3 rounded-lg bg-[#F3ECDF] p-3 text-[length:var(--font-size-sm)] text-[#6E5F53]">
@@ -415,7 +433,13 @@ export default function ReviewClient({ items, saved, pdfUrl, bookTitle }: Review
             ) : !viewerReady ? (
               <p className="text-[length:var(--font-size-sm)] text-[#6E5F53]">Loading the book…</p>
             ) : (
-              <canvas ref={canvasRef} className="max-w-full rounded-lg shadow-[0_2px_10px_rgba(43,37,32,0.08)]" />
+              <canvas
+                ref={canvasRef}
+                role="img"
+                aria-label={`Book page ${printed(page)} of ${printed(total)}, shown for question ${item.code}`}
+                aria-describedby="review-question-text"
+                className="max-w-full rounded-lg shadow-[0_2px_10px_rgba(43,37,32,0.08)]"
+              />
             )}
           </div>
 
