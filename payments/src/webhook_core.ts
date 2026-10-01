@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { appendRefund, appendSale, findRefund, findSale } from "./ledger.ts";
-import { isRegisteredPaymentProvider, paymentProviderSetting } from "./settings_registry.ts";
+import { isRegisteredPaymentProvider, paymentProviderSetting, GLOBAL } from "./settings_registry.ts";
 import { loadConfig, type ProductConfig } from "./settings.ts";
 import { computeSplit } from "./split.ts";
 import { effectiveCreatorSplitPct } from "./terms.ts";
@@ -117,7 +117,7 @@ export function loadProductIndex(): Map<string, ProductConfig> {
 // either has appended, producing a double creator payout. Upstash SETNX closes that window
 // with an atomic distributed lock. Redis is optional infra (local/test runs without it) —
 // when unconfigured, behavior is unchanged (file-based check only, as before).
-const WEBHOOK_LOCK_TTL_SECONDS = 300; // bounds a stuck lock if a process dies mid-write
+const WEBHOOK_LOCK_TTL_SECONDS = GLOBAL.payments.webhook_lock_ttl_seconds; // bounds a stuck lock if a process dies mid-write (settings registry)
 
 function isRedisConfigured(): boolean {
   return isRedisRestConfigured();
