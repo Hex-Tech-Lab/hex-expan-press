@@ -1,0 +1,58 @@
+web/package.json
+  s_0d4b401a41bb58::t_303ce0e0e9dc7c 17-18
+src/adapters/payments/paddle.adapter.ts
+  s_0d4b401a41bb58::t_5c51f8e7426b3f 63-64,68-74,76-80,82-92
+  s_0d4b401a41bb58::t_7f786af7e68eb1 9-11
+  s_0d4b401a41bb58::t_14c22556a4afcc 47-48
+web/.env.example
+  s_0d4b401a41bb58::t_faab41e5145c74 1-8
+  s_0d4b401a41bb58::t_cf25de6cb1e85c 9-10
+web/src/components/billing/paddle-checkout-button.tsx
+  s_0d4b401a41bb58::t_d0107487b0ca72 1-11,13-25,41-43,46-54,56-78
+  s_0d4b401a41bb58::t_e318eec48c8c53 12,26-40,44-45,55
+web/src/lib/__tests__/paddle-env.test.ts
+  s_0d4b401a41bb58::t_0132daed0f0bb3 9,14-15
+  s_0d4b401a41bb58::t_54720f98277a74 1-8,10-13,16-78
+src/adapters/payments/__tests__/paddle.adapter.test.ts
+  s_0d4b401a41bb58::t_e19f4844e8c322 7
+  s_0d4b401a41bb58::t_a008c6e583544e 35-37
+  s_0d4b401a41bb58::t_cf8b096d14baa1 1-6,8-34,38-84,87-132
+  s_0d4b401a41bb58::t_4bad0b40edc4cc 85-86
+web/src/lib/paddle-env.ts
+  s_0d4b401a41bb58::t_8bb3bb482da681 1-32
+  s_0d4b401a41bb58::t_675d37ac6206a5 33-35
+  s_0dc509588f18e9::t_ea50d3b440fd08 36-37
+docs/agent_ledger.jsonl
+  s_0d4b401a41bb58::t_beebb8348497f1 348
+web/app/api/billing/webhook/route.ts
+  s_0d4b401a41bb58::t_14abb27983a319 49-50
+  s_0d4b401a41bb58::t_291c42ef713045 48
+  s_0d4b401a41bb58::t_7912b404314b9e 4
+  s_0d4b401a41bb58::t_cac0db79dd0261 51
+pnpm-lock.yaml
+  s_0d4b401a41bb58::t_9bb3a87e00c43f 164-169,1654-1660,6191-6194
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "bc953385a1333bfd788aef47e005d71f60e3ad5d",
+  "prompts": {},
+  "sessions": {
+    "s_0d4b401a41bb58": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f08fe2751ffe43WHBd6x6t2ubY",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_0dc509588f18e9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fc365f60-a79d-4397-b8a4-2f924d01aba1",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
