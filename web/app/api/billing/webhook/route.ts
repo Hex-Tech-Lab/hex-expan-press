@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { processBillingWebhookUseCase } from "../../../../../src/use_cases/billing/process_billing_webhook";
 import { PolarAdapter } from "../../../../../src/adapters/payments/polar.adapter";
+import { PaddleAdapter } from "../../../../../src/adapters/payments/paddle.adapter";
 import { LegacyPaymentAdapterWrapper } from "../../../../../src/adapters/payments/legacy.adapter";
 import { fungiesProvider } from "../../../../../payments/src/providers/fungies";
 
@@ -44,10 +45,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const body = bodyBuffer.toString("utf8");
   const headers = Object.fromEntries(request.headers);
 
-  // Only providers we sell through are routable; every other verifier is
-  // unreachable by design (sharp-edges audit 2026-10-01). Add a provider here
-  // only with a reviewed verifier.
-  const adapters = [new PolarAdapter(), new LegacyPaymentAdapterWrapper(fungiesProvider)];
+  // Only providers we sell through are routable (Polar, Paddle, Fungies);
+  // every other verifier is unreachable by design (sharp-edges audit
+  // 2026-10-01). Add a provider here only with a reviewed verifier.
+  const adapters = [new PolarAdapter(), new PaddleAdapter(), new LegacyPaymentAdapterWrapper(fungiesProvider)];
 
   try {
     await processBillingWebhookUseCase({ headers, body }, adapters);
@@ -69,9 +70,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // bad/stale signature) — honor it when in the 4xx band; otherwise the
     // legacy 400/500 split stands.
     const rawStatus = (err as { httpStatus?: unknown })?.httpStatus;
-    const httpStatus = typeof rawStatus === "number" && rawStatus >= 400 && rawStatus < 500 ? rawStatus : undefined;
+    // Honour the adapter's hint: 4xx is final; 5xx (missing secret = 500, email lookup failure = 503)
+    // makes the provider RETRY — never flatten a server-side problem into a permanent 400.
+    const httpStatus = typeof rawStatus === "number" && rawStatus >= 400 && rawStatus < 600 ? rawStatus : undefined;
     const status = isValidationErr && httpStatus === undefined ? 400 : httpStatus ?? (isValidationErr ? 400 : 500);
-    const error = status === 401 ? "Unauthorized" : status === 500 ? "Internal Server Error" : "Bad Request";
+    const error = status === 401 ? "Unauthorized" : status === 503 ? "Temporarily unavailable — retry" : status === 500 ? "Internal Server Error" : "Bad Request";
     return NextResponse.json({ ok: false, error }, { status });
   }
 }
