@@ -1,0 +1,31 @@
+web/src/lib/__tests__/primary-product.test.ts
+  s_c338d4c50ee718::t_ce0e2632f8e619 105,108-111,114,157-166
+web/app/creator/dashboard/actions.ts
+  s_0dc509588f18e9::t_dec878fdc66c40 7,68-74
+web/app/creator/dashboard/page.tsx
+  s_0dc509588f18e9::t_de14d86fa76693 65,111-112
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "1bb55566f109f5dc499c78658c2faa727a3939b0",
+  "prompts": {},
+  "sessions": {
+    "s_0dc509588f18e9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fc365f60-a79d-4397-b8a4-2f924d01aba1",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_c338d4c50ee718": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f06d045b9ffejFiornJZE5aPx3",
+        "model": "@preset/glm-53-flash-on-cheap"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
