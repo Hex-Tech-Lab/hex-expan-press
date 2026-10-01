@@ -21,6 +21,7 @@ const WEBHOOK_URL = "http://localhost:3000/api/billing/webhook";
 // Per-run random fixture keys: nothing credential-shaped is committed.
 const LS_SECRET = crypto.randomBytes(16).toString("hex");
 const PAYHIP_SECRET = crypto.randomBytes(16).toString("hex");
+const POLAR_KEY = crypto.randomBytes(16).toString("hex");
 
 // Supabase is faked: EVERY insert/upsert on ANY table is captured — the
 // allowlist must produce zero writes anywhere.
@@ -156,7 +157,7 @@ describe("billing webhook provider allowlist (sharp-edges audit 2026-10-01)", ()
   });
 
   it("positive control: a Polar-signed delivery still routes through the narrowed allowlist (200 on an ignored unpaid order.created)", async () => {
-    vi.stubEnv("POLAR_WEBHOOK_SECRET", crypto.randomBytes(16).toString("hex"));
+    vi.stubEnv("POLAR_WEBHOOK_SECRET", POLAR_KEY);
     const id = "whid_allowlist_0001";
     const ts = Math.floor(Date.now() / 1000).toString();
     const payload = JSON.stringify({
@@ -171,7 +172,7 @@ describe("billing webhook provider allowlist (sharp-edges audit 2026-10-01)", ()
       },
     });
     const sig = crypto
-      .createHmac("sha256", Buffer.from(crypto.randomBytes(16).toString("hex"), "utf8"))
+      .createHmac("sha256", Buffer.from(POLAR_KEY, "utf8"))
       .update(`${id}.${ts}.${payload}`)
       .digest("base64");
     const res = await billingPost(
