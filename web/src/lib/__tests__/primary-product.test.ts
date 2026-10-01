@@ -24,6 +24,10 @@ vi.mock("next/navigation", () => ({
     err.digest = `NEXT_REDIRECT;${url}`;
     throw err;
   },
+  // Mirrors next/navigation: re-throw only Next navigation signals (redirect/notFound).
+  unstable_rethrow: (err: unknown) => {
+    if (err && typeof err === "object" && "digest" in err) throw err;
+  },
 }));
 
 describe("resolvePrimaryProduct", () => {
