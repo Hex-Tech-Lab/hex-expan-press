@@ -1,0 +1,47 @@
+src/adapters/payments/polar.adapter.ts
+  s_6fbbba788142b9::t_9d113160143c6d 97
+payments/test/bake_checkout_paddle.test.ts
+  s_6fbbba788142b9::t_e1af03c7d783d5 36-42
+  s_6fbbba788142b9::t_cbbf18e77d322d 43
+src/adapters/payments/paddle.adapter.ts
+  s_6fbbba788142b9::t_a1f3ea49782e0b 122
+  s_6fbbba788142b9::t_0aef8610128359 15
+payments/test/settings_registry_runtime.test.ts
+  s_6fbbba788142b9::t_35f19549e063ad 5,8-10
+  s_6fbbba788142b9::t_4ff38a0aedc7d7 49-156
+  s_6fbbba788142b9::t_543e6746de168e 11
+payments/bake_checkout.ts
+  s_6fbbba788142b9::t_9a0d7f9dfd7fce 281
+  s_6fbbba788142b9::t_71d71a0f57503d 305
+src/adapters/payments/__tests__/paddle.adapter.test.ts
+  s_6fbbba788142b9::t_78634e4e6657ff 2
+  s_6fbbba788142b9::t_57736a6090c4c4 106
+  s_6fbbba788142b9::t_e1a3a74f6d6dbd 111
+src/adapters/payments/__tests__/polar.adapter.test.ts
+  s_6fbbba788142b9::t_57736a6090c4c4 101
+  s_6fbbba788142b9::t_3e40e18dc4c0c7 107
+docs/agent_ledger.jsonl
+  s_6fbbba788142b9::t_80d5146be49c48 372
+payments/src/settings_registry.ts
+  s_6fbbba788142b9::t_f8b18c55521a51 181-182
+  s_6fbbba788142b9::t_298a0cd9ace5c3 154-166,170-174,176-178,180,183-193
+  s_6fbbba788142b9::t_9029743bae639d 99-127,130-134
+  s_6fbbba788142b9::t_0dbe52364cb5ba 167-169,175,179
+  s_6fbbba788142b9::t_e6fd4cddb5b0a8 135
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "104a590b1cf57a30bec071ab87cdbd77df886c5f",
+  "prompts": {},
+  "sessions": {
+    "s_6fbbba788142b9": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f06da7effffeu2742edd7p7r4h",
+        "model": "@preset/glm-53-flash-on-cheap"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
