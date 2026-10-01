@@ -1,0 +1,23 @@
+web/__tests__/proxy.test.ts
+  s_9da76c00eea207::t_d735d4990805fc 1,24,36-37,44-45,51-52
+web/proxy.ts
+  s_9da76c00eea207::t_6035a9e3ffce2b 12,17,29,33,47,63
+web/src/lib/supabase-server.ts
+  s_9da76c00eea207::t_ea889b07731a8a 61
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "b76c810b3b4af91caec451132df25380a8a46d21",
+  "prompts": {},
+  "sessions": {
+    "s_9da76c00eea207": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "82839636-bb03-485f-8ebb-7a4b1f96c746",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
