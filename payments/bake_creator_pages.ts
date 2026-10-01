@@ -1,6 +1,7 @@
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { loadBookIdentity } from "./book_identity.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const siteRoot = join(here, "../web");
@@ -33,6 +34,7 @@ interface ProductConfig {
   currency?: string;
   working_note?: string;
   description?: string;
+  book?: string;
 }
 
 /** If a pricing-cascade config exists for this product_id, that file is the source of truth for
@@ -122,9 +124,21 @@ const PRODUCT_CSS = `
   @media (max-width: 480px) { h1 { font-size: 27px; } body { padding: 36px 16px 32px; } }
 `;
 
+/** Title SSOT (2026-10-01): a config pointing at a book registry ("book": repo-relative
+ *  path) gets its title from there. Otherwise fall back to a legacy inline title, then
+ *  the composite slug. A config with a "book" that fails to load fails loud. */
+function resolveCardTitle(cfg: ProductConfig, c: ProductEntry): string {
+  if (typeof cfg.book === "string" && cfg.book.trim() !== "") {
+    return loadBookIdentity(join(here, "..", cfg.book)).title;
+  }
+  return cfg.title ?? c.composite_slug;
+}
+
 const renderCard = (handle: string, c: ProductEntry, cfg: ProductConfig, now: string): string => {
   const livePrice = resolveLivePrice(cfg);
-  const title = cfg.title ?? c.composite_slug;
+  // Title SSOT (2026-10-01): resolve from the book registry via the config's "book"
+  // path; legacy fallbacks keep rendering for demo/example configs without "book".
+  const title = resolveCardTitle(cfg, c);
   const currency = cfg.currency ?? "USD";
   const isWorkingTitle = typeof cfg.working_note === "string" && cfg.working_note.toUpperCase().startsWith("WORKING");
   // Product page URL is NESTED under the creator's own directory (2026-09-16):
