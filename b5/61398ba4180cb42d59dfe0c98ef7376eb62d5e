@@ -1,0 +1,23 @@
+.github/workflows/commit-guard.yml
+  s_0dc509588f18e9::t_d0bdf20459f862 38
+web/app/api/billing/checkout/__tests__/route.test.ts
+  s_0dc509588f18e9::t_5ecd0d97d9ce42 230,236-237
+web/app/api/billing/checkout/route.ts
+  s_0dc509588f18e9::t_813e72df9beffa 104-105
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "b561398ba4180cb42d59dfe0c98ef7376eb62d5e",
+  "prompts": {},
+  "sessions": {
+    "s_0dc509588f18e9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fc365f60-a79d-4397-b8a4-2f924d01aba1",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
