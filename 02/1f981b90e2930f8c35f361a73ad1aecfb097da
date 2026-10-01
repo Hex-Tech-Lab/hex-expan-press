@@ -1,0 +1,18 @@
+docs/agent_ledger.jsonl
+  h_90c2451a76ba0d 373
+payments/sync_book_identity.ts
+  h_90c2451a76ba0d 121-130,133-141,151,178-182,192-193,196-198
+payments/test/book_identity.test.ts
+  h_90c2451a76ba0d 349-415
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "021f981b90e2930f8c35f361a73ad1aecfb097da",
+  "prompts": {},
+  "humans": {
+    "h_90c2451a76ba0d": {
+      "author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
