@@ -1,0 +1,44 @@
+src/adapters/payments/__tests__/paddle.adapter.test.ts
+  s_0cd825df5d3f11::t_6128feca75cb76 180
+  s_0cd825df5d3f11::t_ca779a9abc8862 152-179,181-239
+  s_0cd825df5d3f11::t_8bed2af7c0637b 28-43
+  s_0cd825df5d3f11::t_a1f5cd76ea00ea 57-60
+  s_0cd825df5d3f11::t_0731260193eefd 240
+src/adapters/payments/paddle.adapter.ts
+  s_0cd825df5d3f11::t_b0496e23622ee8 108-137
+  s_0cd825df5d3f11::t_eb0de30dc07c67 43-44
+  s_0cd825df5d3f11::t_434178a6572296 138-139
+src/domain/payments/payments.port.ts
+  s_0cd825df5d3f11::t_60bf441c1f9caa 189
+web/src/components/billing/paddle-checkout-button.tsx
+  s_0cd825df5d3f11::t_0680900c62edde 42,50-65
+  s_0cd825df5d3f11::t_df94d000b5cc80 80-82,91
+docs/agent_ledger.jsonl
+  s_0dc509588f18e9::t_6367b8b888168e 351
+web/app/api/billing/webhook/route.ts
+  s_0dc509588f18e9::t_7cbe0bbfb60585 73-74,76
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "9b74b211bb2a18b02ea5dba05642ce00298dda7a",
+  "prompts": {},
+  "sessions": {
+    "s_0cd825df5d3f11": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f08ca7651ffeOm9CV73i72SEM2",
+        "model": "@preset/glm-53-flash-on-cheap"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_0dc509588f18e9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fc365f60-a79d-4397-b8a4-2f924d01aba1",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
