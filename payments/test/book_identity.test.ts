@@ -127,6 +127,10 @@ describe("bake facts come from the registry", () => {
 const jsonResponse = (body: unknown, status = 200): Response =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
+const paddleOkBody = (): { data: { id: string; name: string; description: string } } => ({
+  data: { id: CFG.paddle_product_ref, name: REGISTRY.title, description: REGISTRY.subtitle },
+});
+
 describe("sync --check mismatch -> exit code 1 path", () => {
   it("reports mismatches for every drifted field", () => {
     const identity = loadBookIdentitySyncFixture();
@@ -182,7 +186,8 @@ describe("applyIdentity sends the right PATCHes", () => {
     const fetchMock = (async (url: string | URL | Request, init?: RequestInit) => {
       calls.push({ url: String(url), init });
       if (init?.method === "PATCH" && !String(url).includes("paddle")) return jsonResponse([{ title: REGISTRY.title }]);
-      return jsonResponse(init?.method === "PATCH" ? (init.body ? JSON.parse(String(init.body)) : {}) : [{ title: REGISTRY.title }]);
+      if (init?.method === "PATCH") return jsonResponse(paddleOkBody());
+      return jsonResponse([{ title: REGISTRY.title }]);
     }) as typeof fetch;
     const prodTargets = { ...TARGETS, paddleBase: paddleBaseFor("production") };
     await applyIdentity(prodTargets, CFG, loadBookIdentitySyncFixture(), fetchMock);
@@ -210,7 +215,7 @@ describe("applyIdentity sends the right PATCHes", () => {
   it("sandbox: paddle PATCH goes to the sandbox base", async () => {
     const urls: string[] = [];
     const fetchMock = (async (url: string | URL | Request, init?: RequestInit) =>
-      jsonResponse(init?.method === "PATCH" ? {} : [{ title: REGISTRY.title }])) as typeof fetch;
+      jsonResponse(init?.method === "PATCH" ? (String(url).includes("paddle") ? paddleOkBody() : {}) : [{ title: REGISTRY.title }])) as typeof fetch;
     const spy = (async (url: string | URL | Request, init?: RequestInit) => {
       urls.push(String(url));
       if (init?.method === "PATCH" && !String(url).includes("paddle")) return jsonResponse([{ title: REGISTRY.title }]);
@@ -262,7 +267,7 @@ describe("supabase PATCH row-count guard", () => {
     const fetchMock = (async (url: string | URL | Request, init?: RequestInit) => {
       if (init?.method === "PATCH" && String(url).includes("api.paddle.com")) {
         paddleCalls.push(String(url));
-        return jsonResponse({ data: {} }, paddleOk ? 200 : 500);
+        return jsonResponse(paddleOkBody(), paddleOk ? 200 : 500);
       }
       if (init?.method === "PATCH") return jsonResponse(rows);
       return jsonResponse([{ title: REGISTRY.title }]);
@@ -322,7 +327,7 @@ describe("partial-write reporting", () => {
     const fetchMock = (async (url: string | URL | Request, init?: RequestInit) => {
       if (init?.method === "PATCH" && String(url).includes("api.paddle.com")) {
         paddleCalls += 1;
-        return jsonResponse({ data: {} });
+        return jsonResponse(paddleOkBody());
       }
       if (init?.method === "PATCH") {
         return new Response("<html>not json</html>", { status: 200, headers: { "Content-Type": "text/html" } });
@@ -342,7 +347,7 @@ describe("partial-write reporting", () => {
         capturedInit = init;
         return jsonResponse([{ title: REGISTRY.title }]);
       }
-      return jsonResponse({ data: {} });
+      return jsonResponse(paddleOkBody());
     }) as typeof fetch;
     await applyIdentity(TARGETS, CFG, loadBookIdentitySyncFixture(), fetchMock);
     expect(capturedInit).toBeDefined();
@@ -384,9 +389,68 @@ describe("5xx + title verification hardening", () => {
     expect(calls.filter((c) => c.url.includes("paddle"))).toHaveLength(0);
   });
 
+  it.each([408, 425, 429])("supabase PATCH %i -> PartialSyncError (unknown state), 0 paddle requests", async (status) => {
+    const { fetchMock, calls } = makeRecordingFetch((url, method) =>
+      jsonResponse({ error: "x" }, method === "PATCH" && !url.includes("paddle") ? status : 200));
+    await expect(applyIdentity(TARGETS, CFG, loadBookIdentitySyncFixture(), fetchMock)).rejects.toThrow(PartialSyncError);
+    await expect(applyIdentity(TARGETS, CFG, loadBookIdentitySyncFixture(), fetchMock)).rejects.toThrow(
+      /PARTIAL SYNC: Supabase PATCH HTTP \d+; Supabase may have committed; Paddle NOT attempted; reconcile with --check before retry/,
+    );
+    expect(calls.filter((c) => c.url.includes("paddle"))).toHaveLength(0);
+  });
+
+  it("abort during the supabase PATCH body read -> PartialSyncError, 0 paddle requests", async () => {
+    const abortErr = (): never => {
+      throw new DOMException("The operation was aborted due to timeout", "AbortError");
+    };
+    const calls: string[] = [];
+    const fetchMock = (async (url: string | URL | Request, init?: RequestInit) => {
+      calls.push(String(url));
+      if (init?.method === "PATCH" && !String(url).includes("paddle")) {
+        return { ok: true, status: 200, json: abortErr } as unknown as Response;
+      }
+      return jsonResponse(paddleOkBody());
+    }) as typeof fetch;
+    await expect(applyIdentity(TARGETS, CFG, loadBookIdentitySyncFixture(), fetchMock)).rejects.toThrow(PartialSyncError);
+    expect(calls.filter((c) => c.includes("paddle"))).toHaveLength(0);
+  });
+
+  it("paddle 2xx with an empty object body -> PartialSyncError (unexpected body)", async () => {
+    const fetchMock = (async (url: string | URL | Request, init?: RequestInit) =>
+      init?.method === "PATCH" && String(url).includes("paddle")
+        ? jsonResponse({})
+        : jsonResponse([{ title: REGISTRY.title }])) as typeof fetch;
+    await expect(applyIdentity(TARGETS, CFG, loadBookIdentitySyncFixture(), fetchMock)).rejects.toThrow(
+      /PARTIAL SYNC: Paddle returned 2xx but an unexpected body; Supabase already updated; reconcile with --check before retry/,
+    );
+  });
+
+  it.each([
+    { id: "pro_other", name: REGISTRY.title },
+    { id: CFG.paddle_product_ref, name: "Wrong Name" },
+  ])("paddle 2xx with mismatched body %# -> PartialSyncError", async (data) => {
+    const fetchMock = (async (url: string | URL | Request, init?: RequestInit) =>
+      init?.method === "PATCH" && String(url).includes("paddle")
+        ? jsonResponse({ data })
+        : jsonResponse([{ title: REGISTRY.title }])) as typeof fetch;
+    await expect(applyIdentity(TARGETS, CFG, loadBookIdentitySyncFixture(), fetchMock)).rejects.toThrow(PartialSyncError);
+    await expect(applyIdentity(TARGETS, CFG, loadBookIdentitySyncFixture(), fetchMock)).rejects.toThrow(/unexpected body/);
+  });
+
+  it("abort during the paddle PATCH body read -> PartialSyncError", async () => {
+    const abortErr = (): never => {
+      throw new DOMException("The operation was aborted due to timeout", "AbortError");
+    };
+    const fetchMock = (async (url: string | URL | Request, init?: RequestInit) =>
+      init?.method === "PATCH" && String(url).includes("paddle")
+        ? { ok: true, status: 200, json: abortErr } as unknown as Response
+        : jsonResponse([{ title: REGISTRY.title }])) as typeof fetch;
+    await expect(applyIdentity(TARGETS, CFG, loadBookIdentitySyncFixture(), fetchMock)).rejects.toThrow(PartialSyncError);
+  });
+
   it("returned row title mismatch -> PartialSyncError, 0 paddle requests", async () => {
     const { fetchMock, calls } = makeRecordingFetch((url, method) =>
-      method === "PATCH" && !url.includes("paddle") ? jsonResponse([{ title: "Rewritten by a trigger" }]) : jsonResponse({ data: {} }));
+      method === "PATCH" && !url.includes("paddle") ? jsonResponse([{ title: "Rewritten by a trigger" }]) : jsonResponse(paddleOkBody()));
     await expect(applyIdentity(TARGETS, CFG, loadBookIdentitySyncFixture(), fetchMock)).rejects.toThrow(
       /PARTIAL SYNC: Supabase row title is 'Rewritten by a trigger', expected '.*' \(trigger\/rule rewrote it\?\); Paddle NOT attempted; reconcile with --check before retry/,
     );
@@ -455,7 +519,7 @@ describe("supabase PATCH non-array body guard", () => {
     const fetchMock = (async (url: string | URL | Request, init?: RequestInit) => {
       if (init?.method === "PATCH" && String(url).includes("paddle")) {
         paddleCalls += 1;
-        return jsonResponse({ data: {} });
+        return jsonResponse(paddleOkBody());
       }
       if (init?.method === "PATCH") return jsonResponse({ data: [{ title: REGISTRY.title }] });
       return jsonResponse([{ title: REGISTRY.title }]);
@@ -484,22 +548,22 @@ describe("PartialSyncError message discipline", () => {
       (async (_url: string | URL | Request, init?: RequestInit) =>
         init?.method === "PATCH" && !String(_url).includes("paddle")
           ? new Response("nope", { status: 200, headers: { "Content-Type": "text/html" } })
-          : jsonResponse({ data: {} })) as typeof fetch,
+          : jsonResponse(paddleOkBody())) as typeof fetch,
       // supabase non-array body
       (async (_url: string | URL | Request, init?: RequestInit) =>
         init?.method === "PATCH" && !String(_url).includes("paddle")
           ? jsonResponse({ unexpected: true })
-          : jsonResponse({ data: {} })) as typeof fetch,
+          : jsonResponse(paddleOkBody())) as typeof fetch,
       // supabase >1 rows
       (async (_url: string | URL | Request, init?: RequestInit) =>
         init?.method === "PATCH" && !String(_url).includes("paddle")
           ? jsonResponse([{ title: "a" }, { title: "b" }])
-          : jsonResponse({ data: {} })) as typeof fetch,
+          : jsonResponse(paddleOkBody())) as typeof fetch,
       // title rewritten
       (async (_url: string | URL | Request, init?: RequestInit) =>
         init?.method === "PATCH" && !String(_url).includes("paddle")
           ? jsonResponse([{ title: "Rewritten" }])
-          : jsonResponse({ data: {} })) as typeof fetch,
+          : jsonResponse(paddleOkBody())) as typeof fetch,
       // paddle request abort
       (async (_url: string | URL | Request, init?: RequestInit) => {
         if (init?.method === "PATCH" && String(_url).includes("paddle")) throw new Error("abort");
@@ -612,7 +676,7 @@ describe("runSync orchestration", () => {
   const sandboxSupabase = (rowBody: unknown, status = 200) =>
     (async (url: string | URL | Request, init?: RequestInit) => {
       if (init?.method === "PATCH" && !String(url).includes("paddle")) return jsonResponse(rowBody, status);
-      if (init?.method === "PATCH") return jsonResponse({ data: {} });
+      if (init?.method === "PATCH") return jsonResponse(paddleOkBody());
       if (String(url).includes("rest/v1/products")) return jsonResponse([{ title: REGISTRY.title }]);
       return jsonResponse({ data: { name: REGISTRY.title, description: REGISTRY.subtitle } });    }) as typeof fetch;
 
@@ -651,7 +715,7 @@ describe("runSync orchestration", () => {
       if (init?.method === "PATCH" && !String(url).includes("paddle")) {
         return new Response("not json", { status: 200, headers: { "Content-Type": "text/plain" } });
       }
-      return jsonResponse({ data: {} });
+      return jsonResponse(paddleOkBody());
     }) as typeof fetch;
     await expect(runSync(APPLY_OK, ENV_OK, fetchMock)).rejects.toBeInstanceOf(PartialSyncError);
     expect(calls.filter((c) => c.includes("paddle"))).toHaveLength(0);
@@ -682,7 +746,7 @@ describe("runSync orchestration", () => {
     const fetchMock = (async (url: string | URL | Request, init?: RequestInit) => {
       calls.push({ url: String(url), method: init?.method });
       if (init?.method === "PATCH" && !String(url).includes("paddle")) return jsonResponse({ error: "x" }, 503);
-      if (init?.method === "PATCH") return jsonResponse({ data: {} });
+      if (init?.method === "PATCH") return jsonResponse(paddleOkBody());
       if (String(url).includes("rest/v1/products")) return jsonResponse([{ title: REGISTRY.title }]);
       return jsonResponse({ data: { name: REGISTRY.title, description: REGISTRY.subtitle } });
     }) as typeof fetch;
