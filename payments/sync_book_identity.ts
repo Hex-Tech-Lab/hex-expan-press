@@ -7,6 +7,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import dotenv from "dotenv";
 import { loadBookIdentity, type BookIdentity } from "./book_identity.ts";
+import { GLOBAL } from "./src/settings_registry.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const defaultConfigPath = join(here, "config.duane.json");
@@ -39,7 +40,7 @@ export const resolvePaddleEnvironment = (env: string | undefined): "production" 
 
 export const paddleBaseFor = (env: string | undefined): string => {
   const canonical = resolvePaddleEnvironment(env);
-  return canonical === "production" ? "https://api.paddle.com" : "https://sandbox-api.paddle.com";
+  return canonical === "production" ? GLOBAL.payments.paddle.api_base.production : GLOBAL.payments.paddle.api_base.sandbox;
 };
 
 export class PartialSyncError extends Error {
@@ -134,7 +135,7 @@ export const fetchTargetState = async (
   };
 };
 
-export const FETCH_TIMEOUT_MS = 30_000;
+export const FETCH_TIMEOUT_MS = GLOBAL.payments.sync_http_timeout_ms;
 
 /** Push the registry identity to Supabase + Paddle. Returns per-target results. */
 export const applyIdentity = async (
