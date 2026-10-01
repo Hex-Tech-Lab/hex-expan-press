@@ -102,11 +102,16 @@ describe("C3 binding (startPublisherAgreementAction)", () => {
     mockCreateEsignEnvelopeUseCase.mockResolvedValue({ signUrl: "https://firma.example/sign/abc" });
   });
 
-  const setupSupabaseConsents = (consentsData: unknown[] | null, error: unknown = null) => {
+  const setupSupabaseConsents = (consentsData: unknown[] | null, error: unknown = null, primaryProductId: string | null = "prod-new") => {
     const eqMock = vi.fn().mockResolvedValue({ data: consentsData, error });
     const selectMock = vi.fn().mockReturnValue({ eq: eqMock });
+    const productsChain = {
+      order: vi.fn().mockReturnThis(),
+      limit: vi.fn().mockResolvedValue({ data: primaryProductId ? [{ id: primaryProductId }] : [], error: null }),
+    };
     const fromMock = vi.fn().mockImplementation((table: string) => {
       if (table === "consents") return { select: selectMock };
+      if (table === "products") return { select: vi.fn().mockReturnValue(productsChain) };
       throw new Error(`Unexpected table ${table}`);
     });
     const supabase = { from: fromMock } as unknown as SupabaseClient;
@@ -147,6 +152,16 @@ describe("C3 binding (startPublisherAgreementAction)", () => {
       { id: "c2", product_id: "prod-1", kind: "C2_release_approval", decision: "given", signed_at: "2026-01-02", supersedes: "c1" },
     ]);
     await expect(startPublisherAgreementAction()).rejects.toThrow("NEXT_REDIRECT:/creator/dashboard?error=c2_required");
+  });
+
+  it("fails closed (c2_required) when the C2 head product is not the primary product every status page reads", async () => {
+    setupSupabaseConsents(
+      [{ id: "c1", product_id: "prod-other", kind: "C2_release_approval", decision: "given", signed_at: "2026-01-01", supersedes: null }],
+      null,
+      "prod-primary",
+    );
+    await expect(startPublisherAgreementAction()).rejects.toThrow("NEXT_REDIRECT:/creator/dashboard?error=c2_required");
+    expect(mockCreateEsignEnvelopeUseCase).not.toHaveBeenCalled();
   });
 
   it("picks the C2 head product and creates envelope when head decision is given", async () => {
