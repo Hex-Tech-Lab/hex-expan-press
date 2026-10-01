@@ -84,7 +84,7 @@ export default function DashboardClient({
     };
   }, []);
 
-  const step1Done = answersCount >= answersTarget;
+  const step1Done = answersTarget > 0 && answersCount >= answersTarget; // 0 of 0 = nothing assigned, not done
   const step1Status =
     step1Done
       ? `Completed (${answersCount} of ${answersTarget})`
