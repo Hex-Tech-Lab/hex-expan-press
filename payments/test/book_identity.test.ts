@@ -270,15 +270,21 @@ describe("supabase PATCH row-count guard", () => {
     return { fetchMock, paddleCalls };
   };
 
-  it("0 rows: throws and Paddle PATCH is not called", async () => {
+  it("0 rows: throws a plain Error (not PartialSyncError) and Paddle PATCH is not called", async () => {
     const { fetchMock, paddleCalls } = makeFetch([]);
-    await expect(applyIdentity(TARGETS, CFG, loadBookIdentitySyncFixture(), fetchMock)).rejects.toThrow(/matched 0 rows \(expected 1\) — Paddle NOT updated/);
+    const err = await applyIdentity(TARGETS, CFG, loadBookIdentitySyncFixture(), fetchMock).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(Error);
+    expect(err).not.toBeInstanceOf(PartialSyncError);
+    expect((err as Error).message).toMatch(/No matching product found \(0 rows\) — nothing was written; Paddle NOT attempted/);
     expect(paddleCalls).toHaveLength(0);
   });
 
-  it("2 rows: throws and Paddle PATCH is not called", async () => {
+  it("2 rows: PartialSyncError with integrity warning, Paddle PATCH is not called", async () => {
     const { fetchMock, paddleCalls } = makeFetch([{ title: "a" }, { title: "b" }]);
-    await expect(applyIdentity(TARGETS, CFG, loadBookIdentitySyncFixture(), fetchMock)).rejects.toThrow(/matched 2 rows \(expected 1\) — Paddle NOT updated/);
+    await expect(applyIdentity(TARGETS, CFG, loadBookIdentitySyncFixture(), fetchMock)).rejects.toThrow(PartialSyncError);
+    await expect(applyIdentity(TARGETS, CFG, loadBookIdentitySyncFixture(), fetchMock)).rejects.toThrow(
+      /PARTIAL SYNC: Supabase PATCH updated MULTIPLE rows \(2\); data integrity risk; Paddle NOT attempted; reconcile with --check before retry/,
+    );
     expect(paddleCalls).toHaveLength(0);
   });
 
@@ -297,7 +303,7 @@ describe("partial-write reporting", () => {
     await expect(applyIdentity(TARGETS, CFG, loadBookIdentitySyncFixture(), fetchMock)).rejects.toThrow(PartialSyncError);
     const fetchMock2 = fetchMock;
     await expect(applyIdentity(TARGETS, CFG, loadBookIdentitySyncFixture(), fetchMock2)).rejects.toThrow(
-      /PARTIAL SYNC: Supabase updated successfully, but the Paddle update failed or its state is unknown \(HTTP 500\) — re-run apply \(idempotent\)/,
+      /PARTIAL SYNC: Supabase updated successfully, but the Paddle update failed or its state is unknown \(HTTP 500\) — reconcile with --check before retry/,
     );
   });
 
@@ -324,7 +330,7 @@ describe("partial-write reporting", () => {
       return jsonResponse([{ title: REGISTRY.title }]);
     }) as typeof fetch;
     await expect(applyIdentity(TARGETS, CFG, loadBookIdentitySyncFixture(), fetchMock)).rejects.toThrow(
-      /PARTIAL SYNC: Supabase returned success but an unreadable body — it may have been updated; Paddle NOT attempted; re-run apply \(idempotent\)/,
+      /PARTIAL SYNC: Supabase PATCH committed but response unreadable; Paddle NOT attempted; reconcile with --check before retry/,
     );
     expect(paddleCalls).toBe(0);
   });
@@ -362,7 +368,7 @@ describe("5xx + title verification hardening", () => {
       jsonResponse({ error: "x" }, method === "PATCH" && !url.includes("paddle") ? 503 : 200));
     await expect(applyIdentity(TARGETS, CFG, loadBookIdentitySyncFixture(), fetchMock)).rejects.toThrow(PartialSyncError);
     await expect(applyIdentity(TARGETS, CFG, loadBookIdentitySyncFixture(), fetchMock)).rejects.toThrow(
-      /PARTIAL SYNC: Supabase PATCH HTTP 503; Supabase may have committed; Paddle NOT attempted; reconcile \(run --check\) before retrying/,
+      /PARTIAL SYNC: Supabase PATCH HTTP 503; Supabase may have committed; Paddle NOT attempted; reconcile with --check before retry/,
     );
     expect(calls.filter((c) => c.method === "PATCH" && c.url.includes("sup"))).toHaveLength(2);
     expect(calls.filter((c) => c.url.includes("paddle"))).toHaveLength(0);
@@ -382,23 +388,53 @@ describe("5xx + title verification hardening", () => {
     const { fetchMock, calls } = makeRecordingFetch((url, method) =>
       method === "PATCH" && !url.includes("paddle") ? jsonResponse([{ title: "Rewritten by a trigger" }]) : jsonResponse({ data: {} }));
     await expect(applyIdentity(TARGETS, CFG, loadBookIdentitySyncFixture(), fetchMock)).rejects.toThrow(
-      /PARTIAL SYNC: Supabase row title is 'Rewritten by a trigger', expected '.*' \(trigger\/rule rewrote it\?\); Paddle NOT attempted/,
+      /PARTIAL SYNC: Supabase row title is 'Rewritten by a trigger', expected '.*' \(trigger\/rule rewrote it\?\); Paddle NOT attempted; reconcile with --check before retry/,
     );
     expect(calls.filter((c) => c.url.includes("paddle"))).toHaveLength(0);
   });
 
-  it("GET timeout (AbortError) -> error names the target", async () => {
+  it("GET request abort -> error names the target and the request phase", async () => {
     const fetchMock = (async (url: string | URL | Request) => {
       if (String(url).includes("paddle")) return jsonResponse({ data: { name: REGISTRY.title, description: REGISTRY.subtitle } });
       throw new DOMException("The operation was aborted due to timeout", "AbortError");
     }) as typeof fetch;
-    await expect(fetchTargetState(TARGETS, CFG, fetchMock)).rejects.toThrow(/supabase GET products timed out or failed/);
+    await expect(fetchTargetState(TARGETS, CFG, fetchMock)).rejects.toThrow(/Supabase GET products request timed out or failed/);
     const fetchMock2 = (async (url: string | URL | Request, init?: RequestInit) => {
       if (init?.method === "PATCH") return jsonResponse([{ title: REGISTRY.title }]);
       if (String(url).includes("rest/v1/products")) return jsonResponse([{ title: REGISTRY.title }]);
       throw new DOMException("The operation was aborted due to timeout", "AbortError");
     }) as typeof fetch;
-    await expect(fetchTargetState(TARGETS, CFG, fetchMock2)).rejects.toThrow(/paddle GET products timed out or failed/);
+    await expect(fetchTargetState(TARGETS, CFG, fetchMock2)).rejects.toThrow(/Paddle GET products request timed out or failed/);
+  });
+
+  it("abort during body read -> error names the target and 'response body'", async () => {
+    const abortErr = (): never => {
+      throw new DOMException("The operation was aborted due to timeout", "AbortError");
+    };
+    const supaFetch = (async (url: string | URL | Request) =>
+      String(url).includes("rest/v1/products")
+        ? { ok: true, status: 200, json: abortErr } as unknown as Response
+        : jsonResponse({ data: { name: REGISTRY.title, description: REGISTRY.subtitle } })) as typeof fetch;
+    await expect(fetchTargetState(TARGETS, CFG, supaFetch)).rejects.toThrow(/Supabase GET products response body read failed/);
+    await expect(fetchTargetState(TARGETS, CFG, supaFetch)).rejects.toThrow(/response body/);
+    const paddleFetch = (async (url: string | URL | Request) =>
+      String(url).includes("rest/v1/products")
+        ? jsonResponse([{ title: REGISTRY.title }])
+        : { ok: true, status: 200, json: abortErr } as unknown as Response) as typeof fetch;
+    await expect(fetchTargetState(TARGETS, CFG, paddleFetch)).rejects.toThrow(/Paddle GET products response body read failed/);
+    await expect(fetchTargetState(TARGETS, CFG, paddleFetch)).rejects.toThrow(/response body/);
+  });
+
+  it("PATCH request abort -> PartialSyncError naming the target and the request phase", async () => {
+    const fetchMock = (async (url: string | URL | Request, init?: RequestInit) => {
+      if (init?.method === "PATCH" && !String(url).includes("paddle")) {
+        throw new DOMException("The operation was aborted due to timeout", "AbortError");
+      }
+      return jsonResponse([{ title: REGISTRY.title }]);
+    }) as typeof fetch;
+    await expect(applyIdentity(TARGETS, CFG, loadBookIdentitySyncFixture(), fetchMock)).rejects.toThrow(
+      /PARTIAL SYNC: the Supabase update request failed or its state is unknown.*reconcile with --check before retry/,
+    );
   });
 
   it("GETs carry an AbortSignal timeout", async () => {
@@ -410,6 +446,79 @@ describe("5xx + title verification hardening", () => {
     }) as typeof fetch;
     await fetchTargetState(TARGETS, CFG, fetchMock);
     for (const i of inits) expect((i.signal as AbortSignal | undefined)?.constructor.name).toBe("AbortSignal");
+  });
+});
+
+describe("supabase PATCH non-array body guard", () => {
+  it("non-array body -> PartialSyncError, Paddle not called", async () => {
+    let paddleCalls = 0;
+    const fetchMock = (async (url: string | URL | Request, init?: RequestInit) => {
+      if (init?.method === "PATCH" && String(url).includes("paddle")) {
+        paddleCalls += 1;
+        return jsonResponse({ data: {} });
+      }
+      if (init?.method === "PATCH") return jsonResponse({ data: [{ title: REGISTRY.title }] });
+      return jsonResponse([{ title: REGISTRY.title }]);
+    }) as typeof fetch;
+    const err = await applyIdentity(TARGETS, CFG, loadBookIdentitySyncFixture(), fetchMock).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(PartialSyncError);
+    expect((err as Error).message).toMatch(/non-array body/);
+    expect((err as Error).message).toContain("reconcile with --check before retry");
+    expect(paddleCalls).toBe(0);
+  });
+});
+
+describe("PartialSyncError message discipline", () => {
+  it("every PartialSyncError message in applyIdentity ends with 'reconcile with --check before retry'", async () => {
+    const id = loadBookIdentitySyncFixture();
+    const cases: Array<typeof fetch> = [
+      // supabase request abort
+      (async (_url: string | URL | Request, init?: RequestInit) => {
+        if (init?.method === "PATCH" && !String(_url).includes("paddle")) throw new Error("abort");
+        return jsonResponse(id && [{ title: id.title }]);
+      }) as typeof fetch,
+      // supabase 5xx
+      (async (_url: string | URL | Request, init?: RequestInit) =>
+        jsonResponse({ e: 1 }, init?.method === "PATCH" && !String(_url).includes("paddle") ? 503 : 200)) as typeof fetch,
+      // supabase body unreadable
+      (async (_url: string | URL | Request, init?: RequestInit) =>
+        init?.method === "PATCH" && !String(_url).includes("paddle")
+          ? new Response("nope", { status: 200, headers: { "Content-Type": "text/html" } })
+          : jsonResponse({ data: {} })) as typeof fetch,
+      // supabase non-array body
+      (async (_url: string | URL | Request, init?: RequestInit) =>
+        init?.method === "PATCH" && !String(_url).includes("paddle")
+          ? jsonResponse({ unexpected: true })
+          : jsonResponse({ data: {} })) as typeof fetch,
+      // supabase >1 rows
+      (async (_url: string | URL | Request, init?: RequestInit) =>
+        init?.method === "PATCH" && !String(_url).includes("paddle")
+          ? jsonResponse([{ title: "a" }, { title: "b" }])
+          : jsonResponse({ data: {} })) as typeof fetch,
+      // title rewritten
+      (async (_url: string | URL | Request, init?: RequestInit) =>
+        init?.method === "PATCH" && !String(_url).includes("paddle")
+          ? jsonResponse([{ title: "Rewritten" }])
+          : jsonResponse({ data: {} })) as typeof fetch,
+      // paddle request abort
+      (async (_url: string | URL | Request, init?: RequestInit) => {
+        if (init?.method === "PATCH" && String(_url).includes("paddle")) throw new Error("abort");
+        return jsonResponse([{ title: id.title }]);
+      }) as typeof fetch,
+      // paddle 5xx
+      (async (_url: string | URL | Request, init?: RequestInit) =>
+        jsonResponse({ e: 1 }, init?.method === "PATCH" && String(_url).includes("paddle") ? 500 : 200)) as typeof fetch,
+      // paddle body unreadable
+      (async (_url: string | URL | Request, init?: RequestInit) =>
+        init?.method === "PATCH" && String(_url).includes("paddle")
+          ? new Response("nope", { status: 200, headers: { "Content-Type": "text/html" } })
+          : jsonResponse([{ title: id.title }])) as typeof fetch,
+    ];
+    for (const f of cases) {
+      const err = await applyIdentity(TARGETS, CFG, id, f).catch((e: unknown) => e);
+      expect(err, "expected PartialSyncError").toBeInstanceOf(PartialSyncError);
+      expect((err as Error).message.endsWith("reconcile with --check before retry")).toBe(true);
+    }
   });
 });
 
@@ -566,6 +675,20 @@ describe("runSync orchestration", () => {
       return jsonResponse([{ title: REGISTRY.title }]);
     }) as typeof fetch;
     await expect(runSync(APPLY_OK, ENV_OK, fetchMock)).rejects.toThrow(PartialSyncError);
+  });
+
+  it("supabase 503 on apply -> PartialSyncError mentioning --check, 0 paddle requests", async () => {
+    const calls: Array<{ url: string; method?: string }> = [];
+    const fetchMock = (async (url: string | URL | Request, init?: RequestInit) => {
+      calls.push({ url: String(url), method: init?.method });
+      if (init?.method === "PATCH" && !String(url).includes("paddle")) return jsonResponse({ error: "x" }, 503);
+      if (init?.method === "PATCH") return jsonResponse({ data: {} });
+      if (String(url).includes("rest/v1/products")) return jsonResponse([{ title: REGISTRY.title }]);
+      return jsonResponse({ data: { name: REGISTRY.title, description: REGISTRY.subtitle } });
+    }) as typeof fetch;
+    await expect(runSync(APPLY_OK, ENV_OK, fetchMock)).rejects.toThrow(PartialSyncError);
+    await expect(runSync(APPLY_OK, ENV_OK, fetchMock)).rejects.toThrow(/reconcile with --check before retry/);
+    expect(calls.filter((c) => c.url.includes("paddle"))).toHaveLength(0);
   });
 
   it("happy path: 2 PATCH calls, supabase then paddle", async () => {

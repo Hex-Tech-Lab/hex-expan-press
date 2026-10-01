@@ -125,22 +125,32 @@ export const fetchTargetState = async (
       headers: { apikey: t.supabaseKey, Authorization: `Bearer ${t.supabaseKey}` },
       signal: AbortSignal.timeout(timeoutMs),
     });
-  } catch {
-    throw new Error(`supabase GET products timed out or failed after ${timeoutMs}ms`);
+  } catch (err) {
+    throw new Error(`Supabase GET products request timed out or failed after ${timeoutMs}ms (${String(err)})`);
   }
   if (!supaRes.ok) throw new Error(`supabase GET products HTTP ${supaRes.status}`);
-  const supaRows = (await supaRes.json()) as Array<{ title?: string }>;
+  let supaRows: Array<{ title?: string }>;
+  try {
+    supaRows = (await supaRes.json()) as Array<{ title?: string }>;
+  } catch (err) {
+    throw new Error(`Supabase GET products response body read failed after HTTP ${supaRes.status} (${String(err)})`);
+  }
   let paddleRes: Response;
   try {
     paddleRes = await fetchImpl(paddleGetUrl(t, cfg.paddle_product_ref), {
       headers: { Authorization: `Bearer ${t.paddleKey}` },
       signal: AbortSignal.timeout(timeoutMs),
     });
-  } catch {
-    throw new Error(`paddle GET products timed out or failed after ${timeoutMs}ms`);
+  } catch (err) {
+    throw new Error(`Paddle GET products request timed out or failed after ${timeoutMs}ms (${String(err)})`);
   }
   if (!paddleRes.ok) throw new Error(`paddle GET products HTTP ${paddleRes.status}`);
-  const paddleBody = (await paddleRes.json()) as { data?: { name?: string; description?: string } };
+  let paddleBody: { data?: { name?: string; description?: string } };
+  try {
+    paddleBody = (await paddleRes.json()) as { data?: { name?: string; description?: string } };
+  } catch (err) {
+    throw new Error(`Paddle GET products response body read failed after HTTP ${paddleRes.status} (${String(err)})`);
+  }
   return {
     supabaseTitle: supaRows[0]?.title,
     paddleName: paddleBody.data?.name,
@@ -172,13 +182,13 @@ export const applyIdentity = async (
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
   } catch (err) {
-    throw new PartialSyncError(`PARTIAL SYNC: the Supabase update failed or its state is unknown (${String(err)}) — re-run apply (idempotent)`);
+    throw new PartialSyncError(`PARTIAL SYNC: the Supabase update request failed or its state is unknown (${String(err)}) — reconcile with --check before retry`);
   }
   if (!supaRes.ok) {
     // 5xx: Supabase may have committed despite the error status — treat as unknown
     // state, do not touch Paddle, demand reconciliation first.
     if (supaRes.status >= 500) {
-      throw new PartialSyncError(`PARTIAL SYNC: Supabase PATCH HTTP ${supaRes.status}; Supabase may have committed; Paddle NOT attempted; reconcile (run --check) before retrying`);
+      throw new PartialSyncError(`PARTIAL SYNC: Supabase PATCH HTTP ${supaRes.status}; Supabase may have committed; Paddle NOT attempted; reconcile with --check before retry`);
     }
     throw new Error(`supabase PATCH products HTTP ${supaRes.status}`);
   }
@@ -186,15 +196,21 @@ export const applyIdentity = async (
   try {
     patchedRows = (await supaRes.json()) as Array<{ title?: string }>;
   } catch {
-    throw new PartialSyncError("PARTIAL SYNC: Supabase returned success but an unreadable body — it may have been updated; Paddle NOT attempted; re-run apply (idempotent)");
+    throw new PartialSyncError("PARTIAL SYNC: Supabase PATCH committed but response unreadable; Paddle NOT attempted; reconcile with --check before retry");
   }
-  if (!Array.isArray(patchedRows) || patchedRows.length !== 1) {
+  if (!Array.isArray(patchedRows)) {
+    throw new PartialSyncError(`PARTIAL SYNC: Supabase PATCH returned a non-array body (${JSON.stringify(patchedRows)}); Paddle NOT attempted; reconcile with --check before retry`);
+  }
+  if (patchedRows.length === 0) {
+    throw new Error("No matching product found (0 rows) — nothing was written; Paddle NOT attempted");
+  }
+  if (patchedRows.length > 1) {
     // products.id is the primary key, so a >1-row result cannot actually happen
     // with an id filter — the guard is kept as defense in depth.
-    throw new Error(`supabase PATCH matched ${Array.isArray(patchedRows) ? patchedRows.length : "non-array"} rows (expected 1) — Paddle NOT updated`);
+    throw new PartialSyncError(`PARTIAL SYNC: Supabase PATCH updated MULTIPLE rows (${patchedRows.length}); data integrity risk; Paddle NOT attempted; reconcile with --check before retry`);
   }
   if (patchedRows[0]!.title !== identity.title) {
-    throw new PartialSyncError(`PARTIAL SYNC: Supabase row title is '${patchedRows[0]!.title ?? ""}', expected '${identity.title}' (trigger/rule rewrote it?); Paddle NOT attempted`);
+    throw new PartialSyncError(`PARTIAL SYNC: Supabase row title is '${patchedRows[0]!.title ?? ""}', expected '${identity.title}' (trigger/rule rewrote it?); Paddle NOT attempted; reconcile with --check before retry`);
   }
   // Founder intent: the registry subtitle IS the customer-facing Paddle description.
   let paddleRes: Response;
@@ -209,10 +225,17 @@ export const applyIdentity = async (
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
   } catch (err) {
-    throw new PartialSyncError(`PARTIAL SYNC: Supabase updated successfully, but the Paddle update failed or its state is unknown (${String(err)}) — re-run apply (idempotent)`);
+    throw new PartialSyncError(`PARTIAL SYNC: Supabase updated successfully, but the Paddle update request failed or its state is unknown (${String(err)}) — reconcile with --check before retry`);
   }
   if (!paddleRes.ok) {
-    throw new PartialSyncError(`PARTIAL SYNC: Supabase updated successfully, but the Paddle update failed or its state is unknown (HTTP ${paddleRes.status}) — re-run apply (idempotent)`);
+    throw new PartialSyncError(`PARTIAL SYNC: Supabase updated successfully, but the Paddle update failed or its state is unknown (HTTP ${paddleRes.status}) — reconcile with --check before retry`);
+  }
+  // Also cover the Paddle PATCH body read so an abort/parse failure there is
+  // classified as unknown-state rather than escaping as a raw parse error.
+  try {
+    await paddleRes.json();
+  } catch (err) {
+    throw new PartialSyncError(`PARTIAL SYNC: Supabase updated successfully, but the Paddle PATCH response body was unreadable (${String(err)}); reconcile with --check before retry`);
   }
   return { supabase: "applied", paddle: "applied" };
 };
