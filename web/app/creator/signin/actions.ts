@@ -61,7 +61,11 @@ export async function signInWithGoogleAction(): Promise<void> {
       provider: "google",
       options: { redirectTo: `${origin}/auth/callback` },
     });
-    if (error || !data.url) redirect("/creator/signin?error=oauth");
+    if (error) {
+      console.error("[signin/google] supabase error:", error.status, error.code, error.message);
+      redirect("/creator/signin?error=oauth");
+    }
+    if (!data.url) redirect("/creator/signin?error=oauth");
     redirect(data.url);
   } catch (err) {
     // Env gaps must surface as the OAuth error param, never an action crash
@@ -90,7 +94,13 @@ export async function signInWithOtpAction(formData: FormData): Promise<void> {
       email,
       options: { emailRedirectTo: `${origin}/auth/callback` },
     });
-    if (error) redirect("/creator/signin?error=otp");
+    if (error) {
+      console.error("[signin/otp] supabase error:", error.status, error.code, error.message);
+      if (error.code === "over_email_send_rate_limit" || error.status === 429) {
+        redirect("/creator/signin?error=rate_limited");
+      }
+      redirect("/creator/signin?error=otp");
+    }
     // Auto-confirm projects return the session INLINE (no email leg) — the ssr
     // client has already written the HttpOnly cookies, so land the creator
     // straight on the dashboard. Email-confirm projects (our production state)

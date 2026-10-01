@@ -76,14 +76,16 @@ describe("billing webhook native route (Wave 6)", () => {
     expect(res.status).toBe(400);
   });
 
-  it("rejects a tampered body with 400 when signatures are enforced", async () => {
+  it("rejects a tampered body with 401 when signatures are enforced", async () => {
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("POLAR_WEBHOOK_SECRET", HMAC_TEST_KEY);
     const tampered = IGNORED_PAYLOAD.replace("ord_test_native_0001", "ord_tampered");
     const res = await billingPost(
       asNextRequest(new Request(WEBHOOK_URL, { method: "POST", headers: signedHeaders(IGNORED_PAYLOAD), body: tampered })),
     );
-    expect(res.status).toBe(400);
+    // The use case attaches httpStatus:401 to signature-validation failures and
+    // the route honors it (bad/stale signature = unauthorized, not bad request).
+    expect(res.status).toBe(401);
   });
 
   it("returns 413 for a streamed body over the 1MiB cap with no Content-Length", async () => {

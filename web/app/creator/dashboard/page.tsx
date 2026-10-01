@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import * as Sentry from "@sentry/nextjs";
 import { getPortalSession } from "../../../src/lib/supabase-server";
 import DashboardClient from "./dashboard-client";
+import { reviewProgress } from "./progress";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -19,8 +20,6 @@ export const metadata: Metadata = {
  * to /creator/signin. No dashboard data is ever rendered without a
  * validated session (getUser validates against the auth server).
  */
-
-const REVIEW_ANSWER_TARGET = 29;
 
 /** Journey state mapping (Wave 4 mandate, founder contract): the tracker
  * tracks LEGAL milestones only — it advances on signed consents regardless of
@@ -55,16 +54,21 @@ export default async function DashboardPage({
 
   const { user, supabase } = session;
 
-  // Independent reads run in parallel (async-avoid-waterfall).
-  const [profileRes, answersRes, consentsRes] = await Promise.all([
+  // Independent reads run in parallel (async-avoid-waterfall) — mirrors the
+  // review page: the creator's product, its review items, and the answer rows.
+  const [profileRes, productRes, itemsRes, answersRes, consentsRes] = await Promise.all([
     supabase.from("profiles").select("full_name, email").eq("user_id", user.id).maybeSingle(),
-    supabase.from("review_answers").select("id", { count: "exact" }),
+    supabase.from("products").select("id").order("created_at", { ascending: true }).limit(1),
+    supabase.from("review_items").select("id, product_id"),
+    supabase.from("review_answers").select("item_id"),
     supabase.from("consents").select("kind, decision").eq("decision", "given"),
   ]);
 
   const failed = (
     [
       ["profiles", profileRes],
+      ["products", productRes],
+      ["review_items", itemsRes],
       ["review_answers", answersRes],
       ["consents", consentsRes],
     ] as const
@@ -96,7 +100,11 @@ export default async function DashboardPage({
 
   const name = profileRes.data?.full_name || user.email || "";
   const email = profileRes.data?.email || user.email || "";
-  const answersCount = answersRes.count ?? 0;
+  // Mirror the review page's data model: the creator's first product, the
+  // review items belonging to it, and answers counted as DISTINCT item_ids.
+  const product = productRes.data?.[0];
+  const itemIds = (itemsRes.data ?? []).filter((it) => it.product_id === product?.id).map((it) => it.id);
+  const { answered, total } = reviewProgress(itemIds, (answersRes.data ?? []).map((a) => a.item_id));
   // NOTE: DB enum kind is C2_release_approval (the legacy HTML checked a
   // non-existent "C2_marketing_release" — step 2 could never complete there).
   const given = new Set((consentsRes.data ?? []).map((c) => c.kind));
@@ -111,8 +119,8 @@ export default async function DashboardPage({
       <DashboardClient
         name={name}
         email={email}
-        answersCount={answersCount}
-        answersTarget={REVIEW_ANSWER_TARGET}
+        answersCount={answered}
+        answersTarget={total}
         hasC1={hasC1}
         hasC2={hasC2}
         hasC3={hasC3}

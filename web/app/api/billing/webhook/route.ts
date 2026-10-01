@@ -65,8 +65,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     console.error("Billing webhook error:", err);
     const message = err instanceof Error ? err.message : String(err);
     const isValidationErr = message.includes("validation failed") || message.includes("No payment provider");
-    return NextResponse.json({ ok: false, error: isValidationErr ? "Bad Request" : "Internal Server Error" }, {
-      status: isValidationErr ? 400 : 500,
-    });
+    // The use case attaches httpStatus to validation failures (e.g. 401 for a
+    // bad/stale signature) — honor it when in the 4xx band; otherwise the
+    // legacy 400/500 split stands.
+    const rawStatus = (err as { httpStatus?: unknown })?.httpStatus;
+    const httpStatus = typeof rawStatus === "number" && rawStatus >= 400 && rawStatus < 500 ? rawStatus : undefined;
+    const status = isValidationErr && httpStatus === undefined ? 400 : httpStatus ?? (isValidationErr ? 400 : 500);
+    const error = status === 401 ? "Unauthorized" : status === 500 ? "Internal Server Error" : "Bad Request";
+    return NextResponse.json({ ok: false, error }, { status });
   }
 }
