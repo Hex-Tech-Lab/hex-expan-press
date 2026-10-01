@@ -25,6 +25,22 @@ const validBody = (): string =>
     },
   });
 
+const bodyWithCustomer = (customerId?: string, withEmail = false): string =>
+  JSON.stringify({
+    event_type: "transaction.completed",
+    data: {
+      id: "txn_test_0001",
+      currency_code: "USD",
+      details: { totals: { total: "1000" } },
+      custom_data: { product_id: "test_product_v1", ...(withEmail ? { email: "buyer@example.com" } : {}) },
+      customer_id: customerId,
+      changed_at: new Date().toISOString(),
+    },
+  });
+
+const jsonOk = (email: string): unknown => ({ data: { id: "ctm_1", email } });
+const fetchOk = (email: string): unknown => vi.fn(async () => ({ ok: true, status: 200, json: async () => jsonOk(email) }));
+
 const headersFor = (sig: string): Record<string, string> => ({ "paddle-signature": sig });
 
 async function parse(body: string, sig: string, secret?: string): Promise<Awaited<ReturnType<PaddleAdapter["parseAndValidateWebhook"]>>> {
@@ -38,7 +54,10 @@ function freshSig(body: string): string {
 }
 
 describe("PaddleAdapter webhook verification (tolerance + h1 format)", () => {
-  afterEach(() => vi.unstubAllEnvs());
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
 
   it("PADDLE_WEBHOOK_TOLERANCE_SECONDS is 300", () => {
     expect(PADDLE_WEBHOOK_TOLERANCE_SECONDS).toBe(300);
@@ -128,5 +147,94 @@ describe("PaddleAdapter webhook verification (tolerance + h1 format)", () => {
     const event = (res as { event: { eventType: string } }).event;
     expect(event.eventType).not.toBe("sale_completed");
     expect(event.eventType).toBe("ignored");
+  });
+});
+
+describe("PaddleAdapter buyer-email fallback (customer lookup)", () => {
+  const KEY = crypto.randomBytes(16).toString("hex");
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  it("email present in custom_data → sale mapped, fetch NOT called", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const body = validBody();
+    const res = await parse(body, freshSig(body));
+    expect(res.isValid).toBe(true);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("email absent + customer_id → fetch sandbox URL with bearer header, sale mapped with fetched email", async () => {
+    vi.stubEnv("PADDLE_API_KEY", KEY);
+    vi.stubEnv("NEXT_PUBLIC_PADDLE_ENVIRONMENT", "sandbox");
+    const fetchedEmail = `buyer_${crypto.randomBytes(4).toString("hex")}@example.com`;
+    const fetchMock = vi.fn(async () => ({ ok: true, status: 200, json: async () => jsonOk(fetchedEmail) }));
+    vi.stubGlobal("fetch", fetchMock);
+    const body = bodyWithCustomer("ctm_test_0001");
+    const res = await parse(body, freshSig(body));
+    expect(res.isValid).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe("https://sandbox-api.paddle.com/customers/ctm_test_0001");
+    expect((init.headers as Record<string, string>).Authorization).toBe(`Bearer ${KEY}`);
+    const event = (res as { event: SaleCompletedEvent }).event;
+    expect(event.buyerEmailHash).toBe(createHash("sha256").update(fetchedEmail).digest("hex"));
+  });
+
+  it("production env → api.paddle.com URL", async () => {
+    vi.stubEnv("PADDLE_API_KEY", KEY);
+    vi.stubEnv("NEXT_PUBLIC_PADDLE_ENVIRONMENT", "production");
+    const fetchMock = fetchOk("buyer@example.com") as ReturnType<typeof vi.fn>;
+    vi.stubGlobal("fetch", fetchMock);
+    const body = bodyWithCustomer("ctm_test_0001");
+    const res = await parse(body, freshSig(body));
+    expect(res.isValid).toBe(true);
+    expect(fetchMock.mock.calls[0][0]).toBe("https://api.paddle.com/customers/ctm_test_0001");
+  });
+
+  it("fetch rejects → 503 Could not resolve buyer email", async () => {
+    vi.stubEnv("PADDLE_API_KEY", KEY);
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new Error("network down"); }));
+    const body = bodyWithCustomer("ctm_test_0001");
+    const res = await parse(body, freshSig(body));
+    expect(res.isValid).toBe(false);
+    expect((res as { httpStatus?: number }).httpStatus).toBe(503);
+    expect((res as { error?: string }).error).toBe("Could not resolve buyer email from Paddle");
+  });
+
+  it("fetch 404 → 503 Could not resolve buyer email", async () => {
+    vi.stubEnv("PADDLE_API_KEY", KEY);
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, status: 404, json: async () => ({ error: {} }) })));
+    const body = bodyWithCustomer("ctm_test_0001");
+    const res = await parse(body, freshSig(body));
+    expect(res.isValid).toBe(false);
+    expect((res as { httpStatus?: number }).httpStatus).toBe(503);
+    expect((res as { error?: string }).error).toBe("Could not resolve buyer email from Paddle");
+  });
+
+  it("no email AND no customer_id → 400 (unchanged)", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const body = bodyWithCustomer(undefined);
+    const res = await parse(body, freshSig(body));
+    expect(res.isValid).toBe(false);
+    expect((res as { httpStatus?: number }).httpStatus).toBe(400);
+    expect((res as { error?: string }).error).toBe("Missing custom_data.email in Paddle payload");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("invalid signature → fetch NOT called (never call Paddle for unverified payloads)", async () => {
+    vi.stubEnv("PADDLE_API_KEY", KEY);
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const body = bodyWithCustomer("ctm_test_0001");
+    const ts = Math.floor(Date.now() / 1000).toString();
+    const res = await parse(body, `ts=${ts};h1=${"a".repeat(64)}`);
+    expect(res.isValid).toBe(false);
+    expect((res as { httpStatus?: number }).httpStatus).toBe(401);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
