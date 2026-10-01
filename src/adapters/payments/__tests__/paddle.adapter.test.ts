@@ -1,5 +1,5 @@
 // Paddle webhook verifier regression tests (ADR-0050 hardening): timestamp
-// freshness is enforced BEFORE HMAC verification (5-minute tolerance,
+// freshness is enforced BEFORE HMAC verification (registry-bound tolerance,
 // fail-closed), h1 must be exactly 64 hex chars, and multiple h1 values
 // (secret rotation) are accepted when ANY valid-format one matches.
 // Per-run random secret: nothing credential-shaped is committed.
@@ -103,12 +103,12 @@ describe("PaddleAdapter webhook verification (tolerance + h1 format)", () => {
     ["301s future", () => (Math.floor(Date.now() / 1000) + 301).toString()],
     ["non-integer (decimal)", () => `${Math.floor(Date.now() / 1000)}.5`],
     ["non-integer (junk)", () => "not-a-number"],
-  ])("ts %s → 401 outside the 5-minute tolerance", async (_label, ts) => {
+  ])("ts %s → 401 outside the N-second tolerance", async (_label, ts) => {
     const body = validBody();
     const res = await parse(body, `ts=${ts()};h1=${hmacFor("0", body)}`);
     expect(res.isValid).toBe(false);
     expect((res as { httpStatus?: number }).httpStatus).toBe(401);
-    expect((res as { error?: string }).error).toBe("Webhook timestamp outside the 5-minute tolerance");
+    expect((res as { error?: string }).error).toBe(`Webhook timestamp outside the ${PADDLE_WEBHOOK_TOLERANCE_SECONDS}-second tolerance`);
   });
 
   it("a wrong h1 → 401 Invalid Paddle signature", async () => {

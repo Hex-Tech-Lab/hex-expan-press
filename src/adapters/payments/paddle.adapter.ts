@@ -12,7 +12,7 @@
  *   HMAC target = `<ts>:<raw-body>`
  *   h1 must be exactly 64 hex chars; multiple h1 values (secret rotation)
  *   are accepted when ANY valid-format one matches. Timestamp freshness is
- *   enforced BEFORE HMAC verification (5-minute tolerance, fail-closed).
+ *   enforced BEFORE HMAC verification (registry tolerance, fail-closed).
  * Amount unit: cents (integer) in details.totals.total
  * Timestamp source: data.changed_at (ISO-8601)
  * Email path: data.custom_data.email
@@ -119,7 +119,7 @@ export class PaddleAdapter implements PaymentProviderPort {
     const ts = tsMatch[1].trim();
     const tsSeconds = Number(ts);
     if (!Number.isInteger(tsSeconds) || Math.abs(Math.floor(Date.now() / 1000) - tsSeconds) > PADDLE_WEBHOOK_TOLERANCE_SECONDS) {
-      return { isValid: false, error: "Webhook timestamp outside the 5-minute tolerance", httpStatus: 401 };
+      return { isValid: false, error: `Webhook timestamp outside the ${PADDLE_WEBHOOK_TOLERANCE_SECONDS}-second tolerance`, httpStatus: 401 };
     }
 
     // h1 candidates: capture up to the next ';' or end, then require exactly

@@ -98,12 +98,12 @@ describe("PolarAdapter webhook replay window", () => {
     ["301s old", () => FAKE_NOW_SECONDS - (POLAR_WEBHOOK_TOLERANCE_SECONDS + 1)],
     ["301s in the future", () => FAKE_NOW_SECONDS + POLAR_WEBHOOK_TOLERANCE_SECONDS + 1],
     ["non-numeric", () => "not-a-timestamp"],
-  ])("rejects a timestamp %s → 401 outside the 5-minute tolerance", async (_label, tsOf) => {
+  ])("rejects a timestamp %s → 401 outside the N-second tolerance", async (_label, tsOf) => {
     vi.useFakeTimers();
     vi.setSystemTime(FAKE_NOW_SECONDS * 1000);
     const res = await parseWithTs(refund({}), tsOf());
     expect(res.isValid).toBe(false);
     expect((res as { httpStatus?: number }).httpStatus).toBe(401);
-    expect((res as { error?: string }).error).toBe("Webhook timestamp outside the 5-minute tolerance");
+    expect((res as { error?: string }).error).toBe(`Webhook timestamp outside the ${POLAR_WEBHOOK_TOLERANCE_SECONDS}-second tolerance`);
   });
 });
