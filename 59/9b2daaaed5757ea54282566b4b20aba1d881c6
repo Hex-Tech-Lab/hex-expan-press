@@ -1,0 +1,35 @@
+docs/agent_ledger.jsonl
+  s_0dc509588f18e9::t_1ad50c53bed0ee 366
+payments/book_identity.ts
+  s_0dc509588f18e9::t_d642924512b1e8 21
+payments/sync_book_identity.ts
+  s_0dc509588f18e9::t_8e4cfbb4c94e3f 80-99,147-151,160-162,183-184,199
+payments/test/book_identity.test.ts
+  s_0dc509588f18e9::t_916ebe2f382876 8,15,78-87,181,213,228-297
+web/app/api/esign/webhook/route.ts
+  s_0dc509588f18e9::t_4a9f3f1cd9a9f8 45-48
+web/next.config.ts
+  s_0dc509588f18e9::t_e3eee6bb543587 57
+web/sentry.client.config.ts
+  s_0dc509588f18e9::t_00c2e261791b08 5-10
+web/sentry.edge.config.ts
+  s_0dc509588f18e9::t_50bcd09de2d736 5-6
+web/sentry.server.config.ts
+  s_0dc509588f18e9::t_e136258dce1e38 5-6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "599b2daaaed5757ea54282566b4b20aba1d881c6",
+  "prompts": {},
+  "sessions": {
+    "s_0dc509588f18e9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fc365f60-a79d-4397-b8a4-2f924d01aba1",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
