@@ -35,7 +35,7 @@ jobs:
             if git cat-file -e "$BEFORE_SHA" 2>/dev/null; then
               RANGE="$BEFORE_SHA..$HEAD_SHA"
             else
-              RANGE="$HEAD_SHA --not --remotes=origin --exclude=refs/remotes/origin/$REF_NAME"  # new branch / force-push
+              RANGE="$HEAD_SHA --not --exclude=refs/remotes/origin/$REF_NAME --remotes=origin"  # new branch / force-push (--exclude must precede --remotes)
             fi
           fi
           # The guard and its imports (scripts/jev.py) come from GUARD_REF, never the PR head.
