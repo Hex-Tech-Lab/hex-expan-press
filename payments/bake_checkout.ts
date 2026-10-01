@@ -2,6 +2,7 @@ import { readFileSync, writeFileSync, readdirSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import dotenv from "dotenv";
+import { loadBookIdentity } from "./book_identity.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const defaultConfigPath = join(here, "config.duane.json");
@@ -133,7 +134,16 @@ const loadProductConfig = (assoc: ProductAssoc | undefined) => {
     paddle_price_id_sandbox?: string;
     paddle_product_id?: string;
     db_product_id?: string;
+    book?: string;
   } & Facts;
+  // Title SSOT (2026-10-01): configs no longer carry "title" — resolve it from the
+  // book registry via the config's "book" path so every bake reads books/duane.json.
+  if (!cfg.title) {
+    if (!cfg.book || cfg.book.trim() === "") {
+      throw new Error(`${path}: "book" must point at a book registry file (no inline "title" either)`);
+    }
+    cfg.title = loadBookIdentity(join(here, "..", cfg.book)).title;
+  }
   return { cfg, source: assoc ? assoc.config_file : "payments/config.duane.json" };
 };
 
