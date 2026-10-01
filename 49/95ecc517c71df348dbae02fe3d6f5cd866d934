@@ -1,0 +1,54 @@
+web/sentry.client.config.ts
+  s_353d29ab91d923::t_2cb8aecf11e0c7 4
+web/app/api/billing/webhook/route.ts
+  s_353d29ab91d923::t_ba3671ea7208f8 68-70
+  s_353d29ab91d923::t_fd20324ce21d1e 71-75
+web/app/api/billing/webhook/__tests__/route.test.ts
+  s_353d29ab91d923::t_0876aef60e91a1 79,86-88
+docs/agent_ledger.jsonl
+  s_353d29ab91d923::t_96000c80680fc5 348
+web/app/creator/signin/actions.ts
+  s_353d29ab91d923::t_7865e9b802c6e3 64-68
+  s_353d29ab91d923::t_82293eb12387e6 97-103
+web/app/creator/dashboard/__tests__/progress.test.ts
+  s_353d29ab91d923::t_0ce35d9f068b9a 1-18
+web/instrumentation-client.ts
+  s_353d29ab91d923::t_9374e6886f0c23 3-6
+web/app/api/billing/webhook/__tests__/signature-status.test.ts
+  s_353d29ab91d923::t_28fac2d1e11f2a 1-58
+web/app/creator/dashboard/page.tsx
+  s_353d29ab91d923::t_a2d19395fdf6b5 122-123
+  s_353d29ab91d923::t_7ebc52fc916802 5
+  s_353d29ab91d923::t_ba4350b32f5d1f 103-107
+  s_353d29ab91d923::t_b33603dfc4b062 57-59,61-63,70-71
+web/app/creator/dashboard/progress.ts
+  s_353d29ab91d923::t_bfa6773c55a8ad 1-18
+AGENTS.md
+  s_0dc509588f18e9::t_512a83cc3c0aaa 9
+web/app/creator/signin/page.tsx
+  s_0dc509588f18e9::t_e5ced4a37d585e 31-48
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "4995ecc517c71df348dbae02fe3d6f5cd866d934",
+  "prompts": {},
+  "sessions": {
+    "s_0dc509588f18e9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fc365f60-a79d-4397-b8a4-2f924d01aba1",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_353d29ab91d923": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f08e78fabffeDd2GIP0HIAW2IP",
+        "model": "@preset/glm-53-flash-on-cheap"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
