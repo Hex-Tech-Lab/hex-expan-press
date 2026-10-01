@@ -35,7 +35,9 @@ export class SupabaseAdapter implements ConsentDatabasePort {
     });
 
     if (error) {
-      throw new Error(`Failed to submit consent: ${error.message}`);
+      // Keep the Postgres SQLSTATE so callers can tell a unique violation
+      // (23505 = replayed envelope) from a real failure.
+      throw Object.assign(new Error(`Failed to submit consent: ${error.message}`), { code: error.code });
     }
   }
 }
