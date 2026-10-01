@@ -49,7 +49,9 @@ export interface GlobalSettings {
   payments: {
     allowed_currencies: string[];
     webhook_tolerance_seconds: number;
-    http_timeout_ms: number;
+    webhook_lock_ttl_seconds: number;
+    http_timeout_ms: number; // Paddle customer-email lookup inside the webhook (must stay short)
+    sync_http_timeout_ms: number; // operator CLI (sync_book_identity) calls to Supabase/Paddle
     paddle: { api_base: { production: string; sandbox: string }; js_cdn_url: string };
     polar: { sandbox_checkout_fallback_url: string };
   };
@@ -79,7 +81,9 @@ const DEFAULT_GLOBAL: GlobalSettings = {
   payments: {
     allowed_currencies: ["USD"],
     webhook_tolerance_seconds: 300,
+    webhook_lock_ttl_seconds: 300,
     http_timeout_ms: 5000,
+    sync_http_timeout_ms: 30000,
     paddle: {
       api_base: { production: "https://api.paddle.com", sandbox: "https://sandbox-api.paddle.com" },
       js_cdn_url: "https://cdn.paddle.com/paddle/v2/paddle.js",
@@ -109,7 +113,7 @@ function isHttpsUrl(v: unknown): v is string {
   }
 }
 
-function loadPaymentsSection(raw: Record<string, unknown> | undefined): GlobalSettings["payments"] {
+export function loadPaymentsSection(raw: Record<string, unknown> | undefined): GlobalSettings["payments"] {
   const d = DEFAULT_GLOBAL.payments;
   if (!raw) return d;
   const p = raw as Partial<GlobalSettings["payments"]> & Record<string, unknown>;
@@ -117,14 +121,18 @@ function loadPaymentsSection(raw: Record<string, unknown> | undefined): GlobalSe
   const polar = (p.polar ?? {}) as Partial<GlobalSettings["payments"]["polar"]>;
   const apiBase = (paddle.api_base ?? {}) as Partial<GlobalSettings["payments"]["paddle"]["api_base"]>;
   const webhookTolerance = isPositiveInt(p.webhook_tolerance_seconds) ? p.webhook_tolerance_seconds : d.webhook_tolerance_seconds;
+  const webhookLockTtl = isPositiveInt(p.webhook_lock_ttl_seconds) ? p.webhook_lock_ttl_seconds : d.webhook_lock_ttl_seconds;
   const httpTimeout = isPositiveInt(p.http_timeout_ms) ? p.http_timeout_ms : d.http_timeout_ms;
+  const syncHttpTimeout = isPositiveInt(p.sync_http_timeout_ms) ? p.sync_http_timeout_ms : d.sync_http_timeout_ms;
   const apiProduction = isHttpsUrl(apiBase.production) ? apiBase.production : d.paddle.api_base.production;
   const apiSandbox = isHttpsUrl(apiBase.sandbox) ? apiBase.sandbox : d.paddle.api_base.sandbox;
   const jsCdn = isHttpsUrl(paddle.js_cdn_url) ? paddle.js_cdn_url : d.paddle.js_cdn_url;
   const polarFallback = isHttpsUrl(polar.sandbox_checkout_fallback_url) ? polar.sandbox_checkout_fallback_url : d.polar.sandbox_checkout_fallback_url;
   const fallbacks: string[] = [];
   if (!isPositiveInt(p.webhook_tolerance_seconds)) fallbacks.push("webhook_tolerance_seconds");
+  if (!isPositiveInt(p.webhook_lock_ttl_seconds)) fallbacks.push("webhook_lock_ttl_seconds");
   if (!isPositiveInt(p.http_timeout_ms)) fallbacks.push("http_timeout_ms");
+  if (!isPositiveInt(p.sync_http_timeout_ms)) fallbacks.push("sync_http_timeout_ms");
   if (!isHttpsUrl(apiBase.production)) fallbacks.push("paddle.api_base.production");
   if (!isHttpsUrl(apiBase.sandbox)) fallbacks.push("paddle.api_base.sandbox");
   if (!isHttpsUrl(paddle.js_cdn_url)) fallbacks.push("paddle.js_cdn_url");
@@ -134,7 +142,9 @@ function loadPaymentsSection(raw: Record<string, unknown> | undefined): GlobalSe
   return {
     allowed_currencies: currencies,
     webhook_tolerance_seconds: webhookTolerance,
+    webhook_lock_ttl_seconds: webhookLockTtl,
     http_timeout_ms: httpTimeout,
+    sync_http_timeout_ms: syncHttpTimeout,
     paddle: { api_base: { production: apiProduction, sandbox: apiSandbox }, js_cdn_url: jsCdn },
     polar: { sandbox_checkout_fallback_url: polarFallback },
   };

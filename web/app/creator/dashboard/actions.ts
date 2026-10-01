@@ -1,6 +1,6 @@
 "use server";
 
-import { redirect } from "next/navigation";
+import { redirect, unstable_rethrow } from "next/navigation";
 import { createSsrClient } from "../../../src/lib/supabase-ssr";
 import { clearPortalCookies, getPortalSession } from "../../../src/lib/supabase-server";
 import { EnvSettingsAdapter } from "../../../../src/adapters/settings/env_settings.adapter";
@@ -38,7 +38,9 @@ export async function startPublisherAgreementAction(): Promise<void> {
   if (!session) redirect("/creator/signin");
   const { user, supabase } = session;
 
-  const { data: products } = await supabase.from("products").select("id");
+  // Same product resolution as consents/review/dashboard pages: the earliest-created product.
+  // An unordered pick could bind the C3 envelope to a different product than the signed C1/C2 (readiness P1-02).
+  const { data: products } = await supabase.from("products").select("id").order("created_at", { ascending: true }).limit(1);
   const productId = products?.[0]?.id;
   if (!productId) redirect("/creator/dashboard?error=no_product");
 
@@ -53,7 +55,7 @@ export async function startPublisherAgreementAction(): Promise<void> {
     // redirect() unwinds by throwing NEXT_REDIRECT — it must pass through,
     // or a SUCCESSFUL envelope creation would be eaten by this catch and
     // misreported as an esign failure (caught in Wave 6 review 2026-09-29).
-    if (err && typeof err === "object" && "digest" in err) throw err;
+    unstable_rethrow(err); // re-throw Next navigation signals (redirect/notFound) untouched
     console.error("[dashboard] envelope creation failed:", err);
     const msg = err instanceof Error ? err.message : String(err);
     redirect(/insufficient credits|402/i.test(msg) ? "/creator/dashboard?error=credits" : "/creator/dashboard?error=esign");

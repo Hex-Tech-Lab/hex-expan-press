@@ -1,12 +1,16 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
   assertLaunchConsents,
+  ConsentRow,
+  loadProductConfig,
   paddleEnvironment,
   paddleTokenForEnv,
   primaryPaddle,
+  resolveProductTitle,
   stripPaddleBlocks,
   swap,
 } from "../bake_checkout";
+import { loadBookIdentity } from "../book_identity";
 
 const DB_ID = "57596c19-c550-4bde-b17a-e87b86d005c5";
 const KINDS = ["C1_data_accuracy", "C2_release_approval", "C3_revenue_split"];
@@ -15,8 +19,13 @@ const okRes = (rows: unknown) =>
   ({ ok: true, status: 200, json: async () => rows }) as unknown as Response;
 const errRes = (status: number) =>
   ({ ok: false, status, json: async () => ({}) }) as unknown as Response;
-const givenRow = (kind: string, signed_at: string) => ({ kind, decision: "given", signed_at, superseded_by: null });
-const refusedRow = (kind: string, signed_at: string) => ({ kind, decision: "refused", signed_at, superseded_by: null });
+const makeRow = (
+  id: string,
+  kind: string,
+  decision: string,
+  signed_at: string | null = "2026-09-01T00:00:00Z",
+  supersedes: string | null = null,
+): ConsentRow => ({ id, kind, decision, signed_at, supersedes });
 
 const ENV_KEYS = ["SUPABASE_URL", "SUPABASE_SECRET_KEY", "PADDLE_ENVIRONMENT", "NEXT_PUBLIC_PADDLE_CLIENT_TOKEN"] as const;
 const savedEnv: Record<string, string | undefined> = {};
@@ -38,7 +47,7 @@ describe("assertLaunchConsents", () => {
     let called = false;
     await assertLaunchConsents(DB_ID, async () => {
       called = true;
-      return okRes(KINDS.map((k, i) => givenRow(k, `2026-09-0${i + 1}T00:00:00Z`)));
+      return okRes(KINDS.map((k, i) => makeRow(`row-${k}`, k, "given", `2026-09-0${i + 1}T00:00:00Z`)));
     });
     expect(called).toBe(true);
   });
@@ -50,12 +59,16 @@ describe("assertLaunchConsents", () => {
     await expect(
       assertLaunchConsents(
         DB_ID,
-        async () => okRes([givenRow("C1_data_accuracy", "2026-09-01T00:00:00Z"), givenRow("C2_release_approval", "2026-09-02T00:00:00Z")]),
+        async () =>
+          okRes([
+            makeRow("1", "C1_data_accuracy", "given", "2026-09-01T00:00:00Z"),
+            makeRow("2", "C2_release_approval", "given", "2026-09-02T00:00:00Z"),
+          ]),
       ),
     ).rejects.toThrow(/C3_revenue_split/);
   });
 
-  it("throws when the most recent C1 row is refused even if an older one is given", async () => {
+  it("throws when newer refused supersedes older given", async () => {
     stashEnv();
     process.env.SUPABASE_URL = "https://sup.example";
     process.env.SUPABASE_SECRET_KEY = "sk";
@@ -64,14 +77,104 @@ describe("assertLaunchConsents", () => {
         DB_ID,
         async () =>
           okRes([
-            // rows arrive ordered signed_at.desc — newest first
-            refusedRow("C1_data_accuracy", "2026-09-05T00:00:00Z"),
-            givenRow("C1_data_accuracy", "2026-09-01T00:00:00Z"),
-            givenRow("C2_release_approval", "2026-09-02T00:00:00Z"),
-            givenRow("C3_revenue_split", "2026-09-03T00:00:00Z"),
+            makeRow("r1", "C1_data_accuracy", "given", "2026-09-01T00:00:00Z", null),
+            makeRow("r2", "C1_data_accuracy", "refused", "2026-09-05T00:00:00Z", "r1"),
+            makeRow("r3", "C2_release_approval", "given", "2026-09-02T00:00:00Z", null),
+            makeRow("r4", "C3_revenue_split", "given", "2026-09-03T00:00:00Z", null),
           ]),
       ),
-    ).rejects.toThrow(/C1_data_accuracy/);
+    ).rejects.toThrow(/C1_data_accuracy.*refused/);
+  });
+
+  it("passes when chain is given->refused->given (head is given)", async () => {
+    stashEnv();
+    process.env.SUPABASE_URL = "https://sup.example";
+    process.env.SUPABASE_SECRET_KEY = "sk";
+    await expect(
+      assertLaunchConsents(
+        DB_ID,
+        async () =>
+          okRes([
+            makeRow("r1", "C1_data_accuracy", "given", "2026-09-01T00:00:00Z", null),
+            makeRow("r2", "C1_data_accuracy", "refused", "2026-09-02T00:00:00Z", "r1"),
+            makeRow("r3", "C1_data_accuracy", "given", "2026-09-03T00:00:00Z", "r2"),
+            makeRow("r4", "C2_release_approval", "given", "2026-09-02T00:00:00Z", null),
+            makeRow("r5", "C3_revenue_split", "given", "2026-09-03T00:00:00Z", null),
+          ]),
+      ),
+    ).resolves.toBeUndefined();
+  });
+
+  it("throws when two rows have the same signed_at but conflicting decision (given + refused)", async () => {
+    stashEnv();
+    process.env.SUPABASE_URL = "https://sup.example";
+    process.env.SUPABASE_SECRET_KEY = "sk";
+    await expect(
+      assertLaunchConsents(
+        DB_ID,
+        async () =>
+          okRes([
+            makeRow("r1", "C1_data_accuracy", "given", "2026-09-01T12:00:00Z", null),
+            makeRow("r2", "C1_data_accuracy", "refused", "2026-09-01T12:00:00Z", null),
+            makeRow("r3", "C2_release_approval", "given", "2026-09-02T00:00:00Z", null),
+            makeRow("r4", "C3_revenue_split", "given", "2026-09-03T00:00:00Z", null),
+          ]),
+      ),
+    ).rejects.toThrow(/launch blocked/);
+  });
+
+  it("throws when there are two heads for a kind (forked chain)", async () => {
+    stashEnv();
+    process.env.SUPABASE_URL = "https://sup.example";
+    process.env.SUPABASE_SECRET_KEY = "sk";
+    await expect(
+      assertLaunchConsents(
+        DB_ID,
+        async () =>
+          okRes([
+            makeRow("r1", "C1_data_accuracy", "given", "2026-09-01T00:00:00Z", null),
+            makeRow("r2", "C1_data_accuracy", "given", "2026-09-02T00:00:00Z", null),
+            makeRow("r3", "C2_release_approval", "given", "2026-09-02T00:00:00Z", null),
+            makeRow("r4", "C3_revenue_split", "given", "2026-09-03T00:00:00Z", null),
+          ]),
+      ),
+    ).rejects.toThrow(/more than one head/);
+  });
+
+  it("throws when signed_at is null", async () => {
+    stashEnv();
+    process.env.SUPABASE_URL = "https://sup.example";
+    process.env.SUPABASE_SECRET_KEY = "sk";
+    await expect(
+      assertLaunchConsents(
+        DB_ID,
+        async () =>
+          okRes([
+            makeRow("r1", "C1_data_accuracy", "given", null, null),
+            makeRow("r2", "C2_release_approval", "given", "2026-09-02T00:00:00Z", null),
+            makeRow("r3", "C3_revenue_split", "given", "2026-09-03T00:00:00Z", null),
+          ]),
+      ),
+    ).rejects.toThrow(/null signed_at/);
+  });
+
+  it("yields identical result regardless of row shuffle order", async () => {
+    stashEnv();
+    process.env.SUPABASE_URL = "https://sup.example";
+    process.env.SUPABASE_SECRET_KEY = "sk";
+    const rows = [
+      makeRow("r1", "C1_data_accuracy", "refused", "2026-09-01T00:00:00Z", null),
+      makeRow("r2", "C1_data_accuracy", "given", "2026-09-02T00:00:00Z", "r1"),
+      makeRow("r3", "C2_release_approval", "given", "2026-09-02T00:00:00Z", null),
+      makeRow("r4", "C3_revenue_split", "given", "2026-09-03T00:00:00Z", null),
+    ];
+    // Permutation 1
+    await expect(assertLaunchConsents(DB_ID, async () => okRes([...rows]))).resolves.toBeUndefined();
+    // Permutation 2 (reversed)
+    await expect(assertLaunchConsents(DB_ID, async () => okRes([...rows].reverse()))).resolves.toBeUndefined();
+    // Permutation 3 (arbitrary shuffle)
+    const shuffled = [rows[2], rows[0], rows[3], rows[1]];
+    await expect(assertLaunchConsents(DB_ID, async () => okRes(shuffled))).resolves.toBeUndefined();
   });
 
   it("throws on HTTP 500", async () => {
@@ -137,6 +240,79 @@ describe("re-bake hygiene (strip markers + swap)", () => {
     expect(after).not.toContain("paddle.js");
     expect(after).not.toContain("<button");
     expect(after).toContain(GATED_SLOT);
+  });
+
+  it("pre-marker legacy output baked to gated leaves zero Paddle traces and an <a> gated slot", () => {
+    const legacyPreMarkerHtml =
+      `<html><head></head><body>\n` +
+      `<button type="button" class="buy" id="buy" data-checkout-slot="primary" data-checkout-mode="paddle">Buy now</button>\n` +
+      `<script src="https://cdn.paddle.com/paddle/v2/paddle.js"></script>\n` +
+      `<script>(function(){\n` +
+      `  window.Paddle.Initialize({ token: "test_123" });\n` +
+      `  window.Paddle.Checkout.open({ items: [] });\n` +
+      `})();</script>\n` +
+      `</body></html>`;
+
+    const after = stripAndSwapPrimary(legacyPreMarkerHtml);
+    expect(after).not.toContain("cdn.paddle.com");
+    expect(after).not.toContain("Paddle.Initialize");
+    expect(after).not.toContain("Paddle.Checkout");
+    expect(after).not.toContain("<button");
+    expect(after).toContain(GATED_SLOT);
+  });
+
+  it("pre-marker legacy output baked to paddle leaves exactly one marker block", () => {
+    const legacyPreMarkerHtml =
+      `<html><head></head><body>\n` +
+      `<button type="button" class="buy" id="buy" data-checkout-slot="primary" data-checkout-mode="paddle">Buy now</button>\n` +
+      `<script src="https://cdn.paddle.com/paddle/v2/paddle.js"></script>\n` +
+      `<script>(function(){\n` +
+      `  window.Paddle.Initialize({ token: "test_123" });\n` +
+      `  window.Paddle.Checkout.open({ items: [] });\n` +
+      `})();</script>\n` +
+      `</body></html>`;
+
+    const stripped = stripPaddleBlocks(legacyPreMarkerHtml);
+    const rebaked = swap(stripped, "primary", primaryPaddle("cfg.json", {
+      priceId: "pri_new789",
+      clientToken: "live_tok3",
+      productId: "prod_x",
+      environment: "production",
+    }));
+
+    expect(rebaked.match(/paddle-checkout:start/g)?.length).toBe(1);
+    expect(rebaked.match(/paddle-checkout:end/g)?.length).toBe(1);
+    expect(rebaked.match(/data-checkout-mode="paddle"/g)?.length).toBe(1);
+    expect(rebaked).toContain("pri_new789");
+    expect(rebaked).not.toContain("test_123");
+  });
+});
+
+describe("title precedence", () => {
+  it("registry title wins when both book and inline title are present", () => {
+    const registryTitle = loadBookIdentity().title;
+    const res = loadProductConfig(undefined);
+    expect(res.cfg.title).toBe(registryTitle);
+    expect(res.cfg.title).not.toBe("Conflicting Inline Title");
+
+    // Explicit test with conflicting inline title
+    const resolvedTitle = resolveProductTitle({
+      book: "books/duane.json",
+      title: "Conflicting Inline Title",
+    });
+    expect(resolvedTitle).toBe(registryTitle);
+    expect(resolvedTitle).not.toBe("Conflicting Inline Title");
+  });
+
+  it("uses inline title if no book is specified", () => {
+    const resolvedTitle = resolveProductTitle({
+      title: "Fallback Title",
+    });
+    expect(resolvedTitle).toBe("Fallback Title");
+  });
+
+  it("throws when neither book nor title is present", () => {
+    expect(() => resolveProductTitle({})).toThrow(/no inline "title" either/);
   });
 });
 

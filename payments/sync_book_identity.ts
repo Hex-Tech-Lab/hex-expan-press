@@ -32,11 +32,23 @@ const loadSyncConfig = (path: string): SyncConfig => {
   return cfg as SyncConfig;
 };
 
-export const paddleBaseFor = (env: string | undefined): string => {
-  if (env === "production") return GLOBAL.payments.paddle.api_base.production;
-  if (env === "sandbox") return GLOBAL.payments.paddle.api_base.sandbox;
+export const resolvePaddleEnvironment = (env: string | undefined): "production" | "sandbox" => {
+  if (env === "production") return "production";
+  if (env === "sandbox") return "sandbox";
   throw new Error(`PADDLE_ENVIRONMENT must be "sandbox" or "production" (got ${env === undefined ? "unset" : JSON.stringify(env)})`);
 };
+
+export const paddleBaseFor = (env: string | undefined): string => {
+  const canonical = resolvePaddleEnvironment(env);
+  return canonical === "production" ? GLOBAL.payments.paddle.api_base.production : GLOBAL.payments.paddle.api_base.sandbox;
+};
+
+export class PartialSyncError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "PartialSyncError";
+  }
+}
 
 export interface SyncTargets {
   supabaseBase: string;
@@ -47,24 +59,20 @@ export interface SyncTargets {
 
 /** Resolve remote credentials from env. Called lazily (after the CLI dotenv load)
  *  so importing this module from tests stays hermetic. */
-export const resolveTargets = (): SyncTargets => {
-  const supabaseBase = process.env.SUPABASE_URL;
-  const supabaseKey = process.env.SUPABASE_SECRET_KEY;
-  const paddleKey = process.env.PADDLE_API_KEY;
-  const missing = [
-    ["SUPABASE_URL", supabaseBase],
-    ["SUPABASE_SECRET_KEY", supabaseKey],
-    ["PADDLE_API_KEY", paddleKey],
-  ].filter(([, v]) => !v).map(([k]) => k);
-  if (missing.length > 0) {
-    throw new Error(`sync_book_identity: missing env: ${missing.join(", ")}`);
+export const resolveTargets = (environment?: "production" | "sandbox"): SyncTargets => {
+  const rawEnv = process.env.PADDLE_ENVIRONMENT;
+  if (environment === undefined && rawEnv !== "production" && rawEnv !== "sandbox" && (!process.env.SUPABASE_URL || !process.env.SUPABASE_SECRET_KEY || !process.env.PADDLE_API_KEY)) {
+    throw new Error("sync_book_identity: missing env: SUPABASE_URL, SUPABASE_SECRET_KEY, PADDLE_API_KEY");
   }
-  return {
-    supabaseBase: supabaseBase!.replace(/\/+$/, ""),
-    supabaseKey: supabaseKey!,
-    paddleBase: paddleBaseFor(process.env.PADDLE_ENVIRONMENT),
-    paddleKey: paddleKey!,
-  };
+  const envPaddle = environment ?? resolvePaddleEnvironment(rawEnv);
+  return resolveTargetsFrom(
+    {
+      SUPABASE_URL: process.env.SUPABASE_URL,
+      SUPABASE_SECRET_KEY: process.env.SUPABASE_SECRET_KEY,
+      PADDLE_API_KEY: process.env.PADDLE_API_KEY,
+    },
+    envPaddle,
+  );
 };
 
 export const supabaseGetUrl = (t: SyncTargets, dbProductId: string): string =>
@@ -127,6 +135,8 @@ export const fetchTargetState = async (
   };
 };
 
+export const FETCH_TIMEOUT_MS = GLOBAL.payments.sync_http_timeout_ms;
+
 /** Push the registry identity to Supabase + Paddle. Returns per-target results. */
 export const applyIdentity = async (
   t: SyncTargets,
@@ -134,32 +144,51 @@ export const applyIdentity = async (
   identity: BookIdentity,
   fetchImpl: typeof fetch = fetch,
 ): Promise<{ supabase: "applied"; paddle: "applied" }> => {
-  const supaRes = await fetchImpl(supabasePatchUrl(t, cfg.db_product_id), {
-    method: "PATCH",
-    headers: {
-      apikey: t.supabaseKey,
-      Authorization: `Bearer ${t.supabaseKey}`,
-      "Content-Type": "application/json",
-      Prefer: "return=representation",
-    },
-    body: JSON.stringify({ title: identity.title }),
-  });
-  if (!supaRes.ok) throw new Error(`supabase PATCH products HTTP ${supaRes.status}`);
-  const patchedRows = (await supaRes.json()) as Array<{ title?: string }>;
-  if (patchedRows.length !== 1) {
-    throw new Error(`supabase PATCH matched ${patchedRows.length} rows (expected 1) — Paddle NOT updated`);
+  let supaRes: Response;
+  try {
+    supaRes = await fetchImpl(supabasePatchUrl(t, cfg.db_product_id), {
+      method: "PATCH",
+      headers: {
+        apikey: t.supabaseKey,
+        Authorization: `Bearer ${t.supabaseKey}`,
+        "Content-Type": "application/json",
+        Prefer: "return=representation",
+      },
+      body: JSON.stringify({ title: identity.title }),
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
+  } catch (err) {
+    throw new PartialSyncError(`PARTIAL SYNC: the Supabase update failed or its state is unknown (${String(err)}) — re-run apply (idempotent)`);
+  }
+  if (!supaRes.ok) {
+    throw new Error(`supabase PATCH products HTTP ${supaRes.status}`);
+  }
+  let patchedRows: Array<{ title?: string }>;
+  try {
+    patchedRows = (await supaRes.json()) as Array<{ title?: string }>;
+  } catch {
+    throw new PartialSyncError("PARTIAL SYNC: Supabase returned success but an unreadable body — it may have been updated; Paddle NOT attempted; re-run apply (idempotent)");
+  }
+  if (!Array.isArray(patchedRows) || patchedRows.length !== 1) {
+    throw new Error(`supabase PATCH matched ${Array.isArray(patchedRows) ? patchedRows.length : "non-array"} rows (expected 1) — Paddle NOT updated`);
   }
   // Founder intent: the registry subtitle IS the customer-facing Paddle description.
-  const paddleRes = await fetchImpl(paddlePatchUrl(t, cfg.paddle_product_ref), {
-    method: "PATCH",
-    headers: {
-      Authorization: `Bearer ${t.paddleKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ name: identity.title, description: identity.subtitle }),
-  });
+  let paddleRes: Response;
+  try {
+    paddleRes = await fetchImpl(paddlePatchUrl(t, cfg.paddle_product_ref), {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${t.paddleKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ name: identity.title, description: identity.subtitle }),
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
+  } catch (err) {
+    throw new PartialSyncError(`PARTIAL SYNC: Supabase updated successfully, but the Paddle update failed or its state is unknown (${String(err)}) — re-run apply (idempotent)`);
+  }
   if (!paddleRes.ok) {
-    throw new Error(`paddle PATCH products HTTP ${paddleRes.status} — PARTIAL: supabase updated, paddle NOT updated — re-run apply (idempotent)`);
+    throw new PartialSyncError(`PARTIAL SYNC: Supabase updated successfully, but the Paddle update failed or its state is unknown (HTTP ${paddleRes.status}) — re-run apply (idempotent)`);
   }
   return { supabase: "applied", paddle: "applied" };
 };
@@ -178,34 +207,92 @@ export const mismatchList = (identity: BookIdentity, state: TargetState): string
   return out;
 };
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  loadDotenvForCli();
-  const checkOnly = process.argv.includes("--check");
-  const sandboxDbRefIdx = process.argv.indexOf("--sandbox-db-ref");
-  const sandboxDbRef = sandboxDbRefIdx >= 0 ? process.argv[sandboxDbRefIdx + 1] : undefined;
+export interface CliEnv {
+  SUPABASE_URL?: string;
+  SUPABASE_SECRET_KEY?: string;
+  PADDLE_API_KEY?: string;
+  PADDLE_ENVIRONMENT?: string;
+}
+
+export const runSync = async (
+  argv: string[],
+  env: CliEnv,
+  fetchImpl: typeof fetch,
+): Promise<{ exitCode: number; stdout: string[]; stderr: string[] }> => {
+  const stdout: string[] = [];
+  const stderr: string[] = [];
+  const checkOnly = argv.includes("--check");
+  const sandboxDbRefIdx = argv.indexOf("--sandbox-db-ref");
+  const sandboxDbRef = sandboxDbRefIdx >= 0 ? argv[sandboxDbRefIdx + 1] : undefined;
   const cfg = loadSyncConfig(defaultConfigPath);
   const identity = loadBookIdentity(join(here, "..", cfg.book));
-  const targets = resolveTargets();
+  const environment = resolvePaddleEnvironment(env.PADDLE_ENVIRONMENT);
+  const supaEnv: CliEnv = {
+    SUPABASE_URL: env.SUPABASE_URL,
+    SUPABASE_SECRET_KEY: env.SUPABASE_SECRET_KEY,
+    PADDLE_API_KEY: env.PADDLE_API_KEY,
+    PADDLE_ENVIRONMENT: environment,
+  };
+  const targets = resolveTargetsFrom(supaEnv, environment);
   if (checkOnly) {
-    const state = await fetchTargetState(targets, cfg);
+    const state = await fetchTargetState(targets, cfg, fetchImpl);
     const mismatches = mismatchList(identity, state);
-    console.log(`supabase: ${state.supabaseTitle === identity.title ? "match" : "MISMATCH"} (remote title=${JSON.stringify(state.supabaseTitle)})`);
-    console.log(`paddle: name ${state.paddleName === identity.title ? "match" : "MISMATCH"}, description ${state.paddleDescription === identity.subtitle ? "match" : "MISMATCH"}`);
+    stdout.push(`supabase: ${state.supabaseTitle === identity.title ? "match" : "MISMATCH"} (remote title=${JSON.stringify(state.supabaseTitle)})`);
+    stdout.push(`paddle: name ${state.paddleName === identity.title ? "match" : "MISMATCH"}, description ${state.paddleDescription === identity.subtitle ? "match" : "MISMATCH"}`);
     if (mismatches.length > 0) {
-      for (const m of mismatches) console.error(`mismatch: ${m}`);
-      process.exit(1);
+      for (const m of mismatches) stderr.push(`mismatch: ${m}`);
+      return { exitCode: 1, stdout, stderr };
     }
-    console.log("check: all targets match the registry");
-  } else {
-    assertApplyAllowed(process.env.PADDLE_ENVIRONMENT, targets.supabaseBase, sandboxDbRef);
-    await applyIdentity(targets, cfg, identity);
-    console.log("applied: supabase title + paddle name/description updated");
-    const state = await fetchTargetState(targets, cfg);
-    const mismatches = mismatchList(identity, state);
-    if (mismatches.length > 0) {
-      for (const m of mismatches) console.error(`post-apply mismatch: ${m}`);
-      process.exit(1);
-    }
-    console.log("re-verified: all targets match the registry");
+    stdout.push("check: all targets match the registry");
+    return { exitCode: 0, stdout, stderr };
   }
+  assertApplyAllowed(environment, targets.supabaseBase, sandboxDbRef);
+  await applyIdentity(targets, cfg, identity, fetchImpl);
+  stdout.push("applied: supabase title + paddle name/description updated");
+  const state = await fetchTargetState(targets, cfg, fetchImpl);
+  const mismatches = mismatchList(identity, state);
+  if (mismatches.length > 0) {
+    for (const m of mismatches) stderr.push(`post-apply mismatch: ${m}`);
+    return { exitCode: 1, stdout, stderr };
+  }
+  stdout.push("re-verified: all targets match the registry");
+  return { exitCode: 0, stdout, stderr };
+};
+
+export const resolveTargetsFrom = (env: CliEnv, environment: "production" | "sandbox"): SyncTargets => {
+  const supabaseBase = env.SUPABASE_URL;
+  const supabaseKey = env.SUPABASE_SECRET_KEY;
+  const paddleKey = env.PADDLE_API_KEY;
+  const missing = [
+    ["SUPABASE_URL", supabaseBase],
+    ["SUPABASE_SECRET_KEY", supabaseKey],
+    ["PADDLE_API_KEY", paddleKey],
+  ].filter(([, v]) => !v).map(([k]) => k);
+  if (missing.length > 0) {
+    throw new Error(`sync_book_identity: missing env: ${missing.join(", ")}`);
+  }
+  return {
+    supabaseBase: supabaseBase!.replace(/\/+$/, ""),
+    supabaseKey: supabaseKey!,
+    paddleBase: paddleBaseFor(environment),
+    paddleKey: paddleKey!,
+  };
+};
+
+export const runAsMain = async (): Promise<void> => {
+  loadDotenvForCli();
+  const env: CliEnv = {
+    SUPABASE_URL: process.env.SUPABASE_URL,
+    SUPABASE_SECRET_KEY: process.env.SUPABASE_SECRET_KEY,
+    PADDLE_API_KEY: process.env.PADDLE_API_KEY,
+    PADDLE_ENVIRONMENT: process.env.PADDLE_ENVIRONMENT,
+  };
+  const result = await runSync(process.argv.slice(2), env, fetch);
+  for (const line of result.stdout) console.log(line);
+  for (const line of result.stderr) console.error(line);
+  if (result.exitCode !== 0) process.exit(result.exitCode);
+};
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  await runAsMain();
 }
