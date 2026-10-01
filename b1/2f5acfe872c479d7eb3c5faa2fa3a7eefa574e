@@ -1,0 +1,19 @@
+supabase/migrations/20261001000000_submit_consent_strict_signer.sql
+  s_0dc509588f18e9::t_9e0e61db2d187b 1-131
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "b12f5acfe872c479d7eb3c5faa2fa3a7eefa574e",
+  "prompts": {},
+  "sessions": {
+    "s_0dc509588f18e9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fc365f60-a79d-4397-b8a4-2f924d01aba1",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
