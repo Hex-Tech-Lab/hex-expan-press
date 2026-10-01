@@ -1,0 +1,35 @@
+docs/agent_ledger.jsonl
+  s_7290b78bd34ed2::t_1ce2379a8ab0c9 376
+payments/bake_checkout.ts
+  s_7290b78bd34ed2::t_e08731afa5bfae 495-515,523-532,534-543,546-558,564-565,569-570,573,589,610-611,615-617,636-638,645-673
+  s_7290b78bd34ed2::t_155a83bcf9a034 1
+  s_7290b78bd34ed2::t_b744bec1cc9d94 695-696
+  s_7290b78bd34ed2::t_021ded637e2c29 416
+  s_7290b78bd34ed2::t_dd23adb2079c4b 409-415,417-420,422-432
+payments/test/bake_checkout_run.test.ts
+  s_7290b78bd34ed2::t_3d6b15c1b46ca2 313-316,318-320
+  s_7290b78bd34ed2::t_b56783315a73f6 9,12
+  s_7290b78bd34ed2::t_7d19ca08894139 354
+  s_7290b78bd34ed2::t_de793ca4704d12 383-388
+  s_7290b78bd34ed2::t_5044f9d2cbdeb6 398
+  s_7290b78bd34ed2::t_71b01bf055d8cf 37-41
+  s_7290b78bd34ed2::t_3ec30c50fe2a70 239-305,307-312,317,321-353,355-382,390-397,399-421
+  s_7290b78bd34ed2::t_96f12e9cc46de7 306
+  s_7290b78bd34ed2::t_9c1a19e67cb9a9 389
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "5f2c5b92e94994f3d1077a440cd170558366bc06",
+  "prompts": {},
+  "sessions": {
+    "s_7290b78bd34ed2": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f06bf3816ffeXgOqfepABibvIl",
+        "model": "@preset/glm-53-flash-on-cheap"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
