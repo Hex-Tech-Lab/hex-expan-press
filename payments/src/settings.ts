@@ -1,5 +1,8 @@
 import { readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { GLOBAL, isRegisteredPaymentProvider } from "./settings_registry.ts";
+import { loadBookIdentity } from "../book_identity.ts";
 
 export interface RailConfig {
   provider: string;
@@ -20,6 +23,21 @@ export interface ProductConfig {
   currency: string;
   rails?: RailConfig[];
   rail_policy?: RailPolicy;
+}
+
+/** Title SSOT (2026-10-01): the product config no longer carries "title" — the title
+ *  lives in the book registry (books/duane.json) and configs point at it via "book".
+ *  Throws if the config has neither a "book" reference nor a "title" (legacy configs). */
+export function resolveTitle(c: Record<string, unknown>, source: string): string {
+  const bookPath = c.book;
+  if (typeof bookPath === "string" && bookPath.trim() !== "") {
+    // "book" is a repo-root-relative path (e.g. books/duane.json)
+    const abs = resolve(dirname(fileURLToPath(import.meta.url)), "../..", bookPath);
+    return loadBookIdentity(abs).title;
+  }
+  const inline = c.title;
+  if (typeof inline === "string" && inline.trim() !== "") return inline;
+  throw new Error(`settings: ${source} "book" must point at a book registry file (or provide a legacy inline "title")`);
 }
 
 /** Validate a raw parsed product-config object into a ProductConfig. Exported so callers
@@ -93,7 +111,7 @@ export function parseProduct(raw: unknown, source: string): ProductConfig {
   }
   return {
     product_id: needStr("product_id"),
-    title: needStr("title"),
+    title: resolveTitle(c, source),
     price_usd,
     creator_id: needStr("creator_id"),
     creator_split_pct,

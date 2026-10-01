@@ -122,6 +122,8 @@ export function loadTitles(configPaths: string[]): TitleMap {
   }
   return titles;
 }
+// Title now arrives pre-resolved: loadConfig -> parseProduct -> resolveTitle reads the
+// book registry via the config's "book" path, so loadTitles needs no extra logic.
 
 const productLabel = (productId: string, titles: TitleMap): string => titles.get(productId) ?? productId;
 
