@@ -1,0 +1,37 @@
+payments/bake_checkout.ts
+  s_2a7c400ff54ba2::t_7acd15258b9c96 218,229,265,273,319,334,372
+  s_2a7c400ff54ba2::t_fd8326049aebfa 208
+  s_2a7c400ff54ba2::t_646dab2b279de0 200
+  s_2a7c400ff54ba2::t_7d575d7bc968bb 215,226,316,333,356,363,369
+  s_2a7c400ff54ba2::t_fb53129661072f 408-415
+  s_2a7c400ff54ba2::t_a5e8acf96ef9af 1
+  s_2a7c400ff54ba2::t_188f9cecbbb26d 448-493,495,498-504,506-520,522-534,537-540,542-619,622-638,640-642
+docs/agent_ledger.jsonl
+  s_2a7c400ff54ba2::t_dd4348fb7298eb 372
+payments/test/bake_checkout_run.test.ts
+  s_2a7c400ff54ba2::t_7dd41b2010f2fe 98-102,104-108
+  s_2a7c400ff54ba2::t_987789eb103457 147
+  s_2a7c400ff54ba2::t_fe0744e5fc4b74 216-219
+  s_2a7c400ff54ba2::t_11715310fd72ad 1,201-203
+  s_2a7c400ff54ba2::t_c03a30927586dc 2-93,95,97,109-128,130-146,148-161,165-200,204-215,220-232
+  s_2a7c400ff54ba2::t_fcb52b951d8c85 94
+  s_2a7c400ff54ba2::t_89b9052517db76 162-164
+  s_2a7c400ff54ba2::t_86c9d9cf78a7b0 96,103
+  s_2a7c400ff54ba2::t_62aee0760a73e9 129
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "be386792a3b838293bc1ec3c31e4a898488cf964",
+  "prompts": {},
+  "sessions": {
+    "s_2a7c400ff54ba2": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f06d5d18fffeM6Gke72Ir5qKWq",
+        "model": "@preset/glm-53-flash-on-cheap"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
