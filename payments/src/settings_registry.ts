@@ -131,7 +131,14 @@ function isPaddleJsCdnUrl(v: unknown): v is string {
   return v === "https://cdn.paddle.com/paddle/v2/paddle.js";
 }
 
-const CURRENCY_CODE_RE = /^[A-Z]{3}$/;
+// ISO 4217 codes our providers settle. Membership is explicit — shape checks
+// ( /^[A-Z]{3}$/ ) accept nonsense like "ZZZ".
+export const SUPPORTED_ISO_4217: ReadonlySet<string> = new Set([
+  "USD", "EUR", "GBP", "CAD", "AUD", "NZD", "CHF", "SEK", "NOK", "DKK",
+  "PLN", "CZK", "HUF", "JPY", "SGD", "HKD", "INR", "BRL", "MXN", "ZAR",
+  "AED", "SAR", "EGP", "TRY", "KRW", "CNY", "ILS", "ARS", "COP", "CLP",
+  "PHP", "THB", "TWD", "UAH", "RUB",
+] as const);
 
 function isHttpsUrl(v: unknown): v is string {
   if (typeof v !== "string" || !v.startsWith("https://")) return false;
@@ -185,7 +192,7 @@ export function loadPaymentsSection(raw: Record<string, unknown> | undefined): G
     const list = Array.isArray(p.allowed_currencies)
       ? p.allowed_currencies.map(String)
       : null;
-    if (list && list.length > 0 && list.every((c) => CURRENCY_CODE_RE.test(c))) {
+    if (list && list.length > 0 && list.every((c) => SUPPORTED_ISO_4217.has(c))) {
       currencies = list;
     } else {
       fallbacks.push("allowed_currencies");

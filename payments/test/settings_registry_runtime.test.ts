@@ -69,8 +69,9 @@ describe("settings registry: payments section", () => {
         expect(warn).toHaveBeenCalled();
       });
     }
-    it("2147483647 (Node timer limit) is rejected for sync_http_timeout_ms", () => {
+    it("sync_http_timeout_ms: above the max (incl. Node timer limit 2147483647) falls back; at-max accepted", () => {
       vi.spyOn(console, "error").mockImplementation(() => {});
+      expect(loadPaymentsSection({ sync_http_timeout_ms: 2147483647 }).sync_http_timeout_ms).toBe(30000);
       expect(loadPaymentsSection({ sync_http_timeout_ms: 2147483648 }).sync_http_timeout_ms).toBe(30000);
       expect(loadPaymentsSection({ sync_http_timeout_ms: 120000 }).sync_http_timeout_ms).toBe(120000);
     });
@@ -114,6 +115,7 @@ describe("settings registry: payments section", () => {
   describe("allowed_currencies validation", () => {
     it.each([
       [["usd"]],
+      [["ZZZ"]],
       [["US"]],
       [["USDD"]],
       [["USD", "bad"]],
@@ -127,9 +129,9 @@ describe("settings registry: payments section", () => {
       const p = loadPaymentsSection({ allowed_currencies: bad });
       expect(p.allowed_currencies).toEqual(["USD"]);
     });
-    it("accepts valid 3-letter uppercase codes", () => {
-      const p = loadPaymentsSection({ allowed_currencies: ["USD", "EUR", "GBP"] });
-      expect(p.allowed_currencies).toEqual(["USD", "EUR", "GBP"]);
+    it("accepts supported ISO 4217 codes", () => {
+      const p = loadPaymentsSection({ allowed_currencies: ["USD", "EUR"] });
+      expect(p.allowed_currencies).toEqual(["USD", "EUR"]);
     });
   });
 
