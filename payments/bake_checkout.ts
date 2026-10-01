@@ -1,12 +1,77 @@
 import { readFileSync, writeFileSync, readdirSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import dotenv from "dotenv";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const defaultConfigPath = join(here, "config.duane.json");
 const siteRoot = join(here, "../web");
 
 const now = new Date().toISOString();
+
+// CLI-path-only env load (same override semantics as harvest.ts). Called from
+// the runAsMain block, never at import time — keeps vitest hermetic.
+export const loadDotenvForCli = (): void => {
+  dotenv.config({ override: true, path: join(here, "..", ".env") });
+};
+
+export type ConsentKind = "C1_data_accuracy" | "C2_release_approval" | "C3_revenue_split";
+const CONSENT_KINDS: ConsentKind[] = ["C1_data_accuracy", "C2_release_approval", "C3_revenue_split"];
+
+interface ConsentRow {
+  kind: string;
+  decision: string;
+  signed_at: string;
+  superseded_by: string | null;
+}
+
+// Launch gate: every product sold through Paddle must have the most recent
+// consent row for each of C1/C2/C3 carrying decision "given" in Supabase.
+// Hermetic in tests: pass a fetchImpl; env is read lazily at call time (after
+// the CLI-path dotenv load), never at import time.
+export const assertLaunchConsents = async (
+  dbProductId: string,
+  fetchImpl?: typeof fetch,
+): Promise<void> => {
+  const base = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SECRET_KEY;
+  if (!base || !key) {
+    throw new Error(`launch blocked: ${dbProductId}: missing consent(s): SUPABASE_URL/SUPABASE_SECRET_KEY not configured`);
+  }
+  const url =
+    `${base}/rest/v1/consents?product_id=eq.${encodeURIComponent(dbProductId)}` +
+    `&select=kind,decision,signed_at,superseded_by:supersedes&order=signed_at.desc`;
+  const doFetch = fetchImpl ?? fetch;
+  let res: Response;
+  try {
+    res = await doFetch(url, {
+      headers: { apikey: key, Authorization: `Bearer ${key}` },
+    });
+  } catch (e) {
+    throw new Error(`launch blocked: ${dbProductId}: consent lookup failed: ${(e as Error).message}`);
+  }
+  if (!res.ok) {
+    throw new Error(`launch blocked: ${dbProductId}: consent lookup HTTP ${res.status}`);
+  }
+  let rows: ConsentRow[];
+  try {
+    rows = (await res.json()) as ConsentRow[];
+  } catch (e) {
+    throw new Error(`launch blocked: ${dbProductId}: consent lookup returned unparseable body: ${(e as Error).message}`);
+  }
+  const latestByKind = new Map<string, string>();
+  for (const r of rows) {
+    if (!latestByKind.has(r.kind)) latestByKind.set(r.kind, r.decision);
+  }
+  const missing: string[] = [];
+  for (const kind of CONSENT_KINDS) {
+    const decision = latestByKind.get(kind);
+    if (!decision || decision !== "given") missing.push(kind);
+  }
+  if (missing.length > 0) {
+    throw new Error(`launch blocked: ${dbProductId}: missing consent(s): ${missing.join(",")}`);
+  }
+};
 const isRealUrl = (u: string | undefined): u is string =>
   typeof u === "string" && /^https?:\/\//.test(u);
 
@@ -65,7 +130,9 @@ const loadProductConfig = (assoc: ProductAssoc | undefined) => {
     checkout_url?: string;
     checkout_mode?: string;
     paddle_price_id?: string;
+    paddle_price_id_sandbox?: string;
     paddle_product_id?: string;
+    db_product_id?: string;
   } & Facts;
   return { cfg, source: assoc ? assoc.config_file : "payments/config.duane.json" };
 };
@@ -116,6 +183,19 @@ const primaryLive = (source: string) =>
 // orders, so the primary slot is one product only. Every interpolated value
 // is JSON.stringify'd inside the script body and esc()'d inside attributes;
 // invalid ids throw here so the bake fails rather than shipping a dead button.
+export const PADDLE_MARKER_START = "<!--paddle-checkout:start-->";
+export const PADDLE_MARKER_END = "<!--paddle-checkout:end-->";
+// Strips a previously baked paddle block. The block contains the primary slot
+// element, so stripping must leave a bare placeholder slot behind — otherwise
+// the subsequent swap() has no anchor and a paddle→gated rollback would ship
+// no buy link at all. The CLI loop always swaps the primary slot right after
+// stripping, so the placeholder never survives into output.
+export const stripPaddleBlocks = (html: string): string =>
+  html.replace(
+    new RegExp(`[ \\t]*${PADDLE_MARKER_START}[\\s\\S]*?${PADDLE_MARKER_END}\\n?`, "g"),
+    `<a data-checkout-slot="primary" data-paddle-stripped="1"></a>\n`,
+  );
+
 export const primaryPaddle = (
   source: string,
   opts: { priceId: string; clientToken: string; productId: string; environment: "production" | "sandbox" },
@@ -131,8 +211,11 @@ export const primaryPaddle = (
   const init = JSON.stringify({ token: opts.clientToken });
   const items = JSON.stringify([{ priceId: opts.priceId, quantity: 1 }]);
   const customData = JSON.stringify({ product_id: opts.productId });
+  const onError =
+    `onerror="(function(){var b=document.getElementById('buy');` +
+    `if(b){b.disabled=true;b.textContent='Checkout temporarily unavailable';}})()"`;
   const script =
-    `<script src="https://cdn.paddle.com/paddle/v2/paddle.js"></script>\n` +
+    `<script ${onError} src="https://cdn.paddle.com/paddle/v2/paddle.js"></script>\n` +
     `<script>(function(){\n` +
     `  function markUnavailable() {\n` +
     `    var b = document.getElementById("buy");\n` +
@@ -161,7 +244,9 @@ export const primaryPaddle = (
     `  s.addEventListener("load", boot);\n` +
     `  s.addEventListener("error", markUnavailable);\n` +
     `})();</script>`;
-  return button + "\n" + script;
+  return (
+    PADDLE_MARKER_START + "\n" + button + "\n" + script + "\n" + PADDLE_MARKER_END
+  );
 };
 
 const sandboxLive = (source: string) =>
@@ -244,8 +329,10 @@ const bakeFacts = (html: string, cfg: Facts, page: string): string => {
   return out;
 };
 
-const swap = (html: string, slot: string, replacement: string): string => {
-  const re = new RegExp(`<a\\b[^>]*data-checkout-slot="${slot}"[^>]*>[\\s\\S]*?</a>`);
+export const swap = (html: string, slot: string, replacement: string): string => {
+  const re = new RegExp(
+    `<(?:a|button)\\b[^>]*data-checkout-slot="${slot}"[^>]*>[\\s\\S]*?</(?:a|button)>`,
+  );
   if (!re.test(html)) return html;
   return html.replace(re, replacement);
 };
@@ -254,7 +341,26 @@ const swap = (html: string, slot: string, replacement: string): string => {
 // files or rewrite the site. Same pattern as payments/src/reports.ts.
 const runAsMain = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 
+// Env/token strictness for the paddle path (exported so vitest can pin the
+// contract without running the bake).
+export const paddleEnvironment = (env: string | undefined): "production" | "sandbox" => {
+  if (env !== "sandbox" && env !== "production") {
+    throw new Error(`PADDLE_ENVIRONMENT must be "sandbox" or "production" (got ${env === undefined ? "unset" : JSON.stringify(env)})`);
+  }
+  return env;
+};
+export const paddleTokenForEnv = (token: string | undefined, environment: "production" | "sandbox"): string => {
+  if (!token) throw new Error(`NEXT_PUBLIC_PADDLE_CLIENT_TOKEN is required for checkout_mode=paddle`);
+  const prefix = environment === "production" ? "live_" : "test_";
+  if (!token.startsWith(prefix)) {
+    throw new Error(`PADDLE_ENVIRONMENT=${environment} requires a client token starting with "${prefix}" (got a token with a different prefix)`);
+  }
+  return token;
+};
+
 if (runAsMain) {
+  loadDotenvForCli();
+
   // The legacy static master page (web/index.html) no longer exists since the site moved to
   // Next.js (the landing page is web/app/page.tsx); bake it only when present.
   const masterPath = join(siteRoot, "index.html");
@@ -271,6 +377,7 @@ if (runAsMain) {
   }
 
   const cRoot = join(siteRoot, "public", "c"); // pages moved to web/public/c with the Next.js migration
+  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   for (const rel of walkSiteCDirs(cRoot)) {
   const p = join(cRoot, rel, "index.html");
   const html = readFileSync(p, "utf8");
@@ -290,22 +397,40 @@ if (runAsMain) {
       ? cfg.checkout_mode ?? "gated"
       : "gated";
 
+  // Re-bake hygiene: strip any previously baked Paddle block before swapping,
+  // so paddle→paddle (new price/token) and paddle→gated leave no stale
+  // button or script behind.
+  let out = stripPaddleBlocks(html);
+
   if (isPaddle) {
-    const priceId = cfg.paddle_price_id;
+    const environment = paddleEnvironment(process.env.PADDLE_ENVIRONMENT);
+    const clientToken = paddleTokenForEnv(process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN, environment);
+    const priceId = environment === "sandbox" ? cfg.paddle_price_id_sandbox : cfg.paddle_price_id;
     const productId = cfg.paddle_product_id;
-    const clientToken = process.env.PADDLE_CLIENT_TOKEN_PUBLIC;
-    const environment = process.env.PADDLE_ENVIRONMENT === "sandbox" ? "sandbox" : "production";
-    if (!priceId || !productId || !clientToken) {
+    const dbProductId = cfg.db_product_id;
+    if (!priceId || !productId) {
       throw new Error(
-        `${join("site", "c", rel, "index.html")}: checkout_mode=paddle requires paddle_price_id, paddle_product_id (config) and PADDLE_CLIENT_TOKEN_PUBLIC (env) — refusing to bake a broken primary slot`,
+        `${join("site", "c", rel, "index.html")}: checkout_mode=paddle requires paddle_price_id${environment === "sandbox" ? "_sandbox" : ""} and paddle_product_id (config) — refusing to bake a broken primary slot`,
       );
     }
-    const out = swap(html, "primary", primaryPaddle(source, { priceId, productId, clientToken, environment }));
+    if (!dbProductId || !UUID_RE.test(dbProductId)) {
+      throw new Error(
+        `${join("site", "c", rel, "index.html")}: checkout_mode=paddle requires a valid uuid db_product_id in config (got ${dbProductId ? "malformed value" : "none"})`,
+      );
+    }
+    // CONSENT GATE — P1. Fail loud: a live Paddle button must never ship for
+    // a product without signed C1/C2/C3 consents.
+    await assertLaunchConsents(dbProductId);
+    out = swap(out, "primary", primaryPaddle(source, { priceId, productId, clientToken, environment }));
+    // Sandbox scaffolding stays hidden even in paddle mode: the paddle branch
+    // still owns the sandbox slot and the sandbox-test block.
+    out = swap(out, "sandbox", sandboxOff(source));
+    out = out.replace(/<div class="sandbox" id="sandbox-test"( hidden)?>/, '<div class="sandbox" id="sandbox-test" hidden>');
     finish(out, source, perCreatorMode, rel, cfg, assoc);
     continue;
   }
 
-  let out = swap(html, "primary", perCreatorMode === "live" ? primaryLive(source) : primaryGated(source));
+  out = swap(out, "primary", perCreatorMode === "live" ? primaryLive(source) : primaryGated(source));
   out = swap(out, "sandbox", perCreatorMode === "sandbox" && isRealUrl(cfg.checkout_url) ? sandboxLive(source) : sandboxOff(source));
   // The internal sandbox-test block is only VISIBLE while sandbox testing is actually on;
   // otherwise it ships hidden so buyers never see test scaffolding (2026-10-01).
