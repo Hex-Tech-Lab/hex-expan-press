@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync, readdirSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const defaultConfigPath = join(here, "config.duane.json");
@@ -64,6 +64,8 @@ const loadProductConfig = (assoc: ProductAssoc | undefined) => {
   const cfg = JSON.parse(readFileSync(path, "utf8")) as {
     checkout_url?: string;
     checkout_mode?: string;
+    paddle_price_id?: string;
+    paddle_product_id?: string;
   } & Facts;
   return { cfg, source: assoc ? assoc.config_file : "payments/config.duane.json" };
 };
@@ -108,6 +110,59 @@ const primaryLive = (source: string) =>
   `data-checkout-slot="primary" data-config-source="${source}" ` +
   `data-checkout-mode="live" data-baked-at="${now}">` +
   `Buy now &mdash; get the PDF instantly</a>`;
+
+// Paddle overlay mode: plain HTML + Paddle.js v2 (static pages, no React).
+// Single item, quantity 1 — by design: the webhook rejects mixed-product
+// orders, so the primary slot is one product only. Every interpolated value
+// is JSON.stringify'd inside the script body and esc()'d inside attributes;
+// invalid ids throw here so the bake fails rather than shipping a dead button.
+export const primaryPaddle = (
+  source: string,
+  opts: { priceId: string; clientToken: string; productId: string; environment: "production" | "sandbox" },
+): string => {
+  if (!/^pri_[a-z0-9]+$/.test(opts.priceId)) throw new Error(`invalid Paddle priceId: ${opts.priceId}`);
+  if (!/^(live|test)_[A-Za-z0-9]+$/.test(opts.clientToken)) throw new Error(`invalid Paddle client token`);
+  if (!/^[a-z0-9_]+$/.test(opts.productId)) throw new Error(`invalid Paddle productId: ${opts.productId}`);
+  const button =
+    `<button type="button" class="buy" id="buy" ` +
+    `data-checkout-slot="primary" data-config-source="${esc(source)}" ` +
+    `data-checkout-mode="paddle" data-baked-at="${now}" disabled>` +
+    `Buy now &mdash; get the PDF instantly</button>`;
+  const init = JSON.stringify({ token: opts.clientToken });
+  const items = JSON.stringify([{ priceId: opts.priceId, quantity: 1 }]);
+  const customData = JSON.stringify({ product_id: opts.productId });
+  const script =
+    `<script src="https://cdn.paddle.com/paddle/v2/paddle.js"></script>\n` +
+    `<script>(function(){\n` +
+    `  function markUnavailable() {\n` +
+    `    var b = document.getElementById("buy");\n` +
+    `    if (b) { b.disabled = true; b.textContent = "Checkout temporarily unavailable"; }\n` +
+    `  }\n` +
+    `  function boot() {\n` +
+    `    try {\n` +
+    (opts.environment === "sandbox"
+      ? `      window.Paddle.Environment.set("sandbox");\n`
+      : "") +
+    `      window.Paddle.Initialize(${init});\n` +
+    `      var b = document.getElementById("buy");\n` +
+    `      if (!b) return;\n` +
+    `      b.disabled = false;\n` +
+    `      b.addEventListener("click", function () {\n` +
+    `        window.Paddle.Checkout.open({\n` +
+    `          items: ${items},\n` +
+    `          customData: ${customData}\n` +
+    `        });\n` +
+    `      });\n` +
+    `    } catch (e) { markUnavailable(); }\n` +
+    `  }\n` +
+    `  if (window.Paddle) { boot(); return; }\n` +
+    `  var s = document.querySelector('script[src="https://cdn.paddle.com/paddle/v2/paddle.js"]');\n` +
+    `  if (!s) { markUnavailable(); return; }\n` +
+    `  s.addEventListener("load", boot);\n` +
+    `  s.addEventListener("error", markUnavailable);\n` +
+    `})();</script>`;
+  return button + "\n" + script;
+};
 
 const sandboxLive = (source: string) =>
   `<a href="${ROUTER_HREF}" rel="noopener" data-checkout-slot="sandbox" ` +
@@ -195,16 +250,28 @@ const swap = (html: string, slot: string, replacement: string): string => {
   return html.replace(re, replacement);
 };
 
-const master = readFileSync(join(siteRoot, "index.html"), "utf8");
-writeFileSync(
-  join(siteRoot, "index.html"),
-  bakeFacts(swap(master, "primary", primaryGated("payments/config.duane.json")),
-            loadProductConfig(undefined).cfg, "site/index.html"),
-);
-console.log(`baked ${join("site", "index.html")} primary=gated (master page: always gated)`);
+// Run-the-bake guard: importing this module from tests must not read site
+// files or rewrite the site. Same pattern as payments/src/reports.ts.
+const runAsMain = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 
-const cRoot = join(siteRoot, "c");
-for (const rel of walkSiteCDirs(cRoot)) {
+if (runAsMain) {
+  // The legacy static master page (web/index.html) no longer exists since the site moved to
+  // Next.js (the landing page is web/app/page.tsx); bake it only when present.
+  const masterPath = join(siteRoot, "index.html");
+  if (existsSync(masterPath)) {
+    const master = readFileSync(masterPath, "utf8");
+    writeFileSync(
+      masterPath,
+      bakeFacts(swap(master, "primary", primaryGated("payments/config.duane.json")),
+                loadProductConfig(undefined).cfg, "site/index.html"),
+    );
+    console.log(`baked ${join("site", "index.html")} primary=gated (master page: always gated)`);
+  } else {
+    console.log(`skipped site/index.html (no legacy static master page)`);
+  }
+
+  const cRoot = join(siteRoot, "public", "c"); // pages moved to web/public/c with the Next.js migration
+  for (const rel of walkSiteCDirs(cRoot)) {
   const p = join(cRoot, rel, "index.html");
   const html = readFileSync(p, "utf8");
   if (!html.includes("data-checkout-slot")) {
@@ -213,10 +280,48 @@ for (const rel of walkSiteCDirs(cRoot)) {
   }
   const assoc = productAssoc.get(rel);
   const { cfg, source } = loadProductConfig(assoc);
-  const perCreatorMode = isRealUrl(cfg.checkout_url) ? cfg.checkout_mode ?? "gated" : "gated";
+  const isPaddle = cfg.checkout_mode === "paddle";
+  // "paddle" is exempt from the real-URL requirement (it uses the Paddle.js
+  // overlay, not a checkout link). Every other mode keeps the old rule:
+  // without a real checkout_url it silently degrades to gated.
+  const perCreatorMode = isPaddle
+    ? "paddle"
+    : isRealUrl(cfg.checkout_url)
+      ? cfg.checkout_mode ?? "gated"
+      : "gated";
+
+  if (isPaddle) {
+    const priceId = cfg.paddle_price_id;
+    const productId = cfg.paddle_product_id;
+    const clientToken = process.env.PADDLE_CLIENT_TOKEN_PUBLIC;
+    const environment = process.env.PADDLE_ENVIRONMENT === "sandbox" ? "sandbox" : "production";
+    if (!priceId || !productId || !clientToken) {
+      throw new Error(
+        `${join("site", "c", rel, "index.html")}: checkout_mode=paddle requires paddle_price_id, paddle_product_id (config) and PADDLE_CLIENT_TOKEN_PUBLIC (env) — refusing to bake a broken primary slot`,
+      );
+    }
+    const out = swap(html, "primary", primaryPaddle(source, { priceId, productId, clientToken, environment }));
+    finish(out, source, perCreatorMode, rel, cfg, assoc);
+    continue;
+  }
 
   let out = swap(html, "primary", perCreatorMode === "live" ? primaryLive(source) : primaryGated(source));
   out = swap(out, "sandbox", perCreatorMode === "sandbox" && isRealUrl(cfg.checkout_url) ? sandboxLive(source) : sandboxOff(source));
+  // The internal sandbox-test block is only VISIBLE while sandbox testing is actually on;
+  // otherwise it ships hidden so buyers never see test scaffolding (2026-10-01).
+  const sandboxOn = perCreatorMode === "sandbox" && isRealUrl(cfg.checkout_url);
+  out = out.replace(/<div class="sandbox" id="sandbox-test"( hidden)?>/, sandboxOn ? '<div class="sandbox" id="sandbox-test">' : '<div class="sandbox" id="sandbox-test" hidden>');
+  finish(out, source, perCreatorMode, rel, cfg, assoc);
+}
+
+function finish(
+  out: string,
+  source: string,
+  mode: string,
+  rel: string,
+  cfg: Facts,
+  assoc: ProductAssoc | undefined,
+): void {
   out = injectAttributionScript(out);
   out = bakeFacts(out, cfg, join("site", "c", rel, "index.html"));
 
@@ -226,6 +331,7 @@ for (const rel of walkSiteCDirs(cRoot)) {
     console.log(`warn: ${join("site", "c", rel, "index.html")} not mapped in creators.json — back-link skipped`);
   }
 
-  writeFileSync(p, out);
-  console.log(`baked ${join("site", "c", rel, "index.html")} mode=${perCreatorMode}`);
+  writeFileSync(join(cRoot, rel, "index.html"), out);
+  console.log(`baked ${join("site", "c", rel, "index.html")} mode=${mode}`);
+  }
 }
