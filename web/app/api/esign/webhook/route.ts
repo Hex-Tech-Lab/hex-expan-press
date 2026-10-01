@@ -38,12 +38,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
   const body = bodyBuffer.toString("utf8");
 
-  const settingsRegistry = new EnvSettingsAdapter();
-  const database = new SupabaseAdapter();
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "0.0.0.0";
   const userAgent = request.headers.get("user-agent") ?? "";
 
   try {
+    // Constructed inside the failure boundary: a missing SUPABASE_* env must give a
+    // controlled 500 (Firma retries), not an unhandled crash (HEX-EXPAN-PRESS-2).
+    const settingsRegistry = new EnvSettingsAdapter();
+    const database = new SupabaseAdapter();
     await processEsignWebhookUseCase({ body, headers: Object.fromEntries(request.headers), ip, userAgent }, settingsRegistry, database);
     return NextResponse.json({ ok: true });
   } catch (err) {
