@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { MatrixRouter } from "../../../../../src/infrastructure/matrix_router/matrix_router";
+import { GLOBAL } from "../../../../../payments/src/settings_registry";
 
 export const runtime = "nodejs";
 
@@ -90,7 +91,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         {
           provider: "polar",
           weight: 100,
-          checkout_url: liveCheckoutUrl || "https://sandbox-api.polar.sh/v1/checkout-links/polar_cl_g84ByoGAeZiahkWtCasYmeu1ShLtZIwwayzyI4ZdZsM/redirect",
+          checkout_url: liveCheckoutUrl || GLOBAL.payments.polar.sandbox_checkout_fallback_url,
         },
       ];
     } else {
