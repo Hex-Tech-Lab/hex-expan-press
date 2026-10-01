@@ -39,6 +39,7 @@ export function PaddleCheckoutButton({ priceId, productId, email, children = "Bu
       : null;
 
   const [paddle, setPaddle] = useState<Paddle | null>(null);
+  const [loadFailedReason, setLoadFailedReason] = useState<string | null>(null);
 
   useEffect(() => {
     if (!envCheck.ok || token === null) {
@@ -46,9 +47,22 @@ export function PaddleCheckoutButton({ priceId, productId, email, children = "Bu
       return;
     }
     let cancelled = false;
-    void initializePaddle({ token, environment: envCheck.env }).then((instance) => {
-      if (!cancelled && instance) setPaddle(instance);
-    });
+    void initializePaddle({ token, environment: envCheck.env })
+      .then((instance) => {
+        if (cancelled) return;
+        if (instance) setPaddle(instance);
+        else {
+          const reason = "Paddle checkout failed to load";
+          console.error(reason);
+          setLoadFailedReason(reason);
+        }
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        const reason = "Paddle checkout failed to load";
+        console.error(reason, err);
+        setLoadFailedReason(reason);
+      });
     return () => {
       cancelled = true;
     };
@@ -63,7 +77,9 @@ export function PaddleCheckoutButton({ priceId, productId, email, children = "Bu
     });
   };
 
-  const disabled = unavailableReason !== null || paddle === null;
+  const unavailable = unavailableReason ?? loadFailedReason;
+
+  const disabled = unavailable !== null || paddle === null;
 
   return (
     <button
@@ -72,7 +88,7 @@ export function PaddleCheckoutButton({ priceId, productId, email, children = "Bu
       disabled={disabled}
       className={`min-h-11 focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#E8622C]${className ? ` ${className}` : ""}`}
     >
-      {unavailableReason !== null ? "Checkout unavailable" : children}
+      {unavailable !== null ? "Checkout unavailable" : children}
     </button>
   );
 }

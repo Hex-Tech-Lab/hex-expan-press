@@ -40,7 +40,8 @@ const PaddleWebhookSchema = z.object({
       email: z.string().email().optional(),
       reference_id: z.string().optional() // attribution passthrough (wiring unverified)
     }).optional().nullable(),
-    changed_at: z.string().datetime().optional()
+    changed_at: z.string().datetime().optional(),
+    customer_id: z.string().optional()
   })
 });
 
@@ -104,8 +105,38 @@ export class PaddleAdapter implements PaymentProviderPort {
       const productId = validated.data.custom_data?.product_id;
       if (!productId) return { isValid: false, error: "Missing custom_data.product_id in Paddle payload", httpStatus: 400 };
 
-      const email = validated.data.custom_data?.email;
-      if (!email) return { isValid: false, error: "Missing custom_data.email in Paddle payload", httpStatus: 400 };
+      let email = validated.data.custom_data?.email;
+      if (!email) {
+        // Buyers type their email INTO the Paddle overlay, so custom_data.email
+        // is usually absent — resolve it from the Paddle customer record.
+        // Only verified payloads reach this lookup (signature + freshness passed).
+        const customerId = validated.data.customer_id;
+        if (!customerId) {
+          return { isValid: false, error: "Missing custom_data.email in Paddle payload", httpStatus: 400 };
+        }
+        const base =
+          process.env.NEXT_PUBLIC_PADDLE_ENVIRONMENT === "production"
+            ? "https://api.paddle.com"
+            : "https://sandbox-api.paddle.com";
+        const apiKey = process.env.PADDLE_API_KEY;
+        try {
+          if (!apiKey) throw new Error("PADDLE_API_KEY not configured");
+          const resp = await fetch(`${base}/customers/${encodeURIComponent(customerId)}`, {
+            headers: { Authorization: `Bearer ${apiKey}` },
+            signal: AbortSignal.timeout(5000)
+          });
+          const fetched = ((await resp.json()) as { data?: { email?: unknown } }).data;
+          if (typeof fetched?.email === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fetched.email)) {
+            email = fetched.email;
+          }
+        } catch {
+          // fall through — handled below
+        }
+        if (!email) {
+          console.error(`[paddle.adapter] customer email lookup failed customer_id=${customerId} env=${process.env.NEXT_PUBLIC_PADDLE_ENVIRONMENT ?? "sandbox"}`);
+          return { isValid: false, error: "Could not resolve buyer email from Paddle", httpStatus: 503 };
+        }
+      }
 
       // Paddle total is a string of integer cents
       const totalCents = parseInt(validated.data.details?.totals?.total ?? "0", 10);
