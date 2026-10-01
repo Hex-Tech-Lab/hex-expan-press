@@ -54,7 +54,7 @@ const nextConfig: NextConfig = {
   // out-of-project files from the serverless artifact.
   outputFileTracingRoot: join(__dirname, ".."),
   outputFileTracingIncludes: {
-    "/api/billing/webhook": ["../payments/config.*.json"],
+    "/api/billing/webhook": ["../payments/config.*.json", "../books/*.json"],
   },
   async rewrites() {
     return [
