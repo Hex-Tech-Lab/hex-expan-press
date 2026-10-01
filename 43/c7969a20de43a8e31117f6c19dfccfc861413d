@@ -1,0 +1,27 @@
+.github/workflows/ci.yml
+  s_0dc509588f18e9::t_1bf3a1609426dc 29-31,36-38
+docs/agent_ledger.jsonl
+  s_0dc509588f18e9::t_35d327e0072821 359
+eslint.config.mjs
+  s_0dc509588f18e9::t_1d4dfee07564b8 1-11
+package.json
+  s_0dc509588f18e9::t_ba38918ce2ab55 17,49,52
+pnpm-lock.yaml
+  s_0dc509588f18e9::t_4c32b948780b41 137-139,146-148
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "43c7969a20de43a8e31117f6c19dfccfc861413d",
+  "prompts": {},
+  "sessions": {
+    "s_0dc509588f18e9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fc365f60-a79d-4397-b8a4-2f924d01aba1",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
