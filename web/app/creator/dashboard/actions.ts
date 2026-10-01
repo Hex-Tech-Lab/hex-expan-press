@@ -38,11 +38,33 @@ export async function startPublisherAgreementAction(): Promise<void> {
   if (!session) redirect("/creator/signin");
   const { user, supabase } = session;
 
-  // Same product resolution as consents/review/dashboard pages: the earliest-created product.
-  // An unordered pick could bind the C3 envelope to a different product than the signed C1/C2 (readiness P1-02).
-  const { data: products } = await supabase.from("products").select("id").order("created_at", { ascending: true }).limit(1);
-  const productId = products?.[0]?.id;
-  if (!productId) redirect("/creator/dashboard?error=no_product");
+  // C3 binds to the product on which this creator's C2 (release approval) is currently given:
+  // the supersedes-chain head of their C2 rows (RLS-scoped). No head, several heads (e.g. two
+  // products) or a non-given head fails closed — the envelope is never created on a guess.
+  const { data: consents, error: consentsError } = await supabase
+    .from("consents")
+    .select("product_id, kind, decision, signed_at, id, supersedes")
+    .eq("kind", "C2_release_approval");
+
+  if (consentsError || !consents || consents.length === 0) {
+    redirect("/creator/dashboard?error=c2_required");
+  }
+
+  const supersededIds = new Set(
+    consents.map((c) => c.supersedes).filter((s): s is string => typeof s === "string" && s.length > 0)
+  );
+  const heads = consents.filter((c) => !supersededIds.has(c.id));
+
+  if (heads.length !== 1) {
+    redirect("/creator/dashboard?error=c2_required");
+  }
+
+  const head = heads[0];
+  if (head.decision !== "given" || !head.product_id) {
+    redirect("/creator/dashboard?error=c2_required");
+  }
+
+  const productId = head.product_id;
 
   const siteOrigin = process.env.NEXT_PUBLIC_SITE_ORIGIN ?? "https://expanpress.com";
   try {

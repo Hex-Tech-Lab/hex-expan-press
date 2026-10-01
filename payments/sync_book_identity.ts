@@ -7,17 +7,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import dotenv from "dotenv";
 import { loadBookIdentity, type BookIdentity } from "./book_identity.ts";
-import { GLOBAL } from "./src/settings_registry";
-
-/** Every tunable comes from the settings registry GLOBAL (standing rule); the
- *  payments.sync_http_timeout_ms key must exist in data/settings/global.json. */
-export const syncHttpTimeoutMs = (): number => {
-  const v = (GLOBAL.payments as Record<string, unknown>).sync_http_timeout_ms;
-  if (typeof v !== "number" || !Number.isFinite(v) || v <= 0) {
-    throw new Error("sync_book_identity: GLOBAL.payments.sync_http_timeout_ms must be a positive number in data/settings/global.json");
-  }
-  return v;
-};
+import { GLOBAL } from "./src/settings_registry.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const defaultConfigPath = join(here, "config.duane.json");
@@ -50,7 +40,7 @@ export const resolvePaddleEnvironment = (env: string | undefined): "production" 
 
 export const paddleBaseFor = (env: string | undefined): string => {
   const canonical = resolvePaddleEnvironment(env);
-  return canonical === "production" ? "https://api.paddle.com" : "https://sandbox-api.paddle.com";
+  return canonical === "production" ? GLOBAL.payments.paddle.api_base.production : GLOBAL.payments.paddle.api_base.sandbox;
 };
 
 export class PartialSyncError extends Error {
@@ -128,7 +118,7 @@ export const fetchTargetState = async (
   cfg: SyncConfig,
   fetchImpl: typeof fetch = fetch,
 ): Promise<TargetState> => {
-  const timeoutMs = syncHttpTimeoutMs();
+  const timeoutMs = FETCH_TIMEOUT_MS;
   let supaRes: Response;
   try {
     supaRes = await fetchImpl(supabaseGetUrl(t, cfg.db_product_id), {
@@ -159,6 +149,7 @@ export const fetchTargetState = async (
 };
 
 export const fetchImplDefault = fetch;
+export const FETCH_TIMEOUT_MS = GLOBAL.payments.sync_http_timeout_ms;
 
 /** Push the registry identity to Supabase + Paddle. Returns per-target results. */
 export const applyIdentity = async (
@@ -178,7 +169,7 @@ export const applyIdentity = async (
         Prefer: "return=representation",
       },
       body: JSON.stringify({ title: identity.title }),
-      signal: AbortSignal.timeout(syncHttpTimeoutMs()),
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
   } catch (err) {
     throw new PartialSyncError(`PARTIAL SYNC: the Supabase update failed or its state is unknown (${String(err)}) — re-run apply (idempotent)`);
@@ -215,7 +206,7 @@ export const applyIdentity = async (
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ name: identity.title, description: identity.subtitle }),
-      signal: AbortSignal.timeout(syncHttpTimeoutMs()),
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
   } catch (err) {
     throw new PartialSyncError(`PARTIAL SYNC: Supabase updated successfully, but the Paddle update failed or its state is unknown (${String(err)}) — re-run apply (idempotent)`);

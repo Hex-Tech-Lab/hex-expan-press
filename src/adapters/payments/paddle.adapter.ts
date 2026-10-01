@@ -27,6 +27,7 @@ import { PaymentProviderPort, WebhookParseResult, CheckoutCommand, CheckoutResul
 import { z } from "zod";
 import crypto from "crypto";
 import { hashEmail } from "../../../payments/src/provider.ts";
+import { GLOBAL } from "../../../payments/src/settings_registry.ts";
 
 // --- SSOT Schema (Zod) ---
 const PaddleWebhookSchema = z.object({
@@ -56,7 +57,7 @@ const PaddleWebhookSchema = z.object({
   })
 });
 
-export const PADDLE_WEBHOOK_TOLERANCE_SECONDS = 300;
+export const PADDLE_WEBHOOK_TOLERANCE_SECONDS = GLOBAL.payments.webhook_tolerance_seconds;
 
 export function loadPaddlePriceMap(
   raw: string | undefined = process.env.PADDLE_PRICE_MAP
@@ -192,14 +193,14 @@ export class PaddleAdapter implements PaymentProviderPort {
         }
         const base =
           serverEnv === "production"
-            ? "https://api.paddle.com"
-            : "https://sandbox-api.paddle.com";
+            ? GLOBAL.payments.paddle.api_base.production
+            : GLOBAL.payments.paddle.api_base.sandbox;
         const apiKey = process.env.PADDLE_API_KEY;
         try {
           if (!apiKey) throw new Error("PADDLE_API_KEY not configured");
           const resp = await fetch(`${base}/customers/${encodeURIComponent(customerId)}`, {
             headers: { Authorization: `Bearer ${apiKey}` },
-            signal: AbortSignal.timeout(5000)
+            signal: AbortSignal.timeout(GLOBAL.payments.http_timeout_ms)
           });
           const fetched = ((await resp.json()) as { data?: { email?: unknown } }).data;
           if (typeof fetched?.email === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fetched.email)) {
