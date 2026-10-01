@@ -1,0 +1,44 @@
+payments/sync_book_identity.ts
+  s_42eabd83c52735::t_764ea66b778646 34-36,40-50
+  s_42eabd83c52735::t_183a7123a922fc 61,67,73
+  s_42eabd83c52735::t_c296d3d2b3e28e 209-225,228-235,237,239-240,242-243,245-271,273-296
+  s_42eabd83c52735::t_d260bdc36f0954 68-72,74
+  s_42eabd83c52735::t_826711312cc2b9 62-64,66
+  s_42eabd83c52735::t_d7a32a8fc04696 137-138,146-172,175-188,190
+  s_42eabd83c52735::t_5be16c5fa13775 51
+docs/agent_ledger.jsonl
+  s_42eabd83c52735::t_4ab43d39a90f33 365
+  s_24157aaccd8137::t_91fd90db90b754 366
+  s_42eabd83c52735::t_3c3e1cfc05ca80 367
+payments/test/book_identity.test.ts
+  s_42eabd83c52735::t_2c8bd4e8ca75e8 430
+  s_42eabd83c52735::t_a38e75c34f45e0 12,14,19
+  s_42eabd83c52735::t_0ea0a3cb2ef01e 513
+  s_42eabd83c52735::t_573c29870df5b9 293,297-345
+  s_42eabd83c52735::t_f23d1262085cab 427-429,431-440,442-512,514-527
+  s_42eabd83c52735::t_c4f913932aaa11 441
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "4dd405a0913bba7391dd57dfc87fa75e12de27f3",
+  "prompts": {},
+  "sessions": {
+    "s_24157aaccd8137": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f071b4345ffeeINkR2GMkgOslA",
+        "model": "@preset/glm-53-flash-on-cheap"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_42eabd83c52735": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f070aedceffebnctHS4j8EnR2t",
+        "model": "@preset/glm-53-flash-on-cheap"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
