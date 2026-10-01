@@ -66,4 +66,33 @@ describe("FirmaAdapter.parseAndValidateWebhook (fail-closed HMAC gate)", () => {
     expect(result.event?.eventType).toBe("envelope.completed");
     expect(result.event?.metadata).toEqual({ productId: "p1", userId: "u1" });
   });
+
+  // Sharp-edges audit 2026-10-01: signature comparison is now constant-time
+  // (timingSafeEqual over decoded hex bytes). Length-mismatched and non-hex
+  // inputs must reject with the same "Invalid signature" result.
+  it("rejects a MISSING signature header", async () => {
+    const adapter = new FirmaAdapter();
+    const { body } = signedBody(completedPayload({ productId: "p1", userId: "u1" }));
+    const result = await adapter.parseAndValidateWebhook(body, { "content-type": "application/json" });
+    expect(result.isValid).toBe(false);
+    expect(result.error).toBe("Invalid signature");
+  });
+
+  it("rejects a WRONG-LENGTH signature without throwing", async () => {
+    const adapter = new FirmaAdapter();
+    const { body, headers } = signedBody(completedPayload({ productId: "p1", userId: "u1" }));
+    headers["x-firma-signature"] = "abcd";
+    const result = await adapter.parseAndValidateWebhook(body, headers);
+    expect(result.isValid).toBe(false);
+    expect(result.error).toBe("Invalid signature");
+  });
+
+  it("rejects a NON-HEX signature without throwing", async () => {
+    const adapter = new FirmaAdapter();
+    const { body, headers } = signedBody(completedPayload({ productId: "p1", userId: "u1" }));
+    headers["x-firma-signature"] = "z".repeat(64);
+    const result = await adapter.parseAndValidateWebhook(body, headers);
+    expect(result.isValid).toBe(false);
+    expect(result.error).toBe("Invalid signature");
+  });
 });
