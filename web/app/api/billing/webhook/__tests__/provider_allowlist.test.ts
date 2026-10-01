@@ -62,7 +62,10 @@ const salesFileDir = vi.hoisted(() => `/tmp/allowlist-${Date.now()}-${Math.rando
 const salesFilePath = vi.hoisted(() => `${salesFileDir}/sales.jsonl`);
 
 vi.mock("../../../../../../payments/src/settings_registry.ts", () => ({
-  GLOBAL: { paths: { sales_ledger: salesFilePath } },
+  GLOBAL: {
+    paths: { sales_ledger: salesFilePath },
+    payments: { webhook_tolerance_seconds: 300, http_timeout_ms: 5000 },
+  },
   expandHome: (p: string, home: string) => (home && (p === "~" || p.startsWith("~/")) ? p : p),
   isRegisteredPaymentProvider: (name: unknown) => typeof name === "string",
   paymentProviderSetting: () => undefined,

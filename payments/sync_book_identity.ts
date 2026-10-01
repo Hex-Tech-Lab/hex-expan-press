@@ -7,6 +7,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import dotenv from "dotenv";
 import { loadBookIdentity, type BookIdentity } from "./book_identity.ts";
+import { GLOBAL } from "./src/settings_registry.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const defaultConfigPath = join(here, "config.duane.json");
@@ -32,8 +33,8 @@ const loadSyncConfig = (path: string): SyncConfig => {
 };
 
 export const paddleBaseFor = (env: string | undefined): string => {
-  if (env === "production") return "https://api.paddle.com";
-  if (env === "sandbox") return "https://sandbox-api.paddle.com";
+  if (env === "production") return GLOBAL.payments.paddle.api_base.production;
+  if (env === "sandbox") return GLOBAL.payments.paddle.api_base.sandbox;
   throw new Error(`PADDLE_ENVIRONMENT must be "sandbox" or "production" (got ${env === undefined ? "unset" : JSON.stringify(env)})`);
 };
 

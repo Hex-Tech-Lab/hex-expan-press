@@ -46,7 +46,13 @@ export interface GlobalSettings {
   server: { bind_host: string; bind_port: number; max_body_bytes: number };
   user_agent: string;
   defaults: { currency: string };
-  payments: { allowed_currencies: string[] };
+  payments: {
+    allowed_currencies: string[];
+    webhook_tolerance_seconds: number;
+    http_timeout_ms: number;
+    paddle: { api_base: { production: string; sandbox: string }; js_cdn_url: string };
+    polar: { sandbox_checkout_fallback_url: string };
+  };
   landing: { fallbacks: { title: string; creator: string }; disclaimers: string[] };
 }
 
@@ -70,7 +76,16 @@ const DEFAULT_GLOBAL: GlobalSettings = {
   user_agent:
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
   defaults: { currency: "USD" },
-  payments: { allowed_currencies: ["USD"] },
+  payments: {
+    allowed_currencies: ["USD"],
+    webhook_tolerance_seconds: 300,
+    http_timeout_ms: 5000,
+    paddle: {
+      api_base: { production: "https://api.paddle.com", sandbox: "https://sandbox-api.paddle.com" },
+      js_cdn_url: "https://cdn.paddle.com/paddle/v2/paddle.js",
+    },
+    polar: { sandbox_checkout_fallback_url: "https://sandbox-api.polar.sh/v1/checkout-links/polar_cl_g84ByoGAeZiahkWtCasYmeu1ShLtZIwwayzyI4ZdZsM/redirect" },
+  },
   landing: {
     fallbacks: { title: "Product", creator: "the creator" },
     disclaimers: [
@@ -79,6 +94,51 @@ const DEFAULT_GLOBAL: GlobalSettings = {
     ],
   },
 };
+
+function isPositiveInt(v: unknown): v is number {
+  return typeof v === "number" && Number.isInteger(v) && v > 0;
+}
+
+function isHttpsUrl(v: unknown): v is string {
+  if (typeof v !== "string" || !v.startsWith("https://")) return false;
+  try {
+    new URL(v);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function loadPaymentsSection(raw: Record<string, unknown> | undefined): GlobalSettings["payments"] {
+  const d = DEFAULT_GLOBAL.payments;
+  if (!raw) return d;
+  const p = raw as Partial<GlobalSettings["payments"]> & Record<string, unknown>;
+  const paddle = (p.paddle ?? {}) as Partial<GlobalSettings["payments"]["paddle"]>;
+  const polar = (p.polar ?? {}) as Partial<GlobalSettings["payments"]["polar"]>;
+  const apiBase = (paddle.api_base ?? {}) as Partial<GlobalSettings["payments"]["paddle"]["api_base"]>;
+  const webhookTolerance = isPositiveInt(p.webhook_tolerance_seconds) ? p.webhook_tolerance_seconds : d.webhook_tolerance_seconds;
+  const httpTimeout = isPositiveInt(p.http_timeout_ms) ? p.http_timeout_ms : d.http_timeout_ms;
+  const apiProduction = isHttpsUrl(apiBase.production) ? apiBase.production : d.paddle.api_base.production;
+  const apiSandbox = isHttpsUrl(apiBase.sandbox) ? apiBase.sandbox : d.paddle.api_base.sandbox;
+  const jsCdn = isHttpsUrl(paddle.js_cdn_url) ? paddle.js_cdn_url : d.paddle.js_cdn_url;
+  const polarFallback = isHttpsUrl(polar.sandbox_checkout_fallback_url) ? polar.sandbox_checkout_fallback_url : d.polar.sandbox_checkout_fallback_url;
+  const fallbacks: string[] = [];
+  if (!isPositiveInt(p.webhook_tolerance_seconds)) fallbacks.push("webhook_tolerance_seconds");
+  if (!isPositiveInt(p.http_timeout_ms)) fallbacks.push("http_timeout_ms");
+  if (!isHttpsUrl(apiBase.production)) fallbacks.push("paddle.api_base.production");
+  if (!isHttpsUrl(apiBase.sandbox)) fallbacks.push("paddle.api_base.sandbox");
+  if (!isHttpsUrl(paddle.js_cdn_url)) fallbacks.push("paddle.js_cdn_url");
+  if (!isHttpsUrl(polar.sandbox_checkout_fallback_url)) fallbacks.push("polar.sandbox_checkout_fallback_url");
+  if (fallbacks.length > 0) warnFallback("global.json", `invalid payments values for ${fallbacks.join(", ")}`);
+  const currencies = Array.isArray(p.allowed_currencies) && p.allowed_currencies.length > 0 ? p.allowed_currencies.map(String) : d.allowed_currencies;
+  return {
+    allowed_currencies: currencies,
+    webhook_tolerance_seconds: webhookTolerance,
+    http_timeout_ms: httpTimeout,
+    paddle: { api_base: { production: apiProduction, sandbox: apiSandbox }, js_cdn_url: jsCdn },
+    polar: { sandbox_checkout_fallback_url: polarFallback },
+  };
+}
 
 function loadGlobal(): GlobalSettings {
   const raw = readRegistryFile("global.json");
@@ -95,7 +155,7 @@ function loadGlobal(): GlobalSettings {
     tool_paths: { ...DEFAULT_GLOBAL.tool_paths, ...(g.tool_paths ?? {}) },
     server: { ...DEFAULT_GLOBAL.server, ...(g.server ?? {}) },
     defaults: { ...DEFAULT_GLOBAL.defaults, ...(g.defaults ?? {}) },
-    payments: { ...DEFAULT_GLOBAL.payments, ...(g.payments ?? {}) },
+    payments: loadPaymentsSection(g.payments as Record<string, unknown> | undefined),
     landing: { ...DEFAULT_GLOBAL.landing, ...(g.landing ?? {}) },
   };
 }
