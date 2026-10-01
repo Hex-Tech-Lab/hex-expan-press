@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { appendSale, appendRefund, findSale, findRefund, findRefundAsync, findSalesByAttribution, SaleRecord } from "../src/ledger.ts";
+import { appendSale, appendRefund, findSale, findRefund, findSalesByAttribution, SaleRecord } from "../src/ledger.ts";
 
 describe("payments/src/ledger", () => {
   let tmpDir: string;
@@ -161,7 +161,7 @@ describe("payments/src/ledger", () => {
   it("findRefundAsync queries public.orders for refunds when Supabase env set", async () => {
     vi.stubEnv("SUPABASE_URL", "https://unit.test.supabase.co");
     vi.stubEnv("SUPABASE_SECRET_KEY", "unit-test-key");
-    let queriedEq: Record<string, string> = {};
+    const queriedEq: Record<string, string> = {};
     const refundRow = { provider: "polar", sale_id: "sale_q1", event_type: "refund" };
     vi.doMock("@supabase/supabase-js", () => ({
       createClient: () => ({

@@ -110,17 +110,17 @@ export const polarProvider: CheckoutProvider = {
       return { ok: false, status: 401, error: "invalid signature" };
     }
 
-    let body: any;
+    let body: Record<string, unknown> | null;
     try {
-      body = JSON.parse(rawBody.toString("utf8"));
+      body = JSON.parse(rawBody.toString("utf8")) as Record<string, unknown>;
     } catch {
       return { ok: false, status: 400, error: "invalid JSON body" };
     }
 
     const eventName = body?.type;
 
-    if (REFUND_EVENTS.includes(eventName)) {
-      const refundData = body?.data;
+    if (REFUND_EVENTS.includes(eventName as string)) {
+      const refundData = body?.data as Record<string, unknown> | undefined;
       const saleId = String(getPath(body, FM.refund_sale_id) ?? refundData?.order_id ?? "");
       if (!saleId) {
         return { ok: false, status: 400, error: "refund.created missing data.order_id — refund cannot be linked to a recorded sale" };
@@ -135,16 +135,18 @@ export const polarProvider: CheckoutProvider = {
       return { ok: true, refund };
     }
 
-    if (!SALE_EVENTS.includes(eventName)) {
+    if (!SALE_EVENTS.includes(eventName as string)) {
       return { ok: false, status: 202, error: `ignored non-sale event: ${eventName ?? "<none>"}` };
     }
     // order.created can carry an UNPAID order (status "pending", e.g. subscription renewals) —
     // only record it if already paid; otherwise wait for order.paid (same order id, ledger dedups).
-    if (eventName === "order.created" && body?.data?.paid !== true) {
+    const dataObj = body?.data as Record<string, unknown> | undefined;
+    if (eventName === "order.created" && dataObj?.paid !== true) {
       return { ok: false, status: 202, error: "ignored unpaid order.created (waiting for order.paid)" };
     }
-    const order = body?.data;
-    const productId = getPath(body, FM.product_id) ?? order?.product_id ?? order?.product?.id;
+    const order = dataObj;
+    const orderProd = order?.product as Record<string, unknown> | undefined;
+    const productId = getPath(body, FM.product_id) ?? order?.product_id ?? orderProd?.id;
     const totalCents = Number(getPath(body, FM.total_cents) ?? order?.total_amount);
     const currency = String(getPath(body, FM.currency) ?? order?.currency ?? "").toUpperCase();
     const saleId = String(getPath(body, FM.sale_id) ?? order?.id ?? "");
@@ -156,12 +158,14 @@ export const polarProvider: CheckoutProvider = {
           : typeof body?.timestamp === "string"
             ? body.timestamp
             : new Date().toISOString();
-    const email = getPath(body, FM.email) ?? order?.customer?.email;
+    const customer = order?.customer as Record<string, unknown> | undefined;
+    const email = getPath(body, FM.email) ?? customer?.email;
     // Our own canonical attribution ID (added 2026-09-18) — see field_map.attribution_id /
     // attribution_note in data/settings/providers.json. Optional: absent on direct/organic
     // sales with no captured source, or until the client-side/server-side path is fully
     // reconciled (UNVERIFIED-WITH-REASON, see provider registry note).
-    const attributionIdRaw = getPath(body, FM.attribution_id) ?? order?.metadata?.reference_id;
+    const metadata = order?.metadata as Record<string, unknown> | undefined;
+    const attributionIdRaw = getPath(body, FM.attribution_id) ?? metadata?.reference_id;
     const attributionId = typeof attributionIdRaw === "string" && attributionIdRaw !== "" ? attributionIdRaw : undefined;
 
     if (!productId) return { ok: false, status: 400, error: "missing data.product_id" };
