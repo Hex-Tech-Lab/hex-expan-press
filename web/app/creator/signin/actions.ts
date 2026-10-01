@@ -1,7 +1,7 @@
 "use server";
 
 import { headers } from "next/headers";
-import { redirect } from "next/navigation";
+import { redirect, unstable_rethrow } from "next/navigation";
 import { createSsrClient } from "../../../src/lib/supabase-ssr";
 
 /**
@@ -70,7 +70,7 @@ export async function signInWithGoogleAction(): Promise<void> {
   } catch (err) {
     // Env gaps must surface as the OAuth error param, never an action crash
     // (same defect class as the 2026-09-29 middleware/callback P0 fix).
-    if (err && typeof err === "object" && "digest" in err) throw err; // re-throw NEXT_REDIRECT
+    unstable_rethrow(err); // re-throw Next navigation signals (redirect/notFound) untouched
     console.error("[signin/google] failed:", err instanceof Error ? err.message : err);
     redirect("/creator/signin?error=oauth");
   }
@@ -108,7 +108,7 @@ export async function signInWithOtpAction(formData: FormData): Promise<void> {
     if (data.session) redirect("/creator/dashboard");
     redirect("/creator/signin?sent=1");
   } catch (err) {
-    if (err && typeof err === "object" && "digest" in err) throw err; // re-throw NEXT_REDIRECT
+    unstable_rethrow(err); // re-throw Next navigation signals (redirect/notFound) untouched
     console.error("[signin/otp] failed:", err instanceof Error ? err.message : err);
     redirect("/creator/signin?error=otp");
   }
