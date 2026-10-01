@@ -7,6 +7,17 @@ import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import dotenv from "dotenv";
 import { loadBookIdentity, type BookIdentity } from "./book_identity.ts";
+import { GLOBAL } from "./src/settings_registry";
+
+/** Every tunable comes from the settings registry GLOBAL (standing rule); the
+ *  payments.sync_http_timeout_ms key must exist in data/settings/global.json. */
+export const syncHttpTimeoutMs = (): number => {
+  const v = (GLOBAL.payments as Record<string, unknown>).sync_http_timeout_ms;
+  if (typeof v !== "number" || !Number.isFinite(v) || v <= 0) {
+    throw new Error("sync_book_identity: GLOBAL.payments.sync_http_timeout_ms must be a positive number in data/settings/global.json");
+  }
+  return v;
+};
 
 const here = dirname(fileURLToPath(import.meta.url));
 const defaultConfigPath = join(here, "config.duane.json");
@@ -117,14 +128,27 @@ export const fetchTargetState = async (
   cfg: SyncConfig,
   fetchImpl: typeof fetch = fetch,
 ): Promise<TargetState> => {
-  const supaRes = await fetchImpl(supabaseGetUrl(t, cfg.db_product_id), {
-    headers: { apikey: t.supabaseKey, Authorization: `Bearer ${t.supabaseKey}` },
-  });
+  const timeoutMs = syncHttpTimeoutMs();
+  let supaRes: Response;
+  try {
+    supaRes = await fetchImpl(supabaseGetUrl(t, cfg.db_product_id), {
+      headers: { apikey: t.supabaseKey, Authorization: `Bearer ${t.supabaseKey}` },
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  } catch {
+    throw new Error(`supabase GET products timed out or failed after ${timeoutMs}ms`);
+  }
   if (!supaRes.ok) throw new Error(`supabase GET products HTTP ${supaRes.status}`);
   const supaRows = (await supaRes.json()) as Array<{ title?: string }>;
-  const paddleRes = await fetchImpl(paddleGetUrl(t, cfg.paddle_product_ref), {
-    headers: { Authorization: `Bearer ${t.paddleKey}` },
-  });
+  let paddleRes: Response;
+  try {
+    paddleRes = await fetchImpl(paddleGetUrl(t, cfg.paddle_product_ref), {
+      headers: { Authorization: `Bearer ${t.paddleKey}` },
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  } catch {
+    throw new Error(`paddle GET products timed out or failed after ${timeoutMs}ms`);
+  }
   if (!paddleRes.ok) throw new Error(`paddle GET products HTTP ${paddleRes.status}`);
   const paddleBody = (await paddleRes.json()) as { data?: { name?: string; description?: string } };
   return {
@@ -134,7 +158,7 @@ export const fetchTargetState = async (
   };
 };
 
-export const FETCH_TIMEOUT_MS = 30_000;
+export const fetchImplDefault = fetch;
 
 /** Push the registry identity to Supabase + Paddle. Returns per-target results. */
 export const applyIdentity = async (
@@ -154,12 +178,17 @@ export const applyIdentity = async (
         Prefer: "return=representation",
       },
       body: JSON.stringify({ title: identity.title }),
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      signal: AbortSignal.timeout(syncHttpTimeoutMs()),
     });
   } catch (err) {
     throw new PartialSyncError(`PARTIAL SYNC: the Supabase update failed or its state is unknown (${String(err)}) — re-run apply (idempotent)`);
   }
   if (!supaRes.ok) {
+    // 5xx: Supabase may have committed despite the error status — treat as unknown
+    // state, do not touch Paddle, demand reconciliation first.
+    if (supaRes.status >= 500) {
+      throw new PartialSyncError(`PARTIAL SYNC: Supabase PATCH HTTP ${supaRes.status}; Supabase may have committed; Paddle NOT attempted; reconcile (run --check) before retrying`);
+    }
     throw new Error(`supabase PATCH products HTTP ${supaRes.status}`);
   }
   let patchedRows: Array<{ title?: string }>;
@@ -169,7 +198,12 @@ export const applyIdentity = async (
     throw new PartialSyncError("PARTIAL SYNC: Supabase returned success but an unreadable body — it may have been updated; Paddle NOT attempted; re-run apply (idempotent)");
   }
   if (!Array.isArray(patchedRows) || patchedRows.length !== 1) {
+    // products.id is the primary key, so a >1-row result cannot actually happen
+    // with an id filter — the guard is kept as defense in depth.
     throw new Error(`supabase PATCH matched ${Array.isArray(patchedRows) ? patchedRows.length : "non-array"} rows (expected 1) — Paddle NOT updated`);
+  }
+  if (patchedRows[0]!.title !== identity.title) {
+    throw new PartialSyncError(`PARTIAL SYNC: Supabase row title is '${patchedRows[0]!.title ?? ""}', expected '${identity.title}' (trigger/rule rewrote it?); Paddle NOT attempted`);
   }
   // Founder intent: the registry subtitle IS the customer-facing Paddle description.
   let paddleRes: Response;
@@ -181,7 +215,7 @@ export const applyIdentity = async (
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ name: identity.title, description: identity.subtitle }),
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      signal: AbortSignal.timeout(syncHttpTimeoutMs()),
     });
   } catch (err) {
     throw new PartialSyncError(`PARTIAL SYNC: Supabase updated successfully, but the Paddle update failed or its state is unknown (${String(err)}) — re-run apply (idempotent)`);
