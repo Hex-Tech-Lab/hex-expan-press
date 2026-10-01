@@ -16,7 +16,9 @@ interface CheckoutRail {
  * shim-bridged legacy handler). GET/HEAD only: resolves the product's rail
  * config (repo data/ file, env override, or built-in default rail for the
  * launch product in serverless) and 302-redirects to the weighted-selected
- * provider checkout URL via MatrixRouter.
+ * provider checkout URL via MatrixRouter. In production the launch product's
+ * default rail requires POLAR_CHECKOUT_URL (fails closed with 500); the
+ * sandbox link is only a non-production fallback.
  */
 function jsonError(status: number, error: string): NextResponse {
   return NextResponse.json({ ok: false, error }, { status });
@@ -47,11 +49,17 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     if (dynamicCheckoutUrl) {
       rails = [{ provider: "polar", weight: 100, checkout_url: dynamicCheckoutUrl }];
     } else if (product === "retirearly500k-500k-playbook" || product === "duane_retirement_playbook_v1") {
+      const liveCheckoutUrl = process.env.POLAR_CHECKOUT_URL;
+      if (!liveCheckoutUrl && process.env.VERCEL_ENV === "production") {
+        // Fail closed: never send a real buyer to the sandbox checkout (insecure-defaults audit, 2026-10-01).
+        console.error("[billing/checkout] POLAR_CHECKOUT_URL is not set in production — refusing to serve the sandbox checkout");
+        return jsonError(500, "Checkout is not configured");
+      }
       rails = [
         {
           provider: "polar",
           weight: 100,
-          checkout_url: process.env.POLAR_CHECKOUT_URL || "https://sandbox-api.polar.sh/v1/checkout-links/polar_cl_g84ByoGAeZiahkWtCasYmeu1ShLtZIwwayzyI4ZdZsM/redirect",
+          checkout_url: liveCheckoutUrl || "https://sandbox-api.polar.sh/v1/checkout-links/polar_cl_g84ByoGAeZiahkWtCasYmeu1ShLtZIwwayzyI4ZdZsM/redirect",
         },
       ];
     } else {
