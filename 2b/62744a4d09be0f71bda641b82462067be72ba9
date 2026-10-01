@@ -1,0 +1,35 @@
+web/app/api/billing/checkout/route.ts
+  s_8ed1c59adc9fe5::t_c8d00c8b5f165c 74,78-79,81
+  s_8ed1c59adc9fe5::t_67e6263e505c00 96-108
+  s_8ed1c59adc9fe5::t_d565f7dd49169c 17-24,30-51
+  s_ad7ebd040fe53a::t_0ef08be25dbfb0 52
+docs/agent_ledger.jsonl
+  s_8ed1c59adc9fe5::t_068f6b56682bb9 339
+web/app/api/billing/checkout/__tests__/route.test.ts
+  s_8ed1c59adc9fe5::t_b3e08636e985e4 5-6,14-17,23-24,26-29,50,77-155
+  s_ad7ebd040fe53a::t_6b2e5aabf8d78b 156
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "2b62744a4d09be0f71bda641b82462067be72ba9",
+  "prompts": {},
+  "sessions": {
+    "s_8ed1c59adc9fe5": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f09a20e09ffewUJ0Jd6ftODh0J",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_ad7ebd040fe53a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f09b9b277ffezNsdsjoUGnAE6B",
+        "model": "@preset/glm-53-flash-on-cheap"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
