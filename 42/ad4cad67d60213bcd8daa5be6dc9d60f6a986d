@@ -1,0 +1,22 @@
+docs/agent_ledger.jsonl
+  s_ff845e1173be17::t_3d196f41f2eb56 342
+web/app/creator/review/__tests__/stepper-focus.test.ts
+  s_ff845e1173be17::t_037a9de50287ae 18-19
+  s_ff845e1173be17::t_f1e7c2334d25c7 1-17,20-123
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "42ad4cad67d60213bcd8daa5be6dc9d60f6a986d",
+  "prompts": {},
+  "sessions": {
+    "s_ff845e1173be17": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f09835fe9ffeOpqk53rqlZ8GOO",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
