@@ -1,0 +1,22 @@
+docs/agent_ledger.jsonl
+  h_90c2451a76ba0d 339-341
+web/app/api/billing/checkout/__tests__/route.test.ts
+  h_90c2451a76ba0d 1-156
+web/app/api/billing/checkout/route.ts
+  h_90c2451a76ba0d 17-24,30-52,74,78-83,88,96-108
+web/app/auth/callback/__tests__/route.test.ts
+  h_90c2451a76ba0d 1-68
+web/app/auth/callback/route.ts
+  h_90c2451a76ba0d 2,7-8,10-16,22-24,26,32-39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "7519f72e730589b2aa881759f35a685925b7e2a6",
+  "prompts": {},
+  "humans": {
+    "h_90c2451a76ba0d": {
+      "author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
