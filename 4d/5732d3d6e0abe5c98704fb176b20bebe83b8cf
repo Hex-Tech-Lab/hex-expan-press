@@ -1,0 +1,20 @@
+docs/agent_ledger.jsonl
+  s_0cd825df5d3f11::t_60a9a6502c1d5b 349
+  s_0cd825df5d3f11::t_972c63e2040760 350
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "4d5732d3d6e0abe5c98704fb176b20bebe83b8cf",
+  "prompts": {},
+  "sessions": {
+    "s_0cd825df5d3f11": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f08ca7651ffeOm9CV73i72SEM2",
+        "model": "@preset/glm-53-flash-on-cheap"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
