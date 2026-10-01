@@ -57,7 +57,7 @@ export default async function DashboardPage({
 
   // Independent reads run in parallel (async-avoid-waterfall).
   const [profileRes, answersRes, consentsRes] = await Promise.all([
-    supabase.from("profiles").select("name, email").eq("id", user.id).maybeSingle(),
+    supabase.from("profiles").select("full_name, email").eq("user_id", user.id).maybeSingle(),
     supabase.from("review_answers").select("id", { count: "exact" }),
     supabase.from("consents").select("kind, decision").eq("decision", "given"),
   ]);
@@ -94,7 +94,7 @@ export default async function DashboardPage({
     );
   }
 
-  const name = profileRes.data?.name || user.email || "";
+  const name = profileRes.data?.full_name || user.email || "";
   const email = profileRes.data?.email || user.email || "";
   const answersCount = answersRes.count ?? 0;
   // NOTE: DB enum kind is C2_release_approval (the legacy HTML checked a
