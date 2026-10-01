@@ -28,6 +28,24 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
   if (firstValue(params.error) === "otp") {
     return <SignInClient mode="error" message="Could not send the email. Please try again." optinDefault={optinCookie ?? false} />;
   }
+  if (firstValue(params.error) === "rate_limited") {
+    return (
+      <SignInClient
+        mode="error"
+        message="Too many sign-in emails were requested. Please wait a minute and try again."
+        optinDefault={optinCookie ?? false}
+      />
+    );
+  }
+  if (firstValue(params.error) === "oauth") {
+    return (
+      <SignInClient
+        mode="error"
+        message="Google sign-in could not start. Please try again, or use the email link below."
+        optinDefault={optinCookie ?? false}
+      />
+    );
+  }
   if (firstValue(params.error) === "auth") {
     return (
       <SignInClient
