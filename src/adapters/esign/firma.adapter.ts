@@ -141,10 +141,10 @@ export class FirmaAdapter implements EsignProviderPort, EsignWebhookPort {
     }
     const hash = crypto.createHmac("sha256", secret).update(body).digest("hex");
     // Constant-time compare (sharp-edges audit 2026-10-01): `===` on hex
-    // strings leaks match-prefix timing. Compare the decoded bytes instead;
-    // a length mismatch (also covering non-hex input, which Buffer.from
-    // truncates at the first invalid byte) rejects without the leak.
-    if (!sig) {
+    // strings leaks match-prefix timing. Require exactly 64 hex chars FIRST:
+    // Buffer.from(…, "hex") silently drops a trailing odd digit or junk, so a
+    // valid signature plus a suffix would otherwise decode to the right bytes.
+    if (!sig || !/^[0-9a-f]{64}$/i.test(sig)) {
       return { isValid: false, error: "Invalid signature" };
     }
     const expected = Buffer.from(hash, "hex");

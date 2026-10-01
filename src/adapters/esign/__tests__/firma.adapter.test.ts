@@ -95,4 +95,15 @@ describe("FirmaAdapter.parseAndValidateWebhook (fail-closed HMAC gate)", () => {
     expect(result.isValid).toBe(false);
     expect(result.error).toBe("Invalid signature");
   });
+
+  // Buffer.from(hex) truncates at junk / an unmatched final digit — a valid
+  // signature with a suffix must still be rejected (CodeRabbit, PR #24).
+  it.each([["z"], ["a"]])("rejects a VALID signature followed by %j", async (suffix) => {
+    const adapter = new FirmaAdapter();
+    const { body, headers } = signedBody(completedPayload({ productId: "p1", userId: "u1" }));
+    headers["x-firma-signature"] = String(headers["x-firma-signature"]) + suffix;
+    const result = await adapter.parseAndValidateWebhook(body, headers);
+    expect(result.isValid).toBe(false);
+    expect(result.error).toBe("Invalid signature");
+  });
 });
