@@ -1,6 +1,6 @@
 "use server";
 
-import { redirect } from "next/navigation";
+import { redirect, unstable_rethrow } from "next/navigation";
 import { createSsrClient } from "../../../src/lib/supabase-ssr";
 import { clearPortalCookies, getPortalSession } from "../../../src/lib/supabase-server";
 import { EnvSettingsAdapter } from "../../../../src/adapters/settings/env_settings.adapter";
@@ -38,11 +38,9 @@ export async function startPublisherAgreementAction(): Promise<void> {
   if (!session) redirect("/creator/signin");
   const { user, supabase } = session;
 
-  // C3 binding: the envelope must bind to the product on which THIS creator's
-  // C2_release_approval is currently 'given': query consents (RLS-scoped)
-  // select product_id, kind, decision, signed_at, id, supersedes where kind = C2_release_approval,
-  // pick the supersedes-chain head (row whose id no other row's supersedes references);
-  // if there is no head, the head is not 'given', or there are multiple heads → redirect("/creator/dashboard?error=c2_required")
+  // C3 binds to the product on which this creator's C2 (release approval) is currently given:
+  // the supersedes-chain head of their C2 rows (RLS-scoped). No head, several heads (e.g. two
+  // products) or a non-given head fails closed — the envelope is never created on a guess.
   const { data: consents, error: consentsError } = await supabase
     .from("consents")
     .select("product_id, kind, decision, signed_at, id, supersedes")
@@ -79,7 +77,7 @@ export async function startPublisherAgreementAction(): Promise<void> {
     // redirect() unwinds by throwing NEXT_REDIRECT — it must pass through,
     // or a SUCCESSFUL envelope creation would be eaten by this catch and
     // misreported as an esign failure (caught in Wave 6 review 2026-09-29).
-    if (err && typeof err === "object" && "digest" in err) throw err;
+    unstable_rethrow(err); // re-throw Next navigation signals (redirect/notFound) untouched
     console.error("[dashboard] envelope creation failed:", err);
     const msg = err instanceof Error ? err.message : String(err);
     redirect(/insufficient credits|402/i.test(msg) ? "/creator/dashboard?error=credits" : "/creator/dashboard?error=esign");
