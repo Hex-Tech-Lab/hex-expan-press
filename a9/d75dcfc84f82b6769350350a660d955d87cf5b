@@ -1,0 +1,33 @@
+payments/test/book_identity.test.ts
+  s_a3895231a3239b::t_334dcadab3745f 213
+  s_a3895231a3239b::t_362ef65cfdc872 78-87
+  s_a3895231a3239b::t_d58e5b6b998754 228-297
+  s_a3895231a3239b::t_12766cf873d5fa 15
+  s_a3895231a3239b::t_a912393ac8eda8 181
+  s_a3895231a3239b::t_1838911e6d3ad8 8
+payments/book_identity.ts
+  s_a3895231a3239b::t_eb0a54271678a4 21
+payments/sync_book_identity.ts
+  s_a3895231a3239b::t_cbff8c8533c6e4 147-151,160-162
+  s_a3895231a3239b::t_5eaf730fd808d8 183-184
+  s_a3895231a3239b::t_e5cf960ddafa7a 80-99
+  s_a3895231a3239b::t_f45f1872494430 199
+docs/agent_ledger.jsonl
+  s_a3895231a3239b::t_c8f13c463f760a 365
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a9d75dcfc84f82b6769350350a660d955d87cf5b",
+  "prompts": {},
+  "sessions": {
+    "s_a3895231a3239b": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f07247cd2ffevHNJW0JOTmB679",
+        "model": "@preset/glm-53-flash-on-cheap"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}

@@ -1,0 +1,25 @@
+web/app/api/esign/webhook/route.ts
+  s_0dc509588f18e9::t_b40fa0eb658320 45-48
+web/sentry.client.config.ts
+  s_0dc509588f18e9::t_84b2534fd25896 5-10
+web/sentry.edge.config.ts
+  s_0dc509588f18e9::t_3a17eade0729b2 5-6
+web/sentry.server.config.ts
+  s_0dc509588f18e9::t_8a02523dc65fa5 5-6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e0874c441ae62c12b43588dc6d52a136928cdf9a",
+  "prompts": {},
+  "sessions": {
+    "s_0dc509588f18e9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fc365f60-a79d-4397-b8a4-2f924d01aba1",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
