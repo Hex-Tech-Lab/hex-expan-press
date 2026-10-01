@@ -6,8 +6,10 @@ import {
   BakeDeps,
   BakeSummary,
   PADDLE_MARKER_START,
+  exitCodeFor,
   primaryPaddle,
   runBake,
+  writeFileAtomicReal,
 } from "../bake_checkout";
 
 const DB_ID = "57596c19-c550-4bde-b17a-e87b86d005c5";
@@ -32,7 +34,11 @@ const makeMemFs = (initial: Record<string, string> = {}) => {
     siteRoot: "site-root",
     readFile: async (p) => {
       const v = files.get(p);
-      if (v === undefined) throw new Error(`ENOENT: ${p}`);
+      if (v === undefined) {
+        const e = new Error(`ENOENT: ${p}`) as Error & { code: string };
+        e.code = "ENOENT";
+        throw e;
+      }
       return v;
     },
     writeFileAtomic: (p, html) => {
@@ -228,5 +234,188 @@ describe("runBake — atomic write (real tmpdir)", () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe("runBake — legacy master lockdown (P1)", () => {
+  it("(g) master page + config checkout_mode 'live' (real URL) → gated, zero Paddle traces, no router href", async () => {
+    const { files, deps } = makeMemFs({
+      "site-root/index.html": legacyMasterPage(),
+    });
+    const liveDeps: BakeDeps = {
+      ...deps,
+      loadConfig: async () => ({
+        cfg: { title: "T", price_usd: 19, checkout_mode: "live", checkout_url: "https://buy.example.com/checkout" },
+        source: "cfg.json",
+      }),
+    };
+    const summary = await runBake(liveDeps);
+    expect(summary.blocked).toEqual([]);
+    const out = files.get("site-root/index.html")!;
+    expect(out).toContain('data-checkout-mode="gated"');
+    expect(out).not.toContain("cdn.paddle.com");
+    expect(out).not.toContain("Paddle.Initialize");
+    expect(out).not.toContain("paddle-checkout:start");
+    expect(out).not.toContain("/api/billing/checkout");
+  });
+
+  it("(h) master page + config checkout_mode 'paddle' (valid consents) → gated, zero Paddle traces", async () => {
+    baseEnv();
+    const { files, deps } = makeMemFs({
+      "site-root/index.html": legacyMasterPage(),
+    });
+    const summary = await runWithProductDirs({ files, deps }, [], async () => okConsents());
+    expect(summary.blocked).toEqual([]);
+    const out = files.get("site-root/index.html")!;
+    expect(out).toContain('data-checkout-mode="gated"');
+    expect(out).not.toContain("cdn.paddle.com");
+    expect(out).not.toContain("Paddle.Initialize");
+    expect(out).not.toContain("paddle-checkout:start");
+  });
+});
+
+describe("runBake — ENOENT-only tolerance (P2)", () => {
+  it("(i) master read throws EACCES → runBake rejects", async () => {
+    const { deps } = makeMemFs();
+    const eaccesDeps: BakeDeps = {
+      ...deps,
+      readFile: async () => {
+        const e = new Error("EACCES: permission denied") as Error & { code: string };
+        e.code = "EACCES";
+        throw e;
+      },
+    };
+    await expect(runBake(eaccesDeps)).rejects.toThrow(/EACCES/);
+  });
+
+  it("(j) master read throws ENOENT → skipped silently, run succeeds", async () => {
+    const { deps } = makeMemFs();
+    const enoentDeps: BakeDeps = {
+      ...deps,
+      readFile: async () => {
+        const e = new Error("ENOENT: no such file") as Error & { code: string };
+        e.code = "ENOENT";
+        throw e;
+      },
+    };
+    const summary = await runBake(enoentDeps);
+    expect(summary.baked).toEqual([]);
+  });
+
+  it("(k) product page read throws EACCES → runBake rejects (after earlier pages written)", async () => {
+    const { deps } = makeMemFs({
+      "site-root/public/c/duane/book/index.html": PADDLE_PAGE("<a data-checkout-slot=\"primary\" data-checkout-mode=\"gated\">G</a>"),
+    });
+    const eaccesDeps: BakeDeps = {
+      ...deps,
+      listProductDirs: async () => ["duane/book"],
+      readFile: async (p) => {
+        if (String(p).includes("public/c")) {
+          const e = new Error("EACCES: permission denied") as Error & { code: string };
+          e.code = "EACCES";
+          throw e;
+        }
+        const en = new Error(`ENOENT: ${p}`) as Error & { code: string };
+        en.code = "ENOENT";
+        throw en;
+      },
+    };
+    await expect(runBake(eaccesDeps)).rejects.toThrow(/EACCES/);
+  });
+});
+describe("writeFileAtomicReal — real fs in tmpdir (P2)", () => {
+  it("(l) success replaces content, no tmp leftovers", () => {
+    const dir = mkdtempSync(join(tmpdir(), "bake-atomic-real-"));
+    try {
+      const file = join(dir, "page.html");
+      writeFileSync(file, "old", "utf8");
+      writeFileAtomicReal(file, "new content");
+      expect(readFileSync(file, "utf8")).toBe("new content");
+      expect(readdirSync(dir).filter((e) => e.includes(".tmp-"))).toEqual([]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("(m) injected rename failure → throws, original unchanged, tmp cleaned up", () => {
+    const dir = mkdtempSync(join(tmpdir(), "bake-atomic-fail-"));
+    try {
+      const file = join(dir, "page.html");
+      writeFileSync(file, "original", "utf8");
+      const failingRename = () => {
+        const e = new Error("EXDEV: cross-device link") as Error & { code: string };
+        e.code = "EXDEV";
+        throw e;
+      };
+      const unlinked: string[] = [];
+      expect(() =>
+        writeFileAtomicReal(file, "new content", {
+          renameImpl: failingRename,
+          unlinkImpl: (p: string) => {
+            unlinked.push(p);
+            rmSync(p, { force: true });
+          },
+        }),
+      ).toThrow(/EXDEV/);
+      expect(readFileSync(file, "utf8")).toBe("original");
+      expect(unlinked.length).toBe(1);
+      expect(unlinked[0].includes(".tmp-")).toBe(true);
+      expect(existsSync(`${file}.tmp-${process.pid}`)).toBe(false);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("runBake — incremental pages (P2)", () => {
+  it("(n) 3 pages, 2nd read throws EACCES → 1st written sanitized, run rejects", async () => {
+    const { files, deps } = makeMemFs({
+      "site-root/public/c/a/one/index.html": "<html><body><script src=\"https://cdn.paddle.com/paddle/v2/paddle.js\"></script></body></html>",
+      "site-root/public/c/b/two/index.html": "sentinel-should-throw",
+      "site-root/public/c/c/three/index.html": "never-reached",
+    });
+    let reads = 0;
+    const incDeps: BakeDeps = {
+      ...deps,
+      listProductDirs: async () => ["a/one", "b/two", "c/three"],
+      readFile: async (p) => {
+        reads++;
+        if (reads === 1) {
+          // master page absent → ENOENT skip
+          const en = new Error(`ENOENT: ${p}`) as Error & { code: string };
+          en.code = "ENOENT";
+          throw en;
+        }
+        if (String(p).includes("b/two")) {
+          const e = new Error("EACCES: permission denied") as Error & { code: string };
+          e.code = "EACCES";
+          throw e;
+        }
+        return files.get(p)!;
+      },
+    };
+    await expect(runBake(incDeps)).rejects.toThrow(/EACCES/);
+    expect(reads).toBe(3); // page 3 never read — strict per-page processing
+    const first = files.get("site-root/public/c/a/one/index.html")!;
+    expect(first).not.toContain("cdn.paddle.com");
+  });
+});
+
+describe("CLI exit codes (P2)", () => {
+  it("(o) successful run with launch-blocked pages → exit 0", async () => {
+    baseEnv();
+    const { deps } = makeMemFs({
+      "site-root/public/c/duane/book/index.html": PADDLE_PAGE(activePaddleBlock()),
+    });
+    const summary = await runWithProductDirs({ files: new Map(), deps }, ["duane/book"], async () => {
+      throw new Error("consent lookup HTTP 401");
+    });
+    expect(summary.blocked.length).toBe(1);
+    expect(exitCodeFor(summary)).toBe(0);
+  });
+
+  it("(p) I/O error → exit code non-zero", () => {
+    expect(exitCodeFor(undefined, new Error("EACCES"))).not.toBe(0);
+    expect(exitCodeFor({ baked: [], blocked: [] })).toBe(0);
   });
 });
