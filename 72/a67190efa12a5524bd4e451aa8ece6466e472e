@@ -1,0 +1,25 @@
+payments/config.duane.json
+  s_0dc509588f18e9::t_21fe6cc34535b9 13,38-40
+docs/agent_ledger.jsonl
+  s_0dc509588f18e9::t_50b14a4f011ad1 357,362-363
+payments/bake_checkout.ts
+  s_0dc509588f18e9::t_f04ed5af697d3f 4,11-74,133,135,152,186-198,214-216,218,247-249,293,321,332-335,344-360,362-363,380,400-404,406-408,410-416,418,421-428,433
+payments/test/bake_checkout_flow.test.ts
+  s_0dc509588f18e9::t_6503fd82850e30 1-167
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "72a67190efa12a5524bd4e451aa8ece6466e472e",
+  "prompts": {},
+  "sessions": {
+    "s_0dc509588f18e9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fc365f60-a79d-4397-b8a4-2f924d01aba1",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
