@@ -1,12 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { processBillingWebhookUseCase } from "../../../../../src/use_cases/billing/process_billing_webhook";
 import { PolarAdapter } from "../../../../../src/adapters/payments/polar.adapter";
-import { PaddleAdapter } from "../../../../../src/adapters/payments/paddle.adapter";
 import { LegacyPaymentAdapterWrapper } from "../../../../../src/adapters/payments/legacy.adapter";
-import { lemonsqueezyProvider } from "../../../../../payments/src/providers/lemonsqueezy";
-import { payhipProvider } from "../../../../../payments/src/providers/payhip";
 import { fungiesProvider } from "../../../../../payments/src/providers/fungies";
-import { fastspringProvider } from "../../../../../payments/src/providers/fastspring";
 
 export const runtime = "nodejs";
 
@@ -48,14 +44,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const body = bodyBuffer.toString("utf8");
   const headers = Object.fromEntries(request.headers);
 
-  const adapters = [
-    new PolarAdapter(),
-    new PaddleAdapter(),
-    new LegacyPaymentAdapterWrapper(lemonsqueezyProvider),
-    new LegacyPaymentAdapterWrapper(payhipProvider),
-    new LegacyPaymentAdapterWrapper(fungiesProvider),
-    new LegacyPaymentAdapterWrapper(fastspringProvider),
-  ];
+  // Only providers we sell through are routable; every other verifier is
+  // unreachable by design (sharp-edges audit 2026-10-01). Add a provider here
+  // only with a reviewed verifier.
+  const adapters = [new PolarAdapter(), new LegacyPaymentAdapterWrapper(fungiesProvider)];
 
   try {
     await processBillingWebhookUseCase({ headers, body }, adapters);

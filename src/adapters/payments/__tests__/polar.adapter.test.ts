@@ -4,7 +4,7 @@
 // amount-less event the ledger would treat as a full reversal.
 import { describe, it, expect, afterEach, vi } from "vitest";
 import crypto from "node:crypto";
-import { PolarAdapter } from "../polar.adapter.ts";
+import { PolarAdapter, POLAR_WEBHOOK_TOLERANCE_SECONDS } from "../polar.adapter.ts";
 import type { RefundIssuedEvent } from "../../../domain/payments/payments.port.ts";
 
 const KEY = "wave72-polar-adapter-test-key";
@@ -56,5 +56,54 @@ describe("PolarAdapter refund parsing (Wave 7.2)", () => {
     const res = await parse(refund(patch));
     expect(res.isValid).toBe(false);
     expect((res as { httpStatus?: number }).httpStatus).toBe(400);
+  });
+});
+
+// Sharp-edges audit 2026-10-01: a validly signed delivery must only be trusted
+// inside the replay window — otherwise a captured webhook can be replayed
+// later. Timestamps are SECONDS; a fixed fake clock makes the boundary
+// deterministic (timestamp factories are evaluated AFTER the clock is set).
+const FAKE_NOW_SECONDS = 1_700_000_000;
+
+describe("PolarAdapter webhook replay window", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.useRealTimers();
+  });
+
+  function signedWithTs(payload: string, ts: number | string) {
+    const id = "whid_replay_0001";
+    const tsStr = ts.toString();
+    const sig = crypto.createHmac("sha256", Buffer.from(KEY, "utf8")).update(`${id}.${tsStr}.${payload}`).digest("base64");
+    return { "webhook-id": id, "webhook-timestamp": tsStr, "webhook-signature": `v1,${sig}` };
+  }
+
+  async function parseWithTs(payload: string, ts: number | string) {
+    vi.stubEnv("POLAR_WEBHOOK_SECRET", KEY);
+    return new PolarAdapter().parseAndValidateWebhook(signedWithTs(payload, ts), payload);
+  }
+
+  it.each<[string, () => number | string]>([
+    ["a fresh timestamp", () => FAKE_NOW_SECONDS],
+    ["a timestamp exactly at the tolerance boundary (300s old)", () => FAKE_NOW_SECONDS - POLAR_WEBHOOK_TOLERANCE_SECONDS],
+    ["a timestamp exactly at the tolerance boundary (300s ahead)", () => FAKE_NOW_SECONDS + POLAR_WEBHOOK_TOLERANCE_SECONDS],
+  ])("accepts a signature over %s", async (_label, tsOf) => {
+    vi.useFakeTimers();
+    vi.setSystemTime(FAKE_NOW_SECONDS * 1000);
+    const res = await parseWithTs(refund({}), tsOf());
+    expect(res.isValid).toBe(true);
+  });
+
+  it.each<[string, () => number | string]>([
+    ["301s old", () => FAKE_NOW_SECONDS - (POLAR_WEBHOOK_TOLERANCE_SECONDS + 1)],
+    ["301s in the future", () => FAKE_NOW_SECONDS + POLAR_WEBHOOK_TOLERANCE_SECONDS + 1],
+    ["non-numeric", () => "not-a-timestamp"],
+  ])("rejects a timestamp %s → 401 outside the 5-minute tolerance", async (_label, tsOf) => {
+    vi.useFakeTimers();
+    vi.setSystemTime(FAKE_NOW_SECONDS * 1000);
+    const res = await parseWithTs(refund({}), tsOf());
+    expect(res.isValid).toBe(false);
+    expect((res as { httpStatus?: number }).httpStatus).toBe(401);
+    expect((res as { error?: string }).error).toBe("Webhook timestamp outside the 5-minute tolerance");
   });
 });
