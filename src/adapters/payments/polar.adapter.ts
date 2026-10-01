@@ -18,6 +18,7 @@ import { PaymentProviderPort, WebhookParseResult, CheckoutCommand, CheckoutResul
 import { z } from "zod";
 import crypto from "crypto";
 import { hashEmail } from "../../../payments/src/provider.ts";
+import { GLOBAL } from "../../../payments/src/settings_registry.ts";
 
 // --- SSOT Schema (Zod) ---
 const PolarSaleSchema = z.object({
@@ -66,7 +67,7 @@ const PolarWebhookSchema = z.union([PolarSaleSchema, PolarRefundSchema]);
 // Replay-window tolerance (sharp-edges audit 2026-10-01): a signed webhook
 // delivery is only trusted within this many seconds of now; anything outside
 // is a captured-then-replayed delivery and fails closed with 401.
-export const POLAR_WEBHOOK_TOLERANCE_SECONDS = 300;
+export const POLAR_WEBHOOK_TOLERANCE_SECONDS = GLOBAL.payments.webhook_tolerance_seconds;
 
 export class PolarAdapter implements PaymentProviderPort {
   readonly providerName = "polar";
