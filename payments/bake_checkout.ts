@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, readdirSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, readdirSync, existsSync, renameSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import dotenv from "dotenv";
@@ -197,7 +197,7 @@ const CRUMB_CSS =
   `  .crumb a { color: #2E7D5B; font-weight: 600; text-decoration: none; }\n` +
   `  .crumb a:hover { text-decoration: underline; }\n`;
 
-const bakeCrumb = (html: string, handle: string, displayName: string): string => {
+const bakeCrumb = (html: string, handle: string, displayName: string, bakedAt: string = now): string => {
   let out = html.replace(/[ \t]*<nav class="crumb"[\s\S]*?<\/nav>\n/g, "");
   if (!/\.crumb \{/.test(out)) {
     const withCss = out.replace(/\n  h1 \{\n/, () => `\n${CRUMB_CSS}  h1 {\n`);
@@ -205,17 +205,17 @@ const bakeCrumb = (html: string, handle: string, displayName: string): string =>
     out = withCss;
   }
   const nav =
-    `  <nav class="crumb" aria-label="Breadcrumb" data-creator-hub="/c/${esc(handle)}/" data-baked-at="${now}">` +
+    `  <nav class="crumb" aria-label="Breadcrumb" data-creator-hub="/c/${esc(handle)}/" data-baked-at="${bakedAt}">` +
     `<a href="/c/${esc(handle)}/">&larr; Back to ${esc(displayName)}&rsquo;s page</a></nav>`;
   const injected = out.replace(/(<div class="wrap">)/, (_m) => `${_m}\n${nav}`);
   if (!injected.includes(`class="crumb"`)) console.log(`warn: no .wrap anchor — back-link NOT injected`);
   return injected;
 };
 
-const primaryGated = (source: string) =>
+const primaryGated = (source: string, bakedAt: string = now) =>
   `<a class="buy pending" id="buy" href="#buy-link-pending" ` +
   `data-checkout-slot="primary" data-config-source="${source}" ` +
-  `data-checkout-mode="gated" data-baked-at="${now}">` +
+  `data-checkout-mode="gated" data-baked-at="${bakedAt}">` +
   `Checkout coming online &mdash; provider review in progress</a>`;
 
 // Checkout links are obfuscated through the internal router
@@ -223,10 +223,10 @@ const primaryGated = (source: string) =>
 // HTML. The product slug selects the provider URL server-side.
 const ROUTER_HREF = "/api/billing/checkout?product=retirearly500k-500k-playbook";
 
-const primaryLive = (source: string) =>
+const primaryLive = (source: string, bakedAt: string = now) =>
   `<a class="buy" id="buy" href="${ROUTER_HREF}" rel="noopener" ` +
   `data-checkout-slot="primary" data-config-source="${source}" ` +
-  `data-checkout-mode="live" data-baked-at="${now}">` +
+  `data-checkout-mode="live" data-baked-at="${bakedAt}">` +
   `Buy now &mdash; get the PDF instantly</a>`;
 
 // Paddle overlay mode: plain HTML + Paddle.js v2 (static pages, no React).
@@ -262,6 +262,7 @@ export const stripPaddleBlocks = (html: string): string => {
 export const primaryPaddle = (
   source: string,
   opts: { priceId: string; clientToken: string; productId: string; environment: "production" | "sandbox" },
+  bakedAt: string = now,
 ): string => {
   if (!/^pri_[a-z0-9]+$/.test(opts.priceId)) throw new Error(`invalid Paddle priceId: ${opts.priceId}`);
   if (!/^(live|test)_[A-Za-z0-9]+$/.test(opts.clientToken)) throw new Error(`invalid Paddle client token`);
@@ -269,7 +270,7 @@ export const primaryPaddle = (
   const button =
     `<button type="button" class="buy" id="buy" ` +
     `data-checkout-slot="primary" data-config-source="${esc(source)}" ` +
-    `data-checkout-mode="paddle" data-baked-at="${now}" disabled>` +
+    `data-checkout-mode="paddle" data-baked-at="${bakedAt}" disabled>` +
     `Buy now &mdash; get the PDF instantly</button>`;
   const init = JSON.stringify({ token: opts.clientToken });
   const items = JSON.stringify([{ priceId: opts.priceId, quantity: 1 }]);
@@ -312,10 +313,10 @@ export const primaryPaddle = (
   );
 };
 
-const sandboxLive = (source: string) =>
+const sandboxLive = (source: string, bakedAt: string = now) =>
   `<a href="${ROUTER_HREF}" rel="noopener" data-checkout-slot="sandbox" ` +
   `data-config-source="${source}" data-checkout-mode="sandbox" ` +
-  `data-baked-at="${now}">Open sandbox test checkout &rarr;</a>`;
+  `data-baked-at="${bakedAt}">Open sandbox test checkout &rarr;</a>`;
 
 // Attribution capture (added 2026-09-18): reads an incoming source-tracking
 // param (?src=youtube / ?src=instagram / ?src=facebook, or a dub.co-style
@@ -329,8 +330,8 @@ const sandboxLive = (source: string) =>
 // Idempotent: stripped and re-injected on every bake, same pattern as the
 // crumb CSS/nav above.
 const ATTRIBUTION_SCRIPT_ID = "attribution-capture";
-const attributionScript = (): string =>
-  `<script id="${ATTRIBUTION_SCRIPT_ID}" data-baked-at="${now}">(function(){\n` +
+const attributionScript = (bakedAt: string = now) =>
+  `<script id="${ATTRIBUTION_SCRIPT_ID}" data-baked-at="${bakedAt}">(function(){\n` +
   `  try {\n` +
   `    var qs = new URLSearchParams(location.search);\n` +
   `    var src = qs.get("src");\n` +
@@ -352,23 +353,23 @@ const attributionScript = (): string =>
   `  } catch (e) { /* attribution capture must never block checkout */ }\n` +
   `})();</script>`;
 
-const injectAttributionScript = (html: string): string => {
+const injectAttributionScript = (html: string, bakedAt: string = now): string => {
   const out = html.replace(
     new RegExp(`[ \\t]*<script id="${ATTRIBUTION_SCRIPT_ID}"[\\s\\S]*?</script>\\n?`),
     "",
   );
   const withScript = out.replace(
     /(<a\b[^>]*data-checkout-slot="primary"[^>]*>[\s\S]*?<\/a>)/,
-    (m) => `${m}\n${attributionScript()}`,
+    (m) => `${m}\n${attributionScript(bakedAt)}`,
   );
   if (withScript === out) console.log(`warn: no primary buy-link anchor found — attribution script NOT injected`);
   return withScript;
 };
 
-const sandboxOff = (source: string) =>
+const sandboxOff = (source: string, bakedAt: string = now) =>
   `<a href="#sandbox-checkout-pending" data-checkout-slot="sandbox" ` +
   `data-config-source="${source}" data-checkout-mode="gated" ` +
-  `data-baked-at="${now}">Sandbox test checkout &mdash; not configured</a>`;
+  `data-baked-at="${bakedAt}">Sandbox test checkout &mdash; not configured</a>`;
 
 // Product facts baked from config (2026-09-25): price and title used to be hand-typed HTML the
 // baker never touched, so $19 survived a $39 config. Every price slot, the <h1>, <title>,
@@ -404,6 +405,14 @@ export const swap = (html: string, slot: string, replacement: string): string =>
 // files or rewrite the site. Same pattern as payments/src/reports.ts.
 const runAsMain = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 
+// Atomic write: write to <file>.tmp-<pid> in the same directory, then rename
+// over the target so readers never observe a half-written page.
+export const writeFileAtomicReal = (path: string, html: string): void => {
+  const tmp = `${path}.tmp-${process.pid}`;
+  writeFileSync(tmp, html, "utf8");
+  renameSync(tmp, path);
+};
+
 // Env/token strictness for the paddle path (exported so vitest can pin the
 // contract without running the bake).
 export const paddleEnvironment = (env: string | undefined): "production" | "sandbox" => {
@@ -435,105 +444,200 @@ export const resolvePaddlePrice = (
   return priceId;
 };
 
-if (runAsMain) {
-  loadDotenvForCli();
 
-  // The legacy static master page (web/index.html) no longer exists since the site moved to
-  // Next.js (the landing page is web/app/page.tsx); bake it only when present.
-  const masterPath = join(siteRoot, "index.html");
-  if (existsSync(masterPath)) {
-    const master = readFileSync(masterPath, "utf8");
-    writeFileSync(
-      masterPath,
-      bakeFacts(swap(master, "primary", primaryGated("payments/config.duane.json")),
-                loadProductConfig(undefined).cfg, "site/index.html"),
-    );
-    console.log(`baked ${join("site", "index.html")} primary=gated (master page: always gated)`);
-  } else {
-    console.log(`skipped site/index.html (no legacy static master page)`);
-  }
-
-  const cRoot = join(siteRoot, "public", "c"); // pages moved to web/public/c with the Next.js migration
-  const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  for (const rel of walkSiteCDirs(cRoot)) {
-  const p = join(cRoot, rel, "index.html");
-  const html = readFileSync(p, "utf8");
-  if (!html.includes("data-checkout-slot")) {
-    console.log(`skipped ${join("site", "c", rel, "index.html")} (no checkout slots — creator hub page)`);
-    continue;
-  }
-  const assoc = productAssoc.get(rel);
-  const { cfg, source } = loadProductConfig(assoc);
-  const isPaddle = cfg.checkout_mode === "paddle";
-  // "paddle" is exempt from the real-URL requirement (it uses the Paddle.js
-  // overlay, not a checkout link). Every other mode keeps the old rule:
-  // without a real checkout_url it silently degrades to gated.
-  const perCreatorMode = isPaddle
-    ? "paddle"
-    : isRealUrl(cfg.checkout_url)
-      ? cfg.checkout_mode ?? "gated"
-      : "gated";
-
-  // Re-bake hygiene: strip any previously baked Paddle block before swapping,
-  // so paddle→paddle (new price/token) and paddle→gated leave no stale
-  // button or script behind.
-  let out = stripPaddleBlocks(html);
-
-  if (isPaddle) {
-    const environment = paddleEnvironment(process.env.PADDLE_ENVIRONMENT);
-    const clientToken = paddleTokenForEnv(process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN, environment);
-    const priceId = resolvePaddlePrice(cfg, environment, join("site", "c", rel, "index.html"));
-    const productId = cfg.paddle_product_id;
-    const dbProductId = cfg.db_product_id;
-    if (!productId) {
-      throw new Error(
-        `${join("site", "c", rel, "index.html")}: checkout_mode=paddle requires paddle_price_id${environment === "sandbox" ? "_sandbox" : ""} and paddle_product_id (config) — refusing to bake a broken primary slot`,
-      );
-    }
-    if (!dbProductId || !UUID_RE.test(dbProductId)) {
-      throw new Error(
-        `${join("site", "c", rel, "index.html")}: checkout_mode=paddle requires a valid uuid db_product_id in config (got ${dbProductId ? "malformed value" : "none"})`,
-      );
-    }
-    // CONSENT GATE — P1. Fail loud: a live Paddle button must never ship for
-    // a product without signed C1/C2/C3 consents.
-    await assertLaunchConsents(dbProductId);
-    out = swap(out, "primary", primaryPaddle(source, { priceId, productId, clientToken, environment }));
-    // Sandbox scaffolding stays hidden even in paddle mode: the paddle branch
-    // still owns the sandbox slot and the sandbox-test block.
-    out = swap(out, "sandbox", sandboxOff(source));
-    out = out.replace(/<div class="sandbox" id="sandbox-test"( hidden)?>/, '<div class="sandbox" id="sandbox-test" hidden>');
-    finish(out, source, perCreatorMode, rel, cfg, assoc);
-    continue;
-  }
-
-  out = swap(out, "primary", perCreatorMode === "live" ? primaryLive(source) : primaryGated(source));
-  out = swap(out, "sandbox", perCreatorMode === "sandbox" && isRealUrl(cfg.checkout_url) ? sandboxLive(source) : sandboxOff(source));
-  // The internal sandbox-test block is only VISIBLE while sandbox testing is actually on;
-  // otherwise it ships hidden so buyers never see test scaffolding (2026-10-01).
-  const sandboxOn = perCreatorMode === "sandbox" && isRealUrl(cfg.checkout_url);
-  out = out.replace(/<div class="sandbox" id="sandbox-test"( hidden)?>/, sandboxOn ? '<div class="sandbox" id="sandbox-test">' : '<div class="sandbox" id="sandbox-test" hidden>');
-  finish(out, source, perCreatorMode, rel, cfg, assoc);
+export interface BakeDeps {
+  siteRoot: string;
+  readFile: (path: string) => Promise<string>;
+  writeFileAtomic: (path: string, html: string) => void | Promise<void>;
+  listProductDirs: (root: string) => Promise<string[]>;
+  loadConfig: (assoc: ProductAssoc | undefined) => Promise<{
+    cfg: Facts & {
+      checkout_url?: string;
+      checkout_mode?: string;
+      paddle_price_id?: string;
+      paddle_price_id_sandbox?: string;
+      paddle_product_id?: string;
+      db_product_id?: string;
+    };
+    source: string;
+  }>;
+  fetchImpl?: typeof fetch;
+  now: () => string;
+  log: (msg: string) => void;
 }
 
-function finish(
-  out: string,
-  source: string,
-  mode: string,
-  rel: string,
-  cfg: Facts,
-  assoc: ProductAssoc | undefined,
-): void {
-  out = injectAttributionScript(out);
-  out = bakeFacts(out, cfg, join("site", "c", rel, "index.html"));
+export interface BakeSummary {
+  baked: string[];
+  blocked: { page: string; reason: string }[];
+}
 
-  if (assoc) {
-    out = bakeCrumb(out, assoc.handle, assoc.display_name);
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// Testable bake entry point. Every page under the site root is sanitized
+// (Paddle markers + legacy scripts stripped) BEFORE any mode decision or
+// early return — slotless pages and the legacy master page included — and
+// rewritten when sanitizing changed it.
+export const runBake = async (deps: BakeDeps): Promise<BakeSummary> => {
+  const summary: BakeSummary = { baked: [], blocked: [] };
+  const bakedAt = deps.now();
+  const pages: { key: string; absPath: string; html: string }[] = [];
+
+  const masterPath = join(deps.siteRoot, "index.html");
+  let masterHtml: string | null = null;
+  try {
+    masterHtml = await deps.readFile(masterPath);
+  } catch {
+    masterHtml = null;
+  }
+  if (masterHtml !== null) {
+    pages.push({ key: join("site", "index.html"), absPath: masterPath, html: masterHtml });
   } else {
-    console.log(`warn: ${join("site", "c", rel, "index.html")} not mapped in creators.json — back-link skipped`);
+    deps.log(`skipped site/index.html (no legacy static master page)`);
   }
 
-  writeFileSync(join(cRoot, rel, "index.html"), out);
-  console.log(`baked ${join("site", "c", rel, "index.html")} mode=${mode}`);
+  const cRoot = join(deps.siteRoot, "public", "c");
+  for (const rel of await deps.listProductDirs(cRoot)) {
+    pages.push({
+      key: join("site", "c", rel, "index.html"),
+      absPath: join(cRoot, rel, "index.html"),
+      html: await deps.readFile(join(cRoot, rel, "index.html")),
+    });
   }
+
+  const finish = async (
+    page: { key: string; absPath: string },
+    out: string,
+    source: string,
+    mode: string,
+    cfg: Facts,
+    assoc: ProductAssoc | undefined,
+  ): Promise<void> => {
+    out = injectAttributionScript(out, bakedAt);
+    out = bakeFacts(out, cfg, page.key);
+    if (assoc) {
+      out = bakeCrumb(out, assoc.handle, assoc.display_name, bakedAt);
+    } else if (page.key !== join("site", "index.html")) {
+      deps.log(`warn: ${page.key} not mapped in creators.json — back-link skipped`);
+    }
+    await deps.writeFileAtomic(page.absPath, out);
+    deps.log(`baked ${page.key} mode=${mode}`);
+  };
+
+  for (const page of pages) {
+    let html = page.html;
+
+    // ALWAYS sanitize first — every page under the site root, slotless included.
+    const sanitized = stripPaddleBlocks(html);
+    if (sanitized !== html) {
+      html = sanitized;
+      await deps.writeFileAtomic(page.absPath, html);
+      deps.log(`sanitized ${page.key} (Paddle traces removed)`);
+    }
+
+    if (!html.includes("data-checkout-slot")) {
+      deps.log(`skipped ${page.key} (no checkout slots — creator hub page)`);
+      continue;
+    }
+
+    const rel =
+      page.key === join("site", "index.html")
+        ? undefined
+        : page.key.slice(join("site", "c", "").length, -"/index.html".length);
+    const assoc = rel !== undefined ? (productAssoc.get(rel) as ProductAssoc | undefined) : undefined;
+    const { cfg, source } = await deps.loadConfig(assoc);
+    const isPaddle = cfg.checkout_mode === "paddle";
+    const perCreatorMode = isPaddle
+      ? "paddle"
+      : isRealUrl(cfg.checkout_url)
+        ? cfg.checkout_mode ?? "gated"
+        : "gated";
+
+    if (isPaddle) {
+      let failure: string | null = null;
+      let environment: "production" | "sandbox" = "production";
+      let priceId = "";
+      try {
+        environment = paddleEnvironment(process.env.PADDLE_ENVIRONMENT);
+        paddleTokenForEnv(process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN, environment);
+        priceId = resolvePaddlePrice(cfg, environment, page.key);
+        if (!cfg.paddle_product_id) {
+          throw new Error(
+            `checkout_mode=paddle requires paddle_price_id${environment === "sandbox" ? "_sandbox" : ""} and paddle_product_id (config) — refusing to bake a broken primary slot`,
+          );
+        }
+        if (!cfg.db_product_id || !UUID_RE.test(cfg.db_product_id)) {
+          throw new Error(
+            `checkout_mode=paddle requires a valid uuid db_product_id in config (got ${cfg.db_product_id ? "malformed value" : "none"})`,
+          );
+        }
+        // CONSENT GATE — P1: a live Paddle button must never ship without
+        // signed C1/C2/C3 consents.
+        await assertLaunchConsents(cfg.db_product_id, deps.fetchImpl);
+      } catch (e) {
+        failure = (e as Error).message;
+      }
+
+      if (failure !== null) {
+        // SAFE FALLBACK (P1): never throw out of the bake — bake GATED so a
+        // safe artifact can be committed/deployed over a live checkout.
+        deps.log(`CONSENTS NOT VALID — LAUNCH BLOCKED: ${page.key}: ${failure} — baking GATED checkout instead`);
+        summary.blocked.push({ page: page.key, reason: failure });
+        let out = swap(html, "primary", primaryGated(source, bakedAt));
+        out = swap(out, "sandbox", sandboxOff(source, bakedAt));
+        out = out.replace(/<div class="sandbox" id="sandbox-test"( hidden)?>/, '<div class="sandbox" id="sandbox-test" hidden>');
+        await finish({ key: page.key, absPath: page.absPath }, out, source, "gated (launch blocked — safe fallback)", cfg, assoc);
+        summary.baked.push(page.key);
+        continue;
+      }
+
+      let out = swap(
+        html,
+        "primary",
+        primaryPaddle(
+          source,
+          {
+            priceId,
+            productId: cfg.paddle_product_id!,
+            clientToken: paddleTokenForEnv(process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN, environment),
+            environment,
+          },
+          bakedAt,
+        ),
+      );
+      out = swap(out, "sandbox", sandboxOff(source, bakedAt));
+      out = out.replace(/<div class="sandbox" id="sandbox-test"( hidden)?>/, '<div class="sandbox" id="sandbox-test" hidden>');
+      await finish({ key: page.key, absPath: page.absPath }, out, source, perCreatorMode, cfg, assoc);
+      summary.baked.push(page.key);
+      continue;
+    }
+
+    let out = swap(html, "primary", perCreatorMode === "live" ? primaryLive(source, bakedAt) : primaryGated(source, bakedAt));
+    out = swap(out, "sandbox", perCreatorMode === "sandbox" && isRealUrl(cfg.checkout_url) ? sandboxLive(source, bakedAt) : sandboxOff(source, bakedAt));
+    const sandboxOn = perCreatorMode === "sandbox" && isRealUrl(cfg.checkout_url);
+    out = out.replace(/<div class="sandbox" id="sandbox-test"( hidden)?>/, sandboxOn ? '<div class="sandbox" id="sandbox-test">' : '<div class="sandbox" id="sandbox-test" hidden>');
+    await finish({ key: page.key, absPath: page.absPath }, out, source, perCreatorMode, cfg, assoc);
+    summary.baked.push(page.key);
+  }
+
+  return summary;
+};
+
+if (runAsMain) {
+  loadDotenvForCli();
+  const summary = await runBake({
+    siteRoot,
+    readFile: async (p) => readFileSync(p, "utf8"),
+    writeFileAtomic: writeFileAtomicReal,
+    listProductDirs: async (root) => walkSiteCDirs(root),
+    loadConfig: async (assoc) => loadProductConfig(assoc),
+    fetchImpl: undefined,
+    now: () => new Date().toISOString(),
+    log: (msg) => console.log(msg),
+  });
+  for (const b of summary.blocked) {
+    console.log(`LAUNCH BLOCKED: ${b.page}: ${b.reason}`);
+  }
+  console.log(`bake summary: ${summary.baked.length} baked, ${summary.blocked.length} launch-blocked (gated fallback)`);
+  // Every collected page baked (gated fallback counts as baked) → exit 0.
+  process.exitCode = 0;
 }
