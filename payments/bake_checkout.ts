@@ -3,6 +3,7 @@ import { join, dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import dotenv from "dotenv";
 import { loadBookIdentity } from "./book_identity.ts";
+import { GLOBAL } from "./src/settings_registry.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const defaultConfigPath = join(here, "config.duane.json");
@@ -277,7 +278,7 @@ export const primaryPaddle = (
     `onerror="(function(){var b=document.getElementById('buy');` +
     `if(b){b.disabled=true;b.textContent='Checkout temporarily unavailable';}})()"`;
   const script =
-    `<script ${onError} src="https://cdn.paddle.com/paddle/v2/paddle.js"></script>\n` +
+    `<script ${onError} src="${GLOBAL.payments.paddle.js_cdn_url}"></script>\n` +
     `<script>(function(){\n` +
     `  function markUnavailable() {\n` +
     `    var b = document.getElementById("buy");\n` +
@@ -301,7 +302,7 @@ export const primaryPaddle = (
     `    } catch (e) { markUnavailable(); }\n` +
     `  }\n` +
     `  if (window.Paddle) { boot(); return; }\n` +
-    `  var s = document.querySelector('script[src="https://cdn.paddle.com/paddle/v2/paddle.js"]');\n` +
+    `  var s = document.querySelector('script[src="${GLOBAL.payments.paddle.js_cdn_url}"]');\n` +
     `  if (!s) { markUnavailable(); return; }\n` +
     `  s.addEventListener("load", boot);\n` +
     `  s.addEventListener("error", markUnavailable);\n` +
