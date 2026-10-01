@@ -29,10 +29,7 @@ function readRegistryFile(name: string): Record<string, unknown> | undefined {
   return undefined;
 }
 
-let warned = false;
 function warnFallback(file: string, why: string): void {
-  if (warned) return;
-  warned = true;
   console.error(`[settings-registry] ${file} ${why} — inline fallbacks in effect (expected at ${CANDIDATE_DIRS[0]})`);
 }
 
@@ -99,9 +96,42 @@ const DEFAULT_GLOBAL: GlobalSettings = {
   },
 };
 
-function isPositiveInt(v: unknown): v is number {
-  return typeof v === "number" && Number.isInteger(v) && v > 0;
+// Named bounds for the payments tunables (lives in the registry module by design —
+// feature code must never hard-code them). sync_http_timeout max 120000 keeps far
+// clear of Node's 2147483647 timer limit.
+export const PAYMENTS_LIMITS = {
+  webhook_tolerance_seconds: { min: 60, max: 900 },
+  webhook_lock_ttl_seconds: { min: 60, max: 3600 },
+  http_timeout_ms: { min: 1000, max: 30000 },
+  sync_http_timeout_ms: { min: 1000, max: 120000 },
+} as const;
+
+function intInRange(v: unknown, min: number, max: number): v is number {
+  return typeof v === "number" && Number.isInteger(v) && v >= min && v <= max;
 }
+
+// Accepts only the exact canonical Paddle host after stripping trailing slashes.
+// Rejects credentials, non-default port, any path/query/fragment — Bearer tokens
+// must never be sent to another host.
+function isCanonicalPaddleApiUrl(v: unknown, expected: string): v is string {
+  if (typeof v !== "string") return false;
+  const s = v.replace(/\/+$/, "");
+  if (s !== expected) return false;
+  try {
+    const u = new URL(s);
+    if (u.username || u.password || u.port || u.search || u.hash) return false;
+    if (u.pathname !== "/" && u.pathname !== "") return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function isPaddleJsCdnUrl(v: unknown): v is string {
+  return v === "https://cdn.paddle.com/paddle/v2/paddle.js";
+}
+
+const CURRENCY_CODE_RE = /^[A-Z]{3}$/;
 
 function isHttpsUrl(v: unknown): v is string {
   if (typeof v !== "string" || !v.startsWith("https://")) return false;
@@ -120,25 +150,48 @@ export function loadPaymentsSection(raw: Record<string, unknown> | undefined): G
   const paddle = (p.paddle ?? {}) as Partial<GlobalSettings["payments"]["paddle"]>;
   const polar = (p.polar ?? {}) as Partial<GlobalSettings["payments"]["polar"]>;
   const apiBase = (paddle.api_base ?? {}) as Partial<GlobalSettings["payments"]["paddle"]["api_base"]>;
-  const webhookTolerance = isPositiveInt(p.webhook_tolerance_seconds) ? p.webhook_tolerance_seconds : d.webhook_tolerance_seconds;
-  const webhookLockTtl = isPositiveInt(p.webhook_lock_ttl_seconds) ? p.webhook_lock_ttl_seconds : d.webhook_lock_ttl_seconds;
-  const httpTimeout = isPositiveInt(p.http_timeout_ms) ? p.http_timeout_ms : d.http_timeout_ms;
-  const syncHttpTimeout = isPositiveInt(p.sync_http_timeout_ms) ? p.sync_http_timeout_ms : d.sync_http_timeout_ms;
-  const apiProduction = isHttpsUrl(apiBase.production) ? apiBase.production : d.paddle.api_base.production;
-  const apiSandbox = isHttpsUrl(apiBase.sandbox) ? apiBase.sandbox : d.paddle.api_base.sandbox;
-  const jsCdn = isHttpsUrl(paddle.js_cdn_url) ? paddle.js_cdn_url : d.paddle.js_cdn_url;
-  const polarFallback = isHttpsUrl(polar.sandbox_checkout_fallback_url) ? polar.sandbox_checkout_fallback_url : d.polar.sandbox_checkout_fallback_url;
   const fallbacks: string[] = [];
-  if (!isPositiveInt(p.webhook_tolerance_seconds)) fallbacks.push("webhook_tolerance_seconds");
-  if (!isPositiveInt(p.webhook_lock_ttl_seconds)) fallbacks.push("webhook_lock_ttl_seconds");
-  if (!isPositiveInt(p.http_timeout_ms)) fallbacks.push("http_timeout_ms");
-  if (!isPositiveInt(p.sync_http_timeout_ms)) fallbacks.push("sync_http_timeout_ms");
-  if (!isHttpsUrl(apiBase.production)) fallbacks.push("paddle.api_base.production");
-  if (!isHttpsUrl(apiBase.sandbox)) fallbacks.push("paddle.api_base.sandbox");
-  if (!isHttpsUrl(paddle.js_cdn_url)) fallbacks.push("paddle.js_cdn_url");
-  if (!isHttpsUrl(polar.sandbox_checkout_fallback_url)) fallbacks.push("polar.sandbox_checkout_fallback_url");
+  // Warn ONLY for keys explicitly present and invalid; omitted keys default silently.
+  const num = (key: keyof typeof PAYMENTS_LIMITS): number => {
+    if (!(key in p)) return d[key];
+    const v = p[key];
+    const { min, max } = PAYMENTS_LIMITS[key];
+    if (intInRange(v, min, max)) return v;
+    fallbacks.push(key);
+    return d[key];
+  };
+  const webhookTolerance = num("webhook_tolerance_seconds");
+  const webhookLockTtl = num("webhook_lock_ttl_seconds");
+  const httpTimeout = num("http_timeout_ms");
+  const syncHttpTimeout = num("sync_http_timeout_ms");
+  const paddleUrl = (v: unknown, expected: string, label: string, validateAndNormalize: (x: unknown) => string | null): string => {
+    const normalized = v === undefined ? null : validateAndNormalize(v);
+    if (normalized !== null) return normalized;
+    if (v !== undefined) fallbacks.push(label);
+    return expected;
+  };
+  const apiProduction = paddleUrl(
+    apiBase.production, d.paddle.api_base.production, "paddle.api_base.production",
+    (x) => isCanonicalPaddleApiUrl(x, "https://api.paddle.com") ? (x as string).replace(/\/+$/, "") : null,
+  );
+  const apiSandbox = paddleUrl(
+    apiBase.sandbox, d.paddle.api_base.sandbox, "paddle.api_base.sandbox",
+    (x) => isCanonicalPaddleApiUrl(x, "https://sandbox-api.paddle.com") ? (x as string).replace(/\/+$/, "") : null,
+  );
+  const jsCdn = paddleUrl(paddle.js_cdn_url, d.paddle.js_cdn_url, "paddle.js_cdn_url", (x) => (isPaddleJsCdnUrl(x) ? (x as string) : null));
+  const polarFallback = paddleUrl(polar.sandbox_checkout_fallback_url, d.polar.sandbox_checkout_fallback_url, "polar.sandbox_checkout_fallback_url", (x) => (isHttpsUrl(x) ? (x as string) : null));
+  let currencies = d.allowed_currencies;
+  if (p.allowed_currencies !== undefined) {
+    const list = Array.isArray(p.allowed_currencies)
+      ? p.allowed_currencies.map(String)
+      : null;
+    if (list && list.length > 0 && list.every((c) => CURRENCY_CODE_RE.test(c))) {
+      currencies = list;
+    } else {
+      fallbacks.push("allowed_currencies");
+    }
+  }
   if (fallbacks.length > 0) warnFallback("global.json", `invalid payments values for ${fallbacks.join(", ")}`);
-  const currencies = Array.isArray(p.allowed_currencies) && p.allowed_currencies.length > 0 ? p.allowed_currencies.map(String) : d.allowed_currencies;
   return {
     allowed_currencies: currencies,
     webhook_tolerance_seconds: webhookTolerance,
