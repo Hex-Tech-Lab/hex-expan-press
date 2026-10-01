@@ -1,0 +1,28 @@
+docs/agent_ledger.jsonl
+  h_90c2451a76ba0d 372,376
+payments/bake_checkout.ts
+  h_90c2451a76ba0d 1,200,208,215,218,226,229,265,273,316,319,333-334,356,363,369,372,408-415,448-493,495,498-504,506-520,522-534,537-540,542-619,622-638,640-642
+payments/sync_book_identity.ts
+  h_90c2451a76ba0d 128-129,132-137,144-145,148-153,185,191,199-205,207,210,213,228,231-238
+payments/test/bake_checkout_run.test.ts
+  h_90c2451a76ba0d 1-232
+payments/test/book_identity.test.ts
+  h_90c2451a76ba0d 273,275-278,282,284-287,306,333,371,391,396,401,407-437,452-524,680-693
+web/app/creator/dashboard/actions.ts
+  h_90c2451a76ba0d 7,68-74
+web/app/creator/dashboard/page.tsx
+  h_90c2451a76ba0d 65,111-112
+web/src/lib/__tests__/primary-product.test.ts
+  h_90c2451a76ba0d 105,108-111,114,157-166
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f8ef53ce8089645b2ce9eebef449fedf0aec47d3",
+  "prompts": {},
+  "humans": {
+    "h_90c2451a76ba0d": {
+      "author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
