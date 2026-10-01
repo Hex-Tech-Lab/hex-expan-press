@@ -70,8 +70,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // bad/stale signature) — honor it when in the 4xx band; otherwise the
     // legacy 400/500 split stands.
     const rawStatus = (err as { httpStatus?: unknown })?.httpStatus;
-    // 4xx from the adapter is final; 503 asks the provider to RETRY (e.g. Paddle buyer-email lookup failed) — never flatten it to 400.
-    const httpStatus = typeof rawStatus === "number" && ((rawStatus >= 400 && rawStatus < 500) || rawStatus === 503) ? rawStatus : undefined;
+    // Honour the adapter's hint: 4xx is final; 5xx (missing secret = 500, email lookup failure = 503)
+    // makes the provider RETRY — never flatten a server-side problem into a permanent 400.
+    const httpStatus = typeof rawStatus === "number" && rawStatus >= 400 && rawStatus < 600 ? rawStatus : undefined;
     const status = isValidationErr && httpStatus === undefined ? 400 : httpStatus ?? (isValidationErr ? 400 : 500);
     const error = status === 401 ? "Unauthorized" : status === 503 ? "Temporarily unavailable — retry" : status === 500 ? "Internal Server Error" : "Bad Request";
     return NextResponse.json({ ok: false, error }, { status });

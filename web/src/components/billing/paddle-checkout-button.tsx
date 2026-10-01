@@ -4,9 +4,9 @@
  * Paddle overlay checkout button (ADR-0050). Initializes Paddle.js on mount
  * ONLY after the environment/token gate resolves (never initialize with a
  * guessed environment), then opens the overlay with the customData fields
- * the webhook adapter REQUIRES: custom_data.product_id + custom_data.email
- * (the adapter 400s a sale without them, so the button refuses to open
- * checkout when it cannot supply both).
+ * the webhook adapter uses: custom_data.product_id (required) and, when the
+ * page already knows it, custom_data.email. Without an email the buyer types
+ * it in the overlay and the adapter resolves it from the Paddle customer.
  */
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
