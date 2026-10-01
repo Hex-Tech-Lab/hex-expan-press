@@ -1,0 +1,38 @@
+docs/agent_ledger.jsonl
+  h_90c2451a76ba0d 368
+payments/bake_checkout.ts
+  h_90c2451a76ba0d 6,281,305
+payments/src/settings_registry.ts
+  h_90c2451a76ba0d 49-57,81-92,102-152,168
+payments/src/webhook_core.ts
+  h_90c2451a76ba0d 5,120
+payments/sync_book_identity.ts
+  h_90c2451a76ba0d 10,43,138
+payments/test/settings_registry_runtime.test.ts
+  h_90c2451a76ba0d 1-45
+src/adapters/payments/paddle.adapter.ts
+  h_90c2451a76ba0d 30,60,196-197,203
+src/adapters/payments/polar.adapter.ts
+  h_90c2451a76ba0d 21,70
+src/use_cases/billing/__tests__/process_billing_webhook.test.ts
+  h_90c2451a76ba0d 101-104
+web/app/api/billing/checkout/route.ts
+  h_90c2451a76ba0d 5,94
+web/app/api/billing/webhook/__tests__/fungies-refund-dlq.test.ts
+  h_90c2451a76ba0d 75-78
+web/app/api/billing/webhook/__tests__/polar-partial-refund.test.ts
+  h_90c2451a76ba0d 82-85
+web/app/api/billing/webhook/__tests__/provider_allowlist.test.ts
+  h_90c2451a76ba0d 65-68
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "2bb6fd025c6ff79f5fe4eca6bfe4e6180da43730",
+  "prompts": {},
+  "humans": {
+    "h_90c2451a76ba0d": {
+      "author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
