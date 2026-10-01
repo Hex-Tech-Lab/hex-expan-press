@@ -58,7 +58,7 @@ export async function getPortalSession(): Promise<PortalSession | null> {
       cookieOptions: { name: SSR_COOKIE },
       // READ-ONLY: Server Components cannot mutate cookies (next/headers
       // set() is ignored during RSC render) — session refresh happens in
-      // middleware.ts, the only legal Set-Cookie boundary (Wave 5.1).
+      // proxy.ts, the only legal Set-Cookie boundary (Wave 5.1).
       cookies: {
         getAll() {
           return cookieStore.getAll();

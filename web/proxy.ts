@@ -9,12 +9,12 @@ import { createServerClient } from "@supabase/ssr";
  *
  * Runs getUser() (network validation — never trust getSession locally) on
  * creator-portal routes; pages still enforce their own redirects, this
- * middleware only guarantees fresh cookies ride the response.
+ * proxy only guarantees fresh cookies ride the response.
  *
  * Cookie options are EXPLICIT — the @supabase/ssr default is httpOnly:false
  * (verified v0.12.7 constants.js), which would defeat the Wave 5 objective.
  */
-export async function middleware(request: NextRequest): Promise<NextResponse> {
+export async function proxy(request: NextRequest): Promise<NextResponse> {
   let response = NextResponse.next({ request });
 
   const cookieOptions = {
@@ -26,11 +26,11 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
 
   try {
     // Construction INSIDE the failure boundary (P0 2026-09-29): an env gap
-    // must degrade to "no cookie refresh", never crash the middleware — an
+    // must degrade to "no cookie refresh", never crash the proxy — an
     // uncaught throw here turns every matched route into a 500
     // MIDDLEWARE_INVOCATION_FAILED, taking the auth surface down harder
     // than any misconfiguration justifies. Pages enforce their own
-    // fail-closed redirects; the middleware only guarantees fresh cookies.
+    // fail-closed redirects; the proxy only guarantees fresh cookies.
     const supabase = createServerClient(
       process.env.SUPABASE_URL ?? "",
       process.env.SUPABASE_PUBLISHABLE_KEY ?? "",
@@ -44,7 +44,7 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
             for (const { name, value } of cookiesToSet) {
               request.cookies.set(name, value);
             }
-            // Re-create the response so the middleware chain sees the updated
+            // Re-create the response so the proxy chain sees the updated
             // request cookies, then mirror them onto the outgoing response.
             response = NextResponse.next({ request });
             for (const { name, value, options } of cookiesToSet) {
@@ -60,7 +60,7 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
     // Missing env or network/auth-service failure must not take pages down —
     // pages enforce their own fail-closed redirects; the response carries on.
     if (process.env.NODE_ENV !== "production") {
-      console.warn("[middleware] session refresh skipped:", err instanceof Error ? err.message : err);
+      console.warn("[proxy] session refresh skipped:", err instanceof Error ? err.message : err);
     }
   }
 
