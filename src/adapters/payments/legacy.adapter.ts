@@ -13,8 +13,8 @@
  *   - attributionId: not extracted by legacy adapters (field_map wiring incomplete)
  *   - batch events (FastSpring multi-event): only first action processed; rest dropped
  */
-import { PaymentProviderPort, WebhookParseResult, CheckoutCommand, CheckoutResult, SaleCompletedEvent, RefundIssuedEvent } from "../../domain/payments/payments.port.ts";
-import type { CheckoutProvider } from "../../../payments/src/provider.ts";
+import { PaymentProviderPort, WebhookParseResult, CheckoutResult, SaleCompletedEvent, RefundIssuedEvent } from "../../domain/payments/payments.port.ts";
+import type { CheckoutProvider, SaleEvent, RefundEvent } from "../../../payments/src/provider.ts";
 import { getSecret } from "../../../payments/src/webhook_core.ts";
 
 export class LegacyPaymentAdapterWrapper implements PaymentProviderPort {
@@ -26,7 +26,7 @@ export class LegacyPaymentAdapterWrapper implements PaymentProviderPort {
     this.legacyProvider = provider;
   }
 
-  canHandleWebhook(headers: Record<string, string | string[] | undefined>, _body: string): boolean {
+  canHandleWebhook(headers: Record<string, string | string[] | undefined>): boolean {
     const knownSignatureHeaders: Record<string, string> = {
       lemonsqueezy: "x-signature",
       payhip: "signature",
@@ -56,13 +56,13 @@ export class LegacyPaymentAdapterWrapper implements PaymentProviderPort {
     }
 
     // Extract first action from batch (FastSpring only)
-    let action: { sale: NonNullable<Extract<typeof result, { ok: true; sale: any }>['sale']> } | { refund: NonNullable<Extract<typeof result, { ok: true; refund: any }>['refund']> } | null = null;
+    let action: { sale?: SaleEvent; refund?: RefundEvent } | null = null;
     if ("sale" in result && result.sale) {
       action = { sale: result.sale };
     } else if ("refund" in result && result.refund) {
       action = { refund: result.refund };
     } else if ("batch" in result && result.batch && result.batch.length > 0) {
-      action = result.batch[0] as any;
+      action = result.batch[0];
     }
 
     if (!action) {
@@ -102,7 +102,7 @@ export class LegacyPaymentAdapterWrapper implements PaymentProviderPort {
     return { isValid: false, error: "Legacy parse returned unknown structure" };
   }
 
-  async createCheckout(_command: CheckoutCommand): Promise<CheckoutResult> {
+  async createCheckout(): Promise<CheckoutResult> {
     return { checkoutUrl: "", providerName: this.providerName };
   }
 }

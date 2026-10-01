@@ -33,29 +33,32 @@ export const lemonsqueezyProvider: CheckoutProvider = {
       return { ok: false, status: 401, error: "invalid signature" };
     }
 
-    let body: any;
+    let body: Record<string, unknown> | null;
     try {
-      body = JSON.parse(rawBody.toString("utf8"));
+      body = JSON.parse(rawBody.toString("utf8")) as Record<string, unknown>;
     } catch {
       return { ok: false, status: 400, error: "invalid JSON body" };
     }
 
-    const eventName = body?.meta?.event_name;
+    const eventName = (body?.meta as Record<string, unknown> | undefined)?.event_name;
     if (eventName !== SALE_EVENT) {
-      return { ok: false, status: 202, error: `ignored non-sale event: ${eventName ?? "<none>"}` };
+      return { ok: false, status: 202, error: `ignored non-sale event: ${typeof eventName === "string" ? eventName : "<none>"}` };
     }
-    const attrs = body?.data?.attributes;
-    const productId = getPath(body, FM.product_id) ?? body?.meta?.custom_data?.product_id;
+    const dataObj = body?.data as Record<string, unknown> | undefined;
+    const attrs = dataObj?.attributes as Record<string, unknown> | undefined;
+    const metaObj = body?.meta as Record<string, unknown> | undefined;
+    const customData = metaObj?.custom_data as Record<string, unknown> | undefined;
+    const productId = getPath(body, FM.product_id) ?? customData?.product_id;
     const totalCents = Number(getPath(body, FM.total_cents) ?? attrs?.total);
     const currency = String(getPath(body, FM.currency) ?? attrs?.currency ?? "").toUpperCase();
-    const saleId = String(getPath(body, FM.sale_id) ?? body?.data?.id ?? attrs?.identifier ?? "");
+    const saleId = String(getPath(body, FM.sale_id) ?? dataObj?.id ?? attrs?.identifier ?? "");
     const createdAt = getPath(body, FM.ts) ?? attrs?.created_at;
     const email = getPath(body, FM.email) ?? attrs?.user_email;
     // Our own canonical attribution ID (added 2026-09-18) — see field_map.attribution_id /
     // attribution_note in data/settings/providers.json. Server-side extraction only; client-side
     // checkout-link wiring to actually SET meta.custom_data.attribution_id (via the analogous
     // checkout[custom][attribution_id] URL param) is not yet built.
-    const attributionIdRaw = getPath(body, FM.attribution_id) ?? body?.meta?.custom_data?.attribution_id;
+    const attributionIdRaw = getPath(body, FM.attribution_id) ?? customData?.attribution_id;
     const attributionId = typeof attributionIdRaw === "string" && attributionIdRaw !== "" ? attributionIdRaw : undefined;
 
     if (!productId) return { ok: false, status: 400, error: "missing meta.custom_data.product_id (set it in the checkout URL)" };

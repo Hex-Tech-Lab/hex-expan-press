@@ -62,7 +62,6 @@ const PolarRefundSchema = z.object({
 });
 
 const PolarWebhookSchema = z.union([PolarSaleSchema, PolarRefundSchema]);
-type PolarWebhook = z.infer<typeof PolarWebhookSchema>;
 
 // Replay-window tolerance (sharp-edges audit 2026-10-01): a signed webhook
 // delivery is only trusted within this many seconds of now; anything outside
@@ -72,7 +71,7 @@ export const POLAR_WEBHOOK_TOLERANCE_SECONDS = 300;
 export class PolarAdapter implements PaymentProviderPort {
   readonly providerName = "polar";
 
-  canHandleWebhook(headers: Record<string, string | string[] | undefined>, _body: string): boolean {
+  canHandleWebhook(headers: Record<string, string | string[] | undefined>): boolean {
     return Boolean(headers["webhook-signature"] && headers["webhook-id"] && headers["webhook-timestamp"]);
   }
 
@@ -155,8 +154,9 @@ export class PolarAdapter implements PaymentProviderPort {
       };
       return { isValid: true, event };
 
-    } catch (e: any) {
-      return { isValid: false, error: `Schema validation failed: ${e.message}`, httpStatus: 400 };
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      return { isValid: false, error: `Schema validation failed: ${message}`, httpStatus: 400 };
     }
   }
 

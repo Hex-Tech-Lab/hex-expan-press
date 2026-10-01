@@ -92,7 +92,7 @@ export function paddleServerEnvironment(
 export class PaddleAdapter implements PaymentProviderPort {
   readonly providerName = "paddle";
 
-  canHandleWebhook(headers: Record<string, string | string[] | undefined>, _body: string): boolean {
+  canHandleWebhook(headers: Record<string, string | string[] | undefined>): boolean {
     return Boolean(headers["paddle-signature"]);
   }
 
@@ -231,8 +231,9 @@ export class PaddleAdapter implements PaymentProviderPort {
       };
       return { isValid: true, event };
 
-    } catch (e: any) {
-      return { isValid: false, error: `Schema validation failed: ${e.message}`, httpStatus: 400 };
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      return { isValid: false, error: `Schema validation failed: ${message}`, httpStatus: 400 };
     }
   }
 
