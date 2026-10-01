@@ -33,8 +33,14 @@ describe("primaryPaddle", () => {
     expect(html).toContain(`Paddle.Environment.set("sandbox")`);
   });
 
-  it("throws on invalid priceId", () => {
-    expect(() => primaryPaddle("cfg.json", { ...opts, priceId: "pri_" })).toThrow();
+  it("emits data-paddle-cdn on the script tag and selects by attribute, not src concat", () => {
+    const html = primaryPaddle("cfg.json", opts);
+    expect(html).toMatch(/<script [^>]*src="https:\/\/cdn\.paddle\.com\/paddle\/v2\/paddle\.js"[^>]*data-paddle-cdn><\/script>/);
+    expect(html).toContain(`querySelector('script[data-paddle-cdn]')`);
+    expect(html).not.toMatch(/querySelector\('script\[src="/);
+  });
+
+  it("throws on invalid priceId", () => {    expect(() => primaryPaddle("cfg.json", { ...opts, priceId: "pri_" })).toThrow();
     expect(() => primaryPaddle("cfg.json", { ...opts, priceId: "PRI_TEST123" })).toThrow();
   });
 
