@@ -78,7 +78,8 @@ export default function ReviewClient({ items, saved, pdfUrl, bookTitle }: Review
   const [folio, setFolio] = useState<number | null>(null);
   const [viewerError, setViewerError] = useState<string | null>(null);
   const [viewerReady, setViewerReady] = useState(false);
-  const [pageText, setPageText] = useState("");
+  // Text layer of a specific page; only exposed while that page is the one shown.
+  const [pageText, setPageText] = useState<{ page: number; text: string } | null>(null);
 
   const item = items[index];
   const answeredCount = items.filter((it) => answers[it.id]).length;
@@ -179,10 +180,10 @@ export default function ReviewClient({ items, saved, pdfUrl, bookTitle }: Review
       const pdfPage = await doc.getPage(page);
       const content = await pdfPage.getTextContent();
       if (cancelled) return;
-      setPageText(content.items.map((it) => it.str ?? "").join(" ").replace(/\s+/g, " ").trim());
+      setPageText({ page, text: content.items.map((it) => it.str ?? "").join(" ").replace(/\s+/g, " ").trim() });
     })().catch((err: unknown) => {
       console.error("[review] page text extraction failed:", err);
-      if (!cancelled) setPageText("");
+      if (!cancelled) setPageText({ page, text: "" });
     });
     return () => {
       cancelled = true;
@@ -463,7 +464,11 @@ export default function ReviewClient({ items, saved, pdfUrl, bookTitle }: Review
                   className="max-w-full rounded-lg shadow-[0_2px_10px_rgba(43,37,32,0.08)]"
                 />
                 <div id="review-page-text" className="sr-only">
-                  {pageText ? `Text of book page ${printed(page)}: ${pageText}` : `Book page ${printed(page)} has no extractable text.`}
+                  {pageText?.page !== page
+                    ? `Loading the text of book page ${printed(page)}…`
+                    : pageText.text
+                      ? `Text of book page ${printed(page)}: ${pageText.text}`
+                      : `Book page ${printed(page)} has no extractable text.`}
                 </div>
               </>
             )}
