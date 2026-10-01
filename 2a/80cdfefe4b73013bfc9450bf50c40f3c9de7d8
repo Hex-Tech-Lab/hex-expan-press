@@ -1,0 +1,23 @@
+eslint.config.mjs
+  s_0dc509588f18e9::t_2570fe56667cb1 1-7,9-15
+package.json
+  s_0dc509588f18e9::t_47e0eb982f0f61 55
+pnpm-lock.yaml
+  s_0dc509588f18e9::t_16c6163f55260e 139,5584-5588,5601-5608,5625-5638,8093-8133,8684,9221
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "2a80cdfefe4b73013bfc9450bf50c40f3c9de7d8",
+  "prompts": {},
+  "sessions": {
+    "s_0dc509588f18e9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fc365f60-a79d-4397-b8a4-2f924d01aba1",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
