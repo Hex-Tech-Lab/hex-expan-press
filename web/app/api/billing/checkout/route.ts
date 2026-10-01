@@ -101,8 +101,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   // Fail closed on non-string RAW checkout_url values (missing/null/number
   // from a malformed rails file) BEFORE any trimming — no silent rail skips.
   for (const rail of rails) {
-    if (typeof rail.checkout_url !== "string") {
-      console.error(`[billing/checkout] rejected checkout_url for '${product}' (${rail.provider}): missing or not a string`);
+    if (!rail || typeof rail !== "object" || typeof rail.checkout_url !== "string") {
+      console.error(`[billing/checkout] rejected checkout_url for '${product}' (${rail?.provider ?? "unknown"}): missing or not a string`);
       return jsonError(500, "Checkout is not configured");
     }
   }

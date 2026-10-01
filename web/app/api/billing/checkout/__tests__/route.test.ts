@@ -227,12 +227,14 @@ describe("billing/checkout wave85 sandbox + raw-URL fail-closed", () => {
     expect(res.headers.get("location")).toBeNull();
   });
 
-  it("production rails file with checkout_url omitted / null / 42 returns 500 each with no location", async () => {
+  it("production rails file with checkout_url omitted / null / 42, or a null / non-object rail, returns 500 each with no location", async () => {
     vi.stubEnv("VERCEL_ENV", "production");
     for (const rails of [
       [{ provider: "polar", weight: 100 }],
       [{ provider: "polar", weight: 100, checkout_url: null }],
       [{ provider: "polar", weight: 100, checkout_url: 42 }],
+      [null],
+      ["not-an-object"],
     ]) {
       railsFile.content = JSON.stringify({ product_id: "duane_retirement_playbook_v1", rails });
       const res = await GET(request());
