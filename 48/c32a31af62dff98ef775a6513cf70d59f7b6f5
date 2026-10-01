@@ -1,0 +1,35 @@
+web/__tests__/audit-proxy-cookie-name.test.ts
+  s_a92929890a3256::t_5b50bb094f9490 1-30
+src/adapters/database/supabase.adapter.ts
+  s_a92929890a3256::t_fa089a072c23c8 38-40
+src/adapters/payments/__tests__/audit-paddle.test.ts
+  s_a92929890a3256::t_f1996a60cbd073 1-72
+src/adapters/payments/paddle.adapter.ts
+  s_a92929890a3256::t_01b3a3147bab2c 26,38-44,156-193,198-201,276
+src/use_cases/__tests__/audit-esign-replay.test.ts
+  s_a92929890a3256::t_64f9daa2a9ec76 1-47
+src/use_cases/billing/process_billing_webhook.ts
+  s_a92929890a3256::t_b9f7b1decabff1 167-175
+src/use_cases/process_esign_webhook.ts
+  s_a92929890a3256::t_5f88929a5fb346 49-70
+supabase/migrations/20261002000000_audit_fixes_f2_f5.sql
+  s_a92929890a3256::t_086c52e9741d57 1-156
+web/proxy.ts
+  s_a92929890a3256::t_9f32449dad985c 20-23,28,54
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "48c32a31af62dff98ef775a6513cf70d59f7b6f5",
+  "prompts": {},
+  "sessions": {
+    "s_a92929890a3256": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "9dbdb5f3-b08f-45e1-a8f3-c8ace54e2029",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
