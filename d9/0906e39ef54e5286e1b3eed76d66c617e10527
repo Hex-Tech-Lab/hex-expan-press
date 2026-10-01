@@ -1,0 +1,49 @@
+payments/bake_checkout.ts
+  s_0dc509588f18e9::t_dacf30a60c7fc7 23-24,27-28,33-34,48,67-68,70-75,77,79-109,164-174,185-187,239-240,244-260,424-437,485,488
+payments/config.duane.json
+  s_0dc509588f18e9::t_d690c9213e569a 40
+payments/test/bake_checkout_flow.test.ts
+  s_0dc509588f18e9::t_00f9ffbf63c4f5 4-5,9,13,22-28,50,62-66,71,80-83,86-177,244-316
+payments/test/bake_checkout_paddle.test.ts
+  s_0dc509588f18e9::t_58654bd21b4c47 2,59-77
+payments/test/book_identity.test.ts
+  s_0dc509588f18e9::t_126d4007bc6fb8 12,14,19,293,297-345,427-527
+web/app/creator/dashboard/actions.ts
+  s_0dc509588f18e9::t_b851a28bf1fc2f 3,41-43,58
+web/app/creator/signin/actions.ts
+  s_0dc509588f18e9::t_348c2fea963d46 4,73,111
+docs/agent_ledger.jsonl
+  s_0dc509588f18e9::t_fc1c0c0538d1ea 365,368-370
+payments/src/settings_registry.ts
+  s_0dc509588f18e9::t_d9c1161aca21a7 52-54,84,86,116,124,126,133,135,145,147
+payments/src/webhook_core.ts
+  s_0dc509588f18e9::t_47660b05e0fff9 5,120
+payments/sync_book_identity.ts
+  s_0dc509588f18e9::t_5bd042fd3ecfac 35-37,41-52,62-65,67-75,138-139,147-173,176-189,191,210-226,229-236,238,240-241,243-244,246-272,274-297
+payments/test/settings_registry_runtime.test.ts
+  s_0dc509588f18e9::t_ebd87406c838e4 1-17,20-24,27-32,35-38,41-43
+src/use_cases/billing/__tests__/process_billing_webhook.test.ts
+  s_0dc509588f18e9::t_2eaabe4a71a509 103
+web/app/api/billing/webhook/__tests__/fungies-refund-dlq.test.ts
+  s_0dc509588f18e9::t_9e767aabe9776e 77
+web/app/api/billing/webhook/__tests__/polar-partial-refund.test.ts
+  s_0dc509588f18e9::t_aa7de75581fab9 84
+web/app/api/billing/webhook/__tests__/provider_allowlist.test.ts
+  s_0dc509588f18e9::t_1bd998b824f748 67
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d90906e39ef54e5286e1b3eed76d66c617e10527",
+  "prompts": {},
+  "sessions": {
+    "s_0dc509588f18e9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fc365f60-a79d-4397-b8a4-2f924d01aba1",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}

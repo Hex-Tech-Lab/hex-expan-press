@@ -1,0 +1,57 @@
+payments/test/settings_registry_runtime.test.ts
+  s_8d7922e130d421::t_6ae678376d6158 6-7,36-37
+  s_8d7922e130d421::t_09b568f9cd74fb 10
+  s_8d7922e130d421::t_487b5da065c67f 28
+  s_8d7922e130d421::t_d0dc2f1a957886 104
+  s_8d7922e130d421::t_8d68ffc48a7f73 21-23
+  s_8d7922e130d421::t_9a3ce94a9b3101 1-5,8-9,11-20,24-27,29-35,38-103,105-165
+src/adapters/payments/paddle.adapter.ts
+  s_8d7922e130d421::t_d2cfdb4b0d3a5b 60
+  s_8d7922e130d421::t_d4caf95d0d8086 203
+  s_8d7922e130d421::t_a31e0351dea424 196-197
+  s_8d7922e130d421::t_edd7680d3fe7b4 30
+src/use_cases/billing/__tests__/process_billing_webhook.test.ts
+  s_8d7922e130d421::t_6d4c24dbf287d6 101-104
+web/app/api/billing/checkout/route.ts
+  s_8d7922e130d421::t_6c063f1a7c7b80 94
+  s_8d7922e130d421::t_797ba000a4499c 5
+payments/src/settings_registry.ts
+  s_8d7922e130d421::t_26860d6b6c4e57 49-55
+  s_8d7922e130d421::t_e2d07229063dba 98-115,119-142,158
+  s_8d7922e130d421::t_fac7a570e2a7a6 116-118
+  s_8d7922e130d421::t_b1fe394c1cf7fa 79-88
+web/app/api/billing/webhook/__tests__/provider_allowlist.test.ts
+  s_8d7922e130d421::t_3483dfccacb510 65-68
+web/app/api/billing/webhook/__tests__/polar-partial-refund.test.ts
+  s_8d7922e130d421::t_3483dfccacb510 82-85
+payments/sync_book_identity.ts
+  s_8d7922e130d421::t_7fb2a5fea8a19c 10
+  s_8d7922e130d421::t_97c95b0bc87f1b 36-37
+web/app/api/billing/webhook/__tests__/fungies-refund-dlq.test.ts
+  s_8d7922e130d421::t_3483dfccacb510 75-78
+src/adapters/payments/polar.adapter.ts
+  s_8d7922e130d421::t_ee30794350674b 70
+  s_8d7922e130d421::t_84d4ca228c68bf 21
+payments/bake_checkout.ts
+  s_8d7922e130d421::t_29439472f5a1f9 6
+  s_8d7922e130d421::t_ad4bb6c788f4e7 229
+  s_8d7922e130d421::t_ab7d299baae153 253
+docs/agent_ledger.jsonl
+  s_8d7922e130d421::t_aa21eeddbfe06e 366
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "5ef404d440bc0aebddd87123e03e20b35d9474dd",
+  "prompts": {},
+  "sessions": {
+    "s_8d7922e130d421": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f0700cf34ffeqICCWN6YDUh292",
+        "model": "@preset/glm-53-flash-on-cheap"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
