@@ -1,0 +1,29 @@
+docs/agent_ledger.jsonl
+  s_031b7584ad78b6::t_44e4a65f0c545e 377
+payments/sync_book_identity.ts
+  s_031b7584ad78b6::t_7f44bc665d6744 188-191
+  s_031b7584ad78b6::t_da252b32c0330d 234-237,239-248
+payments/test/book_identity.test.ts
+  s_031b7584ad78b6::t_b6dbb40658fc3d 189-190
+  s_031b7584ad78b6::t_a5b87735e10897 330,350,453,522,551,556,561,566,679,718,749
+  s_031b7584ad78b6::t_235bfa768f4259 270
+  s_031b7584ad78b6::t_90710e8bd5f162 130-133
+  s_031b7584ad78b6::t_2c230de9dd30f1 392-450
+  s_031b7584ad78b6::t_f4220d976e61b7 218
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "a724759042e0bda745f34dc4a3b8c4dfc93bb876",
+  "prompts": {},
+  "sessions": {
+    "s_031b7584ad78b6": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f06b909aeffe6jG3gMp85cK4qU",
+        "model": "@preset/glm-53-flash-on-cheap"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
