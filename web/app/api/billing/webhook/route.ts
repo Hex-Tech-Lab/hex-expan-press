@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { processBillingWebhookUseCase } from "../../../../../src/use_cases/billing/process_billing_webhook";
 import { PolarAdapter } from "../../../../../src/adapters/payments/polar.adapter";
+import { PaddleAdapter } from "../../../../../src/adapters/payments/paddle.adapter";
 import { LegacyPaymentAdapterWrapper } from "../../../../../src/adapters/payments/legacy.adapter";
 import { fungiesProvider } from "../../../../../payments/src/providers/fungies";
 
@@ -44,10 +45,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const body = bodyBuffer.toString("utf8");
   const headers = Object.fromEntries(request.headers);
 
-  // Only providers we sell through are routable; every other verifier is
-  // unreachable by design (sharp-edges audit 2026-10-01). Add a provider here
-  // only with a reviewed verifier.
-  const adapters = [new PolarAdapter(), new LegacyPaymentAdapterWrapper(fungiesProvider)];
+  // Only providers we sell through are routable (Polar, Paddle, Fungies);
+  // every other verifier is unreachable by design (sharp-edges audit
+  // 2026-10-01). Add a provider here only with a reviewed verifier.
+  const adapters = [new PolarAdapter(), new PaddleAdapter(), new LegacyPaymentAdapterWrapper(fungiesProvider)];
 
   try {
     await processBillingWebhookUseCase({ headers, body }, adapters);
