@@ -9,11 +9,14 @@ import {
   fetchTargetState,
   mismatchList,
   paddleBaseFor,
+  PartialSyncError,
   resolveTargets,
+  runSync,
   supabaseGetUrl,
   supabasePatchUrl,
   supabaseRefFrom,
   paddleGetUrl,
+  type CliEnv,
   type SyncConfig,
   type SyncTargets,
 } from "../sync_book_identity";
@@ -287,11 +290,59 @@ describe("supabase PATCH row-count guard", () => {
 });
 
 describe("partial-write reporting", () => {
-  it("paddle PATCH failure throws a PARTIAL error naming supabase updated / paddle not updated", async () => {
+  it("paddle PATCH failure throws a PartialSyncError with the exact PARTIAL message", async () => {
     const rows = [{ title: REGISTRY.title }];
     const fetchMock = (async (url: string | URL | Request, init?: RequestInit) =>
       jsonResponse(init?.method === "PATCH" && String(url).includes("api.paddle.com") ? { error: "boom" } : rows, init?.method === "PATCH" && String(url).includes("api.paddle.com") ? 500 : 200)) as typeof fetch;
-    await expect(applyIdentity(TARGETS, CFG, loadBookIdentitySyncFixture(), fetchMock)).rejects.toThrow(/PARTIAL: supabase updated, paddle NOT updated — re-run apply \(idempotent\)/);
+    await expect(applyIdentity(TARGETS, CFG, loadBookIdentitySyncFixture(), fetchMock)).rejects.toThrow(PartialSyncError);
+    const fetchMock2 = fetchMock;
+    await expect(applyIdentity(TARGETS, CFG, loadBookIdentitySyncFixture(), fetchMock2)).rejects.toThrow(
+      /PARTIAL SYNC: Supabase updated successfully, but the Paddle update failed or its state is unknown \(HTTP 500\) — re-run apply \(idempotent\)/,
+    );
+  });
+
+  it("paddle fetch rejection throws a PartialSyncError (state unknown)", async () => {
+    const fetchMock = (async (url: string | URL | Request, init?: RequestInit) => {
+      if (init?.method === "PATCH" && String(url).includes("api.paddle.com")) {
+        throw new Error("network down");
+      }
+      return jsonResponse([{ title: REGISTRY.title }]);
+    }) as typeof fetch;
+    await expect(applyIdentity(TARGETS, CFG, loadBookIdentitySyncFixture(), fetchMock)).rejects.toThrow(PartialSyncError);
+  });
+
+  it("supabase ok with unparseable body throws PartialSyncError and Paddle is not called", async () => {
+    let paddleCalls = 0;
+    const fetchMock = (async (url: string | URL | Request, init?: RequestInit) => {
+      if (init?.method === "PATCH" && String(url).includes("api.paddle.com")) {
+        paddleCalls += 1;
+        return jsonResponse({ data: {} });
+      }
+      if (init?.method === "PATCH") {
+        return new Response("<html>not json</html>", { status: 200, headers: { "Content-Type": "text/html" } });
+      }
+      return jsonResponse([{ title: REGISTRY.title }]);
+    }) as typeof fetch;
+    await expect(applyIdentity(TARGETS, CFG, loadBookIdentitySyncFixture(), fetchMock)).rejects.toThrow(
+      /PARTIAL SYNC: Supabase returned success but an unreadable body — it may have been updated; Paddle NOT attempted; re-run apply \(idempotent\)/,
+    );
+    expect(paddleCalls).toBe(0);
+  });
+
+  it("supabase PATCH keeps Prefer: return=representation and a 30s abort timeout", async () => {
+    let capturedInit: RequestInit | undefined;
+    const fetchMock = (async (url: string | URL | Request, init?: RequestInit) => {
+      if (init?.method === "PATCH" && !String(url).includes("paddle")) {
+        capturedInit = init;
+        return jsonResponse([{ title: REGISTRY.title }]);
+      }
+      return jsonResponse({ data: {} });
+    }) as typeof fetch;
+    await applyIdentity(TARGETS, CFG, loadBookIdentitySyncFixture(), fetchMock);
+    expect(capturedInit).toBeDefined();
+    const headers = capturedInit!.headers as Record<string, string>;
+    expect(headers.Prefer).toBe("return=representation");
+    expect((capturedInit!.signal as AbortSignal | undefined)?.constructor.name).toBe("AbortSignal");
   });
 });
 
@@ -371,5 +422,106 @@ describe("repo invariants", () => {
     expect(cfg).not.toHaveProperty("title");
     expect(cfg.book).toBe("books/duane.json");
     expect(cfg.paddle_product_ref).toBe("pro_01m3vxs8fm3b2ygj62cjdys73m");
+  });
+});
+
+describe("runSync orchestration", () => {
+  const ENV_OK: CliEnv = {
+    SUPABASE_URL: "https://sup.supabase.co",
+    SUPABASE_SECRET_KEY: "sk",
+    PADDLE_API_KEY: "pdl",
+    PADDLE_ENVIRONMENT: "sandbox",
+  };
+  const APPLY_OK = ["--sandbox-db-ref", "sup"];
+  const sandboxSupabase = (rowBody: unknown, status = 200) =>
+    (async (url: string | URL | Request, init?: RequestInit) => {
+      if (init?.method === "PATCH" && !String(url).includes("paddle")) return jsonResponse(rowBody, status);
+      if (init?.method === "PATCH") return jsonResponse({ data: {} });
+      if (String(url).includes("rest/v1/products")) return jsonResponse([{ title: REGISTRY.title }]);
+      return jsonResponse({ data: { name: REGISTRY.title, description: REGISTRY.subtitle } });    }) as typeof fetch;
+
+  it("sandbox apply without --sandbox-db-ref rejects with 0 fetch calls", async () => {
+    let calls = 0;
+    const fetchMock = (async () => { calls += 1; return jsonResponse([]); }) as typeof fetch;
+    await expect(runSync([], ENV_OK, fetchMock)).rejects.toThrow(/sandbox apply is not supported/);
+    expect(calls).toBe(0);
+  });
+
+  it("sandbox apply with a mismatched ref rejects with 0 fetch calls", async () => {
+    let calls = 0;
+    const fetchMock = (async () => { calls += 1; return jsonResponse([]); }) as typeof fetch;
+    await expect(runSync(["--sandbox-db-ref", "otherref"], ENV_OK, fetchMock)).rejects.toThrow(/does not match SUPABASE_URL ref/);
+    expect(calls).toBe(0);
+  });
+
+  it("PADDLE_ENVIRONMENT unset rejects with 0 fetch calls", async () => {
+    let calls = 0;
+    const fetchMock = (async () => { calls += 1; return jsonResponse([]); }) as typeof fetch;
+    await expect(runSync(APPLY_OK, { ...ENV_OK, PADDLE_ENVIRONMENT: undefined }, fetchMock)).rejects.toThrow(/PADDLE_ENVIRONMENT must be "sandbox" or "production"/);
+    expect(calls).toBe(0);
+  });
+
+  it('PADDLE_ENVIRONMENT "prod" rejects with 0 fetch calls', async () => {
+    let calls = 0;
+    const fetchMock = (async () => { calls += 1; return jsonResponse([]); }) as typeof fetch;
+    await expect(runSync(APPLY_OK, { ...ENV_OK, PADDLE_ENVIRONMENT: "prod" }, fetchMock)).rejects.toThrow(/PADDLE_ENVIRONMENT must be "sandbox" or "production"/);
+    expect(calls).toBe(0);
+  });
+
+  it("supabase ok + unparseable body -> PartialSyncError, Paddle not called", async () => {
+    const calls: string[] = [];
+    const fetchMock = (async (url: string | URL | Request, init?: RequestInit) => {
+      calls.push(String(url));
+      if (init?.method === "PATCH" && !String(url).includes("paddle")) {
+        return new Response("not json", { status: 200, headers: { "Content-Type": "text/plain" } });
+      }
+      return jsonResponse({ data: {} });
+    }) as typeof fetch;
+    await expect(runSync(APPLY_OK, ENV_OK, fetchMock)).rejects.toBeInstanceOf(PartialSyncError);
+    expect(calls.filter((c) => c.includes("paddle"))).toHaveLength(0);
+  });
+
+  it("supabase ok + paddle fetch rejects -> PartialSyncError", async () => {
+    const fetchMock = (async (url: string | URL | Request, init?: RequestInit) => {
+      if (init?.method === "PATCH" && String(url).includes("paddle")) {
+        throw new Error("connection reset");
+      }
+      if (init?.method === "PATCH") return jsonResponse([{ title: REGISTRY.title }]);
+      return jsonResponse([{ title: REGISTRY.title }]);
+    }) as typeof fetch;
+    await expect(runSync(APPLY_OK, ENV_OK, fetchMock)).rejects.toThrow(PartialSyncError);
+  });
+
+  it("supabase ok + paddle 503 -> PartialSyncError", async () => {
+    const fetchMock = (async (url: string | URL | Request, init?: RequestInit) => {
+      if (init?.method === "PATCH" && String(url).includes("paddle")) return jsonResponse({ error: "x" }, 503);
+      if (init?.method === "PATCH") return jsonResponse([{ title: REGISTRY.title }]);
+      return jsonResponse([{ title: REGISTRY.title }]);
+    }) as typeof fetch;
+    await expect(runSync(APPLY_OK, ENV_OK, fetchMock)).rejects.toThrow(PartialSyncError);
+  });
+
+  it("happy path: 2 PATCH calls, supabase then paddle", async () => {
+    const calls: Array<{ url: string; method?: string }> = [];
+    const fetchMock = (async (url: string | URL | Request, init?: RequestInit) => {
+      calls.push({ url: String(url), method: init?.method });
+      return sandboxSupabase([{ title: REGISTRY.title }])(url, init);
+    }) as typeof fetch;
+    const result = await runSync(APPLY_OK, ENV_OK, fetchMock);
+    expect(result.exitCode).toBe(0);
+    expect(calls.filter((c) => c.method === "PATCH")).toHaveLength(2);
+    expect(calls[0].url).toContain("sup.supabase.co");
+    expect(calls[1].url).toContain("paddle");
+  });
+
+  it("--check happy path makes no PATCH calls", async () => {
+    let patchCalls = 0;
+    const fetchMock = (async (url: string | URL | Request, init?: RequestInit) => {
+      if (init?.method === "PATCH") { patchCalls += 1; return jsonResponse({}); }
+      return sandboxSupabase([{ title: REGISTRY.title }])(url, init);
+    }) as typeof fetch;
+    const result = await runSync(["--check"], ENV_OK, fetchMock);
+    expect(result.exitCode).toBe(0);
+    expect(patchCalls).toBe(0);
   });
 });
