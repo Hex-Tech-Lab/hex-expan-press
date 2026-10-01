@@ -1,4 +1,3 @@
-import { GLOBAL } from "../../../payments/src/settings_registry.ts";
 
 /**
  * Isolated Upstash Redis client with mandatory key-namespacing.

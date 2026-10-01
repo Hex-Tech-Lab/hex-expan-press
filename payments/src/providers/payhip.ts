@@ -57,9 +57,9 @@ export const payhipProvider: CheckoutProvider = {
   parseWebhook(headers: IncomingHttpHeaders, rawBody: Buffer, secret: string | undefined): ParseResult {
     if (!secret) return { ok: false, status: 500, error: `provider not configured: missing ${SECRET_ENV}` };
 
-    let body: any;
+    let body: Record<string, unknown> | null;
     try {
-      body = JSON.parse(rawBody.toString("utf8"));
+      body = JSON.parse(rawBody.toString("utf8")) as Record<string, unknown>;
     } catch {
       return { ok: false, status: 400, error: "invalid JSON body" };
     }
@@ -73,7 +73,6 @@ export const payhipProvider: CheckoutProvider = {
     }
 
     const eventName = typeof body?.type === "string" ? body.type : "<none>";
-    const eventId = typeof body?.id === "string" && body.id !== "" ? body.id : "<none>";
 
     if (REFUND_EVENTS.includes(eventName)) {
       const saleId = String(getPath(body, FM.sale_id) ?? body?.id ?? "");
@@ -98,7 +97,7 @@ export const payhipProvider: CheckoutProvider = {
       return { ok: false, status: 202, error: `ignored non-sale event: ${eventName}` };
     }
 
-    const items: any[] = Array.isArray(body?.items) ? body.items : [];
+    const items: Record<string, unknown>[] = Array.isArray(body?.items) ? (body.items as Record<string, unknown>[]) : [];
     const productId = getPath(body, FM.product_id) ?? items[0]?.product_id;
     const totalMinor = Number(getPath(body, FM.total_cents) ?? body?.price);
     const currency = String(getPath(body, FM.currency) ?? body?.currency ?? "").toUpperCase();

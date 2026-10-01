@@ -43,9 +43,9 @@ const ATTRIBUTION_FIELD_KEY = String(FM.custom_fields_attribution_id ?? "attribu
 // attribution_note in data/settings/providers.json. Server-side extraction only; client-side
 // checkout-link wiring to actually SET this Fungies Custom Field is not yet built (Fungies
 // custom fields are configured per-checkout-link in their dashboard/API, not a raw URL param).
-function resolveAttributionId(items: any[]): string | undefined {
+function resolveAttributionId(items: unknown[]): string | undefined {
   for (const item of items) {
-    const cf = item?.customFields;
+    const cf = item && typeof item === "object" ? (item as Record<string, unknown>).customFields : undefined;
     if (cf && typeof cf === "object" && !Array.isArray(cf)) {
       const v = (cf as Record<string, unknown>)[ATTRIBUTION_FIELD_KEY];
       if (typeof v === "string" && v.trim() !== "") return v;
@@ -54,20 +54,22 @@ function resolveAttributionId(items: any[]): string | undefined {
   return undefined;
 }
 
-function resolveProductId(body: any, items: any[]): unknown {
+function resolveProductId(body: unknown, items: unknown[]): unknown {
   for (const item of items) {
-    const cf = item?.customFields;
+    const cf = item && typeof item === "object" ? (item as Record<string, unknown>).customFields : undefined;
     if (cf && typeof cf === "object" && !Array.isArray(cf)) {
       const v = (cf as Record<string, unknown>)[CUSTOM_FIELD_KEY];
       if (typeof v === "string" && v.trim() !== "") return v;
     }
   }
   for (const item of items) {
-    const internal = item?.product?.internalId;
+    const prod = item && typeof item === "object" ? (item as Record<string, unknown>).product : undefined;
+    const internal = prod && typeof prod === "object" ? (prod as Record<string, unknown>).internalId : undefined;
     if (typeof internal === "string" && internal.trim() !== "") return internal;
   }
   for (const item of items) {
-    const pid = item?.product?.id;
+    const prod = item && typeof item === "object" ? (item as Record<string, unknown>).product : undefined;
+    const pid = prod && typeof prod === "object" ? (prod as Record<string, unknown>).id : undefined;
     if (typeof pid === "string" && pid.trim() !== "") return pid;
   }
   return undefined;
@@ -90,9 +92,9 @@ export const fungiesProvider: CheckoutProvider = {
       return { ok: false, status: 401, error: "invalid signature" };
     }
 
-    let body: any;
+    let body: Record<string, unknown> | null;
     try {
-      body = JSON.parse(rawBody.toString("utf8"));
+      body = JSON.parse(rawBody.toString("utf8")) as Record<string, unknown>;
     } catch {
       return { ok: false, status: 400, error: "invalid JSON body" };
     }
@@ -112,8 +114,10 @@ export const fungiesProvider: CheckoutProvider = {
       // not the refunded portion), so full vs partial cannot be verified here. As a pure
       // translator, this provider emits a refund with amount_unverifiable=true; the ENGINE
       // (process_billing_webhook) routes it to manual review. No DB writes here.
-      const data = body?.data ?? {};
-      const saleId = String(getPath(body, FM.sale_id) ?? data?.payment?.id ?? data?.order?.id ?? "");
+      const data = (body?.data ?? {}) as Record<string, unknown>;
+      const payment = data?.payment as Record<string, unknown> | undefined;
+      const order = data?.order as Record<string, unknown> | undefined;
+      const saleId = String(getPath(body, FM.sale_id) ?? payment?.id ?? order?.id ?? "");
       if (!saleId) {
         return {
           ok: false,
@@ -121,20 +125,20 @@ export const fungiesProvider: CheckoutProvider = {
           error: "payment_refunded missing data.payment.id — refund cannot be linked to a recorded sale",
         };
       }
-      const ts = isoTs(firstDefined(getPath(body, FM.ts_ms), data?.payment?.createdAt, data?.order?.createdAt));
+      const ts = isoTs(firstDefined(getPath(body, FM.ts_ms), payment?.createdAt, order?.createdAt));
       return {
         ok: true,
         refund: { provider: NAME, sale_id: saleId, ts, amount_unverifiable: true },
       };
     }
-    if (!SALE_EVENTS.includes(eventName)) {
+    if (!SALE_EVENTS.includes(eventName as string)) {
       return { ok: false, status: 202, error: `ignored non-sale event: ${eventName ?? "<none>"}` };
     }
 
-    const data = body?.data ?? {};
-    const items: any[] = Array.isArray(data.items) ? data.items : [];
-    const payment = data.payment;
-    const order = data.order;
+    const data = (body?.data ?? {}) as Record<string, unknown>;
+    const items: Record<string, unknown>[] = Array.isArray(data.items) ? (data.items as Record<string, unknown>[]) : [];
+    const payment = data.payment as Record<string, unknown> | undefined;
+    const order = data.order as Record<string, unknown> | undefined;
 
     const productId = resolveProductId(body, items);
     const totalMinor = Number(getPath(body, FM.total_cents) ?? payment?.value ?? order?.value);
@@ -142,7 +146,9 @@ export const fungiesProvider: CheckoutProvider = {
     const saleId = String(getPath(body, FM.sale_id) ?? payment?.id ?? order?.id ?? "");
     const rawTs = firstDefined(getPath(body, FM.ts_ms), payment?.createdAt, order?.createdAt);
     const ts = isoTs(rawTs);
-    const email = getPath(body, FM.email) ?? data.user?.email ?? data.customer?.email;
+    const user = data.user as Record<string, unknown> | undefined;
+    const customer = data.customer as Record<string, unknown> | undefined;
+    const email = getPath(body, FM.email) ?? user?.email ?? customer?.email;
     const decimals = currencyDecimalsOf(payment?.currencyDecimals, order?.currencyDecimals);
     const attributionId = resolveAttributionId(items);
 
