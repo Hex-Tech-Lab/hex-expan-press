@@ -1,0 +1,54 @@
+web/public/privacy.html
+  s_687733663bd13d::t_d2f19da8aeb7e7 6
+web/public/terms.html
+  s_687733663bd13d::t_d2f19da8aeb7e7 6
+payments/config.duane.json
+  s_687733663bd13d::t_8fb5beb22d9095 38
+  s_687733663bd13d::t_0ad87a93397c44 3
+books/duane.json
+  s_687733663bd13d::t_b7d9183186613e 4
+docs/agent_ledger.jsonl
+  s_687733663bd13d::t_696474de173538 364
+payments/src/reports.ts
+  s_687733663bd13d::t_7175df3f5bc236 125-126
+payments/bake_creator_pages.ts
+  s_687733663bd13d::t_c4baaee6ce3085 37
+  s_687733663bd13d::t_544df5f1824b12 127-136
+  s_687733663bd13d::t_e7096c3cc3f9d9 139-141
+  s_687733663bd13d::t_6ab5d3e76dca2a 4
+payments/src/settings.ts
+  s_687733663bd13d::t_d8de5cc090ad5c 114
+  s_687733663bd13d::t_9dfb7a8904a878 2-3,5
+  s_687733663bd13d::t_181045e7f4d79c 28-30,32-42
+  s_687733663bd13d::t_0e3ace14344d09 31
+web/public/refund-policy.html
+  s_687733663bd13d::t_d2f19da8aeb7e7 6
+payments/sync_book_identity.ts
+  s_687733663bd13d::t_5b93bff14d5464 1-17,19-180
+  s_687733663bd13d::t_7862b6fc48066e 18
+payments/test/book_identity.test.ts
+  s_687733663bd13d::t_81e84ce4dd491d 275
+  s_687733663bd13d::t_81ee143d113cc0 72-73
+  s_687733663bd13d::t_1f4932571a43f8 1-71,74-274,276-291
+payments/bake_checkout.ts
+  s_687733663bd13d::t_80c02756f40f4f 137,139-146
+  s_687733663bd13d::t_515aa15bba3aa4 5
+payments/book_identity.ts
+  s_687733663bd13d::t_fe932f6c5f931c 1-43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "32f1e5b088a994ca58ca670f76050b373ce7b51e",
+  "prompts": {},
+  "sessions": {
+    "s_687733663bd13d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f07b539f4ffeXnlmzQV5PNgPSu",
+        "model": "@preset/glm-53-flash-on-cheap"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
