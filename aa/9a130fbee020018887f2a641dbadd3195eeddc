@@ -1,0 +1,68 @@
+src/adapters/payments/polar.adapter.ts
+  s_a15dc2cb74168a::t_3e7ff4e87d774b 91-97
+  s_a15dc2cb74168a::t_8f067eb4fa3c45 67-71
+  s_a15dc2cb74168a::t_c0e5cdb2737e1e 98-99
+web/app/api/billing/webhook/__tests__/provider_allowlist.test.ts
+  s_a15dc2cb74168a::t_3bc55e79195818 1-195
+  s_a15dc2cb74168a::t_3ae4fc458d87bf 196
+web/app/api/billing/checkout/__tests__/route.test.ts
+  s_3fba00044e9bec::t_0eaa1561b73e51 46-48,83-85
+  s_3fba00044e9bec::t_3946033e3d0c46 4
+  s_3fba00044e9bec::t_6540aaeca1d05e 162-266
+  s_3fba00044e9bec::t_2c6aef6210ca8a 267
+web/app/auth/callback/__tests__/route.test.ts
+  s_3fba00044e9bec::t_dc9d9c748ce565 67-101
+  s_3fba00044e9bec::t_39cd269ffa80fc 44-53
+  s_3fba00044e9bec::t_6b5061c85f8c23 102
+web/app/api/billing/checkout/route.ts
+  s_3fba00044e9bec::t_bc1ec0a19e6f29 21-27
+  s_3fba00044e9bec::t_6c93bffd859810 34,37-38
+  s_3fba00044e9bec::t_5a02913eca8607 50-51
+  s_3fba00044e9bec::t_f41dc35af12905 76-81
+  s_3fba00044e9bec::t_aaf4eefeb15cb2 112
+  s_3fba00044e9bec::t_c65da7b3a19b46 101-106
+  s_3fba00044e9bec::t_46bede31a54a0e 107-109
+web/app/auth/callback/route.ts
+  s_3fba00044e9bec::t_92445d02b4a74d 16-17
+  s_3fba00044e9bec::t_0869c12301f992 7-8
+src/adapters/esign/__tests__/firma.adapter.test.ts
+  s_a15dc2cb74168a::t_19261692879f85 69-97
+docs/agent_ledger.jsonl
+  s_a15dc2cb74168a::t_6720bc3686c5a9 345-346
+  s_a15dc2cb74168a::t_f507a8a9db7cf7 347
+  s_3fba00044e9bec::t_92802abf2a0cf5 343
+  s_a15dc2cb74168a::t_464aa09205ac22 344
+web/app/api/billing/webhook/route.ts
+  s_a15dc2cb74168a::t_360d4f6fe4f9af 47-50
+src/adapters/esign/firma.adapter.ts
+  s_a15dc2cb74168a::t_cef5c30ed3ce08 143-152
+src/adapters/payments/__tests__/polar.adapter.test.ts
+  s_a15dc2cb74168a::t_8be6abfc667b90 64-67,86-90,92-93,97-101,103-104
+  s_a15dc2cb74168a::t_a02d7aeb310de7 61-63,68-85,91,94-96,102,105-108
+  s_a15dc2cb74168a::t_0d5aa4da5f065e 7
+  s_a15dc2cb74168a::t_deb57761e8ce75 109
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "aa9a130fbee020018887f2a641dbadd3195eeddc",
+  "prompts": {},
+  "sessions": {
+    "s_3fba00044e9bec": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f0932ad41ffe0GVWf21RN10I9u",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_a15dc2cb74168a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f092c03c1ffewJ5IFhkdk29DXP",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
