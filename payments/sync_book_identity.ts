@@ -77,6 +77,26 @@ export const paddleGetUrl = (t: SyncTargets, paddleProductRef: string): string =
 
 export const paddlePatchUrl = paddleGetUrl;
 
+/** Derive the Supabase project ref from SUPABASE_URL (https://<ref>.supabase.co). */
+export const supabaseRefFrom = (baseUrl: string): string => {
+  const m = new URL(baseUrl).hostname.match(/^([^.]+)\.supabase\.(co|com)$/);
+  if (!m) throw new Error(`sync_book_identity: cannot parse a Supabase project ref from ${baseUrl}`);
+  return m[1];
+};
+
+/** Sandbox guard: a sandbox Paddle run must never PATCH the shared/production
+ *  Supabase. Apply is refused unless --sandbox-db-ref explicitly matches the
+ *  SUPABASE_URL ref; --check is read-only and always allowed. */
+export const assertApplyAllowed = (environment: string | undefined, supabaseBase: string, sandboxDbRef: string | undefined): void => {
+  if (environment !== "sandbox") return;
+  if (sandboxDbRef === undefined) {
+    throw new Error("sandbox apply is not supported: the configured Supabase target is shared with production; use --check");
+  }
+  if (sandboxDbRef !== supabaseRefFrom(supabaseBase)) {
+    throw new Error(`sandbox apply is not supported: --sandbox-db-ref=${sandboxDbRef} does not match SUPABASE_URL ref ${supabaseRefFrom(supabaseBase)}; use --check`);
+  }
+};
+
 export interface TargetState {
   supabaseTitle?: string;
   paddleName?: string;
@@ -124,6 +144,11 @@ export const applyIdentity = async (
     body: JSON.stringify({ title: identity.title }),
   });
   if (!supaRes.ok) throw new Error(`supabase PATCH products HTTP ${supaRes.status}`);
+  const patchedRows = (await supaRes.json()) as Array<{ title?: string }>;
+  if (patchedRows.length !== 1) {
+    throw new Error(`supabase PATCH matched ${patchedRows.length} rows (expected 1) — Paddle NOT updated`);
+  }
+  // Founder intent: the registry subtitle IS the customer-facing Paddle description.
   const paddleRes = await fetchImpl(paddlePatchUrl(t, cfg.paddle_product_ref), {
     method: "PATCH",
     headers: {
@@ -132,7 +157,9 @@ export const applyIdentity = async (
     },
     body: JSON.stringify({ name: identity.title, description: identity.subtitle }),
   });
-  if (!paddleRes.ok) throw new Error(`paddle PATCH products HTTP ${paddleRes.status}`);
+  if (!paddleRes.ok) {
+    throw new Error(`paddle PATCH products HTTP ${paddleRes.status} — PARTIAL: supabase updated, paddle NOT updated — re-run apply (idempotent)`);
+  }
   return { supabase: "applied", paddle: "applied" };
 };
 
@@ -153,6 +180,8 @@ export const mismatchList = (identity: BookIdentity, state: TargetState): string
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   loadDotenvForCli();
   const checkOnly = process.argv.includes("--check");
+  const sandboxDbRefIdx = process.argv.indexOf("--sandbox-db-ref");
+  const sandboxDbRef = sandboxDbRefIdx >= 0 ? process.argv[sandboxDbRefIdx + 1] : undefined;
   const cfg = loadSyncConfig(defaultConfigPath);
   const identity = loadBookIdentity(join(here, "..", cfg.book));
   const targets = resolveTargets();
@@ -167,6 +196,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     }
     console.log("check: all targets match the registry");
   } else {
+    assertApplyAllowed(process.env.PADDLE_ENVIRONMENT, targets.supabaseBase, sandboxDbRef);
     await applyIdentity(targets, cfg, identity);
     console.log("applied: supabase title + paddle name/description updated");
     const state = await fetchTargetState(targets, cfg);

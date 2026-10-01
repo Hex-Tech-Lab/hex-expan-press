@@ -18,7 +18,7 @@ const needNonEmpty = (v: unknown, key: string, source: string): string => {
   if (typeof v !== "string" || v.trim() === "") {
     throw new Error(`book_identity: ${source} "${key}" must be a non-empty string`);
   }
-  return v;
+  return v.trim();
 };
 
 /** Single source of truth for a book's identity. Throws if title/subtitle are

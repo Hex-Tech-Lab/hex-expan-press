@@ -5,12 +5,14 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { loadBookIdentity } from "../book_identity";
 import {
   applyIdentity,
+  assertApplyAllowed,
   fetchTargetState,
   mismatchList,
   paddleBaseFor,
   resolveTargets,
   supabaseGetUrl,
   supabasePatchUrl,
+  supabaseRefFrom,
   paddleGetUrl,
   type SyncConfig,
   type SyncTargets,
@@ -72,6 +74,16 @@ describe("loadBookIdentity", () => {
     const rest: Record<string, unknown> = { ...REGISTRY };
     delete rest.subtitle;
     expect(() => loadBookIdentity(writeBook(rest))).toThrow(/"subtitle" must be a non-empty string/);
+  });
+
+  it("trims leading/trailing whitespace from every identity field", () => {
+    const id = loadBookIdentity(writeBook({
+      id: "  duane  ",
+      title: `\t ${REGISTRY.title} \n`,
+      subtitle: `  ${REGISTRY.subtitle}  `,
+      author: " Duane ",
+    }));
+    expect(id).toEqual({ id: "duane", title: REGISTRY.title, subtitle: REGISTRY.subtitle, author: "Duane" });
   });
 });
 
@@ -166,6 +178,7 @@ describe("applyIdentity sends the right PATCHes", () => {
     const calls: Array<{ url: string; init?: RequestInit }> = [];
     const fetchMock = (async (url: string | URL | Request, init?: RequestInit) => {
       calls.push({ url: String(url), init });
+      if (init?.method === "PATCH" && !String(url).includes("paddle")) return jsonResponse([{ title: REGISTRY.title }]);
       return jsonResponse(init?.method === "PATCH" ? (init.body ? JSON.parse(String(init.body)) : {}) : [{ title: REGISTRY.title }]);
     }) as typeof fetch;
     const prodTargets = { ...TARGETS, paddleBase: paddleBaseFor("production") };
@@ -197,6 +210,7 @@ describe("applyIdentity sends the right PATCHes", () => {
       jsonResponse(init?.method === "PATCH" ? {} : [{ title: REGISTRY.title }])) as typeof fetch;
     const spy = (async (url: string | URL | Request, init?: RequestInit) => {
       urls.push(String(url));
+      if (init?.method === "PATCH" && !String(url).includes("paddle")) return jsonResponse([{ title: REGISTRY.title }]);
       return fetchMock(url, init);
     }) as typeof fetch;
     const sandTargets = { ...TARGETS, paddleBase: paddleBaseFor("sandbox") };
@@ -208,6 +222,76 @@ describe("applyIdentity sends the right PATCHes", () => {
     const fetchMock = (async (url: string | URL | Request, init?: RequestInit) =>
       jsonResponse({ error: "x" }, init?.method === "PATCH" ? 401 : 200)) as typeof fetch;
     await expect(applyIdentity(TARGETS, CFG, loadBookIdentitySyncFixture(), fetchMock)).rejects.toThrow(/supabase PATCH products HTTP 401/);
+  });
+});
+
+describe("sandbox apply guard", () => {
+  it("sandbox apply without --sandbox-db-ref throws before any fetch call", () => {
+    let calls = 0;
+    const fetchMock = (async () => { calls += 1; return jsonResponse([]); }) as typeof fetch;
+    void fetchMock;
+    expect(() => assertApplyAllowed("sandbox", "https://refabc.supabase.co", undefined)).toThrow(/sandbox apply is not supported/);
+    expect(calls).toBe(0);
+  });
+
+  it("sandbox apply with a mismatched ref throws before any fetch call", () => {
+    expect(() => assertApplyAllowed("sandbox", "https://refabc.supabase.co", "otherref")).toThrow(/does not match SUPABASE_URL ref refabc/);
+  });
+
+  it("sandbox apply with the matching ref is allowed", () => {
+    expect(() => assertApplyAllowed("sandbox", "https://refabc.supabase.co", "refabc")).not.toThrow();
+  });
+
+  it("production apply is always allowed", () => {
+    expect(() => assertApplyAllowed("production", "https://refabc.supabase.co", undefined)).not.toThrow();
+  });
+
+  it("supabaseRefFrom parses the project ref", () => {
+    expect(supabaseRefFrom("https://refabc.supabase.co")).toBe("refabc");
+    expect(supabaseRefFrom("https://refabc.supabase.co/")).toBe("refabc");
+    expect(() => supabaseRefFrom("https://sup.example")).toThrow(/cannot parse/);
+  });
+});
+
+describe("supabase PATCH row-count guard", () => {
+  const makeFetch = (rows: unknown[], paddleOk = true) => {
+    const paddleCalls: string[] = [];
+    const fetchMock = (async (url: string | URL | Request, init?: RequestInit) => {
+      if (init?.method === "PATCH" && String(url).includes("api.paddle.com")) {
+        paddleCalls.push(String(url));
+        return jsonResponse({ data: {} }, paddleOk ? 200 : 500);
+      }
+      if (init?.method === "PATCH") return jsonResponse(rows);
+      return jsonResponse([{ title: REGISTRY.title }]);
+    }) as typeof fetch;
+    return { fetchMock, paddleCalls };
+  };
+
+  it("0 rows: throws and Paddle PATCH is not called", async () => {
+    const { fetchMock, paddleCalls } = makeFetch([]);
+    await expect(applyIdentity(TARGETS, CFG, loadBookIdentitySyncFixture(), fetchMock)).rejects.toThrow(/matched 0 rows \(expected 1\) — Paddle NOT updated/);
+    expect(paddleCalls).toHaveLength(0);
+  });
+
+  it("2 rows: throws and Paddle PATCH is not called", async () => {
+    const { fetchMock, paddleCalls } = makeFetch([{ title: "a" }, { title: "b" }]);
+    await expect(applyIdentity(TARGETS, CFG, loadBookIdentitySyncFixture(), fetchMock)).rejects.toThrow(/matched 2 rows \(expected 1\) — Paddle NOT updated/);
+    expect(paddleCalls).toHaveLength(0);
+  });
+
+  it("exactly 1 row proceeds to the Paddle PATCH", async () => {
+    const { fetchMock, paddleCalls } = makeFetch([{ title: REGISTRY.title }]);
+    await applyIdentity(TARGETS, CFG, loadBookIdentitySyncFixture(), fetchMock);
+    expect(paddleCalls).toHaveLength(1);
+  });
+});
+
+describe("partial-write reporting", () => {
+  it("paddle PATCH failure throws a PARTIAL error naming supabase updated / paddle not updated", async () => {
+    const rows = [{ title: REGISTRY.title }];
+    const fetchMock = (async (url: string | URL | Request, init?: RequestInit) =>
+      jsonResponse(init?.method === "PATCH" && String(url).includes("api.paddle.com") ? { error: "boom" } : rows, init?.method === "PATCH" && String(url).includes("api.paddle.com") ? 500 : 200)) as typeof fetch;
+    await expect(applyIdentity(TARGETS, CFG, loadBookIdentitySyncFixture(), fetchMock)).rejects.toThrow(/PARTIAL: supabase updated, paddle NOT updated — re-run apply \(idempotent\)/);
   });
 });
 
