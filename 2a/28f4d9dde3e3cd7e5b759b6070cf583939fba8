@@ -1,0 +1,24 @@
+docs/agent_ledger.jsonl
+  s_bf3ac65fc68f1b::t_ac70a0c5c1dd95 338
+web/app/api/billing/checkout/__tests__/route.test.ts
+  s_bf3ac65fc68f1b::t_d96da820f1b30a 1-67
+web/app/api/billing/checkout/route.ts
+  s_bf3ac65fc68f1b::t_b616ef2ff6d292 19-21
+  s_bf3ac65fc68f1b::t_0cfbe12584bda4 52-57,62
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "2a28f4d9dde3e3cd7e5b759b6070cf583939fba8",
+  "prompts": {},
+  "sessions": {
+    "s_bf3ac65fc68f1b": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f09bf96eeffehVvRODsLDSPhBK",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
