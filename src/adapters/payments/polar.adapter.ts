@@ -94,7 +94,7 @@ export class PolarAdapter implements PaymentProviderPort {
     // replayed later.
     const tsSeconds = Number(ts);
     if (!Number.isInteger(tsSeconds) || Math.abs(Math.floor(Date.now() / 1000) - tsSeconds) > POLAR_WEBHOOK_TOLERANCE_SECONDS) {
-      return { isValid: false, error: "Webhook timestamp outside the 5-minute tolerance", httpStatus: 401 };
+      return { isValid: false, error: `Webhook timestamp outside the ${POLAR_WEBHOOK_TOLERANCE_SECONDS}-second tolerance`, httpStatus: 401 };
     }
 
     // Polar supports two concurrent key derivations
