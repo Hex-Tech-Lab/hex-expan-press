@@ -23,7 +23,7 @@
  * until the Paddle account KYC is complete. All field paths are from Paddle's official
  * docs (developer.paddle.com). Verify against a real sandbox delivery before go-live.
  */
-import { PaymentProviderPort, WebhookParseResult, CheckoutCommand, CheckoutResult, SaleCompletedEvent } from "../../domain/payments/payments.port.ts";
+import { PaymentProviderPort, WebhookParseResult, CheckoutCommand, CheckoutResult, SaleCompletedEvent, RefundIssuedEvent } from "../../domain/payments/payments.port.ts";
 import { z } from "zod";
 import crypto from "crypto";
 import { hashEmail } from "../../../payments/src/provider.ts";
@@ -35,6 +35,13 @@ const PaddleWebhookSchema = z.object({
   data: z.object({
     id: z.string(),
     currency_code: z.string().length(3).optional(),
+    // adjustment.* (refunds / chargebacks)
+    action: z.string().optional(),
+    status: z.string().optional(),
+    transaction_id: z.string().optional(),
+    totals: z.object({ total: z.string() }).optional(),
+    created_at: z.string().datetime().optional(),
+    updated_at: z.string().datetime().optional(),
     details: z.object({
       totals: z.object({
         total: z.string() // Paddle returns total as a string number of cents
@@ -146,8 +153,50 @@ export class PaddleAdapter implements PaymentProviderPort {
       const parsedJson = JSON.parse(body) as unknown;
       const validated = PaddleWebhookSchema.parse(parsedJson);
 
+      // The ledger books every amount in the registry's default currency; a
+      // foreign-currency total must never be recorded as if it were that
+      // currency (audit F4, 2026-10-02).
+      const ledgerCurrency = GLOBAL.defaults.currency.toUpperCase();
+      const currency = (validated.data.currency_code ?? ledgerCurrency).toUpperCase();
+
+      // Refunds and chargebacks arrive as adjustments (audit F3, 2026-10-02).
+      // Only an approved adjustment has moved money; pending/rejected ones are ignored.
+      if (
+        (validated.event_type === "adjustment.created" || validated.event_type === "adjustment.updated") &&
+        (validated.data.action === "refund" || validated.data.action === "chargeback")
+      ) {
+        if (validated.data.status !== "approved") {
+          return { isValid: true, event: { eventType: "ignored", providerName: this.providerName, reason: `Adjustment ${validated.data.action} status=${validated.data.status ?? "unknown"}` } };
+        }
+        if (!validated.data.transaction_id || !validated.data.totals) {
+          return { isValid: false, error: "Paddle adjustment missing transaction_id or totals", httpStatus: 400 };
+        }
+        if (currency !== ledgerCurrency) {
+          return { isValid: false, error: `Unsupported currency ${currency} (ledger is ${ledgerCurrency})`, httpStatus: 422 };
+        }
+        const refundCents = Number(validated.data.totals.total);
+        if (!Number.isSafeInteger(refundCents) || refundCents < 0) {
+          return { isValid: false, error: "Paddle adjustment total is not integer cents", httpStatus: 400 };
+        }
+        const event: RefundIssuedEvent = {
+          eventType: "refund_issued",
+          providerName: this.providerName,
+          saleId: validated.data.transaction_id,
+          refundId: validated.data.id,
+          totalCents: refundCents,
+          currency,
+          occurredAt: validated.data.updated_at || validated.data.created_at || new Date().toISOString(),
+          rawPayload: parsedJson
+        };
+        return { isValid: true, event };
+      }
+
       if (validated.event_type !== "transaction.completed") {
         return { isValid: true, event: { eventType: "ignored", providerName: this.providerName, reason: `Non-sale event: ${validated.event_type}` } };
+      }
+
+      if (currency !== ledgerCurrency) {
+        return { isValid: false, error: `Unsupported currency ${currency} (ledger is ${ledgerCurrency})`, httpStatus: 422 };
       }
 
       const priceMap = loadPaddlePriceMap();
@@ -224,7 +273,7 @@ export class PaddleAdapter implements PaymentProviderPort {
         saleId: validated.data.id,
         productId,
         totalCents,
-        currency: (validated.data.currency_code ?? "USD").toUpperCase(),
+        currency,
         buyerEmailHash: hashEmail(email),
         occurredAt: validated.data.changed_at || new Date().toISOString(),
         attributionId: validated.data.custom_data?.reference_id || undefined,
