@@ -1,0 +1,26 @@
+payments/test/settings_registry_runtime.test.ts
+  s_62aa188384d55f::t_ab9aeaa1578fde 72,74
+  s_62aa188384d55f::t_1b578e3df5017b 118,132-134
+payments/src/settings_registry.ts
+  s_62aa188384d55f::t_99e4a0ae3665d3 136
+  s_62aa188384d55f::t_6dfd7654010b64 134-135,137-141
+  s_62aa188384d55f::t_d3305d0ed7f23e 195
+docs/agent_ledger.jsonl
+  s_62aa188384d55f::t_f73d01630d8316 374
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "eafe98f99eceaf456f659038c66e69a090741ebf",
+  "prompts": {},
+  "sessions": {
+    "s_62aa188384d55f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f06caf469ffe04NDP3juXVKTw4",
+        "model": "@preset/glm-53-flash-on-cheap"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
