@@ -346,6 +346,73 @@ describe("partial-write reporting", () => {
   });
 });
 
+describe("5xx + title verification hardening", () => {
+  const makeRecordingFetch = (handler: (url: string, method: string) => Response | Promise<Response>) => {
+    const calls: Array<{ url: string; method: string }> = [];
+    const fetchMock = (async (url: string | URL | Request, init?: RequestInit) => {
+      const method = init?.method ?? "GET";
+      calls.push({ url: String(url), method });
+      return handler(String(url), method);
+    }) as typeof fetch;
+    return { fetchMock, calls };
+  };
+
+  it("supabase PATCH 503 -> PartialSyncError, exactly 1 supabase PATCH, 0 paddle requests", async () => {
+    const { fetchMock, calls } = makeRecordingFetch((url, method) =>
+      jsonResponse({ error: "x" }, method === "PATCH" && !url.includes("paddle") ? 503 : 200));
+    await expect(applyIdentity(TARGETS, CFG, loadBookIdentitySyncFixture(), fetchMock)).rejects.toThrow(PartialSyncError);
+    await expect(applyIdentity(TARGETS, CFG, loadBookIdentitySyncFixture(), fetchMock)).rejects.toThrow(
+      /PARTIAL SYNC: Supabase PATCH HTTP 503; Supabase may have committed; Paddle NOT attempted; reconcile \(run --check\) before retrying/,
+    );
+    expect(calls.filter((c) => c.method === "PATCH" && c.url.includes("sup"))).toHaveLength(2);
+    expect(calls.filter((c) => c.url.includes("paddle"))).toHaveLength(0);
+  });
+
+  it("supabase PATCH 400 -> plain Error (not PartialSyncError), 0 paddle requests", async () => {
+    const { fetchMock, calls } = makeRecordingFetch((url, method) =>
+      jsonResponse({ error: "x" }, method === "PATCH" && !url.includes("paddle") ? 400 : 200));
+    const err = await applyIdentity(TARGETS, CFG, loadBookIdentitySyncFixture(), fetchMock).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(Error);
+    expect(err).not.toBeInstanceOf(PartialSyncError);
+    expect((err as Error).message).toMatch(/supabase PATCH products HTTP 400/);
+    expect(calls.filter((c) => c.url.includes("paddle"))).toHaveLength(0);
+  });
+
+  it("returned row title mismatch -> PartialSyncError, 0 paddle requests", async () => {
+    const { fetchMock, calls } = makeRecordingFetch((url, method) =>
+      method === "PATCH" && !url.includes("paddle") ? jsonResponse([{ title: "Rewritten by a trigger" }]) : jsonResponse({ data: {} }));
+    await expect(applyIdentity(TARGETS, CFG, loadBookIdentitySyncFixture(), fetchMock)).rejects.toThrow(
+      /PARTIAL SYNC: Supabase row title is 'Rewritten by a trigger', expected '.*' \(trigger\/rule rewrote it\?\); Paddle NOT attempted/,
+    );
+    expect(calls.filter((c) => c.url.includes("paddle"))).toHaveLength(0);
+  });
+
+  it("GET timeout (AbortError) -> error names the target", async () => {
+    const fetchMock = (async (url: string | URL | Request) => {
+      if (String(url).includes("paddle")) return jsonResponse({ data: { name: REGISTRY.title, description: REGISTRY.subtitle } });
+      throw new DOMException("The operation was aborted due to timeout", "AbortError");
+    }) as typeof fetch;
+    await expect(fetchTargetState(TARGETS, CFG, fetchMock)).rejects.toThrow(/supabase GET products timed out or failed/);
+    const fetchMock2 = (async (url: string | URL | Request, init?: RequestInit) => {
+      if (init?.method === "PATCH") return jsonResponse([{ title: REGISTRY.title }]);
+      if (String(url).includes("rest/v1/products")) return jsonResponse([{ title: REGISTRY.title }]);
+      throw new DOMException("The operation was aborted due to timeout", "AbortError");
+    }) as typeof fetch;
+    await expect(fetchTargetState(TARGETS, CFG, fetchMock2)).rejects.toThrow(/paddle GET products timed out or failed/);
+  });
+
+  it("GETs carry an AbortSignal timeout", async () => {
+    const inits: RequestInit[] = [];
+    const fetchMock = (async (url: string | URL | Request, init?: RequestInit) => {
+      inits.push(init ?? {});
+      if (String(url).includes("rest/v1/products")) return jsonResponse([{ title: REGISTRY.title }]);
+      return jsonResponse({ data: { name: REGISTRY.title, description: REGISTRY.subtitle } });
+    }) as typeof fetch;
+    await fetchTargetState(TARGETS, CFG, fetchMock);
+    for (const i of inits) expect((i.signal as AbortSignal | undefined)?.constructor.name).toBe("AbortSignal");
+  });
+});
+
 describe("paddleBaseFor", () => {
   it("maps production and sandbox correctly", () => {
     expect(paddleBaseFor("production")).toBe("https://api.paddle.com");
