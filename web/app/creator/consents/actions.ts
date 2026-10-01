@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { getPortalSession } from "../../../src/lib/supabase-server";
+import { resolvePrimaryProduct } from "../../../src/lib/primary-product";
 
 export interface ConsentFormState {
   ok?: boolean;
@@ -39,9 +40,11 @@ export async function signConsentAction(_prev: ConsentFormState, formData: FormD
     return { error: "Please type your full legal name — first and last name, as in your passport (e.g. “Duane Smith”)." };
   }
 
-  const { data: products } = await session.supabase.from("products").select("id, release_sha256").order("created_at", { ascending: true }).limit(1);
-  const product = products?.[0];
-  if (!product) return { error: "No product is linked to your account yet — contact support@expanpress.com." };
+  const { product, error: productError } = await resolvePrimaryProduct<{ id: string; release_sha256: string | null }>(
+    session.supabase,
+    "id, release_sha256",
+  );
+  if (productError || !product) return { error: "No product is linked to your account yet — contact support@expanpress.com." };
 
   // C2 approves a specific release PDF — it must bind to that file's real hash
   // (the submit_consent RPC enforces the same rule). C1 has no document.

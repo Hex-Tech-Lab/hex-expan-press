@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getPortalSession } from "../../../src/lib/supabase-server";
+import { resolvePrimaryProduct } from "../../../src/lib/primary-product";
 import ConsentCards from "./consent-cards";
 
 export const metadata: Metadata = {
@@ -23,8 +24,8 @@ export default async function ConsentsPage() {
 
   // Product first, then ITS consents: a creator with several products must never
   // see one book's consent as another's (same product resolution as the action).
-  const productRes = await supabase.from("products").select("id, title").order("created_at", { ascending: true }).limit(1);
-  const product = productRes.data?.[0];
+  const productRes = await resolvePrimaryProduct<{ id: string; title: string }>(supabase, "id, title");
+  const product = productRes.product;
   if (productRes.error || !product) {
     return (
       <ConsentNotice
