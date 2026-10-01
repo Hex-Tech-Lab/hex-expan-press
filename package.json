@@ -14,6 +14,7 @@
     "transcribe": "tsx transcribe.ts",
     "certify": "tsx certify_asset.ts",
     "freeze:check": "tsx scripts/verify_freeze.ts",
+    "lint": "eslint src payments",
     "qa:intel": "../hex-yt-intel/node_modules/.bin/tsx ../hex-yt-intel/scripts/verify-quality-engine.ts --mode diff --base origin/master --compare",
     "qa:intel:full": "../hex-yt-intel/node_modules/.bin/tsx ../hex-yt-intel/scripts/verify-quality-engine.ts --mode full --compare"
   },
@@ -45,8 +46,10 @@
     "@types/node": "^26.6.3",
     "@vitest/coverage-v8": "^5.0.2",
     "esbuild": "0.28.2",
+    "eslint": "^9.39.5",
     "tsx": "4.23.13",
     "typescript": "7.0.2",
+    "typescript-eslint": "^8.70.1",
     "vercel": "59.16.0",
     "vitest": "5.0.1"
   }

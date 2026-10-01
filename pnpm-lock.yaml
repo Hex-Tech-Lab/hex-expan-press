@@ -134,12 +134,18 @@ importers:
       esbuild:
         specifier: 0.28.2
         version: 0.28.2
+      eslint:
+        specifier: ^9.39.5
+        version: 9.39.5
       tsx:
         specifier: 4.23.13
         version: 4.23.13
       typescript:
         specifier: 7.0.2
         version: 7.0.2
+      typescript-eslint:
+        specifier: ^8.70.1
+        version: 8.70.1
       vercel:
         specifier: 59.16.0
         version: 59.16.0(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)(rollup@4.63.5)(supports-color@7.2.0)
