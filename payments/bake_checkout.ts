@@ -278,7 +278,7 @@ export const primaryPaddle = (
     `onerror="(function(){var b=document.getElementById('buy');` +
     `if(b){b.disabled=true;b.textContent='Checkout temporarily unavailable';}})()"`;
   const script =
-    `<script ${onError} src="${GLOBAL.payments.paddle.js_cdn_url}"></script>\n` +
+    `<script ${onError} src="${esc(GLOBAL.payments.paddle.js_cdn_url)}" data-paddle-cdn></script>\n` +
     `<script>(function(){\n` +
     `  function markUnavailable() {\n` +
     `    var b = document.getElementById("buy");\n` +
@@ -302,7 +302,7 @@ export const primaryPaddle = (
     `    } catch (e) { markUnavailable(); }\n` +
     `  }\n` +
     `  if (window.Paddle) { boot(); return; }\n` +
-    `  var s = document.querySelector('script[src="${GLOBAL.payments.paddle.js_cdn_url}"]');\n` +
+    `  var s = document.querySelector('script[data-paddle-cdn]');\n` +
     `  if (!s) { markUnavailable(); return; }\n` +
     `  s.addEventListener("load", boot);\n` +
     `  s.addEventListener("error", markUnavailable);\n` +
