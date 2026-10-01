@@ -1,0 +1,21 @@
+.github/workflows/ci.yml
+  s_0dc509588f18e9::t_8c8e96b3e1e50b 1-32
+docs/agent_ledger.jsonl
+  s_0dc509588f18e9::t_e604a5e21ad25c 358
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "77800d4ade3a1dcfb7e6334b9f097e8cbf01148f",
+  "prompts": {},
+  "sessions": {
+    "s_0dc509588f18e9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fc365f60-a79d-4397-b8a4-2f924d01aba1",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
