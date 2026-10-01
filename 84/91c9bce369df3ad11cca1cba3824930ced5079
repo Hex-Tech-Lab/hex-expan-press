@@ -1,0 +1,33 @@
+docs/agent_ledger.jsonl
+  s_0dc509588f18e9::t_019bd83547bd5f 365,368-370
+payments/bake_checkout.ts
+  s_0dc509588f18e9::t_9d4da7940e6e42 22-23,26-27,32-33,47,66-67,69-74,76,78-108,163-173,184-186,238-239,243-259,423-436,484,487
+payments/config.duane.json
+  s_0dc509588f18e9::t_37e0bedc69181a 40
+payments/sync_book_identity.ts
+  s_0dc509588f18e9::t_fb288bbeea78ab 34-36,40-51,61-64,66-74,137-138,146-172,175-188,190,209-225,228-235,237,239-240,242-243,245-271,273-296
+payments/test/bake_checkout_flow.test.ts
+  s_0dc509588f18e9::t_e5cf98699b385f 4-5,9,13,22-28,50,62-66,71,80-83,86-177,244-316
+payments/test/bake_checkout_paddle.test.ts
+  s_0dc509588f18e9::t_4f81de094f4600 2,59-77
+payments/test/book_identity.test.ts
+  s_0dc509588f18e9::t_a689aa14a35d0b 12,14,19,293,297-345,427-527
+web/app/creator/signin/actions.ts
+  s_0dc509588f18e9::t_24a26178252683 4,73,111
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "8491c9bce369df3ad11cca1cba3824930ced5079",
+  "prompts": {},
+  "sessions": {
+    "s_0dc509588f18e9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fc365f60-a79d-4397-b8a4-2f924d01aba1",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
