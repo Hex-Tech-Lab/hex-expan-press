@@ -1,0 +1,29 @@
+docs/agent_ledger.jsonl
+  s_aa862b80a996ac::t_071be114bc90bd 1,25,32-36,53-56,59-60,68-69,81-85,90,92-94,99,105-109,113-131,143-144,146-148,151,154,158,160-165,167-172,175,178,181,186,188,190,202,205,211-236,239-241,244-247,250-251,255-259,281-282,294,297,301,304-309,314-315,320,322-338,344-352
+AGENTS.md
+  s_0dc509588f18e9::t_f0cc0a9cefe5f8 21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "69e870c9e0dabcafc46a472fc5e6f6d0e44967c8",
+  "prompts": {},
+  "sessions": {
+    "s_0dc509588f18e9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fc365f60-a79d-4397-b8a4-2f924d01aba1",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_aa862b80a996ac": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f08c9d910ffeP2J7xRviKnEHTU",
+        "model": "@preset/glm-53-flash-on-cheap"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
