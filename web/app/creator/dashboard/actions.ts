@@ -4,6 +4,7 @@ import { redirect, unstable_rethrow } from "next/navigation";
 import { createSsrClient } from "../../../src/lib/supabase-ssr";
 import { clearPortalCookies, getPortalSession } from "../../../src/lib/supabase-server";
 import { EnvSettingsAdapter } from "../../../../src/adapters/settings/env_settings.adapter";
+import { resolvePrimaryProduct } from "../../../src/lib/primary-product";
 import { createEsignEnvelopeUseCase } from "../../../../src/use_cases/create_esign_envelope";
 
 /**
@@ -64,6 +65,13 @@ export async function startPublisherAgreementAction(): Promise<void> {
     redirect("/creator/dashboard?error=c2_required");
   }
 
+  // Every portal status surface (dashboard, consents page, esign_done) reads the PRIMARY product,
+  // so the C3 envelope may only be created for it — otherwise signing could succeed while those
+  // pages still show C3 as unsigned. Mismatch fails closed.
+  const { product: primary } = await resolvePrimaryProduct<{ id: string }>(supabase, "id");
+  if (!primary || primary.id !== head.product_id) {
+    redirect("/creator/dashboard?error=c2_required");
+  }
   const productId = head.product_id;
 
   const siteOrigin = process.env.NEXT_PUBLIC_SITE_ORIGIN ?? "https://expanpress.com";
