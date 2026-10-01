@@ -20,15 +20,18 @@ export const loadDotenvForCli = (): void => {
 export type ConsentKind = "C1_data_accuracy" | "C2_release_approval" | "C3_revenue_split";
 const CONSENT_KINDS: ConsentKind[] = ["C1_data_accuracy", "C2_release_approval", "C3_revenue_split"];
 
-interface ConsentRow {
+export interface ConsentRow {
+  id: string;
   kind: string;
   decision: string;
-  signed_at: string;
-  superseded_by: string | null;
+  signed_at: string | null;
+  supersedes: string | null;
 }
 
 // Launch gate: every product sold through Paddle must have the most recent
 // consent row for each of C1/C2/C3 carrying decision "given" in Supabase.
+// Chain resolution: chain head is a row of that kind whose id is not referenced
+// by any other row's supersedes.
 // Hermetic in tests: pass a fetchImpl; env is read lazily at call time (after
 // the CLI-path dotenv load), never at import time.
 export const assertLaunchConsents = async (
@@ -42,7 +45,7 @@ export const assertLaunchConsents = async (
   }
   const url =
     `${base}/rest/v1/consents?product_id=eq.${encodeURIComponent(dbProductId)}` +
-    `&select=kind,decision,signed_at,superseded_by:supersedes&order=signed_at.desc`;
+    `&select=id,kind,decision,signed_at,supersedes`;
   const doFetch = fetchImpl ?? fetch;
   let res: Response;
   try {
@@ -61,17 +64,49 @@ export const assertLaunchConsents = async (
   } catch (e) {
     throw new Error(`launch blocked: ${dbProductId}: consent lookup returned unparseable body: ${(e as Error).message}`);
   }
-  const latestByKind = new Map<string, string>();
+
+  const rowsByKind = new Map<string, ConsentRow[]>();
   for (const r of rows) {
-    if (!latestByKind.has(r.kind)) latestByKind.set(r.kind, r.decision);
+    if (r.signed_at === null || r.signed_at === undefined) {
+      throw new Error(`launch blocked: ${dbProductId}: consent ${r.id ?? r.kind} has null signed_at`);
+    }
+    const list = rowsByKind.get(r.kind) ?? [];
+    list.push(r);
+    rowsByKind.set(r.kind, list);
   }
-  const missing: string[] = [];
+
   for (const kind of CONSENT_KINDS) {
-    const decision = latestByKind.get(kind);
-    if (!decision || decision !== "given") missing.push(kind);
-  }
-  if (missing.length > 0) {
-    throw new Error(`launch blocked: ${dbProductId}: missing consent(s): ${missing.join(",")}`);
+    const list = rowsByKind.get(kind);
+    if (!list || list.length === 0) {
+      throw new Error(`launch blocked: ${dbProductId}: missing consent(s): ${kind}`);
+    }
+
+    const supersededIds = new Set<string>();
+    for (const r of list) {
+      if (r.supersedes) supersededIds.add(r.supersedes);
+    }
+
+    const heads = list.filter((r) => !supersededIds.has(r.id));
+    if (heads.length === 0) {
+      throw new Error(`launch blocked: ${dbProductId}: no head found for consent kind ${kind}`);
+    }
+    if (heads.length > 1) {
+      throw new Error(`launch blocked: ${dbProductId}: more than one head for consent kind ${kind}`);
+    }
+
+    const head = heads[0];
+    if (head.decision !== "given") {
+      throw new Error(`launch blocked: ${dbProductId}: consent ${kind} head decision is ${head.decision}`);
+    }
+
+    const conflictingSameSignedAt = list.find(
+      (r) => r.signed_at === head.signed_at && r.decision !== head.decision,
+    );
+    if (conflictingSameSignedAt) {
+      throw new Error(
+        `launch blocked: ${dbProductId}: multiple rows for ${kind} with same signed_at but conflicting decision`,
+      );
+    }
   }
 };
 const isRealUrl = (u: string | undefined): u is string =>
@@ -126,7 +161,17 @@ const walkSiteCDirs = (root: string): string[] => {
   return dirs;
 };
 
-const loadProductConfig = (assoc: ProductAssoc | undefined) => {
+export const resolveProductTitle = (cfg: { title?: string; book?: string }, configPath: string = defaultConfigPath): string => {
+  if (cfg.book && cfg.book.trim() !== "") {
+    return loadBookIdentity(join(here, "..", cfg.book)).title;
+  }
+  if (cfg.title) {
+    return cfg.title;
+  }
+  throw new Error(`${configPath}: "book" must point at a book registry file (no inline "title" either)`);
+};
+
+export const loadProductConfig = (assoc: ProductAssoc | undefined) => {
   const path = assoc ? join(here, "..", assoc.config_file) : defaultConfigPath;
   const cfg = JSON.parse(readFileSync(path, "utf8")) as {
     checkout_url?: string;
@@ -137,14 +182,9 @@ const loadProductConfig = (assoc: ProductAssoc | undefined) => {
     db_product_id?: string;
     book?: string;
   } & Facts;
-  // Title SSOT (2026-10-01): configs no longer carry "title" — resolve it from the
-  // book registry via the config's "book" path so every bake reads books/duane.json.
-  if (!cfg.title) {
-    if (!cfg.book || cfg.book.trim() === "") {
-      throw new Error(`${path}: "book" must point at a book registry file (no inline "title" either)`);
-    }
-    cfg.title = loadBookIdentity(join(here, "..", cfg.book)).title;
-  }
+  // Title SSOT (2026-10-01): when config has "book", the bake must ALWAYS take
+  // the title from the registry via loadBookIdentity and ignore any inline cfg.title.
+  cfg.title = resolveProductTitle(cfg, path);
   return { cfg, source: assoc ? assoc.config_file : "payments/config.duane.json" };
 };
 
@@ -196,16 +236,28 @@ const primaryLive = (source: string) =>
 // invalid ids throw here so the bake fails rather than shipping a dead button.
 export const PADDLE_MARKER_START = "<!--paddle-checkout:start-->";
 export const PADDLE_MARKER_END = "<!--paddle-checkout:end-->";
-// Strips a previously baked paddle block. The block contains the primary slot
-// element, so stripping must leave a bare placeholder slot behind — otherwise
-// the subsequent swap() has no anchor and a paddle→gated rollback would ship
-// no buy link at all. The CLI loop always swaps the primary slot right after
-// stripping, so the placeholder never survives into output.
-export const stripPaddleBlocks = (html: string): string =>
-  html.replace(
+export const stripPaddleBlocks = (html: string): string => {
+  let out = html.replace(
     new RegExp(`[ \\t]*${PADDLE_MARKER_START}[\\s\\S]*?${PADDLE_MARKER_END}\\n?`, "g"),
     `<a data-checkout-slot="primary" data-paddle-stripped="1"></a>\n`,
   );
+  // Also strip legacy unmarked Paddle CDN script tags on every bake
+  out = out.replace(
+    /[ \t]*<script\b[^>]*src="https:\/\/cdn\.paddle\.com\/paddle\/v2\/paddle\.js"[^>]*><\/script>\n?/gi,
+    "",
+  );
+  // Also strip any legacy unmarked inline script whose body contains Paddle.Initialize or Paddle.Checkout.open
+  out = out.replace(
+    /[ \t]*<script\b(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>\n?/gi,
+    (match, body) => {
+      if (body.includes("Paddle.Initialize") || body.includes("Paddle.Checkout.open") || body.includes("Paddle.Checkout")) {
+        return "";
+      }
+      return match;
+    },
+  );
+  return out;
+};
 
 export const primaryPaddle = (
   source: string,
@@ -369,6 +421,20 @@ export const paddleTokenForEnv = (token: string | undefined, environment: "produ
   return token;
 };
 
+export const resolvePaddlePrice = (
+  cfg: { paddle_price_id?: string; paddle_price_id_sandbox?: string },
+  environment: "production" | "sandbox",
+  pageRel: string = "site/c/page",
+): string => {
+  const priceId = environment === "sandbox" ? cfg.paddle_price_id_sandbox : cfg.paddle_price_id;
+  if (!priceId) {
+    throw new Error(
+      `${pageRel}: checkout_mode=paddle requires paddle_price_id${environment === "sandbox" ? "_sandbox" : ""} and paddle_product_id (config) — refusing to bake a broken primary slot`,
+    );
+  }
+  return priceId;
+};
+
 if (runAsMain) {
   loadDotenvForCli();
 
@@ -416,10 +482,10 @@ if (runAsMain) {
   if (isPaddle) {
     const environment = paddleEnvironment(process.env.PADDLE_ENVIRONMENT);
     const clientToken = paddleTokenForEnv(process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN, environment);
-    const priceId = environment === "sandbox" ? cfg.paddle_price_id_sandbox : cfg.paddle_price_id;
+    const priceId = resolvePaddlePrice(cfg, environment, join("site", "c", rel, "index.html"));
     const productId = cfg.paddle_product_id;
     const dbProductId = cfg.db_product_id;
-    if (!priceId || !productId) {
+    if (!productId) {
       throw new Error(
         `${join("site", "c", rel, "index.html")}: checkout_mode=paddle requires paddle_price_id${environment === "sandbox" ? "_sandbox" : ""} and paddle_product_id (config) — refusing to bake a broken primary slot`,
       );

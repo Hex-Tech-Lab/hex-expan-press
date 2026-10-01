@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { primaryPaddle } from "../bake_checkout";
+import { primaryPaddle, resolvePaddlePrice } from "../bake_checkout";
 
 const opts = {
   priceId: "pri_test123",
@@ -54,5 +54,24 @@ describe("primaryPaddle", () => {
     expect(() =>
       primaryPaddle("cfg.json", { ...opts, priceId: "pri_test</script>" }),
     ).toThrow();
+  });
+});
+
+describe("resolvePaddlePrice", () => {
+  it("throws in sandbox mode when paddle_price_id_sandbox is missing", () => {
+    const cfg = { paddle_price_id: "pri_live123" };
+    expect(() => resolvePaddlePrice(cfg, "sandbox")).toThrow(
+      /checkout_mode=paddle requires paddle_price_id_sandbox/,
+    );
+  });
+
+  it("returns sandbox price when present in sandbox mode", () => {
+    const cfg = { paddle_price_id: "pri_live123", paddle_price_id_sandbox: "pri_test123" };
+    expect(resolvePaddlePrice(cfg, "sandbox")).toBe("pri_test123");
+  });
+
+  it("returns production price in production mode", () => {
+    const cfg = { paddle_price_id: "pri_live123" };
+    expect(resolvePaddlePrice(cfg, "production")).toBe("pri_live123");
   });
 });
