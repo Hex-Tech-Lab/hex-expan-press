@@ -1,0 +1,24 @@
+web/app/auth/callback/route.ts
+  s_a41a7007facd26::t_00b01b9f0e136f 2,7-8,10-16,22-24,26,32-39
+web/app/auth/callback/__tests__/route.test.ts
+  s_a41a7007facd26::t_a1ee81e1c6662b 1-4,12-15,17-68
+  s_a41a7007facd26::t_78894d4d09f23d 5-11,16
+docs/agent_ledger.jsonl
+  s_a41a7007facd26::t_5d7f78e072b31b 339
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "451f690b6a10aefe92f5911cdff6aef3bb9b98c4",
+  "prompts": {},
+  "sessions": {
+    "s_a41a7007facd26": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f0999523effe4te45yIeFhIoOb",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
