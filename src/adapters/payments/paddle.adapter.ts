@@ -1,6 +1,10 @@
 /**
  * paddle.adapter.ts — Paddle Billing provider adapter
  *
+ * Environment isolation: each Paddle environment has its own webhook secret
+ * and its own price ids; a sandbox-signed event fails the production secret,
+ * and a sandbox price id is absent from the production PADDLE_PRICE_MAP.
+ *
  * SSOT for all Paddle-specific field mappings, signature schemes, and event types.
  * ADR: ADR-0050
  *
@@ -12,7 +16,7 @@
  * Amount unit: cents (integer) in details.totals.total
  * Timestamp source: data.changed_at (ISO-8601)
  * Email path: data.custom_data.email
- * Product ID path: data.custom_data.product_id
+ * Product ID path: mapped server-side via PADDLE_PRICE_MAP (items[].price.id)
  * Attribution ID path: data.custom_data.reference_id (not yet wired client-side)
  *
  * STATUS: PENDING-KYC — adapter is wired and type-checked but cannot be live-tested
@@ -41,11 +45,49 @@ const PaddleWebhookSchema = z.object({
       reference_id: z.string().optional() // attribution passthrough (wiring unverified)
     }).optional().nullable(),
     changed_at: z.string().datetime().optional(),
-    customer_id: z.string().optional()
+    customer_id: z.string().optional(),
+    items: z.array(
+      z.object({
+        price: z.object({
+          id: z.string()
+        }).passthrough()
+      }).passthrough()
+    ).optional()
   })
 });
 
 export const PADDLE_WEBHOOK_TOLERANCE_SECONDS = 300;
+
+export function loadPaddlePriceMap(
+  raw: string | undefined = process.env.PADDLE_PRICE_MAP
+): Record<string, string> | null {
+  if (typeof raw !== "string" || !raw.trim()) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+    const result: Record<string, string> = {};
+    for (const [k, v] of Object.entries(parsed)) {
+      if (typeof v !== "string") return null;
+      result[k] = v;
+    }
+    return result;
+  } catch {
+    return null;
+  }
+}
+
+export function paddleServerEnvironment(
+  raw: string | undefined = process.env.PADDLE_ENVIRONMENT,
+  vercelEnv: string | undefined = process.env.VERCEL_ENV
+): "sandbox" | "production" | null {
+  if (raw !== "sandbox" && raw !== "production") {
+    return null;
+  }
+  if (vercelEnv === "production" && raw !== "production") {
+    return null;
+  }
+  return raw;
+}
 
 export class PaddleAdapter implements PaymentProviderPort {
   readonly providerName = "paddle";
@@ -57,6 +99,11 @@ export class PaddleAdapter implements PaymentProviderPort {
   async parseAndValidateWebhook(headers: Record<string, string | string[] | undefined>, body: string): Promise<WebhookParseResult> {
     const secret = process.env.PADDLE_WEBHOOK_SECRET;
     if (!secret) return { isValid: false, error: "PADDLE_WEBHOOK_SECRET not configured", httpStatus: 500 };
+
+    const serverEnv = paddleServerEnvironment();
+    if (!serverEnv) {
+      return { isValid: false, error: "PADDLE_ENVIRONMENT missing, unknown, or sandbox in production", httpStatus: 500 };
+    }
 
     const sigHeader = headers["paddle-signature"] as string;
     if (!sigHeader) return { isValid: false, error: "Missing paddle-signature header", httpStatus: 401 };
@@ -102,8 +149,37 @@ export class PaddleAdapter implements PaymentProviderPort {
         return { isValid: true, event: { eventType: "ignored", providerName: this.providerName, reason: `Non-sale event: ${validated.event_type}` } };
       }
 
-      const productId = validated.data.custom_data?.product_id;
-      if (!productId) return { isValid: false, error: "Missing custom_data.product_id in Paddle payload", httpStatus: 400 };
+      const priceMap = loadPaddlePriceMap();
+      if (priceMap === null) {
+        return { isValid: false, error: "PADDLE_PRICE_MAP not configured", httpStatus: 500 };
+      }
+
+      const items = validated.data.items ?? [];
+      if (items.length === 0) {
+        return { isValid: false, error: "Unknown Paddle price", httpStatus: 400 };
+      }
+
+      const mappedProducts: string[] = [];
+      for (const item of items) {
+        const priceId = item.price.id;
+        // Own-property lookup only: a price id like "constructor" must not resolve via Object.prototype.
+        const mapped = Object.hasOwn(priceMap, priceId) ? priceMap[priceId] : undefined;
+        if (typeof mapped !== "string" || mapped === "") {
+          return { isValid: false, error: "Unknown Paddle price", httpStatus: 400 };
+        }
+        mappedProducts.push(mapped);
+      }
+
+      const distinctProducts = Array.from(new Set(mappedProducts));
+      if (distinctProducts.length > 1) {
+        return { isValid: false, error: "Mixed products in one transaction", httpStatus: 400 };
+      }
+
+      const productId = distinctProducts[0];
+      const customProductId = validated.data.custom_data?.product_id;
+      if (customProductId !== undefined && customProductId !== productId) {
+        return { isValid: false, error: "custom_data.product_id does not match the paid price", httpStatus: 400 };
+      }
 
       let email = validated.data.custom_data?.email;
       if (!email) {
@@ -115,7 +191,7 @@ export class PaddleAdapter implements PaymentProviderPort {
           return { isValid: false, error: "Missing custom_data.email in Paddle payload", httpStatus: 400 };
         }
         const base =
-          process.env.NEXT_PUBLIC_PADDLE_ENVIRONMENT === "production"
+          serverEnv === "production"
             ? "https://api.paddle.com"
             : "https://sandbox-api.paddle.com";
         const apiKey = process.env.PADDLE_API_KEY;
@@ -133,7 +209,7 @@ export class PaddleAdapter implements PaymentProviderPort {
           // fall through — handled below
         }
         if (!email) {
-          console.error(`[paddle.adapter] customer email lookup failed customer_id=${customerId} env=${process.env.NEXT_PUBLIC_PADDLE_ENVIRONMENT ?? "sandbox"}`);
+          console.error(`[paddle.adapter] customer email lookup failed customer_id=${customerId} env=${serverEnv}`);
           return { isValid: false, error: "Could not resolve buyer email from Paddle", httpStatus: 503 };
         }
       }
