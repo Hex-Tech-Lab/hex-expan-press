@@ -1,0 +1,21 @@
+payments/bake_checkout.ts
+  s_9da76c00eea207::t_a31defdfbe141a 511-512,634,641
+payments/test/bake_checkout_run.test.ts
+  s_9da76c00eea207::t_03f9ed40a6065d 227,231,241,245,343
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e70643748c328a52d0c10c841cf6cf4fb03cac96",
+  "prompts": {},
+  "sessions": {
+    "s_9da76c00eea207": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "82839636-bb03-485f-8ebb-7a4b1f96c746",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
