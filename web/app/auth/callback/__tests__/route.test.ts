@@ -41,13 +41,16 @@ describe("auth/callback route", () => {
     expect(res.headers.get("location")).toBe("http://localhost:3000/creator/dashboard");
   });
 
-  it("verifies ?token_hash with a valid type and redirects to the dashboard", async () => {
-    verifyOtp.mockResolvedValue({ error: null });
-    const res = await GET(request("token_hash=pkce_x&type=magiclink"));
-    expect(verifyOtp).toHaveBeenCalledWith({ type: "magiclink", token_hash: "pkce_x" });
-    expect(res.status).toBe(307);
-    expect(res.headers.get("location")).toBe("http://localhost:3000/creator/dashboard");
-  });
+  it.each(["magiclink", "email", "signup"] as const)(
+    "verifies ?token_hash with type=%s and redirects to the dashboard",
+    async (type) => {
+      verifyOtp.mockResolvedValue({ error: null });
+      const res = await GET(request(`token_hash=pkce_x&type=${type}`));
+      expect(verifyOtp).toHaveBeenCalledWith({ type, token_hash: "pkce_x" });
+      expect(res.status).toBe(307);
+      expect(res.headers.get("location")).toBe("http://localhost:3000/creator/dashboard");
+    },
+  );
 
   it("fails closed to the sign-in error redirect when verifyOtp returns an error", async () => {
     verifyOtp.mockResolvedValue({ error: { message: "expired" } });
@@ -59,6 +62,42 @@ describe("auth/callback route", () => {
     const res = await GET(request("token_hash=pkce_x&type=bogus"));
     expect(verifyOtp).not.toHaveBeenCalled();
     expect(res.headers.get("location")).toContain("error=auth");
+  });
+
+  it.each(["recovery", "invite", "email_change"] as const)(
+    "fails closed on unissued password-flow type=%s without calling verifyOtp",
+    async (type) => {
+      const res = await GET(request(`token_hash=pkce_x&type=${type}`));
+      expect(verifyOtp).not.toHaveBeenCalled();
+      expect(res.headers.get("location")).toContain("error=auth");
+    },
+  );
+
+  it("fails closed with token_hash but no type", async () => {
+    const res = await GET(request("token_hash=pkce_x"));
+    expect(verifyOtp).not.toHaveBeenCalled();
+    expect(res.headers.get("location")).toContain("error=auth");
+  });
+
+  it("fails closed with type but no token_hash", async () => {
+    const res = await GET(request("type=magiclink"));
+    expect(verifyOtp).not.toHaveBeenCalled();
+    expect(res.headers.get("location")).toContain("error=auth");
+  });
+
+  it("fails closed to the sign-in error redirect when verifyOtp throws", async () => {
+    verifyOtp.mockRejectedValue(new Error("network down"));
+    const res = await GET(request("token_hash=pkce_x&type=magiclink"));
+    expect(res.headers.get("location")).toContain("/creator/signin?error=auth");
+  });
+
+  it("prefers the PKCE code when code and token_hash are both present", async () => {
+    exchangeCodeForSession.mockResolvedValue({ error: null });
+    const res = await GET(request("code=abc&token_hash=pkce_x&type=magiclink"));
+    expect(exchangeCodeForSession).toHaveBeenCalledWith("abc");
+    expect(verifyOtp).not.toHaveBeenCalled();
+    expect(res.status).toBe(307);
+    expect(res.headers.get("location")).toBe("http://localhost:3000/creator/dashboard");
   });
 
   it("fails closed with no params", async () => {

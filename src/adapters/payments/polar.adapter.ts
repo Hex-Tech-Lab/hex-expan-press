@@ -64,6 +64,11 @@ const PolarRefundSchema = z.object({
 const PolarWebhookSchema = z.union([PolarSaleSchema, PolarRefundSchema]);
 type PolarWebhook = z.infer<typeof PolarWebhookSchema>;
 
+// Replay-window tolerance (sharp-edges audit 2026-10-01): a signed webhook
+// delivery is only trusted within this many seconds of now; anything outside
+// is a captured-then-replayed delivery and fails closed with 401.
+export const POLAR_WEBHOOK_TOLERANCE_SECONDS = 300;
+
 export class PolarAdapter implements PaymentProviderPort {
   readonly providerName = "polar";
 
@@ -81,6 +86,15 @@ export class PolarAdapter implements PaymentProviderPort {
 
     if (!signatureStr || !id || !ts) {
       return { isValid: false, error: "Missing Polar Standard Webhook headers (webhook-id, webhook-timestamp, webhook-signature)", httpStatus: 401 };
+    }
+
+    // Replay window: Standard Webhooks stamps `webhook-timestamp` in SECONDS.
+    // Reject non-integer stamps and anything outside the tolerance BEFORE
+    // signature verification so a captured (validly signed) delivery cannot be
+    // replayed later.
+    const tsSeconds = Number(ts);
+    if (!Number.isInteger(tsSeconds) || Math.abs(Math.floor(Date.now() / 1000) - tsSeconds) > POLAR_WEBHOOK_TOLERANCE_SECONDS) {
+      return { isValid: false, error: "Webhook timestamp outside the 5-minute tolerance", httpStatus: 401 };
     }
 
     // Polar supports two concurrent key derivations

@@ -4,7 +4,8 @@ import { createSsrClient } from "../../../src/lib/supabase-ssr";
 
 export const runtime = "nodejs";
 
-const OTP_TYPES = ["magiclink", "email", "signup", "recovery", "invite", "email_change"] as const;
+// Passwordless app: recovery/invite/email_change links are not issued by us and fail closed.
+const OTP_TYPES = ["magiclink", "email", "signup"] as const;
 
 /**
  * Auth callback, two flows:
@@ -12,8 +13,8 @@ const OTP_TYPES = ["magiclink", "email", "signup", "recovery", "invite", "email_
  *    session — the @supabase/ssr client writes the session as strictly
  *    HttpOnly cookies. No token is ever exposed to client JS.
  * 2. Email OTP verification (?token_hash=…&type=…): verifies the hashed token
- *    from magic-link/signup/recovery/invite/email_change mails and
- *    establishes the session the same way.
+ *    from magic-link/signup/email mails and establishes the session the
+ *    same way.
  * Errors land back on the sign-in page with an error param.
  */
 export async function GET(request: NextRequest): Promise<Response> {
