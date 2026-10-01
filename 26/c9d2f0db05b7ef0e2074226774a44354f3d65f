@@ -1,0 +1,45 @@
+docs/agent_ledger.jsonl
+  s_0dc509588f18e9::t_159a503ebd90cd 361
+.github/workflows/ci.yml
+  s_0dc509588f18e9::t_def2851c181b50 29
+payments/src/providers/fastspring.ts
+  s_0dc509588f18e9::t_ecd02ac0b5ff7b 86,88,92,101-102,111,116,134,140-141
+payments/src/providers/fungies.ts
+  s_0dc509588f18e9::t_174e2c43705b64 46,48,57,59,66-67,71-72,95,97,117-120,128,134,138-141,149-151
+payments/src/providers/lemonsqueezy.ts
+  s_0dc509588f18e9::t_55be9a9e51fd1d 36,38,43,45,47-51,54,61
+payments/src/providers/paddle.ts
+  s_0dc509588f18e9::t_35cd6add4fd916 45,47,55,57-62,65,71
+payments/src/providers/payhip.ts
+  s_0dc509588f18e9::t_0ff279e6a6a50f 60,62,100
+payments/src/providers/polar.ts
+  s_0dc509588f18e9::t_f495b5015ad6e4 113,115,122-123,138,143-144,147-149,161-162,167-168
+payments/src/webhook_core.ts
+  s_0dc509588f18e9::t_27f40555be490b 4
+payments/test/ledger.test.ts
+  s_0dc509588f18e9::t_fce3099278ead9 5,164
+src/adapters/payments/legacy.adapter.ts
+  s_0dc509588f18e9::t_27d8b2a579e4e1 16-17,29,59,65,105
+src/adapters/payments/paddle.adapter.ts
+  s_0dc509588f18e9::t_634348c241b4b6 95,234-236
+src/adapters/payments/polar.adapter.ts
+  s_0dc509588f18e9::t_1a4c778fa8e4de 74,157-159
+src/use_cases/billing/process_billing_webhook.ts
+  s_0dc509588f18e9::t_f84680c861d705 57-58,135,177
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "26c9d2f0db05b7ef0e2074226774a44354f3d65f",
+  "prompts": {},
+  "sessions": {
+    "s_0dc509588f18e9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fc365f60-a79d-4397-b8a4-2f924d01aba1",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
