@@ -186,7 +186,7 @@ export interface WebhookParseSuccess {
 export interface WebhookParseFailure {
   isValid: false;
   error: string;
-  httpStatus?: 400 | 401 | 422 | 500; // Hint to the controller for what to return
+  httpStatus?: 400 | 401 | 422 | 500 | 503; // Hint to the controller for what to return
 }
 
 export type WebhookParseResult = WebhookParseSuccess | WebhookParseFailure;

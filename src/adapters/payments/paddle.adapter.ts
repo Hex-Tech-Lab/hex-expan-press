@@ -6,6 +6,9 @@
  *
  * Signature scheme: `Paddle-Signature: ts=<unix-seconds>;h1=<hmac-sha256-hex>`
  *   HMAC target = `<ts>:<raw-body>`
+ *   h1 must be exactly 64 hex chars; multiple h1 values (secret rotation)
+ *   are accepted when ANY valid-format one matches. Timestamp freshness is
+ *   enforced BEFORE HMAC verification (5-minute tolerance, fail-closed).
  * Amount unit: cents (integer) in details.totals.total
  * Timestamp source: data.changed_at (ISO-8601)
  * Email path: data.custom_data.email
@@ -37,9 +40,12 @@ const PaddleWebhookSchema = z.object({
       email: z.string().email().optional(),
       reference_id: z.string().optional() // attribution passthrough (wiring unverified)
     }).optional().nullable(),
-    changed_at: z.string().datetime().optional()
+    changed_at: z.string().datetime().optional(),
+    customer_id: z.string().optional()
   })
 });
+
+export const PADDLE_WEBHOOK_TOLERANCE_SECONDS = 300;
 
 export class PaddleAdapter implements PaymentProviderPort {
   readonly providerName = "paddle";
@@ -55,20 +61,36 @@ export class PaddleAdapter implements PaymentProviderPort {
     const sigHeader = headers["paddle-signature"] as string;
     if (!sigHeader) return { isValid: false, error: "Missing paddle-signature header", httpStatus: 401 };
 
-    const tsMatch = sigHeader.match(/ts=(\d+)/);
-    const h1Match = sigHeader.match(/h1=([a-f0-9]+)/i);
-    if (!tsMatch || !h1Match) {
+    const tsMatch = sigHeader.match(/(?:^|;)\s*ts=([^;]+)/);
+    if (!tsMatch || !/h1=/.test(sigHeader)) {
       return { isValid: false, error: "Malformed paddle-signature header (expected ts=...;h1=...)", httpStatus: 401 };
     }
 
-    const ts = tsMatch[1];
-    const providedSig = h1Match[1];
-    const expectedSig = crypto.createHmac("sha256", secret).update(`${ts}:${body}`, "utf8").digest("hex");
+    // Freshness BEFORE HMAC: a non-integer or stale ts never reaches signature
+    // verification (replay-window fail-closed, mirrors POLAR_WEBHOOK_TOLERANCE_SECONDS).
+    const ts = tsMatch[1].trim();
+    const tsSeconds = Number(ts);
+    if (!Number.isInteger(tsSeconds) || Math.abs(Math.floor(Date.now() / 1000) - tsSeconds) > PADDLE_WEBHOOK_TOLERANCE_SECONDS) {
+      return { isValid: false, error: "Webhook timestamp outside the 5-minute tolerance", httpStatus: 401 };
+    }
 
+    // h1 candidates: capture up to the next ';' or end, then require exactly
+    // 64 hex chars (Buffer.from(hex) silently truncates junk). Paddle sends
+    // multiple h1 values during secret rotation (`ts=..;h1=a;h1=b`) — accept
+    // when ANY valid-format candidate matches, compared constant-time.
+    const expectedSig = crypto.createHmac("sha256", secret).update(`${ts}:${body}`, "utf8").digest("hex");
     const sigBufExpected = Buffer.from(expectedSig, "hex");
-    const sigBufProvided = Buffer.from(providedSig, "hex");
-    if (process.env.NODE_ENV === "production" &&
-        (sigBufProvided.length !== sigBufExpected.length || !crypto.timingSafeEqual(sigBufProvided, sigBufExpected))) {
+    let signatureValid = false;
+    for (const match of sigHeader.matchAll(/h1=([^;]+)/g)) {
+      const provided = match[1].trim();
+      if (!/^[0-9a-f]{64}$/i.test(provided)) continue;
+      const sigBufProvided = Buffer.from(provided, "hex");
+      if (crypto.timingSafeEqual(sigBufProvided, sigBufExpected)) {
+        signatureValid = true;
+        break;
+      }
+    }
+    if (!signatureValid) {
       return { isValid: false, error: "Invalid Paddle signature", httpStatus: 401 };
     }
 
@@ -83,8 +105,38 @@ export class PaddleAdapter implements PaymentProviderPort {
       const productId = validated.data.custom_data?.product_id;
       if (!productId) return { isValid: false, error: "Missing custom_data.product_id in Paddle payload", httpStatus: 400 };
 
-      const email = validated.data.custom_data?.email;
-      if (!email) return { isValid: false, error: "Missing custom_data.email in Paddle payload", httpStatus: 400 };
+      let email = validated.data.custom_data?.email;
+      if (!email) {
+        // Buyers type their email INTO the Paddle overlay, so custom_data.email
+        // is usually absent — resolve it from the Paddle customer record.
+        // Only verified payloads reach this lookup (signature + freshness passed).
+        const customerId = validated.data.customer_id;
+        if (!customerId) {
+          return { isValid: false, error: "Missing custom_data.email in Paddle payload", httpStatus: 400 };
+        }
+        const base =
+          process.env.NEXT_PUBLIC_PADDLE_ENVIRONMENT === "production"
+            ? "https://api.paddle.com"
+            : "https://sandbox-api.paddle.com";
+        const apiKey = process.env.PADDLE_API_KEY;
+        try {
+          if (!apiKey) throw new Error("PADDLE_API_KEY not configured");
+          const resp = await fetch(`${base}/customers/${encodeURIComponent(customerId)}`, {
+            headers: { Authorization: `Bearer ${apiKey}` },
+            signal: AbortSignal.timeout(5000)
+          });
+          const fetched = ((await resp.json()) as { data?: { email?: unknown } }).data;
+          if (typeof fetched?.email === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fetched.email)) {
+            email = fetched.email;
+          }
+        } catch {
+          // fall through — handled below
+        }
+        if (!email) {
+          console.error(`[paddle.adapter] customer email lookup failed customer_id=${customerId} env=${process.env.NEXT_PUBLIC_PADDLE_ENVIRONMENT ?? "sandbox"}`);
+          return { isValid: false, error: "Could not resolve buyer email from Paddle", httpStatus: 503 };
+        }
+      }
 
       // Paddle total is a string of integer cents
       const totalCents = parseInt(validated.data.details?.totals?.total ?? "0", 10);
