@@ -1,0 +1,43 @@
+web/app/creator/dashboard/actions.ts
+  s_8d7922e130d421::t_e953e32b33cb05 41-69
+web/src/lib/__tests__/primary-product.test.ts
+  s_0dc509588f18e9::t_e43c9b0a016faf 1-167
+docs/agent_ledger.jsonl
+  s_0dc509588f18e9::t_8f1739ec173b83 366
+web/app/creator/consents/actions.ts
+  s_0dc509588f18e9::t_26c39c33f31b50 7,43-47
+web/app/creator/consents/esign_done/page.tsx
+  s_0dc509588f18e9::t_56eca7b07d3698 3,31-36
+web/app/creator/consents/page.tsx
+  s_0dc509588f18e9::t_ae9b6a499cf3e6 4,27-28
+web/app/creator/dashboard/page.tsx
+  s_0dc509588f18e9::t_196ac907fc2182 4,35,62,106,118-120,123-132,142,147
+web/app/creator/review/page.tsx
+  s_0dc509588f18e9::t_1a4dc062326870 4,49-52,57
+web/src/lib/primary-product.ts
+  s_0dc509588f18e9::t_57325b114737ce 1-33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e5fd358e3305ca2cff50a0a26ebba1a16d0b3e1c",
+  "prompts": {},
+  "sessions": {
+    "s_0dc509588f18e9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fc365f60-a79d-4397-b8a4-2f924d01aba1",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_8d7922e130d421": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f0700cf34ffeqICCWN6YDUh292",
+        "model": "@preset/glm-53-flash-on-cheap"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
