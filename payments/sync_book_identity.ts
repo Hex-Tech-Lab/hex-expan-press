@@ -185,9 +185,10 @@ export const applyIdentity = async (
     throw new PartialSyncError(`PARTIAL SYNC: the Supabase update request failed or its state is unknown (${String(err)}) — reconcile with --check before retry`);
   }
   if (!supaRes.ok) {
-    // 5xx: Supabase may have committed despite the error status — treat as unknown
-    // state, do not touch Paddle, demand reconciliation first.
-    if (supaRes.status >= 500) {
+    // 5xx + 408/425/429: Supabase may have committed despite the error status
+    // (4xx post-arrival statuses come back from intermediaries) — treat as
+    // unknown state, do not touch Paddle, demand reconciliation first.
+    if (supaRes.status >= 500 || supaRes.status === 408 || supaRes.status === 425 || supaRes.status === 429) {
       throw new PartialSyncError(`PARTIAL SYNC: Supabase PATCH HTTP ${supaRes.status}; Supabase may have committed; Paddle NOT attempted; reconcile with --check before retry`);
     }
     throw new Error(`supabase PATCH products HTTP ${supaRes.status}`);
@@ -230,12 +231,21 @@ export const applyIdentity = async (
   if (!paddleRes.ok) {
     throw new PartialSyncError(`PARTIAL SYNC: Supabase updated successfully, but the Paddle update failed or its state is unknown (HTTP ${paddleRes.status}) — reconcile with --check before retry`);
   }
-  // Also cover the Paddle PATCH body read so an abort/parse failure there is
-  // classified as unknown-state rather than escaping as a raw parse error.
+  // Validate the parsed Paddle body: a 2xx must carry the product we patched
+  // with the registry identity, otherwise treat the Paddle state as unknown.
+  const unexpectedBody = "PARTIAL SYNC: Paddle returned 2xx but an unexpected body; Supabase already updated; reconcile with --check before retry";
+  let paddleBody: { data?: { id?: string; name?: string } };
   try {
-    await paddleRes.json();
-  } catch (err) {
-    throw new PartialSyncError(`PARTIAL SYNC: Supabase updated successfully, but the Paddle PATCH response body was unreadable (${String(err)}); reconcile with --check before retry`);
+    paddleBody = (await paddleRes.json()) as { data?: { id?: string; name?: string } };
+  } catch {
+    throw new PartialSyncError(unexpectedBody);
+  }
+  if (
+    typeof paddleBody !== "object" || paddleBody === null ||
+    typeof paddleBody.data !== "object" || paddleBody.data === null ||
+    paddleBody.data.id !== cfg.paddle_product_ref || paddleBody.data.name !== identity.title
+  ) {
+    throw new PartialSyncError(unexpectedBody);
   }
   return { supabase: "applied", paddle: "applied" };
 };
