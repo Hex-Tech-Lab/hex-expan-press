@@ -62,7 +62,7 @@ export default async function DashboardPage({
     resolvePrimaryProduct<{ id: string }>(supabase, "id"),
     supabase.from("review_items").select("id, product_id"),
     supabase.from("review_answers").select("item_id"),
-    supabase.from("consents").select("kind, decision").eq("decision", "given"),
+    supabase.from("consents").select("kind, decision, product_id").eq("decision", "given"),
   ]);
 
   const failed = (
@@ -108,7 +108,8 @@ export default async function DashboardPage({
   const { answered, total } = reviewProgress(itemIds, (answersRes.data ?? []).map((a) => a.item_id));
   // NOTE: DB enum kind is C2_release_approval (the legacy HTML checked a
   // non-existent "C2_marketing_release" — step 2 could never complete there).
-  const given = new Set((consentsRes.data ?? []).map((c) => c.kind));
+  // Same product binding as the consents page and esign_done: only the primary product's consents count.
+  const given = new Set((consentsRes.data ?? []).filter((c) => c.product_id === product?.id).map((c) => c.kind));
   const hasC1 = given.has("C1_data_accuracy");
   const hasC2 = given.has("C2_release_approval");
   const hasC3 = given.has("C3_revenue_split");
