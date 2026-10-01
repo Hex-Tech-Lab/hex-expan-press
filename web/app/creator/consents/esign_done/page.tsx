@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { getPortalSession } from "../../../../src/lib/supabase-server";
+import { resolvePrimaryProduct } from "../../../../src/lib/primary-product";
 
 /**
  * Post-signing return page (Wave 6.1, RSC): Firma redirects the creator
@@ -27,10 +28,12 @@ async function hasRecordedC3(): Promise<boolean> {
   try {
     const session = await getPortalSession();
     if (!session) return false;
-    const { data: products } = await session.supabase
-      .from("products").select("id").order("created_at", { ascending: true }).limit(1);
-    const productId = products?.[0]?.id;
-    if (!productId) return false;
+    const { product, error: productError } = await resolvePrimaryProduct<{ id: string }>(
+      session.supabase,
+      "id",
+    );
+    const productId = product?.id;
+    if (productError || !productId) return false;
     const { data } = await session.supabase
       .from("consents").select("kind")
       .eq("product_id", productId).eq("kind", "C3_revenue_split").eq("decision", "given").limit(1);

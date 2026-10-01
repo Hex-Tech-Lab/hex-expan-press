@@ -38,9 +38,35 @@ export async function startPublisherAgreementAction(): Promise<void> {
   if (!session) redirect("/creator/signin");
   const { user, supabase } = session;
 
-  const { data: products } = await supabase.from("products").select("id");
-  const productId = products?.[0]?.id;
-  if (!productId) redirect("/creator/dashboard?error=no_product");
+  // C3 binding: the envelope must bind to the product on which THIS creator's
+  // C2_release_approval is currently 'given': query consents (RLS-scoped)
+  // select product_id, kind, decision, signed_at, id, supersedes where kind = C2_release_approval,
+  // pick the supersedes-chain head (row whose id no other row's supersedes references);
+  // if there is no head, the head is not 'given', or there are multiple heads → redirect("/creator/dashboard?error=c2_required")
+  const { data: consents, error: consentsError } = await supabase
+    .from("consents")
+    .select("product_id, kind, decision, signed_at, id, supersedes")
+    .eq("kind", "C2_release_approval");
+
+  if (consentsError || !consents || consents.length === 0) {
+    redirect("/creator/dashboard?error=c2_required");
+  }
+
+  const supersededIds = new Set(
+    consents.map((c) => c.supersedes).filter((s): s is string => typeof s === "string" && s.length > 0)
+  );
+  const heads = consents.filter((c) => !supersededIds.has(c.id));
+
+  if (heads.length !== 1) {
+    redirect("/creator/dashboard?error=c2_required");
+  }
+
+  const head = heads[0];
+  if (head.decision !== "given" || !head.product_id) {
+    redirect("/creator/dashboard?error=c2_required");
+  }
+
+  const productId = head.product_id;
 
   const siteOrigin = process.env.NEXT_PUBLIC_SITE_ORIGIN ?? "https://expanpress.com";
   try {

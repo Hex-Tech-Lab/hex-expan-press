@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import * as Sentry from "@sentry/nextjs";
 import { getPortalSession } from "../../../src/lib/supabase-server";
+import { resolvePrimaryProduct } from "../../../src/lib/primary-product";
 import DashboardClient from "./dashboard-client";
 import { reviewProgress } from "./progress";
 import type { Metadata } from "next";
@@ -31,7 +32,7 @@ function computeJourneyStep(state: { hasC1: boolean; hasC2: boolean; hasC3: bool
   return state.hasC3 ? 2 : state.hasC1 && state.hasC2 ? 1 : 0;
 }
 
-const ACTION_ERRORS = ["credits", "esign", "no_product"] as const;
+const ACTION_ERRORS = ["credits", "esign", "no_product", "c2_required"] as const;
 type ActionError = (typeof ACTION_ERRORS)[number];
 
 export default async function DashboardPage({
@@ -58,7 +59,7 @@ export default async function DashboardPage({
   // review page: the creator's product, its review items, and the answer rows.
   const [profileRes, productRes, itemsRes, answersRes, consentsRes] = await Promise.all([
     supabase.from("profiles").select("full_name, email").eq("user_id", user.id).maybeSingle(),
-    supabase.from("products").select("id").order("created_at", { ascending: true }).limit(1),
+    resolvePrimaryProduct<{ id: string }>(supabase, "id"),
     supabase.from("review_items").select("id, product_id"),
     supabase.from("review_answers").select("item_id"),
     supabase.from("consents").select("kind, decision").eq("decision", "given"),
@@ -102,7 +103,7 @@ export default async function DashboardPage({
   const email = profileRes.data?.email || user.email || "";
   // Mirror the review page's data model: the creator's first product, the
   // review items belonging to it, and answers counted as DISTINCT item_ids.
-  const product = productRes.data?.[0];
+  const product = productRes.product;
   const itemIds = (itemsRes.data ?? []).filter((it) => it.product_id === product?.id).map((it) => it.id);
   const { answered, total } = reviewProgress(itemIds, (answersRes.data ?? []).map((a) => a.item_id));
   // NOTE: DB enum kind is C2_release_approval (the legacy HTML checked a
@@ -114,8 +115,21 @@ export default async function DashboardPage({
 
   const journeyActive = computeJourneyStep({ hasC1, hasC2, hasC3 });
 
+  const clientActionError =
+    actionError && actionError !== "c2_required" ? actionError : undefined;
+
   return (
     <>
+      {actionError === "c2_required" && (
+        <div className="mx-auto max-w-[680px] px-5 pt-8">
+          <p
+            className="mb-3.5 rounded-xl border border-[#EADFD1] bg-[#F3ECDF] p-[var(--space-4)] text-[length:var(--font-size-sm)] font-medium text-[#8A4B2D]"
+            role="alert"
+          >
+            Please approve the release (step 2) before signing the publisher agreement.
+          </p>
+        </div>
+      )}
       <DashboardClient
         name={name}
         email={email}
@@ -125,8 +139,9 @@ export default async function DashboardPage({
         hasC2={hasC2}
         hasC3={hasC3}
         journeyActive={journeyActive}
-        actionError={actionError}
+        actionError={clientActionError}
       />
     </>
   );
 }
+

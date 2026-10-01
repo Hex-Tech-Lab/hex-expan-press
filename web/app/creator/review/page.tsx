@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getPortalSession } from "../../../src/lib/supabase-server";
+import { resolvePrimaryProduct } from "../../../src/lib/primary-product";
 import ReviewClient from "./review-client";
 
 export const metadata: Metadata = {
@@ -45,12 +46,15 @@ export default async function ReviewPage() {
   const { supabase } = session;
 
   const [productRes, itemsRes, answersRes] = await Promise.all([
-    supabase.from("products").select("id, slug, title, release_path").order("created_at", { ascending: true }).limit(1),
+    resolvePrimaryProduct<{ id: string; slug: string; title: string; release_path: string | null }>(
+      supabase,
+      "id, slug, title, release_path",
+    ),
     supabase.from("review_items").select("id, code, kind, question, options, anchor, product_id"),
     supabase.from("review_answers").select("item_id, choice, free_text, answered_at").order("answered_at", { ascending: false }),
   ]);
 
-  const product = productRes.data?.[0];
+  const product = productRes.product;
   if (productRes.error || !product) {
     return (
       <ReviewNotice
