@@ -1,0 +1,47 @@
+payments/test/bake_checkout_paddle.test.ts
+  s_1b3daf34f1c58d::t_55c5303317099f 16
+  s_1b3daf34f1c58d::t_f0c2fa62be12a8 1-15,17-58
+payments/bake_checkout.ts
+  s_1b3daf34f1c58d::t_9480997318800f 253-269,271
+  s_1b3daf34f1c58d::t_840a1e6ccbf437 270
+  s_1b3daf34f1c58d::t_060bfcab409459 3
+  s_1b3daf34f1c58d::t_95c9c0f775b9ce 114-163
+  s_1b3daf34f1c58d::t_019985d8e29f99 67-68
+  s_1b3daf34f1c58d::t_d0fa7b08575f8d 273,283-306,310-317,321
+  s_1b3daf34f1c58d::t_ca410fe4bfdede 164-166
+  s_1b3daf34f1c58d::t_32386c82c91075 274
+  s_1b3daf34f1c58d::t_e55594700b4b4a 318-320
+  s_1b3daf34f1c58d::t_905d6f28280892 322-324
+  s_0dc509588f18e9::t_29eabff03d362e 334-336
+docs/agent_ledger.jsonl
+  s_1b3daf34f1c58d::t_c3cdc183df69ee 359
+  s_0dc509588f18e9::t_108840fb13ae9e 357
+payments/config.duane.json
+  s_0dc509588f18e9::t_512e74df060fcf 12,36-38
+web/public/c/retirearly500k/500k-playbook/index.html
+  s_0dc509588f18e9::t_ce90f7b245f018 92,102-103,127,130
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "31c744023202bf305d86cc3bbba2a1397594e453",
+  "prompts": {},
+  "sessions": {
+    "s_0dc509588f18e9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fc365f60-a79d-4397-b8a4-2f924d01aba1",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_1b3daf34f1c58d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f080c1453ffeukPBOx0btqJCGo",
+        "model": "@preset/glm-53-flash-on-cheap"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
