@@ -1,0 +1,19 @@
+.github/workflows/commit-guard.yml
+  s_0dc509588f18e9::t_ac52cce37cca2f 4-6,11-12,17,20,23-28,30-32,34-39,41-42,46
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d2fec855995440d637b4bb1ae83d06935eb2c194",
+  "prompts": {},
+  "sessions": {
+    "s_0dc509588f18e9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fc365f60-a79d-4397-b8a4-2f924d01aba1",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
