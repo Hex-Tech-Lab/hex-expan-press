@@ -26,9 +26,7 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
-      # TEMPORARY: 3 pre-existing root lint errors in forbidden bake file payments/bake_checkout.ts (by rule: @typescript-eslint/no-unused-vars: 1, prefer-const: 2) — fix then remove continue-on-error
       - run: pnpm run lint
-        continue-on-error: true
       - run: pnpm --dir web run lint
       - run: pnpm exec tsc --noEmit
       - run: pnpm --dir web exec tsc --noEmit
