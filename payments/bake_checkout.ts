@@ -508,40 +508,13 @@ export const exitCodeFor = (summary?: BakeSummary, error?: unknown): number => {
 
 // Testable bake entry point. Pages are processed ONE AT A TIME
 // (read → sanitize → decide → write) so a failure on one page cannot prevent
-// earlier pages from being sanitized. The legacy master page
-// (site/index.html) ALWAYS bakes as primaryGated regardless of any
-// config/checkout_mode, with all Paddle traces stripped. Read errors other
-// than ENOENT on the master page propagate and reject the run; a missing
-// master page is skipped silently.
+// earlier pages from being sanitized. Only the Next.js static buyer pages
+// under web/public/c/ are baked; the legacy static master page is gone.
 export const runBake = async (deps: BakeDeps): Promise<BakeSummary> => {
   const summary: BakeSummary = { baked: [], blocked: [] };
   const bakedAt = deps.now();
 
-  const masterPath = join(deps.siteRoot, "index.html");
   const cRoot = join(deps.siteRoot, "public", "c");
-
-  const processMaster = async (): Promise<void> => {
-    let html: string;
-    try {
-      html = await deps.readFile(masterPath);
-    } catch (e) {
-      if (isEnoent(e)) {
-        deps.log(`skipped site/index.html (no legacy static master page)`);
-        return;
-      }
-      throw e;
-    }
-    const key = join("site", "index.html");
-    // LEGACY MASTER LOCKDOWN (P1): master page is ALWAYS gated, whatever the
-    // config says. All Paddle traces stripped; never a live router href.
-    let out = stripPaddleBlocks(html);
-    out = swap(out, "primary", primaryGated("payments/config.duane.json", bakedAt));
-    out = swap(out, "sandbox", sandboxOff("payments/config.duane.json", bakedAt));
-    out = out.replace(/<div class="sandbox" id="sandbox-test"( hidden)?>/, '<div class="sandbox" id="sandbox-test" hidden>');
-    await deps.writeFileAtomic(masterPath, out);
-    deps.log(`baked ${key} mode=gated (legacy master lockdown)`);
-    summary.baked.push(key);
-  };
 
   const processProductPage = async (rel: string): Promise<void> => {
     const key = join("site", "c", rel, "index.html");
@@ -658,17 +631,16 @@ export const runBake = async (deps: BakeDeps): Promise<BakeSummary> => {
     out = bakeFacts(out, cfg, page.key);
     if (assoc) {
       out = bakeCrumb(out, assoc.handle, assoc.display_name, bakedAt);
-    } else if (page.key !== join("site", "index.html")) {
+    } else {
       deps.log(`warn: ${page.key} not mapped in creators.json — back-link skipped`);
     }
     await deps.writeFileAtomic(page.absPath, out);
     deps.log(`baked ${page.key} mode=${mode}`);
   };
 
-  // Incremental order: master first, then each product page one at a time —
+  // Incremental order: each product page one at a time —
   // a later page's failure must never undo earlier pages' writes. A read
   // error still rejects the run after earlier pages were written.
-  await processMaster();
   for (const rel of await deps.listProductDirs(cRoot)) {
     await processProductPage(rel);
   }
