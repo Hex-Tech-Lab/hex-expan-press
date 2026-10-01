@@ -1,0 +1,21 @@
+web/app/api/billing/webhook/route.ts
+  s_aa862b80a996ac::t_8f4ef424b7a4da 73-75
+web/src/components/billing/paddle-checkout-button.tsx
+  s_aa862b80a996ac::t_4c8aac58616aa4 7-9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "34eff5664a48f3048927eedde755ec801bbb9730",
+  "prompts": {},
+  "sessions": {
+    "s_aa862b80a996ac": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f08c9d910ffeP2J7xRviKnEHTU",
+        "model": "@preset/glm-53-flash-on-cheap"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
