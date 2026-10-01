@@ -1,7 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
-  PADDLE_MARKER_END,
-  PADDLE_MARKER_START,
   assertLaunchConsents,
   paddleEnvironment,
   paddleTokenForEnv,

@@ -149,7 +149,7 @@ const CRUMB_CSS =
 const bakeCrumb = (html: string, handle: string, displayName: string): string => {
   let out = html.replace(/[ \t]*<nav class="crumb"[\s\S]*?<\/nav>\n/g, "");
   if (!/\.crumb \{/.test(out)) {
-    const withCss = out.replace(/\n  h1 \{\n/, (_m) => `\n${CRUMB_CSS}  h1 {\n`);
+    const withCss = out.replace(/\n  h1 \{\n/, () => `\n${CRUMB_CSS}  h1 {\n`);
     if (withCss === out) console.log(`warn: no h1 CSS anchor — .crumb will render unstyled`);
     out = withCss;
   }
@@ -290,7 +290,7 @@ const attributionScript = (): string =>
   `})();</script>`;
 
 const injectAttributionScript = (html: string): string => {
-  let out = html.replace(
+  const out = html.replace(
     new RegExp(`[ \\t]*<script id="${ATTRIBUTION_SCRIPT_ID}"[\\s\\S]*?</script>\\n?`),
     "",
   );
@@ -318,7 +318,7 @@ const bakeFacts = (html: string, cfg: Facts, page: string): string => {
   }
   const safeTitle = esc(cfg.title);
   const price = String(cfg.price_usd);
-  let out = html
+  const out = html
     .replace(/(<p class="price">)\$\d+/g, `$1$${price}`)
     .replace(/(<h1>)[\s\S]*?(<\/h1>)/, `$1${safeTitle}$2`)
     .replace(/(<title>)[^<—]*?( — [^<]*)?(<\/title>)/,

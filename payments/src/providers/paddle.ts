@@ -42,9 +42,9 @@ export const paddleProvider: CheckoutProvider = {
       return { ok: false, status: 401, error: "invalid signature" };
     }
 
-    let body: any;
+    let body: Record<string, unknown> | null;
     try {
-      body = JSON.parse(rawBody.toString("utf8"));
+      body = JSON.parse(rawBody.toString("utf8")) as Record<string, unknown>;
     } catch {
       return { ok: false, status: 400, error: "invalid JSON body" };
     }
@@ -52,20 +52,23 @@ export const paddleProvider: CheckoutProvider = {
     // UNVERIFIED vs provider docs — verify before go-live (event_type name + data path)
     const eventType = body?.event_type;
     if (eventType !== SALE_EVENT) {
-      return { ok: false, status: 202, error: `ignored non-sale event: ${eventType ?? "<none>"}` };
+      return { ok: false, status: 202, error: `ignored non-sale event: ${typeof eventType === "string" ? eventType : "<none>"}` };
     }
-    const data = body?.data;
-    const productId = getPath(body, FM.product_id) ?? data?.custom_data?.product_id; // UNVERIFIED vs provider docs — verify before go-live
-    const totalCents = Number(getPath(body, FM.total_cents) ?? data?.details?.totals?.total); // UNVERIFIED vs provider docs — verify before go-live
+    const data = body?.data as Record<string, unknown> | undefined;
+    const customData = data?.custom_data as Record<string, unknown> | undefined;
+    const details = data?.details as Record<string, unknown> | undefined;
+    const totals = details?.totals as Record<string, unknown> | undefined;
+    const productId = getPath(body, FM.product_id) ?? customData?.product_id; // UNVERIFIED vs provider docs — verify before go-live
+    const totalCents = Number(getPath(body, FM.total_cents) ?? totals?.total); // UNVERIFIED vs provider docs — verify before go-live
     const currency = String(getPath(body, FM.currency) ?? data?.currency_code ?? "").toUpperCase();
     const saleId = String(getPath(body, FM.sale_id) ?? data?.id ?? "");
-    const email = getPath(body, FM.email) ?? data?.custom_data?.email; // UNVERIFIED vs provider docs — verify before go-live (Paddle redacts emails unless stored)
+    const email = getPath(body, FM.email) ?? customData?.email; // UNVERIFIED vs provider docs — verify before go-live (Paddle redacts emails unless stored)
     const changeTs = Number(getPath(body, FM.ts_epoch_s) ?? data?.changed_at); // UNVERIFIED vs provider docs — epoch seconds
     // Our own canonical attribution ID (added 2026-09-18) — see field_map.attribution_id /
     // attribution_note in data/settings/providers.json. Server-side extraction only; client-side
     // checkout-link wiring to actually SET custom_data.attribution_id at checkout is not yet
     // built for Paddle (its JS overlay uses a customData init option, not a URL param).
-    const attributionIdRaw = getPath(body, FM.attribution_id) ?? data?.custom_data?.attribution_id;
+    const attributionIdRaw = getPath(body, FM.attribution_id) ?? customData?.attribution_id;
     const attributionId = typeof attributionIdRaw === "string" && attributionIdRaw !== "" ? attributionIdRaw : undefined;
 
     if (!productId) return { ok: false, status: 400, error: "missing custom_data.product_id (set it on the checkout)" };

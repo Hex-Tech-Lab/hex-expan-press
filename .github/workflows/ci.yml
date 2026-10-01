@@ -26,9 +26,7 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
-      # TEMPORARY: 37 pre-existing root lint errors (by rule: @typescript-eslint/no-unused-vars: 12, prefer-const: 3, @typescript-eslint/no-explicit-any: 22) — fix then remove continue-on-error
       - run: pnpm run lint
-        continue-on-error: true
       - run: pnpm --dir web run lint
       - run: pnpm exec tsc --noEmit
       - run: pnpm --dir web exec tsc --noEmit

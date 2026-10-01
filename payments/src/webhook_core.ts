@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { appendRefund, appendSale, findRefund, findSale, SALES_FILE } from "./ledger.ts";
+import { appendRefund, appendSale, findRefund, findSale } from "./ledger.ts";
 import { isRegisteredPaymentProvider, paymentProviderSetting } from "./settings_registry.ts";
 import { loadConfig, type ProductConfig } from "./settings.ts";
 import { computeSplit } from "./split.ts";

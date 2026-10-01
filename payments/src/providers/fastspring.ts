@@ -83,13 +83,13 @@ export const fastspringProvider: CheckoutProvider = {
       return { ok: false, status: 401, error: "invalid signature" };
     }
 
-    let body: any;
+    let body: Record<string, unknown> | null;
     try {
-      body = JSON.parse(rawBody.toString("utf8"));
+      body = JSON.parse(rawBody.toString("utf8")) as Record<string, unknown>;
     } catch {
       return { ok: false, status: 400, error: "invalid JSON body" };
     }
-    const events: any[] = Array.isArray(body?.events) ? body.events : [];
+    const events: Record<string, unknown>[] = Array.isArray(body?.events) ? (body.events as Record<string, unknown>[]) : [];
     if (events.length === 0) {
       return { ok: false, status: 400, error: "missing events[] array (JSON webhook mode)" };
     }
@@ -98,7 +98,8 @@ export const fastspringProvider: CheckoutProvider = {
     const ignored: string[] = [];
     for (const evt of events) {
       const eventName = typeof evt?.type === "string" ? evt.type : "<none>";
-      const data = evt?.data ?? {};
+      const data = (evt?.data ?? {}) as Record<string, unknown>;
+      const original = data?.original as Record<string, unknown> | undefined;
       // field_map / live_gate paths are EVENT-ENVELOPE-relative ("data.id", "data.live") —
       // resolve against evt, with the raw data object as the fallback source.
       const liveFlag = getPath(evt, LIVE_GATE) ?? data?.live ?? evt?.live;
@@ -107,12 +108,12 @@ export const fastspringProvider: CheckoutProvider = {
         if (liveFlag === false) {
           return { ok: false, status: 202, error: `test event (${eventName}, live=false) — not recorded (production secret must never record test orders)` };
         }
-        const saleId = String(getPath(evt, FM.refund_sale_id) ?? data?.original?.order ?? data?.original?.id ?? "");
+        const saleId = String(getPath(evt, FM.refund_sale_id) ?? original?.order ?? original?.id ?? "");
         if (!saleId) {
           return { ok: false, status: 400, error: "return.created missing data.original.order — refund cannot be linked to a recorded sale" };
         }
         const totalReturn = Number(getPath(evt, FM.refund_total) ?? data?.totalReturn);
-        const originalTotal = Number(getPath(evt, FM.refund_original_total) ?? data?.original?.total);
+        const originalTotal = Number(getPath(evt, FM.refund_original_total) ?? original?.total);
         if (Number.isFinite(totalReturn) && Number.isFinite(originalTotal) && totalReturn + 0.005 < originalTotal) {
           return { ok: false, status: 422, error: `partial return (${totalReturn} of ${originalTotal}) — ledger refund records are full reversals; partial refunds must be recorded manually` };
         }
@@ -130,13 +131,14 @@ export const fastspringProvider: CheckoutProvider = {
         return { ok: false, status: 202, error: `test event (${eventName}, live=false) — not recorded (production secret must never record test orders)` };
       }
 
-      const items: any[] = Array.isArray(data?.items) ? data.items : [];
+      const items: Record<string, unknown>[] = Array.isArray(data?.items) ? (data.items as Record<string, unknown>[]) : [];
       const productId = getPath(evt, FM.product_id) ?? items[0]?.product;
       const total = Number(getPath(evt, FM.total) ?? data?.total);
       const currency = String(getPath(evt, FM.currency) ?? data?.currency ?? "").toUpperCase();
       const saleId = String(getPath(evt, FM.sale_id) ?? data?.id ?? "");
       const ts = isoTs(evt?.created, getPath(evt, FM.ts_ms), data?.changed);
-      const email = getPath(evt, FM.email) ?? data?.customer?.email;
+      const customer = data?.customer as Record<string, unknown> | undefined;
+      const email = getPath(evt, FM.email) ?? customer?.email;
 
       if (!productId) return { ok: false, status: 400, error: `order.completed missing data.items[].product (event ${evt?.id ?? "<none>"})` };
       if (!saleId) return { ok: false, status: 400, error: `order.completed missing data.id (event ${evt?.id ?? "<none>"})` };

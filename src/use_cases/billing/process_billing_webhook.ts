@@ -54,8 +54,8 @@ export async function processBillingWebhookUseCase(
   const validation = await matchedAdapter.parseAndValidateWebhook(req.headers, req.body);
 
   if (!validation.isValid) {
-    const err = new Error(`Webhook validation failed for ${matchedAdapter.providerName}: ${validation.error}`);
-    (err as any).httpStatus = (validation as any).httpStatus;
+    const err = new Error(`Webhook validation failed for ${matchedAdapter.providerName}: ${validation.error}`) as Error & { httpStatus?: number };
+    err.httpStatus = validation.httpStatus;
     throw err;
   }
 
@@ -132,7 +132,7 @@ export async function processBillingWebhookUseCase(
         }
         // appendRefund refuses (throws → 500, provider retries) when the sale is not recorded yet.
         await appendRefund({
-          provider: refundEvent.providerName as any,
+          provider: refundEvent.providerName,
           sale_id: refundEvent.saleId,
           ts: refundEvent.occurredAt
         });
@@ -174,7 +174,7 @@ export async function processBillingWebhookUseCase(
         // Append to ledger
         await appendSale({
           sale_id: saleEvent.saleId,
-          provider: saleEvent.providerName as any,
+          provider: saleEvent.providerName,
           product_id: saleEvent.productId,
           amount_usd: amountUsd,
           ts: saleEvent.occurredAt,
