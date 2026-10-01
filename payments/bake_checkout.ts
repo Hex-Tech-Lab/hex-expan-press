@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, readdirSync, existsSync, renameSync } from "node:fs";
+import { readFileSync, writeFileSync, readdirSync, existsSync, renameSync, unlinkSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import dotenv from "dotenv";
@@ -406,11 +406,30 @@ export const swap = (html: string, slot: string, replacement: string): string =>
 const runAsMain = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 
 // Atomic write: write to <file>.tmp-<pid> in the same directory, then rename
-// over the target so readers never observe a half-written page.
-export const writeFileAtomicReal = (path: string, html: string): void => {
+// over the target so readers never observe a half-written page. Seams
+// (writeFileImpl/renameImpl/unlinkImpl) exist for hermetic fault-injection
+// tests; production calls omit them. On rename failure the temp file is
+// best-effort unlinked so no .tmp-* litter is left behind.
+export const writeFileAtomicReal = (
+  path: string,
+  html: string,
+  seams?: { writeImpl?: typeof writeFileSync; renameImpl?: typeof renameSync; unlinkImpl?: (path: string) => void },
+): void => {
+  const write = seams?.writeImpl ?? writeFileSync;
+  const rename = seams?.renameImpl ?? renameSync;
+  const unlink = seams?.unlinkImpl ?? unlinkSync;
   const tmp = `${path}.tmp-${process.pid}`;
-  writeFileSync(tmp, html, "utf8");
-  renameSync(tmp, path);
+  write(tmp, html, "utf8");
+  try {
+    rename(tmp, path);
+  } catch (e) {
+    try {
+      unlink(tmp);
+    } catch {
+      /* best-effort cleanup only */
+    }
+    throw e;
+  }
 };
 
 // Env/token strictness for the paddle path (exported so vitest can pin the
@@ -473,77 +492,85 @@ export interface BakeSummary {
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-// Testable bake entry point. Every page under the site root is sanitized
-// (Paddle markers + legacy scripts stripped) BEFORE any mode decision or
-// early return — slotless pages and the legacy master page included — and
-// rewritten when sanitizing changed it.
+// ENOENT-only tolerance: an "optional file" read must treat ONLY a missing
+// file as skippable. EACCES/EISDIR/anything else is a real failure that must
+// propagate (fail the run) rather than be silently swallowed.
+const isEnoent = (e: unknown): boolean =>
+  typeof e === "object" && e !== null && "code" in e && (e as { code?: unknown }).code === "ENOENT";
+
+// CLI exit-code policy (exported for hermetic tests): successful bake with
+// launch-blocked (gated-fallback) pages still exits 0; any I/O failure is
+// non-zero.
+export const exitCodeFor = (summary?: BakeSummary, error?: unknown): number => {
+  if (error !== undefined) return 1;
+  return summary ? 0 : 1;
+};
+
+// Testable bake entry point. Pages are processed ONE AT A TIME
+// (read → sanitize → decide → write) so a failure on one page cannot prevent
+// earlier pages from being sanitized. The legacy master page
+// (site/index.html) ALWAYS bakes as primaryGated regardless of any
+// config/checkout_mode, with all Paddle traces stripped. Read errors other
+// than ENOENT on the master page propagate and reject the run; a missing
+// master page is skipped silently.
 export const runBake = async (deps: BakeDeps): Promise<BakeSummary> => {
   const summary: BakeSummary = { baked: [], blocked: [] };
   const bakedAt = deps.now();
-  const pages: { key: string; absPath: string; html: string }[] = [];
 
   const masterPath = join(deps.siteRoot, "index.html");
-  let masterHtml: string | null = null;
-  try {
-    masterHtml = await deps.readFile(masterPath);
-  } catch {
-    masterHtml = null;
-  }
-  if (masterHtml !== null) {
-    pages.push({ key: join("site", "index.html"), absPath: masterPath, html: masterHtml });
-  } else {
-    deps.log(`skipped site/index.html (no legacy static master page)`);
-  }
-
   const cRoot = join(deps.siteRoot, "public", "c");
-  for (const rel of await deps.listProductDirs(cRoot)) {
-    pages.push({
-      key: join("site", "c", rel, "index.html"),
-      absPath: join(cRoot, rel, "index.html"),
-      html: await deps.readFile(join(cRoot, rel, "index.html")),
-    });
-  }
 
-  const finish = async (
-    page: { key: string; absPath: string },
-    out: string,
-    source: string,
-    mode: string,
-    cfg: Facts,
-    assoc: ProductAssoc | undefined,
-  ): Promise<void> => {
-    out = injectAttributionScript(out, bakedAt);
-    out = bakeFacts(out, cfg, page.key);
-    if (assoc) {
-      out = bakeCrumb(out, assoc.handle, assoc.display_name, bakedAt);
-    } else if (page.key !== join("site", "index.html")) {
-      deps.log(`warn: ${page.key} not mapped in creators.json — back-link skipped`);
+  const processMaster = async (): Promise<void> => {
+    let html: string;
+    try {
+      html = await deps.readFile(masterPath);
+    } catch (e) {
+      if (isEnoent(e)) {
+        deps.log(`skipped site/index.html (no legacy static master page)`);
+        return;
+      }
+      throw e;
     }
-    await deps.writeFileAtomic(page.absPath, out);
-    deps.log(`baked ${page.key} mode=${mode}`);
+    const key = join("site", "index.html");
+    // LEGACY MASTER LOCKDOWN (P1): master page is ALWAYS gated, whatever the
+    // config says. All Paddle traces stripped; never a live router href.
+    let out = stripPaddleBlocks(html);
+    out = swap(out, "primary", primaryGated("payments/config.duane.json", bakedAt));
+    out = swap(out, "sandbox", sandboxOff("payments/config.duane.json", bakedAt));
+    out = out.replace(/<div class="sandbox" id="sandbox-test"( hidden)?>/, '<div class="sandbox" id="sandbox-test" hidden>');
+    await deps.writeFileAtomic(masterPath, out);
+    deps.log(`baked ${key} mode=gated (legacy master lockdown)`);
+    summary.baked.push(key);
   };
 
-  for (const page of pages) {
-    let html = page.html;
+  const processProductPage = async (rel: string): Promise<void> => {
+    const key = join("site", "c", rel, "index.html");
+    const absPath = join(cRoot, rel, "index.html");
+    let html: string;
+    try {
+      html = await deps.readFile(absPath);
+    } catch (e) {
+      if (isEnoent(e)) {
+        deps.log(`skipped ${key} (ENOENT)`);
+        return;
+      }
+      throw e;
+    }
 
     // ALWAYS sanitize first — every page under the site root, slotless included.
     const sanitized = stripPaddleBlocks(html);
     if (sanitized !== html) {
       html = sanitized;
-      await deps.writeFileAtomic(page.absPath, html);
-      deps.log(`sanitized ${page.key} (Paddle traces removed)`);
+      await deps.writeFileAtomic(absPath, html);
+      deps.log(`sanitized ${key} (Paddle traces removed)`);
     }
 
     if (!html.includes("data-checkout-slot")) {
-      deps.log(`skipped ${page.key} (no checkout slots — creator hub page)`);
-      continue;
+      deps.log(`skipped ${key} (no checkout slots — creator hub page)`);
+      return;
     }
 
-    const rel =
-      page.key === join("site", "index.html")
-        ? undefined
-        : page.key.slice(join("site", "c", "").length, -"/index.html".length);
-    const assoc = rel !== undefined ? (productAssoc.get(rel) as ProductAssoc | undefined) : undefined;
+    const assoc = productAssoc.get(rel) as ProductAssoc | undefined;
     const { cfg, source } = await deps.loadConfig(assoc);
     const isPaddle = cfg.checkout_mode === "paddle";
     const perCreatorMode = isPaddle
@@ -559,7 +586,7 @@ export const runBake = async (deps: BakeDeps): Promise<BakeSummary> => {
       try {
         environment = paddleEnvironment(process.env.PADDLE_ENVIRONMENT);
         paddleTokenForEnv(process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN, environment);
-        priceId = resolvePaddlePrice(cfg, environment, page.key);
+        priceId = resolvePaddlePrice(cfg, environment, key);
         if (!cfg.paddle_product_id) {
           throw new Error(
             `checkout_mode=paddle requires paddle_price_id${environment === "sandbox" ? "_sandbox" : ""} and paddle_product_id (config) — refusing to bake a broken primary slot`,
@@ -580,14 +607,14 @@ export const runBake = async (deps: BakeDeps): Promise<BakeSummary> => {
       if (failure !== null) {
         // SAFE FALLBACK (P1): never throw out of the bake — bake GATED so a
         // safe artifact can be committed/deployed over a live checkout.
-        deps.log(`CONSENTS NOT VALID — LAUNCH BLOCKED: ${page.key}: ${failure} — baking GATED checkout instead`);
-        summary.blocked.push({ page: page.key, reason: failure });
+        deps.log(`CONSENTS NOT VALID — LAUNCH BLOCKED: ${key}: ${failure} — baking GATED checkout instead`);
+        summary.blocked.push({ page: key, reason: failure });
         let out = swap(html, "primary", primaryGated(source, bakedAt));
         out = swap(out, "sandbox", sandboxOff(source, bakedAt));
         out = out.replace(/<div class="sandbox" id="sandbox-test"( hidden)?>/, '<div class="sandbox" id="sandbox-test" hidden>');
-        await finish({ key: page.key, absPath: page.absPath }, out, source, "gated (launch blocked — safe fallback)", cfg, assoc);
-        summary.baked.push(page.key);
-        continue;
+        await finish({ key, absPath }, out, source, "gated (launch blocked — safe fallback)", cfg, assoc);
+        summary.baked.push(key);
+        return;
       }
 
       let out = swap(
@@ -606,17 +633,44 @@ export const runBake = async (deps: BakeDeps): Promise<BakeSummary> => {
       );
       out = swap(out, "sandbox", sandboxOff(source, bakedAt));
       out = out.replace(/<div class="sandbox" id="sandbox-test"( hidden)?>/, '<div class="sandbox" id="sandbox-test" hidden>');
-      await finish({ key: page.key, absPath: page.absPath }, out, source, perCreatorMode, cfg, assoc);
-      summary.baked.push(page.key);
-      continue;
+      await finish({ key, absPath }, out, source, perCreatorMode, cfg, assoc);
+      summary.baked.push(key);
+      return;
     }
 
     let out = swap(html, "primary", perCreatorMode === "live" ? primaryLive(source, bakedAt) : primaryGated(source, bakedAt));
     out = swap(out, "sandbox", perCreatorMode === "sandbox" && isRealUrl(cfg.checkout_url) ? sandboxLive(source, bakedAt) : sandboxOff(source, bakedAt));
     const sandboxOn = perCreatorMode === "sandbox" && isRealUrl(cfg.checkout_url);
     out = out.replace(/<div class="sandbox" id="sandbox-test"( hidden)?>/, sandboxOn ? '<div class="sandbox" id="sandbox-test">' : '<div class="sandbox" id="sandbox-test" hidden>');
-    await finish({ key: page.key, absPath: page.absPath }, out, source, perCreatorMode, cfg, assoc);
-    summary.baked.push(page.key);
+    await finish({ key, absPath }, out, source, perCreatorMode, cfg, assoc);
+    summary.baked.push(key);
+  };
+
+  const finish = async (
+    page: { key: string; absPath: string },
+    out: string,
+    source: string,
+    mode: string,
+    cfg: Facts,
+    assoc: ProductAssoc | undefined,
+  ): Promise<void> => {
+    out = injectAttributionScript(out, bakedAt);
+    out = bakeFacts(out, cfg, page.key);
+    if (assoc) {
+      out = bakeCrumb(out, assoc.handle, assoc.display_name, bakedAt);
+    } else if (page.key !== join("site", "index.html")) {
+      deps.log(`warn: ${page.key} not mapped in creators.json — back-link skipped`);
+    }
+    await deps.writeFileAtomic(page.absPath, out);
+    deps.log(`baked ${page.key} mode=${mode}`);
+  };
+
+  // Incremental order: master first, then each product page one at a time —
+  // a later page's failure must never undo earlier pages' writes. A read
+  // error still rejects the run after earlier pages were written.
+  await processMaster();
+  for (const rel of await deps.listProductDirs(cRoot)) {
+    await processProductPage(rel);
   }
 
   return summary;
@@ -638,6 +692,6 @@ if (runAsMain) {
     console.log(`LAUNCH BLOCKED: ${b.page}: ${b.reason}`);
   }
   console.log(`bake summary: ${summary.baked.length} baked, ${summary.blocked.length} launch-blocked (gated fallback)`);
-  // Every collected page baked (gated fallback counts as baked) → exit 0.
-  process.exitCode = 0;
+  // Successful bake (gated fallback counts as baked) → 0; I/O failure → non-zero.
+  process.exitCode = exitCodeFor(summary);
 }
