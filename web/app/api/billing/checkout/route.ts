@@ -18,21 +18,24 @@ interface CheckoutRail {
  * the built-in default launch rail, and 302-redirects to the
  * weighted-selected provider checkout URL via MatrixRouter, falling back to
  * the highest-weight rail if the router fails. Every source's checkout_url
- * passes one validation policy — non-empty, https, and sandbox hosts only in
- * explicitly recognised non-production environments — and any violation
- * (including an unset POLAR_CHECKOUT_URL for the default rail in production)
- * fails closed with 500 "Checkout is not configured".
+ * passes one validation policy — raw value must be a string (non-string
+ * fails closed), then trimmed: non-empty, https, and sandbox hosts
+ * (hostname label match) only in explicitly recognised non-production
+ * environments — and any violation (including an unset POLAR_CHECKOUT_URL
+ * for the default rail in production, or a SET-but-blank
+ * CHECKOUT_URL_<PRODUCT> override) fails closed with 500 "Checkout is not
+ * configured".
  */
 function jsonError(status: number, error: string): NextResponse {
   return NextResponse.json({ ok: false, error }, { status });
 }
 
 function sandboxAllowed(): boolean {
-  // Only explicitly recognised non-production runtimes may use sandbox links; an absent/unknown VERCEL_ENV on a production build fails closed.
+  // Sandbox links only on explicitly recognised non-production runtimes; anything else (absent/unknown signals) fails closed.
   const v = process.env.VERCEL_ENV;
   if (v === "preview" || v === "development") return true;
-  if (v) return false; // "production" or anything unexpected
-  return process.env.NODE_ENV !== "production"; // local dev / vitest
+  if (v) return false;
+  return process.env.NODE_ENV === "development" || process.env.NODE_ENV === "test";
 }
 
 function checkoutUrlProblem(raw: unknown): string | null {
@@ -44,9 +47,8 @@ function checkoutUrlProblem(raw: unknown): string | null {
     return "malformed";
   }
   if (u.protocol !== "https:") return "not https";
-  if (/(^|\.)sandbox[.-]/i.test(u.hostname) || u.hostname.startsWith("sandbox")) {
-    return sandboxAllowed() ? null : "sandbox host in production";
-  }
+  const labels = u.hostname.toLowerCase().split(/[.-]/);
+  if (labels.includes("sandbox")) return sandboxAllowed() ? null : "sandbox host in production";
   return null;
 }
 
@@ -71,9 +73,12 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       console.error(`[billing/checkout] unusable rails file for '${product}': ${(err as Error).message}`);
     }
     const envSlugKey = `CHECKOUT_URL_${product.toUpperCase().replace(/[^A-Z0-9]/g, "_")}`;
-    const dynamicCheckoutUrl = process.env[envSlugKey]?.trim();
-    if (dynamicCheckoutUrl) {
-      rails = [{ provider: "polar", weight: 100, checkout_url: dynamicCheckoutUrl }];
+    // A SET override is the configured source even when its raw value is
+    // blank — no trimming it away, no fall-through to the default rail; the
+    // shared validator below rejects blank values with the controlled 500.
+    const overrideUrl = process.env[envSlugKey];
+    if (overrideUrl !== undefined) {
+      rails = [{ provider: "polar", weight: 100, checkout_url: overrideUrl }];
     } else if (product === "retirearly500k-500k-playbook" || product === "duane_retirement_playbook_v1") {
       const liveCheckoutUrl = process.env.POLAR_CHECKOUT_URL?.trim();
       if (!liveCheckoutUrl && !sandboxAllowed()) {
@@ -93,12 +98,18 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     }
   }
 
-  // One URL policy for every source: validate before routing, redirect trimmed.
-  rails = rails.map((rail) =>
-    rail.checkout_url === undefined ? rail : { ...rail, checkout_url: rail.checkout_url.trim() },
-  );
+  // Fail closed on non-string RAW checkout_url values (missing/null/number
+  // from a malformed rails file) BEFORE any trimming — no silent rail skips.
   for (const rail of rails) {
-    if (rail.checkout_url === undefined) continue;
+    if (!rail || typeof rail !== "object" || typeof rail.checkout_url !== "string") {
+      console.error(`[billing/checkout] rejected checkout_url for '${product}' (${rail?.provider ?? "unknown"}): missing or not a string`);
+      return jsonError(500, "Checkout is not configured");
+    }
+  }
+
+  // One URL policy for every source: validate before routing, redirect trimmed.
+  for (const rail of rails) {
+    rail.checkout_url = (rail.checkout_url as string).trim();
     const problem = checkoutUrlProblem(rail.checkout_url);
     if (problem) {
       console.error(`[billing/checkout] rejected checkout_url for '${product}' (${rail.provider}): ${problem}`);

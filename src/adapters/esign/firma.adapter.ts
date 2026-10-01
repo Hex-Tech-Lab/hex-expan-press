@@ -140,7 +140,16 @@ export class FirmaAdapter implements EsignProviderPort, EsignWebhookPort {
       return { isValid: false, error: "FIRMA_WEBHOOK_SECRET not configured — HMAC verification cannot run" };
     }
     const hash = crypto.createHmac("sha256", secret).update(body).digest("hex");
-    if (!sig || sig !== hash) {
+    // Constant-time compare (sharp-edges audit 2026-10-01): `===` on hex
+    // strings leaks match-prefix timing. Require exactly 64 hex chars FIRST:
+    // Buffer.from(…, "hex") silently drops a trailing odd digit or junk, so a
+    // valid signature plus a suffix would otherwise decode to the right bytes.
+    if (!sig || !/^[0-9a-f]{64}$/i.test(sig)) {
+      return { isValid: false, error: "Invalid signature" };
+    }
+    const expected = Buffer.from(hash, "hex");
+    const provided = Buffer.from(sig, "hex");
+    if (provided.length !== expected.length || !crypto.timingSafeEqual(expected, provided)) {
       return { isValid: false, error: "Invalid signature" };
     }
 
