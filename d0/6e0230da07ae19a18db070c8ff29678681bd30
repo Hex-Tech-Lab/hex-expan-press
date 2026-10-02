@@ -1,0 +1,22 @@
+docs/agent_ledger.jsonl
+  h_90c2451a76ba0d 383
+payments/bake_checkout.ts
+  h_90c2451a76ba0d 29,32-36,117-173
+payments/test/audit_bake_c2_hash.test.ts
+  h_90c2451a76ba0d 1-119
+payments/test/bake_checkout_flow.test.ts
+  h_90c2451a76ba0d 28-34,54-60,105-114,183,185,188
+payments/test/bake_checkout_run.test.ts
+  h_90c2451a76ba0d 78-82,88,91-93,156,220
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d06e0230da07ae19a18db070c8ff29678681bd30",
+  "prompts": {},
+  "humans": {
+    "h_90c2451a76ba0d": {
+      "author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
