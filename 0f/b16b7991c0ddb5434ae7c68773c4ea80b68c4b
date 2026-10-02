@@ -1,0 +1,25 @@
+payments/src/cascade_signals.ts
+  s_64dbe2eccb5bf8::t_300dd7b857e5f0 7,42-43,47,49-51
+payments/src/reports.ts
+  s_64dbe2eccb5bf8::t_4a186ef08f490c 32-33,45,51,58
+src/use_cases/billing/__tests__/process_billing_webhook.test.ts
+  s_64dbe2eccb5bf8::t_6411a3b7c621bd 104,304,321-324,327,452
+src/use_cases/billing/process_billing_webhook.ts
+  s_64dbe2eccb5bf8::t_321dda7df84e87 90-94,196-198
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "0fb16b7991c0ddb5434ae7c68773c4ea80b68c4b",
+  "prompts": {},
+  "sessions": {
+    "s_64dbe2eccb5bf8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4fee11c3-26f1-4f05-9ec8-fdbba76990a4",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
