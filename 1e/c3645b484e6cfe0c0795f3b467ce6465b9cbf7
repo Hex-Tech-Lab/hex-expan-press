@@ -1,0 +1,19 @@
+supabase/migrations/20261003000100_review_codes_c_to_q.sql
+  s_64dbe2eccb5bf8::t_f6238f190a14de 3-11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "1ec3645b484e6cfe0c0795f3b467ce6465b9cbf7",
+  "prompts": {},
+  "sessions": {
+    "s_64dbe2eccb5bf8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4fee11c3-26f1-4f05-9ec8-fdbba76990a4",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
