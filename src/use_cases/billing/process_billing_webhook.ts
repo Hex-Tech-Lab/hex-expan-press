@@ -6,8 +6,8 @@
  * Knows nothing about Polar, Paddle, or any provider.
  * ADR: ADR-0049, ADR-0050
  */
-import { PaymentProviderPort, SaleCompletedEvent, RefundIssuedEvent } from "../../domain/payments/payments.port.ts";
-import { appendSale, appendRefund, findSaleAsync, findRefundAsync, flagRefundForManualReview } from "../../../payments/src/ledger.ts";
+import { PaymentProviderPort, SaleCompletedEvent, RefundIssuedEvent, RefundReversedEvent } from "../../domain/payments/payments.port.ts";
+import { appendSale, appendRefund, appendRefundReversal, findSaleAsync, findRefundAsync, findRefundReversalAsync, flagRefundForManualReview } from "../../../payments/src/ledger.ts";
 import { computeSplit } from "../../../payments/src/split.ts";
 import { effectiveCreatorSplitPct } from "../../../payments/src/terms.ts";
 import { loadProductIndex, withIdempotencyLock, WebhookInFlightError } from "../../../payments/src/webhook_core.ts";
@@ -137,6 +137,28 @@ export async function processBillingWebhookUseCase(
           ts: refundEvent.occurredAt
         });
         return { status: 200, payload: { ok: true, recorded: true, event_type: "refund", sale_id: refundEvent.saleId } };
+      },
+    );
+    return;
+  }
+
+  // 4b. Refund reversed (won chargeback / dispute reversal)
+  if (event.eventType === "refund_reversed") {
+    const revEvent = event as RefundReversedEvent;
+    await underLockOrConfirmed(
+      `lock:refund:${revEvent.providerName}:${revEvent.saleId}`,
+      async () => (await findRefundReversalAsync(revEvent.providerName, revEvent.saleId)) !== null,
+      async () => {
+        const existingReversal = await findRefundReversalAsync(revEvent.providerName, revEvent.saleId);
+        if (existingReversal) {
+          return { status: 200, payload: { ok: true, recorded: false, reason: "duplicate", event_type: "refund_reversal", sale_id: revEvent.saleId } };
+        }
+        await appendRefundReversal({
+          provider: revEvent.providerName,
+          sale_id: revEvent.saleId,
+          ts: revEvent.occurredAt
+        });
+        return { status: 200, payload: { ok: true, recorded: true, event_type: "refund_reversal", sale_id: revEvent.saleId } };
       },
     );
     return;

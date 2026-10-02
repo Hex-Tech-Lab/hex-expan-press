@@ -20,7 +20,7 @@ export interface SaleLine {
   creator_split_usd: number;
   our_split_usd: number;
   currency: string;
-  event_type?: "sale" | "refund";
+  event_type?: "sale" | "refund" | "refund_reversal";
 }
 
 export type TitleMap = Map<string, string>;
@@ -39,6 +39,13 @@ function addTotals(t: Totals, s: SaleLine): void {
   if (s.event_type === "refund") {
     t.refunds += 1;
     t.gross -= usdToCents(s.amount_usd);
+    t.creator += usdToCents(s.creator_split_usd);
+    t.ours += usdToCents(s.our_split_usd);
+    return;
+  }
+  if (s.event_type === "refund_reversal") {
+    t.refunds = Math.max(0, t.refunds - 1);
+    t.gross += usdToCents(s.amount_usd);
     t.creator += usdToCents(s.creator_split_usd);
     t.ours += usdToCents(s.our_split_usd);
     return;
@@ -102,7 +109,7 @@ export function loadSales(salesFile: string): SaleLine[] {
           bad("creator_split_pct invalid (must be a finite number within 0-100 when present)");
         }
       }
-      if (s.event_type !== undefined && s.event_type !== "sale" && s.event_type !== "refund") bad("event_type invalid (must be \"sale\" or \"refund\" when present)");
+      if (s.event_type !== undefined && s.event_type !== "sale" && s.event_type !== "refund" && s.event_type !== "refund_reversal") bad("event_type invalid (must be \"sale\", \"refund\", or \"refund_reversal\" when present)");
       sales.push(s as SaleLine);
     } catch (err) {
       console.error(`[reports] skipping ${salesFile}:${i + 1}: ${(err as Error).message}`);
@@ -131,6 +138,10 @@ function moneyRow(s: SaleLine, titles: TitleMap, time: string): string {
   if (s.event_type === "refund") {
     const backSuffix = typeof s.creator_split_pct === "number" ? ` (${s.creator_split_pct}% back to creator)` : "";
     return `| ${mdCell(time)} | ${mdCell(s.sale_id)} | ${mdCell(productLabel(s.product_id, titles))} | ${formatUsd(-usdToCents(s.amount_usd))} refund | ${formatUsd(usdToCents(s.creator_split_usd))}${backSuffix} | ${formatUsd(usdToCents(s.our_split_usd))} |`;
+  }
+  if (s.event_type === "refund_reversal") {
+    const pctSuffix = typeof s.creator_split_pct === "number" ? ` (${s.creator_split_pct}%)` : "";
+    return `| ${mdCell(time)} | ${mdCell(s.sale_id)} | ${mdCell(productLabel(s.product_id, titles))} | ${formatUsd(usdToCents(s.amount_usd))} reversal | ${formatUsd(usdToCents(s.creator_split_usd))}${pctSuffix} | ${formatUsd(usdToCents(s.our_split_usd))} |`;
   }
   const pctSuffix = typeof s.creator_split_pct === "number" ? ` (${s.creator_split_pct}%)` : "";
   return `| ${mdCell(time)} | ${mdCell(s.sale_id)} | ${mdCell(productLabel(s.product_id, titles))} | ${formatUsd(usdToCents(s.amount_usd))} | ${formatUsd(usdToCents(s.creator_split_usd))}${pctSuffix} | ${formatUsd(usdToCents(s.our_split_usd))} |`;

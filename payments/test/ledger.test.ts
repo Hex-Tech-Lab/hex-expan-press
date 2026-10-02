@@ -132,6 +132,34 @@ describe("payments/src/ledger", () => {
     expect(rows).toHaveLength(2); // 1 sale + 1 refund — no duplicate refund row
   });
 
+  // Reversal tests (P1 chargeback reversal)
+  it("records refund_reversal only if refund exists; duplicate reversal is a no-op", async () => {
+    const { appendRefundReversal } = await import("../src/ledger.ts");
+    await appendSale(baseSale, salesFile);
+    await appendRefund({ provider: "polar", sale_id: "sale_001", ts: "2026-09-19T00:00:00.000Z" }, salesFile);
+
+    const rev1 = await appendRefundReversal({ provider: "polar", sale_id: "sale_001", ts: "2026-09-20T00:00:00.000Z" }, salesFile);
+    expect(rev1.event_type).toBe("refund_reversal");
+    expect(rev1.creator_split_usd).toBe(baseSale.creator_split_usd);
+    expect(rev1.our_split_usd).toBe(baseSale.our_split_usd);
+
+    // Duplicate reversal is a no-op / returns existing
+    const rev2 = await appendRefundReversal({ provider: "polar", sale_id: "sale_001", ts: "2026-09-21T00:00:00.000Z" }, salesFile);
+    expect(rev2).toEqual(rev1);
+
+    const { readFileSync } = await import("node:fs");
+    const rows = readFileSync(salesFile, "utf8").split(/\r?\n/).filter(Boolean);
+    expect(rows).toHaveLength(3); // 1 sale + 1 refund + 1 reversal
+  });
+
+  it("reversal without prior refund throws (leaves for manual review)", async () => {
+    const { appendRefundReversal } = await import("../src/ledger.ts");
+    await appendSale(baseSale, salesFile);
+    await expect(appendRefundReversal({ provider: "polar", sale_id: "sale_001" }, salesFile)).rejects.toThrow(
+      /no recorded refund/
+    );
+  });
+
   // Fail-closed lookups (P1): a Supabase read ERROR must throw, never read as
   // "not found" — otherwise a transient outage lets a duplicate sale through.
   it("findSaleAsync / findRefundAsync throw on a Supabase lookup error", async () => {

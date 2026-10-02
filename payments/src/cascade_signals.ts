@@ -45,6 +45,7 @@ export function refundRateWindow(opts: {
     const t = new Date(s.ts).getTime();
     if (t < windowStart.getTime() || t > windowEnd.getTime()) continue;
     if (s.event_type === "refund") refunds += 1;
+    else if (s.event_type === "refund_reversal") refunds = Math.max(0, refunds - 1);
     else sales += 1;
   }
   return {
