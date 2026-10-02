@@ -59,11 +59,13 @@ const PaddleWebhookSchema = z.object({
     }).nullish(),
     changed_at: z.string().datetime().nullish(),
     customer_id: z.string().nullish(),
+    // transaction.* items carry price{id}; adjustment.* items are {item_id, type, amount, ...} with
+    // NO price, so price is optional here and required only on the sale path below.
     items: z.array(
       z.object({
         price: z.object({
           id: z.string()
-        }).passthrough()
+        }).passthrough().nullish()
       }).passthrough()
     ).nullish()
   })
@@ -240,7 +242,11 @@ export class PaddleAdapter implements PaymentProviderPort {
 
       const mappedProducts: string[] = [];
       for (const item of items) {
-        const priceId = item.price.id;
+        const priceId = item.price?.id;
+        if (!priceId) {
+          console.error(`[paddle.adapter] transaction item without price transaction_id=${validated.data.id}`);
+          return { isValid: false, error: "Paddle transaction item missing price", httpStatus: 400 };
+        }
         // Own-property lookup only: a price id like "constructor" must not resolve via Object.prototype.
         const mapped = Object.hasOwn(priceMap, priceId) ? priceMap[priceId] : undefined;
         if (typeof mapped !== "string" || mapped === "") {
@@ -287,8 +293,9 @@ export class PaddleAdapter implements PaymentProviderPort {
           if (typeof fetched?.email === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fetched.email)) {
             email = fetched.email;
           }
-        } catch {
-          // fall through — handled below
+        } catch (err) {
+          // fall through — the !email branch below answers 503; keep the cause for the operator
+          console.error(`[paddle.adapter] customer email lookup error customer_id=${customerId}:`, err instanceof Error ? err.message : err);
         }
         if (!email) {
           console.error(`[paddle.adapter] customer email lookup failed customer_id=${customerId} env=${serverEnv}`);
