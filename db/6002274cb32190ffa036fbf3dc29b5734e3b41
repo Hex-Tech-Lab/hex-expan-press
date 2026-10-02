@@ -1,0 +1,33 @@
+web/e2e/constants.ts
+  s_9da76c00eea207::t_ed15fdd2d8b5b0 1-16
+web/e2e/mock-supabase.ts
+  s_9da76c00eea207::t_1ef3d5d07acd98 1-151
+web/package.json
+  s_9da76c00eea207::t_e7f4e360656a49 11,33
+web/playwright.config.ts
+  s_9da76c00eea207::t_9894c200bad844 1-53
+web/tsconfig.json
+  s_9da76c00eea207::t_c26d99ad0cb60c 40-41
+pnpm-lock.yaml
+  s_9da76c00eea207::t_df52d348ee5f41 172,184,204-206,1660-1664,4436-4440,6225-6228,6459,6473,8976,8996,9266-9269
+web/.gitignore
+  s_9da76c00eea207::t_80fcbcbc6a7d4c 7-13
+web/e2e/creator_funnel.spec.ts
+  s_9da76c00eea207::t_db152049d0e655 1-88
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "db6002274cb32190ffa036fbf3dc29b5734e3b41",
+  "prompts": {},
+  "sessions": {
+    "s_9da76c00eea207": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "82839636-bb03-485f-8ebb-7a4b1f96c746",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
