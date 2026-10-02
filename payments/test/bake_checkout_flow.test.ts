@@ -25,7 +25,13 @@ const makeRow = (
   decision: string,
   signed_at: string | null = "2026-09-01T00:00:00Z",
   supersedes: string | null = null,
-): ConsentRow => ({ id, kind, decision, signed_at, supersedes });
+): ConsentRow => ({ id, kind, decision, signed_at, supersedes, document_sha256: SHA });
+
+const SHA = "c".repeat(64);
+const okProductsRes = (): Response =>
+  ({ ok: true, status: 200, json: async () => [{ release_sha256: SHA }] }) as unknown as Response;
+const okFetchRes = (rows: unknown) => async (url: unknown): Promise<Response> =>
+  String(url).includes("/products") ? okProductsRes() : okRes(rows);
 
 const ENV_KEYS = ["SUPABASE_URL", "SUPABASE_SECRET_KEY", "PADDLE_ENVIRONMENT", "NEXT_PUBLIC_PADDLE_CLIENT_TOKEN"] as const;
 const savedEnv: Record<string, string | undefined> = {};
@@ -45,10 +51,13 @@ describe("assertLaunchConsents", () => {
     process.env.SUPABASE_URL = "https://sup.example";
     process.env.SUPABASE_SECRET_KEY = "sk";
     let called = false;
-    await assertLaunchConsents(DB_ID, async () => {
-      called = true;
-      return okRes(KINDS.map((k, i) => makeRow(`row-${k}`, k, "given", `2026-09-0${i + 1}T00:00:00Z`)));
-    });
+    await assertLaunchConsents(
+      DB_ID,
+      async (url) => {
+        called = true;
+        return await okFetchRes(KINDS.map((k, i) => makeRow(`row-${k}`, k, "given", `2026-09-0${i + 1}T00:00:00Z`)))(url);
+      },
+    );
     expect(called).toBe(true);
   });
 
@@ -93,14 +102,16 @@ describe("assertLaunchConsents", () => {
     await expect(
       assertLaunchConsents(
         DB_ID,
-        async () =>
-          okRes([
-            makeRow("r1", "C1_data_accuracy", "given", "2026-09-01T00:00:00Z", null),
-            makeRow("r2", "C1_data_accuracy", "refused", "2026-09-02T00:00:00Z", "r1"),
-            makeRow("r3", "C1_data_accuracy", "given", "2026-09-03T00:00:00Z", "r2"),
-            makeRow("r4", "C2_release_approval", "given", "2026-09-02T00:00:00Z", null),
-            makeRow("r5", "C3_revenue_split", "given", "2026-09-03T00:00:00Z", null),
-          ]),
+        async (url) =>
+          String(url).includes("/products")
+            ? okProductsRes()
+            : okRes([
+              makeRow("r1", "C1_data_accuracy", "given", "2026-09-01T00:00:00Z", null),
+              makeRow("r2", "C1_data_accuracy", "refused", "2026-09-02T00:00:00Z", "r1"),
+              makeRow("r3", "C1_data_accuracy", "given", "2026-09-03T00:00:00Z", "r2"),
+              makeRow("r4", "C2_release_approval", "given", "2026-09-02T00:00:00Z", null),
+              makeRow("r5", "C3_revenue_split", "given", "2026-09-03T00:00:00Z", null),
+            ]),
       ),
     ).resolves.toBeUndefined();
   });
@@ -169,12 +180,12 @@ describe("assertLaunchConsents", () => {
       makeRow("r4", "C3_revenue_split", "given", "2026-09-03T00:00:00Z", null),
     ];
     // Permutation 1
-    await expect(assertLaunchConsents(DB_ID, async () => okRes([...rows]))).resolves.toBeUndefined();
+    await expect(assertLaunchConsents(DB_ID, okFetchRes([...rows]))).resolves.toBeUndefined();
     // Permutation 2 (reversed)
-    await expect(assertLaunchConsents(DB_ID, async () => okRes([...rows].reverse()))).resolves.toBeUndefined();
+    await expect(assertLaunchConsents(DB_ID, okFetchRes([...rows].reverse()))).resolves.toBeUndefined();
     // Permutation 3 (arbitrary shuffle)
     const shuffled = [rows[2], rows[0], rows[3], rows[1]];
-    await expect(assertLaunchConsents(DB_ID, async () => okRes(shuffled))).resolves.toBeUndefined();
+    await expect(assertLaunchConsents(DB_ID, okFetchRes(shuffled))).resolves.toBeUndefined();
   });
 
   it("throws on HTTP 500", async () => {
