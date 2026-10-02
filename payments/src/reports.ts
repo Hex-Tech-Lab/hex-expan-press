@@ -29,8 +29,8 @@ export interface Totals {
   count: number;
   refunds: number;
   /** provider:sale_id keys, netted per sale by finalizeTotals (one refund row per sale is a DB invariant). */
-  refundKeys?: Set<string>;
-  reversalKeys?: Set<string>;
+  refundKeys: Set<string>;
+  reversalKeys: Set<string>;
   gross: number;
   creator: number;
   ours: number;
@@ -42,21 +42,20 @@ export function finalizeTotals(t: Totals): void {
   // A reversal cancels only the refund of the same sale in this bucket; a reversal of an earlier
   // period's refund moves money (gross) but must not hide an unrelated refund's count.
   let refunds = 0;
-  for (const k of t.refundKeys ?? []) if (!t.reversalKeys?.has(k)) refunds += 1;
+  for (const k of t.refundKeys) if (!t.reversalKeys.has(k)) refunds += 1;
   t.refunds = refunds;
 }
 
 export function addTotals(t: Totals, s: SaleLine): void {
   if (s.event_type === "refund") {
-    t.refunds += 1;
-    (t.refundKeys ??= new Set()).add(`${s.provider}:${s.sale_id}`);
+    t.refundKeys.add(`${s.provider}:${s.sale_id}`); // t.refunds is derived in finalizeTotals
     t.gross -= usdToCents(s.amount_usd);
     t.creator += usdToCents(s.creator_split_usd);
     t.ours += usdToCents(s.our_split_usd);
     return;
   }
   if (s.event_type === "refund_reversal") {
-    (t.reversalKeys ??= new Set()).add(`${s.provider}:${s.sale_id}`);
+    t.reversalKeys.add(`${s.provider}:${s.sale_id}`);
     t.gross += usdToCents(s.amount_usd);
     t.creator += usdToCents(s.creator_split_usd);
     t.ours += usdToCents(s.our_split_usd);
