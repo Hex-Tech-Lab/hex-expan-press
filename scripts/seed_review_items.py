@@ -17,7 +17,7 @@ QUEUE = ROOT / "data/intel/duane_book/qa/duane_review_queue.md"
 OUT = ROOT / "supabase/seed/duane_review_items.sql"
 PRODUCT_SLUG = "retirearly500k"
 
-KIND = {"A": "premise", "B": "contradiction", "C": "confirm"}
+KIND = {"A": "premise", "B": "contradiction", "Q": "confirm"}
 
 
 def sql_str(s: str) -> str:
@@ -79,7 +79,7 @@ def parse(md: str):
                 if len(cols) < 4:
                     continue
                 code = cols[0]
-                if not re.match(r"^[ABC]\d+$", code):
+                if not re.match(r"^[ABQ]\d+$", code):
                     continue
                 topic = cols[1]
                 struck = re.match(r"^~~(.+)~~$", cols[2].strip())
@@ -111,7 +111,7 @@ def parse(md: str):
     c_n = 1
     for it in items:
         if it["code"] is None:
-            it["code"] = f"C{c_n}"
+            it["code"] = f"Q{c_n}"
             c_n += 1
     return items
 
