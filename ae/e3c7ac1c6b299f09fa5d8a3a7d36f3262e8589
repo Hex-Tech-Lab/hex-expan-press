@@ -1,0 +1,32 @@
+docs/agent_ledger.jsonl
+  s_6ef5598e2bafaa::t_95f7c99a25cb0a 385
+  s_6ef5598e2bafaa::t_53cda1ddec7007 384
+payments/config.duane.json
+  s_64dbe2eccb5bf8::t_6410589d74a35a 13
+supabase/seed/duane_review_items.sql
+  s_64dbe2eccb5bf8::t_9f0e818b18e47d 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "aee3c7ac1c6b299f09fa5d8a3a7d36f3262e8589",
+  "prompts": {},
+  "sessions": {
+    "s_64dbe2eccb5bf8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4fee11c3-26f1-4f05-9ec8-fdbba76990a4",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_6ef5598e2bafaa": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f01876296ffeVRr2rkocA1geZT",
+        "model": "@preset/glm-53-flash-on-cheap"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
