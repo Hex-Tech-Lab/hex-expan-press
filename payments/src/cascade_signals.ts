@@ -40,14 +40,16 @@ export function refundRateWindow(opts: {
 
   const all: SaleLine[] = loadSales(salesFile).filter((s) => s.product_id === productId);
   let sales = 0;
-  let refunds = 0;
+  let rawRefunds = 0;
+  let rawReversals = 0;
   for (const s of all) {
     const t = new Date(s.ts).getTime();
     if (t < windowStart.getTime() || t > windowEnd.getTime()) continue;
-    if (s.event_type === "refund") refunds += 1;
-    else if (s.event_type === "refund_reversal") refunds = Math.max(0, refunds - 1);
+    if (s.event_type === "refund") rawRefunds += 1;
+    else if (s.event_type === "refund_reversal") rawReversals += 1;
     else sales += 1;
   }
+  const refunds = Math.max(0, rawRefunds - rawReversals);
   return {
     product_id: productId,
     window_start: windowStart.toISOString(),

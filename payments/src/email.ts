@@ -30,10 +30,16 @@ export const isRetryableError = (
   name: string | undefined | null,
   status: number | undefined | null,
 ): boolean => {
-  if (typeof name === "string" && name.trim() !== "") {
-    return GLOBAL.email.retryable_error_names.includes(name);
+  if (status === 429 || (typeof status === "number" && status >= 500)) {
+    return true;
   }
-  return status === undefined || status === null || status === 429 || status >= 500;
+  if (status === null || status === undefined) {
+    if (typeof name === "string" && name.trim() !== "") {
+      return GLOBAL.email.retryable_error_names.includes(name);
+    }
+    return true;
+  }
+  return false;
 };
 
 /** Extracts the address from `Name <addr>` or a bare address. */

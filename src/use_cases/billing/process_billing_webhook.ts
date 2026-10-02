@@ -106,8 +106,8 @@ export async function processBillingWebhookUseCase(
           );
         }
         const original = await findSaleAsync(refundEvent.providerName, refundEvent.saleId);
-        if (refundEvent.currency !== undefined) {
-          const saleCurrency = (original?.currency ?? GLOBAL.defaults.currency).toUpperCase();
+        if (original && refundEvent.currency !== undefined) {
+          const saleCurrency = (original.currency ?? GLOBAL.defaults.currency).toUpperCase();
           if (refundEvent.currency.toUpperCase() !== saleCurrency) {
             await flagRefundForManualReview({
               reason: "currency_mismatch",
@@ -115,8 +115,8 @@ export async function processBillingWebhookUseCase(
               sale_id: refundEvent.saleId,
               refund_id: refundEvent.refundId ?? null,
               refund_cents: refundEvent.totalCents ?? null,
-              sale_cents: original ? Math.round(original.amount_usd * 100) : null,
-              creator_id: original?.creator_id ?? null,
+              sale_cents: Math.round(original.amount_usd * 100),
+              creator_id: original.creator_id ?? null,
               occurred_at: refundEvent.occurredAt,
             });
             throw new Error(
@@ -141,6 +141,21 @@ export async function processBillingWebhookUseCase(
               `Webhook validation failed: refund amount ${refundEvent.totalCents}c != sale ${saleCents}c for sale ${refundEvent.saleId} — full reversals only, flagged for manual review`,
             );
           }
+        }
+        // If a refund_reversal already exists for this sale, the ledger cannot hold a second refund
+        const existingReversal = await findRefundReversalAsync(refundEvent.providerName, refundEvent.saleId);
+        if (existingReversal) {
+          await flagRefundForManualReview({
+            reason: "refund_after_reversal",
+            provider: refundEvent.providerName,
+            sale_id: refundEvent.saleId,
+            refund_id: refundEvent.refundId ?? null,
+            refund_cents: refundEvent.totalCents ?? null,
+            sale_cents: original ? Math.round(original.amount_usd * 100) : null,
+            creator_id: original?.creator_id ?? null,
+            occurred_at: refundEvent.occurredAt,
+          });
+          return { status: 200, payload: { ok: true, recorded: false, reason: "manual_review" } };
         }
         // Duplicate check AFTER amount validation: a second refund event with a
         // mismatched amount for an already-refunded sale is a different refund and
@@ -182,7 +197,7 @@ export async function processBillingWebhookUseCase(
             creator_id: sale?.creator_id ?? null,
             occurred_at: revEvent.occurredAt,
           });
-          return { status: 200, payload: { ok: true, recorded: false, reason: "manual_review" } };
+          throw new Error(`refund reversal waiting for sale/refund: ${revEvent.saleId}`);
         }
 
         if (revEvent.currency !== undefined) {

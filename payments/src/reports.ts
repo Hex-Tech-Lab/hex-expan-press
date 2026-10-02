@@ -25,17 +25,24 @@ export interface SaleLine {
 
 export type TitleMap = Map<string, string>;
 
-interface Totals {
+export interface Totals {
   count: number;
   refunds: number;
+  reversals?: number;
   gross: number;
   creator: number;
   ours: number;
 }
 
-const emptyTotals = (): Totals => ({ count: 0, refunds: 0, gross: 0, creator: 0, ours: 0 });
+export const emptyTotals = (): Totals => ({ count: 0, refunds: 0, reversals: 0, gross: 0, creator: 0, ours: 0 });
 
-function addTotals(t: Totals, s: SaleLine): void {
+export function finalizeTotals(t: Totals): void {
+  const rev = t.reversals ?? 0;
+  t.refunds = Math.max(0, t.refunds - rev);
+  t.reversals = 0;
+}
+
+export function addTotals(t: Totals, s: SaleLine): void {
   if (s.event_type === "refund") {
     t.refunds += 1;
     t.gross -= usdToCents(s.amount_usd);
@@ -44,7 +51,7 @@ function addTotals(t: Totals, s: SaleLine): void {
     return;
   }
   if (s.event_type === "refund_reversal") {
-    t.refunds = Math.max(0, t.refunds - 1);
+    t.reversals = (t.reversals ?? 0) + 1;
     t.gross += usdToCents(s.amount_usd);
     t.creator += usdToCents(s.creator_split_usd);
     t.ours += usdToCents(s.our_split_usd);
@@ -175,6 +182,7 @@ export function runDaily(opts: { date: string; sales: SaleLine[]; titles: TitleM
       addTotals(totals, s);
       return moneyRow(s, titles, s.ts.slice(11, 16));
     });
+    finalizeTotals(totals);
     if (totals.creator + totals.ours !== totals.gross) {
       console.error(`[reports] WARNING: split columns do not sum to gross for creator ${creatorId} on ${date}`);
     }
@@ -211,6 +219,9 @@ export function runWeekly(opts: { date: string; sales: SaleLine[]; titles: Title
     byProduct.set(productLabel(s.product_id, titles), p);
     addTotals(grand, s);
   }
+  finalizeTotals(grand);
+  for (const t of byCreator.values()) finalizeTotals(t);
+  for (const t of byProduct.values()) finalizeTotals(t);
   const mdLines: string[] = [
     `# Weekly compound — ${label} (Mon ${start} → Sun ${end}, UTC)`,
     "",
