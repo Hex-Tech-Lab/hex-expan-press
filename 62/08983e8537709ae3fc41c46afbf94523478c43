@@ -1,0 +1,31 @@
+web/e2e/constants.ts
+  s_9da76c00eea207::t_c064fcc094a692 9
+web/e2e/creator_funnel.spec.ts
+  s_9da76c00eea207::t_151dc3421bb092 8-9,19-21,26,28-29,35-39,42-46,69-73
+web/e2e/mock-supabase.ts
+  s_9da76c00eea207::t_a147e598b3a098 110-123
+web/playwright.config.ts
+  s_9da76c00eea207::t_ce2391f286a6ef 4-6,23-27
+web/tsconfig.e2e.json
+  s_9da76c00eea207::t_72e757897eb3eb 1-6
+pnpm-lock.yaml
+  s_9da76c00eea207::t_4bb4df6af3256a 234-236
+web/package.json
+  s_9da76c00eea207::t_702a188e9a97f5 12-13,45
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "6208983e8537709ae3fc41c46afbf94523478c43",
+  "prompts": {},
+  "sessions": {
+    "s_9da76c00eea207": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "82839636-bb03-485f-8ebb-7a4b1f96c746",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
