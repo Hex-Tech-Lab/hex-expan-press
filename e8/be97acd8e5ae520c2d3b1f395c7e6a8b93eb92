@@ -1,0 +1,40 @@
+docs/agent_ledger.jsonl
+  h_90c2451a76ba0d 390-391
+payments/src/cascade_signals.ts
+  h_90c2451a76ba0d 43-44,48-49,52
+payments/src/email.ts
+  h_90c2451a76ba0d 33-34,36-42
+payments/src/ledger.ts
+  h_90c2451a76ba0d 120-122,224
+payments/src/reports.ts
+  h_90c2451a76ba0d 28,31,37,39-45,54,185,222-224
+payments/test/cascade_signals.test.ts
+  h_90c2451a76ba0d 1-124
+payments/test/email.test.ts
+  h_90c2451a76ba0d 132-135
+payments/test/ledger.test.ts
+  h_90c2451a76ba0d 220-302
+src/adapters/database/__tests__/supabase-adapter.test.ts
+  h_90c2451a76ba0d 56-84
+src/adapters/database/supabase.adapter.ts
+  h_90c2451a76ba0d 40-43,46
+src/adapters/payments/__tests__/paddle.adapter.test.ts
+  h_90c2451a76ba0d 487-532
+src/adapters/payments/paddle.adapter.ts
+  h_90c2451a76ba0d 262,300-305
+src/use_cases/billing/__tests__/process_billing_webhook.test.ts
+  h_90c2451a76ba0d 448,480,483,500-589
+src/use_cases/billing/process_billing_webhook.ts
+  h_90c2451a76ba0d 109-110,118-119,145-159,200
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e8be97acd8e5ae520c2d3b1f395c7e6a8b93eb92",
+  "prompts": {},
+  "humans": {
+    "h_90c2451a76ba0d": {
+      "author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
