@@ -40,16 +40,19 @@ export function refundRateWindow(opts: {
 
   const all: SaleLine[] = loadSales(salesFile).filter((s) => s.product_id === productId);
   let sales = 0;
-  let rawRefunds = 0;
-  let rawReversals = 0;
+  // Net per sale, not by count: a reversal only cancels a refund of the SAME sale in this window
+  // (a reversal of an older, out-of-window refund must not hide an unrelated in-window refund).
+  const refundedSales = new Set<string>();
+  const reversedSales = new Set<string>();
   for (const s of all) {
     const t = new Date(s.ts).getTime();
     if (t < windowStart.getTime() || t > windowEnd.getTime()) continue;
-    if (s.event_type === "refund") rawRefunds += 1;
-    else if (s.event_type === "refund_reversal") rawReversals += 1;
+    if (s.event_type === "refund") refundedSales.add(`${s.provider}:${s.sale_id}`);
+    else if (s.event_type === "refund_reversal") reversedSales.add(`${s.provider}:${s.sale_id}`);
     else sales += 1;
   }
-  const refunds = Math.max(0, rawRefunds - rawReversals);
+  let refunds = 0;
+  for (const k of refundedSales) if (!reversedSales.has(k)) refunds += 1;
   return {
     product_id: productId,
     window_start: windowStart.toISOString(),

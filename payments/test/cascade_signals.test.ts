@@ -76,8 +76,9 @@ describe("order-independent refund counting in cascade_signals and reports", () 
     const res1 = refundRateWindow({ productId: "p1", windowDays: 7, asOf, salesFile: file1 });
     const res2 = refundRateWindow({ productId: "p1", windowDays: 7, asOf, salesFile: file2 });
 
-    expect(res1.refunds).toBe(0); // 1 refund - 1 reversal = 0
-    expect(res2.refunds).toBe(0); // in reversal-first order: reversal (-1 -> clamped 0) then refund (+1) would be 1 under buggy logic!
+    // Netting is per sale: the reversal of A must not hide B's refund, in either order.
+    expect(res1.refunds).toBe(1);
+    expect(res2.refunds).toBe(1);
     expect(res1.refunds).toBe(res2.refunds);
   });
 
@@ -117,8 +118,21 @@ describe("order-independent refund counting in cascade_signals and reports", () 
     addTotals(t2, refundLine);
     finalizeTotals(t2);
 
-    expect(t1.refunds).toBe(0);
-    expect(t2.refunds).toBe(0);
+    // Different sales (B refunded, A reversed): B's refund still counts, in either order.
+    expect(t1.refunds).toBe(1);
+    expect(t2.refunds).toBe(1);
     expect(t1.refunds).toBe(t2.refunds);
+  });
+
+  it("reports: a reversal of the SAME sale nets its refund to 0, in either order", () => {
+    const base = { ts: "2026-09-20T01:00:00.000Z", provider: "polar", product_id: "p1", amount_usd: 39, creator_id: "c1", creator_split_pct: 50, creator_split_usd: 19.5, our_split_usd: 19.5, currency: "USD" };
+    const refund = { ...base, sale_id: "s_same", event_type: "refund" as const, amount_usd: -39, creator_split_usd: -19.5, our_split_usd: -19.5 };
+    const reversal = { ...base, sale_id: "s_same", event_type: "refund_reversal" as const };
+    for (const order of [[refund, reversal], [reversal, refund]]) {
+      const t = emptyTotals();
+      for (const line of order) addTotals(t, line as never);
+      finalizeTotals(t);
+      expect(t.refunds).toBe(0);
+    }
   });
 });

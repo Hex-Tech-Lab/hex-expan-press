@@ -87,7 +87,11 @@ export async function processBillingWebhookUseCase(
     const refundEvent = event as RefundIssuedEvent;
     await underLockOrConfirmed(
       `lock:refund:${refundEvent.providerName}:${refundEvent.saleId}`,
-      async () => (await findRefundAsync(refundEvent.providerName, refundEvent.saleId)) !== null,
+      // A refund row that has since been reversed must not confirm a NEW chargeback as persisted
+      // (contended lock + old refund row would otherwise ack a second chargeback silently).
+      async () =>
+        (await findRefundAsync(refundEvent.providerName, refundEvent.saleId)) !== null &&
+        (await findRefundReversalAsync(refundEvent.providerName, refundEvent.saleId)) === null,
       async () => {
         if (refundEvent.amountUnverifiable === true) {
           const sale = await findSaleAsync(refundEvent.providerName, refundEvent.saleId);
@@ -142,26 +146,28 @@ export async function processBillingWebhookUseCase(
             );
           }
         }
-        // If a refund_reversal already exists for this sale, the ledger cannot hold a second refund
-        const existingReversal = await findRefundReversalAsync(refundEvent.providerName, refundEvent.saleId);
-        if (existingReversal) {
-          await flagRefundForManualReview({
-            reason: "refund_after_reversal",
-            provider: refundEvent.providerName,
-            sale_id: refundEvent.saleId,
-            refund_id: refundEvent.refundId ?? null,
-            refund_cents: refundEvent.totalCents ?? null,
-            sale_cents: original ? Math.round(original.amount_usd * 100) : null,
-            creator_id: original?.creator_id ?? null,
-            occurred_at: refundEvent.occurredAt,
-          });
-          return { status: 200, payload: { ok: true, recorded: false, reason: "manual_review" } };
-        }
         // Duplicate check AFTER amount validation: a second refund event with a
         // mismatched amount for an already-refunded sale is a different refund and
         // must be flagged, not acknowledged as a duplicate of the first.
         const existingRefund = await findRefundAsync(refundEvent.providerName, refundEvent.saleId);
         if (existingRefund) {
+          // A reversal can only exist once a refund does. After a won dispute the ledger can't hold a
+          // second refund row (unique provider+sale_id+event_type), and without a stored refund_id a
+          // replay of the original chargeback can't be told apart from a new one, so flag either way.
+          const existingReversal = await findRefundReversalAsync(refundEvent.providerName, refundEvent.saleId);
+          if (existingReversal) {
+            await flagRefundForManualReview({
+              reason: "refund_after_reversal",
+              provider: refundEvent.providerName,
+              sale_id: refundEvent.saleId,
+              refund_id: refundEvent.refundId ?? null,
+              refund_cents: refundEvent.totalCents ?? null,
+              sale_cents: original ? Math.round(original.amount_usd * 100) : null,
+              creator_id: original?.creator_id ?? null,
+              occurred_at: refundEvent.occurredAt,
+            });
+            return { status: 200, payload: { ok: true, recorded: false, reason: "manual_review" } };
+          }
           return { status: 200, payload: { ok: true, recorded: false, reason: "duplicate", event_type: "refund", sale_id: refundEvent.saleId } };
         }
         // appendRefund refuses (throws → 500, provider retries) when the sale is not recorded yet.
@@ -187,6 +193,12 @@ export async function processBillingWebhookUseCase(
         const refund = await findRefundAsync(revEvent.providerName, revEvent.saleId);
 
         if (!sale || !refund) {
+          // Out-of-order delivery: retry (500, no flag) while the sale/refund may still land; once the
+          // reversal is older than the registry window, the refund will not come, so flag once and ack.
+          const ageMs = Date.now() - Date.parse(revEvent.occurredAt);
+          if (!(ageMs >= GLOBAL.payments.reversal_wait_hours * 3_600_000)) {
+            throw new Error(`refund reversal waiting for sale/refund: ${revEvent.saleId}`);
+          }
           await flagRefundForManualReview({
             reason: "reversal_without_refund",
             provider: revEvent.providerName,
@@ -197,7 +209,7 @@ export async function processBillingWebhookUseCase(
             creator_id: sale?.creator_id ?? null,
             occurred_at: revEvent.occurredAt,
           });
-          throw new Error(`refund reversal waiting for sale/refund: ${revEvent.saleId}`);
+          return { status: 200, payload: { ok: true, recorded: false, reason: "manual_review" } };
         }
 
         if (revEvent.currency !== undefined) {
