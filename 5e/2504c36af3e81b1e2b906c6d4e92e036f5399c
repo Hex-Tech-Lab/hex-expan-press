@@ -1,0 +1,33 @@
+docs/agent_ledger.jsonl
+  s_540fe33e3b7ff6::t_f26e594babc2c6 381
+package.json
+  s_0dc509588f18e9::t_943ef8c8208a78 19-21
+web/app/creator/review/__tests__/stepper-focus.test.ts
+  s_0dc509588f18e9::t_9526736cdb8994 90-103,106,112-156,158-212
+web/package.json
+  s_0dc509588f18e9::t_7b2c8c166bd9f5 14-16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "5e2504c36af3e81b1e2b906c6d4e92e036f5399c",
+  "prompts": {},
+  "sessions": {
+    "s_0dc509588f18e9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fc365f60-a79d-4397-b8a4-2f924d01aba1",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_540fe33e3b7ff6": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f02e710dcffeKJSAJVYnvhVM6i",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
