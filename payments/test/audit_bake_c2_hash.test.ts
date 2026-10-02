@@ -117,3 +117,25 @@ describe("F6 launch gate vs rebuilt release PDF", () => {
     await expect(assertLaunchConsents("p1", fetchImpl)).rejects.toThrow(/launch blocked.*unparseable/);
   });
 });
+
+describe("F6 launch gate vs a PostgREST-faithful select projection", () => {
+  // PostgREST returns only the columns named in `select`; a mock that ignores it hid
+  // a gate that could never pass (document_sha256 was never requested).
+  const project = (url: string, body: unknown) => {
+    const cols = new URL(url).searchParams.get("select")?.split(",");
+    if (!cols || !Array.isArray(body)) return body;
+    return body.map((r: Record<string, unknown>) => Object.fromEntries(cols.filter((c) => c in r).map((c) => [c, r[c]])));
+  };
+  const projectingFetch = (productsBody: unknown, consentsBody: unknown) =>
+    (async (url: string) => {
+      const body = String(url).includes("/products") ? productsBody : consentsBody;
+      return new Response(JSON.stringify(project(String(url), body)), { status: 200 });
+    }) as unknown as typeof fetch;
+
+  it("allows launch when C2 matches the current release, with select honoured", async () => {
+    env();
+    await expect(
+      assertLaunchConsents("p1", projectingFetch([{ id: "p1", release_sha256: CURRENT }], fullRows(CURRENT))),
+    ).resolves.toBeUndefined();
+  });
+});
