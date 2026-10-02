@@ -53,6 +53,8 @@ export interface GlobalSettings {
     polar: { sandbox_checkout_fallback_url: string };
   };
   landing: { fallbacks: { title: string; creator: string }; disclaimers: string[] };
+  /** Transactional email (Resend). `from` must be on `sending_domain` (DKIM-verified in Resend). */
+  email: { from: string; reply_to: string; sending_domain: string };
 }
 
 const DEFAULT_GLOBAL: GlobalSettings = {
@@ -93,6 +95,11 @@ const DEFAULT_GLOBAL: GlobalSettings = {
       "This is a digital product (PDF); no physical item will be shipped.",
       "Educational content only — nothing in this document is financial advice. Do your own research.",
     ],
+  },
+  email: {
+    from: "ExpanPress <support@esign.expanpress.com>",
+    reply_to: "support@expanpress.com", // has MX (registrar forwarding); the esign/ops subdomains do not
+    sending_domain: "expanpress.com",
   },
 };
 
@@ -227,6 +234,7 @@ function loadGlobal(): GlobalSettings {
     defaults: { ...DEFAULT_GLOBAL.defaults, ...(g.defaults ?? {}) },
     payments: loadPaymentsSection(g.payments as Record<string, unknown> | undefined),
     landing: { ...DEFAULT_GLOBAL.landing, ...(g.landing ?? {}) },
+    email: { ...DEFAULT_GLOBAL.email, ...(g.email ?? {}) },
   };
 }
 
