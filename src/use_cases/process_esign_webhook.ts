@@ -46,19 +46,27 @@ export async function processEsignWebhookUseCase(
     const pdfPath = `${userId}/${envelopeId}.pdf`;
 
     // 3. Persist the legal consent (C3) using the Database Port
-    await database.submitConsent({
-      productId: productId,
-      userId: userId, // Used to construct path or extra validation if needed by adapter
-      kind: "C3_revenue_split",
-      decision: "given",
-      textVersion: "v1.0", // Can be dynamic based on settings in future
-      documentSha256: event.documentHash,
-      typedName: `Signed via ${validation.providerName || "unknown"}`,
-      ip: req.ip,
-      userAgent: req.userAgent,
-      authProvider: validation.providerName || "unknown",
-      externalRef: envelopeId,
-      evidencePath: pdfPath
-    });
+    try {
+      await database.submitConsent({
+        productId: productId,
+        userId: userId, // Used to construct path or extra validation if needed by adapter
+        kind: "C3_revenue_split",
+        decision: "given",
+        textVersion: "v1.0", // Can be dynamic based on settings in future
+        documentSha256: event.documentHash,
+        typedName: `Signed via ${validation.providerName || "unknown"}`,
+        ip: req.ip,
+        userAgent: req.userAgent,
+        authProvider: validation.providerName || "unknown",
+        externalRef: envelopeId,
+        evidencePath: pdfPath
+      });
+    } catch (err) {
+      // Replay of an already-recorded envelope: the unique (kind, external_ref)
+      // index rejects the second row (audit F5). Acknowledge so the provider
+      // stops retrying; anything else still fails.
+      if ((err as { code?: unknown })?.code === "23505") return;
+      throw err;
+    }
   }
 }
