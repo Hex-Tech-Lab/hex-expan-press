@@ -306,15 +306,15 @@ export default function LandingPage({ onboarding }: { onboarding: boolean }) {
             <h1 className="text-3xl sm:text-4xl md:text-5xl tracking-tight text-gray-900 font-normal">
               Hello, <span className="font-bold">creator</span>
             </h1>
-            <p className="text-sm sm:text-base text-gray-500 mt-1 sm:mt-2">
+            <p className="text-sm sm:text-base text-gray-600 mt-1 sm:mt-2">
               A dedicated publishing house for <b className="text-gray-700 font-medium">your lived wisdom</b> and{" "}
               <b className="text-gray-700 font-medium">lasting legacy</b>.
             </p>
           </div>
           <Link href="/" className="text-xl sm:text-2xl font-bold tracking-tight text-gray-900 group">
-            <span className="text-gray-400 font-light">{"{"}</span>
+            <span className="text-gray-600 font-light">{"{"}</span>
             <span className="text-gray-900">expanpress</span>
-            <span className="text-gray-400 font-light">{"}"}</span>
+            <span className="text-gray-600 font-light">{"}"}</span>
           </Link>
         </motion.header>
 
@@ -345,11 +345,11 @@ export default function LandingPage({ onboarding }: { onboarding: boolean }) {
             className="lg:hidden fixed inset-x-3 z-50 flex justify-center items-center gap-3 px-4 py-2.5 rounded-full glass-card dock-shadow border border-[#dcc7b4]"
             aria-label="Quick Navigation"
           >
-            {DOCK_ITEMS.slice(0, 2).map((it) => <DockLink key={it.title} {...it} compact />)}
+            {DOCK_ITEMS.slice(0, 2).map((it) => <DockLink key={it.title} {...it} />)}
             <div className="w-10 h-10 rounded-2xl bg-white border border-peach/50 flex items-center justify-center text-gray-900 font-bold text-sm shrink-0">
               {"{" }
             </div>
-            {DOCK_ITEMS.slice(2).map((it) => <DockLink key={it.title} {...it} compact />)}
+            {DOCK_ITEMS.slice(2).map((it) => <DockLink key={it.title} {...it} />)}
           </motion.nav>
 
           {/* Hero — the charcoal slab; blobs drift on scroll, aura breathes */}
@@ -389,7 +389,7 @@ export default function LandingPage({ onboarding }: { onboarding: boolean }) {
                     >
                       <div>
                         <h3 className="text-lg sm:text-xl font-bold tracking-tight text-gray-900">{card.title}</h3>
-                        <p className="text-xs sm:text-sm text-gray-500 mt-1.5 leading-relaxed">{card.body}</p>
+                        <p className="text-xs sm:text-sm text-gray-600 mt-1.5 leading-relaxed">{card.body}</p>
                       </div>
                       <div className="my-4 py-3 flex-1 flex items-center justify-center relative">
                         {i === 3 ? (
@@ -474,7 +474,7 @@ export default function LandingPage({ onboarding }: { onboarding: boolean }) {
         {/* Spotlight bar — launch-state driven (no stale hard-coded claim) */}
         <SpotlightBar onboarding={onboarding} reduced={Boolean(reduced)} />
 
-        <footer className="flex flex-wrap items-center justify-between gap-3 text-xs text-gray-400 px-2 pb-6 lg:pb-4">
+        <footer className="flex flex-wrap items-center justify-between gap-3 text-xs text-gray-600 px-2 pb-6 lg:pb-4">
           <div className="flex items-center gap-2">
             <span>&copy; 2026 ExpanPress</span>
             <span>&middot;</span>
@@ -492,13 +492,13 @@ export default function LandingPage({ onboarding }: { onboarding: boolean }) {
   );
 }
 
-function DockLink({ href, title, d, compact }: { href: string; title: string; d: string; compact?: boolean }) {
+function DockLink({ href, title, d }: { href: string; title: string; d: string }) {
   return (
     <a
       href={href}
       title={title}
       aria-label={title}
-      className={`${compact ? "w-10 h-10" : "w-11 h-11"} rounded-2xl flex items-center justify-center text-gray-500 hover:text-gray-900 hover:bg-black/5 transition-all`}
+      className={`w-11 h-11 rounded-2xl flex items-center justify-center text-gray-600 hover:text-gray-900 hover:bg-black/5 transition-all`}
     >
       <DockIcon d={d} />
     </a>
@@ -546,7 +546,7 @@ function HeroCard({
         <p className="mt-5 text-sm sm:text-base text-gray-300 leading-relaxed max-w-sm">
           You&apos;ve spent years sharing your story on camera. We study your life&apos;s work, distill your core philosophy, and build a beautiful, author-grade book with you.
         </p>
-        <p className="mt-3 text-xs sm:text-sm text-gray-400 font-medium">
+        <p className="mt-3 text-xs sm:text-sm text-gray-600 font-medium">
           Zero writing required. We take your hand every step of the way.
         </p>
       </div>
