@@ -435,6 +435,55 @@ describe("PaddleAdapter buyer-email fallback (customer lookup)", () => {
     expect((res as { error?: string }).error).toBe("Paddle adjustment missing transaction_id or totals");
   });
 
+  it("REAL Paddle adjustment shape (items carry item_id/amount, NO price) is accepted — regression from the live simulation 2026-10-03", async () => {
+    const body = JSON.stringify({
+      event_type: "adjustment.created",
+      data: {
+        id: "adj_real_shape",
+        action: "refund",
+        status: "approved",
+        reason: "error",
+        currency_code: "USD",
+        transaction_id: "txn_real_shape",
+        customer_id: "ctm_1",
+        items: [{ item_id: "txnitm_1", type: "full", amount: "3900", proration: null, totals: { subtotal: "3900", tax: "0", total: "3900" } }],
+        totals: { subtotal: "3900", tax: "0", total: "3900", fee: "0", earnings: "0", currency_code: "USD" },
+        created_at: "2026-10-02T22:44:41.123456Z",
+        updated_at: "2026-10-02T22:44:41.123456Z",
+      },
+    });
+    const res = await parse(body, freshSig(body));
+    expect(res.isValid).toBe(true);
+    if (!res.isValid) throw new Error("expected valid");
+    expect(res.event.eventType).toBe("refund_issued");
+    // the pending_approval variant (what Paddle's simulator sends) is ignored, not a 400
+    const pending = JSON.parse(body); pending.data.status = "pending_approval";
+    const pendingBody = JSON.stringify(pending);
+    const res2 = await parse(pendingBody, freshSig(pendingBody));
+    expect(res2.isValid).toBe(true);
+    if (!res2.isValid) throw new Error("expected valid");
+    expect(res2.event.eventType).toBe("ignored");
+  });
+
+  it("transaction.completed item without a price is a 400 (price stays mandatory on the sale path)", async () => {
+    const body = JSON.stringify({
+      event_type: "transaction.completed",
+      data: {
+        id: "txn_no_price",
+        currency_code: "USD",
+        details: { totals: { total: "3900" } },
+        items: [{ quantity: 1 }],
+        custom_data: { product_id: "test_product_basic", email: "buyer@example.com" },
+        changed_at: new Date().toISOString(),
+      },
+    });
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const res = await parse(body, freshSig(body));
+    errSpy.mockRestore();
+    expect(res.isValid).toBe(false);
+    expect((res as { httpStatus?: number }).httpStatus).toBe(400);
+  });
+
   it("approved adjustment with action chargeback_reverse produces refund_reversed event", async () => {
     const body = JSON.stringify({
       event_type: "adjustment.updated",
