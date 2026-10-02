@@ -168,14 +168,6 @@ describe("registry validation added with the P1/P2 sweep", () => {
     expect(warn.mock.calls.flat().join(" ")).toContain("review_queue_page_size");
   });
 
-  it("reversal_wait_hours defaults to 24 and rejects out-of-range values with a warning", () => {
-    const warn = vi.spyOn(console, "error").mockImplementation(() => {});
-    expect(loadPaymentsSection({}).reversal_wait_hours).toBe(24);
-    expect(loadPaymentsSection({ reversal_wait_hours: 0 }).reversal_wait_hours).toBe(24);
-    expect(warn.mock.calls.flat().join(" ")).toContain("reversal_wait_hours");
-    expect(loadPaymentsSection({ reversal_wait_hours: 48 }).reversal_wait_hours).toBe(48);
-  });
-
   it("email.retryable_error_names must be a non-empty string[]; a string or number falls back with a warning", () => {
     const warn = vi.spyOn(console, "error").mockImplementation(() => {});
     const defaults = loadEmailSection(undefined).retryable_error_names;

@@ -87,11 +87,11 @@ export async function processBillingWebhookUseCase(
     const refundEvent = event as RefundIssuedEvent;
     await underLockOrConfirmed(
       `lock:refund:${refundEvent.providerName}:${refundEvent.saleId}`,
-      // A refund row that has since been reversed must not confirm a NEW chargeback as persisted
-      // (contended lock + old refund row would otherwise ack a second chargeback silently).
-      async () =>
-        (await findRefundAsync(refundEvent.providerName, refundEvent.saleId)) !== null &&
-        (await findRefundReversalAsync(refundEvent.providerName, refundEvent.saleId)) === null,
+      // Never confirm a contended refund from ledger state: refunds and reversals share this lock,
+      // and an existing (possibly reversed, possibly in-flight-reversed) refund row cannot prove THIS
+      // chargeback was handled. A contended delivery always gets a retryable 503; the duplicate check
+      // inside the lock makes the retry idempotent.
+      async () => false,
       async () => {
         if (refundEvent.amountUnverifiable === true) {
           const sale = await findSaleAsync(refundEvent.providerName, refundEvent.saleId);
@@ -193,12 +193,9 @@ export async function processBillingWebhookUseCase(
         const refund = await findRefundAsync(revEvent.providerName, revEvent.saleId);
 
         if (!sale || !refund) {
-          // Out-of-order delivery: retry (500, no flag) while the sale/refund may still land; once the
-          // reversal is older than the registry window, the refund will not come, so flag once and ack.
-          const ageMs = Date.now() - Date.parse(revEvent.occurredAt);
-          if (!(ageMs >= GLOBAL.payments.reversal_wait_hours * 3_600_000)) {
-            throw new Error(`refund reversal waiting for sale/refund: ${revEvent.saleId}`);
-          }
+          // No clock heuristics: a reversal we can't match to a recorded refund (out of order, or the
+          // refund itself went to manual review) is flagged and acked; ops settles it by hand.
+          // Repeat deliveries add rows that listManualReviewRefunds collapses per (provider, sale_id).
           await flagRefundForManualReview({
             reason: "reversal_without_refund",
             provider: revEvent.providerName,
