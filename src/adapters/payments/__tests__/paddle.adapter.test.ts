@@ -460,5 +460,29 @@ describe("PaddleAdapter buyer-email fallback (customer lookup)", () => {
       currency: "USD",
     });
   });
+
+  it("uses GLOBAL.defaults.currency when currency_code is omitted", async () => {
+    const { GLOBAL } = await import("../../../../payments/src/settings_registry.ts");
+    const origCurrency = GLOBAL.defaults.currency;
+    try {
+      GLOBAL.defaults.currency = "CAD";
+      const body = JSON.stringify({
+        event_type: "transaction.completed",
+        data: {
+          id: "txn_test_nocurr",
+          details: { totals: { total: "1000" } },
+          items: [{ price: { id: "pri_test_basic" } }],
+          custom_data: { product_id: "test_product_basic", email: "buyer@example.com" },
+          changed_at: new Date().toISOString(),
+        },
+      });
+      const res = await parse(body, freshSig(body));
+      expect(res.isValid).toBe(true);
+      if (!res.isValid) throw new Error("expected valid");
+      expect((res.event as SaleCompletedEvent).currency).toBe("CAD");
+    } finally {
+      GLOBAL.defaults.currency = origCurrency;
+    }
+  });
 });
 

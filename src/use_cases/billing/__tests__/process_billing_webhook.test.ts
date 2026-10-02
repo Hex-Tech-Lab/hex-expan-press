@@ -100,6 +100,7 @@ const salesFilePath = vi.hoisted(() => `${salesFileDir}/sales.jsonl`);
 vi.mock("../../../../payments/src/settings_registry.ts", () => ({
   GLOBAL: {
     paths: { sales_ledger: salesFilePath },
+    defaults: { currency: "USD" },
     payments: { webhook_tolerance_seconds: 300, webhook_lock_ttl_seconds: 300, http_timeout_ms: 5000, sync_http_timeout_ms: 30000 },
   },
   expandHome: (p: string, home: string) => (home && (p === "~" || p.startsWith("~/")) ? p : p),
@@ -359,6 +360,8 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
       eventType: "refund_reversed",
       providerName: "polar",
       saleId: "sale_rev_1",
+      totalCents: 3900,
+      currency: "USD",
       occurredAt: "2026-09-29T00:00:00.000Z",
       rawPayload: null,
     };
@@ -385,5 +388,299 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
       message: expect.stringContaining("currency EUR != product currency USD"),
       httpStatus: 422,
     });
+  });
+
+  it("Defect B: a EUR 3900c refund against a USD 3900c sale gets flagged currency_mismatch and not recorded", async () => {
+    process.env.SUPABASE_URL = "https://example.supabase.co";
+    process.env.SUPABASE_SECRET_KEY = "mock-secret-key";
+    setnx.mockResolvedValue(1);
+
+    await appendSale(
+      {
+        ts: "2026-09-27T00:00:00.000Z",
+        sale_id: "sale_eur_ref_mismatch",
+        provider: "polar",
+        product_id: "p1",
+        amount_usd: 39,
+        creator_id: "c1",
+        creator_split_pct: 50,
+        creator_split_usd: 19.5,
+        our_split_usd: 19.5,
+        currency: "USD",
+      },
+      salesFilePath,
+    );
+
+    const refundEvent: RefundIssuedEvent = {
+      eventType: "refund_issued",
+      providerName: "polar",
+      saleId: "sale_eur_ref_mismatch",
+      refundId: "ref_eur_1",
+      totalCents: 3900,
+      currency: "EUR",
+      occurredAt: "2026-09-28T00:00:00.000Z",
+      rawPayload: null,
+    };
+
+    await expect(processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(refundEvent)])).rejects.toThrow(
+      /Webhook validation failed: refund currency EUR != sale USD for sale sale_eur_ref_mismatch/,
+    );
+
+    // Audit log should have currency_mismatch entry
+    expect(supa.auditInserts).toHaveLength(1);
+    expect(supa.auditInserts[0]).toMatchObject({
+      event: "MANUAL_REVIEW_REQUIRED_REFUND",
+      details: expect.objectContaining({
+        reason: "currency_mismatch",
+        sale_id: "sale_eur_ref_mismatch",
+        refund_id: "ref_eur_1",
+        refund_cents: 3900,
+        sale_cents: 3900,
+      }),
+    });
+
+    // Check no refund was appended
+    const rows = readFileSync(salesFilePath, "utf8").split(/\r?\n/).filter(Boolean);
+    expect(rows).toHaveLength(1);
+    expect(JSON.parse(rows[0]).event_type).toBeUndefined();
+  });
+
+  it("Defect A: reversal with no refund returns 200 { ok: true, recorded: false, reason: 'manual_review' }, flags reversal_without_refund, and appends nothing", async () => {
+    process.env.SUPABASE_URL = "https://example.supabase.co";
+    process.env.SUPABASE_SECRET_KEY = "mock-secret-key";
+    setnx.mockResolvedValue(1);
+
+    // Sale exists, but refund does NOT exist
+    await appendSale(
+      {
+        ts: "2026-09-27T00:00:00.000Z",
+        sale_id: "sale_no_refund",
+        provider: "polar",
+        product_id: "p1",
+        amount_usd: 39,
+        creator_id: "c1",
+        creator_split_pct: 50,
+        creator_split_usd: 19.5,
+        our_split_usd: 19.5,
+        currency: "USD",
+      },
+      salesFilePath,
+    );
+
+    const reversalEvent = {
+      eventType: "refund_reversed",
+      providerName: "polar",
+      saleId: "sale_no_refund",
+      totalCents: 3900,
+      currency: "USD",
+      occurredAt: "2026-09-29T00:00:00.000Z",
+      rawPayload: null,
+    };
+
+    // Should return 200 without throwing
+    await expect(
+      processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(reversalEvent as never)]),
+    ).resolves.toBeUndefined();
+
+    // Check manual review flag in audit_log
+    expect(supa.auditInserts).toHaveLength(1);
+    expect(supa.auditInserts[0]).toMatchObject({
+      event: "MANUAL_REVIEW_REQUIRED_REFUND",
+      details: expect.objectContaining({
+        reason: "reversal_without_refund",
+        sale_id: "sale_no_refund",
+      }),
+    });
+
+    // Verify nothing appended to ledger
+    const rows = readFileSync(salesFilePath, "utf8").split(/\r?\n/).filter(Boolean);
+    expect(rows).toHaveLength(1);
+  });
+
+  it("Defect C: reversal with mismatched amount returns 200 recorded:false and flags reversal_amount_mismatch", async () => {
+    process.env.SUPABASE_URL = "https://example.supabase.co";
+    process.env.SUPABASE_SECRET_KEY = "mock-secret-key";
+    setnx.mockResolvedValue(1);
+
+    await appendSale(
+      {
+        ts: "2026-09-27T00:00:00.000Z",
+        sale_id: "sale_partial_rev",
+        provider: "polar",
+        product_id: "p1",
+        amount_usd: 39,
+        creator_id: "c1",
+        creator_split_pct: 50,
+        creator_split_usd: 19.5,
+        our_split_usd: 19.5,
+        currency: "USD",
+      },
+      salesFilePath,
+    );
+
+    const refundEvent: RefundIssuedEvent = {
+      eventType: "refund_issued",
+      providerName: "polar",
+      saleId: "sale_partial_rev",
+      totalCents: 3900,
+      currency: "USD",
+      occurredAt: "2026-09-28T00:00:00.000Z",
+      rawPayload: null,
+    };
+    await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(refundEvent)]);
+
+    const reversalEvent = {
+      eventType: "refund_reversed",
+      providerName: "polar",
+      saleId: "sale_partial_rev",
+      totalCents: 2000, // partial/mismatch!
+      currency: "USD",
+      occurredAt: "2026-09-29T00:00:00.000Z",
+      rawPayload: null,
+    };
+
+    await expect(
+      processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(reversalEvent as never)]),
+    ).resolves.toBeUndefined();
+
+    // Check manual review audit log
+    expect(supa.auditInserts).toHaveLength(1);
+    expect(supa.auditInserts[0]).toMatchObject({
+      event: "MANUAL_REVIEW_REQUIRED_REFUND",
+      details: expect.objectContaining({
+        reason: "reversal_amount_mismatch",
+        sale_id: "sale_partial_rev",
+        refund_cents: 2000,
+        sale_cents: 3900,
+      }),
+    });
+
+    // Verify no reversal appended (only sale + refund = 2 rows)
+    const rows = readFileSync(salesFilePath, "utf8").split(/\r?\n/).filter(Boolean);
+    expect(rows).toHaveLength(2);
+  });
+
+  it("Defect C: reversal with missing totalCents returns 200 recorded:false and flags reversal_amount_unverifiable", async () => {
+    process.env.SUPABASE_URL = "https://example.supabase.co";
+    process.env.SUPABASE_SECRET_KEY = "mock-secret-key";
+    setnx.mockResolvedValue(1);
+
+    await appendSale(
+      {
+        ts: "2026-09-27T00:00:00.000Z",
+        sale_id: "sale_no_amount_rev",
+        provider: "polar",
+        product_id: "p1",
+        amount_usd: 39,
+        creator_id: "c1",
+        creator_split_pct: 50,
+        creator_split_usd: 19.5,
+        our_split_usd: 19.5,
+        currency: "USD",
+      },
+      salesFilePath,
+    );
+
+    const refundEvent: RefundIssuedEvent = {
+      eventType: "refund_issued",
+      providerName: "polar",
+      saleId: "sale_no_amount_rev",
+      totalCents: 3900,
+      currency: "USD",
+      occurredAt: "2026-09-28T00:00:00.000Z",
+      rawPayload: null,
+    };
+    await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(refundEvent)]);
+
+    const reversalEvent = {
+      eventType: "refund_reversed",
+      providerName: "polar",
+      saleId: "sale_no_amount_rev",
+      // totalCents absent!
+      currency: "USD",
+      occurredAt: "2026-09-29T00:00:00.000Z",
+      rawPayload: null,
+    };
+
+    await expect(
+      processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(reversalEvent as never)]),
+    ).resolves.toBeUndefined();
+
+    // Check manual review audit log
+    expect(supa.auditInserts).toHaveLength(1);
+    expect(supa.auditInserts[0]).toMatchObject({
+      event: "MANUAL_REVIEW_REQUIRED_REFUND",
+      details: expect.objectContaining({
+        reason: "reversal_amount_unverifiable",
+        sale_id: "sale_no_amount_rev",
+        refund_cents: null,
+        sale_cents: 3900,
+      }),
+    });
+
+    const rows = readFileSync(salesFilePath, "utf8").split(/\r?\n/).filter(Boolean);
+    expect(rows).toHaveLength(2);
+  });
+
+  it("Defect C: reversal with currency mismatch returns 200 recorded:false and flags currency_mismatch", async () => {
+    process.env.SUPABASE_URL = "https://example.supabase.co";
+    process.env.SUPABASE_SECRET_KEY = "mock-secret-key";
+    setnx.mockResolvedValue(1);
+
+    await appendSale(
+      {
+        ts: "2026-09-27T00:00:00.000Z",
+        sale_id: "sale_curr_mismatch_rev",
+        provider: "polar",
+        product_id: "p1",
+        amount_usd: 39,
+        creator_id: "c1",
+        creator_split_pct: 50,
+        creator_split_usd: 19.5,
+        our_split_usd: 19.5,
+        currency: "USD",
+      },
+      salesFilePath,
+    );
+
+    const refundEvent: RefundIssuedEvent = {
+      eventType: "refund_issued",
+      providerName: "polar",
+      saleId: "sale_curr_mismatch_rev",
+      totalCents: 3900,
+      currency: "USD",
+      occurredAt: "2026-09-28T00:00:00.000Z",
+      rawPayload: null,
+    };
+    await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(refundEvent)]);
+
+    const reversalEvent = {
+      eventType: "refund_reversed",
+      providerName: "polar",
+      saleId: "sale_curr_mismatch_rev",
+      totalCents: 3900,
+      currency: "EUR", // currency mismatch!
+      occurredAt: "2026-09-29T00:00:00.000Z",
+      rawPayload: null,
+    };
+
+    await expect(
+      processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(reversalEvent as never)]),
+    ).resolves.toBeUndefined();
+
+    // Check manual review audit log
+    expect(supa.auditInserts).toHaveLength(1);
+    expect(supa.auditInserts[0]).toMatchObject({
+      event: "MANUAL_REVIEW_REQUIRED_REFUND",
+      details: expect.objectContaining({
+        reason: "currency_mismatch",
+        sale_id: "sale_curr_mismatch_rev",
+        refund_cents: 3900,
+        sale_cents: 3900,
+      }),
+    });
+
+    const rows = readFileSync(salesFilePath, "utf8").split(/\r?\n/).filter(Boolean);
+    expect(rows).toHaveLength(2);
   });
 });
