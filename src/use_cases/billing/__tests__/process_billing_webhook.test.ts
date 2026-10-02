@@ -325,4 +325,65 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
     expect(rows).toHaveLength(2); // 1 sale + 1 refund — no duplicate refund row
     expect(rows.filter((r) => r.includes('"event_type":"refund"'))).toHaveLength(1);
   });
+
+  it("handles refund_reversed: sale -> refund -> reversal nets back to sale", async () => {
+    await appendSale(
+      {
+        ts: "2026-09-27T00:00:00.000Z",
+        sale_id: "sale_rev_1",
+        provider: "polar",
+        product_id: "p1",
+        amount_usd: 39,
+        creator_id: "c1",
+        creator_split_pct: 50,
+        creator_split_usd: 19.5,
+        our_split_usd: 19.5,
+        currency: "USD",
+      },
+      salesFilePath,
+    );
+    setnx.mockResolvedValue(1);
+
+    // 1. Issue refund
+    const refundEvent: RefundIssuedEvent = {
+      eventType: "refund_issued",
+      providerName: "polar",
+      saleId: "sale_rev_1",
+      occurredAt: "2026-09-28T00:00:00.000Z",
+      rawPayload: null,
+    };
+    await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(refundEvent)]);
+
+    // 2. Issue refund_reversed
+    const reversalEvent = {
+      eventType: "refund_reversed",
+      providerName: "polar",
+      saleId: "sale_rev_1",
+      occurredAt: "2026-09-29T00:00:00.000Z",
+      rawPayload: null,
+    };
+    await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(reversalEvent as never)]);
+
+    const rows = readFileSync(salesFilePath, "utf8").split(/\r?\n/).filter(Boolean);
+    expect(rows).toHaveLength(3);
+    const revRow = JSON.parse(rows[2]);
+    expect(revRow.event_type).toBe("refund_reversal");
+    expect(revRow.creator_split_usd).toBe(19.5);
+    expect(revRow.our_split_usd).toBe(19.5);
+  });
+
+  it("a USD sale for a EUR product is rejected by the use case (422)", async () => {
+    setnx.mockResolvedValue(1);
+    // p1 is USD in mock. Let's send currency="EUR" for p1:
+    const eurSale: SaleCompletedEvent = {
+      ...SALE,
+      saleId: "sale_eur_mismatch",
+      currency: "EUR",
+    };
+    const a = adapter(eurSale);
+    await expect(processBillingWebhookUseCase({ headers: {}, body: "" }, [a])).rejects.toMatchObject({
+      message: expect.stringContaining("currency EUR != product currency USD"),
+      httpStatus: 422,
+    });
+  });
 });
