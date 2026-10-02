@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint .",
     "type-check": "tsc --noEmit",
+    "e2e": "playwright test",
     "test": "vitest run --config ../vitest.config.ts --root .. web"
   },
   "dependencies": {
@@ -29,6 +30,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.1",
+    "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "4.3.0",
     "@types/node": "^24",
     "@types/react": "^19",
