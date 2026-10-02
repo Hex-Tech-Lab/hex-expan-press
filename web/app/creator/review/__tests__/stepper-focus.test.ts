@@ -87,29 +87,129 @@ afterEach(async () => {
 });
 
 describe("review stepper focus management", () => {
-  it("initial render: question heading is a focusable h2 but does not steal focus on first load", async () => {
-    await renderReviewClient();
+  it("initial render: question heading is a focusable h2 and focus() is never called on first load", async () => {
+    const focusSpy = vi.spyOn(HTMLElement.prototype, "focus");
+    try {
+      await renderReviewClient();
 
-    const h2 = questionHeading();
-    expect(h2.tagName).toBe("H2");
-    expect(h2.getAttribute("tabindex")).toBe("-1");
-    expect(h2.textContent).toBe("Question two?");
-    expect(document.activeElement).not.toBe(h2);
+      const h2 = questionHeading();
+      expect(h2.tagName).toBe("H2");
+      expect(h2.getAttribute("tabindex")).toBe("-1");
+      expect(h2.textContent).toBe("Question two?");
+      expect(document.activeElement).not.toBe(h2);
+      expect(focusSpy).not.toHaveBeenCalled();
+    } finally {
+      focusSpy.mockRestore();
+    }
   });
 
-  it("Back click: shows the previous question and moves focus to it", async () => {
+  it("Back click: question h2 receives focus AND focus() was called with { preventScroll: true }", async () => {
     await renderReviewClient();
 
     const back = Array.from(container!.querySelectorAll("button")).find((b) => (b.textContent ?? "").includes("Back"));
     if (!back) throw new Error("Back button not found");
 
-    await act(async () => {
-      back.click();
-    });
+    const focusSpy = vi.spyOn(HTMLElement.prototype, "focus");
+    try {
+      await act(async () => {
+        back.click();
+      });
 
-    const h2 = questionHeading();
-    expect(h2.textContent).toBe("Question one?");
-    expect(document.activeElement).toBe(h2);
+      const h2 = questionHeading();
+      expect(h2.textContent).toBe("Question one?");
+      expect(document.activeElement).toBe(h2);
+      expect(focusSpy).toHaveBeenCalledWith({ preventScroll: true });
+    } finally {
+      focusSpy.mockRestore();
+    }
+  });
+
+  it("Save & next succeeds: focus moves to the NEXT question's h2 with preventScroll: true", async () => {
+    vi.useFakeTimers();
+    const { submitReviewAnswerAction } = await import("../actions");
+    vi.mocked(submitReviewAnswerAction).mockResolvedValueOnce({ ok: true });
+
+    try {
+      await renderReviewClient();
+
+      const h2Before = questionHeading();
+      expect(h2Before.textContent).toBe("Question two?");
+
+      // Provide freeText answer so saveAndNext doesn't bail early on missing input
+      const textarea = container!.querySelector<HTMLTextAreaElement>("textarea#freetext");
+      if (!textarea) throw new Error("textarea#freetext not found");
+
+      await act(async () => {
+        const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value")?.set;
+        nativeSetter?.call(textarea, "Fact update");
+        textarea.dispatchEvent(new Event("input", { bubbles: true }));
+        textarea.dispatchEvent(new Event("change", { bubbles: true }));
+      });
+
+      const saveBtn = Array.from(container!.querySelectorAll("button")).find((b) => (b.textContent ?? "").includes("Save & next"));
+      if (!saveBtn) throw new Error("Save & next button not found");
+
+      const focusSpy = vi.spyOn(HTMLElement.prototype, "focus");
+
+      await act(async () => {
+        saveBtn.click();
+      });
+
+      // Advance fake timers past the 500ms post-save stepper delay
+      await act(async () => {
+        vi.advanceTimersByTime(500);
+      });
+
+      const h2After = questionHeading();
+      expect(h2After.textContent).toBe("Question three?");
+      expect(document.activeElement).toBe(h2After);
+      expect(focusSpy).toHaveBeenCalledWith({ preventScroll: true });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("Save & next fails: focus stays put and the question does not change", async () => {
+    vi.useFakeTimers();
+    const { submitReviewAnswerAction } = await import("../actions");
+    vi.mocked(submitReviewAnswerAction).mockResolvedValueOnce({ ok: false, error: "Save error" });
+
+    try {
+      await renderReviewClient();
+
+      const h2Before = questionHeading();
+      expect(h2Before.textContent).toBe("Question two?");
+
+      const textarea = container!.querySelector<HTMLTextAreaElement>("textarea#freetext");
+      if (!textarea) throw new Error("textarea#freetext not found");
+
+      await act(async () => {
+        const nativeSetter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, "value")?.set;
+        nativeSetter?.call(textarea, "Failed attempt");
+        textarea.dispatchEvent(new Event("input", { bubbles: true }));
+        textarea.dispatchEvent(new Event("change", { bubbles: true }));
+      });
+
+      const saveBtn = Array.from(container!.querySelectorAll("button")).find((b) => (b.textContent ?? "").includes("Save & next"));
+      if (!saveBtn) throw new Error("Save & next button not found");
+
+      const focusSpy = vi.spyOn(HTMLElement.prototype, "focus");
+
+      await act(async () => {
+        saveBtn.click();
+      });
+
+      await act(async () => {
+        vi.advanceTimersByTime(1000);
+      });
+
+      const h2After = questionHeading();
+      expect(h2After.textContent).toBe("Question two?");
+      expect(focusSpy).not.toHaveBeenCalled();
+      expect(container?.textContent).toContain("Save error");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("heading hierarchy: exactly one h1 and the question heading is an h2", async () => {
