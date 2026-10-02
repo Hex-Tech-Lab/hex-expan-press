@@ -215,7 +215,10 @@ export class PaddleAdapter implements PaymentProviderPort {
         // Own-property lookup only: a price id like "constructor" must not resolve via Object.prototype.
         const mapped = Object.hasOwn(priceMap, priceId) ? priceMap[priceId] : undefined;
         if (typeof mapped !== "string" || mapped === "") {
-          return { isValid: false, error: "Unknown Paddle price", httpStatus: 400 };
+          // 503 (not 400): Paddle stops retrying on 4xx, so a momentarily
+          // out-of-sync PADDLE_PRICE_MAP must not lose a real sale.
+          console.error(`[paddle.adapter] unmapped Paddle price id=${priceId} transaction_id=${validated.data.id}`);
+          return { isValid: false, error: "Unknown Paddle price (PADDLE_PRICE_MAP out of sync?) — retry", httpStatus: 503 };
         }
         mappedProducts.push(mapped);
       }
