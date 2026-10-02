@@ -11,6 +11,7 @@ import { appendSale, appendRefund, appendRefundReversal, findSaleAsync, findRefu
 import { computeSplit } from "../../../payments/src/split.ts";
 import { effectiveCreatorSplitPct } from "../../../payments/src/terms.ts";
 import { loadProductIndex, withIdempotencyLock, WebhookInFlightError } from "../../../payments/src/webhook_core.ts";
+import { GLOBAL } from "../../../payments/src/settings_registry.ts";
 
 type LockedFn = () => Promise<{ status: number; payload: Record<string, unknown> }>;
 
@@ -104,8 +105,26 @@ export async function processBillingWebhookUseCase(
             `Webhook validation failed: refund amount unverifiable for sale ${refundEvent.saleId} — flagged for manual review`,
           );
         }
+        const original = await findSaleAsync(refundEvent.providerName, refundEvent.saleId);
+        if (refundEvent.currency !== undefined) {
+          const saleCurrency = (original?.currency ?? GLOBAL.defaults.currency).toUpperCase();
+          if (refundEvent.currency.toUpperCase() !== saleCurrency) {
+            await flagRefundForManualReview({
+              reason: "currency_mismatch",
+              provider: refundEvent.providerName,
+              sale_id: refundEvent.saleId,
+              refund_id: refundEvent.refundId ?? null,
+              refund_cents: refundEvent.totalCents ?? null,
+              sale_cents: original ? Math.round(original.amount_usd * 100) : null,
+              creator_id: original?.creator_id ?? null,
+              occurred_at: refundEvent.occurredAt,
+            });
+            throw new Error(
+              `Webhook validation failed: refund currency ${refundEvent.currency} != sale ${saleCurrency} for sale ${refundEvent.saleId} — flagged for manual review`,
+            );
+          }
+        }
         if (refundEvent.totalCents !== undefined) {
-          const original = await findSaleAsync(refundEvent.providerName, refundEvent.saleId);
           const saleCents = original ? Math.round(original.amount_usd * 100) : null;
           if (saleCents !== null && refundEvent.totalCents !== saleCents) {
             await flagRefundForManualReview({
@@ -149,6 +168,69 @@ export async function processBillingWebhookUseCase(
       `lock:refund:${revEvent.providerName}:${revEvent.saleId}`,
       async () => (await findRefundReversalAsync(revEvent.providerName, revEvent.saleId)) !== null,
       async () => {
+        const sale = await findSaleAsync(revEvent.providerName, revEvent.saleId);
+        const refund = await findRefundAsync(revEvent.providerName, revEvent.saleId);
+
+        if (!sale || !refund) {
+          await flagRefundForManualReview({
+            reason: "reversal_without_refund",
+            provider: revEvent.providerName,
+            sale_id: revEvent.saleId,
+            refund_id: revEvent.refundId ?? null,
+            refund_cents: revEvent.totalCents ?? null,
+            sale_cents: sale ? Math.round(sale.amount_usd * 100) : null,
+            creator_id: sale?.creator_id ?? null,
+            occurred_at: revEvent.occurredAt,
+          });
+          return { status: 200, payload: { ok: true, recorded: false, reason: "manual_review" } };
+        }
+
+        if (revEvent.currency !== undefined) {
+          const saleCurrency = (sale.currency ?? GLOBAL.defaults.currency).toUpperCase();
+          if (revEvent.currency.toUpperCase() !== saleCurrency) {
+            await flagRefundForManualReview({
+              reason: "currency_mismatch",
+              provider: revEvent.providerName,
+              sale_id: revEvent.saleId,
+              refund_id: revEvent.refundId ?? null,
+              refund_cents: revEvent.totalCents ?? null,
+              sale_cents: Math.round(sale.amount_usd * 100),
+              creator_id: sale.creator_id ?? null,
+              occurred_at: revEvent.occurredAt,
+            });
+            return { status: 200, payload: { ok: true, recorded: false, reason: "manual_review" } };
+          }
+        }
+
+        if (revEvent.totalCents === undefined) {
+          await flagRefundForManualReview({
+            reason: "reversal_amount_unverifiable",
+            provider: revEvent.providerName,
+            sale_id: revEvent.saleId,
+            refund_id: revEvent.refundId ?? null,
+            refund_cents: null,
+            sale_cents: Math.round(sale.amount_usd * 100),
+            creator_id: sale.creator_id ?? null,
+            occurred_at: revEvent.occurredAt,
+          });
+          return { status: 200, payload: { ok: true, recorded: false, reason: "manual_review" } };
+        }
+
+        const saleCents = Math.round(sale.amount_usd * 100);
+        if (revEvent.totalCents !== saleCents) {
+          await flagRefundForManualReview({
+            reason: "reversal_amount_mismatch",
+            provider: revEvent.providerName,
+            sale_id: revEvent.saleId,
+            refund_id: revEvent.refundId ?? null,
+            refund_cents: revEvent.totalCents,
+            sale_cents: saleCents,
+            creator_id: sale.creator_id ?? null,
+            occurred_at: revEvent.occurredAt,
+          });
+          return { status: 200, payload: { ok: true, recorded: false, reason: "manual_review" } };
+        }
+
         const existingReversal = await findRefundReversalAsync(revEvent.providerName, revEvent.saleId);
         if (existingReversal) {
           return { status: 200, payload: { ok: true, recorded: false, reason: "duplicate", event_type: "refund_reversal", sale_id: revEvent.saleId } };

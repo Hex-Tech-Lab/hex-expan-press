@@ -177,8 +177,8 @@ export class PaddleAdapter implements PaymentProviderPort {
       const validated = PaddleWebhookSchema.parse(parsedJson);
 
       // Currency: pass currency_code through without comparing to GLOBAL.defaults.currency.
-      // If currency_code is absent/null, fall back to "USD" or uppercase string.
-      const currency = (validated.data.currency_code ?? "USD").toUpperCase();
+      // If currency_code is absent/null, fall back to GLOBAL.defaults.currency or uppercase string.
+      const currency = (validated.data.currency_code ?? GLOBAL.defaults.currency).toUpperCase();
 
       // Refunds and chargebacks arrive as adjustments (audit F3, 2026-10-02; won disputes ADR-0050).
       // Only an approved adjustment has moved money; pending/rejected ones are ignored.
