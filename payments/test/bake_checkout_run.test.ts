@@ -75,13 +75,21 @@ const preMarkerPaddlePage = (): string =>
       `<script>window.Paddle.Initialize({ token: "test_123" });</script>`,
   );
 
+const SHA = "c".repeat(64);
+
+const okProducts = (): Response =>
+  ({ ok: true, status: 200, json: async () => [{ release_sha256: SHA }] }) as unknown as Response;
+
 const okConsents = (): Response =>
   ({
     ok: true,
     status: 200,
     json: async () =>
-      KINDS.map((k, i) => ({ id: `row-${k}`, kind: k, decision: "given", signed_at: `2026-09-0${i + 1}T00:00:00Z`, supersedes: null })),
+      KINDS.map((k, i) => ({ id: `row-${k}`, kind: k, decision: "given", signed_at: `2026-09-0${i + 1}T00:00:00Z`, supersedes: null, document_sha256: SHA })),
   }) as unknown as Response;
+
+const okFetch = async (url: unknown): Promise<Response> =>
+  String(url).includes("/products") ? okProducts() : okConsents();
 
 const baseEnv = () => {
   stashEnv();
@@ -145,7 +153,7 @@ describe("runBake — safe fallback (P1)", () => {
     const { files, deps } = makeMemFs({
       "site-root/public/c/duane/book/index.html": PADDLE_PAGE(activePaddleBlock()),
     });
-    const summary = await runWithProductDirs({ files, deps }, ["duane/book"], async () => okConsents());
+    const summary = await runWithProductDirs({ files, deps }, ["duane/book"], okFetch);
     expect(summary.blocked).toEqual([]);
     const out = files.get("site-root/public/c/duane/book/index.html")!;
     expect(out.match(/paddle-checkout:start/g)?.length).toBe(1);
@@ -209,7 +217,7 @@ describe("runBake — atomic write (real tmpdir)", () => {
           cfg: { title: "T", price_usd: 19, checkout_mode: "paddle", paddle_price_id: "pri_abc123", paddle_product_id: "prod_x", db_product_id: DB_ID },
           source: "cfg.json",
         }),
-        fetchImpl: async () => okConsents(),
+        fetchImpl: okFetch,
       };
       const summary = await runBake(atomicDeps);
       expect(summary.baked).toContain(join("site", "c", "duane", "book", "index.html"));
