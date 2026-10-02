@@ -1,0 +1,24 @@
+docs/agent_ledger.jsonl
+  h_90c2451a76ba0d 386-387
+payments/src/ledger.ts
+  h_90c2451a76ba0d 215-222
+src/adapters/payments/__tests__/paddle.adapter.test.ts
+  h_90c2451a76ba0d 463-486
+src/adapters/payments/paddle.adapter.ts
+  h_90c2451a76ba0d 180-181
+src/use_cases/billing/__tests__/process_billing_webhook.test.ts
+  h_90c2451a76ba0d 103,363-364,392-685
+src/use_cases/billing/process_billing_webhook.ts
+  h_90c2451a76ba0d 14,108-126,171-233
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "21d255344581ec496bb82a9c48ccbaca3704da09",
+  "prompts": {},
+  "humans": {
+    "h_90c2451a76ba0d": {
+      "author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
