@@ -1,0 +1,31 @@
+payments/src/cascade_signals.ts
+  s_64dbe2eccb5bf8::t_7a33dd3dc5d9e0 43-46,50-51,54-55
+payments/src/reports.ts
+  s_64dbe2eccb5bf8::t_3beed982fc648f 31-33,39,42-46,52,59
+payments/src/settings_registry.ts
+  s_64dbe2eccb5bf8::t_a2bf40e17bbd18 25-28,55,97,134,202-204,239-240,263,281-292
+payments/test/cascade_signals.test.ts
+  s_64dbe2eccb5bf8::t_6864eece74dee4 79-81,121-123,126-137
+payments/test/settings_registry_runtime.test.ts
+  s_64dbe2eccb5bf8::t_1bade2f01ea235 6,160-187
+src/use_cases/billing/__tests__/process_billing_webhook.test.ts
+  s_64dbe2eccb5bf8::t_9a371feb030f55 104,111-113,451,479,483,487-493
+src/use_cases/billing/process_billing_webhook.ts
+  s_64dbe2eccb5bf8::t_8a68ded8b754ff 90-94,154-170,196-201,212
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d635eb8e3d6076a5b02bb1de67c989779f3f9d89",
+  "prompts": {},
+  "sessions": {
+    "s_64dbe2eccb5bf8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4fee11c3-26f1-4f05-9ec8-fdbba76990a4",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
