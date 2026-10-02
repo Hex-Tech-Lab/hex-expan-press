@@ -23,44 +23,49 @@
  * until the Paddle account KYC is complete. All field paths are from Paddle's official
  * docs (developer.paddle.com). Verify against a real sandbox delivery before go-live.
  */
-import { PaymentProviderPort, WebhookParseResult, CheckoutCommand, CheckoutResult, SaleCompletedEvent, RefundIssuedEvent } from "../../domain/payments/payments.port.ts";
+import { PaymentProviderPort, WebhookParseResult, CheckoutCommand, CheckoutResult, SaleCompletedEvent, RefundIssuedEvent, RefundReversedEvent } from "../../domain/payments/payments.port.ts";
 import { z } from "zod";
 import crypto from "crypto";
 import { hashEmail } from "../../../payments/src/provider.ts";
 import { GLOBAL } from "../../../payments/src/settings_registry.ts";
+
+// Minimal schema to inspect event_type before strict validation
+const MinimalPaddleEventSchema = z.object({
+  event_type: z.string(),
+});
 
 // --- SSOT Schema (Zod) ---
 const PaddleWebhookSchema = z.object({
   event_type: z.string(),
   data: z.object({
     id: z.string(),
-    currency_code: z.string().length(3).optional(),
+    currency_code: z.string().length(3).nullish(),
     // adjustment.* (refunds / chargebacks)
-    action: z.string().optional(),
-    status: z.string().optional(),
-    transaction_id: z.string().optional(),
-    totals: z.object({ total: z.string() }).optional(),
-    created_at: z.string().datetime().optional(),
-    updated_at: z.string().datetime().optional(),
+    action: z.string().nullish(),
+    status: z.string().nullish(),
+    transaction_id: z.string().nullish(),
+    totals: z.object({ total: z.string() }).nullish(),
+    created_at: z.string().datetime().nullish(),
+    updated_at: z.string().datetime().nullish(),
     details: z.object({
       totals: z.object({
         total: z.string() // Paddle returns total as a string number of cents
-      }).optional()
-    }).optional(),
+      }).nullish()
+    }).nullish(),
     custom_data: z.object({
-      product_id: z.string().optional(),
-      email: z.string().email().optional(),
-      reference_id: z.string().optional() // attribution passthrough (wiring unverified)
-    }).optional().nullable(),
-    changed_at: z.string().datetime().optional(),
-    customer_id: z.string().optional(),
+      product_id: z.string().nullish(),
+      email: z.string().email().nullish(),
+      reference_id: z.string().nullish() // attribution passthrough (wiring unverified)
+    }).nullish(),
+    changed_at: z.string().datetime().nullish(),
+    customer_id: z.string().nullish(),
     items: z.array(
       z.object({
         price: z.object({
           id: z.string()
         }).passthrough()
       }).passthrough()
-    ).optional()
+    ).nullish()
   })
 });
 
@@ -151,19 +156,35 @@ export class PaddleAdapter implements PaymentProviderPort {
 
     try {
       const parsedJson = JSON.parse(body) as unknown;
+
+      // Event types other than transaction.completed, adjustment.created, and adjustment.updated
+      // must return {isValid: true, event: {eventType: "ignored"}} BEFORE strict validation.
+      const minimal = MinimalPaddleEventSchema.safeParse(parsedJson);
+      if (minimal.success) {
+        const evType = minimal.data.event_type;
+        if (evType !== "transaction.completed" && evType !== "adjustment.created" && evType !== "adjustment.updated") {
+          return {
+            isValid: true,
+            event: {
+              eventType: "ignored",
+              providerName: this.providerName,
+              reason: `Non-sale event: ${evType}`,
+            },
+          };
+        }
+      }
+
       const validated = PaddleWebhookSchema.parse(parsedJson);
 
-      // The ledger books every amount in the registry's default currency; a
-      // foreign-currency total must never be recorded as if it were that
-      // currency (audit F4, 2026-10-02).
-      const ledgerCurrency = GLOBAL.defaults.currency.toUpperCase();
-      const currency = (validated.data.currency_code ?? ledgerCurrency).toUpperCase();
+      // Currency: pass currency_code through without comparing to GLOBAL.defaults.currency.
+      // If currency_code is absent/null, fall back to "USD" or uppercase string.
+      const currency = (validated.data.currency_code ?? "USD").toUpperCase();
 
-      // Refunds and chargebacks arrive as adjustments (audit F3, 2026-10-02).
+      // Refunds and chargebacks arrive as adjustments (audit F3, 2026-10-02; won disputes ADR-0050).
       // Only an approved adjustment has moved money; pending/rejected ones are ignored.
       if (
         (validated.event_type === "adjustment.created" || validated.event_type === "adjustment.updated") &&
-        (validated.data.action === "refund" || validated.data.action === "chargeback")
+        (validated.data.action === "refund" || validated.data.action === "chargeback" || validated.data.action === "chargeback_reverse")
       ) {
         if (validated.data.status !== "approved") {
           return { isValid: true, event: { eventType: "ignored", providerName: this.providerName, reason: `Adjustment ${validated.data.action} status=${validated.data.status ?? "unknown"}` } };
@@ -171,19 +192,31 @@ export class PaddleAdapter implements PaymentProviderPort {
         if (!validated.data.transaction_id || !validated.data.totals) {
           return { isValid: false, error: "Paddle adjustment missing transaction_id or totals", httpStatus: 400 };
         }
-        if (currency !== ledgerCurrency) {
-          return { isValid: false, error: `Unsupported currency ${currency} (ledger is ${ledgerCurrency})`, httpStatus: 422 };
-        }
-        const refundCents = Number(validated.data.totals.total);
-        if (!Number.isSafeInteger(refundCents) || refundCents < 0) {
+        const adjustmentCents = Number(validated.data.totals.total);
+        if (!Number.isSafeInteger(adjustmentCents) || adjustmentCents < 0) {
           return { isValid: false, error: "Paddle adjustment total is not integer cents", httpStatus: 400 };
         }
+
+        if (validated.data.action === "chargeback_reverse") {
+          const event: RefundReversedEvent = {
+            eventType: "refund_reversed",
+            providerName: this.providerName,
+            saleId: validated.data.transaction_id,
+            refundId: validated.data.id,
+            totalCents: adjustmentCents,
+            currency,
+            occurredAt: validated.data.updated_at || validated.data.created_at || new Date().toISOString(),
+            rawPayload: parsedJson,
+          };
+          return { isValid: true, event };
+        }
+
         const event: RefundIssuedEvent = {
           eventType: "refund_issued",
           providerName: this.providerName,
           saleId: validated.data.transaction_id,
           refundId: validated.data.id,
-          totalCents: refundCents,
+          totalCents: adjustmentCents,
           currency,
           occurredAt: validated.data.updated_at || validated.data.created_at || new Date().toISOString(),
           rawPayload: parsedJson
@@ -193,10 +226,6 @@ export class PaddleAdapter implements PaymentProviderPort {
 
       if (validated.event_type !== "transaction.completed") {
         return { isValid: true, event: { eventType: "ignored", providerName: this.providerName, reason: `Non-sale event: ${validated.event_type}` } };
-      }
-
-      if (currency !== ledgerCurrency) {
-        return { isValid: false, error: `Unsupported currency ${currency} (ledger is ${ledgerCurrency})`, httpStatus: 422 };
       }
 
       const priceMap = loadPaddlePriceMap();
