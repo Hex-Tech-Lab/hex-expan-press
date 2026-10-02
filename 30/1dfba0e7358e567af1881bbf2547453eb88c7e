@@ -1,0 +1,23 @@
+docs/agent_ledger.jsonl
+  s_9da76c00eea207::t_043733ee7e1c90 379
+src/adapters/payments/__tests__/paddle.adapter.test.ts
+  s_9da76c00eea207::t_722ff2ea6b1c77 227-228,234-240,243-244,248-250
+src/adapters/payments/paddle.adapter.ts
+  s_9da76c00eea207::t_27bb24d1600c03 218-221
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "301dfba0e7358e567af1881bbf2547453eb88c7e",
+  "prompts": {},
+  "sessions": {
+    "s_9da76c00eea207": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "82839636-bb03-485f-8ebb-7a4b1f96c746",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
