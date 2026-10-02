@@ -9,6 +9,8 @@
     "lint": "eslint .",
     "type-check": "tsc --noEmit",
     "e2e": "playwright test",
+    "e2e:setup": "playwright install chromium",
+    "e2e:type-check": "tsc --noEmit -p tsconfig.e2e.json",
     "test": "vitest run --config ../vitest.config.ts --root .. web"
   },
   "dependencies": {
@@ -40,6 +42,7 @@
     "jsdom": "^30.1.1",
     "playwright-core": "^1.63.0",
     "tailwindcss": "4.3.0",
+    "tsx": "4.23.13",
     "typescript": "6.0.3"
   }
 }

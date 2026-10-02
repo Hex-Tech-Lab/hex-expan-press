@@ -1,9 +1,9 @@
 import { defineConfig, devices } from "@playwright/test";
 import { E2E, MOCK_URL, APP_URL } from "./e2e/constants";
 
-// Every env var in web/.env.local is overridden here (process env beats
-// .env files in Next), so the dev server never reaches a real Supabase,
-// Firma or Sentry.
+// Every env var in web/.env.local, plus every var the app reads, is set here
+// (process env beats .env files in Next), so the dev server never reaches a
+// real Supabase, Firma, Paddle, Polar or Sentry.
 const appEnv: Record<string, string> = {
   SUPABASE_URL: MOCK_URL,
   SUPABASE_PUBLISHABLE_KEY: "e2e-publishable",
@@ -20,6 +20,11 @@ const appEnv: Record<string, string> = {
   FIRMA_API_BASE: `${MOCK_URL}/firma`,
   FIRMA_API_KEY: "e2e-firma",
   ESIGN_PRIMARY_PROVIDER: "firma",
+  NEXT_PUBLIC_PADDLE_CLIENT_TOKEN: "",
+  NEXT_PUBLIC_PADDLE_ENVIRONMENT: "sandbox",
+  POLAR_CHECKOUT_URL: "",
+  ALLOWED_AUTH_HOSTS: "localhost",
+  NEXT_PUBLIC_ONBOARDING_ACTIVE: "true",
 };
 
 export default defineConfig({
