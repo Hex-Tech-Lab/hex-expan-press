@@ -224,22 +224,30 @@ describe("PaddleAdapter server environment & price map hardening", () => {
     expect((res as { error?: string }).error).toBe("custom_data.product_id does not match the paid price");
   });
 
-  it("unknown price → 400", async () => {
+  it("unmapped price → 503 (retryable; Paddle stops on 4xx) + logs price/transaction ids", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const body = validBody({
       items: [{ price: { id: "pri_unknown" } }],
     });
     const res = await parse(body, freshSig(body));
     expect(res.isValid).toBe(false);
-    expect((res as { httpStatus?: number }).httpStatus).toBe(400);
-    expect((res as { error?: string }).error).toBe("Unknown Paddle price");
+    expect((res as { httpStatus?: number }).httpStatus).toBe(503);
+    expect((res as { error?: string }).error).toBe("Unknown Paddle price (PADDLE_PRICE_MAP out of sync?) — retry");
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+    const logged = errorSpy.mock.calls[0]?.[0] as string;
+    expect(logged).toContain("pri_unknown");
+    expect(logged).toContain("txn_test_0001");
+    errorSpy.mockRestore();
   });
 
-  it.each([["constructor"], ["__proto__"], ["toString"]])("prototype-named price id %j → 400 (own-property lookup)", async (priceId) => {
+  it.each([["constructor"], ["__proto__"], ["toString"]])("prototype-named price id %j → 503 (own-property lookup)", async (priceId) => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const body = validBody({ items: [{ price: { id: priceId } }] });
     const res = await parse(body, freshSig(body));
     expect(res.isValid).toBe(false);
-    expect((res as { httpStatus?: number }).httpStatus).toBe(400);
-    expect((res as { error?: string }).error).toBe("Unknown Paddle price");
+    expect((res as { httpStatus?: number }).httpStatus).toBe(503);
+    expect((res as { error?: string }).error).toBe("Unknown Paddle price (PADDLE_PRICE_MAP out of sync?) — retry");
+    errorSpy.mockRestore();
   });
 
   it("zero items → 400", async () => {
