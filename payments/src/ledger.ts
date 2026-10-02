@@ -4,7 +4,7 @@ import { dirname, join, basename } from "node:path";
 import { z } from "zod";
 import { GLOBAL } from "./settings_registry.ts";
 
-export type LedgerEventType = "sale" | "refund";
+export type LedgerEventType = "sale" | "refund" | "refund_reversal";
 
 export interface SaleRecord {
   ts: string;
@@ -117,7 +117,9 @@ export function findSale(provider: string, saleId: string, salesFile: string = S
     if (trimmed === "") continue;
     try {
       const o = JSON.parse(trimmed) as Record<string, unknown>;
-      if (o.provider === provider && o.sale_id === saleId) return o as unknown as SaleRecord;
+      if (o.provider === provider && o.sale_id === saleId && (o.event_type === undefined || o.event_type === "sale")) {
+        return o as unknown as SaleRecord;
+      }
     } catch (parseErr) {
       console.error("ledger: malformed ledger line skipped:", parseErr instanceof Error ? parseErr.message : parseErr);
       continue; // malformed line — tolerated by contract
@@ -212,7 +214,15 @@ const ManualReviewRefundSchema = z.object({
   provider: z.string().min(1),
   sale_id: z.string().min(1),
   refund_id: z.string().nullable(),
-  reason: z.enum(["amount_mismatch", "amount_unverifiable"]),
+  reason: z.enum([
+    "amount_mismatch",
+    "amount_unverifiable",
+    "currency_mismatch",
+    "reversal_without_refund",
+    "reversal_amount_mismatch",
+    "reversal_amount_unverifiable",
+    "refund_after_reversal",
+  ]),
   refund_cents: z.number().int().nonnegative().nullable(),
   sale_cents: z.number().int().nonnegative().nullable(),
   creator_id: z.string().nullable(),
@@ -279,6 +289,71 @@ export async function findRefundAsync(provider: string, saleId: string, salesFil
     };
   } catch (err) {
     console.error("ledger: Supabase refund lookup failed:", err);
+    throw err instanceof Error ? err : new Error(String(err));
+  }
+}
+
+/** Find an already-recorded REFUND_REVERSAL by provider + sale_id (reversal idempotency guard). */
+export function findRefundReversal(provider: string, saleId: string, salesFile: string = SALES_FILE): SaleRecord | null {
+  salesFile = resolveSalesFile(salesFile);
+  let lines: string[];
+  try {
+    lines = readFileSync(salesFile, "utf8").split(/\r?\n/);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== "ENOENT") console.error("ledger: sales ledger read failed (treated as no ledger yet):", err);
+    return null;
+  }
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed === "") continue;
+    try {
+      const o = JSON.parse(trimmed) as Record<string, unknown>;
+      if (o.event_type === "refund_reversal" && o.provider === provider && o.sale_id === saleId) return o as unknown as SaleRecord;
+    } catch (parseErr) {
+      console.error("ledger: malformed ledger line skipped:", parseErr instanceof Error ? parseErr.message : parseErr);
+      continue;
+    }
+  }
+  return null;
+}
+
+/** Asynchronously finds a refund reversal, falling back to Supabase public.orders if not found in local file. */
+export async function findRefundReversalAsync(provider: string, saleId: string, salesFile: string = SALES_FILE): Promise<SaleRecord | null> {
+  const local = findRefundReversal(provider, saleId, salesFile);
+  if (local) return local;
+
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SECRET_KEY;
+  if (!url || !key) return null;
+
+  try {
+    const { createClient } = await import("@supabase/supabase-js");
+    const supabase = createClient(url, key);
+    const { data, error } = await supabase
+      .from("orders")
+      .select("*")
+      .eq("provider", provider)
+      .eq("sale_id", saleId)
+      .eq("event_type", "refund_reversal")
+      .maybeSingle();
+    if (error) throw new Error(`ledger: Supabase refund_reversal lookup failed: ${error.message}`);
+    if (!data) return null;
+
+    return {
+      ts: data.occurred_at || data.created_at,
+      sale_id: data.sale_id,
+      provider: data.provider,
+      product_id: data.product_id,
+      amount_usd: Number(data.amount_usd),
+      creator_id: data.creator_id,
+      creator_split_pct: Number(data.creator_split_pct),
+      creator_split_usd: Number(data.creator_split_usd),
+      our_split_usd: Number(data.our_split_usd),
+      currency: data.currency,
+      event_type: data.event_type as LedgerEventType
+    };
+  } catch (err) {
+    console.error("ledger: Supabase refund_reversal lookup failed:", err);
     throw err instanceof Error ? err : new Error(String(err));
   }
 }
@@ -400,6 +475,67 @@ export async function appendRefund(refund: RefundSpec, salesFile: string = SALES
   if (typeof original.attribution_id === "string" && original.attribution_id !== "") record.attribution_id = original.attribution_id;
   // Durable store FIRST: if Supabase fails the route 500s and the provider retries;
   // writing the local file first would make that retry look like a duplicate.
+  await persistToSupabaseOrder(record);
+  await appendRecord(record, salesFile);
+  return record;
+}
+
+/** Append a refund_reversal record linked to a previously recorded sale and refund.
+ *  Restores the sale: amount_usd stays POSITIVE, creator/our splits are POSITIVE again.
+ *  Record a reversal only if a refund exists for that sale_id/provider and no reversal exists yet.
+ *  Duplicate reversal is a no-op (resolves with existing record). If no refund exists, throws error. */
+export async function appendRefundReversal(spec: RefundSpec, salesFile: string = SALES_FILE): Promise<SaleRecord> {
+  if (typeof spec !== "object" || spec === null) {
+    throw new TypeError("ledger: refund reversal must be an object {provider, sale_id, ts?}");
+  }
+  if (typeof spec.provider !== "string" || spec.provider.trim() === "") {
+    throw new TypeError('ledger: refund reversal "provider" must be a non-empty string');
+  }
+  if (typeof spec.sale_id !== "string" || spec.sale_id.trim() === "") {
+    throw new TypeError('ledger: refund reversal "sale_id" must be a non-empty string');
+  }
+  const ts = spec.ts ?? new Date().toISOString();
+  if (typeof ts !== "string" || Number.isNaN(Date.parse(ts))) {
+    throw new TypeError('ledger: refund reversal "ts" must be a parseable timestamp (UTC ISO string)');
+  }
+  let original = findSale(spec.provider, spec.sale_id, salesFile);
+  if (!original) {
+    original = await findSaleAsync(spec.provider, spec.sale_id, salesFile);
+  }
+  if (!original || original.event_type === "refund" || original.event_type === "refund_reversal") {
+    throw new Error(`ledger: refund reversal refused — no recorded sale for provider=${spec.provider} sale_id=${spec.sale_id}`);
+  }
+
+  // Must have an existing refund
+  const existingRefund = findRefund(spec.provider, spec.sale_id, salesFile)
+    ?? await findRefundAsync(spec.provider, spec.sale_id, salesFile);
+  if (!existingRefund) {
+    throw new Error(`ledger: refund reversal refused — no recorded refund for provider=${spec.provider} sale_id=${spec.sale_id} (reversals require an existing refund)`);
+  }
+
+  // Idempotency: if reversal already recorded, return it
+  const alreadyReversal = findRefundReversal(spec.provider, spec.sale_id, salesFile)
+    ?? await findRefundReversalAsync(spec.provider, spec.sale_id, salesFile);
+  if (alreadyReversal) {
+    return alreadyReversal;
+  }
+
+  const record: SaleRecord = {
+    ts,
+    sale_id: original.sale_id,
+    provider: original.provider,
+    product_id: original.product_id,
+    amount_usd: original.amount_usd,
+    creator_id: original.creator_id,
+    creator_split_pct: original.creator_split_pct,
+    creator_split_usd: original.creator_split_usd,
+    our_split_usd: original.our_split_usd,
+    currency: original.currency,
+    event_type: "refund_reversal",
+  };
+  if (typeof original.email_hash === "string" && original.email_hash !== "") record.email_hash = original.email_hash;
+  if (typeof original.attribution_id === "string" && original.attribution_id !== "") record.attribution_id = original.attribution_id;
+
   await persistToSupabaseOrder(record);
   await appendRecord(record, salesFile);
   return record;

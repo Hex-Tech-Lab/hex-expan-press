@@ -112,4 +112,33 @@ describe("payments/src/email", () => {
     expect(errSpy).toHaveBeenCalledWith(expect.stringContaining("retryable=true status=429"));
     errSpy.mockRestore();
   });
+
+  describe("error classification by name and status", () => {
+    it.each([
+      ["rate_limit_exceeded", undefined, true],
+      ["application_error", undefined, true],
+      ["internal_server_error", undefined, true],
+      ["daily_quota_exceeded", undefined, true],
+      [undefined, undefined, true], // network / no name
+      ["validation_error", undefined, false],
+      ["missing_required_field", undefined, false],
+      ["invalid_from_address", undefined, false],
+      ["invalid_api_key", undefined, false],
+      ["restricted_api_key", undefined, false],
+      ["not_found", undefined, false],
+      // statusCode null must NOT default to retryable when name is permanent:
+      ["validation_error", null, false],
+      ["invalid_from_address", null, false],
+      // item 7 specific tests:
+      ["service_unavailable", 503, true],
+      ["monthly_quota_exceeded", 429, true],
+      ["validation_error", 422, false],
+    ])("name %s with statusCode %s → retryable=%s", async (name, statusCode, expectedRetryable) => {
+      process.env.RESEND_API_KEY = "test-key";
+      sendMock.mockResolvedValue({ data: null, error: { message: "err", name, statusCode: statusCode as unknown as number } });
+      const err = await sendEmail({ to: "a@b.c", subject: "s", html: "<p>hi</p>", text: "hi" }).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(EmailSendError);
+      expect((err as EmailSendError).retryable).toBe(expectedRetryable);
+    });
+  });
 });

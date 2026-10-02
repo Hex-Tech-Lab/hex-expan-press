@@ -86,7 +86,7 @@ export type AttributionId = string;
 // § Events — the Universal Language
 // ---------------------------------------------------------------------------
 
-export type BillingEventType = 'sale_completed' | 'refund_issued' | 'chargeback_opened' | 'ignored';
+export type BillingEventType = 'sale_completed' | 'refund_issued' | 'refund_reversed' | 'chargeback_opened' | 'ignored';
 
 /**
  * A confirmed, paid sale. Emitted once per transaction.
@@ -144,6 +144,18 @@ export interface RefundIssuedEvent {
   rawPayload: unknown;
 }
 
+export interface RefundReversedEvent {
+  eventType: 'refund_reversed';
+  providerName: string;
+  saleId: string;
+  refundId?: string;
+  totalCents?: AmountCents;
+  currency?: CurrencyCode;
+  amountUnverifiable?: boolean;
+  occurredAt: IsoTimestamp;
+  rawPayload: unknown;
+}
+
 /**
  * A chargeback / dispute opened against a prior sale.
  * Not yet wired to any provider, but the type is reserved.
@@ -171,6 +183,7 @@ export interface IgnoredEvent {
 export type BillingEvent =
   | SaleCompletedEvent
   | RefundIssuedEvent
+  | RefundReversedEvent
   | ChargebackOpenedEvent
   | IgnoredEvent;
 

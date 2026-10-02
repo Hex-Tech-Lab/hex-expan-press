@@ -401,5 +401,134 @@ describe("PaddleAdapter buyer-email fallback (customer lookup)", () => {
     expect((res as { httpStatus?: number }).httpStatus).toBe(401);
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  it("non-sale event with transaction_id:null and status:null gets ignored with 200", async () => {
+    const body = JSON.stringify({
+      event_type: "subscription.created",
+      data: {
+        id: "sub_001",
+        transaction_id: null,
+        status: null,
+        items: [{ price: { id: "pri_test_basic" } }],
+      },
+    });
+    const res = await parse(body, freshSig(body));
+    expect(res.isValid).toBe(true);
+    if (!res.isValid) throw new Error("expected valid");
+    expect(res.event.eventType).toBe("ignored");
+  });
+
+  it("adjustment with null totals is still handled (rejects 400 with missing totals, never schema error)", async () => {
+    const body = JSON.stringify({
+      event_type: "adjustment.created",
+      data: {
+        id: "adj_null_totals",
+        action: "refund",
+        status: "approved",
+        transaction_id: "txn_001",
+        totals: null,
+      },
+    });
+    const res = await parse(body, freshSig(body));
+    expect(res.isValid).toBe(false);
+    expect((res as { httpStatus?: number }).httpStatus).toBe(400);
+    expect((res as { error?: string }).error).toBe("Paddle adjustment missing transaction_id or totals");
+  });
+
+  it("approved adjustment with action chargeback_reverse produces refund_reversed event", async () => {
+    const body = JSON.stringify({
+      event_type: "adjustment.updated",
+      data: {
+        id: "adj_cb_rev_1",
+        action: "chargeback_reverse",
+        status: "approved",
+        transaction_id: "txn_orig_123",
+        currency_code: "USD",
+        totals: { total: "3900" },
+        updated_at: "2026-10-02T12:00:00.000Z",
+      },
+    });
+    const res = await parse(body, freshSig(body));
+    expect(res.isValid).toBe(true);
+    if (!res.isValid) throw new Error("expected valid");
+    expect(res.event).toMatchObject({
+      eventType: "refund_reversed",
+      providerName: "paddle",
+      saleId: "txn_orig_123",
+      refundId: "adj_cb_rev_1",
+      totalCents: 3900,
+      currency: "USD",
+    });
+  });
+
+  it("uses GLOBAL.defaults.currency when currency_code is omitted", async () => {
+    const { GLOBAL } = await import("../../../../payments/src/settings_registry.ts");
+    const origCurrency = GLOBAL.defaults.currency;
+    try {
+      GLOBAL.defaults.currency = "CAD";
+      const body = JSON.stringify({
+        event_type: "transaction.completed",
+        data: {
+          id: "txn_test_nocurr",
+          details: { totals: { total: "1000" } },
+          items: [{ price: { id: "pri_test_basic" } }],
+          custom_data: { product_id: "test_product_basic", email: "buyer@example.com" },
+          changed_at: new Date().toISOString(),
+        },
+      });
+      const res = await parse(body, freshSig(body));
+      expect(res.isValid).toBe(true);
+      if (!res.isValid) throw new Error("expected valid");
+      expect((res.event as SaleCompletedEvent).currency).toBe("CAD");
+    } finally {
+      GLOBAL.defaults.currency = origCurrency;
+    }
+  });
+
+  it("item 1: accepts transaction.completed when custom_data has null product_id and email, resolving email via customer lookup", async () => {
+    vi.stubEnv("PADDLE_API_KEY", KEY);
+    const fetchMock = fetchOk("lookup-buyer@example.com");
+    vi.stubGlobal("fetch", fetchMock);
+    const body = JSON.stringify({
+      event_type: "transaction.completed",
+      data: {
+        id: "txn_test_null_custom",
+        currency_code: "USD",
+        details: { totals: { total: "1000" } },
+        items: [{ price: { id: "pri_test_basic" } }],
+        custom_data: { product_id: null, email: null },
+        customer_id: "ctm_lookup_1",
+        changed_at: new Date().toISOString(),
+      },
+    });
+    const res = await parse(body, freshSig(body));
+    expect(res.isValid).toBe(true);
+    if (!res.isValid) throw new Error("expected valid");
+    expect((res.event as SaleCompletedEvent).productId).toBe("test_product_basic");
+    expect((res.event as SaleCompletedEvent).buyerEmailHash).toBe(
+      createHash("sha256").update("lookup-buyer@example.com").digest("hex")
+    );
+  });
+
+  it("item 2: rejects transaction.completed when details or totals.total is missing or invalid, with 400 and does NOT default to 0", async () => {
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const bodyNullDetails = JSON.stringify({
+      event_type: "transaction.completed",
+      data: {
+        id: "txn_test_null_details",
+        currency_code: "USD",
+        details: null,
+        items: [{ price: { id: "pri_test_basic" } }],
+        custom_data: { product_id: "test_product_basic", email: "buyer@example.com" },
+        changed_at: new Date().toISOString(),
+      },
+    });
+    const res = await parse(bodyNullDetails, freshSig(bodyNullDetails));
+    expect(res.isValid).toBe(false);
+    expect((res as { httpStatus?: number }).httpStatus).toBe(400);
+    expect((res as { error?: string }).error).toBe("Paddle transaction missing totals");
+    expect(errSpy).toHaveBeenCalledWith(expect.stringContaining("txn_test_null_details"));
+    errSpy.mockRestore();
+  });
 });
 
