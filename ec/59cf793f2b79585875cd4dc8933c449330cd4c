@@ -1,0 +1,28 @@
+docs/agent_ledger.jsonl
+  h_90c2451a76ba0d 384-385
+payments/config.duane.json
+  h_90c2451a76ba0d 13,37-38
+payments/test/book_identity.test.ts
+  h_90c2451a76ba0d 43,205,226,664
+scripts/seed_review_items.py
+  h_90c2451a76ba0d 20,82,114
+supabase/migrations/20261003000000_drop_debug_claims.sql
+  h_90c2451a76ba0d 1-2
+supabase/migrations/20261003000100_review_codes_c_to_q.sql
+  h_90c2451a76ba0d 1-11
+supabase/seed/duane_review_items.sql
+  h_90c2451a76ba0d 19-21,24-28
+web/app/creator/review/page.tsx
+  h_90c2451a76ba0d 12
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ec59cf793f2b79585875cd4dc8933c449330cd4c",
+  "prompts": {},
+  "humans": {
+    "h_90c2451a76ba0d": {
+      "author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
