@@ -1,0 +1,37 @@
+payments/bake_creator_pages.ts
+  s_9da76c00eea207::t_1c69769893ae90 64,100,124
+web/app/error.tsx
+  s_9da76c00eea207::t_af8438d6e2825a 22,37
+web/app/globals.css
+  s_9da76c00eea207::t_0713a28561f96d 71-81
+web/e2e/a11y.spec.ts
+  s_9da76c00eea207::t_a10168e1e75b35 1-54
+web/e2e/focus.spec.ts
+  s_9da76c00eea207::t_4b82dfaeeb9098 1-17
+web/public/c/retirearly500k/500k-playbook/index.html
+  s_9da76c00eea207::t_fd90d0550f8cf5 26,48-49
+web/public/c/retirearly500k/index.html
+  s_9da76c00eea207::t_12f591b7bf0456 26,62,86
+pnpm-lock.yaml
+  s_9da76c00eea207::t_bde898fc0a5dd4 201-203,271-275,5276-5280
+web/package.json
+  s_9da76c00eea207::t_390154619dcddd 34
+web/src/components/landing/landing-page.tsx
+  s_9da76c00eea207::t_567aff8bbb9080 309,315,317,348,352,392,477,495,501,549
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d82a2630a8f1fb70dd2e107daca42de08f33425e",
+  "prompts": {},
+  "sessions": {
+    "s_9da76c00eea207": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "82839636-bb03-485f-8ebb-7a4b1f96c746",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
