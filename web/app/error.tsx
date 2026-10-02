@@ -19,7 +19,7 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
         {"{ }"}
       </div>
       <h1 className="text-2xl font-bold tracking-tight">Something broke while loading.</h1>
-      <p className="text-sm text-gray-500 max-w-sm text-center">
+      <p className="text-sm text-gray-600 max-w-sm text-center">
         The page hit an unexpected error. Retry — or head back to the front page.
       </p>
       <div className="flex items-center gap-3">
@@ -34,7 +34,7 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
           Back home
         </Link>
       </div>
-      {error.digest ? <p className="text-[10px] font-mono text-gray-400">ref: {error.digest}</p> : null}
+      {error.digest ? <p className="text-[10px] font-mono text-gray-600">ref: {error.digest}</p> : null}
     </div>
   );
 }
