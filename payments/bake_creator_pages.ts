@@ -61,7 +61,7 @@ const PRODUCT_CSS = `
     padding: 56px 20px 40px;
   }
   .wrap { max-width: 640px; margin: 0 auto; }
-  .kicker { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: #E8622C; font-weight: 600; margin-bottom: 16px; }
+  .kicker { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: #B3401E; font-weight: 600; margin-bottom: 16px; }
   h1 {
     font-family: "Fraunces", Georgia, "Times New Roman", serif;
     font-size: 34px; line-height: 1.15; font-weight: 700; letter-spacing: -.015em; margin-bottom: 10px;
@@ -97,7 +97,7 @@ const PRODUCT_CSS = `
     padding: 22px 20px 20px; min-height: 128px;
     display: flex; flex-direction: column; justify-content: center;
   }
-  .cover-kicker { font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: #E8622C; font-weight: 600; margin-bottom: 8px; }
+  .cover-kicker { font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: #B3401E; font-weight: 600; margin-bottom: 8px; }
   .cover-title {
     font-family: "Fraunces", Georgia, "Times New Roman", serif;
     font-size: 17.5px; line-height: 1.25; font-weight: 700; letter-spacing: -.01em;
@@ -121,6 +121,7 @@ const PRODUCT_CSS = `
   footer a { color: #2E7D5B; text-decoration: none; }
   footer a:hover { text-decoration: underline; }
   footer .sep { color: #CBB3A7; }
+  a:focus-visible, button:focus-visible { outline: 3px solid #B3401E; outline-offset: 3px; }
   @media (max-width: 480px) { h1 { font-size: 27px; } body { padding: 36px 16px 32px; } }
 `;
 
