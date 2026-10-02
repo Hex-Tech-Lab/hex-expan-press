@@ -63,9 +63,17 @@ export async function processEsignWebhookUseCase(
       });
     } catch (err) {
       // Replay of an already-recorded envelope: the unique (kind, external_ref)
-      // index rejects the second row (audit F5). Acknowledge so the provider
-      // stops retrying; anything else still fails.
-      if ((err as { code?: unknown })?.code === "23505") return;
+      // index rejects the second row (audit F5). Acknowledge ONLY when the
+      // violated constraint is consents_kind_external_ref_uidx.
+      const e = err as { code?: unknown; constraint?: unknown; message?: unknown };
+      if (
+        e?.code === "23505" &&
+        (e.constraint === "consents_kind_external_ref_uidx" ||
+          (typeof e.message === "string" && e.message.includes("consents_kind_external_ref_uidx")))
+      ) {
+        console.info(`[esign.webhook] acknowledged replayed envelope envelope_id=${envelopeId} kind=C3_revenue_split`);
+        return;
+      }
       throw err;
     }
   }
