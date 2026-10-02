@@ -1,0 +1,52 @@
+payments/test/audit_bake_c2_hash.test.ts
+  s_540fe33e3b7ff6::t_ab21c6f43e7479 7-118
+  s_540fe33e3b7ff6::t_892d8aea448b75 4-6
+  s_540fe33e3b7ff6::t_bba8c5d211556d 119
+  s_0dc509588f18e9::t_4d44a433dbdda5 1-3
+payments/test/bake_checkout_flow.test.ts
+  s_540fe33e3b7ff6::t_6b124e7b679541 28
+  s_540fe33e3b7ff6::t_0706c2a317c8c3 54-60
+  s_540fe33e3b7ff6::t_1d4f828e9b9cd3 105-114
+  s_540fe33e3b7ff6::t_85e36640e1f600 183,185,188
+  s_540fe33e3b7ff6::t_9339e141e3bb36 30-34
+  s_540fe33e3b7ff6::t_eb0f18ad7a1979 29
+payments/bake_checkout.ts
+  s_540fe33e3b7ff6::t_eef5041ee87d68 132-134
+  s_540fe33e3b7ff6::t_68899038d5dd16 29,32-35
+  s_540fe33e3b7ff6::t_1f432af9aee16f 146
+  s_540fe33e3b7ff6::t_5f1b5b9d52a3e9 157
+  s_540fe33e3b7ff6::t_6b88c4857b89fb 138-145,147,151-156,158
+  s_540fe33e3b7ff6::t_3363eda04fbeac 117-131,135-137,148-150,159-173
+  s_540fe33e3b7ff6::t_e942ca23771418 36
+payments/test/bake_checkout_run.test.ts
+  s_540fe33e3b7ff6::t_11abe8bd957fca 78-82,88,91-92
+  s_540fe33e3b7ff6::t_f515d94ae602db 156
+  s_540fe33e3b7ff6::t_67b34a08b47bf7 220
+  s_540fe33e3b7ff6::t_a34c4a4a4a2786 93
+docs/agent_ledger.jsonl
+  s_540fe33e3b7ff6::t_bf0012b5a8353c 381
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "cf0188a75bfaae5116564837a0c27d6954f05cf0",
+  "prompts": {},
+  "sessions": {
+    "s_0dc509588f18e9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fc365f60-a79d-4397-b8a4-2f924d01aba1",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_540fe33e3b7ff6": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f02e710dcffeKJSAJVYnvhVM6i",
+        "model": "@preset/glm-53-flash-on-cheap"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
