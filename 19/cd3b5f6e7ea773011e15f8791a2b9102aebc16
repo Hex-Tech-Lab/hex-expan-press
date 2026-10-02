@@ -1,0 +1,29 @@
+payments/bake_creator_pages.ts
+  s_9da76c00eea207::t_eb4cb98e3a0640 124
+web/app/globals.css
+  s_9da76c00eea207::t_8b9e812ceac8c7 81-84
+web/e2e/a11y.spec.ts
+  s_9da76c00eea207::t_37c24d62a973ec 9-11,15-19,43-44,56
+web/public/c/retirearly500k/500k-playbook/index.html
+  s_9da76c00eea207::t_809135668ba796 49
+web/public/c/retirearly500k/index.html
+  s_9da76c00eea207::t_fd76e50d040eec 86
+web/src/components/landing/landing-page.tsx
+  s_9da76c00eea207::t_414597f0a0bea6 273,549
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "19cd3b5f6e7ea773011e15f8791a2b9102aebc16",
+  "prompts": {},
+  "sessions": {
+    "s_9da76c00eea207": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "82839636-bb03-485f-8ebb-7a4b1f96c746",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
