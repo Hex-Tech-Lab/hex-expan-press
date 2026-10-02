@@ -401,5 +401,64 @@ describe("PaddleAdapter buyer-email fallback (customer lookup)", () => {
     expect((res as { httpStatus?: number }).httpStatus).toBe(401);
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  it("non-sale event with transaction_id:null and status:null gets ignored with 200", async () => {
+    const body = JSON.stringify({
+      event_type: "subscription.created",
+      data: {
+        id: "sub_001",
+        transaction_id: null,
+        status: null,
+        items: [{ price: { id: "pri_test_basic" } }],
+      },
+    });
+    const res = await parse(body, freshSig(body));
+    expect(res.isValid).toBe(true);
+    if (!res.isValid) throw new Error("expected valid");
+    expect(res.event.eventType).toBe("ignored");
+  });
+
+  it("adjustment with null totals is still handled (rejects 400 with missing totals, never schema error)", async () => {
+    const body = JSON.stringify({
+      event_type: "adjustment.created",
+      data: {
+        id: "adj_null_totals",
+        action: "refund",
+        status: "approved",
+        transaction_id: "txn_001",
+        totals: null,
+      },
+    });
+    const res = await parse(body, freshSig(body));
+    expect(res.isValid).toBe(false);
+    expect((res as { httpStatus?: number }).httpStatus).toBe(400);
+    expect((res as { error?: string }).error).toBe("Paddle adjustment missing transaction_id or totals");
+  });
+
+  it("approved adjustment with action chargeback_reverse produces refund_reversed event", async () => {
+    const body = JSON.stringify({
+      event_type: "adjustment.updated",
+      data: {
+        id: "adj_cb_rev_1",
+        action: "chargeback_reverse",
+        status: "approved",
+        transaction_id: "txn_orig_123",
+        currency_code: "USD",
+        totals: { total: "3900" },
+        updated_at: "2026-10-02T12:00:00.000Z",
+      },
+    });
+    const res = await parse(body, freshSig(body));
+    expect(res.isValid).toBe(true);
+    if (!res.isValid) throw new Error("expected valid");
+    expect(res.event).toMatchObject({
+      eventType: "refund_reversed",
+      providerName: "paddle",
+      saleId: "txn_orig_123",
+      refundId: "adj_cb_rev_1",
+      totalCents: 3900,
+      currency: "USD",
+    });
+  });
 });
 

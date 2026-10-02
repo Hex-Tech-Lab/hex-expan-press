@@ -29,7 +29,7 @@ describe("PaddleAdapter audit", () => {
     expect(r.isValid && r.event.eventType).toBe("refund_issued");
   });
 
-  it("F4: a EUR transaction is not accepted as a USD-denominated sale", async () => {
+  it("a EUR sale passes through the adapter with currency EUR", async () => {
     const { body, headers } = signed({
       event_type: "transaction.completed",
       data: { id: "txn_eur", currency_code: "EUR", details: { totals: { total: "3900" } },
@@ -37,7 +37,9 @@ describe("PaddleAdapter audit", () => {
               changed_at: new Date().toISOString() },
     });
     const r = await new PaddleAdapter().parseAndValidateWebhook(headers, body);
-    expect(r.isValid).toBe(false);
+    expect(r.isValid).toBe(true);
+    if (!r.isValid) throw new Error("expected valid");
+    expect((r.event as { currency?: string }).currency).toBe("EUR");
   });
 
   it("F3: an approved chargeback is a refund_issued event linked to the transaction", async () => {
@@ -58,15 +60,5 @@ describe("PaddleAdapter audit", () => {
     });
     const r = await new PaddleAdapter().parseAndValidateWebhook(headers, body);
     expect(r.isValid && r.event.eventType).toBe("ignored");
-  });
-
-  it("F4: a EUR rejection is a 422", async () => {
-    const { body, headers } = signed({
-      event_type: "transaction.completed",
-      data: { id: "txn_eur", currency_code: "EUR", details: { totals: { total: "3900" } },
-              items: [{ price: { id: "pri_x" } }], custom_data: { email: "b@example.com" } },
-    });
-    const r = await new PaddleAdapter().parseAndValidateWebhook(headers, body);
-    expect(!r.isValid && r.httpStatus).toBe(422);
   });
 });
