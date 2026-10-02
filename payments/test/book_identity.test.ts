@@ -40,7 +40,7 @@ const REGISTRY = {
 const CFG: SyncConfig = {
   book: "books/duane.json",
   db_product_id: "57596c19-c550-4bde-b17a-e87b86d005c5",
-  paddle_product_ref: "pro_01m3vxs8fm3b2ygj62cjdys73m",
+  paddle_product_ref: "pro_01m3ysqv4cjhxksyqrtfssp4th",
 };
 
 const TARGETS: SyncTargets = {
@@ -202,7 +202,7 @@ describe("applyIdentity sends the right PATCHes", () => {
     expect(supaHeaders.apikey).toBe("sk");
     expect(JSON.parse(String(supa.init?.body))).toEqual({ title: REGISTRY.title });
 
-    expect(paddle.url).toBe("https://api.paddle.com/products/pro_01m3vxs8fm3b2ygj62cjdys73m");
+    expect(paddle.url).toBe("https://api.paddle.com/products/pro_01m3ysqv4cjhxksyqrtfssp4th");
     expect(paddle.init?.method).toBe("PATCH");
     const paddleHeaders = paddle.init?.headers as Record<string, string>;
     expect(paddleHeaders.Authorization).toBe("Bearer pdl");
@@ -223,7 +223,7 @@ describe("applyIdentity sends the right PATCHes", () => {
     }) as typeof fetch;
     const sandTargets = { ...TARGETS, paddleBase: paddleBaseFor("sandbox") };
     await applyIdentity(sandTargets, CFG, loadBookIdentitySyncFixture(), spy);
-    expect(urls).toContain("https://sandbox-api.paddle.com/products/pro_01m3vxs8fm3b2ygj62cjdys73m");
+    expect(urls).toContain("https://sandbox-api.paddle.com/products/pro_01m3ysqv4cjhxksyqrtfssp4th");
   });
 
   it("throws on non-2xx supabase PATCH", async () => {
@@ -661,7 +661,7 @@ describe("repo invariants", () => {
     const cfg = JSON.parse(await readFile(join(repoRoot, "payments", "config.duane.json"), "utf8")) as Record<string, unknown>;
     expect(cfg).not.toHaveProperty("title");
     expect(cfg.book).toBe("books/duane.json");
-    expect(cfg.paddle_product_ref).toBe("pro_01m3vxs8fm3b2ygj62cjdys73m");
+    expect(cfg.paddle_product_ref).toBe("pro_01m3ysqv4cjhxksyqrtfssp4th");
   });
 });
 

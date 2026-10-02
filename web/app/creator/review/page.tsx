@@ -9,7 +9,7 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false }, // authenticated surface
 };
 
-/** Natural sort for review codes: A1, B1 … B10, B13, C1 … (legacy parity). */
+/** Natural sort for review codes: A1, B1 … B10, B13, Q1 … (legacy parity). */
 function naturalCode(a: string, b: string): number {
   const x = a.split(/(\d+)/);
   const y = b.split(/(\d+)/);
