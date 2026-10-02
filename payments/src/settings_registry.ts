@@ -49,6 +49,7 @@ export interface GlobalSettings {
     webhook_lock_ttl_seconds: number;
     http_timeout_ms: number; // Paddle customer-email lookup inside the webhook (must stay short)
     sync_http_timeout_ms: number; // operator CLI (sync_book_identity) calls to Supabase/Paddle
+    review_queue_page_size: number; // listManualReviewRefunds default page/limit
     paddle: { api_base: { production: string; sandbox: string }; js_cdn_url: string };
     polar: { sandbox_checkout_fallback_url: string };
   };
@@ -84,6 +85,7 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     webhook_lock_ttl_seconds: 300,
     http_timeout_ms: 5000,
     sync_http_timeout_ms: 30000,
+    review_queue_page_size: 200,
     paddle: {
       api_base: { production: "https://api.paddle.com", sandbox: "https://sandbox-api.paddle.com" },
       js_cdn_url: "https://cdn.paddle.com/paddle/v2/paddle.js",
@@ -113,6 +115,7 @@ export const PAYMENTS_LIMITS = {
   webhook_lock_ttl_seconds: { min: 60, max: 3600 },
   http_timeout_ms: { min: 1000, max: 30000 },
   sync_http_timeout_ms: { min: 1000, max: 120000 },
+  review_queue_page_size: { min: 1, max: 1000 },
 } as const;
 
 function intInRange(v: unknown, min: number, max: number): v is number {
@@ -214,6 +217,7 @@ export function loadPaymentsSection(raw: Record<string, unknown> | undefined): G
     webhook_lock_ttl_seconds: webhookLockTtl,
     http_timeout_ms: httpTimeout,
     sync_http_timeout_ms: syncHttpTimeout,
+    review_queue_page_size: num("review_queue_page_size"),
     paddle: { api_base: { production: apiProduction, sandbox: apiSandbox }, js_cdn_url: jsCdn },
     polar: { sandbox_checkout_fallback_url: polarFallback },
   };
