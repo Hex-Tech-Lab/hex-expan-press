@@ -1,0 +1,26 @@
+payments/src/cascade_signals.ts
+  h_90c2451a76ba0d 48
+payments/src/ledger.ts
+  h_90c2451a76ba0d 7,286-350,473-533
+payments/src/reports.ts
+  h_90c2451a76ba0d 23,46-52,112,142-145
+payments/test/ledger.test.ts
+  h_90c2451a76ba0d 135-162
+src/use_cases/billing/__tests__/process_billing_webhook.test.ts
+  h_90c2451a76ba0d 328-388
+src/use_cases/billing/process_billing_webhook.ts
+  h_90c2451a76ba0d 9-10,145-166
+supabase/migrations/20261003000200_orders_refund_reversal.sql
+  h_90c2451a76ba0d 1-15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "775132444327eb24fcf489c523a07ef8b601e352",
+  "prompts": {},
+  "humans": {
+    "h_90c2451a76ba0d": {
+      "author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
