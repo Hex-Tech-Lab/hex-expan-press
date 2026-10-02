@@ -1,0 +1,21 @@
+src/adapters/payments/__tests__/paddle.adapter.test.ts
+  s_64dbe2eccb5bf8::t_fd40c2a7b2fc23 438-486
+src/adapters/payments/paddle.adapter.ts
+  s_64dbe2eccb5bf8::t_4361361615f433 62-63,68,245-249,296-298
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "aced0dbd0cbf53ed111326c31e4a80833c54edf4",
+  "prompts": {},
+  "sessions": {
+    "s_64dbe2eccb5bf8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4fee11c3-26f1-4f05-9ec8-fdbba76990a4",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
