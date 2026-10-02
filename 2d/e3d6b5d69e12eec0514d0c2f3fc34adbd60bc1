@@ -1,0 +1,21 @@
+payments/bake_checkout.ts
+  s_64dbe2eccb5bf8::t_e59611aa50ecde 54
+payments/test/audit_bake_c2_hash.test.ts
+  s_64dbe2eccb5bf8::t_48d6afb22ffdb7 120-141
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "2de3d6b5d69e12eec0514d0c2f3fc34adbd60bc1",
+  "prompts": {},
+  "sessions": {
+    "s_64dbe2eccb5bf8": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "4fee11c3-26f1-4f05-9ec8-fdbba76990a4",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
