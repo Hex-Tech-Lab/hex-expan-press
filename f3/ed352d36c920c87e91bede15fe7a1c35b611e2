@@ -1,0 +1,29 @@
+payments/src/email.ts
+  s_9da76c00eea207::t_9404c710c0118e 2,8-10,13-42,45-52,56-74,78-95
+payments/src/settings_registry.ts
+  s_9da76c00eea207::t_15fc21d74547c7 56-57,99-103,237
+payments/test/auth_email_templates.test.ts
+  s_9da76c00eea207::t_620d1abbf353bd 1-27
+payments/test/email.test.ts
+  s_9da76c00eea207::t_b778bb627a73b9 11,31,41,44-49,57,61-114
+supabase/templates/confirmation.html
+  s_9da76c00eea207::t_811ed94b14b633 1-15
+supabase/templates/magic_link.html
+  s_9da76c00eea207::t_c27952bddbddf8 1-15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f3ed352d36c920c87e91bede15fe7a1c35b611e2",
+  "prompts": {},
+  "sessions": {
+    "s_9da76c00eea207": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "82839636-bb03-485f-8ebb-7a4b1f96c746",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
