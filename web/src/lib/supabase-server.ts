@@ -2,6 +2,8 @@ import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js";
 import "server-only";
+import { jwtSkewRetryDelayMs } from "../../../payments/src/settings_registry";
+import { createSkewRetryFetch } from "./skew-retry-fetch";
 
 /**
  * Server-side Supabase access for the creator portal (Wave 5).
@@ -29,7 +31,10 @@ export interface PortalSession {
 /** Validate a JWT against the auth server. Returns the user or null. */
 async function validateJwt(jwt: string): Promise<User | null> {
   const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
-    global: { headers: { Authorization: `Bearer ${jwt}` } },
+    global: {
+      headers: { Authorization: `Bearer ${jwt}` },
+      fetch: createSkewRetryFetch(fetch, jwtSkewRetryDelayMs()),
+    },
   });
   const { data, error } = await supabase.auth.getUser(jwt);
   if (error || !data.user) return null;
@@ -39,7 +44,10 @@ async function validateJwt(jwt: string): Promise<User | null> {
 /** Author queries with the user's JWT on the wire — RLS decides visibility. */
 function clientWithJwt(jwt: string): SupabaseClient {
   return createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
-    global: { headers: { Authorization: `Bearer ${jwt}` } },
+    global: {
+      headers: { Authorization: `Bearer ${jwt}` },
+      fetch: createSkewRetryFetch(fetch, jwtSkewRetryDelayMs()),
+    },
   });
 }
 
