@@ -404,3 +404,78 @@ export async function appendRefund(refund: RefundSpec, salesFile: string = SALES
   await appendRecord(record, salesFile);
   return record;
 }
+
+export interface ManualReviewQueueEntry {
+  id: string | number;
+  created_at: string;
+  event: string;
+  details: Record<string, unknown>;
+  provider: string | null;
+  sale_id: string | null;
+  occurrences: number;
+  incomplete: boolean; // true when provider/sale_id missing — kept as its own entry, never merged
+}
+
+/** Operational reader for the MANUAL_REVIEW_REQUIRED_REFUND dead-letter queue.
+ *  Reads public.audit_log via Supabase REST using the same env resolution as the
+ *  writer above (SUPABASE_URL + SUPABASE_SECRET_KEY). Deduplicates on
+ *  (details->>'provider', details->>'sale_id') keeping the newest row per pair,
+ *  with an occurrences count; rows missing provider or sale_id are kept
+ *  standalone and flagged (incomplete: true). Throws when Supabase is
+ *  configured but the request fails (HTTP non-2xx). */
+export async function listManualReviewRefunds(opts?: {
+  fetchImpl?: typeof fetch;
+  limit?: number;
+}): Promise<ManualReviewQueueEntry[]> {
+  const fetchImpl = opts?.fetchImpl ?? fetch;
+  const limit = opts?.limit ?? GLOBAL.payments.review_queue_page_size;
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SECRET_KEY;
+  if (!url || !key) return [];
+  const base = url.replace(/\/+$/, "");
+  const endpoint = `${base}/rest/v1/audit_log?select=id,created_at:at,event,details&event=eq.MANUAL_REVIEW_REQUIRED_REFUND&order=at.desc,id.desc&limit=${encodeURIComponent(String(limit))}`;
+  const res = await fetchImpl(endpoint, {
+    headers: {
+      apikey: key,
+      Authorization: `Bearer ${key}`,
+      Accept: "application/json",
+    },
+  });
+  if (!res.ok) {
+    throw new Error(`ledger: audit_log review-queue read failed: HTTP ${res.status}`);
+  }
+  const rows = (await res.json()) as Array<{
+    id: string | number;
+    created_at: string;
+    event: string;
+    details: Record<string, unknown> | null;
+  }>;
+  const byPair = new Map<string, ManualReviewQueueEntry>();
+  const standalone: ManualReviewQueueEntry[] = [];
+  const stamp = (r: { id: string | number; created_at: string; event: string; details: Record<string, unknown> | null; provider: string | null; sale_id: string | null }): ManualReviewQueueEntry => ({
+    id: r.id,
+    created_at: r.created_at,
+    event: r.event,
+    details: r.details ?? {},
+    provider: r.provider,
+    sale_id: r.sale_id,
+    occurrences: 1,
+    incomplete: r.provider === null || r.sale_id === null,
+  });
+  for (const row of rows) {
+    const provider = typeof row.details?.provider === "string" && row.details.provider !== "" ? row.details.provider : null;
+    const saleId = typeof row.details?.sale_id === "string" && row.details.sale_id !== "" ? row.details.sale_id : null;
+    const r = { ...row, provider, sale_id: saleId };
+    if (provider === null || saleId === null) {
+      standalone.push(stamp(r));
+      continue;
+    }
+    const k = `${provider}\u0000${saleId}`;
+    const prev = byPair.get(k);
+    if (!prev) byPair.set(k, stamp(r));
+    else prev.occurrences += 1;
+  }
+  // rows arrive newest-first (order=at.desc,id.desc; audit_log timestamp column is "at", aliased to created_at), so first sighting per
+  // pair is the most recent; standalone entries preserve arrival order.
+  return [...byPair.values(), ...standalone];
+}
