@@ -177,3 +177,12 @@ describe("registry validation added with the P1/P2 sweep", () => {
     expect(loadEmailSection({ retryable_error_names: ["x_error"] }).retryable_error_names).toEqual(["x_error"]);
   });
 });
+
+describe("email.retryable_error_names padding", () => {
+  it("rejects names with surrounding whitespace (they would never match a Resend error name)", () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const defaults = loadEmailSection(undefined).retryable_error_names;
+    expect(loadEmailSection({ retryable_error_names: [" rate_limit_exceeded"] }).retryable_error_names).toEqual(defaults);
+    vi.restoreAllMocks();
+  });
+});

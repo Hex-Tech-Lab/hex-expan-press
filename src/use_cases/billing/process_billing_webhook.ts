@@ -87,11 +87,13 @@ export async function processBillingWebhookUseCase(
     const refundEvent = event as RefundIssuedEvent;
     await underLockOrConfirmed(
       `lock:refund:${refundEvent.providerName}:${refundEvent.saleId}`,
-      // Never confirm a contended refund from ledger state: refunds and reversals share this lock,
-      // and an existing (possibly reversed, possibly in-flight-reversed) refund row cannot prove THIS
-      // chargeback was handled. A contended delivery always gets a retryable 503; the duplicate check
-      // inside the lock makes the retry idempotent.
-      async () => false,
+      // Confirm a contended refund only while the sale is still refunded: once a reversal exists, an
+      // existing refund row can't prove THIS (new) chargeback was handled, so it retries (503).
+      // Known gap (documented in PR #66): a new chargeback contending with an IN-FLIGHT reversal of
+      // the same sale is confirmed. Root fix = persist the provider adjustment id and dedupe on it.
+      async () =>
+        (await findRefundAsync(refundEvent.providerName, refundEvent.saleId)) !== null &&
+        (await findRefundReversalAsync(refundEvent.providerName, refundEvent.saleId)) === null,
       async () => {
         if (refundEvent.amountUnverifiable === true) {
           const sale = await findSaleAsync(refundEvent.providerName, refundEvent.saleId);
