@@ -1,0 +1,38 @@
+web/src/lib/__tests__/supabase-server.test.ts
+  s_2cb6579a5531f9::t_840017fcb136de 100-103
+payments/test/jwt_skew_clamp.test.ts
+  s_2cb6579a5531f9::t_42f1e2da4ad836 1-34
+web/src/lib/supabase-server.ts
+  s_2cb6579a5531f9::t_ec8cf5509e7e07 47-50
+  s_2cb6579a5531f9::t_3642f88e19f251 5-6
+  s_2cb6579a5531f9::t_9faff127ead0ab 34-37
+web/src/lib/__tests__/skew-retry-fetch.test.ts
+  s_2cb6579a5531f9::t_0be8398c6f1890 1-111
+payments/src/settings_registry.ts
+  s_2cb6579a5531f9::t_5b108c59d64c7b 105
+  s_2cb6579a5531f9::t_a00cac722b4647 246-247,250-255
+  s_2cb6579a5531f9::t_d8e295e6308a9f 61
+  s_2cb6579a5531f9::t_63260d0a04d247 240,244-245,248-249
+  s_2cb6579a5531f9::t_3e96679d8b25ce 58
+  s_2cb6579a5531f9::t_5a1506a6dd83bd 256
+docs/agent_ledger.jsonl
+  s_2cb6579a5531f9::t_185d02d2fe1141 380
+web/src/lib/skew-retry-fetch.ts
+  s_2cb6579a5531f9::t_2db97fe5004d56 1-35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "27dfddbd7e000f48067ae44bc0737880216f8a7a",
+  "prompts": {},
+  "sessions": {
+    "s_2cb6579a5531f9": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f0311e613ffe6mXNhZvOUgrQ2P",
+        "model": "@preset/glm-53-flash-on-cheap"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
