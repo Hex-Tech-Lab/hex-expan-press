@@ -101,12 +101,15 @@ vi.mock("../../../../payments/src/settings_registry.ts", () => ({
   GLOBAL: {
     paths: { sales_ledger: salesFilePath },
     defaults: { currency: "USD" },
-    payments: { webhook_tolerance_seconds: 300, webhook_lock_ttl_seconds: 300, http_timeout_ms: 5000, sync_http_timeout_ms: 30000 },
+    payments: { webhook_tolerance_seconds: 300, webhook_lock_ttl_seconds: 300, http_timeout_ms: 5000, sync_http_timeout_ms: 30000, reversal_wait_hours: 24 },
   },
   expandHome: (p: string, home: string) => (home && (p === "~" || p.startsWith("~/")) ? p : p),
   isRegisteredPaymentProvider: (name: unknown) => typeof name === "string",
   paymentProviderSetting: () => undefined,
 }));
+
+import { GLOBAL as REGISTRY } from "../../../../payments/src/settings_registry.ts";
+const GLOBAL_WAIT_HOURS = REGISTRY.payments.reversal_wait_hours;
 
 describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
   beforeEach(() => {
@@ -445,7 +448,7 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
     expect(JSON.parse(rows[0]).event_type).toBeUndefined();
   });
 
-  it("Defect A: reversal with no refund throws plain Error (500 retryable), flags reversal_without_refund, and appends nothing", async () => {
+  it("Defect A: reversal with no refund retries (500, no flag) inside the wait window, then flags once and acks 200 after it", async () => {
     process.env.SUPABASE_URL = "https://example.supabase.co";
     process.env.SUPABASE_SECRET_KEY = "mock-secret-key";
     setnx.mockResolvedValue(1);
@@ -473,14 +476,21 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
       saleId: "sale_no_refund",
       totalCents: 3900,
       currency: "USD",
-      occurredAt: "2026-09-29T00:00:00.000Z",
+      occurredAt: new Date().toISOString(),
       rawPayload: null,
     };
 
-    // Should throw plain Error
+    // Fresh reversal: the refund may still land, so retry (plain Error -> 500) and write NO flag.
     await expect(
       processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(reversalEvent as never)]),
     ).rejects.toThrow("refund reversal waiting for sale/refund: sale_no_refund");
+    expect(supa.auditInserts).toHaveLength(0);
+
+    // Older than the registry window: the refund will not come -> flag once, ack 200.
+    const stale = { ...reversalEvent, occurredAt: new Date(Date.now() - (GLOBAL_WAIT_HOURS + 1) * 3_600_000).toISOString() };
+    await expect(
+      processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(stale as never)]),
+    ).resolves.toBeUndefined();
 
     // Check manual review flag in audit_log
     expect(supa.auditInserts).toHaveLength(1);

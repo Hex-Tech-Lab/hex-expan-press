@@ -28,30 +28,35 @@ export type TitleMap = Map<string, string>;
 export interface Totals {
   count: number;
   refunds: number;
-  reversals?: number;
+  /** provider:sale_id keys, netted per sale by finalizeTotals (one refund row per sale is a DB invariant). */
+  refundKeys?: Set<string>;
+  reversalKeys?: Set<string>;
   gross: number;
   creator: number;
   ours: number;
 }
 
-export const emptyTotals = (): Totals => ({ count: 0, refunds: 0, reversals: 0, gross: 0, creator: 0, ours: 0 });
+export const emptyTotals = (): Totals => ({ count: 0, refunds: 0, refundKeys: new Set(), reversalKeys: new Set(), gross: 0, creator: 0, ours: 0 });
 
 export function finalizeTotals(t: Totals): void {
-  const rev = t.reversals ?? 0;
-  t.refunds = Math.max(0, t.refunds - rev);
-  t.reversals = 0;
+  // A reversal cancels only the refund of the same sale in this bucket; a reversal of an earlier
+  // period's refund moves money (gross) but must not hide an unrelated refund's count.
+  let refunds = 0;
+  for (const k of t.refundKeys ?? []) if (!t.reversalKeys?.has(k)) refunds += 1;
+  t.refunds = refunds;
 }
 
 export function addTotals(t: Totals, s: SaleLine): void {
   if (s.event_type === "refund") {
     t.refunds += 1;
+    (t.refundKeys ??= new Set()).add(`${s.provider}:${s.sale_id}`);
     t.gross -= usdToCents(s.amount_usd);
     t.creator += usdToCents(s.creator_split_usd);
     t.ours += usdToCents(s.our_split_usd);
     return;
   }
   if (s.event_type === "refund_reversal") {
-    t.reversals = (t.reversals ?? 0) + 1;
+    (t.reversalKeys ??= new Set()).add(`${s.provider}:${s.sale_id}`);
     t.gross += usdToCents(s.amount_usd);
     t.creator += usdToCents(s.creator_split_usd);
     t.ours += usdToCents(s.our_split_usd);

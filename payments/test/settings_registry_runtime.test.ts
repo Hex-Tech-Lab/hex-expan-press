@@ -3,7 +3,7 @@
 // pure loader directly — they must NEVER move, rename or delete the real data/settings
 // directory (an earlier version renamed it and left it stranded on 2026-10-01).
 import { describe, expect, it, vi, afterEach } from "vitest";
-import { GLOBAL, loadPaymentsSection } from "../src/settings_registry.ts";
+import { GLOBAL, loadPaymentsSection, loadEmailSection } from "../src/settings_registry.ts";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -155,5 +155,33 @@ describe("settings registry: payments section", () => {
       loadPaymentsSection({});
       expect(warn).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe("registry validation added with the P1/P2 sweep", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("warns about an invalid review_queue_page_size (validated before the fallback warning is emitted)", () => {
+    const warn = vi.spyOn(console, "error").mockImplementation(() => {});
+    const p = loadPaymentsSection({ review_queue_page_size: 5000 });
+    expect(p.review_queue_page_size).toBe(200);
+    expect(warn.mock.calls.flat().join(" ")).toContain("review_queue_page_size");
+  });
+
+  it("reversal_wait_hours defaults to 24 and rejects out-of-range values with a warning", () => {
+    const warn = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(loadPaymentsSection({}).reversal_wait_hours).toBe(24);
+    expect(loadPaymentsSection({ reversal_wait_hours: 0 }).reversal_wait_hours).toBe(24);
+    expect(warn.mock.calls.flat().join(" ")).toContain("reversal_wait_hours");
+    expect(loadPaymentsSection({ reversal_wait_hours: 48 }).reversal_wait_hours).toBe(48);
+  });
+
+  it("email.retryable_error_names must be a non-empty string[]; a string or number falls back with a warning", () => {
+    const warn = vi.spyOn(console, "error").mockImplementation(() => {});
+    const defaults = loadEmailSection(undefined).retryable_error_names;
+    expect(loadEmailSection({ retryable_error_names: "rate_limit_exceeded,application_error" }).retryable_error_names).toEqual(defaults);
+    expect(loadEmailSection({ retryable_error_names: 7 }).retryable_error_names).toEqual(defaults);
+    expect(warn).toHaveBeenCalled();
+    expect(loadEmailSection({ retryable_error_names: ["x_error"] }).retryable_error_names).toEqual(["x_error"]);
   });
 });

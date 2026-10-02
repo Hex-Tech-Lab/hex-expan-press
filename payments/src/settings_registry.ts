@@ -22,8 +22,10 @@ function readRegistryFile(name: string): Record<string, unknown> | undefined {
       if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
         return parsed as Record<string, unknown>;
       }
-    } catch {
-      // unreadable/invalid -> try next candidate, else fall back to inline defaults
+    } catch (err) {
+      // unreadable/invalid -> try next candidate, else fall back to inline defaults (loudly: a corrupt
+      // settings file must never silently become the built-in defaults)
+      console.error(`[settings-registry] ${p} unreadable/invalid JSON — skipped:`, err instanceof Error ? err.message : err);
     }
   }
   return undefined;
@@ -50,6 +52,7 @@ export interface GlobalSettings {
     http_timeout_ms: number; // Paddle customer-email lookup inside the webhook (must stay short)
     sync_http_timeout_ms: number; // operator CLI (sync_book_identity) calls to Supabase/Paddle
     review_queue_page_size: number; // listManualReviewRefunds default page/limit
+    reversal_wait_hours: number; // a chargeback reversal whose sale/refund isn't recorded yet is retried (500) this long, then flagged once and acked
     paddle: { api_base: { production: string; sandbox: string }; js_cdn_url: string };
     polar: { sandbox_checkout_fallback_url: string };
   };
@@ -91,6 +94,7 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     http_timeout_ms: 5000,
     sync_http_timeout_ms: 30000,
     review_queue_page_size: 200,
+    reversal_wait_hours: 24,
     paddle: {
       api_base: { production: "https://api.paddle.com", sandbox: "https://sandbox-api.paddle.com" },
       js_cdn_url: "https://cdn.paddle.com/paddle/v2/paddle.js",
@@ -127,6 +131,7 @@ export const PAYMENTS_LIMITS = {
   http_timeout_ms: { min: 1000, max: 30000 },
   sync_http_timeout_ms: { min: 1000, max: 120000 },
   review_queue_page_size: { min: 1, max: 1000 },
+  reversal_wait_hours: { min: 1, max: 168 },
 } as const;
 
 function intInRange(v: unknown, min: number, max: number): v is number {
@@ -194,6 +199,9 @@ export function loadPaymentsSection(raw: Record<string, unknown> | undefined): G
   const webhookLockTtl = num("webhook_lock_ttl_seconds");
   const httpTimeout = num("http_timeout_ms");
   const syncHttpTimeout = num("sync_http_timeout_ms");
+  // Validate BEFORE the fallback warning below, so an invalid value is reported, not silently defaulted.
+  const reviewQueuePageSize = num("review_queue_page_size");
+  const reversalWaitHours = num("reversal_wait_hours");
   const paddleUrl = (v: unknown, expected: string, label: string, validateAndNormalize: (x: unknown) => string | null): string => {
     const normalized = v === undefined ? null : validateAndNormalize(v);
     if (normalized !== null) return normalized;
@@ -228,7 +236,8 @@ export function loadPaymentsSection(raw: Record<string, unknown> | undefined): G
     webhook_lock_ttl_seconds: webhookLockTtl,
     http_timeout_ms: httpTimeout,
     sync_http_timeout_ms: syncHttpTimeout,
-    review_queue_page_size: num("review_queue_page_size"),
+    review_queue_page_size: reviewQueuePageSize,
+    reversal_wait_hours: reversalWaitHours,
     paddle: { api_base: { production: apiProduction, sandbox: apiSandbox }, js_cdn_url: jsCdn },
     polar: { sandbox_checkout_fallback_url: polarFallback },
   };
@@ -251,7 +260,7 @@ function loadGlobal(): GlobalSettings {
     defaults: { ...DEFAULT_GLOBAL.defaults, ...(g.defaults ?? {}) },
     payments: loadPaymentsSection(g.payments as Record<string, unknown> | undefined),
     landing: { ...DEFAULT_GLOBAL.landing, ...(g.landing ?? {}) },
-    email: { ...DEFAULT_GLOBAL.email, ...(g.email ?? {}) },
+    email: loadEmailSection(g.email as Record<string, unknown> | undefined),
     portal: { ...DEFAULT_GLOBAL.portal, ...(g.portal ?? {}) },
   };
 }
@@ -267,6 +276,18 @@ export function clampJwtSkewDelay(v: unknown): number {
 /** Clamped portal.jwt_clock_skew_retry_delay_ms from the loaded registry. */
 export function jwtSkewRetryDelayMs(): number {
   return clampJwtSkewDelay(GLOBAL.portal?.jwt_clock_skew_retry_delay_ms);
+}
+
+/** email: shallow merge, but retryable_error_names must be a non-empty string[] (a string would make
+ *  `.includes` a substring match; a number would throw inside sendEmail's error path). */
+export function loadEmailSection(raw: Record<string, unknown> | undefined): GlobalSettings["email"] {
+  const merged = { ...DEFAULT_GLOBAL.email, ...(raw ?? {}) } as GlobalSettings["email"];
+  const names = (raw ?? {}).retryable_error_names;
+  if (names !== undefined && !(Array.isArray(names) && names.length > 0 && names.every((n) => typeof n === "string" && n.trim() !== ""))) {
+    warnFallback("global.json", "invalid email values for retryable_error_names");
+    merged.retryable_error_names = DEFAULT_GLOBAL.email.retryable_error_names;
+  }
+  return merged;
 }
 
 export const GLOBAL: GlobalSettings = loadGlobal();
