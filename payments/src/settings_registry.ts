@@ -55,9 +55,10 @@ export interface GlobalSettings {
   landing: { fallbacks: { title: string; creator: string }; disclaimers: string[] };
   /** Transactional email (Resend). `from` must be on `sending_domain` (DKIM-verified in Resend). */
   email: { from: string; reply_to: string; sending_domain: string };
+  portal: { jwt_clock_skew_retry_delay_ms: number };
 }
 
-const DEFAULT_GLOBAL: GlobalSettings = {
+export const DEFAULT_GLOBAL: GlobalSettings = {
   paths: {
     sales_ledger: "data/db/sales.jsonl",
     reports_dir: "data/db/reports",
@@ -101,6 +102,7 @@ const DEFAULT_GLOBAL: GlobalSettings = {
     reply_to: "support@expanpress.com", // has MX (registrar forwarding); the esign/ops subdomains do not
     sending_domain: "expanpress.com",
   },
+  portal: { jwt_clock_skew_retry_delay_ms: 350 },
 };
 
 // Named bounds for the payments tunables (lives in the registry module by design —
@@ -235,7 +237,21 @@ function loadGlobal(): GlobalSettings {
     payments: loadPaymentsSection(g.payments as Record<string, unknown> | undefined),
     landing: { ...DEFAULT_GLOBAL.landing, ...(g.landing ?? {}) },
     email: { ...DEFAULT_GLOBAL.email, ...(g.email ?? {}) },
+    portal: { ...DEFAULT_GLOBAL.portal, ...(g.portal ?? {}) },
   };
+}
+
+export const PORTAL_JWT_SKEW_LIMITS = { min: 250, max: 500 } as const;
+
+/** Clamp a raw jwt_clock_skew_retry_delay_ms into [250,500]; non-finite/missing -> 350. */
+export function clampJwtSkewDelay(v: unknown): number {
+  if (typeof v !== "number" || !Number.isFinite(v)) return DEFAULT_GLOBAL.portal.jwt_clock_skew_retry_delay_ms;
+  return Math.min(Math.max(v, PORTAL_JWT_SKEW_LIMITS.min), PORTAL_JWT_SKEW_LIMITS.max);
+}
+
+/** Clamped portal.jwt_clock_skew_retry_delay_ms from the loaded registry. */
+export function jwtSkewRetryDelayMs(): number {
+  return clampJwtSkewDelay(GLOBAL.portal?.jwt_clock_skew_retry_delay_ms);
 }
 
 export const GLOBAL: GlobalSettings = loadGlobal();
