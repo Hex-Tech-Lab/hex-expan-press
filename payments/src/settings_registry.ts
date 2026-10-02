@@ -55,7 +55,12 @@ export interface GlobalSettings {
   };
   landing: { fallbacks: { title: string; creator: string }; disclaimers: string[] };
   /** Transactional email (Resend). `from` must be on `sending_domain` (DKIM-verified in Resend). */
-  email: { from: string; reply_to: string; sending_domain: string };
+  email: {
+    from: string;
+    reply_to: string;
+    sending_domain: string;
+    retryable_error_names: string[];
+  };
   portal: { jwt_clock_skew_retry_delay_ms: number };
 }
 
@@ -103,6 +108,12 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     from: "ExpanPress <support@esign.expanpress.com>",
     reply_to: "support@expanpress.com", // has MX (registrar forwarding); the esign/ops subdomains do not
     sending_domain: "expanpress.com",
+    retryable_error_names: [
+      "rate_limit_exceeded",
+      "application_error",
+      "internal_server_error",
+      "daily_quota_exceeded",
+    ],
   },
   portal: { jwt_clock_skew_retry_delay_ms: 350 },
 };

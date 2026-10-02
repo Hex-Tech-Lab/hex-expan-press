@@ -26,8 +26,15 @@ export class EmailSendError extends Error {
   }
 }
 
-const isRetryableStatus = (status: number | undefined): boolean =>
-  status === undefined || status === 429 || status >= 500;
+export const isRetryableError = (
+  name: string | undefined | null,
+  status: number | undefined | null,
+): boolean => {
+  if (typeof name === "string" && name.trim() !== "") {
+    return GLOBAL.email.retryable_error_names.includes(name);
+  }
+  return status === undefined || status === null || status === 429 || status >= 500;
+};
 
 /** Extracts the address from `Name <addr>` or a bare address. */
 const addressOf = (from: string): string => (from.match(/<([^>]+)>/)?.[1] ?? from).trim().toLowerCase();
@@ -70,8 +77,14 @@ export async function sendEmail({ to, subject, html, text, replyTo }: SendEmailI
 
   const { data, error } = result;
   if (error || !data) {
-    const status = (error as { statusCode?: number | null } | null)?.statusCode ?? undefined;
-    throw new EmailSendError(`Resend error${status ? ` (${status})` : ""}: ${error?.message ?? "no data"}`, isRetryableStatus(status), status);
+    const errObj = error as { name?: string | null; statusCode?: number | null } | null;
+    const name = errObj?.name ?? undefined;
+    const status = errObj?.statusCode ?? undefined;
+    throw new EmailSendError(
+      `Resend error${status ? ` (${status})` : ""}: ${error?.message ?? "no data"}`,
+      isRetryableError(name, status),
+      status,
+    );
   }
   return { id: data.id };
 }
