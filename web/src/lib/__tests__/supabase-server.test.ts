@@ -97,7 +97,10 @@ describe("getPortalSession (Wave 5 ssr-only authorization branches)", () => {
       "https://example.supabase.co",
       "test-publishable-key",
       expect.objectContaining({
-        global: { headers: { Authorization: `Bearer ${accessToken}` } },
+        global: expect.objectContaining({
+          headers: { Authorization: `Bearer ${accessToken}` },
+          fetch: expect.any(Function),
+        }),
       }),
     );
   });
