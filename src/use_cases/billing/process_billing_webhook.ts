@@ -91,9 +91,20 @@ export async function processBillingWebhookUseCase(
       // existing refund row can't prove THIS (new) chargeback was handled, so it retries (503).
       // Known gap (documented in PR #66): a new chargeback contending with an IN-FLIGHT reversal of
       // the same sale is confirmed. Root fix = persist the provider adjustment id and dedupe on it.
-      async () =>
-        (await findRefundAsync(refundEvent.providerName, refundEvent.saleId)) !== null &&
-        (await findRefundReversalAsync(refundEvent.providerName, refundEvent.saleId)) === null,
+      // ...and only when THIS delivery would itself pass the in-lock checks (verifiable amount equal to
+      // the sale, same currency); a partial/over/foreign-currency refund retries and gets flagged inside.
+      async () => {
+        if (refundEvent.amountUnverifiable === true) return false; // absent totalCents = full reversal (same as in-lock)
+        const [sale, refund, reversal] = await Promise.all([
+          findSaleAsync(refundEvent.providerName, refundEvent.saleId),
+          findRefundAsync(refundEvent.providerName, refundEvent.saleId),
+          findRefundReversalAsync(refundEvent.providerName, refundEvent.saleId),
+        ]);
+        if (!sale || !refund || reversal) return false;
+        if (refundEvent.totalCents !== undefined && refundEvent.totalCents !== Math.round(sale.amount_usd * 100)) return false;
+        const saleCurrency = (sale.currency ?? GLOBAL.defaults.currency).toUpperCase();
+        return refundEvent.currency === undefined || refundEvent.currency.toUpperCase() === saleCurrency;
+      },
       async () => {
         if (refundEvent.amountUnverifiable === true) {
           const sale = await findSaleAsync(refundEvent.providerName, refundEvent.saleId);
