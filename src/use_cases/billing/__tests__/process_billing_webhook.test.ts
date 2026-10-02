@@ -587,6 +587,29 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
     });
   });
 
+  it("a contended refund that would fail the in-lock checks (partial / foreign currency / unverifiable) retries instead of being confirmed", async () => {
+    process.env.SUPABASE_URL = "https://example.supabase.co";
+    process.env.SUPABASE_SECRET_KEY = "mock-secret-key";
+    setnx.mockResolvedValue(1);
+    await appendSale(
+      { ts: "2026-09-27T00:00:00.000Z", sale_id: "sale_contended_bad", provider: "polar", product_id: "p1", amount_usd: 39, creator_id: "c1", creator_split_pct: 50, creator_split_usd: 19.5, our_split_usd: 19.5, currency: "USD" },
+      salesFilePath,
+    );
+    const full: RefundIssuedEvent = { eventType: "refund_issued", providerName: "polar", saleId: "sale_contended_bad", totalCents: 3900, currency: "USD", occurredAt: "2026-09-28T00:00:00.000Z", rawPayload: null };
+    await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(full)]);
+
+    setnx.mockResolvedValue(0); // lock held
+    for (const bad of [
+      { ...full, totalCents: 2000 },
+      { ...full, currency: "EUR" },
+      { ...full, totalCents: undefined, amountUnverifiable: true },
+    ] as RefundIssuedEvent[]) {
+      await expect(processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(bad)])).rejects.toThrow(/in flight/);
+    }
+    // the matching duplicate (adjustment.updated after .created) is still confirmed
+    await expect(processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(full)])).resolves.toBeUndefined();
+  });
+
   it("after a won dispute, a NEW chargeback hitting the held lock is not confirmed from the old refund row (retries)", async () => {
     process.env.SUPABASE_URL = "https://example.supabase.co";
     process.env.SUPABASE_SECRET_KEY = "mock-secret-key";
