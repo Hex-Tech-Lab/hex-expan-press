@@ -301,7 +301,7 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
     expect(setnx).toHaveBeenCalledWith("lock:sale:polar:sale_dup_1", "1", expect.anything());
   });
 
-  it("duplicate refund → contended delivery retries (never confirmed from ledger state), retry acks duplicate, exactly 1 refund row", async () => {
+  it("duplicate refund → returns normally, exactly 1 refund row", async () => {
     // Record the linked sale first (refunds must reference a recorded sale).
     await appendSale(
       {
@@ -318,13 +318,11 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
       },
       salesFilePath,
     );
-    // first refund acquires; a duplicate hitting the held lock is NOT confirmed from ledger state
-    // (refunds and reversals share the lock) — it gets a retryable error; the retry after the lock
-    // frees is acknowledged as a duplicate.
-    setnx.mockResolvedValueOnce(1).mockResolvedValueOnce(0).mockResolvedValue(1);
+    // first refund acquires; the duplicate (e.g. adjustment.updated after .created) hits the held
+    // lock and is confirmed from ledger state (refund recorded, not reversed).
+    setnx.mockResolvedValueOnce(1).mockResolvedValue(0);
     const a = adapter(REFUND);
     await processBillingWebhookUseCase({ headers: {}, body: "" }, [a]);
-    await expect(processBillingWebhookUseCase({ headers: {}, body: "" }, [a])).rejects.toThrow(/in flight/);
     await processBillingWebhookUseCase({ headers: {}, body: "" }, [a]);
     const rows = readFileSync(salesFilePath, "utf8").split(/\r?\n/).filter(Boolean);
     expect(rows).toHaveLength(2); // 1 sale + 1 refund — no duplicate refund row
@@ -587,6 +585,24 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
         sale_id: "sale_with_reversal",
       }),
     });
+  });
+
+  it("after a won dispute, a NEW chargeback hitting the held lock is not confirmed from the old refund row (retries)", async () => {
+    process.env.SUPABASE_URL = "https://example.supabase.co";
+    process.env.SUPABASE_SECRET_KEY = "mock-secret-key";
+    setnx.mockResolvedValue(1);
+    await appendSale(
+      { ts: "2026-09-27T00:00:00.000Z", sale_id: "sale_rev_then_cb", provider: "polar", product_id: "p1", amount_usd: 39, creator_id: "c1", creator_split_pct: 50, creator_split_usd: 19.5, our_split_usd: 19.5, currency: "USD" },
+      salesFilePath,
+    );
+    const refund: RefundIssuedEvent = { eventType: "refund_issued", providerName: "polar", saleId: "sale_rev_then_cb", totalCents: 3900, currency: "USD", occurredAt: "2026-09-28T00:00:00.000Z", rawPayload: null };
+    await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(refund)]);
+    const reversal = { eventType: "refund_reversed", providerName: "polar", saleId: "sale_rev_then_cb", totalCents: 3900, currency: "USD", occurredAt: "2026-09-29T00:00:00.000Z", rawPayload: null };
+    await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(reversal as never)]);
+
+    setnx.mockResolvedValue(0); // lock held by another delivery
+    const secondChargeback: RefundIssuedEvent = { ...refund, refundId: "adj_2", occurredAt: "2026-09-30T00:00:00.000Z" };
+    await expect(processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(secondChargeback)])).rejects.toThrow(/in flight/);
   });
 
   it("Defect C: reversal with mismatched amount returns 200 recorded:false and flags reversal_amount_mismatch", async () => {

@@ -14,7 +14,7 @@ export interface RefundRateWindow {
   window_start: string;
   window_end: string;
   sales: number; // count of event_type="sale" in the window
-  refunds: number; // count of event_type="refund" in the window (refund ts, not original sale ts)
+  refunds: number; // sales refunded in the window (refund ts), netted per provider:sale_id against reversals in the same window
   refund_rate: number; // refunds / sales, 0 when sales=0 (NOT NaN — callers must not divide again)
 }
 

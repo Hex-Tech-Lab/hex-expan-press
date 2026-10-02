@@ -278,7 +278,7 @@ export function jwtSkewRetryDelayMs(): number {
 export function loadEmailSection(raw: Record<string, unknown> | undefined): GlobalSettings["email"] {
   const merged = { ...DEFAULT_GLOBAL.email, ...(raw ?? {}) } as GlobalSettings["email"];
   const names = (raw ?? {}).retryable_error_names;
-  if (names !== undefined && !(Array.isArray(names) && names.length > 0 && names.every((n) => typeof n === "string" && n.trim() !== ""))) {
+  if (names !== undefined && !(Array.isArray(names) && names.length > 0 && names.every((n) => typeof n === "string" && n !== "" && n === n.trim()))) {
     warnFallback("global.json", "invalid email values for retryable_error_names");
     merged.retryable_error_names = DEFAULT_GLOBAL.email.retryable_error_names;
   }
