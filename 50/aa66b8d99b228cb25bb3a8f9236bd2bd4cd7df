@@ -1,0 +1,28 @@
+docs/agent_ledger.jsonl
+  s_e9161cc5acff31::t_92fe6cbd957606 381
+payments/src/settings_registry.ts
+  s_e9161cc5acff31::t_f9730487591339 118
+  s_e9161cc5acff31::t_7a0238bd276103 52
+  s_e9161cc5acff31::t_83c382e11148ab 88
+  s_e9161cc5acff31::t_e7f4b56897276b 220
+payments/test/ledger_review_queue.test.ts
+  s_e9161cc5acff31::t_836c7b0542093a 1-113
+payments/src/ledger.ts
+  s_e9161cc5acff31::t_d90a5c407e2b5c 407-481
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "50aa66b8d99b228cb25bb3a8f9236bd2bd4cd7df",
+  "prompts": {},
+  "sessions": {
+    "s_e9161cc5acff31": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f02ebe093ffe1HSm9vWQy8V6kw",
+        "model": "@preset/glm-53-flash-on-cheap"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
