@@ -270,7 +270,7 @@ function TiltCard({
         type="button"
         onClick={onOpen}
         aria-label="Open details"
-        className="absolute bottom-5 right-5 w-9 h-9 rounded-full bg-white shadow-sm border border-black/5 flex items-center justify-center text-gray-700 hover:bg-charcoal hover:text-white transition-colors"
+        className="absolute bottom-5 right-5 w-11 h-11 rounded-full bg-white shadow-sm border border-black/5 flex items-center justify-center text-gray-700 hover:bg-charcoal hover:text-white transition-colors"
       >
         <ArrowIcon />
       </button>
@@ -546,7 +546,7 @@ function HeroCard({
         <p className="mt-5 text-sm sm:text-base text-gray-300 leading-relaxed max-w-sm">
           You&apos;ve spent years sharing your story on camera. We study your life&apos;s work, distill your core philosophy, and build a beautiful, author-grade book with you.
         </p>
-        <p className="mt-3 text-xs sm:text-sm text-gray-600 font-medium">
+        <p className="mt-3 text-xs sm:text-sm text-gray-300 font-medium">
           Zero writing required. We take your hand every step of the way.
         </p>
       </div>

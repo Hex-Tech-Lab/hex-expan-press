@@ -6,10 +6,17 @@ import { test, expect, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { E2E, MOCK_URL } from "./constants";
 
+/** Entrance animations animate opacity, which axe reads as low contrast mid-flight. */
+const SETTLE_MS = 1200;
+
 const TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
 
 async function scan(page: Page, label: string) {
-  const { violations } = await new AxeBuilder({ page }).withTags(TAGS).analyze();
+  const { violations, incomplete } = await new AxeBuilder({ page }).withTags(TAGS).analyze();
+  // axe cannot compute contrast over gradients/blurs and files those under
+  // "incomplete" — log them so they get a manual check instead of passing silently.
+  const review = incomplete.filter((v) => v.id === "color-contrast").flatMap((v) => v.nodes.map((n) => n.target.join(" ")));
+  if (review.length) console.log(`[a11y:manual-review] ${label}: ${review.length} contrast node(s) over gradients/images`);
   const summary = violations.map((v) => ({
     id: v.id,
     impact: v.impact,
@@ -33,7 +40,8 @@ test("public pages have no WCAG AA violations", async ({ page }) => {
   for (const path of ["/", "/c/retirearly500k/", "/c/retirearly500k/500k-playbook/", "/creator/signin"]) {
     await page.goto(path);
     await page.waitForLoadState("networkidle");
-    results[path] = await scan(page, path);
+    await page.waitForTimeout(SETTLE_MS);
+      results[path] = await scan(page, path);
   }
   expect(results).toEqual(Object.fromEntries(Object.keys(results).map((k) => [k, []])));
 });
@@ -45,7 +53,7 @@ test("creator portal has no WCAG AA violations", async ({ page }) => {
   for (const path of ["/creator/dashboard", "/creator/review", "/creator/consents"]) {
     await page.goto(path);
     await page.waitForLoadState("networkidle");
-    await page.waitForTimeout(1200); // entrance animations settle (opacity affects contrast)
+    await page.waitForTimeout(SETTLE_MS);
     results[path] = await scan(page, path);
   }
   expect(results).toEqual(Object.fromEntries(Object.keys(results).map((k) => [k, []])));
