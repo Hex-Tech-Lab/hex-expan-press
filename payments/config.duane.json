@@ -10,7 +10,7 @@
   "provider": "polar",
   "checkout_url": "https://sandbox-api.polar.sh/v1/checkout-links/polar_cl_g84ByoGAeZiahkWtCasYmeu1ShLtZIwwayzyI4ZdZsM/redirect",
   "checkout_mode": "gated",
-  "checkout_note": "GATED (2026-10-01): Paddle live price pri_01m3vxs8vt7vby0ej47afzmbh3 is configured; launching requires checkout_mode=\"paddle\" AND signed C1/C2/C3 consents in the DB (the bake enforces it). Polar sandbox retired.",
+  "checkout_note": "GATED (2026-10-03): Paddle live price pri_01m3ysqvf0hhv343q2qpg5az8t (re-provisioned on a new account) is configured; launching requires checkout_mode=\"paddle\" AND signed C1/C2/C3 consents in the DB (the bake enforces it). Polar sandbox retired.",
   "polar_product_id_sandbox": "f9376e27-13bf-4a88-9f73-cc1168ad2923",
   "polar_checkout_link_id_sandbox": "580f69a8-fc34-4118-9553-d83c6165fc00",
   "pdf_file": "SET-AFTER-FULL-PDF-GENERATION",
