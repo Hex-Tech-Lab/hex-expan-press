@@ -35,9 +35,19 @@ export class SupabaseAdapter implements ConsentDatabasePort {
     });
 
     if (error) {
-      // Keep the Postgres SQLSTATE so callers can tell a unique violation
+      // Keep the Postgres SQLSTATE and constraint/message so callers can tell a unique violation
       // (23505 = replayed envelope) from a real failure.
-      throw Object.assign(new Error(`Failed to submit consent: ${error.message}`), { code: error.code });
+      const errPayload = error as { code?: string; message?: string; details?: string; hint?: string };
+      // Extract constraint name from PostgREST details (e.g. "Key (kind, external_ref)=(...) already exists." or error details)
+      // or error message if PostgREST puts constraint name in details/hint/message
+      const constraintMatch = (errPayload.details ?? "").match(/violates unique constraint "([^"]+)"/)
+        ?? (errPayload.message ?? "").match(/violates unique constraint "([^"]+)"/);
+      const constraint = constraintMatch?.[1] ?? (error as { constraint?: string }).constraint;
+      throw Object.assign(new Error(`Failed to submit consent: ${error.message}`), {
+        code: error.code,
+        constraint: constraint ?? (error as { constraint?: string }).constraint,
+        details: errPayload.details,
+      });
     }
   }
 }
