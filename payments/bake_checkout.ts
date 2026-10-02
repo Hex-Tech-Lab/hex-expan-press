@@ -26,7 +26,13 @@ export interface ConsentRow {
   decision: string;
   signed_at: string | null;
   supersedes: string | null;
+  document_sha256?: string | null;
 }
+
+// F6: a sha256 hex digest (lowercased) — anything else (missing/blank/all-zero/
+// non-hex) fails closed.
+const SHA256_HEX_RE = /^[0-9a-f]{64}$/;
+const ZERO_SHA256 = "0".repeat(64);
 
 // Launch gate: every product sold through Paddle must have the most recent
 // consent row for each of C1/C2/C3 carrying decision "given" in Supabase.
@@ -107,6 +113,63 @@ export const assertLaunchConsents = async (
         `launch blocked: ${dbProductId}: multiple rows for ${kind} with same signed_at but conflicting decision`,
       );
     }
+  }
+
+  // F6 (P1): the C2 head must have approved the product's CURRENT release PDF.
+  // Fetch products.release_sha256 (same REST style as the consents lookup) and
+  // fail closed unless the C2 head's document_sha256 equals it (case-insensitive,
+  // both must be 64-hex). Missing/blank/zero hash or fetch failure → blocked.
+  const c2Head = (() => {
+    const list = rowsByKind.get("C2_release_approval")!;
+    const supersededIds = new Set<string>();
+    for (const r of list) if (r.supersedes) supersededIds.add(r.supersedes);
+    return list.filter((r) => !supersededIds.has(r.id))[0];
+  })();
+
+  const failRelease = (why: string): never => {
+    throw new Error(`launch blocked: ${dbProductId}: ${why}`);
+  };
+  const unreachable = (): never => {
+    throw new Error("launch blocked: unreachable");
+  };
+
+  const productUrl =
+    `${base}/rest/v1/products?id=eq.${encodeURIComponent(dbProductId)}&select=release_sha256`;
+  const prodRes = await (async (): Promise<Response> => {
+    try {
+      return await doFetch(productUrl, {
+        headers: { apikey: key, Authorization: `Bearer ${key}` },
+      });
+    } catch (e) {
+      failRelease(`release lookup failed: ${(e as Error).message}`);
+    }
+    return unreachable();
+  })();
+  if (!prodRes.ok) {
+    failRelease(`release lookup HTTP ${prodRes.status}`);
+  }
+  const productRows = await (async (): Promise<Array<{ release_sha256?: string | null }>> => {
+    try {
+      return (await prodRes.json()) as Array<{ release_sha256?: string | null }>;
+    } catch (e) {
+      failRelease(`release lookup returned unparseable body: ${(e as Error).message}`);
+    }
+    return unreachable();
+  })();
+  const releaseShaRaw = productRows?.[0]?.release_sha256;
+  const releaseSha = typeof releaseShaRaw === "string" ? releaseShaRaw.trim().toLowerCase() : "";
+  if (!releaseSha || releaseSha === ZERO_SHA256 || !SHA256_HEX_RE.test(releaseSha)) {
+    failRelease(`product has no valid release_sha256 (got ${releaseShaRaw === undefined || releaseShaRaw === null ? "none" : JSON.stringify(releaseShaRaw)})`);
+  }
+  const approvedRaw = c2Head.document_sha256;
+  const approvedSha = typeof approvedRaw === "string" ? approvedRaw.trim().toLowerCase() : "";
+  if (!approvedSha || approvedSha === ZERO_SHA256 || !SHA256_HEX_RE.test(approvedSha)) {
+    failRelease(`C2 approval ${c2Head.id} has no valid document_sha256`);
+  }
+  if (approvedSha !== releaseSha) {
+    failRelease(
+      `C2 approved a different release (approved ${approvedSha}, current ${releaseSha})`,
+    );
   }
 };
 const isRealUrl = (u: string | undefined): u is string =>
