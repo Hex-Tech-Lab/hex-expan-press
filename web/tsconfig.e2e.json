@@ -1,0 +1,6 @@
+{
+  // Playwright tests are type-checked separately so a test-only type error can
+  // never fail the production `next build`.
+  "extends": "./tsconfig.json",
+  "include": ["e2e/**/*.ts", "playwright.config.ts"]
+}

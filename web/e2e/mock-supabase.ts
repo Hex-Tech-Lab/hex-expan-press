@@ -107,6 +107,20 @@ const server = createServer(async (req, res) => {
     }
 
     if (path === "/auth/v1/user") return send(res, 200, USER);
+    // Magic-link callback: verifyOtp({ token_hash }) → a session for the throwaway user.
+    if (path === "/auth/v1/verify") {
+      const body = JSON.parse((await readBody(req)) || "{}") as Row;
+      if (body.token_hash !== E2E.magicLinkTokenHash) return send(res, 403, { code: "otp_expired", message: "invalid token" });
+      const now = Math.floor(Date.now() / 1000);
+      return send(res, 200, {
+        access_token: "e2e-access-token",
+        refresh_token: "e2e-refresh-token",
+        token_type: "bearer",
+        expires_in: 3600,
+        expires_at: now + 3600,
+        user: USER,
+      });
+    }
     if (path === "/auth/v1/otp" || path === "/auth/v1/logout") return send(res, 200, {});
 
     const rpcMatch = path.match(/^\/rest\/v1\/rpc\/([a-z_]+)$/);
