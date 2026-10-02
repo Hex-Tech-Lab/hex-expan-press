@@ -164,6 +164,15 @@ export async function processBillingWebhookUseCase(
         const cfg = loadProductIndex().get(saleEvent.productId);
         if (!cfg) throw new Error(`Unknown product_id: ${saleEvent.productId}`);
 
+        // Never book a foreign-currency total as the product's currency (audit F4).
+        if (saleEvent.currency.toUpperCase() !== cfg.currency.toUpperCase()) {
+          const err = new Error(
+            `Webhook validation failed: sale ${saleEvent.saleId} currency ${saleEvent.currency} != product currency ${cfg.currency}`,
+          ) as Error & { httpStatus?: number };
+          err.httpStatus = 422;
+          throw err;
+        }
+
         // Compute split
         const creatorPct = effectiveCreatorSplitPct(cfg.creator_id, cfg.product_id, saleEvent.occurredAt);
         if (creatorPct === null) throw new Error(`Could not resolve split percentage for creator ${cfg.creator_id}`);

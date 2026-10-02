@@ -17,12 +17,15 @@ import { createServerClient } from "@supabase/ssr";
 export async function proxy(request: NextRequest): Promise<NextResponse> {
   let response = NextResponse.next({ request });
 
-  const cookieOptions = {
-    name: "sb-portal-auth",
+  // Attributes forced onto every Set-Cookie. The storage-key `name` is kept
+  // separate: spreading it into cookies.set() would rename Supabase's chunked
+  // (`.0`, `.1`) and PKCE cookies onto one key (audit F1, 2026-10-02).
+  const cookieAttributes = {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax" as const,
   };
+  const cookieOptions = { name: "sb-portal-auth", ...cookieAttributes };
 
   try {
     // Construction INSIDE the failure boundary (P0 2026-09-29): an env gap
@@ -48,7 +51,7 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
             // request cookies, then mirror them onto the outgoing response.
             response = NextResponse.next({ request });
             for (const { name, value, options } of cookiesToSet) {
-              response.cookies.set(name, value, { ...options, ...cookieOptions });
+              response.cookies.set(name, value, { ...options, ...cookieAttributes });
             }
           },
         },
