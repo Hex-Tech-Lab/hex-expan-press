@@ -53,4 +53,33 @@ describe("SupabaseAdapter lazy client (webhook pre-auth contract)", () => {
       }),
     ).rejects.toThrow("supabaseKey is required.");
   });
+
+  it("extracts constraint name from error.message with error.constraint fallback", async () => {
+    vi.stubEnv("SUPABASE_URL", "https://example.supabase.co");
+    vi.stubEnv("SUPABASE_SECRET_KEY", "secret");
+    createClientMock.mockImplementation(() => ({
+      rpc: vi.fn(async () => ({
+        error: {
+          code: "23505",
+          message: 'duplicate key value violates unique constraint "consents_kind_external_ref_uidx"',
+        },
+      })),
+    }));
+    const adapter = new SupabaseAdapter();
+    const err = await adapter.submitConsent({
+      productId: "p1",
+      userId: "u1",
+      kind: "C3_revenue_split",
+      decision: "given",
+      textVersion: "v1.0",
+      documentSha256: "abc",
+      typedName: "t",
+      ip: "0.0.0.0",
+      userAgent: "test",
+      authProvider: "firma",
+      externalRef: "e1",
+      evidencePath: "p",
+    }).catch((e: unknown) => e);
+    expect((err as { constraint?: string }).constraint).toBe("consents_kind_external_ref_uidx");
+  });
 });

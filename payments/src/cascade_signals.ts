@@ -4,7 +4,7 @@
 // for the missing click-attribution half). This module does NOT decide or execute price changes —
 // it only answers "what happened," per the founder's directive to build the data pipeline
 // separately from cascade trigger/swap logic.
-import { loadSales, type SaleLine } from "./reports.ts";
+import { loadSales, emptyTotals, addTotals, finalizeTotals, type SaleLine } from "./reports.ts";
 import { GLOBAL } from "./settings_registry.ts";
 
 const DEFAULT_SALES_FILE: string = GLOBAL.paths.sales_ledger;
@@ -14,7 +14,7 @@ export interface RefundRateWindow {
   window_start: string;
   window_end: string;
   sales: number; // count of event_type="sale" in the window
-  refunds: number; // count of event_type="refund" in the window (refund ts, not original sale ts)
+  refunds: number; // sales refunded in the window (refund ts), netted per provider:sale_id against reversals in the same window
   refund_rate: number; // refunds / sales, 0 when sales=0 (NOT NaN — callers must not divide again)
 }
 
@@ -39,14 +39,16 @@ export function refundRateWindow(opts: {
   const windowStart = new Date(windowEnd.getTime() - windowDays * 86_400_000);
 
   const all: SaleLine[] = loadSales(salesFile).filter((s) => s.product_id === productId);
-  let sales = 0;
-  let refunds = 0;
+  // One netting rule for reports and signals: refunds net against reversals per provider:sale_id.
+  const totals = emptyTotals();
   for (const s of all) {
     const t = new Date(s.ts).getTime();
     if (t < windowStart.getTime() || t > windowEnd.getTime()) continue;
-    if (s.event_type === "refund") refunds += 1;
-    else sales += 1;
+    addTotals(totals, s);
   }
+  finalizeTotals(totals);
+  const sales = totals.count;
+  const refunds = totals.refunds;
   return {
     product_id: productId,
     window_start: windowStart.toISOString(),

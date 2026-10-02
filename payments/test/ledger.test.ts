@@ -132,6 +132,34 @@ describe("payments/src/ledger", () => {
     expect(rows).toHaveLength(2); // 1 sale + 1 refund — no duplicate refund row
   });
 
+  // Reversal tests (P1 chargeback reversal)
+  it("records refund_reversal only if refund exists; duplicate reversal is a no-op", async () => {
+    const { appendRefundReversal } = await import("../src/ledger.ts");
+    await appendSale(baseSale, salesFile);
+    await appendRefund({ provider: "polar", sale_id: "sale_001", ts: "2026-09-19T00:00:00.000Z" }, salesFile);
+
+    const rev1 = await appendRefundReversal({ provider: "polar", sale_id: "sale_001", ts: "2026-09-20T00:00:00.000Z" }, salesFile);
+    expect(rev1.event_type).toBe("refund_reversal");
+    expect(rev1.creator_split_usd).toBe(baseSale.creator_split_usd);
+    expect(rev1.our_split_usd).toBe(baseSale.our_split_usd);
+
+    // Duplicate reversal is a no-op / returns existing
+    const rev2 = await appendRefundReversal({ provider: "polar", sale_id: "sale_001", ts: "2026-09-21T00:00:00.000Z" }, salesFile);
+    expect(rev2).toEqual(rev1);
+
+    const { readFileSync } = await import("node:fs");
+    const rows = readFileSync(salesFile, "utf8").split(/\r?\n/).filter(Boolean);
+    expect(rows).toHaveLength(3); // 1 sale + 1 refund + 1 reversal
+  });
+
+  it("reversal without prior refund throws (leaves for manual review)", async () => {
+    const { appendRefundReversal } = await import("../src/ledger.ts");
+    await appendSale(baseSale, salesFile);
+    await expect(appendRefundReversal({ provider: "polar", sale_id: "sale_001" }, salesFile)).rejects.toThrow(
+      /no recorded refund/
+    );
+  });
+
   // Fail-closed lookups (P1): a Supabase read ERROR must throw, never read as
   // "not found" — otherwise a transient outage lets a duplicate sale through.
   it("findSaleAsync / findRefundAsync throw on a Supabase lookup error", async () => {
@@ -185,6 +213,89 @@ describe("payments/src/ledger", () => {
       expect(queriedEq["event_type"]).toBe("refund");
       expect(queriedEq["provider"]).toBe("polar");
       expect(queriedEq["sale_id"]).toBe("sale_q1");
+    } finally {
+      vi.doUnmock("@supabase/supabase-js");
+    }
+  });
+
+  it("item 5: a /tmp ledger holding only a refund line + Supabase mock with the sale → appendRefundReversal finds the sale", async () => {
+    // Write only a refund line to the local salesFile
+    const refundRecord = {
+      ts: "2026-09-19T00:00:00.000Z",
+      sale_id: "sale_mock_supa_1",
+      provider: "polar",
+      product_id: "p1",
+      amount_usd: 39,
+      creator_id: "c1",
+      creator_split_pct: 50,
+      creator_split_usd: -19.5,
+      our_split_usd: -19.5,
+      currency: "USD",
+      event_type: "refund",
+    };
+    const { writeFileSync } = await import("node:fs");
+    writeFileSync(salesFile, JSON.stringify(refundRecord) + "\n", "utf8");
+
+    vi.stubEnv("SUPABASE_URL", "https://unit.test.supabase.co");
+    vi.stubEnv("SUPABASE_SECRET_KEY", "unit-test-key");
+
+    const saleRow = {
+      occurred_at: "2026-09-18T00:00:00.000Z",
+      sale_id: "sale_mock_supa_1",
+      provider: "polar",
+      product_id: "p1",
+      amount_usd: 39,
+      creator_id: "c1",
+      creator_split_pct: 50,
+      creator_split_usd: 19.5,
+      our_split_usd: 19.5,
+      currency: "USD",
+      event_type: "sale",
+    };
+
+    let queriedEventType: string | undefined;
+
+    vi.doMock("@supabase/supabase-js", () => ({
+      createClient: () => ({
+        from: (table: string) => {
+          if (table === "orders") {
+            return {
+              select: () => {
+                interface QueryChain {
+                  eq: (col: string, val: string) => QueryChain;
+                  maybeSingle: () => Promise<{ data: typeof saleRow | null; error: null }>;
+                }
+                const chain: QueryChain = {
+                  eq: (col: string, val: string) => {
+                    if (col === "event_type") queriedEventType = val;
+                    return chain;
+                  },
+                  maybeSingle: () => {
+                    if (queriedEventType === "sale") {
+                      return Promise.resolve({ data: saleRow, error: null });
+                    }
+                    return Promise.resolve({ data: null, error: null });
+                  },
+                };
+                return chain;
+              },
+              upsert: () => Promise.resolve({ error: null }),
+            };
+          }
+          return {};
+        },
+      }),
+    }));
+
+    try {
+      const { appendRefundReversal: freshAppendRefundReversal, findSale: freshFindSale } = await import("../src/ledger.ts");
+      // Local findSale should return null because local file only has a "refund" line
+      expect(freshFindSale("polar", "sale_mock_supa_1", salesFile)).toBeNull();
+
+      // appendRefundReversal should find the sale in Supabase and succeed
+      const reversal = await freshAppendRefundReversal({ provider: "polar", sale_id: "sale_mock_supa_1" }, salesFile);
+      expect(reversal.event_type).toBe("refund_reversal");
+      expect(reversal.amount_usd).toBe(39);
     } finally {
       vi.doUnmock("@supabase/supabase-js");
     }

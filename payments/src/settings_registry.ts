@@ -22,8 +22,10 @@ function readRegistryFile(name: string): Record<string, unknown> | undefined {
       if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
         return parsed as Record<string, unknown>;
       }
-    } catch {
-      // unreadable/invalid -> try next candidate, else fall back to inline defaults
+    } catch (err) {
+      // unreadable/invalid -> try next candidate, else fall back to inline defaults (loudly: a corrupt
+      // settings file must never silently become the built-in defaults)
+      console.error(`[settings-registry] ${p} unreadable/invalid JSON — skipped:`, err instanceof Error ? err.message : err);
     }
   }
   return undefined;
@@ -55,7 +57,12 @@ export interface GlobalSettings {
   };
   landing: { fallbacks: { title: string; creator: string }; disclaimers: string[] };
   /** Transactional email (Resend). `from` must be on `sending_domain` (DKIM-verified in Resend). */
-  email: { from: string; reply_to: string; sending_domain: string };
+  email: {
+    from: string;
+    reply_to: string;
+    sending_domain: string;
+    retryable_error_names: string[];
+  };
   portal: { jwt_clock_skew_retry_delay_ms: number };
 }
 
@@ -103,6 +110,12 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     from: "ExpanPress <support@esign.expanpress.com>",
     reply_to: "support@expanpress.com", // has MX (registrar forwarding); the esign/ops subdomains do not
     sending_domain: "expanpress.com",
+    retryable_error_names: [
+      "rate_limit_exceeded",
+      "application_error",
+      "internal_server_error",
+      "daily_quota_exceeded",
+    ],
   },
   portal: { jwt_clock_skew_retry_delay_ms: 350 },
 };
@@ -183,6 +196,8 @@ export function loadPaymentsSection(raw: Record<string, unknown> | undefined): G
   const webhookLockTtl = num("webhook_lock_ttl_seconds");
   const httpTimeout = num("http_timeout_ms");
   const syncHttpTimeout = num("sync_http_timeout_ms");
+  // Validate BEFORE the fallback warning below, so an invalid value is reported, not silently defaulted.
+  const reviewQueuePageSize = num("review_queue_page_size");
   const paddleUrl = (v: unknown, expected: string, label: string, validateAndNormalize: (x: unknown) => string | null): string => {
     const normalized = v === undefined ? null : validateAndNormalize(v);
     if (normalized !== null) return normalized;
@@ -217,7 +232,7 @@ export function loadPaymentsSection(raw: Record<string, unknown> | undefined): G
     webhook_lock_ttl_seconds: webhookLockTtl,
     http_timeout_ms: httpTimeout,
     sync_http_timeout_ms: syncHttpTimeout,
-    review_queue_page_size: num("review_queue_page_size"),
+    review_queue_page_size: reviewQueuePageSize,
     paddle: { api_base: { production: apiProduction, sandbox: apiSandbox }, js_cdn_url: jsCdn },
     polar: { sandbox_checkout_fallback_url: polarFallback },
   };
@@ -240,7 +255,7 @@ function loadGlobal(): GlobalSettings {
     defaults: { ...DEFAULT_GLOBAL.defaults, ...(g.defaults ?? {}) },
     payments: loadPaymentsSection(g.payments as Record<string, unknown> | undefined),
     landing: { ...DEFAULT_GLOBAL.landing, ...(g.landing ?? {}) },
-    email: { ...DEFAULT_GLOBAL.email, ...(g.email ?? {}) },
+    email: loadEmailSection(g.email as Record<string, unknown> | undefined),
     portal: { ...DEFAULT_GLOBAL.portal, ...(g.portal ?? {}) },
   };
 }
@@ -256,6 +271,18 @@ export function clampJwtSkewDelay(v: unknown): number {
 /** Clamped portal.jwt_clock_skew_retry_delay_ms from the loaded registry. */
 export function jwtSkewRetryDelayMs(): number {
   return clampJwtSkewDelay(GLOBAL.portal?.jwt_clock_skew_retry_delay_ms);
+}
+
+/** email: shallow merge, but retryable_error_names must be a non-empty string[] (a string would make
+ *  `.includes` a substring match; a number would throw inside sendEmail's error path). */
+export function loadEmailSection(raw: Record<string, unknown> | undefined): GlobalSettings["email"] {
+  const merged = { ...DEFAULT_GLOBAL.email, ...(raw ?? {}) } as GlobalSettings["email"];
+  const names = (raw ?? {}).retryable_error_names;
+  if (names !== undefined && !(Array.isArray(names) && names.length > 0 && names.every((n) => typeof n === "string" && n !== "" && n === n.trim()))) {
+    warnFallback("global.json", "invalid email values for retryable_error_names");
+    merged.retryable_error_names = DEFAULT_GLOBAL.email.retryable_error_names;
+  }
+  return merged;
 }
 
 export const GLOBAL: GlobalSettings = loadGlobal();
