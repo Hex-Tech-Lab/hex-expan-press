@@ -129,6 +129,10 @@ describe("payments/src/email", () => {
       // statusCode null must NOT default to retryable when name is permanent:
       ["validation_error", null, false],
       ["invalid_from_address", null, false],
+      // item 7 specific tests:
+      ["service_unavailable", 503, true],
+      ["monthly_quota_exceeded", 429, true],
+      ["validation_error", 422, false],
     ])("name %s with statusCode %s → retryable=%s", async (name, statusCode, expectedRetryable) => {
       process.env.RESEND_API_KEY = "test-key";
       sendMock.mockResolvedValue({ data: null, error: { message: "err", name, statusCode: statusCode as unknown as number } });

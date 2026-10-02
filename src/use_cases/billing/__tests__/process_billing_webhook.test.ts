@@ -445,7 +445,7 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
     expect(JSON.parse(rows[0]).event_type).toBeUndefined();
   });
 
-  it("Defect A: reversal with no refund returns 200 { ok: true, recorded: false, reason: 'manual_review' }, flags reversal_without_refund, and appends nothing", async () => {
+  it("Defect A: reversal with no refund throws plain Error (500 retryable), flags reversal_without_refund, and appends nothing", async () => {
     process.env.SUPABASE_URL = "https://example.supabase.co";
     process.env.SUPABASE_SECRET_KEY = "mock-secret-key";
     setnx.mockResolvedValue(1);
@@ -477,10 +477,10 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
       rawPayload: null,
     };
 
-    // Should return 200 without throwing
+    // Should throw plain Error
     await expect(
       processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(reversalEvent as never)]),
-    ).resolves.toBeUndefined();
+    ).rejects.toThrow("refund reversal waiting for sale/refund: sale_no_refund");
 
     // Check manual review flag in audit_log
     expect(supa.auditInserts).toHaveLength(1);
@@ -495,6 +495,96 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
     // Verify nothing appended to ledger
     const rows = readFileSync(salesFilePath, "utf8").split(/\r?\n/).filter(Boolean);
     expect(rows).toHaveLength(1);
+  });
+
+  it("item 3: EUR refund arriving before its sale must not flag currency_mismatch and rejects retryably (throws error not starting with Webhook validation failed)", async () => {
+    setnx.mockResolvedValue(1);
+    const refundEvent: RefundIssuedEvent = {
+      eventType: "refund_issued",
+      providerName: "polar",
+      saleId: "sale_before_arrived",
+      totalCents: 3900,
+      currency: "EUR",
+      occurredAt: "2026-09-28T00:00:00.000Z",
+      rawPayload: null,
+    };
+
+    const promise = processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(refundEvent)]);
+    await expect(promise).rejects.toThrow();
+    await promise.catch((err: Error) => {
+      expect(err.message).not.toMatch(/^Webhook validation failed/);
+    });
+    expect(supa.auditInserts).toHaveLength(0);
+  });
+
+  it("item 8: refund after refund_reversal flags refund_after_reversal and returns 200 { ok: true, recorded: false, reason: 'manual_review' }", async () => {
+    process.env.SUPABASE_URL = "https://example.supabase.co";
+    process.env.SUPABASE_SECRET_KEY = "mock-secret-key";
+    setnx.mockResolvedValue(1);
+
+    await appendSale(
+      {
+        ts: "2026-09-27T00:00:00.000Z",
+        sale_id: "sale_with_reversal",
+        provider: "polar",
+        product_id: "p1",
+        amount_usd: 39,
+        creator_id: "c1",
+        creator_split_pct: 50,
+        creator_split_usd: 19.5,
+        our_split_usd: 19.5,
+        currency: "USD",
+      },
+      salesFilePath,
+    );
+
+    const firstRefund: RefundIssuedEvent = {
+      eventType: "refund_issued",
+      providerName: "polar",
+      saleId: "sale_with_reversal",
+      totalCents: 3900,
+      currency: "USD",
+      occurredAt: "2026-09-28T00:00:00.000Z",
+      rawPayload: null,
+    };
+    await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(firstRefund)]);
+
+    const reversalEvent = {
+      eventType: "refund_reversed",
+      providerName: "polar",
+      saleId: "sale_with_reversal",
+      totalCents: 3900,
+      currency: "USD",
+      occurredAt: "2026-09-29T00:00:00.000Z",
+      rawPayload: null,
+    };
+    await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(reversalEvent as never)]);
+
+    // Now a second refund arrives for the same sale which already had a reversal
+    const secondRefund: RefundIssuedEvent = {
+      eventType: "refund_issued",
+      providerName: "polar",
+      saleId: "sale_with_reversal",
+      refundId: "rf_second",
+      totalCents: 3900,
+      currency: "USD",
+      occurredAt: "2026-09-30T00:00:00.000Z",
+      rawPayload: null,
+    };
+
+    supa.auditInserts = []; // clear previous
+    await expect(
+      processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(secondRefund)]),
+    ).resolves.toBeUndefined();
+
+    expect(supa.auditInserts).toHaveLength(1);
+    expect(supa.auditInserts[0]).toMatchObject({
+      event: "MANUAL_REVIEW_REQUIRED_REFUND",
+      details: expect.objectContaining({
+        reason: "refund_after_reversal",
+        sale_id: "sale_with_reversal",
+      }),
+    });
   });
 
   it("Defect C: reversal with mismatched amount returns 200 recorded:false and flags reversal_amount_mismatch", async () => {

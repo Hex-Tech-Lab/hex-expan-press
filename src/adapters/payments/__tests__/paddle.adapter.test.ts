@@ -484,5 +484,51 @@ describe("PaddleAdapter buyer-email fallback (customer lookup)", () => {
       GLOBAL.defaults.currency = origCurrency;
     }
   });
+
+  it("item 1: accepts transaction.completed when custom_data has null product_id and email, resolving email via customer lookup", async () => {
+    vi.stubEnv("PADDLE_API_KEY", KEY);
+    const fetchMock = fetchOk("lookup-buyer@example.com");
+    vi.stubGlobal("fetch", fetchMock);
+    const body = JSON.stringify({
+      event_type: "transaction.completed",
+      data: {
+        id: "txn_test_null_custom",
+        currency_code: "USD",
+        details: { totals: { total: "1000" } },
+        items: [{ price: { id: "pri_test_basic" } }],
+        custom_data: { product_id: null, email: null },
+        customer_id: "ctm_lookup_1",
+        changed_at: new Date().toISOString(),
+      },
+    });
+    const res = await parse(body, freshSig(body));
+    expect(res.isValid).toBe(true);
+    if (!res.isValid) throw new Error("expected valid");
+    expect((res.event as SaleCompletedEvent).productId).toBe("test_product_basic");
+    expect((res.event as SaleCompletedEvent).buyerEmailHash).toBe(
+      createHash("sha256").update("lookup-buyer@example.com").digest("hex")
+    );
+  });
+
+  it("item 2: rejects transaction.completed when details or totals.total is missing or invalid, with 400 and does NOT default to 0", async () => {
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const bodyNullDetails = JSON.stringify({
+      event_type: "transaction.completed",
+      data: {
+        id: "txn_test_null_details",
+        currency_code: "USD",
+        details: null,
+        items: [{ price: { id: "pri_test_basic" } }],
+        custom_data: { product_id: "test_product_basic", email: "buyer@example.com" },
+        changed_at: new Date().toISOString(),
+      },
+    });
+    const res = await parse(bodyNullDetails, freshSig(bodyNullDetails));
+    expect(res.isValid).toBe(false);
+    expect((res as { httpStatus?: number }).httpStatus).toBe(400);
+    expect((res as { error?: string }).error).toBe("Paddle transaction missing totals");
+    expect(errSpy).toHaveBeenCalledWith(expect.stringContaining("txn_test_null_details"));
+    errSpy.mockRestore();
+  });
 });
 

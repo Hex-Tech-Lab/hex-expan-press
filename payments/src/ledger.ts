@@ -117,7 +117,9 @@ export function findSale(provider: string, saleId: string, salesFile: string = S
     if (trimmed === "") continue;
     try {
       const o = JSON.parse(trimmed) as Record<string, unknown>;
-      if (o.provider === provider && o.sale_id === saleId) return o as unknown as SaleRecord;
+      if (o.provider === provider && o.sale_id === saleId && (o.event_type === undefined || o.event_type === "sale")) {
+        return o as unknown as SaleRecord;
+      }
     } catch (parseErr) {
       console.error("ledger: malformed ledger line skipped:", parseErr instanceof Error ? parseErr.message : parseErr);
       continue; // malformed line — tolerated by contract
@@ -219,6 +221,7 @@ const ManualReviewRefundSchema = z.object({
     "reversal_without_refund",
     "reversal_amount_mismatch",
     "reversal_amount_unverifiable",
+    "refund_after_reversal",
   ]),
   refund_cents: z.number().int().nonnegative().nullable(),
   sale_cents: z.number().int().nonnegative().nullable(),

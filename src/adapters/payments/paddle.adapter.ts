@@ -259,7 +259,7 @@ export class PaddleAdapter implements PaymentProviderPort {
 
       const productId = distinctProducts[0];
       const customProductId = validated.data.custom_data?.product_id;
-      if (customProductId !== undefined && customProductId !== productId) {
+      if (customProductId != null && customProductId !== productId) {
         return { isValid: false, error: "custom_data.product_id does not match the paid price", httpStatus: 400 };
       }
 
@@ -297,7 +297,12 @@ export class PaddleAdapter implements PaymentProviderPort {
       }
 
       // Paddle total is a string of integer cents
-      const totalCents = parseInt(validated.data.details?.totals?.total ?? "0", 10);
+      const rawTotal = validated.data.details?.totals?.total;
+      const totalCents = rawTotal !== undefined && rawTotal !== null && /^\d+$/.test(rawTotal) ? Number(rawTotal) : NaN;
+      if (!Number.isSafeInteger(totalCents) || totalCents < 0) {
+        console.error(`[paddle.adapter] transaction missing totals id=${validated.data.id}`);
+        return { isValid: false, error: "Paddle transaction missing totals", httpStatus: 400 };
+      }
 
       const event: SaleCompletedEvent = {
         eventType: "sale_completed",
