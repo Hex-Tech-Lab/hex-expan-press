@@ -1,0 +1,21 @@
+payments/bake_checkout.ts
+  s_eb225b08d1f1a7::t_ffdbb2a6cc7425 250
+web/app/creator/consents/consent-cards.tsx
+  s_eb225b08d1f1a7::t_d6a3568beb9527 43-44,51,53,114,189
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "5dbd6834cc6bcbed521a2d60f4af83efdeea05a8",
+  "prompts": {},
+  "sessions": {
+    "s_eb225b08d1f1a7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d3ff8afc-51a4-4bea-8e88-db3aea8d3b3b",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
