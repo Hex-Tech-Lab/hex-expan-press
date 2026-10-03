@@ -313,6 +313,7 @@ const ManualReviewRefundSchema = z.object({
     "reversal_amount_mismatch",
     "reversal_amount_unverifiable",
     "refund_after_reversal",
+    "adjustment_id_collision",
   ]),
   refund_cents: z.number().int().nonnegative().nullable(),
   sale_cents: z.number().int().nonnegative().nullable(),
