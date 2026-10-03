@@ -87,15 +87,22 @@ export async function processBillingWebhookUseCase(
     const refundEvent = event as RefundIssuedEvent;
     await underLockOrConfirmed(
       `lock:refund:${refundEvent.providerName}:${refundEvent.saleId}`,
-      // Confirm a contended refund only while the sale is still refunded: once a reversal exists, an
-      // existing refund row can't prove THIS (new) chargeback was handled, so it retries (503).
-      // A stored provider_adjustment_id closes that gap: a replay of the SAME adjustment is
-      // confirmed via the adjustment-id dedupe below.
-      // ...and only when THIS delivery would itself pass the in-lock checks (verifiable amount equal to
-      // the sale, same currency); a partial/over/foreign-currency refund retries and gets flagged inside.
+      // Confirm a contended refund only when THIS delivery would itself pass the in-lock checks
+      // (verifiable amount equal to the sale, same currency), in the same order as in-lock: a
+      // partial/over/foreign-currency refund retries and gets flagged inside. Then either the refund
+      // row carrying this adjustment id proves it was handled (also after a won dispute), or, with no
+      // adjustment id match, the sale must still be refunded and not yet reversed.
       async () => {
         if (refundEvent.amountUnverifiable === true) return false; // absent totalCents = full reversal (same as in-lock)
-        // Replay of the same adjustment: the existing refund/refund_reversal row proves it was handled.
+        const [sale, refund, reversal] = await Promise.all([
+          findSaleAsync(refundEvent.providerName, refundEvent.saleId),
+          findRefundAsync(refundEvent.providerName, refundEvent.saleId),
+          findRefundReversalAsync(refundEvent.providerName, refundEvent.saleId),
+        ]);
+        if (!sale || !refund) return false;
+        if (refundEvent.totalCents !== undefined && refundEvent.totalCents !== Math.round(sale.amount_usd * 100)) return false;
+        const saleCurrency = (sale.currency ?? GLOBAL.defaults.currency).toUpperCase();
+        if (refundEvent.currency !== undefined && refundEvent.currency.toUpperCase() !== saleCurrency) return false;
         if (refundEvent.providerAdjustmentId) {
           try {
             if (await findByProviderAdjustmentIdAsync(refundEvent.providerName, refundEvent.providerAdjustmentId, "refund")) return true;
@@ -103,15 +110,7 @@ export async function processBillingWebhookUseCase(
             return false; // fail closed: lookup errors make the provider retry
           }
         }
-        const [sale, refund, reversal] = await Promise.all([
-          findSaleAsync(refundEvent.providerName, refundEvent.saleId),
-          findRefundAsync(refundEvent.providerName, refundEvent.saleId),
-          findRefundReversalAsync(refundEvent.providerName, refundEvent.saleId),
-        ]);
-        if (!sale || !refund || reversal) return false;
-        if (refundEvent.totalCents !== undefined && refundEvent.totalCents !== Math.round(sale.amount_usd * 100)) return false;
-        const saleCurrency = (sale.currency ?? GLOBAL.defaults.currency).toUpperCase();
-        return refundEvent.currency === undefined || refundEvent.currency.toUpperCase() === saleCurrency;
+        return !reversal;
       },
       async () => {
         if (refundEvent.amountUnverifiable === true) {

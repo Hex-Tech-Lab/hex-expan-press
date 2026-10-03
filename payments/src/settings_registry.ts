@@ -49,7 +49,7 @@ export interface GlobalSettings {
     allowed_currencies: string[];
     webhook_tolerance_seconds: number;
     webhook_lock_ttl_seconds: number;
-    http_timeout_ms: number; // Paddle customer-email lookup inside the webhook (must stay short)
+    http_timeout_ms: number; // webhook-internal call budget: Paddle customer-email lookup AND the 503 audit insert (must stay short)
     sync_http_timeout_ms: number; // operator CLI (sync_book_identity) calls to Supabase/Paddle
     review_queue_page_size: number; // listManualReviewRefunds default page/limit
     paddle: { api_base: { production: string; sandbox: string }; js_cdn_url: string };
