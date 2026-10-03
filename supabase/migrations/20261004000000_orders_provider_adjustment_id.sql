@@ -12,4 +12,13 @@ create unique index if not exists orders_provider_adjustment_id_uniq
   on public.orders (provider, provider_adjustment_id)
   where provider_adjustment_id is not null;
 
+-- Admin queue + manual-review reader filter on event and page newest-first;
+-- WEBHOOK_503_RETRYING rows accumulate, so index the access path.
+create index if not exists audit_log_event_at_idx
+  on public.audit_log (event, at desc, id desc);
+
+-- Rollback: drop index public.audit_log_event_at_idx;
+--           drop index public.orders_provider_adjustment_id_uniq;
+--           alter table public.orders drop column provider_adjustment_id;
+
 notify pgrst, 'reload schema';
