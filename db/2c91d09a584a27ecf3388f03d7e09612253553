@@ -1,0 +1,27 @@
+src/use_cases/create_esign_envelope.ts
+  s_eb225b08d1f1a7::t_811a20aff06bbe 4,53,55,66-68
+src/use_cases/process_esign_webhook.ts
+  s_eb225b08d1f1a7::t_d3b4069b2a09a8 40,56-58
+supabase/migrations/20261004000300_submit_consent_evidence_envelope_tie.sql
+  s_eb225b08d1f1a7::t_132c59963fc7e1 1-164
+supabase/tests/submit_consent_evidence_path.sql
+  s_eb225b08d1f1a7::t_a2b396b628c5d1 5-6,21-22,24-31,38,44-51
+web/src/lib/__tests__/esign-webhook.test.ts
+  s_eb225b08d1f1a7::t_9e99ab69774071 31,36,169,181-183,185-186,190-196
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "db2c91d09a584a27ecf3388f03d7e09612253553",
+  "prompts": {},
+  "sessions": {
+    "s_eb225b08d1f1a7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d3ff8afc-51a4-4bea-8e88-db3aea8d3b3b",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
