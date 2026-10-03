@@ -28,13 +28,13 @@ export function LegalIncorporationClause() {
   return (
     <>
       This agreement incorporates by reference the ExpanPress Terms of Service and Privacy Policy available at{" "}
-      <Link href="/terms.html" className="underline text-[#296E50] hover:text-[#2B2520]">
+      <a href="/terms.html" target="_blank" rel="noopener noreferrer" className="underline text-[#296E50] hover:text-[#2B2520]">
         expanpress.com/terms.html
-      </Link>{" "}
+      </a>{" "}
       and{" "}
-      <Link href="/privacy.html" className="underline text-[#296E50] hover:text-[#2B2520]">
+      <a href="/privacy.html" target="_blank" rel="noopener noreferrer" className="underline text-[#296E50] hover:text-[#2B2520]">
         expanpress.com/privacy.html
-      </Link>
+      </a>
       .
     </>
   );

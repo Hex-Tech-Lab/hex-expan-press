@@ -476,7 +476,7 @@ export const bakeFacts = (html: string, cfg: Facts, page: string): string => {
     if (/<p class="subtitle"[^>]*>[\s\S]*?<\/p>/.test(out)) {
       out = out.replace(/(<p class="subtitle"[^>]*>)[\s\S]*?(<\/p>)/, `$1${safeSubtitle}$2`);
     } else {
-      out = out.replace(/(<\/h1>)/, `$1\n  <p class="subtitle" style="font-size: 16px; color: #6E5F53; margin-bottom: 8px;">${safeSubtitle}</p>`);
+      out = out.replace(/(<\/h1>)/, `$1\n  <p class="subtitle">${safeSubtitle}</p>`);
     }
   }
 
