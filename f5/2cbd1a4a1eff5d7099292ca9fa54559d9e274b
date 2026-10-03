@@ -1,0 +1,23 @@
+payments/src/settings_registry.ts
+  s_eb225b08d1f1a7::t_1346e54f6af790 298-300
+payments/test/settings_admin.test.ts
+  s_eb225b08d1f1a7::t_94868fd7f11f27 1-38
+web/app/admin/dashboard/page.tsx
+  s_eb225b08d1f1a7::t_a079ce646bf10f 52
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "f52cbd1a4a1eff5d7099292ca9fa54559d9e274b",
+  "prompts": {},
+  "sessions": {
+    "s_eb225b08d1f1a7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d3ff8afc-51a4-4bea-8e88-db3aea8d3b3b",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
