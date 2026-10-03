@@ -53,7 +53,7 @@ export default async function AdminDashboardPage({
 
   let rows: AdminAuditRow[] = [];
   let hasMore = false;
-  let currentPage = 1;
+  let currentPage = Number.isInteger(page) && page >= 1 ? page : 1;
   let errorMessage: string | null = null;
   if (access.status === "ok") {
     try {

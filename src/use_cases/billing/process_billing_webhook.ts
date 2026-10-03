@@ -180,8 +180,10 @@ export async function processBillingWebhookUseCase(
                 return { status: 200, payload: { ok: true, recorded: false, reason: "duplicate", dedupe: "provider_adjustment_id", event_type: "refund", sale_id: refundEvent.saleId } };
               }
             } catch (err) {
-              // Fail closed: a broken dedupe lookup must not swallow a live manual-review flag below.
+              // Fail closed: a broken lookup can't tell a replay from a new chargeback, so the
+              // provider retries (500) instead of this delivery being flagged or dropped.
               console.error("[billing-webhook] adjustment-id dedupe lookup failed:", err);
+              throw err;
             }
           }
           // A reversal can only exist once a refund does. After a won dispute the ledger can't hold a

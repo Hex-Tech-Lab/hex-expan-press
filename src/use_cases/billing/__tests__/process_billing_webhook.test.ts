@@ -68,7 +68,7 @@ vi.mock("@supabase/supabase-js", () => ({
           },
         };
       }
-      const eq = () => ({ eq, maybeSingle: async () => supa.lookupResult });
+      const eq = (): object => ({ eq, in: eq, maybeSingle: async () => supa.lookupResult });
       return { select: () => ({ eq }), upsert: async () => ({ error: supa.upsertError }) };
     },
   }),
@@ -842,6 +842,24 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
     await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_abc"))]);
     rows = readFileSync(salesFilePath, "utf8").split(/\r?\n/).filter(Boolean);
     expect(rows).toHaveLength(2); // still sale + one refund
+  });
+
+  it("adjustment-id lookup failure with a refund already recorded -> throws (provider retries), no manual-review flag", async () => {
+    process.env.SUPABASE_URL = "https://example.supabase.co";
+    process.env.SUPABASE_SECRET_KEY = "mock-secret-key";
+    setnx.mockResolvedValue(1);
+    await appendSale({ ...CB_SALE }, salesFilePath);
+    await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_first"))]);
+
+    // A different adjustment id is not in the local file, so the lookup reaches Supabase, which is down.
+    supa.lookupResult = { data: null, error: { message: "db down" } };
+    supa.auditInserts = [];
+    try {
+      await expect(processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_second"))])).rejects.toThrow(/adjustment-id lookup failed/);
+      expect(supa.auditInserts).toEqual([]);
+    } finally {
+      supa.lookupResult = { data: null, error: null };
+    }
   });
 
   it("won dispute (chargeback_reverse) -> refund_reversal row with adjustment id, net restored; replayed chargeback after the reversal -> 200 duplicate, no manual-review flag", async () => {
