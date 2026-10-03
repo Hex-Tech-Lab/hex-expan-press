@@ -246,8 +246,15 @@ export const loadProductConfig = (assoc: ProductAssoc | undefined) => {
     book?: string;
   } & Facts;
   // Title SSOT (2026-10-01): when config has "book", the bake must ALWAYS take
-  // the title from the registry via loadBookIdentity and ignore any inline cfg.title.
-  cfg.title = resolveProductTitle(cfg, path);
+  // the title, subtitle, author from the registry via loadBookIdentity and ignore any inline cfg.title.
+  if (cfg.book && cfg.book.trim() !== "") {
+    const ident = loadBookIdentity(join(here, "..", cfg.book));
+    cfg.title = ident.title;
+    cfg.subtitle = ident.subtitle;
+    cfg.author = ident.author;
+  } else {
+    cfg.title = resolveProductTitle(cfg, path);
+  }
   return { cfg, source: assoc ? assoc.config_file : "payments/config.duane.json" };
 };
 
@@ -434,24 +441,45 @@ const sandboxOff = (source: string, bakedAt: string = now) =>
   `data-config-source="${source}" data-checkout-mode="gated" ` +
   `data-baked-at="${bakedAt}">Sandbox test checkout &mdash; not configured</a>`;
 
-// Product facts baked from config (2026-09-25): price and title used to be hand-typed HTML the
+// Product facts baked from config (2026-09-25, updated Wave 6.2): price and title used to be hand-typed HTML the
 // baker never touched, so $19 survived a $39 config. Every price slot, the <h1>, <title>,
 // og/twitter titles and the "$N." in meta descriptions now come from config on every bake.
-type Facts = { title?: string; price_usd?: number };
-const bakeFacts = (html: string, cfg: Facts, page: string): string => {
+// Subtitle and author are also synchronized when present.
+export type Facts = {
+  title?: string;
+  subtitle?: string;
+  author?: string;
+  price_usd?: number;
+};
+export const bakeFacts = (html: string, cfg: Facts, page: string): string => {
   if (!cfg.title || cfg.price_usd === undefined) {
     console.log(`warn: ${page}: config lacks title/price_usd — facts NOT baked`);
     return html;
   }
   const safeTitle = esc(cfg.title);
   const price = String(cfg.price_usd);
-  const out = html
+  let out = html
     .replace(/(<p class="price">)\$\d+/g, `$1$${price}`)
     .replace(/(<h1>)[\s\S]*?(<\/h1>)/, `$1${safeTitle}$2`)
     .replace(/(<title>)[^<—]*?( — [^<]*)?(<\/title>)/,
       (_m, openTag, suffix, closeTag) => `${openTag}${safeTitle}${suffix ?? ""}${closeTag}`)
     .replace(/(<meta (?:property|name)="(?:og|twitter):title" content=")[^"]*(")/g, `$1${safeTitle}$2`)
     .replace(/(<meta (?:property|name)="(?:og:|twitter:)?description" content="[^"]*?)\$\d+\./g, `$1$${price}.`);
+
+  if (cfg.author) {
+    const safeAuthor = esc(cfg.author);
+    out = out.replace(/(<p class="byline">[\s\S]*?with <b>)[^<]*(<\/b><\/p>)/, `$1${safeAuthor}$2`);
+  }
+
+  if (cfg.subtitle) {
+    const safeSubtitle = esc(cfg.subtitle);
+    if (/<p class="subtitle"[^>]*>[\s\S]*?<\/p>/.test(out)) {
+      out = out.replace(/(<p class="subtitle"[^>]*>)[\s\S]*?(<\/p>)/, `$1${safeSubtitle}$2`);
+    } else {
+      out = out.replace(/(<\/h1>)/, `$1\n  <p class="subtitle" style="font-size: 16px; color: #6E5F53; margin-bottom: 8px;">${safeSubtitle}</p>`);
+    }
+  }
+
   if (!/<p class="price">/.test(out)) console.log(`warn: ${page}: no price slot found`);
   return out;
 };
