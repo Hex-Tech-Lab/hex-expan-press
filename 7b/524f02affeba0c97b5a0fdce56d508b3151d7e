@@ -1,0 +1,21 @@
+src/use_cases/create_esign_envelope.ts
+  s_eb225b08d1f1a7::t_63add0797f4562 42,50,52-53
+supabase/migrations/20261004000400_consents_evidence_path_check.sql
+  s_eb225b08d1f1a7::t_b9c0171fbf5518 1-18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "7b524f02affeba0c97b5a0fdce56d508b3151d7e",
+  "prompts": {},
+  "sessions": {
+    "s_eb225b08d1f1a7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d3ff8afc-51a4-4bea-8e88-db3aea8d3b3b",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
