@@ -16,6 +16,63 @@ import { GLOBAL } from "../../../payments/src/settings_registry.ts";
 type LockedFn = () => Promise<{ status: number; payload: Record<string, unknown> }>;
 
 /**
+ * 23505 on orders_provider_adjustment_id_uniq: a concurrent delivery won the
+ * index — but only a conflicting row that MATCHES this event (same sale,
+ * same amount, same currency) is a genuine replay worth acknowledging 200.
+ * Anything else is a real collision: flag it for manual review (best-effort;
+ * a flag-write failure must never soften this into a 200) and throw a 503 so
+ * the provider retries while ops investigates.
+ */
+async function resolveAdjustmentIdCollision(
+  err: unknown,
+  provider: string,
+  adjustmentId: string,
+  eventType: "refund" | "refund_reversal",
+  event: { saleId: string; totalCents?: number; currency?: string },
+  flag: {
+    refundId: string | null;
+    refundCents: number | null;
+    occurredAt: string;
+  },
+): Promise<{ status: 200; payload: Record<string, unknown> }> {
+  let row: Awaited<ReturnType<typeof findByProviderAdjustmentIdAsync>> | null = null;
+  try {
+    row = await findByProviderAdjustmentIdAsync(provider, adjustmentId, eventType);
+  } catch (lookupErr) {
+    console.error("[billing-webhook] collision-adjustment lookup failed:", lookupErr);
+    throw Object.assign(new Error(`Webhook retryable: adjustment-id collision lookup failed for ${eventType} ${adjustmentId}`), { httpStatus: 503 });
+  }
+  if (!row) {
+    throw Object.assign(new Error(`Webhook retryable: adjustment-id collision with no recoverable row for ${eventType} ${adjustmentId}`), { httpStatus: 503 });
+  }
+  const matches =
+    row.sale_id === event.saleId &&
+    (event.totalCents === undefined || Math.round(row.amount_usd * 100) === event.totalCents) &&
+    (event.currency === undefined || row.currency.toUpperCase() === event.currency.toUpperCase());
+  if (matches) {
+    return { status: 200, payload: { ok: true, recorded: false, reason: "duplicate", dedupe: "provider_adjustment_id", event_type: eventType, sale_id: event.saleId } };
+  }
+  // Mismatch: durable flag first. A flag-write failure must propagate (throw),
+  // never be swallowed into a 200 acknowledgement.
+  await flagRefundForManualReview({
+    reason: "adjustment_id_collision",
+    provider,
+    sale_id: event.saleId,
+    refund_id: flag.refundId,
+    refund_cents: flag.refundCents,
+    sale_cents: Math.round(row.amount_usd * 100),
+    creator_id: row.creator_id ?? null,
+    occurred_at: flag.occurredAt,
+  });
+  throw Object.assign(
+    new Error(
+      `Webhook retryable: adjustment-id collision for ${eventType} ${adjustmentId} — conflicting row sale_id=${row.sale_id} != event sale_id=${event.saleId}`,
+    ),
+    { httpStatus: 503 },
+  );
+}
+
+/**
  * Run fn under the idempotency lock. A held lock is NOT success — the holder may
  * still fail. Acknowledge only when the record is confirmed durable; otherwise
  * rethrow WebhookInFlightError so the route answers 503 and the provider retries.
@@ -214,10 +271,17 @@ export async function processBillingWebhookUseCase(
           });
         } catch (err) {
           // A 23505 on orders_provider_adjustment_id_uniq means the same adjustment was
-          // persisted by a concurrent delivery — that IS a replay: answer 200. Any other
-          // unique violation (or any other error) propagates unchanged.
+          // persisted by a concurrent delivery — a replay ONLY if the conflicting row
+          // matches this event; otherwise flag + 503 (see resolveAdjustmentIdCollision).
           if (refundEvent.providerAdjustmentId && isAdjustmentIdUniqueViolation(err)) {
-            return { status: 200, payload: { ok: true, recorded: false, reason: "duplicate", dedupe: "provider_adjustment_id", event_type: "refund", sale_id: refundEvent.saleId } };
+            return await resolveAdjustmentIdCollision(
+              err,
+              refundEvent.providerName,
+              refundEvent.providerAdjustmentId,
+              "refund",
+              { saleId: refundEvent.saleId, totalCents: refundEvent.totalCents, currency: refundEvent.currency },
+              { refundId: refundEvent.refundId ?? null, refundCents: refundEvent.totalCents ?? null, occurredAt: refundEvent.occurredAt },
+            );
           }
           throw err;
         }
@@ -312,9 +376,17 @@ export async function processBillingWebhookUseCase(
             provider_adjustment_id: revEvent.providerAdjustmentId
           });
         } catch (err) {
-          // Same rule as refunds: only a violation of orders_provider_adjustment_id_uniq is a replay.
+          // Same rule as refunds: a violation of orders_provider_adjustment_id_uniq is a
+          // replay only when the conflicting row matches this event; otherwise flag + 503.
           if (revEvent.providerAdjustmentId && isAdjustmentIdUniqueViolation(err)) {
-            return { status: 200, payload: { ok: true, recorded: false, reason: "duplicate", dedupe: "provider_adjustment_id", event_type: "refund_reversal", sale_id: revEvent.saleId } };
+            return await resolveAdjustmentIdCollision(
+              err,
+              revEvent.providerName,
+              revEvent.providerAdjustmentId,
+              "refund_reversal",
+              { saleId: revEvent.saleId, totalCents: revEvent.totalCents, currency: revEvent.currency },
+              { refundId: revEvent.refundId ?? null, refundCents: revEvent.totalCents ?? null, occurredAt: revEvent.occurredAt },
+            );
           }
           throw err;
         }

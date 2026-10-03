@@ -52,6 +52,8 @@ export interface GlobalSettings {
     http_timeout_ms: number; // webhook-internal call budget: Paddle customer-email lookup AND the 503 audit insert (must stay short)
     sync_http_timeout_ms: number; // operator CLI (sync_book_identity) calls to Supabase/Paddle
     review_queue_page_size: number; // listManualReviewRefunds default page/limit
+    /** Retry-After seconds sent on 503 webhook responses (in-flight AND generic 503 paths). */
+    retry_after_seconds: number;
     paddle: { api_base: { production: string; sandbox: string }; js_cdn_url: string };
     polar: { sandbox_checkout_fallback_url: string };
   };
@@ -101,6 +103,7 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     http_timeout_ms: 5000,
     sync_http_timeout_ms: 30000,
     review_queue_page_size: 200,
+    retry_after_seconds: 30,
     paddle: {
       api_base: { production: "https://api.paddle.com", sandbox: "https://sandbox-api.paddle.com" },
       js_cdn_url: "https://cdn.paddle.com/paddle/v2/paddle.js",
@@ -145,6 +148,7 @@ export const PAYMENTS_LIMITS = {
   http_timeout_ms: { min: 1000, max: 30000 },
   sync_http_timeout_ms: { min: 1000, max: 120000 },
   review_queue_page_size: { min: 1, max: 1000 },
+  retry_after_seconds: { min: 1, max: 600 },
 } as const;
 
 function intInRange(v: unknown, min: number, max: number): v is number {
@@ -214,6 +218,7 @@ export function loadPaymentsSection(raw: Record<string, unknown> | undefined): G
   const syncHttpTimeout = num("sync_http_timeout_ms");
   // Validate BEFORE the fallback warning below, so an invalid value is reported, not silently defaulted.
   const reviewQueuePageSize = num("review_queue_page_size");
+  const retryAfterSeconds = num("retry_after_seconds");
   const paddleUrl = (v: unknown, expected: string, label: string, validateAndNormalize: (x: unknown) => string | null): string => {
     const normalized = v === undefined ? null : validateAndNormalize(v);
     if (normalized !== null) return normalized;
@@ -249,6 +254,7 @@ export function loadPaymentsSection(raw: Record<string, unknown> | undefined): G
     http_timeout_ms: httpTimeout,
     sync_http_timeout_ms: syncHttpTimeout,
     review_queue_page_size: reviewQueuePageSize,
+    retry_after_seconds: retryAfterSeconds,
     paddle: { api_base: { production: apiProduction, sandbox: apiSandbox }, js_cdn_url: jsCdn },
     polar: { sandbox_checkout_fallback_url: polarFallback },
   };

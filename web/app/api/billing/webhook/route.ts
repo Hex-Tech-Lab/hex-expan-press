@@ -99,7 +99,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       await auditBounded({ ...auditContext(headers, body), reason: "idempotency_lock_in_flight" });
       return NextResponse.json(
         { ok: false, error: "In flight — retry" },
-        { status: 503, headers: { "Retry-After": "30" } },
+        { status: 503, headers: { "Retry-After": String(GLOBAL.payments.retry_after_seconds) } },
       );
     }
     console.error("Billing webhook error:", err);
@@ -118,7 +118,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       // Error name only: messages can carry buyer data (e.g. an email lookup failure).
       await auditBounded({ ...auditContext(headers, body), reason: err instanceof Error ? err.name : "unknown" });
     }
-    return NextResponse.json({ ok: false, error }, { status });
+    return NextResponse.json({ ok: false, error }, { status: status, ...(status === 503 ? { headers: { "Retry-After": String(GLOBAL.payments.retry_after_seconds) } } : {}) });
   }
 }
 
