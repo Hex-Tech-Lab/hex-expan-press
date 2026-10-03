@@ -117,7 +117,7 @@ function auditContext(headers: Record<string, string | string[] | undefined>, bo
   try {
     const parsed = JSON.parse(body) as { data?: { id?: unknown; transaction_id?: unknown } };
     const saleId = typeof parsed?.data?.transaction_id === "string" ? parsed.data.transaction_id : typeof parsed?.data?.id === "string" ? parsed.data.id : undefined;
-    return { provider, sale_id: saleId };
+    return { provider, sale_id: saleId?.slice(0, 128) };
   } catch {
     return { provider };
   }
