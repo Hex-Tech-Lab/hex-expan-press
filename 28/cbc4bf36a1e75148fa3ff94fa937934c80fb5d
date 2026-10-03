@@ -1,0 +1,29 @@
+supabase/migrations/20261004000200_submit_consent_evidence_path_contract.sql
+  s_67356accb05335::t_b4f22b7a4647db 1-161
+web/src/lib/__tests__/esign-webhook.test.ts
+  s_67356accb05335::t_9cbaa08b70a83f 158,169-189
+  s_67356accb05335::t_d842f9a6ea4044 20
+  s_67356accb05335::t_248e897ef4125b 190-191
+docs/agent_ledger.jsonl
+  s_67356accb05335::t_a11af8b1a2e4dd 401
+  s_67356accb05335::t_8c7f321ed83ecd 380
+src/use_cases/process_esign_webhook.ts
+  s_67356accb05335::t_c31d3fc495b02f 4
+  s_67356accb05335::t_258d08191ef5f2 56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "28cbc4bf36a1e75148fa3ff94fa937934c80fb5d",
+  "prompts": {},
+  "sessions": {
+    "s_67356accb05335": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_efd3a92b6ffewwJdw0l8pHhsq2",
+        "model": "@preset/glm-53-flash-on-cheap"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
