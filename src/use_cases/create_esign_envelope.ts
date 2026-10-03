@@ -39,7 +39,7 @@ export async function createEsignEnvelopeUseCase(
   let typedName: string | null = null;
   let metaName: string | null = null;
   try {
-    const { data: consents } = await supabase
+    const { data: consents, error: consentErr } = await supabase
       .from("consents")
       .select("typed_name")
       .eq("product_id", req.productId)
@@ -47,8 +47,10 @@ export async function createEsignEnvelopeUseCase(
       .eq("decision", "given")
       .order("signed_at", { ascending: false })
       .limit(1);
+    if (consentErr) console.warn("[esign] C1 typed-name lookup failed; falling back:", consentErr.message);
     typedName = consents?.[0]?.typed_name ?? null;
-    const { data: userData } = await supabase.auth.admin.getUserById(req.userId);
+    const { data: userData, error: userErr } = await supabase.auth.admin.getUserById(req.userId);
+    if (userErr) console.warn("[esign] user metadata lookup failed; falling back:", userErr.message);
     metaName = (userData?.user?.user_metadata as Record<string, string> | undefined)?.name ?? null;
   } catch (err) {
     // name resolution is best-effort; the adapter falls back to the email
