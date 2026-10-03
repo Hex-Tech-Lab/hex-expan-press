@@ -8,6 +8,7 @@
  * "Back to Dashboard" nav is a Next <Link> with a soft Framer Motion hover.
  */
 import { useActionState } from "react";
+import { useFormStatus } from "react-dom";
 import Link from "next/link";
 import { AnimatePresence, m } from "framer-motion";
 import { signConsentAction, type ConsentFormState } from "./actions";
@@ -23,6 +24,39 @@ export interface ConsentCardsProps {
   hasC3: boolean;
 }
 
+function LegalIncorporationClause() {
+  return (
+    <>
+      This agreement incorporates by reference the ExpanPress Terms of Service and Privacy Policy available at{" "}
+      <a href="/terms.html" target="_blank" rel="noopener noreferrer" className="underline text-[#296E50] hover:text-[#2B2520]">
+        expanpress.com/terms.html
+        <span className="sr-only"> (opens in a new tab)</span>
+      </a>{" "}
+      and{" "}
+      <a href="/privacy.html" target="_blank" rel="noopener noreferrer" className="underline text-[#296E50] hover:text-[#2B2520]">
+        expanpress.com/privacy.html
+        <span className="sr-only"> (opens in a new tab)</span>
+      </a>
+      .
+    </>
+  );
+}
+
+/** Submit button that disables itself while its form's action is pending (resets on error). */
+function SubmitButton({ idle, busy, className }: { idle: string; busy: string; className: string }) {
+  const { pending } = useFormStatus();
+  return (
+    <m.button
+      type="submit"
+      disabled={pending}
+      whileTap={{ scale: 1.015, transition: { type: "spring", stiffness: 320, damping: 12 } }}
+      className={`min-h-11 rounded-[10px] bg-[#2B2520] px-6 text-[length:var(--font-size-sm)] font-semibold text-[#FAF7F2] transition-colors hover:bg-[#3d352d] disabled:cursor-not-allowed ${className}`}
+    >
+      {pending ? busy : idle}
+    </m.button>
+  );
+}
+
 function ConsentFormCard({
   kindValue,
   label,
@@ -31,16 +65,14 @@ function ConsentFormCard({
   done,
   state,
   formAction,
-  pending,
 }: {
   kindValue: string;
   label: string;
   heading: string;
-  legal: string;
+  legal: React.ReactNode;
   done: boolean;
   state: ConsentFormState;
   formAction: (fd: FormData) => void;
-  pending: boolean;
 }) {
   return (
     <m.section
@@ -81,14 +113,7 @@ function ConsentFormCard({
               {state.error}
             </p>
           )}
-          <m.button
-            type="submit"
-            disabled={pending}
-            whileTap={{ scale: 1.015, transition: { type: "spring", stiffness: 320, damping: 12 } }}
-            className="mt-3 min-h-11 rounded-[10px] bg-[#2B2520] px-6 text-[length:var(--font-size-sm)] font-semibold text-[#FAF7F2] transition-colors hover:bg-[#3d352d] disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {pending ? "Recording…" : `Sign ${label}`}
-          </m.button>
+          <SubmitButton idle={`Sign ${label}`} busy="Recording…" className="mt-3 disabled:opacity-50" />
         </form>
       )}
     </m.section>
@@ -96,8 +121,8 @@ function ConsentFormCard({
 }
 
 export default function ConsentCards({ bookTitle, hasC1, hasC2, hasC3 }: ConsentCardsProps) {
-  const [c1State, c1Action, c1Pending] = useActionState(signConsentAction, EMPTY);
-  const [c2State, c2Action, c2Pending] = useActionState(signConsentAction, EMPTY);
+  const [c1State, c1Action] = useActionState(signConsentAction, EMPTY);
+  const [c2State, c2Action] = useActionState(signConsentAction, EMPTY);
   const c1Done = hasC1 || c1State.ok;
   const c2Done = hasC2 || c2State.ok;
   const allLegal = c1Done && c2Done;
@@ -114,22 +139,30 @@ export default function ConsentCards({ bookTitle, hasC1, hasC2, hasC3 }: Consent
         kindValue="C1_data_accuracy"
         label="Data Accuracy"
         heading="Data accuracy (C1)"
-        legal="I confirm that my answers to the review questions are true and accurate to the best of my knowledge."
+        legal={
+          <>
+            I confirm that my answers to the review questions are true and accurate to the best of my knowledge.{" "}
+            <LegalIncorporationClause />
+          </>
+        }
         done={!!c1Done}
         state={c1State}
         formAction={c1Action}
-        pending={c1Pending}
       />
 
       <ConsentFormCard
         kindValue="C2_release_approval"
         label="Release Approval"
         heading="Release approval (C2)"
-        legal="I approve the release of the final PDF for publication."
+        legal={
+          <>
+            I approve the release of the final PDF for publication.{" "}
+            <LegalIncorporationClause />
+          </>
+        }
         done={!!c2Done}
         state={c2State}
         formAction={c2Action}
-        pending={c2Pending}
       />
 
       <AnimatePresence>
@@ -148,16 +181,14 @@ export default function ConsentCards({ bookTitle, hasC1, hasC2, hasC3 }: Consent
             ) : (
               <>
                 <p className="mt-1.5 text-[length:var(--font-size-base)] leading-relaxed text-[#4A4136]">
-                  Sign the revenue split agreement electronically — a signed copy and its audit-trail certificate are emailed to you afterwards.
+                  Sign the revenue split agreement electronically — a signed copy and its audit-trail certificate are emailed to you afterwards.{" "}
+                  <LegalIncorporationClause />
                 </p>
-                <form action={startPublisherAgreementAction} className="mt-3">
-                  <m.button
-                    type="submit"
-                    whileTap={{ scale: 1.015, transition: { type: "spring", stiffness: 320, damping: 12 } }}
-                    className="min-h-11 rounded-[10px] bg-[#2B2520] px-6 text-[length:var(--font-size-sm)] font-semibold text-[#FAF7F2] transition-colors hover:bg-[#3d352d]"
-                  >
-                    Open the agreement →
-                  </m.button>
+                <form
+                  action={startPublisherAgreementAction}
+                  className="mt-3"
+                >
+                  <SubmitButton idle="Open the agreement →" busy="Opening agreement…" className="disabled:opacity-60" />
                 </form>
               </>
             )}

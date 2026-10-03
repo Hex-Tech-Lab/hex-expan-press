@@ -129,6 +129,7 @@ export interface RefundIssuedEvent {
   providerName: string;
   saleId: string;                // Links back to the original SaleCompletedEvent.saleId
   refundId?: string;             // Provider-specific refund ID (Polar: refund object ID; Payhip: none)
+  providerAdjustmentId?: string; // Provider's own adjustment id when refundId IS the adjustment (Paddle adjustment.*)
   // Refund amount (gross, tax-inclusive). Contract per adapter:
   //  - Polar: ALWAYS set (schema requires amount + tax_amount; missing/malformed → 400).
   //  - Legacy providers (via LegacyPaymentAdapterWrapper): absent. payhip and fastspring
@@ -149,6 +150,7 @@ export interface RefundReversedEvent {
   providerName: string;
   saleId: string;
   refundId?: string;
+  providerAdjustmentId?: string; // Provider's own adjustment id (Paddle: data.id on adjustment.* events)
   totalCents?: AmountCents;
   currency?: CurrencyCode;
   amountUnverifiable?: boolean;

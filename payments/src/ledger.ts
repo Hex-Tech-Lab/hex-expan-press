@@ -20,6 +20,7 @@ export interface SaleRecord {
   event_type?: LedgerEventType; // absent = "sale" (legacy records predate the field)
   email_hash?: string; // buyer-email sha256 from the webhook event (optional; never raw email)
   attribution_id?: string; // our own canonical cross-provider attribution ID (see provider.ts SaleEvent)
+  provider_adjustment_id?: string; // provider's own adjustment id on refund/refund_reversal rows (replay dedupe); absent on sale rows
 }
 
 // settings registry: global.json paths.sales_ledger (inline fallback keeps standalone runs working)
@@ -89,16 +90,46 @@ async function persistToSupabaseOrder(record: SaleRecord): Promise<void> {
       event_type: record.event_type || "sale",
       email_hash: record.email_hash || null,
       attribution_id: record.attribution_id || null,
+      provider_adjustment_id: record.provider_adjustment_id || null,
       occurred_at: record.ts
     }, { onConflict: "provider,sale_id,event_type" });
     if (error) {
-      throw new Error(`ledger: Supabase orders upsert failed: ${error.message}`);
+      // Keep the Postgres code: callers tell a replay (23505 on the adjustment-id index) from a real failure.
+      throw Object.assign(new Error(`ledger: Supabase orders upsert failed: ${error.message}`), { code: error.code });
     }
   } catch (err) {
     if (err instanceof Error && err.message.startsWith("ledger: Supabase orders upsert failed")) throw err;
     console.error("ledger: Supabase dual-write exception:", err);
     throw new Error(`ledger: Supabase dual-write failed: ${(err as Error).message}`, { cause: err });
   }
+}
+
+/** public.orders row as PostgREST returns it (numeric columns arrive as strings). */
+interface OrdersRow {
+  occurred_at?: string; created_at?: string; sale_id: string; provider: string; product_id: string;
+  amount_usd: number | string; creator_id: string; creator_split_pct: number | string;
+  creator_split_usd: number | string; our_split_usd: number | string; currency: string; event_type: string;
+  email_hash?: string | null; attribution_id?: string | null; provider_adjustment_id?: string | null;
+}
+
+/** Map a public.orders row to a SaleRecord. */
+function rowToSaleRecord(data: OrdersRow): SaleRecord {
+  return {
+    ts: (data.occurred_at || data.created_at) as string,
+    sale_id: data.sale_id,
+    provider: data.provider,
+    product_id: data.product_id,
+    amount_usd: Number(data.amount_usd),
+    creator_id: data.creator_id,
+    creator_split_pct: Number(data.creator_split_pct),
+    creator_split_usd: Number(data.creator_split_usd),
+    our_split_usd: Number(data.our_split_usd),
+    currency: data.currency,
+    event_type: data.event_type as LedgerEventType,
+    email_hash: data.email_hash || undefined,
+    attribution_id: data.attribution_id || undefined,
+    provider_adjustment_id: data.provider_adjustment_id || undefined
+  };
 }
 
 /** Find an already-recorded sale by provider + sale_id (webhook idempotency guard).
@@ -153,23 +184,83 @@ export async function findSaleAsync(provider: string, saleId: string, salesFile:
 
     if (!data) return null;
 
-    return {
-      ts: data.occurred_at || data.created_at,
-      sale_id: data.sale_id,
-      provider: data.provider,
-      product_id: data.product_id,
-      amount_usd: Number(data.amount_usd),
-      creator_id: data.creator_id,
-      creator_split_pct: Number(data.creator_split_pct),
-      creator_split_usd: Number(data.creator_split_usd),
-      our_split_usd: Number(data.our_split_usd),
-      currency: data.currency,
-      event_type: data.event_type as LedgerEventType,
-      email_hash: data.email_hash || undefined,
-      attribution_id: data.attribution_id || undefined
-    };
+    return rowToSaleRecord(data);
   } catch (err) {
     console.error("ledger: Supabase sale lookup failed:", err);
+    throw err instanceof Error ? err : new Error(String(err));
+  }
+}
+
+/** Duplicate-key guard on the partial unique index
+ *  orders_provider_adjustment_id_uniq (provider, provider_adjustment_id, event_type) WHERE
+ *  provider_adjustment_id IS NOT NULL. Only THAT index's violation is a webhook
+ *  replay; anything else is a real failure and is never swallowed. */
+export const ORDERS_ADJUSTMENT_UNIQ_INDEX = "orders_provider_adjustment_id_uniq";
+
+export function isAdjustmentIdUniqueViolation(err: unknown): boolean {
+  const e = err as { code?: unknown; constraint?: unknown; message?: unknown } | null;
+  if (!e || typeof e !== "object") return false;
+  if (e.code !== "23505") return false;
+  if (e.constraint === ORDERS_ADJUSTMENT_UNIQ_INDEX) return true;
+  // PostgREST/Supabase REST surfaces the index name inside the message, not as a
+  // structured field — match on the index name to avoid swallowing an unrelated
+  // unique violation (e.g. the orders_provider_sale_event_type unique constraint).
+  return typeof e.message === "string" && e.message.includes(ORDERS_ADJUSTMENT_UNIQ_INDEX);
+}
+
+/** Find an already-recorded row of eventType by (provider, provider_adjustment_id).
+ *  Tolerant read: missing file or malformed lines are skipped (same posture as findRefund). */
+function findByProviderAdjustmentId(provider: string, providerAdjustmentId: string, eventType: "refund" | "refund_reversal", salesFile: string = SALES_FILE): SaleRecord | null {
+  salesFile = resolveSalesFile(salesFile);
+  let lines: string[];
+  try {
+    lines = readFileSync(salesFile, "utf8").split(/\r?\n/);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== "ENOENT") console.error("ledger: sales ledger read failed (treated as no ledger yet):", err);
+    return null; // no ledger yet
+  }
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed === "") continue;
+    try {
+      const o = JSON.parse(trimmed) as Record<string, unknown>;
+      if (o.provider === provider && o.provider_adjustment_id === providerAdjustmentId && o.event_type === eventType) {
+        return o as unknown as SaleRecord;
+      }
+    } catch (parseErr) {
+      console.error("ledger: malformed ledger line skipped:", parseErr instanceof Error ? parseErr.message : parseErr);
+      continue; // malformed line — tolerated by contract
+    }
+  }
+  return null;
+}
+
+/** Async twin of findByProviderAdjustmentId, backed by Supabase public.orders.
+ *  Returns null (not throws) on unconfigured Supabase; lookup errors FAIL CLOSED
+ *  (throw) so a caller cannot mistake a broken lookup for "not a replay". */
+export async function findByProviderAdjustmentIdAsync(provider: string, providerAdjustmentId: string, eventType: "refund" | "refund_reversal", salesFile: string = SALES_FILE): Promise<SaleRecord | null> {
+  const local = findByProviderAdjustmentId(provider, providerAdjustmentId, eventType, salesFile);
+  if (local) return local;
+
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SECRET_KEY;
+  if (!url || !key) return null;
+
+  try {
+    const { createClient } = await import("@supabase/supabase-js");
+    const supabase = createClient(url, key);
+    const { data, error } = await supabase
+      .from("orders")
+      .select("*")
+      .eq("provider", provider)
+      .eq("provider_adjustment_id", providerAdjustmentId)
+      .eq("event_type", eventType)
+      .maybeSingle();
+    if (error) throw new Error(`ledger: Supabase adjustment-id lookup failed: ${error.message}`);
+    if (!data) return null;
+    return rowToSaleRecord(data);
+  } catch (err) {
+    console.error("ledger: Supabase adjustment-id lookup failed:", err);
     throw err instanceof Error ? err : new Error(String(err));
   }
 }
@@ -274,19 +365,7 @@ export async function findRefundAsync(provider: string, saleId: string, salesFil
 
     if (!data) return null;
 
-    return {
-      ts: data.occurred_at || data.created_at,
-      sale_id: data.sale_id,
-      provider: data.provider,
-      product_id: data.product_id,
-      amount_usd: Number(data.amount_usd),
-      creator_id: data.creator_id,
-      creator_split_pct: Number(data.creator_split_pct),
-      creator_split_usd: Number(data.creator_split_usd),
-      our_split_usd: Number(data.our_split_usd),
-      currency: data.currency,
-      event_type: data.event_type as LedgerEventType
-    };
+    return rowToSaleRecord(data);
   } catch (err) {
     console.error("ledger: Supabase refund lookup failed:", err);
     throw err instanceof Error ? err : new Error(String(err));
@@ -339,19 +418,7 @@ export async function findRefundReversalAsync(provider: string, saleId: string, 
     if (error) throw new Error(`ledger: Supabase refund_reversal lookup failed: ${error.message}`);
     if (!data) return null;
 
-    return {
-      ts: data.occurred_at || data.created_at,
-      sale_id: data.sale_id,
-      provider: data.provider,
-      product_id: data.product_id,
-      amount_usd: Number(data.amount_usd),
-      creator_id: data.creator_id,
-      creator_split_pct: Number(data.creator_split_pct),
-      creator_split_usd: Number(data.creator_split_usd),
-      our_split_usd: Number(data.our_split_usd),
-      currency: data.currency,
-      event_type: data.event_type as LedgerEventType
-    };
+    return rowToSaleRecord(data);
   } catch (err) {
     console.error("ledger: Supabase refund_reversal lookup failed:", err);
     throw err instanceof Error ? err : new Error(String(err));
@@ -425,6 +492,9 @@ export interface RefundSpec {
   provider: string;
   sale_id: string;
   ts?: string;
+  /** Provider's own adjustment id (Paddle data.id on adjustment.*). When present the
+   *  refund/refund_reversal row carries it for replay dedupe; sale rows never do. */
+  provider_adjustment_id?: string;
 }
 
 /** Append a refund record linked to a previously recorded sale. The refund is a FULL reversal
@@ -473,6 +543,7 @@ export async function appendRefund(refund: RefundSpec, salesFile: string = SALES
   };
   if (typeof original.email_hash === "string" && original.email_hash !== "") record.email_hash = original.email_hash;
   if (typeof original.attribution_id === "string" && original.attribution_id !== "") record.attribution_id = original.attribution_id;
+  if (typeof refund.provider_adjustment_id === "string" && refund.provider_adjustment_id !== "") record.provider_adjustment_id = refund.provider_adjustment_id;
   // Durable store FIRST: if Supabase fails the route 500s and the provider retries;
   // writing the local file first would make that retry look like a duplicate.
   await persistToSupabaseOrder(record);
@@ -535,6 +606,7 @@ export async function appendRefundReversal(spec: RefundSpec, salesFile: string =
   };
   if (typeof original.email_hash === "string" && original.email_hash !== "") record.email_hash = original.email_hash;
   if (typeof original.attribution_id === "string" && original.attribution_id !== "") record.attribution_id = original.attribution_id;
+  if (typeof spec.provider_adjustment_id === "string" && spec.provider_adjustment_id !== "") record.provider_adjustment_id = spec.provider_adjustment_id;
 
   await persistToSupabaseOrder(record);
   await appendRecord(record, salesFile);

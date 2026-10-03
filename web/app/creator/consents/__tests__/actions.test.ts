@@ -87,7 +87,7 @@ describe("signConsentAction (Wave 6.1)", () => {
         p_product_id: "p1",
         p_kind: "C1_data_accuracy",
         p_decision: "given",
-        p_text_version: "v1.0",
+        p_text_version: "v1.1",
         p_document_sha256: "0".repeat(64),
         p_typed_name: "Duane Smith",
         p_ip: "203.0.113.9",
