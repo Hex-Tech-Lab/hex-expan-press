@@ -17,6 +17,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import crypto from "node:crypto";
 import { FirmaAdapter } from "../../../../src/adapters/esign/firma.adapter";
+import { consentTextVersion } from "../../../../payments/src/settings_registry";
 import type { Mock } from "vitest";
 
 const SECRET = "test-webhook-secret";
@@ -154,7 +155,7 @@ describe("esign webhook (Firma HMAC contract)", () => {
       userId: "user_7",
       kind: "C3_revenue_split",
       decision: "given",
-      textVersion: "v1.0",
+      textVersion: consentTextVersion(),
       documentSha256: "abc123hash",
       typedName: "Signed via firma",
       ip: "203.0.113.9",
@@ -163,6 +164,29 @@ describe("esign webhook (Firma HMAC contract)", () => {
       externalRef: "env_123",
       evidencePath: "user_7/env_123.pdf",
     });
+  });
+
+  it("passes evidencePath in the exact <userId>/<envelopeId>.pdf format enforced by the submit_consent RPC", async () => {
+    const submitConsent = vi.fn().mockResolvedValue(undefined);
+    const { processEsignWebhookUseCase } = await import("../../../../src/use_cases/process_esign_webhook");
+    const settings = {
+      getPortalSettings: vi.fn().mockResolvedValue({
+        esign: {
+          strategy: { mode: "2d", distribution: [{ provider: "firma", weight: 100 }], fallbacks: [] },
+          revenueSplitDocumentPath: "legal-docs/agreement.pdf",
+        },
+        payments: { checkoutStrategy: { mode: "2d", distribution: [{ provider: "polar", weight: 100 }], fallbacks: [] } },
+      }),
+    };
+
+    const { body, headers } = signedBody(completedPayload({ productId: "prod_42", userId: "user_7" }));
+    const request = { body, headers, ip: "203.0.113.9", userAgent: "firma-webhook/1.0" };
+
+    await processEsignWebhookUseCase(request, settings, { submitConsent });
+
+    expect(submitConsent).toHaveBeenCalledTimes(1);
+    const cmd = submitConsent.mock.calls[0][0];
+    expect(cmd.evidencePath).toBe(`${cmd.userId}/${cmd.externalRef}.pdf`);
   });
 
   it("ignores non-completed event types (no consent written)", async () => {
