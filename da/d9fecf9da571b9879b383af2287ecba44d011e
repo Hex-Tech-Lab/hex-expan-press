@@ -1,0 +1,27 @@
+payments/bake_checkout.ts
+  s_eb225b08d1f1a7::t_4b7c22c13a545b 479
+web/app/admin/dashboard/page.tsx
+  s_eb225b08d1f1a7::t_134aafeafb559d 4,44,46-48,50-52,54-56,58-66,69-70,72,127,139,161,177,247-255
+web/app/api/admin/audit-log/route.ts
+  s_eb225b08d1f1a7::t_82c807de101025 6,13-14
+web/app/creator/consents/consent-cards.tsx
+  s_eb225b08d1f1a7::t_bec90efe97f81a 31,33,35,37
+web/src/lib/admin.ts
+  s_eb225b08d1f1a7::t_34fc94ac12a756 36,44-45,49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "dad9fecf9da571b9879b383af2287ecba44d011e",
+  "prompts": {},
+  "sessions": {
+    "s_eb225b08d1f1a7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d3ff8afc-51a4-4bea-8e88-db3aea8d3b3b",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}

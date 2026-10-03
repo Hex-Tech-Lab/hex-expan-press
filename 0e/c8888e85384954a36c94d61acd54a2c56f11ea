@@ -1,0 +1,26 @@
+AGENT_REPORT.md
+  h_90c2451a76ba0d 1-117
+docs/agent_ledger.jsonl
+  h_90c2451a76ba0d 400
+payments/bake_checkout.ts
+  h_90c2451a76ba0d 249-257,444,447-454,461,468-482
+payments/test/bake_checkout_flow.test.ts
+  h_90c2451a76ba0d 4,6,357-415
+web/app/creator/consents/consent-cards.tsx
+  h_90c2451a76ba0d 10-11,27-70,127,135-136,155-156,170-171,195-196,202
+web/app/creator/dashboard/dashboard-client.tsx
+  h_90c2451a76ba0d 15,28-41,271
+web/app/creator/signin/signin-client.tsx
+  h_90c2451a76ba0d 3,10-36,68-69,87,102
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "0ec8888e85384954a36c94d61acd54a2c56f11ea",
+  "prompts": {},
+  "humans": {
+    "h_90c2451a76ba0d": {
+      "author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
