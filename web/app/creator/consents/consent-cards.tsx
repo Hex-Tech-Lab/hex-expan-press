@@ -40,30 +40,17 @@ export function LegalIncorporationClause() {
   );
 }
 
-function ConsentSubmitButton({ label }: { label: string }) {
+/** Submit button that disables itself while its form's action is pending (resets on error). */
+function SubmitButton({ idle, busy, className }: { idle: string; busy: string; className: string }) {
   const { pending } = useFormStatus();
   return (
     <m.button
       type="submit"
       disabled={pending}
       whileTap={{ scale: 1.015, transition: { type: "spring", stiffness: 320, damping: 12 } }}
-      className="mt-3 min-h-11 rounded-[10px] bg-[#2B2520] px-6 text-[length:var(--font-size-sm)] font-semibold text-[#FAF7F2] transition-colors hover:bg-[#3d352d] disabled:cursor-not-allowed disabled:opacity-50"
+      className={`min-h-11 rounded-[10px] bg-[#2B2520] px-6 text-[length:var(--font-size-sm)] font-semibold text-[#FAF7F2] transition-colors hover:bg-[#3d352d] disabled:cursor-not-allowed ${className}`}
     >
-      {pending ? "Recording…" : `Sign ${label}`}
-    </m.button>
-  );
-}
-
-function C3SubmitButton() {
-  const { pending } = useFormStatus();
-  return (
-    <m.button
-      type="submit"
-      disabled={pending}
-      whileTap={{ scale: 1.015, transition: { type: "spring", stiffness: 320, damping: 12 } }}
-      className="min-h-11 rounded-[10px] bg-[#2B2520] px-6 text-[length:var(--font-size-sm)] font-semibold text-[#FAF7F2] transition-colors hover:bg-[#3d352d] disabled:cursor-not-allowed disabled:opacity-60"
-    >
-      {pending ? "Opening agreement…" : "Open the agreement →"}
+      {pending ? busy : idle}
     </m.button>
   );
 }
@@ -124,7 +111,7 @@ function ConsentFormCard({
               {state.error}
             </p>
           )}
-          <ConsentSubmitButton label={label} />
+          <SubmitButton idle={`Sign ${label}`} busy="Recording…" className="mt-3 disabled:opacity-50" />
         </form>
       )}
     </m.section>
@@ -199,7 +186,7 @@ export default function ConsentCards({ bookTitle, hasC1, hasC2, hasC3 }: Consent
                   action={startPublisherAgreementAction}
                   className="mt-3"
                 >
-                  <C3SubmitButton />
+                  <SubmitButton idle="Open the agreement →" busy="Opening agreement…" className="disabled:opacity-60" />
                 </form>
               </>
             )}
