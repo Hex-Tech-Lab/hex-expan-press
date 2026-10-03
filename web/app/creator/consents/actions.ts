@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { getPortalSession } from "../../../src/lib/supabase-server";
 import { resolvePrimaryProduct } from "../../../src/lib/primary-product";
+import { consentTextVersion } from "../../../../payments/src/settings_registry.ts";
 
 export interface ConsentFormState {
   ok?: boolean;
@@ -66,7 +67,7 @@ export async function signConsentAction(_prev: ConsentFormState, formData: FormD
     p_product_id: product.id,
     p_kind: rawKind,
     p_decision: "given",
-    p_text_version: "v1.0",
+    p_text_version: consentTextVersion(),
     p_document_sha256: documentSha256,
     p_typed_name: typedName,
     p_ip: ip,
