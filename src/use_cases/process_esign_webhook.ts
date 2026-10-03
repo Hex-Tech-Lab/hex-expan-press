@@ -46,6 +46,16 @@ export async function processEsignWebhookUseCase(
     // The PDF path is abstracted here, but typically bounded to user and envelope
     const pdfPath = `${userId}/${envelopeId}.pdf`;
 
+    // The version snapshotted at envelope creation. Envelopes created before the snapshot
+    // existed fall back to the registry; a present-but-malformed snapshot also falls back
+    // (rejecting would make Firma retry forever and lose the C3) but is logged loudly.
+    let snapshotTextVersion = consentTextVersion();
+    if (typeof textVersion === "string" && /^v\d+(\.\d+)*$/.test(textVersion)) {
+      snapshotTextVersion = textVersion;
+    } else if (textVersion !== undefined) {
+      console.error(`[esign-webhook] envelope ${envelopeId} has a malformed textVersion snapshot; recording registry version ${snapshotTextVersion}`);
+    }
+
     // 3. Persist the legal consent (C3) using the Database Port
     try {
       await database.submitConsent({
@@ -53,9 +63,7 @@ export async function processEsignWebhookUseCase(
         userId: userId, // Used to construct path or extra validation if needed by adapter
         kind: "C3_revenue_split",
         decision: "given",
-        // The version snapshotted at envelope creation; envelopes created before the
-        // snapshot existed fall back to the current registry version.
-        textVersion: typeof textVersion === "string" && /^v\d+(\.\d+)*$/.test(textVersion) ? textVersion : consentTextVersion(),
+        textVersion: snapshotTextVersion,
         documentSha256: event.documentHash,
         typedName: `Signed via ${validation.providerName || "unknown"}`,
         ip: req.ip,
