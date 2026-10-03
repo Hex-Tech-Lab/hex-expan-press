@@ -1,0 +1,21 @@
+payments/src/ledger.ts
+  s_eb225b08d1f1a7::t_c82fdf376d2ccf 213
+web/app/creator/consents/consent-cards.tsx
+  s_eb225b08d1f1a7::t_e81435f2058f36 27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "eba1ddc0b3e1c71c3727bc814b91693c85be1223",
+  "prompts": {},
+  "sessions": {
+    "s_eb225b08d1f1a7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d3ff8afc-51a4-4bea-8e88-db3aea8d3b3b",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
