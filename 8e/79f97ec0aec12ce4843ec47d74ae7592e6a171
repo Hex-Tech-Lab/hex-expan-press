@@ -1,0 +1,43 @@
+payments/src/settings_registry.ts
+  s_a3cc8bcb62ad08::t_84c89c91107858 261-262
+payments/bake_checkout.ts
+  s_eb225b08d1f1a7::t_8cf86d068515ae 469,475,477
+payments/src/ledger.ts
+  s_eb225b08d1f1a7::t_ac2b86153e30b7 195,211,213,227,241-242,257
+payments/test/bake_checkout_flow.test.ts
+  s_eb225b08d1f1a7::t_43e65787f076d9 415-421
+payments/test/settings_admin.test.ts
+  s_eb225b08d1f1a7::t_02f2a356b6e268 39-48
+src/use_cases/billing/process_billing_webhook.ts
+  s_eb225b08d1f1a7::t_b600c1d35a1eb1 101,179
+supabase/migrations/20261004000100_orders_adjustment_id_per_event.sql
+  s_eb225b08d1f1a7::t_d1038977b9cd81 1-17
+web/app/api/billing/webhook/__tests__/audit-503.test.ts
+  s_eb225b08d1f1a7::t_9c37e3bb23ce96 55-66
+web/app/api/billing/webhook/route.ts
+  s_eb225b08d1f1a7::t_5bad062f925135 7,33-44,96,116
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "8e79f97ec0aec12ce4843ec47d74ae7592e6a171",
+  "prompts": {},
+  "sessions": {
+    "s_a3cc8bcb62ad08": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_efe0325cdffext6f4o0pRjxOvV",
+        "model": "@preset/glm-53-flash-on-cheap"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_eb225b08d1f1a7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d3ff8afc-51a4-4bea-8e88-db3aea8d3b3b",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
