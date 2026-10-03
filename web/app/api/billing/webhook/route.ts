@@ -7,6 +7,28 @@ import { fungiesProvider } from "../../../../../payments/src/providers/fungies";
 
 export const runtime = "nodejs";
 
+/**
+ * Best-effort audit trail for 503 retry responses (event WEBHOOK_503_RETRYING).
+ * An insert failure must NEVER change the response — the 503 already tells the
+ * provider to retry; losing an audit row is strictly better than corrupting the
+ * retry contract. Uses the service-role key server-side only (audit_log has RLS
+ * on with no client policies).
+ */
+async function record503Audit(details: { provider?: string; sale_id?: string; reason: string }): Promise<void> {
+  try {
+    const url = process.env.SUPABASE_URL;
+    const key = process.env.SUPABASE_SECRET_KEY;
+    if (!url || !key) return; // unconfigured Supabase: nothing durable to write
+    const { createClient } = await import("@supabase/supabase-js");
+    const supabase = createClient(url, key);
+    const row: Record<string, unknown> = { event: "WEBHOOK_503_RETRYING", details };
+    const { error } = await supabase.from("audit_log").insert(row);
+    if (error) console.error("[billing-webhook] 503 audit insert failed:", error.message);
+  } catch (err) {
+    console.error("[billing-webhook] 503 audit insert exception:", err);
+  }
+}
+
 // Webhooks are small JSON bodies (KBs) — cap buffering at 1 MiB (the Wave 4
 // contract carried over from the shim era) so a flood of oversized POSTs
 // cannot create memory pressure.
@@ -58,6 +80,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // persisted yet — never 200 here (the holder may still fail). 503 +
     // Retry-After makes the provider redeliver.
     if (err instanceof Error && err.name === "WebhookInFlightError") {
+      await record503Audit({ ...auditContext(headers, body), reason: "idempotency_lock_in_flight" });
       return NextResponse.json(
         { ok: false, error: "In flight — retry" },
         { status: 503, headers: { "Retry-After": "30" } },
@@ -75,6 +98,27 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const httpStatus = typeof rawStatus === "number" && rawStatus >= 400 && rawStatus < 600 ? rawStatus : undefined;
     const status = isValidationErr && httpStatus === undefined ? 400 : httpStatus ?? (isValidationErr ? 400 : 500);
     const error = status === 401 ? "Unauthorized" : status === 503 ? "Temporarily unavailable — retry" : status === 500 ? "Internal Server Error" : "Bad Request";
+    if (status === 503) {
+      // Error name only: messages can carry buyer data (e.g. an email lookup failure).
+      await record503Audit({ ...auditContext(headers, body), reason: err instanceof Error ? err.name : "unknown" });
+    }
     return NextResponse.json({ ok: false, error }, { status });
+  }
+}
+
+/** Best-effort provider/sale for audit context — parsed defensively; a
+ *  malformed body must never break the 503 response itself. */
+function auditContext(headers: Record<string, string | string[] | undefined>, body: string): { provider?: string; sale_id?: string } {
+  const provider =
+    headers["paddle-signature"] !== undefined ? "paddle"
+    : headers["webhook-signature"] !== undefined ? "polar"
+    : headers["x-fngs-signature"] !== undefined ? "fungies"
+    : undefined;
+  try {
+    const parsed = JSON.parse(body) as { data?: { id?: unknown; transaction_id?: unknown } };
+    const saleId = typeof parsed?.data?.transaction_id === "string" ? parsed.data.transaction_id : typeof parsed?.data?.id === "string" ? parsed.data.id : undefined;
+    return { provider, sale_id: saleId };
+  } catch {
+    return { provider };
   }
 }

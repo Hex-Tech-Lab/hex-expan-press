@@ -7,7 +7,7 @@
  * ADR: ADR-0049, ADR-0050
  */
 import { PaymentProviderPort, SaleCompletedEvent, RefundIssuedEvent, RefundReversedEvent } from "../../domain/payments/payments.port.ts";
-import { appendSale, appendRefund, appendRefundReversal, findSaleAsync, findRefundAsync, findRefundReversalAsync, flagRefundForManualReview } from "../../../payments/src/ledger.ts";
+import { appendSale, appendRefund, appendRefundReversal, findSaleAsync, findRefundAsync, findRefundReversalAsync, findByProviderAdjustmentIdAsync, flagRefundForManualReview, isAdjustmentIdUniqueViolation } from "../../../payments/src/ledger.ts";
 import { computeSplit } from "../../../payments/src/split.ts";
 import { effectiveCreatorSplitPct } from "../../../payments/src/terms.ts";
 import { loadProductIndex, withIdempotencyLock, WebhookInFlightError } from "../../../payments/src/webhook_core.ts";
@@ -89,12 +89,20 @@ export async function processBillingWebhookUseCase(
       `lock:refund:${refundEvent.providerName}:${refundEvent.saleId}`,
       // Confirm a contended refund only while the sale is still refunded: once a reversal exists, an
       // existing refund row can't prove THIS (new) chargeback was handled, so it retries (503).
-      // Known gap (documented in PR #66): a new chargeback contending with an IN-FLIGHT reversal of
-      // the same sale is confirmed. Root fix = persist the provider adjustment id and dedupe on it.
+      // A stored provider_adjustment_id closes that gap: a replay of the SAME adjustment is
+      // confirmed via the adjustment-id dedupe below.
       // ...and only when THIS delivery would itself pass the in-lock checks (verifiable amount equal to
       // the sale, same currency); a partial/over/foreign-currency refund retries and gets flagged inside.
       async () => {
         if (refundEvent.amountUnverifiable === true) return false; // absent totalCents = full reversal (same as in-lock)
+        // Replay of the same adjustment: the existing refund/refund_reversal row proves it was handled.
+        if (refundEvent.providerAdjustmentId) {
+          try {
+            if (await findByProviderAdjustmentIdAsync(refundEvent.providerName, refundEvent.providerAdjustmentId)) return true;
+          } catch {
+            return false; // fail closed: lookup errors make the provider retry
+          }
+        }
         const [sale, refund, reversal] = await Promise.all([
           findSaleAsync(refundEvent.providerName, refundEvent.saleId),
           findRefundAsync(refundEvent.providerName, refundEvent.saleId),
@@ -164,6 +172,18 @@ export async function processBillingWebhookUseCase(
         // must be flagged, not acknowledged as a duplicate of the first.
         const existingRefund = await findRefundAsync(refundEvent.providerName, refundEvent.saleId);
         if (existingRefund) {
+          // Replay of the SAME adjustment (chargeback .created/.updated share one id) is a
+          // no-op success — including after a won dispute recorded a reversal.
+          if (refundEvent.providerAdjustmentId) {
+            try {
+              if (await findByProviderAdjustmentIdAsync(refundEvent.providerName, refundEvent.providerAdjustmentId)) {
+                return { status: 200, payload: { ok: true, recorded: false, reason: "duplicate", dedupe: "provider_adjustment_id", event_type: "refund", sale_id: refundEvent.saleId } };
+              }
+            } catch (err) {
+              // Fail closed: a broken dedupe lookup must not swallow a live manual-review flag below.
+              console.error("[billing-webhook] adjustment-id dedupe lookup failed:", err);
+            }
+          }
           // A reversal can only exist once a refund does. After a won dispute the ledger can't hold a
           // second refund row (unique provider+sale_id+event_type), and without a stored refund_id a
           // replay of the original chargeback can't be told apart from a new one, so flag either way.
@@ -184,11 +204,22 @@ export async function processBillingWebhookUseCase(
           return { status: 200, payload: { ok: true, recorded: false, reason: "duplicate", event_type: "refund", sale_id: refundEvent.saleId } };
         }
         // appendRefund refuses (throws → 500, provider retries) when the sale is not recorded yet.
-        await appendRefund({
-          provider: refundEvent.providerName,
-          sale_id: refundEvent.saleId,
-          ts: refundEvent.occurredAt
-        });
+        try {
+          await appendRefund({
+            provider: refundEvent.providerName,
+            sale_id: refundEvent.saleId,
+            ts: refundEvent.occurredAt,
+            provider_adjustment_id: refundEvent.providerAdjustmentId
+          });
+        } catch (err) {
+          // A 23505 on orders_provider_adjustment_id_uniq means the same adjustment was
+          // persisted by a concurrent delivery — that IS a replay: answer 200. Any other
+          // unique violation (or any other error) propagates unchanged.
+          if (refundEvent.providerAdjustmentId && isAdjustmentIdUniqueViolation(err)) {
+            return { status: 200, payload: { ok: true, recorded: false, reason: "duplicate", dedupe: "provider_adjustment_id", event_type: "refund", sale_id: refundEvent.saleId } };
+          }
+          throw err;
+        }
         return { status: 200, payload: { ok: true, recorded: true, event_type: "refund", sale_id: refundEvent.saleId } };
       },
     );
@@ -272,11 +303,20 @@ export async function processBillingWebhookUseCase(
         if (existingReversal) {
           return { status: 200, payload: { ok: true, recorded: false, reason: "duplicate", event_type: "refund_reversal", sale_id: revEvent.saleId } };
         }
-        await appendRefundReversal({
-          provider: revEvent.providerName,
-          sale_id: revEvent.saleId,
-          ts: revEvent.occurredAt
-        });
+        try {
+          await appendRefundReversal({
+            provider: revEvent.providerName,
+            sale_id: revEvent.saleId,
+            ts: revEvent.occurredAt,
+            provider_adjustment_id: revEvent.providerAdjustmentId
+          });
+        } catch (err) {
+          // Same rule as refunds: only a violation of orders_provider_adjustment_id_uniq is a replay.
+          if (revEvent.providerAdjustmentId && isAdjustmentIdUniqueViolation(err)) {
+            return { status: 200, payload: { ok: true, recorded: false, reason: "duplicate", dedupe: "provider_adjustment_id", event_type: "refund_reversal", sale_id: revEvent.saleId } };
+          }
+          throw err;
+        }
         return { status: 200, payload: { ok: true, recorded: true, event_type: "refund_reversal", sale_id: revEvent.saleId } };
       },
     );
