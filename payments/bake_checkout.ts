@@ -247,13 +247,11 @@ export const loadProductConfig = (assoc: ProductAssoc | undefined) => {
   } & Facts;
   // Title SSOT (2026-10-01): when config has "book", the bake must ALWAYS take
   // the title, subtitle, author from the registry via loadBookIdentity and ignore any inline cfg.title.
+  cfg.title = resolveProductTitle(cfg, path);
   if (cfg.book && cfg.book.trim() !== "") {
     const ident = loadBookIdentity(join(here, "..", cfg.book));
-    cfg.title = ident.title;
     cfg.subtitle = ident.subtitle;
     cfg.author = ident.author;
-  } else {
-    cfg.title = resolveProductTitle(cfg, path);
   }
   return { cfg, source: assoc ? assoc.config_file : "payments/config.duane.json" };
 };
