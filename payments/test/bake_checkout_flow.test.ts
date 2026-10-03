@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
   assertLaunchConsents,
+  bakeFacts,
   ConsentRow,
+  Facts,
   loadProductConfig,
   paddleEnvironment,
   paddleTokenForEnv,
@@ -350,5 +352,71 @@ describe("paddleTokenForEnv", () => {
   it("throws on prefix disagreement (live_ + sandbox, test_ + production)", () => {
     expect(() => paddleTokenForEnv("live_abc", "sandbox")).toThrow(/live_|prefix/);
     expect(() => paddleTokenForEnv("test_abc", "production")).toThrow(/test_|prefix/);
+  });
+});
+
+describe("storefront presentation & facts baking", () => {
+  it("loads title, subtitle, and author from book registry in loadProductConfig", () => {
+    const { cfg } = loadProductConfig(undefined);
+    const book = loadBookIdentity();
+    expect(cfg.title).toBe(book.title);
+    expect(cfg.subtitle).toBe(book.subtitle);
+    expect(cfg.author).toBe(book.author);
+    expect(cfg.price_usd).toBe(39);
+  });
+
+  it("bakes title, subtitle, author, and price into storefront HTML", () => {
+    const rawHtml = [
+      `<!doctype html><html><head>`,
+      `<title>Old Title</title>`,
+      `<meta property="og:title" content="Old Title">`,
+      `<meta name="description" content="A guide. Digital PDF, $19.">`,
+      `</head><body>`,
+      `<h1>Old Title</h1>`,
+      `<p class="byline">A creator-collaboration publication &middot; with <b>Someone Else</b></p>`,
+      `<p class="price">$19 <small>USD &middot; one-time</small></p>`,
+      `</body></html>`,
+    ].join("\n");
+
+    const book = loadBookIdentity();
+    const facts: Facts = {
+      title: book.title,
+      subtitle: book.subtitle,
+      author: book.author,
+      price_usd: 39,
+    };
+
+    const baked = bakeFacts(rawHtml, facts, "site/c/retirearly500k/500k-playbook/index.html");
+    expect(baked).toContain(`<h1>${book.title.replace(/'/g, "&#39;")}</h1>`);
+    expect(baked).toContain(book.subtitle);
+    expect(baked).toContain(`with <b>${book.author}</b>`);
+    expect(baked).toContain(`<p class="price">$39 <small>USD &middot; one-time</small></p>`);
+    expect(baked).toContain(`<title>${book.title.replace(/'/g, "&#39;")}</title>`);
+  });
+
+  it("updates existing subtitle if subtitle paragraph already exists", () => {
+    const rawHtml = [
+      `<h1>Title</h1>`,
+      `<p class="subtitle">Old Subtitle</p>`,
+      `<p class="price">$10</p>`,
+    ].join("\n");
+
+    const facts: Facts = {
+      title: "New Title",
+      subtitle: "New Subtitle",
+      author: "Duane",
+      price_usd: 39,
+    };
+
+    const baked = bakeFacts(rawHtml, facts, "page.html");
+    expect(baked).toContain(`<p class="subtitle">New Subtitle</p>`);
+    expect(baked).not.toContain("Old Subtitle");
+  });
+
+  it("inserts subtitle and author literally (no $-replacement tokens)", () => {
+    const rawHtml = `<h1>T</h1>\n<p class="byline">x &middot; with <b>Old</b></p>\n<p class="price">$10</p>`;
+    const baked = bakeFacts(rawHtml, { title: "T", subtitle: "Retire on $1M & $&", author: "A $1 B", price_usd: 39 }, "page.html");
+    expect(baked).toContain(`<p class="subtitle">Retire on $1M &amp; $&amp;</p>`);
+    expect(baked).toContain(`with <b>A $1 B</b>`);
   });
 });

@@ -1,10 +1,38 @@
 "use client";
 
+import { useFormStatus } from "react-dom";
 import { Icon } from "@iconify/react";
 import { AppleIcon, GoogleIcon } from "./icons";
 import { signInWithGoogleAction, signInWithOtpAction, setMarketingOptInAction } from "./actions";
 
 export type SignInMode = "form" | "sent" | "error";
+
+function GoogleSubmitButton() {
+  const { pending } = useFormStatus();
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      className="mb-3 flex min-h-11 w-full items-center justify-center gap-2.5 rounded-[10px] border border-[#2B2520] bg-[#2B2520] px-5 py-2.5 text-lg font-semibold text-[#FAF5EE] hover:bg-[#3d352d] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-[#E8622C] focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+    >
+      <GoogleIcon />
+      {pending ? "Connecting to Google…" : "Continue with Google"}
+    </button>
+  );
+}
+
+function OtpSubmitButton() {
+  const { pending } = useFormStatus();
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      className="flex-[0_0_auto] rounded-[10px] border border-[#2B2520] bg-[#2B2520] px-[22px] py-2.5 text-lg font-semibold text-[#FAF5EE] hover:bg-[#3d352d] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-[#E8622C] focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+    >
+      {pending ? "Sending…" : "Send link"}
+    </button>
+  );
+}
 
 /**
  * Client surface for the creator sign-in page (Wave 5). Mirrors the legacy
@@ -38,13 +66,7 @@ export default function SignInClient({
       ) : (
         <div className="rounded-[14px] border border-[#EADFD1] bg-[#FFFDF9] px-[26px] pb-[22px] pt-[26px] max-md:px-[18px] max-md:py-[16px]">
           <form action={signInWithGoogleAction}>
-            <button
-              type="submit"
-              className="mb-3 flex min-h-11 w-full items-center justify-center gap-2.5 rounded-[10px] border border-[#2B2520] bg-[#2B2520] px-5 py-2.5 text-lg font-semibold text-[#FAF5EE] hover:bg-[#3d352d] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-[#E8622C] focus-visible:outline-offset-2"
-            >
-              <GoogleIcon />
-              Continue with Google
-            </button>
+            <GoogleSubmitButton />
           </form>
 
           <button
@@ -77,12 +99,7 @@ export default function SignInClient({
                 required
                 className="min-h-11 min-w-0 flex-[1_1_240px] rounded-[10px] border border-[#EADFD1] bg-white px-3.5 py-2.5 text-lg text-[#2B2520] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-[#E8622C] focus-visible:outline-offset-2"
               />
-              <button
-                type="submit"
-                className="flex-[0_0_auto] rounded-[10px] border border-[#2B2520] bg-[#2B2520] px-[22px] py-2.5 text-lg font-semibold text-[#FAF5EE] hover:bg-[#3d352d] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-[#E8622C] focus-visible:outline-offset-2"
-              >
-                Send link
-              </button>
+              <OtpSubmitButton />
             </div>
           </form>
 

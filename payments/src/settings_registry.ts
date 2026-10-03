@@ -49,13 +49,20 @@ export interface GlobalSettings {
     allowed_currencies: string[];
     webhook_tolerance_seconds: number;
     webhook_lock_ttl_seconds: number;
-    http_timeout_ms: number; // Paddle customer-email lookup inside the webhook (must stay short)
+    http_timeout_ms: number; // webhook-internal call budget: Paddle customer-email lookup AND the 503 audit insert (must stay short)
     sync_http_timeout_ms: number; // operator CLI (sync_book_identity) calls to Supabase/Paddle
     review_queue_page_size: number; // listManualReviewRefunds default page/limit
     paddle: { api_base: { production: string; sandbox: string }; js_cdn_url: string };
     polar: { sandbox_checkout_fallback_url: string };
   };
   landing: { fallbacks: { title: string; creator: string }; disclaimers: string[] };
+  /** Admin API allowlist + pagination (admin audit-log route). */
+  admin: {
+    /** Supabase auth user ids permitted to call admin API routes. Empty => fail closed (403 for everyone). */
+    admin_user_ids: string[];
+    /** Default page size for admin audit-log listing. */
+    audit_log_page_size: number;
+  };
   /** Transactional email (Resend). `from` must be on `sending_domain` (DKIM-verified in Resend). */
   email: {
     from: string;
@@ -64,6 +71,7 @@ export interface GlobalSettings {
     retryable_error_names: string[];
   };
   portal: { jwt_clock_skew_retry_delay_ms: number };
+  consent: { text_version: string };
 }
 
 export const DEFAULT_GLOBAL: GlobalSettings = {
@@ -118,7 +126,15 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     ],
   },
   portal: { jwt_clock_skew_retry_delay_ms: 350 },
+  admin: { admin_user_ids: [], audit_log_page_size: 50 },
+  consent: { text_version: "v1.1" },
 };
+
+// Bounds for the admin tunables (feature code must never hard-code them).
+export const ADMIN_LIMITS = {
+  audit_log_page_size: { min: 1, max: 500 },
+  admin_user_ids: { max: 100 }, // sanity cap on allowlist size
+} as const;
 
 // Named bounds for the payments tunables (lives in the registry module by design —
 // feature code must never hard-code them). sync_http_timeout max 120000 keeps far
@@ -242,7 +258,8 @@ function loadGlobal(): GlobalSettings {
   const raw = readRegistryFile("global.json");
   if (!raw) {
     warnFallback("global.json", "missing/unreadable");
-    return DEFAULT_GLOBAL;
+    // Production deploys no global.json: env overrides (ADMIN_USER_IDS) must still apply.
+    return { ...DEFAULT_GLOBAL, admin: loadAdminSection(undefined) };
   }
   const g = raw as Partial<GlobalSettings> & Record<string, unknown>;
   return {
@@ -257,10 +274,52 @@ function loadGlobal(): GlobalSettings {
     landing: { ...DEFAULT_GLOBAL.landing, ...(g.landing ?? {}) },
     email: loadEmailSection(g.email as Record<string, unknown> | undefined),
     portal: { ...DEFAULT_GLOBAL.portal, ...(g.portal ?? {}) },
+    admin: loadAdminSection(g.admin as Record<string, unknown> | undefined),
+    consent: { ...DEFAULT_GLOBAL.consent, ...(g.consent ?? {}) },
   };
 }
 
+export function consentTextVersion(): string {
+  const v = GLOBAL.consent?.text_version;
+  return typeof v === "string" && v.trim().length > 0 ? v.trim() : DEFAULT_GLOBAL.consent.text_version;
+}
+
 export const PORTAL_JWT_SKEW_LIMITS = { min: 250, max: 500 } as const;
+
+/** admin section: shallow merge + validation. admin_user_ids must be an array of
+ *  non-empty UUID-ish strings (shape-checked: hex/dash), bounded by ADMIN_LIMITS;
+ *  audit_log_page_size clamps into its bounds. Env overrides:
+ *  ADMIN_USER_IDS (comma-separated), ADMIN_AUDIT_LOG_PAGE_SIZE. */
+export function loadAdminSection(raw: Record<string, unknown> | undefined): GlobalSettings["admin"] {
+  const d = DEFAULT_GLOBAL.admin;
+  const r = (raw ?? {}) as Partial<GlobalSettings["admin"]> & Record<string, unknown>;
+  const fallbacks: string[] = [];
+  let userIds = d.admin_user_ids;
+  // Env wins over global.json (production deploys no global.json; the env is the operator's override).
+  // An empty / commas-only ADMIN_USER_IDS counts as unset, so it can't silently blank a file allowlist.
+  const envIds = process.env.ADMIN_USER_IDS?.split(",").map((s) => s.trim()).filter((s) => s !== "");
+  const rawIds = envIds && envIds.length > 0 ? envIds : r.admin_user_ids;
+  if (rawIds !== undefined) {
+    if (
+      Array.isArray(rawIds)
+      && rawIds.length <= ADMIN_LIMITS.admin_user_ids.max
+      && rawIds.every((id) => typeof id === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))
+    ) {
+      userIds = rawIds.map((id) => id.toLowerCase()); // Supabase auth ids are lowercase
+    } else {
+      fallbacks.push("admin_user_ids");
+    }
+  }
+  let pageSize = d.audit_log_page_size;
+  const rawSize = process.env.ADMIN_AUDIT_LOG_PAGE_SIZE !== undefined ? Number(process.env.ADMIN_AUDIT_LOG_PAGE_SIZE) : r.audit_log_page_size;
+  if (intInRange(rawSize, ADMIN_LIMITS.audit_log_page_size.min, ADMIN_LIMITS.audit_log_page_size.max)) {
+    pageSize = rawSize;
+  } else if (rawSize !== undefined) {
+    fallbacks.push("audit_log_page_size");
+  }
+  if (fallbacks.length > 0) warnFallback("global.json", `invalid admin values for ${fallbacks.join(", ")}`);
+  return { admin_user_ids: userIds, audit_log_page_size: pageSize };
+}
 
 /** Clamp a raw jwt_clock_skew_retry_delay_ms into [250,500]; non-finite/missing -> 350. */
 export function clampJwtSkewDelay(v: unknown): number {

@@ -55,6 +55,7 @@ const supa = vi.hoisted(() => ({
   lookupResult: { data: null as unknown, error: null as unknown },
   auditInserts: [] as Record<string, unknown>[],
   auditError: null as unknown,
+  upsertError: null as unknown,
 }));
 vi.mock("@supabase/supabase-js", () => ({
   createClient: () => ({
@@ -67,8 +68,8 @@ vi.mock("@supabase/supabase-js", () => ({
           },
         };
       }
-      const eq = () => ({ eq, maybeSingle: async () => supa.lookupResult });
-      return { select: () => ({ eq }), upsert: async () => ({ error: null }) };
+      const eq = (): object => ({ eq, in: eq, maybeSingle: async () => supa.lookupResult });
+      return { select: () => ({ eq }), upsert: async () => ({ error: supa.upsertError }) };
     },
   }),
 }));
@@ -813,5 +814,144 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
 
     const rows = readFileSync(salesFilePath, "utf8").split(/\r?\n/).filter(Boolean);
     expect(rows).toHaveLength(2);
+  });
+
+  // ------------------------------------------------------------------
+  // provider_adjustment_id dedupe (chargeback replay hardening)
+  // ------------------------------------------------------------------
+
+  const CB_SALE = { ts: "2026-09-27T00:00:00.000Z", sale_id: "sale_adj_dedupe", provider: "paddle", product_id: "p1", amount_usd: 39, creator_id: "c1", creator_split_pct: 50, creator_split_usd: 19.5, our_split_usd: 19.5, currency: "USD" };
+  const cbRefund = (adjustmentId: string, ts = "2026-09-28T00:00:00.000Z"): RefundIssuedEvent => ({
+    eventType: "refund_issued", providerName: "paddle", saleId: CB_SALE.sale_id,
+    refundId: adjustmentId, providerAdjustmentId: adjustmentId,
+    totalCents: 3900, currency: "USD", occurredAt: ts, rawPayload: null,
+  });
+
+  it("adjustment-id dedupe: chargeback -> refund row stores provider_adjustment_id; replayed chargeback -> 200, no new row", async () => {
+    process.env.SUPABASE_URL = "https://example.supabase.co";
+    process.env.SUPABASE_SECRET_KEY = "mock-secret-key";
+    setnx.mockResolvedValue(1);
+    await appendSale({ ...CB_SALE }, salesFilePath);
+
+    await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_abc"))]);
+    let rows = readFileSync(salesFilePath, "utf8").split(/\r?\n/).filter(Boolean);
+    expect(rows).toHaveLength(2);
+    expect(JSON.parse(rows[1]!)).toMatchObject({ event_type: "refund", provider_adjustment_id: "adj_abc" });
+
+    // Replay: same adjustment id, no lock contention, must not write a new row.
+    await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_abc"))]);
+    rows = readFileSync(salesFilePath, "utf8").split(/\r?\n/).filter(Boolean);
+    expect(rows).toHaveLength(2); // still sale + one refund
+  });
+
+  it("contended replay with a recorded adjustment id but a mismatched amount is NOT confirmed (retries, like in-lock)", async () => {
+    setnx.mockResolvedValue(1);
+    await appendSale({ ...CB_SALE }, salesFilePath);
+    await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_same"))]);
+
+    setnx.mockResolvedValue(0); // another delivery holds the refund lock
+    const mismatched: RefundIssuedEvent = { ...cbRefund("adj_same"), totalCents: 1000 };
+    await expect(processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(mismatched)])).rejects.toMatchObject({
+      name: "WebhookInFlightError",
+    });
+    // ...while the matching replay under contention is still confirmed.
+    await expect(processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_same"))])).resolves.toBeUndefined();
+  });
+
+  it("adjustment-id lookup failure with a refund already recorded -> throws (provider retries), no manual-review flag", async () => {
+    process.env.SUPABASE_URL = "https://example.supabase.co";
+    process.env.SUPABASE_SECRET_KEY = "mock-secret-key";
+    setnx.mockResolvedValue(1);
+    await appendSale({ ...CB_SALE }, salesFilePath);
+    await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_first"))]);
+
+    // A different adjustment id is not in the local file, so the lookup reaches Supabase, which is down.
+    supa.lookupResult = { data: null, error: { message: "db down" } };
+    supa.auditInserts = [];
+    try {
+      await expect(processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_second"))])).rejects.toThrow(/adjustment-id lookup failed/);
+      expect(supa.auditInserts).toEqual([]);
+    } finally {
+      supa.lookupResult = { data: null, error: null };
+    }
+  });
+
+  it("won dispute (chargeback_reverse) -> refund_reversal row with adjustment id, net restored; replayed chargeback after the reversal -> 200 duplicate, no manual-review flag", async () => {
+    process.env.SUPABASE_URL = "https://example.supabase.co";
+    process.env.SUPABASE_SECRET_KEY = "mock-secret-key";
+    setnx.mockResolvedValue(1);
+    await appendSale({ ...CB_SALE }, salesFilePath);
+
+    await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_win"))]);
+    const reversal = {
+      eventType: "refund_reversed", providerName: "paddle", saleId: CB_SALE.sale_id,
+      refundId: "adj_win", providerAdjustmentId: "adj_win",
+      totalCents: 3900, currency: "USD", occurredAt: "2026-09-29T00:00:00.000Z", rawPayload: null,
+    };
+    await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(reversal as never)]);
+
+    const rows = readFileSync(salesFilePath, "utf8").split(/\r?\n/).filter(Boolean).map((l) => JSON.parse(l) as Record<string, unknown>);
+    expect(rows).toHaveLength(3);
+    expect(rows[2]).toMatchObject({ event_type: "refund_reversal", provider_adjustment_id: "adj_win", our_split_usd: 19.5, creator_split_usd: 19.5 });
+
+    // Replaying the original chargeback after the won dispute: 200 duplicate via
+    // the adjustment id — NOT the refund_after_reversal manual-review flag.
+    supa.auditInserts = [];
+    await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_win", "2026-09-30T00:00:00.000Z"))]);
+    expect(supa.auditInserts).toHaveLength(0); // no manual-review flag
+    const after = readFileSync(salesFilePath, "utf8").split(/\r?\n/).filter(Boolean);
+    expect(after).toHaveLength(3);
+  });
+
+  it("adjustment.created pending (ignored) then adjustment.updated approved records ONCE; a later .updated replay does not duplicate", async () => {
+    process.env.SUPABASE_URL = "https://example.supabase.co";
+    process.env.SUPABASE_SECRET_KEY = "mock-secret-key";
+    setnx.mockResolvedValue(1);
+    await appendSale({ ...CB_SALE }, salesFilePath);
+
+    // .created with status=pending is ignored by the adapter shape used in the use
+    // case tests — simulate the pending delivery by never delivering it, then the
+    // .updated approved event records the refund.
+    await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_once"))]);
+    // .updated re-delivery (same adjustment id, later ts) — duplicate, no write.
+    await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_once", "2026-09-29T00:00:00.000Z"))]);
+
+    const rows = readFileSync(salesFilePath, "utf8").split(/\r?\n/).filter(Boolean);
+    expect(rows).toHaveLength(2); // sale + exactly one refund
+  });
+
+  it("23505 on orders_provider_adjustment_id_uniq during insert is a replay -> 200, no throw", async () => {
+    process.env.SUPABASE_URL = "https://example.supabase.co";
+    process.env.SUPABASE_SECRET_KEY = "mock-secret-key";
+    setnx.mockResolvedValue(1);
+    await appendSale({ ...CB_SALE }, salesFilePath);
+
+    // A concurrent delivery won the unique index: the REAL appendRefund hits Supabase's
+    // 23505 (PostgREST error shape) and must surface it as a replay, not a 500.
+    supa.upsertError = { code: "23505", message: 'duplicate key value violates unique constraint "orders_provider_adjustment_id_uniq"' };
+    try {
+      // Resolves (route answers 200) instead of throwing (route answers 500).
+      await expect(processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_race"))])).resolves.toBeUndefined();
+    } finally {
+      supa.upsertError = null;
+    }
+    const rows = readFileSync(salesFilePath, "utf8").split(/\r?\n/).filter(Boolean);
+    expect(rows).toHaveLength(1); // durable write failed first, so no local refund row
+  });
+
+  it("23505 on an UNRELATED constraint is NOT a replay -> error propagates (500/retry)", async () => {
+    process.env.SUPABASE_URL = "https://example.supabase.co";
+    process.env.SUPABASE_SECRET_KEY = "mock-secret-key";
+    setnx.mockResolvedValue(1);
+    await appendSale({ ...CB_SALE }, salesFilePath);
+
+    supa.upsertError = { code: "23505", message: 'duplicate key value violates unique constraint "orders_provider_sale_id_event_type_key"' };
+    try {
+      await expect(
+        processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_other"))]),
+      ).rejects.toThrow(/orders_provider_sale_id_event_type_key/);
+    } finally {
+      supa.upsertError = null;
+    }
   });
 });
