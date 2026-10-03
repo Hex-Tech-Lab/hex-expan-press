@@ -8,23 +8,15 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-function formatAmount(details: Record<string, unknown> | null | undefined): string {
-  if (!details) return "—";
-  const currency = String(details.currency ?? details.currency_code ?? "").toUpperCase();
-  const amount =
-    details.amount_usd !== undefined
-      ? details.amount_usd
-      : details.amount !== undefined
-        ? details.amount
-        : details.total_cents !== undefined
-          ? (Number(details.total_cents) / 100).toFixed(2)
-          : null;
-
-  if (amount === null || amount === undefined || amount === "") {
-    return currency ? currency : "—";
-  }
-  const num = typeof amount === "number" ? amount.toFixed(2) : String(amount);
-  return currency ? `${currency} ${num}` : `$${num}`;
+/** Manual-review rows carry refund_cents / sale_cents (ManualReviewRefundSchema). No currency
+ *  symbol is guessed: an unknown currency is shown as a bare amount, never as "$". */
+function formatAmount(details: Record<string, unknown>): string {
+  const currency = typeof details.currency === "string" ? `${details.currency.toUpperCase()} ` : "";
+  const money = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? `${currency}${(v / 100).toFixed(2)}` : null);
+  const refund = money(details.refund_cents);
+  const sale = money(details.sale_cents);
+  if (refund && sale) return `${refund} of ${sale}`;
+  return refund ?? sale ?? "—";
 }
 
 function formatDate(iso: string): string {
@@ -159,7 +151,7 @@ export default async function AdminDashboardPage({
           <div className="mt-3">
             <Link
               href={pageHref(currentPage)}
-              className="inline-flex min-h-10 items-center rounded-md bg-[#B3401E] px-4 text-[13px] font-semibold text-[#FAF7F2] hover:bg-[#963417]"
+              className="inline-flex min-h-11 items-center rounded-md bg-[#B3401E] px-4 text-[13px] font-semibold text-[#FAF7F2] hover:bg-[#963417]"
             >
               Retry
             </Link>
@@ -190,7 +182,7 @@ export default async function AdminDashboardPage({
                     <th scope="col" className="px-4 py-3.5 whitespace-nowrap">Reason</th>
                     <th scope="col" className="px-4 py-3.5 whitespace-nowrap">Provider</th>
                     <th scope="col" className="px-4 py-3.5 whitespace-nowrap">Sale ID</th>
-                    <th scope="col" className="px-4 py-3.5 whitespace-nowrap">Amount / Currency</th>
+                    <th scope="col" className="px-4 py-3.5 whitespace-nowrap">Refund of sale</th>
                     <th scope="col" className="px-4 py-3.5 whitespace-nowrap">Details</th>
                   </tr>
                 </thead>
@@ -224,12 +216,12 @@ export default async function AdminDashboardPage({
                         <td className="px-4 py-3 font-mono text-[14px] font-semibold text-[#296E50] whitespace-nowrap">
                           {amountFormatted}
                         </td>
-                        <td className="px-4 py-3 text-[12px] text-[#6E5F53] max-w-[200px] truncate">
+                        <td className="px-4 py-3 text-[12px] text-[#6E5F53] align-top">
                           <details className="cursor-pointer">
                             <summary className="font-semibold text-[#B3401E] hover:underline focus-visible:ring-1 focus-visible:ring-[#B3401E]">
                               View Raw
                             </summary>
-                            <pre className="mt-2 max-h-40 overflow-auto rounded bg-[#F3ECDF] p-2 text-[11px] text-[#2B2520]">
+                            <pre className="mt-2 max-h-40 max-w-[420px] overflow-auto rounded bg-[#F3ECDF] p-2 text-[11px] text-[#2B2520]">
                               {JSON.stringify(details, null, 2)}
                             </pre>
                           </details>
