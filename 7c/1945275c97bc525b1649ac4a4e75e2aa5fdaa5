@@ -1,0 +1,35 @@
+payments/src/settings_registry.ts
+  s_c2a25f37023b9d::t_4b23e42a9f61d0 52
+src/use_cases/billing/__tests__/process_billing_webhook.test.ts
+  s_c2a25f37023b9d::t_b32645ef49e392 847-860
+web/app/api/billing/webhook/__tests__/audit-503.test.ts
+  s_c2a25f37023b9d::t_808120df1bb3c5 9,20-26,40,70
+web/app/api/billing/webhook/route.ts
+  s_c2a25f37023b9d::t_55a400232bb3b0 18,25,32-34,36,38-40,42
+src/use_cases/billing/process_billing_webhook.ts
+  s_eb225b08d1f1a7::t_5aa3974dc95fc8 90-94,102,105-113
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "7c1945275c97bc525b1649ac4a4e75e2aa5fdaa5",
+  "prompts": {},
+  "sessions": {
+    "s_c2a25f37023b9d": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_efd700c49ffeodP77J9aUbyptK",
+        "model": "@preset/glm-53-flash-on-cheap"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_eb225b08d1f1a7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d3ff8afc-51a4-4bea-8e88-db3aea8d3b3b",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
