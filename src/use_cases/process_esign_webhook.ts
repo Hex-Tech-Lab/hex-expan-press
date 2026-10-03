@@ -1,6 +1,7 @@
 import { SettingsRegistryPort } from "../domain/settings/settings.port.ts";
 import { createEsignAdapter } from "../adapters/esign/esign.factory.ts";
 import { ConsentDatabasePort } from "../domain/governance/consent.port.ts";
+import { consentTextVersion } from "../../payments/src/settings_registry.ts";
 
 export interface ProcessEsignWebhookRequest {
   body: string;
@@ -52,7 +53,7 @@ export async function processEsignWebhookUseCase(
         userId: userId, // Used to construct path or extra validation if needed by adapter
         kind: "C3_revenue_split",
         decision: "given",
-        textVersion: "v1.0", // Can be dynamic based on settings in future
+        textVersion: consentTextVersion(),
         documentSha256: event.documentHash,
         typedName: `Signed via ${validation.providerName || "unknown"}`,
         ip: req.ip,
