@@ -12,6 +12,7 @@
  * neutral theme tokens injected by the dashboard layout.
  */
 import { useEffect, useState } from "react";
+import { useFormStatus } from "react-dom";
 import { AnimatePresence, m, useReducedMotion } from "framer-motion";
 import { Icon, addCollection } from "@iconify/react";
 import JourneyDots from "../../../src/components/journey/journey-dots";
@@ -23,6 +24,20 @@ const EASE = [0.16, 1, 0.3, 1] as const;
    element animates boxShadow inline (TiltCard), the inline value must include
    the inset pair or the bevel disappears during the animation. */
 const WOBBLE = { type: "spring" as const, stiffness: 320, damping: 12 };
+
+function Step3SubmitButton({ children }: { children: React.ReactNode }) {
+  const { pending } = useFormStatus();
+  return (
+    <m.button
+      type="submit"
+      disabled={pending}
+      whileTap={{ scale: 1.01, transition: WOBBLE }}
+      className="block w-full text-left disabled:cursor-not-allowed disabled:opacity-60"
+    >
+      {children}
+    </m.button>
+  );
+}
 
 export interface DashboardClientProps {
   name: string;
@@ -68,7 +83,6 @@ export default function DashboardClient({
   actionError,
 }: DashboardClientProps) {
   const [iconsReady, setIconsReady] = useState(false);
-  const [step3Busy, setStep3Busy] = useState(false);
   const reduced = useReducedMotion();
 
   // Lucide set loads in an async chunk — keeps ~1MB of icon data out of the
@@ -248,21 +262,13 @@ export default function DashboardClient({
               <m.form
                 key={step.num}
                 action={startPublisherAgreementAction}
-                onSubmit={() => setStep3Busy(true)}
                 initial={{ opacity: 0, y: 40, scale: 0.97 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.5, ease: EASE, delay: 0.34 + i * 0.09 }}
                 className="neu-card mb-3.5 block rounded-xl p-(--space-5) transition-shadow hover:shadow-[0_4px_12px_rgba(43,37,32,0.05)]"
               >
-                <m.button
-                  type="submit"
-                  disabled={step3Busy}
-                  whileTap={{ scale: 1.01, transition: WOBBLE }}
-                  className="block w-full text-left disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {body}
-                </m.button>
+                <Step3SubmitButton>{body}</Step3SubmitButton>
                 <a
                   href={step.href}
                   className="mt-2 inline-flex items-center gap-1 text-[length:var(--font-size-sm)] text-[#6E5F53] no-underline hover:underline"

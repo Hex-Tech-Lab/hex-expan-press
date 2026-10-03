@@ -7,7 +7,8 @@
  * creates the Firma envelope and redirects to the signing flow). The
  * "Back to Dashboard" nav is a Next <Link> with a soft Framer Motion hover.
  */
-import { useActionState, useState } from "react";
+import { useActionState } from "react";
+import { useFormStatus } from "react-dom";
 import Link from "next/link";
 import { AnimatePresence, m } from "framer-motion";
 import { signConsentAction, type ConsentFormState } from "./actions";
@@ -23,6 +24,50 @@ export interface ConsentCardsProps {
   hasC3: boolean;
 }
 
+export function LegalIncorporationClause() {
+  return (
+    <>
+      This agreement incorporates by reference the ExpanPress Terms of Service and Privacy Policy available at{" "}
+      <Link href="/terms.html" className="underline text-[#296E50] hover:text-[#2B2520]">
+        expanpress.com/terms.html
+      </Link>{" "}
+      and{" "}
+      <Link href="/privacy.html" className="underline text-[#296E50] hover:text-[#2B2520]">
+        expanpress.com/privacy.html
+      </Link>
+      .
+    </>
+  );
+}
+
+function ConsentSubmitButton({ label }: { label: string }) {
+  const { pending } = useFormStatus();
+  return (
+    <m.button
+      type="submit"
+      disabled={pending}
+      whileTap={{ scale: 1.015, transition: { type: "spring", stiffness: 320, damping: 12 } }}
+      className="mt-3 min-h-11 rounded-[10px] bg-[#2B2520] px-6 text-[length:var(--font-size-sm)] font-semibold text-[#FAF7F2] transition-colors hover:bg-[#3d352d] disabled:cursor-not-allowed disabled:opacity-50"
+    >
+      {pending ? "Recording…" : `Sign ${label}`}
+    </m.button>
+  );
+}
+
+function C3SubmitButton() {
+  const { pending } = useFormStatus();
+  return (
+    <m.button
+      type="submit"
+      disabled={pending}
+      whileTap={{ scale: 1.015, transition: { type: "spring", stiffness: 320, damping: 12 } }}
+      className="min-h-11 rounded-[10px] bg-[#2B2520] px-6 text-[length:var(--font-size-sm)] font-semibold text-[#FAF7F2] transition-colors hover:bg-[#3d352d] disabled:cursor-not-allowed disabled:opacity-60"
+    >
+      {pending ? "Opening agreement…" : "Open the agreement →"}
+    </m.button>
+  );
+}
+
 function ConsentFormCard({
   kindValue,
   label,
@@ -31,7 +76,6 @@ function ConsentFormCard({
   done,
   state,
   formAction,
-  pending,
 }: {
   kindValue: string;
   label: string;
@@ -40,7 +84,6 @@ function ConsentFormCard({
   done: boolean;
   state: ConsentFormState;
   formAction: (fd: FormData) => void;
-  pending: boolean;
 }) {
   return (
     <m.section
@@ -81,14 +124,7 @@ function ConsentFormCard({
               {state.error}
             </p>
           )}
-          <m.button
-            type="submit"
-            disabled={pending}
-            whileTap={{ scale: 1.015, transition: { type: "spring", stiffness: 320, damping: 12 } }}
-            className="mt-3 min-h-11 rounded-[10px] bg-[#2B2520] px-6 text-[length:var(--font-size-sm)] font-semibold text-[#FAF7F2] transition-colors hover:bg-[#3d352d] disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {pending ? "Recording…" : `Sign ${label}`}
-          </m.button>
+          <ConsentSubmitButton label={label} />
         </form>
       )}
     </m.section>
@@ -96,9 +132,8 @@ function ConsentFormCard({
 }
 
 export default function ConsentCards({ bookTitle, hasC1, hasC2, hasC3 }: ConsentCardsProps) {
-  const [c1State, c1Action, c1Pending] = useActionState(signConsentAction, EMPTY);
-  const [c2State, c2Action, c2Pending] = useActionState(signConsentAction, EMPTY);
-  const [c3Busy, setC3Busy] = useState(false);
+  const [c1State, c1Action] = useActionState(signConsentAction, EMPTY);
+  const [c2State, c2Action] = useActionState(signConsentAction, EMPTY);
   const c1Done = hasC1 || c1State.ok;
   const c2Done = hasC2 || c2State.ok;
   const allLegal = c1Done && c2Done;
@@ -117,20 +152,13 @@ export default function ConsentCards({ bookTitle, hasC1, hasC2, hasC3 }: Consent
         heading="Data accuracy (C1)"
         legal={
           <>
-            I confirm that my answers to the review questions are true and accurate to the best of my knowledge. This agreement incorporates by reference the ExpanPress{" "}
-            <a href="https://expanpress.com/terms.html" target="_blank" rel="noopener noreferrer" className="underline text-[#296E50] hover:text-[#2B2520]">Terms of Service</a>{" "}
-            and{" "}
-            <a href="https://expanpress.com/privacy.html" target="_blank" rel="noopener noreferrer" className="underline text-[#296E50] hover:text-[#2B2520]">Privacy Policy</a>{" "}
-            available at{" "}
-            <a href="https://expanpress.com/terms.html" target="_blank" rel="noopener noreferrer" className="underline text-[#296E50] hover:text-[#2B2520]">expanpress.com/terms.html</a>{" "}
-            and{" "}
-            <a href="https://expanpress.com/privacy.html" target="_blank" rel="noopener noreferrer" className="underline text-[#296E50] hover:text-[#2B2520]">expanpress.com/privacy.html</a>.
+            I confirm that my answers to the review questions are true and accurate to the best of my knowledge.{" "}
+            <LegalIncorporationClause />
           </>
         }
         done={!!c1Done}
         state={c1State}
         formAction={c1Action}
-        pending={c1Pending}
       />
 
       <ConsentFormCard
@@ -139,20 +167,13 @@ export default function ConsentCards({ bookTitle, hasC1, hasC2, hasC3 }: Consent
         heading="Release approval (C2)"
         legal={
           <>
-            I approve the release of the final PDF for publication. This agreement incorporates by reference the ExpanPress{" "}
-            <a href="https://expanpress.com/terms.html" target="_blank" rel="noopener noreferrer" className="underline text-[#296E50] hover:text-[#2B2520]">Terms of Service</a>{" "}
-            and{" "}
-            <a href="https://expanpress.com/privacy.html" target="_blank" rel="noopener noreferrer" className="underline text-[#296E50] hover:text-[#2B2520]">Privacy Policy</a>{" "}
-            available at{" "}
-            <a href="https://expanpress.com/terms.html" target="_blank" rel="noopener noreferrer" className="underline text-[#296E50] hover:text-[#2B2520]">expanpress.com/terms.html</a>{" "}
-            and{" "}
-            <a href="https://expanpress.com/privacy.html" target="_blank" rel="noopener noreferrer" className="underline text-[#296E50] hover:text-[#2B2520]">expanpress.com/privacy.html</a>.
+            I approve the release of the final PDF for publication.{" "}
+            <LegalIncorporationClause />
           </>
         }
         done={!!c2Done}
         state={c2State}
         formAction={c2Action}
-        pending={c2Pending}
       />
 
       <AnimatePresence>
@@ -171,28 +192,14 @@ export default function ConsentCards({ bookTitle, hasC1, hasC2, hasC3 }: Consent
             ) : (
               <>
                 <p className="mt-1.5 text-[length:var(--font-size-base)] leading-relaxed text-[#4A4136]">
-                  Sign the revenue split agreement electronically — a signed copy and its audit-trail certificate are emailed to you afterwards. This agreement incorporates by reference the ExpanPress{" "}
-                  <a href="https://expanpress.com/terms.html" target="_blank" rel="noopener noreferrer" className="underline text-[#296E50] hover:text-[#2B2520]">Terms of Service</a>{" "}
-                  and{" "}
-                  <a href="https://expanpress.com/privacy.html" target="_blank" rel="noopener noreferrer" className="underline text-[#296E50] hover:text-[#2B2520]">Privacy Policy</a>{" "}
-                  available at{" "}
-                  <a href="https://expanpress.com/terms.html" target="_blank" rel="noopener noreferrer" className="underline text-[#296E50] hover:text-[#2B2520]">expanpress.com/terms.html</a>{" "}
-                  and{" "}
-                  <a href="https://expanpress.com/privacy.html" target="_blank" rel="noopener noreferrer" className="underline text-[#296E50] hover:text-[#2B2520]">expanpress.com/privacy.html</a>.
+                  Sign the revenue split agreement electronically — a signed copy and its audit-trail certificate are emailed to you afterwards.{" "}
+                  <LegalIncorporationClause />
                 </p>
                 <form
                   action={startPublisherAgreementAction}
-                  onSubmit={() => setC3Busy(true)}
                   className="mt-3"
                 >
-                  <m.button
-                    type="submit"
-                    disabled={c3Busy}
-                    whileTap={{ scale: 1.015, transition: { type: "spring", stiffness: 320, damping: 12 } }}
-                    className="min-h-11 rounded-[10px] bg-[#2B2520] px-6 text-[length:var(--font-size-sm)] font-semibold text-[#FAF7F2] transition-colors hover:bg-[#3d352d] disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {c3Busy ? "Opening agreement…" : "Open the agreement →"}
-                  </m.button>
+                  <C3SubmitButton />
                 </form>
               </>
             )}

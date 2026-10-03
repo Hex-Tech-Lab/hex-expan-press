@@ -1,11 +1,38 @@
 "use client";
 
-import { useState } from "react";
+import { useFormStatus } from "react-dom";
 import { Icon } from "@iconify/react";
 import { AppleIcon, GoogleIcon } from "./icons";
 import { signInWithGoogleAction, signInWithOtpAction, setMarketingOptInAction } from "./actions";
 
 export type SignInMode = "form" | "sent" | "error";
+
+function GoogleSubmitButton() {
+  const { pending } = useFormStatus();
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      className="mb-3 flex min-h-11 w-full items-center justify-center gap-2.5 rounded-[10px] border border-[#2B2520] bg-[#2B2520] px-5 py-2.5 text-lg font-semibold text-[#FAF5EE] hover:bg-[#3d352d] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-[#E8622C] focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+    >
+      <GoogleIcon />
+      {pending ? "Connecting to Google…" : "Continue with Google"}
+    </button>
+  );
+}
+
+function OtpSubmitButton() {
+  const { pending } = useFormStatus();
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      className="flex-[0_0_auto] rounded-[10px] border border-[#2B2520] bg-[#2B2520] px-[22px] py-2.5 text-lg font-semibold text-[#FAF5EE] hover:bg-[#3d352d] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-[#E8622C] focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+    >
+      {pending ? "Sending…" : "Send link"}
+    </button>
+  );
+}
 
 /**
  * Client surface for the creator sign-in page (Wave 5). Mirrors the legacy
@@ -22,8 +49,6 @@ export default function SignInClient({
   message?: string;
   optinDefault: boolean;
 }) {
-  const [googleBusy, setGoogleBusy] = useState(false);
-  const [otpBusy, setOtpBusy] = useState(false);
   return (
     <div className="mx-auto max-w-[640px] px-5 pb-10 pt-14 font-sans text-[#2B2520]">
       <p className="mb-4 text-[12px] font-semibold uppercase tracking-[0.14em] text-[#B3401E]">Account</p>
@@ -40,18 +65,8 @@ export default function SignInClient({
         </div>
       ) : (
         <div className="rounded-[14px] border border-[#EADFD1] bg-[#FFFDF9] px-[26px] pb-[22px] pt-[26px] max-md:px-[18px] max-md:py-[16px]">
-          <form
-            action={signInWithGoogleAction}
-            onSubmit={() => setGoogleBusy(true)}
-          >
-            <button
-              type="submit"
-              disabled={googleBusy}
-              className="mb-3 flex min-h-11 w-full items-center justify-center gap-2.5 rounded-[10px] border border-[#2B2520] bg-[#2B2520] px-5 py-2.5 text-lg font-semibold text-[#FAF5EE] hover:bg-[#3d352d] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-[#E8622C] focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              <GoogleIcon />
-              {googleBusy ? "Connecting to Google…" : "Continue with Google"}
-            </button>
+          <form action={signInWithGoogleAction}>
+            <GoogleSubmitButton />
           </form>
 
           <button
@@ -69,11 +84,7 @@ export default function SignInClient({
             or
           </div>
 
-          <form
-            action={signInWithOtpAction}
-            onSubmit={() => setOtpBusy(true)}
-            className="contents"
-          >
+          <form action={signInWithOtpAction} className="contents">
             <label htmlFor="email" className="mb-2 block text-base font-semibold">
               Email me a sign-in link
             </label>
@@ -88,13 +99,7 @@ export default function SignInClient({
                 required
                 className="min-h-11 min-w-0 flex-[1_1_240px] rounded-[10px] border border-[#EADFD1] bg-white px-3.5 py-2.5 text-lg text-[#2B2520] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-[#E8622C] focus-visible:outline-offset-2"
               />
-              <button
-                type="submit"
-                disabled={otpBusy}
-                className="flex-[0_0_auto] rounded-[10px] border border-[#2B2520] bg-[#2B2520] px-[22px] py-2.5 text-lg font-semibold text-[#FAF5EE] hover:bg-[#3d352d] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-[#E8622C] focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {otpBusy ? "Sending…" : "Send link"}
-              </button>
+              <OtpSubmitButton />
             </div>
           </form>
 
