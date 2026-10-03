@@ -68,6 +68,7 @@ export default function DashboardClient({
   actionError,
 }: DashboardClientProps) {
   const [iconsReady, setIconsReady] = useState(false);
+  const [step3Busy, setStep3Busy] = useState(false);
   const reduced = useReducedMotion();
 
   // Lucide set loads in an async chunk — keeps ~1MB of icon data out of the
@@ -247,6 +248,7 @@ export default function DashboardClient({
               <m.form
                 key={step.num}
                 action={startPublisherAgreementAction}
+                onSubmit={() => setStep3Busy(true)}
                 initial={{ opacity: 0, y: 40, scale: 0.97 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0 }}
@@ -255,8 +257,9 @@ export default function DashboardClient({
               >
                 <m.button
                   type="submit"
+                  disabled={step3Busy}
                   whileTap={{ scale: 1.01, transition: WOBBLE }}
-                  className="block w-full text-left"
+                  className="block w-full text-left disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {body}
                 </m.button>

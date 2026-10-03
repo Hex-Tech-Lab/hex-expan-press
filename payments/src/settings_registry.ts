@@ -71,6 +71,7 @@ export interface GlobalSettings {
     retryable_error_names: string[];
   };
   portal: { jwt_clock_skew_retry_delay_ms: number };
+  consent: { text_version: string };
 }
 
 export const DEFAULT_GLOBAL: GlobalSettings = {
@@ -126,6 +127,7 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
   },
   portal: { jwt_clock_skew_retry_delay_ms: 350 },
   admin: { admin_user_ids: [], audit_log_page_size: 50 },
+  consent: { text_version: "v1.1" },
 };
 
 // Bounds for the admin tunables (feature code must never hard-code them).
@@ -272,7 +274,13 @@ function loadGlobal(): GlobalSettings {
     email: loadEmailSection(g.email as Record<string, unknown> | undefined),
     portal: { ...DEFAULT_GLOBAL.portal, ...(g.portal ?? {}) },
     admin: loadAdminSection(g.admin as Record<string, unknown> | undefined),
+    consent: { ...DEFAULT_GLOBAL.consent, ...(g.consent ?? {}) },
   };
+}
+
+export function consentTextVersion(): string {
+  const v = GLOBAL.consent?.text_version;
+  return typeof v === "string" && v.trim().length > 0 ? v.trim() : DEFAULT_GLOBAL.consent.text_version;
 }
 
 export const PORTAL_JWT_SKEW_LIMITS = { min: 250, max: 500 } as const;

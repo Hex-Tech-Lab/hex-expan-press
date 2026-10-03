@@ -7,7 +7,7 @@
  * creates the Firma envelope and redirects to the signing flow). The
  * "Back to Dashboard" nav is a Next <Link> with a soft Framer Motion hover.
  */
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import Link from "next/link";
 import { AnimatePresence, m } from "framer-motion";
 import { signConsentAction, type ConsentFormState } from "./actions";
@@ -36,7 +36,7 @@ function ConsentFormCard({
   kindValue: string;
   label: string;
   heading: string;
-  legal: string;
+  legal: React.ReactNode;
   done: boolean;
   state: ConsentFormState;
   formAction: (fd: FormData) => void;
@@ -98,6 +98,7 @@ function ConsentFormCard({
 export default function ConsentCards({ bookTitle, hasC1, hasC2, hasC3 }: ConsentCardsProps) {
   const [c1State, c1Action, c1Pending] = useActionState(signConsentAction, EMPTY);
   const [c2State, c2Action, c2Pending] = useActionState(signConsentAction, EMPTY);
+  const [c3Busy, setC3Busy] = useState(false);
   const c1Done = hasC1 || c1State.ok;
   const c2Done = hasC2 || c2State.ok;
   const allLegal = c1Done && c2Done;
@@ -114,7 +115,18 @@ export default function ConsentCards({ bookTitle, hasC1, hasC2, hasC3 }: Consent
         kindValue="C1_data_accuracy"
         label="Data Accuracy"
         heading="Data accuracy (C1)"
-        legal="I confirm that my answers to the review questions are true and accurate to the best of my knowledge."
+        legal={
+          <>
+            I confirm that my answers to the review questions are true and accurate to the best of my knowledge. This agreement incorporates by reference the ExpanPress{" "}
+            <a href="https://expanpress.com/terms.html" target="_blank" rel="noopener noreferrer" className="underline text-[#296E50] hover:text-[#2B2520]">Terms of Service</a>{" "}
+            and{" "}
+            <a href="https://expanpress.com/privacy.html" target="_blank" rel="noopener noreferrer" className="underline text-[#296E50] hover:text-[#2B2520]">Privacy Policy</a>{" "}
+            available at{" "}
+            <a href="https://expanpress.com/terms.html" target="_blank" rel="noopener noreferrer" className="underline text-[#296E50] hover:text-[#2B2520]">expanpress.com/terms.html</a>{" "}
+            and{" "}
+            <a href="https://expanpress.com/privacy.html" target="_blank" rel="noopener noreferrer" className="underline text-[#296E50] hover:text-[#2B2520]">expanpress.com/privacy.html</a>.
+          </>
+        }
         done={!!c1Done}
         state={c1State}
         formAction={c1Action}
@@ -125,7 +137,18 @@ export default function ConsentCards({ bookTitle, hasC1, hasC2, hasC3 }: Consent
         kindValue="C2_release_approval"
         label="Release Approval"
         heading="Release approval (C2)"
-        legal="I approve the release of the final PDF for publication."
+        legal={
+          <>
+            I approve the release of the final PDF for publication. This agreement incorporates by reference the ExpanPress{" "}
+            <a href="https://expanpress.com/terms.html" target="_blank" rel="noopener noreferrer" className="underline text-[#296E50] hover:text-[#2B2520]">Terms of Service</a>{" "}
+            and{" "}
+            <a href="https://expanpress.com/privacy.html" target="_blank" rel="noopener noreferrer" className="underline text-[#296E50] hover:text-[#2B2520]">Privacy Policy</a>{" "}
+            available at{" "}
+            <a href="https://expanpress.com/terms.html" target="_blank" rel="noopener noreferrer" className="underline text-[#296E50] hover:text-[#2B2520]">expanpress.com/terms.html</a>{" "}
+            and{" "}
+            <a href="https://expanpress.com/privacy.html" target="_blank" rel="noopener noreferrer" className="underline text-[#296E50] hover:text-[#2B2520]">expanpress.com/privacy.html</a>.
+          </>
+        }
         done={!!c2Done}
         state={c2State}
         formAction={c2Action}
@@ -148,15 +171,27 @@ export default function ConsentCards({ bookTitle, hasC1, hasC2, hasC3 }: Consent
             ) : (
               <>
                 <p className="mt-1.5 text-[length:var(--font-size-base)] leading-relaxed text-[#4A4136]">
-                  Sign the revenue split agreement electronically — a signed copy and its audit-trail certificate are emailed to you afterwards.
+                  Sign the revenue split agreement electronically — a signed copy and its audit-trail certificate are emailed to you afterwards. This agreement incorporates by reference the ExpanPress{" "}
+                  <a href="https://expanpress.com/terms.html" target="_blank" rel="noopener noreferrer" className="underline text-[#296E50] hover:text-[#2B2520]">Terms of Service</a>{" "}
+                  and{" "}
+                  <a href="https://expanpress.com/privacy.html" target="_blank" rel="noopener noreferrer" className="underline text-[#296E50] hover:text-[#2B2520]">Privacy Policy</a>{" "}
+                  available at{" "}
+                  <a href="https://expanpress.com/terms.html" target="_blank" rel="noopener noreferrer" className="underline text-[#296E50] hover:text-[#2B2520]">expanpress.com/terms.html</a>{" "}
+                  and{" "}
+                  <a href="https://expanpress.com/privacy.html" target="_blank" rel="noopener noreferrer" className="underline text-[#296E50] hover:text-[#2B2520]">expanpress.com/privacy.html</a>.
                 </p>
-                <form action={startPublisherAgreementAction} className="mt-3">
+                <form
+                  action={startPublisherAgreementAction}
+                  onSubmit={() => setC3Busy(true)}
+                  className="mt-3"
+                >
                   <m.button
                     type="submit"
+                    disabled={c3Busy}
                     whileTap={{ scale: 1.015, transition: { type: "spring", stiffness: 320, damping: 12 } }}
-                    className="min-h-11 rounded-[10px] bg-[#2B2520] px-6 text-[length:var(--font-size-sm)] font-semibold text-[#FAF7F2] transition-colors hover:bg-[#3d352d]"
+                    className="min-h-11 rounded-[10px] bg-[#2B2520] px-6 text-[length:var(--font-size-sm)] font-semibold text-[#FAF7F2] transition-colors hover:bg-[#3d352d] disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    Open the agreement →
+                    {c3Busy ? "Opening agreement…" : "Open the agreement →"}
                   </m.button>
                 </form>
               </>
