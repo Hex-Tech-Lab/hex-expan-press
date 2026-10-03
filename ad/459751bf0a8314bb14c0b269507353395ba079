@@ -1,0 +1,28 @@
+docs/agent_ledger.jsonl
+  h_90c2451a76ba0d 392-394
+payments/src/settings_registry.ts
+  h_90c2451a76ba0d 67,122,262,266-270
+web/app/admin/dashboard/page.tsx
+  h_90c2451a76ba0d 1-328
+web/app/creator/consents/__tests__/actions.test.ts
+  h_90c2451a76ba0d 90
+web/app/creator/consents/actions.ts
+  h_90c2451a76ba0d 8,70
+web/app/creator/consents/consent-cards.tsx
+  h_90c2451a76ba0d 10,39,101,118-129,140-151,174-181,183-187,190,192,194
+web/app/creator/dashboard/dashboard-client.tsx
+  h_90c2451a76ba0d 71,251,260,262
+web/app/creator/signin/signin-client.tsx
+  h_90c2451a76ba0d 3,25-26,43-46,49-50,53,72-76,93-94,96
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ad459751bf0a8314bb14c0b269507353395ba079",
+  "prompts": {},
+  "humans": {
+    "h_90c2451a76ba0d": {
+      "author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
