@@ -27,7 +27,7 @@ export async function resolveAdminAccess(): Promise<AdminAccess> {
   const session = await getPortalSession();
   if (!session) return { status: "unauthenticated" };
   const allowlist = GLOBAL.admin.admin_user_ids;
-  if (allowlist.length === 0 || !allowlist.includes(session.user.id)) return { status: "forbidden" };
+  if (allowlist.length === 0 || !allowlist.includes(session.user.id.toLowerCase())) return { status: "forbidden" };
   return { status: "ok", userId: session.user.id };
 }
 

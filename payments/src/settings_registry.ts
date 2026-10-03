@@ -302,7 +302,7 @@ export function loadAdminSection(raw: Record<string, unknown> | undefined): Glob
       && rawIds.length <= ADMIN_LIMITS.admin_user_ids.max
       && rawIds.every((id) => typeof id === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))
     ) {
-      userIds = rawIds;
+      userIds = rawIds.map((id) => id.toLowerCase()); // Supabase auth ids are lowercase
     } else {
       fallbacks.push("admin_user_ids");
     }
