@@ -37,7 +37,7 @@ export async function processEsignWebhookUseCase(
     if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
       throw new Error(`Webhook validation failed: completed envelope ${event.envelopeId} has no metadata object`);
     }
-    const { productId, userId } = metadata as Record<string, unknown>;
+    const { productId, userId, textVersion } = metadata as Record<string, unknown>;
     if (typeof productId !== "string" || productId.trim() === "" || typeof userId !== "string" || userId.trim() === "") {
       throw new Error(`Webhook validation failed: completed envelope ${event.envelopeId} is missing productId/userId metadata`);
     }
@@ -53,7 +53,9 @@ export async function processEsignWebhookUseCase(
         userId: userId, // Used to construct path or extra validation if needed by adapter
         kind: "C3_revenue_split",
         decision: "given",
-        textVersion: consentTextVersion(),
+        // The version snapshotted at envelope creation; envelopes created before the
+        // snapshot existed fall back to the current registry version.
+        textVersion: typeof textVersion === "string" && /^v\d+(\.\d+)*$/.test(textVersion) ? textVersion : consentTextVersion(),
         documentSha256: event.documentHash,
         typedName: `Signed via ${validation.providerName || "unknown"}`,
         ip: req.ip,
