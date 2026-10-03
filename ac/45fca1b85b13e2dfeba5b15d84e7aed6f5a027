@@ -1,0 +1,23 @@
+src/use_cases/billing/process_billing_webhook.ts
+  s_eb225b08d1f1a7::t_9a1925cdb8b737 183-184,186
+src/use_cases/billing/__tests__/process_billing_webhook.test.ts
+  s_eb225b08d1f1a7::t_b049fb7b156317 71,847-864
+web/app/admin/dashboard/page.tsx
+  s_eb225b08d1f1a7::t_d6ca48fee8c9f3 56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "ac45fca1b85b13e2dfeba5b15d84e7aed6f5a027",
+  "prompts": {},
+  "sessions": {
+    "s_eb225b08d1f1a7": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d3ff8afc-51a4-4bea-8e88-db3aea8d3b3b",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
