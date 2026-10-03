@@ -49,7 +49,7 @@ export default async function AdminDashboardPage({
   let errorMessage: string | null = null;
   if (access.status === "ok") {
     try {
-      const result = await listAdminAuditRows(page, selectedEvent);
+      const result = await listAdminAuditRows(currentPage, selectedEvent);
       rows = result.rows;
       hasMore = result.hasMore;
       currentPage = result.page;

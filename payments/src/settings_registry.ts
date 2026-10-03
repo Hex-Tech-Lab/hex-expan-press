@@ -295,7 +295,9 @@ export function loadAdminSection(raw: Record<string, unknown> | undefined): Glob
   const fallbacks: string[] = [];
   let userIds = d.admin_user_ids;
   // Env wins over global.json (production deploys no global.json; the env is the operator's override).
-  const rawIds = process.env.ADMIN_USER_IDS?.split(",").map((s) => s.trim()).filter((s) => s !== "") ?? r.admin_user_ids;
+  // An empty / commas-only ADMIN_USER_IDS counts as unset, so it can't silently blank a file allowlist.
+  const envIds = process.env.ADMIN_USER_IDS?.split(",").map((s) => s.trim()).filter((s) => s !== "");
+  const rawIds = envIds && envIds.length > 0 ? envIds : r.admin_user_ids;
   if (rawIds !== undefined) {
     if (
       Array.isArray(rawIds)
