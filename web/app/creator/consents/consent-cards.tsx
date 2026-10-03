@@ -24,7 +24,7 @@ export interface ConsentCardsProps {
   hasC3: boolean;
 }
 
-export function LegalIncorporationClause() {
+function LegalIncorporationClause() {
   return (
     <>
       This agreement incorporates by reference the ExpanPress Terms of Service and Privacy Policy available at{" "}

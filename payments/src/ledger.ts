@@ -210,7 +210,7 @@ export function isAdjustmentIdUniqueViolation(err: unknown): boolean {
 
 /** Find an already-recorded refund/refund_reversal by (provider, provider_adjustment_id).
  *  Tolerant read: missing file or malformed lines are skipped (same posture as findRefund). */
-export function findByProviderAdjustmentId(provider: string, providerAdjustmentId: string, salesFile: string = SALES_FILE): SaleRecord | null {
+function findByProviderAdjustmentId(provider: string, providerAdjustmentId: string, salesFile: string = SALES_FILE): SaleRecord | null {
   salesFile = resolveSalesFile(salesFile);
   let lines: string[];
   try {
