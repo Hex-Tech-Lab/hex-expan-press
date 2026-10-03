@@ -33,7 +33,7 @@ export async function resolveAdminAccess(): Promise<AdminAccess> {
 
 /** Newest-first page (1-based) of the admin audit queue. Service-role read:
  *  audit_log has RLS on with no client policies. Throws on misconfig/read failure. */
-export async function listAdminAuditRows(page: number): Promise<{ rows: AdminAuditRow[]; page: number; pageSize: number; hasMore: boolean }> {
+export async function listAdminAuditRows(page: number, event?: string): Promise<{ rows: AdminAuditRow[]; page: number; pageSize: number; hasMore: boolean }> {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SECRET_KEY;
   if (!url || !key) throw new Error("admin: Supabase is not configured");
@@ -41,10 +41,12 @@ export async function listAdminAuditRows(page: number): Promise<{ rows: AdminAud
   const safePage = Number.isInteger(page) && page >= 1 ? page : 1;
   const offset = (safePage - 1) * pageSize;
   // Fetch one extra row to know whether a next page exists.
+  // Unknown/absent event filter = the whole admin queue (never an arbitrary audit_log event).
+  const events = ADMIN_AUDIT_EVENTS.filter((e) => e === event);
   const { data, error } = await createClient(url, key)
     .from("audit_log")
     .select("id,at,event,details")
-    .in("event", [...ADMIN_AUDIT_EVENTS])
+    .in("event", events.length > 0 ? events : [...ADMIN_AUDIT_EVENTS])
     .order("at", { ascending: false })
     .order("id", { ascending: false })
     .range(offset, offset + pageSize);

@@ -1,52 +1,12 @@
 import type { Metadata } from "next";
-import { headers, cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { getPortalSession } from "../../../src/lib/supabase-server";
+import { ADMIN_AUDIT_EVENTS, listAdminAuditRows, resolveAdminAccess, type AdminAuditRow } from "../../../src/lib/admin";
 
 export const metadata: Metadata = {
   title: "Admin Triage Dashboard · ExpanPress",
   robots: { index: false, follow: false },
 };
-
-export interface AuditLogRow {
-  id: string | number;
-  at: string;
-  event: string;
-  details?: Record<string, unknown> | null;
-}
-
-export interface AuditLogResponse {
-  rows: AuditLogRow[];
-  next_cursor?: string | null;
-}
-
-const CANONICAL_PROD_HOSTS = ["expanpress.com", "www.expanpress.com"];
-
-function allowedProdHosts(): Set<string> {
-  return new Set([
-    ...CANONICAL_PROD_HOSTS,
-    ...String(process.env.ALLOWED_AUTH_HOSTS ?? "")
-      .split(",")
-      .map((h) => h.trim().toLowerCase())
-      .filter(Boolean),
-  ]);
-}
-
-async function resolveOrigin(): Promise<string> {
-  if (process.env.VERCEL_ENV === "production") {
-    const h = await headers();
-    const host = (h.get("x-forwarded-host") ?? h.get("host") ?? "").split(",")[0].trim().toLowerCase();
-    if (host && allowedProdHosts().has(host)) return `https://${host}`;
-    return process.env.NEXT_PUBLIC_SITE_ORIGIN ?? "https://expanpress.com";
-  }
-  const h = await headers();
-  const host = h.get("x-forwarded-host") ?? h.get("host");
-  const proto = h.get("x-forwarded-proto") ?? "https";
-  if (host) return `${proto}://${host}`;
-  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
-  return "http://localhost:3000";
-}
 
 function formatAmount(details: Record<string, unknown> | null | undefined): string {
   if (!details) return "—";
@@ -81,54 +41,35 @@ function formatDate(iso: string): string {
 export default async function AdminDashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ event?: string; cursor?: string }>;
+  searchParams: Promise<{ event?: string; page?: string }>;
 }) {
-  const session = await getPortalSession();
-  if (!session) {
-    redirect("/creator/signin");
-  }
+  // Direct server call (no HTTP self-fetch): the session cookie never leaves this process.
+  const access = await resolveAdminAccess();
+  if (access.status === "unauthenticated") redirect("/creator/signin");
 
-  const { event: selectedEvent, cursor } = await searchParams;
+  const { event, page: rawPage } = await searchParams;
+  const selectedEvent = ADMIN_AUDIT_EVENTS.find((e) => e === event);
+  const page = Number(rawPage ?? "1");
 
-  const cookieStore = await cookies();
-  const origin = await resolveOrigin();
-  const queryParams = new URLSearchParams();
-  if (selectedEvent && selectedEvent !== "ALL") {
-    queryParams.set("event", selectedEvent);
-  }
-  if (cursor) {
-    queryParams.set("cursor", cursor);
-  }
-  const url = `${origin}/api/admin/audit-log${queryParams.toString() ? `?${queryParams.toString()}` : ""}`;
-
-  let data: AuditLogResponse | null = null;
-  let status = 200;
+  let rows: AdminAuditRow[] = [];
+  let hasMore = false;
+  let currentPage = 1;
   let errorMessage: string | null = null;
-
-  try {
-    const res = await fetch(url, {
-      headers: {
-        cookie: cookieStore.toString(),
-        Accept: "application/json",
-      },
-      cache: "no-store",
-    });
-    status = res.status;
-    if (res.ok) {
-      data = (await res.json()) as AuditLogResponse;
-    } else if (status !== 401 && status !== 403) {
-      errorMessage = `Failed to load audit log records (HTTP ${res.status}).`;
+  if (access.status === "ok") {
+    try {
+      const result = await listAdminAuditRows(page, selectedEvent);
+      rows = result.rows;
+      hasMore = result.hasMore;
+      currentPage = result.page;
+    } catch (err) {
+      console.error("[admin-dashboard] audit log read failed:", err instanceof Error ? err.message : err);
+      errorMessage = "Could not load the audit log. Retry in a moment.";
     }
-  } catch (err) {
-    console.error("[admin-dashboard] audit log fetch failed:", err);
-    errorMessage = "Could not reach the audit log service. Please check your connection and retry.";
   }
+  const pageHref = (p: number) =>
+    `/admin/dashboard?${new URLSearchParams({ ...(selectedEvent ? { event: selectedEvent } : {}), page: String(p) })}`;
 
-  if (status === 401) {
-    redirect("/creator/signin");
-  }
-
-  if (status === 403) {
+  if (access.status === "forbidden") {
     return (
       <main className="mx-auto max-w-[800px] px-6 py-20 text-center">
         <div className="neu-card rounded-2xl p-10">
@@ -148,12 +89,6 @@ export default async function AdminDashboardPage({
       </main>
     );
   }
-
-  const rows = data?.rows ?? [];
-  const distinctEvents = Array.from(new Set(rows.map((r) => r.event).filter(Boolean)));
-  const allEvents = Array.from(
-    new Set(["MANUAL_REVIEW_REQUIRED_REFUND", ...distinctEvents, ...(selectedEvent && selectedEvent !== "ALL" ? [selectedEvent] : [])]),
-  );
 
   return (
     <main className="mx-auto max-w-[1200px] px-6 py-12">
@@ -189,7 +124,7 @@ export default async function AdminDashboardPage({
             className="min-h-11 rounded-lg border border-[#EADFD1] bg-[#FFFDF9] px-4 py-2 text-[14px] font-medium text-[#2B2520] outline-none focus:border-[#E8622C] focus-visible:ring-2 focus-visible:ring-[#B3401E]"
           >
             <option value="ALL">All Events</option>
-            {allEvents.map((ev) => (
+            {ADMIN_AUDIT_EVENTS.map((ev) => (
               <option key={ev} value={ev}>
                 {ev}
               </option>
@@ -201,7 +136,7 @@ export default async function AdminDashboardPage({
           >
             Apply Filter
           </button>
-          {selectedEvent && selectedEvent !== "ALL" && (
+          {selectedEvent && (
             <Link
               href="/admin/dashboard"
               className="inline-flex min-h-11 items-center text-[14px] font-medium text-[#B3401E] underline hover:text-[#2B2520]"
@@ -223,7 +158,7 @@ export default async function AdminDashboardPage({
           <p className="mt-1 text-[14px] leading-relaxed">{errorMessage}</p>
           <div className="mt-3">
             <Link
-              href={url}
+              href={pageHref(currentPage)}
               className="inline-flex min-h-10 items-center rounded-md bg-[#B3401E] px-4 text-[13px] font-semibold text-[#FAF7F2] hover:bg-[#963417]"
             >
               Retry
@@ -239,7 +174,7 @@ export default async function AdminDashboardPage({
             <div className="px-6 py-16 text-center">
               <h2 className="font-serif text-[20px] font-bold text-[#2B2520]">No review items found</h2>
               <p className="mt-2 text-[15px] text-[#6E5F53]">
-                {selectedEvent && selectedEvent !== "ALL"
+                {selectedEvent
                   ? `There are no audit log items recorded with event “${selectedEvent}”.`
                   : "The manual review queue is currently clear."}
               </p>
@@ -309,19 +244,15 @@ export default async function AdminDashboardPage({
         </div>
       )}
 
-      {/* Pagination cursor navigation */}
-      {data?.next_cursor && (
-        <div className="mt-6 flex justify-end">
-          <Link
-            href={`/admin/dashboard?${new URLSearchParams({
-              ...(selectedEvent && selectedEvent !== "ALL" ? { event: selectedEvent } : {}),
-              cursor: data.next_cursor,
-            }).toString()}`}
-            className="inline-flex min-h-11 items-center rounded-lg border border-[#EADFD1] bg-[#FFFDF9] px-6 text-[14px] font-semibold text-[#2B2520] hover:bg-[#F3ECDF]"
-          >
-            Next Page →
-          </Link>
-        </div>
+      {(currentPage > 1 || hasMore) && (
+        <nav aria-label="Pages" className="mt-6 flex justify-between">
+          {currentPage > 1 ? (
+            <Link href={pageHref(currentPage - 1)} className="inline-flex min-h-11 items-center rounded-lg border border-[#EADFD1] bg-[#FFFDF9] px-6 text-[14px] font-semibold text-[#2B2520] hover:bg-[#F3ECDF]">← Previous page</Link>
+          ) : <span />}
+          {hasMore && (
+            <Link href={pageHref(currentPage + 1)} className="inline-flex min-h-11 items-center rounded-lg border border-[#EADFD1] bg-[#FFFDF9] px-6 text-[14px] font-semibold text-[#2B2520] hover:bg-[#F3ECDF]">Next page →</Link>
+          )}
+        </nav>
       )}
     </main>
   );
