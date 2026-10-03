@@ -1,0 +1,49 @@
+src/use_cases/billing/process_billing_webhook.ts
+  s_bfac37e6f33058::t_4a1d52389bffa0 19-74
+  s_bfac37e6f33058::t_46cd0eb15ce91c 274-275,277-284
+  s_bfac37e6f33058::t_bbc8239a9de9cf 379-380,382-389
+  s_bfac37e6f33058::t_1a76b19196b5b1 18
+web/app/api/billing/webhook/__tests__/retry-after-503.test.ts
+  s_bfac37e6f33058::t_87cd2e1e9b83e5 1-35
+payments/src/settings_registry.ts
+  s_bfac37e6f33058::t_6f7206beeb7b3f 151
+  s_bfac37e6f33058::t_4c94d5e9f4a154 221
+  s_bfac37e6f33058::t_2125af0a53882b 257
+  s_bfac37e6f33058::t_9ad40ff6ffb72d 55-56
+  s_bfac37e6f33058::t_d4681b890213fa 106
+web/app/api/billing/webhook/route.ts
+  s_bfac37e6f33058::t_7997c1fe74203b 102
+  s_bfac37e6f33058::t_847b1a7b4612fd 121
+src/use_cases/billing/__tests__/process_billing_webhook.test.ts
+  s_bfac37e6f33058::t_015aeeaf1ca8b2 71-81
+  s_bfac37e6f33058::t_d1e2a8fcbe5176 940-941,943,949
+  s_bfac37e6f33058::t_29193c796ec0b1 970-1172
+payments/src/ledger.ts
+  s_bfac37e6f33058::t_00e8fb47e4ea6f 316
+docs/handover/THOS-sprint10-cloud.md
+  s_5183d16ecf0f6b::t_d639d21bb8614d 1-69
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d2cdfde50c032abc41ab967fd5c92b2eb41dc7ee",
+  "prompts": {},
+  "sessions": {
+    "s_5183d16ecf0f6b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "54443bc4-2b7f-4ceb-842d-573e302fea79",
+        "model": "unknown"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_bfac37e6f33058": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_efcd9ae8effecMs5HPi0lNvCrr",
+        "model": "@preset/glm-53-flash-on-cheap"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
