@@ -6,6 +6,7 @@ import type { NextRequest } from "next/server";
 
 const h = vi.hoisted(() => ({
   inserts: [] as Record<string, unknown>[],
+  signals: [] as AbortSignal[],
   insert: async (row: Record<string, unknown>): Promise<{ error: { message: string } | null }> => { h.inserts.push(row); return { error: null }; },
 }));
 vi.mock("../../../../../../src/use_cases/billing/process_billing_webhook", () => ({
@@ -16,7 +17,13 @@ vi.mock("../../../../../../src/use_cases/billing/process_billing_webhook", () =>
   }),
 }));
 vi.mock("@supabase/supabase-js", () => ({
-  createClient: () => ({ from: () => ({ insert: (row: Record<string, unknown>) => h.insert(row) }) }),
+  createClient: () => ({
+    from: () => ({
+      insert: (row: Record<string, unknown>) => ({
+        abortSignal: (signal: AbortSignal) => { h.signals.push(signal); return h.insert(row); },
+      }),
+    }),
+  }),
 }));
 
 import { POST } from "../route";
@@ -30,6 +37,7 @@ const post = () =>
 
 beforeEach(() => {
   h.inserts = [];
+  h.signals = [];
   h.insert = async (row) => { h.inserts.push(row); return { error: null }; };
   vi.stubEnv("SUPABASE_URL", "http://supabase.test");
   vi.stubEnv("SUPABASE_SECRET_KEY", "test");
@@ -59,6 +67,7 @@ describe("billing webhook — 503 audit trail", () => {
       const pending = post();
       await vi.advanceTimersByTimeAsync(60_000);
       expect((await pending).status).toBe(503);
+      expect(h.signals[0]?.aborted).toBe(true); // the stalled insert was cancelled
     } finally {
       vi.useRealTimers();
     }

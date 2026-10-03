@@ -15,28 +15,31 @@ export const runtime = "nodejs";
  * retry contract. Uses the service-role key server-side only (audit_log has RLS
  * on with no client policies).
  */
-async function record503Audit(details: { provider?: string; sale_id?: string; reason: string }): Promise<void> {
+async function record503Audit(details: { provider?: string; sale_id?: string; reason: string }, signal: AbortSignal): Promise<void> {
   try {
     const url = process.env.SUPABASE_URL;
     const key = process.env.SUPABASE_SECRET_KEY;
     if (!url || !key) return; // unconfigured Supabase: nothing durable to write
     const { createClient } = await import("@supabase/supabase-js");
     const supabase = createClient(url, key);
-    const row: Record<string, unknown> = { event: "WEBHOOK_503_RETRYING", details };
-    const { error } = await supabase.from("audit_log").insert(row);
+    const { error } = await supabase.from("audit_log").insert({ event: "WEBHOOK_503_RETRYING", details }).abortSignal(signal);
     if (error) console.error("[billing-webhook] 503 audit insert failed:", error.message);
   } catch (err) {
     console.error("[billing-webhook] 503 audit insert exception:", err);
   }
 }
 
-/** Await the 503 audit for at most payments.http_timeout_ms (the webhook's short
- *  internal-call budget), so a slow Supabase can't hold the retry response. */
+/** Run the 503 audit for at most payments.http_timeout_ms (the webhook's short internal-call
+ *  budget), then abort the insert so a stalled Supabase can't pile up open requests. The race
+ *  keeps the response bounded even if the abort doesn't settle promptly. */
 async function auditBounded(details: { provider?: string; sale_id?: string; reason: string }): Promise<void> {
+  const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<void>((resolve) => { timer = setTimeout(resolve, GLOBAL.payments.http_timeout_ms); });
+  const timeout = new Promise<void>((resolve) => {
+    timer = setTimeout(() => { controller.abort(); resolve(); }, GLOBAL.payments.http_timeout_ms);
+  });
   try {
-    await Promise.race([record503Audit(details), timeout]);
+    await Promise.race([record503Audit(details, controller.signal), timeout]);
   } finally {
     clearTimeout(timer);
   }

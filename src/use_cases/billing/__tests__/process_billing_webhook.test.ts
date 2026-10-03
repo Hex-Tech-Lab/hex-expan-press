@@ -844,6 +844,20 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
     expect(rows).toHaveLength(2); // still sale + one refund
   });
 
+  it("contended replay with a recorded adjustment id but a mismatched amount is NOT confirmed (retries, like in-lock)", async () => {
+    setnx.mockResolvedValue(1);
+    await appendSale({ ...CB_SALE }, salesFilePath);
+    await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_same"))]);
+
+    setnx.mockResolvedValue(0); // another delivery holds the refund lock
+    const mismatched: RefundIssuedEvent = { ...cbRefund("adj_same"), totalCents: 1000 };
+    await expect(processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(mismatched)])).rejects.toMatchObject({
+      name: "WebhookInFlightError",
+    });
+    // ...while the matching replay under contention is still confirmed.
+    await expect(processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_same"))])).resolves.toBeUndefined();
+  });
+
   it("adjustment-id lookup failure with a refund already recorded -> throws (provider retries), no manual-review flag", async () => {
     process.env.SUPABASE_URL = "https://example.supabase.co";
     process.env.SUPABASE_SECRET_KEY = "mock-secret-key";
