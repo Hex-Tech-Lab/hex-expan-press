@@ -412,4 +412,11 @@ describe("storefront presentation & facts baking", () => {
     expect(baked).toContain(`<p class="subtitle">New Subtitle</p>`);
     expect(baked).not.toContain("Old Subtitle");
   });
+
+  it("inserts subtitle and author literally (no $-replacement tokens)", () => {
+    const rawHtml = `<h1>T</h1>\n<p class="byline">x &middot; with <b>Old</b></p>\n<p class="price">$10</p>`;
+    const baked = bakeFacts(rawHtml, { title: "T", subtitle: "Retire on $1M & $&", author: "A $1 B", price_usd: 39 }, "page.html");
+    expect(baked).toContain(`<p class="subtitle">Retire on $1M &amp; $&amp;</p>`);
+    expect(baked).toContain(`with <b>A $1 B</b>`);
+  });
 });
