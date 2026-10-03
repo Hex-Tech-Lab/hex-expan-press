@@ -192,7 +192,7 @@ export async function findSaleAsync(provider: string, saleId: string, salesFile:
 }
 
 /** Duplicate-key guard on the partial unique index
- *  orders_provider_adjustment_id_uniq (provider, provider_adjustment_id) WHERE
+ *  orders_provider_adjustment_id_uniq (provider, provider_adjustment_id, event_type) WHERE
  *  provider_adjustment_id IS NOT NULL. Only THAT index's violation is a webhook
  *  replay; anything else is a real failure and is never swallowed. */
 export const ORDERS_ADJUSTMENT_UNIQ_INDEX = "orders_provider_adjustment_id_uniq";
@@ -208,9 +208,9 @@ export function isAdjustmentIdUniqueViolation(err: unknown): boolean {
   return typeof e.message === "string" && e.message.includes(ORDERS_ADJUSTMENT_UNIQ_INDEX);
 }
 
-/** Find an already-recorded refund/refund_reversal by (provider, provider_adjustment_id).
+/** Find an already-recorded row of eventType by (provider, provider_adjustment_id).
  *  Tolerant read: missing file or malformed lines are skipped (same posture as findRefund). */
-function findByProviderAdjustmentId(provider: string, providerAdjustmentId: string, salesFile: string = SALES_FILE): SaleRecord | null {
+function findByProviderAdjustmentId(provider: string, providerAdjustmentId: string, eventType: "refund" | "refund_reversal", salesFile: string = SALES_FILE): SaleRecord | null {
   salesFile = resolveSalesFile(salesFile);
   let lines: string[];
   try {
@@ -224,7 +224,7 @@ function findByProviderAdjustmentId(provider: string, providerAdjustmentId: stri
     if (trimmed === "") continue;
     try {
       const o = JSON.parse(trimmed) as Record<string, unknown>;
-      if (o.provider === provider && o.provider_adjustment_id === providerAdjustmentId && (o.event_type === "refund" || o.event_type === "refund_reversal")) {
+      if (o.provider === provider && o.provider_adjustment_id === providerAdjustmentId && o.event_type === eventType) {
         return o as unknown as SaleRecord;
       }
     } catch (parseErr) {
@@ -238,8 +238,8 @@ function findByProviderAdjustmentId(provider: string, providerAdjustmentId: stri
 /** Async twin of findByProviderAdjustmentId, backed by Supabase public.orders.
  *  Returns null (not throws) on unconfigured Supabase; lookup errors FAIL CLOSED
  *  (throw) so a caller cannot mistake a broken lookup for "not a replay". */
-export async function findByProviderAdjustmentIdAsync(provider: string, providerAdjustmentId: string, salesFile: string = SALES_FILE): Promise<SaleRecord | null> {
-  const local = findByProviderAdjustmentId(provider, providerAdjustmentId, salesFile);
+export async function findByProviderAdjustmentIdAsync(provider: string, providerAdjustmentId: string, eventType: "refund" | "refund_reversal", salesFile: string = SALES_FILE): Promise<SaleRecord | null> {
+  const local = findByProviderAdjustmentId(provider, providerAdjustmentId, eventType, salesFile);
   if (local) return local;
 
   const url = process.env.SUPABASE_URL;
@@ -254,7 +254,7 @@ export async function findByProviderAdjustmentIdAsync(provider: string, provider
       .select("*")
       .eq("provider", provider)
       .eq("provider_adjustment_id", providerAdjustmentId)
-      .in("event_type", ["refund", "refund_reversal"])
+      .eq("event_type", eventType)
       .maybeSingle();
     if (error) throw new Error(`ledger: Supabase adjustment-id lookup failed: ${error.message}`);
     if (!data) return null;

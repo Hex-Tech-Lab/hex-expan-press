@@ -466,15 +466,15 @@ export const bakeFacts = (html: string, cfg: Facts, page: string): string => {
 
   if (cfg.author) {
     const safeAuthor = esc(cfg.author);
-    out = out.replace(/(<p class="byline">[\s\S]*?with <b>)[^<]*(<\/b><\/p>)/, `$1${safeAuthor}$2`);
+    out = out.replace(/(<p class="byline">[\s\S]*?with <b>)[^<]*(<\/b><\/p>)/, (_m, open, close) => `${open}${safeAuthor}${close}`);
   }
 
   if (cfg.subtitle) {
     const safeSubtitle = esc(cfg.subtitle);
     if (/<p class="subtitle"[^>]*>[\s\S]*?<\/p>/.test(out)) {
-      out = out.replace(/(<p class="subtitle"[^>]*>)[\s\S]*?(<\/p>)/, `$1${safeSubtitle}$2`);
+      out = out.replace(/(<p class="subtitle"[^>]*>)[\s\S]*?(<\/p>)/, (_m, open, close) => `${open}${safeSubtitle}${close}`);
     } else {
-      out = out.replace(/(<\/h1>)/, `$1\n  <p class="subtitle">${safeSubtitle}</p>`);
+      out = out.replace(/(<\/h1>)/, (h1End) => `${h1End}\n  <p class="subtitle">${safeSubtitle}</p>`);
     }
   }
 

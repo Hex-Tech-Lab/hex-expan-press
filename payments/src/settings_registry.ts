@@ -258,7 +258,8 @@ function loadGlobal(): GlobalSettings {
   const raw = readRegistryFile("global.json");
   if (!raw) {
     warnFallback("global.json", "missing/unreadable");
-    return DEFAULT_GLOBAL;
+    // Production deploys no global.json: env overrides (ADMIN_USER_IDS) must still apply.
+    return { ...DEFAULT_GLOBAL, admin: loadAdminSection(undefined) };
   }
   const g = raw as Partial<GlobalSettings> & Record<string, unknown>;
   return {

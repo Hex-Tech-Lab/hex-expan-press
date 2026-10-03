@@ -4,6 +4,7 @@ import { PolarAdapter } from "../../../../../src/adapters/payments/polar.adapter
 import { PaddleAdapter } from "../../../../../src/adapters/payments/paddle.adapter";
 import { LegacyPaymentAdapterWrapper } from "../../../../../src/adapters/payments/legacy.adapter";
 import { fungiesProvider } from "../../../../../payments/src/providers/fungies";
+import { GLOBAL } from "../../../../../payments/src/settings_registry";
 
 export const runtime = "nodejs";
 
@@ -26,6 +27,18 @@ async function record503Audit(details: { provider?: string; sale_id?: string; re
     if (error) console.error("[billing-webhook] 503 audit insert failed:", error.message);
   } catch (err) {
     console.error("[billing-webhook] 503 audit insert exception:", err);
+  }
+}
+
+/** Await the 503 audit for at most payments.http_timeout_ms (the webhook's short
+ *  internal-call budget), so a slow Supabase can't hold the retry response. */
+async function auditBounded(details: { provider?: string; sale_id?: string; reason: string }): Promise<void> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<void>((resolve) => { timer = setTimeout(resolve, GLOBAL.payments.http_timeout_ms); });
+  try {
+    await Promise.race([record503Audit(details), timeout]);
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -80,7 +93,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // persisted yet — never 200 here (the holder may still fail). 503 +
     // Retry-After makes the provider redeliver.
     if (err instanceof Error && err.name === "WebhookInFlightError") {
-      await record503Audit({ ...auditContext(headers, body), reason: "idempotency_lock_in_flight" });
+      await auditBounded({ ...auditContext(headers, body), reason: "idempotency_lock_in_flight" });
       return NextResponse.json(
         { ok: false, error: "In flight — retry" },
         { status: 503, headers: { "Retry-After": "30" } },
@@ -100,7 +113,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const error = status === 401 ? "Unauthorized" : status === 503 ? "Temporarily unavailable — retry" : status === 500 ? "Internal Server Error" : "Bad Request";
     if (status === 503) {
       // Error name only: messages can carry buyer data (e.g. an email lookup failure).
-      await record503Audit({ ...auditContext(headers, body), reason: err instanceof Error ? err.name : "unknown" });
+      await auditBounded({ ...auditContext(headers, body), reason: err instanceof Error ? err.name : "unknown" });
     }
     return NextResponse.json({ ok: false, error }, { status });
   }

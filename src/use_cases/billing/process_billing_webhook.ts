@@ -98,7 +98,7 @@ export async function processBillingWebhookUseCase(
         // Replay of the same adjustment: the existing refund/refund_reversal row proves it was handled.
         if (refundEvent.providerAdjustmentId) {
           try {
-            if (await findByProviderAdjustmentIdAsync(refundEvent.providerName, refundEvent.providerAdjustmentId)) return true;
+            if (await findByProviderAdjustmentIdAsync(refundEvent.providerName, refundEvent.providerAdjustmentId, "refund")) return true;
           } catch {
             return false; // fail closed: lookup errors make the provider retry
           }
@@ -176,7 +176,7 @@ export async function processBillingWebhookUseCase(
           // no-op success — including after a won dispute recorded a reversal.
           if (refundEvent.providerAdjustmentId) {
             try {
-              if (await findByProviderAdjustmentIdAsync(refundEvent.providerName, refundEvent.providerAdjustmentId)) {
+              if (await findByProviderAdjustmentIdAsync(refundEvent.providerName, refundEvent.providerAdjustmentId, "refund")) {
                 return { status: 200, payload: { ok: true, recorded: false, reason: "duplicate", dedupe: "provider_adjustment_id", event_type: "refund", sale_id: refundEvent.saleId } };
               }
             } catch (err) {

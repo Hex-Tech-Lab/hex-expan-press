@@ -52,6 +52,18 @@ describe("billing webhook — 503 audit trail", () => {
     expect(res.headers.get("Retry-After")).toBe("30");
   });
 
+  it("a hung insert is abandoned after the registry timeout; the 503 still returns", async () => {
+    vi.useFakeTimers();
+    try {
+      h.insert = () => new Promise(() => {}); // never settles
+      const pending = post();
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect((await pending).status).toBe(503);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("a throwing insert leaves the 503 unchanged", async () => {
     h.insert = async () => { throw new Error("network"); };
     expect((await post()).status).toBe(503);

@@ -36,3 +36,13 @@ describe("loadAdminSection", () => {
     expect(loadAdminSection(undefined).audit_log_page_size).toBe(50);
   });
 });
+
+describe("GLOBAL without global.json (production)", () => {
+  it("still applies ADMIN_USER_IDS (data/settings is absent here, as in production)", async () => {
+    vi.resetModules();
+    vi.stubEnv("ADMIN_USER_IDS", A);
+    const { GLOBAL } = await import("../src/settings_registry.ts");
+    expect(GLOBAL.admin.admin_user_ids).toEqual([A.toLowerCase()]);
+  });
+});
+
