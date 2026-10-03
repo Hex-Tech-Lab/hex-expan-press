@@ -56,6 +56,13 @@ export interface GlobalSettings {
     polar: { sandbox_checkout_fallback_url: string };
   };
   landing: { fallbacks: { title: string; creator: string }; disclaimers: string[] };
+  /** Admin API allowlist + pagination (admin audit-log route). */
+  admin: {
+    /** Supabase auth user ids permitted to call admin API routes. Empty => fail closed (403 for everyone). */
+    admin_user_ids: string[];
+    /** Default page size for admin audit-log listing. */
+    audit_log_page_size: number;
+  };
   /** Transactional email (Resend). `from` must be on `sending_domain` (DKIM-verified in Resend). */
   email: {
     from: string;
@@ -118,7 +125,14 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     ],
   },
   portal: { jwt_clock_skew_retry_delay_ms: 350 },
+  admin: { admin_user_ids: [], audit_log_page_size: 50 },
 };
+
+// Bounds for the admin tunables (feature code must never hard-code them).
+export const ADMIN_LIMITS = {
+  audit_log_page_size: { min: 1, max: 500 },
+  admin_user_ids: { max: 100 }, // sanity cap on allowlist size
+} as const;
 
 // Named bounds for the payments tunables (lives in the registry module by design —
 // feature code must never hard-code them). sync_http_timeout max 120000 keeps far
@@ -257,10 +271,44 @@ function loadGlobal(): GlobalSettings {
     landing: { ...DEFAULT_GLOBAL.landing, ...(g.landing ?? {}) },
     email: loadEmailSection(g.email as Record<string, unknown> | undefined),
     portal: { ...DEFAULT_GLOBAL.portal, ...(g.portal ?? {}) },
+    admin: loadAdminSection(g.admin as Record<string, unknown> | undefined),
   };
 }
 
 export const PORTAL_JWT_SKEW_LIMITS = { min: 250, max: 500 } as const;
+
+/** admin section: shallow merge + validation. admin_user_ids must be an array of
+ *  non-empty UUID-ish strings (shape-checked: hex/dash), bounded by ADMIN_LIMITS;
+ *  audit_log_page_size clamps into its bounds. Env overrides:
+ *  ADMIN_USER_IDS (comma-separated), ADMIN_AUDIT_LOG_PAGE_SIZE. */
+export function loadAdminSection(raw: Record<string, unknown> | undefined): GlobalSettings["admin"] {
+  const d = DEFAULT_GLOBAL.admin;
+  const r = (raw ?? {}) as Partial<GlobalSettings["admin"]> & Record<string, unknown>;
+  const fallbacks: string[] = [];
+  let userIds = d.admin_user_ids;
+  // Env wins over global.json (production deploys no global.json; the env is the operator's override).
+  const rawIds = process.env.ADMIN_USER_IDS?.split(",").map((s) => s.trim()).filter((s) => s !== "") ?? r.admin_user_ids;
+  if (rawIds !== undefined) {
+    if (
+      Array.isArray(rawIds)
+      && rawIds.length <= ADMIN_LIMITS.admin_user_ids.max
+      && rawIds.every((id) => typeof id === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id))
+    ) {
+      userIds = rawIds;
+    } else {
+      fallbacks.push("admin_user_ids");
+    }
+  }
+  let pageSize = d.audit_log_page_size;
+  const rawSize = process.env.ADMIN_AUDIT_LOG_PAGE_SIZE !== undefined ? Number(process.env.ADMIN_AUDIT_LOG_PAGE_SIZE) : r.audit_log_page_size;
+  if (intInRange(rawSize, ADMIN_LIMITS.audit_log_page_size.min, ADMIN_LIMITS.audit_log_page_size.max)) {
+    pageSize = rawSize;
+  } else if (rawSize !== undefined) {
+    fallbacks.push("audit_log_page_size");
+  }
+  if (fallbacks.length > 0) warnFallback("global.json", `invalid admin values for ${fallbacks.join(", ")}`);
+  return { admin_user_ids: userIds, audit_log_page_size: pageSize };
+}
 
 /** Clamp a raw jwt_clock_skew_retry_delay_ms into [250,500]; non-finite/missing -> 350. */
 export function clampJwtSkewDelay(v: unknown): number {
