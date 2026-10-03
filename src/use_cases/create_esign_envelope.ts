@@ -1,6 +1,7 @@
 import { SettingsRegistryPort } from "../domain/settings/settings.port.ts";
 import { createEsignAdapter } from "../adapters/esign/esign.factory.ts";
 import { createClient } from "@supabase/supabase-js";
+import { consentTextVersion } from "../../payments/src/settings_registry.ts";
 
 interface CreateEsignEnvelopeRequest {
   productId: string;
@@ -38,7 +39,7 @@ export async function createEsignEnvelopeUseCase(
   let typedName: string | null = null;
   let metaName: string | null = null;
   try {
-    const { data: consents } = await supabase
+    const { data: consents, error: consentErr } = await supabase
       .from("consents")
       .select("typed_name")
       .eq("product_id", req.productId)
@@ -46,11 +47,14 @@ export async function createEsignEnvelopeUseCase(
       .eq("decision", "given")
       .order("signed_at", { ascending: false })
       .limit(1);
+    if (consentErr) console.warn("[esign] C1 typed-name lookup failed; falling back:", consentErr.message);
     typedName = consents?.[0]?.typed_name ?? null;
-    const { data: userData } = await supabase.auth.admin.getUserById(req.userId);
+    const { data: userData, error: userErr } = await supabase.auth.admin.getUserById(req.userId);
+    if (userErr) console.warn("[esign] user metadata lookup failed; falling back:", userErr.message);
     metaName = (userData?.user?.user_metadata as Record<string, string> | undefined)?.name ?? null;
-  } catch {
+  } catch (err) {
     // name resolution is best-effort; the adapter falls back to the email
+    console.warn("[esign] creator name lookup failed; falling back to email:", err instanceof Error ? err.message : err);
   }
   const creatorName = resolveCreatorName(typedName, metaName, req.userEmail);
 
@@ -61,7 +65,9 @@ export async function createEsignEnvelopeUseCase(
   const command = {
     agreementPath: settings.esign.revenueSplitDocumentPath,
     signers: [{ email: req.userEmail, name: creatorName }],
-    metadata: { productId: req.productId, userId: req.userId, creatorName },
+    // textVersion is snapshotted now: the webhook records the version the creator was shown,
+    // even if the registry version changes during the signing window.
+    metadata: { productId: req.productId, userId: req.userId, creatorName, textVersion: consentTextVersion() },
     redirectUrl: `${req.hostUrl}/creator/consents/esign_done`,
     webhookUrl: `${req.hostUrl}/api/esign/webhook` // Completely abstracts the vendor
   };

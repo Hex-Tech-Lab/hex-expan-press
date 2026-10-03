@@ -1,6 +1,7 @@
 import { SettingsRegistryPort } from "../domain/settings/settings.port.ts";
 import { createEsignAdapter } from "../adapters/esign/esign.factory.ts";
 import { ConsentDatabasePort } from "../domain/governance/consent.port.ts";
+import { consentTextVersion } from "../../payments/src/settings_registry.ts";
 
 export interface ProcessEsignWebhookRequest {
   body: string;
@@ -36,7 +37,7 @@ export async function processEsignWebhookUseCase(
     if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
       throw new Error(`Webhook validation failed: completed envelope ${event.envelopeId} has no metadata object`);
     }
-    const { productId, userId } = metadata as Record<string, unknown>;
+    const { productId, userId, textVersion } = metadata as Record<string, unknown>;
     if (typeof productId !== "string" || productId.trim() === "" || typeof userId !== "string" || userId.trim() === "") {
       throw new Error(`Webhook validation failed: completed envelope ${event.envelopeId} is missing productId/userId metadata`);
     }
@@ -45,6 +46,16 @@ export async function processEsignWebhookUseCase(
     // The PDF path is abstracted here, but typically bounded to user and envelope
     const pdfPath = `${userId}/${envelopeId}.pdf`;
 
+    // The version snapshotted at envelope creation. Envelopes created before the snapshot
+    // existed fall back to the registry; a present-but-malformed snapshot also falls back
+    // (rejecting would make Firma retry forever and lose the C3) but is logged loudly.
+    let snapshotTextVersion = consentTextVersion();
+    if (typeof textVersion === "string" && /^v\d+(\.\d+)*$/.test(textVersion)) {
+      snapshotTextVersion = textVersion;
+    } else if (textVersion !== undefined) {
+      console.error(`[esign-webhook] envelope ${envelopeId} has a malformed textVersion snapshot; recording registry version ${snapshotTextVersion}`);
+    }
+
     // 3. Persist the legal consent (C3) using the Database Port
     try {
       await database.submitConsent({
@@ -52,7 +63,7 @@ export async function processEsignWebhookUseCase(
         userId: userId, // Used to construct path or extra validation if needed by adapter
         kind: "C3_revenue_split",
         decision: "given",
-        textVersion: "v1.0", // Can be dynamic based on settings in future
+        textVersion: snapshotTextVersion,
         documentSha256: event.documentHash,
         typedName: `Signed via ${validation.providerName || "unknown"}`,
         ip: req.ip,
