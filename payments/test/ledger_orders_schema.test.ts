@@ -113,6 +113,25 @@ describe("orders upsert Zod boundary", () => {
     expect(OrderUpsertSchema.safeParse(rest).success).toBe(true);
   });
 
+  // Boundary of the ~4-ULP tolerance: float noise of a few ULPs around a cent value passes, a real sub-cent residue does not.
+  const nudge = (n: number, ulps: number): number => {
+    const f = new Float64Array([n]);
+    const b = new BigInt64Array(f.buffer);
+    b[0] = b[0]! + BigInt(ulps);
+    return f[0]!;
+  };
+  const parseAmount = (amount: number) => {
+    const rest: Record<string, unknown> = { ...sale, amount_usd: amount, event_type: "sale", email_hash: null, attribution_id: null, provider_adjustment_id: null, occurred_at: sale.ts };
+    delete rest.ts;
+    return OrderUpsertSchema.safeParse(rest).success;
+  };
+  it.each([1, 2, -1, -2])("accepts a cent value nudged by %i ULP (float noise)", (ulps) => {
+    expect(parseAmount(nudge(39, ulps))).toBe(true);
+  });
+  it.each([1e3, 1e6, -1e6])("rejects a cent value nudged by %i ULP (real sub-cent residue)", (ulps) => {
+    expect(parseAmount(nudge(39, ulps))).toBe(false);
+  });
+
   it("strict: an unknown column is rejected", () => {
     const rest: Record<string, unknown> = { ...sale, event_type: "sale", email_hash: null, attribution_id: null, provider_adjustment_id: null, occurred_at: sale.ts };
     delete rest.ts;
