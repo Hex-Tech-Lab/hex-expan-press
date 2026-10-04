@@ -1,0 +1,72 @@
+web/app/api/billing/webhook/handler.ts
+  s_eaa71a55cf16bf::t_c635fedd5187f2 108-110,114
+  s_eaa71a55cf16bf::t_be39a0a553c175 1-107,111-113,115-146
+src/domain/governance/consent.port.ts
+  s_eaa71a55cf16bf::t_be39a0a553c175 16-24,30-31
+supabase/migrations/20261004000800_webhook_conflicts.sql
+  s_eaa71a55cf16bf::t_be39a0a553c175 1-125
+payments/test/webhook_core_lock.test.ts
+  s_eaa71a55cf16bf::t_be39a0a553c175 1-64
+supabase/migrations/20261004000500_consents_signed_by_present.sql
+  s_eaa71a55cf16bf::t_be39a0a553c175 11-15
+payments/src/webhook_core.ts
+  s_eaa71a55cf16bf::t_be39a0a553c175 7
+web/src/lib/__tests__/esign-webhook.test.ts
+  s_eaa71a55cf16bf::t_be39a0a553c175 115,135,156,210-211,214-215,221,269-271,284-306,323,329
+src/use_cases/billing/process_billing_webhook.ts
+  s_eaa71a55cf16bf::t_be39a0a553c175 11,17-122,200,202,204,217,268,413,419,517
+src/use_cases/billing/__tests__/process_billing_webhook.test.ts
+  s_eaa71a55cf16bf::t_be39a0a553c175 60,63-65,67-77,80-90,93,150-152,1039-1043,1069,1073,1090,1094-1098,1100-1109,1120-1228,1259,1264,1275,1280,1291-1292,1294,1296-1300,1351
+  s_eaa71a55cf16bf::t_54fae02e6bc81f 1307,1312,1323,1329
+payments/src/ledger.ts
+  s_eaa71a55cf16bf::t_be39a0a553c175 4,73-115,120-126,128-129,143-150,156,377-392,413-470
+web/app/api/billing/webhook/__tests__/valid_signature_malformed_ledger.test.ts
+  s_eaa71a55cf16bf::t_be39a0a553c175 1-94
+web/app/api/billing/webhook/__tests__/retry-after-503.test.ts
+  s_eaa71a55cf16bf::t_be39a0a553c175 16,36-47
+src/use_cases/__tests__/audit-esign-replay.test.ts
+  s_eaa71a55cf16bf::t_be39a0a553c175 26,59,72
+web/app/api/billing/webhook/route.ts
+  s_eaa71a55cf16bf::t_be39a0a553c175 5,9-12
+src/use_cases/process_esign_webhook.ts
+  s_eaa71a55cf16bf::t_be39a0a553c175 6-7,66-71,74,76,87-100,117,131
+  s_02aea578e6012f::t_b5e008494d82de 5
+supabase/tests/webhook_conflicts.sql
+  s_eaa71a55cf16bf::t_be39a0a553c175 1-100
+web/app/api/billing/webhook/__tests__/in-flight.test.ts
+  s_eaa71a55cf16bf::t_be39a0a553c175 9,13,47-57
+  s_eaa71a55cf16bf::t_da315f2ae5e0f3 58-59
+payments/test/ledger_orders_schema.test.ts
+  s_eaa71a55cf16bf::t_be39a0a553c175 1-140
+docs/adr/0057-webhook-idempotency-and-fail-closed.md
+  s_eaa71a55cf16bf::t_be39a0a553c175 19
+src/adapters/database/supabase.adapter.ts
+  s_eaa71a55cf16bf::t_be39a0a553c175 2,51-54
+  s_eaa71a55cf16bf::t_77ee7784ca6aae 55
+supabase/migrations/20261004000600_audit_log_collision_flag_dedupe.sql
+  s_eaa71a55cf16bf::t_be39a0a553c175 1-19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "dc3fbda22d0273c919c7bd9a76b24c168c2df0f8",
+  "prompts": {},
+  "sessions": {
+    "s_02aea578e6012f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef73ddb2fffeIRlqFJ73zGhX1c",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_eaa71a55cf16bf": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef7514bdaffel0T174aMhQBR5q",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
