@@ -47,3 +47,25 @@ export interface WebhookValidationResult {
 export interface EsignWebhookPort {
   parseAndValidateWebhook(body: string, headers: Record<string, string | string[] | undefined>): WebhookValidationResult;
 }
+
+/**
+ * Evidence operations for a completed envelope (sprint-10 audit F1).
+ * The consent row must never reference an evidence PDF that was not fetched,
+ * uploaded and read-back verified first — adapters own both sides because the
+ * provider knows how to retrieve the signed artifact and the existing
+ * fetchAgreementPdf precedent already reaches Supabase Storage from here.
+ */
+export interface EsignEvidencePort {
+  /**
+   * Retrieves the signed (completed) document bytes for an envelope.
+   * Implementations must throw on any failure — a missing artifact must
+   * never be papered over with empty bytes.
+   */
+  fetchCompletedDocument(envelopeId: string): Promise<Uint8Array>;
+  /**
+   * Uploads the evidence bytes to durable storage at `objectPath` and
+   * verifies the write with a read-back GET. Must throw unless the object
+   * round-trips; upsert semantics keep re-uploads idempotent for replays.
+   */
+  uploadConsentEvidence(objectPath: string, bytes: Uint8Array): Promise<void>;
+}

@@ -11,6 +11,10 @@ vi.mock("../../adapters/esign/esign.factory.ts", () => ({
       event: { eventType: "envelope.completed", envelopeId: "env_1", documentHash: "a".repeat(64),
                metadata: { productId: "p1", userId: "u1" } },
     }),
+    // Evidence-before-insert (F1): the mock returns real bytes so the upload
+    // path succeeds and the replay contract below stays the focus.
+    fetchCompletedDocument: () => Promise.resolve(new Uint8Array([0x25, 0x50, 0x44, 0x46])),
+    uploadConsentEvidence: () => Promise.resolve(),
   }),
 }));
 

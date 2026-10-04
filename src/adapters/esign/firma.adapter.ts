@@ -5,7 +5,7 @@ function truncate(text: string, max: number): string {
   return text.length > max ? `${text.slice(0, max)}...` : text;
 }
 
-import { CreateEnvelopeCommand, CreateEnvelopeResult, EsignProviderPort, EsignWebhookPort, WebhookValidationResult } from "../../domain/esign/esign.port.ts";
+import { CreateEnvelopeCommand, CreateEnvelopeResult, EsignEvidencePort, EsignProviderPort, EsignWebhookPort, WebhookValidationResult } from "../../domain/esign/esign.port.ts";
 
 /**
  * Firma.dev adapter (verified against the live API 2026-09-27).
@@ -19,7 +19,7 @@ import { CreateEnvelopeCommand, CreateEnvelopeResult, EsignProviderPort, EsignWe
  * into positioned fields), then the embedded signing URL is
  * https://app.firma.dev/signing/<recipient_id>.
  */
-export class FirmaAdapter implements EsignProviderPort, EsignWebhookPort {
+export class FirmaAdapter implements EsignProviderPort, EsignWebhookPort, EsignEvidencePort {
   private base(): string {
     return process.env.FIRMA_API_BASE || "https://api.firma.dev/functions/v1/signing-request-api";
   }
@@ -58,6 +58,54 @@ export class FirmaAdapter implements EsignProviderPort, EsignWebhookPort {
     });
     if (!res.ok) throw new Error(`Agreement PDF fetch failed (${res.status}) for ${path}`);
     return new Uint8Array(await res.arrayBuffer());
+  }
+
+  /**
+   * Retrieve the signed (completed) PDF for an envelope (sprint-10 audit F1).
+   *
+   * NEEDS-LIVE-VERIFICATION: no repo artifact documents the exact Firma
+   * endpoint for the completed document. This implements the best-documented
+   * REST shape — GET on the signing-request's documents resource returning
+   * the PDF bytes — over the create-and-send base and auth headers that WERE
+   * live-verified 2026-09-27. `attach_pdf_on_finish: true` (createEnvelope)
+   * makes the artifact exist at completion; if the live API differs (e.g. a
+   * files[] list on the request GET), only this method changes — the use-case
+   * contract (bytes or throw) does not.
+   */
+  async fetchCompletedDocument(envelopeId: string): Promise<Uint8Array> {
+    const res = await this.fetchWithRelease(`${this.base()}/signing-requests/${encodeURIComponent(envelopeId)}/documents`, {
+      headers: this.authHeaders()
+    });
+    if (!res.ok) throw new Error(`Firma completed-document fetch failed (${res.status}) for envelope ${envelopeId}`);
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    if (bytes.length === 0) throw new Error(`Firma completed-document fetch returned empty bytes for envelope ${envelopeId}`);
+    return bytes;
+  }
+
+  /**
+   * Upload the consent evidence PDF to Supabase Storage (service role) and
+   * verify the write with a read-back GET (sprint-10 audit F1). Mirrors
+   * fetchAgreementPdf's header pattern in the reversed (PUT) direction; the
+   * storage object must exist and round-trip BEFORE any consent row is
+   * persisted. `x-upsert: true` keeps re-uploads idempotent for replayed
+   * envelopes. Throws on any failure.
+   */
+  async uploadConsentEvidence(objectPath: string, bytes: Uint8Array): Promise<void> {
+    const url = process.env.SUPABASE_URL;
+    const key = process.env.SUPABASE_SECRET_KEY;
+    if (!url || !key) throw new Error("SUPABASE_URL/SUPABASE_SECRET_KEY are not configured");
+    const objectUrl = `${url}/storage/v1/object/consents/${objectPath}`;
+    const headers = { apikey: key, Authorization: `Bearer ${key}` };
+    const put = await this.fetchWithRelease(objectUrl, {
+      method: "PUT",
+      headers: { ...headers, "Content-Type": "application/pdf", "x-upsert": "true" },
+      body: Buffer.from(bytes)
+    });
+    if (!put.ok) throw new Error(`Consent evidence upload failed (${put.status}) for ${objectPath}`);
+    const verify = await this.fetchWithRelease(objectUrl, { headers });
+    if (!verify.ok) throw new Error(`Consent evidence verification failed (${verify.status}) for ${objectPath}`);
+    const roundTrip = new Uint8Array(await verify.arrayBuffer());
+    if (roundTrip.length === 0) throw new Error(`Consent evidence verification read empty bytes for ${objectPath}`);
   }
 
   private splitName(name: string): { firstName: string; lastName: string } {

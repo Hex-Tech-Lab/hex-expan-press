@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { EnvSettingsAdapter } from "../../../../../src/adapters/settings/env_settings.adapter";
 import { SupabaseAdapter } from "../../../../../src/adapters/database/supabase.adapter";
 import { processEsignWebhookUseCase } from "../../../../../src/use_cases/process_esign_webhook";
+import { WebhookValidationError } from "../../../../../src/domain/webhook/webhook_errors";
 
 export const runtime = "nodejs";
 
@@ -51,10 +52,20 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   } catch (err) {
     console.error("Error processing esign webhook:", err);
     const message = err instanceof Error ? err.message : String(err);
-    const isValidationErr = message.includes("validation failed");
+    // Typed classification first (sprint-10 F5): error prose is no longer
+    // load-bearing. The substring check below is a deprecated fallback kept
+    // one release for any legacy error path that still classifies by prose.
+    let status: number;
+    if (err instanceof WebhookValidationError) {
+      status = err.httpStatus;
+    } else if (message.includes("validation failed")) {
+      status = 400;
+    } else {
+      status = 500;
+    }
     return NextResponse.json(
-      { ok: false, error: isValidationErr ? "Bad Request" : "Internal Server Error" },
-      { status: isValidationErr ? 400 : 500 },
+      { ok: false, error: status === 500 ? "Internal Server Error" : "Bad Request" },
+      { status },
     );
   }
 }
