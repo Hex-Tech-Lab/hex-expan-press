@@ -1083,6 +1083,26 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
       }
     });
 
+    it("refund: 23505 + same sale/amount but different currency -> 503 retryable + collision flag", async () => {
+      race23505();
+      supa.adjLookupResult = conflicts(CB_SALE.sale_id, 39, "EUR");
+      try {
+        await expect(
+          processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_other_cur"))]),
+        ).rejects.toSatisfy((e: unknown) => {
+          expect503Collision(e);
+          return true;
+        });
+        expect(supa.auditInserts).toHaveLength(1);
+        expect(supa.auditInserts[0]).toMatchObject({
+          event: "MANUAL_REVIEW_REQUIRED_REFUND",
+          details: expect.objectContaining({ reason: "adjustment_id_collision" }),
+        });
+      } finally {
+        cleanup23505();
+      }
+    });
+
     it("refund: 23505 + lookup error -> 503 retryable, no flag (nothing to compare against)", async () => {
       race23505();
       supa.adjLookupResult = { data: null, error: { message: "db down" } };
@@ -1141,6 +1161,27 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
       try {
         await expect(
           processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbReversal("adj_rev_other_amt") as never)]),
+        ).rejects.toSatisfy((e: unknown) => {
+          expect503Collision(e);
+          return true;
+        });
+        expect(supa.auditInserts).toHaveLength(1);
+        expect(supa.auditInserts[0]).toMatchObject({
+          event: "MANUAL_REVIEW_REQUIRED_REFUND",
+          details: expect.objectContaining({ reason: "adjustment_id_collision" }),
+        });
+      } finally {
+        cleanup23505();
+      }
+    });
+
+    it("reversal: 23505 + same sale/amount but different currency -> 503 retryable + collision flag", async () => {
+      await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_rev_refund_cur"))]);
+      race23505();
+      supa.adjLookupResult = conflicts(CB_SALE.sale_id, 39, "EUR");
+      try {
+        await expect(
+          processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbReversal("adj_rev_other_cur") as never)]),
         ).rejects.toSatisfy((e: unknown) => {
           expect503Collision(e);
           return true;
