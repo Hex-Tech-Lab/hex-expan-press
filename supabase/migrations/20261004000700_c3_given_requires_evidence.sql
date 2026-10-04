@@ -1,7 +1,10 @@
 -- Phase C5 (hostile audit 2026-10-04): C3_revenue_split decision='given' must carry evidence_path.
 -- 1) Preflight: aborts the whole migration (single transaction) if any legacy row violates the new
 --    rule, with the offending ids in the message. Read-only twin: supabase/preflight/20261004000700_c3_evidence_required.sql.
--- 2) Table CHECK, so the rule holds on every write path (service role bypasses the RPC).
+-- 2) Table CHECK, so the rule holds on every write path (service role bypasses the RPC). This adds only the
+--    NOT NULL half: when evidence_path IS present, shape + signer + envelope are already enforced at the table by
+--    consents_evidence_path_contract (20261004000400), so the two constraints together mirror the RPC.
+--    Proven by supabase/tests/submit_consent_c3_evidence.sql (section B).
 -- 3) submit_consent: body identical to 20261004000300 plus the C3 evidence guard.
 -- Rollback: alter table public.consents drop constraint consents_c3_given_evidence_required;
 --           then re-apply 20261004000300_submit_consent_evidence_envelope_tie.sql to restore the previous function body.
