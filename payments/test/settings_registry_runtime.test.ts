@@ -168,6 +168,13 @@ describe("registry validation added with the P1/P2 sweep", () => {
     expect(warn.mock.calls.flat().join(" ")).toContain("review_queue_page_size");
   });
 
+  it("an out-of-range retry_after_seconds falls back to the default with a warning", () => {
+    const warn = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(loadPaymentsSection({ retry_after_seconds: 5000 }).retry_after_seconds).toBe(30);
+    expect(warn.mock.calls.flat().join(" ")).toContain("retry_after_seconds");
+    expect(loadPaymentsSection({ retry_after_seconds: 45 }).retry_after_seconds).toBe(45);
+  });
+
   it("email.retryable_error_names must be a non-empty string[]; a string or number falls back with a warning", () => {
     const warn = vi.spyOn(console, "error").mockImplementation(() => {});
     const defaults = loadEmailSection(undefined).retryable_error_names;
