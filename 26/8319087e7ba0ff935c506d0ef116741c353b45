@@ -1,0 +1,24 @@
+supabase/migrations/20261004000600_submit_consent_race_lock.sql
+  s_eaa71a55cf16bf::t_03561cac822de8 1-170
+payments/bake_checkout.ts
+  s_eaa71a55cf16bf::t_b2c429229fea68 54-55
+payments/test/audit_bake_c2_hash.test.ts
+  s_eaa71a55cf16bf::t_5de68e4870ecfa 141-144,150,152-153
+  s_eaa71a55cf16bf::t_73bb5a500e6cdb 145-149,151
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "268319087e7ba0ff935c506d0ef116741c353b45",
+  "prompts": {},
+  "sessions": {
+    "s_eaa71a55cf16bf": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef7514bdaffel0T174aMhQBR5q",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
