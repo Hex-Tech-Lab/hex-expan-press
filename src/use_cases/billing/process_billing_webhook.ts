@@ -7,21 +7,37 @@
  * ADR: ADR-0049, ADR-0050
  */
 import { PaymentProviderPort, SaleCompletedEvent, RefundIssuedEvent, RefundReversedEvent } from "../../domain/payments/payments.port.ts";
-import { appendSale, appendRefund, appendRefundReversal, findSaleAsync, findRefundAsync, findRefundReversalAsync, findByProviderAdjustmentIdAsync, flagRefundForManualReview, isAdjustmentIdUniqueViolation } from "../../../payments/src/ledger.ts";
+import { appendSale, appendRefund, appendRefundReversal, findSaleAsync, findRefundAsync, findRefundReversalAsync, findByProviderAdjustmentIdAsync, flagRefundForManualReview, recordWebhookConflict, isAdjustmentIdUniqueViolation } from "../../../payments/src/ledger.ts";
 import { computeSplit, usdToCents } from "../../../payments/src/split.ts";
 import { effectiveCreatorSplitPct } from "../../../payments/src/terms.ts";
 import { loadProductIndex, withIdempotencyLock, WebhookInFlightError } from "../../../payments/src/webhook_core.ts";
 import { GLOBAL } from "../../../payments/src/settings_registry.ts";
 
-type LockedFn = () => Promise<{ status: number; payload: Record<string, unknown> }>;
+type LockedResult = { status: number; payload: Record<string, unknown> };
+type LockedFn = () => Promise<LockedResult>;
+
+/**
+ * A mismatching adjustment-id collision stored in the reconciliation inbox (public.webhook_conflicts).
+ * The route answers 202: every provider treats any 2xx as delivered, so the retry loop stops, and the event
+ * lives on in the inbox until an operator resolves it. Never produced without a durable row.
+ */
+export interface ConflictPendingOutcome {
+  status: 202;
+  payload: { ok: true; recorded: false; reason: "conflict_pending"; conflict_id: number; event_type: "refund" | "refund_reversal"; sale_id: string };
+}
+
+function asConflictPending(result: LockedResult | undefined): ConflictPendingOutcome | undefined {
+  return result?.status === 202 ? (result as ConflictPendingOutcome) : undefined;
+}
 
 /**
  * 23505 on orders_provider_adjustment_id_uniq: a concurrent delivery won the
  * index — but only a conflicting row that MATCHES this event (same sale,
  * same amount, same currency) is a genuine replay worth acknowledging 200.
- * Anything else is a real collision: flag it for manual review (best-effort;
- * a flag-write failure must never soften this into a 200) and throw a 503 so
- * the provider retries while ops investigates.
+ * Anything else is a real collision: the incoming event is stored in the
+ * reconciliation inbox together with the manual-review flag (one atomic RPC) and
+ * answered 202 conflict_pending. A write failure must never soften into a 200
+ * or a 202: it surfaces as a retryable 503 so the provider redelivers.
  */
 /** Retryable 503 with a distinct error name, so the route's WEBHOOK_503_RETRYING audit (err.name) tells the collision failure modes apart. */
 function collisionRetryable(name: string, message: string): Error {
@@ -40,7 +56,7 @@ async function resolveAdjustmentIdCollision(
     refundCents: number | null;
     occurredAt: string;
   },
-): Promise<{ status: 200; payload: Record<string, unknown> }> {
+): Promise<LockedResult> {
   let row: Awaited<ReturnType<typeof findByProviderAdjustmentIdAsync>> | null = null;
   try {
     row = await findByProviderAdjustmentIdAsync(provider, adjustmentId, eventType);
@@ -65,33 +81,43 @@ async function resolveAdjustmentIdCollision(
   if (matches) {
     return { status: 200, payload: { ok: true, recorded: false, reason: "duplicate", dedupe: "provider_adjustment_id", event_type: eventType, sale_id: event.saleId } };
   }
-  // Mismatch: durable flag first. A flag-write failure must never soften into a 200; it
-  // surfaces as a retryable 503 (the route attaches Retry-After from the settings registry).
+  // Mismatch: store the event durably first (inbox row + audit flag, one transaction). A write failure must
+  // never become a 200/202; it surfaces as a retryable 503 (the route attaches Retry-After from the settings registry).
+  let conflictId: number;
   try {
-    await flagRefundForManualReview({
-      reason: "adjustment_id_collision",
-      provider,
-      sale_id: event.saleId,
-      refund_id: flag.refundId,
-      refund_cents: flag.refundCents,
-      sale_cents: rowCents,
-      creator_id: row.creator_id ?? null,
-      occurred_at: flag.occurredAt,
-      adjustment_id: adjustmentId,
-      event_type: eventType,
-      incoming_currency: event.currency ?? null,
-      conflicting_sale_id: row.sale_id,
-      conflicting_cents: rowCents,
-      conflicting_currency: row.currency ?? null,
-    });
-  } catch (flagErr) {
-    console.error("[billing-webhook] adjustment_id_collision flag write failed:", flagErr);
-    throw collisionRetryable("AdjustmentIdCollisionFlagError", `adjustment-id collision flag write failed for ${eventType} ${adjustmentId}`);
+    conflictId = await recordWebhookConflict(
+      {
+        provider,
+        event_type: eventType,
+        sale_id: event.saleId,
+        adjustment_id: adjustmentId,
+        total_cents: event.totalCents ?? null,
+        currency: event.currency ?? null,
+        occurred_at: flag.occurredAt,
+        refund_id: flag.refundId,
+      },
+      {
+        reason: "adjustment_id_collision",
+        provider,
+        sale_id: event.saleId,
+        refund_id: flag.refundId,
+        refund_cents: flag.refundCents,
+        sale_cents: rowCents,
+        creator_id: row.creator_id ?? null,
+        occurred_at: flag.occurredAt,
+        adjustment_id: adjustmentId,
+        event_type: eventType,
+        incoming_currency: event.currency ?? null,
+        conflicting_sale_id: row.sale_id,
+        conflicting_cents: rowCents,
+        conflicting_currency: row.currency ?? null,
+      },
+    );
+  } catch (recordErr) {
+    console.error("[billing-webhook] adjustment_id_collision conflict write failed:", recordErr);
+    throw collisionRetryable("AdjustmentIdCollisionRecordError", `adjustment-id collision conflict write failed for ${eventType} ${adjustmentId}`);
   }
-  throw collisionRetryable(
-    "AdjustmentIdCollisionMismatchError",
-    `adjustment-id collision for ${eventType} ${adjustmentId} — conflicting row does not match this event (sale/amount/currency)`,
-  );
+  return { status: 202, payload: { ok: true, recorded: false, reason: "conflict_pending", conflict_id: conflictId, event_type: eventType, sale_id: event.saleId } };
 }
 
 /**
@@ -99,11 +125,11 @@ async function resolveAdjustmentIdCollision(
  * still fail. Acknowledge only when the record is confirmed durable; otherwise
  * rethrow WebhookInFlightError so the route answers 503 and the provider retries.
  */
-async function underLockOrConfirmed(lockKey: string, isPersisted: () => Promise<boolean>, fn: LockedFn): Promise<void> {
+async function underLockOrConfirmed(lockKey: string, isPersisted: () => Promise<boolean>, fn: LockedFn): Promise<LockedResult | undefined> {
   try {
-    await withIdempotencyLock(lockKey, fn);
+    return await withIdempotencyLock(lockKey, fn);
   } catch (err) {
-    if (err instanceof WebhookInFlightError && (await isPersisted())) return;
+    if (err instanceof WebhookInFlightError && (await isPersisted())) return undefined;
     throw err;
   }
 }
@@ -116,7 +142,7 @@ export interface ProcessWebhookRequest {
 export async function processBillingWebhookUseCase(
   req: ProcessWebhookRequest,
   adapters: PaymentProviderPort[]
-): Promise<void> {
+): Promise<ConflictPendingOutcome | void> {
   // 1. Signature-based routing — identity established from cryptographic evidence, never URL
   let matchedAdapter: PaymentProviderPort | undefined;
   for (const adapter of adapters) {
@@ -164,7 +190,7 @@ export async function processBillingWebhookUseCase(
   //    and rejected with a validation failure (400) for manual review.
   if (event.eventType === "refund_issued") {
     const refundEvent = event as RefundIssuedEvent;
-    await underLockOrConfirmed(
+    const refundResult = await underLockOrConfirmed(
       `lock:refund:${refundEvent.providerName}:${refundEvent.saleId}`,
       // Confirm a contended refund only when THIS delivery would itself pass the in-lock checks
       // (verifiable amount equal to the sale, same currency), in the same order as in-lock: a
@@ -309,13 +335,13 @@ export async function processBillingWebhookUseCase(
         return { status: 200, payload: { ok: true, recorded: true, event_type: "refund", sale_id: refundEvent.saleId } };
       },
     );
-    return;
+    return asConflictPending(refundResult);
   }
 
   // 4b. Refund reversed (won chargeback / dispute reversal)
   if (event.eventType === "refund_reversed") {
     const revEvent = event as RefundReversedEvent;
-    await underLockOrConfirmed(
+    const reversalResult = await underLockOrConfirmed(
       `lock:refund:${revEvent.providerName}:${revEvent.saleId}`,
       async () => (await findRefundReversalAsync(revEvent.providerName, revEvent.saleId)) !== null,
       async () => {
@@ -413,7 +439,7 @@ export async function processBillingWebhookUseCase(
         return { status: 200, payload: { ok: true, recorded: true, event_type: "refund_reversal", sale_id: revEvent.saleId } };
       },
     );
-    return;
+    return asConflictPending(reversalResult);
   }
 
   // 5. Sale completed
