@@ -182,7 +182,7 @@ describe("esign webhook (Firma HMAC contract)", () => {
     });
     const request = { body, headers, ip: "10.0.0.1", userAgent: "firma-webhook" };
 
-    const rejection = processEsignWebhookUseCase(request, settings, { submitConsent });
+    const rejection = processEsignWebhookUseCase(request, settings, { submitConsent, flagConsentForManualReview: vi.fn() });
     await expect(rejection).rejects.toBeInstanceOf(WebhookValidationError);
     await expect(rejection).rejects.toMatchObject({ httpStatus: 400 });
     await expect(rejection).rejects.toThrow(/env_no_hash.*document_sha256/);
@@ -296,6 +296,7 @@ describe("esign webhook (Firma HMAC contract)", () => {
     const { body, headers } = signedBody(completedPayload({ productId: "prod_42", userId: "user_7", textVersion: "garbage" }));
     const request = { body, headers, ip: "203.0.113.9", userAgent: "firma-webhook/1.0" };
     const flagConsentForManualReview = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("fetch", evidenceFetchMock());
     await processEsignWebhookUseCase(request, settings, { submitConsent, flagConsentForManualReview });
     expect(submitConsent.mock.calls[0][0].textVersion).toBe("legacy/unknown");
     expect(flagConsentForManualReview).toHaveBeenCalledWith(expect.objectContaining({ snapshot: "malformed" }));
