@@ -8,7 +8,7 @@
  */
 import { PaymentProviderPort, SaleCompletedEvent, RefundIssuedEvent, RefundReversedEvent } from "../../domain/payments/payments.port.ts";
 import { appendSale, appendRefund, appendRefundReversal, findSaleAsync, findRefundAsync, findRefundReversalAsync, findByProviderAdjustmentIdAsync, flagRefundForManualReview, isAdjustmentIdUniqueViolation } from "../../../payments/src/ledger.ts";
-import { computeSplit } from "../../../payments/src/split.ts";
+import { computeSplit, usdToCents } from "../../../payments/src/split.ts";
 import { effectiveCreatorSplitPct } from "../../../payments/src/terms.ts";
 import { loadProductIndex, withIdempotencyLock, WebhookInFlightError } from "../../../payments/src/webhook_core.ts";
 import { GLOBAL } from "../../../payments/src/settings_registry.ts";
@@ -44,9 +44,10 @@ async function resolveAdjustmentIdCollision(
   if (!row) {
     throw Object.assign(new Error(`Webhook retryable: adjustment-id collision with no recoverable row for ${eventType} ${adjustmentId}`), { httpStatus: 503 });
   }
+  const rowCents = usdToCents(row.amount_usd);
   const matches =
     row.sale_id === event.saleId &&
-    (event.totalCents === undefined || Math.round(row.amount_usd * 100) === event.totalCents) &&
+    (event.totalCents === undefined || rowCents === event.totalCents) &&
     (event.currency === undefined || row.currency.toUpperCase() === event.currency.toUpperCase());
   if (matches) {
     return { status: 200, payload: { ok: true, recorded: false, reason: "duplicate", dedupe: "provider_adjustment_id", event_type: eventType, sale_id: event.saleId } };
@@ -59,7 +60,7 @@ async function resolveAdjustmentIdCollision(
     sale_id: event.saleId,
     refund_id: flag.refundId,
     refund_cents: flag.refundCents,
-    sale_cents: Math.round(row.amount_usd * 100),
+    sale_cents: rowCents,
     creator_id: row.creator_id ?? null,
     occurred_at: flag.occurredAt,
   });

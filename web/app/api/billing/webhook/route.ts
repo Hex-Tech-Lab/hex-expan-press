@@ -99,7 +99,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       await auditBounded({ ...auditContext(headers, body), reason: "idempotency_lock_in_flight" });
       return NextResponse.json(
         { ok: false, error: "In flight — retry" },
-        { status: 503, headers: { "Retry-After": String(GLOBAL.payments.retry_after_seconds) } },
+        { status: 503, headers: retryAfterHeaders() },
       );
     }
     console.error("Billing webhook error:", err);
@@ -118,8 +118,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       // Error name only: messages can carry buyer data (e.g. an email lookup failure).
       await auditBounded({ ...auditContext(headers, body), reason: err instanceof Error ? err.name : "unknown" });
     }
-    return NextResponse.json({ ok: false, error }, { status: status, ...(status === 503 ? { headers: { "Retry-After": String(GLOBAL.payments.retry_after_seconds) } } : {}) });
+    return NextResponse.json({ ok: false, error }, { status, headers: status === 503 ? retryAfterHeaders() : undefined });
   }
+}
+
+/** Every 503 tells the provider when to redeliver (value from the settings registry). */
+function retryAfterHeaders(): Record<string, string> {
+  return { "Retry-After": String(GLOBAL.payments.retry_after_seconds) };
 }
 
 /** Best-effort provider/sale for audit context — parsed defensively; a
