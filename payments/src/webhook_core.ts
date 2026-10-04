@@ -1,31 +1,12 @@
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { appendRefund, appendSale, findRefund, findSale } from "./ledger.ts";
+import type { ProviderName } from "./provider.ts";
 import { isRegisteredPaymentProvider, paymentProviderSetting, isMoneyPath, GLOBAL } from "./settings_registry.ts";
 import { loadConfig, type ProductConfig } from "./settings.ts";
-import { computeSplit } from "./split.ts";
-import { effectiveCreatorSplitPct } from "./terms.ts";
 import { expanRedis, isRedisRestConfigured } from "../../src/infrastructure/redis/redis.client.ts";
-import { lemonsqueezyProvider } from "./providers/lemonsqueezy.ts";
-import { payhipProvider } from "./providers/payhip.ts";
-import { paddleProvider } from "./providers/paddle.ts";
-import { polarProvider } from "./providers/polar.ts";
-import { fungiesProvider } from "./providers/fungies.ts";
-import { fastspringProvider } from "./providers/fastspring.ts";
-import type { IncomingHttpHeaders } from "node:http";
-import type { CheckoutProvider, ProviderName, RefundEvent, SaleEvent } from "./provider.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-
-const ADAPTERS: Record<ProviderName, CheckoutProvider> = {
-  lemonsqueezy: lemonsqueezyProvider,
-  payhip: payhipProvider,
-  paddle: paddleProvider,
-  polar: polarProvider,
-  fungies: fungiesProvider,
-  fastspring: fastspringProvider,
-};
 
 const FALLBACK_SECRET_ENV: Record<ProviderName, string> = {
   lemonsqueezy: "LEMONSQUEEZY_WEBHOOK_SECRET",
@@ -180,124 +161,4 @@ function inFlightResponse(err: unknown): { status: number; payload: Record<strin
     return { status: 503, payload: { ok: false, retryable: true, reason: "in-flight" } };
   }
   throw err;
-}
-
-export async function recordRefund(refundEvent: RefundEvent): Promise<{ status: number; payload: Record<string, unknown> }> {
-  // Legacy direct path: an amount-unverifiable refund (Fungies) is never recorded —
-  // refuse before any lock/append so no full-reversal row is appended.
-  if (refundEvent.amount_unverifiable === true) {
-    return {
-      status: 422,
-      payload: { ok: false, error: "refund amount unverifiable — manual review required" },
-    };
-  }
-  return withIdempotencyLock(
-    `lock:refund:${refundEvent.provider}:${refundEvent.sale_id}`,
-    async () => {
-      const existingRefund = findRefund(refundEvent.provider, refundEvent.sale_id);
-      if (existingRefund) {
-        return { status: 200, payload: { ok: true, recorded: false, reason: "duplicate", event_type: "refund", sale_id: refundEvent.sale_id } };
-      }
-      try {
-        const record = await appendRefund({ provider: refundEvent.provider, sale_id: refundEvent.sale_id, ts: refundEvent.ts });
-        return { status: 200, payload: { ok: true, recorded: true, event_type: "refund", sale_id: record.sale_id, refund_amount_usd: record.amount_usd } };
-      } catch (err) {
-        console.error(`[webhook] refund append failed (provider=${refundEvent.provider} sale=${refundEvent.sale_id}):`, err);
-        return { status: 500, payload: { ok: false, error: (err as Error).message } }; // infra failure → provider retries (4xx = never retried)
-      }
-    },
-  ).catch(inFlightResponse);
-}
-
-export async function recordSale(result: SaleEvent): Promise<{ status: number; payload: Record<string, unknown> }> {
-  return withIdempotencyLock(
-    `lock:sale:${result.provider}:${result.sale_id}`,
-    async () => {
-      const existing = findSale(result.provider, result.sale_id);
-      if (existing) {
-        return { status: 200, payload: { ok: true, recorded: false, reason: "duplicate", sale_id: result.sale_id } };
-      }
-
-      const cfg = loadProductIndex().get(result.product_id);
-      if (!cfg) {
-        return { status: 422, payload: { ok: false, error: `unknown product_id: ${result.product_id} (no product config)` } };
-      }
-
-      let creatorSplitPct: number;
-      try {
-        const pct = effectiveCreatorSplitPct(cfg.creator_id, cfg.product_id, result.ts);
-        if (pct === null) {
-          return { status: 500, payload: { ok: false, error: `no effective creator terms for creator=${cfg.creator_id} product=${cfg.product_id}` } };
-        }
-        creatorSplitPct = pct;
-      } catch (err) {
-        console.error(`[webhook] creator terms lookup failed (creator=${cfg.creator_id} product=${cfg.product_id}):`, err);
-        return { status: 500, payload: { ok: false, error: `creator terms lookup failed: ${(err as Error).message}` } };
-      }
-
-      const split = computeSplit(result.amount_usd, creatorSplitPct);
-
-      try {
-        const record = await appendSale({
-          ...result,
-          creator_id: cfg.creator_id,
-          creator_split_pct: creatorSplitPct,
-          creator_split_usd: split.creator_split_usd,
-          our_split_usd: split.our_split_usd,
-          currency: cfg.currency,
-        });
-        return {
-          status: 200,
-          payload: {
-            ok: true,
-            recorded: true,
-            sale_id: record.sale_id,
-            amount_usd: record.amount_usd,
-            creator_split_usd: record.creator_split_usd,
-            our_split_usd: record.our_split_usd,
-          },
-        };
-      } catch (err) {
-        console.error(`[webhook] sale append failed (provider=${result.provider} sale=${result.sale_id}):`, err);
-        return { status: 500, payload: { ok: false, error: (err as Error).message } }; // infra failure → provider retries (4xx = never retried)
-      }
-    },
-  ).catch(inFlightResponse);
-}
-
-export async function handleWebhookPayload(
-  providerName: string,
-  headers: IncomingHttpHeaders,
-  rawBody: Buffer,
-): Promise<{ status: number; payload: Record<string, unknown> }> {
-  if (!isRegisteredPaymentProvider(providerName)) {
-    return { status: 404, payload: { ok: false, error: `unknown provider: ${providerName}` } };
-  }
-
-  const adapter = ADAPTERS[providerName as ProviderName];
-  if (!adapter) {
-    return { status: 404, payload: { ok: false, error: `unsupported provider: ${providerName}` } };
-  }
-
-  const secret = getSecret(providerName as ProviderName);
-  const parsed = adapter.parseWebhook(headers, rawBody, secret);
-
-  if (!parsed.ok) {
-    return { status: parsed.status, payload: { ok: false, error: parsed.error } };
-  }
-
-  if ("sale" in parsed) {
-    return recordSale(parsed.sale);
-  } else if ("refund" in parsed) {
-    return recordRefund(parsed.refund);
-  } else if ("batch" in parsed) {
-    const results = [];
-    for (const item of parsed.batch) {
-      if ("sale" in item) results.push(await recordSale(item.sale));
-      else if ("refund" in item) results.push(await recordRefund(item.refund));
-    }
-    return { status: 200, payload: { ok: true, batch_count: results.length, results } };
-  }
-
-  return { status: 400, payload: { ok: false, error: "unhandled event shape" } };
 }
