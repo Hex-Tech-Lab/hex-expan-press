@@ -8,4 +8,8 @@
 -- Rollback: alter table public.consents drop constraint consents_signed_by_present;
 
 alter table public.consents
-  add constraint consents_signed_by_present check (signed_by is not null);
+  add constraint consents_signed_by_present check (signed_by is not null) not valid;
+
+-- Validate separately: takes only SHARE UPDATE EXCLUSIVE, so consent writes are not blocked.
+alter table public.consents
+  validate constraint consents_signed_by_present;

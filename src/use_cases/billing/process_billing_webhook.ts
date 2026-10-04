@@ -23,6 +23,13 @@ type LockedFn = () => Promise<{ status: number; payload: Record<string, unknown>
  * a flag-write failure must never soften this into a 200) and throw a 503 so
  * the provider retries while ops investigates.
  */
+/** Retryable 503 with a distinct error name, so the route's WEBHOOK_503_RETRYING audit (err.name) tells the collision failure modes apart. */
+function collisionRetryable(name: string, message: string): Error {
+  const err = new Error(`Webhook retryable: ${message}`);
+  err.name = name;
+  return Object.assign(err, { httpStatus: 503 });
+}
+
 async function resolveAdjustmentIdCollision(
   provider: string,
   adjustmentId: string,
@@ -39,12 +46,18 @@ async function resolveAdjustmentIdCollision(
     row = await findByProviderAdjustmentIdAsync(provider, adjustmentId, eventType);
   } catch (lookupErr) {
     console.error("[billing-webhook] collision-adjustment lookup failed:", lookupErr);
-    throw Object.assign(new Error(`Webhook retryable: adjustment-id collision lookup failed for ${eventType} ${adjustmentId}`), { httpStatus: 503 });
+    throw collisionRetryable("AdjustmentIdCollisionLookupError", `adjustment-id collision lookup failed for ${eventType} ${adjustmentId}`);
   }
   if (!row) {
-    throw Object.assign(new Error(`Webhook retryable: adjustment-id collision with no recoverable row for ${eventType} ${adjustmentId}`), { httpStatus: 503 });
+    throw collisionRetryable("AdjustmentIdCollisionNoRowError", `adjustment-id collision with no recoverable row for ${eventType} ${adjustmentId}`);
   }
-  const rowCents = usdToCents(row.amount_usd);
+  let rowCents: number;
+  try {
+    rowCents = usdToCents(row.amount_usd);
+  } catch (convertErr) {
+    console.error("[billing-webhook] collision-adjustment amount unparseable:", convertErr);
+    throw collisionRetryable("AdjustmentIdCollisionAmountError", `adjustment-id collision row amount unparseable for ${eventType} ${adjustmentId}`);
+  }
   const matches =
     row.sale_id === event.saleId &&
     (event.totalCents === undefined || rowCents === event.totalCents) &&
@@ -67,13 +80,11 @@ async function resolveAdjustmentIdCollision(
     });
   } catch (flagErr) {
     console.error("[billing-webhook] adjustment_id_collision flag write failed:", flagErr);
-    throw Object.assign(new Error(`Webhook retryable: adjustment-id collision flag write failed for ${eventType} ${adjustmentId}`), { httpStatus: 503 });
+    throw collisionRetryable("AdjustmentIdCollisionFlagError", `adjustment-id collision flag write failed for ${eventType} ${adjustmentId}`);
   }
-  throw Object.assign(
-    new Error(
-      `Webhook retryable: adjustment-id collision for ${eventType} ${adjustmentId} — conflicting row does not match this event (sale/amount/currency)`,
-    ),
-    { httpStatus: 503 },
+  throw collisionRetryable(
+    "AdjustmentIdCollisionMismatchError",
+    `adjustment-id collision for ${eventType} ${adjustmentId} — conflicting row does not match this event (sale/amount/currency)`,
   );
 }
 
