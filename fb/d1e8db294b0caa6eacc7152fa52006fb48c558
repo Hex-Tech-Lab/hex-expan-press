@@ -1,0 +1,22 @@
+src/use_cases/billing/process_billing_webhook.ts
+  s_a0d9002dde86f1::t_bd9f8dc7d0a314 49-50,54,59-81
+src/use_cases/billing/__tests__/process_billing_webhook.test.ts
+  s_a0d9002dde86f1::t_86cc19ed1cd4cd 1179-1233,1237-1253,1255-1258
+  s_a0d9002dde86f1::t_9aa014c11a6b1f 1234-1236,1254
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "fbd1e8db294b0caa6eacc7152fa52006fb48c558",
+  "prompts": {},
+  "sessions": {
+    "s_a0d9002dde86f1": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef73ddb20ffeB1iz9oXAGca5Vf",
+        "model": "@preset/glm-53-flash-on-cheap"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
