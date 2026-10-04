@@ -23,6 +23,7 @@ function uniqueConsentDb() {
   const rows = new Set<string>();
   return {
     rows,
+    flagConsentForManualReview: vi.fn(async () => {}),
     submitConsent: vi.fn(async (c: { kind: string; externalRef?: string }) => {
       const key = `${c.kind}:${c.externalRef}`;
       if (rows.has(key)) {
@@ -55,7 +56,7 @@ describe("F5 esign replay", () => {
       code: "23505",
       constraint: "consents_kind_external_ref_uidx",
     });
-    const db = { submitConsent: vi.fn(async () => { throw err; }) };
+    const db = { submitConsent: vi.fn(async () => { throw err; }), flagConsentForManualReview: vi.fn(async () => {}) };
     await expect(processEsignWebhookUseCase(req, settings as never, db as never)).resolves.toBeUndefined();
     expect(infoSpy).toHaveBeenCalledWith(expect.stringContaining("env_1"));
     expect(infoSpy).toHaveBeenCalledWith(expect.stringContaining("C3_revenue_split"));
@@ -68,7 +69,7 @@ describe("F5 esign replay", () => {
       code: "23505",
       constraint: "consents_pkey",
     });
-    const db = { submitConsent: vi.fn(async () => { throw err; }) };
+    const db = { submitConsent: vi.fn(async () => { throw err; }), flagConsentForManualReview: vi.fn(async () => {}) };
     await expect(processEsignWebhookUseCase(req, settings as never, db as never)).rejects.toThrow(/duplicate other constraint/);
   });
 

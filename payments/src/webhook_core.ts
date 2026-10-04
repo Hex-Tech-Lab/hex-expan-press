@@ -1,10 +1,10 @@
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import type { ProviderName } from "./provider.ts";
 import { isRegisteredPaymentProvider, paymentProviderSetting, isMoneyPath, GLOBAL } from "./settings_registry.ts";
 import { loadConfig, type ProductConfig } from "./settings.ts";
 import { expanRedis, isRedisRestConfigured } from "../../src/infrastructure/redis/redis.client.ts";
+import type { ProviderName } from "./provider.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
@@ -155,10 +155,3 @@ export async function withIdempotencyLock(
   }
 }
 
-/** Legacy-handler shape for a held lock: retryable, never a success ack. */
-function inFlightResponse(err: unknown): { status: number; payload: Record<string, unknown> } {
-  if (err instanceof WebhookInFlightError) {
-    return { status: 503, payload: { ok: false, retryable: true, reason: "in-flight" } };
-  }
-  throw err;
-}

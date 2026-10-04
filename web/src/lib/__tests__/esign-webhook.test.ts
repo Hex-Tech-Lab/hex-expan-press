@@ -22,7 +22,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import crypto from "node:crypto";
 import { FirmaAdapter } from "../../../../src/adapters/esign/firma.adapter";
 import { WebhookValidationError } from "../../../../src/domain/webhook/webhook_errors";
-import { consentTextVersion } from "../../../../payments/src/settings_registry";
 import type { Mock } from "vitest";
 
 const SECRET = "test-webhook-secret";
@@ -113,7 +112,7 @@ describe("esign webhook (Firma HMAC contract)", () => {
     const { body, headers } = signedBody(completedPayload({ productId: "p1", userId: "u1" }), "attacker-secret");
     const request = { body, headers, ip: "10.0.0.1", userAgent: "firma-webhook" };
 
-    await expect(processEsignWebhookUseCase(request, settings, { submitConsent })).rejects.toThrow("validation failed");
+    await expect(processEsignWebhookUseCase(request, settings, { submitConsent, flagConsentForManualReview: vi.fn() })).rejects.toThrow("validation failed");
     expect(submitConsent).not.toHaveBeenCalled();
   });
 
@@ -133,7 +132,7 @@ describe("esign webhook (Firma HMAC contract)", () => {
     const body = JSON.stringify(completedPayload({ productId: "p1", userId: "u1" }));
     const request = { body, headers: { "content-type": "application/json" }, ip: "10.0.0.1", userAgent: "" };
 
-    await expect(processEsignWebhookUseCase(request, settings, { submitConsent })).rejects.toThrow("validation failed");
+    await expect(processEsignWebhookUseCase(request, settings, { submitConsent, flagConsentForManualReview: vi.fn() })).rejects.toThrow("validation failed");
     expect(submitConsent).not.toHaveBeenCalled();
   });
 
@@ -154,7 +153,7 @@ describe("esign webhook (Firma HMAC contract)", () => {
     const { body, headers } = signedBody(completedPayload({}));
     const request = { body, headers, ip: "10.0.0.1", userAgent: "firma-webhook" };
 
-    await expect(processEsignWebhookUseCase(request, settings, { submitConsent })).rejects.toThrow(
+    await expect(processEsignWebhookUseCase(request, settings, { submitConsent, flagConsentForManualReview: vi.fn() })).rejects.toThrow(
       /missing productId\/userId/,
     );
     // Missing metadata must never produce a partial/garbage consent record.
@@ -208,15 +207,18 @@ describe("esign webhook (Firma HMAC contract)", () => {
     const { body, headers } = signedBody(completedPayload({ productId: "prod_42", userId: "user_7" }));
     const request = { body, headers, ip: "203.0.113.9", userAgent: "firma-webhook/1.0" };
 
-    await processEsignWebhookUseCase(request, settings, { submitConsent });
+    const flagConsentForManualReview = vi.fn().mockResolvedValue(undefined);
+    await processEsignWebhookUseCase(request, settings, { submitConsent, flagConsentForManualReview });
 
     expect(submitConsent).toHaveBeenCalledTimes(1);
+    // No snapshot on the envelope: never stamped with the current registry version; routed for manual review.
+    expect(flagConsentForManualReview).toHaveBeenCalledWith(expect.objectContaining({ reason: "legacy_text_version", envelope_id: "env_123", snapshot: "missing" }));
     expect(submitConsent).toHaveBeenCalledWith({
       productId: "prod_42",
       userId: "user_7",
       kind: "C3_revenue_split",
       decision: "given",
-      textVersion: consentTextVersion(),
+      textVersion: "legacy/unknown",
       documentSha256: DOCUMENT_HASH,
       typedName: "Signed via firma",
       ip: "203.0.113.9",
@@ -264,7 +266,9 @@ describe("esign webhook (Firma HMAC contract)", () => {
     const ENVELOPE = "3cf4ac71-92a7-47a4-b254-151eebde31d0";
 
     const { body, headers } = signedBody(completedPayload({ productId: "prod_42", userId: USER, textVersion: "v1.0" }, ENVELOPE));
-    await processEsignWebhookUseCase({ body, headers, ip: "203.0.113.9", userAgent: "firma-webhook/1.0" }, settings, { submitConsent });
+    const flagConsentForManualReview = vi.fn().mockResolvedValue(undefined);
+    await processEsignWebhookUseCase({ body, headers, ip: "203.0.113.9", userAgent: "firma-webhook/1.0" }, settings, { submitConsent, flagConsentForManualReview });
+    expect(flagConsentForManualReview).not.toHaveBeenCalled(); // valid snapshot: no review needed
 
     expect(submitConsent).toHaveBeenCalledTimes(1);
     const cmd = submitConsent.mock.calls[0][0];
@@ -275,6 +279,29 @@ describe("esign webhook (Firma HMAC contract)", () => {
     expect(cmd.evidencePath).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\/[A-Za-z0-9_-]{1,128}\.pdf$/);
     // The version snapshotted at envelope creation wins over the current registry value.
     expect(cmd.textVersion).toBe("v1.0");
+  });
+
+  it("a malformed textVersion snapshot is recorded as legacy/unknown and flagged; a failed flag write 500s", async () => {
+    const submitConsent = vi.fn().mockResolvedValue(undefined);
+    const { processEsignWebhookUseCase } = await import("../../../../src/use_cases/process_esign_webhook");
+    const settings = {
+      getPortalSettings: vi.fn().mockResolvedValue({
+        esign: {
+          strategy: { mode: "2d", distribution: [{ provider: "firma", weight: 100 }], fallbacks: [] },
+          revenueSplitDocumentPath: "legal-docs/agreement.pdf",
+        },
+        payments: { checkoutStrategy: { mode: "2d", distribution: [{ provider: "polar", weight: 100 }], fallbacks: [] } },
+      }),
+    };
+    const { body, headers } = signedBody(completedPayload({ productId: "prod_42", userId: "user_7", textVersion: "garbage" }));
+    const request = { body, headers, ip: "203.0.113.9", userAgent: "firma-webhook/1.0" };
+    const flagConsentForManualReview = vi.fn().mockResolvedValue(undefined);
+    await processEsignWebhookUseCase(request, settings, { submitConsent, flagConsentForManualReview });
+    expect(submitConsent.mock.calls[0][0].textVersion).toBe("legacy/unknown");
+    expect(flagConsentForManualReview).toHaveBeenCalledWith(expect.objectContaining({ snapshot: "malformed" }));
+
+    const failing = vi.fn().mockRejectedValue(new Error("audit_log down"));
+    await expect(processEsignWebhookUseCase(request, settings, { submitConsent, flagConsentForManualReview: failing })).rejects.toThrow("audit_log down");
   });
 
   it("ignores non-completed event types (no consent written)", async () => {
@@ -293,12 +320,12 @@ describe("esign webhook (Firma HMAC contract)", () => {
     const { body, headers } = signedBody({ type: "signing_request.viewed", data: { signing_request: { id: "env_9" } } });
     const request = { body, headers, ip: "10.0.0.1", userAgent: "firma-webhook" };
 
-    await expect(processEsignWebhookUseCase(request, settings, { submitConsent })).resolves.toBeUndefined();
+    await expect(processEsignWebhookUseCase(request, settings, { submitConsent, flagConsentForManualReview: vi.fn() })).resolves.toBeUndefined();
     expect(submitConsent).not.toHaveBeenCalled();
   });
 });
 
 // Type-level guard: the mock matches the ConsentDatabasePort shape.
-type ConsentPortShape = { submitConsent: Mock };
+type ConsentPortShape = { submitConsent: Mock; flagConsentForManualReview: Mock };
 const _shapeCheck: ConsentPortShape | null = null;
 void _shapeCheck;

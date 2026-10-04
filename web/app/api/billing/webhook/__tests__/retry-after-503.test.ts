@@ -13,6 +13,7 @@ vi.mock("../../../../../../src/use_cases/billing/process_billing_webhook", () =>
 }));
 
 import { POST } from "../route";
+import { GLOBAL } from "../../../../../../payments/src/settings_registry";
 
 const post = () =>
   POST(new Request("https://expanpress.com/api/billing/webhook", { method: "POST", body: "{}" }) as unknown as NextRequest);
@@ -31,5 +32,17 @@ describe("billing webhook — 503 Retry-After contract", () => {
     const res = await post();
     expect(res.status).toBe(503);
     expect(res.headers.get("Retry-After")).toBe("30");
+  });
+
+  it("Retry-After is the registry value, not a literal", async () => {
+    const original = GLOBAL.payments.retry_after_seconds;
+    GLOBAL.payments.retry_after_seconds = 45;
+    try {
+      useCase.error = Object.assign(new Error("Webhook retryable: x"), { httpStatus: 503 });
+      const res = await post();
+      expect(res.headers.get("Retry-After")).toBe("45");
+    } finally {
+      GLOBAL.payments.retry_after_seconds = original;
+    }
   });
 });

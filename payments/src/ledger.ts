@@ -1,6 +1,7 @@
 import { mkdirSync, readFileSync } from "node:fs";
 import { open } from "node:fs/promises";
 import { dirname, join, basename } from "node:path";
+import { createHash } from "node:crypto";
 import { z } from "zod";
 import { GLOBAL, isMoneyPath } from "./settings_registry.ts";
 
@@ -69,15 +70,63 @@ export function resolveSalesFile(salesFile: string = SALES_FILE): string {
   return salesFile;
 }
 
+/** True when n carries at most `places` decimal digits. The tolerance scales with the magnitude (a few ULPs) so
+ *  binary-float noise (0.1 + 0.2) passes while a real sub-cent value such as 39.000000001 does not. */
+const hasAtMostDecimals = (n: number, places: number): boolean => {
+  const scaled = n * 10 ** places;
+  return Math.abs(scaled - Math.round(scaled)) <= 4 * Number.EPSILON * Math.max(1, Math.abs(scaled));
+};
+
+const usdColumn = (field: string, min: number) =>
+  z.number().finite().min(min).max(99_999_999.99).refine((n) => hasAtMostDecimals(n, 2), { message: `${field} must be cent-exact (numeric(10,2))` });
+
+/**
+ * Write contract for public.orders, enforced immediately before the upsert so a malformed or
+ * non-cent-exact value is rejected here (→ route 500, provider retries) instead of being
+ * silently rounded or rejected by Postgres. Mirrors 20260927000200_orders_ledger.sql and the
+ * event_type CHECK widened in 20261003000200. amount_usd is always non-negative; the splits are
+ * negated on "refund" rows (appendRefund) and positive on "sale" / "refund_reversal" rows.
+ */
+export const OrderUpsertSchema = z.strictObject({
+  provider: z.string().min(1),
+  sale_id: z.string().min(1),
+  product_id: z.string().min(1),
+  creator_id: z.string().min(1),
+  amount_usd: usdColumn("amount_usd", 0),
+  creator_split_pct: z.number().finite().min(0).max(100).refine((n) => hasAtMostDecimals(n, 2), { message: "creator_split_pct must have at most 2 decimals (numeric(5,2))" }),
+  creator_split_usd: usdColumn("creator_split_usd", -99_999_999.99),
+  our_split_usd: usdColumn("our_split_usd", -99_999_999.99),
+  currency: z.string().min(1),
+  event_type: z.enum(["sale", "refund", "refund_reversal"]),
+  email_hash: z.string().min(1).nullable(),
+  attribution_id: z.string().min(1).nullable(),
+  provider_adjustment_id: z.string().min(1).nullable(),
+  occurred_at: z.string().refine((v) => !Number.isNaN(Date.parse(v)), { message: "occurred_at must be a parseable timestamp" }),
+}).superRefine((row, ctx) => {
+  const wantNegative = row.event_type === "refund";
+  for (const field of ["creator_split_usd", "our_split_usd"] as const) {
+    const v = row[field];
+    if (wantNegative ? v > 0 : v < 0) {
+      ctx.addIssue({ code: "custom", path: [field], message: `${field} must be ${wantNegative ? "<= 0" : ">= 0"} on a ${row.event_type} row` });
+    }
+  }
+});
+class OrderSchemaError extends Error {}
+
 /** Dual-write an order record to Supabase public.orders for permanent serverless persistence. */
 async function persistToSupabaseOrder(record: SaleRecord): Promise<void> {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SECRET_KEY;
-  if (!url || !key) return;
+  if (!url || !key) {
+    // Serverless /tmp is ephemeral: skipping the durable write there would lose the sale for good. Fail loud (500 → provider retries).
+    if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+      throw new Error("ledger: SUPABASE_URL/SUPABASE_SECRET_KEY missing in a serverless runtime — refusing to record a ledger entry without the durable store");
+    }
+    return;
+  }
   try {
-    const { createClient } = await import("@supabase/supabase-js");
-    const supabase = createClient(url, key);
-    const { error } = await supabase.from("orders").upsert({
+    // Zod gate: the last check before the DB boundary. A violation throws a typed error (500 → retry); nothing is written.
+    const parsed = OrderUpsertSchema.safeParse({
       provider: record.provider,
       sale_id: record.sale_id,
       product_id: record.product_id,
@@ -91,14 +140,20 @@ async function persistToSupabaseOrder(record: SaleRecord): Promise<void> {
       email_hash: record.email_hash || null,
       attribution_id: record.attribution_id || null,
       provider_adjustment_id: record.provider_adjustment_id || null,
-      occurred_at: record.ts
-    }, { onConflict: "provider,sale_id,event_type" });
+      occurred_at: record.ts,
+    });
+    if (!parsed.success) {
+      throw new OrderSchemaError(`ledger: orders row failed schema validation: ${parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")}`);
+    }
+    const { createClient } = await import("@supabase/supabase-js");
+    const supabase = createClient(url, key);
+    const { error } = await supabase.from("orders").upsert(parsed.data, { onConflict: "provider,sale_id,event_type" });
     if (error) {
       // Keep the Postgres code: callers tell a replay (23505 on the adjustment-id index) from a real failure.
       throw Object.assign(new Error(`ledger: Supabase orders upsert failed: ${error.message}`), { code: error.code });
     }
   } catch (err) {
-    if (err instanceof Error && err.message.startsWith("ledger: Supabase orders upsert failed")) throw err;
+    if (err instanceof OrderSchemaError || (err instanceof Error && err.message.startsWith("ledger: Supabase orders upsert failed"))) throw err;
     console.error("ledger: Supabase dual-write exception:", err);
     throw new Error(`ledger: Supabase dual-write failed: ${(err as Error).message}`, { cause: err });
   }
@@ -319,7 +374,22 @@ const ManualReviewRefundSchema = z.object({
   sale_cents: z.number().int().nonnegative().nullable(),
   creator_id: z.string().nullable(),
   occurred_at: z.string(),
-}).strict();
+  // adjustment_id_collision forensics (optional: other reasons don't carry them). adjustment_id +
+  // event_type + provider + reason form the dedupe identity (audit_log partial unique index), so a
+  // provider retrying the 503 does not add a second flag row.
+  adjustment_id: z.string().optional(),
+  event_type: z.enum(["refund", "refund_reversal"]).optional(),
+  incoming_currency: z.string().nullable().optional(),
+  conflicting_sale_id: z.string().optional(),
+  conflicting_cents: z.number().int().nonnegative().optional(),
+  conflicting_currency: z.string().nullable().optional(),
+}).strict().superRefine((v, ctx) => {
+  // The collision dedupe index keys on these; a flag without them would bypass dedupe.
+  if (v.reason !== "adjustment_id_collision") return;
+  for (const k of ["adjustment_id", "event_type"] as const) {
+    if (v[k] === undefined) ctx.addIssue({ code: "custom", path: [k], message: `${k} is required for adjustment_id_collision` });
+  }
+});
 export type ManualReviewRefund = z.infer<typeof ManualReviewRefundSchema>;
 
 export async function flagRefundForManualReview(input: ManualReviewRefund): Promise<void> {
@@ -340,7 +410,64 @@ export async function flagRefundForManualReview(input: ManualReviewRefund): Prom
   const { createClient } = await import("@supabase/supabase-js");
   const supabase = createClient(url, key);
   const { error } = await supabase.from("audit_log").insert({ event: "MANUAL_REVIEW_REQUIRED_REFUND", details });
-  if (error) throw new Error(`ledger: manual-review flag write failed: ${error.message}`);
+  // 23505 = this exact collision was already flagged (audit_log dedupe index): idempotent success.
+  if (error && error.code !== "23505") throw new Error(`ledger: manual-review flag write failed: ${error.message}`);
+}
+
+/**
+ * Durable reconciliation inbox for an adjustment-id collision (public.webhook_conflicts, migration
+ * 20261004000800). One atomic RPC stores the normalized incoming event and the audit_log alert together;
+ * the caller answers 202 only after this returns an id, so it THROWS whenever no row was written
+ * (unconfigured Supabase included): a 202 without a durable row would drop the event for good.
+ */
+export interface WebhookConflictIncoming {
+  provider: string;
+  event_type: "refund" | "refund_reversal";
+  sale_id: string;
+  adjustment_id: string;
+  total_cents: number | null;
+  currency: string | null;
+  occurred_at: string;
+  refund_id: string | null;
+}
+
+export async function recordWebhookConflict(incoming: WebhookConflictIncoming, flag: ManualReviewRefund): Promise<number> {
+  const details = ManualReviewRefundSchema.parse(flag);
+  if (details.reason !== "adjustment_id_collision" || details.conflicting_sale_id === undefined || details.conflicting_cents === undefined) {
+    throw new Error("ledger: webhook conflict requires an adjustment_id_collision flag with the conflicting row");
+  }
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SECRET_KEY;
+  if (!url || !key) throw new Error("ledger: webhook conflict cannot be persisted: Supabase is not configured");
+  // Fixed key order: the hash is the redelivery dedupe key, so it must not depend on object construction order.
+  const normalized = {
+    sale_id: incoming.sale_id,
+    adjustment_id: incoming.adjustment_id,
+    event_type: incoming.event_type,
+    total_cents: incoming.total_cents,
+    currency: incoming.currency,
+    occurred_at: incoming.occurred_at,
+    refund_id: incoming.refund_id,
+  };
+  const payloadSha256 = createHash("sha256").update(JSON.stringify(normalized)).digest("hex");
+  const { createClient } = await import("@supabase/supabase-js");
+  const supabase = createClient(url, key);
+  const { data, error } = await supabase.rpc("record_webhook_conflict", {
+    p_provider: incoming.provider,
+    p_event_type: incoming.event_type,
+    p_sale_id: incoming.sale_id,
+    p_adjustment_id: incoming.adjustment_id,
+    p_incoming: normalized,
+    p_payload_sha256: payloadSha256,
+    p_conflicting_sale_id: details.conflicting_sale_id,
+    p_conflicting_amount_cents: details.conflicting_cents,
+    p_conflicting_currency: details.conflicting_currency ?? null,
+    p_flag_details: details,
+  });
+  if (error) throw new Error(`ledger: webhook conflict write failed: ${error.message}`);
+  const id = typeof data === "string" ? Number(data) : data;
+  if (typeof id !== "number" || !Number.isSafeInteger(id) || id < 1) throw new Error("ledger: webhook conflict write returned no id");
+  return id;
 }
 
 /** Asynchronously finds a refund, falling back to Supabase public.orders if not found in local file. */
