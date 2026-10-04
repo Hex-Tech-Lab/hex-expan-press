@@ -69,15 +69,57 @@ export function resolveSalesFile(salesFile: string = SALES_FILE): string {
   return salesFile;
 }
 
+/** True when n carries at most `places` decimal digits. The tolerance scales with the magnitude (a few ULPs) so
+ *  binary-float noise (0.1 + 0.2) passes while a real sub-cent value such as 39.000000001 does not. */
+const hasAtMostDecimals = (n: number, places: number): boolean => {
+  const scaled = n * 10 ** places;
+  return Math.abs(scaled - Math.round(scaled)) <= 4 * Number.EPSILON * Math.max(1, Math.abs(scaled));
+};
+
+const usdColumn = (field: string, min: number) =>
+  z.number().finite().min(min).max(99_999_999.99).refine((n) => hasAtMostDecimals(n, 2), { message: `${field} must be cent-exact (numeric(10,2))` });
+
+/**
+ * Write contract for public.orders, enforced immediately before the upsert so a malformed or
+ * non-cent-exact value is rejected here (→ route 500, provider retries) instead of being
+ * silently rounded or rejected by Postgres. Mirrors 20260927000200_orders_ledger.sql and the
+ * event_type CHECK widened in 20261003000200. amount_usd is always non-negative; the splits are
+ * negated on "refund" rows (appendRefund) and positive on "sale" / "refund_reversal" rows.
+ */
+export const OrderUpsertSchema = z.strictObject({
+  provider: z.string().min(1),
+  sale_id: z.string().min(1),
+  product_id: z.string().min(1),
+  creator_id: z.string().min(1),
+  amount_usd: usdColumn("amount_usd", 0),
+  creator_split_pct: z.number().finite().min(0).max(100).refine((n) => hasAtMostDecimals(n, 2), { message: "creator_split_pct must have at most 2 decimals (numeric(5,2))" }),
+  creator_split_usd: usdColumn("creator_split_usd", -99_999_999.99),
+  our_split_usd: usdColumn("our_split_usd", -99_999_999.99),
+  currency: z.string().min(1),
+  event_type: z.enum(["sale", "refund", "refund_reversal"]),
+  email_hash: z.string().min(1).nullable(),
+  attribution_id: z.string().min(1).nullable(),
+  provider_adjustment_id: z.string().min(1).nullable(),
+  occurred_at: z.string().refine((v) => !Number.isNaN(Date.parse(v)), { message: "occurred_at must be a parseable timestamp" }),
+}).superRefine((row, ctx) => {
+  const wantNegative = row.event_type === "refund";
+  for (const field of ["creator_split_usd", "our_split_usd"] as const) {
+    const v = row[field];
+    if (wantNegative ? v > 0 : v < 0) {
+      ctx.addIssue({ code: "custom", path: [field], message: `${field} must be ${wantNegative ? "<= 0" : ">= 0"} on a ${row.event_type} row` });
+    }
+  }
+});
+class OrderSchemaError extends Error {}
+
 /** Dual-write an order record to Supabase public.orders for permanent serverless persistence. */
 async function persistToSupabaseOrder(record: SaleRecord): Promise<void> {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SECRET_KEY;
   if (!url || !key) return;
   try {
-    const { createClient } = await import("@supabase/supabase-js");
-    const supabase = createClient(url, key);
-    const { error } = await supabase.from("orders").upsert({
+    // Zod gate: the last check before the DB boundary. A violation throws a typed error (500 → retry); nothing is written.
+    const parsed = OrderUpsertSchema.safeParse({
       provider: record.provider,
       sale_id: record.sale_id,
       product_id: record.product_id,
@@ -91,14 +133,20 @@ async function persistToSupabaseOrder(record: SaleRecord): Promise<void> {
       email_hash: record.email_hash || null,
       attribution_id: record.attribution_id || null,
       provider_adjustment_id: record.provider_adjustment_id || null,
-      occurred_at: record.ts
-    }, { onConflict: "provider,sale_id,event_type" });
+      occurred_at: record.ts,
+    });
+    if (!parsed.success) {
+      throw new OrderSchemaError(`ledger: orders row failed schema validation: ${parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")}`);
+    }
+    const { createClient } = await import("@supabase/supabase-js");
+    const supabase = createClient(url, key);
+    const { error } = await supabase.from("orders").upsert(parsed.data, { onConflict: "provider,sale_id,event_type" });
     if (error) {
       // Keep the Postgres code: callers tell a replay (23505 on the adjustment-id index) from a real failure.
       throw Object.assign(new Error(`ledger: Supabase orders upsert failed: ${error.message}`), { code: error.code });
     }
   } catch (err) {
-    if (err instanceof Error && err.message.startsWith("ledger: Supabase orders upsert failed")) throw err;
+    if (err instanceof OrderSchemaError || (err instanceof Error && err.message.startsWith("ledger: Supabase orders upsert failed"))) throw err;
     console.error("ledger: Supabase dual-write exception:", err);
     throw new Error(`ledger: Supabase dual-write failed: ${(err as Error).message}`, { cause: err });
   }
