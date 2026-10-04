@@ -1,0 +1,19 @@
+payments/src/webhook_core.ts
+  s_eaa71a55cf16bf::t_e29a36d5acd879 4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "985a4b6a1c0e740528b03a0cede5f2447a6d12b3",
+  "prompts": {},
+  "sessions": {
+    "s_eaa71a55cf16bf": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef7514bdaffel0T174aMhQBR5q",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
