@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { processBillingWebhookUseCase } from "../../../../../src/use_cases/billing/process_billing_webhook";
+import { WebhookValidationError } from "../../../../../src/domain/webhook/webhook_errors";
 import { GLOBAL } from "../../../../../payments/src/settings_registry";
 
 /**
@@ -105,11 +106,13 @@ async function handleWebhook(request: NextRequest, adapters: WebhookAdapters): P
     }
     console.error("Billing webhook error:", err);
     const message = err instanceof Error ? err.message : String(err);
-    const isValidationErr = message.includes("validation failed") || message.includes("No payment provider");
+    // Typed classification first (sprint-10 F5); the substring checks are a
+    // deprecated fallback kept one release for legacy error paths.
+    const isValidationErr = err instanceof WebhookValidationError || message.includes("validation failed") || message.includes("No payment provider");
     // The use case attaches httpStatus to validation failures (e.g. 401 for a
     // bad/stale signature) — honor it when in the 4xx band; otherwise the
     // legacy 400/500 split stands.
-    const rawStatus = (err as { httpStatus?: unknown })?.httpStatus;
+    const rawStatus = err instanceof WebhookValidationError ? err.httpStatus : (err as { httpStatus?: unknown })?.httpStatus;
     // Honour the adapter's hint: 4xx is final; 5xx (missing secret = 500, email lookup failure = 503)
     // makes the provider RETRY — never flatten a server-side problem into a permanent 400.
     const httpStatus = typeof rawStatus === "number" && rawStatus >= 400 && rawStatus < 600 ? rawStatus : undefined;

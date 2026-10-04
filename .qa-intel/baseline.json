@@ -1,9 +1,149 @@
 [
   {
+    "file": "web/playwright.config.ts",
+    "severity": "high",
+    "title": "Auth: localhost fallback in production route",
+    "why": "Environment variable missing fallback to localhost can redirect production users to localhost:3000.",
+    "fix": "Fail closed (return 500) when APP_URL is missing, or derive origin from request headers."
+  },
+  {
+    "file": "web/instrumentation-client.ts",
+    "severity": "low",
+    "title": "Code Quality: Import ordering violated",
+    "why": "Import '@sentry/nextjs' (framework) comes after internal. Should follow order: framework → thirdparty → internal → types.",
+    "fix": "Reorganize imports to follow the correct order groups."
+  },
+  {
+    "file": "web/src/lib/skew-retry-fetch.ts",
+    "severity": "medium",
+    "title": "Observability: Catch block without error logging",
+    "why": "Error is caught but not logged, making debugging difficult.",
+    "fix": "Add error logging: console.error('[context]', error); or Sentry.captureException(error);"
+  },
+  {
+    "file": "web/src/lib/skew-retry-fetch.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'r'",
+    "why": "Single-letter variable 'r' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'r' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/src/lib/skew-retry-fetch.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'b'",
+    "why": "Single-letter variable 'b' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'b' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/src/lib/admin.ts",
+    "severity": "low",
+    "title": "Data Quality: String truncation without ellipsis indicator",
+    "why": "String is truncated but doesn't add '...' to indicate more content. User sees incomplete text.",
+    "fix": "Add ellipsis when truncating: text.slice(0, 50) + (text.length > 50 ? '...' : '')"
+  },
+  {
+    "file": "web/src/lib/__tests__/skew-retry-fetch.test.ts",
+    "severity": "medium",
+    "title": "Code Quality: Redundant 'async' keyword (no await found)",
+    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
+    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+  },
+  {
+    "file": "web/src/lib/__tests__/skew-retry-fetch.test.ts",
+    "severity": "medium",
+    "title": "Code Quality: Redundant 'async' keyword (no await found)",
+    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
+    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+  },
+  {
+    "file": "web/src/lib/__tests__/skew-retry-fetch.test.ts",
+    "severity": "medium",
+    "title": "Code Quality: Redundant 'async' keyword (no await found)",
+    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
+    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+  },
+  {
+    "file": "web/src/lib/__tests__/skew-retry-fetch.test.ts",
+    "severity": "medium",
+    "title": "Code Quality: Redundant 'async' keyword (no await found)",
+    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
+    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+  },
+  {
+    "file": "web/src/lib/__tests__/skew-retry-fetch.test.ts",
+    "severity": "medium",
+    "title": "Code Quality: Redundant 'async' keyword (no await found)",
+    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
+    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+  },
+  {
+    "file": "web/src/lib/__tests__/skew-retry-fetch.test.ts",
+    "severity": "medium",
+    "title": "Code Quality: Redundant 'async' keyword (no await found)",
+    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
+    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+  },
+  {
+    "file": "web/src/lib/__tests__/skew-retry-fetch.test.ts",
+    "severity": "medium",
+    "title": "Code Quality: Redundant 'async' keyword (no await found)",
+    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
+    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+  },
+  {
+    "file": "web/src/lib/__tests__/skew-retry-fetch.test.ts",
+    "severity": "medium",
+    "title": "Code Quality: Redundant 'async' keyword (no await found)",
+    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
+    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+  },
+  {
+    "file": "web/src/lib/__tests__/skew-retry-fetch.test.ts",
+    "severity": "medium",
+    "title": "Code Quality: Redundant 'async' keyword (no await found)",
+    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
+    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+  },
+  {
+    "file": "web/src/lib/__tests__/skew-retry-fetch.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'c'",
+    "why": "Single-letter variable 'c' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'c' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/src/lib/__tests__/primary-product.test.ts",
+    "severity": "medium",
+    "title": "Code Quality: Redundant 'async' keyword (no await found)",
+    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
+    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+  },
+  {
+    "file": "web/src/lib/__tests__/primary-product.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Import ordering violated",
+    "why": "Import '../primary-product' (internal) comes after types. Should follow order: framework → thirdparty → internal → types.",
+    "fix": "Reorganize imports to follow the correct order groups."
+  },
+  {
+    "file": "web/src/lib/__tests__/esign-webhook.test.ts",
+    "severity": "low",
+    "title": "Data Quality: String truncation without ellipsis indicator",
+    "why": "String is truncated but doesn't add '...' to indicate more content. User sees incomplete text.",
+    "fix": "Add ellipsis when truncating: text.slice(0, 50) + (text.length > 50 ? '...' : '')"
+  },
+  {
+    "file": "web/src/lib/__tests__/esign-webhook.test.ts",
+    "severity": "low",
+    "title": "Data Quality: String truncation without ellipsis indicator",
+    "why": "String is truncated but doesn't add '...' to indicate more content. User sees incomplete text.",
+    "fix": "Add ellipsis when truncating: text.slice(0, 50) + (text.length > 50 ? '...' : '')"
+  },
+  {
     "file": "web/src/components/landing/landing-page.tsx",
     "severity": "medium",
     "title": "Complexity: Monolithic File",
-    "why": "File exceeds 500 lines (613 lines).",
+    "why": "File exceeds 500 lines (624 lines).",
     "fix": "Decompose into smaller, domain-specific modules."
   },
   {
@@ -42,6 +182,76 @@
     "fix": "Add ellipsis when truncating: text.slice(0, 50) + (text.length > 50 ? '...' : '')"
   },
   {
+    "file": "web/src/components/billing/paddle-checkout-button.tsx",
+    "severity": "low",
+    "title": "Code Quality: Import ordering violated",
+    "why": "Import '../../lib/paddle-env' (internal) comes after types. Should follow order: framework → thirdparty → internal → types.",
+    "fix": "Reorganize imports to follow the correct order groups."
+  },
+  {
+    "file": "web/e2e/mock-supabase.ts",
+    "severity": "medium",
+    "title": "Observability: Catch block without error logging",
+    "why": "Error is caught but not logged, making debugging difficult.",
+    "fix": "Add error logging: console.error('[context]', error); or Sentry.captureException(error);"
+  },
+  {
+    "file": "web/e2e/mock-supabase.ts",
+    "severity": "low",
+    "title": "Data Quality: String truncation without ellipsis indicator",
+    "why": "String is truncated but doesn't add '...' to indicate more content. User sees incomplete text.",
+    "fix": "Add ellipsis when truncating: text.slice(0, 50) + (text.length > 50 ? '...' : '')"
+  },
+  {
+    "file": "web/e2e/mock-supabase.ts",
+    "severity": "low",
+    "title": "Data Quality: String truncation without ellipsis indicator",
+    "why": "String is truncated but doesn't add '...' to indicate more content. User sees incomplete text.",
+    "fix": "Add ellipsis when truncating: text.slice(0, 50) + (text.length > 50 ? '...' : '')"
+  },
+  {
+    "file": "web/e2e/mock-supabase.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'r'",
+    "why": "Single-letter variable 'r' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'r' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/e2e/creator_funnel.spec.ts",
+    "severity": "medium",
+    "title": "Workflow: Missing finally block for I/O",
+    "why": "Risky I/O call 'fetch' detected without an explicit finally block.",
+    "fix": "Ensure all I/O operations are wrapped in a try/finally block to guarantee resource cleanup."
+  },
+  {
+    "file": "web/e2e/creator_funnel.spec.ts",
+    "severity": "medium",
+    "title": "Workflow: Missing finally block for I/O",
+    "why": "Risky I/O call 'fetch' detected without an explicit finally block.",
+    "fix": "Ensure all I/O operations are wrapped in a try/finally block to guarantee resource cleanup."
+  },
+  {
+    "file": "web/e2e/constants.ts",
+    "severity": "high",
+    "title": "Auth: localhost fallback in production route",
+    "why": "Environment variable missing fallback to localhost can redirect production users to localhost:3000.",
+    "fix": "Fail closed (return 500) when APP_URL is missing, or derive origin from request headers."
+  },
+  {
+    "file": "web/e2e/a11y.spec.ts",
+    "severity": "medium",
+    "title": "Cross-Platform: LF-only string splitting",
+    "why": "1 instance(s) of .split('\\n') detected. CRLF line endings (Windows) will not be handled.",
+    "fix": "Replace .split('\\n') with .split(/\\r?\\n/) for cross-platform compatibility."
+  },
+  {
+    "file": "web/e2e/a11y.spec.ts",
+    "severity": "medium",
+    "title": "Workflow: Missing finally block for I/O",
+    "why": "Risky I/O call 'fetch' detected without an explicit finally block.",
+    "fix": "Ensure all I/O operations are wrapped in a try/finally block to guarantee resource cleanup."
+  },
+  {
     "file": "web/app/page.tsx",
     "severity": "low",
     "title": "Code Quality: Import ordering violated",
@@ -56,95 +266,844 @@
     "fix": "Reorganize imports to follow the correct order groups."
   },
   {
-    "file": "web/app/api/esign/webhook/route.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'POST' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
-  },
-  {
-    "file": "web/app/api/esign/create/route.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'POST' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
-  },
-  {
-    "file": "web/app/api/billing/webhook/route.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'POST' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
-  },
-  {
-    "file": "web/app/api/billing/checkout/route.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'GET' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
-  },
-  {
-    "file": "web/app/api/_legacy/shim.ts",
-    "severity": "low",
-    "title": "Code Quality: Unclear variable name 'r'",
-    "why": "Single-letter variable 'r' outside of loop context is unclear. Makes code harder to understand.",
-    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'r' → 'question', 'error', etc.)."
-  },
-  {
-    "file": "web/_legacy_handlers/esign/webhook.ts",
+    "file": "web/app/creator/layout.tsx",
     "severity": "low",
     "title": "Code Quality: Import ordering violated",
-    "why": "Import '../../../src/adapters/settings/env_settings.adapter.ts' (internal) comes after types. Should follow order: framework → thirdparty → internal → types.",
+    "why": "Import '../../src/components/motion/motion-provider' (internal) comes after types. Should follow order: framework → thirdparty → internal → types.",
     "fix": "Reorganize imports to follow the correct order groups."
   },
   {
-    "file": "web/_legacy_handlers/esign/create.ts",
+    "file": "web/app/creator/signin/actions.ts",
     "severity": "low",
-    "title": "Code Quality: Import ordering violated",
-    "why": "Import '@supabase/supabase-js' (thirdparty) comes after types. Should follow order: framework → thirdparty → internal → types.",
-    "fix": "Reorganize imports to follow the correct order groups."
+    "title": "Code Quality: Unclear variable name 'h'",
+    "why": "Single-letter variable 'h' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'h' → 'question', 'error', etc.)."
   },
   {
-    "file": "web/_legacy_handlers/esign/create.ts",
-    "severity": "high",
-    "title": "Security: authorization-relevant change with no sibling test in this scan",
-    "why": "File contains an authorization/entitlement marker ('getUser(') but no test file matching this file's name was found in its directory (or its __tests__ subdirectory) in the current scan. A removed or changed authorization check with no regression test can be silently reintroduced later.",
-    "fix": "Add or update a test file for create.ts (e.g. __tests__/create.test.ts) asserting the specific authorization branch this change touches, in the same PR."
-  },
-  {
-    "file": "web/_legacy_handlers/billing/webhook.ts",
+    "file": "web/app/creator/signin/actions.ts",
     "severity": "low",
-    "title": "Code Quality: Import ordering violated",
-    "why": "Import '../../../src/use_cases/billing/process_billing_webhook.ts' (internal) comes after types. Should follow order: framework → thirdparty → internal → types.",
-    "fix": "Reorganize imports to follow the correct order groups."
+    "title": "Code Quality: Unclear variable name 'h'",
+    "why": "Single-letter variable 'h' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'h' → 'question', 'error', etc.)."
   },
   {
-    "file": "web/_legacy_handlers/billing/checkout.ts",
+    "file": "web/app/creator/signin/__tests__/resolve-origin.test.ts",
+    "severity": "medium",
+    "title": "Code Quality: Redundant 'async' keyword (no await found)",
+    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
+    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+  },
+  {
+    "file": "web/app/creator/signin/__tests__/resolve-origin.test.ts",
+    "severity": "medium",
+    "title": "Code Quality: Redundant 'async' keyword (no await found)",
+    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
+    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+  },
+  {
+    "file": "web/app/creator/signin/__tests__/resolve-origin.test.ts",
     "severity": "medium",
     "title": "Observability: Catch block without error logging",
     "why": "Error is caught but not logged, making debugging difficult.",
     "fix": "Add error logging: console.error('[context]', error); or Sentry.captureException(error);"
   },
   {
-    "file": "web/_legacy_handlers/billing/checkout.ts",
-    "severity": "low",
-    "title": "Code Quality: Import ordering violated",
-    "why": "Import 'node:fs' (thirdparty) comes after types. Should follow order: framework → thirdparty → internal → types.",
-    "fix": "Reorganize imports to follow the correct order groups."
+    "file": "web/app/creator/review/review-client.tsx",
+    "severity": "high",
+    "title": "Canvas: d3/canvas render effect missing data dependency",
+    "why": "useEffect renders d3 visualization but dependency array doesn't include the data variable.",
+    "fix": "Add graphData/nodes/words to the useEffect dependency array."
   },
   {
-    "file": "web/_legacy_handlers/billing/checkout.ts",
+    "file": "web/app/creator/review/review-client.tsx",
+    "severity": "medium",
+    "title": "Complexity: Monolithic File",
+    "why": "File exceeds 500 lines (505 lines).",
+    "fix": "Decompose into smaller, domain-specific modules."
+  },
+  {
+    "file": "web/app/creator/review/review-client.tsx",
+    "severity": "medium",
+    "title": "Observability: Catch block without error logging",
+    "why": "Error is caught but not logged, making debugging difficult.",
+    "fix": "Add error logging: console.error('[context]', error); or Sentry.captureException(error);"
+  },
+  {
+    "file": "web/app/creator/review/review-client.tsx",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'n'",
+    "why": "Single-letter variable 'n' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'n' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/app/creator/review/review-client.tsx",
     "severity": "low",
     "title": "Code Quality: Unclear variable name 'a'",
     "why": "Single-letter variable 'a' outside of loop context is unclear. Makes code harder to understand.",
     "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'a' → 'question', 'error', etc.)."
   },
   {
-    "file": "web/_legacy_handlers/billing/checkout.ts",
+    "file": "web/app/creator/review/review-client.tsx",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'f'",
+    "why": "Single-letter variable 'f' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'f' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/app/creator/review/review-client.tsx",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'k'",
+    "why": "Single-letter variable 'k' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'k' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/app/creator/review/review-client.tsx",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'p'",
+    "why": "Single-letter variable 'p' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'p' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/app/creator/review/review-client.tsx",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'e'",
+    "why": "Single-letter variable 'e' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'e' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/app/creator/review/page.tsx",
+    "severity": "low",
+    "title": "Code Quality: Import ordering violated",
+    "why": "Import 'next/navigation' (framework) comes after types. Should follow order: framework → thirdparty → internal → types.",
+    "fix": "Reorganize imports to follow the correct order groups."
+  },
+  {
+    "file": "web/app/creator/review/page.tsx",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'a'",
+    "why": "Single-letter variable 'a' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'a' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/app/creator/review/page.tsx",
     "severity": "low",
     "title": "Code Quality: Unclear variable name 'b'",
     "why": "Single-letter variable 'b' outside of loop context is unclear. Makes code harder to understand.",
     "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'b' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/app/creator/review/page.tsx",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'a'",
+    "why": "Single-letter variable 'a' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'a' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/app/creator/review/page.tsx",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'b'",
+    "why": "Single-letter variable 'b' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'b' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/app/creator/review/__tests__/stepper-focus.test.ts",
+    "severity": "medium",
+    "title": "Code Quality: Redundant 'async' keyword (no await found)",
+    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
+    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+  },
+  {
+    "file": "web/app/creator/review/__tests__/stepper-focus.test.ts",
+    "severity": "medium",
+    "title": "Code Quality: Redundant 'async' keyword (no await found)",
+    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
+    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+  },
+  {
+    "file": "web/app/creator/review/__tests__/stepper-focus.test.ts",
+    "severity": "medium",
+    "title": "Code Quality: Redundant 'async' keyword (no await found)",
+    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
+    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+  },
+  {
+    "file": "web/app/creator/review/__tests__/stepper-focus.test.ts",
+    "severity": "medium",
+    "title": "Code Quality: Redundant 'async' keyword (no await found)",
+    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
+    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+  },
+  {
+    "file": "web/app/creator/review/__tests__/stepper-focus.test.ts",
+    "severity": "medium",
+    "title": "Code Quality: Redundant 'async' keyword (no await found)",
+    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
+    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+  },
+  {
+    "file": "web/app/creator/review/__tests__/stepper-focus.test.ts",
+    "severity": "medium",
+    "title": "Code Quality: Redundant 'async' keyword (no await found)",
+    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
+    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+  },
+  {
+    "file": "web/app/creator/review/__tests__/stepper-focus.test.ts",
+    "severity": "medium",
+    "title": "Code Quality: Redundant 'async' keyword (no await found)",
+    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
+    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+  },
+  {
+    "file": "web/app/creator/review/__tests__/stepper-focus.test.ts",
+    "severity": "medium",
+    "title": "Code Quality: Redundant 'async' keyword (no await found)",
+    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
+    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+  },
+  {
+    "file": "web/app/creator/review/__tests__/stepper-focus.test.ts",
+    "severity": "medium",
+    "title": "Code Quality: Redundant 'async' keyword (no await found)",
+    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
+    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+  },
+  {
+    "file": "web/app/creator/review/__tests__/stepper-focus.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'm'",
+    "why": "Single-letter variable 'm' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'm' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/app/creator/review/__tests__/actions.test.ts",
+    "severity": "medium",
+    "title": "Code Quality: Redundant 'async' keyword (no await found)",
+    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
+    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+  },
+  {
+    "file": "web/app/creator/consents/page.tsx",
+    "severity": "low",
+    "title": "Code Quality: Import ordering violated",
+    "why": "Import 'next/navigation' (framework) comes after types. Should follow order: framework → thirdparty → internal → types.",
+    "fix": "Reorganize imports to follow the correct order groups."
+  },
+  {
+    "file": "web/app/creator/consents/actions.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'h'",
+    "why": "Single-letter variable 'h' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'h' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/app/creator/consents/__tests__/actions.test.ts",
+    "severity": "medium",
+    "title": "Code Quality: Redundant 'async' keyword (no await found)",
+    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
+    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+  },
+  {
+    "file": "web/app/creator/consents/__tests__/actions.test.ts",
+    "severity": "medium",
+    "title": "Code Quality: Redundant 'async' keyword (no await found)",
+    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
+    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+  },
+  {
+    "file": "web/app/creator/consents/__tests__/actions.test.ts",
+    "severity": "medium",
+    "title": "Code Quality: Redundant 'async' keyword (no await found)",
+    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
+    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+  },
+  {
+    "file": "web/app/creator/consents/__tests__/actions.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'f'",
+    "why": "Single-letter variable 'f' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'f' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/app/auth/callback/route.ts",
+    "severity": "low",
+    "title": "Code Quality: Import ordering violated",
+    "why": "Import '../../../src/lib/supabase-ssr' (internal) comes after types. Should follow order: framework → thirdparty → internal → types.",
+    "fix": "Reorganize imports to follow the correct order groups."
+  },
+  {
+    "file": "web/app/auth/callback/__tests__/route.test.ts",
+    "severity": "medium",
+    "title": "Code Quality: Redundant 'async' keyword (no await found)",
+    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
+    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+  },
+  {
+    "file": "web/app/auth/callback/__tests__/route.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Import ordering violated",
+    "why": "Import 'next/server' (framework) comes after thirdparty. Should follow order: framework → thirdparty → internal → types.",
+    "fix": "Reorganize imports to follow the correct order groups."
+  },
+  {
+    "file": "web/app/auth/callback/__tests__/route.test.ts",
+    "severity": "medium",
+    "title": "Syntax Error Risk: Reserved keyword 'type' used as identifier",
+    "why": "Using 'type' as a variable/test name causes parse errors. JavaScript reserves this keyword.",
+    "fix": "Rename to a non-reserved alternative: 'typetest', 'testType', etc."
+  },
+  {
+    "file": "web/app/auth/callback/__tests__/route.test.ts",
+    "severity": "medium",
+    "title": "Syntax Error Risk: Reserved keyword 'type' used as identifier",
+    "why": "Using 'type' as a variable/test name causes parse errors. JavaScript reserves this keyword.",
+    "fix": "Rename to a non-reserved alternative: 'typetest', 'testType', etc."
+  },
+  {
+    "file": "web/app/api/billing/webhook/handler.ts",
+    "severity": "high",
+    "title": "Data Integrity: DB operation without validation",
+    "why": "Data is inserted/updated into database without schema validation. Invalid data could corrupt database state.",
+    "fix": "Add schema validation before DB operation: const validated = MySchema.parse(data); db.insert(validated);"
+  },
+  {
+    "file": "web/app/api/billing/webhook/handler.ts",
+    "severity": "high",
+    "title": "Data Integrity: DB operation without validation",
+    "why": "Data is inserted/updated into database without schema validation. Invalid data could corrupt database state.",
+    "fix": "Add schema validation before DB operation: const validated = MySchema.parse(data); db.insert(validated);"
+  },
+  {
+    "file": "web/app/api/billing/webhook/handler.ts",
+    "severity": "medium",
+    "title": "Observability: Catch block without error logging",
+    "why": "Error is caught but not logged, making debugging difficult.",
+    "fix": "Add error logging: console.error('[context]', error); or Sentry.captureException(error);"
+  },
+  {
+    "file": "web/app/api/billing/webhook/handler.ts",
+    "severity": "high",
+    "title": "Stream: Timeout abort does not settle error state",
+    "why": "Abort timeout fires but no error/complete state is set, leaving analysis in limbo.",
+    "fix": "Call settleAnalysis('error', ...) or setStreamError() when timeout fires, not just abort()."
+  },
+  {
+    "file": "web/app/api/billing/webhook/handler.ts",
+    "severity": "low",
+    "title": "Data Quality: String truncation without ellipsis indicator",
+    "why": "String is truncated but doesn't add '...' to indicate more content. User sees incomplete text.",
+    "fix": "Add ellipsis when truncating: text.slice(0, 50) + (text.length > 50 ? '...' : '')"
+  },
+  {
+    "file": "web/app/api/billing/webhook/__tests__/valid_signature_malformed_ledger.test.ts",
+    "severity": "medium",
+    "title": "Code Quality: Redundant 'async' keyword (no await found)",
+    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
+    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+  },
+  {
+    "file": "web/app/api/billing/webhook/__tests__/valid_signature_malformed_ledger.test.ts",
+    "severity": "medium",
+    "title": "Code Quality: Redundant 'async' keyword (no await found)",
+    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
+    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+  },
+  {
+    "file": "web/app/api/billing/webhook/__tests__/valid_signature_malformed_ledger.test.ts",
+    "severity": "medium",
+    "title": "Code Quality: Redundant 'async' keyword (no await found)",
+    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
+    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+  },
+  {
+    "file": "web/app/api/billing/webhook/__tests__/valid_signature_malformed_ledger.test.ts",
+    "severity": "medium",
+    "title": "Code Quality: Redundant 'async' keyword (no await found)",
+    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
+    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+  },
+  {
+    "file": "web/app/api/billing/webhook/__tests__/valid_signature_malformed_ledger.test.ts",
+    "severity": "medium",
+    "title": "Code Quality: Redundant 'async' keyword (no await found)",
+    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
+    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+  },
+  {
+    "file": "web/app/api/billing/webhook/__tests__/valid_signature_malformed_ledger.test.ts",
+    "severity": "medium",
+    "title": "Code Quality: Redundant 'async' keyword (no await found)",
+    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
+    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+  },
+  {
+    "file": "web/app/api/billing/webhook/__tests__/valid_signature_malformed_ledger.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Import ordering violated",
+    "why": "Import '../handler' (internal) comes after types. Should follow order: framework → thirdparty → internal → types.",
+    "fix": "Reorganize imports to follow the correct order groups."
+  },
+  {
+    "file": "web/app/api/billing/webhook/__tests__/valid_signature_malformed_ledger.test.ts",
+    "severity": "low",
+    "title": "Data Quality: String truncation without ellipsis indicator",
+    "why": "String is truncated but doesn't add '...' to indicate more content. User sees incomplete text.",
+    "fix": "Add ellipsis when truncating: text.slice(0, 50) + (text.length > 50 ? '...' : '')"
+  },
+  {
+    "file": "web/app/api/billing/webhook/__tests__/valid_signature_malformed_ledger.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'p'",
+    "why": "Single-letter variable 'p' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'p' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/app/api/billing/webhook/__tests__/valid_signature_malformed_ledger.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'h'",
+    "why": "Single-letter variable 'h' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'h' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/app/api/billing/webhook/__tests__/valid_signature_malformed_ledger.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'h'",
+    "why": "Single-letter variable 'h' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'h' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/app/api/billing/webhook/__tests__/valid_signature_malformed_ledger.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'p'",
+    "why": "Single-letter variable 'p' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'p' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/app/api/billing/webhook/__tests__/signature-status.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Import ordering violated",
+    "why": "Import '../route' (internal) comes after types. Should follow order: framework → thirdparty → internal → types.",
+    "fix": "Reorganize imports to follow the correct order groups."
+  },
+  {
+    "file": "web/app/api/billing/webhook/__tests__/route.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Import ordering violated",
+    "why": "Import '../route' (internal) comes after types. Should follow order: framework → thirdparty → internal → types.",
+    "fix": "Reorganize imports to follow the correct order groups."
+  },
+  {
+    "file": "web/app/api/billing/webhook/__tests__/retry-after-503.test.ts",
+    "severity": "medium",
+    "title": "Code Quality: Redundant 'async' keyword (no await found)",
+    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
+    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+  },
+  {
+    "file": "web/app/api/billing/webhook/__tests__/retry-after-503.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Import ordering violated",
+    "why": "Import '../route' (internal) comes after types. Should follow order: framework → thirdparty → internal → types.",
+    "fix": "Reorganize imports to follow the correct order groups."
+  },
+  {
+    "file": "web/app/api/billing/webhook/__tests__/provider_allowlist.test.ts",
+    "severity": "medium",
+    "title": "Code Quality: Redundant 'async' keyword (no await found)",
+    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
+    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+  },
+  {
+    "file": "web/app/api/billing/webhook/__tests__/provider_allowlist.test.ts",
+    "severity": "medium",
+    "title": "Code Quality: Redundant 'async' keyword (no await found)",
+    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
+    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+  },
+  {
+    "file": "web/app/api/billing/webhook/__tests__/provider_allowlist.test.ts",
+    "severity": "medium",
+    "title": "Code Quality: Redundant 'async' keyword (no await found)",
+    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
+    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+  },
+  {
+    "file": "web/app/api/billing/webhook/__tests__/provider_allowlist.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Import ordering violated",
+    "why": "Import '../route' (internal) comes after types. Should follow order: framework → thirdparty → internal → types.",
+    "fix": "Reorganize imports to follow the correct order groups."
+  },
+  {
+    "file": "web/app/api/billing/webhook/__tests__/provider_allowlist.test.ts",
+    "severity": "low",
+    "title": "Data Quality: String truncation without ellipsis indicator",
+    "why": "String is truncated but doesn't add '...' to indicate more content. User sees incomplete text.",
+    "fix": "Add ellipsis when truncating: text.slice(0, 50) + (text.length > 50 ? '...' : '')"
+  },
+  {
+    "file": "web/app/api/billing/webhook/__tests__/provider_allowlist.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'a'",
+    "why": "Single-letter variable 'a' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'a' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/app/api/billing/webhook/__tests__/provider_allowlist.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'p'",
+    "why": "Single-letter variable 'p' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'p' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/app/api/billing/webhook/__tests__/polar-partial-refund.test.ts",
+    "severity": "medium",
+    "title": "Code Quality: Redundant 'async' keyword (no await found)",
+    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
+    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+  },
+  {
+    "file": "web/app/api/billing/webhook/__tests__/polar-partial-refund.test.ts",
+    "severity": "medium",
+    "title": "Code Quality: Redundant 'async' keyword (no await found)",
+    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
+    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+  },
+  {
+    "file": "web/app/api/billing/webhook/__tests__/polar-partial-refund.test.ts",
+    "severity": "medium",
+    "title": "Code Quality: Redundant 'async' keyword (no await found)",
+    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
+    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+  },
+  {
+    "file": "web/app/api/billing/webhook/__tests__/polar-partial-refund.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Import ordering violated",
+    "why": "Import '../../../../../../payments/src/ledger.ts' (internal) comes after types. Should follow order: framework → thirdparty → internal → types.",
+    "fix": "Reorganize imports to follow the correct order groups."
+  },
+  {
+    "file": "web/app/api/billing/webhook/__tests__/polar-partial-refund.test.ts",
+    "severity": "low",
+    "title": "Data Quality: String truncation without ellipsis indicator",
+    "why": "String is truncated but doesn't add '...' to indicate more content. User sees incomplete text.",
+    "fix": "Add ellipsis when truncating: text.slice(0, 50) + (text.length > 50 ? '...' : '')"
+  },
+  {
+    "file": "web/app/api/billing/webhook/__tests__/polar-partial-refund.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'a'",
+    "why": "Single-letter variable 'a' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'a' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/app/api/billing/webhook/__tests__/polar-partial-refund.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'p'",
+    "why": "Single-letter variable 'p' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'p' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/app/api/billing/webhook/__tests__/in-flight.test.ts",
+    "severity": "medium",
+    "title": "Code Quality: Redundant 'async' keyword (no await found)",
+    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
+    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+  },
+  {
+    "file": "web/app/api/billing/webhook/__tests__/in-flight.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Import ordering violated",
+    "why": "Import '../route' (internal) comes after types. Should follow order: framework → thirdparty → internal → types.",
+    "fix": "Reorganize imports to follow the correct order groups."
+  },
+  {
+    "file": "web/app/api/billing/webhook/__tests__/fungies-refund-dlq.test.ts",
+    "severity": "medium",
+    "title": "Code Quality: Redundant 'async' keyword (no await found)",
+    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
+    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+  },
+  {
+    "file": "web/app/api/billing/webhook/__tests__/fungies-refund-dlq.test.ts",
+    "severity": "medium",
+    "title": "Code Quality: Redundant 'async' keyword (no await found)",
+    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
+    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+  },
+  {
+    "file": "web/app/api/billing/webhook/__tests__/fungies-refund-dlq.test.ts",
+    "severity": "medium",
+    "title": "Code Quality: Redundant 'async' keyword (no await found)",
+    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
+    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+  },
+  {
+    "file": "web/app/api/billing/webhook/__tests__/fungies-refund-dlq.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Import ordering violated",
+    "why": "Import '../../../../../../payments/src/ledger.ts' (internal) comes after types. Should follow order: framework → thirdparty → internal → types.",
+    "fix": "Reorganize imports to follow the correct order groups."
+  },
+  {
+    "file": "web/app/api/billing/webhook/__tests__/fungies-refund-dlq.test.ts",
+    "severity": "low",
+    "title": "Data Quality: String truncation without ellipsis indicator",
+    "why": "String is truncated but doesn't add '...' to indicate more content. User sees incomplete text.",
+    "fix": "Add ellipsis when truncating: text.slice(0, 50) + (text.length > 50 ? '...' : '')"
+  },
+  {
+    "file": "web/app/api/billing/webhook/__tests__/fungies-refund-dlq.test.ts",
+    "severity": "low",
+    "title": "Data Quality: String truncation without ellipsis indicator",
+    "why": "String is truncated but doesn't add '...' to indicate more content. User sees incomplete text.",
+    "fix": "Add ellipsis when truncating: text.slice(0, 50) + (text.length > 50 ? '...' : '')"
+  },
+  {
+    "file": "web/app/api/billing/webhook/__tests__/fungies-refund-dlq.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'a'",
+    "why": "Single-letter variable 'a' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'a' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/app/api/billing/webhook/__tests__/fungies-refund-dlq.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'p'",
+    "why": "Single-letter variable 'p' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'p' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/app/api/billing/webhook/__tests__/fungies-refund-dlq.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'k'",
+    "why": "Single-letter variable 'k' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'k' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/app/api/billing/webhook/__tests__/audit-503.test.ts",
+    "severity": "medium",
+    "title": "Code Quality: Redundant 'async' keyword (no await found)",
+    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
+    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+  },
+  {
+    "file": "web/app/api/billing/webhook/__tests__/audit-503.test.ts",
+    "severity": "medium",
+    "title": "Code Quality: Redundant 'async' keyword (no await found)",
+    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
+    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+  },
+  {
+    "file": "web/app/api/billing/webhook/__tests__/audit-503.test.ts",
+    "severity": "medium",
+    "title": "Code Quality: Redundant 'async' keyword (no await found)",
+    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
+    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+  },
+  {
+    "file": "web/app/api/billing/webhook/__tests__/audit-503.test.ts",
+    "severity": "medium",
+    "title": "Code Quality: Redundant 'async' keyword (no await found)",
+    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
+    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+  },
+  {
+    "file": "web/app/api/billing/webhook/__tests__/audit-503.test.ts",
+    "severity": "medium",
+    "title": "Code Quality: Redundant 'async' keyword (no await found)",
+    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
+    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+  },
+  {
+    "file": "web/app/api/billing/webhook/__tests__/audit-503.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Import ordering violated",
+    "why": "Import '../route' (internal) comes after types. Should follow order: framework → thirdparty → internal → types.",
+    "fix": "Reorganize imports to follow the correct order groups."
+  },
+  {
+    "file": "web/app/api/billing/webhook/__tests__/audit-503.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'h'",
+    "why": "Single-letter variable 'h' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'h' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/app/api/billing/checkout/route.ts",
+    "severity": "medium",
+    "title": "Observability: Catch block without error logging",
+    "why": "Error is caught but not logged, making debugging difficult.",
+    "fix": "Add error logging: console.error('[context]', error); or Sentry.captureException(error);"
+  },
+  {
+    "file": "web/app/api/billing/checkout/route.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'v'",
+    "why": "Single-letter variable 'v' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'v' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/app/api/billing/checkout/route.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'u'",
+    "why": "Single-letter variable 'u' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'u' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/app/api/billing/checkout/__tests__/route.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Import ordering violated",
+    "why": "Import 'next/server' (framework) comes after thirdparty. Should follow order: framework → thirdparty → internal → types.",
+    "fix": "Reorganize imports to follow the correct order groups."
+  },
+  {
+    "file": "web/app/api/billing/checkout/__tests__/route.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'p'",
+    "why": "Single-letter variable 'p' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'p' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/app/api/billing/checkout/__tests__/route.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'p'",
+    "why": "Single-letter variable 'p' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'p' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/app/api/admin/audit-log/__tests__/route.test.ts",
+    "severity": "medium",
+    "title": "Code Quality: Redundant 'async' keyword (no await found)",
+    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
+    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+  },
+  {
+    "file": "web/app/api/admin/audit-log/__tests__/route.test.ts",
+    "severity": "medium",
+    "title": "Code Quality: Redundant 'async' keyword (no await found)",
+    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
+    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+  },
+  {
+    "file": "web/app/api/admin/audit-log/__tests__/route.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Import ordering violated",
+    "why": "Import 'next/server' (framework) comes after thirdparty. Should follow order: framework → thirdparty → internal → types.",
+    "fix": "Reorganize imports to follow the correct order groups."
+  },
+  {
+    "file": "web/app/api/admin/audit-log/__tests__/route.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'h'",
+    "why": "Single-letter variable 'h' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'h' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/app/api/admin/audit-log/__tests__/route.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'q'",
+    "why": "Single-letter variable 'q' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'q' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/app/admin/dashboard/page.tsx",
+    "severity": "medium",
+    "title": "Observability: Catch block without error logging",
+    "why": "Error is caught but not logged, making debugging difficult.",
+    "fix": "Add error logging: console.error('[context]', error); or Sentry.captureException(error);"
+  },
+  {
+    "file": "web/app/admin/dashboard/page.tsx",
+    "severity": "low",
+    "title": "Code Quality: Import ordering violated",
+    "why": "Import 'next/navigation' (framework) comes after types. Should follow order: framework → thirdparty → internal → types.",
+    "fix": "Reorganize imports to follow the correct order groups."
+  },
+  {
+    "file": "web/app/admin/dashboard/page.tsx",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'v'",
+    "why": "Single-letter variable 'v' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'v' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/app/admin/dashboard/page.tsx",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'd'",
+    "why": "Single-letter variable 'd' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'd' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/app/admin/dashboard/page.tsx",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'p'",
+    "why": "Single-letter variable 'p' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'p' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/__tests__/audit-proxy-cookie-name.test.ts",
+    "severity": "medium",
+    "title": "Code Quality: Redundant 'async' keyword (no await found)",
+    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
+    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+  },
+  {
+    "file": "web/__tests__/audit-proxy-cookie-name.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Import ordering violated",
+    "why": "Import 'next/server' (framework) comes after thirdparty. Should follow order: framework → thirdparty → internal → types.",
+    "fix": "Reorganize imports to follow the correct order groups."
+  },
+  {
+    "file": "web/__tests__/audit-proxy-cookie-name.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'c'",
+    "why": "Single-letter variable 'c' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'c' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "supabase/migrations/20261004000900_submit_consent_race_lock.sql",
+    "severity": "high",
+    "title": "SQL: SECURITY DEFINER function exposes a caller-controlled key/column parameter to untrusted callers",
+    "why": "Function submit_consent runs with elevated (SECURITY DEFINER) privileges, its EXECUTE grant reaches untrusted callers (authenticated, service_role), and it accepts caller-controlled key/column/path-shaped text parameter(s) 'p_evidence_path' with no allowlist guard. A caller can steer which field/path the definer writes or reads, turning the RPC into an arbitrary-field overwrite (real incident: PR #322's merge_analysis_payload_key accepted any payload key; fixed only after external review).",
+    "fix": "Either (a) drop the caller-controlled parameter(s) entirely, (b) hard-allowlist the permitted values inside the function body (e.g. IF p_evidence_path NOT IN ('allowed_key') THEN RAISE EXCEPTION), and/or (c) REVOKE EXECUTE ... FROM anon, authenticated, public and grant only to service_role."
+  },
+  {
+    "file": "supabase/migrations/20261004000300_submit_consent_evidence_envelope_tie.sql",
+    "severity": "high",
+    "title": "SQL: SECURITY DEFINER function exposes a caller-controlled key/column parameter to untrusted callers",
+    "why": "Function submit_consent runs with elevated (SECURITY DEFINER) privileges, its EXECUTE grant reaches untrusted callers (authenticated, service_role), and it accepts caller-controlled key/column/path-shaped text parameter(s) 'p_evidence_path' with no allowlist guard. A caller can steer which field/path the definer writes or reads, turning the RPC into an arbitrary-field overwrite (real incident: PR #322's merge_analysis_payload_key accepted any payload key; fixed only after external review).",
+    "fix": "Either (a) drop the caller-controlled parameter(s) entirely, (b) hard-allowlist the permitted values inside the function body (e.g. IF p_evidence_path NOT IN ('allowed_key') THEN RAISE EXCEPTION), and/or (c) REVOKE EXECUTE ... FROM anon, authenticated, public and grant only to service_role."
+  },
+  {
+    "file": "supabase/migrations/20261004000200_submit_consent_evidence_path_contract.sql",
+    "severity": "high",
+    "title": "SQL: SECURITY DEFINER function exposes a caller-controlled key/column parameter to untrusted callers",
+    "why": "Function submit_consent runs with elevated (SECURITY DEFINER) privileges, its EXECUTE grant reaches untrusted callers (authenticated, service_role), and it accepts caller-controlled key/column/path-shaped text parameter(s) 'p_evidence_path' with no allowlist guard. A caller can steer which field/path the definer writes or reads, turning the RPC into an arbitrary-field overwrite (real incident: PR #322's merge_analysis_payload_key accepted any payload key; fixed only after external review).",
+    "fix": "Either (a) drop the caller-controlled parameter(s) entirely, (b) hard-allowlist the permitted values inside the function body (e.g. IF p_evidence_path NOT IN ('allowed_key') THEN RAISE EXCEPTION), and/or (c) REVOKE EXECUTE ... FROM anon, authenticated, public and grant only to service_role."
+  },
+  {
+    "file": "supabase/migrations/20261002000000_audit_fixes_f2_f5.sql",
+    "severity": "high",
+    "title": "SQL: SECURITY DEFINER function exposes a caller-controlled key/column parameter to untrusted callers",
+    "why": "Function submit_consent runs with elevated (SECURITY DEFINER) privileges, its EXECUTE grant reaches untrusted callers (authenticated, service_role), and it accepts caller-controlled key/column/path-shaped text parameter(s) 'p_evidence_path' with no allowlist guard. A caller can steer which field/path the definer writes or reads, turning the RPC into an arbitrary-field overwrite (real incident: PR #322's merge_analysis_payload_key accepted any payload key; fixed only after external review).",
+    "fix": "Either (a) drop the caller-controlled parameter(s) entirely, (b) hard-allowlist the permitted values inside the function body (e.g. IF p_evidence_path NOT IN ('allowed_key') THEN RAISE EXCEPTION), and/or (c) REVOKE EXECUTE ... FROM anon, authenticated, public and grant only to service_role."
+  },
+  {
+    "file": "supabase/migrations/20261001000000_submit_consent_strict_signer.sql",
+    "severity": "high",
+    "title": "SQL: SECURITY DEFINER function exposes a caller-controlled key/column parameter to untrusted callers",
+    "why": "Function submit_consent runs with elevated (SECURITY DEFINER) privileges, its EXECUTE grant reaches untrusted callers (authenticated, service_role), and it accepts caller-controlled key/column/path-shaped text parameter(s) 'p_evidence_path' with no allowlist guard. A caller can steer which field/path the definer writes or reads, turning the RPC into an arbitrary-field overwrite (real incident: PR #322's merge_analysis_payload_key accepted any payload key; fixed only after external review).",
+    "fix": "Either (a) drop the caller-controlled parameter(s) entirely, (b) hard-allowlist the permitted values inside the function body (e.g. IF p_evidence_path NOT IN ('allowed_key') THEN RAISE EXCEPTION), and/or (c) REVOKE EXECUTE ... FROM anon, authenticated, public and grant only to service_role."
+  },
+  {
+    "file": "supabase/migrations/20260929000000_submit_consent_integrity.sql",
+    "severity": "high",
+    "title": "SQL: SECURITY DEFINER function exposes a caller-controlled key/column parameter to untrusted callers",
+    "why": "Function submit_consent runs with elevated (SECURITY DEFINER) privileges, its EXECUTE grant reaches untrusted callers (authenticated, service_role), and it accepts caller-controlled key/column/path-shaped text parameter(s) 'p_evidence_path' with no allowlist guard. A caller can steer which field/path the definer writes or reads, turning the RPC into an arbitrary-field overwrite (real incident: PR #322's merge_analysis_payload_key accepted any payload key; fixed only after external review).",
+    "fix": "Either (a) drop the caller-controlled parameter(s) entirely, (b) hard-allowlist the permitted values inside the function body (e.g. IF p_evidence_path NOT IN ('allowed_key') THEN RAISE EXCEPTION), and/or (c) REVOKE EXECUTE ... FROM anon, authenticated, public and grant only to service_role."
   },
   {
     "file": "supabase/migrations/20260927000100_submit_consent_rpc.sql",
