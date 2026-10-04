@@ -1,5 +1,5 @@
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
-import { ConsentDatabasePort, SubmitConsentCommand } from "../../domain/governance/consent.port.ts";
+import { ConsentDatabasePort, ConsentManualReviewFlag, SubmitConsentCommand } from "../../domain/governance/consent.port.ts";
 
 /**
  * Consent database adapter (service-role). The Supabase client is created
@@ -47,5 +47,10 @@ export class SupabaseAdapter implements ConsentDatabasePort {
         details: errPayload.details,
       });
     }
+  }
+
+  async flagConsentForManualReview(flag: ConsentManualReviewFlag): Promise<void> {
+    const { error } = await this.ensureClient().from("audit_log").insert({ event: "MANUAL_REVIEW_REQUIRED_CONSENT", details: flag });
+    if (error) throw new Error(`Failed to flag consent for manual review: ${error.message}`);
   }
 }
