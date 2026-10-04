@@ -85,7 +85,12 @@ async function handleWebhook(request: NextRequest, adapters: WebhookAdapters): P
   const headers = Object.fromEntries(request.headers);
 
   try {
-    await processBillingWebhookUseCase({ headers, body }, adapters);
+    const outcome = await processBillingWebhookUseCase({ headers, body }, adapters);
+    // Adjustment-id collision stored in the reconciliation inbox: 202 stops the provider's retry loop (any 2xx
+    // is delivered) while the event waits for an operator in public.webhook_conflicts.
+    if (outcome?.status === 202) {
+      return NextResponse.json(outcome.payload, { status: 202 });
+    }
     return NextResponse.json({ ok: true });
   } catch (err) {
     // Another delivery of this event holds the idempotency lock and has not
