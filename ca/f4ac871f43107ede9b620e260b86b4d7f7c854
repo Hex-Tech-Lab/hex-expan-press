@@ -1,0 +1,19 @@
+payments/test/schema_drift_event_type.test.ts
+  s_a0d9002dde86f1::t_7d1e841a292bea 1-80
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "caf4ac871f43107ede9b620e260b86b4d7f7c854",
+  "prompts": {},
+  "sessions": {
+    "s_a0d9002dde86f1": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef73ddb20ffeB1iz9oXAGca5Vf",
+        "model": "@preset/glm-53-flash-on-cheap"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
