@@ -35,6 +35,7 @@ vi.mock("../../../../../../payments/src/settings_registry.ts", () => ({
   expandHome: (p: string) => p,
   isRegisteredPaymentProvider: (name: unknown) => typeof name === "string",
   paymentProviderSetting: () => undefined,
+  isMoneyPath: () => false,
 }));
 
 import { createWebhookHandler } from "../handler";

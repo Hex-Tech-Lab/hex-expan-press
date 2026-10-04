@@ -43,7 +43,7 @@ function validParseResult(event: WebhookEvent): WebhookValidationResult {
 }
 
 function makeDatabase() {
-  return { submitConsent: vi.fn<(command: Record<string, unknown>) => Promise<void>>(() => Promise.resolve()) };
+  return { submitConsent: vi.fn<(command: Record<string, unknown>) => Promise<void>>(() => Promise.resolve()), flagConsentForManualReview: vi.fn(() => Promise.resolve()) };
 }
 
 const settings = { getPortalSettings: () => Promise.resolve({ esign: {} }) };
@@ -70,6 +70,7 @@ describe("processEsignWebhookUseCase — evidence-before-insert (F1)", () => {
       return Promise.resolve();
     });
     const database = {
+      flagConsentForManualReview: vi.fn(() => Promise.resolve()),
       submitConsent: vi.fn((command: { evidencePath?: string }) => {
         callOrder.push(`insert:${command.evidencePath}`);
         return Promise.resolve();
@@ -129,7 +130,7 @@ describe("processEsignWebhookUseCase — evidence-before-insert (F1)", () => {
       code: "23505",
       constraint: "consents_kind_external_ref_uidx",
     });
-    const database = { submitConsent: vi.fn(() => Promise.reject(replayError)) };
+    const database = { submitConsent: vi.fn(() => Promise.reject(replayError)), flagConsentForManualReview: vi.fn(() => Promise.resolve()) };
 
     const { processEsignWebhookUseCase } = await import("../process_esign_webhook.ts");
     await expect(processEsignWebhookUseCase(request, settings as never, database as never)).resolves.toBeUndefined();
