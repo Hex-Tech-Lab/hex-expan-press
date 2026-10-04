@@ -1,0 +1,30 @@
+web/app/api/billing/webhook/handler.ts
+  s_eaa71a55cf16bf::t_28f8625bb6c699 3
+  s_02aea578e6012f::t_2bb95fd6fedc46 109-111,115
+.qa-intel/baseline.json
+  s_eaa71a55cf16bf::t_74328308f0a350 2-141,146,184-253,269-290,293,297,300,304,306-308,311-318,320-329,332,334-336,339,341-343,346,348-350,353-357,360,362-364,367-371,374,377,381-395,402,408-1107
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7e4125e831181245775b0530455a2a671b860614",
+  "prompts": {},
+  "sessions": {
+    "s_02aea578e6012f": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef73ddb2fffeIRlqFJ73zGhX1c",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_eaa71a55cf16bf": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef7514bdaffel0T174aMhQBR5q",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
