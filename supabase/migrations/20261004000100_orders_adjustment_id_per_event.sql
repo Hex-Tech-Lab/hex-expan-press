@@ -12,6 +12,20 @@ create unique index if not exists orders_provider_adjustment_id_uniq
   on public.orders (provider, provider_adjustment_id, event_type)
   where provider_adjustment_id is not null;
 
--- Rollback: recreate the index on (provider, provider_adjustment_id) only.
+-- Rollback (data-safe): the old (provider, provider_adjustment_id) index CANNOT be
+-- recreated once a refund and its refund_reversal share an adjustment id — the
+-- create fails on the duplicate pair. Before recreating it:
+--   1. list the shared ids:
+--        select provider, provider_adjustment_id from public.orders
+--        where provider_adjustment_id is not null
+--        group by 1, 2 having count(*) > 1;
+--   2. do NOT delete either row (both are ledger facts). Rolling back the code means
+--      reversals would again be swallowed as replays, so leave this index in place
+--      unless every shared id has been reconciled by hand.
+--   3. only when step 1 returns no rows:
+--        drop index public.orders_provider_adjustment_id_uniq;
+--        create unique index orders_provider_adjustment_id_uniq
+--          on public.orders (provider, provider_adjustment_id)
+--          where provider_adjustment_id is not null;
 
 notify pgrst, 'reload schema';
