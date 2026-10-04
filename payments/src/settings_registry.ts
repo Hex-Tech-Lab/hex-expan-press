@@ -358,6 +358,20 @@ export function expandHome(p: string, home: string): string {
   return p;
 }
 
+/** True when the process runs on a production-shaped money path: NODE_ENV=production,
+ *  ANY VERCEL_ENV value (Vercel previews get the same fail-closed guards), or an AWS
+ *  Lambda runtime. Guards that protect money writes (distributed idempotency lock,
+ *  durable manual-review DLQ) must demand their infrastructure whenever this returns
+ *  true — fail CLOSED when ambiguous; only a bare local/test runtime (no signal at
+ *  all) may keep the optional-infra behavior. */
+export function isMoneyPath(): boolean {
+  return (
+    process.env.NODE_ENV === "production" ||
+    process.env.VERCEL_ENV !== undefined ||
+    !!process.env.AWS_LAMBDA_FUNCTION_NAME
+  );
+}
+
 // ---------------------------------------------------------------------------
 // providers.json — payment providers (route tokens, signature, events, secrets)
 // ---------------------------------------------------------------------------
