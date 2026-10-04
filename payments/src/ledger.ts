@@ -119,7 +119,7 @@ async function persistToSupabaseOrder(record: SaleRecord): Promise<void> {
   if (!url || !key) {
     // Serverless /tmp is ephemeral: skipping the durable write there would lose the sale for good. Fail loud (500 → provider retries).
     if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
-      throw new Error("ledger: SUPABASE_URL/SUPABASE_SECRET_KEY missing in a serverless runtime — refusing to record a sale without the durable store");
+      throw new Error("ledger: SUPABASE_URL/SUPABASE_SECRET_KEY missing in a serverless runtime — refusing to record a ledger entry without the durable store");
     }
     return;
   }
