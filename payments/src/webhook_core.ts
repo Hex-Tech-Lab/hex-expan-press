@@ -2,7 +2,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { appendRefund, appendSale, findRefund, findSale } from "./ledger.ts";
-import { isRegisteredPaymentProvider, paymentProviderSetting, GLOBAL } from "./settings_registry.ts";
+import { isRegisteredPaymentProvider, paymentProviderSetting, isMoneyPath, GLOBAL } from "./settings_registry.ts";
 import { loadConfig, type ProductConfig } from "./settings.ts";
 import { computeSplit } from "./split.ts";
 import { effectiveCreatorSplitPct } from "./terms.ts";
@@ -123,9 +123,11 @@ function isRedisConfigured(): boolean {
   return isRedisRestConfigured();
 }
 
-/** Strictly Vercel production — previews/local/tests keep the lock optional. */
+/** Money-path detection (isMoneyPath): any production-shaped runtime — NODE_ENV=production,
+ *  any VERCEL_ENV value (previews included), or an AWS Lambda runtime — demands the
+ *  distributed lock; previews/local/tests keep it optional only when no signal is present. */
 function isProduction(): boolean {
-  return process.env.VERCEL_ENV === "production";
+  return isMoneyPath();
 }
 
 /**
