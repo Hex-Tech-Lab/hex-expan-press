@@ -1,0 +1,19 @@
+payments/src/settings_registry.ts
+  s_3e8d78dfced48a::t_c5e68ec7b334be 361-374
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "21062fac09dd119f0aebcb541e6af0dbd73543d0",
+  "prompts": {},
+  "sessions": {
+    "s_3e8d78dfced48a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef74d41ccffeSr112kzKunxuT5",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
