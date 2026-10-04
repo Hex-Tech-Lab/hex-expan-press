@@ -1176,6 +1176,86 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
         cleanup23505();
       }
     });
+
+    it("refund: 23505 + conflicting row with a NULL stored currency -> empty string treated as non-matching -> 503 retryable + flag (no NPE)", async () => {
+      race23505();
+      supa.adjLookupResult = conflicts();
+      (supa.adjLookupResult.data as { currency: string | null }).currency = null;
+      try {
+        await expect(
+          processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_null_currency"))]),
+        ).rejects.toSatisfy((e: unknown) => {
+          expect503Collision(e);
+          return true;
+        });
+        expect(supa.auditInserts).toHaveLength(1);
+        expect(supa.auditInserts[0]).toMatchObject({
+          event: "MANUAL_REVIEW_REQUIRED_REFUND",
+          details: expect.objectContaining({ reason: "adjustment_id_collision", sale_id: CB_SALE.sale_id }),
+        });
+      } finally {
+        cleanup23505();
+      }
+    });
+
+    it("reversal: 23505 + conflicting row with a NULL stored currency -> empty string treated as non-matching -> 503 retryable + flag (no NPE)", async () => {
+      await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_rev_nullc_refund"))]);
+      race23505();
+      supa.adjLookupResult = conflicts();
+      (supa.adjLookupResult.data as { currency: string | null }).currency = null;
+      try {
+        await expect(
+          processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbReversal("adj_rev_nullc") as never)]),
+        ).rejects.toSatisfy((e: unknown) => {
+          expect503Collision(e);
+          return true;
+        });
+        expect(supa.auditInserts).toHaveLength(1);
+        expect(supa.auditInserts[0]).toMatchObject({
+          event: "MANUAL_REVIEW_REQUIRED_REFUND",
+          details: expect.objectContaining({ reason: "adjustment_id_collision" }),
+        });
+      } finally {
+        cleanup23505();
+      }
+    });
+
+    it("refund: 23505 mismatch + flag-write failure -> RETRYABLE 503 (flagRefundForManualReview throws), not an unclassified error", async () => {
+      race23505();
+      supa.adjLookupResult = conflicts("sale_OTHER");
+      supa.auditError = { message: "db down" };
+      try {
+        await expect(
+          processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_flag_fail"))]),
+        ).rejects.toSatisfy((e: unknown) => {
+          expect503Collision(e);
+          return true;
+        });
+        // flag insert was ATTEMPTED but failed (auditError set) — the 503 retryable
+        // rejection above is the contract under test.
+        expect(supa.auditInserts).toHaveLength(1);
+      } finally {
+        cleanup23505();
+      }
+    });
+
+    it("reversal: 23505 mismatch + flag-write failure -> RETRYABLE 503 (flagRefundForManualReview throws), not an unclassified error", async () => {
+      await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_revff_refund"))]);
+      race23505();
+      supa.adjLookupResult = conflicts("sale_OTHER");
+      supa.auditError = { message: "db down" };
+      try {
+        await expect(
+          processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbReversal("adj_rev_flag_fail") as never)]),
+        ).rejects.toSatisfy((e: unknown) => {
+          expect503Collision(e);
+          return true;
+        });
+        expect(supa.auditInserts).toHaveLength(1);
+      } finally {
+        cleanup23505();
+      }
+    });
   });
 
   // ------------------------------------------------------------------
