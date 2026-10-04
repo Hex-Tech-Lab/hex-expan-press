@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync } from "node:fs";
 import { open } from "node:fs/promises";
 import { dirname, join, basename } from "node:path";
 import { z } from "zod";
-import { GLOBAL } from "./settings_registry.ts";
+import { GLOBAL, isMoneyPath } from "./settings_registry.ts";
 
 export type LedgerEventType = "sale" | "refund" | "refund_reversal";
 
@@ -329,7 +329,9 @@ export async function flagRefundForManualReview(input: ManualReviewRefund): Prom
   if (!url || !key) {
     // Production: a flag that cannot be persisted must not become a quiet 400 —
     // throw so the webhook 500s and the provider retries until config is fixed.
-    if (process.env.VERCEL_ENV === "production") {
+    // Money-path detection (isMoneyPath): NODE_ENV=production, ANY VERCEL_ENV value
+    // (previews included), or an AWS Lambda runtime — fail CLOSED when ambiguous.
+    if (isMoneyPath()) {
       throw new Error("ledger: manual-review flag cannot be persisted: Supabase is not configured in production");
     }
     console.error("ledger: MANUAL_REVIEW_REQUIRED_REFUND (Supabase unconfigured, not persisted):", details);
