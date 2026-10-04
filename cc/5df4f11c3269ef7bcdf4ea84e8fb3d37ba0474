@@ -1,0 +1,25 @@
+src/use_cases/billing/__tests__/process_billing_webhook.test.ts
+  s_5183d16ecf0f6b::t_c5498cdf46b203 56-58,77-81,127,945,951,1012,1031,1042,1068,1088,1105,1119,1140,1161
+src/use_cases/billing/process_billing_webhook.ts
+  s_5183d16ecf0f6b::t_106e441b87640a 68
+supabase/migrations/20261004000100_orders_adjustment_id_per_event.sql
+  s_5183d16ecf0f6b::t_c3d6dae38811b2 15-29
+supabase/migrations/20261004000500_consents_signed_by_present.sql
+  s_5183d16ecf0f6b::t_1f6816d57a5f4a 1-11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "cc5df4f11c3269ef7bcdf4ea84e8fb3d37ba0474",
+  "prompts": {},
+  "sessions": {
+    "s_5183d16ecf0f6b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "54443bc4-2b7f-4ceb-842d-573e302fea79",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
