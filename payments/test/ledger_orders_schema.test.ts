@@ -1,6 +1,6 @@
 // Zod gate before orders.upsert (Sprint 11): invalid rows never reach Supabase.
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -67,6 +67,16 @@ describe("orders upsert Zod boundary", () => {
   ])("%s → rejected before the DB, nothing upserted", async (_name, patch, msg) => {
     await expect(appendSale({ ...sale, ...patch }, join(dir, "sales.jsonl"))).rejects.toThrow(msg);
     expect(db.upserts).toHaveLength(0);
+    expect(existsSync(join(dir, "sales.jsonl"))).toBe(false); // validation precedes any local-file mutation
+  });
+
+  it("a rejected sub-cent sale leaves an existing local ledger byte-identical (no DB/file divergence)", async () => {
+    const file = join(dir, "sales.jsonl");
+    await appendSale(sale, file);
+    const before = readFileSync(file, "utf8");
+    await expect(appendSale({ ...sale, sale_id: "sale_zod_2", amount_usd: 39.005 }, file)).rejects.toThrow(/amount_usd/);
+    expect(readFileSync(file, "utf8")).toBe(before);
+    expect(db.upserts).toHaveLength(1);
   });
 
   it("refund rows carry negated splits; positive splits on a refund row are rejected", () => {
