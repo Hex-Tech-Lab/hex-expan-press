@@ -48,22 +48,27 @@ async function resolveAdjustmentIdCollision(
   const matches =
     row.sale_id === event.saleId &&
     (event.totalCents === undefined || rowCents === event.totalCents) &&
-    (event.currency === undefined || row.currency.toUpperCase() === event.currency.toUpperCase());
+    (event.currency === undefined || (row.currency ?? "").toUpperCase() === event.currency.toUpperCase());
   if (matches) {
     return { status: 200, payload: { ok: true, recorded: false, reason: "duplicate", dedupe: "provider_adjustment_id", event_type: eventType, sale_id: event.saleId } };
   }
-  // Mismatch: durable flag first. A flag-write failure must propagate (throw),
-  // never be swallowed into a 200 acknowledgement.
-  await flagRefundForManualReview({
-    reason: "adjustment_id_collision",
-    provider,
-    sale_id: event.saleId,
-    refund_id: flag.refundId,
-    refund_cents: flag.refundCents,
-    sale_cents: rowCents,
-    creator_id: row.creator_id ?? null,
-    occurred_at: flag.occurredAt,
-  });
+  // Mismatch: durable flag first. A flag-write failure must never soften into a 200; it
+  // surfaces as a retryable 503 (the route attaches Retry-After from the settings registry).
+  try {
+    await flagRefundForManualReview({
+      reason: "adjustment_id_collision",
+      provider,
+      sale_id: event.saleId,
+      refund_id: flag.refundId,
+      refund_cents: flag.refundCents,
+      sale_cents: rowCents,
+      creator_id: row.creator_id ?? null,
+      occurred_at: flag.occurredAt,
+    });
+  } catch (flagErr) {
+    console.error("[billing-webhook] adjustment_id_collision flag write failed:", flagErr);
+    throw Object.assign(new Error(`Webhook retryable: adjustment-id collision flag write failed for ${eventType} ${adjustmentId}`), { httpStatus: 503 });
+  }
   throw Object.assign(
     new Error(
       `Webhook retryable: adjustment-id collision for ${eventType} ${adjustmentId} — conflicting row does not match this event (sale/amount/currency)`,
