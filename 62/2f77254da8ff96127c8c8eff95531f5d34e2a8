@@ -1,0 +1,21 @@
+src/use_cases/billing/process_billing_webhook.ts
+  s_5183d16ecf0f6b::t_b9a65b60db89e1 11,47,50,63
+web/app/api/billing/webhook/route.ts
+  s_5183d16ecf0f6b::t_c9e5fd8ce79fed 102,121,125-129
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "622f77254da8ff96127c8c8eff95531f5d34e2a8",
+  "prompts": {},
+  "sessions": {
+    "s_5183d16ecf0f6b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "54443bc4-2b7f-4ceb-842d-573e302fea79",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
