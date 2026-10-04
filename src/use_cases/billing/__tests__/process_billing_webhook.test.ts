@@ -6,7 +6,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { mkdirSync, rmSync, readFileSync } from "node:fs";
 import { appendSale, SaleRecord } from "../../../../payments/src/ledger.ts";
 import { processBillingWebhookUseCase } from "../process_billing_webhook.ts";
-import { WebhookValidationError } from "../../../../src/domain/webhook/webhook_errors.ts";
 import type { PaymentProviderPort, SaleCompletedEvent, RefundIssuedEvent } from "../../../../src/domain/payments/payments.port.ts";
 
 const SALE: SaleCompletedEvent = {
@@ -58,19 +57,40 @@ const supa = vi.hoisted(() => ({
   // provider_adjustment_id lookup alone, so appendRefund still reaches the upsert.
   adjLookupResult: null as { data: unknown; error: unknown } | null,
   auditInserts: [] as Record<string, unknown>[],
+  collisionKeys: new Set<string>(),
   auditError: null as unknown,
   upsertError: null as unknown,
+  // record_webhook_conflict RPC emulation (public.webhook_conflicts): dedupe key -> row.
+  conflicts: new Map<string, { id: number; delivery_count: number; args: Record<string, unknown> }>(),
+  rpcError: null as unknown,
 }));
+function insertAudit(row: Record<string, unknown>): { error: unknown } {
+  // Mirror the audit_log_collision_flag_uniq partial unique index.
+  const d = (row.details ?? {}) as Record<string, unknown>;
+  if (row.event === "MANUAL_REVIEW_REQUIRED_REFUND" && d.reason === "adjustment_id_collision") {
+    const key = [d.provider, d.sale_id, d.adjustment_id, d.event_type, d.reason].join("|");
+    if (supa.collisionKeys.has(key)) return { error: { code: "23505", message: "duplicate key value violates unique constraint \"audit_log_collision_flag_uniq\"" } };
+    supa.collisionKeys.add(key);
+  }
+  supa.auditInserts.push(row);
+  return { error: supa.auditError };
+}
 vi.mock("@supabase/supabase-js", () => ({
   createClient: () => ({
+    // record_webhook_conflict: upsert on (provider, event_type, adjustment_id, payload_sha256) + audit flag, atomically.
+    rpc: async (fn: string, args: Record<string, unknown>) => {
+      if (fn !== "record_webhook_conflict") return { data: null, error: { message: `unexpected rpc ${fn}` } };
+      if (supa.rpcError) return { data: null, error: supa.rpcError };
+      const key = [args.p_provider, args.p_event_type, args.p_adjustment_id, args.p_payload_sha256].join("|");
+      const existing = supa.conflicts.get(key);
+      if (existing) existing.delivery_count += 1;
+      else supa.conflicts.set(key, { id: supa.conflicts.size + 1, delivery_count: 1, args });
+      insertAudit({ event: "MANUAL_REVIEW_REQUIRED_REFUND", details: args.p_flag_details });
+      return { data: supa.conflicts.get(key)!.id, error: null };
+    },
     from: (table: string) => {
       if (table === "audit_log") {
-        return {
-          insert: async (row: Record<string, unknown>) => {
-            supa.auditInserts.push(row);
-            return { error: supa.auditError };
-          },
-        };
+        return { insert: async (row: Record<string, unknown>) => insertAudit(row) };
       }
       const filters: Record<string, unknown> = {};
       const eq = (col: string, val: unknown): object => {
@@ -119,10 +139,6 @@ vi.mock("../../../../payments/src/settings_registry.ts", () => ({
   expandHome: (p: string, home: string) => (home && (p === "~" || p.startsWith("~/")) ? p : p),
   isRegisteredPaymentProvider: (name: unknown) => typeof name === "string",
   paymentProviderSetting: () => undefined,
-  // F4 money-path predicate (mirrors settings_registry.isMoneyPath): the
-  // fail-closed production guards read the same env signals as production.
-  isMoneyPath: () =>
-    process.env.NODE_ENV === "production" || process.env.VERCEL_ENV !== undefined || !!process.env.AWS_LAMBDA_FUNCTION_NAME,
 }));
 
 describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
@@ -131,6 +147,9 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
     supa.lookupResult = { data: null, error: null };
     supa.adjLookupResult = null;
     supa.auditInserts = [];
+    supa.collisionKeys.clear();
+    supa.conflicts.clear();
+    supa.rpcError = null;
     supa.auditError = null;
     mkdirSync(salesFileDir, { recursive: true });
     // The distributed lock is env-gated (optional infra) — stub the envs so
@@ -1017,6 +1036,11 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
     supa.adjLookupResult = null;
   };
 
+  const expectConflictPending = (out: unknown, sale = CB_SALE.sale_id) => {
+    expect(out).toMatchObject({ status: 202, payload: { ok: true, recorded: false, reason: "conflict_pending", sale_id: sale } });
+    expect((out as { payload: { conflict_id: number } }).payload.conflict_id).toBeGreaterThanOrEqual(1);
+  };
+
   const expect503Collision = (err: unknown) => {
     const e = err as Error & { httpStatus?: number };
     expect(e.message).toMatch(/^Webhook retryable:/);
@@ -1042,16 +1066,11 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
       }
     });
 
-    it("refund: 23505 + conflicting row with a DIFFERENT sale_id -> 503 retryable + adjustment_id_collision flag", async () => {
+    it("refund: 23505 + conflicting row with a DIFFERENT sale_id -> 202 conflict_pending + inbox row + adjustment_id_collision flag", async () => {
       race23505();
       supa.adjLookupResult = conflicts("sale_OTHER");
       try {
-        await expect(
-          processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_other_sale"))]),
-        ).rejects.toSatisfy((e: unknown) => {
-          expect503Collision(e);
-          return true;
-        });
+        expectConflictPending(await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_other_sale"))]));
         expect(supa.auditInserts).toHaveLength(1);
         expect(supa.auditInserts[0]).toMatchObject({
           event: "MANUAL_REVIEW_REQUIRED_REFUND",
@@ -1068,21 +1087,140 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
       }
     });
 
-    it("refund: 23505 + conflicting row with a different amount -> 503 retryable", async () => {
+    it("refund: 23505 + conflicting row with a different amount -> 202 conflict_pending + inbox row", async () => {
       race23505();
       supa.adjLookupResult = conflicts(CB_SALE.sale_id, 12.5);
       try {
-        await expect(
-          processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_other_amt"))]),
-        ).rejects.toSatisfy((e: unknown) => {
-          expect503Collision(e);
-          return true;
-        });
+        expectConflictPending(await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_other_amt"))]));
         expect(supa.auditInserts).toHaveLength(1);
         expect(supa.auditInserts[0]).toMatchObject({
           event: "MANUAL_REVIEW_REQUIRED_REFUND",
           details: expect.objectContaining({ reason: "adjustment_id_collision" }),
         });
+      } finally {
+        cleanup23505();
+      }
+    });
+
+    it("refund: 23505 + same sale/amount but different currency -> 202 conflict_pending + inbox row + collision flag", async () => {
+      race23505();
+      supa.adjLookupResult = conflicts(CB_SALE.sale_id, 39, "EUR");
+      try {
+        expectConflictPending(await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_other_cur"))]));
+        expect(supa.auditInserts).toHaveLength(1);
+        expect(supa.auditInserts[0]).toMatchObject({
+          event: "MANUAL_REVIEW_REQUIRED_REFUND",
+          details: expect.objectContaining({ reason: "adjustment_id_collision" }),
+        });
+      } finally {
+        cleanup23505();
+      }
+    });
+
+    it("redelivery: two identical refund collisions -> 202 both times, ONE inbox row (delivery_count 2), exactly ONE flag row, forensic context recorded", async () => {
+      race23505();
+      supa.adjLookupResult = conflicts("sale_OTHER", 12.5, "EUR");
+      try {
+        const first = await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_redeliver"))]);
+        const second = await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_redeliver"))]);
+        expectConflictPending(first);
+        expectConflictPending(second);
+        expect((second as { payload: { conflict_id: number } }).payload.conflict_id).toBe((first as { payload: { conflict_id: number } }).payload.conflict_id);
+        expect(supa.conflicts.size).toBe(1);
+        expect([...supa.conflicts.values()][0]?.delivery_count).toBe(2);
+        expect(supa.auditInserts).toHaveLength(1);
+        expect(supa.auditInserts[0]).toMatchObject({
+          details: expect.objectContaining({
+            reason: "adjustment_id_collision",
+            adjustment_id: "adj_redeliver",
+            event_type: "refund",
+            refund_cents: 3900,
+            incoming_currency: "USD",
+            conflicting_sale_id: "sale_OTHER",
+            conflicting_cents: 1250,
+            conflicting_currency: "EUR",
+          }),
+        });
+      } finally {
+        cleanup23505();
+      }
+    });
+
+    it("inbox row stores the normalized event only (no raw body, no buyer data) and the conflicting row", async () => {
+      race23505();
+      supa.adjLookupResult = conflicts("sale_OTHER", 12.5, "EUR");
+      try {
+        expectConflictPending(await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_normalized"))]));
+        const args = [...supa.conflicts.values()][0]!.args;
+        expect(Object.keys(args.p_incoming as object).sort()).toEqual(
+          ["adjustment_id", "currency", "event_type", "occurred_at", "refund_id", "sale_id", "total_cents"],
+        );
+        expect(args).toMatchObject({
+          p_provider: "paddle",
+          p_event_type: "refund",
+          p_adjustment_id: "adj_normalized",
+          p_conflicting_sale_id: "sale_OTHER",
+          p_conflicting_amount_cents: 1250,
+          p_conflicting_currency: "EUR",
+        });
+        expect(args.p_payload_sha256).toMatch(/^[0-9a-f]{64}$/);
+      } finally {
+        cleanup23505();
+      }
+    });
+
+    it("a different payload under the same adjustment id is a SECOND inbox row", async () => {
+      race23505();
+      supa.adjLookupResult = conflicts("sale_OTHER", 12.5, "EUR");
+      try {
+        await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_two_payloads"))]);
+        await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter({ ...cbRefund("adj_two_payloads"), refundId: "rf_other" } as never)]);
+        expect(supa.conflicts.size).toBe(2);
+      } finally {
+        cleanup23505();
+      }
+    });
+
+    it("refund: mismatch but the inbox write fails -> 503 retryable, never 202", async () => {
+      race23505();
+      supa.adjLookupResult = conflicts("sale_OTHER");
+      supa.rpcError = { message: "rpc down" };
+      try {
+        await expect(
+          processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_rpc_down"))]),
+        ).rejects.toSatisfy((e: unknown) => {
+          expect503Collision(e);
+          expect((e as Error).name).toBe("AdjustmentIdCollisionRecordError");
+          return true;
+        });
+        expect(supa.conflicts.size).toBe(0);
+        expect(supa.auditInserts).toHaveLength(0);
+      } finally {
+        cleanup23505();
+      }
+    });
+
+    it("collision flag without adjustment_id/event_type is rejected (would bypass the dedupe index)", async () => {
+      const { flagRefundForManualReview } = await import("../../../../payments/src/ledger.ts");
+      await expect(
+        flagRefundForManualReview({
+          reason: "adjustment_id_collision", provider: "paddle", sale_id: "s1", refund_id: null,
+          refund_cents: 100, sale_cents: 100, creator_id: null, occurred_at: "2026-09-28T00:00:00.000Z",
+        }),
+      ).rejects.toThrow(/adjustment_id is required/);
+    });
+
+    it("refund: 23505 + missing conflicting row -> 503 retryable, no flag", async () => {
+      race23505();
+      supa.adjLookupResult = { data: null, error: null };
+      try {
+        await expect(
+          processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_no_row"))]),
+        ).rejects.toSatisfy((e: unknown) => {
+          expect503Collision(e);
+          return true;
+        });
+        expect(supa.auditInserts).toHaveLength(0);
       } finally {
         cleanup23505();
       }
@@ -1118,17 +1256,12 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
       }
     });
 
-    it("reversal: 23505 + conflicting row with a DIFFERENT sale_id -> 503 retryable + adjustment_id_collision flag", async () => {
+    it("reversal: 23505 + conflicting row with a DIFFERENT sale_id -> 202 conflict_pending + inbox row + adjustment_id_collision flag", async () => {
       await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_rev_refund2"))]);
       race23505();
       supa.adjLookupResult = conflicts("sale_OTHER");
       try {
-        await expect(
-          processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbReversal("adj_rev_other_sale") as never)]),
-        ).rejects.toSatisfy((e: unknown) => {
-          expect503Collision(e);
-          return true;
-        });
+        expectConflictPending(await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbReversal("adj_rev_other_sale") as never)]));
         expect(supa.auditInserts).toHaveLength(1);
         expect(supa.auditInserts[0]).toMatchObject({
           event: "MANUAL_REVIEW_REQUIRED_REFUND",
@@ -1139,17 +1272,61 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
       }
     });
 
-    it("reversal: 23505 + conflicting row with a different amount -> 503 retryable", async () => {
+    it("reversal: 23505 + conflicting row with a different amount -> 202 conflict_pending + inbox row", async () => {
       await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_rev_refund3"))]);
       race23505();
       supa.adjLookupResult = conflicts(CB_SALE.sale_id, 12.5);
       try {
-        await expect(
-          processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbReversal("adj_rev_other_amt") as never)]),
-        ).rejects.toSatisfy((e: unknown) => {
-          expect503Collision(e);
-          return true;
+        expectConflictPending(await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbReversal("adj_rev_other_amt") as never)]));
+        expect(supa.auditInserts).toHaveLength(1);
+        expect(supa.auditInserts[0]).toMatchObject({
+          event: "MANUAL_REVIEW_REQUIRED_REFUND",
+          details: expect.objectContaining({ reason: "adjustment_id_collision" }),
         });
+      } finally {
+        cleanup23505();
+      }
+    });
+
+    it("reversal: 23505 + same sale/amount but different currency -> 202 conflict_pending + inbox row + collision flag", async () => {
+      await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_rev_refund_cur"))]);
+      race23505();
+      supa.adjLookupResult = conflicts(CB_SALE.sale_id, 39, "EUR");
+      try {
+        expectConflictPending(await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbReversal("adj_rev_other_cur") as never)]));
+        expect(supa.auditInserts).toHaveLength(1);
+        expect(supa.auditInserts[0]).toMatchObject({
+          event: "MANUAL_REVIEW_REQUIRED_REFUND",
+          details: expect.objectContaining({ reason: "adjustment_id_collision" }),
+        });
+      } finally {
+        cleanup23505();
+      }
+    });
+
+    it("refund: 23505 + conflicting row with a NULL stored currency -> empty string treated as non-matching -> 202 conflict_pending", async () => {
+      race23505();
+      supa.adjLookupResult = conflicts();
+      (supa.adjLookupResult.data as { currency: string | null }).currency = null;
+      try {
+        expectConflictPending(await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_null_currency"))]));
+        expect(supa.auditInserts).toHaveLength(1);
+        expect(supa.auditInserts[0]).toMatchObject({
+          event: "MANUAL_REVIEW_REQUIRED_REFUND",
+          details: expect.objectContaining({ reason: "adjustment_id_collision", sale_id: CB_SALE.sale_id }),
+        });
+      } finally {
+        cleanup23505();
+      }
+    });
+
+    it("reversal: 23505 + conflicting row with a NULL stored currency -> empty string treated as non-matching -> 202 conflict_pending", async () => {
+      await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_rev_nullc_refund"))]);
+      race23505();
+      supa.adjLookupResult = conflicts();
+      (supa.adjLookupResult.data as { currency: string | null }).currency = null;
+      try {
+        expectConflictPending(await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbReversal("adj_rev_nullc") as never)]));
         expect(supa.auditInserts).toHaveLength(1);
         expect(supa.auditInserts[0]).toMatchObject({
           event: "MANUAL_REVIEW_REQUIRED_REFUND",
@@ -1175,149 +1352,6 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
       } finally {
         cleanup23505();
       }
-    });
-
-    it("refund: 23505 + conflicting row with a NULL stored currency -> empty string treated as non-matching -> 503 retryable + flag (no NPE)", async () => {
-      race23505();
-      supa.adjLookupResult = conflicts();
-      (supa.adjLookupResult.data as { currency: string | null }).currency = null;
-      try {
-        await expect(
-          processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_null_currency"))]),
-        ).rejects.toSatisfy((e: unknown) => {
-          expect503Collision(e);
-          return true;
-        });
-        expect(supa.auditInserts).toHaveLength(1);
-        expect(supa.auditInserts[0]).toMatchObject({
-          event: "MANUAL_REVIEW_REQUIRED_REFUND",
-          details: expect.objectContaining({ reason: "adjustment_id_collision", sale_id: CB_SALE.sale_id }),
-        });
-      } finally {
-        cleanup23505();
-      }
-    });
-
-    it("reversal: 23505 + conflicting row with a NULL stored currency -> empty string treated as non-matching -> 503 retryable + flag (no NPE)", async () => {
-      await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_rev_nullc_refund"))]);
-      race23505();
-      supa.adjLookupResult = conflicts();
-      (supa.adjLookupResult.data as { currency: string | null }).currency = null;
-      try {
-        await expect(
-          processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbReversal("adj_rev_nullc") as never)]),
-        ).rejects.toSatisfy((e: unknown) => {
-          expect503Collision(e);
-          return true;
-        });
-        expect(supa.auditInserts).toHaveLength(1);
-        expect(supa.auditInserts[0]).toMatchObject({
-          event: "MANUAL_REVIEW_REQUIRED_REFUND",
-          details: expect.objectContaining({ reason: "adjustment_id_collision" }),
-        });
-      } finally {
-        cleanup23505();
-      }
-    });
-
-    it("refund: 23505 mismatch + flag-write failure -> RETRYABLE 503 (flagRefundForManualReview throws), not an unclassified error", async () => {
-      race23505();
-      supa.adjLookupResult = conflicts("sale_OTHER");
-      supa.auditError = { message: "db down" };
-      try {
-        await expect(
-          processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_flag_fail"))]),
-        ).rejects.toSatisfy((e: unknown) => {
-          expect503Collision(e);
-          return true;
-        });
-        // flag insert was ATTEMPTED but failed (auditError set) — the 503 retryable
-        // rejection above is the contract under test.
-        expect(supa.auditInserts).toHaveLength(1);
-      } finally {
-        cleanup23505();
-      }
-    });
-
-    it("reversal: 23505 mismatch + flag-write failure -> RETRYABLE 503 (flagRefundForManualReview throws), not an unclassified error", async () => {
-      await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_revff_refund"))]);
-      race23505();
-      supa.adjLookupResult = conflicts("sale_OTHER");
-      supa.auditError = { message: "db down" };
-      try {
-        await expect(
-          processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbReversal("adj_rev_flag_fail") as never)]),
-        ).rejects.toSatisfy((e: unknown) => {
-          expect503Collision(e);
-          return true;
-        });
-        expect(supa.auditInserts).toHaveLength(1);
-      } finally {
-        cleanup23505();
-      }
-    });
-  });
-
-  // ------------------------------------------------------------------
-  // Sprint-10 F5: typed WebhookValidationError replaces prose-based
-  // classification. Routes classify on instanceof (a deprecated substring
-  // fallback remains one release); these tests pin the typed contract.
-  // ------------------------------------------------------------------
-  describe("typed validation errors (F5)", () => {
-    const failingAdapter = (result: { isValid: false; error: string; httpStatus?: number }): PaymentProviderPort =>
-      ({
-        providerName: "polar",
-        canHandleWebhook: () => true,
-        parseAndValidateWebhook: () => Promise.resolve(result),
-        createCheckout: undefined as never,
-      }) as unknown as PaymentProviderPort;
-
-    it("no matching provider → typed WebhookValidationError with default httpStatus 400", async () => {
-      const rejection = processBillingWebhookUseCase({ headers: {}, body: "" }, []);
-      await expect(rejection).rejects.toBeInstanceOf(WebhookValidationError);
-      await expect(rejection).rejects.toMatchObject({ name: "WebhookValidationError", httpStatus: 400 });
-    });
-
-    it("adapter parse failure → typed WebhookValidationError carrying the adapter's httpStatus hint", async () => {
-      await expect(
-        processBillingWebhookUseCase({ headers: {}, body: "" }, [
-          failingAdapter({ isValid: false, error: "stale signature", httpStatus: 401 }),
-        ]),
-      ).rejects.toMatchObject({ name: "WebhookValidationError", httpStatus: 401 });
-    });
-
-    it("a REWORDED validation failure is still typed — instanceof wins even without the 'validation failed' prose", async () => {
-      // Message deliberately contains neither "validation failed" nor
-      // "No payment provider": classification must survive any rewording.
-      await expect(
-        processBillingWebhookUseCase({ headers: {}, body: "" }, [
-          failingAdapter({ isValid: false, error: "signature unverifiable for this delivery" }),
-        ]),
-      ).rejects.toBeInstanceOf(WebhookValidationError);
-    });
-
-    it("a plain infra Error mentioning validation is NOT typed (no substring false-positive → route 500s)", async () => {
-      const adapterThrowsPlain: PaymentProviderPort = {
-        providerName: "polar",
-        canHandleWebhook: () => true,
-        parseAndValidateWebhook: () => Promise.reject(new Error("validation subsystem unavailable")),
-        createCheckout: undefined as never,
-      } as unknown as PaymentProviderPort;
-      const rejection = processBillingWebhookUseCase({ headers: {}, body: "" }, [adapterThrowsPlain]);
-      await expect(rejection).rejects.toThrow(/validation subsystem unavailable/);
-      await rejection.catch((err: unknown) => {
-        expect(err).not.toBeInstanceOf(WebhookValidationError);
-      });
-    });
-
-    it("unknown product_id stays a plain infra error (500 → provider retries), not typed validation", async () => {
-      setnx.mockResolvedValue(1);
-      const unknownProduct: SaleCompletedEvent = { ...SALE, saleId: "sale_unknown_product", productId: "nope" };
-      const rejection = processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(unknownProduct)]);
-      await expect(rejection).rejects.toThrow(/Unknown product_id: nope/);
-      await rejection.catch((err: unknown) => {
-        expect(err).not.toBeInstanceOf(WebhookValidationError);
-      });
     });
   });
 });

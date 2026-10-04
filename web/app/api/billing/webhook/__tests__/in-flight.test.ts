@@ -6,10 +6,11 @@
 import { describe, it, expect, vi } from "vitest";
 import type { NextRequest } from "next/server";
 
-const useCase = vi.hoisted(() => ({ error: null as Error | null }));
+const useCase = vi.hoisted(() => ({ error: null as Error | null, outcome: undefined as unknown }));
 vi.mock("../../../../../../src/use_cases/billing/process_billing_webhook", () => ({
   processBillingWebhookUseCase: vi.fn(async () => {
     if (useCase.error) throw useCase.error;
+    return useCase.outcome;
   }),
 }));
 
@@ -41,6 +42,19 @@ describe("billing webhook — HTTP status contract (Wave 7 / 7.2)", () => {
     useCase.error = new Error("ledger: manual-review flag write failed: db down");
     const res = await post();
     expect(res.status).toBe(500);
+  });
+
+  it("conflict stored in the reconciliation inbox → 202 with the conflict payload, no Retry-After", async () => {
+    useCase.error = null;
+    useCase.outcome = { status: 202, payload: { ok: true, recorded: false, reason: "conflict_pending", conflict_id: 7, event_type: "refund", sale_id: "s1" } };
+    try {
+      const res = await post();
+      expect(res.status).toBe(202);
+      expect(res.headers.get("Retry-After")).toBeNull();
+      expect(await res.json()).toEqual({ ok: true, recorded: false, reason: "conflict_pending", conflict_id: 7, event_type: "refund", sale_id: "s1" });
+    } finally {
+      useCase.outcome = undefined;
+    }
   });
 
   it("success → 200", async () => {

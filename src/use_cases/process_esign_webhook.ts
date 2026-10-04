@@ -2,7 +2,9 @@ import { SettingsRegistryPort } from "../domain/settings/settings.port.ts";
 import { createEsignAdapter } from "../adapters/esign/esign.factory.ts";
 import { ConsentDatabasePort } from "../domain/governance/consent.port.ts";
 import { WebhookValidationError } from "../domain/webhook/webhook_errors.ts";
-import { consentTextVersion } from "../../payments/src/settings_registry.ts";
+
+/** text_version recorded when the envelope carries no valid snapshot of the wording the signer saw. */
+export const LEGACY_TEXT_VERSION = "legacy/unknown";
 
 export interface ProcessEsignWebhookRequest {
   body: string;
@@ -61,14 +63,17 @@ export async function processEsignWebhookUseCase(
     // The PDF path is abstracted here, but typically bounded to user and envelope
     const pdfPath = `${userId}/${envelopeId}.pdf`;
 
-    // The version snapshotted at envelope creation. Envelopes created before the snapshot
-    // existed fall back to the registry; a present-but-malformed snapshot also falls back
-    // (rejecting would make Firma retry forever and lose the C3) but is logged loudly.
-    let snapshotTextVersion = consentTextVersion();
+    // The version snapshotted at envelope creation is the wording the signer actually saw. A missing or
+    // malformed snapshot is NEVER replaced by the current registry version (that would label the signature
+    // with a contract the signer never saw): record LEGACY_TEXT_VERSION and route it for manual review.
+    // Rejecting instead would make Firma retry forever and lose the C3.
+    let snapshotTextVersion = LEGACY_TEXT_VERSION;
+    let provenanceReason: "missing" | "malformed" | null = "missing";
     if (typeof textVersion === "string" && /^v\d+(\.\d+)*$/.test(textVersion)) {
       snapshotTextVersion = textVersion;
+      provenanceReason = null;
     } else if (textVersion !== undefined) {
-      console.error(`[esign-webhook] envelope ${envelopeId} has a malformed textVersion snapshot; recording registry version ${snapshotTextVersion}`);
+      provenanceReason = "malformed";
     }
 
     // Evidence-before-insert (sprint-10 audit F1): the signed PDF must exist in
@@ -78,6 +83,20 @@ export async function processEsignWebhookUseCase(
     // previous phantom path (`pdfPath` persisted without an upload) is gone.
     const pdfBytes = await esignAdapter.fetchCompletedDocument(envelopeId);
     await esignAdapter.uploadConsentEvidence(pdfPath, pdfBytes);
+
+    // At-least-once: also re-run on a replay, so a flag write that failed after the consent landed is not lost.
+    const flagLegacyProvenance = async (): Promise<void> => {
+      if (provenanceReason === null) return;
+      console.error(`[esign-webhook] envelope ${envelopeId} has a ${provenanceReason} textVersion snapshot; recorded ${LEGACY_TEXT_VERSION}, flagged for manual review`);
+      await database.flagConsentForManualReview({
+        reason: "legacy_text_version",
+        kind: "C3_revenue_split",
+        envelope_id: envelopeId,
+        product_id: productId,
+        user_id: userId,
+        snapshot: provenanceReason,
+      });
+    };
 
     // 3. Persist the legal consent (C3) using the Database Port
     try {
@@ -95,6 +114,7 @@ export async function processEsignWebhookUseCase(
         externalRef: envelopeId,
         evidencePath: pdfPath
       });
+      await flagLegacyProvenance();
     } catch (err) {
       // Replay of an already-recorded envelope: the unique (kind, external_ref)
       // index rejects the second row (audit F5). Acknowledge ONLY when the
@@ -108,6 +128,7 @@ export async function processEsignWebhookUseCase(
           (typeof e.message === "string" && e.message.includes("consents_kind_external_ref_uidx")))
       ) {
         console.info(`[esign.webhook] acknowledged replayed envelope envelope_id=${envelopeId} kind=C3_revenue_split`);
+        await flagLegacyProvenance();
         return;
       }
       throw err;
