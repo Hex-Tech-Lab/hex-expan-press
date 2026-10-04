@@ -1,0 +1,23 @@
+payments/src/webhook_core.ts
+  s_3e8d78dfced48a::t_b0c30d6eebcacf 5
+  s_3e8d78dfced48a::t_ff639aa6bdc829 126-128,130
+payments/src/ledger.ts
+  s_3e8d78dfced48a::t_eb0d4fcfdbfc6e 5
+  s_3e8d78dfced48a::t_c418edc281901f 332-334
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a5c3e3d55ced44c8c5ee1c77f043f298cfc90650",
+  "prompts": {},
+  "sessions": {
+    "s_3e8d78dfced48a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef74d41ccffeSr112kzKunxuT5",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
