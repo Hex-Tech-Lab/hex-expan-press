@@ -6,6 +6,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { mkdirSync, rmSync, readFileSync } from "node:fs";
 import { appendSale, SaleRecord } from "../../../../payments/src/ledger.ts";
 import { processBillingWebhookUseCase } from "../process_billing_webhook.ts";
+import { WebhookValidationError } from "../../../../src/domain/webhook/webhook_errors.ts";
 import type { PaymentProviderPort, SaleCompletedEvent, RefundIssuedEvent } from "../../../../src/domain/payments/payments.port.ts";
 
 const SALE: SaleCompletedEvent = {
@@ -118,6 +119,10 @@ vi.mock("../../../../payments/src/settings_registry.ts", () => ({
   expandHome: (p: string, home: string) => (home && (p === "~" || p.startsWith("~/")) ? p : p),
   isRegisteredPaymentProvider: (name: unknown) => typeof name === "string",
   paymentProviderSetting: () => undefined,
+  // F4 money-path predicate (mirrors settings_registry.isMoneyPath): the
+  // fail-closed production guards read the same env signals as production.
+  isMoneyPath: () =>
+    process.env.NODE_ENV === "production" || process.env.VERCEL_ENV !== undefined || !!process.env.AWS_LAMBDA_FUNCTION_NAME,
 }));
 
 describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
@@ -1170,6 +1175,69 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
       } finally {
         cleanup23505();
       }
+    });
+  });
+
+  // ------------------------------------------------------------------
+  // Sprint-10 F5: typed WebhookValidationError replaces prose-based
+  // classification. Routes classify on instanceof (a deprecated substring
+  // fallback remains one release); these tests pin the typed contract.
+  // ------------------------------------------------------------------
+  describe("typed validation errors (F5)", () => {
+    const failingAdapter = (result: { isValid: false; error: string; httpStatus?: number }): PaymentProviderPort =>
+      ({
+        providerName: "polar",
+        canHandleWebhook: () => true,
+        parseAndValidateWebhook: () => Promise.resolve(result),
+        createCheckout: undefined as never,
+      }) as unknown as PaymentProviderPort;
+
+    it("no matching provider → typed WebhookValidationError with default httpStatus 400", async () => {
+      const rejection = processBillingWebhookUseCase({ headers: {}, body: "" }, []);
+      await expect(rejection).rejects.toBeInstanceOf(WebhookValidationError);
+      await expect(rejection).rejects.toMatchObject({ name: "WebhookValidationError", httpStatus: 400 });
+    });
+
+    it("adapter parse failure → typed WebhookValidationError carrying the adapter's httpStatus hint", async () => {
+      await expect(
+        processBillingWebhookUseCase({ headers: {}, body: "" }, [
+          failingAdapter({ isValid: false, error: "stale signature", httpStatus: 401 }),
+        ]),
+      ).rejects.toMatchObject({ name: "WebhookValidationError", httpStatus: 401 });
+    });
+
+    it("a REWORDED validation failure is still typed — instanceof wins even without the 'validation failed' prose", async () => {
+      // Message deliberately contains neither "validation failed" nor
+      // "No payment provider": classification must survive any rewording.
+      await expect(
+        processBillingWebhookUseCase({ headers: {}, body: "" }, [
+          failingAdapter({ isValid: false, error: "signature unverifiable for this delivery" }),
+        ]),
+      ).rejects.toBeInstanceOf(WebhookValidationError);
+    });
+
+    it("a plain infra Error mentioning validation is NOT typed (no substring false-positive → route 500s)", async () => {
+      const adapterThrowsPlain: PaymentProviderPort = {
+        providerName: "polar",
+        canHandleWebhook: () => true,
+        parseAndValidateWebhook: () => Promise.reject(new Error("validation subsystem unavailable")),
+        createCheckout: undefined as never,
+      } as unknown as PaymentProviderPort;
+      const rejection = processBillingWebhookUseCase({ headers: {}, body: "" }, [adapterThrowsPlain]);
+      await expect(rejection).rejects.toThrow(/validation subsystem unavailable/);
+      await rejection.catch((err: unknown) => {
+        expect(err).not.toBeInstanceOf(WebhookValidationError);
+      });
+    });
+
+    it("unknown product_id stays a plain infra error (500 → provider retries), not typed validation", async () => {
+      setnx.mockResolvedValue(1);
+      const unknownProduct: SaleCompletedEvent = { ...SALE, saleId: "sale_unknown_product", productId: "nope" };
+      const rejection = processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(unknownProduct)]);
+      await expect(rejection).rejects.toThrow(/Unknown product_id: nope/);
+      await rejection.catch((err: unknown) => {
+        expect(err).not.toBeInstanceOf(WebhookValidationError);
+      });
     });
   });
 });

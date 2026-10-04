@@ -5,6 +5,7 @@ import { PaddleAdapter } from "../../../../../src/adapters/payments/paddle.adapt
 import { LegacyPaymentAdapterWrapper } from "../../../../../src/adapters/payments/legacy.adapter";
 import { fungiesProvider } from "../../../../../payments/src/providers/fungies";
 import { GLOBAL } from "../../../../../payments/src/settings_registry";
+import { WebhookValidationError } from "../../../../../src/domain/webhook/webhook_errors";
 
 export const runtime = "nodejs";
 
@@ -104,11 +105,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
     console.error("Billing webhook error:", err);
     const message = err instanceof Error ? err.message : String(err);
-    const isValidationErr = message.includes("validation failed") || message.includes("No payment provider");
-    // The use case attaches httpStatus to validation failures (e.g. 401 for a
-    // bad/stale signature) — honor it when in the 4xx band; otherwise the
+    // Typed classification first (sprint-10 F5); the substring checks are a
+    // deprecated fallback kept one release for legacy error paths.
+    const typedValidation = err instanceof WebhookValidationError;
+    const isValidationErr = typedValidation || message.includes("validation failed") || message.includes("No payment provider");
+    const rawStatus = err instanceof WebhookValidationError ? err.httpStatus : (err as { httpStatus?: unknown })?.httpStatus;
+    // The use case/adapter attaches httpStatus to validation failures (e.g. 401 for a
+    // bad/stale signature) — honor it when in the 4xx-5xx band; otherwise the
     // legacy 400/500 split stands.
-    const rawStatus = (err as { httpStatus?: unknown })?.httpStatus;
     // Honour the adapter's hint: 4xx is final; 5xx (missing secret = 500, email lookup failure = 503)
     // makes the provider RETRY — never flatten a server-side problem into a permanent 400.
     const httpStatus = typeof rawStatus === "number" && rawStatus >= 400 && rawStatus < 600 ? rawStatus : undefined;
