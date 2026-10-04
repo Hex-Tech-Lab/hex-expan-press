@@ -138,4 +138,17 @@ describe("F6 launch gate vs a PostgREST-faithful select projection", () => {
       assertLaunchConsents("p1", projectingFetch([{ id: "p1", release_sha256: CURRENT }], fullRows(CURRENT))),
     ).resolves.toBeUndefined();
   });
+
+  it("requests a deterministic consents ordering (signed_at desc, id desc)", async () => {
+    env();
+    let seenOrder: string | null = null;
+    const orderProbeFetch = (async (url: string | URL | Request) => {
+      const u = String(url);
+      if (u.includes("/products")) return new Response(JSON.stringify([{ id: "p1", release_sha256: CURRENT }]), { status: 200 });
+      seenOrder = new URL(u).searchParams.get("order");
+      return new Response(JSON.stringify(project(u, fullRows(CURRENT))), { status: 200 });
+    }) as unknown as typeof fetch;
+    await expect(assertLaunchConsents("p1", orderProbeFetch)).resolves.toBeUndefined();
+    expect(seenOrder).toBe("signed_at.desc,id.desc");
+  });
 });

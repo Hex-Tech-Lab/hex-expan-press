@@ -51,7 +51,8 @@ export const assertLaunchConsents = async (
   }
   const url =
     `${base}/rest/v1/consents?product_id=eq.${encodeURIComponent(dbProductId)}` +
-    `&select=id,kind,decision,signed_at,supersedes,document_sha256`;
+    `&select=id,kind,decision,signed_at,supersedes,document_sha256` +
+    `&order=signed_at.desc,id.desc`;
   const doFetch = fetchImpl ?? fetch;
   let res: Response;
   try {
