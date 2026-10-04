@@ -13,9 +13,20 @@ export interface SubmitConsentCommand {
   evidencePath?: string;
 }
 
+export interface ConsentManualReviewFlag {
+  reason: "legacy_text_version";
+  kind: string;
+  envelope_id: string;
+  product_id: string;
+  user_id: string;
+  snapshot: "missing" | "malformed";
+}
+
 export interface ConsentDatabasePort {
   /**
    * Persists a consent record into the append-only evidence table.
    */
   submitConsent(command: SubmitConsentCommand): Promise<void>;
+  /** Durable MANUAL_REVIEW_REQUIRED_CONSENT audit row. Throws on failure so the webhook 500s and is retried. */
+  flagConsentForManualReview(flag: ConsentManualReviewFlag): Promise<void>;
 }
