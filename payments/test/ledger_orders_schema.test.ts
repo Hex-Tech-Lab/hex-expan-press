@@ -79,6 +79,26 @@ describe("orders upsert Zod boundary", () => {
     expect(db.upserts).toHaveLength(1);
   });
 
+  it.each(["VERCEL", "AWS_LAMBDA_FUNCTION_NAME"])("%s runtime without Supabase keys fails loud and writes nothing", async (flag) => {
+    vi.stubEnv("SUPABASE_URL", "");
+    vi.stubEnv("SUPABASE_SECRET_KEY", "");
+    vi.stubEnv(flag, "1");
+    const file = join(dir, "sales.jsonl");
+    await expect(appendSale(sale, file)).rejects.toThrow(/missing in a serverless runtime/);
+    expect(existsSync(file)).toBe(false);
+  });
+
+  it("local runtime without Supabase keys still records to the local ledger only", async () => {
+    vi.stubEnv("SUPABASE_URL", "");
+    vi.stubEnv("SUPABASE_SECRET_KEY", "");
+    vi.stubEnv("VERCEL", "");
+    vi.stubEnv("AWS_LAMBDA_FUNCTION_NAME", "");
+    const file = join(dir, "sales.jsonl");
+    await appendSale(sale, file);
+    expect(existsSync(file)).toBe(true);
+    expect(db.upserts).toHaveLength(0);
+  });
+
   it("refund rows carry negated splits; positive splits on a refund row are rejected", () => {
     const rest: Record<string, unknown> = { ...sale, event_type: "refund", email_hash: null, attribution_id: null, provider_adjustment_id: null, occurred_at: sale.ts };
     delete rest.ts;
