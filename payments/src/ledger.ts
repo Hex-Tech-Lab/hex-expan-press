@@ -1,6 +1,7 @@
 import { mkdirSync, readFileSync } from "node:fs";
 import { open } from "node:fs/promises";
 import { dirname, join, basename } from "node:path";
+import { createHash } from "node:crypto";
 import { z } from "zod";
 import { GLOBAL } from "./settings_registry.ts";
 
@@ -409,6 +410,62 @@ export async function flagRefundForManualReview(input: ManualReviewRefund): Prom
   const { error } = await supabase.from("audit_log").insert({ event: "MANUAL_REVIEW_REQUIRED_REFUND", details });
   // 23505 = this exact collision was already flagged (audit_log dedupe index): idempotent success.
   if (error && error.code !== "23505") throw new Error(`ledger: manual-review flag write failed: ${error.message}`);
+}
+
+/**
+ * Durable reconciliation inbox for an adjustment-id collision (public.webhook_conflicts, migration
+ * 20261004000800). One atomic RPC stores the normalized incoming event and the audit_log alert together;
+ * the caller answers 202 only after this returns an id, so it THROWS whenever no row was written
+ * (unconfigured Supabase included): a 202 without a durable row would drop the event for good.
+ */
+export interface WebhookConflictIncoming {
+  provider: string;
+  event_type: "refund" | "refund_reversal";
+  sale_id: string;
+  adjustment_id: string;
+  total_cents: number | null;
+  currency: string | null;
+  occurred_at: string;
+  refund_id: string | null;
+}
+
+export async function recordWebhookConflict(incoming: WebhookConflictIncoming, flag: ManualReviewRefund): Promise<number> {
+  const details = ManualReviewRefundSchema.parse(flag);
+  if (details.reason !== "adjustment_id_collision" || details.conflicting_sale_id === undefined || details.conflicting_cents === undefined) {
+    throw new Error("ledger: webhook conflict requires an adjustment_id_collision flag with the conflicting row");
+  }
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SECRET_KEY;
+  if (!url || !key) throw new Error("ledger: webhook conflict cannot be persisted: Supabase is not configured");
+  // Fixed key order: the hash is the redelivery dedupe key, so it must not depend on object construction order.
+  const normalized = {
+    sale_id: incoming.sale_id,
+    adjustment_id: incoming.adjustment_id,
+    event_type: incoming.event_type,
+    total_cents: incoming.total_cents,
+    currency: incoming.currency,
+    occurred_at: incoming.occurred_at,
+    refund_id: incoming.refund_id,
+  };
+  const payloadSha256 = createHash("sha256").update(JSON.stringify(normalized)).digest("hex");
+  const { createClient } = await import("@supabase/supabase-js");
+  const supabase = createClient(url, key);
+  const { data, error } = await supabase.rpc("record_webhook_conflict", {
+    p_provider: incoming.provider,
+    p_event_type: incoming.event_type,
+    p_sale_id: incoming.sale_id,
+    p_adjustment_id: incoming.adjustment_id,
+    p_incoming: normalized,
+    p_payload_sha256: payloadSha256,
+    p_conflicting_sale_id: details.conflicting_sale_id,
+    p_conflicting_amount_cents: details.conflicting_cents,
+    p_conflicting_currency: details.conflicting_currency ?? null,
+    p_flag_details: details,
+  });
+  if (error) throw new Error(`ledger: webhook conflict write failed: ${error.message}`);
+  const id = typeof data === "string" ? Number(data) : data;
+  if (typeof id !== "number" || !Number.isSafeInteger(id) || id < 1) throw new Error("ledger: webhook conflict write returned no id");
+  return id;
 }
 
 /** Asynchronously finds a refund, falling back to Supabase public.orders if not found in local file. */
