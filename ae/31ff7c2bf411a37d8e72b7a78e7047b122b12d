@@ -1,0 +1,26 @@
+src/use_cases/__tests__/process_esign_webhook.test.ts
+  s_eaa71a55cf16bf::t_aa2da2ed7e4034 46,73,133
+src/use_cases/billing/__tests__/process_billing_webhook.test.ts
+  s_eaa71a55cf16bf::t_fd5195a1be097a 142
+web/app/api/billing/webhook/__tests__/valid_signature_malformed_ledger.test.ts
+  s_eaa71a55cf16bf::t_153484f04ec1bb 38
+web/src/lib/__tests__/esign-webhook.test.ts
+  s_eaa71a55cf16bf::t_8592005ef56f5d 185
+  s_eaa71a55cf16bf::t_b1115e269ef3f9 299
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ae31ff7c2bf411a37d8e72b7a78e7047b122b12d",
+  "prompts": {},
+  "sessions": {
+    "s_eaa71a55cf16bf": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef7514bdaffel0T174aMhQBR5q",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
