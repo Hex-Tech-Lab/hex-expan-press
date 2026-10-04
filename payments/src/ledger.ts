@@ -69,10 +69,11 @@ export function resolveSalesFile(salesFile: string = SALES_FILE): string {
   return salesFile;
 }
 
-/** True when n carries at most `places` decimal digits (float-safe: compares against the rounded scaled value). */
+/** True when n carries at most `places` decimal digits. The tolerance scales with the magnitude (a few ULPs) so
+ *  binary-float noise (0.1 + 0.2) passes while a real sub-cent value such as 39.000000001 does not. */
 const hasAtMostDecimals = (n: number, places: number): boolean => {
   const scaled = n * 10 ** places;
-  return Math.abs(scaled - Math.round(scaled)) < 1e-6;
+  return Math.abs(scaled - Math.round(scaled)) <= 4 * Number.EPSILON * Math.max(1, Math.abs(scaled));
 };
 
 const usdColumn = (field: string, min: number) =>

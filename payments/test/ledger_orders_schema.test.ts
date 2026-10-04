@@ -58,6 +58,7 @@ describe("orders upsert Zod boundary", () => {
 
   it.each([
     ["sub-cent amount", { amount_usd: 39.005 }, /amount_usd/],
+    ["near-cent amount (39.000000001)", { amount_usd: 39.000000001 }, /amount_usd/],
     ["sub-cent split", { creator_split_usd: 19.499 }, /creator_split_usd/],
     ["negative amount", { amount_usd: -1 }, /amount_usd/],
     ["negative split on a sale row", { creator_split_usd: -19.5, our_split_usd: -19.5 }, /must be >= 0 on a sale row/],
@@ -75,8 +76,8 @@ describe("orders upsert Zod boundary", () => {
     expect(OrderUpsertSchema.safeParse(rest).success).toBe(false);
   });
 
-  it("accepts float-noisy cent values (0.1 + 0.2) as cent-exact", () => {
-    const row = { ...sale, amount_usd: 0.1 + 0.2, event_type: "sale", email_hash: null, attribution_id: null, provider_adjustment_id: null, occurred_at: sale.ts };
+  it.each([0.1 + 0.2, 1.15, 4.35, 1.005 * 1000, 99_999_999.99])("accepts float-noisy cent value %s as cent-exact", (amount) => {
+    const row = { ...sale, amount_usd: amount, event_type: "sale", email_hash: null, attribution_id: null, provider_adjustment_id: null, occurred_at: sale.ts };
     const rest: Record<string, unknown> = { ...row };
     delete rest.ts;
     expect(OrderUpsertSchema.safeParse(rest).success).toBe(true);
