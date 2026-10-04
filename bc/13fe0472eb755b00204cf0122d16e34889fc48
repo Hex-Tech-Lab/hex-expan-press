@@ -1,0 +1,72 @@
+docs/reviews/sprint10_agy_portal_audit.md
+  s_a0d9002dde86f1::t_7dbfc59dfafbce 1-177
+docs/agent_ledger.jsonl
+  s_a0d9002dde86f1::t_ba216fc6926ada 423
+  s_a0d9002dde86f1::t_23332e32aabfee 429
+  s_a0d9002dde86f1::t_4be5cae9170c38 422
+  s_3e8d78dfced48a::t_e741f0dfdf4315 407
+  s_5accb7220a5440::t_f888978d8b85a2 416
+  s_a0d9002dde86f1::t_237975db053d4d 430
+  s_5accb7220a5440::t_43ae40048d44e2 412
+  s_eaa71a55cf16bf::t_3f573aa7907c7c 425
+  s_5accb7220a5440::t_141aae7ba018f1 414
+  s_eaa71a55cf16bf::t_267f6c67a50711 431
+  s_a0d9002dde86f1::t_f512fd7fd28ef4 419-420
+  s_5accb7220a5440::t_dc95aa3798abd5 413
+  s_a0d9002dde86f1::t_7dbfc59dfafbce 426
+  s_eaa71a55cf16bf::t_f4575a1526de9a 404
+  s_3e8d78dfced48a::t_f780bd64f68090 408
+  s_3e8d78dfced48a::t_82b2a9aba36e00 409
+  s_5accb7220a5440::t_be094d04e10f6d 415
+  s_eaa71a55cf16bf::t_0bc62c28a2b4ec 433
+  s_eaa71a55cf16bf::t_4ce417299b76c8 435
+  s_eaa71a55cf16bf::t_6e3d88990d2f53 432
+  s_eaa71a55cf16bf::t_be0e2c929fd2a2 434
+  s_a0d9002dde86f1::t_fd1bb42656b2d2 428
+  s_3e8d78dfced48a::t_c863ff9054c2ee 411
+  s_eaa71a55cf16bf::t_f567f1ba26ff84 417
+  s_3e8d78dfced48a::t_dad3012a05cee4 410
+  s_eaa71a55cf16bf::t_1355e680b5d02f 421
+  s_3e8d78dfced48a::t_379eb40d8dad87 405
+  s_eaa71a55cf16bf::t_6a4a143baeb342 406,418,424,427
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "bc13fe0472eb755b00204cf0122d16e34889fc48",
+  "prompts": {},
+  "sessions": {
+    "s_3e8d78dfced48a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef74d41ccffeSr112kzKunxuT5",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_5accb7220a5440": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef74d4ab8ffeSf8rWKzuEZV82U",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_a0d9002dde86f1": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef73ddb20ffeB1iz9oXAGca5Vf",
+        "model": "@preset/glm-53-flash-on-cheap"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_eaa71a55cf16bf": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef7514bdaffel0T174aMhQBR5q",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
