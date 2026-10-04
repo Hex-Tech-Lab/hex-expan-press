@@ -53,6 +53,9 @@ vi.mock("../../../../src/infrastructure/redis/redis.client.ts", async (importOri
 // return lookupResult; audit_log inserts are captured for the dead-letter tests.
 const supa = vi.hoisted(() => ({
   lookupResult: { data: null as unknown, error: null as unknown },
+  // Set only by the 23505 collision tests: the conflicting row is visible to the
+  // provider_adjustment_id lookup alone, so appendRefund still reaches the upsert.
+  adjLookupResult: null as { data: unknown; error: unknown } | null,
   auditInserts: [] as Record<string, unknown>[],
   auditError: null as unknown,
   upsertError: null as unknown,
@@ -71,14 +74,12 @@ vi.mock("@supabase/supabase-js", () => ({
       const filters: Record<string, unknown> = {};
       const eq = (col: string, val: unknown): object => {
         filters[col] = val;
-        return { eq, maybeSingle };
+        return { eq, in: eq, maybeSingle };
       };
-      // The adjustment-id COLLISION lookup is the only orders read that filters on
-      // provider_adjustment_id — other lookups (sale/refund/reversal by sale_id)
-      // must NOT see the conflicting row, or appendRefund would treat it as
-      // already-recorded and short-circuit before the 23505.
-      const maybeSingle = async () =>
-        "provider_adjustment_id" in filters ? supa.lookupResult : { data: null, error: null };
+      const maybeSingle = async () => {
+        if (supa.adjLookupResult === null) return supa.lookupResult;
+        return "provider_adjustment_id" in filters ? supa.adjLookupResult : { data: null, error: null };
+      };
       return { select: () => ({ eq }), upsert: async () => ({ error: supa.upsertError }) };
     },
   }),
@@ -123,6 +124,7 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
   beforeEach(() => {
     setnx.mockReset();
     supa.lookupResult = { data: null, error: null };
+    supa.adjLookupResult = null;
     supa.auditInserts = [];
     supa.auditError = null;
     mkdirSync(salesFileDir, { recursive: true });
@@ -940,13 +942,13 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
     // 23505 (PostgREST error shape) and the conflicting row MATCHES the event, so it
     // must surface as a replay, not a 500.
     supa.upsertError = { code: "23505", message: 'duplicate key value violates unique constraint "orders_provider_adjustment_id_uniq"' };
-    supa.lookupResult = conflicts();
+    supa.adjLookupResult = conflicts();
     try {
       // Resolves (route answers 200) instead of throwing (route answers 500).
       await expect(processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_race"))])).resolves.toBeUndefined();
     } finally {
       supa.upsertError = null;
-      supa.lookupResult = { data: null, error: null };
+      supa.adjLookupResult = null;
     }
     const rows = readFileSync(salesFilePath, "utf8").split(/\r?\n/).filter(Boolean);
     expect(rows).toHaveLength(1); // durable write failed first, so no local refund row
@@ -1007,7 +1009,7 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
 
   const cleanup23505 = () => {
     supa.upsertError = null;
-    supa.lookupResult = { data: null, error: null };
+    supa.adjLookupResult = null;
   };
 
   const expect503Collision = (err: unknown) => {
@@ -1026,7 +1028,7 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
 
     it("refund: 23505 + matching conflicting row -> resolves 200", async () => {
       race23505();
-      supa.lookupResult = conflicts();
+      supa.adjLookupResult = conflicts();
       try {
         await expect(processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_match"))])).resolves.toBeUndefined();
         expect(supa.auditInserts).toHaveLength(0);
@@ -1037,7 +1039,7 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
 
     it("refund: 23505 + conflicting row with a DIFFERENT sale_id -> 503 retryable + adjustment_id_collision flag", async () => {
       race23505();
-      supa.lookupResult = conflicts("sale_OTHER");
+      supa.adjLookupResult = conflicts("sale_OTHER");
       try {
         await expect(
           processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_other_sale"))]),
@@ -1063,7 +1065,7 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
 
     it("refund: 23505 + conflicting row with a different amount -> 503 retryable", async () => {
       race23505();
-      supa.lookupResult = conflicts(CB_SALE.sale_id, 12.5);
+      supa.adjLookupResult = conflicts(CB_SALE.sale_id, 12.5);
       try {
         await expect(
           processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_other_amt"))]),
@@ -1083,7 +1085,7 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
 
     it("refund: 23505 + lookup error -> 503 retryable, no flag (nothing to compare against)", async () => {
       race23505();
-      supa.lookupResult = { data: null, error: { message: "db down" } };
+      supa.adjLookupResult = { data: null, error: { message: "db down" } };
       try {
         await expect(
           processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_lookup_err"))]),
@@ -1100,7 +1102,7 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
     it("reversal: 23505 + matching conflicting row -> resolves 200", async () => {
       await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_rev_refund"))]);
       race23505();
-      supa.lookupResult = conflicts();
+      supa.adjLookupResult = conflicts();
       try {
         await expect(
           processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbReversal("adj_rev_match") as never)]),
@@ -1114,7 +1116,7 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
     it("reversal: 23505 + conflicting row with a DIFFERENT sale_id -> 503 retryable + adjustment_id_collision flag", async () => {
       await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_rev_refund2"))]);
       race23505();
-      supa.lookupResult = conflicts("sale_OTHER");
+      supa.adjLookupResult = conflicts("sale_OTHER");
       try {
         await expect(
           processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbReversal("adj_rev_other_sale") as never)]),
@@ -1135,7 +1137,7 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
     it("reversal: 23505 + conflicting row with a different amount -> 503 retryable", async () => {
       await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_rev_refund3"))]);
       race23505();
-      supa.lookupResult = conflicts(CB_SALE.sale_id, 12.5);
+      supa.adjLookupResult = conflicts(CB_SALE.sale_id, 12.5);
       try {
         await expect(
           processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbReversal("adj_rev_other_amt") as never)]),
@@ -1156,7 +1158,7 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
     it("reversal: 23505 + lookup error -> 503 retryable, no flag", async () => {
       await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_rev_refund4"))]);
       race23505();
-      supa.lookupResult = { data: null, error: { message: "db down" } };
+      supa.adjLookupResult = { data: null, error: { message: "db down" } };
       try {
         await expect(
           processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbReversal("adj_rev_lookup_err") as never)]),

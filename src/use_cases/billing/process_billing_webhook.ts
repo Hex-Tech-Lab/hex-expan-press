@@ -24,7 +24,6 @@ type LockedFn = () => Promise<{ status: number; payload: Record<string, unknown>
  * the provider retries while ops investigates.
  */
 async function resolveAdjustmentIdCollision(
-  err: unknown,
   provider: string,
   adjustmentId: string,
   eventType: "refund" | "refund_reversal",
@@ -66,7 +65,7 @@ async function resolveAdjustmentIdCollision(
   });
   throw Object.assign(
     new Error(
-      `Webhook retryable: adjustment-id collision for ${eventType} ${adjustmentId} — conflicting row sale_id=${row.sale_id} != event sale_id=${event.saleId}`,
+      `Webhook retryable: adjustment-id collision for ${eventType} ${adjustmentId} — conflicting row does not match this event (sale/amount/currency)`,
     ),
     { httpStatus: 503 },
   );
@@ -275,7 +274,6 @@ export async function processBillingWebhookUseCase(
           // matches this event; otherwise flag + 503 (see resolveAdjustmentIdCollision).
           if (refundEvent.providerAdjustmentId && isAdjustmentIdUniqueViolation(err)) {
             return await resolveAdjustmentIdCollision(
-              err,
               refundEvent.providerName,
               refundEvent.providerAdjustmentId,
               "refund",
@@ -380,7 +378,6 @@ export async function processBillingWebhookUseCase(
           // replay only when the conflicting row matches this event; otherwise flag + 503.
           if (revEvent.providerAdjustmentId && isAdjustmentIdUniqueViolation(err)) {
             return await resolveAdjustmentIdCollision(
-              err,
               revEvent.providerName,
               revEvent.providerAdjustmentId,
               "refund_reversal",
