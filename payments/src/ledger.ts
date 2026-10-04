@@ -319,6 +319,15 @@ const ManualReviewRefundSchema = z.object({
   sale_cents: z.number().int().nonnegative().nullable(),
   creator_id: z.string().nullable(),
   occurred_at: z.string(),
+  // adjustment_id_collision forensics (optional: other reasons don't carry them). adjustment_id +
+  // event_type + provider + reason form the dedupe identity (audit_log partial unique index), so a
+  // provider retrying the 503 does not add a second flag row.
+  adjustment_id: z.string().optional(),
+  event_type: z.enum(["refund", "refund_reversal"]).optional(),
+  incoming_currency: z.string().nullable().optional(),
+  conflicting_sale_id: z.string().optional(),
+  conflicting_cents: z.number().int().nonnegative().optional(),
+  conflicting_currency: z.string().nullable().optional(),
 }).strict();
 export type ManualReviewRefund = z.infer<typeof ManualReviewRefundSchema>;
 
@@ -338,7 +347,8 @@ export async function flagRefundForManualReview(input: ManualReviewRefund): Prom
   const { createClient } = await import("@supabase/supabase-js");
   const supabase = createClient(url, key);
   const { error } = await supabase.from("audit_log").insert({ event: "MANUAL_REVIEW_REQUIRED_REFUND", details });
-  if (error) throw new Error(`ledger: manual-review flag write failed: ${error.message}`);
+  // 23505 = this exact collision was already flagged (audit_log dedupe index): idempotent success.
+  if (error && error.code !== "23505") throw new Error(`ledger: manual-review flag write failed: ${error.message}`);
 }
 
 /** Asynchronously finds a refund, falling back to Supabase public.orders if not found in local file. */

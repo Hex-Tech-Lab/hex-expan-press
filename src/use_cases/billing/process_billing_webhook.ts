@@ -77,6 +77,12 @@ async function resolveAdjustmentIdCollision(
       sale_cents: rowCents,
       creator_id: row.creator_id ?? null,
       occurred_at: flag.occurredAt,
+      adjustment_id: adjustmentId,
+      event_type: eventType,
+      incoming_currency: event.currency ?? null,
+      conflicting_sale_id: row.sale_id,
+      conflicting_cents: rowCents,
+      conflicting_currency: row.currency ?? null,
     });
   } catch (flagErr) {
     console.error("[billing-webhook] adjustment_id_collision flag write failed:", flagErr);
