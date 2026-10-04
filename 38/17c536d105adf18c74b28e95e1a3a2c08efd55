@@ -1,0 +1,19 @@
+payments/test/settings_registry_runtime.test.ts
+  s_5183d16ecf0f6b::t_4c778e465328a1 171-177
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3817c536d105adf18c74b28e95e1a3a2c08efd55",
+  "prompts": {},
+  "sessions": {
+    "s_5183d16ecf0f6b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "54443bc4-2b7f-4ceb-842d-573e302fea79",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
