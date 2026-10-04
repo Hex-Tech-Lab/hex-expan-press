@@ -53,7 +53,11 @@ vi.mock("../../../../src/infrastructure/redis/redis.client.ts", async (importOri
 // return lookupResult; audit_log inserts are captured for the dead-letter tests.
 const supa = vi.hoisted(() => ({
   lookupResult: { data: null as unknown, error: null as unknown },
+  // Set only by the 23505 collision tests: the conflicting row is visible to the
+  // provider_adjustment_id lookup alone, so appendRefund still reaches the upsert.
+  adjLookupResult: null as { data: unknown; error: unknown } | null,
   auditInserts: [] as Record<string, unknown>[],
+  collisionKeys: new Set<string>(),
   auditError: null as unknown,
   upsertError: null as unknown,
 }));
@@ -63,12 +67,27 @@ vi.mock("@supabase/supabase-js", () => ({
       if (table === "audit_log") {
         return {
           insert: async (row: Record<string, unknown>) => {
+            // Mirror the audit_log_collision_flag_uniq partial unique index.
+            const d = (row.details ?? {}) as Record<string, unknown>;
+            if (row.event === "MANUAL_REVIEW_REQUIRED_REFUND" && d.reason === "adjustment_id_collision") {
+              const key = [d.provider, d.sale_id, d.adjustment_id, d.event_type, d.reason].join("|");
+              if (supa.collisionKeys.has(key)) return { error: { code: "23505", message: "duplicate key value violates unique constraint \"audit_log_collision_flag_uniq\"" } };
+              supa.collisionKeys.add(key);
+            }
             supa.auditInserts.push(row);
             return { error: supa.auditError };
           },
         };
       }
-      const eq = (): object => ({ eq, in: eq, maybeSingle: async () => supa.lookupResult });
+      const filters: Record<string, unknown> = {};
+      const eq = (col: string, val: unknown): object => {
+        filters[col] = val;
+        return { eq, in: eq, maybeSingle };
+      };
+      const maybeSingle = async () => {
+        if (supa.adjLookupResult === null) return supa.lookupResult;
+        return "provider_adjustment_id" in filters ? supa.adjLookupResult : { data: null, error: null };
+      };
       return { select: () => ({ eq }), upsert: async () => ({ error: supa.upsertError }) };
     },
   }),
@@ -113,7 +132,9 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
   beforeEach(() => {
     setnx.mockReset();
     supa.lookupResult = { data: null, error: null };
+    supa.adjLookupResult = null;
     supa.auditInserts = [];
+    supa.collisionKeys.clear();
     supa.auditError = null;
     mkdirSync(salesFileDir, { recursive: true });
     // The distributed lock is env-gated (optional infra) — stub the envs so
@@ -927,13 +948,16 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
     await appendSale({ ...CB_SALE }, salesFilePath);
 
     // A concurrent delivery won the unique index: the REAL appendRefund hits Supabase's
-    // 23505 (PostgREST error shape) and must surface it as a replay, not a 500.
+    // 23505 (PostgREST error shape) and the conflicting row MATCHES the event, so it
+    // must surface as a replay, not a 500.
     supa.upsertError = { code: "23505", message: 'duplicate key value violates unique constraint "orders_provider_adjustment_id_uniq"' };
+    supa.adjLookupResult = conflicts();
     try {
       // Resolves (route answers 200) instead of throwing (route answers 500).
       await expect(processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_race"))])).resolves.toBeUndefined();
     } finally {
       supa.upsertError = null;
+      supa.adjLookupResult = null;
     }
     const rows = readFileSync(salesFilePath, "utf8").split(/\r?\n/).filter(Boolean);
     expect(rows).toHaveLength(1); // durable write failed first, so no local refund row
@@ -953,5 +977,304 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
     } finally {
       supa.upsertError = null;
     }
+  });
+
+  // ------------------------------------------------------------------
+  // 23505 collision contract: the conflicting row must MATCH the event
+  // (same sale, same amount, same currency) before it is treated as a replay.
+  // ------------------------------------------------------------------
+
+  const conflicts = (saleId = CB_SALE.sale_id, amountUsd = 39, currency = "USD") => ({
+    data: {
+      occurred_at: "2026-09-28T00:00:00.000Z",
+      sale_id: saleId,
+      provider: "paddle",
+      product_id: "p1",
+      amount_usd: amountUsd,
+      creator_id: "c1",
+      creator_split_pct: 50,
+      creator_split_usd: 19.5,
+      our_split_usd: 19.5,
+      currency,
+    },
+    error: null as unknown,
+  });
+
+  const race23505 = () => {
+    supa.upsertError = { code: "23505", message: 'duplicate key value violates unique constraint "orders_provider_adjustment_id_uniq"' };
+  };
+
+  const cbReversal = (adjustmentId: string) => ({
+    eventType: "refund_reversed" as const,
+    providerName: "paddle",
+    saleId: CB_SALE.sale_id,
+    refundId: adjustmentId,
+    providerAdjustmentId: adjustmentId,
+    totalCents: 3900,
+    currency: "USD",
+    occurredAt: "2026-09-29T00:00:00.000Z",
+    rawPayload: null,
+  });
+
+  const cleanup23505 = () => {
+    supa.upsertError = null;
+    supa.adjLookupResult = null;
+  };
+
+  const expect503Collision = (err: unknown) => {
+    const e = err as Error & { httpStatus?: number };
+    expect(e.message).toMatch(/^Webhook retryable:/);
+    expect(e.httpStatus).toBe(503);
+  };
+
+  describe("23505 adjustment-id collision contract (refund + reversal)", () => {
+    beforeEach(async () => {
+      process.env.SUPABASE_URL = "https://example.supabase.co";
+      process.env.SUPABASE_SECRET_KEY = "mock-secret-key";
+      setnx.mockResolvedValue(1);
+      await appendSale({ ...CB_SALE }, salesFilePath);
+    });
+
+    it("refund: 23505 + matching conflicting row -> resolves 200", async () => {
+      race23505();
+      supa.adjLookupResult = conflicts();
+      try {
+        await expect(processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_match"))])).resolves.toBeUndefined();
+        expect(supa.auditInserts).toHaveLength(0);
+      } finally {
+        cleanup23505();
+      }
+    });
+
+    it("refund: 23505 + conflicting row with a DIFFERENT sale_id -> 503 retryable + adjustment_id_collision flag", async () => {
+      race23505();
+      supa.adjLookupResult = conflicts("sale_OTHER");
+      try {
+        await expect(
+          processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_other_sale"))]),
+        ).rejects.toSatisfy((e: unknown) => {
+          expect503Collision(e);
+          return true;
+        });
+        expect(supa.auditInserts).toHaveLength(1);
+        expect(supa.auditInserts[0]).toMatchObject({
+          event: "MANUAL_REVIEW_REQUIRED_REFUND",
+          details: expect.objectContaining({
+            reason: "adjustment_id_collision",
+            provider: "paddle",
+            sale_id: CB_SALE.sale_id,
+            refund_cents: 3900,
+            sale_cents: 3900,
+          }),
+        });
+      } finally {
+        cleanup23505();
+      }
+    });
+
+    it("refund: 23505 + conflicting row with a different amount -> 503 retryable", async () => {
+      race23505();
+      supa.adjLookupResult = conflicts(CB_SALE.sale_id, 12.5);
+      try {
+        await expect(
+          processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_other_amt"))]),
+        ).rejects.toSatisfy((e: unknown) => {
+          expect503Collision(e);
+          return true;
+        });
+        expect(supa.auditInserts).toHaveLength(1);
+        expect(supa.auditInserts[0]).toMatchObject({
+          event: "MANUAL_REVIEW_REQUIRED_REFUND",
+          details: expect.objectContaining({ reason: "adjustment_id_collision" }),
+        });
+      } finally {
+        cleanup23505();
+      }
+    });
+
+    it("refund: 23505 + same sale/amount but different currency -> 503 retryable + collision flag", async () => {
+      race23505();
+      supa.adjLookupResult = conflicts(CB_SALE.sale_id, 39, "EUR");
+      try {
+        await expect(
+          processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_other_cur"))]),
+        ).rejects.toSatisfy((e: unknown) => {
+          expect503Collision(e);
+          return true;
+        });
+        expect(supa.auditInserts).toHaveLength(1);
+        expect(supa.auditInserts[0]).toMatchObject({
+          event: "MANUAL_REVIEW_REQUIRED_REFUND",
+          details: expect.objectContaining({ reason: "adjustment_id_collision" }),
+        });
+      } finally {
+        cleanup23505();
+      }
+    });
+
+    it("redelivery: two identical refund collisions -> 503 both times, exactly ONE flag row, forensic context recorded", async () => {
+      race23505();
+      supa.adjLookupResult = conflicts("sale_OTHER", 12.5, "EUR");
+      const redeliver = () =>
+        expect(processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_redeliver"))])).rejects.toSatisfy((e: unknown) => {
+          expect503Collision(e);
+          return true;
+        });
+      try {
+        await redeliver();
+        await redeliver();
+        expect(supa.auditInserts).toHaveLength(1);
+        expect(supa.auditInserts[0]).toMatchObject({
+          details: expect.objectContaining({
+            reason: "adjustment_id_collision",
+            adjustment_id: "adj_redeliver",
+            event_type: "refund",
+            refund_cents: 3900,
+            incoming_currency: "USD",
+            conflicting_sale_id: "sale_OTHER",
+            conflicting_cents: 1250,
+            conflicting_currency: "EUR",
+          }),
+        });
+      } finally {
+        cleanup23505();
+      }
+    });
+
+    it("collision flag without adjustment_id/event_type is rejected (would bypass the dedupe index)", async () => {
+      const { flagRefundForManualReview } = await import("../../../../payments/src/ledger.ts");
+      await expect(
+        flagRefundForManualReview({
+          reason: "adjustment_id_collision", provider: "paddle", sale_id: "s1", refund_id: null,
+          refund_cents: 100, sale_cents: 100, creator_id: null, occurred_at: "2026-09-28T00:00:00.000Z",
+        }),
+      ).rejects.toThrow(/adjustment_id is required/);
+    });
+
+    it("refund: 23505 + missing conflicting row -> 503 retryable, no flag", async () => {
+      race23505();
+      supa.adjLookupResult = { data: null, error: null };
+      try {
+        await expect(
+          processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_no_row"))]),
+        ).rejects.toSatisfy((e: unknown) => {
+          expect503Collision(e);
+          return true;
+        });
+        expect(supa.auditInserts).toHaveLength(0);
+      } finally {
+        cleanup23505();
+      }
+    });
+
+    it("refund: 23505 + lookup error -> 503 retryable, no flag (nothing to compare against)", async () => {
+      race23505();
+      supa.adjLookupResult = { data: null, error: { message: "db down" } };
+      try {
+        await expect(
+          processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_lookup_err"))]),
+        ).rejects.toSatisfy((e: unknown) => {
+          expect503Collision(e);
+          return true;
+        });
+        expect(supa.auditInserts).toHaveLength(0);
+      } finally {
+        cleanup23505();
+      }
+    });
+
+    it("reversal: 23505 + matching conflicting row -> resolves 200", async () => {
+      await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_rev_refund"))]);
+      race23505();
+      supa.adjLookupResult = conflicts();
+      try {
+        await expect(
+          processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbReversal("adj_rev_match") as never)]),
+        ).resolves.toBeUndefined();
+        expect(supa.auditInserts).toHaveLength(0);
+      } finally {
+        cleanup23505();
+      }
+    });
+
+    it("reversal: 23505 + conflicting row with a DIFFERENT sale_id -> 503 retryable + adjustment_id_collision flag", async () => {
+      await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_rev_refund2"))]);
+      race23505();
+      supa.adjLookupResult = conflicts("sale_OTHER");
+      try {
+        await expect(
+          processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbReversal("adj_rev_other_sale") as never)]),
+        ).rejects.toSatisfy((e: unknown) => {
+          expect503Collision(e);
+          return true;
+        });
+        expect(supa.auditInserts).toHaveLength(1);
+        expect(supa.auditInserts[0]).toMatchObject({
+          event: "MANUAL_REVIEW_REQUIRED_REFUND",
+          details: expect.objectContaining({ reason: "adjustment_id_collision" }),
+        });
+      } finally {
+        cleanup23505();
+      }
+    });
+
+    it("reversal: 23505 + conflicting row with a different amount -> 503 retryable", async () => {
+      await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_rev_refund3"))]);
+      race23505();
+      supa.adjLookupResult = conflicts(CB_SALE.sale_id, 12.5);
+      try {
+        await expect(
+          processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbReversal("adj_rev_other_amt") as never)]),
+        ).rejects.toSatisfy((e: unknown) => {
+          expect503Collision(e);
+          return true;
+        });
+        expect(supa.auditInserts).toHaveLength(1);
+        expect(supa.auditInserts[0]).toMatchObject({
+          event: "MANUAL_REVIEW_REQUIRED_REFUND",
+          details: expect.objectContaining({ reason: "adjustment_id_collision" }),
+        });
+      } finally {
+        cleanup23505();
+      }
+    });
+
+    it("reversal: 23505 + same sale/amount but different currency -> 503 retryable + collision flag", async () => {
+      await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_rev_refund_cur"))]);
+      race23505();
+      supa.adjLookupResult = conflicts(CB_SALE.sale_id, 39, "EUR");
+      try {
+        await expect(
+          processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbReversal("adj_rev_other_cur") as never)]),
+        ).rejects.toSatisfy((e: unknown) => {
+          expect503Collision(e);
+          return true;
+        });
+        expect(supa.auditInserts).toHaveLength(1);
+        expect(supa.auditInserts[0]).toMatchObject({
+          event: "MANUAL_REVIEW_REQUIRED_REFUND",
+          details: expect.objectContaining({ reason: "adjustment_id_collision" }),
+        });
+      } finally {
+        cleanup23505();
+      }
+    });
+
+    it("reversal: 23505 + lookup error -> 503 retryable, no flag", async () => {
+      await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_rev_refund4"))]);
+      race23505();
+      supa.adjLookupResult = { data: null, error: { message: "db down" } };
+      try {
+        await expect(
+          processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbReversal("adj_rev_lookup_err") as never)]),
+        ).rejects.toSatisfy((e: unknown) => {
+          expect503Collision(e);
+          return true;
+        });
+        expect(supa.auditInserts).toHaveLength(0);
+      } finally {
+        cleanup23505();
+      }
+    });
   });
 });
