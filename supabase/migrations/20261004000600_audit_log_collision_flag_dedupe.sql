@@ -10,6 +10,7 @@
 create unique index if not exists audit_log_collision_flag_uniq
   on public.audit_log (
     (details->>'provider'),
+    (details->>'sale_id'),
     (details->>'adjustment_id'),
     (details->>'event_type'),
     (details->>'reason')

@@ -328,7 +328,13 @@ const ManualReviewRefundSchema = z.object({
   conflicting_sale_id: z.string().optional(),
   conflicting_cents: z.number().int().nonnegative().optional(),
   conflicting_currency: z.string().nullable().optional(),
-}).strict();
+}).strict().superRefine((v, ctx) => {
+  // The collision dedupe index keys on these; a flag without them would bypass dedupe.
+  if (v.reason !== "adjustment_id_collision") return;
+  for (const k of ["adjustment_id", "event_type"] as const) {
+    if (v[k] === undefined) ctx.addIssue({ code: "custom", path: [k], message: `${k} is required for adjustment_id_collision` });
+  }
+});
 export type ManualReviewRefund = z.infer<typeof ManualReviewRefundSchema>;
 
 export async function flagRefundForManualReview(input: ManualReviewRefund): Promise<void> {

@@ -70,7 +70,7 @@ vi.mock("@supabase/supabase-js", () => ({
             // Mirror the audit_log_collision_flag_uniq partial unique index.
             const d = (row.details ?? {}) as Record<string, unknown>;
             if (row.event === "MANUAL_REVIEW_REQUIRED_REFUND" && d.reason === "adjustment_id_collision") {
-              const key = [d.provider, d.adjustment_id, d.event_type, d.reason].join("|");
+              const key = [d.provider, d.sale_id, d.adjustment_id, d.event_type, d.reason].join("|");
               if (supa.collisionKeys.has(key)) return { error: { code: "23505", message: "duplicate key value violates unique constraint \"audit_log_collision_flag_uniq\"" } };
               supa.collisionKeys.add(key);
             }
@@ -1139,6 +1139,16 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
       } finally {
         cleanup23505();
       }
+    });
+
+    it("collision flag without adjustment_id/event_type is rejected (would bypass the dedupe index)", async () => {
+      const { flagRefundForManualReview } = await import("../../../../payments/src/ledger.ts");
+      await expect(
+        flagRefundForManualReview({
+          reason: "adjustment_id_collision", provider: "paddle", sale_id: "s1", refund_id: null,
+          refund_cents: 100, sale_cents: 100, creator_id: null, occurred_at: "2026-09-28T00:00:00.000Z",
+        }),
+      ).rejects.toThrow(/adjustment_id is required/);
     });
 
     it("refund: 23505 + missing conflicting row -> 503 retryable, no flag", async () => {
