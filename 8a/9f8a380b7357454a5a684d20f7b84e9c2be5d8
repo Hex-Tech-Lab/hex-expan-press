@@ -1,0 +1,48 @@
+src/use_cases/billing/__tests__/process_billing_webhook.test.ts
+  s_eaa71a55cf16bf::t_32a1a38c692cbc 286
+src/adapters/esign/firma.adapter.ts
+  s_eaa71a55cf16bf::t_f5fe45eca28ae1 82-84
+  s_eaa71a55cf16bf::t_511266ee8f3419 107-113,117-119
+payments/test/webhook_core_lock.test.ts
+  s_eaa71a55cf16bf::t_cd730158015904 61
+payments/src/webhook_core.ts
+  s_eaa71a55cf16bf::t_67e9ffc68b1a2b 127-128
+.qa-intel/baseline.json
+  s_eaa71a55cf16bf::t_b8c3633b4bce3d 2-1101
+src/adapters/esign/__tests__/firma.adapter.test.ts
+  s_eaa71a55cf16bf::t_af81f3383d64dc 164-171
+  s_eaa71a55cf16bf::t_c0ace2c43bd86a 238,250
+docs/agent_ledger.jsonl
+  s_eaa71a55cf16bf::t_929cee79dd824c 436
+  s_eaa71a55cf16bf::t_859fa91e60cb05 422
+  s_eaa71a55cf16bf::t_7579f5c83e71a0 435
+src/use_cases/process_esign_webhook.ts
+  s_eaa71a55cf16bf::t_e61f7048ef312b 113
+  s_eaa71a55cf16bf::t_d1bcdcd6e4f5c6 62-65
+docs/reviews/sprint10_agy_portal_audit.md
+  s_eaa71a55cf16bf::t_e209c6d11cd19e 7,113
+  s_eaa71a55cf16bf::t_929cee79dd824c 21,32-37,47,54-55,64,80-81,105,125,144
+supabase/migrations/20261004000900_submit_consent_race_lock.sql
+  s_eaa71a55cf16bf::t_ca6ba4e96de9f1 152,158
+  s_eaa71a55cf16bf::t_b3a9d4ad7a8489 146-149
+src/use_cases/__tests__/process_esign_webhook.test.ts
+  s_eaa71a55cf16bf::t_c12bf4bfa0e408 186-197
+payments/src/ledger.ts
+  s_eaa71a55cf16bf::t_67e9ffc68b1a2b 405
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8a9f8a380b7357454a5a684d20f7b84e9c2be5d8",
+  "prompts": {},
+  "sessions": {
+    "s_eaa71a55cf16bf": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef7514bdaffel0T174aMhQBR5q",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
