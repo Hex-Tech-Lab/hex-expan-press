@@ -2,6 +2,7 @@ import { SettingsRegistryPort } from "../domain/settings/settings.port.ts";
 import { createEsignAdapter } from "../adapters/esign/esign.factory.ts";
 import { ConsentDatabasePort } from "../domain/governance/consent.port.ts";
 import { WebhookValidationError } from "../domain/webhook/webhook_errors.ts";
+import { createHash } from "node:crypto";
 
 /** text_version recorded when the envelope carries no valid snapshot of the wording the signer saw. */
 export const LEGACY_TEXT_VERSION = "legacy/unknown";
@@ -127,6 +128,17 @@ export async function processEsignWebhookUseCase(
     // route answers 500, Firma retries, and NO consent row is written. The
     // previous phantom path (`pdfPath` persisted without an upload) is gone.
     const pdfBytes = await esignAdapter.fetchCompletedDocument(envelopeId);
+
+    // Evidence-attestation cross-check (sprint 12, live-shape session): the
+    // webhook's document_sha256 is Firma's attestation of WHAT was signed.
+    // The bytes we just fetched must hash to the SAME digest, or the evidence
+    // chain is broken — fail closed (500 → Firma retries), never persist
+    // evidence that contradicts the attestation.
+    const fetchedSha256 = createHash("sha256").update(Buffer.from(pdfBytes)).digest("hex");
+    if (fetchedSha256 !== documentHash) {
+      throw new Error(`[esign] evidence attestation mismatch for envelope ${envelopeId}: webhook attested ${documentHash}, downloaded bytes hash ${fetchedSha256}`);
+    }
+
     await esignAdapter.uploadConsentEvidence(pdfPath, pdfBytes);
 
     // 3. Persist the legal consent (C3) using the Database Port

@@ -4,6 +4,7 @@ import { dirname, join, basename } from "node:path";
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { GLOBAL, isMoneyPath } from "./settings_registry.ts";
+import { getSupabaseAdmin } from "./supabase_admin.ts";
 
 export type LedgerEventType = "sale" | "refund" | "refund_reversal";
 
@@ -120,9 +121,8 @@ export class OrderSchemaError extends Error {
 
 /** Dual-write an order record to Supabase public.orders for permanent serverless persistence. */
 async function persistToSupabaseOrder(record: SaleRecord): Promise<void> {
-  const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SECRET_KEY;
-  if (!url || !key) {
+  const supabase = await getSupabaseAdmin();
+  if (!supabase) {
     // Serverless /tmp is ephemeral: skipping the durable write there would lose the sale for good. Fail loud (500 → provider retries).
     // Money-path predicate (isMoneyPath), not a Vercel/Lambda env sniff: a prod-like runtime without VERCEL_ENV must also fail closed.
     if (isMoneyPath()) {
@@ -151,8 +151,6 @@ async function persistToSupabaseOrder(record: SaleRecord): Promise<void> {
     if (!parsed.success) {
       throw new OrderSchemaError(`ledger: orders row failed schema validation: ${parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")}`);
     }
-    const { createClient } = await import("@supabase/supabase-js");
-    const supabase = createClient(url, key);
     const { error } = await supabase.from("orders").upsert(parsed.data, { onConflict: "provider,sale_id,event_type" });
     if (error) {
       // Keep the Postgres code: callers tell a replay (23505 on the adjustment-id index) from a real failure.
@@ -225,13 +223,10 @@ export async function findSaleAsync(provider: string, saleId: string, salesFile:
   const local = findSale(provider, saleId, salesFile);
   if (local) return local;
 
-  const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SECRET_KEY;
-  if (!url || !key) return null;
+  const supabase = await getSupabaseAdmin();
+  if (!supabase) return null;
 
   try {
-    const { createClient } = await import("@supabase/supabase-js");
-    const supabase = createClient(url, key);
     const { data, error } = await supabase
       .from("orders")
       .select("*")
@@ -303,13 +298,10 @@ export async function findByProviderAdjustmentIdAsync(provider: string, provider
   const local = findByProviderAdjustmentId(provider, providerAdjustmentId, eventType, salesFile);
   if (local) return local;
 
-  const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SECRET_KEY;
-  if (!url || !key) return null;
+  const supabase = await getSupabaseAdmin();
+  if (!supabase) return null;
 
   try {
-    const { createClient } = await import("@supabase/supabase-js");
-    const supabase = createClient(url, key);
     const { data, error } = await supabase
       .from("orders")
       .select("*")
@@ -400,9 +392,8 @@ export type ManualReviewRefund = z.infer<typeof ManualReviewRefundSchema>;
 
 export async function flagRefundForManualReview(input: ManualReviewRefund): Promise<void> {
   const details = ManualReviewRefundSchema.parse(input);
-  const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SECRET_KEY;
-  if (!url || !key) {
+  const supabase = await getSupabaseAdmin();
+  if (!supabase) {
     // Production: a flag that cannot be persisted must not become a quiet 400 —
     // throw so the webhook 500s and the provider retries until config is fixed.
     // Money-path detection (isMoneyPath): NODE_ENV=production, ANY VERCEL_ENV value
@@ -413,8 +404,6 @@ export async function flagRefundForManualReview(input: ManualReviewRefund): Prom
     console.error("ledger: MANUAL_REVIEW_REQUIRED_REFUND (Supabase unconfigured, not persisted):", details);
     return;
   }
-  const { createClient } = await import("@supabase/supabase-js");
-  const supabase = createClient(url, key);
   // Deterministic idempotency key (audit_log_idempotency_uidx, 20261004001000):
   // the key must identify the LOGICAL EVENT, not the review condition — otherwise
   // two distinct adjustments (or two distinct refunds) for one sale with the same
@@ -456,9 +445,8 @@ export async function recordWebhookConflict(incoming: WebhookConflictIncoming, f
   if (details.reason !== "adjustment_id_collision" || details.conflicting_sale_id === undefined || details.conflicting_cents === undefined) {
     throw new Error("ledger: webhook conflict requires an adjustment_id_collision flag with the conflicting row");
   }
-  const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SECRET_KEY;
-  if (!url || !key) throw new Error("ledger: webhook conflict cannot be persisted: Supabase is not configured");
+  const supabase = await getSupabaseAdmin();
+  if (!supabase) throw new Error("ledger: webhook conflict cannot be persisted: Supabase is not configured");
   // Fixed key order: the hash is the redelivery dedupe key, so it must not depend on object construction order.
   const normalized = {
     sale_id: incoming.sale_id,
@@ -470,8 +458,6 @@ export async function recordWebhookConflict(incoming: WebhookConflictIncoming, f
     refund_id: incoming.refund_id,
   };
   const payloadSha256 = createHash("sha256").update(JSON.stringify(normalized)).digest("hex");
-  const { createClient } = await import("@supabase/supabase-js");
-  const supabase = createClient(url, key);
   const { data, error } = await supabase.rpc("record_webhook_conflict", {
     p_provider: incoming.provider,
     p_event_type: incoming.event_type,
@@ -495,13 +481,10 @@ export async function findRefundAsync(provider: string, saleId: string, salesFil
   const local = findRefund(provider, saleId, salesFile);
   if (local) return local;
 
-  const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SECRET_KEY;
-  if (!url || !key) return null;
+  const supabase = await getSupabaseAdmin();
+  if (!supabase) return null;
 
   try {
-    const { createClient } = await import("@supabase/supabase-js");
-    const supabase = createClient(url, key);
     const { data, error } = await supabase
       .from("orders")
       .select("*")
@@ -551,13 +534,10 @@ export async function findRefundReversalAsync(provider: string, saleId: string, 
   const local = findRefundReversal(provider, saleId, salesFile);
   if (local) return local;
 
-  const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SECRET_KEY;
-  if (!url || !key) return null;
+  const supabase = await getSupabaseAdmin();
+  if (!supabase) return null;
 
   try {
-    const { createClient } = await import("@supabase/supabase-js");
-    const supabase = createClient(url, key);
     const { data, error } = await supabase
       .from("orders")
       .select("*")
