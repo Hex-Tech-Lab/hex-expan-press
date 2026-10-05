@@ -1,6 +1,8 @@
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import "server-only";
+import { jwtSkewRetryDelayMs } from "../../../payments/src/settings_registry";
+import { createSkewRetryFetch } from "./skew-retry-fetch";
 
 /**
  * @supabase/ssr server client factory for the creator portal (Wave 5).
@@ -23,6 +25,15 @@ const SUPABASE_PUBLISHABLE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY ?? "";
 export async function createSsrClient() {
   const cookieStore = await cookies();
   return createServerClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+    // AGY audit 2.1 (sprint 12 B2): the auth-server/GoTrue boundary can mint a
+    // JWT whose `iat` sits a few seconds in the future (clock drift between
+    // Vercel serverless containers and Supabase) — the first PostgREST/Auth
+    // read then fails 401 PGRST303 with no retry. Wire the same one-shot skew
+    // retry the JWT-scoped client already has (supabase-server.ts). RPC bodies
+    // are strings, so the retry path stays safe for our mutations.
+    global: {
+      fetch: createSkewRetryFetch(fetch, jwtSkewRetryDelayMs()),
+    },
     cookieOptions: {
       name: SSR_COOKIE,
       httpOnly: true,

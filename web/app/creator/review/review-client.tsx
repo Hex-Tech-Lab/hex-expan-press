@@ -340,7 +340,14 @@ export default function ReviewClient({ items, saved, pdfUrl, bookTitle }: Review
           )}
 
           {item.options.length > 0 && (
-            <div className="mt-4 flex flex-col gap-2" role="radiogroup" aria-label={`Options for ${item.code}`}>
+            <div
+              className="mt-4 flex flex-col gap-2"
+              role="radiogroup"
+              // AGY audit 3.1 (sprint 12 B2): the group's accessible name is the
+              // QUESTION itself — a screen reader announcing any radio option
+              // must carry the question context, not just the option label.
+              aria-labelledby="review-question-text"
+            >
               {item.options.map((opt) => (
                 <label
                   key={opt.key}
@@ -371,6 +378,9 @@ export default function ReviewClient({ items, saved, pdfUrl, bookTitle }: Review
             value={freeText}
             onChange={(e) => setFreeText(e.target.value)}
             rows={3}
+            // AGY audit 3.1 (sprint 12 B2): the question heading is the field's
+            // description — tabbing into this textarea announces the question.
+            aria-describedby="review-question-text"
             className="mt-2 w-full rounded-lg border border-[#EADFD1] bg-[#FFFDF9] p-3 text-[length:var(--font-size-base)] text-[#2B2520] outline-none focus:border-[#E8622C] focus-visible:ring-2 focus-visible:ring-[#B3401E] focus-visible:ring-offset-2 focus-visible:ring-offset-[#FFFDF9]"
             placeholder="Write the correct fact here."
           />

@@ -39,3 +39,8 @@ create policy "consents_service_role_all"
   with check (bucket_id = 'consents');
 
 -- Explicitly NO anon/authenticated policies: every other role is denied by default.
+-- Sprint-12-B: do not RELY on the platform default — enable RLS on storage.objects
+-- explicitly so the default-deny stance is guaranteed even on a tenant where the
+-- bootstrap default was altered. (ENABLE is idempotent; service_role keeps its
+-- bypassrls attribute, so the server-side evidence path is unaffected.)
+alter table storage.objects enable row level security;
