@@ -7,9 +7,10 @@
  * creates the Firma envelope and redirects to the signing flow). The
  * "Back to Dashboard" nav is a Next <Link> with a soft Framer Motion hover.
  */
-import { useActionState } from "react";
+import { useActionState, useEffect } from "react";
 import { useFormStatus } from "react-dom";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { AnimatePresence, m } from "framer-motion";
 import { signConsentAction, type ConsentFormState } from "./actions";
 import { startPublisherAgreementAction } from "../dashboard/actions";
@@ -23,6 +24,7 @@ export interface ConsentCardsProps {
   hasC2: boolean;
   hasC3: boolean;
 }
+
 
 function LegalIncorporationClause() {
   return (
@@ -121,11 +123,20 @@ function ConsentFormCard({
 }
 
 export default function ConsentCards({ bookTitle, hasC1, hasC2, hasC3 }: ConsentCardsProps) {
+  const router = useRouter();
   const [c1State, c1Action] = useActionState(signConsentAction, EMPTY);
   const [c2State, c2Action] = useActionState(signConsentAction, EMPTY);
-  const c1Done = hasC1 || c1State.ok;
-  const c2Done = hasC2 || c2State.ok;
+
+  useEffect(() => {
+    if (c1State.ok || c2State.ok) {
+      router.refresh();
+    }
+  }, [c1State.ok, c2State.ok, router]);
+
+  const c1Done = hasC1;
+  const c2Done = hasC2;
   const allLegal = c1Done && c2Done;
+
 
   return (
     <div className="mx-auto max-w-[680px] px-5 pb-16 pt-10">

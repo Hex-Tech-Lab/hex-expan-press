@@ -319,10 +319,11 @@ describe("writeFileAtomicReal — real fs in tmpdir (P2)", () => {
       expect(readFileSync(file, "utf8")).toBe("original");
       expect(unlinked.length).toBe(1);
       expect(unlinked[0].includes(".tmp-")).toBe(true);
-      expect(existsSync(`${file}.tmp-${process.pid}`)).toBe(false);
+      expect(readdirSync(dir).filter((e) => e.includes(".tmp-"))).toEqual([]);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+
   });
 });
 

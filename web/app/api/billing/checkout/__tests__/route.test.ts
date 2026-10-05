@@ -4,12 +4,22 @@ import { GET } from "../route";
 import { MatrixRouter } from "../../../../../../src/infrastructure/matrix_router/matrix_router";
 
 const railsFile = vi.hoisted(() => ({ content: null as string | null }));
+const adminModule = vi.hoisted(() => ({
+  mockAdminClient: null as unknown,
+}));
+
+
+vi.mock("../../../../../../payments/src/supabase_admin", () => ({
+  getSupabaseAdmin: vi.fn(async () => adminModule.mockAdminClient),
+}));
+
 
 // Mock depth is 6 ups from __tests__ (route.ts resolves the same module with
 // 5 ups from checkout/) — both resolve to src/infrastructure/matrix_router/matrix_router.ts.
 vi.mock("../../../../../../src/infrastructure/matrix_router/matrix_router", () => ({
   MatrixRouter: { getNextProvider: vi.fn().mockResolvedValue("polar") },
 }));
+
 
 // The repo's data/settings rails file exists on dev machines but is never
 // bundled on Vercel; by default force the serverless path (rails read fails)
@@ -267,3 +277,141 @@ describe("billing/checkout wave85 sandbox + raw-URL fail-closed", () => {
     expect(res.headers.get("location")).toBeNull();
   });
 });
+
+describe("billing/checkout path traversal sanitization (P3)", () => {
+  it("rejects path traversal attempts with 400 Bad Request", async () => {
+    for (const badProduct of [
+      "../secret",
+      "..\\secret",
+      "foo/bar",
+      "foo\\bar",
+      "../../etc/passwd",
+      "a".repeat(100),
+      "invalid!product",
+    ]) {
+      const req = new NextRequest(`http://localhost:3000/api/billing/checkout?product=${encodeURIComponent(badProduct)}`);
+      const res = await GET(req);
+      expect(res.status).toBe(400);
+      const json = await res.json();
+      expect(json.error).toBe("Invalid product parameter in URL");
+    }
+  });
+});
+
+describe("billing/checkout active consent gate (P1)", () => {
+  it("returns 403 Forbidden when active consents (C1/C2/C3) are not all given", async () => {
+
+    adminModule.mockAdminClient = {
+      from: (table: string) => {
+        if (table === "products") {
+          return {
+            select: () => ({
+              or: () => ({
+                maybeSingle: async () => ({
+                  data: { id: "57596c19-c550-4bde-b17a-e87b86d005c5" },
+                  error: null,
+                }),
+              }),
+            }),
+          };
+        }
+        if (table === "consents") {
+          return {
+            select: async () => ({
+              // Only C1 is given, C2 and C3 are missing
+              data: [
+                {
+                  id: "c1",
+                  kind: "C1_data_accuracy",
+                  decision: "given",
+                  product_id: "57596c19-c550-4bde-b17a-e87b86d005c5",
+                  supersedes: null,
+                },
+              ],
+              error: null,
+            }),
+          };
+        }
+        return {};
+      },
+    };
+
+    const res = await GET(request());
+    expect(res.status).toBe(403);
+    const body = await res.json();
+    expect(body.error).toMatch(/required creator consents are not active/);
+  });
+
+  it("returns 403 Forbidden when a consent was superseded by a refusal", async () => {
+    adminModule.mockAdminClient = {
+      from: (table: string) => {
+        if (table === "products") {
+          return {
+            select: () => ({
+              or: () => ({
+                maybeSingle: async () => ({
+                  data: { id: "57596c19-c550-4bde-b17a-e87b86d005c5" },
+                  error: null,
+                }),
+              }),
+            }),
+          };
+        }
+        if (table === "consents") {
+          return {
+            select: async () => ({
+              data: [
+                { id: "c1", kind: "C1_data_accuracy", decision: "given", product_id: "57596c19-c550-4bde-b17a-e87b86d005c5", supersedes: null },
+                { id: "c2_old", kind: "C2_release_approval", decision: "given", product_id: "57596c19-c550-4bde-b17a-e87b86d005c5", supersedes: null },
+                { id: "c2_new", kind: "C2_release_approval", decision: "refused", product_id: "57596c19-c550-4bde-b17a-e87b86d005c5", supersedes: "c2_old" },
+                { id: "c3", kind: "C3_revenue_split", decision: "given", product_id: "57596c19-c550-4bde-b17a-e87b86d005c5", supersedes: null },
+              ],
+              error: null,
+            }),
+          };
+        }
+        return {};
+      },
+    };
+
+    const res = await GET(request());
+    expect(res.status).toBe(403);
+  });
+
+  it("allows checkout URL routing when C1, C2, and C3 are all active", async () => {
+    adminModule.mockAdminClient = {
+      from: (table: string) => {
+        if (table === "products") {
+          return {
+            select: () => ({
+              or: () => ({
+                maybeSingle: async () => ({
+                  data: { id: "57596c19-c550-4bde-b17a-e87b86d005c5" },
+                  error: null,
+                }),
+              }),
+            }),
+          };
+        }
+        if (table === "consents") {
+          return {
+            select: async () => ({
+              data: [
+                { id: "c1", kind: "C1_data_accuracy", decision: "given", product_id: "57596c19-c550-4bde-b17a-e87b86d005c5", supersedes: null },
+                { id: "c2", kind: "C2_release_approval", decision: "given", product_id: "57596c19-c550-4bde-b17a-e87b86d005c5", supersedes: null },
+                { id: "c3", kind: "C3_revenue_split", decision: "given", product_id: "57596c19-c550-4bde-b17a-e87b86d005c5", supersedes: null },
+              ],
+              error: null,
+            }),
+          };
+        }
+        return {};
+      },
+    };
+
+    vi.stubEnv("VERCEL_ENV", "preview");
+    const res = await GET(request());
+    expect(res.status).toBe(302);
+  });
+});
+

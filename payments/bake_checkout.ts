@@ -1,9 +1,11 @@
 import { readFileSync, writeFileSync, readdirSync, existsSync, renameSync, unlinkSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { randomBytes } from "node:crypto";
 import dotenv from "dotenv";
 import { loadBookIdentity } from "./book_identity.ts";
 import { GLOBAL } from "./src/settings_registry.ts";
+
 
 const here = dirname(fileURLToPath(import.meta.url));
 const defaultConfigPath = join(here, "config.duane.json");
@@ -508,8 +510,9 @@ export const writeFileAtomicReal = (
   const write = seams?.writeImpl ?? writeFileSync;
   const rename = seams?.renameImpl ?? renameSync;
   const unlink = seams?.unlinkImpl ?? unlinkSync;
-  const tmp = `${path}.tmp-${process.pid}`;
-  write(tmp, html, "utf8");
+  const randomSuffix = randomBytes(12).toString("hex");
+  const tmp = `${path}.tmp-${process.pid}-${randomSuffix}`;
+  write(tmp, html, { encoding: "utf8", flag: "wx" });
   try {
     rename(tmp, path);
   } catch (e) {
@@ -521,6 +524,7 @@ export const writeFileAtomicReal = (
     throw e;
   }
 };
+
 
 // Env/token strictness for the paddle path (exported so vitest can pin the
 // contract without running the bake).

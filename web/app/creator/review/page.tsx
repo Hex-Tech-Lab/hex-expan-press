@@ -9,17 +9,23 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false }, // authenticated surface
 };
 
-/** Natural sort for review codes: A1, B1 … B10, B13, Q1 … (legacy parity). */
-function naturalCode(a: string, b: string): number {
+/** Natural sort for review codes: A, A1, B1 … B10, Q1, Q2, Q10 … (legacy parity). */
+export function naturalCode(a: string, b: string): number {
   const x = a.split(/(\d+)/);
   const y = b.split(/(\d+)/);
   for (let k = 0; k < Math.min(x.length, y.length); k++) {
-    const xv = k % 2 ? Number(x[k]) : x[k];
-    const yv = k % 2 ? Number(y[k]) : y[k];
-    if (xv !== yv) return xv < yv ? -1 : 1;
+    const isNumX = /^\d+$/.test(x[k]);
+    const isNumY = /^\d+$/.test(y[k]);
+    if (isNumX && isNumY) {
+      const diff = Number(x[k]) - Number(y[k]);
+      if (diff !== 0) return diff;
+    } else if (x[k] !== y[k]) {
+      return x[k].localeCompare(y[k]);
+    }
   }
-  return 0;
+  return x.length - y.length;
 }
+
 
 export interface ReviewItemView {
   id: string;

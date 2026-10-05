@@ -103,8 +103,9 @@ describe("C3 binding (startPublisherAgreementAction)", () => {
   });
 
   const setupSupabaseConsents = (consentsData: unknown[] | null, error: unknown = null, primaryProductId: string | null = "prod-new") => {
+    const inMock = vi.fn().mockResolvedValue({ data: consentsData, error });
     const eqMock = vi.fn().mockResolvedValue({ data: consentsData, error });
-    const selectMock = vi.fn().mockReturnValue({ eq: eqMock });
+    const selectMock = vi.fn().mockReturnValue({ in: inMock, eq: eqMock });
     const productsChain = {
       order: vi.fn().mockReturnThis(),
       limit: vi.fn().mockResolvedValue({ data: primaryProductId ? [{ id: primaryProductId }] : [], error: null }),
@@ -119,8 +120,9 @@ describe("C3 binding (startPublisherAgreementAction)", () => {
       user: { id: "user-123", email: "author@example.com" },
       supabase,
     };
-    return { fromMock, selectMock, eqMock };
+    return { fromMock, selectMock, inMock, eqMock };
   };
+
 
   it("redirects with c2_required when consents query errors or returns empty", async () => {
     setupSupabaseConsents(null, { message: "query failed" });
@@ -165,7 +167,8 @@ describe("C3 binding (startPublisherAgreementAction)", () => {
   });
 
   it("picks the C2 head product and creates envelope when head decision is given", async () => {
-    const { selectMock, eqMock } = setupSupabaseConsents([
+    const { selectMock, inMock } = setupSupabaseConsents([
+      { id: "c1_data", product_id: "prod-new", kind: "C1_data_accuracy", decision: "given", signed_at: "2026-01-01", supersedes: null },
       { id: "c1", product_id: "prod-old", kind: "C2_release_approval", decision: "given", signed_at: "2026-01-01", supersedes: null },
       { id: "c2", product_id: "prod-new", kind: "C2_release_approval", decision: "given", signed_at: "2026-01-02", supersedes: "c1" },
     ]);
@@ -173,7 +176,7 @@ describe("C3 binding (startPublisherAgreementAction)", () => {
     await expect(startPublisherAgreementAction()).rejects.toThrow("NEXT_REDIRECT:https://firma.example/sign/abc");
 
     expect(selectMock).toHaveBeenCalledWith("product_id, kind, decision, signed_at, id, supersedes");
-    expect(eqMock).toHaveBeenCalledWith("kind", "C2_release_approval");
+    expect(inMock).toHaveBeenCalledWith("kind", ["C1_data_accuracy", "C2_release_approval"]);
     expect(mockCreateEsignEnvelopeUseCase).toHaveBeenCalledWith(
       expect.objectContaining({
         productId: "prod-new",
@@ -183,4 +186,5 @@ describe("C3 binding (startPublisherAgreementAction)", () => {
       expect.anything(),
     );
   });
+
 });

@@ -3,6 +3,9 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { MatrixRouter } from "../../../../../src/infrastructure/matrix_router/matrix_router";
 import { GLOBAL } from "../../../../../payments/src/settings_registry";
+import { getSupabaseAdmin } from "../../../../../payments/src/supabase_admin";
+import { activeConsentKinds } from "../../../../src/lib/consent-chain";
+
 
 export const runtime = "nodejs";
 
@@ -53,9 +56,61 @@ function checkoutUrlProblem(raw: unknown): string | null {
   return null;
 }
 
+const SAFE_PRODUCT_RE = /^[a-zA-Z0-9_-]{2,80}$/;
+
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const product = request.nextUrl.searchParams.get("product") ?? "";
   if (!product) return jsonError(400, "Missing product parameter in URL");
+
+  // Sanitize product parameter to prevent Path Traversal / LFI (sprint 14 ARTAS Track A3)
+  if (!SAFE_PRODUCT_RE.test(product) || product.includes("..") || product.includes("/") || product.includes("\\")) {
+    return jsonError(400, "Invalid product parameter in URL");
+  }
+
+  // Active Consent Gate (sprint 14 ARTAS Track A1):
+  // Checkout URL generation requires active C1, C2, and C3 consents for the product.
+  // Resolve product in Supabase and check activeConsentKinds.
+  try {
+    const supabase = await getSupabaseAdmin();
+    if (supabase) {
+      const { data: dbProduct, error: prodErr } = await supabase
+        .from("products")
+        .select("id")
+        .or(`slug.eq.${product},id.eq.${product}`)
+        .maybeSingle();
+
+      if (prodErr) {
+        console.warn(`[billing/checkout] product lookup warning for '${product}': ${prodErr.message}`);
+      }
+
+      const dbProductId = dbProduct?.id ?? (product === "duane_retirement_playbook_v1" || product === "retirearly500k-500k-playbook" ? "57596c19-c550-4bde-b17a-e87b86d005c5" : null);
+
+
+      if (dbProductId) {
+        const { data: consentRows, error: consentErr } = await supabase
+          .from("consents")
+          .select("id, kind, decision, product_id, supersedes");
+
+        if (consentErr) {
+          console.error(`[billing/checkout] failed to query consents for '${product}': ${consentErr.message}`);
+          return jsonError(500, "Checkout consent verification failed");
+        }
+
+        const active = activeConsentKinds(consentRows ?? [], dbProductId);
+        const hasC1 = active.has("C1_data_accuracy");
+        const hasC2 = active.has("C2_release_approval");
+        const hasC3 = active.has("C3_revenue_split");
+
+        if (!hasC1 || !hasC2 || !hasC3) {
+          console.error(`[billing/checkout] missing active consents for '${product}': C1=${hasC1}, C2=${hasC2}, C3=${hasC3}`);
+          return jsonError(403, "Checkout forbidden: required creator consents are not active");
+        }
+      }
+    }
+  } catch (err) {
+    console.error(`[billing/checkout] consent verification exception for '${product}': ${(err as Error).message}`);
+    return jsonError(500, "Checkout consent verification failed");
+  }
 
   let rails: CheckoutRail[];
   const file = path.join(process.cwd(), "data", "settings", `rails.${product}.json`);
@@ -98,6 +153,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       return jsonError(404, `No rails configuration found for product '${product}'`);
     }
   }
+
 
   // Fail closed on non-string RAW checkout_url values (missing/null/number
   // from a malformed rails file) BEFORE any trimming — no silent rail skips.
