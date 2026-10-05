@@ -12,7 +12,8 @@ import os from "node:os";
 import path from "node:path";
 import type { AddressInfo } from "node:net";
 import { Agent as UndiciAgent } from "undici";
-import { FirmaAdapter, pinnedDispatcherFactory, pinnedDownloadFetch, pinnedLookupFor, type DownloadFetch, type PinnedDispatcherFactory, type Pin } from "../firma.adapter";
+import { FirmaAdapter, pinnedDispatcherFactory, pinnedDownloadFetch, pinnedLookupFor, type PinnedDispatcherFactory, type Pin } from "../firma.adapter";
+import { passthroughDownload } from "../../../../tests/helpers/esign-transport";
 
 const SECRET = "test-webhook-secret";
 
@@ -125,12 +126,6 @@ describe("FirmaAdapter.parseAndValidateWebhook (fail-closed HMAC gate)", () => {
 const SUPABASE_URL = "https://unit.test.supabase.co";
 const SUPABASE_KEY = "unit-test-key";
 const EVIDENCE_BYTES = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31]); // "%PDF-1"
-
-// Logic-test transport: routes the download through the stubbed GLOBAL fetch,
-// bypassing the pinned dispatcher. The dispatcher seam itself (production
-// transport + factory + fail-closed lookup) is exercised separately in the
-// sprint-13 pin tests below — against real local sockets, not stubs.
-const passthroughDownload: DownloadFetch = (url, init) => fetch(url, init);
 
 function jsonResponse(status: number, payload: unknown): Response {
   return new Response(JSON.stringify(payload), { status });
