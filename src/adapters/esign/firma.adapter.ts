@@ -17,8 +17,10 @@ const dnsResolveHost: HostResolver = (host) => lookup(host, { all: true, verbati
 /**
  * DNS pin (sprint 13, P0 TOCTOU eradication): the validated hostname AND the
  * exact address set that passed the forbidden-host predicate. The download
- * must dial ONLY these addresses — a check-then-fetch gap is closed by
- * resolving again inside the transport.
+ * must dial ONLY these addresses — the check-then-fetch gap is closed by
+ * dialing the prevalidated set DIRECTLY: the pinned transport performs no
+ * hostname resolution of its own at all, so no secondary lookup (and
+ * therefore no 0-TTL rebinding window) exists.
  */
 export type Pin = { host: string; addresses: string[] };
 
@@ -250,8 +252,14 @@ export class FirmaAdapter implements EsignProviderPort, EsignWebhookPort, EsignE
    *  predicate, while TLS SNI and the Host header keep the original
    *  hostname. Any lookup outside the pin fails closed. The dispatcher is
    *  closed only in the finally block AFTER the body is consumed or
-   *  cancelled (closing early would truncate the stream). */
-  private async downloadCapped(url: string, pin: Pin): Promise<Uint8Array | null> {
+   *  cancelled (closing early would truncate the stream).
+   *
+   *  Internal composition seam (Cubic P2 on PR #84): public ONLY so tests
+   *  can exercise the real pinned transport end-to-end (pinned dial, cap
+   *  cancel path, dispatcher lifetime) without violating the denylist —
+   *  loopback targets can never pass fetchCompletedDocument's validation,
+   *  by design. Callers must go through fetchCompletedDocument. */
+  async downloadCapped(url: string, pin: Pin): Promise<Uint8Array | null> {
     const MAX_EVIDENCE_BYTES = 20 * 1024 * 1024;
     const dispatcher = this.createPinnedDispatcher(pin);
     try {
@@ -383,7 +391,14 @@ export class FirmaAdapter implements EsignProviderPort, EsignWebhookPort, EsignE
         }
         bytes = await this.downloadCapped(candidates[i], pin);
       } catch (err) {
-        console.error(`[firma-adapter] download candidate ${i} threw for envelope ${envelopeId}:`, err instanceof Error ? err.name : "unknown");
+        // undici wraps transport failures (incl. a pinned-lookup SSRF
+        // violation) in a generic TypeError with the real error on `cause` —
+        // log the cause so a pin violation is distinguishable from a timeout
+        // in the logs (Cubic P3 on PR #84).
+        const cause = err instanceof Error && err.cause instanceof Error ? err.cause.message : undefined;
+        console.error(`[firma-adapter] download candidate ${i} threw for envelope ${envelopeId}:`,
+          err instanceof Error ? err.name : "unknown",
+          cause ? `cause: ${truncate(cause, 200)}` : "");
         continue;
       }
       if (!bytes) {

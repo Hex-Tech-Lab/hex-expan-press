@@ -7,22 +7,26 @@
  * PGRST301 expired), any other status, and any non-JSON body is returned
  * untouched — retried at most once, never on ReadableStream bodies.
  *
- * Sprint-13 idempotency gate (ADR-0059): the retry is restricted to GET and
- * HEAD. A retried mutation (POST/PATCH/PUT/DELETE) is a replay risk even when
- * the first attempt's 401 came from JWT verification — the safety argument
+ * Sprint-13 idempotency gate (ADR-0059): the retry is restricted to GET.
+ * A retried mutation (POST/PATCH/PUT/DELETE) is a replay risk even when the
+ * first attempt's 401 came from JWT verification — the safety argument
  * "PGRST303 is rejected before any transaction begins" is a behavioral claim
  * about PostgREST versions; the method gate makes replay structurally
- * impossible instead of trusting that claim. Non-idempotent requests are
- * returned untouched on ANY 401.
+ * impossible instead of trusting that claim. HEAD is deliberately excluded
+ * even though it is idempotent: a real HEAD response carries no body
+ * (RFC 9110 §9.3.2), so the PGRST303 shape cannot be detected — retrying a
+ * bodyless 401 blind would retry EVERY 401, which is worse than the skew it
+ * would heal. Non-idempotent/unclassifiable requests are returned untouched
+ * on ANY 401.
  */
-const IDEMPOTENT_METHODS = new Set(["GET", "HEAD"]);
+const IDEMPOTENT_METHODS = new Set(["GET"]);
 
 function requestMethod(input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]): string {
   const fromInit = init?.method;
   if (fromInit) return fromInit.toUpperCase();
   if (typeof input === "object" && input !== null && "method" in input) {
-    const m = (input as Request).method;
-    if (m) return m.toUpperCase();
+    const requestMethodFromInput = (input as Request).method;
+    if (requestMethodFromInput) return requestMethodFromInput.toUpperCase();
   }
   return "GET";
 }
