@@ -90,6 +90,49 @@ describe("createSkewRetryFetch", () => {
     expect(sleep).not.toHaveBeenCalled();
   });
 
+  // ---- Sprint-13 idempotency gate (ADR-0059): mutations are NEVER retried ----
+
+  it.each(["POST", "PATCH", "PUT", "DELETE"])("does NOT retry a skew 401 on %s (mutation replay defense)", async (method) => {
+    const sleep = vi.fn(async () => {});
+    const base = makeFetch([jsonRes(401, { code: "PGRST303", message: "JWT issued at future" })]);
+    const fetcher = createSkewRetryFetch(base as unknown as typeof fetch, 350, sleep);
+    const res = await fetcher("https://db.example/rest/v1/x", { method });
+    expect(res.status).toBe(401);
+    expect(base).toHaveBeenCalledTimes(1);
+    expect(sleep).not.toHaveBeenCalled();
+  });
+
+  it("does NOT retry a skew 401 when the method comes from a Request object (POST)", async () => {
+    const sleep = vi.fn(async () => {});
+    const base = makeFetch([jsonRes(401, { code: "PGRST303", message: "JWT issued at future" })]);
+    const fetcher = createSkewRetryFetch(base as unknown as typeof fetch, 350, sleep);
+    const req = new Request("https://db.example/rest/v1/x", { method: "POST" });
+    const res = await fetcher(req);
+    expect(res.status).toBe(401);
+    expect(base).toHaveBeenCalledTimes(1);
+    expect(sleep).not.toHaveBeenCalled();
+  });
+
+  it("does NOT retry on HEAD: a real HEAD 401 is bodyless (RFC 9110 §9.3.2), so skew cannot be classified — retrying blind would retry every 401", async () => {
+    const sleep = vi.fn(async () => {});
+    // Bodyless 401 exactly as HEAD produces on the wire (no JSON, no body).
+    const base = makeFetch([new Response(null, { status: 401 })]);
+    const fetcher = createSkewRetryFetch(base as unknown as typeof fetch, 350, sleep);
+    const res = await fetcher("https://db.example/rest/v1/x", { method: "HEAD" });
+    expect(res.status).toBe(401);
+    expect(base).toHaveBeenCalledTimes(1);
+    expect(sleep).not.toHaveBeenCalled();
+  });
+
+  it("lowercase method strings are normalized (post is treated as a mutation)", async () => {
+    const sleep = vi.fn(async () => {});
+    const base = makeFetch([jsonRes(401, { code: "PGRST303", message: "JWT issued at future" })]);
+    const fetcher = createSkewRetryFetch(base as unknown as typeof fetch, 350, sleep);
+    const res = await fetcher("https://db.example/rest/v1/x", { method: "post" });
+    expect(res.status).toBe(401);
+    expect(base).toHaveBeenCalledTimes(1);
+  });
+
   it("the returned 200 body is readable by the caller (clone used for inspection)", async () => {
     const sleep = vi.fn(async () => {});
     const payload = { rows: [1, 2, 3] };
