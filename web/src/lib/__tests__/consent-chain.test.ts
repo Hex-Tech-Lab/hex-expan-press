@@ -92,4 +92,16 @@ describe("activeConsentKinds — chain-head resolution", () => {
     const rows = [row({ id: "c2_row", decision: "given", supersedes: "ghost_id" })];
     expect(activeConsentKinds(rows).has("C2_release_approval")).toBe(true);
   });
+
+  it("cross-product supersession: an old consent is NOT active when its successor belongs to another product", () => {
+    const rows = [
+      row({ id: "c2_old_p1", product_id: "p1", kind: "C2_release_approval", decision: "given" }),
+      row({ id: "c2_new_p2", product_id: "p2", kind: "C2_release_approval", decision: "given", supersedes: "c2_old_p1" }),
+    ];
+    // Under p1, c2_old_p1 has been superseded across the creator's complete chain, so it is not active
+    expect(activeConsentKinds(rows, "p1").has("C2_release_approval")).toBe(false);
+    // Under p2, c2_new_p2 is the active head
+    expect(activeConsentKinds(rows, "p2").has("C2_release_approval")).toBe(true);
+  });
 });
+

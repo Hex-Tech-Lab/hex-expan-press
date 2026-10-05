@@ -36,13 +36,12 @@ export default async function ConsentsPage() {
     );
   }
 
-  // Chain-head resolution (sprint 12 B2, AGY audit P1): fetch ALL decisions
-  // for the product (not just "given") — a superseded or superseded-by-refusal
-  // row must never display as "Signed ✓". Mirrors the action/bake semantics.
+  // Chain-head resolution (sprint 12 B2, AGY audit P1, sprint 14 Track C1):
+  // fetch ALL decisions for the creator across their complete chain —
+  // supersession is resolved creator-wide first, then filtered to this product.
   const consentsRes = await supabase
     .from("consents")
-    .select("id, kind, decision, supersedes")
-    .eq("product_id", product.id);
+    .select("id, kind, decision, product_id, supersedes");
   if (consentsRes.error) {
     return (
       <ConsentNotice
@@ -51,7 +50,7 @@ export default async function ConsentsPage() {
       />
     );
   }
-  const active = activeConsentKinds(consentsRes.data ?? []);
+  const active = activeConsentKinds(consentsRes.data ?? [], product.id);
 
   return (
     <ConsentCards

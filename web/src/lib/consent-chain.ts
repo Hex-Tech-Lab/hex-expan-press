@@ -22,26 +22,35 @@ export interface ConsentChainRow {
 }
 
 /** Kinds whose current chain head (within the given rows, optionally scoped to
- *  one product) carries decision "given". A supersedes pointer only supersedes
- *  when the SUCCESSOR targets the SAME kind in the SAME product (Cubic P2 on
- *  PR #82): a malformed or cross-kind/cross-product pointer must never lock a
- *  valid consent row. A pointer at an id outside the scope is likewise not
- *  honored (cannot be verified). */
+ *  one product) carries decision "given".
+ *
+ *  Resolves supersession across the creator's *complete* chain first, and
+ *  only *then* filters the active heads to the displayed product. This
+ *  prevents an old consent from being marked active when its successor
+ *  belongs to another product.
+ *
+ *  A supersedes pointer only supersedes when the SUCCESSOR targets the SAME
+ *  kind (Cubic P2 on PR #82): a malformed or cross-kind pointer must never lock
+ *  a valid consent row. */
 export function activeConsentKinds(consents: ConsentChainRow[], productId?: string): Set<string> {
-  const scoped = productId ? consents.filter((c) => c.product_id === productId) : consents;
-  const byId = new Map(scoped.map((c) => [c.id, c] as const));
+  const byId = new Map(consents.map((c) => [c.id, c] as const));
   const supersededIds = new Set<string>();
-  for (const c of scoped) {
+  for (const c of consents) {
     if (typeof c.supersedes !== "string" || c.supersedes === "") continue;
     const target = byId.get(c.supersedes);
-    if (target && target.kind === c.kind && target.product_id === c.product_id) {
+    if (target && target.kind === c.kind) {
       supersededIds.add(c.supersedes);
     }
   }
+
+  // Chain heads repo-wide (not superseded by any newer same-kind row)
+  const candidateRows = consents.filter((c) => !supersededIds.has(c.id));
+  const scopedHeads = productId ? candidateRows.filter((c) => c.product_id === productId) : candidateRows;
+
   const active = new Set<string>();
-  for (const c of scoped) {
-    if (supersededIds.has(c.id)) continue; // locked by a newer same-kind row — never "signed"
+  for (const c of scopedHeads) {
     if (c.decision === "given") active.add(c.kind);
   }
   return active;
 }
+
