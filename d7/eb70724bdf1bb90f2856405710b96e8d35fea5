@@ -1,0 +1,30 @@
+src/use_cases/__tests__/process_esign_webhook.test.ts
+  s_504308f4460afb::t_24be6b88acfe39 46-50
+  s_504308f4460afb::t_bcd037e8577bc1 78
+  s_504308f4460afb::t_8b19c182b07da2 138-211,215-218
+web/src/lib/__tests__/esign-webhook.test.ts
+  s_504308f4460afb::t_f048adf375f206 305
+  s_504308f4460afb::t_2d41ff5023d1f9 330
+  s_504308f4460afb::t_61fcacb5340a73 115,135,156,185,211,270,300,324
+src/use_cases/__tests__/audit-esign-replay.test.ts
+  s_504308f4460afb::t_615e744ab932a5 27
+  s_504308f4460afb::t_e39452a6b0c0c4 60
+  s_504308f4460afb::t_14b6716cc89dc9 79
+  s_504308f4460afb::t_62badd707fa846 73
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d7eb70724bdf1bb90f2856405710b96e8d35fea5",
+  "prompts": {},
+  "sessions": {
+    "s_504308f4460afb": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef4fe588affeXQkqTqgALkWt7P",
+        "model": "@preset/glm-53-flash-on-cheap"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
