@@ -1,0 +1,21 @@
+.qa-intel/baseline.json
+  s_c2bb5a5d6f7923::t_8da384843ec343 2-1143
+docs/agent_ledger.jsonl
+  s_c2bb5a5d6f7923::t_f3a1e6208453b7 446
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8f0b1cca1e301f3b45f02a8033c8bf4c8256a690",
+  "prompts": {},
+  "sessions": {
+    "s_c2bb5a5d6f7923": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef43b105fffevRLfKBVDbL0gWm",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
