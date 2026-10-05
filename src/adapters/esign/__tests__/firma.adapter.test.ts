@@ -161,6 +161,14 @@ describe("FirmaAdapter.fetchCompletedDocument (F1, NEEDS-LIVE-VERIFICATION endpo
 
     await expect(adapter.fetchCompletedDocument("env_doc_3")).rejects.toThrow(/empty bytes/);
   });
+
+  it("throws when the endpoint answers 200 with non-PDF bytes (JSON/HTML must never be stored as evidence)", async () => {
+    vi.stubEnv("FIRMA_API_KEY", "unit-firma-key");
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(bytesResponse(200, new TextEncoder().encode('{"error":"not found"}')))));
+    const adapter = new FirmaAdapter();
+
+    await expect(adapter.fetchCompletedDocument("env_doc_4")).rejects.toThrow(/non-PDF bytes/);
+  });
 });
 
 describe("FirmaAdapter.uploadConsentEvidence (F1 upload + read-back verify)", () => {
@@ -227,7 +235,7 @@ describe("FirmaAdapter.uploadConsentEvidence (F1 upload + read-back verify)", ()
     );
   });
 
-  it("throws when the verification GET reads EMPTY bytes", async () => {
+  it("throws when the verification GET reads bytes that do not match the upload (empty included)", async () => {
     vi.stubEnv("SUPABASE_URL", SUPABASE_URL);
     vi.stubEnv("SUPABASE_SECRET_KEY", SUPABASE_KEY);
     const fetchMock = vi.fn((input: unknown, init?: { method?: string }) =>
@@ -239,7 +247,7 @@ describe("FirmaAdapter.uploadConsentEvidence (F1 upload + read-back verify)", ()
     const adapter = new FirmaAdapter();
 
     await expect(adapter.uploadConsentEvidence("user_9/env_f125.pdf", EVIDENCE_BYTES)).rejects.toThrow(
-      /verification read empty bytes/,
+      /verification mismatch/,
     );
   });
 

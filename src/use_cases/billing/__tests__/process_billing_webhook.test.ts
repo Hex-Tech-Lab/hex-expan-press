@@ -283,7 +283,7 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
     vi.stubEnv("UPSTASH_REDIS_REST_TOKEN", "");
     vi.stubEnv("VERCEL_ENV", "production");
     await expect(processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(SALE)])).rejects.toThrow(
-      /lock unavailable: Redis is not configured in production/,
+      /lock unavailable: Redis is not configured in a money-path runtime/,
     );
     expect(() => readFileSync(salesFilePath, "utf8")).toThrow(); // nothing written
   });

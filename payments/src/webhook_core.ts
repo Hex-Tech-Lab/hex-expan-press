@@ -104,13 +104,6 @@ function isRedisConfigured(): boolean {
   return isRedisRestConfigured();
 }
 
-/** Money-path detection (isMoneyPath): any production-shaped runtime — NODE_ENV=production,
- *  any VERCEL_ENV value (previews included), or an AWS Lambda runtime — demands the
- *  distributed lock; previews/local/tests keep it optional only when no signal is present. */
-function isProduction(): boolean {
-  return isMoneyPath();
-}
-
 /**
  * Thrown when another delivery holds the idempotency lock. The holder may still
  * FAIL, so this must never be acknowledged as success: callers either confirm the
@@ -131,8 +124,8 @@ export async function withIdempotencyLock(
     // Production must never process money without the distributed lock: an
     // unconfigured store throws (→ 500, provider retries) instead of silently
     // running unlocked. Elsewhere the lock stays optional infra.
-    if (isProduction()) {
-      throw new Error("webhook idempotency lock unavailable: Redis is not configured in production (set UPSTASH_REDIS_REST_* or KV_REST_API_*)");
+    if (isMoneyPath()) {
+      throw new Error("webhook idempotency lock unavailable: Redis is not configured in a money-path runtime (production/previews/Lambda) (set UPSTASH_REDIS_REST_* or KV_REST_API_*)");
     }
     return fn();
   }

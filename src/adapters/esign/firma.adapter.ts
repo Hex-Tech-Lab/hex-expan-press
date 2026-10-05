@@ -79,6 +79,9 @@ export class FirmaAdapter implements EsignProviderPort, EsignWebhookPort, EsignE
     if (!res.ok) throw new Error(`Firma completed-document fetch failed (${res.status}) for envelope ${envelopeId}`);
     const bytes = new Uint8Array(await res.arrayBuffer());
     if (bytes.length === 0) throw new Error(`Firma completed-document fetch returned empty bytes for envelope ${envelopeId}`);
+    if (Buffer.from(bytes.slice(0, 5)).toString("latin1") !== "%PDF-") {
+      throw new Error(`Firma completed-document fetch returned non-PDF bytes for envelope ${envelopeId} (expected %PDF- header)`);
+    }
     return bytes;
   }
 
@@ -101,11 +104,19 @@ export class FirmaAdapter implements EsignProviderPort, EsignWebhookPort, EsignE
       headers: { ...headers, "Content-Type": "application/pdf", "x-upsert": "true" },
       body: Buffer.from(bytes)
     });
-    if (!put.ok) throw new Error(`Consent evidence upload failed (${put.status}) for ${objectPath}`);
+    if (!put.ok) {
+      const detail = await put.text().catch(() => "");
+      if (put.status === 400 && detail.includes("Bucket not found")) {
+        throw new Error(`Consent evidence upload failed: Storage bucket "consents" does not exist — provision it in the Supabase project (F1 evidence gate cannot record without it)`);
+      }
+      throw new Error(`Consent evidence upload failed (${put.status}) for ${objectPath}`);
+    }
     const verify = await this.fetchWithRelease(objectUrl, { headers });
     if (!verify.ok) throw new Error(`Consent evidence verification failed (${verify.status}) for ${objectPath}`);
     const roundTrip = new Uint8Array(await verify.arrayBuffer());
-    if (roundTrip.length === 0) throw new Error(`Consent evidence verification read empty bytes for ${objectPath}`);
+    if (roundTrip.length !== bytes.length || !Buffer.from(roundTrip).equals(Buffer.from(bytes))) {
+      throw new Error(`Consent evidence verification mismatch for ${objectPath} (uploaded ${bytes.length} bytes, read back ${roundTrip.length})`);
+    }
   }
 
   private splitName(name: string): { firstName: string; lastName: string } {

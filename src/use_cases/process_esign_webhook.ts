@@ -59,6 +59,10 @@ export async function processEsignWebhookUseCase(
         `Webhook validation failed: completed envelope ${envelopeId} has a missing or invalid document_sha256 (expected 64 hex characters, got ${event.documentHash ? `length ${event.documentHash.length}` : "empty"})`
       );
     }
+    // Lowercase-normalize BEFORE persistence: the DB CHECK (and every RPC validation)
+    // is case-sensitive lowercase hex, so an uppercase digest would pass this gate and
+    // then die at the DB — a 500 retry loop — instead of a terminal 400.
+    const documentHash = event.documentHash.toLowerCase();
 
     // The PDF path is abstracted here, but typically bounded to user and envelope
     const pdfPath = `${userId}/${envelopeId}.pdf`;
@@ -106,7 +110,7 @@ export async function processEsignWebhookUseCase(
         kind: "C3_revenue_split",
         decision: "given",
         textVersion: snapshotTextVersion,
-        documentSha256: event.documentHash,
+        documentSha256: documentHash,
         typedName: `Signed via ${validation.providerName || "unknown"}`,
         ip: req.ip,
         userAgent: req.userAgent,

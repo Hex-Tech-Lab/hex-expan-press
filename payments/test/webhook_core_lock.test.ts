@@ -58,7 +58,7 @@ describe("withIdempotencyLock", () => {
     vi.stubEnv("KV_REST_API_TOKEN", "");
     vi.stubEnv("VERCEL_ENV", "production");
     const fn = vi.fn(async () => ({ status: 200, payload: {} }));
-    await expect(withIdempotencyLock("lock:sale:polar:s5", fn)).rejects.toThrow(/Redis is not configured in production/);
+    await expect(withIdempotencyLock("lock:sale:polar:s5", fn)).rejects.toThrow(/Redis is not configured in a money-path runtime/);
     expect(fn).not.toHaveBeenCalled();
   });
 });

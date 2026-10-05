@@ -143,14 +143,19 @@ begin
   order by signed_at desc
   limit 1;
 
+  -- clock_timestamp(), not the column default now(): now() is transaction-start
+  -- time, so a transaction that waited on the advisory lock would otherwise carry
+  -- a signed_at OLDER than the head it supersedes — breaking the signed_at-desc
+  -- head ordering the bake lookup and this RPC both rely on.
   insert into public.consents (
     kind, product_id, creator_id, decision, text_version,
-    document_sha256, typed_name, signed_by, auth_provider, ip, user_agent,
+    document_sha256, typed_name, signed_at, signed_by, auth_provider, ip, user_agent,
     external_ref, evidence_path, supersedes
   )
   values (
     p_kind::public.consent_kind, p_product_id, v_creator, p_decision, p_text_version,
     p_document_sha256, p_typed_name,
+    clock_timestamp(),
     v_signer,
     v_auth_provider, p_ip, p_user_agent,
     v_external_ref, v_evidence_path, v_supersedes
