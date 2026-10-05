@@ -348,6 +348,23 @@ describe("FirmaAdapter.fetchCompletedDocument (F1, LIVE-VERIFIED 2026-10-05)", (
     await expect(adapter.fetchCompletedDocument("env_neterr2").catch((e: unknown) => Promise.reject((e as Error).message.includes("DNS timeout") ? new Error("RAW-ESCAPED") : e))).rejects.toThrow(/did not yield PDF bytes/);
   });
 
+  it("a redirecting signed URL is NOT followed (redirect: manual — founder-applied hardening)", async () => {
+    vi.stubEnv("FIRMA_API_KEY", "unit-firma-key");
+    const redirectTarget = "https://internal.service/steal";
+    const fetchMock = vi.fn((input: unknown) => {
+      if (String(input).includes("/signing-requests/")) return Promise.resolve(resourceResponse());
+      // 302 → with redirect:"manual" the response is returned UNFOLLOWED;
+      // res.ok is false → the candidate is rejected, nothing is fetched at the target.
+      return Promise.resolve(new Response(null, { status: 302, headers: { location: redirectTarget } }));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const adapter = new FirmaAdapter();
+
+    await expect(adapter.fetchCompletedDocument("env_redirect")).rejects.toThrow(/did not yield PDF bytes within the 20 MiB cap/);
+    const fetchedUrls = fetchMock.mock.calls.map((c) => String(c[0]));
+    expect(fetchedUrls).not.toContain(redirectTarget); // the redirect was never followed
+  });
+
   // ---- Sprint-12-B: memory exhaustion cap ----
 
   it("rejects when content-length exceeds the 20 MiB cap (cancelled before buffering)", async () => {
