@@ -26,6 +26,14 @@ import { FirmaAdapter } from "../../../../src/adapters/esign/firma.adapter";
 import { WebhookValidationError } from "../../../../src/domain/webhook/webhook_errors";
 import type { Mock } from "vitest";
 
+// The adapter's default resolver is the platform DNS; these tests use fake
+// hosts (.test TLD) that must not touch a real resolver. Mock at the module
+// level so the FACTORY-built adapter (createEsignAdapter) resolves every
+// hostname to a public address hermetically (sprint-12 DNS-level SSRF guard).
+vi.mock("node:dns/promises", () => ({
+  lookup: async () => [{ address: "93.184.216.34" }],
+}));
+
 const SECRET = "test-webhook-secret";
 const AGREEMENT_PDF_BYTES = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31]); // "%PDF-1"
 // The webhook's document_sha256 is Firma's attestation of the SIGNED document;
@@ -95,7 +103,7 @@ describe("esign webhook (Firma HMAC contract)", () => {
       type: "signing_request.completed",
       data: { signing_request: { id: "env_456", metadata: "not-an-object" } },
     });
-    const adapter = new FirmaAdapter();
+    const adapter = new FirmaAdapter(async () => [{ address: "93.184.216.34" }]);
     const result = await adapter.parseAndValidateWebhook(body, headers);
     // Adapter-level: signature valid → isValid true; the USE CASE throws on
     // non-object metadata → the webhook maps validation errors to 400.
@@ -497,7 +505,7 @@ describe("FirmaAdapter.fetchCompletedDocument — live-shape contract", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
     const { FirmaAdapter } = await import("../../../../src/adapters/esign/firma.adapter");
-    const bytes = await new FirmaAdapter().fetchCompletedDocument("env_x");
+    const bytes = await new FirmaAdapter(async () => [{ address: "93.184.216.34" }]).fetchCompletedDocument("env_x");
     expect(Buffer.from(bytes).toString("latin1")).toBe("%PDF-1");
     // The signed URL must be fetched WITHOUT our credentials (self-authorizing token).
     expect((fetchMock.mock.calls[1][1] as RequestInit | undefined)?.headers).toBeUndefined();
@@ -523,7 +531,7 @@ describe("FirmaAdapter.fetchCompletedDocument — live-shape contract", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
     const { FirmaAdapter } = await import("../../../../src/adapters/esign/firma.adapter");
-    await new FirmaAdapter().fetchCompletedDocument("env_y");
+    await new FirmaAdapter(async () => [{ address: "93.184.216.34" }]).fetchCompletedDocument("env_y");
     expect(String(fetchMock.mock.calls[1][0])).toContain("final.pdf");
   });
 
@@ -547,7 +555,7 @@ describe("FirmaAdapter.fetchCompletedDocument — live-shape contract", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
     const { FirmaAdapter } = await import("../../../../src/adapters/esign/firma.adapter");
-    await expect(new FirmaAdapter().fetchCompletedDocument("env_z")).rejects.toThrow(/did not yield PDF bytes within the 20 MiB cap/);
+    await expect(new FirmaAdapter(async () => [{ address: "93.184.216.34" }]).fetchCompletedDocument("env_z")).rejects.toThrow(/did not yield PDF bytes within the 20 MiB cap/);
     const fetchedUrls = fetchMock.mock.calls.map((c) => String(c[0]));
     expect(fetchedUrls.some((u) => u.includes("original.pdf"))).toBe(false); // unsigned source never fetched
   });
@@ -555,13 +563,13 @@ describe("FirmaAdapter.fetchCompletedDocument — live-shape contract", () => {
   it("fails LOUD when the resource GET 404s (old documents-endpoint shape is gone)", async () => {
     vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({ ok: false, status: 404 })));
     const { FirmaAdapter } = await import("../../../../src/adapters/esign/firma.adapter");
-    await expect(new FirmaAdapter().fetchCompletedDocument("env_missing")).rejects.toThrow(/resource fetch failed \(404\)/);
+    await expect(new FirmaAdapter(async () => [{ address: "93.184.216.34" }]).fetchCompletedDocument("env_missing")).rejects.toThrow(/resource fetch failed \(404\)/);
   });
 
   it("fails LOUD when the resource exposes no valid HTTPS download URL", async () => {
     vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ id: "env_q", status: { sent: true, finished: true, cancelled: false, declined: false, expired: false }, document_url: "https://firma-storage.test/object/sign/a.pdf?token=t" }) })));
     const { FirmaAdapter } = await import("../../../../src/adapters/esign/firma.adapter");
-    await expect(new FirmaAdapter().fetchCompletedDocument("env_q")).rejects.toThrow(/no final_document_download_url/);
+    await expect(new FirmaAdapter(async () => [{ address: "93.184.216.34" }]).fetchCompletedDocument("env_q")).rejects.toThrow(/no final_document_download_url/);
   });
 
   it("fails LOUD when the final URL fails the %PDF- gate (aggregate error)", async () => {
@@ -573,6 +581,6 @@ describe("FirmaAdapter.fetchCompletedDocument — live-shape contract", () => {
       return Promise.resolve({ ok: true, status: 200, arrayBuffer: () => Promise.resolve(new TextEncoder().encode("<html>nope</html>").buffer) });
     }));
     const { FirmaAdapter } = await import("../../../../src/adapters/esign/firma.adapter");
-    await expect(new FirmaAdapter().fetchCompletedDocument("env_junk")).rejects.toThrow(/did not yield PDF bytes within the 20 MiB cap/);
+    await expect(new FirmaAdapter(async () => [{ address: "93.184.216.34" }]).fetchCompletedDocument("env_junk")).rejects.toThrow(/did not yield PDF bytes within the 20 MiB cap/);
   });
 });

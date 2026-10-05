@@ -77,4 +77,19 @@ describe("activeConsentKinds — chain-head resolution", () => {
     ];
     expect(activeConsentKinds(rows).size).toBe(1); // both rows are same-kind heads → kind active
   });
+
+  it("a CROSS-KIND supersedes pointer never suppresses a valid row (Cubic P2, PR #82)", () => {
+    const rows = [
+      row({ id: "c2_row", kind: "C2_release_approval", decision: "given" }),
+      row({ id: "c3_row", kind: "C3_revenue_split", decision: "given", supersedes: "c2_row" }), // malformed pointer
+    ];
+    const active = activeConsentKinds(rows);
+    expect(active.has("C2_release_approval")).toBe(true); // the C2 row stays active
+    expect(active.has("C3_revenue_split")).toBe(true);
+  });
+
+  it("a pointer at an id OUTSIDE the resolved scope is not honored", () => {
+    const rows = [row({ id: "c2_row", decision: "given", supersedes: "ghost_id" })];
+    expect(activeConsentKinds(rows).has("C2_release_approval")).toBe(true);
+  });
 });

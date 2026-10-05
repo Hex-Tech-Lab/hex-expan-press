@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import { lookup } from "node:dns/promises";
 
 /** Display-safe truncation for error messages (always marks elided content). */
 function truncate(text: string, max: number): string {
@@ -6,6 +7,11 @@ function truncate(text: string, max: number): string {
 }
 
 import { CreateEnvelopeCommand, CreateEnvelopeResult, EsignEvidencePort, EsignProviderPort, EsignWebhookPort, WebhookValidationResult } from "../../domain/esign/esign.port.ts";
+
+/** Host-resolution seam (sprint-12 closure, Cubic P2): injectable so hermetic
+ *  tests never touch the platform resolver; production defaults to DNS. */
+export type HostResolver = (host: string) => Promise<{ address: string }[]>;
+const dnsResolveHost: HostResolver = (host) => lookup(host, { all: true, verbatim: true });
 
 /**
  * Firma.dev adapter (verified against the live API 2026-09-27).
@@ -20,6 +26,8 @@ import { CreateEnvelopeCommand, CreateEnvelopeResult, EsignEvidencePort, EsignPr
  * https://app.firma.dev/signing/<recipient_id>.
  */
 export class FirmaAdapter implements EsignProviderPort, EsignWebhookPort, EsignEvidencePort {
+  constructor(private readonly resolveHost: HostResolver = dnsResolveHost) {}
+
   private base(): string {
     return process.env.FIRMA_API_BASE || "https://api.firma.dev/functions/v1/signing-request-api";
   }
@@ -85,35 +93,88 @@ export class FirmaAdapter implements EsignProviderPort, EsignWebhookPort, EsignE
     }
   }
 
-  /** Zero-trust URL validation for provider-supplied download URLs: HTTPS
-   *  only, and lexical rejection of loopback/private/link-local/metadata
-   *  hosts (SSRF surface). IPv6-aware (sprint-12-C red-team fix): Node wraps
-   *  IPv6 literals in brackets in URL.hostname — the brackets are stripped
-   *  FIRST, or every IPv6 check below is dead code. Rejects IPv6 loopback
-   *  (::1), the whole IPv4-mapped class (::ffff:), link-local (fe80::/10),
-   *  unique-local (fc00::/7), and the unspecified address (::), alongside
-   *  the existing IPv4 denylist. Returns null when the URL must not be
-   *  fetched. */
+  /** Shared forbidden-host predicate: named-host denylist + IPv4 ranges +
+   *  IPv6 ranges. IPv6-aware (sprint-12-C red-team fix): brackets are
+   *  stripped, and the FULL fe80::/10 link-local range is matched (fe8-feb,
+   *  not just fe80) plus fec0::/10 (deprecated site-local), ff00::/8
+   *  (multicast), 2001:db8::/32 (documentation), the whole ::ffff: mapped
+   *  class, ::1 and ::. IPv4: 127/8, 10/8, 172.16/12, 192.168/16, 169.254/16
+   *  (link-local incl. cloud metadata), 0/8 (this-network, incl. 0.0.0.0 —
+   *  restored after the phase-B refactor dropped it, Cubic P1), 100.64/10
+   *  (CGNAT), 255/8. Applied BOTH to URL hostnames lexically and to DNS-
+   *  resolved addresses (see assertHostIsFetchable). */
+  private isForbiddenHost(hostRaw: string): boolean {
+    const host = hostRaw.toLowerCase().replace(/^\[/, "").replace(/\]$/, "");
+    if (host === "") return true;
+    if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".internal") || host.endsWith(".local")) return true;
+    if (/^0\./.test(host)) return true; // 0.0.0.0/8 — this-network (0.0.0.0 restored, Cubic P1)
+    if (/^127\./.test(host)) return true;
+    if (/^10\./.test(host)) return true;
+    if (/^192\.168\./.test(host)) return true;
+    if (/^169\.254\./.test(host)) return true;
+    if (/^172\.(1[6-9]|2\d|3[01])\./.test(host)) return true;
+    if (/^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(host)) return true; // 100.64.0.0/10 CGNAT
+    if (/^255\./.test(host)) return true; // broadcast
+    if (host.includes(":")) {
+      if (host === "::" || host === "::1") return true; // unspecified / loopback
+      if (host.startsWith("::ffff:")) return true; // whole IPv4-mapped class
+      if (/^fe[89ab]/.test(host)) return true; // FULL fe80::/10 link-local (fe80-febf — febf::1 was the bypass)
+      if (/^f[cd]/.test(host)) return true; // fc00::/7 unique-local (fc,fd)
+      if (/^fe[c-f]/.test(host)) return true; // fec0::/10 deprecated site-local
+      if (/^ff/.test(host)) return true; // ff00::/8 multicast
+      if (host.startsWith("2001:db8")) return true; // documentation range
+      return false; // other global unicast v6 passes
+    }
+    return false;
+  }
+
+  /** Zero-trust URL validation: HTTPS only + the shared forbidden-host
+   *  predicate on the hostname. DNS-level defense is layered separately in
+   *  assertHostIsFetchable (resolution is checked before any byte is fetched). */
   private validateDownloadUrl(raw: string): string | null {
     try {
       const u = new URL(raw);
       if (u.protocol !== "https:") return null;
-      const host = u.hostname.toLowerCase().replace(/^\[/, "").replace(/\]$/, "");
-      if (host === "") return null;
-      // IPv4 / named-host denylist
-      if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".internal") || host.endsWith(".local")) return null;
-      if (/^127\./.test(host) || /^10\./.test(host) || /^192\.168\./.test(host) || /^169\.254\./.test(host) || /^172\.(1[6-9]|2\d|3[01])\./.test(host)) return null;
-      // IPv6 denylist (brackets already stripped)
-      if (host.includes(":")) {
-        if (host === "::" || host === "::1") return null; // unspecified / loopback
-        if (host.startsWith("::ffff:")) return null; // whole IPv4-mapped class — no legitimate use here
-        if (host.startsWith("fe80:") || host.startsWith("fc") || host.startsWith("fd")) return null; // link-local + unique-local
-        return raw; // other global unicast v6 passes
-      }
+      if (this.isForbiddenHost(u.hostname)) return null;
       return raw;
     } catch {
       return null;
     }
+  }
+
+  /** DNS-level SSRF defense (Cubic P2 on PR #82): resolve the hostname and
+   *  validate EVERY resolved address against the same forbidden-host
+   *  predicate — a provider-controlled DNS name pointing at a
+   *  private/metadata range is rejected before any byte is fetched.
+   *  Fail-closed on resolution failure. (Residual TOCTOU between this check
+   *  and the fetch's own resolution is documented in the THOS as accepted
+   *  residual risk; a pinned-socket undici Agent is the follow-up.) */
+  private async assertHostIsFetchable(url: string): Promise<boolean> {
+    let host: string;
+    try {
+      host = new URL(url).hostname;
+    } catch {
+      return false;
+    }
+    if (this.isForbiddenHost(host)) return false; // literal IP or named-host denylist — no DNS needed
+    let resolved: { address: string }[];
+    try {
+      resolved = await this.resolveHost(host);
+    } catch (err) {
+      console.error(`[firma-adapter] host resolution failed (fail-closed):`, err instanceof Error ? err.name : "unknown");
+      return false;
+    }
+    if (!resolved || resolved.length === 0) {
+      console.error("[firma-adapter] host resolved to zero addresses (fail-closed)");
+      return false;
+    }
+    for (const { address } of resolved) {
+      if (this.isForbiddenHost(address)) {
+        console.error(`[firma-adapter] host resolves into a forbidden range — rejected (SSRF)`);
+        return false;
+      }
+    }
+    return true;
   }
 
   /** Memory-capped download: hard 20 MiB ceiling (mirrors the consents bucket
@@ -127,7 +188,12 @@ export class FirmaAdapter implements EsignProviderPort, EsignWebhookPort, EsignE
     // send NO headers at all and omit ambient credentials, so Firma API keys
     // can never leak to the storage host.
     const res = await this.fetchWithRelease(url, { credentials: "omit", redirect: "manual", signal: AbortSignal.timeout(30_000) });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      // Cancel the rejected body so the socket is released immediately —
+      // abandoned bodies retain sockets until GC (Cubic P2, PR #82).
+      await res.body?.cancel?.().catch?.(() => {});
+      return null;
+    }
     const contentLength = res.headers?.get?.("content-length");
     if (contentLength && Number(contentLength) > MAX_EVIDENCE_BYTES) {
       await res.body?.cancel?.();
@@ -233,6 +299,10 @@ export class FirmaAdapter implements EsignProviderPort, EsignWebhookPort, EsignE
     for (let i = 0; i < candidates.length; i++) {
       let bytes: Uint8Array | null = null;
       try {
+        if (!(await this.assertHostIsFetchable(candidates[i]))) {
+          console.error(`[firma-adapter] download candidate ${i} host rejected (SSRF guard, DNS-level) for envelope ${envelopeId}`);
+          continue;
+        }
         bytes = await this.downloadCapped(candidates[i]);
       } catch (err) {
         console.error(`[firma-adapter] download candidate ${i} threw for envelope ${envelopeId}:`, err instanceof Error ? err.name : "unknown");
