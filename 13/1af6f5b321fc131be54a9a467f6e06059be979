@@ -1,0 +1,30 @@
+supabase/migrations/20261004000900_submit_consent_race_lock.sql
+  s_c2bb5a5d6f7923::t_284f74699d97d7 170
+  s_c2bb5a5d6f7923::t_aae50982a18ee3 167-169,171,174-175
+src/adapters/esign/firma.adapter.ts
+  s_c2bb5a5d6f7923::t_4b616852780568 231-237
+  s_c2bb5a5d6f7923::t_e7aa85b9060e89 112-115
+src/use_cases/process_esign_webhook.ts
+  s_c2bb5a5d6f7923::t_635afa4aacd747 56-60,63
+  s_c2bb5a5d6f7923::t_946498d36715c1 61
+web/src/lib/__tests__/esign-webhook.test.ts
+  s_c2bb5a5d6f7923::t_2c314ec4c9b5fa 201-229
+docs/agent_ledger.jsonl
+  s_c2bb5a5d6f7923::t_df3bf8704f67f6 445
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "131af6f5b321fc131be54a9a467f6e06059be979",
+  "prompts": {},
+  "sessions": {
+    "s_c2bb5a5d6f7923": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef43b105fffevRLfKBVDbL0gWm",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
