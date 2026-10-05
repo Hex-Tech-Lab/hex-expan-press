@@ -87,14 +87,29 @@ export class FirmaAdapter implements EsignProviderPort, EsignWebhookPort, EsignE
 
   /** Zero-trust URL validation for provider-supplied download URLs: HTTPS
    *  only, and lexical rejection of loopback/private/link-local/metadata
-   *  hosts (SSRF surface). Returns null when the URL must not be fetched. */
+   *  hosts (SSRF surface). IPv6-aware (sprint-12-C red-team fix): Node wraps
+   *  IPv6 literals in brackets in URL.hostname — the brackets are stripped
+   *  FIRST, or every IPv6 check below is dead code. Rejects IPv6 loopback
+   *  (::1), the whole IPv4-mapped class (::ffff:), link-local (fe80::/10),
+   *  unique-local (fc00::/7), and the unspecified address (::), alongside
+   *  the existing IPv4 denylist. Returns null when the URL must not be
+   *  fetched. */
   private validateDownloadUrl(raw: string): string | null {
     try {
       const u = new URL(raw);
       if (u.protocol !== "https:") return null;
-      const host = u.hostname.toLowerCase();
-      if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".internal") || host.endsWith(".local") || host === "::1" || host === "0.0.0.0") return null;
+      const host = u.hostname.toLowerCase().replace(/^\[/, "").replace(/\]$/, "");
+      if (host === "") return null;
+      // IPv4 / named-host denylist
+      if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".internal") || host.endsWith(".local")) return null;
       if (/^127\./.test(host) || /^10\./.test(host) || /^192\.168\./.test(host) || /^169\.254\./.test(host) || /^172\.(1[6-9]|2\d|3[01])\./.test(host)) return null;
+      // IPv6 denylist (brackets already stripped)
+      if (host.includes(":")) {
+        if (host === "::" || host === "::1") return null; // unspecified / loopback
+        if (host.startsWith("::ffff:")) return null; // whole IPv4-mapped class — no legitimate use here
+        if (host.startsWith("fe80:") || host.startsWith("fc") || host.startsWith("fd")) return null; // link-local + unique-local
+        return raw; // other global unicast v6 passes
+      }
       return raw;
     } catch {
       return null;
@@ -161,14 +176,25 @@ export class FirmaAdapter implements EsignProviderPort, EsignWebhookPort, EsignE
    *   GET) that returns the PDF bytes directly (verified: 200,
    *   application/pdf, %PDF-1.7). `final_document_download_url` is the
    *   finished-document slot; it was null on every unfinished/cancelled
-   *   request in the account, so its populated form is UNVERIFIED — preferred
-   *   when non-empty, with `document_url` as the live-verified fallback.
+   *   request in the account, so its populated form is UNVERIFIED — since
+   *   sprint-12-C it is REQUIRED (see the hardening note below).
    *
    * Sprint-12-B hardening: state-finality guard BEFORE any download (the
    * resource must independently confirm a finished, non-cancelled/declined/
    * expired request — the webhook claim alone is never trusted); HTTPS-only
-   * zero-trust URL validation (SSRF surface denied); hard 20 MiB streamed
-   * memory cap; zero credentials on the signed-URL request.
+   * zero-trust URL validation (SSRF surface denied, IPv6-aware since
+   * sprint-12-C); hard 20 MiB streamed memory cap; zero credentials on the
+   * signed-URL request.
+   *
+   * Sprint-12-C (red-team): the `document_url` fallback is ERADICATED —
+   * `final_document_download_url` is REQUIRED. `document_url` serves the
+   * unsigned SOURCE document; only the final URL carries signatures + the
+   * certificate. A missing/null/failing final URL is a TERMINAL error (Firma
+   * retries; no consent row is ever written). NOTE: the populated form of
+   * `final_document_download_url` on a genuinely completed request remains
+   * UNVERIFIED (no completed envelope exists to probe) — this directive
+   * makes it load-bearing BY DESIGN: if Firma does not populate it on
+   * completion, the pipeline fails LOUD instead of storing a draft.
    *
    * The use-case contract (bytes or throw) is unchanged: every failure path
    * throws, and NO consent row is written on any failure.
@@ -184,15 +210,34 @@ export class FirmaAdapter implements EsignProviderPort, EsignWebhookPort, EsignE
     // reach the download step at all (no URL fallback for drafts).
     this.assertDocumentFinality(envelopeId, resource);
     const body = (resource ?? {}) as { final_document_download_url?: unknown; document_url?: unknown };
-    const candidates = [body.final_document_download_url, body.document_url]
-      .filter((u): u is string => typeof u === "string" && u.startsWith("http"))
-      .map((u) => this.validateDownloadUrl(u))
-      .filter((u): u is string => u !== null);
-    if (candidates.length === 0) {
-      throw new Error(`Firma completed-document resource for envelope ${envelopeId} exposes no valid HTTPS download URL (final_document_download_url/document_url absent, non-string, or unsafe)`);
+    // SPRINT-12-C (red-team): the document_url fallback is ERADICATED.
+    // document_url serves the UNSIGNED SOURCE document; only
+    // final_document_download_url carries the signatures + certificate. The
+    // sha256 attestation cross-check downstream is defense-in-depth, not the
+    // primary gate — a draft's bytes hash to the draft's own attested hash
+    // just as validly. Missing/non-string final URL = TERMINAL error.
+    if (typeof body.final_document_download_url !== "string" || !body.final_document_download_url.startsWith("http")) {
+      throw new Error(
+        `[esign] terminal: envelope ${envelopeId} exposes no final_document_download_url — the signed artifact is not available; refusing to persist draft/source-document bytes`,
+      );
     }
+    const validated = this.validateDownloadUrl(body.final_document_download_url);
+    if (!validated) {
+      throw new Error(`[esign] terminal: envelope ${envelopeId} final_document_download_url failed the HTTPS/SSRF validation — refusing to fetch`);
+    }
+    // Loop-containment (sprint-12-C): a network rejection (timeout, DNS
+    // failure, aborted stream) must NOT escape the candidate loop and crash
+    // the function mid-flight — log and continue; the aggregate error below
+    // fires only when every allowed candidate has failed.
+    const candidates: string[] = [validated];
     for (let i = 0; i < candidates.length; i++) {
-      const bytes = await this.downloadCapped(candidates[i]);
+      let bytes: Uint8Array | null = null;
+      try {
+        bytes = await this.downloadCapped(candidates[i]);
+      } catch (err) {
+        console.error(`[firma-adapter] download candidate ${i} threw for envelope ${envelopeId}:`, err instanceof Error ? err.name : "unknown");
+        continue;
+      }
       if (!bytes) {
         console.error(`[firma-adapter] download candidate ${i} rejected (non-2xx, oversized, or unreadable) for envelope ${envelopeId}`);
         continue;
@@ -203,7 +248,7 @@ export class FirmaAdapter implements EsignProviderPort, EsignWebhookPort, EsignE
       }
       return bytes;
     }
-    throw new Error(`Firma completed-document download failed for envelope ${envelopeId} (no candidate URL returned PDF bytes within the 20 MiB cap)`);
+    throw new Error(`Firma completed-document download failed for envelope ${envelopeId} (final_document_download_url did not yield PDF bytes within the 20 MiB cap)`);
   }
 
   /**

@@ -144,7 +144,9 @@ describe("FirmaAdapter.fetchCompletedDocument (F1, LIVE-VERIFIED 2026-10-05)", (
       id: "env_doc_1",
       // Live-verified shape: status is an OBJECT, not a string.
       status: { sent: true, finished: true, cancelled: false, declined: false, expired: false },
-      final_document_download_url: null,
+      // Sprint-12-C: final_document_download_url is REQUIRED (document_url is
+      // the unsigned source document and is never fetched anymore).
+      final_document_download_url: FINAL_URL,
       document_url: SIGNED_URL,
       ...overrides,
     });
@@ -168,7 +170,7 @@ describe("FirmaAdapter.fetchCompletedDocument (F1, LIVE-VERIFIED 2026-10-05)", (
     expect(resourceUrl).toBe(RESOURCE_URL);
     expect(resourceInit.headers).toMatchObject({ Authorization: "Bearer unit-firma-key" });
     const [pdfUrl, pdfInit] = fetchMock.mock.calls[1] as unknown as [string, RequestInit];
-    expect(pdfUrl).toBe(SIGNED_URL);
+    expect(pdfUrl).toBe(FINAL_URL);
     expect((pdfInit.headers as Record<string, string> | undefined)?.Authorization).toBeUndefined();
   });
 
@@ -187,18 +189,33 @@ describe("FirmaAdapter.fetchCompletedDocument (F1, LIVE-VERIFIED 2026-10-05)", (
     expect(pdfUrl).toBe(FINAL_URL);
   });
 
-  it("falls back to document_url when the final URL yields no PDF bytes", async () => {
+  it("TERMINAL (sprint-12-C): no document_url fallback — a failing final URL never degrades to the unsigned source document", async () => {
     vi.stubEnv("FIRMA_API_KEY", "unit-firma-key");
     const fetchMock = vi.fn((input: unknown) => {
       if (String(input).includes("/signing-requests/")) return Promise.resolve(resourceResponse({ final_document_download_url: FINAL_URL }));
       if (String(input) === FINAL_URL) return Promise.resolve(jsonResponse(404, { error: "not ready" }));
+      return Promise.resolve(bytesResponse(200, EVIDENCE_BYTES)); // document_url serves a VALID PDF — must never be fetched
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const adapter = new FirmaAdapter();
+
+    await expect(adapter.fetchCompletedDocument("env_doc_1")).rejects.toThrow(/did not yield PDF bytes within the 20 MiB cap/);
+    const fetchedUrls = fetchMock.mock.calls.map((c) => String(c[0]));
+    expect(fetchedUrls).not.toContain(SIGNED_URL); // the unsigned source document was never requested
+    expect(fetchMock).toHaveBeenCalledTimes(2); // resource GET + the one strict candidate
+  });
+
+  it("TERMINAL (sprint-12-C): null final_document_download_url rejects even though document_url serves valid PDF bytes", async () => {
+    vi.stubEnv("FIRMA_API_KEY", "unit-firma-key");
+    const fetchMock = vi.fn((input: unknown) => {
+      if (String(input).includes("/signing-requests/")) return Promise.resolve(resourceResponse({ final_document_download_url: null }));
       return Promise.resolve(bytesResponse(200, EVIDENCE_BYTES));
     });
     vi.stubGlobal("fetch", fetchMock);
     const adapter = new FirmaAdapter();
 
-    await expect(adapter.fetchCompletedDocument("env_doc_1")).resolves.toEqual(EVIDENCE_BYTES);
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    await expect(adapter.fetchCompletedDocument("env_doc_1")).rejects.toThrow(/no final_document_download_url/);
+    expect(fetchMock).toHaveBeenCalledTimes(1); // no download fetch at all
   });
 
   it("throws on a non-200 resource response (route 500s → Firma retries, nothing persisted)", async () => {
@@ -209,12 +226,12 @@ describe("FirmaAdapter.fetchCompletedDocument (F1, LIVE-VERIFIED 2026-10-05)", (
     await expect(adapter.fetchCompletedDocument("env_doc_2")).rejects.toThrow(/completed-document resource fetch failed \(503\)/);
   });
 
-  it("throws when the resource exposes no valid HTTPS download URL (absent, non-string, or unsafe)", async () => {
+  it("TERMINAL (sprint-12-C): non-string final_document_download_url rejects", async () => {
     vi.stubEnv("FIRMA_API_KEY", "unit-firma-key");
     vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(resourceResponse({ document_url: null, final_document_download_url: 42 }))));
     const adapter = new FirmaAdapter();
 
-    await expect(adapter.fetchCompletedDocument("env_doc_3")).rejects.toThrow(/no valid HTTPS download URL/);
+    await expect(adapter.fetchCompletedDocument("env_doc_3")).rejects.toThrow(/no final_document_download_url/);
   });
 
   it("throws when no candidate URL yields PDF bytes (200 with EMPTY or non-PDF bytes must never become evidence)", async () => {
@@ -226,7 +243,7 @@ describe("FirmaAdapter.fetchCompletedDocument (F1, LIVE-VERIFIED 2026-10-05)", (
     ));
     const adapter = new FirmaAdapter();
 
-    await expect(adapter.fetchCompletedDocument("env_doc_4")).rejects.toThrow(/no candidate URL returned PDF bytes within the 20 MiB cap/);
+    await expect(adapter.fetchCompletedDocument("env_doc_4")).rejects.toThrow(/did not yield PDF bytes within the 20 MiB cap/);
   });
 
   // ---- Sprint-12-B: state finality (draft-acceptance vulnerability) ----
@@ -276,17 +293,23 @@ describe("FirmaAdapter.fetchCompletedDocument (F1, LIVE-VERIFIED 2026-10-05)", (
     ["https://localhost/object/sign/a.pdf", "localhost"],
     ["https://169.254.169.254/latest/meta-data", "cloud metadata endpoint"],
     ["https://10.0.0.5/object/sign/a.pdf", "private 10.x"],
-    ["not a url at all", "unparseable"],
+    ["https://[::1]/object/sign/a.pdf", "IPv6 loopback (bracketed literal)"],
+    ["https://[::ffff:127.0.0.1]/object/sign/a.pdf", "IPv4-mapped loopback"],
+    ["https://[::ffff:169.254.169.254]/latest/meta-data", "IPv4-mapped metadata endpoint"],
+    ["https://[::ffff:8.8.8.8]/object/sign/a.pdf", "IPv4-mapped public (whole class rejected)"],
+    ["https://[fe80::1]/object/sign/a.pdf", "IPv6 link-local"],
+    ["https://[fd00::1]/object/sign/a.pdf", "IPv6 unique-local (fc00::/7)"],
+    ["https://[::]/object/sign/a.pdf", "unspecified address"],
   ])("rejects unsafe download URL (%s — %s)", async (badUrl) => {
     vi.stubEnv("FIRMA_API_KEY", "unit-firma-key");
     vi.stubGlobal("fetch", vi.fn((input: unknown) =>
       String(input).includes("/signing-requests/")
-        ? Promise.resolve(resourceResponse({ document_url: badUrl }))
+        ? Promise.resolve(resourceResponse({ final_document_download_url: badUrl }))
         : Promise.resolve(bytesResponse(200, EVIDENCE_BYTES)),
     ));
     const adapter = new FirmaAdapter();
 
-    await expect(adapter.fetchCompletedDocument("env_ssrf")).rejects.toThrow(/no valid HTTPS download URL/);
+    await expect(adapter.fetchCompletedDocument("env_ssrf")).rejects.toThrow(/failed the HTTPS\/SSRF validation/);
   });
 
   it("sends NO credentials to the signed URL: headers empty, credentials omitted", async () => {
@@ -308,6 +331,21 @@ describe("FirmaAdapter.fetchCompletedDocument (F1, LIVE-VERIFIED 2026-10-05)", (
     expect(headers["apikey"]).toBeUndefined();
     expect(Object.keys(headers)).toHaveLength(0);
     expect(signedUrlInit?.credentials).toBe("omit");
+  });
+
+  it("loop containment: a network rejection during download is caught INSIDE the loop (aggregate error, not the raw throw)", async () => {
+    vi.stubEnv("FIRMA_API_KEY", "unit-firma-key");
+    const fetchMock = vi.fn((input: unknown) => {
+      if (String(input).includes("/signing-requests/")) return Promise.resolve(resourceResponse());
+      return Promise.reject(new TypeError("fetch failed: DNS timeout")); // network-level rejection
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const adapter = new FirmaAdapter();
+
+    // The raw TypeError must NOT escape — the loop catches, logs, and the
+    // aggregate terminal error is thrown instead.
+    await expect(adapter.fetchCompletedDocument("env_neterr")).rejects.toThrow(/did not yield PDF bytes within the 20 MiB cap/);
+    await expect(adapter.fetchCompletedDocument("env_neterr2").catch((e: unknown) => Promise.reject((e as Error).message.includes("DNS timeout") ? new Error("RAW-ESCAPED") : e))).rejects.toThrow(/did not yield PDF bytes/);
   });
 
   // ---- Sprint-12-B: memory exhaustion cap ----
