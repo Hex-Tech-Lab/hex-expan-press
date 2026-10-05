@@ -90,7 +90,17 @@ vi.mock("@supabase/supabase-js", () => ({
     },
     from: (table: string) => {
       if (table === "audit_log") {
-        return { insert: async (row: Record<string, unknown>) => insertAudit(row) };
+        return {
+          insert: async (row: Record<string, unknown>) => insertAudit(row),
+          // flagRefundForManualReview upserts on idempotency_key (20261004001000);
+          // ignoreDuplicates maps a duplicate key to DO NOTHING — a clean success,
+          // NOT a 23505 error. Only real (non-duplicate) audit failures surface.
+          upsert: async (row: Record<string, unknown>) => {
+            const res = insertAudit(row);
+            if (res.error !== null && (res.error as { code?: string }).code === "23505") return { error: null };
+            return res;
+          },
+        };
       }
       const filters: Record<string, unknown> = {};
       const eq = (col: string, val: unknown): object => {
@@ -101,7 +111,7 @@ vi.mock("@supabase/supabase-js", () => ({
         if (supa.adjLookupResult === null) return supa.lookupResult;
         return "provider_adjustment_id" in filters ? supa.adjLookupResult : { data: null, error: null };
       };
-      return { select: () => ({ eq }), upsert: async () => ({ error: supa.upsertError }) };
+      return { select: () => ({ eq }), upsert: async () => ({ error: supa.upsertError }), insert: async (row: Record<string, unknown>) => insertAudit(row) };
     },
   }),
 }));
@@ -139,6 +149,7 @@ vi.mock("../../../../payments/src/settings_registry.ts", () => ({
   expandHome: (p: string, home: string) => (home && (p === "~" || p.startsWith("~/")) ? p : p),
   isRegisteredPaymentProvider: (name: unknown) => typeof name === "string",
   paymentProviderSetting: () => undefined,
+  isMoneyPath: () => process.env.NODE_ENV === "production" || process.env.VERCEL_ENV !== undefined || !!process.env.AWS_LAMBDA_FUNCTION_NAME,
 }));
 
 describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
@@ -282,7 +293,7 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
     vi.stubEnv("UPSTASH_REDIS_REST_TOKEN", "");
     vi.stubEnv("VERCEL_ENV", "production");
     await expect(processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(SALE)])).rejects.toThrow(
-      /lock unavailable: Redis is not configured in production/,
+      /lock unavailable: Redis is not configured in a money-path runtime/,
     );
     expect(() => readFileSync(salesFilePath, "utf8")).toThrow(); // nothing written
   });
@@ -1294,6 +1305,39 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
       supa.adjLookupResult = conflicts(CB_SALE.sale_id, 39, "EUR");
       try {
         expectConflictPending(await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbReversal("adj_rev_other_cur") as never)]));
+        expect(supa.auditInserts).toHaveLength(1);
+        expect(supa.auditInserts[0]).toMatchObject({
+          event: "MANUAL_REVIEW_REQUIRED_REFUND",
+          details: expect.objectContaining({ reason: "adjustment_id_collision" }),
+        });
+      } finally {
+        cleanup23505();
+      }
+    });
+
+    it("refund: 23505 + conflicting row with a NULL stored currency -> empty string treated as non-matching -> 202 conflict_pending", async () => {
+      race23505();
+      supa.adjLookupResult = conflicts();
+      (supa.adjLookupResult.data as { currency: string | null }).currency = null;
+      try {
+        expectConflictPending(await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_null_currency"))]));
+        expect(supa.auditInserts).toHaveLength(1);
+        expect(supa.auditInserts[0]).toMatchObject({
+          event: "MANUAL_REVIEW_REQUIRED_REFUND",
+          details: expect.objectContaining({ reason: "adjustment_id_collision", sale_id: CB_SALE.sale_id }),
+        });
+      } finally {
+        cleanup23505();
+      }
+    });
+
+    it("reversal: 23505 + conflicting row with a NULL stored currency -> empty string treated as non-matching -> 202 conflict_pending", async () => {
+      await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_rev_nullc_refund"))]);
+      race23505();
+      supa.adjLookupResult = conflicts();
+      (supa.adjLookupResult.data as { currency: string | null }).currency = null;
+      try {
+        expectConflictPending(await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbReversal("adj_rev_nullc") as never)]));
         expect(supa.auditInserts).toHaveLength(1);
         expect(supa.auditInserts[0]).toMatchObject({
           event: "MANUAL_REVIEW_REQUIRED_REFUND",

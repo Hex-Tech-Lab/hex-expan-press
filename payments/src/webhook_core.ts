@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { isRegisteredPaymentProvider, paymentProviderSetting, GLOBAL } from "./settings_registry.ts";
+import { isRegisteredPaymentProvider, paymentProviderSetting, isMoneyPath, GLOBAL } from "./settings_registry.ts";
 import { loadConfig, type ProductConfig } from "./settings.ts";
 import { expanRedis, isRedisRestConfigured } from "../../src/infrastructure/redis/redis.client.ts";
 import type { ProviderName } from "./provider.ts";
@@ -104,11 +104,6 @@ function isRedisConfigured(): boolean {
   return isRedisRestConfigured();
 }
 
-/** Strictly Vercel production — previews/local/tests keep the lock optional. */
-function isProduction(): boolean {
-  return process.env.VERCEL_ENV === "production";
-}
-
 /**
  * Thrown when another delivery holds the idempotency lock. The holder may still
  * FAIL, so this must never be acknowledged as success: callers either confirm the
@@ -129,8 +124,8 @@ export async function withIdempotencyLock(
     // Production must never process money without the distributed lock: an
     // unconfigured store throws (→ 500, provider retries) instead of silently
     // running unlocked. Elsewhere the lock stays optional infra.
-    if (isProduction()) {
-      throw new Error("webhook idempotency lock unavailable: Redis is not configured in production (set UPSTASH_REDIS_REST_* or KV_REST_API_*)");
+    if (isMoneyPath()) {
+      throw new Error("webhook idempotency lock unavailable: Redis is not configured in a money-path runtime (production/previews/Lambda) (set UPSTASH_REDIS_REST_* or KV_REST_API_*)");
     }
     return fn();
   }
@@ -152,3 +147,4 @@ export async function withIdempotencyLock(
     throw err;
   }
 }
+

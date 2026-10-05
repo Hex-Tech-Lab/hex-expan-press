@@ -5,7 +5,7 @@ function truncate(text: string, max: number): string {
   return text.length > max ? `${text.slice(0, max)}...` : text;
 }
 
-import { CreateEnvelopeCommand, CreateEnvelopeResult, EsignProviderPort, EsignWebhookPort, WebhookValidationResult } from "../../domain/esign/esign.port.ts";
+import { CreateEnvelopeCommand, CreateEnvelopeResult, EsignEvidencePort, EsignProviderPort, EsignWebhookPort, WebhookValidationResult } from "../../domain/esign/esign.port.ts";
 
 /**
  * Firma.dev adapter (verified against the live API 2026-09-27).
@@ -19,7 +19,7 @@ import { CreateEnvelopeCommand, CreateEnvelopeResult, EsignProviderPort, EsignWe
  * into positioned fields), then the embedded signing URL is
  * https://app.firma.dev/signing/<recipient_id>.
  */
-export class FirmaAdapter implements EsignProviderPort, EsignWebhookPort {
+export class FirmaAdapter implements EsignProviderPort, EsignWebhookPort, EsignEvidencePort {
   private base(): string {
     return process.env.FIRMA_API_BASE || "https://api.firma.dev/functions/v1/signing-request-api";
   }
@@ -58,6 +58,68 @@ export class FirmaAdapter implements EsignProviderPort, EsignWebhookPort {
     });
     if (!res.ok) throw new Error(`Agreement PDF fetch failed (${res.status}) for ${path}`);
     return new Uint8Array(await res.arrayBuffer());
+  }
+
+  /**
+   * Retrieve the signed (completed) PDF for an envelope (sprint-10 audit F1).
+   *
+   * NEEDS-LIVE-VERIFICATION: no repo artifact documents the exact Firma
+   * endpoint for the completed document. This implements the best-documented
+   * REST shape — GET on the signing-request's documents resource returning
+   * the PDF bytes — over the create-and-send base and auth headers that WERE
+   * live-verified 2026-09-27. `attach_pdf_on_finish: true` (createEnvelope)
+   * makes the artifact exist at completion; if the live API differs (e.g. a
+   * files[] list on the request GET), only this method changes — the use-case
+   * contract (bytes or throw) does not.
+   */
+  async fetchCompletedDocument(envelopeId: string): Promise<Uint8Array> {
+    const res = await this.fetchWithRelease(`${this.base()}/signing-requests/${encodeURIComponent(envelopeId)}/documents`, {
+      headers: this.authHeaders()
+    });
+    if (!res.ok) throw new Error(`Firma completed-document fetch failed (${res.status}) for envelope ${envelopeId}`);
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    if (bytes.length === 0) throw new Error(`Firma completed-document fetch returned empty bytes for envelope ${envelopeId}`);
+    if (Buffer.from(bytes.slice(0, 5)).toString("latin1") !== "%PDF-") {
+      throw new Error(`Firma completed-document fetch returned non-PDF bytes for envelope ${envelopeId} (expected %PDF- header)`);
+    }
+    return bytes;
+  }
+
+  /**
+   * Upload the consent evidence PDF to Supabase Storage (service role) and
+   * verify the write with a read-back GET (sprint-10 audit F1). Mirrors
+   * fetchAgreementPdf's header pattern in the reversed (PUT) direction; the
+   * storage object must exist and round-trip BEFORE any consent row is
+   * persisted. `x-upsert: true` keeps re-uploads idempotent for replayed
+   * envelopes. Throws on any failure.
+   */
+  async uploadConsentEvidence(objectPath: string, bytes: Uint8Array): Promise<void> {
+    const url = process.env.SUPABASE_URL;
+    const key = process.env.SUPABASE_SECRET_KEY;
+    if (!url || !key) throw new Error("SUPABASE_URL/SUPABASE_SECRET_KEY are not configured");
+    const objectUrl = `${url}/storage/v1/object/consents/${objectPath}`;
+    const headers = { apikey: key, Authorization: `Bearer ${key}` };
+    const put = await this.fetchWithRelease(objectUrl, {
+      method: "PUT",
+      headers: { ...headers, "Content-Type": "application/pdf", "x-upsert": "true" },
+      body: Buffer.from(bytes)
+    });
+    if (!put.ok) {
+      const detail = await put.text().catch(() => "");
+      if (put.status === 400 && detail.includes("Bucket not found")) {
+        throw new Error(`Consent evidence upload failed: Storage bucket "consents" does not exist — provision it in the Supabase project (F1 evidence gate cannot record without it)`);
+      }
+      // Include the truncated response body in the generic branch too: a 401/403/404
+      // (e.g. invalid service-role key) previously rethrew without the diagnostic
+      // detail the code had already fetched (external review PR #78).
+      throw new Error(`Consent evidence upload failed (${put.status}) for ${objectPath}${detail ? `: ${detail.slice(0, 200)}` : ""}`);
+    }
+    const verify = await this.fetchWithRelease(objectUrl, { headers });
+    if (!verify.ok) throw new Error(`Consent evidence verification failed (${verify.status}) for ${objectPath}`);
+    const roundTrip = new Uint8Array(await verify.arrayBuffer());
+    if (roundTrip.length !== bytes.length || !Buffer.from(roundTrip).equals(Buffer.from(bytes))) {
+      throw new Error(`Consent evidence verification mismatch for ${objectPath} (uploaded ${bytes.length} bytes, read back ${roundTrip.length})`);
+    }
   }
 
   private splitName(name: string): { firstName: string; lastName: string } {
@@ -137,7 +199,7 @@ export class FirmaAdapter implements EsignProviderPort, EsignWebhookPort {
     // skip-HMAC mode — that would let an attacker circumvent verification simply
     // by removing the env var. Reject instead.
     if (!secret) {
-      return { isValid: false, error: "FIRMA_WEBHOOK_SECRET not configured — HMAC verification cannot run" };
+      return { isValid: false, error: "FIRMA_WEBHOOK_SECRET not configured — HMAC verification cannot run", httpStatus: 401 };
     }
     const hash = crypto.createHmac("sha256", secret).update(body).digest("hex");
     // Constant-time compare (sharp-edges audit 2026-10-01): `===` on hex
@@ -145,12 +207,12 @@ export class FirmaAdapter implements EsignProviderPort, EsignWebhookPort {
     // Buffer.from(…, "hex") silently drops a trailing odd digit or junk, so a
     // valid signature plus a suffix would otherwise decode to the right bytes.
     if (!sig || !/^[0-9a-f]{64}$/i.test(sig)) {
-      return { isValid: false, error: "Invalid signature" };
+      return { isValid: false, error: "Invalid signature", httpStatus: 401 };
     }
     const expected = Buffer.from(hash, "hex");
     const provided = Buffer.from(sig, "hex");
     if (provided.length !== expected.length || !crypto.timingSafeEqual(expected, provided)) {
-      return { isValid: false, error: "Invalid signature" };
+      return { isValid: false, error: "Invalid signature", httpStatus: 401 };
     }
 
     try {
@@ -166,12 +228,20 @@ export class FirmaAdapter implements EsignProviderPort, EsignWebhookPort {
           eventType: "envelope.completed",
           envelopeId: payload?.data?.signing_request?.id || "unknown",
           metadata: payload?.data?.signing_request?.metadata || {},
-          documentHash: payload?.data?.signing_request?.document_sha256 || ""
+          // String-typed only: a JSON-array hash ("[\"<64hex>\"]") would coerce
+          // through the regex gate and then explode on .toLowerCase() with an
+          // unhandled 500 retry loop (external review PR #78). Non-strings
+          // map to "" so the use case's hash gate answers a typed 400.
+          documentHash: typeof payload?.data?.signing_request?.document_sha256 === "string"
+            ? payload.data.signing_request.document_sha256
+            : ""
         }
       };
     } catch (err) {
       console.error("[firma-adapter] webhook body is not valid JSON", err);
-      return { isValid: false, error: "Invalid JSON body" };
+      // Post-authentication failure (the signature verified above): a 400, so
+      // the route may quarantine it as a terminal reject.
+      return { isValid: false, error: "Invalid JSON body", httpStatus: 400 };
     }
   }
 }

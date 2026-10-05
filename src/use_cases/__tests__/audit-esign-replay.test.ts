@@ -11,6 +11,10 @@ vi.mock("../../adapters/esign/esign.factory.ts", () => ({
       event: { eventType: "envelope.completed", envelopeId: "env_1", documentHash: "a".repeat(64),
                metadata: { productId: "p1", userId: "u1" } },
     }),
+    // Evidence-before-insert (F1): the mock returns real bytes so the upload
+    // path succeeds and the replay contract below stays the focus.
+    fetchCompletedDocument: () => Promise.resolve(new Uint8Array([0x25, 0x50, 0x44, 0x46])),
+    uploadConsentEvidence: () => Promise.resolve(),
   }),
 }));
 
@@ -20,6 +24,7 @@ function uniqueConsentDb() {
   return {
     rows,
     flagConsentForManualReview: vi.fn(async () => {}),
+    hasConsentFor: vi.fn(async (kind: string, externalRef: string) => rows.has(`${kind}:${externalRef}`)),
     submitConsent: vi.fn(async (c: { kind: string; externalRef?: string }) => {
       const key = `${c.kind}:${c.externalRef}`;
       if (rows.has(key)) {
@@ -52,7 +57,7 @@ describe("F5 esign replay", () => {
       code: "23505",
       constraint: "consents_kind_external_ref_uidx",
     });
-    const db = { submitConsent: vi.fn(async () => { throw err; }), flagConsentForManualReview: vi.fn(async () => {}) };
+    const db = { submitConsent: vi.fn(async () => { throw err; }), flagConsentForManualReview: vi.fn(async () => {}), hasConsentFor: vi.fn(async () => false) };
     await expect(processEsignWebhookUseCase(req, settings as never, db as never)).resolves.toBeUndefined();
     expect(infoSpy).toHaveBeenCalledWith(expect.stringContaining("env_1"));
     expect(infoSpy).toHaveBeenCalledWith(expect.stringContaining("C3_revenue_split"));
@@ -65,13 +70,13 @@ describe("F5 esign replay", () => {
       code: "23505",
       constraint: "consents_pkey",
     });
-    const db = { submitConsent: vi.fn(async () => { throw err; }), flagConsentForManualReview: vi.fn(async () => {}) };
+    const db = { submitConsent: vi.fn(async () => { throw err; }), flagConsentForManualReview: vi.fn(async () => {}), hasConsentFor: vi.fn(async () => false) };
     await expect(processEsignWebhookUseCase(req, settings as never, db as never)).rejects.toThrow(/duplicate other constraint/);
   });
 
   it("still fails on any other database error", async () => {
     const { processEsignWebhookUseCase } = await import("../process_esign_webhook.ts");
-    const db = { submitConsent: vi.fn(async () => { throw Object.assign(new Error("boom"), { code: "XX000" }); }) };
+    const db = { submitConsent: vi.fn(async () => { throw Object.assign(new Error("boom"), { code: "XX000" }); }), hasConsentFor: vi.fn(async () => false) };
     await expect(processEsignWebhookUseCase(req, settings as never, db as never)).rejects.toThrow(/boom/);
   });
 });
