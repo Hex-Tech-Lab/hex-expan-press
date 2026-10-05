@@ -1,0 +1,35 @@
+src/adapters/esign/__tests__/firma.adapter.test.ts
+  s_c2bb5a5d6f7923::t_a50f91550cc843 147-149,173,192,197-211,217-218,234,246,307,349
+  s_c2bb5a5d6f7923::t_ffd97084b4e9e8 312
+  s_c2bb5a5d6f7923::t_3b17bfd40896aa 229
+  s_c2bb5a5d6f7923::t_3fca91dcfd2971 296-302,336-348
+  s_c2bb5a5d6f7923::t_5ea0e5a082c25a 350
+src/adapters/esign/firma.adapter.ts
+  s_c2bb5a5d6f7923::t_d2201f59b76555 179-180
+  s_c2bb5a5d6f7923::t_87a17de69c2983 185-197
+  s_c2bb5a5d6f7923::t_e1f4b69038ea94 90-96,101-104,106-112
+  s_c2bb5a5d6f7923::t_eb70a45b3f9f1c 213-222,224-232,234-240,251
+src/use_cases/__tests__/process_esign_webhook.test.ts
+  s_c2bb5a5d6f7923::t_096a676c775a24 118,129-131,134
+web/src/lib/__tests__/esign-webhook.test.ts
+  s_c2bb5a5d6f7923::t_10b28452676091 567,576
+  s_c2bb5a5d6f7923::t_d51987ac56f6c6 72-73,491,530-531,546,550-552,562,564,571
+docs/agent_ledger.jsonl
+  s_c2bb5a5d6f7923::t_1b5676cc64705a 452
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "44187d95524dd9d79098e4762664bd0f513e9027",
+  "prompts": {},
+  "sessions": {
+    "s_c2bb5a5d6f7923": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef43b105fffevRLfKBVDbL0gWm",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
