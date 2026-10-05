@@ -35,6 +35,11 @@ vi.mock("@supabase/supabase-js", () => ({
             supa.auditInserts.push(row);
             return { error: supa.auditInsertError };
           },
+          // flagRefundForManualReview upserts on idempotency_key (20261004001000)
+          upsert: async (row: Record<string, unknown>) => {
+            supa.auditInserts.push(row);
+            return { error: supa.auditInsertError };
+          },
         };
       }
       const eq = () => ({ eq, maybeSingle: async () => supa.lookupResult });

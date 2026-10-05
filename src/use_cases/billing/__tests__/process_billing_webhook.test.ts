@@ -90,7 +90,12 @@ vi.mock("@supabase/supabase-js", () => ({
     },
     from: (table: string) => {
       if (table === "audit_log") {
-        return { insert: async (row: Record<string, unknown>) => insertAudit(row) };
+        return {
+          insert: async (row: Record<string, unknown>) => insertAudit(row),
+          // flagRefundForManualReview upserts on idempotency_key (20261004001000);
+          // ignoreDuplicates DO NOTHING maps to a clean success in the happy path.
+          upsert: async (row: Record<string, unknown>) => insertAudit(row),
+        };
       }
       const filters: Record<string, unknown> = {};
       const eq = (col: string, val: unknown): object => {
@@ -101,7 +106,7 @@ vi.mock("@supabase/supabase-js", () => ({
         if (supa.adjLookupResult === null) return supa.lookupResult;
         return "provider_adjustment_id" in filters ? supa.adjLookupResult : { data: null, error: null };
       };
-      return { select: () => ({ eq }), upsert: async () => ({ error: supa.upsertError }) };
+      return { select: () => ({ eq }), upsert: async () => ({ error: supa.upsertError }), insert: async (row: Record<string, unknown>) => insertAudit(row) };
     },
   }),
 }));

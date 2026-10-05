@@ -111,7 +111,12 @@ export const OrderUpsertSchema = z.strictObject({
     }
   }
 });
-class OrderSchemaError extends Error {}
+export class OrderSchemaError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "OrderSchemaError";
+  }
+}
 
 /** Dual-write an order record to Supabase public.orders for permanent serverless persistence. */
 async function persistToSupabaseOrder(record: SaleRecord): Promise<void> {
@@ -119,8 +124,9 @@ async function persistToSupabaseOrder(record: SaleRecord): Promise<void> {
   const key = process.env.SUPABASE_SECRET_KEY;
   if (!url || !key) {
     // Serverless /tmp is ephemeral: skipping the durable write there would lose the sale for good. Fail loud (500 → provider retries).
-    if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
-      throw new Error("ledger: SUPABASE_URL/SUPABASE_SECRET_KEY missing in a serverless runtime — refusing to record a ledger entry without the durable store");
+    // Money-path predicate (isMoneyPath), not a Vercel/Lambda env sniff: a prod-like runtime without VERCEL_ENV must also fail closed.
+    if (isMoneyPath()) {
+      throw new Error("ledger: SUPABASE_URL/SUPABASE_SECRET_KEY missing in a money-path runtime — refusing to record a ledger entry without the durable store");
     }
     return;
   }
@@ -409,9 +415,19 @@ export async function flagRefundForManualReview(input: ManualReviewRefund): Prom
   }
   const { createClient } = await import("@supabase/supabase-js");
   const supabase = createClient(url, key);
-  const { error } = await supabase.from("audit_log").insert({ event: "MANUAL_REVIEW_REQUIRED_REFUND", details });
-  // 23505 = this exact collision was already flagged (audit_log dedupe index): idempotent success.
-  if (error && error.code !== "23505") throw new Error(`ledger: manual-review flag write failed: ${error.message}`);
+  // Deterministic idempotency key (audit_log_idempotency_uidx, 20261004001000):
+  // redeliveries of the same collision upsert to a no-op instead of spamming
+  // duplicate review tasks. Mirrors the details-key dedupe the collision index
+  // enforces, but survives event-type widening without new partial indexes.
+  const idempotencyKey = `MANUAL_REVIEW_REQUIRED_REFUND:${details.provider}:${details.sale_id}:${details.event_type}:${details.reason}`;
+  const { error } = await supabase
+    .from("audit_log")
+    .upsert(
+      { event: "MANUAL_REVIEW_REQUIRED_REFUND", details, idempotency_key: idempotencyKey },
+      { onConflict: "idempotency_key", ignoreDuplicates: true },
+    );
+  // ignoreDuplicates swallows the duplicate case; any other error is a real failure.
+  if (error) throw new Error(`ledger: manual-review flag write failed: ${error.message}`);
 }
 
 /**

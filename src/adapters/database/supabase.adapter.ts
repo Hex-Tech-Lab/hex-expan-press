@@ -50,7 +50,17 @@ export class SupabaseAdapter implements ConsentDatabasePort {
   }
 
   async flagConsentForManualReview(flag: ConsentManualReviewFlag): Promise<void> {
-    const { error } = await this.ensureClient().from("audit_log").insert({ event: "MANUAL_REVIEW_REQUIRED_CONSENT", details: flag });
+    // Deterministic idempotency key (audit_log_idempotency_uidx, 20261004001000):
+    // replayed envelopes re-run this flag at-least-once by design (#74) — the key
+    // makes those redeliveries upsert to a no-op instead of spamming duplicate
+    // MANUAL_REVIEW_REQUIRED_CONSENT review tasks.
+    const idempotencyKey = `MANUAL_REVIEW_REQUIRED_CONSENT:${flag.kind}:${flag.envelope_id}:${flag.reason}`;
+    const { error } = await this.ensureClient()
+      .from("audit_log")
+      .upsert(
+        { event: "MANUAL_REVIEW_REQUIRED_CONSENT", details: flag, idempotency_key: idempotencyKey },
+        { onConflict: "idempotency_key", ignoreDuplicates: true },
+      );
     if (error) throw new Error(`Failed to flag consent for manual review: ${error.message}`);
   }
 

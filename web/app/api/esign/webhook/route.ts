@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createHash } from "node:crypto";
 import { EnvSettingsAdapter } from "../../../../../src/adapters/settings/env_settings.adapter";
 import { SupabaseAdapter } from "../../../../../src/adapters/database/supabase.adapter";
 import { processEsignWebhookUseCase } from "../../../../../src/use_cases/process_esign_webhook";
@@ -62,6 +63,31 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       status = 400;
     } else {
       status = 500;
+    }
+    // Terminal-reject quarantine: a 400 is final (Firma stops retrying), so the
+    // rejected event must be durably recorded. Payload sha256 only — the raw body
+    // carries signer PII and audit_log must not hold it. Best-effort: a quarantine
+    // failure must never change the already-computed response.
+    if (status < 500) {
+      try {
+        const url = process.env.SUPABASE_URL;
+        const key = process.env.SUPABASE_SECRET_KEY;
+        if (url && key) {
+          const { createClient } = await import("@supabase/supabase-js");
+          const supabase = createClient(url, key);
+          const { error } = await supabase.from("audit_log").insert({
+            event: "WEBHOOK_TERMINAL_REJECT",
+            details: {
+              provider: "esign",
+              reason: err instanceof Error ? err.name : "unknown",
+              payload_sha256: createHash("sha256").update(body).digest("hex"),
+            },
+          });
+          if (error) console.error("[esign-webhook] terminal-reject quarantine insert failed:", error.message);
+        }
+      } catch (qErr) {
+        console.error("[esign-webhook] terminal-reject quarantine exception:", qErr);
+      }
     }
     return NextResponse.json(
       { ok: false, error: status === 500 ? "Internal Server Error" : "Bad Request" },

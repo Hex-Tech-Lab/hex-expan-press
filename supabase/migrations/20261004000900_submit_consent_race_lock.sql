@@ -135,12 +135,14 @@ begin
   -- F6 (sprint10): serialize concurrent submits for the same (product, kind) so two
   -- transactions can never both read the same prior head and insert two live heads.
   perform pg_advisory_xact_lock(hashtextextended(p_product_id::text || ':' || p_kind, 0));
-  -- Find previous consent of the same kind to set supersedes
+  -- Find previous consent of the same kind to set supersedes.
+  -- id DESC tie-breaker: two rows can share signed_at (same-millisecond inserts);
+  -- without the tie-break the pick is nondeterministic across replays.
   select id into v_supersedes
   from public.consents
   where product_id = p_product_id
     and kind = p_kind::public.consent_kind
-  order by signed_at desc
+  order by signed_at desc, id desc
   limit 1;
 
   -- clock_timestamp(), not the column default now(): now() is transaction-start
