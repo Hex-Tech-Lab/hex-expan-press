@@ -112,7 +112,7 @@ describe("esign webhook (Firma HMAC contract)", () => {
     const { body, headers } = signedBody(completedPayload({ productId: "p1", userId: "u1" }), "attacker-secret");
     const request = { body, headers, ip: "10.0.0.1", userAgent: "firma-webhook" };
 
-    await expect(processEsignWebhookUseCase(request, settings, { submitConsent, flagConsentForManualReview: vi.fn() })).rejects.toThrow("validation failed");
+    await expect(processEsignWebhookUseCase(request, settings, { submitConsent, flagConsentForManualReview: vi.fn(), hasConsentFor: vi.fn().mockResolvedValue(false) })).rejects.toThrow("validation failed");
     expect(submitConsent).not.toHaveBeenCalled();
   });
 
@@ -132,7 +132,7 @@ describe("esign webhook (Firma HMAC contract)", () => {
     const body = JSON.stringify(completedPayload({ productId: "p1", userId: "u1" }));
     const request = { body, headers: { "content-type": "application/json" }, ip: "10.0.0.1", userAgent: "" };
 
-    await expect(processEsignWebhookUseCase(request, settings, { submitConsent, flagConsentForManualReview: vi.fn() })).rejects.toThrow("validation failed");
+    await expect(processEsignWebhookUseCase(request, settings, { submitConsent, flagConsentForManualReview: vi.fn(), hasConsentFor: vi.fn().mockResolvedValue(false) })).rejects.toThrow("validation failed");
     expect(submitConsent).not.toHaveBeenCalled();
   });
 
@@ -153,7 +153,7 @@ describe("esign webhook (Firma HMAC contract)", () => {
     const { body, headers } = signedBody(completedPayload({}));
     const request = { body, headers, ip: "10.0.0.1", userAgent: "firma-webhook" };
 
-    await expect(processEsignWebhookUseCase(request, settings, { submitConsent, flagConsentForManualReview: vi.fn() })).rejects.toThrow(
+    await expect(processEsignWebhookUseCase(request, settings, { submitConsent, flagConsentForManualReview: vi.fn(), hasConsentFor: vi.fn().mockResolvedValue(false) })).rejects.toThrow(
       /missing productId\/userId/,
     );
     // Missing metadata must never produce a partial/garbage consent record.
@@ -182,7 +182,7 @@ describe("esign webhook (Firma HMAC contract)", () => {
     });
     const request = { body, headers, ip: "10.0.0.1", userAgent: "firma-webhook" };
 
-    const rejection = processEsignWebhookUseCase(request, settings, { submitConsent, flagConsentForManualReview: vi.fn() });
+    const rejection = processEsignWebhookUseCase(request, settings, { submitConsent, flagConsentForManualReview: vi.fn(), hasConsentFor: vi.fn().mockResolvedValue(false) });
     await expect(rejection).rejects.toBeInstanceOf(WebhookValidationError);
     await expect(rejection).rejects.toMatchObject({ httpStatus: 400 });
     await expect(rejection).rejects.toThrow(/env_no_hash.*document_sha256/);
@@ -208,7 +208,7 @@ describe("esign webhook (Firma HMAC contract)", () => {
     const request = { body, headers, ip: "203.0.113.9", userAgent: "firma-webhook/1.0" };
 
     const flagConsentForManualReview = vi.fn().mockResolvedValue(undefined);
-    await processEsignWebhookUseCase(request, settings, { submitConsent, flagConsentForManualReview });
+    await processEsignWebhookUseCase(request, settings, { submitConsent, flagConsentForManualReview, hasConsentFor: vi.fn().mockResolvedValue(false) });
 
     expect(submitConsent).toHaveBeenCalledTimes(1);
     // No snapshot on the envelope: never stamped with the current registry version; routed for manual review.
@@ -267,7 +267,7 @@ describe("esign webhook (Firma HMAC contract)", () => {
 
     const { body, headers } = signedBody(completedPayload({ productId: "prod_42", userId: USER, textVersion: "v1.0" }, ENVELOPE));
     const flagConsentForManualReview = vi.fn().mockResolvedValue(undefined);
-    await processEsignWebhookUseCase({ body, headers, ip: "203.0.113.9", userAgent: "firma-webhook/1.0" }, settings, { submitConsent, flagConsentForManualReview });
+    await processEsignWebhookUseCase({ body, headers, ip: "203.0.113.9", userAgent: "firma-webhook/1.0" }, settings, { submitConsent, flagConsentForManualReview, hasConsentFor: vi.fn().mockResolvedValue(false) });
     expect(flagConsentForManualReview).not.toHaveBeenCalled(); // valid snapshot: no review needed
 
     expect(submitConsent).toHaveBeenCalledTimes(1);
@@ -297,12 +297,12 @@ describe("esign webhook (Firma HMAC contract)", () => {
     const request = { body, headers, ip: "203.0.113.9", userAgent: "firma-webhook/1.0" };
     const flagConsentForManualReview = vi.fn().mockResolvedValue(undefined);
     vi.stubGlobal("fetch", evidenceFetchMock());
-    await processEsignWebhookUseCase(request, settings, { submitConsent, flagConsentForManualReview });
+    await processEsignWebhookUseCase(request, settings, { submitConsent, flagConsentForManualReview, hasConsentFor: vi.fn().mockResolvedValue(false) });
     expect(submitConsent.mock.calls[0][0].textVersion).toBe("legacy/unknown");
     expect(flagConsentForManualReview).toHaveBeenCalledWith(expect.objectContaining({ snapshot: "malformed" }));
 
     const failing = vi.fn().mockRejectedValue(new Error("audit_log down"));
-    await expect(processEsignWebhookUseCase(request, settings, { submitConsent, flagConsentForManualReview: failing })).rejects.toThrow("audit_log down");
+    await expect(processEsignWebhookUseCase(request, settings, { submitConsent, flagConsentForManualReview: failing, hasConsentFor: vi.fn().mockResolvedValue(false) })).rejects.toThrow("audit_log down");
   });
 
   it("ignores non-completed event types (no consent written)", async () => {
@@ -321,12 +321,12 @@ describe("esign webhook (Firma HMAC contract)", () => {
     const { body, headers } = signedBody({ type: "signing_request.viewed", data: { signing_request: { id: "env_9" } } });
     const request = { body, headers, ip: "10.0.0.1", userAgent: "firma-webhook" };
 
-    await expect(processEsignWebhookUseCase(request, settings, { submitConsent, flagConsentForManualReview: vi.fn() })).resolves.toBeUndefined();
+    await expect(processEsignWebhookUseCase(request, settings, { submitConsent, flagConsentForManualReview: vi.fn(), hasConsentFor: vi.fn().mockResolvedValue(false) })).resolves.toBeUndefined();
     expect(submitConsent).not.toHaveBeenCalled();
   });
 });
 
 // Type-level guard: the mock matches the ConsentDatabasePort shape.
-type ConsentPortShape = { submitConsent: Mock; flagConsentForManualReview: Mock };
+type ConsentPortShape = { submitConsent: Mock; flagConsentForManualReview: Mock; hasConsentFor: Mock };
 const _shapeCheck: ConsentPortShape | null = null;
 void _shapeCheck;

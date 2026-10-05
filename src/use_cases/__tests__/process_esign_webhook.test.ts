@@ -43,7 +43,11 @@ function validParseResult(event: WebhookEvent): WebhookValidationResult {
 }
 
 function makeDatabase() {
-  return { submitConsent: vi.fn<(command: Record<string, unknown>) => Promise<void>>(() => Promise.resolve()), flagConsentForManualReview: vi.fn(() => Promise.resolve()) };
+  return {
+    submitConsent: vi.fn<(command: Record<string, unknown>) => Promise<void>>(() => Promise.resolve()),
+    flagConsentForManualReview: vi.fn(() => Promise.resolve()),
+    hasConsentFor: vi.fn<(kind: string, externalRef: string) => Promise<boolean>>(() => Promise.resolve(false)),
+  };
 }
 
 const settings = { getPortalSettings: () => Promise.resolve({ esign: {} }) };
@@ -71,6 +75,7 @@ describe("processEsignWebhookUseCase — evidence-before-insert (F1)", () => {
     });
     const database = {
       flagConsentForManualReview: vi.fn(() => Promise.resolve()),
+      hasConsentFor: vi.fn(() => Promise.resolve(false)),
       submitConsent: vi.fn((command: { evidencePath?: string }) => {
         callOrder.push(`insert:${command.evidencePath}`);
         return Promise.resolve();
@@ -130,10 +135,87 @@ describe("processEsignWebhookUseCase — evidence-before-insert (F1)", () => {
       code: "23505",
       constraint: "consents_kind_external_ref_uidx",
     });
-    const database = { submitConsent: vi.fn(() => Promise.reject(replayError)), flagConsentForManualReview: vi.fn(() => Promise.resolve()) };
+    const database = {
+      submitConsent: vi.fn(() => Promise.reject(replayError)),
+      flagConsentForManualReview: vi.fn(() => Promise.resolve()),
+      hasConsentFor: vi.fn(() => Promise.resolve(false)),
+    };
 
     const { processEsignWebhookUseCase } = await import("../process_esign_webhook.ts");
     await expect(processEsignWebhookUseCase(request, settings as never, database as never)).resolves.toBeUndefined();
+  });
+});
+
+describe("processEsignWebhookUseCase — replay pre-check (P2, PR #78)", () => {
+  beforeEach(() => {
+    firmaMock.parseResult = null;
+    firmaMock.fetchCompletedDocument.mockReset();
+    firmaMock.uploadConsentEvidence.mockReset();
+  });
+
+  it("on hasConsentFor=true: skips fetch/upload/insert, still runs flagLegacyProvenance, resolves 200", async () => {
+    firmaMock.parseResult = validParseResult(
+      completedEvent({ metadata: { productId: "prod_1", userId: "user_9", textVersion: "garbage" } }),
+    );
+    const database = {
+      hasConsentFor: vi.fn<(kind: string, externalRef: string) => Promise<boolean>>((_kind, ref) =>
+        ref === "env_f125" ? Promise.resolve(true) : Promise.resolve(false),
+      ),
+      submitConsent: vi.fn(() => Promise.resolve()),
+      flagConsentForManualReview: vi.fn(() => Promise.resolve()),
+    };
+
+    const { processEsignWebhookUseCase } = await import("../process_esign_webhook.ts");
+    await expect(processEsignWebhookUseCase(request, settings as never, database as never)).resolves.toBeUndefined();
+
+    expect(database.hasConsentFor).toHaveBeenCalledWith("C3_revenue_split", "env_f125");
+    expect(firmaMock.fetchCompletedDocument).not.toHaveBeenCalled();
+    expect(firmaMock.uploadConsentEvidence).not.toHaveBeenCalled();
+    expect(database.submitConsent).not.toHaveBeenCalled();
+    // At-least-once replay flag (#74) MUST still run on the acknowledged replay.
+    expect(database.flagConsentForManualReview).toHaveBeenCalledWith(
+      expect.objectContaining({ reason: "legacy_text_version", envelope_id: "env_f125", snapshot: "malformed" }),
+    );
+  });
+
+  it("on hasConsentFor=true with a valid snapshot: no flag write (at-least-once flag is idempotent-in-spirit)", async () => {
+    firmaMock.parseResult = validParseResult(
+      completedEvent({ metadata: { productId: "prod_1", userId: "user_9", textVersion: "v1.0" } }),
+    );
+    const database = {
+      hasConsentFor: vi.fn(() => Promise.resolve(true)),
+      submitConsent: vi.fn(() => Promise.resolve()),
+      flagConsentForManualReview: vi.fn(() => Promise.resolve()),
+    };
+    const infoSpy = vi.spyOn(console, "info").mockImplementation(() => {});
+
+    const { processEsignWebhookUseCase } = await import("../process_esign_webhook.ts");
+    await expect(processEsignWebhookUseCase(request, settings as never, database as never)).resolves.toBeUndefined();
+
+    expect(firmaMock.fetchCompletedDocument).not.toHaveBeenCalled();
+    expect(firmaMock.uploadConsentEvidence).not.toHaveBeenCalled();
+    expect(database.submitConsent).not.toHaveBeenCalled();
+    expect(database.flagConsentForManualReview).not.toHaveBeenCalled();
+    expect(infoSpy).toHaveBeenCalledWith(expect.stringContaining("acknowledged replayed envelope envelope_id=env_f125"));
+    infoSpy.mockRestore();
+  });
+
+  it("on hasConsentFor lookup failure: falls through to the evidence+insert flow", async () => {
+    firmaMock.parseResult = validParseResult(completedEvent());
+    firmaMock.fetchCompletedDocument.mockReturnValue(Promise.resolve(AGREEMENT_PDF_BYTES));
+    firmaMock.uploadConsentEvidence.mockReturnValue(Promise.resolve());
+    const database = {
+      hasConsentFor: vi.fn(() => Promise.reject(new Error("consents lookup failed (503)"))),
+      submitConsent: vi.fn(() => Promise.resolve()),
+      flagConsentForManualReview: vi.fn(() => Promise.resolve()),
+    };
+
+    const { processEsignWebhookUseCase } = await import("../process_esign_webhook.ts");
+    await expect(processEsignWebhookUseCase(request, settings as never, database as never)).resolves.toBeUndefined();
+
+    expect(firmaMock.fetchCompletedDocument).toHaveBeenCalledTimes(1);
+    expect(firmaMock.uploadConsentEvidence).toHaveBeenCalledTimes(1);
+    expect(database.submitConsent).toHaveBeenCalledTimes(1);
   });
 });
 
