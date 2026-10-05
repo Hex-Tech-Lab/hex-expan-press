@@ -1,0 +1,19 @@
+docs/agent_ledger.jsonl
+  s_c2bb5a5d6f7923::t_96b50c707a98b4 453
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b8acd45db98b255c89244d5a529ded0300c1d3ca",
+  "prompts": {},
+  "sessions": {
+    "s_c2bb5a5d6f7923": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef43b105fffevRLfKBVDbL0gWm",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
