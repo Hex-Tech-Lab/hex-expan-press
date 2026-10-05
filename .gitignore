@@ -90,3 +90,6 @@ coverage/
 docs/for_sharing/
 !docs/adr/
 docs/_archive/legacy_adrs/
+
+# code-review-graph machine-local DB (build-graph skill)
+.code-review-graph/

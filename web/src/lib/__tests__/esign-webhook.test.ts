@@ -23,12 +23,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import crypto from "node:crypto";
 import { FirmaAdapter } from "../../../../src/adapters/esign/firma.adapter";
-import type { DownloadFetch } from "../../../../src/adapters/esign/firma.adapter";
-
-// Sprint-13: logic tests route the download through the stubbed global fetch;
-// the pinned-dispatcher seam is proven against real sockets in
-// src/adapters/esign/__tests__/firma.adapter.test.ts (sprint-13 describe).
-const passthroughDownload: DownloadFetch = (url, init) => fetch(url, init);
+import { passthroughDownload } from "../../../../tests/helpers/esign-transport";
 
 // The esign use case builds its own adapter via the factory (whose default
 // download transport is the undici pinned fetch — secure by default). For
