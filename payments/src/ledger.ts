@@ -121,7 +121,18 @@ export class OrderSchemaError extends Error {
 
 /** Dual-write an order record to Supabase public.orders for permanent serverless persistence. */
 async function persistToSupabaseOrder(record: SaleRecord): Promise<void> {
-  const supabase = await getSupabaseAdmin();
+  // Client construction stays inside the dual-write error boundary (Cubic P3,
+  // PR #80 fix-forward): an import/createClient failure is logged and wrapped
+  // exactly like any other dual-write failure. The null-guard (unconfigured
+  // Supabase) remains OUTSIDE the try so the money-path throw keeps its own
+  // unwrapped, pinned message.
+  let supabase: Awaited<ReturnType<typeof getSupabaseAdmin>>;
+  try {
+    supabase = await getSupabaseAdmin();
+  } catch (err) {
+    console.error("ledger: Supabase dual-write exception:", err);
+    throw new Error(`ledger: Supabase dual-write failed: ${(err as Error).message}`, { cause: err });
+  }
   if (!supabase) {
     // Serverless /tmp is ephemeral: skipping the durable write there would lose the sale for good. Fail loud (500 → provider retries).
     // Money-path predicate (isMoneyPath), not a Vercel/Lambda env sniff: a prod-like runtime without VERCEL_ENV must also fail closed.
@@ -223,10 +234,12 @@ export async function findSaleAsync(provider: string, saleId: string, salesFile:
   const local = findSale(provider, saleId, salesFile);
   if (local) return local;
 
-  const supabase = await getSupabaseAdmin();
-  if (!supabase) return null;
-
   try {
+    // Client construction inside the lookup error boundary (Cubic P3, PR #80
+    // fix-forward): a construction failure is logged + rethrown by the catch
+    // below instead of escaping raw.
+    const supabase = await getSupabaseAdmin();
+    if (!supabase) return null;
     const { data, error } = await supabase
       .from("orders")
       .select("*")
@@ -298,10 +311,12 @@ export async function findByProviderAdjustmentIdAsync(provider: string, provider
   const local = findByProviderAdjustmentId(provider, providerAdjustmentId, eventType, salesFile);
   if (local) return local;
 
-  const supabase = await getSupabaseAdmin();
-  if (!supabase) return null;
-
   try {
+    // Client construction inside the lookup error boundary (Cubic P3, PR #80
+    // fix-forward): a construction failure is logged + rethrown by the catch
+    // below instead of escaping raw.
+    const supabase = await getSupabaseAdmin();
+    if (!supabase) return null;
     const { data, error } = await supabase
       .from("orders")
       .select("*")
@@ -481,10 +496,12 @@ export async function findRefundAsync(provider: string, saleId: string, salesFil
   const local = findRefund(provider, saleId, salesFile);
   if (local) return local;
 
-  const supabase = await getSupabaseAdmin();
-  if (!supabase) return null;
-
   try {
+    // Client construction inside the lookup error boundary (Cubic P3, PR #80
+    // fix-forward): a construction failure is logged + rethrown by the catch
+    // below instead of escaping raw.
+    const supabase = await getSupabaseAdmin();
+    if (!supabase) return null;
     const { data, error } = await supabase
       .from("orders")
       .select("*")
@@ -534,10 +551,12 @@ export async function findRefundReversalAsync(provider: string, saleId: string, 
   const local = findRefundReversal(provider, saleId, salesFile);
   if (local) return local;
 
-  const supabase = await getSupabaseAdmin();
-  if (!supabase) return null;
-
   try {
+    // Client construction inside the lookup error boundary (Cubic P3, PR #80
+    // fix-forward): a construction failure is logged + rethrown by the catch
+    // below instead of escaping raw.
+    const supabase = await getSupabaseAdmin();
+    if (!supabase) return null;
     const { data, error } = await supabase
       .from("orders")
       .select("*")

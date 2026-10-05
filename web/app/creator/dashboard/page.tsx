@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import * as Sentry from "@sentry/nextjs";
 import { getPortalSession } from "../../../src/lib/supabase-server";
 import { resolvePrimaryProduct } from "../../../src/lib/primary-product";
+import { activeConsentKinds } from "../../../src/lib/consent-chain";
 import DashboardClient from "./dashboard-client";
 import { reviewProgress } from "./progress";
 import type { Metadata } from "next";
@@ -62,7 +63,10 @@ export default async function DashboardPage({
     resolvePrimaryProduct<{ id: string }>(supabase, "id"),
     supabase.from("review_items").select("id, product_id"),
     supabase.from("review_answers").select("item_id"),
-    supabase.from("consents").select("kind, decision, product_id").eq("decision", "given"),
+    // Chain-head resolution needs ALL decisions + the supersedes pointers —
+    // filtering to decision='given' here would let a superseded row read as
+    // signed (sprint 12 B2, AGY audit P1).
+    supabase.from("consents").select("id, kind, decision, product_id, supersedes"),
   ]);
 
   const failed = (
@@ -109,10 +113,10 @@ export default async function DashboardPage({
   // NOTE: DB enum kind is C2_release_approval (the legacy HTML checked a
   // non-existent "C2_marketing_release" — step 2 could never complete there).
   // Same product binding as the consents page and esign_done: only the primary product's consents count.
-  const given = new Set((consentsRes.data ?? []).filter((c) => c.product_id === product?.id).map((c) => c.kind));
-  const hasC1 = given.has("C1_data_accuracy");
-  const hasC2 = given.has("C2_release_approval");
-  const hasC3 = given.has("C3_revenue_split");
+  const active = activeConsentKinds(consentsRes.data ?? [], product?.id);
+  const hasC1 = active.has("C1_data_accuracy");
+  const hasC2 = active.has("C2_release_approval");
+  const hasC3 = active.has("C3_revenue_split");
 
   const journeyActive = computeJourneyStep({ hasC1, hasC2, hasC3 });
 
