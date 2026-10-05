@@ -1,0 +1,68 @@
+payments/src/ledger.ts
+  s_c2bb5a5d6f7923::t_c45932d0ab422d 419-426
+src/domain/webhook/webhook_errors.ts
+  s_c2bb5a5d6f7923::t_1d8d68cb55f5a1 10-18
+src/use_cases/billing/process_billing_webhook.ts
+  s_c2bb5a5d6f7923::t_dd9d68791b7e17 156-161
+web/app/api/esign/webhook/route.ts
+  s_c2bb5a5d6f7923::t_53748e03fe8f39 7,14-39
+  s_c2bb5a5d6f7923::t_109713c284f369 95-106,108-110
+  s_c2bb5a5d6f7923::t_e3655be7ac1221 40
+src/adapters/esign/esign.factory.ts
+  s_c2bb5a5d6f7923::t_d0f4382c1e0095 71-74,81,83
+web/app/api/billing/webhook/__tests__/polar-partial-refund.test.ts
+  s_c2bb5a5d6f7923::t_005a46876feaa5 147-150,161
+  s_c2bb5a5d6f7923::t_cc62508b164813 41
+  s_c2bb5a5d6f7923::t_19ef2e8cca1dae 43-44
+docs/agent_ledger.jsonl
+  s_c2bb5a5d6f7923::t_334c4b2c704c86 443
+  s_c2bb5a5d6f7923::t_120846ae5e7851 444
+web/app/api/billing/webhook/handler.ts
+  s_c2bb5a5d6f7923::t_0997e81313d49f 116
+  s_c2bb5a5d6f7923::t_fa3f23935b4ad9 152-155,158-178,180,188-194
+  s_c2bb5a5d6f7923::t_7a16896467a976 144-145
+  s_c2bb5a5d6f7923::t_84f6cc7183ab29 135-143
+web/app/api/billing/webhook/__tests__/valid_signature_malformed_ledger.test.ts
+  s_c2bb5a5d6f7923::t_37f334ce987706 16
+  s_c2bb5a5d6f7923::t_19ef2e8cca1dae 20-21
+  s_c2bb5a5d6f7923::t_5696e52b041899 99,104-126
+src/adapters/esign/firma.adapter.ts
+  s_c2bb5a5d6f7923::t_6d6f612058705d 233-235
+  s_c2bb5a5d6f7923::t_64eeac15489be8 199,207,212
+web/src/lib/__tests__/esign-webhook.test.ts
+  s_c2bb5a5d6f7923::t_32e280dd60a485 382
+  s_c2bb5a5d6f7923::t_d73766565d532f 348,385
+  s_c2bb5a5d6f7923::t_cf69dd9fe41c3d 117-124
+  s_c2bb5a5d6f7923::t_5e460b0a1bfa81 9-13,17
+  s_c2bb5a5d6f7923::t_8dae1ab346145e 355
+  s_c2bb5a5d6f7923::t_80c5a22d2670dd 380-381,383-384,386-393,396-413
+  s_c2bb5a5d6f7923::t_19ef2e8cca1dae 357-358,394-395
+  s_c2bb5a5d6f7923::t_e203b2017a16a7 345
+src/use_cases/process_esign_webhook.ts
+  s_c2bb5a5d6f7923::t_b51642293c53e3 30-32
+  s_c2bb5a5d6f7923::t_23b11c38d4edd2 106,109-111
+src/use_cases/billing/__tests__/process_billing_webhook.test.ts
+  s_c2bb5a5d6f7923::t_63ec5f6313524a 96-102
+web/app/api/billing/webhook/__tests__/fungies-refund-dlq.test.ts
+  s_c2bb5a5d6f7923::t_5926c947f8a3c1 148-151
+  s_c2bb5a5d6f7923::t_88a9c290bdc9e3 34
+  s_c2bb5a5d6f7923::t_19ef2e8cca1dae 36-37
+src/domain/esign/esign.port.ts
+  s_c2bb5a5d6f7923::t_937bfd62a595fc 45-49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "59ab4c39a0ce04d721ab7f00d91c8d0ddc9a2f48",
+  "prompts": {},
+  "sessions": {
+    "s_c2bb5a5d6f7923": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef43b105fffevRLfKBVDbL0gWm",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
