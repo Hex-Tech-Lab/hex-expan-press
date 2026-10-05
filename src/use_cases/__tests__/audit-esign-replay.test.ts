@@ -4,19 +4,28 @@
 // rejects the replay with 23505; the use case acknowledges it instead of failing.
 import { describe, it, expect, vi } from "vitest";
 
-vi.mock("../../adapters/esign/esign.factory.ts", () => ({
-  createEsignAdapter: () => ({
-    parseAndValidateWebhook: () => ({
-      isValid: true, providerName: "firma",
-      event: { eventType: "envelope.completed", envelopeId: "env_1", documentHash: "a".repeat(64),
-               metadata: { productId: "p1", userId: "u1" } },
+// The use case cross-checks sha256(fetched bytes) against the webhook's
+// attested document_sha256 (sprint 12), so the fixture hash must be the hash
+// of the bytes the adapter mock returns. Computed inside the hoisted mock
+// factory (top-level consts are not visible to vi.mock factories).
+vi.mock("../../adapters/esign/esign.factory.ts", async () => {
+  const { createHash } = await import("node:crypto");
+  const EVIDENCE_BYTES = new Uint8Array([0x25, 0x50, 0x44, 0x46]);
+  const ATTESTED_HASH = createHash("sha256").update(EVIDENCE_BYTES).digest("hex");
+  return {
+    createEsignAdapter: () => ({
+      parseAndValidateWebhook: () => ({
+        isValid: true, providerName: "firma",
+        event: { eventType: "envelope.completed", envelopeId: "env_1", documentHash: ATTESTED_HASH,
+                 metadata: { productId: "p1", userId: "u1" } },
+      }),
+      // Evidence-before-insert (F1): the mock returns real bytes so the upload
+      // path succeeds and the replay contract below stays the focus.
+      fetchCompletedDocument: () => Promise.resolve(EVIDENCE_BYTES),
+      uploadConsentEvidence: () => Promise.resolve(),
     }),
-    // Evidence-before-insert (F1): the mock returns real bytes so the upload
-    // path succeeds and the replay contract below stays the focus.
-    fetchCompletedDocument: () => Promise.resolve(new Uint8Array([0x25, 0x50, 0x44, 0x46])),
-    uploadConsentEvidence: () => Promise.resolve(),
-  }),
-}));
+  };
+});
 
 // Models the DB: one row per (kind, external_ref); a repeat raises SQLSTATE 23505.
 function uniqueConsentDb() {

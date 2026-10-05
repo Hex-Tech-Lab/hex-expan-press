@@ -8,11 +8,15 @@
 //   F5 (P1): validation failures throw the typed WebhookValidationError so
 //            route classification no longer depends on error prose.
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { createHash } from "node:crypto";
 import { WebhookValidationError } from "../../domain/webhook/webhook_errors.ts";
 import type { WebhookEvent, WebhookValidationResult } from "../../domain/esign/esign.port.ts";
 
 const AGREEMENT_PDF_BYTES = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31]); // "%PDF-1"
-const VALID_HASH = "a".repeat(64);
+// The webhook's document_sha256 is Firma's attestation of the signed document;
+// the use case cross-checks it against the fetched bytes (sprint 12), so the
+// fixture hash MUST be the hash of the bytes the adapter mock returns.
+const VALID_HASH = createHash("sha256").update(AGREEMENT_PDF_BYTES).digest("hex");
 
 const firmaMock = vi.hoisted(() => ({
   parseResult: null as unknown,
@@ -108,6 +112,21 @@ describe("processEsignWebhookUseCase — evidence-before-insert (F1)", () => {
 
     expect(firmaMock.fetchCompletedDocument).toHaveBeenCalledTimes(1);
     expect(firmaMock.uploadConsentEvidence).toHaveBeenCalledTimes(1);
+    expect(database.submitConsent).not.toHaveBeenCalled();
+  });
+
+  it("does NOT upload or insert when the fetched bytes do not match the webhook's attested document_sha256", async () => {
+    firmaMock.parseResult = validParseResult(completedEvent({ documentHash: "b".repeat(64) }));
+    firmaMock.fetchCompletedDocument.mockReturnValue(Promise.resolve(AGREEMENT_PDF_BYTES)); // hashes to VALID_HASH, not bbb…
+    firmaMock.uploadConsentEvidence.mockReturnValue(Promise.resolve());
+    const database = makeDatabase();
+
+    const { processEsignWebhookUseCase } = await import("../process_esign_webhook.ts");
+    await expect(processEsignWebhookUseCase(request, settings as never, database as never)).rejects.toThrow(
+      /evidence attestation mismatch/,
+    );
+
+    expect(firmaMock.uploadConsentEvidence).not.toHaveBeenCalled();
     expect(database.submitConsent).not.toHaveBeenCalled();
   });
 
