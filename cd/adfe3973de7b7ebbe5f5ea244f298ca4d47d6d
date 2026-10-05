@@ -1,0 +1,31 @@
+src/adapters/esign/__tests__/firma.adapter.test.ts
+  s_577c99742b95a8::t_2f73e740456866 4
+  s_577c99742b95a8::t_c362f89c5f1e7e 527-529
+  s_577c99742b95a8::t_fe3f1ffba74b43 503-526,530
+  s_577c99742b95a8::t_3baaec6c4a57b7 15
+  s_577c99742b95a8::t_8aff8c3098bb98 654-661,664-682,686-689
+  s_577c99742b95a8::t_ac07584a3c5475 683
+  s_577c99742b95a8::t_3d84dec683ebfb 579
+  s_577c99742b95a8::t_194af2288e5ae1 684-685
+  s_577c99742b95a8::t_52ccb7deb760f6 563
+src/adapters/esign/firma.adapter.ts
+  s_577c99742b95a8::t_7172043aca6900 73-102
+  s_577c99742b95a8::t_bc62d8c1ac596c 288-296,298
+  s_577c99742b95a8::t_cd15b2f9ad2128 287
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "cdadfe3973de7b7ebbe5f5ea244f298ca4d47d6d",
+  "prompts": {},
+  "sessions": {
+    "s_577c99742b95a8": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef2cb413affeyyRuS9ZgjwYK20",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
