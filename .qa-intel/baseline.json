@@ -23,13 +23,6 @@
   {
     "file": "web/src/lib/skew-retry-fetch.ts",
     "severity": "low",
-    "title": "Code Quality: Unclear variable name 'm'",
-    "why": "Single-letter variable 'm' outside of loop context is unclear. Makes code harder to understand.",
-    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'm' → 'question', 'error', etc.)."
-  },
-  {
-    "file": "web/src/lib/skew-retry-fetch.ts",
-    "severity": "low",
     "title": "Code Quality: Unclear variable name 'r'",
     "why": "Single-letter variable 'r' outside of loop context is unclear. Makes code harder to understand.",
     "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'r' → 'question', 'error', etc.)."
@@ -220,19 +213,12 @@
     "file": "web/src/lib/__tests__/esign-webhook.test.ts",
     "severity": "medium",
     "title": "Complexity: Monolithic File",
-    "why": "File exceeds 500 lines (584 lines).",
+    "why": "File exceeds 500 lines (579 lines).",
     "fix": "Decompose into smaller, domain-specific modules."
   },
   {
     "file": "web/src/lib/__tests__/esign-webhook.test.ts",
     "severity": "low",
-    "title": "Code Quality: Import ordering violated",
-    "why": "Import '../../../../src/domain/webhook/webhook_errors' (internal) comes after types. Should follow order: framework → thirdparty → internal → types.",
-    "fix": "Reorganize imports to follow the correct order groups."
-  },
-  {
-    "file": "web/src/lib/__tests__/esign-webhook.test.ts",
-    "severity": "low",
     "title": "Data Quality: String truncation without ellipsis indicator",
     "why": "String is truncated but doesn't add '...' to indicate more content. User sees incomplete text.",
     "fix": "Add ellipsis when truncating: text.slice(0, 50) + (text.length > 50 ? '...' : '')"
@@ -264,13 +250,6 @@
     "title": "Data Quality: String truncation without ellipsis indicator",
     "why": "String is truncated but doesn't add '...' to indicate more content. User sees incomplete text.",
     "fix": "Add ellipsis when truncating: text.slice(0, 50) + (text.length > 50 ? '...' : '')"
-  },
-  {
-    "file": "web/src/lib/__tests__/esign-webhook.test.ts",
-    "severity": "medium",
-    "title": "Workflow: Missing finally block for I/O",
-    "why": "Risky I/O call 'fetch' detected without an explicit finally block.",
-    "fix": "Ensure all I/O operations are wrapped in a try/finally block to guarantee resource cleanup."
   },
   {
     "file": "web/src/lib/__tests__/esign-webhook.test.ts",

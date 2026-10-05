@@ -13,16 +13,17 @@ That argument is behavioral: it holds for PostgREST's current response ordering 
 
 ## Decision
 
-1. **The retry is gated to GET and HEAD inside `createSkewRetryFetch` itself.** Any other method (POST, PATCH, PUT, DELETE — regardless of case) is returned untouched on ANY 401, including an exact PGRST303 skew body. No call site can opt back in.
-2. **The method is resolved from both `init.method` and a `Request`-object `input`** (normalized uppercase), defaulting to GET only when neither carries a method.
-3. **The existing guards stay:** at most one retry, only on the PGRST303/"JWT issued at future" JSON shape, never on ReadableStream bodies, never on any other 401/status.
-4. **Both SSR client factories inherit the gate unchanged** — the gate lives in the shared wrapper, so `supabase-ssr.ts` and `supabase-server.ts` need no per-site logic.
+1. **The retry is gated to GET inside `createSkewRetryFetch` itself.** Any other method (POST, PATCH, PUT, DELETE, HEAD — regardless of case) is returned untouched on ANY 401, including an exact PGRST303 skew body. No call site can opt back in.
+2. **HEAD is excluded despite being idempotent** (amended after the first Cubic round on PR #84): a real HEAD response carries no body (RFC 9110 §9.3.2), so the PGRST303 JSON shape cannot be detected — the only way to "retry HEAD" would be to retry EVERY bodyless 401 blind, which is a worse failure mode than an unretried HEAD read. Verified dead-on-the-wire, not merely theoretical: the original HEAD-retry test passed only because the mock attached a JSON body to a HEAD 401, which never occurs in production.
+3. **The method is resolved from both `init.method` and a `Request`-object `input`** (normalized uppercase), defaulting to GET only when neither carries a method.
+4. **The existing guards stay:** at most one retry, only on the PGRST303/"JWT issued at future" JSON shape, never on ReadableStream bodies, never on any other 401/status.
+5. **Both SSR client factories inherit the gate unchanged** — the gate lives in the shared wrapper, so `supabase-ssr.ts` and `supabase-server.ts` need no per-site logic.
 
 ## Consequences / Tradeoffs
 
 - **Easier:** the mutation-replay class of failure is closed by construction; the correctness of retries no longer depends on PostgREST's internal ordering of JWT verification vs. transaction start.
 - **Harder:** a genuine skew 401 on a mutation is no longer auto-healed — the caller's operation fails once and the user retries the action. Accepted: the skew window is seconds wide, sign-in reads (GET) still self-heal, and a failed mutation is visible instead of silently duplicated.
-- **Accepted cost:** if Supabase ever moves the skew 401 onto an idempotency-critical path that is not GET/HEAD (none exists today), the gate must be revisited explicitly via a new ADR — not by loosening the Set.
+- **Accepted cost:** if Supabase ever moves the skew 401 onto an idempotency-critical path that is not GET (none exists today), the gate must be revisited explicitly via a new ADR — not by loosening the Set. HEAD reads in the skew window are not retried either (undetectable shape — see Decision 2).
 - **Standing rule:** any new retry wrapper on client traffic must be method-gated to idempotent verbs by default; widening it requires an ADR.
 
 ## Sources

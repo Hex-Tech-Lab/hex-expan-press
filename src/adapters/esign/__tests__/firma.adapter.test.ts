@@ -630,6 +630,81 @@ describe("Sprint-13: DNS-pinned dispatcher (TOCTOU eradication)", () => {
       { address: "2606:2800:220:1:248:1893:25c8:1946", family: 6 },
     ]);
   });
+
+  // ---- Composition (Cubic P2 on PR #84): downloadCapped with the REAL
+  // ---- pinned transport + REAL production factory — the denylist can never
+  // ---- allow a loopback dial through fetchCompletedDocument (by design), so
+  // ---- the composition seam is exercised directly.
+
+  it("COMPOSITION: downloadCapped + production transport + production factory — pinned dial, full body, dispatcher closed AFTER consumption", async () => {
+    const seen: { host?: string; remote?: string }[] = [];
+    const server = http.createServer((req, res) => {
+      seen.push({ host: req.headers.host, remote: req.socket.remoteAddress });
+      res.writeHead(200, { "content-type": "application/pdf", "content-length": String(EVIDENCE_BYTES.byteLength) });
+      res.end(Buffer.from(EVIDENCE_BYTES));
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const port = (server.address() as AddressInfo).port;
+    let closed = false;
+    const closingSpyFactory: PinnedDispatcherFactory = (pin) => {
+      const real = pinnedDispatcherFactory(pin) as UndiciAgent;
+      // Delegate the transport entry point to the real agent; only `close`
+      // is instrumented. (A plain spread would lose prototype methods.)
+      return {
+        dispatch: real.dispatch.bind(real),
+        close: async () => {
+          await real.close();
+          closed = true;
+        },
+      } as unknown as ReturnType<PinnedDispatcherFactory>;
+    };
+    // Production transport (default) + production lookup inside the spy —
+    // zero injected behavior beyond close observability.
+    const adapter = new FirmaAdapter(async () => [{ address: "127.0.0.1" }], undefined, closingSpyFactory);
+    try {
+      const bytes = await adapter.downloadCapped(`http://pin-e2e.invalid:${port}/final.pdf`, { host: "pin-e2e.invalid", addresses: ["127.0.0.1"] });
+      expect(bytes).toEqual(EVIDENCE_BYTES); // full body consumed — close could not have truncated it
+      expect(seen).toHaveLength(1);
+      expect(seen[0].remote).toBe("127.0.0.1"); // dialed the pinned address
+      expect(seen[0].host).toBe(`pin-e2e.invalid:${port}`); // Host header preserved
+      expect(closed).toBe(true); // dispatcher closed in the finally, after consumption
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+
+  it("COMPOSITION: content-length over the 20 MiB cap through the REAL transport → cancelled before buffering, dispatcher still closed", async () => {
+    const seen: number[] = [];
+    const server = http.createServer((_req, res) => {
+      seen.push(1);
+      // Content-length advertises 21 MiB; the body is tiny — the pre-check
+      // must cancel BEFORE any buffering happens.
+      res.writeHead(200, { "content-type": "application/pdf", "content-length": String(21 * 1024 * 1024) });
+      res.end(Buffer.from(EVIDENCE_BYTES));
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const port = (server.address() as AddressInfo).port;
+    let closed = false;
+    const closingSpyFactory: PinnedDispatcherFactory = (pin) => {
+      const real = pinnedDispatcherFactory(pin) as UndiciAgent;
+      return {
+        dispatch: real.dispatch.bind(real),
+        close: async () => {
+          await real.close();
+          closed = true;
+        },
+      } as unknown as ReturnType<PinnedDispatcherFactory>;
+    };
+    const adapter = new FirmaAdapter(async () => [{ address: "127.0.0.1" }], undefined, closingSpyFactory);
+    try {
+      const bytes = await adapter.downloadCapped(`http://pin-e2e.invalid:${port}/final.pdf`, { host: "pin-e2e.invalid", addresses: ["127.0.0.1"] });
+      expect(bytes).toBeNull(); // rejected by the content-length pre-check
+      expect(seen).toHaveLength(1);
+      expect(closed).toBe(true); // closed even on the cancel path
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
 });
 
 describe("FirmaAdapter.uploadConsentEvidence (F1 upload + read-back verify)", () => {
