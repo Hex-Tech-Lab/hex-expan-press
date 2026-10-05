@@ -29,11 +29,12 @@ export async function createSsrClient() {
     // JWT whose `iat` sits a few seconds in the future (clock drift between
     // Vercel serverless containers and Supabase) — the first PostgREST/Auth
     // read then fails 401 PGRST303 with no retry. Wire the same one-shot skew
-    // retry the JWT-scoped client already has (supabase-server.ts). Retrying
-    // is safe for our mutations because PGRST303 is rejected at the PostgREST
-    // JWT-verification layer, BEFORE any transaction begins — the first
-    // attempt can never have committed (Cubic P3 on PR #82 corrected the
-    // rationale here; body-shape is not the safety argument).
+    // retry the JWT-scoped client already has (supabase-server.ts).
+    // Sprint-13 (ADR-0059): the retry is now GATED to GET/HEAD inside
+    // createSkewRetryFetch itself — mutations are returned untouched on any
+    // 401, so a mutation replay is structurally impossible (the old
+    // safety argument "PGRST303 is rejected pre-transaction" was behavioral;
+    // the method gate makes it structural).
     global: {
       fetch: createSkewRetryFetch(fetch, jwtSkewRetryDelayMs()),
     },
