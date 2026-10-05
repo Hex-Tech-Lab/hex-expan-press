@@ -63,9 +63,15 @@ function evidenceFetchMock(): Mock {
     if (method === "GET" && /\/signing-requests\/[^/]+$/.test(url)) {
       // Live-verified 2026-10-05: the resource carries a freshly-minted signed
       // Storage URL (final_document_download_url null on unfinished requests).
+      // Sprint-12-B: the state-finality guard requires status.finished === true.
       return Promise.resolve({
         ok: true, status: 200,
-        json: () => Promise.resolve({ id: "env", final_document_download_url: null, document_url: "https://firma-storage.test/object/sign/agreement.pdf?token=t" }),
+        json: () => Promise.resolve({
+          id: "env",
+          status: { sent: true, finished: true, cancelled: false, declined: false, expired: false },
+          final_document_download_url: null,
+          document_url: "https://firma-storage.test/object/sign/agreement.pdf?token=t",
+        }),
         arrayBuffer: () => Promise.reject(new Error("resource must not be read as bytes")),
       });
     }
@@ -481,7 +487,7 @@ describe("FirmaAdapter.fetchCompletedDocument — live-shape contract", () => {
     const fetchMock = vi.fn((input: unknown, _init?: RequestInit) => {
       const url = String(input);
       if (/\/signing-requests\/[^/]+$/.test(url)) {
-        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ document_url: "https://firma-storage.test/object/sign/a.pdf?token=t" }) });
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ status: { sent: true, finished: true, cancelled: false, declined: false, expired: false }, document_url: "https://firma-storage.test/object/sign/a.pdf?token=t" }) });
       }
       if (url.includes("/object/sign/")) {
         return Promise.resolve({ ok: true, status: 200, arrayBuffer: () => Promise.resolve(AGREEMENT_PDF_BYTES.slice().buffer) });
@@ -503,6 +509,7 @@ describe("FirmaAdapter.fetchCompletedDocument — live-shape contract", () => {
         return Promise.resolve({
           ok: true, status: 200,
           json: () => Promise.resolve({
+            status: { sent: true, finished: true, cancelled: false, declined: false, expired: false },
             final_document_download_url: "https://firma-storage.test/object/sign/final.pdf?token=t",
             document_url: "https://firma-storage.test/object/sign/original.pdf?token=t",
           }),
@@ -526,6 +533,7 @@ describe("FirmaAdapter.fetchCompletedDocument — live-shape contract", () => {
         return Promise.resolve({
           ok: true, status: 200,
           json: () => Promise.resolve({
+            status: { sent: true, finished: true, cancelled: false, declined: false, expired: false },
             final_document_download_url: "https://firma-storage.test/object/sign/final.pdf?token=t",
             document_url: "https://firma-storage.test/object/sign/original.pdf?token=t",
           }),
@@ -551,17 +559,17 @@ describe("FirmaAdapter.fetchCompletedDocument — live-shape contract", () => {
     await expect(new FirmaAdapter().fetchCompletedDocument("env_missing")).rejects.toThrow(/resource fetch failed \(404\)/);
   });
 
-  it("fails LOUD when the resource exposes no download URL", async () => {
-    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ id: "env_q" }) })));
+  it("fails LOUD when the resource exposes no valid HTTPS download URL", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ id: "env_q", status: { sent: true, finished: true, cancelled: false, declined: false, expired: false } }) })));
     const { FirmaAdapter } = await import("../../../../src/adapters/esign/firma.adapter");
-    await expect(new FirmaAdapter().fetchCompletedDocument("env_q")).rejects.toThrow(/no download URL/);
+    await expect(new FirmaAdapter().fetchCompletedDocument("env_q")).rejects.toThrow(/no valid HTTPS download URL/);
   });
 
   it("fails LOUD when every candidate URL fails the %PDF- gate", async () => {
     vi.stubGlobal("fetch", vi.fn((input: unknown) => {
       const url = String(input);
       if (/\/signing-requests\/[^/]+$/.test(url)) {
-        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ document_url: "https://firma-storage.test/object/sign/a.pdf?token=t" }) });
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ status: { sent: true, finished: true, cancelled: false, declined: false, expired: false }, document_url: "https://firma-storage.test/object/sign/a.pdf?token=t" }) });
       }
       return Promise.resolve({ ok: true, status: 200, arrayBuffer: () => Promise.resolve(new TextEncoder().encode("<html>nope</html>").buffer) });
     }));

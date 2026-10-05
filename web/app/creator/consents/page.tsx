@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { getPortalSession } from "../../../src/lib/supabase-server";
 import { resolvePrimaryProduct } from "../../../src/lib/primary-product";
+import { activeConsentKinds } from "../../../src/lib/consent-chain";
 import ConsentCards from "./consent-cards";
 
 export const metadata: Metadata = {
@@ -35,8 +36,13 @@ export default async function ConsentsPage() {
     );
   }
 
-  const consentsRes = await supabase.from("consents").select("kind, decision").eq("decision", "given").eq("product_id", product.id);
-  const given = new Set((consentsRes.data ?? []).map((c) => c.kind));
+  // Chain-head resolution (sprint 12 B2, AGY audit P1): fetch ALL decisions
+  // for the product (not just "given") — a superseded or superseded-by-refusal
+  // row must never display as "Signed ✓". Mirrors the action/bake semantics.
+  const consentsRes = await supabase
+    .from("consents")
+    .select("id, kind, decision, supersedes")
+    .eq("product_id", product.id);
   if (consentsRes.error) {
     return (
       <ConsentNotice
@@ -45,13 +51,14 @@ export default async function ConsentsPage() {
       />
     );
   }
+  const active = activeConsentKinds(consentsRes.data ?? []);
 
   return (
     <ConsentCards
       bookTitle={product.title}
-      hasC1={given.has("C1_data_accuracy")}
-      hasC2={given.has("C2_release_approval")}
-      hasC3={given.has("C3_revenue_split")}
+      hasC1={active.has("C1_data_accuracy")}
+      hasC2={active.has("C2_release_approval")}
+      hasC3={active.has("C3_revenue_split")}
     />
   );
 }

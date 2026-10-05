@@ -60,6 +60,92 @@ export class FirmaAdapter implements EsignProviderPort, EsignWebhookPort, EsignE
     return new Uint8Array(await res.arrayBuffer());
   }
 
+  /** Live-verified resource shape (2026-10-05 probe): `status` is an OBJECT
+   *  {sent, finished, cancelled, declined, expired} — NOT a string, and there
+   *  is no `is_partial` field on the live API (honored defensively if a
+   *  future API version adds it, per the sprint-12-B directive). */
+  private assertDocumentFinality(envelopeId: string, resource: unknown): void {
+    const body = (resource ?? {}) as {
+      status?: unknown;
+      is_partial?: unknown;
+    };
+    const status = (body.status ?? {}) as Record<string, unknown>;
+    const finished = status.finished === true;
+    const negated = status.cancelled === true || status.declined === true || status.expired === true;
+    // STATE-FINALITY GUARD (sprint 12 B1): a draft/cancelled/declined/expired
+    // envelope must NEVER become consent evidence. The webhook's
+    // signing_request.completed claim is NOT trusted alone — the resource must
+    // independently confirm finality, and the failure is TERMINAL (no URL
+    // fallback, no bytes, no consent row).
+    if (!finished || negated || body.is_partial === true) {
+      throw new Error(
+        `[esign] terminal: envelope ${envelopeId} is not a FINISHED signature request ` +
+        `(status=${JSON.stringify(status)}${body.is_partial === true ? ", is_partial=true" : ""}) — refusing to persist evidence from a non-final document`,
+      );
+    }
+  }
+
+  /** Zero-trust URL validation for provider-supplied download URLs: HTTPS
+   *  only, and lexical rejection of loopback/private/link-local/metadata
+   *  hosts (SSRF surface). Returns null when the URL must not be fetched. */
+  private validateDownloadUrl(raw: string): string | null {
+    try {
+      const u = new URL(raw);
+      if (u.protocol !== "https:") return null;
+      const host = u.hostname.toLowerCase();
+      if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".internal") || host.endsWith(".local") || host === "::1" || host === "0.0.0.0") return null;
+      if (/^127\./.test(host) || /^10\./.test(host) || /^192\.168\./.test(host) || /^169\.254\./.test(host) || /^172\.(1[6-9]|2\d|3[01])\./.test(host)) return null;
+      return raw;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Memory-capped download: hard 20 MiB ceiling (mirrors the consents bucket
+   *  cap) enforced on the content-length header AND on accumulated streamed
+   *  bytes, with an immediate reader.cancel() on overflow. Never buffers an
+   *  unbounded external payload. Returns null when the response must be
+   *  rejected (non-2xx, oversized, unreadable). */
+  private async downloadCapped(url: string): Promise<Uint8Array | null> {
+    const MAX_EVIDENCE_BYTES = 20 * 1024 * 1024;
+    // Credential hygiene (sprint 12 B1): the signed URL is self-authorizing —
+    // send NO headers at all and omit ambient credentials, so Firma API keys
+    // can never leak to the storage host.
+    const res = await this.fetchWithRelease(url, { credentials: "omit", signal: AbortSignal.timeout(30_000) });
+    if (!res.ok) return null;
+    const contentLength = res.headers?.get?.("content-length");
+    if (contentLength && Number(contentLength) > MAX_EVIDENCE_BYTES) {
+      await res.body?.cancel?.();
+      return null;
+    }
+    const reader = res.body?.getReader?.();
+    if (!reader) {
+      // Test doubles / runtimes without streaming: fall back to arrayBuffer,
+      // still bounded by the cap.
+      const buf = await res.arrayBuffer();
+      return buf.byteLength > MAX_EVIDENCE_BYTES ? null : new Uint8Array(buf);
+    }
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > MAX_EVIDENCE_BYTES) {
+        await reader.cancel();
+        return null;
+      }
+      chunks.push(value);
+    }
+    const out = new Uint8Array(total);
+    let offset = 0;
+    for (const chunk of chunks) {
+      out.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    return out;
+  }
+
   /**
    * Retrieve the signed (completed) PDF for an envelope (sprint-10 audit F1;
    * LIVE-VERIFIED 2026-10-05 against the production API — raw probe transcript
@@ -78,8 +164,14 @@ export class FirmaAdapter implements EsignProviderPort, EsignWebhookPort, EsignE
    *   request in the account, so its populated form is UNVERIFIED — preferred
    *   when non-empty, with `document_url` as the live-verified fallback.
    *
-   * The use-case contract (bytes or throw) is unchanged: both steps fail
-   * loud, and NO consent row is written on any failure.
+   * Sprint-12-B hardening: state-finality guard BEFORE any download (the
+   * resource must independently confirm a finished, non-cancelled/declined/
+   * expired request — the webhook claim alone is never trusted); HTTPS-only
+   * zero-trust URL validation (SSRF surface denied); hard 20 MiB streamed
+   * memory cap; zero credentials on the signed-URL request.
+   *
+   * The use-case contract (bytes or throw) is unchanged: every failure path
+   * throws, and NO consent row is written on any failure.
    */
   async fetchCompletedDocument(envelopeId: string): Promise<Uint8Array> {
     const resourceRes = await this.fetchWithRelease(`${this.base()}/signing-requests/${encodeURIComponent(envelopeId)}`, {
@@ -87,23 +179,22 @@ export class FirmaAdapter implements EsignProviderPort, EsignWebhookPort, EsignE
       signal: AbortSignal.timeout(30_000),
     });
     if (!resourceRes.ok) throw new Error(`Firma completed-document resource fetch failed (${resourceRes.status}) for envelope ${envelopeId}`);
-    const resource = (await resourceRes.json().catch(() => null)) as { final_document_download_url?: unknown; document_url?: unknown } | null;
-    const candidates = [resource?.final_document_download_url, resource?.document_url]
-      .filter((u): u is string => typeof u === "string" && u.startsWith("http"));
+    const resource = await resourceRes.json().catch(() => null);
+    // Terminal state-finality guard FIRST — a non-finished envelope must never
+    // reach the download step at all (no URL fallback for drafts).
+    this.assertDocumentFinality(envelopeId, resource);
+    const body = (resource ?? {}) as { final_document_download_url?: unknown; document_url?: unknown };
+    const candidates = [body.final_document_download_url, body.document_url]
+      .filter((u): u is string => typeof u === "string" && u.startsWith("http"))
+      .map((u) => this.validateDownloadUrl(u))
+      .filter((u): u is string => u !== null);
     if (candidates.length === 0) {
-      throw new Error(`Firma completed-document resource for envelope ${envelopeId} exposes no download URL (final_document_download_url/document_url absent or non-string)`);
+      throw new Error(`Firma completed-document resource for envelope ${envelopeId} exposes no valid HTTPS download URL (final_document_download_url/document_url absent, non-string, or unsafe)`);
     }
-    // The signed URL is self-authorizing (JWT token in the query) on Firma's
-    // own storage host — do NOT forward our Bearer/API key to it.
     for (let i = 0; i < candidates.length; i++) {
-      const pdfRes = await this.fetchWithRelease(candidates[i], { signal: AbortSignal.timeout(30_000) });
-      if (!pdfRes.ok) {
-        console.error(`[firma-adapter] download candidate ${i} failed (${pdfRes.status}) for envelope ${envelopeId}`);
-        continue;
-      }
-      const bytes = new Uint8Array(await pdfRes.arrayBuffer());
-      if (bytes.length === 0) {
-        console.error(`[firma-adapter] download candidate ${i} returned empty bytes for envelope ${envelopeId}`);
+      const bytes = await this.downloadCapped(candidates[i]);
+      if (!bytes) {
+        console.error(`[firma-adapter] download candidate ${i} rejected (non-2xx, oversized, or unreadable) for envelope ${envelopeId}`);
         continue;
       }
       if (Buffer.from(bytes.slice(0, 5)).toString("latin1") !== "%PDF-") {
@@ -112,7 +203,7 @@ export class FirmaAdapter implements EsignProviderPort, EsignWebhookPort, EsignE
       }
       return bytes;
     }
-    throw new Error(`Firma completed-document download failed for envelope ${envelopeId} (no candidate URL returned PDF bytes)`);
+    throw new Error(`Firma completed-document download failed for envelope ${envelopeId} (no candidate URL returned PDF bytes within the 20 MiB cap)`);
   }
 
   /**
