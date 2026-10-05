@@ -111,7 +111,7 @@ export class FirmaAdapter implements EsignProviderPort, EsignWebhookPort, EsignE
     // Credential hygiene (sprint 12 B1): the signed URL is self-authorizing —
     // send NO headers at all and omit ambient credentials, so Firma API keys
     // can never leak to the storage host.
-    const res = await this.fetchWithRelease(url, { credentials: "omit", signal: AbortSignal.timeout(30_000) });
+    const res = await this.fetchWithRelease(url, { credentials: "omit", redirect: "manual", signal: AbortSignal.timeout(30_000) });
     if (!res.ok) return null;
     const contentLength = res.headers?.get?.("content-length");
     if (contentLength && Number(contentLength) > MAX_EVIDENCE_BYTES) {
