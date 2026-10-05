@@ -1,0 +1,61 @@
+web/app/creator/consents/page.tsx
+  s_1582e826c96fb8::t_48c9a3efbdd0f1 39-41,44,53
+docs/agent_ledger.jsonl
+  s_577c99742b95a8::t_eb3194c461556f 470
+  s_577c99742b95a8::t_30b74b6c3bdc54 471
+  s_1582e826c96fb8::t_5514a2251a90a0 473
+  s_577c99742b95a8::t_c5dac4ef335381 469
+  s_1582e826c96fb8::t_1b98e7375135bb 474
+web/src/lib/__tests__/consent-chain.test.ts
+  s_1582e826c96fb8::t_0725b825110e1f 95-105,107
+web/src/lib/consent-chain.ts
+  s_1582e826c96fb8::t_0725b825110e1f 25-34,36,38,41,45-49,51,56
+docs/adr/0060-universal-consent-enforcement.md
+  s_86c8d664f8d42a::t_74784aae739a9a 1-50
+payments/bake_checkout.ts
+  s_86c8d664f8d42a::t_1f493161419768 4,9,513-515,528
+payments/test/bake_checkout_run.test.ts
+  s_86c8d664f8d42a::t_cbe24142c69c08 322,326
+web/app/api/billing/checkout/__tests__/route.test.ts
+  s_86c8d664f8d42a::t_6c0b16c2f4b3ba 7-15,23,280-417
+web/app/creator/consents/consent-cards.tsx
+  s_86c8d664f8d42a::t_3c651dd7706d3d 10,13,28,126,129-137,140
+web/app/creator/dashboard/actions.ts
+  s_86c8d664f8d42a::t_3a6f661934c6b9 42-45,49,55,60-63,67-70,75,77,80-81
+web/app/creator/review/__tests__/natural-code.test.ts
+  s_86c8d664f8d42a::t_56491cbb745ba4 1-22
+web/app/creator/review/page.tsx
+  s_86c8d664f8d42a::t_d04d366165ec00 12-13,17-24,26,29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "02aed76b1791eaef6a66c67b83858867a26f5010",
+  "prompts": {},
+  "sessions": {
+    "s_1582e826c96fb8": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef1d18fd4ffeu8wsfD9JiDUJTX",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_577c99742b95a8": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef2cb413affeyyRuS9ZgjwYK20",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_86c8d664f8d42a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef1e10724ffe6q3r1sCA5ublMy",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
