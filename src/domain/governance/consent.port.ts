@@ -29,4 +29,11 @@ export interface ConsentDatabasePort {
   submitConsent(command: SubmitConsentCommand): Promise<void>;
   /** Durable MANUAL_REVIEW_REQUIRED_CONSENT audit row. Throws on failure so the webhook 500s and is retried. */
   flagConsentForManualReview(flag: ConsentManualReviewFlag): Promise<void>;
+  /**
+   * Replay pre-check (P2, external review PR #78): true when a consent row
+   * already exists for (kind, externalRef) — the webhook short-circuits the
+   * evidence round-trip and acknowledges. Lookup errors MUST throw; the use
+   * case decides to fall through to the evidence+insert flow.
+   */
+  hasConsentFor(kind: string, externalRef: string): Promise<boolean>;
 }

@@ -64,9 +64,6 @@ export async function processEsignWebhookUseCase(
     // then die at the DB — a 500 retry loop — instead of a terminal 400.
     const documentHash = event.documentHash.toLowerCase();
 
-    // The PDF path is abstracted here, but typically bounded to user and envelope
-    const pdfPath = `${userId}/${envelopeId}.pdf`;
-
     // The version snapshotted at envelope creation is the wording the signer actually saw. A missing or
     // malformed snapshot is NEVER replaced by the current registry version (that would label the signature
     // with a contract the signer never saw): record LEGACY_TEXT_VERSION and route it for manual review.
@@ -79,14 +76,6 @@ export async function processEsignWebhookUseCase(
     } else if (textVersion !== undefined) {
       provenanceReason = "malformed";
     }
-
-    // Evidence-before-insert (sprint-10 audit F1): the signed PDF must exist in
-    // Storage BEFORE any consent row references it. Fetch the completed
-    // document, upload + read-back verify it — any failure throws here, the
-    // route answers 500, Firma retries, and NO consent row is written. The
-    // previous phantom path (`pdfPath` persisted without an upload) is gone.
-    const pdfBytes = await esignAdapter.fetchCompletedDocument(envelopeId);
-    await esignAdapter.uploadConsentEvidence(pdfPath, pdfBytes);
 
     // At-least-once: also re-run on a replay, so a flag write that failed after the consent landed is not lost.
     const flagLegacyProvenance = async (): Promise<void> => {
@@ -101,6 +90,38 @@ export async function processEsignWebhookUseCase(
         snapshot: provenanceReason,
       });
     };
+
+    // Replay pre-check (P2, external review PR #78): look for an existing
+    // consent (kind, external_ref) AFTER metadata validation but BEFORE the
+    // evidence round-trip. A replayed envelope must not depend on Firma
+    // document retention or a live Firma API (replays previously 500ed
+    // forever once fetchCompletedDocument stopped succeeding) and must not
+    // pay the wasted fetch+upload round-trips. The 23505 catch below remains
+    // as the backstop for the concurrent-first-delivery race.
+    let alreadyRecorded = false;
+    try {
+      alreadyRecorded = await database.hasConsentFor("C3_revenue_split", envelopeId);
+    } catch {
+      // Lookup failure (transient DB issue): fall through to the evidence +
+      // insert flow; the insert is still unique-constrained, so correctness
+      // is preserved either way.
+    }
+    if (alreadyRecorded) {
+      console.info(`[esign.webhook] acknowledged replayed envelope envelope_id=${envelopeId} kind=C3_revenue_split`);
+      await flagLegacyProvenance();
+      return;
+    }
+
+    // The PDF path is abstracted here, but typically bounded to user and envelope
+    const pdfPath = `${userId}/${envelopeId}.pdf`;
+
+    // Evidence-before-insert (sprint-10 audit F1): the signed PDF must exist in
+    // Storage BEFORE any consent row references it. Fetch the completed
+    // document, upload + read-back verify it — any failure throws here, the
+    // route answers 500, Firma retries, and NO consent row is written. The
+    // previous phantom path (`pdfPath` persisted without an upload) is gone.
+    const pdfBytes = await esignAdapter.fetchCompletedDocument(envelopeId);
+    await esignAdapter.uploadConsentEvidence(pdfPath, pdfBytes);
 
     // 3. Persist the legal consent (C3) using the Database Port
     try {
