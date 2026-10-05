@@ -1,0 +1,39 @@
+.qa-intel/baseline.json
+  s_577c99742b95a8::t_17324f57bcf7eb 216
+web/src/lib/__tests__/skew-retry-fetch.test.ts
+  s_577c99742b95a8::t_7fe7fc90481d7a 116,118-119,122-124
+docs/agent_ledger.jsonl
+  s_577c99742b95a8::t_714f149e07f15e 466
+  s_577c99742b95a8::t_d3d31b564f9359 467
+src/adapters/esign/firma.adapter.ts
+  s_577c99742b95a8::t_30fc5c01811446 20-23
+  s_577c99742b95a8::t_2ea11ee137d41b 255-262
+  s_577c99742b95a8::t_c77e3819a9d47c 394-401
+web/src/lib/skew-retry-fetch.ts
+  s_577c99742b95a8::t_1bbe5fcb568216 10-12,15-20,22,28-29
+docs/adr/0059-idempotent-ssr-retries.md
+  s_577c99742b95a8::t_287dc91130ae62 16-20
+  s_577c99742b95a8::t_16a306209784e0 26
+src/adapters/esign/__tests__/firma.adapter.test.ts
+  s_577c99742b95a8::t_b503f8dc998889 689,691,693,696
+  s_577c99742b95a8::t_6dc993bbbf6d73 650-652,654,656,659
+  s_577c99742b95a8::t_5a76bd9afa2475 633-649,653,655,657-658,660-688,690,692,694-695,697-707
+AGENTS.md
+  s_577c99742b95a8::t_67c41e3862141c 73
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7a7ea53b4fcc6f8f7da46b04c0a9707d90385d2d",
+  "prompts": {},
+  "sessions": {
+    "s_577c99742b95a8": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef2cb413affeyyRuS9ZgjwYK20",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
