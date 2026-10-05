@@ -1,0 +1,24 @@
+src/domain/governance/consent.port.ts
+  s_504308f4460afb::t_2b37d0871ce4ec 32-38
+src/adapters/database/supabase.adapter.ts
+  s_504308f4460afb::t_765ccd8a4a9d9e 56-66
+src/use_cases/process_esign_webhook.ts
+  s_504308f4460afb::t_c5d7f465955964 94-114
+  s_504308f4460afb::t_ca875d131155fe 115-117
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "cecd1eab23b3b28a4d18660b643f470fecdf9f01",
+  "prompts": {},
+  "sessions": {
+    "s_504308f4460afb": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef4fe588affeXQkqTqgALkWt7P",
+        "model": "@preset/glm-53-flash-on-cheap"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
