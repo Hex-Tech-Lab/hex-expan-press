@@ -109,7 +109,10 @@ export class FirmaAdapter implements EsignProviderPort, EsignWebhookPort, EsignE
       if (put.status === 400 && detail.includes("Bucket not found")) {
         throw new Error(`Consent evidence upload failed: Storage bucket "consents" does not exist — provision it in the Supabase project (F1 evidence gate cannot record without it)`);
       }
-      throw new Error(`Consent evidence upload failed (${put.status}) for ${objectPath}`);
+      // Include the truncated response body in the generic branch too: a 401/403/404
+      // (e.g. invalid service-role key) previously rethrew without the diagnostic
+      // detail the code had already fetched (external review PR #78).
+      throw new Error(`Consent evidence upload failed (${put.status}) for ${objectPath}${detail ? `: ${detail.slice(0, 200)}` : ""}`);
     }
     const verify = await this.fetchWithRelease(objectUrl, { headers });
     if (!verify.ok) throw new Error(`Consent evidence verification failed (${verify.status}) for ${objectPath}`);
@@ -225,7 +228,13 @@ export class FirmaAdapter implements EsignProviderPort, EsignWebhookPort, EsignE
           eventType: "envelope.completed",
           envelopeId: payload?.data?.signing_request?.id || "unknown",
           metadata: payload?.data?.signing_request?.metadata || {},
-          documentHash: payload?.data?.signing_request?.document_sha256 || ""
+          // String-typed only: a JSON-array hash ("[\"<64hex>\"]") would coerce
+          // through the regex gate and then explode on .toLowerCase() with an
+          // unhandled 500 retry loop (external review PR #78). Non-strings
+          // map to "" so the use case's hash gate answers a typed 400.
+          documentHash: typeof payload?.data?.signing_request?.document_sha256 === "string"
+            ? payload.data.signing_request.document_sha256
+            : ""
         }
       };
     } catch (err) {

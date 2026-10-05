@@ -53,12 +53,14 @@ export async function processEsignWebhookUseCase(
 
     // Hash gate (sprint-10 audit F3): an empty or non-64-hex document_sha256
     // violates consents_document_sha256_check. Previously the DB rejection was
-    // classified 500, so Firma retried a permanently-invalid payload forever.
-    // Typed 400 is terminal; the envelope lands in ops. The hash is taken
-    // as-is from the adapter — no value is ever fabricated here.
-    if (!DOCUMENT_SHA256_PATTERN.test(event.documentHash)) {
+    // swallowed by the retry loop (500 forever); the typed 400 is terminal and
+    // the envelope lands in ops. The hash is taken as-is from the adapter — no
+    // value is ever fabricated here. String-type guard first: a one-element
+    // JSON array stringifies through the regex, then explodes on .toLowerCase()
+    // with an unhandled 500 (external review PR #78).
+    if (typeof event.documentHash !== "string" || !DOCUMENT_SHA256_PATTERN.test(event.documentHash)) {
       throw new WebhookValidationError(
-        `Webhook validation failed: completed envelope ${envelopeId} has a missing or invalid document_sha256 (expected 64 hex characters, got ${event.documentHash ? `length ${event.documentHash.length}` : "empty"})`
+        `Webhook validation failed: completed envelope ${envelopeId} has a missing or invalid document_sha256 (expected 64 hex characters, got ${typeof event.documentHash === "string" && event.documentHash ? `length ${event.documentHash.length}` : "empty"})`
       );
     }
     // Lowercase-normalize BEFORE persistence: the DB CHECK (and every RPC validation)

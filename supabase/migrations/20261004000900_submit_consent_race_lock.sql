@@ -164,10 +164,15 @@ begin
   )
   returning id into v_consent;
 
-  insert into public.audit_log (actor, creator_id, event, details)
+  -- `at` stamped with clock_timestamp() explicitly: the column default is
+  -- now() (transaction START), and this transaction waited on the advisory
+  -- lock — an audit entry timestamped before the record it describes would
+  -- be indistinguishable from an ordering bug (external review PR #78).
+  insert into public.audit_log (actor, creator_id, event, details, at)
   values (v_signer, v_creator, 'consent_submitted',
           jsonb_build_object('consent_id', v_consent, 'kind', p_kind, 'decision', p_decision,
-                             'via_service_role', is_service));
+                             'via_service_role', is_service),
+          clock_timestamp());
 
   return v_consent;
 end $$;
