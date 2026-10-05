@@ -5,21 +5,30 @@
 // The real signature scheme (src/adapters/esign/firma.adapter.ts): Firma
 // HMAC-SHA256 over the RAW body, hex digest, compared against the exact
 // header `x-firma-signature`. Fail-closed since Wave 5.1: an unconfigured
-// FIRMA_WEBHOOK_SECRET rejects instead of skipping verification. The
-// webhook's "invalid" contract (400) comes from `validation failed` errors
-// thrown by the use case, which the route maps to HTTP 400.
+// FIRMA_WEBHOOK_SECRET rejects instead of skipping verification. Validation
+// failures are the typed WebhookValidationError (sprint-10 F5): signature
+// failures carry httpStatus 401 (unauthenticated), payload-shape failures
+// 400 (post-authentication) — the route maps accordingly and quarantines
+// ONLY post-authentication terminal rejects (a 401 prose substring check
+// remains only as a deprecated fallback at the route layer).
 //
-// Scenarios (Supabase adapter + settings mocked — never hit the live DB):
-//   1. Invalid/missing `x-firma-signature` → 400.
+// Scenarios (Supabase adapter + settings mocked — never hit the live DB;
+// fetch is stubbed for the evidence-upload path — never hit the network):
+//   1. Invalid/missing `x-firma-signature` → 401, NO quarantine row.
 //   2. Payload missing productId/userId metadata → 400 (consent rejected).
-//   3. Valid HMAC-signed `signing_request.completed` → 200 and the
-//      consent port receives the exact C3 submitConsent command shape.
+//   3. Missing/invalid document_sha256 → typed 400, zero DB writes (F3).
+//   4. Valid HMAC-signed `signing_request.completed` → 200 and the
+//      consent port receives the exact C3 submitConsent command shape,
+//      with the evidence PDF fetched + uploaded + verified BEFORE insert (F1).
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import crypto from "node:crypto";
 import { FirmaAdapter } from "../../../../src/adapters/esign/firma.adapter";
+import { WebhookValidationError } from "../../../../src/domain/webhook/webhook_errors";
 import type { Mock } from "vitest";
 
 const SECRET = "test-webhook-secret";
+const DOCUMENT_HASH = crypto.createHash("sha256").update("sprint10-f1-agreement").digest("hex");
+const AGREEMENT_PDF_BYTES = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31]); // "%PDF-1"
 
 function signedBody(payload: unknown, secret = SECRET): { body: string; headers: Record<string, string> } {
   const body = JSON.stringify(payload);
@@ -33,11 +42,30 @@ function completedPayload(metadata: Record<string, string>, envelopeId = "env_12
     data: {
       signing_request: {
         id: envelopeId,
-        document_sha256: "abc123hash",
+        document_sha256: DOCUMENT_HASH,
         metadata,
       },
     },
   };
+}
+
+/** Hermetic fetch stub for the evidence flow: Firma documents GET, Storage
+ * PUT and the read-back verification GET. Any other call fails the test. */
+function evidenceFetchMock(): Mock {
+  return vi.fn((input: unknown, init?: { method?: string }) => {
+    const url = String(input);
+    const method = init?.method ?? "GET";
+    if (method === "GET" && url.includes("/signing-requests/")) {
+      return Promise.resolve({ ok: true, status: 200, arrayBuffer: () => Promise.resolve(AGREEMENT_PDF_BYTES.slice().buffer) });
+    }
+    if (method === "PUT" && url.includes("/storage/v1/object/consents/")) {
+      return Promise.resolve({ ok: true, status: 200, arrayBuffer: () => Promise.resolve(new ArrayBuffer(0)) });
+    }
+    if (method === "GET" && url.includes("/storage/v1/object/consents/")) {
+      return Promise.resolve({ ok: true, status: 200, arrayBuffer: () => Promise.resolve(AGREEMENT_PDF_BYTES.slice().buffer) });
+    }
+    return Promise.reject(new Error(`unexpected fetch ${method} ${url}`));
+  });
 }
 
 describe("esign webhook (Firma HMAC contract)", () => {
@@ -56,10 +84,14 @@ describe("esign webhook (Firma HMAC contract)", () => {
   beforeEach(() => {
     vi.stubEnv("FIRMA_WEBHOOK_SECRET", SECRET);
     vi.stubEnv("FIRMA_API_BASE", "https://api.firma.test/functions/v1/signing-request-api");
+    vi.stubEnv("FIRMA_API_KEY", "unit-test-firma-key");
+    vi.stubEnv("SUPABASE_URL", "https://unit.test.supabase.co");
+    vi.stubEnv("SUPABASE_SECRET_KEY", "unit-test-key");
   });
 
   afterEach(() => {
     vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
   });
 
   it("rejects a payload signed with the wrong secret (HTTP 400 contract)", async () => {
@@ -82,7 +114,14 @@ describe("esign webhook (Firma HMAC contract)", () => {
     const { body, headers } = signedBody(completedPayload({ productId: "p1", userId: "u1" }), "attacker-secret");
     const request = { body, headers, ip: "10.0.0.1", userAgent: "firma-webhook" };
 
-    await expect(processEsignWebhookUseCase(request, settings, { submitConsent, flagConsentForManualReview: vi.fn() })).rejects.toThrow("validation failed");
+    await expect(processEsignWebhookUseCase(request, settings, { submitConsent, flagConsentForManualReview: vi.fn(), hasConsentFor: vi.fn().mockResolvedValue(false) })).rejects.toSatisfy((e: unknown) => {
+      expect(e).toBeInstanceOf(WebhookValidationError);
+      expect((e as WebhookValidationError).message).toMatch(/validation failed/);
+      // Signature failures are UNAUTHENTICATED (401) — the route must not
+      // quarantine them (unauthenticated traffic must not force audit_log writes).
+      expect((e as WebhookValidationError).httpStatus).toBe(401);
+      return true;
+    });
     expect(submitConsent).not.toHaveBeenCalled();
   });
 
@@ -102,7 +141,7 @@ describe("esign webhook (Firma HMAC contract)", () => {
     const body = JSON.stringify(completedPayload({ productId: "p1", userId: "u1" }));
     const request = { body, headers: { "content-type": "application/json" }, ip: "10.0.0.1", userAgent: "" };
 
-    await expect(processEsignWebhookUseCase(request, settings, { submitConsent, flagConsentForManualReview: vi.fn() })).rejects.toThrow("validation failed");
+    await expect(processEsignWebhookUseCase(request, settings, { submitConsent, flagConsentForManualReview: vi.fn(), hasConsentFor: vi.fn().mockResolvedValue(false) })).rejects.toThrow("validation failed");
     expect(submitConsent).not.toHaveBeenCalled();
   });
 
@@ -123,15 +162,75 @@ describe("esign webhook (Firma HMAC contract)", () => {
     const { body, headers } = signedBody(completedPayload({}));
     const request = { body, headers, ip: "10.0.0.1", userAgent: "firma-webhook" };
 
-    await expect(processEsignWebhookUseCase(request, settings, { submitConsent, flagConsentForManualReview: vi.fn() })).rejects.toThrow(
+    await expect(processEsignWebhookUseCase(request, settings, { submitConsent, flagConsentForManualReview: vi.fn(), hasConsentFor: vi.fn().mockResolvedValue(false) })).rejects.toThrow(
       /missing productId\/userId/,
     );
     // Missing metadata must never produce a partial/garbage consent record.
     expect(submitConsent).not.toHaveBeenCalled();
   });
 
+  it("rejects a completed payload MISSING document_sha256 as a typed 400 with zero DB writes (F3)", async () => {
+    const submitConsent = vi.fn().mockResolvedValue(undefined);
+    const { processEsignWebhookUseCase } = await import("../../../../src/use_cases/process_esign_webhook");
+    const settings = {
+      getPortalSettings: vi.fn().mockResolvedValue({
+        esign: {
+          strategy: { mode: "2d", distribution: [{ provider: "firma", weight: 100 }], fallbacks: [] },
+          revenueSplitDocumentPath: "legal-docs/agreement.pdf",
+        },
+        payments: { checkoutStrategy: { mode: "2d", distribution: [{ provider: "polar", weight: 100 }], fallbacks: [] } },
+      }),
+    };
+
+    // Valid signature, valid metadata — but the completion payload omits the
+    // document hash, which the consents_document_sha256_check constraint
+    // requires. Terminal typed 400: Firma stops retrying, nothing is written.
+    const { body, headers } = signedBody({
+      type: "signing_request.completed",
+      data: { signing_request: { id: "env_no_hash", metadata: { productId: "p1", userId: "u1" } } },
+    });
+    const request = { body, headers, ip: "10.0.0.1", userAgent: "firma-webhook" };
+
+    const rejection = processEsignWebhookUseCase(request, settings, { submitConsent, flagConsentForManualReview: vi.fn(), hasConsentFor: vi.fn().mockResolvedValue(false) });
+    await expect(rejection).rejects.toBeInstanceOf(WebhookValidationError);
+    await expect(rejection).rejects.toMatchObject({ httpStatus: 400 });
+    await expect(rejection).rejects.toThrow(/env_no_hash.*document_sha256/);
+    expect(submitConsent).not.toHaveBeenCalled();
+  });
+
+  it("rejects a NON-STRING document_sha256 (one-element JSON array) as a typed 400 with zero DB writes", async () => {
+    const submitConsent = vi.fn().mockResolvedValue(undefined);
+    const { processEsignWebhookUseCase } = await import("../../../../src/use_cases/process_esign_webhook");
+    const settings = {
+      getPortalSettings: vi.fn().mockResolvedValue({
+        esign: {
+          strategy: { mode: "2d", distribution: [{ provider: "firma", weight: 100 }], fallbacks: [] },
+          revenueSplitDocumentPath: "legal-docs/agreement.pdf",
+        },
+        payments: { checkoutStrategy: { mode: "2d", distribution: [{ provider: "polar", weight: 100 }], fallbacks: [] } },
+      }),
+    };
+
+    // A one-element JSON array stringifies through the regex gate (String(["<64hex>"])
+    // === "<64hex>"), then previously exploded on .toLowerCase() with an unhandled
+    // 500 retry loop. Adapter type-guard + use-case string guard → typed 400.
+    const hex = crypto.createHash("sha256").update("array-hash-case").digest("hex");
+    const { body, headers } = signedBody({
+      type: "signing_request.completed",
+      data: { signing_request: { id: "env_array_hash", metadata: { productId: "p1", userId: "u1" }, document_sha256: [hex] } },
+    });
+    const request = { body, headers, ip: "10.0.0.1", userAgent: "firma-webhook" };
+
+    const rejection = processEsignWebhookUseCase(request, settings, { submitConsent, flagConsentForManualReview: vi.fn(), hasConsentFor: vi.fn().mockResolvedValue(false) });
+    await expect(rejection).rejects.toBeInstanceOf(WebhookValidationError);
+    await expect(rejection).rejects.toMatchObject({ httpStatus: 400 });
+    expect(submitConsent).not.toHaveBeenCalled();
+  });
+
   it("accepts a valid HMAC-signed completed payload and submits the exact C3 consent", async () => {
     const submitConsent = vi.fn().mockResolvedValue(undefined);
+    const fetchMock = evidenceFetchMock();
+    vi.stubGlobal("fetch", fetchMock);
     const { processEsignWebhookUseCase } = await import("../../../../src/use_cases/process_esign_webhook");
     const settings = {
       getPortalSettings: vi.fn().mockResolvedValue({
@@ -147,7 +246,7 @@ describe("esign webhook (Firma HMAC contract)", () => {
     const request = { body, headers, ip: "203.0.113.9", userAgent: "firma-webhook/1.0" };
 
     const flagConsentForManualReview = vi.fn().mockResolvedValue(undefined);
-    await processEsignWebhookUseCase(request, settings, { submitConsent, flagConsentForManualReview });
+    await processEsignWebhookUseCase(request, settings, { submitConsent, flagConsentForManualReview, hasConsentFor: vi.fn().mockResolvedValue(false) });
 
     expect(submitConsent).toHaveBeenCalledTimes(1);
     // No snapshot on the envelope: never stamped with the current registry version; routed for manual review.
@@ -158,7 +257,7 @@ describe("esign webhook (Firma HMAC contract)", () => {
       kind: "C3_revenue_split",
       decision: "given",
       textVersion: "legacy/unknown",
-      documentSha256: "abc123hash",
+      documentSha256: DOCUMENT_HASH,
       typedName: "Signed via firma",
       ip: "203.0.113.9",
       userAgent: "firma-webhook/1.0",
@@ -166,10 +265,30 @@ describe("esign webhook (Firma HMAC contract)", () => {
       externalRef: "env_123",
       evidencePath: "user_7/env_123.pdf",
     });
+    // Evidence-before-insert (F1): the signed PDF was fetched from Firma,
+    // uploaded to the consents bucket at the exact contract path, and the
+    // write was verified — all BEFORE the consent insert.
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    const [firmaUrl] = fetchMock.mock.calls[0] as unknown as [string];
+    expect(firmaUrl).toBe("https://api.firma.test/functions/v1/signing-request-api/signing-requests/env_123/documents");
+    const [putUrl, putInit] = fetchMock.mock.calls[1] as unknown as [string, RequestInit];
+    expect(putUrl).toBe("https://unit.test.supabase.co/storage/v1/object/consents/user_7/env_123.pdf");
+    expect(putInit.method).toBe("PUT");
+    expect(putInit.headers).toMatchObject({
+      "Content-Type": "application/pdf",
+      "x-upsert": "true",
+      apikey: "unit-test-key",
+      Authorization: "Bearer unit-test-key",
+    });
+    const uploadedBytes = new Uint8Array(putInit.body as Uint8Array);
+    expect(uploadedBytes).toEqual(AGREEMENT_PDF_BYTES);
+    const [verifyUrl] = fetchMock.mock.calls[2] as unknown as [string];
+    expect(verifyUrl).toBe("https://unit.test.supabase.co/storage/v1/object/consents/user_7/env_123.pdf");
   });
 
   it("emits a command that satisfies the submit_consent RPC contract (real Firma-shaped ids)", async () => {
     const submitConsent = vi.fn().mockResolvedValue(undefined);
+    vi.stubGlobal("fetch", evidenceFetchMock());
     const { processEsignWebhookUseCase } = await import("../../../../src/use_cases/process_esign_webhook");
     const settings = {
       getPortalSettings: vi.fn().mockResolvedValue({
@@ -186,7 +305,7 @@ describe("esign webhook (Firma HMAC contract)", () => {
 
     const { body, headers } = signedBody(completedPayload({ productId: "prod_42", userId: USER, textVersion: "v1.0" }, ENVELOPE));
     const flagConsentForManualReview = vi.fn().mockResolvedValue(undefined);
-    await processEsignWebhookUseCase({ body, headers, ip: "203.0.113.9", userAgent: "firma-webhook/1.0" }, settings, { submitConsent, flagConsentForManualReview });
+    await processEsignWebhookUseCase({ body, headers, ip: "203.0.113.9", userAgent: "firma-webhook/1.0" }, settings, { submitConsent, flagConsentForManualReview, hasConsentFor: vi.fn().mockResolvedValue(false) });
     expect(flagConsentForManualReview).not.toHaveBeenCalled(); // valid snapshot: no review needed
 
     expect(submitConsent).toHaveBeenCalledTimes(1);
@@ -215,12 +334,13 @@ describe("esign webhook (Firma HMAC contract)", () => {
     const { body, headers } = signedBody(completedPayload({ productId: "prod_42", userId: "user_7", textVersion: "garbage" }));
     const request = { body, headers, ip: "203.0.113.9", userAgent: "firma-webhook/1.0" };
     const flagConsentForManualReview = vi.fn().mockResolvedValue(undefined);
-    await processEsignWebhookUseCase(request, settings, { submitConsent, flagConsentForManualReview });
+    vi.stubGlobal("fetch", evidenceFetchMock());
+    await processEsignWebhookUseCase(request, settings, { submitConsent, flagConsentForManualReview, hasConsentFor: vi.fn().mockResolvedValue(false) });
     expect(submitConsent.mock.calls[0][0].textVersion).toBe("legacy/unknown");
     expect(flagConsentForManualReview).toHaveBeenCalledWith(expect.objectContaining({ snapshot: "malformed" }));
 
     const failing = vi.fn().mockRejectedValue(new Error("audit_log down"));
-    await expect(processEsignWebhookUseCase(request, settings, { submitConsent, flagConsentForManualReview: failing })).rejects.toThrow("audit_log down");
+    await expect(processEsignWebhookUseCase(request, settings, { submitConsent, flagConsentForManualReview: failing, hasConsentFor: vi.fn().mockResolvedValue(false) })).rejects.toThrow("audit_log down");
   });
 
   it("ignores non-completed event types (no consent written)", async () => {
@@ -239,12 +359,85 @@ describe("esign webhook (Firma HMAC contract)", () => {
     const { body, headers } = signedBody({ type: "signing_request.viewed", data: { signing_request: { id: "env_9" } } });
     const request = { body, headers, ip: "10.0.0.1", userAgent: "firma-webhook" };
 
-    await expect(processEsignWebhookUseCase(request, settings, { submitConsent, flagConsentForManualReview: vi.fn() })).resolves.toBeUndefined();
+    await expect(processEsignWebhookUseCase(request, settings, { submitConsent, flagConsentForManualReview: vi.fn(), hasConsentFor: vi.fn().mockResolvedValue(false) })).resolves.toBeUndefined();
     expect(submitConsent).not.toHaveBeenCalled();
   });
 });
 
 // Type-level guard: the mock matches the ConsentDatabasePort shape.
-type ConsentPortShape = { submitConsent: Mock; flagConsentForManualReview: Mock };
+type ConsentPortShape = { submitConsent: Mock; flagConsentForManualReview: Mock; hasConsentFor: Mock };
 const _shapeCheck: ConsentPortShape | null = null;
 void _shapeCheck;
+
+describe("esign webhook route — terminal-reject quarantine (compiled sweep)", () => {
+  it("a validation-failed delivery returns 400 and quarantines the event (sha256, no raw body)", async () => {
+    vi.resetModules();
+    const inserts: Array<{ event?: string; details?: Record<string, unknown> }> = [];
+    vi.doMock("../../../../../../src/use_cases/process_esign_webhook", () => ({
+      processEsignWebhookUseCase: vi.fn(() => {
+        throw new WebhookValidationError("Webhook validation failed: completed envelope env_q has a missing or invalid document_sha256");
+      }),
+    }));
+    vi.doMock("@supabase/supabase-js", () => ({
+      createClient: () => ({
+        from: (table: string) => ({
+          insert: (row: unknown) => {
+            if (table === "audit_log") inserts.push(row as { event?: string; details?: Record<string, unknown> });
+            const insertResult = Promise.resolve({ error: null });
+            return Object.assign(insertResult, { abortSignal: () => insertResult });
+          },
+        }),
+      }),
+    }));
+    vi.stubEnv("SUPABASE_URL", "https://unit.test.supabase.co");
+    vi.stubEnv("SUPABASE_SECRET_KEY", "unit-test-key");
+    vi.stubEnv("FIRMA_WEBHOOK_SECRET", "route-secret");
+    const { POST } = await import("../../../app/api/esign/webhook/route");
+    const payload = JSON.stringify({ type: "signing_request.completed", data: { signing_request: { id: "env_q" } } });
+    const signature = crypto.createHmac("sha256", "route-secret").update(payload).digest("hex");
+    const req = new Request("https://expanpress.com/api/esign/webhook", {
+      method: "POST",
+      body: payload,
+      headers: { "x-firma-signature": signature },
+    });
+    const res = await POST(req as never);
+    expect(res.status).toBe(400);
+    expect(inserts).toHaveLength(1);
+    expect(inserts[0]).toMatchObject({ event: "WEBHOOK_TERMINAL_REJECT", details: { provider: "esign", reason: "WebhookValidationError" } });
+    expect(inserts[0]?.details?.payload_sha256).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it("an unauthenticated (401) reject returns 401 and does NOT quarantine", async () => {
+    vi.resetModules();
+    const inserts: Array<{ event?: string; details?: Record<string, unknown> }> = [];
+    vi.doMock("../../../../../../src/use_cases/process_esign_webhook", () => ({
+      processEsignWebhookUseCase: vi.fn(() => {
+        throw new WebhookValidationError("Webhook validation failed: Invalid signature", 401);
+      }),
+    }));
+    vi.doMock("@supabase/supabase-js", () => ({
+      createClient: () => ({
+        from: (table: string) => ({
+          insert: (row: unknown) => {
+            if (table === "audit_log") inserts.push(row as { event?: string; details?: Record<string, unknown> });
+            const insertResult = Promise.resolve({ error: null });
+            return Object.assign(insertResult, { abortSignal: () => insertResult });
+          },
+        }),
+      }),
+    }));
+    vi.stubEnv("SUPABASE_URL", "https://unit.test.supabase.co");
+    vi.stubEnv("SUPABASE_SECRET_KEY", "unit-test-key");
+    vi.stubEnv("FIRMA_WEBHOOK_SECRET", "route-secret");
+    const { POST } = await import("../../../app/api/esign/webhook/route");
+    const payload = JSON.stringify({ type: "signing_request.completed", data: { signing_request: { id: "env_q" } } });
+    const req = new Request("https://expanpress.com/api/esign/webhook", {
+      method: "POST",
+      body: payload,
+      headers: { "x-firma-signature": "0".repeat(64) }, // present but wrong → 401
+    });
+    const res = await POST(req as never);
+    expect(res.status).toBe(401);
+    expect(inserts).toHaveLength(0); // unauthenticated senders must not force service-role audit writes
+  });
+});

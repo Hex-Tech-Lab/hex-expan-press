@@ -3,7 +3,7 @@ import { open } from "node:fs/promises";
 import { dirname, join, basename } from "node:path";
 import { createHash } from "node:crypto";
 import { z } from "zod";
-import { GLOBAL } from "./settings_registry.ts";
+import { GLOBAL, isMoneyPath } from "./settings_registry.ts";
 
 export type LedgerEventType = "sale" | "refund" | "refund_reversal";
 
@@ -111,7 +111,12 @@ export const OrderUpsertSchema = z.strictObject({
     }
   }
 });
-class OrderSchemaError extends Error {}
+export class OrderSchemaError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "OrderSchemaError";
+  }
+}
 
 /** Dual-write an order record to Supabase public.orders for permanent serverless persistence. */
 async function persistToSupabaseOrder(record: SaleRecord): Promise<void> {
@@ -119,8 +124,9 @@ async function persistToSupabaseOrder(record: SaleRecord): Promise<void> {
   const key = process.env.SUPABASE_SECRET_KEY;
   if (!url || !key) {
     // Serverless /tmp is ephemeral: skipping the durable write there would lose the sale for good. Fail loud (500 → provider retries).
-    if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
-      throw new Error("ledger: SUPABASE_URL/SUPABASE_SECRET_KEY missing in a serverless runtime — refusing to record a ledger entry without the durable store");
+    // Money-path predicate (isMoneyPath), not a Vercel/Lambda env sniff: a prod-like runtime without VERCEL_ENV must also fail closed.
+    if (isMoneyPath()) {
+      throw new Error("ledger: SUPABASE_URL/SUPABASE_SECRET_KEY missing in a money-path runtime — refusing to record a ledger entry without the durable store");
     }
     return;
   }
@@ -399,17 +405,33 @@ export async function flagRefundForManualReview(input: ManualReviewRefund): Prom
   if (!url || !key) {
     // Production: a flag that cannot be persisted must not become a quiet 400 —
     // throw so the webhook 500s and the provider retries until config is fixed.
-    if (process.env.VERCEL_ENV === "production") {
-      throw new Error("ledger: manual-review flag cannot be persisted: Supabase is not configured in production");
+    // Money-path detection (isMoneyPath): NODE_ENV=production, ANY VERCEL_ENV value
+    // (previews included), or an AWS Lambda runtime — fail CLOSED when ambiguous.
+    if (isMoneyPath()) {
+      throw new Error("ledger: manual-review flag cannot be persisted: Supabase is not configured in a money-path runtime (production/previews/Lambda)");
     }
     console.error("ledger: MANUAL_REVIEW_REQUIRED_REFUND (Supabase unconfigured, not persisted):", details);
     return;
   }
   const { createClient } = await import("@supabase/supabase-js");
   const supabase = createClient(url, key);
-  const { error } = await supabase.from("audit_log").insert({ event: "MANUAL_REVIEW_REQUIRED_REFUND", details });
-  // 23505 = this exact collision was already flagged (audit_log dedupe index): idempotent success.
-  if (error && error.code !== "23505") throw new Error(`ledger: manual-review flag write failed: ${error.message}`);
+  // Deterministic idempotency key (audit_log_idempotency_uidx, 20261004001000):
+  // the key must identify the LOGICAL EVENT, not the review condition — otherwise
+  // two distinct adjustments (or two distinct refunds) for one sale with the same
+  // reason would collapse and the second event's details would never reach the
+  // review queue. Identity: adjustment_id for collision flags, else refund_id,
+  // else occurred_at (identical on provider redeliveries). Redeliveries of the
+  // same event upsert to a no-op; distinct events each get their own row.
+  const eventIdentity = details.adjustment_id ?? details.refund_id ?? details.occurred_at;
+  const idempotencyKey = `MANUAL_REVIEW_REQUIRED_REFUND:${details.provider}:${details.sale_id}:${details.event_type ?? "none"}:${details.reason}:${eventIdentity}`;
+  const { error } = await supabase
+    .from("audit_log")
+    .upsert(
+      { event: "MANUAL_REVIEW_REQUIRED_REFUND", details, idempotency_key: idempotencyKey },
+      { onConflict: "idempotency_key", ignoreDuplicates: true },
+    );
+  // ignoreDuplicates swallows the duplicate case; any other error is a real failure.
+  if (error) throw new Error(`ledger: manual-review flag write failed: ${error.message}`);
 }
 
 /**

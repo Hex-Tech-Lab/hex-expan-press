@@ -7,6 +7,7 @@
  * ADR: ADR-0049, ADR-0050
  */
 import { PaymentProviderPort, SaleCompletedEvent, RefundIssuedEvent, RefundReversedEvent } from "../../domain/payments/payments.port.ts";
+import { WebhookValidationError } from "../../domain/webhook/webhook_errors.ts";
 import { appendSale, appendRefund, appendRefundReversal, findSaleAsync, findRefundAsync, findRefundReversalAsync, findByProviderAdjustmentIdAsync, flagRefundForManualReview, recordWebhookConflict, isAdjustmentIdUniqueViolation } from "../../../payments/src/ledger.ts";
 import { computeSplit, usdToCents } from "../../../payments/src/split.ts";
 import { effectiveCreatorSplitPct } from "../../../payments/src/terms.ts";
@@ -119,7 +120,6 @@ async function resolveAdjustmentIdCollision(
   }
   return { status: 202, payload: { ok: true, recorded: false, reason: "conflict_pending", conflict_id: conflictId, event_type: eventType, sale_id: event.saleId } };
 }
-
 /**
  * Run fn under the idempotency lock. A held lock is NOT success — the holder may
  * still fail. Acknowledge only when the record is confirmed durable; otherwise
@@ -153,16 +153,24 @@ export async function processBillingWebhookUseCase(
   }
 
   if (!matchedAdapter) {
-    throw new Error("No payment provider configured to handle this webhook signature.");
+    // No adapter claims the signature headers → nothing was verified. Marked
+    // senderVerified=false so the route does NOT quarantine this reject
+    // (unauthenticated traffic must not force audit_log writes).
+    const err = new WebhookValidationError("No payment provider configured to handle this webhook signature.");
+    err.senderVerified = false;
+    throw err;
   }
 
   // 2. Zod-enforced parse — strict SSOT shape validation
   const validation = await matchedAdapter.parseAndValidateWebhook(req.headers, req.body);
 
   if (!validation.isValid) {
-    const err = new Error(`Webhook validation failed for ${matchedAdapter.providerName}: ${validation.error}`) as Error & { httpStatus?: number };
-    err.httpStatus = validation.httpStatus;
-    throw err;
+    // The adapter's httpStatus hint (401 bad signature, 500 missing secret,
+    // 503 recoverable state) travels with the typed error; undefined → 400.
+    throw new WebhookValidationError(
+      `Webhook validation failed for ${matchedAdapter.providerName}: ${validation.error}`,
+      validation.httpStatus,
+    );
   }
 
   const { event } = validation;
@@ -230,7 +238,7 @@ export async function processBillingWebhookUseCase(
             creator_id: sale?.creator_id ?? null,
             occurred_at: refundEvent.occurredAt,
           });
-          throw new Error(
+          throw new WebhookValidationError(
             `Webhook validation failed: refund amount unverifiable for sale ${refundEvent.saleId} — flagged for manual review`,
           );
         }
@@ -248,7 +256,7 @@ export async function processBillingWebhookUseCase(
               creator_id: original.creator_id ?? null,
               occurred_at: refundEvent.occurredAt,
             });
-            throw new Error(
+            throw new WebhookValidationError(
               `Webhook validation failed: refund currency ${refundEvent.currency} != sale ${saleCurrency} for sale ${refundEvent.saleId} — flagged for manual review`,
             );
           }
@@ -266,7 +274,7 @@ export async function processBillingWebhookUseCase(
               creator_id: original?.creator_id ?? null,
               occurred_at: refundEvent.occurredAt,
             });
-            throw new Error(
+            throw new WebhookValidationError(
               `Webhook validation failed: refund amount ${refundEvent.totalCents}c != sale ${saleCents}c for sale ${refundEvent.saleId} — full reversals only, flagged for manual review`,
             );
           }
@@ -466,11 +474,10 @@ export async function processBillingWebhookUseCase(
 
         // Never book a foreign-currency total as the product's currency (audit F4).
         if (saleEvent.currency.toUpperCase() !== cfg.currency.toUpperCase()) {
-          const err = new Error(
+          throw new WebhookValidationError(
             `Webhook validation failed: sale ${saleEvent.saleId} currency ${saleEvent.currency} != product currency ${cfg.currency}`,
-          ) as Error & { httpStatus?: number };
-          err.httpStatus = 422;
-          throw err;
+            422,
+          );
         }
 
         // Compute split
