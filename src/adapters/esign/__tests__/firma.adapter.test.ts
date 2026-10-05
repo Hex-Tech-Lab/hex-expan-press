@@ -31,7 +31,7 @@ describe("FirmaAdapter.parseAndValidateWebhook (fail-closed HMAC gate)", () => {
 
   it("FAILS CLOSED when FIRMA_WEBHOOK_SECRET is unconfigured — unsigned payload rejected", async () => {
     vi.stubEnv("FIRMA_WEBHOOK_SECRET", "");
-    const adapter = new FirmaAdapter();
+    const adapter = new FirmaAdapter(async () => [{ address: "93.184.216.34" }]);
     const result = await adapter.parseAndValidateWebhook(
       JSON.stringify(completedPayload({ productId: "p1", userId: "u1" })),
       { "content-type": "application/json" },
@@ -44,14 +44,14 @@ describe("FirmaAdapter.parseAndValidateWebhook (fail-closed HMAC gate)", () => {
     // No skip-HMAC downgrade path exists: a valid signature cannot rescue a
     // request when the secret is missing — the endpoint rejects regardless.
     vi.stubEnv("FIRMA_WEBHOOK_SECRET", "");
-    const adapter = new FirmaAdapter();
+    const adapter = new FirmaAdapter(async () => [{ address: "93.184.216.34" }]);
     const { body, headers } = signedBody(completedPayload({ productId: "p1", userId: "u1" }), SECRET);
     const result = await adapter.parseAndValidateWebhook(body, headers);
     expect(result.isValid).toBe(false);
   });
 
   it("rejects a wrong-secret signature while the secret is configured", async () => {
-    const adapter = new FirmaAdapter();
+    const adapter = new FirmaAdapter(async () => [{ address: "93.184.216.34" }]);
     const { body, headers } = signedBody(completedPayload({ productId: "p1", userId: "u1" }), "attacker-secret");
     const result = await adapter.parseAndValidateWebhook(body, headers);
     expect(result.isValid).toBe(false);
@@ -59,7 +59,7 @@ describe("FirmaAdapter.parseAndValidateWebhook (fail-closed HMAC gate)", () => {
   });
 
   it("accepts a validly-signed completed envelope and maps the event", async () => {
-    const adapter = new FirmaAdapter();
+    const adapter = new FirmaAdapter(async () => [{ address: "93.184.216.34" }]);
     const { body, headers } = signedBody(completedPayload({ productId: "p1", userId: "u1" }));
     const result = await adapter.parseAndValidateWebhook(body, headers);
     expect(result.isValid).toBe(true);
@@ -71,7 +71,7 @@ describe("FirmaAdapter.parseAndValidateWebhook (fail-closed HMAC gate)", () => {
   // (timingSafeEqual over decoded hex bytes). Length-mismatched and non-hex
   // inputs must reject with the same "Invalid signature" result.
   it("rejects a MISSING signature header", async () => {
-    const adapter = new FirmaAdapter();
+    const adapter = new FirmaAdapter(async () => [{ address: "93.184.216.34" }]);
     const { body } = signedBody(completedPayload({ productId: "p1", userId: "u1" }));
     const result = await adapter.parseAndValidateWebhook(body, { "content-type": "application/json" });
     expect(result.isValid).toBe(false);
@@ -79,7 +79,7 @@ describe("FirmaAdapter.parseAndValidateWebhook (fail-closed HMAC gate)", () => {
   });
 
   it("rejects a WRONG-LENGTH signature without throwing", async () => {
-    const adapter = new FirmaAdapter();
+    const adapter = new FirmaAdapter(async () => [{ address: "93.184.216.34" }]);
     const { body, headers } = signedBody(completedPayload({ productId: "p1", userId: "u1" }));
     headers["x-firma-signature"] = "abcd";
     const result = await adapter.parseAndValidateWebhook(body, headers);
@@ -88,7 +88,7 @@ describe("FirmaAdapter.parseAndValidateWebhook (fail-closed HMAC gate)", () => {
   });
 
   it("rejects a NON-HEX signature without throwing", async () => {
-    const adapter = new FirmaAdapter();
+    const adapter = new FirmaAdapter(async () => [{ address: "93.184.216.34" }]);
     const { body, headers } = signedBody(completedPayload({ productId: "p1", userId: "u1" }));
     headers["x-firma-signature"] = "z".repeat(64);
     const result = await adapter.parseAndValidateWebhook(body, headers);
@@ -99,7 +99,7 @@ describe("FirmaAdapter.parseAndValidateWebhook (fail-closed HMAC gate)", () => {
   // Buffer.from(hex) truncates at junk / an unmatched final digit — a valid
   // signature with a suffix must still be rejected (CodeRabbit, PR #24).
   it.each([["z"], ["a"]])("rejects a VALID signature followed by %j", async (suffix) => {
-    const adapter = new FirmaAdapter();
+    const adapter = new FirmaAdapter(async () => [{ address: "93.184.216.34" }]);
     const { body, headers } = signedBody(completedPayload({ productId: "p1", userId: "u1" }));
     headers["x-firma-signature"] = String(headers["x-firma-signature"]) + suffix;
     const result = await adapter.parseAndValidateWebhook(body, headers);
@@ -160,7 +160,7 @@ describe("FirmaAdapter.fetchCompletedDocument (F1, LIVE-VERIFIED 2026-10-05)", (
         : Promise.resolve(bytesResponse(200, EVIDENCE_BYTES)),
     );
     vi.stubGlobal("fetch", fetchMock);
-    const adapter = new FirmaAdapter();
+    const adapter = new FirmaAdapter(async () => [{ address: "93.184.216.34" }]);
 
     const bytes = await adapter.fetchCompletedDocument("env_doc_1");
 
@@ -182,7 +182,7 @@ describe("FirmaAdapter.fetchCompletedDocument (F1, LIVE-VERIFIED 2026-10-05)", (
         : Promise.resolve(bytesResponse(200, EVIDENCE_BYTES)),
     );
     vi.stubGlobal("fetch", fetchMock);
-    const adapter = new FirmaAdapter();
+    const adapter = new FirmaAdapter(async () => [{ address: "93.184.216.34" }]);
 
     await expect(adapter.fetchCompletedDocument("env_doc_1")).resolves.toEqual(EVIDENCE_BYTES);
     const [pdfUrl] = fetchMock.mock.calls[1] as unknown as [string];
@@ -197,7 +197,7 @@ describe("FirmaAdapter.fetchCompletedDocument (F1, LIVE-VERIFIED 2026-10-05)", (
       return Promise.resolve(bytesResponse(200, EVIDENCE_BYTES)); // document_url serves a VALID PDF — must never be fetched
     });
     vi.stubGlobal("fetch", fetchMock);
-    const adapter = new FirmaAdapter();
+    const adapter = new FirmaAdapter(async () => [{ address: "93.184.216.34" }]);
 
     await expect(adapter.fetchCompletedDocument("env_doc_1")).rejects.toThrow(/did not yield PDF bytes within the 20 MiB cap/);
     const fetchedUrls = fetchMock.mock.calls.map((c) => String(c[0]));
@@ -212,7 +212,7 @@ describe("FirmaAdapter.fetchCompletedDocument (F1, LIVE-VERIFIED 2026-10-05)", (
       return Promise.resolve(bytesResponse(200, EVIDENCE_BYTES));
     });
     vi.stubGlobal("fetch", fetchMock);
-    const adapter = new FirmaAdapter();
+    const adapter = new FirmaAdapter(async () => [{ address: "93.184.216.34" }]);
 
     await expect(adapter.fetchCompletedDocument("env_doc_1")).rejects.toThrow(/no final_document_download_url/);
     expect(fetchMock).toHaveBeenCalledTimes(1); // no download fetch at all
@@ -221,7 +221,7 @@ describe("FirmaAdapter.fetchCompletedDocument (F1, LIVE-VERIFIED 2026-10-05)", (
   it("throws on a non-200 resource response (route 500s → Firma retries, nothing persisted)", async () => {
     vi.stubEnv("FIRMA_API_KEY", "unit-firma-key");
     vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(jsonResponse(503, { error: "unavailable" }))));
-    const adapter = new FirmaAdapter();
+    const adapter = new FirmaAdapter(async () => [{ address: "93.184.216.34" }]);
 
     await expect(adapter.fetchCompletedDocument("env_doc_2")).rejects.toThrow(/completed-document resource fetch failed \(503\)/);
   });
@@ -229,7 +229,7 @@ describe("FirmaAdapter.fetchCompletedDocument (F1, LIVE-VERIFIED 2026-10-05)", (
   it("TERMINAL (sprint-12-C): non-string final_document_download_url rejects", async () => {
     vi.stubEnv("FIRMA_API_KEY", "unit-firma-key");
     vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(resourceResponse({ document_url: null, final_document_download_url: 42 }))));
-    const adapter = new FirmaAdapter();
+    const adapter = new FirmaAdapter(async () => [{ address: "93.184.216.34" }]);
 
     await expect(adapter.fetchCompletedDocument("env_doc_3")).rejects.toThrow(/no final_document_download_url/);
   });
@@ -241,7 +241,7 @@ describe("FirmaAdapter.fetchCompletedDocument (F1, LIVE-VERIFIED 2026-10-05)", (
         ? Promise.resolve(resourceResponse())
         : Promise.resolve(bytesResponse(200, new TextEncoder().encode('{"error":"not found"}'))),
     ));
-    const adapter = new FirmaAdapter();
+    const adapter = new FirmaAdapter(async () => [{ address: "93.184.216.34" }]);
 
     await expect(adapter.fetchCompletedDocument("env_doc_4")).rejects.toThrow(/did not yield PDF bytes within the 20 MiB cap/);
   });
@@ -256,7 +256,7 @@ describe("FirmaAdapter.fetchCompletedDocument (F1, LIVE-VERIFIED 2026-10-05)", (
         : Promise.resolve(bytesResponse(200, EVIDENCE_BYTES)),
     );
     vi.stubGlobal("fetch", fetchMock);
-    const adapter = new FirmaAdapter();
+    const adapter = new FirmaAdapter(async () => [{ address: "93.184.216.34" }]);
 
     await expect(adapter.fetchCompletedDocument("env_draft")).rejects.toThrow(/not a FINISHED signature request.*finished.:false/);
     expect(fetchMock).toHaveBeenCalledTimes(1); // resource GET only — never the signed URL
@@ -269,7 +269,7 @@ describe("FirmaAdapter.fetchCompletedDocument (F1, LIVE-VERIFIED 2026-10-05)", (
         ? Promise.resolve(resourceResponse({ status: { sent: true, finished: false, cancelled: true, declined: false, expired: false } }))
         : Promise.resolve(bytesResponse(200, EVIDENCE_BYTES)),
     ));
-    const adapter = new FirmaAdapter();
+    const adapter = new FirmaAdapter(async () => [{ address: "93.184.216.34" }]);
 
     await expect(adapter.fetchCompletedDocument("env_cancelled")).rejects.toThrow(/not a FINISHED signature request/);
   });
@@ -281,7 +281,7 @@ describe("FirmaAdapter.fetchCompletedDocument (F1, LIVE-VERIFIED 2026-10-05)", (
         ? Promise.resolve(resourceResponse({ is_partial: true }))
         : Promise.resolve(bytesResponse(200, EVIDENCE_BYTES)),
     ));
-    const adapter = new FirmaAdapter();
+    const adapter = new FirmaAdapter(async () => [{ address: "93.184.216.34" }]);
 
     await expect(adapter.fetchCompletedDocument("env_partial")).rejects.toThrow(/is_partial=true/);
   });
@@ -307,7 +307,7 @@ describe("FirmaAdapter.fetchCompletedDocument (F1, LIVE-VERIFIED 2026-10-05)", (
         ? Promise.resolve(resourceResponse({ final_document_download_url: badUrl }))
         : Promise.resolve(bytesResponse(200, EVIDENCE_BYTES)),
     ));
-    const adapter = new FirmaAdapter();
+    const adapter = new FirmaAdapter(async () => [{ address: "93.184.216.34" }]);
 
     await expect(adapter.fetchCompletedDocument("env_ssrf")).rejects.toThrow(/failed the HTTPS\/SSRF validation/);
   });
@@ -322,7 +322,7 @@ describe("FirmaAdapter.fetchCompletedDocument (F1, LIVE-VERIFIED 2026-10-05)", (
         : Promise.resolve(bytesResponse(200, EVIDENCE_BYTES));
     });
     vi.stubGlobal("fetch", fetchMock);
-    const adapter = new FirmaAdapter();
+    const adapter = new FirmaAdapter(async () => [{ address: "93.184.216.34" }]);
 
     await adapter.fetchCompletedDocument("env_doc_1");
 
@@ -340,7 +340,7 @@ describe("FirmaAdapter.fetchCompletedDocument (F1, LIVE-VERIFIED 2026-10-05)", (
       return Promise.reject(new TypeError("fetch failed: DNS timeout")); // network-level rejection
     });
     vi.stubGlobal("fetch", fetchMock);
-    const adapter = new FirmaAdapter();
+    const adapter = new FirmaAdapter(async () => [{ address: "93.184.216.34" }]);
 
     // The raw TypeError must NOT escape — the loop catches, logs, and the
     // aggregate terminal error is thrown instead.
@@ -358,11 +358,52 @@ describe("FirmaAdapter.fetchCompletedDocument (F1, LIVE-VERIFIED 2026-10-05)", (
       return Promise.resolve(new Response(null, { status: 302, headers: { location: redirectTarget } }));
     });
     vi.stubGlobal("fetch", fetchMock);
-    const adapter = new FirmaAdapter();
+    const adapter = new FirmaAdapter(async () => [{ address: "93.184.216.34" }]);
 
     await expect(adapter.fetchCompletedDocument("env_redirect")).rejects.toThrow(/did not yield PDF bytes within the 20 MiB cap/);
     const fetchedUrls = fetchMock.mock.calls.map((c) => String(c[0]));
     expect(fetchedUrls).not.toContain(redirectTarget); // the redirect was never followed
+  });
+
+  // ---- Sprint-12 closure: DNS-level SSRF defense (Cubic P2 on PR #82) ----
+
+  it("rejects a benign hostname that RESOLVES into a private range (DNS rebinding/metadata)", async () => {
+    vi.stubEnv("FIRMA_API_KEY", "unit-firma-key");
+    // The provider-controlled name resolves at 169.254.169.254 — must be rejected BEFORE any byte fetch.
+    const adapter = new FirmaAdapter(async () => [{ address: "169.254.169.254" }]);
+    const fetchMock = vi.fn((input: unknown) => {
+      if (String(input).includes("/signing-requests/")) return Promise.resolve(resourceResponse());
+      return Promise.resolve(bytesResponse(200, EVIDENCE_BYTES));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(adapter.fetchCompletedDocument("env_dns")).rejects.toThrow(/did not yield PDF bytes within the 20 MiB cap/);
+    expect(fetchMock).toHaveBeenCalledTimes(1); // resource GET only — the signed URL was never fetched
+  });
+
+  it("fails CLOSED when host resolution throws (no fetch without a verified address)", async () => {
+    vi.stubEnv("FIRMA_API_KEY", "unit-firma-key");
+    const fetchMock = vi.fn((input: unknown) => {
+      if (String(input).includes("/signing-requests/")) return Promise.resolve(resourceResponse());
+      return Promise.resolve(bytesResponse(200, EVIDENCE_BYTES));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const adapter = new FirmaAdapter(async () => { throw new Error("ENOTFOUND (simulated resolver outage)"); });
+
+    await expect(adapter.fetchCompletedDocument("env_dnsfail")).rejects.toThrow(/did not yield PDF bytes within the 20 MiB cap/);
+    expect(fetchMock).toHaveBeenCalledTimes(1); // resource GET only — the signed URL was never fetched
+  });
+
+  it("accepts when every resolved address is public (multi-A record)", async () => {
+    vi.stubEnv("FIRMA_API_KEY", "unit-firma-key");
+    const fetchMock = vi.fn((input: unknown) => {
+      if (String(input).includes("/signing-requests/")) return Promise.resolve(resourceResponse());
+      return Promise.resolve(bytesResponse(200, EVIDENCE_BYTES));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const adapter = new FirmaAdapter(async () => [{ address: "93.184.216.34" }, { address: "2606:2800:220:1:248:1893:25c8:1946" }]);
+
+    await expect(adapter.fetchCompletedDocument("env_multi")).resolves.toEqual(EVIDENCE_BYTES);
   });
 
   // ---- Sprint-12-B: memory exhaustion cap ----
@@ -377,7 +418,7 @@ describe("FirmaAdapter.fetchCompletedDocument (F1, LIVE-VERIFIED 2026-10-05)", (
         ? Promise.resolve(resourceResponse())
         : Promise.resolve(oversized),
     ));
-    const adapter = new FirmaAdapter();
+    const adapter = new FirmaAdapter(async () => [{ address: "93.184.216.34" }]);
 
     await expect(adapter.fetchCompletedDocument("env_big")).rejects.toThrow(/20 MiB cap/);
     expect(cancel).toHaveBeenCalled();
@@ -404,7 +445,7 @@ describe("FirmaAdapter.fetchCompletedDocument (F1, LIVE-VERIFIED 2026-10-05)", (
         ? Promise.resolve(resourceResponse())
         : Promise.resolve(fakeRes),
     ));
-    const adapter = new FirmaAdapter();
+    const adapter = new FirmaAdapter(async () => [{ address: "93.184.216.34" }]);
 
     await expect(adapter.fetchCompletedDocument("env_stream")).rejects.toThrow(/20 MiB cap/);
     expect(cancel).toHaveBeenCalled(); // the stall/overflow was cut off immediately
@@ -431,7 +472,7 @@ describe("FirmaAdapter.fetchCompletedDocument (F1, LIVE-VERIFIED 2026-10-05)", (
         ? Promise.resolve(resourceResponse())
         : Promise.resolve(fakeRes),
     ));
-    const adapter = new FirmaAdapter();
+    const adapter = new FirmaAdapter(async () => [{ address: "93.184.216.34" }]);
 
     const bytes = await adapter.fetchCompletedDocument("env_edge");
     expect(bytes.byteLength).toBe(20 * 1024 * 1024);
@@ -454,7 +495,7 @@ describe("FirmaAdapter.uploadConsentEvidence (F1 upload + read-back verify)", ()
         : Promise.resolve(bytesResponse(200, EVIDENCE_BYTES)),
     );
     vi.stubGlobal("fetch", fetchMock);
-    const adapter = new FirmaAdapter();
+    const adapter = new FirmaAdapter(async () => [{ address: "93.184.216.34" }]);
 
     await expect(adapter.uploadConsentEvidence("user_9/env_f125.pdf", EVIDENCE_BYTES)).resolves.toBeUndefined();
 
@@ -479,7 +520,7 @@ describe("FirmaAdapter.uploadConsentEvidence (F1 upload + read-back verify)", ()
     vi.stubEnv("SUPABASE_SECRET_KEY", SUPABASE_KEY);
     const fetchMock = vi.fn(() => Promise.resolve(jsonResponse(500, { error: "storage down" })));
     vi.stubGlobal("fetch", fetchMock);
-    const adapter = new FirmaAdapter();
+    const adapter = new FirmaAdapter(async () => [{ address: "93.184.216.34" }]);
 
     await expect(adapter.uploadConsentEvidence("user_9/env_f125.pdf", EVIDENCE_BYTES)).rejects.toThrow(
       /Consent evidence upload failed \(500\)/,
@@ -496,7 +537,7 @@ describe("FirmaAdapter.uploadConsentEvidence (F1 upload + read-back verify)", ()
         : Promise.resolve(jsonResponse(404, { error: "not found" })),
     );
     vi.stubGlobal("fetch", fetchMock);
-    const adapter = new FirmaAdapter();
+    const adapter = new FirmaAdapter(async () => [{ address: "93.184.216.34" }]);
 
     await expect(adapter.uploadConsentEvidence("user_9/env_f125.pdf", EVIDENCE_BYTES)).rejects.toThrow(
       /Consent evidence verification failed \(404\)/,
@@ -512,7 +553,7 @@ describe("FirmaAdapter.uploadConsentEvidence (F1 upload + read-back verify)", ()
         : Promise.resolve(bytesResponse(200, new Uint8Array(0))),
     );
     vi.stubGlobal("fetch", fetchMock);
-    const adapter = new FirmaAdapter();
+    const adapter = new FirmaAdapter(async () => [{ address: "93.184.216.34" }]);
 
     await expect(adapter.uploadConsentEvidence("user_9/env_f125.pdf", EVIDENCE_BYTES)).rejects.toThrow(
       /verification mismatch/,
@@ -524,7 +565,7 @@ describe("FirmaAdapter.uploadConsentEvidence (F1 upload + read-back verify)", ()
     vi.stubEnv("SUPABASE_SECRET_KEY", "");
     const fetchMock = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
-    const adapter = new FirmaAdapter();
+    const adapter = new FirmaAdapter(async () => [{ address: "93.184.216.34" }]);
 
     await expect(adapter.uploadConsentEvidence("user_9/env_f125.pdf", EVIDENCE_BYTES)).rejects.toThrow(
       /SUPABASE_URL\/SUPABASE_SECRET_KEY are not configured/,
