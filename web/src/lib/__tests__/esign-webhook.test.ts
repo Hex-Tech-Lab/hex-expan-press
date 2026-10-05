@@ -198,6 +198,35 @@ describe("esign webhook (Firma HMAC contract)", () => {
     expect(submitConsent).not.toHaveBeenCalled();
   });
 
+  it("rejects a NON-STRING document_sha256 (one-element JSON array) as a typed 400 with zero DB writes", async () => {
+    const submitConsent = vi.fn().mockResolvedValue(undefined);
+    const { processEsignWebhookUseCase } = await import("../../../../src/use_cases/process_esign_webhook");
+    const settings = {
+      getPortalSettings: vi.fn().mockResolvedValue({
+        esign: {
+          strategy: { mode: "2d", distribution: [{ provider: "firma", weight: 100 }], fallbacks: [] },
+          revenueSplitDocumentPath: "legal-docs/agreement.pdf",
+        },
+        payments: { checkoutStrategy: { mode: "2d", distribution: [{ provider: "polar", weight: 100 }], fallbacks: [] } },
+      }),
+    };
+
+    // A one-element JSON array stringifies through the regex gate (String(["<64hex>"])
+    // === "<64hex>"), then previously exploded on .toLowerCase() with an unhandled
+    // 500 retry loop. Adapter type-guard + use-case string guard → typed 400.
+    const hex = crypto.createHash("sha256").update("array-hash-case").digest("hex");
+    const { body, headers } = signedBody({
+      type: "signing_request.completed",
+      data: { signing_request: { id: "env_array_hash", metadata: { productId: "p1", userId: "u1" }, document_sha256: [hex] } },
+    });
+    const request = { body, headers, ip: "10.0.0.1", userAgent: "firma-webhook" };
+
+    const rejection = processEsignWebhookUseCase(request, settings, { submitConsent, flagConsentForManualReview: vi.fn(), hasConsentFor: vi.fn().mockResolvedValue(false) });
+    await expect(rejection).rejects.toBeInstanceOf(WebhookValidationError);
+    await expect(rejection).rejects.toMatchObject({ httpStatus: 400 });
+    expect(submitConsent).not.toHaveBeenCalled();
+  });
+
   it("accepts a valid HMAC-signed completed payload and submits the exact C3 consent", async () => {
     const submitConsent = vi.fn().mockResolvedValue(undefined);
     const fetchMock = evidenceFetchMock();
