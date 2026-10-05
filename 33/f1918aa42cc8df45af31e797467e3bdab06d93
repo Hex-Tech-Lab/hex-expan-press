@@ -1,0 +1,29 @@
+tests/helpers/esign-transport.ts
+  s_577c99742b95a8::t_bf0afbc4960b26 1-12
+docs/agent_ledger.jsonl
+  s_577c99742b95a8::t_1a74cd755d880c 464
+  s_577c99742b95a8::t_9bd3b5e825a501 465
+src/adapters/esign/__tests__/firma.adapter.test.ts
+  s_577c99742b95a8::t_a4c21c796b4fb6 15
+  s_577c99742b95a8::t_20583f2759172e 16
+web/src/lib/__tests__/esign-webhook.test.ts
+  s_577c99742b95a8::t_7d2645e1a93f2c 26
+.gitignore
+  s_577c99742b95a8::t_9b41927d76291e 93-95
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "33f1918aa42cc8df45af31e797467e3bdab06d93",
+  "prompts": {},
+  "sessions": {
+    "s_577c99742b95a8": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef2cb413affeyyRuS9ZgjwYK20",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
