@@ -1,0 +1,62 @@
+web/src/lib/supabase-ssr.ts
+  s_577c99742b95a8::t_4de58cf992b5e7 32-37
+src/adapters/esign/__tests__/firma.adapter.test.ts
+  s_577c99742b95a8::t_b3f676cd7054f9 43,56,63,71,83,91,100,111,178,200,215,230,239,247,259,274,287,299,325,340,358,376,436,463,490,655,680,697,713,725
+  s_577c99742b95a8::t_a7751679009d64 498-551,553-592,599-600,602-618,620-639
+  s_577c99742b95a8::t_50b0742def5c40 552
+  s_577c99742b95a8::t_7c3ed191900876 388
+  s_577c99742b95a8::t_d8445dacc585e1 406
+  s_577c99742b95a8::t_108256856e7960 6-14
+  s_577c99742b95a8::t_6f00e8e267bac8 619
+  s_577c99742b95a8::t_74ad711ba569dc 15
+  s_577c99742b95a8::t_001e4d1093b10d 419
+  s_577c99742b95a8::t_af078ef8a3ed4b 129-134
+  s_577c99742b95a8::t_b376705acd00b0 593-598,601
+web/src/lib/__tests__/esign-webhook.test.ts
+  s_577c99742b95a8::t_49f8dfbd358293 125,527,553,577,585,591,603
+  s_577c99742b95a8::t_02bc8a0c59932f 26-31
+  s_577c99742b95a8::t_d82c1448161623 32-41,43-44
+  s_577c99742b95a8::t_3b49acf4164192 42
+docs/adr/0058-zero-trust-esign-evidence-pipeline.md
+  s_577c99742b95a8::t_9134b3b7705a14 1-39
+docs/adr/README.md
+  s_577c99742b95a8::t_acccf8db99f1e0 14-15
+src/adapters/esign/firma.adapter.ts
+  s_577c99742b95a8::t_3ccff8c095eea6 36-53,56
+  s_577c99742b95a8::t_7e9e5bc076529d 65
+  s_577c99742b95a8::t_273730161c2a67 66-69
+  s_577c99742b95a8::t_fedb54ca08818c 84-85,87-88
+  s_577c99742b95a8::t_bc1c107430da76 245-254,256-265,268-300
+  s_577c99742b95a8::t_f0f66d32b71381 327-330
+  s_577c99742b95a8::t_c04213965a6836 3,17-35,54-55,57-64
+  s_577c99742b95a8::t_95a2f7faf095f4 379-380,384
+  s_577c99742b95a8::t_ce3d190c97bf13 86
+  s_577c99742b95a8::t_d8f648edec9383 208-213,218,220,226,230,235,238
+  s_577c99742b95a8::t_3fa602b3728081 70
+web/src/lib/skew-retry-fetch.ts
+  s_577c99742b95a8::t_0ba67b1f332c4f 9-16,18-29,38
+docs/adr/0059-idempotent-ssr-retries.md
+  s_577c99742b95a8::t_162ce657934269 1-33
+web/src/lib/__tests__/skew-retry-fetch.test.ts
+  s_577c99742b95a8::t_7b8624e204340f 93-133
+package.json
+  s_577c99742b95a8::t_36701d6b8dd2c8 45
+pnpm-lock.yaml
+  s_577c99742b95a8::t_300f3d93841614 124-126
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "385d8dc63b87d15f227682236fa1cad0509f1cd3",
+  "prompts": {},
+  "sessions": {
+    "s_577c99742b95a8": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef2cb413affeyyRuS9ZgjwYK20",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
