@@ -31,9 +31,10 @@ vi.mock("@supabase/supabase-js", () => ({
     from: (table: string) => {
       if (table === "audit_log") {
         return {
-          insert: async (row: Record<string, unknown>) => {
+          insert: (row: Record<string, unknown>) => {
             supa.auditInserts.push(row);
-            return { error: supa.auditInsertError };
+            const insertResult = Promise.resolve({ error: supa.auditInsertError });
+            return Object.assign(insertResult, { abortSignal: () => insertResult });
           },
           // flagRefundForManualReview upserts on idempotency_key (20261004001000)
           upsert: async (row: Record<string, unknown>) => {
@@ -144,7 +145,10 @@ describe("fungies refund via real webhook route (amount_unverifiable → manual 
     );
     expect(res.status).toBe(400);
 
-    expect(supa.auditInserts).toHaveLength(1);
+    // Row 1: the manual-review flag; row 2: the terminal-reject quarantine the
+    // 400 now writes (post-auth terminal 4xx must live outside the provider's
+    // redelivery queue — external review PR #78).
+    expect(supa.auditInserts).toHaveLength(2);
     expect(supa.auditInserts[0]).toMatchObject({
       event: "MANUAL_REVIEW_REQUIRED_REFUND",
       details: {

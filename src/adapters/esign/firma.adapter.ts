@@ -196,7 +196,7 @@ export class FirmaAdapter implements EsignProviderPort, EsignWebhookPort, EsignE
     // skip-HMAC mode — that would let an attacker circumvent verification simply
     // by removing the env var. Reject instead.
     if (!secret) {
-      return { isValid: false, error: "FIRMA_WEBHOOK_SECRET not configured — HMAC verification cannot run" };
+      return { isValid: false, error: "FIRMA_WEBHOOK_SECRET not configured — HMAC verification cannot run", httpStatus: 401 };
     }
     const hash = crypto.createHmac("sha256", secret).update(body).digest("hex");
     // Constant-time compare (sharp-edges audit 2026-10-01): `===` on hex
@@ -204,12 +204,12 @@ export class FirmaAdapter implements EsignProviderPort, EsignWebhookPort, EsignE
     // Buffer.from(…, "hex") silently drops a trailing odd digit or junk, so a
     // valid signature plus a suffix would otherwise decode to the right bytes.
     if (!sig || !/^[0-9a-f]{64}$/i.test(sig)) {
-      return { isValid: false, error: "Invalid signature" };
+      return { isValid: false, error: "Invalid signature", httpStatus: 401 };
     }
     const expected = Buffer.from(hash, "hex");
     const provided = Buffer.from(sig, "hex");
     if (provided.length !== expected.length || !crypto.timingSafeEqual(expected, provided)) {
-      return { isValid: false, error: "Invalid signature" };
+      return { isValid: false, error: "Invalid signature", httpStatus: 401 };
     }
 
     try {
@@ -230,7 +230,9 @@ export class FirmaAdapter implements EsignProviderPort, EsignWebhookPort, EsignE
       };
     } catch (err) {
       console.error("[firma-adapter] webhook body is not valid JSON", err);
-      return { isValid: false, error: "Invalid JSON body" };
+      // Post-authentication failure (the signature verified above): a 400, so
+      // the route may quarantine it as a terminal reject.
+      return { isValid: false, error: "Invalid JSON body", httpStatus: 400 };
     }
   }
 }

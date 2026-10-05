@@ -416,10 +416,14 @@ export async function flagRefundForManualReview(input: ManualReviewRefund): Prom
   const { createClient } = await import("@supabase/supabase-js");
   const supabase = createClient(url, key);
   // Deterministic idempotency key (audit_log_idempotency_uidx, 20261004001000):
-  // redeliveries of the same collision upsert to a no-op instead of spamming
-  // duplicate review tasks. Mirrors the details-key dedupe the collision index
-  // enforces, but survives event-type widening without new partial indexes.
-  const idempotencyKey = `MANUAL_REVIEW_REQUIRED_REFUND:${details.provider}:${details.sale_id}:${details.event_type}:${details.reason}`;
+  // the key must identify the LOGICAL EVENT, not the review condition — otherwise
+  // two distinct adjustments (or two distinct refunds) for one sale with the same
+  // reason would collapse and the second event's details would never reach the
+  // review queue. Identity: adjustment_id for collision flags, else refund_id,
+  // else occurred_at (identical on provider redeliveries). Redeliveries of the
+  // same event upsert to a no-op; distinct events each get their own row.
+  const eventIdentity = details.adjustment_id ?? details.refund_id ?? details.occurred_at;
+  const idempotencyKey = `MANUAL_REVIEW_REQUIRED_REFUND:${details.provider}:${details.sale_id}:${details.event_type ?? "none"}:${details.reason}:${eventIdentity}`;
   const { error } = await supabase
     .from("audit_log")
     .upsert(

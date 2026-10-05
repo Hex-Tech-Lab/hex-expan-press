@@ -42,6 +42,11 @@ export interface WebhookValidationResult {
   isValid: boolean;
   event?: WebhookEvent;
   error?: string;
+  /** HTTP classification hint for the failure: 401 = the sender could not be
+   *  authenticated (bad/missing signature), 400 = post-authentication payload
+   *  rejection. Routes use this to distinguish unauthenticated traffic from a
+   *  verified sender whose event failed validation. */
+  httpStatus?: number;
 }
 
 export interface EsignWebhookPort {
