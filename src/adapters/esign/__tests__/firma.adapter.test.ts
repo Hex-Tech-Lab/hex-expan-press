@@ -125,49 +125,101 @@ function bytesResponse(status: number, bytes: Uint8Array): Response {
   return new Response(bytes.slice().buffer as ArrayBuffer, { status });
 }
 
-describe("FirmaAdapter.fetchCompletedDocument (F1, NEEDS-LIVE-VERIFICATION endpoint shape)", () => {
+describe("FirmaAdapter.fetchCompletedDocument (F1, LIVE-VERIFIED 2026-10-05)", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
     vi.unstubAllGlobals();
   });
 
-  it("GETs the signing-request documents resource with auth headers and returns the bytes", async () => {
+  // Live-verified contract (sprint 12): /documents and /documents/download are
+  // 404 NOT_FOUND; the resource JSON carries document_url (a freshly-minted
+  // signed Storage URL, ~1h TTL) and final_document_download_url (null on
+  // unfinished requests — populated form UNVERIFIED, preferred when non-empty).
+  const RESOURCE_URL = "https://api.firma.dev/functions/v1/signing-request-api/signing-requests/env_doc_1";
+  const SIGNED_URL = "https://storage.firma.test/object/sign/consents/doc.pdf?token=jwt";
+  const FINAL_URL = "https://storage.firma.test/object/sign/consents/final.pdf?token=jwt";
+
+  function resourceResponse(overrides: Record<string, unknown> = {}): Response {
+    return jsonResponse(200, { id: "env_doc_1", final_document_download_url: null, document_url: SIGNED_URL, ...overrides });
+  }
+
+  it("two-step flow: GET resource JSON → GET signed URL bytes, no Bearer forwarded to the signed URL", async () => {
     vi.stubEnv("FIRMA_API_KEY", "unit-firma-key");
-    const fetchMock = vi.fn(() => Promise.resolve(bytesResponse(200, EVIDENCE_BYTES)));
+    const fetchMock = vi.fn((input: unknown) =>
+      String(input).includes("/signing-requests/")
+        ? Promise.resolve(resourceResponse())
+        : Promise.resolve(bytesResponse(200, EVIDENCE_BYTES)),
+    );
     vi.stubGlobal("fetch", fetchMock);
     const adapter = new FirmaAdapter();
 
     const bytes = await adapter.fetchCompletedDocument("env_doc_1");
 
     expect(bytes).toEqual(EVIDENCE_BYTES);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
-    expect(url).toBe("https://api.firma.dev/functions/v1/signing-request-api/signing-requests/env_doc_1/documents");
-    expect(init.headers).toMatchObject({ Authorization: "Bearer unit-firma-key" });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const [resourceUrl, resourceInit] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(resourceUrl).toBe(RESOURCE_URL);
+    expect(resourceInit.headers).toMatchObject({ Authorization: "Bearer unit-firma-key" });
+    const [pdfUrl, pdfInit] = fetchMock.mock.calls[1] as unknown as [string, RequestInit];
+    expect(pdfUrl).toBe(SIGNED_URL);
+    expect((pdfInit.headers as Record<string, string> | undefined)?.Authorization).toBeUndefined();
   });
 
-  it("throws on a non-200 response (route 500s → Firma retries, nothing persisted)", async () => {
+  it("prefers final_document_download_url when the resource carries it", async () => {
+    vi.stubEnv("FIRMA_API_KEY", "unit-firma-key");
+    const fetchMock = vi.fn((input: unknown) =>
+      String(input).includes("/signing-requests/")
+        ? Promise.resolve(resourceResponse({ final_document_download_url: FINAL_URL }))
+        : Promise.resolve(bytesResponse(200, EVIDENCE_BYTES)),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const adapter = new FirmaAdapter();
+
+    await expect(adapter.fetchCompletedDocument("env_doc_1")).resolves.toEqual(EVIDENCE_BYTES);
+    const [pdfUrl] = fetchMock.mock.calls[1] as unknown as [string];
+    expect(pdfUrl).toBe(FINAL_URL);
+  });
+
+  it("falls back to document_url when the final URL yields no PDF bytes", async () => {
+    vi.stubEnv("FIRMA_API_KEY", "unit-firma-key");
+    const fetchMock = vi.fn((input: unknown) => {
+      if (String(input).includes("/signing-requests/")) return Promise.resolve(resourceResponse({ final_document_download_url: FINAL_URL }));
+      if (String(input) === FINAL_URL) return Promise.resolve(jsonResponse(404, { error: "not ready" }));
+      return Promise.resolve(bytesResponse(200, EVIDENCE_BYTES));
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const adapter = new FirmaAdapter();
+
+    await expect(adapter.fetchCompletedDocument("env_doc_1")).resolves.toEqual(EVIDENCE_BYTES);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it("throws on a non-200 resource response (route 500s → Firma retries, nothing persisted)", async () => {
     vi.stubEnv("FIRMA_API_KEY", "unit-firma-key");
     vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(jsonResponse(503, { error: "unavailable" }))));
     const adapter = new FirmaAdapter();
 
-    await expect(adapter.fetchCompletedDocument("env_doc_2")).rejects.toThrow(/completed-document fetch failed \(503\)/);
+    await expect(adapter.fetchCompletedDocument("env_doc_2")).rejects.toThrow(/completed-document resource fetch failed \(503\)/);
   });
 
-  it("throws when the endpoint answers 200 with EMPTY bytes", async () => {
+  it("throws when the resource exposes no download URL (both absent or non-string)", async () => {
     vi.stubEnv("FIRMA_API_KEY", "unit-firma-key");
-    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(bytesResponse(200, new Uint8Array(0)))));
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(resourceResponse({ document_url: null, final_document_download_url: 42 }))));
     const adapter = new FirmaAdapter();
 
-    await expect(adapter.fetchCompletedDocument("env_doc_3")).rejects.toThrow(/empty bytes/);
+    await expect(adapter.fetchCompletedDocument("env_doc_3")).rejects.toThrow(/exposes no download URL/);
   });
 
-  it("throws when the endpoint answers 200 with non-PDF bytes (JSON/HTML must never be stored as evidence)", async () => {
+  it("throws when no candidate URL yields PDF bytes (200 with EMPTY or non-PDF bytes must never become evidence)", async () => {
     vi.stubEnv("FIRMA_API_KEY", "unit-firma-key");
-    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(bytesResponse(200, new TextEncoder().encode('{"error":"not found"}')))));
+    vi.stubGlobal("fetch", vi.fn((input: unknown) =>
+      String(input).includes("/signing-requests/")
+        ? Promise.resolve(resourceResponse())
+        : Promise.resolve(bytesResponse(200, new TextEncoder().encode('{"error":"not found"}'))),
+    ));
     const adapter = new FirmaAdapter();
 
-    await expect(adapter.fetchCompletedDocument("env_doc_4")).rejects.toThrow(/non-PDF bytes/);
+    await expect(adapter.fetchCompletedDocument("env_doc_4")).rejects.toThrow(/no candidate URL returned PDF bytes/);
   });
 });
 

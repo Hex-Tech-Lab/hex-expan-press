@@ -61,28 +61,58 @@ export class FirmaAdapter implements EsignProviderPort, EsignWebhookPort, EsignE
   }
 
   /**
-   * Retrieve the signed (completed) PDF for an envelope (sprint-10 audit F1).
+   * Retrieve the signed (completed) PDF for an envelope (sprint-10 audit F1;
+   * LIVE-VERIFIED 2026-10-05 against the production API — raw probe transcript
+   * in the sprint-12 session report, machine-local):
    *
-   * NEEDS-LIVE-VERIFICATION: no repo artifact documents the exact Firma
-   * endpoint for the completed document. This implements the best-documented
-   * REST shape — GET on the signing-request's documents resource returning
-   * the PDF bytes — over the create-and-send base and auth headers that WERE
-   * live-verified 2026-09-27. `attach_pdf_on_finish: true` (createEnvelope)
-   * makes the artifact exist at completion; if the live API differs (e.g. a
-   * files[] list on the request GET), only this method changes — the use-case
-   * contract (bytes or throw) does not.
+   * - GET {base}/signing-requests/{id}/documents          → 404 NOT_FOUND —
+   *   the previous byte-stream assumption was WRONG.
+   * - GET {base}/signing-requests/{id}/documents/download → 404 NOT_FOUND —
+   *   the docs-claimed shape is wrong on this base too.
+   * - GET {base}/signing-requests/{id}                    → 200 JSON resource
+   *   carrying `document_url`: a FRESHLY-MINTED signed Storage URL (Supabase
+   *   /storage/v1/object/sign/..., ~1h TTL, regenerated on every resource
+   *   GET) that returns the PDF bytes directly (verified: 200,
+   *   application/pdf, %PDF-1.7). `final_document_download_url` is the
+   *   finished-document slot; it was null on every unfinished/cancelled
+   *   request in the account, so its populated form is UNVERIFIED — preferred
+   *   when non-empty, with `document_url` as the live-verified fallback.
+   *
+   * The use-case contract (bytes or throw) is unchanged: both steps fail
+   * loud, and NO consent row is written on any failure.
    */
   async fetchCompletedDocument(envelopeId: string): Promise<Uint8Array> {
-    const res = await this.fetchWithRelease(`${this.base()}/signing-requests/${encodeURIComponent(envelopeId)}/documents`, {
-      headers: this.authHeaders()
+    const resourceRes = await this.fetchWithRelease(`${this.base()}/signing-requests/${encodeURIComponent(envelopeId)}`, {
+      headers: this.authHeaders(),
+      signal: AbortSignal.timeout(30_000),
     });
-    if (!res.ok) throw new Error(`Firma completed-document fetch failed (${res.status}) for envelope ${envelopeId}`);
-    const bytes = new Uint8Array(await res.arrayBuffer());
-    if (bytes.length === 0) throw new Error(`Firma completed-document fetch returned empty bytes for envelope ${envelopeId}`);
-    if (Buffer.from(bytes.slice(0, 5)).toString("latin1") !== "%PDF-") {
-      throw new Error(`Firma completed-document fetch returned non-PDF bytes for envelope ${envelopeId} (expected %PDF- header)`);
+    if (!resourceRes.ok) throw new Error(`Firma completed-document resource fetch failed (${resourceRes.status}) for envelope ${envelopeId}`);
+    const resource = (await resourceRes.json().catch(() => null)) as { final_document_download_url?: unknown; document_url?: unknown } | null;
+    const candidates = [resource?.final_document_download_url, resource?.document_url]
+      .filter((u): u is string => typeof u === "string" && u.startsWith("http"));
+    if (candidates.length === 0) {
+      throw new Error(`Firma completed-document resource for envelope ${envelopeId} exposes no download URL (final_document_download_url/document_url absent or non-string)`);
     }
-    return bytes;
+    // The signed URL is self-authorizing (JWT token in the query) on Firma's
+    // own storage host — do NOT forward our Bearer/API key to it.
+    for (let i = 0; i < candidates.length; i++) {
+      const pdfRes = await this.fetchWithRelease(candidates[i], { signal: AbortSignal.timeout(30_000) });
+      if (!pdfRes.ok) {
+        console.error(`[firma-adapter] download candidate ${i} failed (${pdfRes.status}) for envelope ${envelopeId}`);
+        continue;
+      }
+      const bytes = new Uint8Array(await pdfRes.arrayBuffer());
+      if (bytes.length === 0) {
+        console.error(`[firma-adapter] download candidate ${i} returned empty bytes for envelope ${envelopeId}`);
+        continue;
+      }
+      if (Buffer.from(bytes.slice(0, 5)).toString("latin1") !== "%PDF-") {
+        console.error(`[firma-adapter] download candidate ${i} returned non-PDF bytes for envelope ${envelopeId}`);
+        continue;
+      }
+      return bytes;
+    }
+    throw new Error(`Firma completed-document download failed for envelope ${envelopeId} (no candidate URL returned PDF bytes)`);
   }
 
   /**
