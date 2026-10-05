@@ -79,12 +79,13 @@ describe("orders upsert Zod boundary", () => {
     expect(db.upserts).toHaveLength(1);
   });
 
-  it.each(["VERCEL", "AWS_LAMBDA_FUNCTION_NAME"])("%s runtime without Supabase keys fails loud and writes nothing", async (flag) => {
+  it.each(["AWS_LAMBDA_FUNCTION_NAME", "VERCEL_ENV", "NODE_ENV"])("%s money-path runtime without Supabase keys fails loud and writes nothing", async (flag) => {
     vi.stubEnv("SUPABASE_URL", "");
     vi.stubEnv("SUPABASE_SECRET_KEY", "");
-    vi.stubEnv(flag, "1");
+    if (flag === "NODE_ENV") vi.stubEnv("NODE_ENV", "production");
+    else vi.stubEnv(flag, flag === "VERCEL_ENV" ? "preview" : "1");
     const file = join(dir, "sales.jsonl");
-    await expect(appendSale(sale, file)).rejects.toThrow(/missing in a serverless runtime/);
+    await expect(appendSale(sale, file)).rejects.toThrow(/missing in a money-path runtime/);
     expect(existsSync(file)).toBe(false);
   });
 

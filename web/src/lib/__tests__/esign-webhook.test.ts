@@ -330,3 +330,40 @@ describe("esign webhook (Firma HMAC contract)", () => {
 type ConsentPortShape = { submitConsent: Mock; flagConsentForManualReview: Mock; hasConsentFor: Mock };
 const _shapeCheck: ConsentPortShape | null = null;
 void _shapeCheck;
+
+describe("esign webhook route — terminal-reject quarantine (compiled sweep)", () => {
+  it("a validation-failed delivery returns 400 and quarantines the event (sha256, no raw body)", async () => {
+    const inserts: Array<{ event?: string; details?: Record<string, unknown> }> = [];
+    vi.doMock("../../../../../../src/use_cases/process_esign_webhook", () => ({
+      processEsignWebhookUseCase: vi.fn(async () => {
+        throw new WebhookValidationError("Webhook validation failed: completed envelope env_q has a missing or invalid document_sha256");
+      }),
+    }));
+    vi.doMock("@supabase/supabase-js", () => ({
+      createClient: () => ({
+        from: (table: string) => ({
+          insert: async (row: unknown) => {
+            if (table === "audit_log") inserts.push(row as { event?: string; details?: Record<string, unknown> });
+            return { error: null };
+          },
+        }),
+      }),
+    }));
+    vi.stubEnv("SUPABASE_URL", "https://unit.test.supabase.co");
+    vi.stubEnv("SUPABASE_SECRET_KEY", "unit-test-key");
+    vi.stubEnv("FIRMA_WEBHOOK_SECRET", "route-secret");
+    const { POST } = await import("../../../app/api/esign/webhook/route");
+    const payload = JSON.stringify({ type: "signing_request.completed", data: { signing_request: { id: "env_q" } } });
+    const signature = crypto.createHmac("sha256", "route-secret").update(payload).digest("hex");
+    const req = new Request("https://expanpress.com/api/esign/webhook", {
+      method: "POST",
+      body: payload,
+      headers: { "x-firma-signature": signature },
+    });
+    const res = await POST(req as never);
+    expect(res.status).toBe(400);
+    expect(inserts).toHaveLength(1);
+    expect(inserts[0]).toMatchObject({ event: "WEBHOOK_TERMINAL_REJECT", details: { provider: "esign", reason: "WebhookValidationError" } });
+    expect(inserts[0]?.details?.payload_sha256).toMatch(/^[0-9a-f]{64}$/);
+  });
+});

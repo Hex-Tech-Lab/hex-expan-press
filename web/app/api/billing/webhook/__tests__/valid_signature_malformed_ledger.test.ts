@@ -1,18 +1,24 @@
-// D6 (hostile audit 2026-10-04): a VALID provider signature carrying a payload the ledger contract rejects
-// (sub-cent amount) must pass signature validation, fail at the Zod gate with a 500, and write nothing.
+// D6 (hostile audit 2026-10-04) + compiled remediation sweep: a VALID provider signature carrying a payload
+// the ledger contract rejects (sub-cent amount) passes signature validation, fails the Zod gate with a
+// TERMINAL 400 (a 500 would make the provider retry forever), writes nothing, and quarantines the event.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { existsSync, rmSync } from "node:fs";
 import type { NextRequest } from "next/server";
 
-const db = vi.hoisted(() => ({ upserts: [] as unknown[], audits: [] as unknown[] }));
+const db = vi.hoisted(() => ({ upserts: [] as unknown[], audits: [] as unknown[], terminalRejects: [] as { event?: string; details?: Record<string, unknown> }[] }));
 const ledgerDir = vi.hoisted(() => `/tmp/d6-ledger-${Date.now()}-${Math.random().toString(36).slice(2)}`);
 
 vi.mock("@supabase/supabase-js", () => ({
   createClient: () => ({
     from: (table: string) => ({
       upsert: async (row: unknown) => { db.upserts.push(row); return { error: null }; },
-      insert: async (row: unknown) => { db.audits.push({ table, row }); return { error: null }; },
+      insert: async (row: unknown) => {
+        const r = row as { event?: string; details?: Record<string, unknown> };
+        if (table === "audit_log" && r.event === "WEBHOOK_TERMINAL_REJECT") db.terminalRejects.push(r);
+        db.audits.push({ table, row });
+        return { error: null };
+      },
       select: () => ({ eq: function eq() { return { eq, in: eq, maybeSingle: async () => ({ data: null, error: null }) }; } }),
     }),
   }),
@@ -65,7 +71,7 @@ const call = (body: string, signature: string) =>
 
 describe("billing webhook: valid signature + malformed ledger payload", () => {
   beforeEach(() => {
-    db.upserts = []; db.audits = [];
+    db.upserts = []; db.audits = []; db.terminalRejects = [];
     vi.stubEnv("SUPABASE_URL", "https://unit.test.supabase.co");
     vi.stubEnv("SUPABASE_SECRET_KEY", "unit-test-key");
   });
@@ -78,12 +84,15 @@ describe("billing webhook: valid signature + malformed ledger payload", () => {
     expect(db.upserts).toHaveLength(1);
   });
 
-  it("valid signature, sub-cent total (39.005) → 500, zero upserts, local ledger untouched", async () => {
+  it("valid signature, sub-cent total (39.005) → 400 terminal + quarantined, zero upserts, local ledger untouched", async () => {
     const body = JSON.stringify({ id: "sale_subcent", totalCents: 3900.5 });
     const res = await call(body, sign(body));
-    expect(res.status).toBe(500); // not 401/400: the signature passed and the Zod gate rejected
+    expect(res.status).toBe(400); // terminal: the signature passed, the Zod gate rejected — a 500 would retry forever
     expect(db.upserts).toHaveLength(0);
     expect(existsSync(`${ledgerDir}/sales.jsonl`)).toBe(false);
+    expect(db.terminalRejects).toHaveLength(1);
+    expect(db.terminalRejects[0]).toMatchObject({ event: "WEBHOOK_TERMINAL_REJECT", details: { reason: "OrderSchemaError" } });
+    expect(db.terminalRejects[0]?.details?.payload_sha256).toMatch(/^[0-9a-f]{64}$/);
   });
 
   it("tampered signature on the same payload → 401 before any ledger work", async () => {
