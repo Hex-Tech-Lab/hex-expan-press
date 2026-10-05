@@ -153,7 +153,12 @@ export async function processBillingWebhookUseCase(
   }
 
   if (!matchedAdapter) {
-    throw new WebhookValidationError("No payment provider configured to handle this webhook signature.");
+    // No adapter claims the signature headers → nothing was verified. Marked
+    // senderVerified=false so the route does NOT quarantine this reject
+    // (unauthenticated traffic must not force audit_log writes).
+    const err = new WebhookValidationError("No payment provider configured to handle this webhook signature.");
+    err.senderVerified = false;
+    throw err;
   }
 
   // 2. Zod-enforced parse — strict SSOT shape validation

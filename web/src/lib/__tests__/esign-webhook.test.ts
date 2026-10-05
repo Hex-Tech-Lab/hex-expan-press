@@ -6,13 +6,15 @@
 // HMAC-SHA256 over the RAW body, hex digest, compared against the exact
 // header `x-firma-signature`. Fail-closed since Wave 5.1: an unconfigured
 // FIRMA_WEBHOOK_SECRET rejects instead of skipping verification. Validation
-// failures are the typed WebhookValidationError (sprint-10 F5), which the
-// route maps to HTTP 400 (a prose substring check remains only as a
-// deprecated fallback).
+// failures are the typed WebhookValidationError (sprint-10 F5): signature
+// failures carry httpStatus 401 (unauthenticated), payload-shape failures
+// 400 (post-authentication) — the route maps accordingly and quarantines
+// ONLY post-authentication terminal rejects (a 401 prose substring check
+// remains only as a deprecated fallback at the route layer).
 //
 // Scenarios (Supabase adapter + settings mocked — never hit the live DB;
 // fetch is stubbed for the evidence-upload path — never hit the network):
-//   1. Invalid/missing `x-firma-signature` → 400.
+//   1. Invalid/missing `x-firma-signature` → 401, NO quarantine row.
 //   2. Payload missing productId/userId metadata → 400 (consent rejected).
 //   3. Missing/invalid document_sha256 → typed 400, zero DB writes (F3).
 //   4. Valid HMAC-signed `signing_request.completed` → 200 and the
@@ -112,7 +114,14 @@ describe("esign webhook (Firma HMAC contract)", () => {
     const { body, headers } = signedBody(completedPayload({ productId: "p1", userId: "u1" }), "attacker-secret");
     const request = { body, headers, ip: "10.0.0.1", userAgent: "firma-webhook" };
 
-    await expect(processEsignWebhookUseCase(request, settings, { submitConsent, flagConsentForManualReview: vi.fn(), hasConsentFor: vi.fn().mockResolvedValue(false) })).rejects.toThrow("validation failed");
+    await expect(processEsignWebhookUseCase(request, settings, { submitConsent, flagConsentForManualReview: vi.fn(), hasConsentFor: vi.fn().mockResolvedValue(false) })).rejects.toSatisfy((e: unknown) => {
+      expect(e).toBeInstanceOf(WebhookValidationError);
+      expect((e as WebhookValidationError).message).toMatch(/validation failed/);
+      // Signature failures are UNAUTHENTICATED (401) — the route must not
+      // quarantine them (unauthenticated traffic must not force audit_log writes).
+      expect((e as WebhookValidationError).httpStatus).toBe(401);
+      return true;
+    });
     expect(submitConsent).not.toHaveBeenCalled();
   });
 
@@ -333,18 +342,20 @@ void _shapeCheck;
 
 describe("esign webhook route — terminal-reject quarantine (compiled sweep)", () => {
   it("a validation-failed delivery returns 400 and quarantines the event (sha256, no raw body)", async () => {
+    vi.resetModules();
     const inserts: Array<{ event?: string; details?: Record<string, unknown> }> = [];
     vi.doMock("../../../../../../src/use_cases/process_esign_webhook", () => ({
-      processEsignWebhookUseCase: vi.fn(async () => {
+      processEsignWebhookUseCase: vi.fn(() => {
         throw new WebhookValidationError("Webhook validation failed: completed envelope env_q has a missing or invalid document_sha256");
       }),
     }));
     vi.doMock("@supabase/supabase-js", () => ({
       createClient: () => ({
         from: (table: string) => ({
-          insert: async (row: unknown) => {
+          insert: (row: unknown) => {
             if (table === "audit_log") inserts.push(row as { event?: string; details?: Record<string, unknown> });
-            return { error: null };
+            const insertResult = Promise.resolve({ error: null });
+            return Object.assign(insertResult, { abortSignal: () => insertResult });
           },
         }),
       }),
@@ -365,5 +376,39 @@ describe("esign webhook route — terminal-reject quarantine (compiled sweep)", 
     expect(inserts).toHaveLength(1);
     expect(inserts[0]).toMatchObject({ event: "WEBHOOK_TERMINAL_REJECT", details: { provider: "esign", reason: "WebhookValidationError" } });
     expect(inserts[0]?.details?.payload_sha256).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it("an unauthenticated (401) reject returns 401 and does NOT quarantine", async () => {
+    vi.resetModules();
+    const inserts: Array<{ event?: string; details?: Record<string, unknown> }> = [];
+    vi.doMock("../../../../../../src/use_cases/process_esign_webhook", () => ({
+      processEsignWebhookUseCase: vi.fn(() => {
+        throw new WebhookValidationError("Webhook validation failed: Invalid signature", 401);
+      }),
+    }));
+    vi.doMock("@supabase/supabase-js", () => ({
+      createClient: () => ({
+        from: (table: string) => ({
+          insert: (row: unknown) => {
+            if (table === "audit_log") inserts.push(row as { event?: string; details?: Record<string, unknown> });
+            const insertResult = Promise.resolve({ error: null });
+            return Object.assign(insertResult, { abortSignal: () => insertResult });
+          },
+        }),
+      }),
+    }));
+    vi.stubEnv("SUPABASE_URL", "https://unit.test.supabase.co");
+    vi.stubEnv("SUPABASE_SECRET_KEY", "unit-test-key");
+    vi.stubEnv("FIRMA_WEBHOOK_SECRET", "route-secret");
+    const { POST } = await import("../../../app/api/esign/webhook/route");
+    const payload = JSON.stringify({ type: "signing_request.completed", data: { signing_request: { id: "env_q" } } });
+    const req = new Request("https://expanpress.com/api/esign/webhook", {
+      method: "POST",
+      body: payload,
+      headers: { "x-firma-signature": "0".repeat(64) }, // present but wrong → 401
+    });
+    const res = await POST(req as never);
+    expect(res.status).toBe(401);
+    expect(inserts).toHaveLength(0); // unauthenticated senders must not force service-role audit writes
   });
 });

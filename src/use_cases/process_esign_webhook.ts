@@ -27,7 +27,9 @@ export async function processEsignWebhookUseCase(
   // 1. Validate and Parse Webhook (Provider-agnostic)
   const validation = esignAdapter.parseAndValidateWebhook(req.body, req.headers);
   if (!validation.isValid || !validation.event) {
-    throw new WebhookValidationError(`Webhook validation failed: ${validation.error}`);
+    // httpStatus hint (401 unauthenticated / 400 post-auth) flows to the route,
+    // which must NOT quarantine unauthenticated rejects.
+    throw new WebhookValidationError(`Webhook validation failed: ${validation.error}`, validation.httpStatus ?? 400);
   }
 
   const { event } = validation;
@@ -101,10 +103,12 @@ export async function processEsignWebhookUseCase(
     let alreadyRecorded = false;
     try {
       alreadyRecorded = await database.hasConsentFor("C3_revenue_split", envelopeId);
-    } catch {
+    } catch (lookupErr) {
       // Lookup failure (transient DB issue): fall through to the evidence +
       // insert flow; the insert is still unique-constrained, so correctness
-      // is preserved either way.
+      // is preserved either way. Logged: a PERSISTENT consent-DB fault must
+      // not be silent — every replay would pay the full Firma fetch/upload.
+      console.warn(`[esign.webhook] replay pre-check failed envelope_id=${envelopeId}; falling through`, lookupErr instanceof Error ? lookupErr.name : "unknown");
     }
     if (alreadyRecorded) {
       console.info(`[esign.webhook] acknowledged replayed envelope envelope_id=${envelopeId} kind=C3_revenue_split`);

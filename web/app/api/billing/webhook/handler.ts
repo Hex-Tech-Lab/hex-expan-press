@@ -113,7 +113,7 @@ async function handleWebhook(request: NextRequest, adapters: WebhookAdapters): P
     // the raw event is quarantined durably (sha256 + provider + sale id — the raw body
     // itself is NOT stored: webhook bodies carry buyer PII and audit_log must not).
     if (err instanceof OrderSchemaError) {
-      await quarantineTerminalEvent(headers, body, err.name);
+      await quarantineTerminalEvent(headers, bodyBuffer, err.name);
       return NextResponse.json({ ok: false, error: "Bad Request" }, { status: 400 });
     }
     // Typed classification first (sprint-10 F5); the substring checks are a
@@ -132,18 +132,52 @@ async function handleWebhook(request: NextRequest, adapters: WebhookAdapters): P
       // Error name only: messages can carry buyer data (e.g. an email lookup failure).
       await auditBounded({ ...auditContext(headers, body), reason: err instanceof Error ? err.name : "unknown" });
     }
+    // Post-authentication terminal 4xx (validation 400s, semantic 422s —
+    // everything except a 401 unauthenticated reject) is final for this
+    // payload: quarantine it so it lives somewhere besides the provider's
+    // redelivery queue. NEVER quarantine unverified senders: a 401, or any
+    // error marked senderVerified=false (e.g. no provider claimed the
+    // signature headers) — unauthenticated traffic must not force service-role
+    // audit_log inserts per request (external review PR #78). 503s are already
+    // audited via auditBounded above.
+    if (status < 500 && status !== 401 && (err as { senderVerified?: boolean }).senderVerified !== false) {
+      await quarantineTerminalEvent(headers, bodyBuffer, err instanceof Error ? err.name : "unknown");
+    }
     return NextResponse.json({ ok: false, error }, { status, headers: status === 503 ? retryAfterHeaders() : undefined });
   }
 }
 
 /** Terminal-reject quarantine: the provider stops retrying on this response, so the
  *  rejected event must live somewhere besides the provider's redelivery queue. Durable
- *  audit row keyed by the payload sha256 (NOT the raw body — buyer PII). Best-effort:
- *  a quarantine write failure must never change the already-computed response. */
+ *  audit row keyed by the payload sha256 of the RAW BYTES (NOT the body itself — buyer
+ *  PII; and not the decoded string — distinct invalid-UTF-8 payloads must not collapse
+ *  to one digest). Best-effort: a quarantine write failure must never change the
+ *  already-computed response. */
 async function quarantineTerminalEvent(
   headers: Record<string, string | string[] | undefined>,
-  body: string,
+  bodyBuffer: Buffer,
   reason: string,
+): Promise<void> {
+  // Bounded like auditBounded: a stalled Supabase request must not delay the
+  // terminal 400 (the provider would time out and redeliver, defeating the
+  // terminal-reject intent).
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<void>((resolve) => {
+    timer = setTimeout(() => { controller.abort(); resolve(); }, GLOBAL.payments.http_timeout_ms);
+  });
+  try {
+    await Promise.race([insertTerminalRejectAudit(headers, bodyBuffer, reason, controller.signal), timeout]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function insertTerminalRejectAudit(
+  headers: Record<string, string | string[] | undefined>,
+  bodyBuffer: Buffer,
+  reason: string,
+  signal: AbortSignal,
 ): Promise<void> {
   try {
     const url = process.env.SUPABASE_URL;
@@ -151,10 +185,13 @@ async function quarantineTerminalEvent(
     if (!url || !key) return;
     const { createClient } = await import("@supabase/supabase-js");
     const supabase = createClient(url, key);
-    const { error } = await supabase.from("audit_log").insert({
-      event: "WEBHOOK_TERMINAL_REJECT",
-      details: { ...auditContext(headers, body), reason, payload_sha256: createHash("sha256").update(body).digest("hex") },
-    });
+    const { error } = await supabase
+      .from("audit_log")
+      .insert({
+        event: "WEBHOOK_TERMINAL_REJECT",
+        details: { ...auditContext(headers, bodyBuffer.toString("utf8")), reason, payload_sha256: createHash("sha256").update(bodyBuffer).digest("hex") },
+      })
+      .abortSignal(signal);
     if (error) console.error("[billing-webhook] terminal-reject quarantine insert failed:", error.message);
   } catch (qErr) {
     console.error("[billing-webhook] terminal-reject quarantine exception:", qErr);

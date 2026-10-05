@@ -93,8 +93,13 @@ vi.mock("@supabase/supabase-js", () => ({
         return {
           insert: async (row: Record<string, unknown>) => insertAudit(row),
           // flagRefundForManualReview upserts on idempotency_key (20261004001000);
-          // ignoreDuplicates DO NOTHING maps to a clean success in the happy path.
-          upsert: async (row: Record<string, unknown>) => insertAudit(row),
+          // ignoreDuplicates maps a duplicate key to DO NOTHING — a clean success,
+          // NOT a 23505 error. Only real (non-duplicate) audit failures surface.
+          upsert: async (row: Record<string, unknown>) => {
+            const res = insertAudit(row);
+            if (res.error !== null && (res.error as { code?: string }).code === "23505") return { error: null };
+            return res;
+          },
         };
       }
       const filters: Record<string, unknown> = {};

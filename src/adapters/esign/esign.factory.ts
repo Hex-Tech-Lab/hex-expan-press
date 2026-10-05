@@ -68,14 +68,19 @@ class CompositeEsignAdapter implements EsignAdapter {
   }
 
   parseAndValidateWebhook(body: string, headers: Record<string, string | string[] | undefined>): WebhookValidationResult {
+    // First failure result is returned AS-IS (not replaced by a generic blob):
+    // its httpStatus hint (401 unauthenticated vs 400 post-auth) must survive
+    // to the use case/route, or signature failures would be misclassified 400s.
+    let failure: WebhookValidationResult | undefined;
     for (const adapter of this.adapterMap.values()) {
       const result = adapter.parseAndValidateWebhook(body, headers);
       if (result.isValid) {
         this.validated = adapter;
         return result;
       }
+      failure ??= result;
     }
-    return { isValid: false, error: "No provider could validate this webhook signature." };
+    return failure ?? { isValid: false, error: "No provider could validate this webhook signature." };
   }
 
   fetchCompletedDocument(envelopeId: string): Promise<Uint8Array> {
