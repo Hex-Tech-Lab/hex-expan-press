@@ -1,0 +1,20 @@
+src/adapters/esign/__tests__/firma.adapter.test.ts
+  s_c2bb5a5d6f7923::t_8af14c74106690 351-358,361-367
+  s_c2bb5a5d6f7923::t_4ab1a9eeb18ecc 359-360
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "880b7a2c4111df3a72efdac35c7aa793006fe605",
+  "prompts": {},
+  "sessions": {
+    "s_c2bb5a5d6f7923": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef43b105fffevRLfKBVDbL0gWm",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
