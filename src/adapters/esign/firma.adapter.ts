@@ -70,6 +70,36 @@ export const pinnedDownloadFetch: DownloadFetch = (url, init, dispatcher) =>
   // everything this call sends (headers/body/signal/redirect/credentials).
   undiciFetch(url, { ...init, dispatcher: dispatcher as UndiciAgent } as unknown as Parameters<typeof undiciFetch>[1]) as unknown as Promise<Response>;
 
+/** Last-gate dial validation (defense-in-depth, Cubic P2 on PR #84 round 3):
+ *  the pin is normally derived from the validated URL upstream — this
+ *  re-checks BOTH at the dial layer so a malformed pin (internal address,
+ *  host mismatch, empty set, non-HTTPS URL) can never reach the transport.
+ *  Pure and exported: the gate is unit-testable without exposing any dial
+ *  seam. The forbidden-host predicate is injected (zero coupling to the
+ *  adapter instance); failures throw with the `dial-layer validation
+ *  failed:` prefix so the candidate loop logs the cause loudly. */
+export function assertDialIsSafe(
+  url: string,
+  pin: Pin,
+  isForbiddenHost: (host: string) => boolean,
+): void {
+  let host: string | null = null;
+  try {
+    const u = new URL(url);
+    if (u.protocol !== "https:") throw new Error(`non-HTTPS download URL`);
+    host = u.hostname;
+    if (isForbiddenHost(host)) throw new Error(`forbidden download host`);
+  } catch (err) {
+    throw new Error(`[firma-adapter] dial-layer validation failed: ${err instanceof Error ? err.message : "invalid URL"}`);
+  }
+  if (pin.host !== host) throw new Error(`[firma-adapter] dial-layer validation failed: pin host does not match the URL host`);
+  if (isForbiddenHost(pin.host)) throw new Error(`[firma-adapter] dial-layer validation failed: pin host is denylisted`);
+  if (!Array.isArray(pin.addresses) || pin.addresses.length === 0) throw new Error(`[firma-adapter] dial-layer validation failed: pin has no validated addresses`);
+  for (const address of pin.addresses) {
+    if (isForbiddenHost(address)) throw new Error(`[firma-adapter] dial-layer validation failed: pin address is in a forbidden range`);
+  }
+}
+
 /**
  * Firma.dev adapter (verified against the live API 2026-09-27).
  *
@@ -254,13 +284,18 @@ export class FirmaAdapter implements EsignProviderPort, EsignWebhookPort, EsignE
    *  closed only in the finally block AFTER the body is consumed or
    *  cancelled (closing early would truncate the stream).
    *
-   *  Internal composition seam (Cubic P2 on PR #84): public ONLY so tests
-   *  can exercise the real pinned transport end-to-end (pinned dial, cap
-   *  cancel path, dispatcher lifetime) without violating the denylist —
-   *  loopback targets can never pass fetchCompletedDocument's validation,
-   *  by design. Callers must go through fetchCompletedDocument. */
-  async downloadCapped(url: string, pin: Pin): Promise<Uint8Array | null> {
+   *  Dial-layer defense-in-depth (Cubic P2, PR #84 round 3): even a
+   *  malformed pin cannot dial a forbidden target — assertDialIsSafe
+   *  re-checks the URL (HTTPS, denylist, pin-host match) and EVERY pin
+   *  address HERE at the last gate before the dial. Failures throw (caught
+   *  by the candidate loop, logged with cause, terminal error). The method
+   *  is PRIVATE: there is no public dial seam — loopback can never pass
+   *  fetchCompletedDocument's denylist (by design), so composition is
+   *  proven in layers: real-socket transport tests + gate unit tests +
+   *  the existing cap/stream tests through the port with a valid pin. */
+  private async downloadCapped(url: string, pin: Pin): Promise<Uint8Array | null> {
     const MAX_EVIDENCE_BYTES = 20 * 1024 * 1024;
+    assertDialIsSafe(url, pin, (h) => this.isForbiddenHost(h));
     const dispatcher = this.createPinnedDispatcher(pin);
     try {
       // Credential hygiene (sprint 12 B1): the signed URL is self-authorizing —

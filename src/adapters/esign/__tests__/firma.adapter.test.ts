@@ -1,7 +1,7 @@
 // Fail-closed contract tests for the Firma adapter (Wave 5.1, qa-intel
 // security rule: the HMAC gate here is authorization-relevant and needs a
 // sibling regression test).
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach, beforeAll, afterAll } from "vitest";
 import crypto from "node:crypto";
 import http from "node:http";
 import https from "node:https";
@@ -12,7 +12,7 @@ import os from "node:os";
 import path from "node:path";
 import type { AddressInfo } from "node:net";
 import { Agent as UndiciAgent } from "undici";
-import { FirmaAdapter, pinnedDispatcherFactory, pinnedDownloadFetch, pinnedLookupFor, type PinnedDispatcherFactory, type Pin } from "../firma.adapter";
+import { FirmaAdapter, assertDialIsSafe, pinnedDispatcherFactory, pinnedDownloadFetch, pinnedLookupFor, type PinnedDispatcherFactory, type Pin } from "../firma.adapter";
 import { passthroughDownload } from "../../../../tests/helpers/esign-transport";
 
 const SECRET = "test-webhook-secret";
@@ -500,6 +500,34 @@ describe("FirmaAdapter.fetchCompletedDocument (F1, LIVE-VERIFIED 2026-10-05)", (
 // validated address set. These tests run against REAL local sockets.
 // ---------------------------------------------------------------------------
 describe("Sprint-13: DNS-pinned dispatcher (TOCTOU eradication)", () => {
+  // Hermetic TLS fixture: self-signed cert generated at runtime into tmpdir —
+  // never committed, never leaves the machine. Shared by the SNI test and the
+  // composition tests (the dial layer requires HTTPS; tests relax trust ONLY
+  // for the local self-signed cert — production factories never do).
+  let certDir = "";
+  let keyPem = "";
+  let certPem = "";
+  beforeAll(() => {
+    certDir = fs.mkdtempSync(path.join(os.tmpdir(), "firma-pin-"));
+    const keyPath = path.join(certDir, "key.pem");
+    const certPath = path.join(certDir, "cert.pem");
+    execFileSync("openssl", [
+      "req", "-x509", "-newkey", "rsa:2048", "-keyout", keyPath, "-out", certPath,
+      "-days", "1", "-nodes", "-subj", "/CN=pin-e2e.invalid",
+      "-addext", "subjectAltName=DNS:pin-e2e.invalid",
+    ]);
+    keyPem = fs.readFileSync(keyPath, "utf8");
+    certPem = fs.readFileSync(certPath, "utf8");
+  });
+  afterAll(() => {
+    if (certDir) fs.rmSync(certDir, { recursive: true, force: true });
+  });
+
+  /** Test-only dispatcher factory: production pinned lookup + relaxed trust
+   *  for the self-signed local cert. Retained for transport-level TLS tests. */
+  const relaxedTlsFactory = (pin: Pin): ReturnType<PinnedDispatcherFactory> =>
+    new UndiciAgent({ connect: { rejectUnauthorized: false, lookup: pinnedLookupFor(pin) as never } }) as unknown as ReturnType<PinnedDispatcherFactory>;
+
   it("PRODUCTION transport dials the pinned address with the original Host header — no DNS lookup can occur (NXDOMAIN-proof host)", async () => {
     const seen: { host?: string; remote?: string }[] = [];
     const server = http.createServer((req, res) => {
@@ -532,17 +560,7 @@ describe("Sprint-13: DNS-pinned dispatcher (TOCTOU eradication)", () => {
 
   it("TLS dial preserves the hostname as SNI while physically dialing the pinned IP", async () => {
     const seen: { host?: string; sni?: string; remote?: string }[] = [];
-    // Hermetic fixture: self-signed cert generated at runtime into tmpdir —
-    // never committed, never leaves the machine.
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "firma-pin-"));
-    const keyPath = path.join(dir, "key.pem");
-    const certPath = path.join(dir, "cert.pem");
-    execFileSync("openssl", [
-      "req", "-x509", "-newkey", "rsa:2048", "-keyout", keyPath, "-out", certPath,
-      "-days", "1", "-nodes", "-subj", "/CN=pin-e2e.invalid",
-      "-addext", "subjectAltName=DNS:pin-e2e.invalid",
-    ]);
-    const server = https.createServer({ key: fs.readFileSync(keyPath), cert: fs.readFileSync(certPath) }, (req, res) => {
+    const server = https.createServer({ key: keyPem, cert: certPem }, (req, res) => {
       const socket = req.socket as tls.TLSSocket;
       seen.push({ host: req.headers.host, sni: typeof socket.servername === "string" ? socket.servername : undefined, remote: socket.remoteAddress });
       res.writeHead(200, { "content-type": "application/pdf" });
@@ -555,12 +573,10 @@ describe("Sprint-13: DNS-pinned dispatcher (TOCTOU eradication)", () => {
       // Test-only TLS relaxation: the PRODUCTION factory enforces cert
       // verification; this fixture only relaxes trust for the self-signed
       // local cert. The pin lookup itself IS production code.
-      const testFactory: PinnedDispatcherFactory = (p) =>
-        new UndiciAgent({ connect: { rejectUnauthorized: false, lookup: pinnedLookupFor(p) as never } }) as unknown as ReturnType<PinnedDispatcherFactory>;
       const res = await pinnedDownloadFetch(
         `https://pin-e2e.invalid:${port}/final.pdf`,
         { redirect: "manual" },
-        testFactory(pin),
+        relaxedTlsFactory(pin),
       );
       expect(res.status).toBe(200);
       expect(seen).toHaveLength(1);
@@ -569,7 +585,6 @@ describe("Sprint-13: DNS-pinned dispatcher (TOCTOU eradication)", () => {
       expect(seen[0].remote).toBe("127.0.0.1"); // dial target = pinned IP
     } finally {
       await new Promise<void>((resolve) => server.close(() => resolve()));
-      fs.rmSync(dir, { recursive: true, force: true });
     }
   });
 
@@ -636,74 +651,42 @@ describe("Sprint-13: DNS-pinned dispatcher (TOCTOU eradication)", () => {
   // ---- allow a loopback dial through fetchCompletedDocument (by design), so
   // ---- the composition seam is exercised directly.
 
-  it("COMPOSITION: downloadCapped + production transport + production factory — pinned dial, full body, dispatcher closed AFTER consumption", async () => {
-    const seen: { host?: string; remote?: string }[] = [];
-    const server = http.createServer((req, res) => {
-      seen.push({ host: req.headers.host, remote: req.socket.remoteAddress });
-      res.writeHead(200, { "content-type": "application/pdf", "content-length": String(EVIDENCE_BYTES.byteLength) });
-      res.end(Buffer.from(EVIDENCE_BYTES));
-    });
-    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-    const port = (server.address() as AddressInfo).port;
-    let closed = false;
-    const closingSpyFactory: PinnedDispatcherFactory = (pin) => {
-      const real = pinnedDispatcherFactory(pin) as UndiciAgent;
-      // Delegate the transport entry point to the real agent; only `close`
-      // is instrumented. (A plain spread would lose prototype methods.)
-      return {
-        dispatch: real.dispatch.bind(real),
-        close: async () => {
-          await real.close();
-          closed = true;
-        },
-      } as unknown as ReturnType<PinnedDispatcherFactory>;
-    };
-    // Production transport (default) + production lookup inside the spy —
-    // zero injected behavior beyond close observability.
-    const adapter = new FirmaAdapter(async () => [{ address: "127.0.0.1" }], undefined, closingSpyFactory);
-    try {
-      const bytes = await adapter.downloadCapped(`http://pin-e2e.invalid:${port}/final.pdf`, { host: "pin-e2e.invalid", addresses: ["127.0.0.1"] });
-      expect(bytes).toEqual(EVIDENCE_BYTES); // full body consumed — close could not have truncated it
-      expect(seen).toHaveLength(1);
-      expect(seen[0].remote).toBe("127.0.0.1"); // dialed the pinned address
-      expect(seen[0].host).toBe(`pin-e2e.invalid:${port}`); // Host header preserved
-      expect(closed).toBe(true); // dispatcher closed in the finally, after consumption
-    } finally {
-      await new Promise<void>((resolve) => server.close(() => resolve()));
-    }
+  // ---- Last-gate dial validation (Cubic P2, PR #84 round 3): a malformed
+  // ---- pin can never reach the transport. Pure gate = direct unit tests;
+  // ---- no dial seam exists to abuse (downloadCapped is private again).
+
+  it("DIAL-GATE: a malformed pin pointing at a forbidden range is refused", () => {
+    const forbid = (h: string) => h === "169.254.169.254" || h === "127.0.0.1";
+    expect(() => assertDialIsSafe("https://storage.firma.test/final.pdf", { host: "storage.firma.test", addresses: ["169.254.169.254"] }, forbid))
+      .toThrow(/dial-layer validation failed: pin address is in a forbidden range/);
   });
 
-  it("COMPOSITION: content-length over the 20 MiB cap through the REAL transport → cancelled before buffering, dispatcher still closed", async () => {
-    const seen: number[] = [];
-    const server = http.createServer((_req, res) => {
-      seen.push(1);
-      // Content-length advertises 21 MiB; the body is tiny — the pre-check
-      // must cancel BEFORE any buffering happens.
-      res.writeHead(200, { "content-type": "application/pdf", "content-length": String(21 * 1024 * 1024) });
-      res.end(Buffer.from(EVIDENCE_BYTES));
-    });
-    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-    const port = (server.address() as AddressInfo).port;
-    let closed = false;
-    const closingSpyFactory: PinnedDispatcherFactory = (pin) => {
-      const real = pinnedDispatcherFactory(pin) as UndiciAgent;
-      return {
-        dispatch: real.dispatch.bind(real),
-        close: async () => {
-          await real.close();
-          closed = true;
-        },
-      } as unknown as ReturnType<PinnedDispatcherFactory>;
-    };
-    const adapter = new FirmaAdapter(async () => [{ address: "127.0.0.1" }], undefined, closingSpyFactory);
-    try {
-      const bytes = await adapter.downloadCapped(`http://pin-e2e.invalid:${port}/final.pdf`, { host: "pin-e2e.invalid", addresses: ["127.0.0.1"] });
-      expect(bytes).toBeNull(); // rejected by the content-length pre-check
-      expect(seen).toHaveLength(1);
-      expect(closed).toBe(true); // closed even on the cancel path
-    } finally {
-      await new Promise<void>((resolve) => server.close(() => resolve()));
-    }
+  it("DIAL-GATE: non-HTTPS URLs are refused at the dial layer", () => {
+    const forbid = (h: string) => false;
+    expect(() => assertDialIsSafe("http://storage.firma.test/final.pdf", { host: "storage.firma.test", addresses: ["93.184.216.34"] }, forbid))
+      .toThrow(/dial-layer validation failed: non-HTTPS download URL/);
+  });
+
+  it("DIAL-GATE: pin/URL host mismatch is refused", () => {
+    const forbid = (h: string) => false;
+    expect(() => assertDialIsSafe("https://storage.firma.test/final.pdf", { host: "other.invalid", addresses: ["93.184.216.34"] }, forbid))
+      .toThrow(/dial-layer validation failed: pin host does not match the URL host/);
+  });
+
+  it("DIAL-GATE: denylisted URL host, empty address set, and unparseable URLs are refused", () => {
+    const forbid = (h: string) => h === "169.254.169.254";
+    expect(() => assertDialIsSafe("https://169.254.169.254/final.pdf", { host: "169.254.169.254", addresses: ["93.184.216.34"] }, forbid))
+      .toThrow(/dial-layer validation failed: forbidden download host/);
+    expect(() => assertDialIsSafe("https://storage.firma.test/final.pdf", { host: "storage.firma.test", addresses: [] }, forbid))
+      .toThrow(/dial-layer validation failed: pin has no validated addresses/);
+    expect(() => assertDialIsSafe("not a url", { host: "x", addresses: ["93.184.216.34"] }, forbid))
+      .toThrow(/dial-layer validation failed: [Ii]nvalid URL/);
+  });
+
+  it("DIAL-GATE: a fully valid URL+pin pair passes (the happy path is not over-blocked)", () => {
+    const forbid = (h: string) => h.startsWith("10.") || h.startsWith("127.");
+    expect(() => assertDialIsSafe("https://storage.firma.test/final.pdf?token=t", { host: "storage.firma.test", addresses: ["93.184.216.34", "2606:2800:220:1:248:1893:25c8:1946"] }, forbid))
+      .not.toThrow();
   });
 });
 
