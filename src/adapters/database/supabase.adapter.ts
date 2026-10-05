@@ -53,4 +53,15 @@ export class SupabaseAdapter implements ConsentDatabasePort {
     const { error } = await this.ensureClient().from("audit_log").insert({ event: "MANUAL_REVIEW_REQUIRED_CONSENT", details: flag });
     if (error) throw new Error(`Failed to flag consent for manual review: ${error.message}`);
   }
+
+  async hasConsentFor(kind: string, externalRef: string): Promise<boolean> {
+    const { data, error } = await this.ensureClient()
+      .from("consents")
+      .select("id")
+      .eq("kind", kind)
+      .eq("external_ref", externalRef)
+      .limit(1);
+    if (error) throw new Error(`Failed to check existing consent: ${error.message}`);
+    return (data?.length ?? 0) > 0;
+  }
 }
