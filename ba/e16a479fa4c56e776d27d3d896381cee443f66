@@ -1,0 +1,30 @@
+docs/agent_ledger.jsonl
+  s_577c99742b95a8::t_61568a4c997f30 461
+  s_577c99742b95a8::t_1258f344eb9733 460
+  s_577c99742b95a8::t_5991990296c55c 459
+  s_577c99742b95a8::t_a09333989643c9 462
+  s_577c99742b95a8::t_cb86a12089d427 463
+AGENTS.md
+  s_577c99742b95a8::t_7cea281e90fe57 71-73
+CLAUDE.md
+  s_577c99742b95a8::t_379bd5a192e6b8 19,21
+.qa-intel/baseline.json
+  s_577c99742b95a8::t_0ba4b0974dfb95 23,25-29,114-141,163-232,247-281,461
+  s_577c99742b95a8::t_0a4bcf55b18d80 24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "bae16a479fa4c56e776d27d3d896381cee443f66",
+  "prompts": {},
+  "sessions": {
+    "s_577c99742b95a8": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef2cb413affeyyRuS9ZgjwYK20",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
