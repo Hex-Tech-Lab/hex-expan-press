@@ -23,6 +23,20 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import crypto from "node:crypto";
 import { FirmaAdapter } from "../../../../src/adapters/esign/firma.adapter";
+import { passthroughDownload } from "../../../../tests/helpers/esign-transport";
+
+// The esign use case builds its own adapter via the factory (whose default
+// download transport is the undici pinned fetch — secure by default). For
+// USE-CASE contract tests the download leg is routed back through the
+// stubbed global fetch; the pinned transport itself is exercised against
+// real local sockets in the adapter test file.
+vi.mock("undici", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("undici")>();
+  return {
+    ...actual,
+    fetch: ((url: string | URL | Request, init?: RequestInit) => fetch(url as string, init)) as unknown as typeof actual.fetch,
+  };
+});
 import { WebhookValidationError } from "../../../../src/domain/webhook/webhook_errors";
 import type { Mock } from "vitest";
 
@@ -103,7 +117,7 @@ describe("esign webhook (Firma HMAC contract)", () => {
       type: "signing_request.completed",
       data: { signing_request: { id: "env_456", metadata: "not-an-object" } },
     });
-    const adapter = new FirmaAdapter(async () => [{ address: "93.184.216.34" }]);
+    const adapter = new FirmaAdapter(async () => [{ address: "93.184.216.34" }], passthroughDownload);
     const result = await adapter.parseAndValidateWebhook(body, headers);
     // Adapter-level: signature valid → isValid true; the USE CASE throws on
     // non-object metadata → the webhook maps validation errors to 400.
@@ -505,7 +519,7 @@ describe("FirmaAdapter.fetchCompletedDocument — live-shape contract", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
     const { FirmaAdapter } = await import("../../../../src/adapters/esign/firma.adapter");
-    const bytes = await new FirmaAdapter(async () => [{ address: "93.184.216.34" }]).fetchCompletedDocument("env_x");
+    const bytes = await new FirmaAdapter(async () => [{ address: "93.184.216.34" }], passthroughDownload).fetchCompletedDocument("env_x");
     expect(Buffer.from(bytes).toString("latin1")).toBe("%PDF-1");
     // The signed URL must be fetched WITHOUT our credentials (self-authorizing token).
     expect((fetchMock.mock.calls[1][1] as RequestInit | undefined)?.headers).toBeUndefined();
@@ -531,7 +545,7 @@ describe("FirmaAdapter.fetchCompletedDocument — live-shape contract", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
     const { FirmaAdapter } = await import("../../../../src/adapters/esign/firma.adapter");
-    await new FirmaAdapter(async () => [{ address: "93.184.216.34" }]).fetchCompletedDocument("env_y");
+    await new FirmaAdapter(async () => [{ address: "93.184.216.34" }], passthroughDownload).fetchCompletedDocument("env_y");
     expect(String(fetchMock.mock.calls[1][0])).toContain("final.pdf");
   });
 
@@ -555,7 +569,7 @@ describe("FirmaAdapter.fetchCompletedDocument — live-shape contract", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
     const { FirmaAdapter } = await import("../../../../src/adapters/esign/firma.adapter");
-    await expect(new FirmaAdapter(async () => [{ address: "93.184.216.34" }]).fetchCompletedDocument("env_z")).rejects.toThrow(/did not yield PDF bytes within the 20 MiB cap/);
+    await expect(new FirmaAdapter(async () => [{ address: "93.184.216.34" }], passthroughDownload).fetchCompletedDocument("env_z")).rejects.toThrow(/did not yield PDF bytes within the 20 MiB cap/);
     const fetchedUrls = fetchMock.mock.calls.map((c) => String(c[0]));
     expect(fetchedUrls.some((u) => u.includes("original.pdf"))).toBe(false); // unsigned source never fetched
   });
@@ -563,13 +577,13 @@ describe("FirmaAdapter.fetchCompletedDocument — live-shape contract", () => {
   it("fails LOUD when the resource GET 404s (old documents-endpoint shape is gone)", async () => {
     vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({ ok: false, status: 404 })));
     const { FirmaAdapter } = await import("../../../../src/adapters/esign/firma.adapter");
-    await expect(new FirmaAdapter(async () => [{ address: "93.184.216.34" }]).fetchCompletedDocument("env_missing")).rejects.toThrow(/resource fetch failed \(404\)/);
+    await expect(new FirmaAdapter(async () => [{ address: "93.184.216.34" }], passthroughDownload).fetchCompletedDocument("env_missing")).rejects.toThrow(/resource fetch failed \(404\)/);
   });
 
   it("fails LOUD when the resource exposes no valid HTTPS download URL", async () => {
     vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ id: "env_q", status: { sent: true, finished: true, cancelled: false, declined: false, expired: false }, document_url: "https://firma-storage.test/object/sign/a.pdf?token=t" }) })));
     const { FirmaAdapter } = await import("../../../../src/adapters/esign/firma.adapter");
-    await expect(new FirmaAdapter(async () => [{ address: "93.184.216.34" }]).fetchCompletedDocument("env_q")).rejects.toThrow(/no final_document_download_url/);
+    await expect(new FirmaAdapter(async () => [{ address: "93.184.216.34" }], passthroughDownload).fetchCompletedDocument("env_q")).rejects.toThrow(/no final_document_download_url/);
   });
 
   it("fails LOUD when the final URL fails the %PDF- gate (aggregate error)", async () => {
@@ -581,6 +595,6 @@ describe("FirmaAdapter.fetchCompletedDocument — live-shape contract", () => {
       return Promise.resolve({ ok: true, status: 200, arrayBuffer: () => Promise.resolve(new TextEncoder().encode("<html>nope</html>").buffer) });
     }));
     const { FirmaAdapter } = await import("../../../../src/adapters/esign/firma.adapter");
-    await expect(new FirmaAdapter(async () => [{ address: "93.184.216.34" }]).fetchCompletedDocument("env_junk")).rejects.toThrow(/did not yield PDF bytes within the 20 MiB cap/);
+    await expect(new FirmaAdapter(async () => [{ address: "93.184.216.34" }], passthroughDownload).fetchCompletedDocument("env_junk")).rejects.toThrow(/did not yield PDF bytes within the 20 MiB cap/);
   });
 });

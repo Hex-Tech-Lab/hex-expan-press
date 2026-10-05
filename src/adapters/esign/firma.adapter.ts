@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import { lookup } from "node:dns/promises";
+import { Agent as UndiciAgent, fetch as undiciFetch } from "undici";
 
 /** Display-safe truncation for error messages (always marks elided content). */
 function truncate(text: string, max: number): string {
@@ -14,6 +15,92 @@ export type HostResolver = (host: string) => Promise<{ address: string }[]>;
 const dnsResolveHost: HostResolver = (host) => lookup(host, { all: true, verbatim: true });
 
 /**
+ * DNS pin (sprint 13, P0 TOCTOU eradication): the validated hostname AND the
+ * exact address set that passed the forbidden-host predicate. The download
+ * must dial ONLY these addresses — the check-then-fetch gap is closed by
+ * dialing the prevalidated set DIRECTLY: the pinned transport performs no
+ * hostname resolution of its own at all, so no secondary lookup (and
+ * therefore no 0-TTL rebinding window) exists.
+ */
+export type Pin = { host: string; addresses: string[] };
+
+/** Minimal structural surface downloadCapped needs from a dispatcher
+ *  (undici Agent satisfies it; test doubles may be no-ops). */
+export type PinnedDispatcher = { close?: () => Promise<void> };
+
+/** Builds the dispatcher that physically dials the pinned IPs. Production
+ *  default: an undici Agent whose connect.lookup NEVER consults DNS — it
+ *  returns the validated address set for the pinned host and fails CLOSED
+ *  (throws) for any other hostname, so a 0-TTL rebinding or a redirect
+ *  target cannot be resolved, let alone dialed. TLS SNI and the Host header
+ *  keep the original hostname (only the dial target is pinned). */
+export type PinnedDispatcherFactory = (pin: Pin) => PinnedDispatcher;
+
+/** The pinned lookup function: production DNS-replacement for the download
+ *  transport. NEVER consults the platform resolver — it answers ONLY with
+ *  the validated address set for the pinned host and fails CLOSED (callback
+ *  error) for any other hostname, so a 0-TTL rebinding or a smuggled
+ *  redirect target cannot be resolved, let alone dialed. */
+export function pinnedLookupFor(
+  pin: Pin,
+): (hostname: string, options: unknown, callback: (err: Error | null, addresses?: { address: string; family: number }[]) => void) => void {
+  return (hostname, _options, callback) => {
+    if (hostname === pin.host) {
+      callback(null, pin.addresses.map((address) => ({ address, family: address.includes(":") ? 6 : 4 })));
+      return;
+    }
+    callback(new Error(`[firma-adapter] SSRF pin violation: DNS lookup for "${hostname}" outside the validated address set for "${pin.host}"`));
+  };
+}
+
+export const pinnedDispatcherFactory: PinnedDispatcherFactory = (pin) =>
+  new UndiciAgent({
+    connect: { lookup: pinnedLookupFor(pin) as never },
+  }) as unknown as PinnedDispatcher;
+
+/** Download transport seam (sprint 13): the pinned download runs on the
+ *  standalone undici fetch because Node's GLOBAL fetch refuses foreign
+ *  dispatcher instances (cross-instance probe 2026-10-05: "invalid
+ *  onRequestStart method"). Tests inject a passthrough that keeps routing
+ *  through the stubbed global fetch. */
+export type DownloadFetch = (url: string, init: RequestInit, dispatcher: PinnedDispatcher) => Promise<Response>;
+export const pinnedDownloadFetch: DownloadFetch = (url, init, dispatcher) =>
+  // Cast across realms: global RequestInit (DOM lib) vs undici RequestInit
+  // disagree on Blob's identity — the runtime objects are compatible for
+  // everything this call sends (headers/body/signal/redirect/credentials).
+  undiciFetch(url, { ...init, dispatcher: dispatcher as UndiciAgent } as unknown as Parameters<typeof undiciFetch>[1]) as unknown as Promise<Response>;
+
+/** Last-gate dial validation (defense-in-depth, Cubic P2 on PR #84 round 3):
+ *  the pin is normally derived from the validated URL upstream — this
+ *  re-checks BOTH at the dial layer so a malformed pin (internal address,
+ *  host mismatch, empty set, non-HTTPS URL) can never reach the transport.
+ *  Pure and exported: the gate is unit-testable without exposing any dial
+ *  seam. The forbidden-host predicate is injected (zero coupling to the
+ *  adapter instance); failures throw with the `dial-layer validation
+ *  failed:` prefix so the candidate loop logs the cause loudly. */
+export function assertDialIsSafe(
+  url: string,
+  pin: Pin,
+  isForbiddenHost: (host: string) => boolean,
+): void {
+  let host: string | null = null;
+  try {
+    const u = new URL(url);
+    if (u.protocol !== "https:") throw new Error(`non-HTTPS download URL`);
+    host = u.hostname;
+    if (isForbiddenHost(host)) throw new Error(`forbidden download host`);
+  } catch (err) {
+    throw new Error(`[firma-adapter] dial-layer validation failed: ${err instanceof Error ? err.message : "invalid URL"}`);
+  }
+  if (pin.host !== host) throw new Error(`[firma-adapter] dial-layer validation failed: pin host does not match the URL host`);
+  if (isForbiddenHost(pin.host)) throw new Error(`[firma-adapter] dial-layer validation failed: pin host is denylisted`);
+  if (!Array.isArray(pin.addresses) || pin.addresses.length === 0) throw new Error(`[firma-adapter] dial-layer validation failed: pin has no validated addresses`);
+  for (const address of pin.addresses) {
+    if (isForbiddenHost(address)) throw new Error(`[firma-adapter] dial-layer validation failed: pin address is in a forbidden range`);
+  }
+}
+
+/**
  * Firma.dev adapter (verified against the live API 2026-09-27).
  *
  * Real API base: https://api.firma.dev/functions/v1/signing-request-api
@@ -26,7 +113,11 @@ const dnsResolveHost: HostResolver = (host) => lookup(host, { all: true, verbati
  * https://app.firma.dev/signing/<recipient_id>.
  */
 export class FirmaAdapter implements EsignProviderPort, EsignWebhookPort, EsignEvidencePort {
-  constructor(private readonly resolveHost: HostResolver = dnsResolveHost) {}
+  constructor(
+    private readonly resolveHost: HostResolver = dnsResolveHost,
+    private readonly downloadFetch: DownloadFetch = pinnedDownloadFetch,
+    private readonly createPinnedDispatcher: PinnedDispatcherFactory = pinnedDispatcherFactory,
+  ) {}
 
   private base(): string {
     return process.env.FIRMA_API_BASE || "https://api.firma.dev/functions/v1/signing-request-api";
@@ -146,85 +237,111 @@ export class FirmaAdapter implements EsignProviderPort, EsignWebhookPort, EsignE
    *  validate EVERY resolved address against the same forbidden-host
    *  predicate — a provider-controlled DNS name pointing at a
    *  private/metadata range is rejected before any byte is fetched.
-   *  Fail-closed on resolution failure. (Residual TOCTOU between this check
-   *  and the fetch's own resolution is documented in the THOS as accepted
-   *  residual risk; a pinned-socket undici Agent is the follow-up.) */
-  private async assertHostIsFetchable(url: string): Promise<boolean> {
+   *  Fail-closed on resolution failure. Returns the VALIDATED PIN (host +
+   *  exact address set) instead of a boolean — sprint 13: the download
+   *  transport dials exactly these addresses via a pinned dispatcher,
+   *  eradicating the check→fetch TOCTOU (no second resolution can occur,
+   *  so 0-TTL DNS rebinding cannot rebind the dial target). */
+  private async assertHostIsFetchable(url: string): Promise<Pin | null> {
     let host: string;
     try {
       host = new URL(url).hostname;
     } catch {
-      return false;
+      return null;
     }
-    if (this.isForbiddenHost(host)) return false; // literal IP or named-host denylist — no DNS needed
+    if (this.isForbiddenHost(host)) return null; // literal IP or named-host denylist — no DNS needed
     let resolved: { address: string }[];
     try {
       resolved = await this.resolveHost(host);
     } catch (err) {
       console.error(`[firma-adapter] host resolution failed (fail-closed):`, err instanceof Error ? err.name : "unknown");
-      return false;
+      return null;
     }
     if (!resolved || resolved.length === 0) {
       console.error("[firma-adapter] host resolved to zero addresses (fail-closed)");
-      return false;
+      return null;
     }
     for (const { address } of resolved) {
       if (this.isForbiddenHost(address)) {
         console.error(`[firma-adapter] host resolves into a forbidden range — rejected (SSRF)`);
-        return false;
+        return null;
       }
     }
-    return true;
+    return { host, addresses: resolved.map((r) => r.address) };
   }
 
   /** Memory-capped download: hard 20 MiB ceiling (mirrors the consents bucket
    *  cap) enforced on the content-length header AND on accumulated streamed
    *  bytes, with an immediate reader.cancel() on overflow. Never buffers an
    *  unbounded external payload. Returns null when the response must be
-   *  rejected (non-2xx, oversized, unreadable). */
-  private async downloadCapped(url: string): Promise<Uint8Array | null> {
+   *  rejected (non-2xx, oversized, unreadable).
+   *
+   *  Sprint-13 DNS pin: the request is issued through the pinned dispatcher
+   *  (undici Agent) whose connect.lookup returns ONLY the validated address
+   *  set — the dial target is the exact IP that passed the forbidden-host
+   *  predicate, while TLS SNI and the Host header keep the original
+   *  hostname. Any lookup outside the pin fails closed. The dispatcher is
+   *  closed only in the finally block AFTER the body is consumed or
+   *  cancelled (closing early would truncate the stream).
+   *
+   *  Dial-layer defense-in-depth (Cubic P2, PR #84 round 3): even a
+   *  malformed pin cannot dial a forbidden target — assertDialIsSafe
+   *  re-checks the URL (HTTPS, denylist, pin-host match) and EVERY pin
+   *  address HERE at the last gate before the dial. Failures throw (caught
+   *  by the candidate loop, logged with cause, terminal error). The method
+   *  is PRIVATE: there is no public dial seam — loopback can never pass
+   *  fetchCompletedDocument's denylist (by design), so composition is
+   *  proven in layers: real-socket transport tests + gate unit tests +
+   *  the existing cap/stream tests through the port with a valid pin. */
+  private async downloadCapped(url: string, pin: Pin): Promise<Uint8Array | null> {
     const MAX_EVIDENCE_BYTES = 20 * 1024 * 1024;
-    // Credential hygiene (sprint 12 B1): the signed URL is self-authorizing —
-    // send NO headers at all and omit ambient credentials, so Firma API keys
-    // can never leak to the storage host.
-    const res = await this.fetchWithRelease(url, { credentials: "omit", redirect: "manual", signal: AbortSignal.timeout(30_000) });
-    if (!res.ok) {
-      // Cancel the rejected body so the socket is released immediately —
-      // abandoned bodies retain sockets until GC (Cubic P2, PR #82).
-      await res.body?.cancel?.().catch?.(() => {});
-      return null;
-    }
-    const contentLength = res.headers?.get?.("content-length");
-    if (contentLength && Number(contentLength) > MAX_EVIDENCE_BYTES) {
-      await res.body?.cancel?.();
-      return null;
-    }
-    const reader = res.body?.getReader?.();
-    if (!reader) {
-      // Test doubles / runtimes without streaming: fall back to arrayBuffer,
-      // still bounded by the cap.
-      const buf = await res.arrayBuffer();
-      return buf.byteLength > MAX_EVIDENCE_BYTES ? null : new Uint8Array(buf);
-    }
-    const chunks: Uint8Array[] = [];
-    let total = 0;
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      total += value.byteLength;
-      if (total > MAX_EVIDENCE_BYTES) {
-        await reader.cancel();
+    assertDialIsSafe(url, pin, (h) => this.isForbiddenHost(h));
+    const dispatcher = this.createPinnedDispatcher(pin);
+    try {
+      // Credential hygiene (sprint 12 B1): the signed URL is self-authorizing —
+      // send NO headers at all and omit ambient credentials, so Firma API keys
+      // can never leak to the storage host.
+      const res = await this.downloadFetch(url, { credentials: "omit", redirect: "manual", signal: AbortSignal.timeout(30_000) }, dispatcher);
+      if (!res.ok) {
+        // Cancel the rejected body so the socket is released immediately —
+        // abandoned bodies retain sockets until GC (Cubic P2, PR #82).
+        await res.body?.cancel?.().catch?.(() => {});
         return null;
       }
-      chunks.push(value);
+      const contentLength = res.headers?.get?.("content-length");
+      if (contentLength && Number(contentLength) > MAX_EVIDENCE_BYTES) {
+        await res.body?.cancel?.();
+        return null;
+      }
+      const reader = res.body?.getReader?.();
+      if (!reader) {
+        // Test doubles / runtimes without streaming: fall back to arrayBuffer,
+        // still bounded by the cap.
+        const buf = await res.arrayBuffer();
+        return buf.byteLength > MAX_EVIDENCE_BYTES ? null : new Uint8Array(buf);
+      }
+      const chunks: Uint8Array[] = [];
+      let total = 0;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        total += value.byteLength;
+        if (total > MAX_EVIDENCE_BYTES) {
+          await reader.cancel();
+          return null;
+        }
+        chunks.push(value);
+      }
+      const out = new Uint8Array(total);
+      let offset = 0;
+      for (const chunk of chunks) {
+        out.set(chunk, offset);
+        offset += chunk.byteLength;
+      }
+      return out;
+    } finally {
+      await dispatcher.close?.().catch?.(() => {});
     }
-    const out = new Uint8Array(total);
-    let offset = 0;
-    for (const chunk of chunks) {
-      out.set(chunk, offset);
-      offset += chunk.byteLength;
-    }
-    return out;
   }
 
   /**
@@ -250,7 +367,10 @@ export class FirmaAdapter implements EsignProviderPort, EsignWebhookPort, EsignE
    * expired request — the webhook claim alone is never trusted); HTTPS-only
    * zero-trust URL validation (SSRF surface denied, IPv6-aware since
    * sprint-12-C); hard 20 MiB streamed memory cap; zero credentials on the
-   * signed-URL request.
+   * signed-URL request; and since sprint 13 a DNS-PINNED dial — the download
+   * transport dials ONLY the exact validated addresses through a pinned
+   * dispatcher (no second DNS lookup exists, so the check→fetch TOCTOU
+   * window is structurally closed, not merely narrowed).
    *
    * Sprint-12-C (red-team): the `document_url` fallback is ERADICATED —
    * `final_document_download_url` is REQUIRED. `document_url` serves the
@@ -299,13 +419,21 @@ export class FirmaAdapter implements EsignProviderPort, EsignWebhookPort, EsignE
     for (let i = 0; i < candidates.length; i++) {
       let bytes: Uint8Array | null = null;
       try {
-        if (!(await this.assertHostIsFetchable(candidates[i]))) {
+        const pin = await this.assertHostIsFetchable(candidates[i]);
+        if (!pin) {
           console.error(`[firma-adapter] download candidate ${i} host rejected (SSRF guard, DNS-level) for envelope ${envelopeId}`);
           continue;
         }
-        bytes = await this.downloadCapped(candidates[i]);
+        bytes = await this.downloadCapped(candidates[i], pin);
       } catch (err) {
-        console.error(`[firma-adapter] download candidate ${i} threw for envelope ${envelopeId}:`, err instanceof Error ? err.name : "unknown");
+        // undici wraps transport failures (incl. a pinned-lookup SSRF
+        // violation) in a generic TypeError with the real error on `cause` —
+        // log the cause so a pin violation is distinguishable from a timeout
+        // in the logs (Cubic P3 on PR #84).
+        const cause = err instanceof Error && err.cause instanceof Error ? err.cause.message : undefined;
+        console.error(`[firma-adapter] download candidate ${i} threw for envelope ${envelopeId}:`,
+          err instanceof Error ? err.name : "unknown",
+          cause ? `cause: ${truncate(cause, 200)}` : "");
         continue;
       }
       if (!bytes) {
