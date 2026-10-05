@@ -1,0 +1,19 @@
+payments/src/ledger.ts
+  s_c2bb5a5d6f7923::t_1ab53d5690af19 124-135,238-242,315-319,500-504,555-559
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0b86b29738a9628450fc8c09234edabd5ab38e86",
+  "prompts": {},
+  "sessions": {
+    "s_c2bb5a5d6f7923": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef43b105fffevRLfKBVDbL0gWm",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
