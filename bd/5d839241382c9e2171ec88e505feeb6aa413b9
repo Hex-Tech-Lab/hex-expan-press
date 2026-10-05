@@ -1,0 +1,42 @@
+web/src/lib/__tests__/consent-chain.test.ts
+  s_c2bb5a5d6f7923::t_a21553961b3c9e 80-94
+docs/agent_ledger.jsonl
+  s_c2bb5a5d6f7923::t_b1352cfe3af7a4 447,456
+  s_c2bb5a5d6f7923::t_670b442a87eae5 457
+web/src/lib/__tests__/esign-webhook.test.ts
+  s_c2bb5a5d6f7923::t_a68267330c7271 29-36
+  s_c2bb5a5d6f7923::t_d097a000645f84 106,508,534,558,566,572,584
+web/src/lib/consent-chain.ts
+  s_c2bb5a5d6f7923::t_cb662f0daaccc5 25-29,32-40,43
+web/src/lib/supabase-ssr.ts
+  s_c2bb5a5d6f7923::t_35d017e26365ab 32-36
+src/adapters/esign/firma.adapter.ts
+  s_c2bb5a5d6f7923::t_0e67234fe73ab7 191-196
+  s_c2bb5a5d6f7923::t_d9f96a8b73b50a 302-305
+  s_c2bb5a5d6f7923::t_7fb042ae416f6a 96-121,123-133,138,145-178
+  s_c2bb5a5d6f7923::t_121caaaebd44e6 29-30
+  s_c2bb5a5d6f7923::t_3af8189274bbee 2,11-14
+  s_c2bb5a5d6f7923::t_26514370619567 122
+  s_c2bb5a5d6f7923::t_50d95156b3d3bd 15
+  s_c2bb5a5d6f7923::t_0c383f1999f247 179
+src/adapters/esign/__tests__/firma.adapter.test.ts
+  s_c2bb5a5d6f7923::t_4b557364e079f1 375-376
+  s_c2bb5a5d6f7923::t_d3a38e035b2c38 34,47,54,62,74,82,91,102,163,185,200,215,224,232,244,259,272,284,310,325,343,361,368-371,373,380,382-408,421,448,475,498,523,540,556,568
+  s_c2bb5a5d6f7923::t_bd2a7e057aed52 372,374,377-379,381
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "bd5d839241382c9e2171ec88e505feeb6aa413b9",
+  "prompts": {},
+  "sessions": {
+    "s_c2bb5a5d6f7923": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef43b105fffevRLfKBVDbL0gWm",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
