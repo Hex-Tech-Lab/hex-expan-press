@@ -1,0 +1,60 @@
+web/src/lib/__tests__/esign-webhook.test.ts
+  s_c2bb5a5d6f7923::t_9167dd468be462 481,500,523
+  s_c2bb5a5d6f7923::t_98a7484f59685f 461-480,482-494,497-499,501-522,524-571
+  s_c2bb5a5d6f7923::t_2ba34f1aa42060 31-34
+  s_c2bb5a5d6f7923::t_3c1f7fd353b3f6 55-58,63-72
+  s_c2bb5a5d6f7923::t_eb1ea6f04b4f80 282-291,302
+  s_c2bb5a5d6f7923::t_4ac3f2d35dfc90 495-496
+src/use_cases/__tests__/audit-esign-replay.test.ts
+  s_c2bb5a5d6f7923::t_1955a5a8306c78 7-8
+  s_c2bb5a5d6f7923::t_e4a34e2c6e0f71 9-25,27-28
+src/use_cases/__tests__/process_esign_webhook.test.ts
+  s_c2bb5a5d6f7923::t_a7ec9c59c34a62 11,16-19
+  s_c2bb5a5d6f7923::t_0a63d9dfe433a8 118-132
+src/use_cases/process_esign_webhook.ts
+  s_c2bb5a5d6f7923::t_4c785533a0caa4 5
+  s_c2bb5a5d6f7923::t_864b01d8203adb 131-141
+payments/src/ledger.ts
+  s_c2bb5a5d6f7923::t_23fd95d98fc263 484-485
+  s_c2bb5a5d6f7923::t_f4fe58b80a3f21 226-227
+  s_c2bb5a5d6f7923::t_7b4be73be9f077 395-396
+  s_c2bb5a5d6f7923::t_bdead1fc2dd63f 448-449
+  s_c2bb5a5d6f7923::t_0e48c95013f8fb 7
+  s_c2bb5a5d6f7923::t_81d927b86eb5de 537-538
+  s_c2bb5a5d6f7923::t_1baf55afd858fb 301-302
+  s_c2bb5a5d6f7923::t_c37f8aa38f5025 124-125
+payments/src/supabase_admin.ts
+  s_c2bb5a5d6f7923::t_2a411a23b301a0 1-25
+src/adapters/esign/firma.adapter.ts
+  s_c2bb5a5d6f7923::t_ede7f47cea79a5 64,68-82,85-87,89-113,115
+  s_c2bb5a5d6f7923::t_4a77a5654083ef 65-66
+supabase/migrations/20261005000000_consents_storage_bucket.sql
+  s_c2bb5a5d6f7923::t_5e92eee5c225c9 1-41
+docs/agent_ledger.jsonl
+  s_c2bb5a5d6f7923::t_acc7fe0fac9995 448
+  h_90c2451a76ba0d 447
+  s_c2bb5a5d6f7923::t_9748caecfb78a7 449
+src/adapters/esign/__tests__/firma.adapter.test.ts
+  s_c2bb5a5d6f7923::t_4ea1c6ac312fce 128,134-146,148-152,159-194,197,202,205,207,210,213,215-219,222
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "100fe1ffeef95691ebb58f5b9fb973f50cb3b755",
+  "prompts": {},
+  "humans": {
+    "h_90c2451a76ba0d": {
+      "author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  },
+  "sessions": {
+    "s_c2bb5a5d6f7923": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef43b105fffevRLfKBVDbL0gWm",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
