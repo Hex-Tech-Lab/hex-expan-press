@@ -115,7 +115,7 @@ describe("processEsignWebhookUseCase — evidence-before-insert (F1)", () => {
     expect(database.submitConsent).not.toHaveBeenCalled();
   });
 
-  it("does NOT upload or insert when the fetched bytes do not match the webhook's attested document_sha256", async () => {
+  it("attestation mismatch prevents ALL side effects (sprint-12-C): 0 uploads, 0 consent inserts, 0 audit flags", async () => {
     firmaMock.parseResult = validParseResult(completedEvent({ documentHash: "b".repeat(64) }));
     firmaMock.fetchCompletedDocument.mockReturnValue(Promise.resolve(AGREEMENT_PDF_BYTES)); // hashes to VALID_HASH, not bbb…
     firmaMock.uploadConsentEvidence.mockReturnValue(Promise.resolve());
@@ -126,8 +126,12 @@ describe("processEsignWebhookUseCase — evidence-before-insert (F1)", () => {
       /evidence attestation mismatch/,
     );
 
+    // ZERO side effects: no evidence upload, no consent insert, and no
+    // manual-review/audit flag (the legacy-provenance path must not fire on
+    // a rejected delivery either).
     expect(firmaMock.uploadConsentEvidence).not.toHaveBeenCalled();
     expect(database.submitConsent).not.toHaveBeenCalled();
+    expect(database.flagConsentForManualReview).not.toHaveBeenCalled();
   });
 
   it("does NOT upload or insert when the completed-document fetch fails", async () => {

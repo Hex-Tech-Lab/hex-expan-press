@@ -63,9 +63,16 @@ function evidenceFetchMock(): Mock {
     if (method === "GET" && /\/signing-requests\/[^/]+$/.test(url)) {
       // Live-verified 2026-10-05: the resource carries a freshly-minted signed
       // Storage URL (final_document_download_url null on unfinished requests).
+      // Sprint-12-B: the state-finality guard requires status.finished === true.
       return Promise.resolve({
         ok: true, status: 200,
-        json: () => Promise.resolve({ id: "env", final_document_download_url: null, document_url: "https://firma-storage.test/object/sign/agreement.pdf?token=t" }),
+        json: () => Promise.resolve({
+          id: "env",
+          status: { sent: true, finished: true, cancelled: false, declined: false, expired: false },
+          // Sprint-12-C: final_document_download_url is REQUIRED.
+          final_document_download_url: "https://firma-storage.test/object/sign/agreement-final.pdf?token=t",
+          document_url: "https://firma-storage.test/object/sign/agreement.pdf?token=t",
+        }),
         arrayBuffer: () => Promise.reject(new Error("resource must not be read as bytes")),
       });
     }
@@ -481,7 +488,7 @@ describe("FirmaAdapter.fetchCompletedDocument — live-shape contract", () => {
     const fetchMock = vi.fn((input: unknown, _init?: RequestInit) => {
       const url = String(input);
       if (/\/signing-requests\/[^/]+$/.test(url)) {
-        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ document_url: "https://firma-storage.test/object/sign/a.pdf?token=t" }) });
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ status: { sent: true, finished: true, cancelled: false, declined: false, expired: false }, final_document_download_url: "https://firma-storage.test/object/sign/a-final.pdf?token=t", document_url: "https://firma-storage.test/object/sign/a.pdf?token=t" }) });
       }
       if (url.includes("/object/sign/")) {
         return Promise.resolve({ ok: true, status: 200, arrayBuffer: () => Promise.resolve(AGREEMENT_PDF_BYTES.slice().buffer) });
@@ -503,6 +510,7 @@ describe("FirmaAdapter.fetchCompletedDocument — live-shape contract", () => {
         return Promise.resolve({
           ok: true, status: 200,
           json: () => Promise.resolve({
+            status: { sent: true, finished: true, cancelled: false, declined: false, expired: false },
             final_document_download_url: "https://firma-storage.test/object/sign/final.pdf?token=t",
             document_url: "https://firma-storage.test/object/sign/original.pdf?token=t",
           }),
@@ -519,13 +527,14 @@ describe("FirmaAdapter.fetchCompletedDocument — live-shape contract", () => {
     expect(String(fetchMock.mock.calls[1][0])).toContain("final.pdf");
   });
 
-  it("falls back to document_url when the final URL returns non-PDF junk", async () => {
-    const fetchMock = vi.fn((input: unknown, _init?: RequestInit) => {
+  it("TERMINAL (sprint-12-C): a failing final URL never degrades to the unsigned document_url", async () => {
+    const fetchMock = vi.fn((input: unknown) => {
       const url = String(input);
       if (/\/signing-requests\/[^/]+$/.test(url)) {
         return Promise.resolve({
           ok: true, status: 200,
           json: () => Promise.resolve({
+            status: { sent: true, finished: true, cancelled: false, declined: false, expired: false },
             final_document_download_url: "https://firma-storage.test/object/sign/final.pdf?token=t",
             document_url: "https://firma-storage.test/object/sign/original.pdf?token=t",
           }),
@@ -534,15 +543,13 @@ describe("FirmaAdapter.fetchCompletedDocument — live-shape contract", () => {
       if (url.includes("final.pdf")) {
         return Promise.resolve({ ok: true, status: 200, arrayBuffer: () => Promise.resolve(new TextEncoder().encode('{"error":"not ready"}').buffer) });
       }
-      if (url.includes("original.pdf")) {
-        return Promise.resolve({ ok: true, status: 200, arrayBuffer: () => Promise.resolve(AGREEMENT_PDF_BYTES.slice().buffer) });
-      }
-      return Promise.reject(new Error(`unexpected fetch ${url}`));
+      return Promise.resolve({ ok: true, status: 200, arrayBuffer: () => Promise.resolve(AGREEMENT_PDF_BYTES.slice().buffer) });
     });
     vi.stubGlobal("fetch", fetchMock);
     const { FirmaAdapter } = await import("../../../../src/adapters/esign/firma.adapter");
-    const bytes = await new FirmaAdapter().fetchCompletedDocument("env_z");
-    expect(Buffer.from(bytes).toString("latin1")).toBe("%PDF-1");
+    await expect(new FirmaAdapter().fetchCompletedDocument("env_z")).rejects.toThrow(/did not yield PDF bytes within the 20 MiB cap/);
+    const fetchedUrls = fetchMock.mock.calls.map((c) => String(c[0]));
+    expect(fetchedUrls.some((u) => u.includes("original.pdf"))).toBe(false); // unsigned source never fetched
   });
 
   it("fails LOUD when the resource GET 404s (old documents-endpoint shape is gone)", async () => {
@@ -551,21 +558,21 @@ describe("FirmaAdapter.fetchCompletedDocument — live-shape contract", () => {
     await expect(new FirmaAdapter().fetchCompletedDocument("env_missing")).rejects.toThrow(/resource fetch failed \(404\)/);
   });
 
-  it("fails LOUD when the resource exposes no download URL", async () => {
-    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ id: "env_q" }) })));
+  it("fails LOUD when the resource exposes no valid HTTPS download URL", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ id: "env_q", status: { sent: true, finished: true, cancelled: false, declined: false, expired: false }, document_url: "https://firma-storage.test/object/sign/a.pdf?token=t" }) })));
     const { FirmaAdapter } = await import("../../../../src/adapters/esign/firma.adapter");
-    await expect(new FirmaAdapter().fetchCompletedDocument("env_q")).rejects.toThrow(/no download URL/);
+    await expect(new FirmaAdapter().fetchCompletedDocument("env_q")).rejects.toThrow(/no final_document_download_url/);
   });
 
-  it("fails LOUD when every candidate URL fails the %PDF- gate", async () => {
+  it("fails LOUD when the final URL fails the %PDF- gate (aggregate error)", async () => {
     vi.stubGlobal("fetch", vi.fn((input: unknown) => {
       const url = String(input);
       if (/\/signing-requests\/[^/]+$/.test(url)) {
-        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ document_url: "https://firma-storage.test/object/sign/a.pdf?token=t" }) });
+        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ status: { sent: true, finished: true, cancelled: false, declined: false, expired: false }, final_document_download_url: "https://firma-storage.test/object/sign/a-final.pdf?token=t", document_url: "https://firma-storage.test/object/sign/a.pdf?token=t" }) });
       }
       return Promise.resolve({ ok: true, status: 200, arrayBuffer: () => Promise.resolve(new TextEncoder().encode("<html>nope</html>").buffer) });
     }));
     const { FirmaAdapter } = await import("../../../../src/adapters/esign/firma.adapter");
-    await expect(new FirmaAdapter().fetchCompletedDocument("env_junk")).rejects.toThrow(/no candidate URL returned PDF bytes/);
+    await expect(new FirmaAdapter().fetchCompletedDocument("env_junk")).rejects.toThrow(/did not yield PDF bytes within the 20 MiB cap/);
   });
 });
