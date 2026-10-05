@@ -1,0 +1,54 @@
+docs/agent_ledger.jsonl
+  s_c2bb5a5d6f7923::t_7048d65564acf0 449-450
+  s_c2bb5a5d6f7923::t_acfba1787596d0 451
+web/src/lib/supabase-ssr.ts
+  s_c2bb5a5d6f7923::t_a70baf891f199b 4-5
+  s_c2bb5a5d6f7923::t_cb251d150d340a 28-36
+src/adapters/esign/__tests__/firma.adapter.test.ts
+  s_c2bb5a5d6f7923::t_4c0128667fde3e 361
+  s_c2bb5a5d6f7923::t_fc5e7ee829362e 229-293,298,301-305,307-309,311-360,362-383
+  s_c2bb5a5d6f7923::t_cfd569b19a38a0 212,217
+  s_c2bb5a5d6f7923::t_2257f15cbb63ba 143-150
+  s_c2bb5a5d6f7923::t_4aeb55e712c6bb 294-297,299-300,306,310
+web/src/lib/__tests__/esign-webhook.test.ts
+  s_c2bb5a5d6f7923::t_fea61c9212eb99 565
+  s_c2bb5a5d6f7923::t_40df2769bbad6c 490,572
+  s_c2bb5a5d6f7923::t_2095bf32a0376c 512,536
+  s_c2bb5a5d6f7923::t_0d1848ba60a407 562
+  s_c2bb5a5d6f7923::t_86ed809e6c3706 66,69-74
+  s_c2bb5a5d6f7923::t_8bdb802ad91897 563
+web/src/lib/__tests__/consent-chain.test.ts
+  s_c2bb5a5d6f7923::t_c9674646dc3150 1-80
+web/app/creator/review/review-client.tsx
+  s_c2bb5a5d6f7923::t_37fa91f95e43c2 381-383
+  s_c2bb5a5d6f7923::t_7768ae6a6afddb 343-350
+supabase/migrations/20261005000000_consents_storage_bucket.sql
+  s_c2bb5a5d6f7923::t_efeef49457493a 42-46
+web/src/lib/consent-chain.ts
+  s_c2bb5a5d6f7923::t_83ba889eaad677 1-39
+web/app/creator/consents/page.tsx
+  s_c2bb5a5d6f7923::t_ea257fe1fa7984 5
+  s_c2bb5a5d6f7923::t_502769a3221743 39-45,54,59-61
+src/adapters/esign/firma.adapter.ts
+  s_c2bb5a5d6f7923::t_253435a1aa1336 63-148,167-174,182-190,192,195-197,206
+web/app/creator/dashboard/page.tsx
+  s_c2bb5a5d6f7923::t_3dfcd9164f22f3 116-119
+  s_c2bb5a5d6f7923::t_eee62bceb51df1 5
+  s_c2bb5a5d6f7923::t_3bbd76112277d4 66-69
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b76a075cdb49edc6bff85fc31cf4d177c3447724",
+  "prompts": {},
+  "sessions": {
+    "s_c2bb5a5d6f7923": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef43b105fffevRLfKBVDbL0gWm",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
