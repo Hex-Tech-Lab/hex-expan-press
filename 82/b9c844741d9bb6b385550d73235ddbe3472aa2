@@ -1,0 +1,70 @@
+docs/agent_ledger.jsonl
+  s_504308f4460afb::t_3878a473c43cb1 438-439
+  s_504308f4460afb::t_e1227acb6495ae 440
+  s_504308f4460afb::t_5b7b7ae03749aa 437
+  s_eaa71a55cf16bf::t_12817a93548087 441
+web/app/api/billing/webhook/handler.ts
+  s_eaa71a55cf16bf::t_a5be029424f352 139-163
+  s_eaa71a55cf16bf::t_8102cef6c9ce23 111-118
+  s_eaa71a55cf16bf::t_b4d6110fc08d5f 2,5
+payments/src/ledger.ts
+  s_eaa71a55cf16bf::t_220eff2d1baf7a 127-129
+  s_eaa71a55cf16bf::t_a1975e4296af92 114-119
+  s_eaa71a55cf16bf::t_f36ca2cc4f3216 418-430
+src/use_cases/billing/__tests__/process_billing_webhook.test.ts
+  s_eaa71a55cf16bf::t_ab1fd1fc734c86 93-98
+  s_eaa71a55cf16bf::t_c2f5c1e33418a2 109
+payments/test/ledger_orders_schema.test.ts
+  s_eaa71a55cf16bf::t_d346b4437bf983 82
+  s_eaa71a55cf16bf::t_03dd2ce3e13904 85-86,88
+web/app/api/billing/webhook/__tests__/polar-partial-refund.test.ts
+  s_eaa71a55cf16bf::t_9b5a55b5b127a7 45-49
+web/app/api/billing/webhook/__tests__/fungies-refund-dlq.test.ts
+  s_eaa71a55cf16bf::t_4f227377163083 38-42
+supabase/migrations/20261004000900_submit_consent_race_lock.sql
+  s_eaa71a55cf16bf::t_c5d6031e1c633d 138-140,145
+src/adapters/database/supabase.adapter.ts
+  s_eaa71a55cf16bf::t_c5c386b3c83e42 53-63
+web/app/api/esign/webhook/route.ts
+  s_eaa71a55cf16bf::t_6bfa662ecc089d 67-91
+  s_eaa71a55cf16bf::t_d995962f838e17 2
+supabase/migrations/20261004001000_audit_log_idempotency.sql
+  s_eaa71a55cf16bf::t_1795c12396ad31 1-4,9-13
+  s_eaa71a55cf16bf::t_40abf4987701a0 5-8,14
+web/app/api/billing/webhook/__tests__/valid_signature_malformed_ledger.test.ts
+  s_eaa71a55cf16bf::t_980d63220dff90 17-18
+  s_eaa71a55cf16bf::t_8c490c4b60dd0f 1-3
+  s_eaa71a55cf16bf::t_18d1cf9928f3eb 16,19-21
+  s_eaa71a55cf16bf::t_fc0885c86f6538 94
+  s_eaa71a55cf16bf::t_ed7b7f3e423ecc 87,90,93
+  s_eaa71a55cf16bf::t_5526c85d7595cc 95
+  s_eaa71a55cf16bf::t_d8b6e7c3fabd26 9
+  s_eaa71a55cf16bf::t_033824fe8e46e5 74
+web/src/lib/__tests__/esign-webhook.test.ts
+  s_eaa71a55cf16bf::t_a344f91d59fdcc 333-354,356-369
+  s_eaa71a55cf16bf::t_9aee86c60976af 355
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "82b9c844741d9bb6b385550d73235ddbe3472aa2",
+  "prompts": {},
+  "sessions": {
+    "s_504308f4460afb": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef4fe588affeXQkqTqgALkWt7P",
+        "model": "@preset/glm-53-flash-on-cheap"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    },
+    "s_eaa71a55cf16bf": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef7514bdaffel0T174aMhQBR5q",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}
