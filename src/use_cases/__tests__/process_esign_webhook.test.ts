@@ -183,6 +183,18 @@ describe("processEsignWebhookUseCase — document hash gate (F3)", () => {
 
     expect(database.submitConsent.mock.calls[0][0]).toMatchObject({ documentSha256: VALID_HASH });
   });
+
+  it("lowercase-normalizes an uppercase 64-hex digest before persistence (DB CHECK is lowercase-only)", async () => {
+    firmaMock.parseResult = validParseResult(completedEvent({ documentHash: VALID_HASH.toUpperCase() }));
+    firmaMock.fetchCompletedDocument.mockReturnValue(Promise.resolve(AGREEMENT_PDF_BYTES));
+    firmaMock.uploadConsentEvidence.mockReturnValue(Promise.resolve());
+    const database = makeDatabase();
+
+    const { processEsignWebhookUseCase } = await import("../process_esign_webhook.ts");
+    await processEsignWebhookUseCase(request, settings as never, database as never);
+
+    expect(database.submitConsent.mock.calls[0][0]).toMatchObject({ documentSha256: VALID_HASH });
+  });
 });
 
 describe("processEsignWebhookUseCase — typed validation errors (F5)", () => {

@@ -402,7 +402,7 @@ export async function flagRefundForManualReview(input: ManualReviewRefund): Prom
     // Money-path detection (isMoneyPath): NODE_ENV=production, ANY VERCEL_ENV value
     // (previews included), or an AWS Lambda runtime — fail CLOSED when ambiguous.
     if (isMoneyPath()) {
-      throw new Error("ledger: manual-review flag cannot be persisted: Supabase is not configured in production");
+      throw new Error("ledger: manual-review flag cannot be persisted: Supabase is not configured in a money-path runtime (production/previews/Lambda)");
     }
     console.error("ledger: MANUAL_REVIEW_REQUIRED_REFUND (Supabase unconfigured, not persisted):", details);
     return;
