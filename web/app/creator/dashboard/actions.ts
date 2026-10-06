@@ -5,6 +5,7 @@ import { createSsrClient } from "../../../src/lib/supabase-ssr";
 import { clearPortalCookies, getPortalSession } from "../../../src/lib/supabase-server";
 import { EnvSettingsAdapter } from "../../../../src/adapters/settings/env_settings.adapter";
 import { resolvePrimaryProduct } from "../../../src/lib/primary-product";
+import { supersededConsentIds } from "../../../src/lib/consent-chain";
 import { createEsignEnvelopeUseCase } from "../../../../src/use_cases/create_esign_envelope";
 
 /**
@@ -52,10 +53,11 @@ export async function startPublisherAgreementAction(): Promise<void> {
     redirect("/creator/dashboard?error=c2_required");
   }
 
-  // Resolve active chain heads per kind
-  const supersededIds = new Set(
-    consents.map((c) => c.supersedes).filter((s): s is string => typeof s === "string" && s.length > 0)
-  );
+  // Resolve active chain heads per kind — supersession comes from the SHARED
+  // resolver (consent-chain.ts) so a malformed cross-kind pointer (e.g. a C2
+  // row pointing at a C1 row) can never invalidate a valid head here, exactly
+  // matching what activeConsentKinds (checkout gate / consents page) sees.
+  const supersededIds = supersededConsentIds(consents);
 
   const c1Heads = consents.filter((c) => c.kind === "C1_data_accuracy" && !supersededIds.has(c.id));
   const c2Heads = consents.filter((c) => c.kind === "C2_release_approval" && !supersededIds.has(c.id));

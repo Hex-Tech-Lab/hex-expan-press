@@ -160,6 +160,32 @@ describe("startPublisherAgreementAction — complete consent prerequisite chain 
     expect(createEnvelopeMock).not.toHaveBeenCalled();
   });
 
+  it("does not let a cross-kind supersede pointer invalidate a valid head (shared same-kind guard)", async () => {
+    consentsData = [
+      {
+        id: "c1_1",
+        product_id: "p1",
+        kind: "C1_data_accuracy",
+        decision: "given",
+        signed_at: "2026-10-01T00:00:00Z",
+        supersedes: null,
+      },
+      {
+        // Malformed cross-kind pointer: a C2 row pointing at a C1 row must
+        // NOT remove the C1 head — same semantics as activeConsentKinds.
+        id: "c2_1",
+        product_id: "p1",
+        kind: "C2_release_approval",
+        decision: "given",
+        signed_at: "2026-10-01T00:00:00Z",
+        supersedes: "c1_1",
+      },
+    ];
+
+    await expect(startPublisherAgreementAction()).rejects.toThrow("NEXT_REDIRECT:https://firma.im/sign/envelope_123");
+    expect(createEnvelopeMock).toHaveBeenCalled();
+  });
+
   it("mints Firma envelope and redirects to signUrl when BOTH C1 AND C2 are active on the primary product", async () => {
     consentsData = [
       {

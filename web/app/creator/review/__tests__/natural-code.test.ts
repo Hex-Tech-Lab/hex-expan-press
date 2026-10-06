@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { naturalCode } from "../page";
+import { naturalCode } from "../../../../src/lib/natural-code";
 
 describe("naturalCode comparator (P3 natural-sort drift fix)", () => {
   it("sorts 'A' before 'A1' deterministically", () => {

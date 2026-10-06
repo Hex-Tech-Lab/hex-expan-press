@@ -58,6 +58,19 @@ function checkoutUrlProblem(raw: unknown): string | null {
 
 const SAFE_PRODUCT_RE = /^[a-zA-Z0-9_-]{2,80}$/;
 
+// products.id is UUID-typed; a slug arm that isn't a UUID would make PostgREST
+// reject the whole .or() filter (slug→uuid cast error), so the id arm is only
+// added when the parameter actually IS a UUID.
+const UUID_RE = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
+
+// Legacy launch slugs that predate the products table (duane_* carries
+// underscores, which the slug CHECK `^[a-z0-9-]{2,80}$` forbids) — kept as a
+// pinned id fallback, but they now go through the SAME consent gate.
+const LEGACY_PRODUCT_IDS: Record<string, string> = {
+  duane_retirement_playbook_v1: "57596c19-c550-4bde-b17a-e87b86d005c5",
+  "retirearly500k-500k-playbook": "57596c19-c550-4bde-b17a-e87b86d005c5",
+};
+
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const product = request.nextUrl.searchParams.get("product") ?? "";
   if (!product) return jsonError(400, "Missing product parameter in URL");
@@ -67,45 +80,79 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return jsonError(400, "Invalid product parameter in URL");
   }
 
-  // Active Consent Gate (sprint 14 ARTAS Track A1):
-  // Checkout URL generation requires active C1, C2, and C3 consents for the product.
-  // Resolve product in Supabase and check activeConsentKinds.
+  // Active Consent Gate (sprint 14 ARTAS Track A1, CR-remediated fail-closed):
+  // Checkout URL generation requires active C1, C2, and C3 consents for the
+  // product. EVERY resolution failure is terminal — an unconfigured admin
+  // client, a product lookup error, or an unresolved product all return 500
+  // instead of skipping verification (ADR-0060: fail closed, never fail open).
   try {
     const supabase = await getSupabaseAdmin();
-    if (supabase) {
-      const { data: dbProduct, error: prodErr } = await supabase
+    if (!supabase) {
+      console.error("[billing/checkout] Supabase admin client unavailable — consent gate cannot run, failing closed");
+      return jsonError(500, "Checkout consent verification failed");
+    }
+
+    const productFilter = UUID_RE.test(product) ? `slug.eq.${product},id.eq.${product}` : `slug.eq.${product}`;
+    const { data: dbProduct, error: prodErr } = await supabase
+      .from("products")
+      .select("id, creator_id")
+      .or(productFilter)
+      .maybeSingle();
+
+    if (prodErr) {
+      console.warn(`[billing/checkout] product lookup warning for '${product}': ${prodErr.message}`);
+      return jsonError(500, "Checkout consent verification failed");
+    }
+
+    const resolvedProduct: { id: string; creator_id: string | null } | null =
+      dbProduct ??
+      (product in LEGACY_PRODUCT_IDS ? { id: LEGACY_PRODUCT_IDS[product], creator_id: null } : null);
+
+    if (!resolvedProduct) {
+      console.error(`[billing/checkout] product '${product}' did not resolve to a consent-verifiable product — failing closed`);
+      return jsonError(500, "Checkout consent verification failed");
+    }
+
+    // Tenant isolation: the service-role client bypasses RLS, so the chain is
+    // explicitly scoped to the product OWNER (creator_id — the schema column,
+    // indexed). Legacy fallbacks resolve their owner by id; a product whose
+    // owner cannot be determined has no chain to verify and fails closed.
+    let ownerId: string | null = resolvedProduct.creator_id;
+    if (!ownerId) {
+      const { data: byIdProduct, error: byIdErr } = await supabase
         .from("products")
-        .select("id")
-        .or(`slug.eq.${product},id.eq.${product}`)
+        .select("id, creator_id")
+        .eq("id", resolvedProduct.id)
         .maybeSingle();
-
-      if (prodErr) {
-        console.warn(`[billing/checkout] product lookup warning for '${product}': ${prodErr.message}`);
+      if (byIdErr) {
+        console.warn(`[billing/checkout] product owner lookup warning for '${product}': ${byIdErr.message}`);
+        return jsonError(500, "Checkout consent verification failed");
       }
+      ownerId = byIdProduct?.creator_id ?? null;
+    }
+    if (!ownerId) {
+      console.error(`[billing/checkout] product owner unresolvable for '${product}' — failing closed`);
+      return jsonError(500, "Checkout consent verification failed");
+    }
 
-      const dbProductId = dbProduct?.id ?? (product === "duane_retirement_playbook_v1" || product === "retirearly500k-500k-playbook" ? "57596c19-c550-4bde-b17a-e87b86d005c5" : null);
+    const { data: consentRows, error: consentErr } = await supabase
+      .from("consents")
+      .select("id, kind, decision, product_id, supersedes")
+      .eq("creator_id", ownerId);
 
+    if (consentErr) {
+      console.error(`[billing/checkout] failed to query consents for '${product}': ${consentErr.message}`);
+      return jsonError(500, "Checkout consent verification failed");
+    }
 
-      if (dbProductId) {
-        const { data: consentRows, error: consentErr } = await supabase
-          .from("consents")
-          .select("id, kind, decision, product_id, supersedes");
+    const active = activeConsentKinds(consentRows ?? [], resolvedProduct.id);
+    const hasC1 = active.has("C1_data_accuracy");
+    const hasC2 = active.has("C2_release_approval");
+    const hasC3 = active.has("C3_revenue_split");
 
-        if (consentErr) {
-          console.error(`[billing/checkout] failed to query consents for '${product}': ${consentErr.message}`);
-          return jsonError(500, "Checkout consent verification failed");
-        }
-
-        const active = activeConsentKinds(consentRows ?? [], dbProductId);
-        const hasC1 = active.has("C1_data_accuracy");
-        const hasC2 = active.has("C2_release_approval");
-        const hasC3 = active.has("C3_revenue_split");
-
-        if (!hasC1 || !hasC2 || !hasC3) {
-          console.error(`[billing/checkout] missing active consents for '${product}': C1=${hasC1}, C2=${hasC2}, C3=${hasC3}`);
-          return jsonError(403, "Checkout forbidden: required creator consents are not active");
-        }
-      }
+    if (!hasC1 || !hasC2 || !hasC3) {
+      console.error(`[billing/checkout] missing active consents for '${product}': C1=${hasC1}, C2=${hasC2}, C3=${hasC3}`);
+      return jsonError(403, "Checkout forbidden: required creator consents are not active");
     }
   } catch (err) {
     console.error(`[billing/checkout] consent verification exception for '${product}': ${(err as Error).message}`);
