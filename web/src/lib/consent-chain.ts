@@ -32,7 +32,7 @@ export interface ConsentChainRow {
  *  A supersedes pointer only supersedes when the SUCCESSOR targets the SAME
  *  kind (Cubic P2 on PR #82): a malformed or cross-kind pointer must never lock
  *  a valid consent row. */
-export function activeConsentKinds(consents: ConsentChainRow[], productId?: string): Set<string> {
+export function supersededConsentIds(consents: ConsentChainRow[]): Set<string> {
   const byId = new Map(consents.map((c) => [c.id, c] as const));
   const supersededIds = new Set<string>();
   for (const c of consents) {
@@ -42,6 +42,11 @@ export function activeConsentKinds(consents: ConsentChainRow[], productId?: stri
       supersededIds.add(c.supersedes);
     }
   }
+  return supersededIds;
+}
+
+export function activeConsentKinds(consents: ConsentChainRow[], productId?: string): Set<string> {
+  const supersededIds = supersededConsentIds(consents);
 
   // Chain heads repo-wide (not superseded by any newer same-kind row)
   const candidateRows = consents.filter((c) => !supersededIds.has(c.id));

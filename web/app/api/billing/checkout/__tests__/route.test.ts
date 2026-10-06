@@ -45,17 +45,75 @@ vi.mock("node:fs", async (importOriginal) => {
 
 const CHECKOUT_URL = "http://localhost:3000/api/billing/checkout?product=duane_retirement_playbook_v1";
 
+// Consent-gate mock plumbing (CR remediation): the route's gate now chains
+// .select().or()/.eq().maybeSingle() on products and .select().eq() on
+// consents (creator_id scoping), so the mock mirrors those call shapes.
+const PID = "57596c19-c550-4bde-b17a-e87b86d005c5";
+const OWNER_ID = "c0a80101-0000-4000-8000-000000000001";
+
+interface DbResult {
+  data: unknown;
+  error: { message: string } | null;
+}
+
+function givenConsents(): Array<{ id: string; kind: string; decision: string; product_id: string; supersedes: string | null }> {
+  return [
+    { id: "c1", kind: "C1_data_accuracy", decision: "given", product_id: PID, supersedes: null },
+    { id: "c2", kind: "C2_release_approval", decision: "given", product_id: PID, supersedes: null },
+    { id: "c3", kind: "C3_revenue_split", decision: "given", product_id: PID, supersedes: null },
+  ];
+}
+
+function productTableMock(products: DbResult) {
+  return {
+    select: () => ({
+      or: () => ({ maybeSingle: async () => products }),
+      eq: () => ({ maybeSingle: async () => products }),
+    }),
+  };
+}
+
+function consentsTableMock(consents: DbResult) {
+  return { select: () => ({ eq: async () => consents }) };
+}
+
+function gateAdminClient(
+  products: DbResult = { data: { id: PID, creator_id: OWNER_ID }, error: null },
+  consents: DbResult = { data: givenConsents(), error: null },
+) {
+  return {
+    from: (table: string) => {
+      if (table === "products") {
+        return productTableMock(products);
+      }
+      if (table === "consents") {
+        return consentsTableMock(consents);
+      }
+      return {};
+    },
+  };
+}
+
 // The handler reads request.nextUrl, so a plain Request cast is not enough —
 // build a real NextRequest.
 function request(): NextRequest {
   return new NextRequest(CHECKOUT_URL);
 }
 
+// CR remediation: every test starts with the admin client unset so no
+// mockAdminClient assignment leaks between tests — a test that needs the gate
+// to pass sets its own mock (the rail describes do so in their beforeEach).
+beforeEach(() => {
+  adminModule.mockAdminClient = null;
+});
+
 describe("billing/checkout launch-product default rail", () => {
   beforeEach(() => {
     // true unset (not "") — under the wave85 policy a SET-but-blank override
     // is itself a 500, which would break every default-rail test here.
     vi.stubEnv("CHECKOUT_URL_DUANE_RETIREMENT_PLAYBOOK_V1", undefined as unknown as string);
+    // Gate must pass for these tests to reach the rail logic.
+    adminModule.mockAdminClient = gateAdminClient();
   });
 
   afterEach(() => {
@@ -93,6 +151,8 @@ describe("billing/checkout unified checkout_url policy", () => {
     // true unset (not "") — under the wave85 policy a SET-but-blank override
     // is itself a 500, which would break every default-rail test here.
     vi.stubEnv("CHECKOUT_URL_DUANE_RETIREMENT_PLAYBOOK_V1", undefined as unknown as string);
+    // Gate must pass for these tests to reach the rail logic.
+    adminModule.mockAdminClient = gateAdminClient();
   });
 
   afterEach(() => {
@@ -174,6 +234,8 @@ describe("billing/checkout wave85 sandbox + raw-URL fail-closed", () => {
   beforeEach(() => {
     // true unset (not "") — a SET-but-blank override is itself a 500.
     vi.stubEnv("CHECKOUT_URL_DUANE_RETIREMENT_PLAYBOOK_V1", undefined as unknown as string);
+    // Gate must pass for these tests to reach the rail logic.
+    adminModule.mockAdminClient = gateAdminClient();
   });
 
   afterEach(() => {
@@ -300,41 +362,19 @@ describe("billing/checkout path traversal sanitization (P3)", () => {
 
 describe("billing/checkout active consent gate (P1)", () => {
   it("returns 403 Forbidden when active consents (C1/C2/C3) are not all given", async () => {
-
-    adminModule.mockAdminClient = {
-      from: (table: string) => {
-        if (table === "products") {
-          return {
-            select: () => ({
-              or: () => ({
-                maybeSingle: async () => ({
-                  data: { id: "57596c19-c550-4bde-b17a-e87b86d005c5" },
-                  error: null,
-                }),
-              }),
-            }),
-          };
-        }
-        if (table === "consents") {
-          return {
-            select: async () => ({
-              // Only C1 is given, C2 and C3 are missing
-              data: [
-                {
-                  id: "c1",
-                  kind: "C1_data_accuracy",
-                  decision: "given",
-                  product_id: "57596c19-c550-4bde-b17a-e87b86d005c5",
-                  supersedes: null,
-                },
-              ],
-              error: null,
-            }),
-          };
-        }
-        return {};
-      },
-    };
+    // Only C1 is given, C2 and C3 are missing
+    adminModule.mockAdminClient = gateAdminClient(undefined, {
+      data: [
+        {
+          id: "c1",
+          kind: "C1_data_accuracy",
+          decision: "given",
+          product_id: PID,
+          supersedes: null,
+        },
+      ],
+      error: null,
+    });
 
     const res = await GET(request());
     expect(res.status).toBe(403);
@@ -343,75 +383,116 @@ describe("billing/checkout active consent gate (P1)", () => {
   });
 
   it("returns 403 Forbidden when a consent was superseded by a refusal", async () => {
-    adminModule.mockAdminClient = {
-      from: (table: string) => {
-        if (table === "products") {
-          return {
-            select: () => ({
-              or: () => ({
-                maybeSingle: async () => ({
-                  data: { id: "57596c19-c550-4bde-b17a-e87b86d005c5" },
-                  error: null,
-                }),
-              }),
-            }),
-          };
-        }
-        if (table === "consents") {
-          return {
-            select: async () => ({
-              data: [
-                { id: "c1", kind: "C1_data_accuracy", decision: "given", product_id: "57596c19-c550-4bde-b17a-e87b86d005c5", supersedes: null },
-                { id: "c2_old", kind: "C2_release_approval", decision: "given", product_id: "57596c19-c550-4bde-b17a-e87b86d005c5", supersedes: null },
-                { id: "c2_new", kind: "C2_release_approval", decision: "refused", product_id: "57596c19-c550-4bde-b17a-e87b86d005c5", supersedes: "c2_old" },
-                { id: "c3", kind: "C3_revenue_split", decision: "given", product_id: "57596c19-c550-4bde-b17a-e87b86d005c5", supersedes: null },
-              ],
-              error: null,
-            }),
-          };
-        }
-        return {};
-      },
-    };
+    adminModule.mockAdminClient = gateAdminClient(undefined, {
+      data: [
+        { id: "c1", kind: "C1_data_accuracy", decision: "given", product_id: PID, supersedes: null },
+        { id: "c2_old", kind: "C2_release_approval", decision: "given", product_id: PID, supersedes: null },
+        { id: "c2_new", kind: "C2_release_approval", decision: "refused", product_id: PID, supersedes: "c2_old" },
+        { id: "c3", kind: "C3_revenue_split", decision: "given", product_id: PID, supersedes: null },
+      ],
+      error: null,
+    });
 
     const res = await GET(request());
     expect(res.status).toBe(403);
   });
 
   it("allows checkout URL routing when C1, C2, and C3 are all active", async () => {
+    adminModule.mockAdminClient = gateAdminClient();
+
+    vi.stubEnv("VERCEL_ENV", "preview");
+    const res = await GET(request());
+    expect(res.status).toBe(302);
+  });
+});
+
+describe("billing/checkout consent gate fails closed (CR remediation)", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("returns 500 (never a 302) when the admin client is null", async () => {
+    // mockAdminClient left null by the shared beforeEach — verification is
+    // impossible, so the gate must fail closed instead of skipping.
+    const res = await GET(request());
+    expect(res.status).not.toBe(302);
+    expect(res.status).toBe(500);
+    expect(res.headers.get("location")).toBeNull();
+    const body = await res.json();
+    expect(body.error).toMatch(/consent verification failed/);
+  });
+
+  it("returns 500 when the product lookup errors (e.g. PostgREST uuid cast failure)", async () => {
+    adminModule.mockAdminClient = gateAdminClient({ data: null, error: { message: "invalid input syntax for type uuid" } });
+    const res = await GET(request());
+    expect(res.status).toBe(500);
+    expect(res.headers.get("location")).toBeNull();
+  });
+
+  it("returns 500 for an unknown product that is not a legacy launch slug", async () => {
+    const req = new NextRequest("http://localhost:3000/api/billing/checkout?product=never-heard-of-it");
+    adminModule.mockAdminClient = gateAdminClient({ data: null, error: null });
+    const res = await GET(req);
+    expect(res.status).toBe(500);
+    expect(res.headers.get("location")).toBeNull();
+  });
+
+  it("returns 500 for a legacy slug when neither the slug nor the pinned id resolves to a row", async () => {
+    adminModule.mockAdminClient = gateAdminClient({ data: null, error: null });
+    const res = await GET(request());
+    expect(res.status).toBe(500);
+    expect(res.headers.get("location")).toBeNull();
+  });
+
+  it("preserves the legacy slug fallback when the pinned id resolves to a product row", async () => {
+    vi.stubEnv("VERCEL_ENV", "preview");
+    // slug lookup (.or) misses — the underscore slug can never be a DB row;
+    // the by-id retry (.eq) finds the row and its owner, so the gate proceeds.
     adminModule.mockAdminClient = {
       from: (table: string) => {
         if (table === "products") {
           return {
             select: () => ({
-              or: () => ({
-                maybeSingle: async () => ({
-                  data: { id: "57596c19-c550-4bde-b17a-e87b86d005c5" },
-                  error: null,
-                }),
-              }),
+              or: () => ({ maybeSingle: async () => ({ data: null, error: null }) }),
+              eq: () => ({ maybeSingle: async () => ({ data: { id: PID, creator_id: OWNER_ID }, error: null }) }),
             }),
           };
         }
-        if (table === "consents") {
-          return {
-            select: async () => ({
-              data: [
-                { id: "c1", kind: "C1_data_accuracy", decision: "given", product_id: "57596c19-c550-4bde-b17a-e87b86d005c5", supersedes: null },
-                { id: "c2", kind: "C2_release_approval", decision: "given", product_id: "57596c19-c550-4bde-b17a-e87b86d005c5", supersedes: null },
-                { id: "c3", kind: "C3_revenue_split", decision: "given", product_id: "57596c19-c550-4bde-b17a-e87b86d005c5", supersedes: null },
-              ],
-              error: null,
-            }),
-          };
-        }
-        return {};
+        return { select: () => ({ eq: async () => ({ data: givenConsents(), error: null }) }) };
       },
     };
+    const res = await GET(request());
+    expect(res.status).toBe(302);
+  });
 
+  it("returns 500 when the consents query errors", async () => {
+    adminModule.mockAdminClient = gateAdminClient(undefined, { data: null, error: { message: "consents query failed" } });
+    const res = await GET(request());
+    expect(res.status).toBe(500);
+    expect(res.headers.get("location")).toBeNull();
+  });
+
+  it("scopes the consents query to the product owner via creator_id (tenant isolation)", async () => {
+    const eqCalls: Array<[string, string]> = [];
+    adminModule.mockAdminClient = {
+      from: (table: string) => {
+        if (table === "consents") {
+          return {
+            select: () => ({
+              eq: (col: string, val: string) => {
+                eqCalls.push([col, val]);
+                return { data: givenConsents(), error: null };
+              },
+            }),
+          };
+        }
+        return productTableMock({ data: { id: PID, creator_id: OWNER_ID }, error: null });
+      },
+    };
     vi.stubEnv("VERCEL_ENV", "preview");
     const res = await GET(request());
     expect(res.status).toBe(302);
+    expect(eqCalls).toContainEqual(["creator_id", OWNER_ID]);
   });
 });
 
