@@ -1,0 +1,50 @@
+web/src/lib/natural-code.ts
+  s_1582e826c96fb8::t_ee15e0f97250de 1-16
+web/src/lib/consent-chain.ts
+  s_1582e826c96fb8::t_ec816f326f59a0 35,45-49
+web/app/api/billing/checkout/route.ts
+  s_1582e826c96fb8::t_8106468a371473 83-87,90-93,95-109,111-114,116-136,138-141,143-146,148-151,153-155
+  s_1582e826c96fb8::t_8b1731e3378382 61-73
+web/app/creator/review/__tests__/natural-code.test.ts
+  s_1582e826c96fb8::t_e097355f45a4c6 2
+web/app/creator/dashboard/actions.ts
+  s_1582e826c96fb8::t_4ea226a3891f5f 8
+  s_1582e826c96fb8::t_13dbbfc33509f4 56-60
+web/app/creator/review/page.tsx
+  s_1582e826c96fb8::t_d963bd1eed0b3d 3
+docs/agent_ledger.jsonl
+  s_1582e826c96fb8::t_13aeb80b24ac6b 474
+  s_1582e826c96fb8::t_545e499631bedd 475
+web/app/api/billing/checkout/__tests__/route.test.ts
+  s_1582e826c96fb8::t_d2fd79315d2404 386-394
+  s_1582e826c96fb8::t_f7f91174c30080 489
+  s_1582e826c96fb8::t_bfc6eeea436926 48-66,80-82,84-86,88-89,91-96,103-108
+  s_1582e826c96fb8::t_9ed664bb28ed3b 237-238
+  s_1582e826c96fb8::t_b0aaaf5933b34b 67-79,83,87,90
+  s_1582e826c96fb8::t_9f245c7453384c 115-116
+  s_1582e826c96fb8::t_c5297d48eb3a63 154-155
+  s_1582e826c96fb8::t_831fef91560010 365-377
+  s_1582e826c96fb8::t_ccc19abf48795f 396,398,401-450,456-457,461,464-466,468-469,471-472,475-476,481-485,495
+  s_1582e826c96fb8::t_6da26bf5d45724 109
+  s_1582e826c96fb8::t_012a94a076d71c 395
+  s_1582e826c96fb8::t_1996db75e348aa 397
+  s_1582e826c96fb8::t_4073ca311c6df0 399-400
+web/app/creator/dashboard/__tests__/actions.test.ts
+  s_1582e826c96fb8::t_4dcdeaafb797c2 163-188
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a2b325d5046441ae46e181d0b07e46a9ec264e36",
+  "prompts": {},
+  "sessions": {
+    "s_1582e826c96fb8": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef1d18fd4ffeu8wsfD9JiDUJTX",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
