@@ -40,6 +40,14 @@ dotenv.config({ override: true, path: join(root, ".env") });
 
 const dryRun = process.argv.includes("--dry-run");
 
+// --from <dir>: read the heritage JSON files from an external directory
+// instead of the repo tree. Needed post-eradication: Phase D deleted
+// payments/creators.json + payments/config.duane.json, so a re-run restores
+// them from git history into a scratch dir and points --from at it.
+const fromIdx = process.argv.indexOf("--from");
+const heritageDir = fromIdx >= 0 ? process.argv[fromIdx + 1] : undefined;
+if (fromIdx >= 0 && !heritageDir) throw new Error("heritage port: --from requires a directory argument");
+
 interface CreatorEntry {
   handle: string;
   display_name: string;
@@ -96,6 +104,13 @@ function readJson<T>(path: string, label: string): T {
   }
 }
 
+/** Heritage file paths honor --from for the two DELETED repo files (creators.json,
+ *  config.<creator>.json — restored from git history into a scratch dir); the
+ *  untracked data/settings files stay read from the repo's data/ directory. */
+const repoCreatorsPath = heritageDir ? join(heritageDir, "creators.json") : join(root, "payments", "creators.json");
+const heritageConfigPath = (configFile: string): string =>
+  heritageDir ? join(heritageDir, configFile.replace(/^payments\//, "")) : join(root, configFile);
+
 async function main(): Promise<void> {
   const supabase = await getSupabaseAdmin();
   if (!supabase) {
@@ -104,7 +119,7 @@ async function main(): Promise<void> {
 
   // --- 1. Read the heritage files ------------------------------------------
   const creatorsIdx = readJson<{ site_origin?: string; creators: CreatorEntry[] }>(
-    join(root, "payments/creators.json"), "creators.json",
+    repoCreatorsPath, "creators.json",
   );
   const creators = creatorsIdx.creators ?? [];
   if (creators.length === 0) throw new Error("heritage port: creators.json has no creators");
@@ -112,7 +127,7 @@ async function main(): Promise<void> {
   const configPaths = new Map<string, string>(); // config_file (relative to repo root) → resolved per creator product
   for (const c of creators) {
     for (const p of c.products ?? []) {
-      configPaths.set(p.config_file, join(root, p.config_file));
+      configPaths.set(p.config_file, heritageConfigPath(p.config_file));
     }
   }
 
@@ -142,8 +157,8 @@ async function main(): Promise<void> {
   }
 
   // --- 4. Upsert products (on id = db_product_id) ----------------------------
-  for (const configFile of configPaths.keys()) {
-    const cfg = readJson<HeritageConfig>(configFile, "product config");
+  for (const [configFile, configPath] of configPaths.entries()) {
+    const cfg = readJson<HeritageConfig>(configPath, "product config");
     const dbProductId = cfg.db_product_id;
     if (!dbProductId || !UUID_RE.test(dbProductId)) {
       throw new Error(`heritage port: ${configFile} has no valid uuid db_product_id — cannot port`);
@@ -183,15 +198,25 @@ async function main(): Promise<void> {
       book_registry: cfg.book ?? null,
       working_note: cfg.working_note ?? null,
     };
-    console.log(`[port] products upsert onConflict(id): ${dbProductId} (${cfg.product_id})${dryRun ? " (dry-run)" : ""}`);
+    // Ownership safety: if the products row already exists (portal-owned), it
+    // carries the creator_id the portal's RLS chain is built on. A heritage
+    // upsert must NEVER re-point it — update ONLY the heritage columns.
+    const { data: existingProduct } = await supabase.from("products").select("id, creator_id").eq("id", dbProductId).maybeSingle();
+    console.log(`[port] products ${existingProduct ? "UPDATE heritage columns (creator_id preserved)" : "INSERT"}: ${dbProductId} (${cfg.product_id})${dryRun ? " (dry-run)" : ""}`);
     if (dryRun) continue;
-    const { error } = await supabase.from("products").upsert(row, { onConflict: "id" });
-    if (error) throw new Error(`heritage port: products upsert failed for ${dbProductId}: ${error.message}`);
+    if (existingProduct) {
+      const { creator_id: _owner, ...heritageColumns } = row;
+      const { error } = await supabase.from("products").update(heritageColumns).eq("id", dbProductId);
+      if (error) throw new Error(`heritage port: products update failed for ${dbProductId}: ${error.message}`);
+    } else {
+      const { error } = await supabase.from("products").upsert(row, { onConflict: "id" });
+      if (error) throw new Error(`heritage port: products upsert failed for ${dbProductId}: ${error.message}`);
+    }
   }
 
   // --- 5. Upsert product_rails (on (product_id, provider)) -------------------
-  for (const configFile of configPaths.keys()) {
-    const cfg = readJson<HeritageConfig>(configFile, "product config");
+  for (const [configFile, configPath] of configPaths.entries()) {
+    const cfg = readJson<HeritageConfig>(configPath, "product config");
     if (!cfg.db_product_id || !cfg.product_id) continue;
     const railsPath = join(root, "data", "settings", `rails.${cfg.product_id}.json`);
     let rails: RailsFile;
@@ -201,13 +226,21 @@ async function main(): Promise<void> {
       console.log(`[port] no rails file for ${cfg.product_id} — skipping product_rails`);
       continue;
     }
+    const isSandboxUrl = (u: string): boolean => {
+      try {
+        return new URL(u).hostname.toLowerCase().split(/[.-]/).includes("sandbox");
+      } catch {
+        return false; // unparseable — the route's shared validator rejects it later anyway
+      }
+    };
     for (const rail of rails.rails ?? []) {
-      console.log(`[port] product_rails upsert onConflict(product_id,provider): ${cfg.product_id}/${rail.provider}${dryRun ? " (dry-run)" : ""}`);
+      const active = !isSandboxUrl(rail.checkout_url);
+      console.log(`[port] product_rails upsert onConflict(product_id,provider): ${cfg.product_id}/${rail.provider} active=${active}${active ? "" : " (sandbox host — deactivated on port)"}${dryRun ? " (dry-run)" : ""}`);
       if (dryRun) continue;
       const { error } = await supabase
         .from("product_rails")
         .upsert(
-          { product_id: cfg.db_product_id, provider: rail.provider, weight: rail.weight, checkout_url: rail.checkout_url, active: true },
+          { product_id: cfg.db_product_id, provider: rail.provider, weight: rail.weight, checkout_url: rail.checkout_url, active },
           { onConflict: "product_id,provider" },
         );
       if (error) throw new Error(`heritage port: product_rails upsert failed (${cfg.product_id}/${rail.provider}): ${error.message}`);
@@ -229,7 +262,13 @@ async function main(): Promise<void> {
     const { data: prodRow, error: prodErr } = await supabase
       .from("products").select("id").eq("store_product_id", t.product_id).maybeSingle();
     if (prodErr) throw new Error(`heritage port: product lookup for terms failed (${t.product_id}): ${prodErr.message}`);
-    if (!prodRow?.id) throw new Error(`heritage port: terms.json references unknown product '${t.product_id}' — port products first`);
+    if (!prodRow?.id) {
+      if (dryRun) {
+        console.log(`[port] creator_terms WOULD upsert: ${t.creator_id}/${t.product_id} (dry-run: product link materializes after the products update)`);
+        continue;
+      }
+      throw new Error(`heritage port: terms.json references unknown product '${t.product_id}' — port products first`);
+    }
     console.log(`[port] creator_terms upsert: ${t.creator_id}/${t.product_id} @${t.effective_from} = ${t.creator_split_pct}%${dryRun ? " (dry-run)" : ""}`);
     if (dryRun) continue;
     const { error } = await supabase.from("creator_terms").upsert(
@@ -247,8 +286,8 @@ async function main(): Promise<void> {
 
   // --- 7. Upsert system_config (on key) --------------------------------------
   const systemEntries: Record<string, unknown> = {};
-  for (const configFile of configPaths.keys()) {
-    const cfg = readJson<HeritageConfig>(configFile, "product config");
+  for (const [configFile, configPath] of configPaths.entries()) {
+    const cfg = readJson<HeritageConfig>(configPath, "product config");
     if (cfg.smoke_test !== undefined) systemEntries["payments.smoke_test"] = cfg.smoke_test;
     if (cfg.same_details_on_all_providers !== undefined) systemEntries["payments.same_details_on_all_providers"] = cfg.same_details_on_all_providers;
     if (cfg.checkout_note) systemEntries[`payments.checkout_note.${cfg.product_id}`] = cfg.checkout_note;
