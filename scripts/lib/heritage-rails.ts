@@ -37,6 +37,11 @@ export async function portRails(
   dryRun: boolean,
 ): Promise<void> {
   for (const rail of rails) {
+    // A malformed URL would be stored as an active rail that the route then
+    // rejects with 500 — abort the port instead, like a malformed rails file.
+    if (!URL.canParse(rail.checkout_url)) {
+      throw new Error(`heritage port: malformed checkout_url for ${label}/${rail.provider} — aborting`);
+    }
     if (isSandboxUrl(rail.checkout_url)) {
       console.log(`[port] product_rails SKIP ${label}/${rail.provider}: sandbox host — not ported`);
       continue;
@@ -45,7 +50,10 @@ export async function portRails(
     if (dryRun) continue;
     const { error } = await supabase
       .from("product_rails")
-      .upsert({ product_id: productId, ...rail, active: true }, { onConflict: "product_id,provider" });
+      .upsert(
+        { product_id: productId, provider: rail.provider, weight: rail.weight, checkout_url: rail.checkout_url, active: true },
+        { onConflict: "product_id,provider" },
+      );
     if (error) throw new Error(`heritage port: product_rails upsert failed (${label}/${rail.provider}): ${error.message}`);
   }
 }

@@ -682,6 +682,17 @@ describe("billing/checkout sandbox-rail purge regression (Sprint 17)", () => {
     expect(res.headers.get("location")).toBe("https://buy.polar.sh/live-sandboxed-book");
   });
 
+  it("importer aborts on a malformed checkout_url and ignores stray rail fields", async () => {
+    const railRows: Array<Record<string, unknown>> = [];
+    const store = { from: () => ({ upsert: async (row: Record<string, unknown>) => (railRows.push(row), { error: null }) }) };
+    await expect(
+      portRails(store as never, "bad-book", PID, [{ provider: "polar", weight: 1, checkout_url: "not a url" }], false),
+    ).rejects.toThrow(/malformed checkout_url/);
+    const stray = { provider: "polar", weight: 1, checkout_url: "https://buy.polar.sh/x", product_id: "other" };
+    await portRails(store as never, "stray-book", PID, [stray], false);
+    expect(railRows).toEqual([{ product_id: PID, provider: "polar", weight: 1, checkout_url: "https://buy.polar.sh/x", active: true }]);
+  });
+
   it("importer still ports a live rail as active", async () => {
     const railRows: Array<Record<string, unknown>> = [];
     const store = { from: () => ({ upsert: async (row: Record<string, unknown>) => (railRows.push(row), { error: null }) }) };
