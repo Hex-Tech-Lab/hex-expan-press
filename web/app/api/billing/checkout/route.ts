@@ -4,7 +4,7 @@ import path from "node:path";
 import { MatrixRouter } from "../../../../../src/infrastructure/matrix_router/matrix_router";
 import { GLOBAL } from "../../../../../payments/src/settings_registry";
 import { getSupabaseAdmin } from "../../../../../payments/src/supabase_admin";
-import { activeConsentKinds } from "../../../../src/lib/consent-chain";
+import { strictActiveConsentKinds } from "../../../../src/lib/consent-chain";
 
 
 export const runtime = "nodejs";
@@ -145,7 +145,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       return jsonError(500, "Checkout consent verification failed");
     }
 
-    const active = activeConsentKinds(consentRows ?? [], resolvedProduct.id);
+    const active = strictActiveConsentKinds(consentRows ?? [], resolvedProduct.id);
     const hasC1 = active.has("C1_data_accuracy");
     const hasC2 = active.has("C2_release_approval");
     const hasC3 = active.has("C3_revenue_split");
