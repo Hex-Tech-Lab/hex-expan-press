@@ -446,35 +446,47 @@ describe("billing/checkout consent gate fails closed (CR remediation)", () => {
     expect(res.headers.get("location")).toBeNull();
   });
 
-  it("returns 500 for a legacy slug when neither the slug nor the pinned id resolves to a row", async () => {
+  it("returns 500 for a legacy slug when its mapped product id has no row", async () => {
     adminModule.mockAdminClient = gateAdminClient({ data: null, error: null });
     const res = await GET(request());
     expect(res.status).toBe(500);
     expect(res.headers.get("location")).toBeNull();
   });
 
-  it("preserves the legacy slug fallback when the pinned id resolves to a product row", async () => {
-    vi.stubEnv("VERCEL_ENV", "preview");
-    // slug lookup (.or) misses — the underscore slug can never be a DB row;
-    // the by-id retry (.eq) finds the row and its owner, so the gate proceeds.
-    adminModule.mockAdminClient = {
-      from: (table: string) => {
-        if (table === "products") {
-          return {
-            select: () => ({
-              or: () => ({ maybeSingle: async () => ({ data: null, error: null }) }),
-              eq: () => ({ maybeSingle: async () => ({ data: { id: PID, creator_id: OWNER_ID }, error: null }) }),
-            }),
-          };
-        }
-        if (table === "product_rails") {
-          return railsTableMock({ data: [{ provider: "polar", weight: 100, checkout_url: "https://buy.polar.sh/live-rail", active: true }], error: null });
-        }
-        return consentsTableMock({ data: givenConsents(), error: null });
-      },
-    };
+  it.each(["duane_retirement_playbook_v1", "retirearly500k-500k-playbook"])(
+    "rewrites legacy slug %s to the canonical product id before the DB lookup",
+    async (legacy) => {
+      vi.stubEnv("VERCEL_ENV", "preview");
+      const filters: string[] = [];
+      adminModule.mockAdminClient = {
+        from: (table: string) => {
+          if (table === "products") {
+            return {
+              select: () => ({
+                or: (f: string) => {
+                  filters.push(f);
+                  return { maybeSingle: async () => ({ data: { id: PID, creator_id: OWNER_ID }, error: null }) };
+                },
+              }),
+            };
+          }
+          if (table === "product_rails") {
+            return railsTableMock({ data: [{ provider: "polar", weight: 100, checkout_url: "https://buy.polar.sh/live-rail", active: true }], error: null });
+          }
+          return consentsTableMock({ data: givenConsents(), error: null });
+        },
+      };
+      const res = await GET(new NextRequest(`http://localhost:3000/api/billing/checkout?product=${legacy}`));
+      expect(res.status).toBe(302);
+      expect(filters).toEqual([`slug.eq.${PID},id.eq.${PID}`]);
+    },
+  );
+
+  it("fails closed with 500 when the resolved product has no owner", async () => {
+    adminModule.mockAdminClient = gateAdminClient({ data: { id: PID, creator_id: null }, error: null });
     const res = await GET(request());
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(500);
+    expect(res.headers.get("location")).toBeNull();
   });
 
   it("returns 500 when the consents query errors", async () => {

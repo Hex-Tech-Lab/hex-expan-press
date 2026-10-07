@@ -3,17 +3,12 @@ import { join } from "node:path";
 import type { NextConfig } from "next";
 
 // Legacy-URL preservation during the phased static->Next migration.
-// Directory-style URLs (trailing slash, no filename) must keep serving the
-// moved legacy HTML from public/. Exact-filename URLs (privacy.html, assets)
-// are served by public/ directly and need no rewrite. Re-introduce real
-// app/ routes in later waves and DELETE the corresponding rewrite here.
-// Wave 5: /creator/signin is now a real app route — rewrite removed.
-// Wave 6.1: /creator/review + /creator/consents are real app routes —
-// rewrites removed, legacy HTML deleted.
-const DIR_ROUTES = [
-  "/c/retirearly500k",
-  "/c/retirearly500k/500k-playbook",
-];
+// Directory-style URLs (trailing slash, no filename) were rewritten to static
+// HTML in public/. Exact-filename URLs (privacy.html, assets) are served by
+// public/ directly and need no rewrite. Sprint 16: /c/<handle> and
+// /c/<handle>/<product> are real SSR app routes now — the DIR_ROUTES
+// rewrites and the frozen public/c/ HTML are deleted. Trailing-slash legacy
+// URLs still work via Next's automatic 308 (trailingSlash: false).
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
@@ -49,15 +44,6 @@ const nextConfig: NextConfig = {
   // Pin the tracing root to the repo root: keeps the tracer's workspace-root
   // detection deterministic across build environments.
   outputFileTracingRoot: join(__dirname, ".."),
-  async rewrites() {
-    return [
-      // "/" is served by app/page.tsx since Wave 3 — no rewrite needed.
-      ...DIR_ROUTES.map((route) => ({
-        source: route,
-        destination: `${route}/index.html`,
-      })),
-    ];
-  },
 };
 
 export default withSentryConfig(nextConfig, {

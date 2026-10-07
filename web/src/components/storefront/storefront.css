@@ -1,0 +1,84 @@
+  .sf-root {
+    color-scheme: light;
+    box-sizing: border-box; margin: 0;
+    min-height: 100vh;
+    font-family: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: #FAF5EE; color: #2B2520; line-height: 1.6;
+    padding: 56px 20px 40px;
+  }
+  .sf-root .wrap { max-width: 640px; margin: 0 auto; }
+  .sf-root .kicker { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: #B3401E; font-weight: 600; margin-bottom: 16px; }
+  .sf-root h1 {
+    font-family: "Fraunces", Georgia, "Times New Roman", serif;
+    font-size: 34px; line-height: 1.15; font-weight: 700; letter-spacing: -.015em; margin-bottom: 10px;
+  }
+  .sf-root .handles { font-size: 13.5px; color: #6E5F53; margin-bottom: 6px; }
+  .sf-root .handles a { color: #2E7D5B; font-weight: 600; text-decoration: none; }
+  .sf-root .handles a:hover { text-decoration: underline; }
+  .sf-root .bio { font-size: 16.5px; color: #2B2520; margin: 14px 0 30px; }
+  .sf-root .bio p { margin: 0; }
+  .sf-root .bio p + p { margin-top: 12px; }
+  .sf-root .avatar {
+    width: 84px; height: 84px; border-radius: 50%;
+    background: #FFFDF9; border: 1px solid #EADFD1;
+    display: flex; align-items: center; justify-content: center;
+    font-family: "Fraunces", Georgia, serif; font-size: 36px; font-weight: 700; color: #E8622C;
+    margin-bottom: 14px; overflow: hidden;
+  }
+  .sf-root .avatar img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+  .sf-root h2 {
+    font-family: "Fraunces", Georgia, "Times New Roman", serif;
+    font-size: 21px; font-weight: 700; margin-bottom: 14px;
+  }
+  .sf-root .products { margin-bottom: 36px; }
+  .sf-root .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+  .sf-root .card {
+    display: block; text-decoration: none; color: inherit;
+    background: #FFFDF9; border: 1px solid #EADFD1; border-radius: 14px;
+    overflow: hidden; transition: border-color .15s ease;
+  }
+  .sf-root .card:hover { border-color: #CBB3A7; }
+  .sf-root .cover {
+    background: #F3ECDF; border-bottom: 1px solid #EADFD1;
+    padding: 22px 20px 20px; min-height: 128px;
+    display: flex; flex-direction: column; justify-content: center;
+  }
+  .sf-root .cover-kicker { font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: #B3401E; font-weight: 600; margin-bottom: 8px; }
+  .sf-root .cover-title {
+    font-family: "Fraunces", Georgia, "Times New Roman", serif;
+    font-size: 17.5px; line-height: 1.25; font-weight: 700; letter-spacing: -.01em;
+  }
+  .sf-root .card-body { padding: 16px 20px 18px; }
+  .sf-root .card-price { font-size: 20px; font-weight: 700; letter-spacing: -.02em; }
+  .sf-root .card-price small { font-size: 12.5px; font-weight: 500; color: #6E5F53; }
+  .sf-root .wt-note { font-size: 12px; color: #6E5F53; font-style: italic; margin-top: 6px; }
+  .sf-root .card-cta { font-size: 13.5px; font-weight: 600; color: #2E7D5B; margin-top: 10px; }
+  .sf-root .backlink { font-size: 13.5px; color: #2E7D5B; text-decoration: none; font-weight: 600; }
+  .sf-root .backlink:hover { text-decoration: underline; }
+  .sf-root .byline { font-size: 14px; color: #6E5F53; margin-bottom: 4px; }
+  .sf-root .desc { font-size: 16.5px; color: #2B2520; margin: 14px 0 26px; }
+  .sf-root .pricebox { margin: 0 0 18px; }
+  .sf-root .buybtn {
+    display: inline-block; text-decoration: none;
+    background: #2E7D5B; color: #FFFDF9; font-weight: 700; font-size: 15px;
+    padding: 13px 26px; border-radius: 12px; margin-bottom: 10px;
+  }
+  .sf-root .buybtn:hover { background: #256A4C; }
+  .sf-root .assurance { font-size: 12.5px; color: #6E5F53; margin-bottom: 24px; }
+  .sf-root .taxnote { font-size: 12.5px; color: #6E5F53; margin: 0 0 18px; }
+  .sf-root .disclaimers {
+    padding: 18px 20px; background: #F3ECDF; border-radius: 12px;
+    font-size: 12.5px; color: #6E5F53; margin-bottom: 40px;
+  }
+  .sf-root .disclaimers p { margin-bottom: 8px; }
+  .sf-root .disclaimers p:last-child { margin-bottom: 0; }
+  .sf-root footer {
+    border-top: 1px solid #EADFD1; padding-top: 22px;
+    font-size: 13px; color: #6E5F53;
+    display: flex; flex-wrap: wrap; gap: 8px 22px; align-items: center;
+  }
+  .sf-root footer a { color: #2E7D5B; text-decoration: none; }
+  .sf-root footer a:hover { text-decoration: underline; }
+  .sf-root footer .sep { color: #CBB3A7; }
+  .sf-root a:focus-visible, .sf-root button:focus-visible { outline: 3px solid #B3401E; outline-offset: 3px; }
+  @media (max-width: 480px) { .sf-root h1 { font-size: 27px; } .sf-root { padding: 36px 16px 32px; } }

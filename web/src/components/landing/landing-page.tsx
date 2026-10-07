@@ -24,7 +24,7 @@ import {
 } from "framer-motion";
 import Link from "next/link";
 import JourneyDots from "../journey/journey-dots";
-import { useRef, useState, useSyncExternalStore } from "react";
+import { memo, useCallback, useRef, useState, useSyncExternalStore, useTransition } from "react";
 
 /** True only when the device has a fine pointer (hover-capable mouse) — tilt
  * is disabled on touch devices and during SSR via the server snapshot. */
@@ -201,6 +201,100 @@ const BENTO = [
   { title: "Your Journey", body: "Step-by-step author review. Digitally signed, watermarked, and legally protected under your own name.", Art: JourneyArt },
 ];
 
+/* INP remediation (Sprint 16): the journey step list was inlined in the bento
+ * card map, so every step click re-rendered the ENTIRE landing page from the
+ * page-root journeyStep state (INP 257.9ms). The list and its items are now
+ * memoized components — all item props are primitives plus one stable callback,
+ * so React's default shallow equality is sufficient (no custom comparator
+ * needed) and a step change re-renders only the two affected items. */
+
+const JourneyStepItem = memo(function JourneyStepItem({
+  step,
+  si,
+  active,
+  interactive,
+  reduced,
+  onSelect,
+}: {
+  step: string;
+  si: number;
+  active: boolean;
+  interactive: boolean;
+  reduced: boolean;
+  onSelect: (i: number) => void;
+}) {
+  return (
+    <motion.li
+      initial={reduced ? { opacity: 0 } : { opacity: 0, x: 40 }}
+      animate={reduced ? { opacity: 1 } : { opacity: 1, x: 0 }}
+      transition={{ duration: 0.45, ease: EASE, delay: 0.62 + si * BEAT * 4 }}
+      className={`flex items-center gap-3 text-sm rounded-xl ${
+        interactive ? "cursor-pointer" : ""
+      } ${interactive && active ? "text-white bg-white/5 ring-1 ring-peach/40 px-2 py-1 -mx-2" : "text-gray-200"}`}
+      onClick={interactive ? () => onSelect(si) : undefined}
+      role={interactive ? "button" : undefined}
+      tabIndex={interactive ? 0 : undefined}
+      aria-pressed={interactive ? active : undefined}
+      onKeyDown={
+        interactive
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onSelect(si);
+              }
+            }
+          : undefined
+      }
+    >
+      <span
+        className={`w-7 h-7 rounded-full font-mono text-xs flex items-center justify-center shrink-0 ${
+          interactive && active
+            ? "bg-peach text-charcoal border border-peach"
+            : "border border-peach/50 text-peach"
+        }`}
+      >
+        {si + 1}
+      </span>
+      <span className="font-medium">{step}</span>
+      {interactive && active && (
+        <span className="ml-auto text-[10px] font-mono uppercase tracking-[0.14em] text-peach">
+          You are here
+        </span>
+      )}
+    </motion.li>
+  );
+});
+
+const JourneySteps = memo(function JourneySteps({
+  steps,
+  journeyStep,
+  interactive,
+  reduced,
+  onSelect,
+}: {
+  steps?: readonly string[] | null;
+  journeyStep: number;
+  interactive: boolean;
+  reduced: boolean;
+  onSelect: (i: number) => void;
+}) {
+  return (
+    <ol className="mt-4 flex-1 flex flex-col justify-center gap-3">
+      {steps?.map((step, si) => (
+        <JourneyStepItem
+          key={step}
+          step={step}
+          si={si}
+          active={journeyStep === si}
+          interactive={interactive}
+          reduced={reduced}
+          onSelect={onSelect}
+        />
+      ))}
+    </ol>
+  );
+});
+
 /* ------------------------------------------------------- pointer-3D bento */
 
 function TiltCard({
@@ -285,6 +379,13 @@ export default function LandingPage({ onboarding }: { onboarding: boolean }) {
   const fine = useFinePointer();
   const [active, setActive] = useState<number | null>(null);
   const [journeyStep, setJourneyStep] = useState(0);
+  // INP: step selection is a non-urgent update — transition it so the browser
+  // paints the interaction immediately while the (page-wide) re-render yields.
+  const [, startJourneyTransition] = useTransition();
+  const handleStepSelect = useCallback(
+    (s: number) => startJourneyTransition(() => setJourneyStep(s)),
+    [startJourneyTransition],
+  );
   const heroRef = useRef<HTMLDivElement>(null);
   const { scrollYProgress } = useScroll({ target: heroRef, offset: ["start end", "end start"] });
   const blobY = useTransform(scrollYProgress, [0, 1], [-20, 20]);
@@ -393,7 +494,7 @@ export default function LandingPage({ onboarding }: { onboarding: boolean }) {
                       </div>
                       <div className="my-4 py-3 flex-1 flex items-center justify-center relative">
                         {i === 3 ? (
-                          <JourneyArt reduced={Boolean(reduced)} active={journeyStep} onSelect={setJourneyStep} />
+                          <JourneyArt reduced={Boolean(reduced)} active={journeyStep} onSelect={handleStepSelect} />
                         ) : (
                           <Art reduced={Boolean(reduced)} />
                         )}
@@ -423,36 +524,13 @@ export default function LandingPage({ onboarding }: { onboarding: boolean }) {
                                 </svg>
                               </button>
                             </div>
-                            <ol className="mt-4 flex-1 flex flex-col justify-center gap-3">
-                              {steps?.map((step, si) => (
-                                <motion.li
-                                  key={step}
-                                  initial={reduced ? { opacity: 0 } : { opacity: 0, x: 40 }}
-                                  animate={reduced ? { opacity: 1 } : { opacity: 1, x: 0 }}
-                                  transition={{ duration: 0.45, ease: EASE, delay: 0.62 + si * BEAT * 4 }}
-                                  className={`flex items-center gap-3 text-sm rounded-xl ${
-                                    i === 3 ? "cursor-pointer" : ""
-                                  } ${i === 3 && journeyStep === si ? "text-white bg-white/5 ring-1 ring-peach/40 px-2 py-1 -mx-2" : "text-gray-200"}`}
-                                  onClick={i === 3 ? () => setJourneyStep(si) : undefined}
-                                >
-                                  <span
-                                    className={`w-7 h-7 rounded-full font-mono text-xs flex items-center justify-center shrink-0 ${
-                                      i === 3 && journeyStep === si
-                                        ? "bg-peach text-charcoal border border-peach"
-                                        : "border border-peach/50 text-peach"
-                                    }`}
-                                  >
-                                    {si + 1}
-                                  </span>
-                                  <span className="font-medium">{step}</span>
-                                  {i === 3 && journeyStep === si && (
-                                    <span className="ml-auto text-[10px] font-mono uppercase tracking-[0.14em] text-peach">
-                                      You are here
-                                    </span>
-                                  )}
-                                </motion.li>
-                              ))}
-                            </ol>
+                            <JourneySteps
+                              steps={steps}
+                              journeyStep={journeyStep}
+                              interactive={i === 3}
+                              reduced={Boolean(reduced)}
+                              onSelect={handleStepSelect}
+                            />
                             <Link
                               href={SIGNIN}
                               className="group inline-flex items-center gap-3 text-sm font-semibold text-white hover:text-peach transition-colors self-start"

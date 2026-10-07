@@ -62,12 +62,14 @@ const SAFE_PRODUCT_RE = /^[a-zA-Z0-9_-]{2,80}$/;
 // added when the parameter actually IS a UUID.
 const UUID_RE = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
 
-// Legacy launch slugs that predate the products table (duane_* carries
-// underscores, which the slug CHECK `^[a-z0-9-]{2,80}$` forbids) — kept as a
-// pinned id fallback, but they now go through the SAME consent gate.
-const LEGACY_PRODUCT_IDS: Record<string, string> = {
-  duane_retirement_playbook_v1: "57596c19-c550-4bde-b17a-e87b86d005c5",
-  "retirearly500k-500k-playbook": "57596c19-c550-4bde-b17a-e87b86d005c5",
+// Live external links that predate the products table (duane_* carries
+// underscores, which the slug CHECK `^[a-z0-9-]{2,80}$` forbids). Each is
+// rewritten to its canonical product id BEFORE the DB lookup, so it resolves
+// through the standard path and the SAME consent gate.
+const LAUNCH_PRODUCT_ID = "57596c19-c550-4bde-b17a-e87b86d005c5";
+const LEGACY_SLUG_MAP: Record<string, string> = {
+  duane_retirement_playbook_v1: LAUNCH_PRODUCT_ID,
+  "retirearly500k-500k-playbook": LAUNCH_PRODUCT_ID,
 };
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
@@ -85,6 +87,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   // client, a product lookup error, or an unresolved product all return 500
   // instead of skipping verification (ADR-0060: fail closed, never fail open).
   let dbRails: CheckoutRail[] = [];
+  let resolvedProductId = "";
   try {
     const supabase = await getSupabaseAdmin();
     if (!supabase) {
@@ -92,7 +95,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       return jsonError(500, "Checkout consent verification failed");
     }
 
-    const productFilter = UUID_RE.test(product) ? `slug.eq.${product},id.eq.${product}` : `slug.eq.${product}`;
+    const lookupKey = LEGACY_SLUG_MAP[product] ?? product;
+    const productFilter = UUID_RE.test(lookupKey) ? `slug.eq.${lookupKey},id.eq.${lookupKey}` : `slug.eq.${lookupKey}`;
     const { data: dbProduct, error: prodErr } = await supabase
       .from("products")
       .select("id, creator_id")
@@ -104,32 +108,17 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       return jsonError(500, "Checkout consent verification failed");
     }
 
-    const resolvedProduct: { id: string; creator_id: string | null } | null =
-      dbProduct ??
-      (product in LEGACY_PRODUCT_IDS ? { id: LEGACY_PRODUCT_IDS[product], creator_id: null } : null);
-
-    if (!resolvedProduct) {
+    if (!dbProduct) {
       console.error(`[billing/checkout] product '${product}' did not resolve to a consent-verifiable product — failing closed`);
       return jsonError(500, "Checkout consent verification failed");
     }
+    const resolvedProduct = dbProduct as { id: string; creator_id: string | null };
+    resolvedProductId = resolvedProduct.id;
 
     // Tenant isolation: the service-role client bypasses RLS, so the chain is
     // explicitly scoped to the product OWNER (creator_id — the schema column,
-    // indexed). Legacy fallbacks resolve their owner by id; a product whose
-    // owner cannot be determined has no chain to verify and fails closed.
-    let ownerId: string | null = resolvedProduct.creator_id;
-    if (!ownerId) {
-      const { data: byIdProduct, error: byIdErr } = await supabase
-        .from("products")
-        .select("id, creator_id")
-        .eq("id", resolvedProduct.id)
-        .maybeSingle();
-      if (byIdErr) {
-        console.warn(`[billing/checkout] product owner lookup warning for '${product}': ${byIdErr.message}`);
-        return jsonError(500, "Checkout consent verification failed");
-      }
-      ownerId = byIdProduct?.creator_id ?? null;
-    }
+    // indexed). A product without an owner has no chain to verify.
+    const ownerId = resolvedProduct.creator_id;
     if (!ownerId) {
       console.error(`[billing/checkout] product owner unresolvable for '${product}' — failing closed`);
       return jsonError(500, "Checkout consent verification failed");
@@ -205,7 +194,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const overrideUrl = process.env[envSlugKey];
     if (overrideUrl !== undefined) {
       rails = [{ provider: "polar", weight: 100, checkout_url: overrideUrl }];
-    } else if (product === "retirearly500k-500k-playbook" || product === "duane_retirement_playbook_v1") {
+    } else if (resolvedProductId === LAUNCH_PRODUCT_ID) {
       const liveCheckoutUrl = process.env.POLAR_CHECKOUT_URL?.trim();
       if (!liveCheckoutUrl && !sandboxAllowed()) {
         // Fail closed: never send a real buyer to the sandbox checkout (insecure-defaults audit, 2026-10-01).
