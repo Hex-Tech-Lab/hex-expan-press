@@ -2,6 +2,7 @@ import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadBookIdentity } from "./book_identity.ts";
+import { getSupabaseAdmin } from "./src/supabase_admin.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const siteRoot = join(here, "../web");
@@ -9,10 +10,15 @@ const siteRoot = join(here, "../web");
 const esc = (s: string): string =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 
+// Sprint 15 heritage eradication: creators.json + config.<creator>.json are
+// GONE — the hub/product data now lives in Supabase (public.creators profile
+// columns, public.products commercial columns, public.system_config
+// site.origin). This baker is a CLI render step over the DATABASE.
+
 interface ProductEntry {
   composite_slug: string;
   product_slug: string;
-  config_file: string;
+  db_product_id: string;
 }
 interface CreatorEntry {
   handle: string;
@@ -22,10 +28,6 @@ interface CreatorEntry {
   bio_source?: string;
   photo?: string | null;
   products: ProductEntry[];
-}
-interface CreatorsIndex {
-  site_origin: string;
-  creators: CreatorEntry[];
 }
 interface ProductConfig {
   product_id?: string;
@@ -39,8 +41,8 @@ interface ProductConfig {
 
 /** If a pricing-cascade config exists for this product_id, that file is the source of truth for
  *  price_usd — never trust a static price_usd on disk once a cascade exists for the product.
- *  Founder directive 2026-09-18: prices are variables, never hardcoded. Falls back to the config's
- *  own price_usd (with a console warning) for products that don't have a cascade set up yet. */
+ *  Founder directive 2026-09-18: prices are variables, never hardcoded. Falls back to the DB's
+ *  products.price_usd (ported by scripts/migrate-heritage-json.ts) for products without a cascade. */
 function resolveLivePrice(cfg: ProductConfig): number | undefined {
   if (!cfg.product_id) return cfg.price_usd;
   const cascadePath = join(here, "..", "data", "settings", `pricing_cascade.${cfg.product_id}.json`);
@@ -48,7 +50,7 @@ function resolveLivePrice(cfg: ProductConfig): number | undefined {
     const cascade = JSON.parse(readFileSync(cascadePath, "utf8")) as { tiers_usd: number[]; current_tier_index: number };
     return cascade.tiers_usd[cascade.current_tier_index];
   } catch {
-    return cfg.price_usd; // no cascade file for this product yet — static price_usd is authoritative
+    return cfg.price_usd; // no cascade file for this product yet — the DB price is authoritative
   }
 }
 
@@ -125,9 +127,9 @@ const PRODUCT_CSS = `
   @media (max-width: 480px) { h1 { font-size: 27px; } body { padding: 36px 16px 32px; } }
 `;
 
-/** Title SSOT (2026-10-01): a config pointing at a book registry ("book": repo-relative
- *  path) gets its title from there. Otherwise fall back to a legacy inline title, then
- *  the composite slug. A config with a "book" that fails to load fails loud. */
+/** Title SSOT (2026-10-01): a product pointing at a book registry (book_registry:
+ *  repo-relative path) gets its title from there. Otherwise fall back to a legacy
+ *  inline title, then the composite slug. A book_registry that fails to load fails loud. */
 function resolveCardTitle(cfg: ProductConfig, c: ProductEntry): string {
   if (typeof cfg.book === "string" && cfg.book.trim() !== "") {
     return loadBookIdentity(join(here, "..", cfg.book)).title;
@@ -147,7 +149,7 @@ const renderCard = (handle: string, c: ProductEntry, cfg: ProductConfig, now: st
   // composite_slug is the SKU/internalId namespace only, never the URL path.
   return (
     `<a class="card" href="/c/${esc(handle)}/${esc(c.product_slug)}/" ` +
-    `data-card-config-source="${esc(c.config_file)}" data-baked-at="${now}">` +
+    `data-card-source="supabase:products/${esc(c.db_product_id)}" data-baked-at="${now}">` +
     `<div class="cover"><p class="cover-kicker">Digital PDF</p>` +
     `<p class="cover-title">${esc(title)}</p></div>` +
     `<div class="card-body">` +
@@ -234,25 +236,73 @@ ${cards}
 };
 
 const now = new Date().toISOString();
-const idx: CreatorsIndex = JSON.parse(readFileSync(join(here, "creators.json"), "utf8"));
-const origin = idx.site_origin.replace(/\/$/, "");
 
-for (const c of idx.creators) {
-  if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(c.handle)) throw new Error(`invalid creator handle: ${c.handle}`);
-  for (const p of c.products) {
-    if (!p.composite_slug.startsWith(`${c.handle}-`)) {
-      throw new Error(`composite_slug ${p.composite_slug} must start with creator handle ${c.handle}- (composite slug rule)`);
-    }
-    // product_slug becomes a URL path segment (/c/<handle>/<product_slug>/) —
-    // same kebab rule as the handle keeps the path safe and predictable.
-    if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(p.product_slug)) {
-      throw new Error(`invalid product_slug: ${p.product_slug} (must be kebab-case; it forms the URL path /c/${c.handle}/<product_slug>/)`);
-    }
+async function main(): Promise<void> {
+  const supabase = await getSupabaseAdmin();
+  if (!supabase) {
+    throw new Error("bake_creator_pages: SUPABASE_URL/SUPABASE_SECRET_KEY not configured — the DB is the only source of creator/product data (fail closed)");
   }
-  const cfgs: ProductConfig[] = c.products.map((p) => JSON.parse(readFileSync(join(here, "..", p.config_file), "utf8")));
-  const html = renderHub(origin, c, cfgs, now);
-  const dir = join(siteRoot, "c", c.handle);
-  mkdirSync(dir, { recursive: true });
-  writeFileSync(join(dir, "index.html"), html);
-  console.log(`baked ${join("site", "c", c.handle, "index.html")} products=${c.products.length} photo=${c.photo ? "custom" : "monogram-placeholder"}`);
+
+  const { data: originRow } = await supabase.from("system_config").select("value").eq("key", "site.origin").maybeSingle();
+  const origin = String((originRow as { value?: unknown } | null)?.value ?? "https://expanpress.com").replace(/\/$/, "");
+
+  const { data: creatorRows, error } = await supabase
+    .from("creators")
+    .select("handle, display_name, platform_handles, bio, bio_source, photo, products(id, store_product_id, composite_slug, site_slug, slug, price_usd, currency, working_note, description, book_registry)");
+  if (error) throw new Error(`bake_creator_pages: creators query failed: ${error.message}`);
+  if (!creatorRows || creatorRows.length === 0) throw new Error("bake_creator_pages: no creators in the database — nothing to bake");
+
+  for (const row of creatorRows as unknown as Array<Record<string, unknown>>) {
+    const c: CreatorEntry = {
+      handle: String(row.handle),
+      display_name: String(row.display_name),
+      platform_handles: (row.platform_handles ?? {}) as Record<string, string>,
+      bio: (row.bio as string | null) ?? undefined,
+      bio_source: (row.bio_source as string | null) ?? undefined,
+      photo: (row.photo as string | null) ?? null,
+      products: [],
+    };
+    const cfgs: ProductConfig[] = [];
+    for (const pRaw of (row.products ?? []) as Array<Record<string, unknown>>) {
+      // product_slug (URL namespace) comes from site_slug's second segment
+      // ("handle/product_slug"), falling back to the portal slug.
+      const siteSlug = typeof pRaw.site_slug === "string" ? pRaw.site_slug : "";
+      const productSlug = siteSlug.includes("/") ? siteSlug.split("/")[1]! : String(pRaw.slug ?? "");
+      if (!productSlug) throw new Error(`bake_creator_pages: product ${String(pRaw.id)} has neither site_slug nor slug — cannot form its URL path`);
+      c.products.push({
+        composite_slug: String(pRaw.composite_slug ?? `${c.handle}-${productSlug}`),
+        product_slug: productSlug,
+        db_product_id: String(pRaw.id),
+      });
+      cfgs.push({
+        product_id: (pRaw.store_product_id as string | null) ?? undefined,
+        price_usd: (pRaw.price_usd as number | null) ?? undefined,
+        currency: (pRaw.currency as string | null) ?? undefined,
+        working_note: (pRaw.working_note as string | null) ?? undefined,
+        description: (pRaw.description as string | null) ?? undefined,
+        book: (pRaw.book_registry as string | null) ?? undefined,
+      });
+    }
+    if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(c.handle)) throw new Error(`invalid creator handle: ${c.handle}`);
+    for (const p of c.products) {
+      if (!p.composite_slug.startsWith(`${c.handle}-`)) {
+        throw new Error(`composite_slug ${p.composite_slug} must start with creator handle ${c.handle}- (composite slug rule)`);
+      }
+      // product_slug becomes a URL path segment (/c/<handle>/<product_slug>/) —
+      // same kebab rule as the handle keeps the path safe and predictable.
+      if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(p.product_slug)) {
+        throw new Error(`invalid product_slug: ${p.product_slug} (must be kebab-case; it forms the URL path /c/${c.handle}/<product_slug>/)`);
+      }
+    }
+    const html = renderHub(origin, c, cfgs, now);
+    const dir = join(siteRoot, "c", c.handle);
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, "index.html"), html);
+    console.log(`baked ${join("site", "c", c.handle, "index.html")} products=${c.products.length} photo=${c.photo ? "custom" : "monogram-placeholder"}`);
+  }
 }
+
+main().catch((err) => {
+  console.error(`bake_creator_pages: FATAL: ${(err as Error).message}`);
+  process.exitCode = 1;
+});
