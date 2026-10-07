@@ -26,7 +26,7 @@
  * migration SQL against the target project FIRST — the script fails loud if
  * the heritage tables are missing.
  */
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import dotenv from "dotenv";
@@ -172,13 +172,16 @@ async function main(): Promise<void> {
     if (!cfg.creator_id || !creatorIdByHandle.has(cfg.creator_id)) {
       throw new Error(`heritage port: ${configFile} creator_id '${cfg.creator_id}' is not present in creators.json`);
     }
-    // Price SSOT: the pricing cascade when one exists, else the config's own price.
+    // Price SSOT: the pricing cascade when one exists, else the config's own
+    // price. Absence of the cascade file is the only legitimate fallback
+    // trigger — a PRESENT cascade that fails to read or parse must abort the
+    // port, never silently seed a stale config price into the SSOT column.
     let priceUsd: number | null = null;
     if (cfg.product_id) {
       const cascadePath = join(root, "data", "settings", `pricing_cascade.${cfg.product_id}.json`);
-      try {
+      if (existsSync(cascadePath)) {
         priceUsd = currentTierPriceUsd(cascadePath);
-      } catch {
+      } else {
         priceUsd = typeof cfg.price_usd === "number" ? cfg.price_usd : null;
       }
     }
@@ -207,7 +210,13 @@ async function main(): Promise<void> {
     // Ownership safety: if the products row already exists (portal-owned), it
     // carries the creator_id the portal's RLS chain is built on. A heritage
     // upsert must NEVER re-point it — update ONLY the heritage columns.
-    const { data: existingProduct } = await supabase.from("products").select("id, creator_id").eq("id", dbProductId).maybeSingle();
+    const { data: existingProduct, error: existingErr } = await supabase
+      .from("products").select("id, creator_id").eq("id", dbProductId).maybeSingle();
+    if (existingErr) {
+      // A failed ownership lookup is NOT "product absent" — treating it as
+      // such could take the insert path and re-point a portal-owned row.
+      throw new Error(`heritage port: products ownership lookup failed for ${dbProductId}: ${existingErr.message}`);
+    }
     console.log(`[port] products ${existingProduct ? "UPDATE heritage columns (creator_id preserved)" : "INSERT"}: ${dbProductId} (${cfg.product_id})${dryRun ? " (dry-run)" : ""}`);
     if (dryRun) continue;
     if (existingProduct) {
@@ -215,8 +224,15 @@ async function main(): Promise<void> {
       const { error } = await supabase.from("products").update(heritageColumns).eq("id", dbProductId);
       if (error) throw new Error(`heritage port: products update failed for ${dbProductId}: ${error.message}`);
     } else {
-      const { error } = await supabase.from("products").upsert(row, { onConflict: "id" });
-      if (error) throw new Error(`heritage port: products upsert failed for ${dbProductId}: ${error.message}`);
+      // Unreachable-by-design guard: products.slug/title are portal-owned NOT
+      // NULL columns with no heritage source, so a bare insert cannot succeed
+      // (and inventing identity here would violate the portal-ownership
+      // invariant). A heritage product without a portal row must be
+      // provisioned through the portal first.
+      throw new Error(
+        `heritage port: product ${dbProductId} (${cfg.product_id}) has no portal row — ` +
+        "provision it through the portal first (slug/title are portal-owned); heritage columns port to EXISTING portal rows only",
+      );
     }
   }
 

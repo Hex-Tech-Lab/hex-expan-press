@@ -24,21 +24,29 @@ export function getSecret(provider: ProviderName): string | undefined {
  * source of truth for commercial state).
  *
  * Alias arms mirror the legacy index keys: store product id, paddle product
- * id, polar sandbox/live ids, composite slug, site slug, portal slug, and the
- * row uuid (id arm only when the alias IS a uuid — a non-uuid value in an
- * id.eq arm makes PostgREST reject the whole filter, the same cast trap fixed
- * in the checkout route on PR #85).
+ * id, polar sandbox/live ids, composite slug, site slug, and the row uuid
+ * (id arm only when the alias IS a uuid — a non-uuid value in an id.eq arm
+ * makes PostgREST reject the whole filter, the same cast trap fixed in the
+ * checkout route on PR #85).
+ *
+ * The bare portal slug (products.slug) is deliberately NOT an arm: it is
+ * unique only per creator (unique (creator_id, slug) in the portal
+ * migration), so a bare slug can match several creators' products and
+ * .maybeSingle() would 500-loop a valid provider delivery. Provider payloads
+ * carry provider ids (store/paddle/polar ids), never bare portal slugs.
  *
  * Injection guard: the alias arrives from provider webhook payloads. The
- * PostgREST .or() grammar treats commas/parens as syntax, so an unvalidated
- * alias could append attacker-chosen conditions. Only conservative
- * provider-id characters are accepted; anything else resolves to null (the
- * caller then throws "Unknown product_id" → 500 → provider retries).
+ * PostgREST .or() grammar treats commas/parens as syntax, and '.'/':' are
+ * reserved characters that must be double-quoted inside filter values — an
+ * unvalidated alias could misparse the filter (400) or append attacker-chosen
+ * conditions. The charset mirrors the checkout route's SAFE_PRODUCT_RE
+ * ([A-Za-z0-9_-]); anything else resolves to null (the caller then throws
+ * "Unknown product_id" → 500 → provider retries).
  *
  * Fail closed: an unconfigured Supabase admin client throws (never returns an
  * empty success) — the provider will redeliver once the DB is reachable.
  */
-const PRODUCT_ALIAS_RE = /^[A-Za-z0-9_:.-]{1,120}$/;
+const PRODUCT_ALIAS_RE = /^[A-Za-z0-9_-]{1,120}$/;
 
 export interface ResolvedProduct {
   /** Provider custom_data key (products.store_product_id). */
@@ -62,7 +70,6 @@ export async function resolveProductByAlias(alias: string): Promise<ResolvedProd
     `polar_product_id_live.eq.${alias}`,
     `composite_slug.eq.${alias}`,
     `site_slug.eq.${alias}`,
-    `slug.eq.${alias}`,
     ...(isUuid ? [`id.eq.${alias}`] : []),
   ];
   const { data, error } = await supabase
