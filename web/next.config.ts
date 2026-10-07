@@ -43,19 +43,12 @@ const nextConfig: NextConfig = {
     },
   },
   eslint: { ignoreDuringBuilds: false },
-  // The legacy billing webhook enumerates payments/config.*.json at runtime.
-  // Explicitly bundle those server-only files with the function (they were
-  // previously bundled only because the old NFT tracer statically resolved
-  // the readdir path, which the Turbopack fix removed). Keep them OUT of
-  // public/ — this ships them only inside the server function artifact.
-  // Pin the tracing root to the repo root: payments/config.*.json included
-  // below lives OUTSIDE web/ (the project dir). Without an explicit root the
-  // tracer's workspace-root detection can vary by build environment and drop
-  // out-of-project files from the serverless artifact.
+  // Sprint 15: the webhook resolves products from Supabase (resolveProductByAlias)
+  // — no runtime config.*.json enumeration, so the former outputFileTracingIncludes
+  // bundling of payments/config.*.json + books/*.json is gone.
+  // Pin the tracing root to the repo root: keeps the tracer's workspace-root
+  // detection deterministic across build environments.
   outputFileTracingRoot: join(__dirname, ".."),
-  outputFileTracingIncludes: {
-    "/api/billing/webhook": ["../payments/config.*.json", "../books/*.json"],
-  },
   async rewrites() {
     return [
       // "/" is served by app/page.tsx since Wave 3 — no rewrite needed.

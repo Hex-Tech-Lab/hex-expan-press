@@ -116,20 +116,21 @@ vi.mock("@supabase/supabase-js", () => ({
   }),
 }));
 
-// Deterministic product config so the use case resolves creator/split.
+// Deterministic DB product resolver so the use case resolves creator/split
+// (Sprint 15: commercial state is DB-only — the use case now resolves products
+// by alias from the database instead of the file-backed product index).
 vi.mock("../../../../payments/src/webhook_core.ts", async (importOriginal) => {
   const orig = await importOriginal<typeof import("../../../../payments/src/webhook_core.ts")>();
   return {
     ...orig,
-    loadProductIndex: () =>
-      new Map([
-        ["p1", { product_id: "p1", creator_id: "c1", currency: "USD" }],
-      ]),
+    resolveProductByAlias: (alias: string) =>
+      alias === "p1" ? Promise.resolve({ productId: "p1", creatorHandle: "c1", currency: "USD" }) : Promise.resolve(null),
   };
 });
 
 vi.mock("../../../../payments/src/terms.ts", () => ({
   effectiveCreatorSplitPct: () => 50,
+  effectiveCreatorSplitPctAsync: () => Promise.resolve(50),
 }));
 
 

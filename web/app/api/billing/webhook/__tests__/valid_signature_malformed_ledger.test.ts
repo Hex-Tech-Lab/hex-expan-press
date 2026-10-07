@@ -30,9 +30,13 @@ vi.mock("../../../../../../src/infrastructure/redis/redis.client.ts", async (imp
 }));
 vi.mock("../../../../../../payments/src/webhook_core.ts", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../../../../../payments/src/webhook_core.ts")>()),
-  loadProductIndex: () => new Map([["p1", { product_id: "p1", creator_id: "c1", currency: "USD" }]]),
+  resolveProductByAlias: (alias: string) =>
+    alias === "p1" ? Promise.resolve({ productId: "p1", creatorHandle: "c1", currency: "USD" }) : Promise.resolve(null),
 }));
-vi.mock("../../../../../../payments/src/terms.ts", () => ({ effectiveCreatorSplitPct: () => 50 }));
+vi.mock("../../../../../../payments/src/terms.ts", () => ({
+  effectiveCreatorSplitPct: () => 50,
+  effectiveCreatorSplitPctAsync: () => Promise.resolve(50),
+}));
 vi.mock("../../../../../../payments/src/settings_registry.ts", () => ({
   GLOBAL: {
     paths: { sales_ledger: `${ledgerDir}/sales.jsonl` },
