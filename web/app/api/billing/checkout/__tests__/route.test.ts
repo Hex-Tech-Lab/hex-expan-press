@@ -382,8 +382,25 @@ describe("billing/checkout active consent gate (P1)", () => {
     expect(body.error).toMatch(/required creator consents are not active/);
   });
 
-  it("returns 403 Forbidden when a consent was superseded by a refusal", async () => {
+  it("returns 403 when a required kind has AMBIGUOUS heads (given + refused race leftover) — strict single-head gate", async () => {
+    // Pre-lock concurrent submissions can fork a kind into two heads: the
+    // permissive display resolver would count C2 as active off the given
+    // head; the money path must fail closed (CR round-2, PR #85).
     adminModule.mockAdminClient = gateAdminClient(undefined, {
+      data: [
+        { id: "c1", kind: "C1_data_accuracy", decision: "given", product_id: PID, supersedes: null },
+        { id: "c2_a", kind: "C2_release_approval", decision: "given", product_id: PID, supersedes: null },
+        { id: "c2_b", kind: "C2_release_approval", decision: "refused", product_id: PID, supersedes: null },
+        { id: "c3", kind: "C3_revenue_split", decision: "given", product_id: PID, supersedes: null },
+      ],
+      error: null,
+    });
+    const res = await GET(request());
+    expect(res.status).toBe(403);
+    expect(res.headers.get("location")).toBeNull();
+  });
+
+  it("returns 403 Forbidden when a consent was superseded by a refusal", async () => {    adminModule.mockAdminClient = gateAdminClient(undefined, {
       data: [
         { id: "c1", kind: "C1_data_accuracy", decision: "given", product_id: PID, supersedes: null },
         { id: "c2_old", kind: "C2_release_approval", decision: "given", product_id: PID, supersedes: null },
