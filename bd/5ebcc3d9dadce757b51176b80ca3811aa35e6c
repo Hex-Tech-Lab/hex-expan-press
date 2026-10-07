@@ -1,0 +1,28 @@
+web/src/lib/consent-chain.ts
+  s_1582e826c96fb8::t_55ba1b92491d82 62-86
+web/src/lib/__tests__/consent-chain.test.ts
+  s_1582e826c96fb8::t_55ba1b92491d82 6,108-149
+docs/agent_ledger.jsonl
+  s_1582e826c96fb8::t_55ba1b92491d82 478
+  s_1582e826c96fb8::t_d2b1f7469094ad 357,363,369-371,373-374,376,378,393-395,403,423
+web/app/api/billing/checkout/__tests__/route.test.ts
+  s_1582e826c96fb8::t_55ba1b92491d82 379-382,384-397
+web/app/api/billing/checkout/route.ts
+  s_1582e826c96fb8::t_55ba1b92491d82 5,148
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "bd5ebcc3d9dadce757b51176b80ca3811aa35e6c",
+  "prompts": {},
+  "sessions": {
+    "s_1582e826c96fb8": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef1d18fd4ffeu8wsfD9JiDUJTX",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
