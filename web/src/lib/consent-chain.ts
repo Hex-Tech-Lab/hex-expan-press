@@ -59,3 +59,28 @@ export function activeConsentKinds(consents: ConsentChainRow[], productId?: stri
   return active;
 }
 
+/**
+ * STRICT gate semantics for money-path enforcement (CR round-2 on PR #85):
+ * a kind passes ONLY when it has EXACTLY ONE chain head and that head's
+ * decision is "given". A concurrent pre-lock race can leave two heads for one
+ * kind (one given, one refused) — the permissive resolver above counts the
+ * kind as active off the given head alone, which is correct for DISPLAY but
+ * must never authorize a payment: the checkout gate uses this resolver so any
+ * ambiguity fails closed (the F6 race lock prevents NEW forks but does not
+ * repair existing ones). `startPublisherAgreementAction` already enforces the
+ * same single-head rule via its length!==1 checks.
+ */
+export function strictActiveConsentKinds(consents: ConsentChainRow[], productId?: string): Set<string> {
+  const supersededIds = supersededConsentIds(consents);
+  const candidateRows = consents.filter((c) => !supersededIds.has(c.id));
+  const scopedHeads = productId ? candidateRows.filter((c) => c.product_id === productId) : candidateRows;
+
+  const active = new Set<string>();
+  const kinds = new Set(consents.map((c) => c.kind));
+  for (const kind of kinds) {
+    const kindHeads = scopedHeads.filter((c) => c.kind === kind);
+    if (kindHeads.length === 1 && kindHeads[0].decision === "given") active.add(kind);
+  }
+  return active;
+}
+
