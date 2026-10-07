@@ -1,0 +1,23 @@
+payments/src/terms.ts
+  s_1582e826c96fb8::t_d35f6d9efe748c 154-161
+scripts/migrate-heritage-json.ts
+  s_1582e826c96fb8::t_d9bceddaa28b74 155-161,278-279
+payments/bake_creator_pages.ts
+  s_1582e826c96fb8::t_5903995c6e1724 4,242-244,250-251,274-277,288
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4dd275478a689dc32bf6ecbf45fe9d89b1cc5c47",
+  "prompts": {},
+  "sessions": {
+    "s_1582e826c96fb8": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef1d18fd4ffeu8wsfD9JiDUJTX",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
