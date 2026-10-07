@@ -5,6 +5,7 @@ import { createSsrClient } from "../../../src/lib/supabase-ssr";
 import { clearPortalCookies, getPortalSession } from "../../../src/lib/supabase-server";
 import { EnvSettingsAdapter } from "../../../../src/adapters/settings/env_settings.adapter";
 import { resolvePrimaryProduct } from "../../../src/lib/primary-product";
+import { supersededConsentIds } from "../../../src/lib/consent-chain";
 import { createEsignEnvelopeUseCase } from "../../../../src/use_cases/create_esign_envelope";
 
 /**
@@ -39,40 +40,47 @@ export async function startPublisherAgreementAction(): Promise<void> {
   if (!session) redirect("/creator/signin");
   const { user, supabase } = session;
 
-  // C3 binds to the product on which this creator's C2 (release approval) is currently given:
-  // the supersedes-chain head of their C2 rows (RLS-scoped). No head, several heads (e.g. two
-  // products) or a non-given head fails closed — the envelope is never created on a guess.
+  // Prerequisite chain verification (sprint 14 ARTAS Track A2):
+  // C3 publisher agreement requires the ENTIRE prerequisite chain (both C1 AND C2)
+  // to be actively given on the creator's primary product.
+  // Query all C1 and C2 rows for this creator (RLS-scoped).
   const { data: consents, error: consentsError } = await supabase
     .from("consents")
     .select("product_id, kind, decision, signed_at, id, supersedes")
-    .eq("kind", "C2_release_approval");
+    .in("kind", ["C1_data_accuracy", "C2_release_approval"]);
 
   if (consentsError || !consents || consents.length === 0) {
     redirect("/creator/dashboard?error=c2_required");
   }
 
-  const supersededIds = new Set(
-    consents.map((c) => c.supersedes).filter((s): s is string => typeof s === "string" && s.length > 0)
-  );
-  const heads = consents.filter((c) => !supersededIds.has(c.id));
+  // Resolve active chain heads per kind — supersession comes from the SHARED
+  // resolver (consent-chain.ts) so a malformed cross-kind pointer (e.g. a C2
+  // row pointing at a C1 row) can never invalidate a valid head here, exactly
+  // matching what activeConsentKinds (checkout gate / consents page) sees.
+  const supersededIds = supersededConsentIds(consents);
 
-  if (heads.length !== 1) {
+  const c1Heads = consents.filter((c) => c.kind === "C1_data_accuracy" && !supersededIds.has(c.id));
+  const c2Heads = consents.filter((c) => c.kind === "C2_release_approval" && !supersededIds.has(c.id));
+
+  if (c1Heads.length !== 1 || c2Heads.length !== 1) {
     redirect("/creator/dashboard?error=c2_required");
   }
 
-  const head = heads[0];
-  if (head.decision !== "given" || !head.product_id) {
+  const c1Head = c1Heads[0];
+  const c2Head = c2Heads[0];
+
+  if (c1Head.decision !== "given" || !c1Head.product_id || c2Head.decision !== "given" || !c2Head.product_id) {
     redirect("/creator/dashboard?error=c2_required");
   }
 
   // Every portal status surface (dashboard, consents page, esign_done) reads the PRIMARY product,
-  // so the C3 envelope may only be created for it — otherwise signing could succeed while those
-  // pages still show C3 as unsigned. Mismatch fails closed.
+  // so the C3 envelope may only be created for it — both C1 and C2 must bind to it.
   const { product: primary } = await resolvePrimaryProduct<{ id: string }>(supabase, "id");
-  if (!primary || primary.id !== head.product_id) {
+  if (!primary || primary.id !== c2Head.product_id || primary.id !== c1Head.product_id) {
     redirect("/creator/dashboard?error=c2_required");
   }
-  const productId = head.product_id;
+  const productId = primary.id;
+
 
   const siteOrigin = process.env.NEXT_PUBLIC_SITE_ORIGIN ?? "https://expanpress.com";
   try {
