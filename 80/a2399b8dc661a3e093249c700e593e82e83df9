@@ -1,0 +1,68 @@
+payments/test/audit_bake_c2_hash.test.ts
+  s_1582e826c96fb8::t_aa2a7dfb60fd57 4
+src/use_cases/billing/process_billing_webhook.ts
+  s_1582e826c96fb8::t_98104ab74e2e09 471-473,484-486
+  s_1582e826c96fb8::t_25471398c901f2 13-14
+  s_1582e826c96fb8::t_d371ea631ccced 499
+payments/bake_creator_pages.ts
+  s_1582e826c96fb8::t_57e077bce22a8c 5,13-17,21,44-45,53
+  s_1582e826c96fb8::t_92024d7ce54c22 152
+  s_1582e826c96fb8::t_aa1ef9de47c393 240-264,266-276,278-283,290-292,295,304-308
+  s_1582e826c96fb8::t_493acf322b4524 265,277,284,286-289,293-294,297-301
+  s_1582e826c96fb8::t_18dac63dec90f6 130-132
+payments/src/pricing_tier_cascade.ts
+  s_1582e826c96fb8::t_be7aca0f16fa6f 104-107
+payments/test/book_identity.test.ts
+  s_1582e826c96fb8::t_e48e6570b5414d 657-658,660-667
+  s_1582e826c96fb8::t_0a805caeaa9143 723,735,744,756-757,767,780
+web/next.config.ts
+  s_1582e826c96fb8::t_d40d9a2de7bc15 46-50
+web/app/api/billing/webhook/__tests__/valid_signature_malformed_ledger.test.ts
+  s_1582e826c96fb8::t_cc655897bee726 33-38
+web/app/api/billing/checkout/route.ts
+  s_1582e826c96fb8::t_17f665cbf5cfc4 157-176,183-185
+  s_1582e826c96fb8::t_c120785b1f26f4 18-21
+  s_1582e826c96fb8::t_f642193539ffa5 87
+  s_1582e826c96fb8::t_b55527ca877d98 186-190
+scripts/migrate-heritage-json.ts
+  s_1582e826c96fb8::t_dabe5b479bd28c 1-270
+payments/src/terms.ts
+  s_1582e826c96fb8::t_893b98740505cf 108-155
+src/use_cases/billing/__tests__/process_billing_webhook.test.ts
+  s_1582e826c96fb8::t_fe1945c54030f6 119-121,126-127,133
+payments/src/webhook_core.ts
+  s_1582e826c96fb8::t_a2e7999d8b2e85 2
+  s_1582e826c96fb8::t_ef7b41a52029a2 21-39,41-49,51-85,87
+supabase/migrations/20261007000000_commercial_heritage.sql
+  s_1582e826c96fb8::t_ec80db7feaa2dd 1-117
+payments/src/launch_gate.ts
+  s_1582e826c96fb8::t_794fa72ecfc952 1-171
+payments/sync_book_identity.ts
+  s_1582e826c96fb8::t_8a51804601d8b8 23-28,30-51,54,57
+  s_1582e826c96fb8::t_419c58e0d21c8e 303,310-312,321-323
+  s_1582e826c96fb8::t_1e6eaee054489d 29
+web/app/api/billing/checkout/__tests__/route.test.ts
+  s_1582e826c96fb8::t_4ae77b819ef052 215,217-219,296,305,314-316,326-328
+  s_1582e826c96fb8::t_55f59fd7356d15 486-488
+  s_1582e826c96fb8::t_370528b25e836c 499-546,551-557
+  s_1582e826c96fb8::t_7a350a6ba21f48 109-111,148-150,231-233,547-550
+  s_1582e826c96fb8::t_74d9d81f5c4865 455-458
+  s_1582e826c96fb8::t_6355b6638ed3d5 27-28,58-69,73,83-84
+  s_1582e826c96fb8::t_bc3d8e6a3586ac 85
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "80a2399b8dc661a3e093249c700e593e82e83df9",
+  "prompts": {},
+  "sessions": {
+    "s_1582e826c96fb8": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef1d18fd4ffeu8wsfD9JiDUJTX",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
