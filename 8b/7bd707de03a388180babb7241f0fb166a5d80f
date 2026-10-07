@@ -1,0 +1,29 @@
+web/app/c/[handle]/[product]/page.tsx
+  s_04aaddd1b3201b::t_a4df737f12474d 50
+web/app/api/billing/checkout/route.ts
+  s_04aaddd1b3201b::t_a4df737f12474d 69,71-72,90,116,197
+web/src/components/storefront/storefront.tsx
+  s_04aaddd1b3201b::t_d048e064510f23 1,89-90,109,111,134,145-156
+web/src/components/landing/landing-page.tsx
+  s_04aaddd1b3201b::t_a4df737f12474d 235-247
+web/app/c/[handle]/page.tsx
+  s_04aaddd1b3201b::t_a4df737f12474d 74-80
+docs/agent_ledger.jsonl
+  s_04aaddd1b3201b::t_b5e683d240986b 489
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8b7bd707de03a388180babb7241f0fb166a5d80f",
+  "prompts": {},
+  "sessions": {
+    "s_04aaddd1b3201b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ac96f60f-59e3-4774-bda5-c1985e3d3af8",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "CCW <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
