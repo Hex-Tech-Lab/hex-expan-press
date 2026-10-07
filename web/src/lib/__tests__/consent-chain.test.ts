@@ -3,7 +3,7 @@
 // the bake path do — a superseded row (or a row superseded by a later
 // refusal) must never read as "Signed ✓".
 import { describe, it, expect } from "vitest";
-import { activeConsentKinds, type ConsentChainRow } from "../consent-chain";
+import { activeConsentKinds, strictActiveConsentKinds, type ConsentChainRow } from "../consent-chain";
 
 const row = (over: Partial<ConsentChainRow> & { id: string }): ConsentChainRow => ({
   kind: "C2_release_approval",
@@ -105,3 +105,45 @@ describe("activeConsentKinds — chain-head resolution", () => {
   });
 });
 
+
+describe("strictActiveConsentKinds (money-path single-head gate — CR round-2 PR #85)", () => {
+  const P = "57596c19-c550-4bde-b17a-e87b86d005c5";
+  const row = (id: string, kind: string, decision: string, extra: Partial<{ product_id: string; supersedes: string | null }> = {}) => ({
+    id,
+    kind,
+    decision,
+    product_id: extra.product_id ?? P,
+    supersedes: extra.supersedes ?? null,
+  });
+
+  it("passes a kind with exactly one given head", () => {
+    const active = strictActiveConsentKinds([row("a", "C1_data_accuracy", "given")], P);
+    expect(active.has("C1_data_accuracy")).toBe(true);
+  });
+
+  it("FAILS a kind forked into a given head and a refused head (ambiguous → fail closed)", () => {
+    const active = strictActiveConsentKinds(
+      [row("a", "C2_release_approval", "given"), row("b", "C2_release_approval", "refused")],
+      P,
+    );
+    expect(active.has("C2_release_approval")).toBe(false);
+  });
+
+  it("supersession still collapses chains before the single-head check (successor on another product)", () => {
+    const active = strictActiveConsentKinds(
+      [
+        row("old", "C1_data_accuracy", "given", { product_id: "11111111-1111-1111-1111-111111111111" }),
+        row("new", "C1_data_accuracy", "given", { product_id: "22222222-2222-2222-2222-222222222222", supersedes: "old" }),
+      ],
+      "11111111-1111-1111-1111-111111111111",
+    );
+    // The old head is superseded creator-wide by the cross-product successor,
+    // so the displayed product has ZERO heads → kind is NOT active.
+    expect(active.has("C1_data_accuracy")).toBe(false);
+  });
+
+  it("a refused single head is not active", () => {
+    const active = strictActiveConsentKinds([row("a", "C3_revenue_split", "refused")], P);
+    expect(active.has("C3_revenue_split")).toBe(false);
+  });
+});
