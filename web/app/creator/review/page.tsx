@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { naturalCode } from "../../../src/lib/natural-code";
 import { getPortalSession } from "../../../src/lib/supabase-server";
 import { resolvePrimaryProduct } from "../../../src/lib/primary-product";
 import ReviewClient from "./review-client";
@@ -9,17 +10,6 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false }, // authenticated surface
 };
 
-/** Natural sort for review codes: A1, B1 … B10, B13, Q1 … (legacy parity). */
-function naturalCode(a: string, b: string): number {
-  const x = a.split(/(\d+)/);
-  const y = b.split(/(\d+)/);
-  for (let k = 0; k < Math.min(x.length, y.length); k++) {
-    const xv = k % 2 ? Number(x[k]) : x[k];
-    const yv = k % 2 ? Number(y[k]) : y[k];
-    if (xv !== yv) return xv < yv ? -1 : 1;
-  }
-  return 0;
-}
 
 export interface ReviewItemView {
   id: string;
