@@ -1,0 +1,23 @@
+scripts/migrate-heritage-json.ts
+  s_1582e826c96fb8::t_87ec62a402aaa1 229-235,237-238,243,265-271
+  s_1582e826c96fb8::t_4930e32117ada5 43-50
+  s_1582e826c96fb8::t_aae0c002a4c950 160-161,218-219,289-290
+  s_1582e826c96fb8::t_013c64b6752573 107-113
+  s_1582e826c96fb8::t_1ca80ff7fdd236 122,130,201-205,207-214
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7c35f55a78810ad6fa301f876b6493c9982fda83",
+  "prompts": {},
+  "sessions": {
+    "s_1582e826c96fb8": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef1d18fd4ffeu8wsfD9JiDUJTX",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
