@@ -232,6 +232,19 @@ const JourneyStepItem = memo(function JourneyStepItem({
         interactive ? "cursor-pointer" : ""
       } ${interactive && active ? "text-white bg-white/5 ring-1 ring-peach/40 px-2 py-1 -mx-2" : "text-gray-200"}`}
       onClick={interactive ? () => onSelect(si) : undefined}
+      role={interactive ? "button" : undefined}
+      tabIndex={interactive ? 0 : undefined}
+      aria-pressed={interactive ? active : undefined}
+      onKeyDown={
+        interactive
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onSelect(si);
+              }
+            }
+          : undefined
+      }
     >
       <span
         className={`w-7 h-7 rounded-full font-mono text-xs flex items-center justify-center shrink-0 ${

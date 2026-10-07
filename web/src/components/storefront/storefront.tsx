@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { notFound } from "next/navigation";
 import "server-only";
 import "./storefront.css";
@@ -85,7 +86,8 @@ async function fetchSiteOrigin(supabase: NonNullable<Awaited<ReturnType<typeof g
   return origin;
 }
 
-export async function fetchCreatorHub(handle: string): Promise<{ creator: HubCreator; origin: string } | null> {
+// cache(): generateMetadata and the page share one query set per request.
+export const fetchCreatorHub = cache(async function fetchCreatorHub(handle: string): Promise<{ creator: HubCreator; origin: string } | null> {
   if (!CREATOR_HANDLE_RE.test(handle)) return null;
   const supabase = await getSupabaseAdmin();
   if (!supabase) {
@@ -104,9 +106,9 @@ export async function fetchCreatorHub(handle: string): Promise<{ creator: HubCre
   if (!creator || products.length === 0) return null;
   const origin = await fetchSiteOrigin(supabase);
   return { creator: { ...creator, products }, origin };
-}
+});
 
-export async function fetchStoreProduct(
+export const fetchStoreProduct = cache(async function fetchStoreProduct(
   handle: string,
   productSlug: string,
 ): Promise<{ creator: HubCreator; product: StoreProduct; origin: string } | null> {
@@ -129,7 +131,7 @@ export async function fetchStoreProduct(
   if (!product) return null;
   const origin = await fetchSiteOrigin(supabase);
   return { creator, product, origin };
-}
+});
 
 export function resolveCreatorOr404<T>(result: T | null): T {
   if (!result) notFound();
@@ -140,10 +142,18 @@ export function resolveCreatorOr404<T>(result: T | null): T {
  * bake engine) — every selector scoped under .sf-root so nothing leaks into
  * the app's global element styles. */
 
-export function platformLink(platform: string, handle: string): { label: string; url: string } {
-  return platform === "youtube"
-    ? { label: `YouTube @${handle}`, url: `https://youtube.com/@${handle}` }
-    : { label: `${platform.charAt(0).toUpperCase()}${platform.slice(1)} @${handle}`, url: `https://instagram.com/${handle}` };
+const PLATFORM_URLS: Record<string, { name: string; url: (h: string) => string }> = {
+  youtube: { name: "YouTube", url: (h) => `https://youtube.com/@${h}` },
+  instagram: { name: "Instagram", url: (h) => `https://instagram.com/${h}` },
+  tiktok: { name: "TikTok", url: (h) => `https://tiktok.com/@${h}` },
+  x: { name: "X", url: (h) => `https://x.com/${h}` },
+};
+
+/** Unknown platforms get a text-only label (url null) — never a guessed link. */
+export function platformLink(platform: string, handle: string): { label: string; url: string | null } {
+  const known = PLATFORM_URLS[platform.toLowerCase()];
+  if (known) return { label: `${known.name} @${handle}`, url: known.url(handle) };
+  return { label: `${platform.charAt(0).toUpperCase()}${platform.slice(1)} @${handle}`, url: null };
 }
 
 export function StorefrontFooter() {
