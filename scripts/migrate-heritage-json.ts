@@ -32,6 +32,7 @@ import { fileURLToPath } from "node:url";
 import dotenv from "dotenv";
 import { getSupabaseAdmin } from "../payments/src/supabase_admin.ts";
 import { currentTierPriceUsd } from "../payments/src/pricing_tier_cascade.ts";
+import { portRails } from "./lib/heritage-rails.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, "..");
@@ -248,25 +249,7 @@ async function main(): Promise<void> {
     // Present-but-unusable is NOT "absent": a malformed or unreadable rails
     // file would silently omit configured provider routes. Abort instead.
     const rails = readJson<RailsFile>(railsPath, "rails file");
-    const isSandboxUrl = (u: string): boolean => {
-      try {
-        return new URL(u).hostname.toLowerCase().split(/[.-]/).includes("sandbox");
-      } catch {
-        return false; // unparseable — the route's shared validator rejects it later anyway
-      }
-    };
-    for (const rail of rails.rails ?? []) {
-      const active = !isSandboxUrl(rail.checkout_url);
-      console.log(`[port] product_rails upsert onConflict(product_id,provider): ${cfg.product_id}/${rail.provider} active=${active}${active ? "" : " (sandbox host — deactivated on port)"}${dryRun ? " (dry-run)" : ""}`);
-      if (dryRun) continue;
-      const { error } = await supabase
-        .from("product_rails")
-        .upsert(
-          { product_id: cfg.db_product_id, provider: rail.provider, weight: rail.weight, checkout_url: rail.checkout_url, active },
-          { onConflict: "product_id,provider" },
-        );
-      if (error) throw new Error(`heritage port: product_rails upsert failed (${cfg.product_id}/${rail.provider}): ${error.message}`);
-    }
+    await portRails(supabase, cfg.product_id, cfg.db_product_id, rails.rails ?? [], dryRun);
   }
 
   // --- 6. Upsert creator_terms (on (creator_id, product_id, effective_from)) -
