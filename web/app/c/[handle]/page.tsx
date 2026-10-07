@@ -71,9 +71,13 @@ export default async function CreatorHubPage({ params }: { params: Promise<{ han
             return (
               <span key={platform}>
                 {i > 0 && <span className="sep"> &middot; </span>}
-                <a href={link.url} rel="noopener">
-                  {link.label}
-                </a>
+                {link.url ? (
+                  <a href={link.url} rel="noopener">
+                    {link.label}
+                  </a>
+                ) : (
+                  link.label
+                )}
               </span>
             );
           })}

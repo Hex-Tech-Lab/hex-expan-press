@@ -47,7 +47,7 @@ export default async function StoreProductPage({
   const { creator, product: p } = resolveCreatorOr404(await fetchStoreProduct(handle, product));
 
   const price = priceOf(p);
-  const buyUrl = `/api/billing/checkout?product=${encodeURIComponent(p.store_product_id ?? "")}`;
+  const buyUrl = `/api/billing/checkout?product=${encodeURIComponent(p.id)}`;
 
   return (
     <div className="sf-root">

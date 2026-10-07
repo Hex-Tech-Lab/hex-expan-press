@@ -66,9 +66,10 @@ const UUID_RE = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
 // underscores, which the slug CHECK `^[a-z0-9-]{2,80}$` forbids). Each is
 // rewritten to its canonical product id BEFORE the DB lookup, so it resolves
 // through the standard path and the SAME consent gate.
+const LAUNCH_PRODUCT_ID = "57596c19-c550-4bde-b17a-e87b86d005c5";
 const LEGACY_SLUG_MAP: Record<string, string> = {
-  duane_retirement_playbook_v1: "57596c19-c550-4bde-b17a-e87b86d005c5",
-  "retirearly500k-500k-playbook": "57596c19-c550-4bde-b17a-e87b86d005c5",
+  duane_retirement_playbook_v1: LAUNCH_PRODUCT_ID,
+  "retirearly500k-500k-playbook": LAUNCH_PRODUCT_ID,
 };
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
@@ -86,6 +87,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   // client, a product lookup error, or an unresolved product all return 500
   // instead of skipping verification (ADR-0060: fail closed, never fail open).
   let dbRails: CheckoutRail[] = [];
+  let resolvedProductId = "";
   try {
     const supabase = await getSupabaseAdmin();
     if (!supabase) {
@@ -111,6 +113,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       return jsonError(500, "Checkout consent verification failed");
     }
     const resolvedProduct = dbProduct as { id: string; creator_id: string | null };
+    resolvedProductId = resolvedProduct.id;
 
     // Tenant isolation: the service-role client bypasses RLS, so the chain is
     // explicitly scoped to the product OWNER (creator_id — the schema column,
@@ -191,7 +194,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const overrideUrl = process.env[envSlugKey];
     if (overrideUrl !== undefined) {
       rails = [{ provider: "polar", weight: 100, checkout_url: overrideUrl }];
-    } else if (product === "retirearly500k-500k-playbook" || product === "duane_retirement_playbook_v1") {
+    } else if (resolvedProductId === LAUNCH_PRODUCT_ID) {
       const liveCheckoutUrl = process.env.POLAR_CHECKOUT_URL?.trim();
       if (!liveCheckoutUrl && !sandboxAllowed()) {
         // Fail closed: never send a real buyer to the sandbox checkout (insecure-defaults audit, 2026-10-01).
