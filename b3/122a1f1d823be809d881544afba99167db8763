@@ -1,0 +1,51 @@
+payments/bake_creator_pages.ts
+  s_1582e826c96fb8::t_3a2381b03c6cc4 256
+  s_1582e826c96fb8::t_b5b72fb18b7284 294
+scripts/migrate-heritage-json.ts
+  s_1582e826c96fb8::t_fec4cf52fd440d 240
+  s_1582e826c96fb8::t_f0ffab264c24cb 244,248-250
+  s_1582e826c96fb8::t_f543f399932205 277-293,295-308
+  s_1582e826c96fb8::t_db862893d83157 314
+  s_1582e826c96fb8::t_152e17cd30bd3d 273-274,276
+payments/src/webhook_core.ts
+  s_1582e826c96fb8::t_2c10c665f36ac1 27-30,35-40
+web/app/api/billing/checkout/__tests__/route.test.ts
+  s_1582e826c96fb8::t_21b2fd3d7c8af9 216
+  s_1582e826c96fb8::t_4e7d7d212bf09b 471
+  s_1582e826c96fb8::t_bd7c7a56d031ad 297-299
+  s_1582e826c96fb8::t_c09fca9c5b772c 313
+  s_1582e826c96fb8::t_363ecd6716d280 523,531-557
+  s_1582e826c96fb8::t_b32dfe6e6cf62b 502
+  s_1582e826c96fb8::t_6231021575740a 325
+  s_1582e826c96fb8::t_ddc7d4cd7605fc 62,71
+  s_8b47960df14dfb::t_6e8ceec60b2149 558
+payments/src/terms.ts
+  s_1582e826c96fb8::t_a2d9483eaf17d7 137,141-144
+web/app/api/billing/checkout/route.ts
+  s_1582e826c96fb8::t_022d1e820d1afe 160-164,167,174,178,180,188-189
+  s_1582e826c96fb8::t_3ad6e3666c1b62 181-187
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b3122a1f1d823be809d881544afba99167db8763",
+  "prompts": {},
+  "sessions": {
+    "s_1582e826c96fb8": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef1d18fd4ffeu8wsfD9JiDUJTX",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <104952356+TechHypeXP@users.noreply.github.com>"
+    },
+    "s_8b47960df14dfb": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_eef56d471ffeOVRvTEJZomqhhA",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
