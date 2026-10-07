@@ -1,0 +1,28 @@
+payments/src/webhook_core.ts
+  s_1582e826c96fb8::t_a3cd8948fc4362 27-36,39-44
+  s_1582e826c96fb8::t_310c4ce03eba9b 49
+supabase/migrations/20261007000000_commercial_heritage.sql
+  s_1582e826c96fb8::t_b5c7cb43b33d44 105-107,113
+scripts/migrate-heritage-json.ts
+  s_1582e826c96fb8::t_de260446efc873 29
+  s_1582e826c96fb8::t_39778da40c1e46 175-178,182,184
+  s_1582e826c96fb8::t_a7f421a4f5be61 213-219,227-235
+payments/bake_creator_pages.ts
+  s_1582e826c96fb8::t_a969da493f32e2 281-286,294,301-310
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6c0680f803824faedc25e1daf8964dd96db656d4",
+  "prompts": {},
+  "sessions": {
+    "s_1582e826c96fb8": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef1d18fd4ffeu8wsfD9JiDUJTX",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
