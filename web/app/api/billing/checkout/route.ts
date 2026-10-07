@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { existsSync, readFileSync } from "node:fs";
-import path from "node:path";
 import { MatrixRouter } from "../../../../../src/infrastructure/matrix_router/matrix_router";
 import { GLOBAL } from "../../../../../payments/src/settings_registry";
 import { getSupabaseAdmin } from "../../../../../payments/src/supabase_admin";
@@ -17,9 +15,10 @@ interface CheckoutRail {
 
 /**
  * Billing checkout router (Wave 6, native route handler — replaces the
- * shim-bridged legacy handler). GET/HEAD only: resolves the product's rail
- * config from the repo data/ file, a CHECKOUT_URL_<PRODUCT> env override, or
- * the built-in default launch rail, and 302-redirects to the
+ * shim-bridged legacy handler; Sprint 15: rails come from the product_rails
+ * table, not from repo JSON files). GET/HEAD only: resolves the product's
+ * rail config from the Supabase product_rails table, a CHECKOUT_URL_<PRODUCT>
+ * env override, or the built-in default launch rail, and 302-redirects to the
  * weighted-selected provider checkout URL via MatrixRouter, falling back to
  * the highest-weight rail if the router fails. Every source's checkout_url
  * passes one validation policy — raw value must be a string (non-string
@@ -85,6 +84,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   // product. EVERY resolution failure is terminal — an unconfigured admin
   // client, a product lookup error, or an unresolved product all return 500
   // instead of skipping verification (ADR-0060: fail closed, never fail open).
+  let dbRails: CheckoutRail[] = [];
   try {
     const supabase = await getSupabaseAdmin();
     if (!supabase) {
@@ -154,31 +154,54 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       console.error(`[billing/checkout] missing active consents for '${product}': C1=${hasC1}, C2=${hasC2}, C3=${hasC3}`);
       return jsonError(403, "Checkout forbidden: required creator consents are not active");
     }
+
+    // Rails from the DATABASE (Sprint 15 heritage eradication — replaces the
+    // data/settings/rails.<product>.json file read; product_rails is the SSOT).
+    // The query fetches ALL configured rails (not just active ones): a product
+    // with rails configured but NONE active is an explicit operator DISABLE —
+    // it must return 404, never fall through to the env override / legacy
+    // default rail below (only a product with NO rail records at all may fall
+    // through). A rails query failure fails closed (500).
+    const { data: railRows, error: railErr } = await supabase
+      .from("product_rails")
+      .select("provider, weight, checkout_url, active")
+      .eq("product_id", resolvedProduct.id)
+      .order("weight", { ascending: false });
+    if (railErr) {
+      console.error(`[billing/checkout] rails query failed for '${product}': ${railErr.message}`);
+      return jsonError(500, "Checkout consent verification failed");
+    }
+    const allRails = (railRows ?? []).map((r) => ({
+      provider: String((r as { provider: unknown }).provider),
+      weight: Number((r as { weight: unknown }).weight),
+      checkout_url: String((r as { checkout_url: unknown }).checkout_url),
+      active: Boolean((r as { active: unknown }).active),
+    }));
+    dbRails = allRails.filter((r) => r.active).map(({ active: _active, ...rail }) => rail);
+    // The disable guard counts only WELL-FORMED rows (real product_rails rows
+    // are objects with an active boolean). A malformed row is a data-integrity
+    // failure that the raw-URL validation below rejects with 500 — it must
+    // never be misreported as an operator disable.
+    const configuredRowCount = (railRows ?? []).filter((r) => r !== null && typeof r === "object").length;
+    if (configuredRowCount > 0 && dbRails.length === 0) {
+      console.error(`[billing/checkout] product '${product}' has ${configuredRowCount} configured rail(s) but none active — the database disable is authoritative`);
+      return jsonError(404, `Checkout is disabled for product '${product}'`);
+    }
   } catch (err) {
     console.error(`[billing/checkout] consent verification exception for '${product}': ${(err as Error).message}`);
     return jsonError(500, "Checkout consent verification failed");
   }
 
   let rails: CheckoutRail[];
-  const file = path.join(process.cwd(), "data", "settings", `rails.${product}.json`);
-  try {
-    const parsed: unknown = JSON.parse(readFileSync(file, "utf8"));
-    const cfg = parsed as RailsFile;
-    if (!cfg || typeof cfg !== "object" || !Array.isArray(cfg.rails) || cfg.rails.length === 0) {
-      throw new Error("rails file has no usable rails array");
-    }
-    rails = cfg.rails;
-  } catch (err) {
-    // Serverless fallback: data/ is not bundled on Vercel, so the file being
-    // ABSENT is the normal path (silent); log only when a file exists but
-    // was unusable — that is a real misconfiguration.
-    if (existsSync(file)) {
-      console.error(`[billing/checkout] unusable rails file for '${product}': ${(err as Error).message}`);
-    }
+  if (dbRails.length > 0) {
+    rails = dbRails;
+  } else {
+    // No DB rails: the env override is the configured source, then the legacy
+    // launch default, then 404. A SET override is the configured source even
+    // when its raw value is blank — no trimming it away, no fall-through to
+    // the default rail; the shared validator below rejects blank values with
+    // the controlled 500.
     const envSlugKey = `CHECKOUT_URL_${product.toUpperCase().replace(/[^A-Z0-9]/g, "_")}`;
-    // A SET override is the configured source even when its raw value is
-    // blank — no trimming it away, no fall-through to the default rail; the
-    // shared validator below rejects blank values with the controlled 500.
     const overrideUrl = process.env[envSlugKey];
     if (overrideUrl !== undefined) {
       rails = [{ provider: "polar", weight: 100, checkout_url: overrideUrl }];
@@ -242,9 +265,4 @@ export async function HEAD(request: NextRequest): Promise<NextResponse> {
   // HEAD mirrors GET status semantics without a body — legacy contract kept.
   const res = await GET(request);
   return new NextResponse(null, { status: res.status, headers: res.headers });
-}
-
-interface RailsFile {
-  product_id: string;
-  rails: CheckoutRail[];
 }

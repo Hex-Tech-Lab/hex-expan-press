@@ -1,0 +1,334 @@
+/**
+ * migrate-heritage-json.ts — Sprint 15 one-off data porting script.
+ *
+ * Reads the flat-file commercial heritage and performs IDEMPOTENT upserts into
+ * the Supabase tables created by supabase/migrations/20261007000000_commercial_heritage.sql:
+ *
+ *   payments/creators.json                              → public.creators (profile columns)
+ *   payments/config.duane.json                          → public.products (commercial columns) + public.system_config
+ *   data/settings/rails.<product>.json                  → public.product_rails
+ *   data/settings/terms.json                            → public.creator_terms (revenue splits, Rule #0 private)
+ *   data/settings/pricing_cascade.<product>.json        → products.price_usd (the price SSOT per founder directive)
+ *
+ * Idempotency: every write is an UPSERT on a natural key (creators.handle,
+ * products.id, product_rails(product_id, provider), creator_terms(creator_id,
+ * product_id, effective_from), system_config.key) — re-running converges to
+ * the same state instead of duplicating rows.
+ *
+ * What this script deliberately does NOT touch: products.slug, products.title,
+ * release_* columns, and all portal-owned state (those belong to the creator
+ * portal and consent flows, not to the heritage files).
+ *
+ * Usage:
+ *   node_modules/.bin/tsx scripts/migrate-heritage-json.ts [--dry-run]
+ *
+ * Requires SUPABASE_URL + SUPABASE_SECRET_KEY in .env (service role). Run the
+ * migration SQL against the target project FIRST — the script fails loud if
+ * the heritage tables are missing.
+ */
+import { readFileSync, existsSync } from "node:fs";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+import dotenv from "dotenv";
+import { getSupabaseAdmin } from "../payments/src/supabase_admin.ts";
+import { currentTierPriceUsd } from "../payments/src/pricing_tier_cascade.ts";
+
+const here = dirname(fileURLToPath(import.meta.url));
+const root = join(here, "..");
+
+dotenv.config({ override: true, path: join(root, ".env") });
+
+const dryRun = process.argv.includes("--dry-run");
+
+// --from <dir>: read the heritage JSON files from an external directory
+// instead of the repo tree. Needed post-eradication: Phase D deleted
+// payments/creators.json + payments/config.duane.json, so a re-run restores
+// them from git history into a scratch dir and points --from at it.
+const fromIdx = process.argv.indexOf("--from");
+const heritageDir = fromIdx >= 0 ? process.argv[fromIdx + 1] : undefined;
+if (fromIdx >= 0 && !heritageDir) throw new Error("heritage port: --from requires a directory argument");
+
+interface CreatorEntry {
+  handle: string;
+  display_name: string;
+  platform_handles?: Record<string, string>;
+  bio?: string;
+  bio_source?: string;
+  photo?: string | null;
+  products?: { composite_slug: string; product_slug: string; config_file: string }[];
+}
+
+interface HeritageConfig {
+  product_id: string;
+  book?: string;
+  working_note?: string;
+  description?: string;
+  price_usd?: number;
+  currency?: string;
+  creator_id: string;
+  provider?: string;
+  checkout_mode?: string;
+  checkout_note?: string;
+  paddle_price_id?: string;
+  paddle_product_ref?: string;
+  paddle_product_id?: string;
+  polar_product_id_sandbox?: string;
+  polar_product_id_live?: string;
+  pdf_file?: string;
+  disclaimers?: string[];
+  support_email?: string;
+  smoke_test?: boolean;
+  same_details_on_all_providers?: boolean;
+  site_slug?: string;
+  product_slug?: string;
+  product_internal_id?: string;
+  db_product_id?: string;
+}
+
+interface RailsFile {
+  product_id: string;
+  rails: { provider: string; weight: number; checkout_url: string }[];
+}
+
+interface TermsFile {
+  terms: { creator_id: string; product_id: string; effective_from: string; creator_split_pct: number; note?: string }[];
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function readJson<T>(path: string, label: string): T {
+  try {
+    return JSON.parse(readFileSync(path, "utf8")) as T;
+  } catch (err) {
+    throw new Error(`heritage port: cannot read ${label} at ${path}: ${(err as Error).message}`);
+  }
+}
+
+/** Heritage file paths honor --from for the two DELETED repo files (creators.json,
+ *  config.<creator>.json — restored from git history into a scratch dir); the
+ *  untracked data/settings files stay read from the repo's data/ directory. */
+const repoCreatorsPath = heritageDir ? join(heritageDir, "creators.json") : join(root, "payments", "creators.json");
+const heritageConfigPath = (configFile: string): string =>
+  heritageDir ? join(heritageDir, configFile.replace(/^payments\//, "")) : join(root, configFile);
+
+async function main(): Promise<void> {
+  const supabase = await getSupabaseAdmin();
+  if (!supabase) {
+    throw new Error("heritage port: SUPABASE_URL/SUPABASE_SECRET_KEY not configured — refusing to run (fail closed)");
+  }
+
+  // --- 1. Read the heritage files ------------------------------------------
+  const creatorsIdx = readJson<{ site_origin?: string; creators: CreatorEntry[] }>(
+    repoCreatorsPath, "creators.json",
+  );
+  const creators = creatorsIdx.creators ?? [];
+  if (creators.length === 0) throw new Error("heritage port: creators.json has no creators");
+
+  const configPaths = new Map<string, string>(); // config_file (relative to repo root) → resolved per creator product
+  for (const c of creators) {
+    for (const p of c.products ?? []) {
+      configPaths.set(p.config_file, heritageConfigPath(p.config_file));
+    }
+  }
+
+  // --- 2. Upsert creators (on handle) ---------------------------------------
+  for (const c of creators) {
+    const row = {
+      handle: c.handle,
+      display_name: c.display_name,
+      platform_handles: c.platform_handles ?? {},
+      bio: c.bio ?? null,
+      bio_source: c.bio_source ?? null,
+      photo: c.photo ?? null,
+    };
+    console.log(`[port] creators upsert onConflict(handle): ${c.handle}${dryRun ? " (dry-run)" : ""}`);
+    if (dryRun) continue;
+    const { error } = await supabase.from("creators").upsert(row, { onConflict: "handle" });
+    if (error) throw new Error(`heritage port: creators upsert failed for ${c.handle}: ${error.message}`);
+  }
+
+  // --- 3. Resolve creator uuids ---------------------------------------------
+  const creatorIdByHandle = new Map<string, string>();
+  for (const c of creators) {
+    const { data, error } = await supabase.from("creators").select("id").eq("handle", c.handle).maybeSingle();
+    if (error) throw new Error(`heritage port: creator lookup failed for ${c.handle}: ${error.message}`);
+    if (!data?.id) {
+      if (dryRun) {
+        console.log(`[port] creator ${c.handle}: no row yet (dry-run — the upsert above would create/update it)`);
+        continue;
+      }
+      throw new Error(`heritage port: creator ${c.handle} has no row after upsert — aborting`);
+    }
+    creatorIdByHandle.set(c.handle, data.id as string);
+  }
+
+  // --- 4. Upsert products (on id = db_product_id) ----------------------------
+  for (const [configFile, configPath] of configPaths.entries()) {
+    const cfg = readJson<HeritageConfig>(configPath, "product config");
+    const dbProductId = cfg.db_product_id;
+    if (!dbProductId || !UUID_RE.test(dbProductId)) {
+      throw new Error(`heritage port: ${configFile} has no valid uuid db_product_id — cannot port`);
+    }
+    if (!cfg.creator_id || !creatorIdByHandle.has(cfg.creator_id)) {
+      throw new Error(`heritage port: ${configFile} creator_id '${cfg.creator_id}' is not present in creators.json`);
+    }
+    // Price SSOT: the pricing cascade when one exists, else the config's own
+    // price. Absence of the cascade file is the only legitimate fallback
+    // trigger — a PRESENT cascade that fails to read or parse must abort the
+    // port, never silently seed a stale config price into the SSOT column.
+    let priceUsd: number | null = null;
+    if (cfg.product_id) {
+      const cascadePath = join(root, "data", "settings", `pricing_cascade.${cfg.product_id}.json`);
+      if (existsSync(cascadePath)) {
+        priceUsd = currentTierPriceUsd(cascadePath);
+      } else {
+        priceUsd = typeof cfg.price_usd === "number" ? cfg.price_usd : null;
+      }
+    }
+    const row = {
+      id: dbProductId,
+      creator_id: creatorIdByHandle.get(cfg.creator_id),
+      store_product_id: cfg.product_id,
+      composite_slug: cfg.product_internal_id ?? cfg.product_slug,
+      site_slug: cfg.site_slug,
+      description: cfg.description ?? null,
+      price_usd: priceUsd,
+      currency: cfg.currency ?? "USD",
+      provider: cfg.provider ?? null,
+      checkout_mode: cfg.checkout_mode ?? null,
+      paddle_price_id: cfg.paddle_price_id ?? null,
+      paddle_product_ref: cfg.paddle_product_ref ?? null,
+      paddle_product_id: cfg.paddle_product_id ?? null,
+      polar_product_id_sandbox: cfg.polar_product_id_sandbox ?? null,
+      polar_product_id_live: cfg.polar_product_id_live ?? null,
+      support_email: cfg.support_email ?? null,
+      disclaimers: cfg.disclaimers ?? [],
+      pdf_file: cfg.pdf_file ?? null,
+      book_registry: cfg.book ?? null,
+      working_note: cfg.working_note ?? null,
+    };
+    // Ownership safety: if the products row already exists (portal-owned), it
+    // carries the creator_id the portal's RLS chain is built on. A heritage
+    // upsert must NEVER re-point it — update ONLY the heritage columns.
+    const { data: existingProduct, error: existingErr } = await supabase
+      .from("products").select("id, creator_id").eq("id", dbProductId).maybeSingle();
+    if (existingErr) {
+      // A failed ownership lookup is NOT "product absent" — treating it as
+      // such could take the insert path and re-point a portal-owned row.
+      throw new Error(`heritage port: products ownership lookup failed for ${dbProductId}: ${existingErr.message}`);
+    }
+    console.log(`[port] products ${existingProduct ? "UPDATE heritage columns (creator_id preserved)" : "INSERT"}: ${dbProductId} (${cfg.product_id})${dryRun ? " (dry-run)" : ""}`);
+    if (dryRun) continue;
+    if (existingProduct) {
+      const { creator_id: _owner, ...heritageColumns } = row;
+      const { error } = await supabase.from("products").update(heritageColumns).eq("id", dbProductId);
+      if (error) throw new Error(`heritage port: products update failed for ${dbProductId}: ${error.message}`);
+    } else {
+      // Unreachable-by-design guard: products.slug/title are portal-owned NOT
+      // NULL columns with no heritage source, so a bare insert cannot succeed
+      // (and inventing identity here would violate the portal-ownership
+      // invariant). A heritage product without a portal row must be
+      // provisioned through the portal first.
+      throw new Error(
+        `heritage port: product ${dbProductId} (${cfg.product_id}) has no portal row — ` +
+        "provision it through the portal first (slug/title are portal-owned); heritage columns port to EXISTING portal rows only",
+      );
+    }
+  }
+
+  // --- 5. Upsert product_rails (on (product_id, provider)) -------------------
+  for (const [, configPath] of configPaths.entries()) {
+    const cfg = readJson<HeritageConfig>(configPath, "product config");
+    if (!cfg.db_product_id || !cfg.product_id) continue;
+    const railsPath = join(root, "data", "settings", `rails.${cfg.product_id}.json`);
+    if (!existsSync(railsPath)) {
+      console.log(`[port] no rails file for ${cfg.product_id} — skipping product_rails`);
+      continue;
+    }
+    // Present-but-unusable is NOT "absent": a malformed or unreadable rails
+    // file would silently omit configured provider routes. Abort instead.
+    const rails = readJson<RailsFile>(railsPath, "rails file");
+    const isSandboxUrl = (u: string): boolean => {
+      try {
+        return new URL(u).hostname.toLowerCase().split(/[.-]/).includes("sandbox");
+      } catch {
+        return false; // unparseable — the route's shared validator rejects it later anyway
+      }
+    };
+    for (const rail of rails.rails ?? []) {
+      const active = !isSandboxUrl(rail.checkout_url);
+      console.log(`[port] product_rails upsert onConflict(product_id,provider): ${cfg.product_id}/${rail.provider} active=${active}${active ? "" : " (sandbox host — deactivated on port)"}${dryRun ? " (dry-run)" : ""}`);
+      if (dryRun) continue;
+      const { error } = await supabase
+        .from("product_rails")
+        .upsert(
+          { product_id: cfg.db_product_id, provider: rail.provider, weight: rail.weight, checkout_url: rail.checkout_url, active },
+          { onConflict: "product_id,provider" },
+        );
+      if (error) throw new Error(`heritage port: product_rails upsert failed (${cfg.product_id}/${rail.provider}): ${error.message}`);
+    }
+  }
+
+  // --- 6. Upsert creator_terms (on (creator_id, product_id, effective_from)) -
+  const termsPath = join(root, "data", "settings", "terms.json");
+  if (!existsSync(termsPath)) {
+    console.log("[port] no terms.json — skipping creator_terms");
+  } else {
+    // Present-but-unusable is NOT "no terms": a malformed or unreadable terms
+    // file would silently import as zero creator splits on the money path.
+    // Abort instead.
+    const terms = readJson<TermsFile>(termsPath, "terms.json");
+    for (const t of terms.terms ?? []) {
+      const creatorUuid = creatorIdByHandle.get(t.creator_id);
+      if (!creatorUuid) throw new Error(`heritage port: terms.json creator '${t.creator_id}' not in creators.json`);
+      // product_id in terms.json is the STORE product id ("duane_retirement_playbook_v1")
+      const { data: prodRow, error: prodErr } = await supabase
+        .from("products").select("id").eq("store_product_id", t.product_id).maybeSingle();
+      if (prodErr) throw new Error(`heritage port: product lookup for terms failed (${t.product_id}): ${prodErr.message}`);
+      if (!prodRow?.id) {
+        if (dryRun) {
+          console.log(`[port] creator_terms WOULD upsert: ${t.creator_id}/${t.product_id} (dry-run: product link materializes after the products update)`);
+          continue;
+        }
+        throw new Error(`heritage port: terms.json references unknown product '${t.product_id}' — port products first`);
+      }
+      // Rule #0: the split percentage must not leak into captured migration logs.
+      console.log(`[port] creator_terms upsert: ${t.creator_id}/${t.product_id} @${t.effective_from}${dryRun ? " (dry-run)" : ""}`);
+      if (dryRun) continue;
+      const { error } = await supabase.from("creator_terms").upsert(
+        {
+          creator_id: creatorUuid,
+          product_id: prodRow.id as string,
+          effective_from: t.effective_from,
+          creator_split_pct: t.creator_split_pct,
+          note: t.note ?? null,
+        },
+        { onConflict: "creator_id,product_id,effective_from" },
+      );
+      if (error) throw new Error(`heritage port: creator_terms upsert failed (${t.creator_id}/${t.product_id}): ${error.message}`);
+    }
+  }
+
+  // --- 7. Upsert system_config (on key) --------------------------------------
+  const systemEntries: Record<string, unknown> = {};
+  for (const [, configPath] of configPaths.entries()) {
+    const cfg = readJson<HeritageConfig>(configPath, "product config");
+    if (cfg.smoke_test !== undefined) systemEntries["payments.smoke_test"] = cfg.smoke_test;
+    if (cfg.same_details_on_all_providers !== undefined) systemEntries["payments.same_details_on_all_providers"] = cfg.same_details_on_all_providers;
+    if (cfg.checkout_note) systemEntries[`payments.checkout_note.${cfg.product_id}`] = cfg.checkout_note;
+  }
+  if (creatorsIdx.site_origin) systemEntries["site.origin"] = creatorsIdx.site_origin;
+  for (const [key, value] of Object.entries(systemEntries)) {
+    console.log(`[port] system_config upsert onConflict(key): ${key}${dryRun ? " (dry-run)" : ""}`);
+    if (dryRun) continue;
+    const { error } = await supabase.from("system_config").upsert({ key, value }, { onConflict: "key" });
+    if (error) throw new Error(`heritage port: system_config upsert failed for ${key}: ${error.message}`);
+  }
+
+  console.log(`[port] ${dryRun ? "DRY RUN complete — no writes performed" : "heritage port complete (idempotent)"}`);
+}
+
+main().catch((err) => {
+  console.error(`[port] FATAL: ${(err as Error).message}`);
+  process.exitCode = 1;
+});

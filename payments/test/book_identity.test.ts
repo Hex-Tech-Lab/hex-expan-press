@@ -646,7 +646,6 @@ describe("repo invariants", () => {
     const webPublicFiles = await scan(join(repoRoot, "web", "public"), [".html", ".xml", ".txt"]);
     for (const f of [...paymentsFiles, ...webPublicFiles]) {
       const rel = f.slice(repoRoot.length + 1);
-      if (rel === "payments/config.duane.json") continue; // must not carry title — asserted separately
       if (rel === "payments/test/book_identity.test.ts") continue; // this test itself references the needle
       const isBakedCPage = rel.startsWith("web/public/c/");
       const text = await readFile(f, "utf8");
@@ -655,13 +654,17 @@ describe("repo invariants", () => {
     expect(offenders).toEqual([]);
   });
 
-  it("payments/config.duane.json has no title key and points at the book registry", async () => {
-    const { readFile } = await import("node:fs/promises");
+  it("heritage eradicated: config.duane.json is deleted; books/duane.json remains the title SSOT (Sprint 15)", async () => {
+    const { readFile, access } = await import("node:fs/promises");
     const repoRoot = join(__dirname, "..", "..");
-    const cfg = JSON.parse(await readFile(join(repoRoot, "payments", "config.duane.json"), "utf8")) as Record<string, unknown>;
-    expect(cfg).not.toHaveProperty("title");
-    expect(cfg.book).toBe("books/duane.json");
-    expect(cfg.paddle_product_ref).toBe("pro_01m3ysqv4cjhxksyqrtfssp4th");
+    // The heritage config file is GONE — its book pointer + paddle refs moved
+    // into public.products (book_registry / paddle_product_ref) via
+    // scripts/migrate-heritage-json.ts.
+    await expect(access(join(repoRoot, "payments", "config.duane.json"))).rejects.toThrow();
+    // The book registry itself stays the title SSOT.
+    const book = JSON.parse(await readFile(join(repoRoot, "books", "duane.json"), "utf8")) as Record<string, unknown>;
+    expect(typeof book.title).toBe("string");
+    expect(String(book.title).length).toBeGreaterThan(0);
   });
 });
 
@@ -717,7 +720,7 @@ describe("runSync orchestration", () => {
       }
       return jsonResponse(paddleOkBody());
     }) as typeof fetch;
-    await expect(runSync(APPLY_OK, ENV_OK, fetchMock)).rejects.toBeInstanceOf(PartialSyncError);
+    await expect(runSync(APPLY_OK, ENV_OK, fetchMock, CFG)).rejects.toBeInstanceOf(PartialSyncError);
     expect(calls.filter((c) => c.includes("paddle"))).toHaveLength(0);
   });
 
@@ -729,7 +732,7 @@ describe("runSync orchestration", () => {
       if (init?.method === "PATCH") return jsonResponse([{ title: REGISTRY.title }]);
       return jsonResponse([{ title: REGISTRY.title }]);
     }) as typeof fetch;
-    await expect(runSync(APPLY_OK, ENV_OK, fetchMock)).rejects.toThrow(PartialSyncError);
+    await expect(runSync(APPLY_OK, ENV_OK, fetchMock, CFG)).rejects.toThrow(PartialSyncError);
   });
 
   it("supabase ok + paddle 503 -> PartialSyncError", async () => {
@@ -738,7 +741,7 @@ describe("runSync orchestration", () => {
       if (init?.method === "PATCH") return jsonResponse([{ title: REGISTRY.title }]);
       return jsonResponse([{ title: REGISTRY.title }]);
     }) as typeof fetch;
-    await expect(runSync(APPLY_OK, ENV_OK, fetchMock)).rejects.toThrow(PartialSyncError);
+    await expect(runSync(APPLY_OK, ENV_OK, fetchMock, CFG)).rejects.toThrow(PartialSyncError);
   });
 
   it("supabase 503 on apply -> PartialSyncError mentioning --check, 0 paddle requests", async () => {
@@ -750,8 +753,8 @@ describe("runSync orchestration", () => {
       if (String(url).includes("rest/v1/products")) return jsonResponse([{ title: REGISTRY.title }]);
       return jsonResponse({ data: { name: REGISTRY.title, description: REGISTRY.subtitle } });
     }) as typeof fetch;
-    await expect(runSync(APPLY_OK, ENV_OK, fetchMock)).rejects.toThrow(PartialSyncError);
-    await expect(runSync(APPLY_OK, ENV_OK, fetchMock)).rejects.toThrow(/reconcile with --check before retry/);
+    await expect(runSync(APPLY_OK, ENV_OK, fetchMock, CFG)).rejects.toThrow(PartialSyncError);
+    await expect(runSync(APPLY_OK, ENV_OK, fetchMock, CFG)).rejects.toThrow(/reconcile with --check before retry/);
     expect(calls.filter((c) => c.url.includes("paddle"))).toHaveLength(0);
   });
 
@@ -761,7 +764,7 @@ describe("runSync orchestration", () => {
       calls.push({ url: String(url), method: init?.method });
       return sandboxSupabase([{ title: REGISTRY.title }])(url, init);
     }) as typeof fetch;
-    const result = await runSync(APPLY_OK, ENV_OK, fetchMock);
+    const result = await runSync(APPLY_OK, ENV_OK, fetchMock, CFG);
     expect(result.exitCode).toBe(0);
     expect(calls.filter((c) => c.method === "PATCH")).toHaveLength(2);
     expect(calls[0].url).toContain("sup.supabase.co");
@@ -774,7 +777,7 @@ describe("runSync orchestration", () => {
       if (init?.method === "PATCH") { patchCalls += 1; return jsonResponse({}); }
       return sandboxSupabase([{ title: REGISTRY.title }])(url, init);
     }) as typeof fetch;
-    const result = await runSync(["--check"], ENV_OK, fetchMock);
+    const result = await runSync(["--check"], ENV_OK, fetchMock, CFG);
     expect(result.exitCode).toBe(0);
     expect(patchCalls).toBe(0);
   });
