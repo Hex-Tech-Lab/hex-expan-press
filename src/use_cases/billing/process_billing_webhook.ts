@@ -10,8 +10,8 @@ import { PaymentProviderPort, SaleCompletedEvent, RefundIssuedEvent, RefundRever
 import { WebhookValidationError } from "../../domain/webhook/webhook_errors.ts";
 import { appendSale, appendRefund, appendRefundReversal, findSaleAsync, findRefundAsync, findRefundReversalAsync, findByProviderAdjustmentIdAsync, flagRefundForManualReview, recordWebhookConflict, isAdjustmentIdUniqueViolation } from "../../../payments/src/ledger.ts";
 import { computeSplit, usdToCents } from "../../../payments/src/split.ts";
-import { effectiveCreatorSplitPct } from "../../../payments/src/terms.ts";
-import { loadProductIndex, withIdempotencyLock, WebhookInFlightError } from "../../../payments/src/webhook_core.ts";
+import { effectiveCreatorSplitPctAsync } from "../../../payments/src/terms.ts";
+import { resolveProductByAlias, withIdempotencyLock, WebhookInFlightError } from "../../../payments/src/webhook_core.ts";
 import { GLOBAL } from "../../../payments/src/settings_registry.ts";
 
 type LockedResult = { status: number; payload: Record<string, unknown> };
@@ -468,8 +468,9 @@ export async function processBillingWebhookUseCase(
           return { status: 200, payload: { ok: true, recorded: false, reason: "duplicate", sale_id: saleEvent.saleId } };
         }
 
-        // Resolve product config to determine creator and split
-        const cfg = loadProductIndex().get(saleEvent.productId);
+        // Resolve product from the DATABASE (Sprint 15: commercial state is
+        // DB-only — the provider's product alias must map to a products row).
+        const cfg = await resolveProductByAlias(saleEvent.productId);
         if (!cfg) throw new Error(`Unknown product_id: ${saleEvent.productId}`);
 
         // Never book a foreign-currency total as the product's currency (audit F4).
@@ -480,9 +481,9 @@ export async function processBillingWebhookUseCase(
           );
         }
 
-        // Compute split
-        const creatorPct = effectiveCreatorSplitPct(cfg.creator_id, cfg.product_id, saleEvent.occurredAt);
-        if (creatorPct === null) throw new Error(`Could not resolve split percentage for creator ${cfg.creator_id}`);
+        // Compute split (DB-backed creator_terms — latest effective_from <= sale time)
+        const creatorPct = await effectiveCreatorSplitPctAsync(cfg.creatorHandle, cfg.productId, saleEvent.occurredAt);
+        if (creatorPct === null) throw new Error(`Could not resolve split percentage for creator ${cfg.creatorHandle}`);
 
         const amountUsd = saleEvent.totalCents / 100; // Ledger still stores USD float — convert from canonical cents
         const split = computeSplit(amountUsd, creatorPct);
@@ -495,7 +496,7 @@ export async function processBillingWebhookUseCase(
           amount_usd: amountUsd,
           ts: saleEvent.occurredAt,
           email_hash: saleEvent.buyerEmailHash,
-          creator_id: cfg.creator_id,
+          creator_id: cfg.creatorHandle,
           creator_split_pct: creatorPct,
           creator_split_usd: split.creator_split_usd,
           our_split_usd: split.our_split_usd,

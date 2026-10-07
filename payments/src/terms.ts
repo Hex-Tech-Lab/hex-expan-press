@@ -105,3 +105,51 @@ export function effectiveCreatorSplitPct(creator_id: string, product_id: string,
   }
   return winner ? winner.pct : null;
 }
+
+/**
+ * DB-backed split resolution (Sprint 15 heritage eradication — replaces the
+ * terms.json file read in the webhook money path; creator_terms is the SSOT,
+ * Rule #0 private: RLS enabled with NO client policies, service_role only).
+ *
+ * Same semantics as effectiveCreatorSplitPct: the row with the LATEST
+ * effective_from that is still <= the sale timestamp wins; null when no
+ * terms row covers the creator/product pair (the caller treats null as a
+ * hard failure → 500 → provider retries).
+ *
+ * Fail closed: an unconfigured Supabase admin client THROWS (never silently
+ * returns null — a null means "no terms", a throw means "cannot determine").
+ */
+export async function effectiveCreatorSplitPctAsync(creatorHandle: string, storeProductId: string, atISO: string): Promise<number | null> {
+  if (typeof creatorHandle !== "string" || creatorHandle.trim() === "") {
+    throw new TypeError("terms: creatorHandle must be a non-empty string");
+  }
+  if (typeof storeProductId !== "string" || storeProductId.trim() === "") {
+    throw new TypeError("terms: storeProductId must be a non-empty string");
+  }
+  if (typeof atISO !== "string" || Number.isNaN(Date.parse(atISO))) {
+    throw new TypeError(`terms: atISO must be a parseable timestamp (got ${String(atISO)})`);
+  }
+  const { getSupabaseAdmin } = await import("./supabase_admin.ts");
+  const supabase = await getSupabaseAdmin();
+  if (!supabase) {
+    throw new Error("terms: Supabase admin client unavailable — split resolution cannot run (fail closed)");
+  }
+  const [{ data: creator }, { data: product }] = await Promise.all([
+    supabase.from("creators").select("id").eq("handle", creatorHandle).maybeSingle(),
+    supabase.from("products").select("id").eq("store_product_id", storeProductId).maybeSingle(),
+  ]);
+  if (!creator?.id || !product?.id) return null;
+  const { data, error } = await supabase
+    .from("creator_terms")
+    .select("creator_split_pct, effective_from")
+    .eq("creator_id", creator.id as string)
+    .eq("product_id", product.id as string)
+    .lte("effective_from", new Date(Date.parse(atISO)).toISOString())
+    .order("effective_from", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) {
+    throw new Error(`terms: creator_terms lookup failed (${creatorHandle}/${storeProductId}): ${error.message}`);
+  }
+  return data ? (data as { creator_split_pct: number }).creator_split_pct : null;
+}

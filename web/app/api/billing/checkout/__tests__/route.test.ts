@@ -3,7 +3,6 @@ import { NextRequest } from "next/server";
 import { GET } from "../route";
 import { MatrixRouter } from "../../../../../../src/infrastructure/matrix_router/matrix_router";
 
-const railsFile = vi.hoisted(() => ({ content: null as string | null }));
 const adminModule = vi.hoisted(() => ({
   mockAdminClient: null as unknown,
 }));
@@ -20,34 +19,13 @@ vi.mock("../../../../../../src/infrastructure/matrix_router/matrix_router", () =
   MatrixRouter: { getNextProvider: vi.fn().mockResolvedValue("polar") },
 }));
 
-
-// The repo's data/settings rails file exists on dev machines but is never
-// bundled on Vercel; by default force the serverless path (rails read fails)
-// so the default-rail branch — where the fail-closed guard lives — always
-// runs. Setting railsFile.content serves a configurable rails file body for
-// file-source coverage.
-vi.mock("node:fs", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("node:fs")>();
-  const isRailsPath = (p: unknown): boolean => typeof p === "string" && p.includes("rails.");
-  return {
-    ...actual,
-    existsSync: (p: Parameters<typeof actual.existsSync>[0]) =>
-      isRailsPath(p) ? railsFile.content !== null : actual.existsSync(p),
-    readFileSync: (...args: Parameters<typeof actual.readFileSync>) => {
-      if (isRailsPath(args[0])) {
-        if (railsFile.content === null) throw new Error("rails file unavailable in test environment");
-        return railsFile.content;
-      }
-      return actual.readFileSync(...args);
-    },
-  };
-});
-
 const CHECKOUT_URL = "http://localhost:3000/api/billing/checkout?product=duane_retirement_playbook_v1";
 
 // Consent-gate mock plumbing (CR remediation): the route's gate now chains
 // .select().or()/.eq().maybeSingle() on products and .select().eq() on
 // consents (creator_id scoping), so the mock mirrors those call shapes.
+// Sprint 15: rails come from the product_rails table —
+// .select().eq().eq().order() — mocked through the same admin client.
 const PID = "57596c19-c550-4bde-b17a-e87b86d005c5";
 const OWNER_ID = "c0a80101-0000-4000-8000-000000000001";
 
@@ -77,9 +55,22 @@ function consentsTableMock(consents: DbResult) {
   return { select: () => ({ eq: async () => consents }) };
 }
 
+function railsTableMock(rails: DbResult) {
+  return {
+    select: () => ({
+      eq: () => ({
+        eq: () => ({
+          order: async () => rails,
+        }),
+      }),
+    }),
+  };
+}
+
 function gateAdminClient(
   products: DbResult = { data: { id: PID, creator_id: OWNER_ID }, error: null },
   consents: DbResult = { data: givenConsents(), error: null },
+  rails: DbResult = { data: [{ provider: "polar", weight: 100, checkout_url: "https://buy.polar.sh/live-rail" }], error: null },
 ) {
   return {
     from: (table: string) => {
@@ -88,6 +79,9 @@ function gateAdminClient(
       }
       if (table === "consents") {
         return consentsTableMock(consents);
+      }
+      if (table === "product_rails") {
+        return railsTableMock(rails);
       }
       return {};
     },
@@ -112,13 +106,13 @@ describe("billing/checkout launch-product default rail", () => {
     // true unset (not "") — under the wave85 policy a SET-but-blank override
     // is itself a 500, which would break every default-rail test here.
     vi.stubEnv("CHECKOUT_URL_DUANE_RETIREMENT_PLAYBOOK_V1", undefined as unknown as string);
-    // Gate must pass for these tests to reach the rail logic.
-    adminModule.mockAdminClient = gateAdminClient();
+    // Gate must pass and DB rails must be EMPTY so these tests reach the
+    // env/legacy fallback branches they exist to cover.
+    adminModule.mockAdminClient = gateAdminClient(undefined, undefined, { data: [], error: null });
   });
 
   afterEach(() => {
     vi.unstubAllEnvs();
-    railsFile.content = null;
   });
 
   it("fails closed with 500 and no redirect when POLAR_CHECKOUT_URL is unset in production", async () => {
@@ -151,13 +145,13 @@ describe("billing/checkout unified checkout_url policy", () => {
     // true unset (not "") — under the wave85 policy a SET-but-blank override
     // is itself a 500, which would break every default-rail test here.
     vi.stubEnv("CHECKOUT_URL_DUANE_RETIREMENT_PLAYBOOK_V1", undefined as unknown as string);
-    // Gate must pass for these tests to reach the rail logic.
-    adminModule.mockAdminClient = gateAdminClient();
+    // Gate must pass and DB rails must be EMPTY so these tests reach the
+    // env/legacy fallback branches they exist to cover.
+    adminModule.mockAdminClient = gateAdminClient(undefined, undefined, { data: [], error: null });
   });
 
   afterEach(() => {
     vi.unstubAllEnvs();
-    railsFile.content = null;
   });
 
   it("production with POLAR_CHECKOUT_URL truly unset returns 500 without a location", async () => {
@@ -218,11 +212,11 @@ describe("billing/checkout unified checkout_url policy", () => {
     expect(res.headers.get("location")).toBe("https://buy.polar.sh/live-override");
   });
 
-  it("production rails file serving a sandbox checkout_url returns 500", async () => {
+  it("production DB rails serving a sandbox checkout_url returns 500", async () => {
     vi.stubEnv("VERCEL_ENV", "production");
-    railsFile.content = JSON.stringify({
-      product_id: "duane_retirement_playbook_v1",
-      rails: [{ provider: "polar", weight: 100, checkout_url: "https://sandbox-api.polar.sh/x" }],
+    adminModule.mockAdminClient = gateAdminClient(undefined, undefined, {
+      data: [{ provider: "polar", weight: 100, checkout_url: "https://sandbox-api.polar.sh/x" }],
+      error: null,
     });
     const res = await GET(request());
     expect(res.status).toBe(500);
@@ -234,13 +228,13 @@ describe("billing/checkout wave85 sandbox + raw-URL fail-closed", () => {
   beforeEach(() => {
     // true unset (not "") — a SET-but-blank override is itself a 500.
     vi.stubEnv("CHECKOUT_URL_DUANE_RETIREMENT_PLAYBOOK_V1", undefined as unknown as string);
-    // Gate must pass for these tests to reach the rail logic.
-    adminModule.mockAdminClient = gateAdminClient();
+    // Gate must pass and DB rails must be EMPTY so these tests reach the
+    // env/legacy fallback branches they exist to cover.
+    adminModule.mockAdminClient = gateAdminClient(undefined, undefined, { data: [], error: null });
   });
 
   afterEach(() => {
     vi.unstubAllEnvs();
-    railsFile.content = null;
     // A queued mockRejectedValueOnce can survive an early-500 test (router
     // never reached) — reset so later tests keep the default resolution.
     vi.mocked(MatrixRouter.getNextProvider).mockReset();
@@ -299,7 +293,7 @@ describe("billing/checkout wave85 sandbox + raw-URL fail-closed", () => {
     expect(res.headers.get("location")).toBeNull();
   });
 
-  it("production rails file with checkout_url omitted / null / 42, or a null / non-object rail, returns 500 each with no location", async () => {
+  it("production DB rails with checkout_url omitted / null / 42, or a null / non-object rail, returns 500 each with no location", async () => {
     vi.stubEnv("VERCEL_ENV", "production");
     for (const rails of [
       [{ provider: "polar", weight: 100 }],
@@ -308,7 +302,7 @@ describe("billing/checkout wave85 sandbox + raw-URL fail-closed", () => {
       [null],
       ["not-an-object"],
     ]) {
-      railsFile.content = JSON.stringify({ product_id: "duane_retirement_playbook_v1", rails });
+      adminModule.mockAdminClient = gateAdminClient(undefined, undefined, { data: rails, error: null });
       const res = await GET(request());
       expect(res.status, `rails=${JSON.stringify(rails)}`).toBe(500);
       expect(res.headers.get("location")).toBeNull();
@@ -317,9 +311,9 @@ describe("billing/checkout wave85 sandbox + raw-URL fail-closed", () => {
 
   it("production with rejecting MatrixRouter and valid live rails falls back 302 to the live url", async () => {
     vi.stubEnv("VERCEL_ENV", "production");
-    railsFile.content = JSON.stringify({
-      product_id: "duane_retirement_playbook_v1",
-      rails: [{ provider: "polar", weight: 100, checkout_url: "https://buy.polar.sh/live-rail" }],
+    adminModule.mockAdminClient = gateAdminClient(undefined, undefined, {
+      data: [{ provider: "polar", weight: 100, checkout_url: "https://buy.polar.sh/live-rail" }],
+      error: null,
     });
     vi.mocked(MatrixRouter.getNextProvider).mockRejectedValueOnce(new Error("router down"));
     const res = await GET(request());
@@ -329,9 +323,9 @@ describe("billing/checkout wave85 sandbox + raw-URL fail-closed", () => {
 
   it("production with rejecting MatrixRouter and a null-url rail fails closed 500 before the router", async () => {
     vi.stubEnv("VERCEL_ENV", "production");
-    railsFile.content = JSON.stringify({
-      product_id: "duane_retirement_playbook_v1",
-      rails: [{ provider: "polar", weight: 100, checkout_url: null }],
+    adminModule.mockAdminClient = gateAdminClient(undefined, undefined, {
+      data: [{ provider: "polar", weight: 100, checkout_url: null }],
+      error: null,
     });
     vi.mocked(MatrixRouter.getNextProvider).mockRejectedValueOnce(new Error("router down"));
     const res = await GET(request());
@@ -458,7 +452,10 @@ describe("billing/checkout consent gate fails closed (CR remediation)", () => {
             }),
           };
         }
-        return { select: () => ({ eq: async () => ({ data: givenConsents(), error: null }) }) };
+        if (table === "product_rails") {
+          return railsTableMock({ data: [{ provider: "polar", weight: 100, checkout_url: "https://buy.polar.sh/live-rail" }], error: null });
+        }
+        return consentsTableMock({ data: givenConsents(), error: null });
       },
     };
     const res = await GET(request());
@@ -486,6 +483,9 @@ describe("billing/checkout consent gate fails closed (CR remediation)", () => {
             }),
           };
         }
+        if (table === "product_rails") {
+          return railsTableMock({ data: [{ provider: "polar", weight: 100, checkout_url: "https://buy.polar.sh/live-rail" }], error: null });
+        }
         return productTableMock({ data: { id: PID, creator_id: OWNER_ID }, error: null });
       },
     };
@@ -493,6 +493,65 @@ describe("billing/checkout consent gate fails closed (CR remediation)", () => {
     const res = await GET(request());
     expect(res.status).toBe(302);
     expect(eqCalls).toContainEqual(["creator_id", OWNER_ID]);
+  });
+});
+
+describe("billing/checkout DB-driven rails (Sprint 15 heritage eradication)", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("serves the DB rail when product_rails has active rows (no env needed)", async () => {
+    vi.stubEnv("VERCEL_ENV", "production");
+    vi.stubEnv("POLAR_CHECKOUT_URL", undefined as unknown as string);
+    adminModule.mockAdminClient = gateAdminClient(undefined, undefined, {
+      data: [{ provider: "polar", weight: 100, checkout_url: "https://buy.polar.sh/from-db" }],
+      error: null,
+    });
+    const res = await GET(request());
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("https://buy.polar.sh/from-db");
+  });
+
+  it("returns 500 when the product_rails query errors (fail closed)", async () => {
+    vi.stubEnv("VERCEL_ENV", "production");
+    adminModule.mockAdminClient = gateAdminClient(undefined, undefined, {
+      data: null,
+      error: { message: "rails query failed" },
+    });
+    const res = await GET(request());
+    expect(res.status).toBe(500);
+    expect(res.headers.get("location")).toBeNull();
+  });
+
+  it("falls through to the env override when the DB has no rails rows", async () => {
+    vi.stubEnv("VERCEL_ENV", "production");
+    vi.stubEnv("CHECKOUT_URL_DUANE_RETIREMENT_PLAYBOOK_V1", "https://buy.polar.sh/env-override");
+    adminModule.mockAdminClient = gateAdminClient(undefined, undefined, { data: [], error: null });
+    const res = await GET(request());
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("https://buy.polar.sh/env-override");
+  });
+
+  it("returns 404 for an unknown product with no DB rails, no env override, and no legacy mapping", async () => {
+    const req = new NextRequest("http://localhost:3000/api/billing/checkout?product=some-other-product");
+    vi.stubEnv("VERCEL_ENV", "production");
+    adminModule.mockAdminClient = {
+      from: (table: string) => {
+        if (table === "products") {
+          return productTableMock({ data: { id: "11111111-1111-1111-1111-111111111111", creator_id: OWNER_ID }, error: null });
+        }
+        if (table === "product_rails") {
+          return railsTableMock({ data: [], error: null });
+        }
+        return consentsTableMock({
+          data: givenConsents().map((r) => ({ ...r, product_id: "11111111-1111-1111-1111-111111111111" })),
+          error: null,
+        });
+      },
+    };
+    const res = await GET(req);
+    expect(res.status).toBe(404);
   });
 });
 

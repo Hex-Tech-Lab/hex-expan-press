@@ -2,7 +2,6 @@
 // carry the title: the Supabase public.products row and the Paddle product.
 // Title SSOT discipline (2026-10-01): the title lives in books/duane.json; configs
 // point at it via "book"; this CLI pushes it outward. --check is read-only.
-import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import dotenv from "dotenv";
@@ -10,7 +9,6 @@ import { loadBookIdentity, type BookIdentity } from "./book_identity.ts";
 import { GLOBAL } from "./src/settings_registry.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const defaultConfigPath = join(here, "config.duane.json");
 
 export const loadDotenvForCli = (): void => {
   dotenv.config({ override: true, path: join(here, "..", ".env") });
@@ -22,14 +20,41 @@ export interface SyncConfig {
   paddle_product_ref: string;
 }
 
-const loadSyncConfig = (path: string): SyncConfig => {
-  const cfg = JSON.parse(readFileSync(path, "utf8")) as Partial<SyncConfig>;
+/**
+ * DB-backed sync target (Sprint 15 heritage eradication — replaces the
+ * config.duane.json read; the product row IS the config now). The CLI syncs
+ * the product carrying a book_registry: exactly one must exist, else the
+ * target is ambiguous and the sync fails loud instead of guessing.
+ */
+const loadSyncConfigFromDb = async (): Promise<SyncConfig> => {
+  const { getSupabaseAdmin } = await import("./src/supabase_admin.ts");
+  const supabase = await getSupabaseAdmin();
+  if (!supabase) {
+    throw new Error("sync_book_identity: SUPABASE_URL/SUPABASE_SECRET_KEY not configured — the DB is the only source of the sync target (fail closed)");
+  }
+  const { data, error } = await supabase
+    .from("products")
+    .select("id, store_product_id, book_registry, paddle_product_ref")
+    .not("book_registry", "is", null);
+  if (error) throw new Error(`sync_book_identity: products query failed: ${error.message}`);
+  if (!data || data.length === 0) {
+    throw new Error("sync_book_identity: no products row carries book_registry — nothing to sync");
+  }
+  if (data.length > 1) {
+    throw new Error(`sync_book_identity: ${data.length} products carry book_registry — sync target ambiguous, failing loud`);
+  }
+  const row = data[0] as { id: string; store_product_id: string | null; book_registry: string; paddle_product_ref: string | null };
+  const cfg: SyncConfig = {
+    book: row.book_registry,
+    db_product_id: row.id,
+    paddle_product_ref: row.paddle_product_ref ?? "",
+  };
   for (const key of ["book", "db_product_id", "paddle_product_ref"] as const) {
     if (typeof cfg[key] !== "string" || (cfg[key] as string).trim() === "") {
-      throw new Error(`sync_book_identity: ${path} "${key}" must be a non-empty string`);
+      throw new Error(`sync_book_identity: products row "${key}" must be a non-empty string (store_product_id=${row.store_product_id ?? "?"})`);
     }
   }
-  return cfg as SyncConfig;
+  return cfg;
 };
 
 export const resolvePaddleEnvironment = (env: string | undefined): "production" | "sandbox" => {
@@ -275,14 +300,16 @@ export const runSync = async (
   argv: string[],
   env: CliEnv,
   fetchImpl: typeof fetch,
+  cfgOverride?: SyncConfig,
 ): Promise<{ exitCode: number; stdout: string[]; stderr: string[] }> => {
   const stdout: string[] = [];
   const stderr: string[] = [];
   const checkOnly = argv.includes("--check");
   const sandboxDbRefIdx = argv.indexOf("--sandbox-db-ref");
   const sandboxDbRef = sandboxDbRefIdx >= 0 ? argv[sandboxDbRefIdx + 1] : undefined;
-  const cfg = loadSyncConfig(defaultConfigPath);
-  const identity = loadBookIdentity(join(here, "..", cfg.book));
+  // Validate argv/env BEFORE touching the DB (fail fast, 0 network calls on
+  // operator error), then resolve the sync target. Tests inject cfgOverride so
+  // the hermetic suite never needs a live Supabase.
   const environment = resolvePaddleEnvironment(env.PADDLE_ENVIRONMENT);
   const supaEnv: CliEnv = {
     SUPABASE_URL: env.SUPABASE_URL,
@@ -291,6 +318,9 @@ export const runSync = async (
     PADDLE_ENVIRONMENT: environment,
   };
   const targets = resolveTargetsFrom(supaEnv, environment);
+  if (!checkOnly) assertApplyAllowed(environment, targets.supabaseBase, sandboxDbRef);
+  const cfg = cfgOverride ?? (await loadSyncConfigFromDb());
+  const identity = loadBookIdentity(join(here, "..", cfg.book));
   if (checkOnly) {
     const state = await fetchTargetState(targets, cfg, fetchImpl);
     const mismatches = mismatchList(identity, state);
@@ -303,7 +333,6 @@ export const runSync = async (
     stdout.push("check: all targets match the registry");
     return { exitCode: 0, stdout, stderr };
   }
-  assertApplyAllowed(environment, targets.supabaseBase, sandboxDbRef);
   await applyIdentity(targets, cfg, identity, fetchImpl);
   stdout.push("applied: supabase title + paddle name/description updated");
   const state = await fetchTargetState(targets, cfg, fetchImpl);

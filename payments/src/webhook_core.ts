@@ -1,12 +1,7 @@
-import { readdirSync, readFileSync } from "node:fs";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { isRegisteredPaymentProvider, paymentProviderSetting, isMoneyPath, GLOBAL } from "./settings_registry.ts";
-import { loadConfig, type ProductConfig } from "./settings.ts";
+import { getSupabaseAdmin } from "./supabase_admin.ts";
 import { expanRedis, isRedisRestConfigured } from "../../src/infrastructure/redis/redis.client.ts";
 import type { ProviderName } from "./provider.ts";
-
-const HERE = path.dirname(fileURLToPath(import.meta.url));
 
 const FALLBACK_SECRET_ENV: Record<ProviderName, string> = {
   lemonsqueezy: "LEMONSQUEEZY_WEBHOOK_SECRET",
@@ -23,72 +18,73 @@ export function getSecret(provider: ProviderName): string | undefined {
 }
 
 /**
- * Loads every active product config into a lookup index keyed by internal
- * product id, provider product ids (sandbox/live), and site slug. Config
- * directory resolution order: PAYMENTS_CONFIG_DIR override, module-relative
- * payments/, cwd-relative payments/ — first directory that actually contains
- * product config files wins. config.example.json is never indexed.
+ * Resolves ONE product from the database by any of its provider-facing alias
+ * ids (Sprint 15 heritage eradication — replaces the file-backed
+ * loadProductIndex scan over payments/config.*.json; the DB is the single
+ * source of truth for commercial state).
+ *
+ * Alias arms mirror the legacy index keys: store product id, paddle product
+ * id, polar sandbox/live ids, composite slug, site slug, portal slug, and the
+ * row uuid (id arm only when the alias IS a uuid — a non-uuid value in an
+ * id.eq arm makes PostgREST reject the whole filter, the same cast trap fixed
+ * in the checkout route on PR #85).
+ *
+ * Injection guard: the alias arrives from provider webhook payloads. The
+ * PostgREST .or() grammar treats commas/parens as syntax, so an unvalidated
+ * alias could append attacker-chosen conditions. Only conservative
+ * provider-id characters are accepted; anything else resolves to null (the
+ * caller then throws "Unknown product_id" → 500 → provider retries).
+ *
+ * Fail closed: an unconfigured Supabase admin client throws (never returns an
+ * empty success) — the provider will redeliver once the DB is reachable.
  */
-export function loadProductIndex(): Map<string, ProductConfig> {
-  const idx = new Map<string, ProductConfig>();
-  // PAYMENTS_CONFIG_DIR indirection exists for the Next.js/Turbopack build:
-  // its static file tracer evaluates path.join(HERE, "..") to the payments/
-  // DIRECTORY and hard-fails hashing a directory asset ("Invalid file type
-  // Directory"). With the env-gated branch the tracer cannot statically
-  // resolve the path and skips it; the config files are instead bundled via
-  // web/next.config.ts outputFileTracingIncludes for the webhook route.
-  // Candidate order (first dir containing config.*.json wins):
-  //   1. PAYMENTS_CONFIG_DIR env override (deployment pin)
-  //   2. module-relative payments/ (classic standalone/serverless layout)
-  //   3. process.cwd()/payments (scripts run from repo root)
-  //   4. process.cwd()/../payments (next start runs with cwd=web/)
-  const candidates = [
-    process.env.PAYMENTS_CONFIG_DIR,
-    path.join(HERE, ".."),
-    path.join(process.cwd(), "payments"),
-    path.join(process.cwd(), "..", "payments"),
-  ].filter((d): d is string => typeof d === "string");
-  // Same predicate for directory SELECTION and file LOADING: config.example.json
-  // must not win the selection (a directory holding only the example file would
-  // otherwise be chosen, then skipped, leaving an empty product index).
-  const isProductConfigFile = (fileName: string): boolean =>
-    fileName.startsWith("config.") && fileName.endsWith(".json") && fileName !== "config.example.json";
-  const paymentsDir =
-    candidates.find((dir) => {
-      try {
-        return readdirSync(dir).some(isProductConfigFile);
-      } catch (probeErr) {
-        console.error(`[webhook] candidate config dir probe failed: ${probeErr instanceof Error ? probeErr.message : probeErr}`);
-        return false; // unreadable candidate dir — try next
-      }
-    }) ?? candidates[0];
-  try {
-    const files = readdirSync(paymentsDir).filter(isProductConfigFile);
-    for (const configFile of files) {
-      try {
-        const c = loadConfig(path.join(paymentsDir, configFile));
-        idx.set(c.product_id, c);
-        // Aliases: webhook events may arrive keyed by provider product id, internal id, or site slug
-        const raw = JSON.parse(readFileSync(path.join(paymentsDir, configFile), "utf8")) as Record<string, unknown>;
-        if (typeof raw.product_internal_id === "string") idx.set(raw.product_internal_id, c);
-        if (typeof raw.polar_product_id_sandbox === "string") idx.set(raw.polar_product_id_sandbox, c);
-        if (typeof raw.polar_product_id_live === "string") idx.set(raw.polar_product_id_live, c);
-        if (typeof raw.site_slug === "string") idx.set(raw.site_slug, c);
-      } catch (err) {
-        console.error(`[webhook] failed to load ${configFile}: ${(err as Error).message}`);
-      }
-    }
-  } catch (err) {
-    console.error(`[webhook] readdirSync failed: ${(err as Error).message}`);
-  }
+const PRODUCT_ALIAS_RE = /^[A-Za-z0-9_:.-]{1,120}$/;
 
-  for (const [pid, c] of idx) {
-    if (!isRegisteredPaymentProvider(c.provider)) {
-      console.error(`[webhook] product "${pid}" dropped: provider "${c.provider}" is not registered in providers.json`);
-      idx.delete(pid);
-    }
+export interface ResolvedProduct {
+  /** Provider custom_data key (products.store_product_id). */
+  productId: string;
+  /** Creator handle (creators.handle) — the ledger's creator_id namespace. */
+  creatorHandle: string;
+  currency: string;
+}
+
+export async function resolveProductByAlias(alias: string): Promise<ResolvedProduct | null> {
+  if (typeof alias !== "string" || !PRODUCT_ALIAS_RE.test(alias)) return null;
+  const supabase = await getSupabaseAdmin();
+  if (!supabase) {
+    throw new Error("webhook: Supabase admin client unavailable — product resolution cannot run (fail closed)");
   }
-  return idx;
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(alias);
+  const conditions = [
+    `store_product_id.eq.${alias}`,
+    `paddle_product_id.eq.${alias}`,
+    `polar_product_id_sandbox.eq.${alias}`,
+    `polar_product_id_live.eq.${alias}`,
+    `composite_slug.eq.${alias}`,
+    `site_slug.eq.${alias}`,
+    `slug.eq.${alias}`,
+    ...(isUuid ? [`id.eq.${alias}`] : []),
+  ];
+  const { data, error } = await supabase
+    .from("products")
+    .select("store_product_id, currency, provider, creators(handle)")
+    .or(conditions.join(","))
+    .maybeSingle();
+  if (error) {
+    throw new Error(`webhook: product lookup failed for '${alias}': ${error.message}`);
+  }
+  if (!data) return null;
+  const row = data as {
+    store_product_id: string | null;
+    currency: string;
+    provider: string | null;
+    creators?: { handle?: string } | null;
+  };
+  // Parity with the legacy index: products on unregistered providers never sold.
+  if (!row.store_product_id || !row.creators?.handle || !isRegisteredPaymentProvider(row.provider ?? "")) {
+    return null;
+  }
+  return { productId: row.store_product_id, creatorHandle: row.creators.handle, currency: row.currency };
 }
 
 // Webhook idempotency lock: findSale/appendSale (and the refund equivalent) are a plain

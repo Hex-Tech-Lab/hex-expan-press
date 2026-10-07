@@ -1,7 +1,7 @@
 // AUDIT 2026-10-02 (F6): the launch gate accepts a C2 approval bound to a
 // release PDF hash that is no longer products.release_sha256.
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { assertLaunchConsents } from "../bake_checkout.ts";
+import { assertLaunchConsents } from "../src/launch_gate.ts";
 
 const OLD = "a".repeat(64), CURRENT = "b".repeat(64);
 const ZERO = "0".repeat(64);

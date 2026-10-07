@@ -101,8 +101,10 @@ export function evaluateCascade(opts: {
 
 /**
  * Apply a triggered drop: advances current_tier_index, appends a history entry, and writes the
- * config back. Does NOT touch payments/config.duane.json directly — call syncPriceToProductConfig
- * (or re-run the bake pipeline) after this so the live product page picks up the new price.
+ * config back. Does NOT touch the live product price — after applying a drop,
+ * persist it to public.products.price_usd (scripts/migrate-heritage-json.ts
+ * seeds it from this cascade; Sprint 15: the DB is the price surface, the
+ * former payments/config.duane.json mirror is deleted).
  */
 export function applyCascadeDrop(configPath: string, decision: CascadeDecision, asOf: Date = new Date()): CascadeConfig {
   if (!decision.should_drop || decision.next_tier_index === null) {
