@@ -24,16 +24,20 @@ export function getSecret(provider: ProviderName): string | undefined {
  * source of truth for commercial state).
  *
  * Alias arms mirror the legacy index keys: store product id, paddle product
- * id, polar sandbox/live ids, composite slug, site slug, and the row uuid
- * (id arm only when the alias IS a uuid — a non-uuid value in an id.eq arm
- * makes PostgREST reject the whole filter, the same cast trap fixed in the
- * checkout route on PR #85).
+ * id, polar sandbox/live ids, composite slug, and the row uuid (id arm only
+ * when the alias IS a uuid — a non-uuid value in an id.eq arm makes PostgREST
+ * reject the whole filter, the same cast trap fixed in the checkout route on
+ * PR #85).
  *
  * The bare portal slug (products.slug) is deliberately NOT an arm: it is
  * unique only per creator (unique (creator_id, slug) in the portal
  * migration), so a bare slug can match several creators' products and
- * .maybeSingle() would 500-loop a valid provider delivery. Provider payloads
- * carry provider ids (store/paddle/polar ids), never bare portal slugs.
+ * .maybeSingle() would 500-loop a valid provider delivery. The nested
+ * site_slug (<handle>/<product_slug>) is not an arm either: it can never
+ * match a provider-id charset (it contains '/'), provider payloads never
+ * carry site slugs, and the checkout route — the slug-resolving surface —
+ * rejects '/' in its product parameter too. Provider payloads carry provider
+ * ids (store/paddle/polar ids), never URL slugs.
  *
  * Injection guard: the alias arrives from provider webhook payloads. The
  * PostgREST .or() grammar treats commas/parens as syntax, and '.'/':' are
@@ -69,7 +73,6 @@ export async function resolveProductByAlias(alias: string): Promise<ResolvedProd
     `polar_product_id_sandbox.eq.${alias}`,
     `polar_product_id_live.eq.${alias}`,
     `composite_slug.eq.${alias}`,
-    `site_slug.eq.${alias}`,
     ...(isUuid ? [`id.eq.${alias}`] : []),
   ];
   const { data, error } = await supabase
