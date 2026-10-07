@@ -95,7 +95,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       return jsonError(500, "Checkout consent verification failed");
     }
 
-    const lookupKey = LEGACY_SLUG_MAP[product] ?? product;
+    // Own-property check: a bare index would return inherited prototype members
+    // (?product=constructor → Object) instead of treating the param as a slug.
+    const lookupKey = Object.hasOwn(LEGACY_SLUG_MAP, product) ? LEGACY_SLUG_MAP[product] : product;
     const productFilter = UUID_RE.test(lookupKey) ? `slug.eq.${lookupKey},id.eq.${lookupKey}` : `slug.eq.${lookupKey}`;
     const { data: dbProduct, error: prodErr } = await supabase
       .from("products")
