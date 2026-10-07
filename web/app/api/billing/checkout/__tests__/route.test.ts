@@ -482,6 +482,35 @@ describe("billing/checkout consent gate fails closed (CR remediation)", () => {
     },
   );
 
+  it.each(["constructor", "__proto__", "toString", "hasOwnProperty", "some-new-book"])(
+    "treats non-legacy product %s as a literal slug in the DB filter",
+    async (slug) => {
+      vi.stubEnv("VERCEL_ENV", "preview");
+      const filters: string[] = [];
+      adminModule.mockAdminClient = {
+        from: (table: string) => {
+          if (table === "products") {
+            return {
+              select: () => ({
+                or: (f: string) => {
+                  filters.push(f);
+                  return { maybeSingle: async () => ({ data: { id: PID, creator_id: OWNER_ID }, error: null }) };
+                },
+              }),
+            };
+          }
+          if (table === "product_rails") {
+            return railsTableMock({ data: [{ provider: "polar", weight: 100, checkout_url: "https://buy.polar.sh/live-rail", active: true }], error: null });
+          }
+          return consentsTableMock({ data: givenConsents(), error: null });
+        },
+      };
+      const res = await GET(new NextRequest(`http://localhost:3000/api/billing/checkout?product=${slug}`));
+      expect(res.status).toBe(302);
+      expect(filters).toEqual([`slug.eq.${slug}`]);
+    },
+  );
+
   it("fails closed with 500 when the resolved product has no owner", async () => {
     adminModule.mockAdminClient = gateAdminClient({ data: { id: PID, creator_id: null }, error: null });
     const res = await GET(request());
