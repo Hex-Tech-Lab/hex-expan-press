@@ -152,7 +152,13 @@ async function main(): Promise<void> {
   for (const c of creators) {
     const { data, error } = await supabase.from("creators").select("id").eq("handle", c.handle).maybeSingle();
     if (error) throw new Error(`heritage port: creator lookup failed for ${c.handle}: ${error.message}`);
-    if (!data?.id) throw new Error(`heritage port: creator ${c.handle} has no row after upsert — aborting`);
+    if (!data?.id) {
+      if (dryRun) {
+        console.log(`[port] creator ${c.handle}: no row yet (dry-run — the upsert above would create/update it)`);
+        continue;
+      }
+      throw new Error(`heritage port: creator ${c.handle} has no row after upsert — aborting`);
+    }
     creatorIdByHandle.set(c.handle, data.id as string);
   }
 
@@ -269,7 +275,8 @@ async function main(): Promise<void> {
       }
       throw new Error(`heritage port: terms.json references unknown product '${t.product_id}' — port products first`);
     }
-    console.log(`[port] creator_terms upsert: ${t.creator_id}/${t.product_id} @${t.effective_from} = ${t.creator_split_pct}%${dryRun ? " (dry-run)" : ""}`);
+    // Rule #0: the split percentage must not leak into captured migration logs.
+    console.log(`[port] creator_terms upsert: ${t.creator_id}/${t.product_id} @${t.effective_from}${dryRun ? " (dry-run)" : ""}`);
     if (dryRun) continue;
     const { error } = await supabase.from("creator_terms").upsert(
       {

@@ -151,5 +151,12 @@ export async function effectiveCreatorSplitPctAsync(creatorHandle: string, store
   if (error) {
     throw new Error(`terms: creator_terms lookup failed (${creatorHandle}/${storeProductId}): ${error.message}`);
   }
-  return data ? (data as { creator_split_pct: number }).creator_split_pct : null;
+  // numeric(5,2) arrives from PostgREST as a STRING (the ledger learned this
+  // the hard way — see ledger.ts) — coerce and validate before the money math.
+  if (!data) return null;
+  const pct = Number((data as { creator_split_pct: string | number }).creator_split_pct);
+  if (!Number.isFinite(pct) || pct < 0 || pct > 100) {
+    throw new Error(`terms: creator_terms returned a non-numeric split for (${creatorHandle}/${storeProductId})`);
+  }
+  return pct;
 }

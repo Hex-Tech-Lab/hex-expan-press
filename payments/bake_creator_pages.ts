@@ -1,6 +1,7 @@
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import dotenv from "dotenv";
 import { loadBookIdentity } from "./book_identity.ts";
 import { getSupabaseAdmin } from "./src/supabase_admin.ts";
 
@@ -238,12 +239,16 @@ ${cards}
 const now = new Date().toISOString();
 
 async function main(): Promise<void> {
+  // CLI-path-only env load (same semantics as sync_book_identity/harvest): the
+  // documented bare `tsx payments/bake_creator_pages.ts` invocation must work.
+  dotenv.config({ override: true, path: join(here, "..", ".env") });
   const supabase = await getSupabaseAdmin();
   if (!supabase) {
     throw new Error("bake_creator_pages: SUPABASE_URL/SUPABASE_SECRET_KEY not configured — the DB is the only source of creator/product data (fail closed)");
   }
 
-  const { data: originRow } = await supabase.from("system_config").select("value").eq("key", "site.origin").maybeSingle();
+  const { data: originRow, error: originErr } = await supabase.from("system_config").select("value").eq("key", "site.origin").maybeSingle();
+  if (originErr) throw new Error(`bake_creator_pages: site.origin lookup failed: ${originErr.message}`);
   const origin = String((originRow as { value?: unknown } | null)?.value ?? "https://expanpress.com").replace(/\/$/, "");
 
   const { data: creatorRows, error } = await supabase
@@ -266,6 +271,10 @@ async function main(): Promise<void> {
     for (const pRaw of (row.products ?? []) as Array<Record<string, unknown>>) {
       // product_slug (URL namespace) comes from site_slug's second segment
       // ("handle/product_slug"), falling back to the portal slug.
+      if (!pRaw.store_product_id) {
+        console.log(`bake_creator_pages: skipping product ${String(pRaw.id)} (no store_product_id — not a commercial storefront product)`);
+        continue;
+      }
       const siteSlug = typeof pRaw.site_slug === "string" ? pRaw.site_slug : "";
       const productSlug = siteSlug.includes("/") ? siteSlug.split("/")[1]! : String(pRaw.slug ?? "");
       if (!productSlug) throw new Error(`bake_creator_pages: product ${String(pRaw.id)} has neither site_slug nor slug — cannot form its URL path`);
@@ -276,7 +285,7 @@ async function main(): Promise<void> {
       });
       cfgs.push({
         product_id: (pRaw.store_product_id as string | null) ?? undefined,
-        price_usd: (pRaw.price_usd as number | null) ?? undefined,
+        price_usd: pRaw.price_usd == null ? undefined : Number(pRaw.price_usd),
         currency: (pRaw.currency as string | null) ?? undefined,
         working_note: (pRaw.working_note as string | null) ?? undefined,
         description: (pRaw.description as string | null) ?? undefined,
