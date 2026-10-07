@@ -102,12 +102,15 @@ alter table public.system_config enable row level security;
 -- product_rails: creators may read the rails of their OWN products; anon gets
 -- no policy (deny-all); service_role bypasses RLS (checkout route + porting
 -- script use the service client).
+-- NOTE: the helper lives in the private schema — 20260926000100 moves
+-- my_creator_ids() out of public (public references in the portal migration
+-- are superseded by that alter).
 create policy product_rails_owner_read on public.product_rails
   for select to authenticated
   using (
     product_id in (
       select p.id from public.products p
-      where p.creator_id in (select public.my_creator_ids())
+      where p.creator_id in (select private.my_creator_ids())
     )
   );
 

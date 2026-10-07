@@ -278,6 +278,12 @@ async function main(): Promise<void> {
       const siteSlug = typeof pRaw.site_slug === "string" ? pRaw.site_slug : "";
       const productSlug = siteSlug.includes("/") ? siteSlug.split("/")[1]! : String(pRaw.slug ?? "");
       if (!productSlug) throw new Error(`bake_creator_pages: product ${String(pRaw.id)} has neither site_slug nor slug — cannot form its URL path`);
+      // Price must survive numeric coercion: PostgREST returns numeric columns
+      // as strings and a garbage value would flow into the baked page as NaN.
+      const priceUsd = pRaw.price_usd == null ? null : Number(pRaw.price_usd);
+      if (priceUsd !== null && !Number.isFinite(priceUsd)) {
+        throw new Error(`bake_creator_pages: product ${String(pRaw.id)} has non-numeric price_usd (got ${JSON.stringify(pRaw.price_usd)})`);
+      }
       c.products.push({
         composite_slug: String(pRaw.composite_slug ?? `${c.handle}-${productSlug}`),
         product_slug: productSlug,
@@ -285,14 +291,23 @@ async function main(): Promise<void> {
       });
       cfgs.push({
         product_id: (pRaw.store_product_id as string | null) ?? undefined,
-        price_usd: pRaw.price_usd == null ? undefined : Number(pRaw.price_usd),
+        price_usd: priceUsd ?? undefined,
         currency: (pRaw.currency as string | null) ?? undefined,
         working_note: (pRaw.working_note as string | null) ?? undefined,
         description: (pRaw.description as string | null) ?? undefined,
         book: (pRaw.book_registry as string | null) ?? undefined,
       });
     }
-    if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(c.handle)) throw new Error(`invalid creator handle: ${c.handle}`);
+    // A creator with zero storefront products has nothing to buy — publishing
+    // a public /c/<handle>/ hub for them would advertise an empty storefront.
+    if (c.products.length === 0) {
+      console.log(`bake_creator_pages: skipping creator ${c.handle} (no commercial storefront products)`);
+      continue;
+    }
+    // Mirror the DB constraint (creators.handle check, portal migration
+    // 20260926000000: ^[a-z0-9_-]{2,64}$) — a DB-valid handle must never abort
+    // the bake, and the bake must never publish a DB-invalid one.
+    if (!/^[a-z0-9_-]{2,64}$/.test(c.handle)) throw new Error(`invalid creator handle: ${c.handle}`);
     for (const p of c.products) {
       if (!p.composite_slug.startsWith(`${c.handle}-`)) {
         throw new Error(`composite_slug ${p.composite_slug} must start with creator handle ${c.handle}- (composite slug rule)`);
