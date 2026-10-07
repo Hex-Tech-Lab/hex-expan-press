@@ -59,9 +59,7 @@ function railsTableMock(rails: DbResult) {
   return {
     select: () => ({
       eq: () => ({
-        eq: () => ({
-          order: async () => rails,
-        }),
+        order: async () => rails,
       }),
     }),
   };
@@ -70,7 +68,7 @@ function railsTableMock(rails: DbResult) {
 function gateAdminClient(
   products: DbResult = { data: { id: PID, creator_id: OWNER_ID }, error: null },
   consents: DbResult = { data: givenConsents(), error: null },
-  rails: DbResult = { data: [{ provider: "polar", weight: 100, checkout_url: "https://buy.polar.sh/live-rail" }], error: null },
+  rails: DbResult = { data: [{ provider: "polar", weight: 100, checkout_url: "https://buy.polar.sh/live-rail", active: true }], error: null },
 ) {
   return {
     from: (table: string) => {
@@ -215,7 +213,7 @@ describe("billing/checkout unified checkout_url policy", () => {
   it("production DB rails serving a sandbox checkout_url returns 500", async () => {
     vi.stubEnv("VERCEL_ENV", "production");
     adminModule.mockAdminClient = gateAdminClient(undefined, undefined, {
-      data: [{ provider: "polar", weight: 100, checkout_url: "https://sandbox-api.polar.sh/x" }],
+      data: [{ provider: "polar", weight: 100, checkout_url: "https://sandbox-api.polar.sh/x", active: true }],
       error: null,
     });
     const res = await GET(request());
@@ -296,9 +294,9 @@ describe("billing/checkout wave85 sandbox + raw-URL fail-closed", () => {
   it("production DB rails with checkout_url omitted / null / 42, or a null / non-object rail, returns 500 each with no location", async () => {
     vi.stubEnv("VERCEL_ENV", "production");
     for (const rails of [
-      [{ provider: "polar", weight: 100 }],
-      [{ provider: "polar", weight: 100, checkout_url: null }],
-      [{ provider: "polar", weight: 100, checkout_url: 42 }],
+      [{ provider: "polar", weight: 100, active: true }],
+      [{ provider: "polar", weight: 100, checkout_url: null, active: true }],
+      [{ provider: "polar", weight: 100, checkout_url: 42, active: true }],
       [null],
       ["not-an-object"],
     ]) {
@@ -312,7 +310,7 @@ describe("billing/checkout wave85 sandbox + raw-URL fail-closed", () => {
   it("production with rejecting MatrixRouter and valid live rails falls back 302 to the live url", async () => {
     vi.stubEnv("VERCEL_ENV", "production");
     adminModule.mockAdminClient = gateAdminClient(undefined, undefined, {
-      data: [{ provider: "polar", weight: 100, checkout_url: "https://buy.polar.sh/live-rail" }],
+      data: [{ provider: "polar", weight: 100, checkout_url: "https://buy.polar.sh/live-rail", active: true }],
       error: null,
     });
     vi.mocked(MatrixRouter.getNextProvider).mockRejectedValueOnce(new Error("router down"));
@@ -324,7 +322,7 @@ describe("billing/checkout wave85 sandbox + raw-URL fail-closed", () => {
   it("production with rejecting MatrixRouter and a null-url rail fails closed 500 before the router", async () => {
     vi.stubEnv("VERCEL_ENV", "production");
     adminModule.mockAdminClient = gateAdminClient(undefined, undefined, {
-      data: [{ provider: "polar", weight: 100, checkout_url: null }],
+      data: [{ provider: "polar", weight: 100, checkout_url: null, active: true }],
       error: null,
     });
     vi.mocked(MatrixRouter.getNextProvider).mockRejectedValueOnce(new Error("router down"));
@@ -470,7 +468,7 @@ describe("billing/checkout consent gate fails closed (CR remediation)", () => {
           };
         }
         if (table === "product_rails") {
-          return railsTableMock({ data: [{ provider: "polar", weight: 100, checkout_url: "https://buy.polar.sh/live-rail" }], error: null });
+          return railsTableMock({ data: [{ provider: "polar", weight: 100, checkout_url: "https://buy.polar.sh/live-rail", active: true }], error: null });
         }
         return consentsTableMock({ data: givenConsents(), error: null });
       },
@@ -501,7 +499,7 @@ describe("billing/checkout consent gate fails closed (CR remediation)", () => {
           };
         }
         if (table === "product_rails") {
-          return railsTableMock({ data: [{ provider: "polar", weight: 100, checkout_url: "https://buy.polar.sh/live-rail" }], error: null });
+          return railsTableMock({ data: [{ provider: "polar", weight: 100, checkout_url: "https://buy.polar.sh/live-rail", active: true }], error: null });
         }
         return productTableMock({ data: { id: PID, creator_id: OWNER_ID }, error: null });
       },
@@ -522,12 +520,40 @@ describe("billing/checkout DB-driven rails (Sprint 15 heritage eradication)", ()
     vi.stubEnv("VERCEL_ENV", "production");
     vi.stubEnv("POLAR_CHECKOUT_URL", undefined as unknown as string);
     adminModule.mockAdminClient = gateAdminClient(undefined, undefined, {
-      data: [{ provider: "polar", weight: 100, checkout_url: "https://buy.polar.sh/from-db" }],
+      data: [{ provider: "polar", weight: 100, checkout_url: "https://buy.polar.sh/from-db", active: true }],
       error: null,
     });
     const res = await GET(request());
     expect(res.status).toBe(302);
     expect(res.headers.get("location")).toBe("https://buy.polar.sh/from-db");
+  });
+
+  it("returns 404 when rails are configured but ALL inactive — the database disable defeats env/legacy fallback", async () => {
+    vi.stubEnv("VERCEL_ENV", "production");
+    vi.stubEnv("CHECKOUT_URL_DUANE_RETIREMENT_PLAYBOOK_V1", "https://buy.polar.sh/env-override");
+    vi.stubEnv("POLAR_CHECKOUT_URL", "https://buy.polar.sh/live-legacy-default");
+    adminModule.mockAdminClient = gateAdminClient(undefined, undefined, {
+      data: [{ provider: "polar", weight: 100, checkout_url: "https://buy.polar.sh/from-db", active: false }],
+      error: null,
+    });
+    const res = await GET(request());
+    expect(res.status).toBe(404);
+    expect(res.headers.get("location")).toBeNull();
+  });
+
+  it("serves the DB rail when SOME configured rails are active (inactive ones excluded from routing)", async () => {
+    vi.stubEnv("VERCEL_ENV", "production");
+    vi.stubEnv("POLAR_CHECKOUT_URL", undefined as unknown as string);
+    adminModule.mockAdminClient = gateAdminClient(undefined, undefined, {
+      data: [
+        { provider: "polar", weight: 100, checkout_url: "https://buy.polar.sh/live-from-db", active: true },
+        { provider: "paddle", weight: 50, checkout_url: "https://sandbox-api.polar.sh/inactive", active: false },
+      ],
+      error: null,
+    });
+    const res = await GET(request());
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("https://buy.polar.sh/live-from-db");
   });
 
   it("returns 500 when the product_rails query errors (fail closed)", async () => {

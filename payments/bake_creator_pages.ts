@@ -253,7 +253,7 @@ async function main(): Promise<void> {
 
   const { data: creatorRows, error } = await supabase
     .from("creators")
-    .select("handle, display_name, platform_handles, bio, bio_source, photo, products(id, store_product_id, composite_slug, site_slug, slug, price_usd, currency, working_note, description, book_registry)");
+    .select("handle, display_name, platform_handles, bio, bio_source, photo, products(id, store_product_id, composite_slug, site_slug, slug, title, price_usd, currency, working_note, description, book_registry)");
   if (error) throw new Error(`bake_creator_pages: creators query failed: ${error.message}`);
   if (!creatorRows || creatorRows.length === 0) throw new Error("bake_creator_pages: no creators in the database — nothing to bake");
 
@@ -291,6 +291,7 @@ async function main(): Promise<void> {
       });
       cfgs.push({
         product_id: (pRaw.store_product_id as string | null) ?? undefined,
+        title: (pRaw.title as string | null) ?? undefined,
         price_usd: priceUsd ?? undefined,
         currency: (pRaw.currency as string | null) ?? undefined,
         working_note: (pRaw.working_note as string | null) ?? undefined,

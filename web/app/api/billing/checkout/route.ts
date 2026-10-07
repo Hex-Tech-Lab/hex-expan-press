@@ -157,23 +157,36 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     // Rails from the DATABASE (Sprint 15 heritage eradication — replaces the
     // data/settings/rails.<product>.json file read; product_rails is the SSOT).
-    // A rails query failure fails closed (500); an EMPTY rails set falls
-    // through to the env override / legacy default rail below.
+    // The query fetches ALL configured rails (not just active ones): a product
+    // with rails configured but NONE active is an explicit operator DISABLE —
+    // it must return 404, never fall through to the env override / legacy
+    // default rail below (only a product with NO rail records at all may fall
+    // through). A rails query failure fails closed (500).
     const { data: railRows, error: railErr } = await supabase
       .from("product_rails")
-      .select("provider, weight, checkout_url")
+      .select("provider, weight, checkout_url, active")
       .eq("product_id", resolvedProduct.id)
-      .eq("active", true)
       .order("weight", { ascending: false });
     if (railErr) {
       console.error(`[billing/checkout] rails query failed for '${product}': ${railErr.message}`);
       return jsonError(500, "Checkout consent verification failed");
     }
-    dbRails = (railRows ?? []).map((r) => ({
+    const allRails = (railRows ?? []).map((r) => ({
       provider: String((r as { provider: unknown }).provider),
       weight: Number((r as { weight: unknown }).weight),
       checkout_url: String((r as { checkout_url: unknown }).checkout_url),
+      active: Boolean((r as { active: unknown }).active),
     }));
+    dbRails = allRails.filter((r) => r.active).map(({ active: _active, ...rail }) => rail);
+    // The disable guard counts only WELL-FORMED rows (real product_rails rows
+    // are objects with an active boolean). A malformed row is a data-integrity
+    // failure that the raw-URL validation below rejects with 500 — it must
+    // never be misreported as an operator disable.
+    const configuredRowCount = (railRows ?? []).filter((r) => r !== null && typeof r === "object").length;
+    if (configuredRowCount > 0 && dbRails.length === 0) {
+      console.error(`[billing/checkout] product '${product}' has ${configuredRowCount} configured rail(s) but none active — the database disable is authoritative`);
+      return jsonError(404, `Checkout is disabled for product '${product}'`);
+    }
   } catch (err) {
     console.error(`[billing/checkout] consent verification exception for '${product}': ${(err as Error).message}`);
     return jsonError(500, "Checkout consent verification failed");

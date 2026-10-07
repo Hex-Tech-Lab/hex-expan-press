@@ -237,17 +237,17 @@ async function main(): Promise<void> {
   }
 
   // --- 5. Upsert product_rails (on (product_id, provider)) -------------------
-  for (const [configFile, configPath] of configPaths.entries()) {
+  for (const [, configPath] of configPaths.entries()) {
     const cfg = readJson<HeritageConfig>(configPath, "product config");
     if (!cfg.db_product_id || !cfg.product_id) continue;
     const railsPath = join(root, "data", "settings", `rails.${cfg.product_id}.json`);
-    let rails: RailsFile;
-    try {
-      rails = readJson<RailsFile>(railsPath, "rails file");
-    } catch {
+    if (!existsSync(railsPath)) {
       console.log(`[port] no rails file for ${cfg.product_id} — skipping product_rails`);
       continue;
     }
+    // Present-but-unusable is NOT "absent": a malformed or unreadable rails
+    // file would silently omit configured provider routes. Abort instead.
+    const rails = readJson<RailsFile>(railsPath, "rails file");
     const isSandboxUrl = (u: string): boolean => {
       try {
         return new URL(u).hostname.toLowerCase().split(/[.-]/).includes("sandbox");
@@ -270,46 +270,48 @@ async function main(): Promise<void> {
   }
 
   // --- 6. Upsert creator_terms (on (creator_id, product_id, effective_from)) -
-  let terms: TermsFile;
-  try {
-    terms = readJson<TermsFile>(join(root, "data", "settings", "terms.json"), "terms.json");
-  } catch {
-    terms = { terms: [] };
+  const termsPath = join(root, "data", "settings", "terms.json");
+  if (!existsSync(termsPath)) {
     console.log("[port] no terms.json — skipping creator_terms");
-  }
-  for (const t of terms.terms ?? []) {
-    const creatorUuid = creatorIdByHandle.get(t.creator_id);
-    if (!creatorUuid) throw new Error(`heritage port: terms.json creator '${t.creator_id}' not in creators.json`);
-    // product_id in terms.json is the STORE product id ("duane_retirement_playbook_v1")
-    const { data: prodRow, error: prodErr } = await supabase
-      .from("products").select("id").eq("store_product_id", t.product_id).maybeSingle();
-    if (prodErr) throw new Error(`heritage port: product lookup for terms failed (${t.product_id}): ${prodErr.message}`);
-    if (!prodRow?.id) {
-      if (dryRun) {
-        console.log(`[port] creator_terms WOULD upsert: ${t.creator_id}/${t.product_id} (dry-run: product link materializes after the products update)`);
-        continue;
+  } else {
+    // Present-but-unusable is NOT "no terms": a malformed or unreadable terms
+    // file would silently import as zero creator splits on the money path.
+    // Abort instead.
+    const terms = readJson<TermsFile>(termsPath, "terms.json");
+    for (const t of terms.terms ?? []) {
+      const creatorUuid = creatorIdByHandle.get(t.creator_id);
+      if (!creatorUuid) throw new Error(`heritage port: terms.json creator '${t.creator_id}' not in creators.json`);
+      // product_id in terms.json is the STORE product id ("duane_retirement_playbook_v1")
+      const { data: prodRow, error: prodErr } = await supabase
+        .from("products").select("id").eq("store_product_id", t.product_id).maybeSingle();
+      if (prodErr) throw new Error(`heritage port: product lookup for terms failed (${t.product_id}): ${prodErr.message}`);
+      if (!prodRow?.id) {
+        if (dryRun) {
+          console.log(`[port] creator_terms WOULD upsert: ${t.creator_id}/${t.product_id} (dry-run: product link materializes after the products update)`);
+          continue;
+        }
+        throw new Error(`heritage port: terms.json references unknown product '${t.product_id}' — port products first`);
       }
-      throw new Error(`heritage port: terms.json references unknown product '${t.product_id}' — port products first`);
+      // Rule #0: the split percentage must not leak into captured migration logs.
+      console.log(`[port] creator_terms upsert: ${t.creator_id}/${t.product_id} @${t.effective_from}${dryRun ? " (dry-run)" : ""}`);
+      if (dryRun) continue;
+      const { error } = await supabase.from("creator_terms").upsert(
+        {
+          creator_id: creatorUuid,
+          product_id: prodRow.id as string,
+          effective_from: t.effective_from,
+          creator_split_pct: t.creator_split_pct,
+          note: t.note ?? null,
+        },
+        { onConflict: "creator_id,product_id,effective_from" },
+      );
+      if (error) throw new Error(`heritage port: creator_terms upsert failed (${t.creator_id}/${t.product_id}): ${error.message}`);
     }
-    // Rule #0: the split percentage must not leak into captured migration logs.
-    console.log(`[port] creator_terms upsert: ${t.creator_id}/${t.product_id} @${t.effective_from}${dryRun ? " (dry-run)" : ""}`);
-    if (dryRun) continue;
-    const { error } = await supabase.from("creator_terms").upsert(
-      {
-        creator_id: creatorUuid,
-        product_id: prodRow.id as string,
-        effective_from: t.effective_from,
-        creator_split_pct: t.creator_split_pct,
-        note: t.note ?? null,
-      },
-      { onConflict: "creator_id,product_id,effective_from" },
-    );
-    if (error) throw new Error(`heritage port: creator_terms upsert failed (${t.creator_id}/${t.product_id}): ${error.message}`);
   }
 
   // --- 7. Upsert system_config (on key) --------------------------------------
   const systemEntries: Record<string, unknown> = {};
-  for (const [configFile, configPath] of configPaths.entries()) {
+  for (const [, configPath] of configPaths.entries()) {
     const cfg = readJson<HeritageConfig>(configPath, "product config");
     if (cfg.smoke_test !== undefined) systemEntries["payments.smoke_test"] = cfg.smoke_test;
     if (cfg.same_details_on_all_providers !== undefined) systemEntries["payments.same_details_on_all_providers"] = cfg.same_details_on_all_providers;

@@ -134,10 +134,14 @@ export async function effectiveCreatorSplitPctAsync(creatorHandle: string, store
   if (!supabase) {
     throw new Error("terms: Supabase admin client unavailable — split resolution cannot run (fail closed)");
   }
-  const [{ data: creator }, { data: product }] = await Promise.all([
+  const [{ data: creator, error: creatorErr }, { data: product, error: productErr }] = await Promise.all([
     supabase.from("creators").select("id").eq("handle", creatorHandle).maybeSingle(),
     supabase.from("products").select("id").eq("store_product_id", storeProductId).maybeSingle(),
   ]);
+  // A DB failure is NOT "no terms" — fail loud so the provider retries instead
+  // of settling the payout on a defaulted split.
+  if (creatorErr) throw new Error(`terms: creator lookup failed (${creatorHandle}): ${creatorErr.message}`);
+  if (productErr) throw new Error(`terms: product lookup failed (${storeProductId}): ${productErr.message}`);
   if (!creator?.id || !product?.id) return null;
   const { data, error } = await supabase
     .from("creator_terms")
