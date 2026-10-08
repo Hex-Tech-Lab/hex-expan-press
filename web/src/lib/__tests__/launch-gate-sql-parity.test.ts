@@ -8,10 +8,9 @@ import { PGlite } from "@electric-sql/pglite";
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { strictActiveConsentKinds } from "../consent-chain";
 
-const MIGRATION = readFileSync(
-  join(__dirname, "../../../../supabase/migrations/20261009000000_launch_trigger_and_audit.sql"),
-  "utf8",
-);
+const migration = (name: string) => readFileSync(join(__dirname, "../../../../supabase/migrations", name), "utf8");
+// Applied in order: 20261011 replaces the trigger with the live-change re-check.
+const MIGRATIONS = ["20261009000000_launch_trigger_and_audit.sql", "20261011000000_launch_gate_rechecks_live_changes.sql"].map(migration);
 
 // Minimal stand-ins for the tables/types the migration depends on.
 const SCHEMA = `
@@ -97,7 +96,7 @@ async function load(rows: Row[], release: string | null = SHA, mode = "gated") {
 beforeAll(async () => {
   db = new PGlite();
   await db.exec(SCHEMA);
-  await db.exec(MIGRATION);
+  for (const m of MIGRATIONS) await db.exec(m);
 });
 
 describe("SQL strict_active_consent_kinds ≡ TS strictActiveConsentKinds", () => {
@@ -144,6 +143,30 @@ describe("products_launch_gate trigger", () => {
     expect(await auditCount()).toBe(0);
   });
 
+  it("refuses a live transition under REPEATABLE READ (stale-snapshot guard)", async () => {
+    // Under RR the snapshot predates the advisory-lock wait, so the gate must
+    // refuse rather than verify against it. A passing update here would mean
+    // PGlite ignored the isolation level, so the assertion also proves the
+    // setting is honoured.
+    await db.exec("begin isolation level repeatable read");
+    try {
+      await expect(goLive()).rejects.toThrow(/requires READ COMMITTED/);
+    } finally {
+      await db.exec("rollback");
+    }
+    expect(await auditCount()).toBe(0);
+  });
+
+  it("still allows a live transition under READ COMMITTED with the guard in place", async () => {
+    await db.exec("begin isolation level read committed");
+    try {
+      await goLive();
+    } finally {
+      await db.exec("commit");
+    }
+    expect(await auditCount()).toBe(1);
+  });
+
   it("blocks when consents do not verify (C2 superseded by refusal)", async () => {
     await load(FIXTURES["C2 superseded by refusal"]);
     await expect(goLive()).rejects.toThrow(/consents/);
@@ -181,6 +204,37 @@ describe("products_launch_gate trigger", () => {
     }
     const { rows } = await db.query<{ launched_by: string }>("select launched_by from public.audit_launch_events");
     expect(rows[0].launched_by).toMatch(/^service_role \(session /);
+  });
+});
+
+describe("live-product changes are re-verified (AGY finding 1)", () => {
+  const OTHER = "d".repeat(64);
+  const auditCount = async () => (await db.query<{ n: number }>("select count(*)::int as n from public.audit_launch_events")).rows[0].n;
+
+  beforeEach(async () => {
+    await load(allGiven());
+    await db.query("update public.products set checkout_mode = 'live' where id = $1", [P1]);
+  });
+
+  it("blocks changing a live product's release hash to one C2 never approved", async () => {
+    await expect(db.query("update public.products set release_sha256 = $2 where id = $1", [P1, OTHER])).rejects.toThrow(/release hash mismatch/);
+    expect(await auditCount()).toBe(1);
+  });
+
+  it("allows a live hash change the C2 head approved, and audits the re-verified release", async () => {
+    await db.query("insert into public.consents (id, kind, product_id, creator_id, decision, document_sha256, supersedes) values ($1, 'C2_release_approval', $2, $3, 'given', $4, $5)", [u(4), P1, CREATOR, OTHER, u(2)]);
+    await db.query("update public.products set release_sha256 = $2 where id = $1", [P1, OTHER]);
+    const { rows } = await db.query<{ release_sha256: string }>("select release_sha256 from public.audit_launch_events order by id");
+    expect(rows.map((x) => x.release_sha256)).toEqual([SHA, OTHER]);
+  });
+
+  it("blocks moving a live product to a creator without the consent chain", async () => {
+    await expect(db.query("update public.products set creator_id = $2 where id = $1", [P1, OTHER_CREATOR])).rejects.toThrow(/consents/);
+  });
+
+  it("leaves hash changes on a non-live product alone", async () => {
+    await db.query("update public.products set release_sha256 = $2 where id = $1", [P2, OTHER]);
+    expect(await auditCount()).toBe(1);
   });
 });
 
