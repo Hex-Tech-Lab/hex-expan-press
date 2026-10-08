@@ -11,7 +11,7 @@
 // come from the settings registry (data/settings/providers.json + global.json) with inline
 // fallbacks mirroring the committed registry — standalone runs behave identically.
 import type { CheckoutProvider, ParseResult, ProviderName } from "../provider.ts";
-import { hashEmail, hmacSha256Hex, safeEqualHex } from "../provider.ts";
+import { cleanAttributionId, hashEmail, hmacSha256Hex, safeEqualHex } from "../provider.ts";
 import { getPath, isAllowedCurrency, paymentProviderSetting } from "../settings_registry.ts";
 
 const NAME: ProviderName = "paddle";
@@ -64,12 +64,11 @@ export const paddleProvider: CheckoutProvider = {
     const saleId = String(getPath(body, FM.sale_id) ?? data?.id ?? "");
     const email = getPath(body, FM.email) ?? customData?.email; // UNVERIFIED vs provider docs — verify before go-live (Paddle redacts emails unless stored)
     const changeTs = Number(getPath(body, FM.ts_epoch_s) ?? data?.changed_at); // UNVERIFIED vs provider docs — epoch seconds
-    // Our own canonical attribution ID (added 2026-09-18) — see field_map.attribution_id /
-    // attribution_note in data/settings/providers.json. Server-side extraction only; client-side
-    // checkout-link wiring to actually SET custom_data.attribution_id at checkout is not yet
-    // built for Paddle (its JS overlay uses a customData init option, not a URL param).
-    const attributionIdRaw = getPath(body, FM.attribution_id) ?? customData?.attribution_id;
-    const attributionId = typeof attributionIdRaw === "string" && attributionIdRaw !== "" ? attributionIdRaw : undefined;
+    // Canonical attribution: the checkout sets custom_data.reference_id (Sprint 18 A —
+    // same field the live adapter src/adapters/payments/paddle.adapter.ts reads). The
+    // pre-wiring custom_data.attribution_id is still accepted as a fallback.
+    const attributionIdRaw = getPath(body, FM.attribution_id) ?? customData?.reference_id ?? customData?.attribution_id;
+    const attributionId = cleanAttributionId(attributionIdRaw);
 
     if (!productId) return { ok: false, status: 400, error: "missing custom_data.product_id (set it on the checkout)" };
     if (!saleId) return { ok: false, status: 400, error: "missing data.id" };
