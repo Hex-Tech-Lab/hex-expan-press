@@ -1,0 +1,19 @@
+docs/backlog/sprint19-backend-cascade.md
+  s_04aaddd1b3201b::t_b02abea013257b 14,16-17,39-40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "100cccee4f76bd6be0ee27fe25f0f3189e590181",
+  "prompts": {},
+  "sessions": {
+    "s_04aaddd1b3201b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ac96f60f-59e3-4774-bda5-c1985e3d3af8",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "CCW <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
