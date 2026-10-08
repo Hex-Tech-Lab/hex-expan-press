@@ -67,6 +67,14 @@
   .sf-root .buybtn-gated, .sf-root .buybtn-gated:hover { background: #707674; cursor: default; }
   .sf-root .assurance { font-size: 12.5px; color: #6E5F53; margin-bottom: 24px; }
   .sf-root .taxnote { font-size: 12.5px; color: #6E5F53; margin: 0 0 18px; }
+  .sf-root .inside { margin-bottom: 36px; }
+  .sf-root .inside ul { list-style: none; padding: 0; }
+  .sf-root .inside li { position: relative; padding-left: 26px; margin-bottom: 12px; color: #2B2520; }
+  .sf-root .inside li::before {
+    content: ""; position: absolute; left: 0; top: 9px;
+    width: 12px; height: 12px; border-radius: 3px; background: #F2C14E;
+  }
+  .sf-root .inside li b { font-weight: 650; }
   .sf-root .disclaimers {
     padding: 18px 20px; background: #F3ECDF; border-radius: 12px;
     font-size: 12.5px; color: #6E5F53; margin-bottom: 40px;
