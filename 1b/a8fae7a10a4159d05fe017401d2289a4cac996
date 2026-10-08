@@ -1,0 +1,21 @@
+web/src/lib/__tests__/launch-gate-sql-parity.test.ts
+  s_4e2b0b0a92fc08::t_5ceac46ea61dd4 146-169
+supabase/migrations/20261011000000_launch_gate_rechecks_live_changes.sql
+  s_4e2b0b0a92fc08::t_622a22caa3d8f1 26-34
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1ba8fae7a10a4159d05fe017401d2289a4cac996",
+  "prompts": {},
+  "sessions": {
+    "s_4e2b0b0a92fc08": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "69ec633a-0c01-486a-80de-180205f86530",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "CCW <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
