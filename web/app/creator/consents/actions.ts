@@ -59,7 +59,9 @@ export async function signConsentAction(_prev: ConsentFormState, formData: FormD
   }
 
   const h = await headers();
-  const ip = (h.get("x-forwarded-for") ?? "0.0.0.0").split(",")[0].trim();
+  // Audit IP: Vercel's own client-IP headers first (set by the edge, never
+  // client-supplied); x-forwarded-for only as the local-dev fallback.
+  const ip = (h.get("x-real-ip") ?? h.get("x-vercel-forwarded-for") ?? h.get("x-forwarded-for") ?? "0.0.0.0").split(",")[0].trim();
   const userAgent = h.get("user-agent") ?? "";
   const authProvider = session.user.app_metadata?.provider ?? "email";
 
