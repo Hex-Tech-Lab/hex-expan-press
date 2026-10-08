@@ -685,7 +685,7 @@ describe("billing/checkout sandbox-rail purge regression (Sprint 17)", () => {
     adminModule.mockAdminClient = store;
     const res = await GET(new NextRequest("http://localhost:3000/api/billing/checkout?product=sandboxed-book"));
     expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toBe("https://buy.polar.sh/live-sandboxed-book");
+    expect(res.headers.get("location")).toBe("https://buy.polar.sh/live-sandboxed-book?reference_id=direct");
   });
 
   it("importer aborts on a malformed checkout_url and ignores stray rail fields", async () => {
