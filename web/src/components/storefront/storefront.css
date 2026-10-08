@@ -64,6 +64,7 @@
     padding: 13px 26px; border-radius: 12px; margin-bottom: 10px;
   }
   .sf-root .buybtn:hover { background: #256A4C; }
+  .sf-root .buybtn-gated, .sf-root .buybtn-gated:hover { background: #707674; cursor: default; }
   .sf-root .assurance { font-size: 12.5px; color: #6E5F53; margin-bottom: 24px; }
   .sf-root .taxnote { font-size: 12.5px; color: #6E5F53; margin: 0 0 18px; }
   .sf-root .disclaimers {

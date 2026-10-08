@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { MatrixRouter } from "../../../../../src/infrastructure/matrix_router/matrix_router";
 import { GLOBAL } from "../../../../../payments/src/settings_registry";
 import { getSupabaseAdmin } from "../../../../../payments/src/supabase_admin";
-import { strictActiveConsentKinds } from "../../../../src/lib/consent-chain";
+import { normalizeSha256, strictActiveConsentKinds, strictChainHead } from "../../../../src/lib/consent-chain";
 
 
 export const runtime = "nodejs";
@@ -101,7 +101,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const productFilter = UUID_RE.test(lookupKey) ? `slug.eq.${lookupKey},id.eq.${lookupKey}` : `slug.eq.${lookupKey}`;
     const { data: dbProduct, error: prodErr } = await supabase
       .from("products")
-      .select("id, creator_id")
+      .select("id, creator_id, release_sha256, checkout_mode")
       .or(productFilter)
       .maybeSingle();
 
@@ -114,7 +114,16 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       console.error(`[billing/checkout] product '${product}' did not resolve to a consent-verifiable product — failing closed`);
       return jsonError(500, "Checkout consent verification failed");
     }
-    const resolvedProduct = dbProduct as { id: string; creator_id: string | null };
+    const resolvedProduct = dbProduct as { id: string; creator_id: string | null; release_sha256?: string | null; checkout_mode?: string | null };
+
+    // Launch state (Sprint 17): only a product the launch trigger let through
+    // to 'live' may sell. 'sandbox' is honoured on non-production runtimes
+    // only; 'gated', 'paddle', null or anything else fails closed.
+    const mode = resolvedProduct.checkout_mode;
+    if (mode !== "live" && !(mode === "sandbox" && sandboxAllowed())) {
+      console.error(`[billing/checkout] product '${product}' is not launched (checkout_mode=${mode ?? "null"})`);
+      return jsonError(403, "Checkout forbidden: product is not launched");
+    }
     resolvedProductId = resolvedProduct.id;
 
     // Tenant isolation: the service-role client bypasses RLS, so the chain is
@@ -126,13 +135,19 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       return jsonError(500, "Checkout consent verification failed");
     }
 
-    const { data: consentRows, error: consentErr } = await supabase
+    const { data: consentRows, error: consentErr, count: consentCount } = await supabase
       .from("consents")
-      .select("id, kind, decision, product_id, supersedes")
+      .select("id, kind, decision, product_id, supersedes, document_sha256", { count: "exact" })
       .eq("creator_id", ownerId);
 
     if (consentErr) {
       console.error(`[billing/checkout] failed to query consents for '${product}': ${consentErr.message}`);
+      return jsonError(500, "Checkout consent verification failed");
+    }
+    // Supersession needs the COMPLETE chain: a response truncated by the
+    // PostgREST row cap could omit a superseding refusal. Fail closed.
+    if (typeof consentCount !== "number" || consentCount !== (consentRows ?? []).length) {
+      console.error(`[billing/checkout] incomplete consent history for '${product}': got ${(consentRows ?? []).length} of ${consentCount ?? "unknown"}`);
       return jsonError(500, "Checkout consent verification failed");
     }
 
@@ -144,6 +159,17 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     if (!hasC1 || !hasC2 || !hasC3) {
       console.error(`[billing/checkout] missing active consents for '${product}': C1=${hasC1}, C2=${hasC2}, C3=${hasC3}`);
       return jsonError(403, "Checkout forbidden: required creator consents are not active");
+    }
+
+    // Release integrity (Sprint 17): the active C2 head must have approved the
+    // product's CURRENT release PDF. A missing/invalid hash on either side or a
+    // mismatch fails closed — the same check the launch trigger enforces.
+    const releaseSha = normalizeSha256(resolvedProduct.release_sha256);
+    const c2Head = strictChainHead(consentRows ?? [], resolvedProduct.id, "C2_release_approval");
+    const approvedSha = normalizeSha256(c2Head?.document_sha256);
+    if (!releaseSha || !approvedSha || approvedSha !== releaseSha) {
+      console.error(`[billing/checkout] release hash mismatch for '${product}': release=${releaseSha ?? "invalid"} approved=${approvedSha ?? "invalid"}`);
+      return jsonError(403, "Checkout forbidden: release hash mismatch");
     }
 
     // Rails from the DATABASE (Sprint 15 heritage eradication — replaces the
