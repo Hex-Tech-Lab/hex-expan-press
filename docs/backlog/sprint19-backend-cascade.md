@@ -22,7 +22,7 @@
    - A worker processes pending rows right after commit, retries with backoff, and is idempotent per (product, provider, target price).
    - **Paddle:** update the price, or create a new one and repoint `products.paddle_price_id`. Which one Paddle Billing allows has to be verified against its docs before building.
    - **Polar:** update the product's prices. The archive/replace behavior also needs verifying first.
-6. **Parity gate at checkout.** Until every provider row for a drop is `synced`, checkout for that product fails closed (409 "price sync pending"). This stops the storefront showing one price while a buyer is charged another. Sprint 20 may relax this once the sync is proven.
+6. **Parity gate at checkout.** Until every provider row for a drop is `synced`, checkout for that product fails closed with a retryable 503 ("checkout updating"). This stops the storefront showing one price while a buyer is charged another. Founder decision: blocking is mandatory, not a tunable.
 
 ## Guardrails
 
@@ -36,9 +36,9 @@
 - pglite: refund-rate SQL matches the TS netting on shared fixtures (same pattern as `launch-gate-sql-parity.test.ts`).
 - The evaluator holds at the floor, below the sample minimum, and on a rerun the same day; it never raises.
 - Outbox: a crash between commit and the provider call recovers on retry; a duplicate run makes no second provider call.
-- Checkout returns 409 while a sync is pending and 200 once synced.
+- Checkout returns 503 while a sync is pending and 200 once synced.
 
-## Open questions for the founder
+## Founder decisions (2026-10-08)
 
-1. Can the cascade ever raise the price again, e.g. after a refund spike clears? This spec says no.
-2. Should the pending-sync window block checkout (this spec) or keep selling at the old provider price?
+1. **One-way ratchet.** The price never goes back up. The cascade only drops, down to the floor. This is enforced in SQL: the price write refuses any index that is not strictly greater than the current one.
+2. **A pending sync blocks checkout.** A transient 503 is preferable to charging more than the storefront shows.
