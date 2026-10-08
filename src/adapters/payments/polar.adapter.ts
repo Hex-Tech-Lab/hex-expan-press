@@ -17,7 +17,7 @@
 import { PaymentProviderPort, WebhookParseResult, CheckoutCommand, CheckoutResult, SaleCompletedEvent, RefundIssuedEvent } from "../../domain/payments/payments.port.ts";
 import { z } from "zod";
 import crypto from "crypto";
-import { hashEmail } from "../../../payments/src/provider.ts";
+import { cleanAttributionId, hashEmail } from "../../../payments/src/provider.ts";
 import { GLOBAL } from "../../../payments/src/settings_registry.ts";
 
 // --- SSOT Schema (Zod) ---
@@ -32,7 +32,7 @@ const PolarSaleSchema = z.object({
     created_at: z.string().datetime(),
     customer: z.object({ email: z.string().email() }),
     paid: z.boolean().optional(),
-    metadata: z.object({ reference_id: z.string().optional() }).optional().nullable()
+    metadata: z.object({ reference_id: z.unknown().optional() }).optional().nullable()
   })
 });
 
@@ -150,7 +150,7 @@ export class PolarAdapter implements PaymentProviderPort {
         currency: validated.data.currency.toUpperCase(),
         buyerEmailHash: hashEmail(validated.data.customer.email),
         occurredAt: validated.data.created_at,
-        attributionId: validated.data.metadata?.reference_id || undefined,
+        attributionId: cleanAttributionId(validated.data.metadata?.reference_id),
         rawPayload: parsedJson
       };
       return { isValid: true, event };

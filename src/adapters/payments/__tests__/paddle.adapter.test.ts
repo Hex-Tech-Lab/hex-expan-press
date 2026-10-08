@@ -20,7 +20,7 @@ const hmacFor = (ts: string, body: string, secret = SECRET): string =>
 
 const validBody = (overrides?: {
   items?: Array<{ price: { id: string } }>;
-  custom_data?: { product_id?: string; email?: string };
+  custom_data?: { product_id?: string; email?: string; reference_id?: unknown };
 }): string =>
   JSON.stringify({
     event_type: "transaction.completed",
@@ -82,6 +82,17 @@ describe("PaddleAdapter webhook verification (tolerance + h1 format)", () => {
 
   it("PADDLE_WEBHOOK_TOLERANCE_SECONDS is 300", () => {
     expect(PADDLE_WEBHOOK_TOLERANCE_SECONDS).toBe(300);
+  });
+
+  it.each([
+    ["a valid label", "yt_desc:z9", "yt_desc:z9"],
+    ["a non-string label", { evil: 1 }, undefined],
+    ["a forged string label", "'; drop table orders; --", undefined],
+  ])("custom_data.reference_id: %s keeps the sale (attribution %j)", async (_l, ref, want) => {
+    const body = validBody({ custom_data: { product_id: "test_product_basic", email: "buyer@example.com", reference_id: ref } });
+    const res = await parse(body, freshSig(body));
+    expect(res.isValid).toBe(true);
+    expect((res as { event: SaleCompletedEvent }).event.attributionId).toBe(want);
   });
 
   it("a valid transaction.completed maps the sale fields", async () => {

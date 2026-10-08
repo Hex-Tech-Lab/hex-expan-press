@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { ATTRIBUTION_KEYS as KEYS } from "../../lib/attribution";
 
 /**
  * Buy CTA with attribution forwarding (Sprint 17 P3 — ports the retired
@@ -11,8 +12,6 @@ import { useEffect } from "react";
  * on the server would opt every request out of ISR). Storage failures never
  * block checkout — the plain link still works.
  */
-const KEYS = { src: "ep_src", dub_id: "ep_dub_id" } as const;
-
 function useAttributionCapture() {
   useEffect(() => {
     try {
