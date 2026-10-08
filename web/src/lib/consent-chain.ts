@@ -84,3 +84,19 @@ export function strictActiveConsentKinds(consents: ConsentChainRow[], productId?
   return active;
 }
 
+
+/** The single product-scoped chain head for `kind` (supersession resolved
+ *  creator-wide, as above), or null when there are zero or several heads. */
+export function strictChainHead<T extends ConsentChainRow>(consents: T[], productId: string, kind: string): T | null {
+  const supersededIds = supersededConsentIds(consents);
+  const heads = consents.filter((c) => c.kind === kind && c.product_id === productId && !supersededIds.has(c.id));
+  return heads.length === 1 ? heads[0] : null;
+}
+
+const SHA256_HEX_RE = /^[0-9a-f]{64}$/;
+
+/** Lowercased sha256 hex, or null for missing/blank/non-hex/all-zero values. */
+export function normalizeSha256(raw: unknown): string | null {
+  const v = typeof raw === "string" ? raw.trim().toLowerCase() : "";
+  return SHA256_HEX_RE.test(v) && v !== "0".repeat(64) ? v : null;
+}
