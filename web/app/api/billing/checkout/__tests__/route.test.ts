@@ -29,16 +29,17 @@ const CHECKOUT_URL = "http://localhost:3000/api/billing/checkout?product=duane_r
 // .select().eq().eq().order() — mocked through the same admin client.
 const PID = "57596c19-c550-4bde-b17a-e87b86d005c5";
 const OWNER_ID = "c0a80101-0000-4000-8000-000000000001";
+const RELEASE_SHA = "a".repeat(64);
 
 interface DbResult {
   data: unknown;
   error: { message: string } | null;
 }
 
-function givenConsents(): Array<{ id: string; kind: string; decision: string; product_id: string; supersedes: string | null }> {
+function givenConsents(): Array<{ id: string; kind: string; decision: string; product_id: string; supersedes: string | null; document_sha256?: string }> {
   return [
     { id: "c1", kind: "C1_data_accuracy", decision: "given", product_id: PID, supersedes: null },
-    { id: "c2", kind: "C2_release_approval", decision: "given", product_id: PID, supersedes: null },
+    { id: "c2", kind: "C2_release_approval", decision: "given", product_id: PID, supersedes: null, document_sha256: RELEASE_SHA },
     { id: "c3", kind: "C3_revenue_split", decision: "given", product_id: PID, supersedes: null },
   ];
 }
@@ -52,8 +53,13 @@ function productTableMock(products: DbResult) {
   };
 }
 
+// count mirrors supabase-js { count: "exact" } — the route fails closed without it.
+function withCount(consents: DbResult) {
+  return { ...consents, count: Array.isArray(consents.data) ? consents.data.length : 0 };
+}
+
 function consentsTableMock(consents: DbResult) {
-  return { select: () => ({ eq: async () => consents }) };
+  return { select: () => ({ eq: async () => withCount(consents) }) };
 }
 
 function railsTableMock(rails: DbResult) {
@@ -67,7 +73,7 @@ function railsTableMock(rails: DbResult) {
 }
 
 function gateAdminClient(
-  products: DbResult = { data: { id: PID, creator_id: OWNER_ID }, error: null },
+  products: DbResult = { data: { id: PID, creator_id: OWNER_ID, release_sha256: RELEASE_SHA, checkout_mode: "live" }, error: null },
   consents: DbResult = { data: givenConsents(), error: null },
   rails: DbResult = { data: [{ provider: "polar", weight: 100, checkout_url: "https://buy.polar.sh/live-rail", active: true }], error: null },
 ) {
@@ -466,7 +472,7 @@ describe("billing/checkout consent gate fails closed (CR remediation)", () => {
               select: () => ({
                 or: (f: string) => {
                   filters.push(f);
-                  return { maybeSingle: async () => ({ data: { id: PID, creator_id: OWNER_ID }, error: null }) };
+                  return { maybeSingle: async () => ({ data: { id: PID, creator_id: OWNER_ID, release_sha256: RELEASE_SHA, checkout_mode: "live" }, error: null }) };
                 },
               }),
             };
@@ -495,7 +501,7 @@ describe("billing/checkout consent gate fails closed (CR remediation)", () => {
               select: () => ({
                 or: (f: string) => {
                   filters.push(f);
-                  return { maybeSingle: async () => ({ data: { id: PID, creator_id: OWNER_ID }, error: null }) };
+                  return { maybeSingle: async () => ({ data: { id: PID, creator_id: OWNER_ID, release_sha256: RELEASE_SHA, checkout_mode: "live" }, error: null }) };
                 },
               }),
             };
@@ -513,7 +519,7 @@ describe("billing/checkout consent gate fails closed (CR remediation)", () => {
   );
 
   it("fails closed with 500 when the resolved product has no owner", async () => {
-    adminModule.mockAdminClient = gateAdminClient({ data: { id: PID, creator_id: null }, error: null });
+    adminModule.mockAdminClient = gateAdminClient({ data: { id: PID, creator_id: null, release_sha256: RELEASE_SHA, checkout_mode: "live" }, error: null });
     const res = await GET(request());
     expect(res.status).toBe(500);
     expect(res.headers.get("location")).toBeNull();
@@ -535,7 +541,7 @@ describe("billing/checkout consent gate fails closed (CR remediation)", () => {
             select: () => ({
               eq: (col: string, val: string) => {
                 eqCalls.push([col, val]);
-                return { data: givenConsents(), error: null };
+                return withCount({ data: givenConsents(), error: null });
               },
             }),
           };
@@ -543,7 +549,7 @@ describe("billing/checkout consent gate fails closed (CR remediation)", () => {
         if (table === "product_rails") {
           return railsTableMock({ data: [{ provider: "polar", weight: 100, checkout_url: "https://buy.polar.sh/live-rail", active: true }], error: null });
         }
-        return productTableMock({ data: { id: PID, creator_id: OWNER_ID }, error: null });
+        return productTableMock({ data: { id: PID, creator_id: OWNER_ID, release_sha256: RELEASE_SHA, checkout_mode: "live" }, error: null });
       },
     };
     vi.stubEnv("VERCEL_ENV", "preview");
@@ -624,7 +630,7 @@ describe("billing/checkout DB-driven rails (Sprint 15 heritage eradication)", ()
     adminModule.mockAdminClient = {
       from: (table: string) => {
         if (table === "products") {
-          return productTableMock({ data: { id: "11111111-1111-1111-1111-111111111111", creator_id: OWNER_ID }, error: null });
+          return productTableMock({ data: { id: "11111111-1111-1111-1111-111111111111", creator_id: OWNER_ID, release_sha256: RELEASE_SHA, checkout_mode: "live" }, error: null });
         }
         if (table === "product_rails") {
           return railsTableMock({ data: [], error: null });
@@ -660,7 +666,7 @@ describe("billing/checkout sandbox-rail purge regression (Sprint 17)", () => {
             select: () => ({ eq: () => ({ order: async () => ({ data: railRows, error: null }) }) }),
           };
         }
-        if (table === "products") return productTableMock({ data: { id: PID, creator_id: OWNER_ID }, error: null });
+        if (table === "products") return productTableMock({ data: { id: PID, creator_id: OWNER_ID, release_sha256: RELEASE_SHA, checkout_mode: "live" }, error: null });
         return consentsTableMock({ data: givenConsents(), error: null });
       },
     };
@@ -698,5 +704,97 @@ describe("billing/checkout sandbox-rail purge regression (Sprint 17)", () => {
     const store = { from: () => ({ upsert: async (row: Record<string, unknown>) => (railRows.push(row), { error: null }) }) };
     await portRails(store as never, "live-book", PID, [{ provider: "polar", weight: 100, checkout_url: "https://buy.polar.sh/live" }], false);
     expect(railRows).toEqual([{ product_id: PID, provider: "polar", weight: 100, checkout_url: "https://buy.polar.sh/live", active: true }]);
+  });
+});
+
+describe("billing/checkout release hash gate (Sprint 17)", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  const withHashes = (release: unknown, approved: unknown) =>
+    gateAdminClient(
+      { data: { id: PID, creator_id: OWNER_ID, release_sha256: release, checkout_mode: "live" }, error: null },
+      { data: givenConsents().map((c) => (c.kind === "C2_release_approval" ? { ...c, document_sha256: approved } : c)), error: null },
+    );
+
+  it("permits checkout when the C2 head approved the current release (case-insensitive)", async () => {
+    vi.stubEnv("VERCEL_ENV", "preview");
+    adminModule.mockAdminClient = withHashes(RELEASE_SHA.toUpperCase(), RELEASE_SHA);
+    const res = await GET(request());
+    expect(res.status).toBe(302);
+  });
+
+  it.each([
+    ["a mismatched approval", RELEASE_SHA, "b".repeat(64)],
+    ["a null release hash", null, RELEASE_SHA],
+    ["a missing C2 document hash", RELEASE_SHA, undefined],
+    ["an all-zero release hash", "0".repeat(64), "0".repeat(64)],
+    ["a non-hex release hash", "z".repeat(64), "z".repeat(64)],
+  ])("fails closed with 403 on %s", async (_label, release, approved) => {
+    vi.stubEnv("VERCEL_ENV", "preview");
+    adminModule.mockAdminClient = withHashes(release, approved);
+    const res = await GET(request());
+    expect(res.status).toBe(403);
+    expect(res.headers.get("location")).toBeNull();
+    expect(await res.json()).toMatchObject({ error: expect.stringContaining("release hash mismatch") });
+  });
+
+  it("uses the C2 chain HEAD: a superseded approval of the current release does not count", async () => {
+    vi.stubEnv("VERCEL_ENV", "preview");
+    const consents = [
+      ...givenConsents().filter((c) => c.kind !== "C2_release_approval"),
+      { id: "c2-old", kind: "C2_release_approval", decision: "given", product_id: PID, supersedes: null, document_sha256: RELEASE_SHA },
+      { id: "c2-new", kind: "C2_release_approval", decision: "given", product_id: PID, supersedes: "c2-old", document_sha256: "b".repeat(64) },
+    ];
+    adminModule.mockAdminClient = gateAdminClient(undefined, { data: consents, error: null });
+    const res = await GET(request());
+    expect(res.status).toBe(403);
+  });
+});
+
+describe("billing/checkout launch state + complete consent history (Sprint 17)", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  const withMode = (mode: unknown) =>
+    gateAdminClient({ data: { id: PID, creator_id: OWNER_ID, release_sha256: RELEASE_SHA, checkout_mode: mode }, error: null });
+
+  it.each(["gated", "paddle", null, undefined, "LIVE"])("fails closed with 403 when checkout_mode is %s", async (mode) => {
+    vi.stubEnv("VERCEL_ENV", "preview");
+    adminModule.mockAdminClient = withMode(mode);
+    const res = await GET(request());
+    expect(res.status).toBe(403);
+    expect(await res.json()).toMatchObject({ error: expect.stringContaining("not launched") });
+  });
+
+  it("honours checkout_mode=sandbox on a preview runtime", async () => {
+    vi.stubEnv("VERCEL_ENV", "preview");
+    adminModule.mockAdminClient = withMode("sandbox");
+    expect((await GET(request())).status).toBe(302);
+  });
+
+  it("rejects checkout_mode=sandbox in production", async () => {
+    vi.stubEnv("VERCEL_ENV", "production");
+    adminModule.mockAdminClient = withMode("sandbox");
+    expect((await GET(request())).status).toBe(403);
+  });
+
+  it.each([
+    ["truncated (count exceeds rows)", 5000],
+    ["missing count", undefined],
+  ])("fails closed with 500 when the consent history is %s", async (_label, count) => {
+    vi.stubEnv("VERCEL_ENV", "preview");
+    const client = gateAdminClient();
+    adminModule.mockAdminClient = {
+      from: (table: string) =>
+        table === "consents"
+          ? { select: () => ({ eq: async () => ({ data: givenConsents(), error: null, count }) }) }
+          : client.from(table),
+    };
+    const res = await GET(request());
+    expect(res.status).toBe(500);
+    expect(res.headers.get("location")).toBeNull();
   });
 });
