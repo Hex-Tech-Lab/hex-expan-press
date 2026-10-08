@@ -73,9 +73,15 @@ export default async function StoreProductPage({
         </div>
         <p className="taxnote">Sales tax / VAT is calculated and collected at checkout by our payment partners.</p>
 
-        <a className="buybtn" href={buyUrl}>
-          Buy now &mdash; secure checkout
-        </a>
+        {p.checkout_mode === "live" ? (
+          <a className="buybtn" href={buyUrl}>
+            Buy now &mdash; secure checkout
+          </a>
+        ) : (
+          <p className="buybtn buybtn-gated" aria-disabled="true">
+            Coming soon &mdash; not yet available for purchase
+          </p>
+        )}
         <p className="assurance">Secure checkout hosted by our payment partners &middot; PDF delivered by email</p>
 
         {(p.disclaimers ?? []).length > 0 && (

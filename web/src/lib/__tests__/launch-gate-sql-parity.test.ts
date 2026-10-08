@@ -15,7 +15,7 @@ const MIGRATION = readFileSync(
 
 // Minimal stand-ins for the tables/types the migration depends on.
 const SCHEMA = `
-  create role anon; create role authenticated;
+  create role anon; create role authenticated; create role service_role;
   create type public.consent_kind as enum ('C1_data_accuracy', 'C2_release_approval', 'C3_revenue_split');
   create table public.products (
     id uuid primary key, creator_id uuid, release_sha256 text,
@@ -74,7 +74,15 @@ const FIXTURES: Record<string, Row[]> = {
 let db: PGlite;
 
 async function load(rows: Row[], release: string | null = SHA, mode = "gated") {
-  await db.exec("truncate public.consents; truncate public.audit_launch_events; delete from public.products;");
+  // audit_launch_events is append-only (no truncate/delete), so the fixture
+  // reset briefly disables its guards — superuser-only, as in production.
+  await db.exec(`
+    truncate public.consents;
+    alter table public.audit_launch_events disable trigger user;
+    truncate public.audit_launch_events;
+    alter table public.audit_launch_events enable trigger user;
+    delete from public.products;
+  `);
   for (const p of [P1, P2]) {
     await db.query("insert into public.products (id, creator_id, release_sha256, checkout_mode) values ($1, $2, $3, $4)", [p, CREATOR, release, mode]);
   }
@@ -162,5 +170,41 @@ describe("products_launch_gate trigger", () => {
     await load([]);
     await db.query("update public.products set checkout_mode = 'sandbox' where id = $1", [P1]);
     expect(await auditCount()).toBe(0);
+  });
+
+  it("records the effective session role as the launch actor, not the definer", async () => {
+    await db.exec("grant select, update on public.products to service_role; set role service_role;");
+    try {
+      await goLive();
+    } finally {
+      await db.exec("reset role;");
+    }
+    const { rows } = await db.query<{ launched_by: string }>("select launched_by from public.audit_launch_events");
+    expect(rows[0].launched_by).toMatch(/^service_role \(session /);
+  });
+});
+
+describe("audit_launch_events integrity", () => {
+  beforeEach(async () => {
+    await load(allGiven());
+    await db.query("update public.products set checkout_mode = 'live' where id = $1", [P1]);
+  });
+
+  it.each(["update public.audit_launch_events set release_sha256 = 'x'", "delete from public.audit_launch_events", "truncate public.audit_launch_events"])(
+    "is append-only: %s is blocked",
+    async (sql) => {
+      await expect(db.exec(sql)).rejects.toThrow(/append-only/);
+    },
+  );
+
+  it("denies direct inserts to service_role (only the launch trigger writes)", async () => {
+    await db.exec("set role service_role;");
+    try {
+      await expect(
+        db.query("insert into public.audit_launch_events (product_id, release_sha256, launched_by) values ($1, $2, 'forged')", [P2, SHA]),
+      ).rejects.toThrow(/permission denied/);
+    } finally {
+      await db.exec("reset role;");
+    }
   });
 });

@@ -39,6 +39,8 @@ export interface StoreProduct {
   working_note: string | null;
   description: string | null;
   disclaimers: string[] | null;
+  /** Only 'live' sells (the launch trigger guards that transition). */
+  checkout_mode: string | null;
 }
 
 export interface HubCreator {
@@ -96,7 +98,7 @@ export const fetchCreatorHub = cache(async function fetchCreatorHub(handle: stri
   const { data, error } = await supabase
     .from("creators")
     .select(
-      "handle, display_name, platform_handles, bio, photo, products(id, store_product_id, composite_slug, site_slug, slug, title, price_usd, currency, working_note, description, disclaimers)",
+      "handle, display_name, platform_handles, bio, photo, products(id, store_product_id, composite_slug, site_slug, slug, title, price_usd, currency, working_note, description, disclaimers, checkout_mode)",
     )
     .eq("handle", handle)
     .maybeSingle();
@@ -120,7 +122,7 @@ export const fetchStoreProduct = cache(async function fetchStoreProduct(
   const { data, error } = await supabase
     .from("creators")
     .select(
-      "handle, display_name, platform_handles, bio, photo, products(id, store_product_id, composite_slug, site_slug, slug, title, price_usd, currency, working_note, description, disclaimers)",
+      "handle, display_name, platform_handles, bio, photo, products(id, store_product_id, composite_slug, site_slug, slug, title, price_usd, currency, working_note, description, disclaimers, checkout_mode)",
     )
     .eq("handle", handle)
     .maybeSingle();
