@@ -1,0 +1,19 @@
+docs/backlog/sprint18-paddle-attribution.md
+  s_04aaddd1b3201b::t_d902c77f5ce42e 9-10,14,16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a8370c0ced96568d4e2962164216f88b8564d53c",
+  "prompts": {},
+  "sessions": {
+    "s_04aaddd1b3201b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ac96f60f-59e3-4774-bda5-c1985e3d3af8",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "CCW <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
