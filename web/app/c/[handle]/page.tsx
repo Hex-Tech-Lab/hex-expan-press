@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { AttributionCapture } from "../../../src/components/storefront/buy-link";
 import {
+  NOINDEX,
   StorefrontFooter,
+  storefrontRobots,
   fetchCreatorHub,
   isWorkingTitle,
   platformLink,
@@ -22,7 +25,7 @@ export const revalidate = 60;
 export async function generateMetadata({ params }: { params: Promise<{ handle: string }> }): Promise<Metadata> {
   const { handle } = await params;
   const result = await fetchCreatorHub(handle);
-  if (!result) return { title: "Creator page · ExpanPress" };
+  if (!result) return { title: "Creator page · ExpanPress", robots: NOINDEX };
   const { creator, origin } = result;
   const title = `${creator.display_name} — Creator page · ExpanPress`;
   const description = creator.bio
@@ -30,6 +33,7 @@ export async function generateMetadata({ params }: { params: Promise<{ handle: s
     : `Publications by ${creator.display_name} on ExpanPress.`;
   const canonical = `${origin}/c/${creator.handle}`;
   return {
+    robots: storefrontRobots(creator.products),
     title,
     description,
     alternates: { canonical },
@@ -52,6 +56,7 @@ export default async function CreatorHubPage({ params }: { params: Promise<{ han
 
   return (
     <div className="sf-root">
+      <AttributionCapture />
       <div className="wrap">
         <p className="kicker">Creator page &middot; ExpanPress</p>
         {creator.photo ? (

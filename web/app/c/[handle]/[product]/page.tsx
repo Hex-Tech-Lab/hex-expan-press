@@ -1,7 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { BuyLink } from "../../../../src/components/storefront/buy-link";
 import {
+  NOINDEX,
   StorefrontFooter,
+  storefrontRobots,
+  insideItems,
   fetchStoreProduct,
   isWorkingTitle,
   priceOf,
@@ -24,12 +28,13 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { handle, product } = await params;
   const result = await fetchStoreProduct(handle, product);
-  if (!result) return { title: "Publication · ExpanPress" };
+  if (!result) return { title: "Publication · ExpanPress", robots: NOINDEX };
   const { creator, product: p, origin } = result;
   const title = `${p.title ?? p.composite_slug} · ${creator.display_name} · ExpanPress`;
   const description = (p.description ?? `A publication by ${creator.display_name} on ExpanPress.`).slice(0, 155);
   const canonical = `${origin}/c/${creator.handle}/${product}`;
   return {
+    robots: storefrontRobots([p]),
     title,
     description,
     alternates: { canonical },
@@ -47,6 +52,7 @@ export default async function StoreProductPage({
   const { creator, product: p } = resolveCreatorOr404(await fetchStoreProduct(handle, product));
 
   const price = priceOf(p);
+  const inside = insideItems(p.inside);
   const buyUrl = `/api/billing/checkout?product=${encodeURIComponent(p.id)}`;
 
   return (
@@ -74,15 +80,28 @@ export default async function StoreProductPage({
         <p className="taxnote">Sales tax / VAT is calculated and collected at checkout by our payment partners.</p>
 
         {p.checkout_mode === "live" ? (
-          <a className="buybtn" href={buyUrl}>
+          <BuyLink className="buybtn" href={buyUrl}>
             Buy now &mdash; secure checkout
-          </a>
+          </BuyLink>
         ) : (
           <p className="buybtn buybtn-gated" aria-disabled="true">
             Coming soon &mdash; not yet available for purchase
           </p>
         )}
         <p className="assurance">Secure checkout hosted by our payment partners &middot; PDF delivered by email</p>
+
+        {inside.length > 0 && (
+          <div className="inside">
+            <h2>What&rsquo;s inside</h2>
+            <ul>
+              {inside.map((item) => (
+                <li key={item.label}>
+                  <b>{item.label}</b> &mdash; {item.text}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
 
         {(p.disclaimers ?? []).length > 0 && (
           <div className="disclaimers">
