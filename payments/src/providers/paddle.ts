@@ -67,8 +67,11 @@ export const paddleProvider: CheckoutProvider = {
     // Canonical attribution: the checkout sets custom_data.reference_id (Sprint 18 A —
     // same field the live adapter src/adapters/payments/paddle.adapter.ts reads). The
     // pre-wiring custom_data.attribution_id is still accepted as a fallback.
-    const attributionIdRaw = getPath(body, FM.attribution_id) ?? customData?.reference_id ?? customData?.attribution_id;
-    const attributionId = cleanAttributionId(attributionIdRaw);
+    // Each candidate is cleaned before the fallback, so an invalid value never
+    // shadows a valid one; reference_id leads, a legacy field_map path follows.
+    const attributionId = [customData?.reference_id, getPath(body, FM.attribution_id), customData?.attribution_id]
+      .map(cleanAttributionId)
+      .find((v) => v !== undefined);
 
     if (!productId) return { ok: false, status: 400, error: "missing custom_data.product_id (set it on the checkout)" };
     if (!saleId) return { ok: false, status: 400, error: "missing data.id" };
