@@ -1,0 +1,30 @@
+payments/test/paddle_attribution.test.ts
+  s_04aaddd1b3201b::t_271fc55a4500f9 31-33
+src/adapters/payments/polar.adapter.ts
+  s_04aaddd1b3201b::t_eb8980cd570560 35
+payments/src/providers/paddle.ts
+  s_04aaddd1b3201b::t_271fc55a4500f9 70-74
+src/adapters/payments/paddle.adapter.ts
+  s_04aaddd1b3201b::t_eb8980cd570560 58
+src/adapters/payments/__tests__/paddle.adapter.test.ts
+  s_04aaddd1b3201b::t_231f3ccfab761b 23,87-95
+  s_04aaddd1b3201b::t_7d1128f781aa38 96-97
+docs/agent_ledger.jsonl
+  s_04aaddd1b3201b::t_aa54409863b405 511
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0d8576f5fd9801773e59929986aa97349d2ec395",
+  "prompts": {},
+  "sessions": {
+    "s_04aaddd1b3201b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ac96f60f-59e3-4774-bda5-c1985e3d3af8",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "CCW <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
