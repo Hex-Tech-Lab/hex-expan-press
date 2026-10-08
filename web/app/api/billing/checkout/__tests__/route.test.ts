@@ -837,4 +837,15 @@ describe("billing/checkout attribution forwarding (Sprint 17 P3)", () => {
     const res = await GET(new NextRequest(`${CHECKOUT_URL}&src=ig`));
     expect(new URL(res.headers.get("location")!).searchParams.getAll("reference_id")).toEqual(["ig"]);
   });
+
+  it("does not add reference_id to non-Polar rails (Paddle reads custom_data, not the link query)", async () => {
+    vi.stubEnv("VERCEL_ENV", "preview");
+    vi.mocked(MatrixRouter.getNextProvider).mockResolvedValueOnce("paddle");
+    adminModule.mockAdminClient = gateAdminClient(undefined, undefined, {
+      data: [{ provider: "paddle", weight: 100, checkout_url: "https://pay.paddle.io/checkout/x", active: true }],
+      error: null,
+    });
+    const res = await GET(new NextRequest(`${CHECKOUT_URL}&src=ig`));
+    expect(res.headers.get("location")).toBe("https://pay.paddle.io/checkout/x");
+  });
 });
