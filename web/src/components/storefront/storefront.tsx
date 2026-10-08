@@ -39,6 +39,8 @@ export interface StoreProduct {
   working_note: string | null;
   description: string | null;
   disclaimers: string[] | null;
+  /** "What's inside" bullets; malformed entries are skipped at render. */
+  inside: unknown;
   /** Only 'live' sells (the launch trigger guards that transition). */
   checkout_mode: string | null;
 }
@@ -98,7 +100,7 @@ export const fetchCreatorHub = cache(async function fetchCreatorHub(handle: stri
   const { data, error } = await supabase
     .from("creators")
     .select(
-      "handle, display_name, platform_handles, bio, photo, products(id, store_product_id, composite_slug, site_slug, slug, title, price_usd, currency, working_note, description, disclaimers, checkout_mode)",
+      "handle, display_name, platform_handles, bio, photo, products(id, store_product_id, composite_slug, site_slug, slug, title, price_usd, currency, working_note, description, disclaimers, checkout_mode, inside)",
     )
     .eq("handle", handle)
     .maybeSingle();
@@ -122,7 +124,7 @@ export const fetchStoreProduct = cache(async function fetchStoreProduct(
   const { data, error } = await supabase
     .from("creators")
     .select(
-      "handle, display_name, platform_handles, bio, photo, products(id, store_product_id, composite_slug, site_slug, slug, title, price_usd, currency, working_note, description, disclaimers, checkout_mode)",
+      "handle, display_name, platform_handles, bio, photo, products(id, store_product_id, composite_slug, site_slug, slug, title, price_usd, currency, working_note, description, disclaimers, checkout_mode, inside)",
     )
     .eq("handle", handle)
     .maybeSingle();
@@ -134,6 +136,22 @@ export const fetchStoreProduct = cache(async function fetchStoreProduct(
   const origin = await fetchSiteOrigin(supabase);
   return { creator, product, origin };
 });
+
+/** Well-formed {label, text} entries from products.inside, others dropped. */
+export function insideItems(raw: unknown): Array<{ label: string; text: string }> {
+  if (!Array.isArray(raw)) return [];
+  return raw.filter(
+    (i): i is { label: string; text: string } =>
+      typeof i === "object" && i !== null && typeof i.label === "string" && i.label !== "" && typeof i.text === "string" && i.text !== "",
+  );
+}
+
+/** Unlaunched storefront pages stay out of search indexes (as the retired
+ *  static pages did); only a page with something actually for sale indexes. */
+export const NOINDEX = { index: false, follow: false } as const;
+export function storefrontRobots(products: Array<Pick<StoreProduct, "checkout_mode">>) {
+  return products.some((p) => p.checkout_mode === "live") ? undefined : NOINDEX;
+}
 
 export function resolveCreatorOr404<T>(result: T | null): T {
   if (!result) notFound();

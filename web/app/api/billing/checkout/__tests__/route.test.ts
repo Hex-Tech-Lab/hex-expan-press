@@ -133,7 +133,7 @@ describe("billing/checkout launch-product default rail", () => {
     vi.stubEnv("POLAR_CHECKOUT_URL", "https://buy.polar.sh/live-test-link");
     const res = await GET(request());
     expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toBe("https://buy.polar.sh/live-test-link");
+    expect(res.headers.get("location")).toBe("https://buy.polar.sh/live-test-link?reference_id=direct");
   });
 
   it("falls back to the sandbox link outside production", async () => {
@@ -214,7 +214,7 @@ describe("billing/checkout unified checkout_url policy", () => {
     vi.stubEnv("CHECKOUT_URL_DUANE_RETIREMENT_PLAYBOOK_V1", "https://buy.polar.sh/live-override");
     const res = await GET(request());
     expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toBe("https://buy.polar.sh/live-override");
+    expect(res.headers.get("location")).toBe("https://buy.polar.sh/live-override?reference_id=direct");
   });
 
   it("production DB rails serving a sandbox checkout_url returns 500", async () => {
@@ -286,7 +286,7 @@ describe("billing/checkout wave85 sandbox + raw-URL fail-closed", () => {
     vi.stubEnv("POLAR_CHECKOUT_URL", "https://sandboxpay.example.com/x");
     const res = await GET(request());
     expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toBe("https://sandboxpay.example.com/x");
+    expect(res.headers.get("location")).toBe("https://sandboxpay.example.com/x?reference_id=direct");
   });
 
   it("production with SET-but-blank override does not fall through to a valid POLAR_CHECKOUT_URL", async () => {
@@ -323,7 +323,7 @@ describe("billing/checkout wave85 sandbox + raw-URL fail-closed", () => {
     vi.mocked(MatrixRouter.getNextProvider).mockRejectedValueOnce(new Error("router down"));
     const res = await GET(request());
     expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toBe("https://buy.polar.sh/live-rail");
+    expect(res.headers.get("location")).toBe("https://buy.polar.sh/live-rail?reference_id=direct");
   });
 
   it("production with rejecting MatrixRouter and a null-url rail fails closed 500 before the router", async () => {
@@ -573,7 +573,7 @@ describe("billing/checkout DB-driven rails (Sprint 15 heritage eradication)", ()
     });
     const res = await GET(request());
     expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toBe("https://buy.polar.sh/from-db");
+    expect(res.headers.get("location")).toBe("https://buy.polar.sh/from-db?reference_id=direct");
   });
 
   it("returns 404 when rails are configured but ALL inactive — the database disable defeats env/legacy fallback", async () => {
@@ -601,7 +601,7 @@ describe("billing/checkout DB-driven rails (Sprint 15 heritage eradication)", ()
     });
     const res = await GET(request());
     expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toBe("https://buy.polar.sh/live-from-db");
+    expect(res.headers.get("location")).toBe("https://buy.polar.sh/live-from-db?reference_id=direct");
   });
 
   it("returns 500 when the product_rails query errors (fail closed)", async () => {
@@ -621,7 +621,7 @@ describe("billing/checkout DB-driven rails (Sprint 15 heritage eradication)", ()
     adminModule.mockAdminClient = gateAdminClient(undefined, undefined, { data: [], error: null });
     const res = await GET(request());
     expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toBe("https://buy.polar.sh/env-override");
+    expect(res.headers.get("location")).toBe("https://buy.polar.sh/env-override?reference_id=direct");
   });
 
   it("returns 404 for an unknown product with no DB rails, no env override, and no legacy mapping", async () => {
@@ -796,5 +796,45 @@ describe("billing/checkout launch state + complete consent history (Sprint 17)",
     const res = await GET(request());
     expect(res.status).toBe(500);
     expect(res.headers.get("location")).toBeNull();
+  });
+});
+
+describe("billing/checkout attribution forwarding (Sprint 17 P3)", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  const go = async (qs: string) => {
+    vi.stubEnv("VERCEL_ENV", "preview");
+    adminModule.mockAdminClient = gateAdminClient();
+    const res = await GET(new NextRequest(`${CHECKOUT_URL}${qs}`));
+    expect(res.status).toBe(302);
+    return new URL(res.headers.get("location")!).searchParams.get("reference_id");
+  };
+
+  it("forwards src and dub_id as reference_id=src:dub_id", async () => {
+    expect(await go("&src=yt-desc&dub_id=abc123")).toBe("yt-desc:abc123");
+  });
+
+  it("defaults src to direct", async () => {
+    expect(await go("&dub_id=abc123")).toBe("direct:abc123");
+    expect(await go("")).toBe("direct");
+  });
+
+  it.each(["&src=%3Cscript%3E", "&src=a%26reference_id%3Devil", `&src=${"x".repeat(65)}`])(
+    "drops unsafe attribution values (%s)",
+    async (qs) => {
+      expect(await go(qs)).toBe("direct");
+    },
+  );
+
+  it("replaces, never duplicates, a reference_id already on the provider link", async () => {
+    vi.stubEnv("VERCEL_ENV", "preview");
+    adminModule.mockAdminClient = gateAdminClient(undefined, undefined, {
+      data: [{ provider: "polar", weight: 100, checkout_url: "https://buy.polar.sh/live-rail?reference_id=stale", active: true }],
+      error: null,
+    });
+    const res = await GET(new NextRequest(`${CHECKOUT_URL}&src=ig`));
+    expect(new URL(res.headers.get("location")!).searchParams.getAll("reference_id")).toEqual(["ig"]);
   });
 });
