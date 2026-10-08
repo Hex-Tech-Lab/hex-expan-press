@@ -93,9 +93,9 @@ export default async function StoreProductPage({
         {inside.length > 0 && (
           <div className="inside">
             <h2>What&rsquo;s inside</h2>
-            <ul>
-              {inside.map((item) => (
-                <li key={item.label}>
+            <ul role="list">
+              {inside.map((item, i) => (
+                <li key={i}>
                   <b>{item.label}</b> &mdash; {item.text}
                 </li>
               ))}
