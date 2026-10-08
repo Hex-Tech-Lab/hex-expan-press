@@ -6,7 +6,7 @@ import { assertLaunchConsents } from "../src/launch_gate.ts";
 const OLD = "a".repeat(64), CURRENT = "b".repeat(64);
 const ZERO = "0".repeat(64);
 const row = (id: string, kind: string, sha: string | null) =>
-  ({ id, kind, decision: "given", signed_at: "2026-10-01T00:00:00Z", supersedes: null, document_sha256: sha });
+  ({ id, kind, decision: "given", product_id: "p1", signed_at: "2026-10-01T00:00:00Z", supersedes: null, document_sha256: sha });
 
 const env = () => {
   vi.stubEnv("SUPABASE_URL", "https://db.invalid");
@@ -32,14 +32,14 @@ const fetchFor = (
 describe("F6 launch gate vs rebuilt release PDF", () => {
   it("blocks launch when the C2 head approved an older release hash", async () => {
     env();
-    await expect(assertLaunchConsents("p1", fetchFor([{ id: "p1", release_sha256: CURRENT }]))).rejects.toThrow(
+    await expect(assertLaunchConsents("p1", fetchFor([{ id: "p1", release_sha256: CURRENT, creator_id: "cr1" }]))).rejects.toThrow(
       /launch blocked: p1: C2 approved a different release \(approved a{64}, current b{64}\)/,
     );
   });
 
   it("allows launch when the approved hash matches the current release", async () => {
     env();
-    await expect(assertLaunchConsents("p1", fetchFor([{ id: "p1", release_sha256: CURRENT }], fullRows(CURRENT)))).resolves.toBeUndefined();
+    await expect(assertLaunchConsents("p1", fetchFor([{ id: "p1", release_sha256: CURRENT, creator_id: "cr1" }], fullRows(CURRENT)))).resolves.toBeUndefined();
   });
 
   it("allows uppercase/lowercase hash mismatch to pass (case-insensitive match)", async () => {
@@ -48,7 +48,7 @@ describe("F6 launch gate vs rebuilt release PDF", () => {
     await expect(
       assertLaunchConsents(
         "p1",
-        fetchFor([{ id: "p1", release_sha256: upper(CURRENT) }], fullRows(upper(CURRENT))),
+        fetchFor([{ id: "p1", release_sha256: upper(CURRENT), creator_id: "cr1" }], fullRows(upper(CURRENT))),
       ),
     ).resolves.toBeUndefined();
   });
@@ -81,10 +81,10 @@ describe("F6 launch gate vs rebuilt release PDF", () => {
 
   it("blocks when the C2 head document_sha256 is missing/zero", async () => {
     env();
-    await expect(assertLaunchConsents("p1", fetchFor([{ id: "p1", release_sha256: CURRENT }], fullRows(null)))).rejects.toThrow(
+    await expect(assertLaunchConsents("p1", fetchFor([{ id: "p1", release_sha256: CURRENT, creator_id: "cr1" }], fullRows(null)))).rejects.toThrow(
       /launch blocked/,
     );
-    await expect(assertLaunchConsents("p1", fetchFor([{ id: "p1", release_sha256: CURRENT }], fullRows(ZERO)))).rejects.toThrow(
+    await expect(assertLaunchConsents("p1", fetchFor([{ id: "p1", release_sha256: CURRENT, creator_id: "cr1" }], fullRows(ZERO)))).rejects.toThrow(
       /launch blocked/,
     );
   });
@@ -135,7 +135,7 @@ describe("F6 launch gate vs a PostgREST-faithful select projection", () => {
   it("allows launch when C2 matches the current release, with select honoured", async () => {
     env();
     await expect(
-      assertLaunchConsents("p1", projectingFetch([{ id: "p1", release_sha256: CURRENT }], fullRows(CURRENT))),
+      assertLaunchConsents("p1", projectingFetch([{ id: "p1", release_sha256: CURRENT, creator_id: "cr1" }], fullRows(CURRENT))),
     ).resolves.toBeUndefined();
   });
 
@@ -144,11 +144,50 @@ describe("F6 launch gate vs a PostgREST-faithful select projection", () => {
     let seenOrder: string | null = null;
     const orderProbeFetch = (async (url: string | URL | Request) => {
       const u = String(url);
-      if (u.includes("/products")) return new Response(JSON.stringify([{ id: "p1", release_sha256: CURRENT }]), { status: 200 });
+      if (u.includes("/products")) return new Response(JSON.stringify([{ id: "p1", release_sha256: CURRENT, creator_id: "cr1" }]), { status: 200 });
       seenOrder = new URL(u).searchParams.get("order");
       return new Response(JSON.stringify(project(u, fullRows(CURRENT))), { status: 200 });
     }) as unknown as typeof fetch;
     await expect(assertLaunchConsents("p1", orderProbeFetch)).resolves.toBeUndefined();
     expect(seenOrder).toBe("signed_at.desc,id.desc");
+  });
+});
+
+describe("Sprint 17 parity: creator-wide supersession (matches the checkout route)", () => {
+  const PRODUCT = [{ id: "p1", release_sha256: CURRENT, creator_id: "cr1" }];
+
+  it("blocks when the product's C2 was superseded by a same-kind row on ANOTHER product", async () => {
+    env();
+    const rows = [
+      ...fullRows(CURRENT),
+      { ...row("9", "C2_release_approval", CURRENT), product_id: "p2", supersedes: "2" },
+    ];
+    await expect(assertLaunchConsents("p1", fetchFor(PRODUCT, rows))).rejects.toThrow(/missing consent\(s\): C2_release_approval/);
+  });
+
+  it("ignores a cross-KIND supersedes pointer (it never supersedes)", async () => {
+    env();
+    const rows = [...fullRows(CURRENT), { ...row("9", "C3_revenue_split", null), product_id: "p2", supersedes: "2" }];
+    await expect(assertLaunchConsents("p1", fetchFor(PRODUCT, rows))).resolves.toBeUndefined();
+  });
+
+  it("blocks when the product has no owner", async () => {
+    env();
+    await expect(
+      assertLaunchConsents("p1", fetchFor([{ id: "p1", release_sha256: CURRENT }], fullRows(CURRENT))),
+    ).rejects.toThrow(/no owner/);
+  });
+
+  it("scopes the consent query to the product owner", async () => {
+    env();
+    let consentsUrl = "";
+    const probe = (async (url: string) => {
+      const u = String(url);
+      if (u.includes("/products")) return new Response(JSON.stringify(PRODUCT), { status: 200 });
+      consentsUrl = u;
+      return new Response(JSON.stringify(fullRows(CURRENT)), { status: 200 });
+    }) as unknown as typeof fetch;
+    await assertLaunchConsents("p1", probe);
+    expect(new URL(consentsUrl).searchParams.get("creator_id")).toBe("eq.cr1");
   });
 });
