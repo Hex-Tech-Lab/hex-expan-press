@@ -7,11 +7,14 @@
  * the webhook adapter uses: custom_data.product_id (required) and, when the
  * page already knows it, custom_data.email. Without an email the buyer types
  * it in the overlay and the adapter resolves it from the Paddle customer.
+ * custom_data.reference_id carries the captured storefront attribution (same
+ * <src>[:<dub_id>] shape Polar receives), read at click time.
  */
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { initializePaddle } from "@paddle/paddle-js";
 import type { Paddle } from "@paddle/paddle-js";
+import { storedAttributionRef } from "../../lib/attribution";
 import { paddleClientToken, resolvePaddleEnvironment } from "../../lib/paddle-env";
 
 interface PaddleCheckoutButtonProps {
@@ -20,6 +23,11 @@ interface PaddleCheckoutButtonProps {
   email?: string;
   children?: ReactNode;
   className?: string;
+}
+
+/** The overlay's customData — the webhook adapter's custom_data contract. */
+export function paddleCustomData(productId: string, email?: string): Record<string, string> {
+  return { product_id: productId, reference_id: storedAttributionRef(), ...(email ? { email } : {}) };
 }
 
 export function PaddleCheckoutButton({ priceId, productId, email, children = "Buy now", className }: PaddleCheckoutButtonProps) {
@@ -72,7 +80,7 @@ export function PaddleCheckoutButton({ priceId, productId, email, children = "Bu
     if (!paddle) return;
     paddle.Checkout.open({
       items: [{ priceId, quantity: 1 }],
-      customData: { product_id: productId, ...(email ? { email } : {}) },
+      customData: paddleCustomData(productId, email),
       ...(email ? { customer: { email } } : {}),
     });
   };

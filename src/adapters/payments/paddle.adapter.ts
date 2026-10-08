@@ -17,7 +17,7 @@
  * Timestamp source: data.changed_at (ISO-8601)
  * Email path: data.custom_data.email
  * Product ID path: mapped server-side via PADDLE_PRICE_MAP (items[].price.id)
- * Attribution ID path: data.custom_data.reference_id (not yet wired client-side)
+ * Attribution ID path: data.custom_data.reference_id (set by PaddleCheckoutButton)
  *
  * STATUS: PENDING-KYC — adapter is wired and type-checked but cannot be live-tested
  * until the Paddle account KYC is complete. All field paths are from Paddle's official
@@ -26,7 +26,7 @@
 import { PaymentProviderPort, WebhookParseResult, CheckoutCommand, CheckoutResult, SaleCompletedEvent, RefundIssuedEvent, RefundReversedEvent } from "../../domain/payments/payments.port.ts";
 import { z } from "zod";
 import crypto from "crypto";
-import { hashEmail } from "../../../payments/src/provider.ts";
+import { cleanAttributionId, hashEmail } from "../../../payments/src/provider.ts";
 import { GLOBAL } from "../../../payments/src/settings_registry.ts";
 
 // Minimal schema to inspect event_type before strict validation
@@ -55,7 +55,7 @@ const PaddleWebhookSchema = z.object({
     custom_data: z.object({
       product_id: z.string().nullish(),
       email: z.string().email().nullish(),
-      reference_id: z.string().nullish() // attribution passthrough (wiring unverified)
+      reference_id: z.string().nullish() // attribution: <src>[:<dub_id>] from PaddleCheckoutButton
     }).nullish(),
     changed_at: z.string().datetime().nullish(),
     customer_id: z.string().nullish(),
@@ -322,7 +322,7 @@ export class PaddleAdapter implements PaymentProviderPort {
         currency,
         buyerEmailHash: hashEmail(email),
         occurredAt: validated.data.changed_at || new Date().toISOString(),
-        attributionId: validated.data.custom_data?.reference_id || undefined,
+        attributionId: cleanAttributionId(validated.data.custom_data?.reference_id),
         rawPayload: parsedJson
       };
       return { isValid: true, event };
