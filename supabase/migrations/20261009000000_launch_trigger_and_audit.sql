@@ -144,10 +144,11 @@ begin
     -- Actor: inside SECURITY DEFINER current_user is the function owner, so
     -- record the effective session role (e.g. service_role under PostgREST)
     -- and the login role.
-    insert into public.audit_launch_events (product_id, release_sha256, launched_by)
+    insert into public.audit_launch_events (product_id, release_sha256, launched_at, launched_by)
     values (
       new.id,
       lower(btrim(new.release_sha256)),
+      clock_timestamp(), -- after the lock wait, not transaction start
       coalesce(nullif(current_setting('role', true), 'none'), session_user::text) || ' (session ' || session_user::text || ')'
     );
   end if;
