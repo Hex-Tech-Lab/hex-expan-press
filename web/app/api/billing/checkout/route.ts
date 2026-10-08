@@ -101,7 +101,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const productFilter = UUID_RE.test(lookupKey) ? `slug.eq.${lookupKey},id.eq.${lookupKey}` : `slug.eq.${lookupKey}`;
     const { data: dbProduct, error: prodErr } = await supabase
       .from("products")
-      .select("id, creator_id, release_sha256")
+      .select("id, creator_id, release_sha256, checkout_mode")
       .or(productFilter)
       .maybeSingle();
 
@@ -114,7 +114,16 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       console.error(`[billing/checkout] product '${product}' did not resolve to a consent-verifiable product — failing closed`);
       return jsonError(500, "Checkout consent verification failed");
     }
-    const resolvedProduct = dbProduct as { id: string; creator_id: string | null; release_sha256?: string | null };
+    const resolvedProduct = dbProduct as { id: string; creator_id: string | null; release_sha256?: string | null; checkout_mode?: string | null };
+
+    // Launch state (Sprint 17): only a product the launch trigger let through
+    // to 'live' may sell. 'sandbox' is honoured on non-production runtimes
+    // only; 'gated', 'paddle', null or anything else fails closed.
+    const mode = resolvedProduct.checkout_mode;
+    if (mode !== "live" && !(mode === "sandbox" && sandboxAllowed())) {
+      console.error(`[billing/checkout] product '${product}' is not launched (checkout_mode=${mode ?? "null"})`);
+      return jsonError(403, "Checkout forbidden: product is not launched");
+    }
     resolvedProductId = resolvedProduct.id;
 
     // Tenant isolation: the service-role client bypasses RLS, so the chain is
@@ -126,13 +135,19 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       return jsonError(500, "Checkout consent verification failed");
     }
 
-    const { data: consentRows, error: consentErr } = await supabase
+    const { data: consentRows, error: consentErr, count: consentCount } = await supabase
       .from("consents")
-      .select("id, kind, decision, product_id, supersedes, document_sha256")
+      .select("id, kind, decision, product_id, supersedes, document_sha256", { count: "exact" })
       .eq("creator_id", ownerId);
 
     if (consentErr) {
       console.error(`[billing/checkout] failed to query consents for '${product}': ${consentErr.message}`);
+      return jsonError(500, "Checkout consent verification failed");
+    }
+    // Supersession needs the COMPLETE chain: a response truncated by the
+    // PostgREST row cap could omit a superseding refusal. Fail closed.
+    if (typeof consentCount !== "number" || consentCount !== (consentRows ?? []).length) {
+      console.error(`[billing/checkout] incomplete consent history for '${product}': got ${(consentRows ?? []).length} of ${consentCount ?? "unknown"}`);
       return jsonError(500, "Checkout consent verification failed");
     }
 

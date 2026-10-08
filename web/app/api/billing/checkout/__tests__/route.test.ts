@@ -53,8 +53,13 @@ function productTableMock(products: DbResult) {
   };
 }
 
+// count mirrors supabase-js { count: "exact" } — the route fails closed without it.
+function withCount(consents: DbResult) {
+  return { ...consents, count: Array.isArray(consents.data) ? consents.data.length : 0 };
+}
+
 function consentsTableMock(consents: DbResult) {
-  return { select: () => ({ eq: async () => consents }) };
+  return { select: () => ({ eq: async () => withCount(consents) }) };
 }
 
 function railsTableMock(rails: DbResult) {
@@ -68,7 +73,7 @@ function railsTableMock(rails: DbResult) {
 }
 
 function gateAdminClient(
-  products: DbResult = { data: { id: PID, creator_id: OWNER_ID, release_sha256: RELEASE_SHA }, error: null },
+  products: DbResult = { data: { id: PID, creator_id: OWNER_ID, release_sha256: RELEASE_SHA, checkout_mode: "live" }, error: null },
   consents: DbResult = { data: givenConsents(), error: null },
   rails: DbResult = { data: [{ provider: "polar", weight: 100, checkout_url: "https://buy.polar.sh/live-rail", active: true }], error: null },
 ) {
@@ -467,7 +472,7 @@ describe("billing/checkout consent gate fails closed (CR remediation)", () => {
               select: () => ({
                 or: (f: string) => {
                   filters.push(f);
-                  return { maybeSingle: async () => ({ data: { id: PID, creator_id: OWNER_ID, release_sha256: RELEASE_SHA }, error: null }) };
+                  return { maybeSingle: async () => ({ data: { id: PID, creator_id: OWNER_ID, release_sha256: RELEASE_SHA, checkout_mode: "live" }, error: null }) };
                 },
               }),
             };
@@ -496,7 +501,7 @@ describe("billing/checkout consent gate fails closed (CR remediation)", () => {
               select: () => ({
                 or: (f: string) => {
                   filters.push(f);
-                  return { maybeSingle: async () => ({ data: { id: PID, creator_id: OWNER_ID, release_sha256: RELEASE_SHA }, error: null }) };
+                  return { maybeSingle: async () => ({ data: { id: PID, creator_id: OWNER_ID, release_sha256: RELEASE_SHA, checkout_mode: "live" }, error: null }) };
                 },
               }),
             };
@@ -514,7 +519,7 @@ describe("billing/checkout consent gate fails closed (CR remediation)", () => {
   );
 
   it("fails closed with 500 when the resolved product has no owner", async () => {
-    adminModule.mockAdminClient = gateAdminClient({ data: { id: PID, creator_id: null }, error: null });
+    adminModule.mockAdminClient = gateAdminClient({ data: { id: PID, creator_id: null, release_sha256: RELEASE_SHA, checkout_mode: "live" }, error: null });
     const res = await GET(request());
     expect(res.status).toBe(500);
     expect(res.headers.get("location")).toBeNull();
@@ -536,7 +541,7 @@ describe("billing/checkout consent gate fails closed (CR remediation)", () => {
             select: () => ({
               eq: (col: string, val: string) => {
                 eqCalls.push([col, val]);
-                return { data: givenConsents(), error: null };
+                return withCount({ data: givenConsents(), error: null });
               },
             }),
           };
@@ -544,7 +549,7 @@ describe("billing/checkout consent gate fails closed (CR remediation)", () => {
         if (table === "product_rails") {
           return railsTableMock({ data: [{ provider: "polar", weight: 100, checkout_url: "https://buy.polar.sh/live-rail", active: true }], error: null });
         }
-        return productTableMock({ data: { id: PID, creator_id: OWNER_ID, release_sha256: RELEASE_SHA }, error: null });
+        return productTableMock({ data: { id: PID, creator_id: OWNER_ID, release_sha256: RELEASE_SHA, checkout_mode: "live" }, error: null });
       },
     };
     vi.stubEnv("VERCEL_ENV", "preview");
@@ -625,7 +630,7 @@ describe("billing/checkout DB-driven rails (Sprint 15 heritage eradication)", ()
     adminModule.mockAdminClient = {
       from: (table: string) => {
         if (table === "products") {
-          return productTableMock({ data: { id: "11111111-1111-1111-1111-111111111111", creator_id: OWNER_ID, release_sha256: RELEASE_SHA }, error: null });
+          return productTableMock({ data: { id: "11111111-1111-1111-1111-111111111111", creator_id: OWNER_ID, release_sha256: RELEASE_SHA, checkout_mode: "live" }, error: null });
         }
         if (table === "product_rails") {
           return railsTableMock({ data: [], error: null });
@@ -709,7 +714,7 @@ describe("billing/checkout release hash gate (Sprint 17)", () => {
 
   const withHashes = (release: unknown, approved: unknown) =>
     gateAdminClient(
-      { data: { id: PID, creator_id: OWNER_ID, release_sha256: release }, error: null },
+      { data: { id: PID, creator_id: OWNER_ID, release_sha256: release, checkout_mode: "live" }, error: null },
       { data: givenConsents().map((c) => (c.kind === "C2_release_approval" ? { ...c, document_sha256: approved } : c)), error: null },
     );
 
@@ -745,5 +750,51 @@ describe("billing/checkout release hash gate (Sprint 17)", () => {
     adminModule.mockAdminClient = gateAdminClient(undefined, { data: consents, error: null });
     const res = await GET(request());
     expect(res.status).toBe(403);
+  });
+});
+
+describe("billing/checkout launch state + complete consent history (Sprint 17)", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  const withMode = (mode: unknown) =>
+    gateAdminClient({ data: { id: PID, creator_id: OWNER_ID, release_sha256: RELEASE_SHA, checkout_mode: mode }, error: null });
+
+  it.each(["gated", "paddle", null, undefined, "LIVE"])("fails closed with 403 when checkout_mode is %s", async (mode) => {
+    vi.stubEnv("VERCEL_ENV", "preview");
+    adminModule.mockAdminClient = withMode(mode);
+    const res = await GET(request());
+    expect(res.status).toBe(403);
+    expect(await res.json()).toMatchObject({ error: expect.stringContaining("not launched") });
+  });
+
+  it("honours checkout_mode=sandbox on a preview runtime", async () => {
+    vi.stubEnv("VERCEL_ENV", "preview");
+    adminModule.mockAdminClient = withMode("sandbox");
+    expect((await GET(request())).status).toBe(302);
+  });
+
+  it("rejects checkout_mode=sandbox in production", async () => {
+    vi.stubEnv("VERCEL_ENV", "production");
+    adminModule.mockAdminClient = withMode("sandbox");
+    expect((await GET(request())).status).toBe(403);
+  });
+
+  it.each([
+    ["truncated (count exceeds rows)", 5000],
+    ["missing count", undefined],
+  ])("fails closed with 500 when the consent history is %s", async (_label, count) => {
+    vi.stubEnv("VERCEL_ENV", "preview");
+    const client = gateAdminClient();
+    adminModule.mockAdminClient = {
+      from: (table: string) =>
+        table === "consents"
+          ? { select: () => ({ eq: async () => ({ data: givenConsents(), error: null, count }) }) }
+          : client.from(table),
+    };
+    const res = await GET(request());
+    expect(res.status).toBe(500);
+    expect(res.headers.get("location")).toBeNull();
   });
 });

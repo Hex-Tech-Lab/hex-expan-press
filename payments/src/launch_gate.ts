@@ -40,19 +40,30 @@ export const assertLaunchConsents = async (
     blocked("missing consent(s): SUPABASE_URL/SUPABASE_SECRET_KEY not configured");
   }
   const doFetch = fetchImpl ?? fetch;
-  const getJson = async <T>(url: string, label: string): Promise<T> => {
+  const getJson = async <T>(url: string, label: string, requireComplete = false): Promise<T> => {
     let res: Response;
     try {
-      res = await doFetch(url, { headers: { apikey: key!, Authorization: `Bearer ${key}` } });
+      res = await doFetch(url, {
+        headers: { apikey: key!, Authorization: `Bearer ${key}`, ...(requireComplete ? { Prefer: "count=exact" } : {}) },
+      });
     } catch (e) {
       return blocked(`${label} lookup failed: ${(e as Error).message}`);
     }
     if (!res.ok) blocked(`${label} lookup HTTP ${res.status}`);
+    let body: T;
     try {
-      return (await res.json()) as T;
+      body = (await res.json()) as T;
     } catch (e) {
       return blocked(`${label} lookup returned unparseable body: ${(e as Error).message}`);
     }
+    if (requireComplete) {
+      // Supersession needs the COMPLETE chain: a response truncated by the
+      // PostgREST row cap could omit a superseding row. Fail closed.
+      const total = Number(res.headers.get("content-range")?.split("/")[1]);
+      const got = Array.isArray(body) ? body.length : -1;
+      if (!Number.isInteger(total) || total !== got) blocked(`${label} history incomplete (got ${got} of ${Number.isNaN(total) ? "unknown" : total})`);
+    }
+    return body;
   };
 
   // Product first: its owner scopes the creator-wide consent chain.
@@ -74,6 +85,7 @@ export const assertLaunchConsents = async (
       `&select=id,kind,decision,product_id,signed_at,supersedes,document_sha256` +
       `&order=signed_at.desc,id.desc`,
     "consent",
+    true,
   );
   for (const r of rows) {
     if (r.signed_at === null || r.signed_at === undefined) blocked(`consent ${r.id ?? r.kind} has null signed_at`);

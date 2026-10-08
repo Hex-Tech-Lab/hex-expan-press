@@ -14,6 +14,12 @@ const env = () => {
 };
 afterEach(() => vi.unstubAllEnvs());
 
+// PostgREST-shaped 200: Content-Range carries the exact total (Prefer: count=exact).
+const ok = (body: unknown) => {
+  const n = Array.isArray(body) ? body.length : 0;
+  return new Response(JSON.stringify(body), { status: 200, headers: { "content-range": n ? `0-${n - 1}/${n}` : "*/0" } });
+};
+
 const fullRows = (c2Sha: string | null) => [
   row("1", "C1_data_accuracy", null),
   row("2", "C2_release_approval", c2Sha),
@@ -26,7 +32,7 @@ const fetchFor = (
 ) =>
   (async (url: string) => {
     const body = String(url).includes("/products") ? productsBody : consentsBody;
-    return new Response(JSON.stringify(body), { status: 200 });
+    return ok(body);
   }) as unknown as typeof fetch;
 
 describe("F6 launch gate vs rebuilt release PDF", () => {
@@ -93,7 +99,7 @@ describe("F6 launch gate vs rebuilt release PDF", () => {
     env();
     const fetchImpl = (async (url: string) => {
       if (String(url).includes("/products")) throw new Error("ECONNRESET");
-      return new Response(JSON.stringify(fullRows(CURRENT)), { status: 200 });
+      return ok(fullRows(CURRENT));
     }) as unknown as typeof fetch;
     await expect(assertLaunchConsents("p1", fetchImpl)).rejects.toThrow(/launch blocked.*release lookup failed/);
   });
@@ -102,7 +108,7 @@ describe("F6 launch gate vs rebuilt release PDF", () => {
     env();
     const fetchImpl = (async (url: string) => {
       if (String(url).includes("/products")) return new Response("{}", { status: 500 });
-      return new Response(JSON.stringify(fullRows(CURRENT)), { status: 200 });
+      return ok(fullRows(CURRENT));
     }) as unknown as typeof fetch;
     await expect(assertLaunchConsents("p1", fetchImpl)).rejects.toThrow(/launch blocked.*HTTP 500/);
   });
@@ -112,7 +118,7 @@ describe("F6 launch gate vs rebuilt release PDF", () => {
     const fetchImpl = (async (url: string) => {
       if (String(url).includes("/products"))
         return new Response("<html>gateway</html>", { status: 200 });
-      return new Response(JSON.stringify(fullRows(CURRENT)), { status: 200 });
+      return ok(fullRows(CURRENT));
     }) as unknown as typeof fetch;
     await expect(assertLaunchConsents("p1", fetchImpl)).rejects.toThrow(/launch blocked.*unparseable/);
   });
@@ -129,7 +135,7 @@ describe("F6 launch gate vs a PostgREST-faithful select projection", () => {
   const projectingFetch = (productsBody: unknown, consentsBody: unknown) =>
     (async (url: string) => {
       const body = String(url).includes("/products") ? productsBody : consentsBody;
-      return new Response(JSON.stringify(project(String(url), body)), { status: 200 });
+      return ok(project(String(url), body));
     }) as unknown as typeof fetch;
 
   it("allows launch when C2 matches the current release, with select honoured", async () => {
@@ -144,9 +150,9 @@ describe("F6 launch gate vs a PostgREST-faithful select projection", () => {
     let seenOrder: string | null = null;
     const orderProbeFetch = (async (url: string | URL | Request) => {
       const u = String(url);
-      if (u.includes("/products")) return new Response(JSON.stringify([{ id: "p1", release_sha256: CURRENT, creator_id: "cr1" }]), { status: 200 });
+      if (u.includes("/products")) return ok([{ id: "p1", release_sha256: CURRENT, creator_id: "cr1" }]);
       seenOrder = new URL(u).searchParams.get("order");
-      return new Response(JSON.stringify(project(u, fullRows(CURRENT))), { status: 200 });
+      return ok(project(u, fullRows(CURRENT)));
     }) as unknown as typeof fetch;
     await expect(assertLaunchConsents("p1", orderProbeFetch)).resolves.toBeUndefined();
     expect(seenOrder).toBe("signed_at.desc,id.desc");
@@ -183,11 +189,27 @@ describe("Sprint 17 parity: creator-wide supersession (matches the checkout rout
     let consentsUrl = "";
     const probe = (async (url: string) => {
       const u = String(url);
-      if (u.includes("/products")) return new Response(JSON.stringify(PRODUCT), { status: 200 });
+      if (u.includes("/products")) return ok(PRODUCT);
       consentsUrl = u;
-      return new Response(JSON.stringify(fullRows(CURRENT)), { status: 200 });
+      return ok(fullRows(CURRENT));
     }) as unknown as typeof fetch;
     await assertLaunchConsents("p1", probe);
     expect(new URL(consentsUrl).searchParams.get("creator_id")).toBe("eq.cr1");
+  });
+});
+
+describe("Sprint 17: complete consent history", () => {
+  const PRODUCT = [{ id: "p1", release_sha256: CURRENT, creator_id: "cr1" }];
+  it.each([
+    ["truncated", "0-2/5000"],
+    ["missing a count", null],
+  ])("blocks when the consent response is %s", async (_label, range) => {
+    env();
+    const f = (async (url: string) => {
+      if (String(url).includes("/products")) return ok(PRODUCT);
+      const headers: Record<string, string> = range ? { "content-range": range } : {};
+      return new Response(JSON.stringify(fullRows(CURRENT)), { status: 200, headers });
+    }) as unknown as typeof fetch;
+    await expect(assertLaunchConsents("p1", f)).rejects.toThrow(/consent history incomplete/);
   });
 });
