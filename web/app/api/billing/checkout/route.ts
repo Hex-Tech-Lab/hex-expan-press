@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { MatrixRouter } from "../../../../../src/infrastructure/matrix_router/matrix_router";
 import { GLOBAL } from "../../../../../payments/src/settings_registry";
 import { getSupabaseAdmin } from "../../../../../payments/src/supabase_admin";
+import { attributionRef } from "../../../../src/lib/attribution";
 import { normalizeSha256, strictActiveConsentKinds, strictChainHead } from "../../../../src/lib/consent-chain";
 
 
@@ -41,23 +42,10 @@ function sandboxAllowed(): boolean {
   return process.env.NODE_ENV === "development" || process.env.NODE_ENV === "test";
 }
 
-// Attribution (Sprint 17 P3, ports the retired static page's capture): the
-// storefront forwards ?src / ?dub_id; the provider link gets
-// reference_id=<src>[:<dub_id>], which the webhook reads back
-// (metadata.reference_id). Unsafe values are dropped, never forwarded.
-const ATTRIBUTION_RE = /^[A-Za-z0-9_.-]{1,64}$/;
-
-function attributionRef(params: URLSearchParams): string {
-  const clean = (v: string | null) => (v && ATTRIBUTION_RE.test(v) ? v : "");
-  const src = clean(params.get("src")) || "direct";
-  const dubId = clean(params.get("dub_id"));
-  return dubId ? `${src}:${dubId}` : src;
-}
-
-// Only providers whose webhook reads reference_id back from the checkout-link
-// query (Polar: metadata.reference_id). Paddle carries attribution in
-// custom_data, which a link query cannot set — forwarding there would be a
-// silent no-op, so it is left alone until that wiring exists.
+// Attribution: only providers whose webhook reads reference_id back from the
+// checkout-link query (Polar: metadata.reference_id) get it appended here.
+// Paddle carries it in the overlay's customData (PaddleCheckoutButton), which
+// a link query cannot set.
 const REFERENCE_ID_PROVIDERS = new Set(["polar"]);
 
 function withReference(checkoutUrl: string, provider: string, ref: string): string {
@@ -296,12 +284,12 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     if (!fallback) {
       return jsonError(503, `Router unavailable and no fallback rail configured: ${(err as Error).message}`);
     }
-    return NextResponse.redirect(withReference(fallback.checkout_url as string, fallback.provider, attributionRef(request.nextUrl.searchParams)), 302);
+    return NextResponse.redirect(withReference(fallback.checkout_url as string, fallback.provider, attributionRef((p) => request.nextUrl.searchParams.get(p))), 302);
   }
 
   const rail = rails.find((r) => r.provider === providerName);
   if (!rail?.checkout_url) return jsonError(503, `Selected rail '${providerName}' has no checkout_url`);
-  return NextResponse.redirect(withReference(rail.checkout_url, rail.provider, attributionRef(request.nextUrl.searchParams)), 302);
+  return NextResponse.redirect(withReference(rail.checkout_url, rail.provider, attributionRef((p) => request.nextUrl.searchParams.get(p))), 302);
 }
 
 export async function HEAD(request: NextRequest): Promise<NextResponse> {

@@ -295,6 +295,107 @@ const JourneySteps = memo(function JourneySteps({
   );
 });
 
+/* INP isolation (Sprint 18 Track C): JourneyPanel owns the journeyStep state
+ * (previously page-root) so a step click re-renders only this subtree. Both
+ * consumers — the card art and the expanded step list — render inside it, so
+ * the state lives exactly as long as card 4 does: it persists across card
+ * close/reopen, matching the old page-root behavior (state was never reset on
+ * close, and JourneyArt stays mounted inside card 4 either way). */
+const JourneyPanel = memo(function JourneyPanel({
+  title,
+  reduced,
+  active,
+  onClose,
+}: {
+  title: string;
+  reduced: boolean;
+  active: boolean;
+  onClose: () => void;
+}) {
+  const [journeyStep, setJourneyStep] = useState(0);
+  // INP: step selection is a non-urgent update — transition it so the browser
+  // paints the interaction immediately while the (panel-scoped) re-render yields.
+  const [, startJourneyTransition] = useTransition();
+  const handleStepSelect = useCallback(
+    (s: number) => startJourneyTransition(() => setJourneyStep(s)),
+    [startJourneyTransition],
+  );
+  return (
+    <>
+      <div className="my-4 py-3 flex-1 flex items-center justify-center relative">
+        <JourneyArt reduced={reduced} active={journeyStep} onSelect={handleStepSelect} />
+      </div>
+      <DetailSlide title={title} reduced={reduced} show={active} onClose={onClose}>
+        <JourneySteps
+          steps={DETAILS[3].steps}
+          journeyStep={journeyStep}
+          interactive
+          reduced={reduced}
+          onSelect={handleStepSelect}
+        />
+      </DetailSlide>
+    </>
+  );
+});
+
+/* Expanded card slide (detail overlay). Shared by all four cards so every card
+ * renders identical markup; card 4 reaches it through JourneyPanel. Stays
+ * mounted so AnimatePresence can play the exit when `show` flips false. */
+function DetailSlide({
+  title,
+  reduced,
+  show,
+  onClose,
+  children,
+}: {
+  title: string;
+  reduced: boolean;
+  show: boolean;
+  onClose: () => void;
+  children?: React.ReactNode;
+}) {
+  return (
+    <AnimatePresence mode="wait">
+      {show && (
+        <motion.div
+          key="slide"
+          initial={reduced ? { opacity: 0 } : { opacity: 0, x: 56 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={reduced ? { opacity: 0 } : { opacity: 0, x: -40, transition: { duration: 0.25, ease: EASE } }}
+          transition={settle(0.45, 0.5)}
+          className="absolute inset-0 rounded-[32px] bg-charcoal text-white p-6 sm:p-8 flex flex-col"
+        >
+          <div className="flex items-center justify-between">
+            <div className="text-[11px] font-mono tracking-[0.16em] uppercase text-gray-400">
+              {title}
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close details"
+              className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round">
+                <path d="M6 6l12 12M18 6L6 18" />
+              </svg>
+            </button>
+          </div>
+          {children}
+          <Link
+            href={SIGNIN}
+            className="group inline-flex items-center gap-3 text-sm font-semibold text-white hover:text-peach transition-colors self-start"
+          >
+            <span>Start this journey</span>
+            <span className="group-hover:translate-x-1 transition-transform">&rarr;</span>
+          </Link>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
+const noop = () => {};
+
 /* ------------------------------------------------------- pointer-3D bento */
 
 function TiltCard({
@@ -378,14 +479,7 @@ export default function LandingPage({ onboarding }: { onboarding: boolean }) {
   const reduced = useReducedMotion();
   const fine = useFinePointer();
   const [active, setActive] = useState<number | null>(null);
-  const [journeyStep, setJourneyStep] = useState(0);
-  // INP: step selection is a non-urgent update — transition it so the browser
-  // paints the interaction immediately while the (page-wide) re-render yields.
-  const [, startJourneyTransition] = useTransition();
-  const handleStepSelect = useCallback(
-    (s: number) => startJourneyTransition(() => setJourneyStep(s)),
-    [startJourneyTransition],
-  );
+  const closeCard = useCallback(() => setActive(null), []);
   const heroRef = useRef<HTMLDivElement>(null);
   const { scrollYProgress } = useScroll({ target: heroRef, offset: ["start end", "end start"] });
   const blobY = useTransform(scrollYProgress, [0, 1], [-20, 20]);
@@ -395,8 +489,6 @@ export default function LandingPage({ onboarding }: { onboarding: boolean }) {
   const rise = riseVariants(reduced);
   const bentoContainer = bentoVariants(reduced);
   const bentoItem = bentoItemVariants(reduced);
-
-  const steps = active === null ? null : DETAILS[active].steps;
 
   return (
     <div className="min-h-screen p-4 sm:p-8 md:p-12 flex flex-col justify-between pb-32 lg:pb-12 overflow-x-clip">
@@ -492,55 +584,34 @@ export default function LandingPage({ onboarding }: { onboarding: boolean }) {
                         <h3 className="text-lg sm:text-xl font-bold tracking-tight text-gray-900">{card.title}</h3>
                         <p className="text-xs sm:text-sm text-gray-600 mt-1.5 leading-relaxed">{card.body}</p>
                       </div>
-                      <div className="my-4 py-3 flex-1 flex items-center justify-center relative">
-                        {i === 3 ? (
-                          <JourneyArt reduced={Boolean(reduced)} active={journeyStep} onSelect={handleStepSelect} />
-                        ) : (
-                          <Art reduced={Boolean(reduced)} />
-                        )}
-                      </div>
-                      <AnimatePresence mode="wait">
-                        {isActive && (
-                          <motion.div
-                            key="slide"
-                            initial={reduced ? { opacity: 0 } : { opacity: 0, x: 56 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            exit={reduced ? { opacity: 0 } : { opacity: 0, x: -40, transition: { duration: 0.25, ease: EASE } }}
-                            transition={settle(0.45, 0.5)}
-                            className="absolute inset-0 rounded-[32px] bg-charcoal text-white p-6 sm:p-8 flex flex-col"
+                      {i === 3 ? (
+                        <JourneyPanel
+                          title={card.title}
+                          reduced={Boolean(reduced)}
+                          active={isActive}
+                          onClose={closeCard}
+                        />
+                      ) : (
+                        <>
+                          <div className="my-4 py-3 flex-1 flex items-center justify-center relative">
+                            <Art reduced={Boolean(reduced)} />
+                          </div>
+                          <DetailSlide
+                            title={card.title}
+                            reduced={Boolean(reduced)}
+                            show={isActive}
+                            onClose={closeCard}
                           >
-                            <div className="flex items-center justify-between">
-                              <div className="text-[11px] font-mono tracking-[0.16em] uppercase text-gray-400">
-                                {card.title}
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => setActive(null)}
-                                aria-label="Close details"
-                                className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
-                              >
-                                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round">
-                                  <path d="M6 6l12 12M18 6L6 18" />
-                                </svg>
-                              </button>
-                            </div>
                             <JourneySteps
-                              steps={steps}
-                              journeyStep={journeyStep}
-                              interactive={i === 3}
+                              steps={DETAILS[i].steps}
+                              journeyStep={0}
+                              interactive={false}
                               reduced={Boolean(reduced)}
-                              onSelect={handleStepSelect}
+                              onSelect={noop}
                             />
-                            <Link
-                              href={SIGNIN}
-                              className="group inline-flex items-center gap-3 text-sm font-semibold text-white hover:text-peach transition-colors self-start"
-                            >
-                              <span>Start this journey</span>
-                              <span className="group-hover:translate-x-1 transition-transform">&rarr;</span>
-                            </Link>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
+                          </DetailSlide>
+                        </>
+                      )}
                     </TiltCard>
                   </motion.div>
                 );

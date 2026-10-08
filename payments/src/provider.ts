@@ -48,6 +48,16 @@ export interface CheckoutProvider {
   parseWebhook(headers: IncomingHttpHeaders, rawBody: Buffer, secret: string | undefined): ParseResult;
 }
 
+// Attribution labels are buyer-controlled (set client-side at checkout), so the
+// webhook keeps only the canonical <src>[:<dub_id>] shape the storefront emits
+// (web/src/lib/attribution.ts) and drops anything else — never rejects: a bad
+// label must not cost a paid sale.
+const ATTRIBUTION_ID_RE = /^[A-Za-z0-9_.-]{1,64}(:[A-Za-z0-9_.-]{1,64})?$/;
+
+export function cleanAttributionId(raw: unknown): string | undefined {
+  return typeof raw === "string" && ATTRIBUTION_ID_RE.test(raw) ? raw : undefined;
+}
+
 export function hashEmail(email: string): string {
   return createHash("sha256").update(email.trim().toLowerCase()).digest("hex");
 }
