@@ -55,7 +55,7 @@ const PaddleWebhookSchema = z.object({
     custom_data: z.object({
       product_id: z.string().nullish(),
       email: z.string().email().nullish(),
-      reference_id: z.string().nullish() // attribution: <src>[:<dub_id>] from PaddleCheckoutButton
+      reference_id: z.unknown().optional() // buyer-controlled attribution: never fails parsing; cleanAttributionId drops bad shapes
     }).nullish(),
     changed_at: z.string().datetime().nullish(),
     customer_id: z.string().nullish(),

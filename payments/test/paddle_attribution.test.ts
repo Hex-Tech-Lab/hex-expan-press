@@ -28,6 +28,9 @@ describe("paddle decoder attribution", () => {
     const r = parse({ reference_id: "new", attribution_id: "old" });
     expect(r.attribution_id).toBe("new");
   });
+  it("falls back past an invalid reference_id to a valid attribution_id", () => {
+    expect(parse({ reference_id: 42, attribution_id: "old" }).attribution_id).toBe("old");
+  });
   it("falls back to custom_data.attribution_id", () => {
     const r = parse({ attribution_id: "old" });
     expect(r.attribution_id).toBe("old");

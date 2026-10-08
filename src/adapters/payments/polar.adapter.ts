@@ -32,7 +32,7 @@ const PolarSaleSchema = z.object({
     created_at: z.string().datetime(),
     customer: z.object({ email: z.string().email() }),
     paid: z.boolean().optional(),
-    metadata: z.object({ reference_id: z.string().optional() }).optional().nullable()
+    metadata: z.object({ reference_id: z.unknown().optional() }).optional().nullable()
   })
 });
 
