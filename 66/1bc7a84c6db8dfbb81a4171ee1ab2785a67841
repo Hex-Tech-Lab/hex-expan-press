@@ -1,0 +1,41 @@
+web/src/components/storefront/storefront.css
+  s_04aaddd1b3201b::t_a4c527f36beb2d 67
+payments/test/audit_bake_c2_hash.test.ts
+  s_04aaddd1b3201b::t_c08bb8ee66062a 17-22,35,102,111,121,138,153,155,192,194,200-213
+  s_04aaddd1b3201b::t_e6ead6e2752c39 214-215
+web/src/components/storefront/storefront.tsx
+  s_04aaddd1b3201b::t_a4c527f36beb2d 42-43,101,125
+web/app/api/billing/checkout/__tests__/route.test.ts
+  s_04aaddd1b3201b::t_5d700ba53fc661 56-60,62,76,475,504,544,552,633,717,755-799
+  s_04aaddd1b3201b::t_5b59577c103a9a 522
+  s_04aaddd1b3201b::t_94d3ab4ef2c0f7 800
+payments/src/launch_gate.ts
+  s_04aaddd1b3201b::t_c08bb8ee66062a 43,46-48,53,55,59-66,88
+web/app/api/billing/checkout/route.ts
+  s_04aaddd1b3201b::t_5d700ba53fc661 104,117-126,138,140,147-150,152
+  s_04aaddd1b3201b::t_976107a211e4af 151
+supabase/migrations/20261009000000_launch_trigger_and_audit.sql
+  s_04aaddd1b3201b::t_e82fcb57e37adf 48-49,93,96-119,129,133-138,144-152
+web/src/lib/__tests__/launch-gate-sql-parity.test.ts
+  s_04aaddd1b3201b::t_06529ef3556229 18,77-85,174-209
+web/app/c/[handle]/[product]/page.tsx
+  s_04aaddd1b3201b::t_a4c527f36beb2d 76-84
+docs/agent_ledger.jsonl
+  s_04aaddd1b3201b::t_5adddce83d6713 498-499
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "661bc7a84c6db8dfbb81a4171ee1ab2785a67841",
+  "prompts": {},
+  "sessions": {
+    "s_04aaddd1b3201b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ac96f60f-59e3-4774-bda5-c1985e3d3af8",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "CCW <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
