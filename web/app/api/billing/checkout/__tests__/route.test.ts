@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { GET } from "../route";
 import { MatrixRouter } from "../../../../../../src/infrastructure/matrix_router/matrix_router";
+import { portRails } from "../../../../../../scripts/lib/heritage-rails";
 
 const adminModule = vi.hoisted(() => ({
   mockAdminClient: null as unknown,
@@ -639,3 +640,63 @@ describe("billing/checkout DB-driven rails (Sprint 15 heritage eradication)", ()
   });
 });
 
+
+describe("billing/checkout sandbox-rail purge regression (Sprint 17)", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("importer skips a sandbox rail, leaving 0 rows, so checkout reaches the CHECKOUT_URL_<PRODUCT> fallback (302, not 404)", async () => {
+    // In-memory product_rails, shared by the importer and the route.
+    const railRows: Array<Record<string, unknown>> = [];
+    const store = {
+      from: (table: string) => {
+        if (table === "product_rails") {
+          return {
+            upsert: async (row: Record<string, unknown>) => {
+              railRows.push(row);
+              return { error: null };
+            },
+            select: () => ({ eq: () => ({ order: async () => ({ data: railRows, error: null }) }) }),
+          };
+        }
+        if (table === "products") return productTableMock({ data: { id: PID, creator_id: OWNER_ID }, error: null });
+        return consentsTableMock({ data: givenConsents(), error: null });
+      },
+    };
+
+    await portRails(
+      store as never,
+      "sandboxed-book",
+      PID,
+      [{ provider: "polar", weight: 1, checkout_url: "https://sandbox-api.polar.sh/v1/checkout-links/x/redirect" }],
+      false,
+    );
+    expect(railRows).toHaveLength(0);
+
+    vi.stubEnv("VERCEL_ENV", "production");
+    vi.stubEnv("CHECKOUT_URL_SANDBOXED_BOOK", "https://buy.polar.sh/live-sandboxed-book");
+    adminModule.mockAdminClient = store;
+    const res = await GET(new NextRequest("http://localhost:3000/api/billing/checkout?product=sandboxed-book"));
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("https://buy.polar.sh/live-sandboxed-book");
+  });
+
+  it("importer aborts on a malformed checkout_url and ignores stray rail fields", async () => {
+    const railRows: Array<Record<string, unknown>> = [];
+    const store = { from: () => ({ upsert: async (row: Record<string, unknown>) => (railRows.push(row), { error: null }) }) };
+    await expect(
+      portRails(store as never, "bad-book", PID, [{ provider: "polar", weight: 1, checkout_url: "not a url" }], false),
+    ).rejects.toThrow(/malformed checkout_url/);
+    const stray = { provider: "polar", weight: 1, checkout_url: "https://buy.polar.sh/x", product_id: "other" };
+    await portRails(store as never, "stray-book", PID, [stray], false);
+    expect(railRows).toEqual([{ product_id: PID, provider: "polar", weight: 1, checkout_url: "https://buy.polar.sh/x", active: true }]);
+  });
+
+  it("importer still ports a live rail as active", async () => {
+    const railRows: Array<Record<string, unknown>> = [];
+    const store = { from: () => ({ upsert: async (row: Record<string, unknown>) => (railRows.push(row), { error: null }) }) };
+    await portRails(store as never, "live-book", PID, [{ provider: "polar", weight: 100, checkout_url: "https://buy.polar.sh/live" }], false);
+    expect(railRows).toEqual([{ product_id: PID, provider: "polar", weight: 100, checkout_url: "https://buy.polar.sh/live", active: true }]);
+  });
+});
