@@ -666,7 +666,7 @@ describe("billing/checkout sandbox-rail purge regression (Sprint 17)", () => {
             select: () => ({ eq: () => ({ order: async () => ({ data: railRows, error: null }) }) }),
           };
         }
-        if (table === "products") return productTableMock({ data: { id: PID, creator_id: OWNER_ID }, error: null });
+        if (table === "products") return productTableMock({ data: { id: PID, creator_id: OWNER_ID, release_sha256: RELEASE_SHA, checkout_mode: "live" }, error: null });
         return consentsTableMock({ data: givenConsents(), error: null });
       },
     };
