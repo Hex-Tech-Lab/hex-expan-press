@@ -1,0 +1,29 @@
+docs/backlog/sprint18-paddle-attribution.md
+  s_1e6e27667e5f00::t_f3e71140f84fff 1-20
+docs/agent_ledger.jsonl
+  s_04aaddd1b3201b::t_668801ade4ba17 501-507
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "76dd6babdd8ef3813ab9525941680a5001a7aacc",
+  "prompts": {},
+  "sessions": {
+    "s_04aaddd1b3201b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ac96f60f-59e3-4774-bda5-c1985e3d3af8",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "CCW <104952356+TechHypeXP@users.noreply.github.com>"
+    },
+    "s_1e6e27667e5f00": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ee3ce2ef8ffeSOQP3t8gF7yDxG",
+        "model": "@preset/glm-53-flash-on-cheap"
+      },
+      "human_author": "CCW <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
