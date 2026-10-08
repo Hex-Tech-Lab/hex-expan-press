@@ -22,12 +22,15 @@ vi.mock("../../../../src/lib/supabase-server", () => ({
   })),
 }));
 
+const headerMap = vi.hoisted(() => ({ current: new Map<string, string>() }));
+const DEFAULT_HEADERS: Array<[string, string]> = [
+  ["x-forwarded-for", "203.0.113.9, 10.0.0.1"],
+  ["user-agent", "vitest-agent/1.0"],
+];
+headerMap.current = new Map(DEFAULT_HEADERS);
+
 vi.mock("next/headers", () => ({
-  headers: async () =>
-    new Map([
-      ["x-forwarded-for", "203.0.113.9, 10.0.0.1"],
-      ["user-agent", "vitest-agent/1.0"],
-    ]) as unknown as Headers,
+  headers: async () => headerMap.current as unknown as Headers,
 }));
 
 vi.mock("next/navigation", () => ({
@@ -51,6 +54,7 @@ function fd(kind: string, name: string): FormData {
 
 describe("signConsentAction (Wave 6.1)", () => {
   beforeEach(() => {
+    headerMap.current = new Map(DEFAULT_HEADERS);
     rpcMock.mockReset();
     rpcMock.mockResolvedValue({ error: null });
     releaseSha = "a".repeat(64);
@@ -76,6 +80,16 @@ describe("signConsentAction (Wave 6.1)", () => {
     const res = await signConsentAction({}, fd("C3_revenue_split", "Duane Smith"));
     expect(res.error).toMatch(/unknown consent/i);
     expect(rpcMock).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["x-real-ip wins over a spoofed x-forwarded-for", [["x-real-ip", "198.51.100.7"], ["x-forwarded-for", "6.6.6.6"]], "198.51.100.7"],
+    ["x-vercel-forwarded-for when x-real-ip is absent", [["x-vercel-forwarded-for", "198.51.100.8, 10.0.0.1"], ["x-forwarded-for", "6.6.6.6"]], "198.51.100.8"],
+    ["0.0.0.0 when no IP header is present", [], "0.0.0.0"],
+  ] as Array<[string, Array<[string, string]>, string]>)("audit IP: %s", async (_l, hs, want) => {
+    headerMap.current = new Map([...hs, ["user-agent", "vitest-agent/1.0"]]);
+    await signConsentAction({}, fd("C1_data_accuracy", "Duane Smith"));
+    expect(rpcMock).toHaveBeenCalledWith("submit_consent", expect.objectContaining({ p_ip: want }));
   });
 
   it("records C1 with the zeros document hash and request IP/UA", async () => {
