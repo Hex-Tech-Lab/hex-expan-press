@@ -23,6 +23,15 @@ begin
        or old.release_sha256 is distinct from new.release_sha256
        or old.creator_id is distinct from new.creator_id
      ) then
+    -- MVCC guard (CodeRabbit + Cubic P1, 2026-10-09): under REPEATABLE READ or
+    -- SERIALIZABLE the snapshot is fixed at the first statement, before the
+    -- advisory-lock wait below. launch_block_reason would then read consents
+    -- that a concurrent refusal superseded after the snapshot, and the gate
+    -- could pass on a stale C2. Refuse instead of checking a stale snapshot.
+    if current_setting('transaction_isolation') <> 'read committed' then
+      raise exception 'launch gate requires READ COMMITTED; retry for product %', new.id
+        using errcode = 'serialization_failure';
+    end if;
     -- Serialize with submit_consent (same per-(product, kind) advisory lock,
     -- 20261004000900): a refusal cannot commit between this check and the
     -- write. Fixed kind order; submit_consent takes one lock, so no cycle.

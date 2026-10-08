@@ -143,6 +143,30 @@ describe("products_launch_gate trigger", () => {
     expect(await auditCount()).toBe(0);
   });
 
+  it("refuses a live transition under REPEATABLE READ (stale-snapshot guard)", async () => {
+    // Under RR the snapshot predates the advisory-lock wait, so the gate must
+    // refuse rather than verify against it. A passing update here would mean
+    // PGlite ignored the isolation level, so the assertion also proves the
+    // setting is honoured.
+    await db.exec("begin isolation level repeatable read");
+    try {
+      await expect(goLive()).rejects.toThrow(/requires READ COMMITTED/);
+    } finally {
+      await db.exec("rollback");
+    }
+    expect(await auditCount()).toBe(0);
+  });
+
+  it("still allows a live transition under READ COMMITTED with the guard in place", async () => {
+    await db.exec("begin isolation level read committed");
+    try {
+      await goLive();
+    } finally {
+      await db.exec("commit");
+    }
+    expect(await auditCount()).toBe(1);
+  });
+
   it("blocks when consents do not verify (C2 superseded by refusal)", async () => {
     await load(FIXTURES["C2 superseded by refusal"]);
     await expect(goLive()).rejects.toThrow(/consents/);
