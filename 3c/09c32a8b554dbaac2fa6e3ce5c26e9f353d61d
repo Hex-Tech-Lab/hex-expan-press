@@ -1,0 +1,30 @@
+docs/agent_ledger.jsonl
+  s_4e2b0b0a92fc08::t_4401f3e5b01ac2 518-520
+web/src/lib/__tests__/client-ip.test.ts
+  s_4e2b0b0a92fc08::t_d43a0fb55395c4 1-42,51-72
+  s_4e2b0b0a92fc08::t_cb4dc48ed92604 43-50
+web/src/lib/client-ip.ts
+  s_4e2b0b0a92fc08::t_cb4dc48ed92604 15-16,29-31
+  s_4e2b0b0a92fc08::t_911d77bb5af210 44-45
+  s_4e2b0b0a92fc08::t_d43a0fb55395c4 1-14,17-28,32-43,46-50
+web/app/creator/consents/actions.ts
+  s_4e2b0b0a92fc08::t_147175b7c6f5a2 8,63
+web/app/api/esign/webhook/route.ts
+  s_4e2b0b0a92fc08::t_147175b7c6f5a2 8,72
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3c09c32a8b554dbaac2fa6e3ce5c26e9f353d61d",
+  "prompts": {},
+  "sessions": {
+    "s_4e2b0b0a92fc08": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "69ec633a-0c01-486a-80de-180205f86530",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "CCW <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
