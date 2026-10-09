@@ -486,6 +486,36 @@ describe("esign webhook route — terminal-reject quarantine (compiled sweep)", 
     expect(res.status).toBe(401);
     expect(inserts).toHaveLength(0); // unauthenticated senders must not force service-role audit writes
   });
+
+  it("takes the audit IP from x-real-ip ahead of a spoofed x-forwarded-for", async () => {
+    vi.resetModules();
+    const processSpy = vi.fn(async () => undefined);
+    vi.doMock("../../../../src/use_cases/process_esign_webhook", () => ({ processEsignWebhookUseCase: processSpy }));
+    vi.doMock("@supabase/supabase-js", () => ({
+      createClient: () => ({
+        from: () => ({
+          insert: () => {
+            const insertResult = Promise.resolve({ error: null });
+            return Object.assign(insertResult, { abortSignal: () => insertResult });
+          },
+        }),
+      }),
+    }));
+    vi.stubEnv("SUPABASE_URL", "https://unit.test.supabase.co");
+    vi.stubEnv("SUPABASE_SECRET_KEY", "unit-test-key");
+    vi.stubEnv("FIRMA_WEBHOOK_SECRET", "route-secret");
+    const { POST } = await import("../../../app/api/esign/webhook/route");
+    const payload = JSON.stringify({ type: "signing_request.completed", data: { signing_request: { id: "env_ip" } } });
+    const signature = crypto.createHmac("sha256", "route-secret").update(payload).digest("hex");
+    const req = new Request("https://expanpress.com/api/esign/webhook", {
+      method: "POST",
+      body: payload,
+      headers: { "x-firma-signature": signature, "x-real-ip": "198.51.100.7", "x-forwarded-for": "6.6.6.6" },
+    });
+    const res = await POST(req as never);
+    expect(res.status).toBe(200);
+    expect(processSpy).toHaveBeenCalledWith(expect.objectContaining({ ip: "198.51.100.7" }), expect.anything(), expect.anything());
+  });
 });
 
 // Sprint 12 Task 1: fetchCompletedDocument LIVE-SHAPE contract (verified
