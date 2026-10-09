@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { getPortalSession } from "../../../src/lib/supabase-server";
 import { resolvePrimaryProduct } from "../../../src/lib/primary-product";
+import { clientIp } from "../../../src/lib/client-ip";
 import { consentTextVersion } from "../../../../payments/src/settings_registry.ts";
 
 export interface ConsentFormState {
@@ -59,9 +60,7 @@ export async function signConsentAction(_prev: ConsentFormState, formData: FormD
   }
 
   const h = await headers();
-  // Audit IP: Vercel's own client-IP headers first (set by the edge, never
-  // client-supplied); x-forwarded-for only as the local-dev fallback.
-  const ip = (h.get("x-real-ip") ?? h.get("x-vercel-forwarded-for") ?? h.get("x-forwarded-for") ?? "0.0.0.0").split(",")[0].trim();
+  const ip = clientIp(h);
   const userAgent = h.get("user-agent") ?? "";
   const authProvider = session.user.app_metadata?.provider ?? "email";
 
