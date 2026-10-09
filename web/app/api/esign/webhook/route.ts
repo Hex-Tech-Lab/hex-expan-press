@@ -5,6 +5,7 @@ import { SupabaseAdapter } from "../../../../../src/adapters/database/supabase.a
 import { processEsignWebhookUseCase } from "../../../../../src/use_cases/process_esign_webhook";
 import { WebhookValidationError } from "../../../../../src/domain/webhook/webhook_errors";
 import { GLOBAL } from "../../../../../payments/src/settings_registry";
+import { clientIp } from "../../../../src/lib/client-ip";
 
 export const runtime = "nodejs";
 
@@ -68,7 +69,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
   const body = bodyBuffer.toString("utf8");
 
-  const ip = request.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? "0.0.0.0";
+  const ip = clientIp(request.headers);
   const userAgent = request.headers.get("user-agent") ?? "";
 
   try {
