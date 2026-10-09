@@ -4,8 +4,10 @@ import { isIP } from "node:net";
 const FALLBACK_IP = "0.0.0.0";
 
 /**
- * Client-IP headers in precedence order. Vercel's edge sets the first two;
- * x-forwarded-for is only the local-dev fallback (client-supplied elsewhere).
+ * Client-IP headers in precedence order. Prioritizes headers expected to be
+ * set by Vercel's edge (`x-real-ip`, `x-vercel-forwarded-for`). Safe only in
+ * proxy-guarded environments: where no proxy overwrites them, a client can
+ * supply them. `x-forwarded-for` is the local-dev fallback.
  */
 const CLIENT_IP_HEADERS = ["x-real-ip", "x-vercel-forwarded-for", "x-forwarded-for"] as const;
 
