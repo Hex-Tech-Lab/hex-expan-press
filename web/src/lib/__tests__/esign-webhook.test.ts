@@ -418,10 +418,13 @@ void _shapeCheck;
 describe("esign webhook route — terminal-reject quarantine (compiled sweep)", () => {
   it("a validation-failed delivery returns 400 and quarantines the event (sha256, no raw body)", async () => {
     vi.resetModules();
+    // Import the error class from the same (post-reset) module graph the route uses;
+    // the top-level import is a different class instance, so instanceof would miss.
+    const { WebhookValidationError: FreshValidationError } = await import("../../../../src/domain/webhook/webhook_errors");
     const inserts: Array<{ event?: string; details?: Record<string, unknown> }> = [];
-    vi.doMock("../../../../../../src/use_cases/process_esign_webhook", () => ({
+    vi.doMock("../../../../src/use_cases/process_esign_webhook", () => ({
       processEsignWebhookUseCase: vi.fn(() => {
-        throw new WebhookValidationError("Webhook validation failed: completed envelope env_q has a missing or invalid document_sha256");
+        throw new FreshValidationError("Webhook validation failed: completed envelope env_q has a missing or invalid document_sha256");
       }),
     }));
     vi.doMock("@supabase/supabase-js", () => ({
@@ -455,10 +458,13 @@ describe("esign webhook route — terminal-reject quarantine (compiled sweep)", 
 
   it("an unauthenticated (401) reject returns 401 and does NOT quarantine", async () => {
     vi.resetModules();
+    // Import the error class from the same (post-reset) module graph the route uses;
+    // the top-level import is a different class instance, so instanceof would miss.
+    const { WebhookValidationError: FreshValidationError } = await import("../../../../src/domain/webhook/webhook_errors");
     const inserts: Array<{ event?: string; details?: Record<string, unknown> }> = [];
-    vi.doMock("../../../../../../src/use_cases/process_esign_webhook", () => ({
+    vi.doMock("../../../../src/use_cases/process_esign_webhook", () => ({
       processEsignWebhookUseCase: vi.fn(() => {
-        throw new WebhookValidationError("Webhook validation failed: Invalid signature", 401);
+        throw new FreshValidationError("Webhook validation failed: Invalid signature", 401);
       }),
     }));
     vi.doMock("@supabase/supabase-js", () => ({
