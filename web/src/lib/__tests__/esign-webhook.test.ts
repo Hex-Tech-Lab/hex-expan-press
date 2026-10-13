@@ -415,19 +415,6 @@ type ConsentPortShape = { submitConsent: Mock; flagConsentForManualReview: Mock;
 const _shapeCheck: ConsentPortShape | null = null;
 void _shapeCheck;
 
-// Every key at any depth of a value (objects and arrays). Used to prove the
-// quarantine audit record carries no raw body under any spelling.
-function keysDeep(value: unknown, out: string[] = []): string[] {
-  if (Array.isArray(value)) value.forEach((v) => keysDeep(v, out));
-  else if (value && typeof value === "object") {
-    for (const [k, v] of Object.entries(value)) {
-      out.push(k);
-      keysDeep(v, out);
-    }
-  }
-  return out;
-}
-
 describe("esign webhook route — terminal-reject quarantine (compiled sweep)", () => {
   it("a validation-failed delivery returns 400 and quarantines the event (sha256, no raw body)", async () => {
     vi.resetModules();
@@ -466,10 +453,16 @@ describe("esign webhook route — terminal-reject quarantine (compiled sweep)", 
     expect(res.status).toBe(400);
     expect(inserts).toHaveLength(1);
     expect(inserts[0]).toMatchObject({ event: "WEBHOOK_TERMINAL_REJECT", details: { provider: "esign", reason: "WebhookValidationError" } });
-    // Privacy contract: no raw body under any spelling, at any nesting level.
-    expect(keysDeep(inserts[0]).filter((k) => /^raw[_-]?body$/i.test(k))).toEqual([]);
-    // Strict: exactly 64 lowercase hex characters, not merely "contains hex".
-    expect(inserts[0]?.details?.payload_sha256).toMatch(/^[0-9a-f]{64}$/);
+    // Exact record: any extra field (including a raw body under any spelling)
+    // fails here. payload_sha256 must be the SHA-256 of the delivered body.
+    expect(inserts[0]).toEqual({
+      event: "WEBHOOK_TERMINAL_REJECT",
+      details: {
+        provider: "esign",
+        reason: "WebhookValidationError",
+        payload_sha256: crypto.createHash("sha256").update(payload).digest("hex"),
+      },
+    });
   });
 
   it("an unauthenticated (401) reject returns 401 and does NOT quarantine", async () => {
