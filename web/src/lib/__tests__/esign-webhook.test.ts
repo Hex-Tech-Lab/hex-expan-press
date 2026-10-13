@@ -415,6 +415,19 @@ type ConsentPortShape = { submitConsent: Mock; flagConsentForManualReview: Mock;
 const _shapeCheck: ConsentPortShape | null = null;
 void _shapeCheck;
 
+// Every key at any depth of a value (objects and arrays). Used to prove the
+// quarantine audit record carries no raw body under any spelling.
+function keysDeep(value: unknown, out: string[] = []): string[] {
+  if (Array.isArray(value)) value.forEach((v) => keysDeep(v, out));
+  else if (value && typeof value === "object") {
+    for (const [k, v] of Object.entries(value)) {
+      out.push(k);
+      keysDeep(v, out);
+    }
+  }
+  return out;
+}
+
 describe("esign webhook route — terminal-reject quarantine (compiled sweep)", () => {
   it("a validation-failed delivery returns 400 and quarantines the event (sha256, no raw body)", async () => {
     vi.resetModules();
@@ -422,11 +435,10 @@ describe("esign webhook route — terminal-reject quarantine (compiled sweep)", 
     // the top-level import is a different class instance, so instanceof would miss.
     const { WebhookValidationError: FreshValidationError } = await import("../../../../src/domain/webhook/webhook_errors");
     const inserts: Array<{ event?: string; details?: Record<string, unknown> }> = [];
-    vi.doMock("../../../../src/use_cases/process_esign_webhook", () => ({
-      processEsignWebhookUseCase: vi.fn(() => {
-        throw new FreshValidationError("Webhook validation failed: completed envelope env_q has a missing or invalid document_sha256");
-      }),
-    }));
+    const processEsignWebhookUseCaseMock = vi.fn(() => {
+      throw new FreshValidationError("Webhook validation failed: completed envelope env_q has a missing or invalid document_sha256");
+    });
+    vi.doMock("../../../../src/use_cases/process_esign_webhook", () => ({ processEsignWebhookUseCase: processEsignWebhookUseCaseMock }));
     vi.doMock("@supabase/supabase-js", () => ({
       createClient: () => ({
         from: (table: string) => ({
@@ -450,9 +462,13 @@ describe("esign webhook route — terminal-reject quarantine (compiled sweep)", 
       headers: { "x-firma-signature": signature },
     });
     const res = await POST(req as never);
+    expect(processEsignWebhookUseCaseMock).toHaveBeenCalledTimes(1);
     expect(res.status).toBe(400);
     expect(inserts).toHaveLength(1);
     expect(inserts[0]).toMatchObject({ event: "WEBHOOK_TERMINAL_REJECT", details: { provider: "esign", reason: "WebhookValidationError" } });
+    // Privacy contract: no raw body under any spelling, at any nesting level.
+    expect(keysDeep(inserts[0]).filter((k) => /^raw[_-]?body$/i.test(k))).toEqual([]);
+    // Strict: exactly 64 lowercase hex characters, not merely "contains hex".
     expect(inserts[0]?.details?.payload_sha256).toMatch(/^[0-9a-f]{64}$/);
   });
 
@@ -462,11 +478,10 @@ describe("esign webhook route — terminal-reject quarantine (compiled sweep)", 
     // the top-level import is a different class instance, so instanceof would miss.
     const { WebhookValidationError: FreshValidationError } = await import("../../../../src/domain/webhook/webhook_errors");
     const inserts: Array<{ event?: string; details?: Record<string, unknown> }> = [];
-    vi.doMock("../../../../src/use_cases/process_esign_webhook", () => ({
-      processEsignWebhookUseCase: vi.fn(() => {
-        throw new FreshValidationError("Webhook validation failed: Invalid signature", 401);
-      }),
-    }));
+    const processEsignWebhookUseCaseMock = vi.fn(() => {
+      throw new FreshValidationError("Webhook validation failed: Invalid signature", 401);
+    });
+    vi.doMock("../../../../src/use_cases/process_esign_webhook", () => ({ processEsignWebhookUseCase: processEsignWebhookUseCaseMock }));
     vi.doMock("@supabase/supabase-js", () => ({
       createClient: () => ({
         from: (table: string) => ({
@@ -489,6 +504,7 @@ describe("esign webhook route — terminal-reject quarantine (compiled sweep)", 
       headers: { "x-firma-signature": "0".repeat(64) }, // present but wrong → 401
     });
     const res = await POST(req as never);
+    expect(processEsignWebhookUseCaseMock).toHaveBeenCalledTimes(1);
     expect(res.status).toBe(401);
     expect(inserts).toHaveLength(0); // unauthenticated senders must not force service-role audit writes
   });
