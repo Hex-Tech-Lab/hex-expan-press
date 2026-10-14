@@ -245,7 +245,7 @@ def main():
     else:
         lines.append("(none)")
     lines.append("")
-    lines.append(f"## C. KNOWN contradictions (already in duane_review_queue.md; ids only)")
+    lines.append("## C. KNOWN contradictions (already in duane_review_queue.md; ids only)")
     lines.append("")
     lines.append(f"Source run: `{newest}`")
     for c, ids in known:

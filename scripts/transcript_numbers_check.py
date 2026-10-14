@@ -86,7 +86,7 @@ def main():
             lines = clean
             body = "\n".join(lines)
         offset = len(text[:len(text[:text.find(body) if vtt else 0] or "")].splitlines()) if vtt else 0
-        sents, spans = [], []
+        sents = []
         for m2 in re.finditer(r"[^\n.!?]+(?:[.!?]+|\n|$)", body):
             s = m2.group(0).strip()
             if s and NUM_RE.search(s):
@@ -99,7 +99,7 @@ def main():
             if not nums:
                 continue
             ctx = " ".join(x[0] for x in sents[max(0, idx - 2):idx + 3])
-            key = hashlib.sha1((str(f) + "|" + ctx).encode()).hexdigest()
+            key = hashlib.sha1((str(f) + "|" + ctx).encode(), usedforsecurity=False).hexdigest()
             for num in nums[:3]:
                 if limit is not None and asked >= limit:
                     break

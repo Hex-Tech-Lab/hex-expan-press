@@ -46,7 +46,7 @@ def main():
     cache = json.loads(cache_path.read_text()) if cache_path.exists() else {}
 
     def key(h):
-        return hashlib.sha1(f"{h['file']}|{h['line']}|{h['num']}|{h['cards'][0]['card']}".encode()).hexdigest()
+        return hashlib.sha1(f"{h['file']}|{h['line']}|{h['num']}|{h['cards'][0]['card']}".encode(), usedforsecurity=False).hexdigest()
 
     def ask(h):
         k = key(h)
