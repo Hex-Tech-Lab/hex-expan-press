@@ -7,11 +7,12 @@
  *
  * This is intentionally a small, high-precision ruleset, not a general
  * linter -- false positives here train people to ignore the tool, which
- * defeats the point. Run: `pnpm contract-audit`.
- * Exits 1 only on CRITICAL findings. It is not wired into CI.
+ * defeats the point. Run: `pnpm contract-audit`, or from any directory:
+ * `node --experimental-strip-types <path>/scripts/contract-auditor.ts <repo-root>`.
+ * Exits 1 only on CRITICAL findings, 2 if no scan root exists. It is not wired into CI.
  */
-import { readFileSync, readdirSync, statSync } from 'fs';
-import { dirname, join, relative } from 'path';
+import { existsSync, readFileSync, readdirSync, statSync } from 'fs';
+import { dirname, join, relative, resolve } from 'path';
 import { fileURLToPath } from 'url';
 import { createHash } from 'crypto';
 
@@ -26,8 +27,13 @@ interface Finding {
   snippet: string;
 }
 
-const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+const REPO_ROOT = process.argv[2] ? resolve(process.argv[2]) : join(dirname(fileURLToPath(import.meta.url)), '..');
 const SCAN_ROOTS = [join(REPO_ROOT, 'web'), join(REPO_ROOT, 'payments'), join(REPO_ROOT, 'scripts')];
+// walk() treats an unreadable directory as empty, so a wrong root would scan nothing and report clean. Fail loudly instead.
+if (!SCAN_ROOTS.some((root) => existsSync(root))) {
+  console.error(`Contract Auditor: no scan root under ${REPO_ROOT} (expected web/, payments/ or scripts/). Pass the repo root as the first argument.`);
+  process.exit(2);
+}
 const SKIP_DIRS = new Set(['node_modules', '.next', '.git', 'dist', 'coverage', '.turbo']);
 const CODE_EXT = new Set(['.ts', '.tsx']);
 const TEST_MARKERS = ['.test.', '.spec.', '__tests__'];
