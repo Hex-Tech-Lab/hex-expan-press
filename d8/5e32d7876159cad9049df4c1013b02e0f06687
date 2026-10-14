@@ -1,0 +1,25 @@
+web/src/lib/__tests__/esign-webhook.contract.test.ts
+  s_4e2b0b0a92fc08::t_ddcfdde641d6fa 23,27-28,30
+web/src/lib/__tests__/esign-webhook.fixtures.ts
+  s_4e2b0b0a92fc08::t_ca0a060e3804d2 1-66
+web/src/lib/__tests__/esign-webhook.live-shape.test.ts
+  s_4e2b0b0a92fc08::t_8c15f0de7e6ab7 1-137
+web/src/lib/__tests__/esign-webhook.quarantine.test.ts
+  s_4e2b0b0a92fc08::t_e374e71420646a 1-128
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d85e32d7876159cad9049df4c1013b02e0f06687",
+  "prompts": {},
+  "sessions": {
+    "s_4e2b0b0a92fc08": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "69ec633a-0c01-486a-80de-180205f86530",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "CCW <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
