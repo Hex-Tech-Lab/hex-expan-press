@@ -20,11 +20,14 @@
 //   4. Valid HMAC-signed `signing_request.completed` → 200 and the
 //      consent port receives the exact C3 submitConsent command shape,
 //      with the evidence PDF fetched + uploaded + verified BEFORE insert (F1).
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from "vitest";
 import crypto from "node:crypto";
 import { FirmaAdapter } from "../../../../src/adapters/esign/firma.adapter";
 import { passthroughDownload } from "../../../../tests/helpers/esign-transport";
+import { WebhookValidationError } from "../../../../src/domain/webhook/webhook_errors";
+import { SECRET, AGREEMENT_PDF_BYTES, DOCUMENT_HASH, signedBody, completedPayload, evidenceFetchMock } from "./esign-webhook.fixtures";
 
+// Module mocks must live in each test file (vi.mock is hoisted per file).
 // The esign use case builds its own adapter via the factory (whose default
 // download transport is the undici pinned fetch — secure by default). For
 // USE-CASE contract tests the download leg is routed back through the
@@ -37,9 +40,6 @@ vi.mock("undici", async (importOriginal) => {
     fetch: ((url: string | URL | Request, init?: RequestInit) => fetch(url as string, init)) as unknown as typeof actual.fetch,
   };
 });
-import { WebhookValidationError } from "../../../../src/domain/webhook/webhook_errors";
-import type { Mock } from "vitest";
-
 // The adapter's default resolver is the platform DNS; these tests use fake
 // hosts (.test TLD) that must not touch a real resolver. Mock at the module
 // level so the FACTORY-built adapter (createEsignAdapter) resolves every
@@ -47,69 +47,6 @@ import type { Mock } from "vitest";
 vi.mock("node:dns/promises", () => ({
   lookup: async () => [{ address: "93.184.216.34" }],
 }));
-
-const SECRET = "test-webhook-secret";
-const AGREEMENT_PDF_BYTES = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31]); // "%PDF-1"
-// The webhook's document_sha256 is Firma's attestation of the SIGNED document;
-// the evidence flow hashes the fetched bytes and cross-checks (sprint 12), so
-// the fixture hash MUST equal the hash of the bytes the fetch mock returns.
-const DOCUMENT_HASH = crypto.createHash("sha256").update(AGREEMENT_PDF_BYTES).digest("hex");
-
-function signedBody(payload: unknown, secret = SECRET): { body: string; headers: Record<string, string> } {
-  const body = JSON.stringify(payload);
-  const signature = crypto.createHmac("sha256", secret).update(body).digest("hex");
-  return { body, headers: { "x-firma-signature": signature, "content-type": "application/json" } };
-}
-
-function completedPayload(metadata: Record<string, string>, envelopeId = "env_123"): unknown {
-  return {
-    type: "signing_request.completed",
-    data: {
-      signing_request: {
-        id: envelopeId,
-        document_sha256: DOCUMENT_HASH,
-        metadata,
-      },
-    },
-  };
-}
-
-/** Hermetic fetch stub for the evidence flow (sprint-12 live shape):
- *  GET the signing-request RESOURCE → JSON {document_url: signed URL};
- *  GET the signed URL → PDF bytes; Storage PUT + read-back verification GET.
- *  Any other call fails the test. */
-function evidenceFetchMock(): Mock {
-  return vi.fn((input: unknown, init?: { method?: string }) => {
-    const url = String(input);
-    const method = init?.method ?? "GET";
-    if (method === "GET" && /\/signing-requests\/[^/]+$/.test(url)) {
-      // Live-verified 2026-10-05: the resource carries a freshly-minted signed
-      // Storage URL (final_document_download_url null on unfinished requests).
-      // Sprint-12-B: the state-finality guard requires status.finished === true.
-      return Promise.resolve({
-        ok: true, status: 200,
-        json: () => Promise.resolve({
-          id: "env",
-          status: { sent: true, finished: true, cancelled: false, declined: false, expired: false },
-          // Sprint-12-C: final_document_download_url is REQUIRED.
-          final_document_download_url: "https://firma-storage.test/object/sign/agreement-final.pdf?token=t",
-          document_url: "https://firma-storage.test/object/sign/agreement.pdf?token=t",
-        }),
-        arrayBuffer: () => Promise.reject(new Error("resource must not be read as bytes")),
-      });
-    }
-    if (method === "GET" && url.includes("/object/sign/")) {
-      return Promise.resolve({ ok: true, status: 200, arrayBuffer: () => Promise.resolve(AGREEMENT_PDF_BYTES.slice().buffer) });
-    }
-    if (method === "PUT" && url.includes("/storage/v1/object/consents/")) {
-      return Promise.resolve({ ok: true, status: 200, arrayBuffer: () => Promise.resolve(new ArrayBuffer(0)) });
-    }
-    if (method === "GET" && url.includes("/storage/v1/object/consents/")) {
-      return Promise.resolve({ ok: true, status: 200, arrayBuffer: () => Promise.resolve(AGREEMENT_PDF_BYTES.slice().buffer) });
-    }
-    return Promise.reject(new Error(`unexpected fetch ${method} ${url}`));
-  });
-}
 
 describe("esign webhook (Firma HMAC contract)", () => {
   it("rejects non-object metadata on a completed envelope", async () => {
@@ -414,217 +351,3 @@ describe("esign webhook (Firma HMAC contract)", () => {
 type ConsentPortShape = { submitConsent: Mock; flagConsentForManualReview: Mock; hasConsentFor: Mock };
 const _shapeCheck: ConsentPortShape | null = null;
 void _shapeCheck;
-
-describe("esign webhook route — terminal-reject quarantine (compiled sweep)", () => {
-  it("a validation-failed delivery returns 400 and quarantines the event (sha256, no raw body)", async () => {
-    vi.resetModules();
-    const inserts: Array<{ event?: string; details?: Record<string, unknown> }> = [];
-    vi.doMock("../../../../../../src/use_cases/process_esign_webhook", () => ({
-      processEsignWebhookUseCase: vi.fn(() => {
-        throw new WebhookValidationError("Webhook validation failed: completed envelope env_q has a missing or invalid document_sha256");
-      }),
-    }));
-    vi.doMock("@supabase/supabase-js", () => ({
-      createClient: () => ({
-        from: (table: string) => ({
-          insert: (row: unknown) => {
-            if (table === "audit_log") inserts.push(row as { event?: string; details?: Record<string, unknown> });
-            const insertResult = Promise.resolve({ error: null });
-            return Object.assign(insertResult, { abortSignal: () => insertResult });
-          },
-        }),
-      }),
-    }));
-    vi.stubEnv("SUPABASE_URL", "https://unit.test.supabase.co");
-    vi.stubEnv("SUPABASE_SECRET_KEY", "unit-test-key");
-    vi.stubEnv("FIRMA_WEBHOOK_SECRET", "route-secret");
-    const { POST } = await import("../../../app/api/esign/webhook/route");
-    const payload = JSON.stringify({ type: "signing_request.completed", data: { signing_request: { id: "env_q" } } });
-    const signature = crypto.createHmac("sha256", "route-secret").update(payload).digest("hex");
-    const req = new Request("https://expanpress.com/api/esign/webhook", {
-      method: "POST",
-      body: payload,
-      headers: { "x-firma-signature": signature },
-    });
-    const res = await POST(req as never);
-    expect(res.status).toBe(400);
-    expect(inserts).toHaveLength(1);
-    expect(inserts[0]).toMatchObject({ event: "WEBHOOK_TERMINAL_REJECT", details: { provider: "esign", reason: "WebhookValidationError" } });
-    expect(inserts[0]?.details?.payload_sha256).toMatch(/^[0-9a-f]{64}$/);
-  });
-
-  it("an unauthenticated (401) reject returns 401 and does NOT quarantine", async () => {
-    vi.resetModules();
-    const inserts: Array<{ event?: string; details?: Record<string, unknown> }> = [];
-    vi.doMock("../../../../../../src/use_cases/process_esign_webhook", () => ({
-      processEsignWebhookUseCase: vi.fn(() => {
-        throw new WebhookValidationError("Webhook validation failed: Invalid signature", 401);
-      }),
-    }));
-    vi.doMock("@supabase/supabase-js", () => ({
-      createClient: () => ({
-        from: (table: string) => ({
-          insert: (row: unknown) => {
-            if (table === "audit_log") inserts.push(row as { event?: string; details?: Record<string, unknown> });
-            const insertResult = Promise.resolve({ error: null });
-            return Object.assign(insertResult, { abortSignal: () => insertResult });
-          },
-        }),
-      }),
-    }));
-    vi.stubEnv("SUPABASE_URL", "https://unit.test.supabase.co");
-    vi.stubEnv("SUPABASE_SECRET_KEY", "unit-test-key");
-    vi.stubEnv("FIRMA_WEBHOOK_SECRET", "route-secret");
-    const { POST } = await import("../../../app/api/esign/webhook/route");
-    const payload = JSON.stringify({ type: "signing_request.completed", data: { signing_request: { id: "env_q" } } });
-    const req = new Request("https://expanpress.com/api/esign/webhook", {
-      method: "POST",
-      body: payload,
-      headers: { "x-firma-signature": "0".repeat(64) }, // present but wrong → 401
-    });
-    const res = await POST(req as never);
-    expect(res.status).toBe(401);
-    expect(inserts).toHaveLength(0); // unauthenticated senders must not force service-role audit writes
-  });
-
-  it("takes the audit IP from x-real-ip ahead of a spoofed x-forwarded-for", async () => {
-    vi.resetModules();
-    const processSpy = vi.fn(async () => undefined);
-    vi.doMock("../../../../src/use_cases/process_esign_webhook", () => ({ processEsignWebhookUseCase: processSpy }));
-    vi.doMock("@supabase/supabase-js", () => ({
-      createClient: () => ({
-        from: () => ({
-          insert: () => {
-            const insertResult = Promise.resolve({ error: null });
-            return Object.assign(insertResult, { abortSignal: () => insertResult });
-          },
-        }),
-      }),
-    }));
-    vi.stubEnv("SUPABASE_URL", "https://unit.test.supabase.co");
-    vi.stubEnv("SUPABASE_SECRET_KEY", "unit-test-key");
-    vi.stubEnv("FIRMA_WEBHOOK_SECRET", "route-secret");
-    const { POST } = await import("../../../app/api/esign/webhook/route");
-    const payload = JSON.stringify({ type: "signing_request.completed", data: { signing_request: { id: "env_ip" } } });
-    const signature = crypto.createHmac("sha256", "route-secret").update(payload).digest("hex");
-    const req = new Request("https://expanpress.com/api/esign/webhook", {
-      method: "POST",
-      body: payload,
-      headers: { "x-firma-signature": signature, "x-real-ip": "198.51.100.7", "x-forwarded-for": "6.6.6.6" },
-    });
-    const res = await POST(req as never);
-    expect(res.status).toBe(200);
-    expect(processSpy).toHaveBeenCalledWith(expect.objectContaining({ ip: "198.51.100.7" }), expect.anything(), expect.anything());
-  });
-});
-
-// Sprint 12 Task 1: fetchCompletedDocument LIVE-SHAPE contract (verified
-// against the production Firma API 2026-10-05 — probe transcript in
-// docs/agent-prompts/sprint12-firma-live-shape.md):
-//   GET {base}/signing-requests/{id}            → 200 JSON resource carrying
-//     `document_url` (freshly-minted signed Storage URL, ~1h TTL) and
-//     `final_document_download_url` (finished-document slot, null when
-//     unfinished). Both `/documents` and `/documents/download` are 404.
-describe("FirmaAdapter.fetchCompletedDocument — live-shape contract", () => {
-  beforeEach(() => {
-    vi.stubEnv("FIRMA_API_BASE", "https://api.firma.test/functions/v1/signing-request-api");
-    vi.stubEnv("FIRMA_API_KEY", "unit-test-firma-key");
-    vi.unstubAllGlobals();
-  });
-  afterEach(() => {
-    vi.unstubAllEnvs();
-    vi.unstubAllGlobals();
-  });
-
-  it("two-step flow: resource JSON → signed URL bytes (%PDF- gate)", async () => {
-    const fetchMock = vi.fn((input: unknown, _init?: RequestInit) => {
-      const url = String(input);
-      if (/\/signing-requests\/[^/]+$/.test(url)) {
-        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ status: { sent: true, finished: true, cancelled: false, declined: false, expired: false }, final_document_download_url: "https://firma-storage.test/object/sign/a-final.pdf?token=t", document_url: "https://firma-storage.test/object/sign/a.pdf?token=t" }) });
-      }
-      if (url.includes("/object/sign/")) {
-        return Promise.resolve({ ok: true, status: 200, arrayBuffer: () => Promise.resolve(AGREEMENT_PDF_BYTES.slice().buffer) });
-      }
-      return Promise.reject(new Error(`unexpected fetch ${url}`));
-    });
-    vi.stubGlobal("fetch", fetchMock);
-    const { FirmaAdapter } = await import("../../../../src/adapters/esign/firma.adapter");
-    const bytes = await new FirmaAdapter(async () => [{ address: "93.184.216.34" }], passthroughDownload).fetchCompletedDocument("env_x");
-    expect(Buffer.from(bytes).toString("latin1")).toBe("%PDF-1");
-    // The signed URL must be fetched WITHOUT our credentials (self-authorizing token).
-    expect((fetchMock.mock.calls[1][1] as RequestInit | undefined)?.headers).toBeUndefined();
-  });
-
-  it("prefers final_document_download_url when populated, falls back to document_url", async () => {
-    const fetchMock = vi.fn((input: unknown, _init?: RequestInit) => {
-      const url = String(input);
-      if (/\/signing-requests\/[^/]+$/.test(url)) {
-        return Promise.resolve({
-          ok: true, status: 200,
-          json: () => Promise.resolve({
-            status: { sent: true, finished: true, cancelled: false, declined: false, expired: false },
-            final_document_download_url: "https://firma-storage.test/object/sign/final.pdf?token=t",
-            document_url: "https://firma-storage.test/object/sign/original.pdf?token=t",
-          }),
-        });
-      }
-      if (url.includes("final.pdf")) {
-        return Promise.resolve({ ok: true, status: 200, arrayBuffer: () => Promise.resolve(AGREEMENT_PDF_BYTES.slice().buffer) });
-      }
-      return Promise.reject(new Error(`unexpected fetch ${url}`));
-    });
-    vi.stubGlobal("fetch", fetchMock);
-    const { FirmaAdapter } = await import("../../../../src/adapters/esign/firma.adapter");
-    await new FirmaAdapter(async () => [{ address: "93.184.216.34" }], passthroughDownload).fetchCompletedDocument("env_y");
-    expect(String(fetchMock.mock.calls[1][0])).toContain("final.pdf");
-  });
-
-  it("TERMINAL (sprint-12-C): a failing final URL never degrades to the unsigned document_url", async () => {
-    const fetchMock = vi.fn((input: unknown) => {
-      const url = String(input);
-      if (/\/signing-requests\/[^/]+$/.test(url)) {
-        return Promise.resolve({
-          ok: true, status: 200,
-          json: () => Promise.resolve({
-            status: { sent: true, finished: true, cancelled: false, declined: false, expired: false },
-            final_document_download_url: "https://firma-storage.test/object/sign/final.pdf?token=t",
-            document_url: "https://firma-storage.test/object/sign/original.pdf?token=t",
-          }),
-        });
-      }
-      if (url.includes("final.pdf")) {
-        return Promise.resolve({ ok: true, status: 200, arrayBuffer: () => Promise.resolve(new TextEncoder().encode('{"error":"not ready"}').buffer) });
-      }
-      return Promise.resolve({ ok: true, status: 200, arrayBuffer: () => Promise.resolve(AGREEMENT_PDF_BYTES.slice().buffer) });
-    });
-    vi.stubGlobal("fetch", fetchMock);
-    const { FirmaAdapter } = await import("../../../../src/adapters/esign/firma.adapter");
-    await expect(new FirmaAdapter(async () => [{ address: "93.184.216.34" }], passthroughDownload).fetchCompletedDocument("env_z")).rejects.toThrow(/did not yield PDF bytes within the 20 MiB cap/);
-    const fetchedUrls = fetchMock.mock.calls.map((c) => String(c[0]));
-    expect(fetchedUrls.some((u) => u.includes("original.pdf"))).toBe(false); // unsigned source never fetched
-  });
-
-  it("fails LOUD when the resource GET 404s (old documents-endpoint shape is gone)", async () => {
-    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({ ok: false, status: 404 })));
-    const { FirmaAdapter } = await import("../../../../src/adapters/esign/firma.adapter");
-    await expect(new FirmaAdapter(async () => [{ address: "93.184.216.34" }], passthroughDownload).fetchCompletedDocument("env_missing")).rejects.toThrow(/resource fetch failed \(404\)/);
-  });
-
-  it("fails LOUD when the resource exposes no valid HTTPS download URL", async () => {
-    vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ id: "env_q", status: { sent: true, finished: true, cancelled: false, declined: false, expired: false }, document_url: "https://firma-storage.test/object/sign/a.pdf?token=t" }) })));
-    const { FirmaAdapter } = await import("../../../../src/adapters/esign/firma.adapter");
-    await expect(new FirmaAdapter(async () => [{ address: "93.184.216.34" }], passthroughDownload).fetchCompletedDocument("env_q")).rejects.toThrow(/no final_document_download_url/);
-  });
-
-  it("fails LOUD when the final URL fails the %PDF- gate (aggregate error)", async () => {
-    vi.stubGlobal("fetch", vi.fn((input: unknown) => {
-      const url = String(input);
-      if (/\/signing-requests\/[^/]+$/.test(url)) {
-        return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ status: { sent: true, finished: true, cancelled: false, declined: false, expired: false }, final_document_download_url: "https://firma-storage.test/object/sign/a-final.pdf?token=t", document_url: "https://firma-storage.test/object/sign/a.pdf?token=t" }) });
-      }
-      return Promise.resolve({ ok: true, status: 200, arrayBuffer: () => Promise.resolve(new TextEncoder().encode("<html>nope</html>").buffer) });
-    }));
-    const { FirmaAdapter } = await import("../../../../src/adapters/esign/firma.adapter");
-    await expect(new FirmaAdapter(async () => [{ address: "93.184.216.34" }], passthroughDownload).fetchCompletedDocument("env_junk")).rejects.toThrow(/did not yield PDF bytes within the 20 MiB cap/);
-  });
-});
