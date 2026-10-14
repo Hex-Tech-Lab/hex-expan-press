@@ -1,11 +1,23 @@
+import { NextResponse } from "next/server";
+
 /** Thrown when an audit write cannot happen because the Supabase infrastructure keys are
  *  absent. Fail-closed (ARTAS): a missing audit trail must surface as an error, never as a
- *  silent skip. Callers must not catch it; the webhook then answers 500 and the provider retries. */
+ *  silent skip. Webhook POST handlers convert it with auditUnavailableResponse(); the provider
+ *  then retries on the 500. */
 export class AuditUnavailableError extends Error {
   constructor(missing: readonly string[]) {
     super(`audit trail unavailable: ${missing.join(", ")} not set`);
     this.name = "AuditUnavailableError";
   }
+}
+
+/** Boundary conversion for webhook POST handlers: an AuditUnavailableError becomes a fixed
+ *  500 JSON body (no internals; the 503 Retry-After is intentionally dropped, the 5xx itself
+ *  is the provider's retry signal). Any other error is rethrown unchanged. */
+export function auditUnavailableResponse(err: unknown): NextResponse {
+  if (!(err instanceof AuditUnavailableError)) throw err;
+  console.error(`[audit] ${err.message}; answering 500 so the provider retries`);
+  return NextResponse.json({ ok: false, error: "Internal Server Error" }, { status: 500 });
 }
 
 /** Returns the Supabase URL and secret key for an audit write, or throws AuditUnavailableError.
