@@ -164,7 +164,7 @@ async function quarantineTerminalEvent(
   const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<void>((resolve) => {
-    timer = setTimeout(() => { controller.abort(); resolve(); }, GLOBAL.payments.http_timeout_ms);
+    timer = setTimeout(() => { controller.abort(); console.error("[billing-webhook] quarantine insert aborted after http_timeout_ms"); resolve(); }, GLOBAL.payments.http_timeout_ms);
   });
   try {
     await Promise.race([insertTerminalRejectAudit(headers, bodyBuffer, reason, controller.signal), timeout]);

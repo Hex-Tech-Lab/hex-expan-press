@@ -1,5 +1,5 @@
 /**
- * Contract Auditor (ported from hex-yt-intel, static rules only) -- catches "it compiles, it's not a security bug, and it
+ * Contract Auditor (static rules) -- catches "it compiles, it's not a security bug, and it
  * still silently does the wrong thing" defects that tsc/lint/qa-intel miss.
  *
  * Each rule targets a silent-failure pattern: a missing-config path that exits 0,
@@ -7,8 +7,8 @@
  *
  * This is intentionally a small, high-precision ruleset, not a general
  * linter -- false positives here train people to ignore the tool, which
- * defeats the point. Run: `pnpm tsx scripts/contract-auditor.ts`.
- * Exits 1 only on CRITICAL findings so CI turns red on the exact class of
+ * defeats the point. Run: `pnpm contract-audit`.
+ * Exits 1 only on CRITICAL findings. It is not wired into CI.
  * bug that used to stay invisible; WARNING findings are informational.
  */
 import { readFileSync, readdirSync, statSync } from 'fs';
@@ -21,7 +21,7 @@ interface Finding {
   severity: 'critical' | 'warning';
   file: string;
   line: number;
-  /** Stable identity across runs (rule+file+line), used to compute new/recurring/resolved against the previous run -- a raw findings dump tells you what's wrong TODAY, not whether it's the same thing you already knew about or a fresh regression. */
+  /** Stable identity for a finding (rule+file+line). Printed only; no cross-run comparison in this repo. */
   fingerprint?: string;
   why: string;
   snippet: string;
@@ -61,8 +61,7 @@ const findings: Finding[] = [];
 // --- Rule 1: SILENT_SUCCESS_ON_MISSING_CONFIG ---------------------------
 // A script that warns about missing required config and then exits 0 (or
 // just `return`s with no non-zero exit) will report success to whatever
-// invoked it. CI-invoked scripts (package.json "scripts" entries reachable
-// from a workflow `run:` line) are the highest-risk case -- a green check
+// invoked it. Scripts invoked by automation are the highest-risk case -- a green check
 // that did nothing is strictly worse than a red one that's honest.
 function auditSilentSuccess(file: string, content: string) {
   const lines = content.split('\n');
@@ -72,7 +71,7 @@ function auditSilentSuccess(file: string, content: string) {
     const isMissingConfigWarning = /missing|not (configured|set|found)|skip/i.test(line);
     if (!isMissingConfigWarning) continue;
     // Look ahead a few lines for a bare `process.exit(0)` (or a `return`
-    // with no throw) that would make the caller see success.
+    // that would make the caller see success.
     const window = lines.slice(i, Math.min(i + 5, lines.length)).join('\n');
     if (/process\.exit\(0\)/.test(window)) {
       findings.push({
@@ -80,7 +79,7 @@ function auditSilentSuccess(file: string, content: string) {
         severity: 'critical',
         file,
         line: i + 1,
-        why: 'A missing-config warning is immediately followed by process.exit(0) -- the caller (likely CI) sees this as success. If this script is invoked from a workflow step with no other verification, a rotated/emptied credential becomes permanently invisible.',
+        why: 'A missing-config warning is immediately followed by process.exit(0) -- the caller sees this as success. If this script is invoked from a workflow step with no other verification, a rotated/emptied credential becomes permanently invisible.',
         snippet: line.trim(),
       });
     }
@@ -131,14 +130,12 @@ function stripStringsAndCommentsForBraceCounting(line: string): string {
 
 /**
  * Single source of truth for "does this code call a real telemetry sink",
- * shared by every rule below that needs it -- previously duplicated as three
  * separately-maintained copies of the same regex, which is exactly the kind
  * of drift risk that would let this whole rule class silently fall behind
  * actual observability practice as new call sites are added.
  *
  * Covers: console.error/warn, Sentry.captureException/captureMessage, and
  * the bare (non-method) `logError(...)` call from
- * web/lib/services/error-handler.ts -- a real, repo-wide, console-backed
  * telemetry helper (confirmed by reading its implementation: it dispatches
  * to console.error/warn/info internally), so a file whose only reporting is
  * `logError(...)` was previously invisible to this rule.
@@ -191,7 +188,7 @@ function auditSilentCatchNoTelemetry(file: string, content: string) {
         severity: 'warning',
         file,
         line: i + 1,
-        why: 'This catch block has no console.error/warn or Sentry.captureException/captureMessage call -- the failure it exists to handle is invisible to every telemetry surface. Confirmed pattern: worker/src/services/PersistService.ts had 4 of these, one of which was the root cause of a chunk that silently vanished with zero trace anywhere (fixed in e5bfc1da).',
+        why: 'This catch block has no console.error/warn or Sentry.captureException/captureMessage call -- the failure it exists to handle is invisible to every telemetry surface. Confirmed pattern: worker/src/services/a persistence service had 4 of these, one of which was the root cause of a chunk that silently vanished with zero trace anywhere (fixed in a prior fix).',
         snippet: line.trim(),
       });
       continue;
@@ -231,7 +228,7 @@ function auditSilentCatchNoTelemetry(file: string, content: string) {
       severity: 'warning',
       file,
       line: i + 1,
-      why: 'This catch block has no console.error/warn or Sentry.captureException/captureMessage call anywhere in its body -- the failure it exists to handle is invisible to every telemetry surface. Confirmed pattern: worker/src/services/PersistService.ts had 4 of these, one of which was the root cause of a chunk that silently vanished with zero trace anywhere (fixed in e5bfc1da).',
+      why: 'This catch block has no console.error/warn or Sentry.captureException/captureMessage call anywhere in its body -- the failure it exists to handle is invisible to every telemetry surface. Confirmed pattern: worker/src/services/a persistence service had 4 of these, one of which was the root cause of a chunk that silently vanished with zero trace anywhere (fixed in a prior fix).',
       snippet: line.trim(),
     });
   }
@@ -242,10 +239,8 @@ function auditSilentCatchNoTelemetry(file: string, content: string) {
 // enclosing block has no error-reporting call anywhere in it. This is the
 // non-exceptional sibling of SILENT_CATCH_NO_TELEMETRY: no throw happens, so
 // the catch-block heuristic never sees it, but the failure is just as
-// invisible. Confirmed pattern: LLMCascade.ts's callLLM/callLLMStream had 4
 // of these (non-2xx branches, empty-response branch) with zero telemetry --
 // found only via manual crash investigation, not tooling (fixed in
-// 23eb5a36). Narrow on purpose: only fires when the *entire* enclosing block
 // (walked backward to its opening brace, capped at 15 lines) lacks any
 // console.error/warn or Sentry call -- a block that already logs above the
 // return is left alone.
@@ -262,7 +257,6 @@ function auditSilentErrorReturnNoTelemetry(file: string, content: string) {
     const line = lines[i] ?? '';
     if (!returnOpenPattern.test(line)) continue;
 
-    // RCA (2026-07-30): the original version tested returnPattern against
     // `line` alone, so `return {\n  success: false,\n  ...\n};` -- the
     // common multi-line object-literal shape -- was invisible to this rule
     // entirely. Join the return line plus up to 6 following lines (enough
@@ -297,7 +291,7 @@ function auditSilentErrorReturnNoTelemetry(file: string, content: string) {
       severity: 'warning',
       file,
       line: i + 1,
-      why: 'This return of a failure object (success/ok set to false) has no console.error/warn or Sentry.captureException/captureMessage call anywhere in its enclosing block -- a real failure path with no throw, so it is invisible to telemetry and to SILENT_CATCH_NO_TELEMETRY alike. Confirmed pattern: LLMCascade.ts had 4 of these across callLLM/callLLMStream (fixed in 23eb5a36).',
+      why: 'This return of a failure object (success/ok set to false) has no console.error/warn or Sentry.captureException/captureMessage call anywhere in its enclosing block -- a real failure path with no throw, so it is invisible to telemetry and to SILENT_CATCH_NO_TELEMETRY alike. Confirmed pattern: an LLM cascade had 4 of these across callLLM/callLLMStream (fixed in a prior fix).',
       snippet: line.trim(),
     });
   }
