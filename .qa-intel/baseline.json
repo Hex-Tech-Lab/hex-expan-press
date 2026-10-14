@@ -1720,5 +1720,12 @@
     "title": "Workflow: Missing finally block for I/O",
     "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: Risky I/O call 'fetch' detected without an explicit finally block.",
     "fix": "Ensure all I/O operations are wrapped in a try/finally block to guarantee resource cleanup."
+  },
+  {
+    "file": "web/src/components/storefront/buy-link.tsx",
+    "severity": "high",
+    "title": "Error: Empty catch block swallows error silently",
+    "why": "Pre-existing technical debt: file is untouched by current PR scope.",
+    "fix": "Log the error in the catch blocks (fix exists on chore/pr-gate-infra, storefront PR scope)."
   }
 ]
