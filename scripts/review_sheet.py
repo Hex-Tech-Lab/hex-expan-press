@@ -28,7 +28,7 @@ def classify(page, n, total):
         return "part"
     if "CHAPTER" in flat:
         return "opener"
-    ph = float(page.height)
+    float(page.height)  # validate numeric height; raises if missing
     for r in page.rects + page.curves:
         w = float(r["x1"]) - float(r["x0"])
         h = float(r["bottom"]) - float(r["top"])

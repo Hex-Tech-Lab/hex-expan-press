@@ -23,7 +23,7 @@ from collections import Counter
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from book_config import QA, MS, chapter_sources  # noqa: E402
+from book_config import QA, chapter_sources  # noqa: E402
 from jev import decide  # noqa: E402
 
 LO = 0.5

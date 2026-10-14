@@ -12,7 +12,6 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "scripts"))
-from book_config import DATA, QA, RELEASES  # noqa: E402
 
 
 def parse_pages(spec: str, total: int) -> range:
@@ -36,7 +35,6 @@ def main() -> None:
     args = ap.parse_args()
 
     import pdfplumber
-    from PIL import Image
 
     pdf_path = args.pdf.resolve()
     out_dir = pdf_path.parent / "flipbook"
