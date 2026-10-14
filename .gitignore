@@ -93,3 +93,6 @@ docs/_archive/legacy_adrs/
 
 # code-review-graph machine-local DB (build-graph skill)
 .code-review-graph/
+
+# Internal tech-debt ledger (audit detail; kept local like docs/private/)
+docs/TECH_DEBT_LEDGER.md
