@@ -1,0 +1,39 @@
+web/app/api/esign/webhook/route.ts
+  s_4e2b0b0a92fc08::t_93ca8297222a97 111-113
+  s_4e2b0b0a92fc08::t_9422fbeedd8cae 9
+web/app/api/billing/webhook/__tests__/audit-fail-closed-and-timeouts.test.ts
+  s_4e2b0b0a92fc08::t_532b1efbdcd8b0 52,54,56-59,62,64,66-69,72,78-80
+web/app/api/esign/webhook/__tests__/terminal-reject-audit.test.ts
+  s_4e2b0b0a92fc08::t_92f560dceb937b 59,61,63-65,67
+web/src/lib/audit-config.ts
+  s_4e2b0b0a92fc08::t_3180d8f1f66879 1-2,5-6,14-20
+  s_693f4fdf6d462f::t_199258869496fa 21-22
+web/app/api/billing/webhook/handler.ts
+  s_4e2b0b0a92fc08::t_ab0bd316b86455 13-15
+  s_4e2b0b0a92fc08::t_ef52c8f1b1489f 80-81
+  s_4e2b0b0a92fc08::t_c3f233296514e2 2
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7a03ec57a0730033911728c0790702d0deb6f813",
+  "prompts": {},
+  "sessions": {
+    "s_4e2b0b0a92fc08": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "69ec633a-0c01-486a-80de-180205f86530",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "CCW <104952356+TechHypeXP@users.noreply.github.com>"
+    },
+    "s_693f4fdf6d462f": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "aefd2165-adc2-4c1b-931e-f6ebbf4bdce0",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "CCW <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
