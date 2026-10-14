@@ -6,7 +6,7 @@ import { existsSync, rmSync } from "node:fs";
 import type { NextRequest } from "next/server";
 
 const db = vi.hoisted(() => ({ upserts: [] as unknown[], audits: [] as { table: string; row: { event?: string; details?: Record<string, unknown> } }[] }));
-const ledgerDir = vi.hoisted(() => `/tmp/lock-503-ledger-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+const ledgerDir = vi.hoisted(() => `${process.env.TMPDIR ?? "/tmp"}/lock-503-ledger-${globalThis.crypto.randomUUID()}`);
 
 vi.mock("@supabase/supabase-js", () => ({
   createClient: () => ({
