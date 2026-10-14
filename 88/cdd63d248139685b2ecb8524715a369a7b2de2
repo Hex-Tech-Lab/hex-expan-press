@@ -1,0 +1,19 @@
+.qa-intel/baseline.json
+  s_4e2b0b0a92fc08::t_1e045fd73fb78a 1359-1722
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "88cdd63d248139685b2ecb8524715a369a7b2de2",
+  "prompts": {},
+  "sessions": {
+    "s_4e2b0b0a92fc08": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "69ec633a-0c01-486a-80de-180205f86530",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "CCW <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
