@@ -1356,5 +1356,369 @@
     "title": "Security: authorization-relevant change with no sibling test in this scan",
     "why": "Accepted 2026-10-14 (owner decision). Root-level internal utility script. No test file exists for it. Root-level __tests__ is not collected by vitest.config.ts, and the owner chose not to change that config, so the sibling-test rule cannot be satisfied. This is not a rule exemption: any change to the authorization branch still needs a test in the same PR.",
     "fix": "Add a test for the authorization branch when that branch changes."
+  },
+  {
+    "file": "certify_gates.ts",
+    "severity": "medium",
+    "title": "Complexity: Monolithic File",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: File exceeds 500 lines (524 lines).",
+    "fix": "Decompose into smaller, domain-specific modules."
+  },
+  {
+    "file": "certify_gates.ts",
+    "severity": "medium",
+    "title": "Observability: Catch block without error logging",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: Error is caught but not logged, making debugging difficult.",
+    "fix": "Add error logging: console.error('[context]', error); or Sentry.captureException(error);"
+  },
+  {
+    "file": "certify_gates.ts",
+    "severity": "low",
+    "title": "Data Quality: String truncation without ellipsis indicator",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: String is truncated but doesn't add '...' to indicate more content. User sees incomplete text.",
+    "fix": "Add ellipsis when truncating: text.slice(0, 50) + (text.length > 50 ? '...' : '')"
+  },
+  {
+    "file": "certify_gates.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'm'",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: Single-letter variable 'm' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'm' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "certify_gates.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 's'",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: Single-letter variable 's' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 's' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "certify_gates.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'e'",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: Single-letter variable 'e' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'e' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "certify_gates.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'r'",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: Single-letter variable 'r' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'r' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "certify_gates.ts",
+    "severity": "medium",
+    "title": "Workflow: Missing finally block for I/O",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: Risky I/O call 'fetch' detected without an explicit finally block.",
+    "fix": "Ensure all I/O operations are wrapped in a try/finally block to guarantee resource cleanup."
+  },
+  {
+    "file": "creator_scan.ts",
+    "severity": "medium",
+    "title": "Code Quality: Redundant 'async' keyword (no await found)",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: Function 'pickNichesWithTrends' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
+    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+  },
+  {
+    "file": "creator_scan.ts",
+    "severity": "medium",
+    "title": "Complexity: Monolithic File",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: File exceeds 500 lines (949 lines).",
+    "fix": "Decompose into smaller, domain-specific modules."
+  },
+  {
+    "file": "creator_scan.ts",
+    "severity": "medium",
+    "title": "Observability: Catch block without error logging",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: Error is caught but not logged, making debugging difficult.",
+    "fix": "Add error logging: console.error('[context]', error); or Sentry.captureException(error);"
+  },
+  {
+    "file": "creator_scan.ts",
+    "severity": "low",
+    "title": "Data Quality: String truncation without ellipsis indicator",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: String is truncated but doesn't add '...' to indicate more content. User sees incomplete text.",
+    "fix": "Add ellipsis when truncating: text.slice(0, 50) + (text.length > 50 ? '...' : '')"
+  },
+  {
+    "file": "creator_scan.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 's'",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: Single-letter variable 's' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 's' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "creator_scan.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'N'",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: Single-letter variable 'N' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'N' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "creator_scan.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'q'",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: Single-letter variable 'q' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'q' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "creator_scan.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'm'",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: Single-letter variable 'm' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'm' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "creator_scan.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'n'",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: Single-letter variable 'n' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'n' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "creator_scan.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'u'",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: Single-letter variable 'u' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'u' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "creator_scan.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'k'",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: Single-letter variable 'k' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'k' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "creator_scan.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'g'",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: Single-letter variable 'g' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'g' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "creator_scan.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'a'",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: Single-letter variable 'a' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'a' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "creator_scan.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'b'",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: Single-letter variable 'b' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'b' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "creator_scan.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'c'",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: Single-letter variable 'c' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'c' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "creator_scan.ts",
+    "severity": "medium",
+    "title": "Workflow: Missing finally block for I/O",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: Risky I/O call 'fetch' detected without an explicit finally block.",
+    "fix": "Ensure all I/O operations are wrapped in a try/finally block to guarantee resource cleanup."
+  },
+  {
+    "file": "payments/test/book_identity.test.ts",
+    "severity": "medium",
+    "title": "Code Quality: Redundant 'async' keyword (no await found)",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
+    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+  },
+  {
+    "file": "payments/test/book_identity.test.ts",
+    "severity": "medium",
+    "title": "Complexity: Monolithic File",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: File exceeds 500 lines (786 lines).",
+    "fix": "Decompose into smaller, domain-specific modules."
+  },
+  {
+    "file": "payments/test/book_identity.test.ts",
+    "severity": "low",
+    "title": "Data Quality: String truncation without ellipsis indicator",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: String is truncated but doesn't add '...' to indicate more content. User sees incomplete text.",
+    "fix": "Add ellipsis when truncating: text.slice(0, 50) + (text.length > 50 ? '...' : '')"
+  },
+  {
+    "file": "payments/test/book_identity.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'p'",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: Single-letter variable 'p' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'p' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/book_identity.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 't'",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: Single-letter variable 't' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 't' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/book_identity.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 's'",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: Single-letter variable 's' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 's' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/fungies_refund.test.ts",
+    "severity": "low",
+    "title": "Data Quality: String truncation without ellipsis indicator",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: String is truncated but doesn't add '...' to indicate more content. User sees incomplete text.",
+    "fix": "Add ellipsis when truncating: text.slice(0, 50) + (text.length > 50 ? '...' : '')"
+  },
+  {
+    "file": "payments/test/fungies_refund.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'r'",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: Single-letter variable 'r' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'r' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/paddle_attribution.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'r'",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: Single-letter variable 'r' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'r' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "src/adapters/esign/__tests__/firma.adapter.test.ts",
+    "severity": "medium",
+    "title": "Code Quality: Redundant 'async' keyword (no await found)",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
+    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+  },
+  {
+    "file": "src/adapters/esign/__tests__/firma.adapter.test.ts",
+    "severity": "medium",
+    "title": "Complexity: Monolithic File",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: File exceeds 500 lines (784 lines).",
+    "fix": "Decompose into smaller, domain-specific modules."
+  },
+  {
+    "file": "src/adapters/esign/__tests__/firma.adapter.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Import ordering violated",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: Import 'undici' (thirdparty) comes after types. Should follow order: framework → thirdparty → internal → types.",
+    "fix": "Reorganize imports to follow the correct order groups."
+  },
+  {
+    "file": "src/adapters/esign/__tests__/firma.adapter.test.ts",
+    "severity": "low",
+    "title": "Data Quality: String truncation without ellipsis indicator",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: String is truncated but doesn't add '...' to indicate more content. User sees incomplete text.",
+    "fix": "Add ellipsis when truncating: text.slice(0, 50) + (text.length > 50 ? '...' : '')"
+  },
+  {
+    "file": "src/adapters/esign/__tests__/firma.adapter.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'h'",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: Single-letter variable 'h' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'h' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "src/use_cases/billing/__tests__/process_billing_webhook.test.ts",
+    "severity": "medium",
+    "title": "Code Quality: Redundant 'async' keyword (no await found)",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
+    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+  },
+  {
+    "file": "src/use_cases/billing/__tests__/process_billing_webhook.test.ts",
+    "severity": "medium",
+    "title": "Complexity: Monolithic File",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: File exceeds 500 lines (1367 lines).",
+    "fix": "Decompose into smaller, domain-specific modules."
+  },
+  {
+    "file": "src/use_cases/billing/__tests__/process_billing_webhook.test.ts",
+    "severity": "medium",
+    "title": "Risk: non-null assertion on array index after sort/filter",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: rows[1]! asserts a result exists after a .sort()/.filter() transform on 'rows'. A future refactor that changes the filter predicate (e.g. widening it to allow an empty result) will not be caught by the type system and can throw or silently produce 'undefined' at runtime.",
+    "fix": "Replace with an explicit check: const first = rows[0]; if (!first) { /* handle empty case */ }"
+  },
+  {
+    "file": "src/use_cases/billing/__tests__/process_billing_webhook.test.ts",
+    "severity": "low",
+    "title": "Data Quality: String truncation without ellipsis indicator",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: String is truncated but doesn't add '...' to indicate more content. User sees incomplete text.",
+    "fix": "Add ellipsis when truncating: text.slice(0, 50) + (text.length > 50 ? '...' : '')"
+  },
+  {
+    "file": "src/use_cases/billing/__tests__/process_billing_webhook.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'a'",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: Single-letter variable 'a' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'a' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "src/use_cases/billing/__tests__/process_billing_webhook.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'd'",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: Single-letter variable 'd' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'd' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "src/use_cases/billing/__tests__/process_billing_webhook.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'p'",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: Single-letter variable 'p' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'p' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "src/use_cases/billing/__tests__/process_billing_webhook.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'e'",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: Single-letter variable 'e' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'e' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/src/lib/__tests__/esign-webhook.fixtures.ts",
+    "severity": "low",
+    "title": "Data Quality: String truncation without ellipsis indicator",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: String is truncated but doesn't add '...' to indicate more content. User sees incomplete text.",
+    "fix": "Add ellipsis when truncating: text.slice(0, 50) + (text.length > 50 ? '...' : '')"
+  },
+  {
+    "file": "web/src/lib/__tests__/esign-webhook.live-shape.test.ts",
+    "severity": "medium",
+    "title": "Code Quality: Redundant 'async' keyword (no await found)",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
+    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+  },
+  {
+    "file": "web/src/lib/__tests__/esign-webhook.live-shape.test.ts",
+    "severity": "low",
+    "title": "Data Quality: String truncation without ellipsis indicator",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: String is truncated but doesn't add '...' to indicate more content. User sees incomplete text.",
+    "fix": "Add ellipsis when truncating: text.slice(0, 50) + (text.length > 50 ? '...' : '')"
+  },
+  {
+    "file": "web/src/lib/__tests__/esign-webhook.live-shape.test.ts",
+    "severity": "medium",
+    "title": "Workflow: Missing finally block for I/O",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: Risky I/O call 'fetch' detected without an explicit finally block.",
+    "fix": "Ensure all I/O operations are wrapped in a try/finally block to guarantee resource cleanup."
+  },
+  {
+    "file": "web/src/lib/__tests__/esign-webhook.quarantine.test.ts",
+    "severity": "medium",
+    "title": "Code Quality: Redundant 'async' keyword (no await found)",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
+    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+  },
+  {
+    "file": "web/src/lib/__tests__/esign-webhook.quarantine.test.ts",
+    "severity": "medium",
+    "title": "Workflow: Missing finally block for I/O",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: Risky I/O call 'fetch' detected without an explicit finally block.",
+    "fix": "Ensure all I/O operations are wrapped in a try/finally block to guarantee resource cleanup."
   }
 ]
