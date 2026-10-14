@@ -1,0 +1,44 @@
+web/src/lib/__tests__/strict-merge.test.ts
+  s_291078cde7ba1a::t_39a803aa95b5e1 63-64,68,70,73,75-77,79,81-90,94-95,98,103,105-106,108-109
+  s_4e2b0b0a92fc08::t_a7d2111898ffd1 1-62,65-67,69,71-72,74,78,80,91-93,96-97,99-102,104,107,110
+web/src/lib/__tests__/audit-config.test.ts
+  s_291078cde7ba1a::t_88dbba6a73bb18 12,17,23-26,31,35-37,39-54,65
+  s_4e2b0b0a92fc08::t_eb495ee2096a5c 1-11,13-16,18-22,27-30,32-34,38,55-64,66
+web/src/lib/audit-config.ts
+  s_291078cde7ba1a::t_9c0b9423acec2e 28-30
+  s_291078cde7ba1a::t_169a0711e3c5d5 1-27,31-34
+.gitignore
+  s_291078cde7ba1a::t_50f1f18de29584 96-98
+package.json
+  s_291078cde7ba1a::t_c8abb9e2d04174 21-22
+scripts/contract-auditor.ts
+  s_291078cde7ba1a::t_453d2358f42045 1-351
+scripts/strict-merge.sh
+  s_291078cde7ba1a::t_50f019f771d0cf 1-174
+web/tests/fixtures/strict-merge/bin/gh
+  s_291078cde7ba1a::t_a820b18a52d43f 1-36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e4b8833e5a27003ca1f2eae2aae00c923167c340",
+  "prompts": {},
+  "sessions": {
+    "s_291078cde7ba1a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8e8bf4d0-a061-4cb6-a487-5d76a4bef71f",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "CCW <104952356+TechHypeXP@users.noreply.github.com>"
+    },
+    "s_4e2b0b0a92fc08": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "69ec633a-0c01-486a-80de-180205f86530",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "CCW <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
