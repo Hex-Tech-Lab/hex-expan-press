@@ -1,0 +1,37 @@
+web/app/api/esign/webhook/route.ts
+  s_4e2b0b0a92fc08::t_31b586ca873c43 18-19
+  s_4e2b0b0a92fc08::t_4f7421afb5c15f 113
+web/app/api/billing/webhook/__tests__/audit-fail-closed-and-timeouts.test.ts
+  s_4e2b0b0a92fc08::t_675c871b3b9f88 2
+  s_4e2b0b0a92fc08::t_97ab5c8d53831d 25
+  s_4e2b0b0a92fc08::t_f9c39a8a19bb1c 59,63,68-69,72,74,81
+web/src/lib/__tests__/audit-config.test.ts
+  s_4e2b0b0a92fc08::t_1e65be7193209d 4-18
+web/app/api/esign/webhook/__tests__/terminal-reject-audit.test.ts
+  s_4e2b0b0a92fc08::t_ebbcb716a54b47 2
+  s_4e2b0b0a92fc08::t_deeef4455a528e 67
+  s_4e2b0b0a92fc08::t_f5ec1bc70c31a1 29
+web/src/lib/audit-config.ts
+  s_4e2b0b0a92fc08::t_74d89f52d3c70b 15-16,19
+web/app/api/billing/webhook/handler.ts
+  s_4e2b0b0a92fc08::t_0a586feee2c081 159-161
+  s_4e2b0b0a92fc08::t_4890f132254250 147
+  s_4e2b0b0a92fc08::t_4002dae8484dd3 103-104
+  s_4e2b0b0a92fc08::t_4968fcc00f0ddf 118-119
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "18bef1b52710e33a01aa59a47a10c1eacabf5e81",
+  "prompts": {},
+  "sessions": {
+    "s_4e2b0b0a92fc08": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "69ec633a-0c01-486a-80de-180205f86530",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "CCW <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
