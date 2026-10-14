@@ -8,7 +8,7 @@ Writes <QA>/alt_text_report.md (rendered to .html). Exit 1 on any FAIL.
 Usage: python3 scripts/alt_text_check.py [--no-jev]
 """
 import re
-import subprocess
+import subprocess  # nosec B404
 import sys
 from pathlib import Path
 
@@ -59,7 +59,7 @@ for loc, chap, ln, img, alt in rows:
 
 rep = QA / "alt_text_report.md"
 rep.write_text("\n".join(out) + "\n")
-subprocess.run(["bash", "scripts/render_report.sh", str(rep)])
+subprocess.run(["bash", "scripts/render_report.sh", str(rep)])  # nosec B603 B607
 n_fail = sum("FAIL" in r for r in out if r.startswith("|") and "---" not in r)
 print(f"ALT TEXT: {'FAIL' if worst else 'PASS'} ({n_fail} FAIL) -> {rep}")
 sys.exit(1 if worst else 0)

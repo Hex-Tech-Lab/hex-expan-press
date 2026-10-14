@@ -17,7 +17,7 @@ Usage: python3 scripts/commit_guard.py [--diff-file <path>] [--no-jev]
 """
 import argparse
 import re
-import subprocess
+import subprocess  # nosec B404
 import sys
 from pathlib import Path
 
@@ -77,7 +77,7 @@ def main():
     if args.diff_file:
         diff = Path(args.diff_file).read_text()
     else:
-        diff = subprocess.run(["git", "diff", "--cached"], capture_output=True, text=True).stdout
+        diff = subprocess.run(["git", "diff", "--cached"], capture_output=True, text=True).stdout  # nosec B603 B607
 
     worst, flags = 0, []
     # binary files (images) have no "+++ b/" line, so take staged names from git itself as well
@@ -85,7 +85,7 @@ def main():
     paths |= set(re.findall(r"^Binary files .* and b/(.+) differ$", diff, re.M))
     if not args.diff_file:
         # --diff-filter=d: deletions are allowed (untracking a forbidden file is the fix, not a leak)
-        paths |= set(subprocess.run(["git", "diff", "--cached", "--name-only", "--diff-filter=d", "-z"],
+        paths |= set(subprocess.run(["git", "diff", "--cached", "--name-only", "--diff-filter=d", "-z"],  # nosec B603 B607
                                     capture_output=True, text=True).stdout.split("\0")) - {""}
     for path in sorted(paths):
         if any(path == d.rstrip("/") or path.startswith(d) for d in FORBIDDEN_DIRS):

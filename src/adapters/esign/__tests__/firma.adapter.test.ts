@@ -15,6 +15,7 @@ import { Agent as UndiciAgent } from "undici";
 import { FirmaAdapter, assertDialIsSafe, pinnedDispatcherFactory, pinnedDownloadFetch, pinnedLookupFor, type PinnedDispatcherFactory, type Pin } from "../firma.adapter";
 import { passthroughDownload } from "../../../../tests/helpers/esign-transport";
 
+// nosemgrep: codacy.javascript.security.hard-coded-password -- dummy HMAC key for tests
 const SECRET = "test-webhook-secret";
 
 function signedBody(payload: unknown, secret = SECRET): { body: string; headers: Record<string, string> } {

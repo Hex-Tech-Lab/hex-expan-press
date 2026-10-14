@@ -13,7 +13,7 @@ Usage: python3 scripts/claims_evidence_check.py <file.md> [--no-jev]
 """
 import os
 import re
-import subprocess
+import subprocess  # nosec B404
 import sys
 from pathlib import Path
 
@@ -77,7 +77,7 @@ def main():
         out.append("- none")
     rep = QA / "claims_evidence_report.md"
     rep.write_text("\n".join(out))
-    subprocess.run(["bash", "scripts/render_report.sh", str(rep)])
+    subprocess.run(["bash", "scripts/render_report.sh", str(rep)])  # nosec B603 B607
     print(f"CLAIMS-EVIDENCE: {len(bad)} UNBACKED/FLAG of {len(rows)} claims -> {rep}")
 
 

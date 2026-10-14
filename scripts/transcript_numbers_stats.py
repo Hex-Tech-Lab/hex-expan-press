@@ -11,7 +11,7 @@ import collections
 import hashlib
 import json
 import re
-import subprocess
+import subprocess  # nosec B404
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -186,7 +186,7 @@ def main():
     out.append("")
     rep = QA / "transcript_numbers_stats.md"
     rep.write_text("\n".join(out) + "\n")
-    subprocess.run(["bash", "scripts/render_report.sh", str(rep)], cwd=REPO)
+    subprocess.run(["bash", "scripts/render_report.sh", str(rep)], cwd=REPO)  # nosec B603 B607
     print(f"STATS: {len(rows)} numbers, {len(flags)} FLAG, {len(pri)} priority -> {rep}")
 
 

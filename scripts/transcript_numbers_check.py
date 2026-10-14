@@ -15,7 +15,7 @@ import threading
 from concurrent.futures import ThreadPoolExecutor
 import json
 import re
-import subprocess
+import subprocess  # nosec B404
 import sys
 from pathlib import Path
 
@@ -148,7 +148,7 @@ def main():
     out += ["", f"Checked {len(rows)} number instances ({len(flags)} FLAG, {unc} UNCHECKED)."]
     rep = QA / "transcript_numbers_report.md"
     rep.write_text("\n".join(out))
-    subprocess.run(["bash", "scripts/render_report.sh", str(rep)])
+    subprocess.run(["bash", "scripts/render_report.sh", str(rep)])  # nosec B603 B607
     print(f"TRANSCRIPT-NUMBERS: {len(rows)} checked, {len(flags)} FLAG, {unc} UNCHECKED -> {rep}")
 
 

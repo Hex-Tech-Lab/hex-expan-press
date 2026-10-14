@@ -12,7 +12,7 @@ import argparse
 import html
 import json
 import re
-import subprocess
+import subprocess  # nosec B404
 import sys
 import urllib.request
 from pathlib import Path
@@ -86,7 +86,7 @@ def main():
     out += ["", f"TOTAL: {fails} page(s) failing of {len(PAGES)}"]
     rep = QA / ("live_site_report_local.md" if args.local else "live_site_report.md")
     rep.write_text("\n".join(out) + "\n")
-    subprocess.run(["bash", "scripts/render_report.sh", str(rep)], cwd=REPO)
+    subprocess.run(["bash", "scripts/render_report.sh", str(rep)], cwd=REPO)  # nosec B603 B607
     print("\n".join(out[-len(PAGES) - 2:]))
     return 1 if fails else 0
 

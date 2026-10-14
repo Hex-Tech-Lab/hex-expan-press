@@ -25,6 +25,7 @@ import { resolveTitle } from "../src/settings";
 let tmpDir: string;
 
 const writeBook = (obj: unknown): string => {
+  // nosemgrep: javascript.crypto.rule-node-insecure-random-generator -- test-only unique filename
   const p = join(tmpDir, `book_${Math.random().toString(36).slice(2)}.json`);
   writeFileSync(p, JSON.stringify(obj), "utf8");
   return p;

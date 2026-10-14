@@ -50,10 +50,10 @@ def main():
         ("X-01", "pgrep/pkill -f in scripts",
          scan(SCRIPTS, r"\b(pgrep|pkill)\s+-f\b")),
         ("X-02", "opencode run without --variant minimal", oc),
-        ("X-02", "/tmp in scripts",
-         scan(SCRIPTS, r"/tmp(?![\w-])")),
-        ("X-02", "/tmp in prompts (non-negated)",
-         scan(PROMPTS, r"/tmp(?![\w-])", negated=r"(?i)never|`/tmp`|auto-rejected")),
+        ("X-02", "/tmp in scripts",  # nosec B108
+         scan(SCRIPTS, r"/tmp(?![\w-])")),  # nosec B108
+        ("X-02", "/tmp in prompts (non-negated)",  # nosec B108
+         scan(PROMPTS, r"/tmp(?![\w-])", negated=r"(?i)never|`/tmp`|auto-rejected")),  # nosec B108
         ("X-13", "rm -rf in scripts",
          scan(SCRIPTS, r"\brm\s+-rf\b", negated=r"(mktemp|\btrap\b)")),  # deleting its own mktemp workdir is fine
         ("X-11", "hard-coded sk- secrets",

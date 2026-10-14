@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import { cleanAttributionId, hmacSha256Hex } from "../src/provider.ts";
 import { paddleProvider } from "../src/providers/paddle.ts";
 
+// nosemgrep: codacy.javascript.security.hard-coded-password -- dummy HMAC key for tests
 const SECRET = "test-secret";
 
 function parse(custom: Record<string, unknown>) {

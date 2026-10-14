@@ -7,6 +7,7 @@ import { existsSync, rmSync } from "node:fs";
 import type { NextRequest } from "next/server";
 
 const db = vi.hoisted(() => ({ upserts: [] as unknown[], audits: [] as unknown[], terminalRejects: [] as { event?: string; details?: Record<string, unknown> }[] }));
+// nosemgrep: javascript.crypto.rule-node-insecure-random-generator -- test-only temp dir
 const ledgerDir = vi.hoisted(() => `/tmp/d6-ledger-${Date.now()}-${Math.random().toString(36).slice(2)}`);
 
 vi.mock("@supabase/supabase-js", () => ({
@@ -51,6 +52,7 @@ vi.mock("../../../../../../payments/src/settings_registry.ts", () => ({
 
 import { createWebhookHandler } from "../handler";
 
+// nosemgrep: codacy.javascript.security.hard-coded-password -- dummy HMAC key for tests
 const SECRET = "d6-test-secret";
 const sign = (body: string) => createHmac("sha256", SECRET).update(body, "utf8").digest("hex");
 

@@ -8,7 +8,7 @@ Fill-back: after applying trims, try reverting each applied trim one at a time
 first). Rebuild the book (pandoc+typst, same as scripts/book_build.sh) and keep
 the revert only if the marker text is still on PDF page N; else undo it.
 """
-import argparse, json, subprocess, sys
+import argparse, json, subprocess, sys  # nosec B404
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -25,11 +25,11 @@ def build_and_page_check(md_path: Path, out_pdf: Path, marker: str, page: int) -
     """Compile md_path with pandoc+typst (mirrors scripts/book_build.sh), then
     return True if marker text appears on PDF page `page` (whitespace-normalized)."""
     out_pdf.parent.mkdir(parents=True, exist_ok=True)
-    subprocess.run(
+    subprocess.run(  # nosec B603
         [str(PANDOC), str(md_path), *PANDOC_FLAGS,
          f"--template={TEMPLATE.name}", "-o", str(EXP_TYP)],  # keep in step with scripts/book_build.sh
         cwd=BOOK_DIR, check=True, capture_output=True, text=True)
-    subprocess.run(
+    subprocess.run(  # nosec B603
         [str(TYPST), "compile", *TYPST_FLAGS,
          *sum((["--font-path", str(f)] for f in FONTS), []),
          str(EXP_TYP), str(out_pdf)],
@@ -43,7 +43,7 @@ def build_and_page_check(md_path: Path, out_pdf: Path, marker: str, page: int) -
         "    txt = pdf.pages[page - 1].extract_text() or ''\n"
         "norm = lambda s: ' '.join(s.split())\n"
         "print('YES' if norm(marker) in norm(txt) else 'NO')\n")
-    r = subprocess.run([str(PDF_PY), "-c", code, marker, str(page), str(out_pdf)],
+    r = subprocess.run([str(PDF_PY), "-c", code, marker, str(page), str(out_pdf)],  # nosec B603
                        capture_output=True, text=True)
     if r.returncode != 0 or "PAGE_OUT_OF_RANGE" in r.stdout:
         raise SystemExit(f"marker check failed: {r.stdout.strip()} {r.stderr.strip()}")

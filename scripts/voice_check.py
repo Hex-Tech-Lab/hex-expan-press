@@ -17,7 +17,7 @@ Usage: python3 scripts/voice_check.py [--before <old manuscript>] [--paragraphs 
 """
 import argparse
 import re
-import subprocess
+import subprocess  # nosec B404
 import sys
 from collections import Counter
 from pathlib import Path
@@ -140,7 +140,7 @@ def main():
         out.extend(f"- {f}" for f in flags)
     rep = QA / "voice_report.md"
     rep.write_text("\n".join(out))
-    subprocess.run(["bash", "scripts/render_report.sh", str(rep)])
+    subprocess.run(["bash", "scripts/render_report.sh", str(rep)])  # nosec B603 B607
     print(f"VOICE: {'FAIL' if flags else 'PASS'} ({len(rows)} checked, {len(flags)} FLAG) -> {rep}")
     sys.exit(1 if flags else 0)
 
