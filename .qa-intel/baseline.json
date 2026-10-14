@@ -1727,5 +1727,222 @@
     "title": "Error: Empty catch block swallows error silently",
     "why": "Pre-existing technical debt: file is untouched by current PR scope.",
     "fix": "Log the error in the catch blocks (fix exists on chore/pr-gate-infra, storefront PR scope)."
+  },
+  {
+    "file": "web/src/lib/consent-chain.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'v'",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: Single-letter variable 'v' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'v' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/src/lib/client-ip.ts",
+    "severity": "low",
+    "title": "Data Quality: String truncation without ellipsis indicator",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: String is truncated but doesn't add '...' to indicate more content. User sees incomplete text.",
+    "fix": "Add ellipsis when truncating: text.slice(0, 50) + (text.length > 50 ? '...' : '')"
+  },
+  {
+    "file": "web/src/lib/client-ip.ts",
+    "severity": "medium",
+    "title": "Workflow: Missing finally block for I/O",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: Risky I/O call '/^\\[([^\\]]+)\\](?::\\d{1,5})?$/.exec' detected without an explicit finally block.",
+    "fix": "Ensure all I/O operations are wrapped in a try/finally block to guarantee resource cleanup."
+  },
+  {
+    "file": "web/src/lib/attribution.ts",
+    "severity": "medium",
+    "title": "Observability: Catch block without error logging",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: Error is caught but not logged, making debugging difficult.",
+    "fix": "Add error logging: console.error('[context]', error); or Sentry.captureException(error);"
+  },
+  {
+    "file": "web/src/lib/attribution.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'v'",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: Single-letter variable 'v' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'v' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/src/lib/__tests__/launch-gate-sql-parity.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'u'",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: Single-letter variable 'u' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'u' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/src/lib/__tests__/launch-gate-sql-parity.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'n'",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: Single-letter variable 'n' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'n' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/src/lib/__tests__/launch-gate-sql-parity.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'r'",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: Single-letter variable 'r' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'r' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/src/lib/__tests__/launch-gate-sql-parity.test.ts",
+    "severity": "medium",
+    "title": "Workflow: Missing finally block for I/O",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: Risky I/O call 'db.exec' detected without an explicit finally block.",
+    "fix": "Ensure all I/O operations are wrapped in a try/finally block to guarantee resource cleanup."
+  },
+  {
+    "file": "web/src/lib/__tests__/esign-webhook.contract.test.ts",
+    "severity": "medium",
+    "title": "Code Quality: Redundant 'async' keyword (no await found)",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
+    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+  },
+  {
+    "file": "web/src/lib/__tests__/esign-webhook.contract.test.ts",
+    "severity": "medium",
+    "title": "Workflow: Missing finally block for I/O",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: Risky I/O call 'fetch' detected without an explicit finally block.",
+    "fix": "Ensure all I/O operations are wrapped in a try/finally block to guarantee resource cleanup."
+  },
+  {
+    "file": "web/src/lib/__tests__/client-ip.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'h'",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: Single-letter variable 'h' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'h' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/src/lib/__tests__/attribution.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'm'",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: Single-letter variable 'm' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'm' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/src/lib/__tests__/attribution.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'p'",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: Single-letter variable 'p' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'p' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/src/lib/__tests__/attribution.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'k'",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: Single-letter variable 'k' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'k' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/src/components/storefront/storefront.tsx",
+    "severity": "low",
+    "title": "Data Quality: String truncation without ellipsis indicator",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: String is truncated but doesn't add '...' to indicate more content. User sees incomplete text.",
+    "fix": "Add ellipsis when truncating: text.slice(0, 50) + (text.length > 50 ? '...' : '')"
+  },
+  {
+    "file": "web/src/components/storefront/storefront.tsx",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'p'",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: Single-letter variable 'p' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'p' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/src/components/storefront/storefront.tsx",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'n'",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: Single-letter variable 'n' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'n' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/src/components/storefront/storefront.tsx",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'h'",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: Single-letter variable 'h' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'h' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/src/components/storefront/buy-link.tsx",
+    "severity": "medium",
+    "title": "Observability: Catch block without error logging",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: Error is caught but not logged, making debugging difficult.",
+    "fix": "Add error logging: console.error('[context]', error); or Sentry.captureException(error);"
+  },
+  {
+    "file": "web/src/components/storefront/buy-link.tsx",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'e'",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: Single-letter variable 'e' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'e' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/src/components/storefront/buy-link.tsx",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'u'",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: Single-letter variable 'u' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'u' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/src/components/landing/landing-page.tsx",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'e'",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: Single-letter variable 'e' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'e' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/app/c/[handle]/page.tsx",
+    "severity": "low",
+    "title": "Code Quality: Import ordering violated",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: Import 'next/link' (framework) comes after types. Should follow order: framework → thirdparty → internal → types.",
+    "fix": "Reorganize imports to follow the correct order groups."
+  },
+  {
+    "file": "web/app/c/[handle]/page.tsx",
+    "severity": "low",
+    "title": "Data Quality: String truncation without ellipsis indicator",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: String is truncated but doesn't add '...' to indicate more content. User sees incomplete text.",
+    "fix": "Add ellipsis when truncating: text.slice(0, 50) + (text.length > 50 ? '...' : '')"
+  },
+  {
+    "file": "web/app/c/[handle]/page.tsx",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'p'",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: Single-letter variable 'p' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'p' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/app/c/[handle]/[product]/page.tsx",
+    "severity": "low",
+    "title": "Code Quality: Import ordering violated",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: Import 'next/link' (framework) comes after types. Should follow order: framework → thirdparty → internal → types.",
+    "fix": "Reorganize imports to follow the correct order groups."
+  },
+  {
+    "file": "web/app/c/[handle]/[product]/page.tsx",
+    "severity": "low",
+    "title": "Data Quality: String truncation without ellipsis indicator",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: String is truncated but doesn't add '...' to indicate more content. User sees incomplete text.",
+    "fix": "Add ellipsis when truncating: text.slice(0, 50) + (text.length > 50 ? '...' : '')"
+  },
+  {
+    "file": "web/app/c/[handle]/[product]/page.tsx",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'd'",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: Single-letter variable 'd' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'd' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/app/api/billing/checkout/__tests__/route.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'f'",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: Single-letter variable 'f' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'f' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/__tests__/storefront.test.ts",
+    "severity": "medium",
+    "title": "Code Quality: Redundant 'async' keyword (no await found)",
+    "why": "Legacy pedantic technical debt (medium/low). Baselined to unlock ARTAS v3 enforcement on net-new code. Accepted 2026-10-14 (owner decision). Engine: Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
+    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
   }
 ]
