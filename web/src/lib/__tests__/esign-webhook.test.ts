@@ -463,6 +463,8 @@ describe("esign webhook route — terminal-reject quarantine (compiled sweep)", 
         payload_sha256: crypto.createHash("sha256").update(payload).digest("hex"),
       },
     });
+    // Format check on top of the exact value: 64 lowercase hex characters.
+    expect(inserts[0].details.payload_sha256).toMatch(/^[0-9a-f]{64}$/);
   });
 
   it("an unauthenticated (401) reject returns 401 and does NOT quarantine", async () => {
