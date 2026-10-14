@@ -1,5 +1,5 @@
 // Audit boundary of the billing webhook (ARTAS fail-closed):
-//  - a missing Supabase config must surface as an error, never as a silently skipped audit;
+//  - a missing Supabase config must produce a fixed 500, never a silently skipped audit;
 //  - a stalled quarantine insert is aborted after the registry timeout, the log names the abort,
 //    and the terminal 400 still goes out.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -22,7 +22,7 @@ vi.mock("@supabase/supabase-js", () => ({
 
 const useCase = vi.hoisted(() => ({ error: null as Error | null }));
 vi.mock("../../../../../../src/use_cases/billing/process_billing_webhook", () => ({
-  processBillingWebhookUseCase: vi.fn(async () => {
+  processBillingWebhookUseCase: vi.fn(() => {
     if (useCase.error) throw useCase.error;
     return undefined;
   }),
@@ -56,28 +56,29 @@ describe("billing webhook — audit fail-closed", () => {
     const res = await post();
     expect(res.status).toBe(500);
     expect(await res.json()).toEqual({ ok: false, error: "Internal Server Error" });
-    expect(errorSpy).toHaveBeenCalledWith("[audit] audit trail unavailable: SUPABASE_URL not set; answering 500 so the provider retries");
+    expect(errorSpy).toHaveBeenCalledWith("[audit] audit trail unavailable: SUPABASE_URL not set; answering 500 (fail-closed)");
   });
 
   it("logs the missing variable names only, never a set value", async () => {
-    vi.stubEnv("SUPABASE_SECRET_KEY", "");
+    vi.stubEnv("SUPABASE_URL", "");
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     useCase.error = VALIDATION();
     await post();
     const logged = errorSpy.mock.calls.map((args) => args.map(String).join(" ")).join("\n");
-    expect(logged).toContain("SUPABASE_SECRET_KEY not set");
-    expect(logged).not.toContain("https://audit.test.invalid");
+    expect(logged).toContain("SUPABASE_URL not set");
+    expect(logged).not.toContain("test-placeholder-key");
   });
 
-  it("503 path with Supabase unset → fixed 500, no Retry-After, the 503 audit is not silently dropped", async () => {
+  it("503 path with Supabase unset → fixed 500, no Retry-After, and the missing config is logged", async () => {
     vi.stubEnv("SUPABASE_URL", "");
-    vi.spyOn(console, "error").mockImplementation(() => {});
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const err = new Error("webhook in flight");
     err.name = "WebhookInFlightError";
     useCase.error = err;
     const res = await post();
     expect(res.status).toBe(500);
     expect(res.headers.get("Retry-After")).toBeNull();
+    expect(errorSpy).toHaveBeenCalledWith("[audit] audit trail unavailable: SUPABASE_URL not set; answering 500 (fail-closed)");
   });
 
   it("stalled quarantine insert → aborted after the registry timeout, logged, and 400 still returned", async () => {

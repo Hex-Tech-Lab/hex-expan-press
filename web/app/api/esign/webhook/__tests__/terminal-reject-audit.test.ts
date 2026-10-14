@@ -1,5 +1,5 @@
 // E-sign audit boundary (ARTAS fail-closed): e-sign trails never fail open.
-//  - a post-authentication terminal reject with the Supabase config missing → the request fails;
+//  - a post-authentication terminal reject with the Supabase config missing → a fixed 500;
 //  - a stalled quarantine insert → aborted after the registry timeout, logged, 400 still returned;
 //  - an unverified sender (401) never reaches the audit path, even with the config missing.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -26,7 +26,7 @@ vi.mock("@supabase/supabase-js", () => ({
 
 const useCase = vi.hoisted(() => ({ error: null as Error | null }));
 vi.mock("../../../../../../src/use_cases/process_esign_webhook", () => ({
-  processEsignWebhookUseCase: vi.fn(async () => {
+  processEsignWebhookUseCase: vi.fn(() => {
     if (useCase.error) throw useCase.error;
   }),
 }));
@@ -64,7 +64,7 @@ describe("e-sign webhook — audit fail-closed", () => {
     expect(res.status).toBe(500);
     expect(await res.json()).toEqual({ ok: false, error: "Internal Server Error" });
     expect(audit.inserts).toBe(0);
-    expect(errorSpy).toHaveBeenCalledWith("[audit] audit trail unavailable: SUPABASE_URL not set; answering 500 so the provider retries");
+    expect(errorSpy).toHaveBeenCalledWith("[audit] audit trail unavailable: SUPABASE_URL not set; answering 500 (fail-closed)");
   });
 
   it("stalled quarantine insert → aborted after the registry timeout, logged, and 400 still returned", async () => {

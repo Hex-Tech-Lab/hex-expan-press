@@ -100,7 +100,8 @@ async function handleWebhook(request: NextRequest, adapters: WebhookAdapters): P
   } catch (err) {
     // Another delivery of this event holds the idempotency lock and has not
     // persisted yet — never 200 here (the holder may still fail). 503 +
-    // Retry-After makes the provider redeliver.
+    // Retry-After makes the provider redeliver. With audit config absent,
+    // auditBounded throws and createWebhookHandler answers 500 instead (fail-closed).
     if (err instanceof Error && err.name === "WebhookInFlightError") {
       await auditBounded({ ...auditContext(headers, body), reason: "idempotency_lock_in_flight" });
       return NextResponse.json(
@@ -114,6 +115,8 @@ async function handleWebhook(request: NextRequest, adapters: WebhookAdapters): P
     // a 500 would make Paddle/Polar retry forever. Terminal 400 halts the retry loop;
     // the raw event is quarantined durably (sha256 + provider + sale id — the raw body
     // itself is NOT stored: webhook bodies carry buyer PII and audit_log must not).
+    // Fail-closed trade-off: with audit config absent the quarantine throws and this
+    // answers 500, so the provider retries the same payload until the config is restored.
     if (err instanceof OrderSchemaError) {
       await quarantineTerminalEvent(headers, bodyBuffer, err.name);
       return NextResponse.json({ ok: false, error: "Bad Request" }, { status: 400 });
@@ -141,7 +144,7 @@ async function handleWebhook(request: NextRequest, adapters: WebhookAdapters): P
     // error marked senderVerified=false (e.g. no provider claimed the
     // signature headers) — unauthenticated traffic must not force service-role
     // audit_log inserts per request (external review PR #78). 503s are already
-    // audited via auditBounded above.
+    // audited via auditBounded above. With audit config absent these 4xx become 500 (fail-closed).
     if (status < 500 && status !== 401 && (err as { senderVerified?: boolean }).senderVerified !== false) {
       await quarantineTerminalEvent(headers, bodyBuffer, err instanceof Error ? err.name : "unknown");
     }
@@ -153,8 +156,9 @@ async function handleWebhook(request: NextRequest, adapters: WebhookAdapters): P
  *  rejected event must live somewhere besides the provider's redelivery queue. Durable
  *  audit row keyed by the payload sha256 of the RAW BYTES (NOT the body itself — buyer
  *  PII; and not the decoded string — distinct invalid-UTF-8 payloads must not collapse
- *  to one digest). Best-effort: a quarantine write failure must never change the
- *  already-computed response. */
+ *  to one digest). Best-effort for write and timeout failures: those never change the
+ *  already-computed response. A missing audit config is fail-closed instead: it throws
+ *  AuditUnavailableError and the response becomes a 500 (see audit-config.ts). */
 async function quarantineTerminalEvent(
   headers: Record<string, string | string[] | undefined>,
   bodyBuffer: Buffer,

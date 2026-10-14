@@ -12,11 +12,11 @@ export class AuditUnavailableError extends Error {
 }
 
 /** Boundary conversion for webhook POST handlers: an AuditUnavailableError becomes a fixed
- *  500 JSON body (no internals; the 503 Retry-After is intentionally dropped, the 5xx itself
- *  is the provider's retry signal). Any other error is rethrown unchanged. */
+ *  500 JSON body (no internals; the 503 Retry-After is intentionally dropped, so the audit gap
+ *  surfaces as a failed delivery instead of a silent skip). Any other error is rethrown unchanged. */
 export function auditUnavailableResponse(err: unknown): NextResponse {
   if (!(err instanceof AuditUnavailableError)) throw err;
-  console.error(`[audit] ${err.message}; answering 500 so the provider retries`);
+  console.error(`[audit] ${err.message}; answering 500 (fail-closed)`);
   return NextResponse.json({ ok: false, error: "Internal Server Error" }, { status: 500 });
 }
 

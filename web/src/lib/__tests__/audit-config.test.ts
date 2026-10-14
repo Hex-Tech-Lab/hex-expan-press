@@ -1,7 +1,21 @@
 // requireAuditSupabaseConfig: the audit trail is fail-closed (ARTAS). A missing key throws a named
 // error; an empty string counts as missing; the error never carries a value.
 import { describe, expect, it } from "vitest";
-import { AuditUnavailableError, requireAuditSupabaseConfig } from "../audit-config";
+import { auditUnavailableResponse, AuditUnavailableError, requireAuditSupabaseConfig } from "../audit-config";
+
+describe("auditUnavailableResponse", () => {
+  it("converts AuditUnavailableError into a fixed 500 body with no Retry-After", async () => {
+    const res = auditUnavailableResponse(new AuditUnavailableError(["SUPABASE_URL"]));
+    expect(res.status).toBe(500);
+    expect(res.headers.get("Retry-After")).toBeNull();
+    expect(await res.json()).toEqual({ ok: false, error: "Internal Server Error" });
+  });
+
+  it("rethrows any other error unchanged", () => {
+    const boom = new Error("unrelated");
+    expect(() => auditUnavailableResponse(boom)).toThrow(boom);
+  });
+});
 
 describe("requireAuditSupabaseConfig", () => {
   it("returns url and key when both are set", () => {
