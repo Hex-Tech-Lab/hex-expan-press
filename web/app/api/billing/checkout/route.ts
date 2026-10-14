@@ -61,6 +61,7 @@ function checkoutUrlProblem(raw: unknown): string | null {
   try {
     u = new URL(raw.trim());
   } catch {
+    console.warn("[billing/checkout] rail checkout_url is not a valid URL");
     return "malformed";
   }
   if (u.protocol !== "https:") return "not https";

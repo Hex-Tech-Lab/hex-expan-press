@@ -33,7 +33,7 @@ async function auditBounded(details: { provider?: string; sale_id?: string; reas
   const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<void>((resolve) => {
-    timer = setTimeout(() => { controller.abort(); resolve(); }, GLOBAL.payments.http_timeout_ms);
+    timer = setTimeout(() => { controller.abort(); console.error("[billing-webhook] audit insert aborted after http_timeout_ms"); resolve(); }, GLOBAL.payments.http_timeout_ms);
   });
   try {
     await Promise.race([record503Audit(details, controller.signal), timeout]);
@@ -216,6 +216,7 @@ function auditContext(headers: Record<string, string | string[] | undefined>, bo
     const saleId = typeof parsed?.data?.transaction_id === "string" ? parsed.data.transaction_id : typeof parsed?.data?.id === "string" ? parsed.data.id : undefined;
     return { provider, sale_id: saleId?.slice(0, 128) };
   } catch {
+    console.warn("[billing-webhook] details parse failed; recording provider only");
     return { provider };
   }
 }

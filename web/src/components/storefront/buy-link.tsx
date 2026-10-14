@@ -20,8 +20,9 @@ function useAttributionCapture() {
         const v = qs.get(param);
         if (v) sessionStorage.setItem(key, v);
       }
-    } catch {
-      /* attribution capture must never block checkout */
+    } catch (err) {
+      // Attribution capture must never block checkout; log so a failure is visible.
+      console.warn("[attribution] capture failed:", err instanceof Error ? err.name : "unknown error");
     }
   }, []);
 }
@@ -44,8 +45,9 @@ export function BuyLink({ href, className, children }: { href: string; className
         if (v) u.searchParams.set(param, v);
       }
       e.currentTarget.href = u.pathname + u.search;
-    } catch {
-      /* leave the plain link on any failure */
+    } catch (err) {
+      // Leave the plain link on any failure; log so it is visible.
+      console.warn("[attribution] link forwarding failed:", err instanceof Error ? err.name : "unknown error");
     }
   };
 

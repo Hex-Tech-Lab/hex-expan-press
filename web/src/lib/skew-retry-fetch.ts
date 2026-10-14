@@ -46,6 +46,7 @@ export function createSkewRetryFetch(
     try {
       body = await res.clone().json();
     } catch {
+      console.warn("[skew-retry] 401 body is not JSON; passing response through unchanged");
       return res; // non-JSON 401 — not ours
     }
     const b = body as { code?: unknown; message?: unknown } | null;
