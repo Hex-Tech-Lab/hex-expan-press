@@ -1,0 +1,21 @@
+pnpm-lock.yaml
+  s_4e2b0b0a92fc08::t_04181b95df3213 110,2937-2939,2966-2968,3050-3052,7521-7522,7539-7543,7635-7636,8976
+pnpm-workspace.yaml
+  s_4e2b0b0a92fc08::t_15d3536d6d9296 10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3e6c83e6293dac740ae26a5c142d86da16b6fb16",
+  "prompts": {},
+  "sessions": {
+    "s_4e2b0b0a92fc08": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "69ec633a-0c01-486a-80de-180205f86530",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "CCW <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
