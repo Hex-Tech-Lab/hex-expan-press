@@ -56,12 +56,15 @@ afterEach(() => {
 });
 
 describe("e-sign webhook — audit fail-closed", () => {
-  it("post-authentication terminal reject with Supabase unset → the request fails, not a silent 400", async () => {
+  it("post-authentication terminal reject with Supabase unset → fixed 500, not a silent 400", async () => {
     vi.stubEnv("SUPABASE_URL", "");
-    vi.spyOn(console, "error").mockImplementation(() => {});
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     useCase.error = new WebhookValidationError("payload missing productId", 400);
-    await expect(post()).rejects.toThrow(/audit trail unavailable: SUPABASE_URL not set/);
+    const res = await post();
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ ok: false, error: "Internal Server Error" });
     expect(audit.inserts).toBe(0);
+    expect(errorSpy).toHaveBeenCalledWith("[audit] audit trail unavailable: SUPABASE_URL not set; answering 500 so the provider retries");
   });
 
   it("stalled quarantine insert → aborted after the registry timeout, logged, and 400 still returned", async () => {

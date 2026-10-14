@@ -6,7 +6,7 @@ import { processEsignWebhookUseCase } from "../../../../../src/use_cases/process
 import { WebhookValidationError } from "../../../../../src/domain/webhook/webhook_errors";
 import { GLOBAL } from "../../../../../payments/src/settings_registry";
 import { clientIp } from "../../../../src/lib/client-ip";
-import { requireAuditSupabaseConfig } from "../../../../src/lib/audit-config";
+import { auditUnavailableResponse, requireAuditSupabaseConfig } from "../../../../src/lib/audit-config";
 
 export const runtime = "nodejs";
 
@@ -108,6 +108,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       });
       try {
         await Promise.race([insertTerminalRejectAudit(bodyBuffer, err, controller.signal), timeout]);
+      } catch (auditErr) {
+        // Missing audit config: fail closed with a fixed 500 instead of an unhandled rejection.
+        return auditUnavailableResponse(auditErr);
       } finally {
         clearTimeout(timer);
       }

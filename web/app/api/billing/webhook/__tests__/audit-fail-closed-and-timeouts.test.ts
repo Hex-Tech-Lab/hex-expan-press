@@ -49,29 +49,35 @@ afterEach(() => {
 });
 
 describe("billing webhook — audit fail-closed", () => {
-  it("terminal reject with Supabase unset → the request fails (no silent 400 without a quarantine record)", async () => {
+  it("terminal reject with Supabase unset → fixed 500, no silent 400 without a quarantine record", async () => {
     vi.stubEnv("SUPABASE_URL", "");
-    vi.spyOn(console, "error").mockImplementation(() => {});
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     useCase.error = VALIDATION();
-    await expect(post()).rejects.toThrow(/audit trail unavailable: SUPABASE_URL not set/);
+    const res = await post();
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ ok: false, error: "Internal Server Error" });
+    expect(errorSpy).toHaveBeenCalledWith("[audit] audit trail unavailable: SUPABASE_URL not set; answering 500 so the provider retries");
   });
 
-  it("names the missing variables only, never a value", async () => {
+  it("logs the missing variable names only, never a set value", async () => {
     vi.stubEnv("SUPABASE_SECRET_KEY", "");
-    vi.spyOn(console, "error").mockImplementation(() => {});
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     useCase.error = VALIDATION();
-    const err = (await post().catch((e: unknown) => e)) as Error;
-    expect(err.message).toBe("audit trail unavailable: SUPABASE_SECRET_KEY not set");
-    expect(err.message).not.toContain("test-placeholder-key");
+    await post();
+    const logged = errorSpy.mock.calls.map((args) => args.map(String).join(" ")).join("\n");
+    expect(logged).toContain("SUPABASE_SECRET_KEY not set");
+    expect(logged).not.toContain("https://audit.test.invalid");
   });
 
-  it("503 path with Supabase unset → the request fails instead of dropping the 503 audit", async () => {
+  it("503 path with Supabase unset → fixed 500, no Retry-After, the 503 audit is not silently dropped", async () => {
     vi.stubEnv("SUPABASE_URL", "");
     vi.spyOn(console, "error").mockImplementation(() => {});
     const err = new Error("webhook in flight");
     err.name = "WebhookInFlightError";
     useCase.error = err;
-    await expect(post()).rejects.toThrow(/audit trail unavailable/);
+    const res = await post();
+    expect(res.status).toBe(500);
+    expect(res.headers.get("Retry-After")).toBeNull();
   });
 
   it("stalled quarantine insert → aborted after the registry timeout, logged, and 400 still returned", async () => {

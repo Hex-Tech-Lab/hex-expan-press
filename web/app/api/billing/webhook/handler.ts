@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireAuditSupabaseConfig } from "../../../../src/lib/audit-config";
+import { auditUnavailableResponse, requireAuditSupabaseConfig } from "../../../../src/lib/audit-config";
 import { createHash } from "node:crypto";
 import { processBillingWebhookUseCase } from "../../../../../src/use_cases/billing/process_billing_webhook";
 import { WebhookValidationError } from "../../../../../src/domain/webhook/webhook_errors";
@@ -10,8 +10,9 @@ import { GLOBAL } from "../../../../../payments/src/settings_registry";
  * Best-effort audit trail for 503 retry responses (event WEBHOOK_503_RETRYING).
  * An insert failure must NEVER change the response — the 503 already tells the
  * provider to retry; losing an audit row is strictly better than corrupting the
- * retry contract. Uses the service-role key server-side only (audit_log has RLS
- * on with no client policies).
+ * retry contract. A missing audit CONFIG is the exception: it throws
+ * AuditUnavailableError (fail-closed). Uses the service-role key server-side only
+ * (audit_log has RLS on with no client policies).
  */
 async function record503Audit(details: { provider?: string; sale_id?: string; reason: string }, signal: AbortSignal): Promise<void> {
   // Outside the try: a missing audit trail must propagate (fail-closed), not be logged and dropped.
@@ -76,7 +77,8 @@ export type WebhookAdapters = Parameters<typeof processBillingWebhookUseCase>[1]
 
 /** Handler factory: production wires the real providers below; tests inject a signed fixture adapter. */
 export function createWebhookHandler(buildAdapters: () => WebhookAdapters): (request: NextRequest) => Promise<NextResponse> {
-  return (request) => handleWebhook(request, buildAdapters());
+  // Every billing path that audits (503, terminal reject) can raise AuditUnavailableError; convert it here, once.
+  return (request) => handleWebhook(request, buildAdapters()).catch(auditUnavailableResponse);
 }
 
 async function handleWebhook(request: NextRequest, adapters: WebhookAdapters): Promise<NextResponse> {
