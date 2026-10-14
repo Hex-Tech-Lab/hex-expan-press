@@ -3,27 +3,6 @@ import { describe, it, expect, vi } from "vitest";
 import crypto from "node:crypto";
 import { WebhookValidationError } from "../../../../src/domain/webhook/webhook_errors";
 
-// Module mocks must live in each test file (vi.mock is hoisted per file).
-// The esign use case builds its own adapter via the factory (whose default
-// download transport is the undici pinned fetch — secure by default). For
-// USE-CASE contract tests the download leg is routed back through the
-// stubbed global fetch; the pinned transport itself is exercised against
-// real local sockets in the adapter test file.
-vi.mock("undici", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("undici")>();
-  return {
-    ...actual,
-    fetch: ((url: string | URL | Request, init?: RequestInit) => fetch(url as string, init)) as unknown as typeof actual.fetch,
-  };
-});
-// The adapter's default resolver is the platform DNS; these tests use fake
-// hosts (.test TLD) that must not touch a real resolver. Mock at the module
-// level so the FACTORY-built adapter (createEsignAdapter) resolves every
-// hostname to a public address hermetically (sprint-12 DNS-level SSRF guard).
-vi.mock("node:dns/promises", () => ({
-  lookup: async () => [{ address: "93.184.216.34" }],
-}));
-
 describe("esign webhook route — terminal-reject quarantine (compiled sweep)", () => {
   it("a validation-failed delivery returns 400 and quarantines the event (sha256, no raw body)", async () => {
     vi.resetModules();
