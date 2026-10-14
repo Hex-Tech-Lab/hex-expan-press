@@ -5,3 +5,7 @@ allowBuilds:
   "@rolldown/binding-linux-x64-gnu": true
   "@astryxdesign/core": true
   unrs-resolver: true
+overrides:
+  sharp: 0.35.5
+  brace-expansion: 5.0.11
+  source-map-js: 1.2.2
