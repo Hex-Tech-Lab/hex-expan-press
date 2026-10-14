@@ -2,7 +2,20 @@
 // collision that is NOT a confirmed replay) must surface as a 503 WITH a
 // Retry-After header so the provider backs off before retrying — same
 // contract as the in-flight branch.
-import { describe, it, expect, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+// Fail-closed audit trail: the webhook requires Supabase to be configured. Configure it here and stub
+// the client, so these tests exercise the audit path without any network call.
+vi.mock("@supabase/supabase-js", () => ({
+  createClient: () => ({ from: () => ({ insert: () => ({ abortSignal: async () => ({ error: null }) }) }) }),
+}));
+beforeEach(() => {
+  vi.stubEnv("SUPABASE_URL", "https://audit.test.invalid");
+  vi.stubEnv("SUPABASE_SECRET_KEY", "test-placeholder-key");
+});
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 import type { NextRequest } from "next/server";
 
 const useCase = vi.hoisted(() => ({ error: null as Error | null }));

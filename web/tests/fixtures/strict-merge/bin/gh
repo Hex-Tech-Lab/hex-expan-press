@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+# Fixture stub for `gh`, used only by the strict-merge tests. Serves JSON from files named in the
+# environment and logs merge calls instead of performing them. Never touches the network.
+set -euo pipefail
+case "$1 $2" in
+  "repo view")
+    echo "hex/expan"
+    ;;
+  "pr view")
+    cat "$FIXTURE_PR_JSON"
+    ;;
+  "api graphql")
+    # Late recheck passes --jq; the snapshot does not. Serve the matching shape.
+    JQ=""
+    args=("$@")
+    for ((i = 0; i < ${#args[@]}; i++)); do
+      if [[ "${args[$i]}" == "--jq" ]]; then JQ="${args[$((i + 1))]}"; fi
+    done
+    if [[ -n "$JQ" ]]; then
+      if [[ -n "${FIXTURE_LATE_THREADS_JSON:-}" ]]; then
+        jq -r "$JQ" "$FIXTURE_LATE_THREADS_JSON"
+      else
+        jq -r "$JQ" "$FIXTURE_THREADS_JSON"
+      fi
+    else
+      cat "$FIXTURE_THREADS_JSON"
+    fi
+    ;;
+  "pr merge")
+    echo "merge $*" >> "$FIXTURE_MERGE_LOG"
+    ;;
+  *)
+    echo "gh stub: unexpected call: $*" >&2
+    exit 2
+    ;;
+esac

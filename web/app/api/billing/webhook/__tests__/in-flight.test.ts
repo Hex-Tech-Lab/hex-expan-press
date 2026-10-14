@@ -3,7 +3,20 @@
 //    retries) — never 200, the holder may still fail and the sale would be lost;
 //  - mismatched refund (flagged to the audit log) → 400 "Bad Request";
 //  - dead-letter/infra failure → 500 (retryable).
-import { describe, it, expect, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+// Fail-closed audit trail: the webhook requires Supabase to be configured. Configure it here and stub
+// the client, so these tests exercise the audit path without any network call.
+vi.mock("@supabase/supabase-js", () => ({
+  createClient: () => ({ from: () => ({ insert: () => ({ abortSignal: async () => ({ error: null }) }) }) }),
+}));
+beforeEach(() => {
+  vi.stubEnv("SUPABASE_URL", "https://audit.test.invalid");
+  vi.stubEnv("SUPABASE_SECRET_KEY", "test-placeholder-key");
+});
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 import type { NextRequest } from "next/server";
 
 const useCase = vi.hoisted(() => ({ error: null as Error | null, outcome: undefined as unknown }));
