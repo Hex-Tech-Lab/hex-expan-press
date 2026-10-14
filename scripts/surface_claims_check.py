@@ -16,14 +16,13 @@ Exit 1 on FAIL or promise_supported < 0.5. Writes <QA>/surface_claims_report.md
 
 Usage: python3 scripts/surface_claims_check.py [--no-jev]
 """
-import json
 import re
 import subprocess
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from book_config import REPO, QA, CFG, MS, chapter_sources  # noqa: E402
+from book_config import QA, CFG, MS, chapter_sources  # noqa: E402
 from literary_metrics import prose  # noqa: E402
 from jev import decide  # noqa: E402
 

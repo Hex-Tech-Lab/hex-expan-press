@@ -257,7 +257,7 @@ def worksheet_enum_runs(lines):
                 k += 1
             if bd != 0:
                 continue
-            s0, s1 = j + 1, k  # body content spans [s0, s1); text[s1] == ']'
+            s1 = k  # body content spans [s0, s1); text[s1] == ']'
             items, run_start, run_end = [], None, None
             li = cs
             while li < ce and not ENUM.match(content_lines[li - cs]):

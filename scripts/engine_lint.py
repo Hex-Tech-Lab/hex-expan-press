@@ -8,7 +8,6 @@ the exit code.
 
 Usage: python3 scripts/engine_lint.py
 """
-import re
 import sys
 from pathlib import Path
 

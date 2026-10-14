@@ -40,8 +40,8 @@ def main():
         p = max((a["weight"].get("probabilities") or {}).values())
         if pick:
             print(f"[model_router] suggestion: {pick}  (p={p:.2f})  {LABELS.get(pick, '')}", file=sys.stderr)
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[model_router] hook error ignored: {e}", file=sys.stderr)
     sys.exit(0)
 
 

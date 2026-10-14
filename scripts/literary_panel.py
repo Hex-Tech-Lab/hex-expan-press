@@ -342,8 +342,8 @@ def main():
     for c in facts:
         try:
             out.append(f"- [{c.get('severity','?')}] {c.get('fact')}: Ch {c['a']['chapter']} “{c['a']['quote']}” vs Ch {c['b']['chapter']} “{c['b']['quote']}”")
-        except Exception:  # noqa: BLE001
-            pass
+        except Exception as e:  # noqa: BLE001
+            print(f"[literary_panel] skipped malformed fact: {e}", file=sys.stderr)
     out += ["", "## 6. Reader panel — drop-off map (engagement 1-5 per chapter)", "", "| Reader | " + " | ".join(f"Ch{i+1}" for i in range(len(names))) + " | Recommend |", "|---|" + "---|" * (len(names) + 1)]
     for p in PERSONAS:
         r = res[("reader", p)]

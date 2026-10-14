@@ -11,7 +11,7 @@ from collections import Counter
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from book_config import MS as MS_PATH, QA, CHAPTERS  # noqa: E402
+from book_config import MS as MS_PATH, QA  # noqa: E402
 
 MS = MS_PATH.read_text()
 OUT = QA / "literary_metrics.json"

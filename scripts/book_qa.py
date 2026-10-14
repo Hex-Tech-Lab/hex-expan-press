@@ -6,7 +6,7 @@ exits 2 if any blocker rule fails in the selected chapters.
 Usage: book_qa.py --pdf proof.pdf --chapters One,Four [--out report.md]
 """
 import sys
-import argparse, json, re, sys
+import argparse, json, re
 from collections import Counter, defaultdict
 from pathlib import Path
 import pdfplumber
