@@ -1,0 +1,19 @@
+web/src/lib/__tests__/esign-webhook.quarantine.test.ts
+  s_4e2b0b0a92fc08::t_9115cbd86487e4 30-32,34,36,70-72,74,76
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "14406d58b07df395d213a4f86c499d67199266b8",
+  "prompts": {},
+  "sessions": {
+    "s_4e2b0b0a92fc08": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "69ec633a-0c01-486a-80de-180205f86530",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "CCW <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
