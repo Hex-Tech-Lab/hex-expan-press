@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { requireAuditSupabaseConfig } from "../../../../src/lib/audit-config";
 import { createHash } from "node:crypto";
 import { processBillingWebhookUseCase } from "../../../../../src/use_cases/billing/process_billing_webhook";
 import { WebhookValidationError } from "../../../../../src/domain/webhook/webhook_errors";
@@ -13,10 +14,9 @@ import { GLOBAL } from "../../../../../payments/src/settings_registry";
  * on with no client policies).
  */
 async function record503Audit(details: { provider?: string; sale_id?: string; reason: string }, signal: AbortSignal): Promise<void> {
+  // Outside the try: a missing audit trail must propagate (fail-closed), not be logged and dropped.
+  const { url, key } = requireAuditSupabaseConfig();
   try {
-    const url = process.env.SUPABASE_URL;
-    const key = process.env.SUPABASE_SECRET_KEY;
-    if (!url || !key) return; // unconfigured Supabase: nothing durable to write
     const { createClient } = await import("@supabase/supabase-js");
     const supabase = createClient(url, key);
     const { error } = await supabase.from("audit_log").insert({ event: "WEBHOOK_503_RETRYING", details }).abortSignal(signal);
@@ -179,10 +179,9 @@ async function insertTerminalRejectAudit(
   reason: string,
   signal: AbortSignal,
 ): Promise<void> {
+  // Outside the try: a missing audit trail must propagate (fail-closed), not be logged and dropped.
+  const { url, key } = requireAuditSupabaseConfig();
   try {
-    const url = process.env.SUPABASE_URL;
-    const key = process.env.SUPABASE_SECRET_KEY;
-    if (!url || !key) return;
     const { createClient } = await import("@supabase/supabase-js");
     const supabase = createClient(url, key);
     const { error } = await supabase

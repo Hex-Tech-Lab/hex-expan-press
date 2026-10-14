@@ -6,6 +6,7 @@ import { processEsignWebhookUseCase } from "../../../../../src/use_cases/process
 import { WebhookValidationError } from "../../../../../src/domain/webhook/webhook_errors";
 import { GLOBAL } from "../../../../../payments/src/settings_registry";
 import { clientIp } from "../../../../src/lib/client-ip";
+import { requireAuditSupabaseConfig } from "../../../../src/lib/audit-config";
 
 export const runtime = "nodejs";
 
@@ -16,10 +17,10 @@ const MAX_BODY_BYTES = 1_048_576;
  *  carries signer PII and audit_log must not hold it). Takes an AbortSignal so
  *  the caller can bound a stalled Supabase request. */
 async function insertTerminalRejectAudit(bodyBuffer: Buffer, err: unknown, signal: AbortSignal): Promise<void> {
+  // Outside the try: e-sign trails never fail open. A missing audit trail propagates to POST,
+  // which answers 500 so Firma retries instead of accepting a rejected event with no record.
+  const { url, key } = requireAuditSupabaseConfig();
   try {
-    const url = process.env.SUPABASE_URL;
-    const key = process.env.SUPABASE_SECRET_KEY;
-    if (!url || !key) return;
     const { createClient } = await import("@supabase/supabase-js");
     const supabase = createClient(url, key);
     const { error } = await supabase

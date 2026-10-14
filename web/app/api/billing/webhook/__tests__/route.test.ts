@@ -10,7 +10,17 @@
 //   4. Multi-byte UTF-8 must survive byte-exactly (the route buffers via
 //      Buffer.concat, never string concatenation) — proven by a valid HMAC
 //      over a body whose signature only verifies if every byte survives.
-import { describe, it, expect, afterEach, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+// Fail-closed audit trail: the webhook requires Supabase to be configured. Configure it here and stub
+// the client, so these tests exercise the audit path without any network call.
+vi.mock("@supabase/supabase-js", () => ({
+  createClient: () => ({ from: () => ({ insert: () => ({ abortSignal: async () => ({ error: null }) }) }) }),
+}));
+beforeEach(() => {
+  vi.stubEnv("SUPABASE_URL", "https://audit.test.invalid");
+  vi.stubEnv("SUPABASE_SECRET_KEY", "test-placeholder-key");
+});
 import crypto from "node:crypto";
 import type { NextRequest } from "next/server";
 import { POST as billingPost } from "../route";
