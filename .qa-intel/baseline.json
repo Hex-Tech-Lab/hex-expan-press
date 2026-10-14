@@ -1328,5 +1328,33 @@
     "title": "SQL: SECURITY DEFINER function exposes a caller-controlled key/column parameter to untrusted callers",
     "why": "Function submit_consent runs with elevated (SECURITY DEFINER) privileges, its EXECUTE grant reaches untrusted callers (authenticated, service_role), and it accepts caller-controlled key/column/path-shaped text parameter(s) 'p_evidence_path' with no allowlist guard. A caller can steer which field/path the definer writes or reads, turning the RPC into an arbitrary-field overwrite (real incident: PR #322's merge_analysis_payload_key accepted any payload key; fixed only after external review).",
     "fix": "Either (a) drop the caller-controlled parameter(s) entirely, (b) hard-allowlist the permitted values inside the function body (e.g. IF p_evidence_path NOT IN ('allowed_key') THEN RAISE EXCEPTION), and/or (c) REVOKE EXECUTE ... FROM anon, authenticated, public and grant only to service_role."
+  },
+  {
+    "file": "creator_scan.ts",
+    "severity": "high",
+    "title": "ARTAS V19: fetch inside a retry loop without a GET/HEAD method gate",
+    "why": "Reviewed and accepted 2026-10-14 (owner decision). postJson retries a chat-completion POST up to MAX_ATTEMPTS=3 with a 3s backoff, on HTTP errors and on 200 responses with bad content (creator_scan.ts ~636 and ~671). A retry can cause a second paid model call; it cannot duplicate a database write. The scan runs nightly. Reopen if the retry count grows or a database write is added inside the loop.",
+    "fix": "None required now. Option if reopened: retry only on connect or 429/5xx, and drop retries on bad content."
+  },
+  {
+    "file": "certify_gates.ts",
+    "severity": "high",
+    "title": "ARTAS V19: fetch inside a retry loop without a GET/HEAD method gate",
+    "why": "Reviewed and accepted 2026-10-14 (owner decision). The retry loop in certify_gates.ts (attempt 1..3, same pinned provider) POSTs to the OpenRouter chat-completion endpoint and retries on HTTP errors or unparseable content, with a 3s backoff. Cost: a retry can cause a second paid model call. No database write happens inside the loop, so a retry cannot duplicate a row.",
+    "fix": "None required now. Reopen if the attempt cap grows or a database write is added inside the loop."
+  },
+  {
+    "file": "certify_gates.ts",
+    "severity": "high",
+    "title": "Security: authorization-relevant change with no sibling test in this scan",
+    "why": "Accepted 2026-10-14 (owner decision). Root-level internal utility script. No test file exists for it. Root-level __tests__ is not collected by vitest.config.ts, and the owner chose not to change that config, so the sibling-test rule cannot be satisfied. This is not a rule exemption: any change to the authorization branch still needs a test in the same PR.",
+    "fix": "Add a test for the authorization branch when that branch changes."
+  },
+  {
+    "file": "creator_scan.ts",
+    "severity": "high",
+    "title": "Security: authorization-relevant change with no sibling test in this scan",
+    "why": "Accepted 2026-10-14 (owner decision). Root-level internal utility script. No test file exists for it. Root-level __tests__ is not collected by vitest.config.ts, and the owner chose not to change that config, so the sibling-test rule cannot be satisfied. This is not a rule exemption: any change to the authorization branch still needs a test in the same PR.",
+    "fix": "Add a test for the authorization branch when that branch changes."
   }
 ]
