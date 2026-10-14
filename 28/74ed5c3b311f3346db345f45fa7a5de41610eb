@@ -1,0 +1,33 @@
+scripts/book_qa.py
+  s_291078cde7ba1a::t_a5295ac07f4c16 9
+scripts/layout_fixers.py
+  s_291078cde7ba1a::t_4f7cde88e2526e 260
+scripts/literary_metrics.py
+  s_291078cde7ba1a::t_0f4d092bd6c3d4 14
+scripts/literary_panel.py
+  s_291078cde7ba1a::t_3235c7fa31dd2f 345-346
+scripts/model_router_hook.py
+  s_291078cde7ba1a::t_9b1ec2620eaad8 43-44
+scripts/review_sheet.py
+  s_291078cde7ba1a::t_0094ff7dc3cf6f 31
+scripts/surface_claims_check.py
+  s_291078cde7ba1a::t_b2928ce3d72d8a 25
+scripts/voice_check.py
+  s_291078cde7ba1a::t_036e58123a764a 26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2874ed5c3b311f3346db345f45fa7a5de41610eb",
+  "prompts": {},
+  "sessions": {
+    "s_291078cde7ba1a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8e8bf4d0-a061-4cb6-a487-5d76a4bef71f",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "CCW <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
