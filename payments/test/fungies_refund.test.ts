@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { createHmac } from "node:crypto";
 import { fungiesProvider } from "../src/providers/fungies.ts";
 
+// nosemgrep: codacy.javascript.security.hard-coded-password -- dummy HMAC key for tests
 const SECRET = "unit-test-hmac-key-not-a-real-secret";
 
 function signed(body: Record<string, unknown>) {
@@ -18,6 +19,7 @@ function parse(body: Record<string, unknown>) {
 function refundBody(saleId: string | undefined) {
   const payment: Record<string, unknown> = { id: saleId ?? undefined, value: 1900, currency: "USD", currencyDecimals: 2, createdAt: 1759000000000 };
   return {
+    // nosemgrep: javascript.crypto.rule-node-insecure-random-generator -- test-only event id
     id: `evt-${Math.random().toString(36).slice(2)}`,
     type: "payment_refunded",
     data: { items: [], order: { id: "ord_x", createdAt: 1759000000000 }, payment },

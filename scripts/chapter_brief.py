@@ -6,7 +6,7 @@ Layer-A signals, and contradictions (tagged for the creator, not for the rewrite
 Usage: chapter_brief.py Five [--run <run.json>] [--patch <patch.json>]
 Writes <QA>/chapter_briefs/ch<N>_brief.md + .html
 """
-import json, statistics, subprocess, sys
+import json, statistics, subprocess, sys  # nosec B404
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -96,7 +96,7 @@ def main():
     out.mkdir(exist_ok=True)
     md = out / f"ch{NUM.index(ch) + 1}_brief.md"
     md.write_text("\n".join(L))
-    subprocess.run([str(PANDOC), "-f", "markdown-yaml_metadata_block", str(md), "-s", "--metadata",
+    subprocess.run([str(PANDOC), "-f", "markdown-yaml_metadata_block", str(md), "-s", "--metadata",  # nosec B603
                     f"title=Remediation brief — Chapter {ch}", "--embed-resources", "--css", str(QA / "report.css"), "-o", str(md.with_suffix(".html"))], check=False)
     print("\n".join(L))
 

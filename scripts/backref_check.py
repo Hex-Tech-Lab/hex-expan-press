@@ -13,7 +13,7 @@ import difflib
 import hashlib
 import json
 import re
-import subprocess
+import subprocess  # nosec B404
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -163,7 +163,7 @@ def main():
     out.append(f"TOTAL: {n_flag} FLAG of {len(flags)} checked")
     rep = QA / "backref_report.md"
     rep.write_text("\n".join(out))
-    subprocess.run(["bash", "scripts/render_report.sh", str(rep)])
+    subprocess.run(["bash", "scripts/render_report.sh", str(rep)])  # nosec B603 B607
     print(f"BACKREF: moved={moved_n} neigh={neigh_n} checked={len(flags)} FLAG={n_flag} -> {rep}")
 
 

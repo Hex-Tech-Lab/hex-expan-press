@@ -14,7 +14,7 @@ Usage: python3 scripts/site_claims_check.py [--no-jev]
 import html
 import json
 import re
-import subprocess
+import subprocess  # nosec B404
 import sys
 from pathlib import Path
 
@@ -173,7 +173,7 @@ def main():
                f"{tot['UNCHECKED']} UNCHECKED, {tot['NOT-BOOK']} NOT-BOOK (not a book claim; owned by legal/config)")
     rep = QA / "site_claims_report.md"
     rep.write_text("\n".join(out))
-    subprocess.run(["bash", "scripts/render_report.sh", str(rep)])
+    subprocess.run(["bash", "scripts/render_report.sh", str(rep)])  # nosec B603 B607
     print(f"SITE-CLAIMS: {tot['BLOCK']} BLOCK, {tot['FLAG']} FLAG, {tot['UNSUPPORTED']} UNSUPPORTED, "
           f"{tot['UNCHECKED']} UNCHECKED, {tot['NOT-BOOK']} NOT-BOOK -> {rep}")
     print("Disclaimer: " + "; ".join(f"{rel}={disclaim}" for rel, _, disclaim, _ in report))

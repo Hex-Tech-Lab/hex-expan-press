@@ -7,7 +7,7 @@ import argparse
 import os
 import re
 import shutil
-import subprocess
+import subprocess  # nosec B404
 import sys
 from pathlib import Path
 
@@ -22,7 +22,7 @@ def run(cmd, dry_run, env=None):
     print(f"[cmd] {printable}")
     if dry_run:
         return 0
-    proc = subprocess.run([str(c) for c in cmd], cwd=REPO, env=env, check=False)
+    proc = subprocess.run([str(c) for c in cmd], cwd=REPO, env=env, check=False)  # nosec B603
     return proc.returncode
 
 
@@ -291,8 +291,8 @@ def cmd_release(args):
         print("\n".join(["", "*** FORCED RELEASE: overridden checks ***"] + [f"  - {o}" for o in overrides]))
         if not args.dry_run:
             rec.write_text("\n".join(body) + "\n")
-            subprocess.run(["bash", "scripts/render_report.sh", str(rec)], cwd=REPO)
-    win = subprocess.run(["wslpath", "-w", str(dest)], capture_output=True, text=True, cwd=REPO)
+            subprocess.run(["bash", "scripts/render_report.sh", str(rec)], cwd=REPO)  # nosec B603 B607
+    win = subprocess.run(["wslpath", "-w", str(dest)], capture_output=True, text=True, cwd=REPO)  # nosec B603 B607
     if win.returncode == 0 and win.stdout.strip():  # P-12: hand over a real Windows path
         print(win.stdout.strip())
     else:

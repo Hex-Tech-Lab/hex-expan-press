@@ -6,7 +6,7 @@ Renders each page of a chapter and compares it pixel-by-pixel with the approved 
 Fails (exit 3) if a page changed beyond tolerance or the page count changed; writes red-overlay
 diffs to <QA>/visual_diff/<Chapter>/. Chapters without a baseline are skipped.
 """
-import argparse, hashlib, json, shutil, subprocess, sys, tempfile
+import argparse, hashlib, json, shutil, subprocess, sys, tempfile  # nosec B404
 from datetime import datetime, timezone
 from pathlib import Path
 from PIL import Image, ImageChops
@@ -20,7 +20,7 @@ DPI, PIXEL_DELTA, MAX_CHANGED = 100, 24, 0.0005  # 0.05% of pixels may differ (a
 
 
 def render(pdf, first, last, out):
-    subprocess.run(["pdftoppm", "-r", str(DPI), "-f", str(first), "-l", str(last), "-png", pdf, str(out / "p")],
+    subprocess.run(["pdftoppm", "-r", str(DPI), "-f", str(first), "-l", str(last), "-png", pdf, str(out / "p")],  # nosec B603 B607
                    check=True, stderr=subprocess.DEVNULL)
     return sorted(out.glob("p-*.png"))
 

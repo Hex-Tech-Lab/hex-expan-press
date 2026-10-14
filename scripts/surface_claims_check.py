@@ -17,7 +17,7 @@ Exit 1 on FAIL or promise_supported < 0.5. Writes <QA>/surface_claims_report.md
 Usage: python3 scripts/surface_claims_check.py [--no-jev]
 """
 import re
-import subprocess
+import subprocess  # nosec B404
 import sys
 from pathlib import Path
 
@@ -250,7 +250,7 @@ def main():
         out.append("")
     rep = QA / "surface_claims_report.md"
     rep.write_text("\n".join(out))
-    subprocess.run(["bash", "scripts/render_report.sh", str(rep)])
+    subprocess.run(["bash", "scripts/render_report.sh", str(rep)])  # nosec B603 B607
     bad = fails or (promise_p is not None and promise_p < LO) or not spans_ok
     print(f"SURFACE CLAIMS: {'FAIL' if bad else 'PASS'} "
           f"({len(fails)} FAIL, {len(flags)} FLAG, {len(unchecked)} UNCHECKED; promise {promise_note}) -> {rep}")

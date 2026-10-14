@@ -138,6 +138,7 @@ vi.mock("../../../../payments/src/terms.ts", () => ({
 // The use case writes through ledger SALES_FILE (settings registry global.json).
 // Point the registry module at a temp ledger path so tests never touch data/db.
 // Hoisted so the settings-registry factory below can read it at import time.
+// nosemgrep: javascript.crypto.rule-node-insecure-random-generator -- test-only temp dir
 const salesFileDir = vi.hoisted(() => `/tmp/hook-settings-${Date.now()}-${Math.random().toString(36).slice(2)}`);
 const salesFilePath = vi.hoisted(() => `${salesFileDir}/sales.jsonl`);
 

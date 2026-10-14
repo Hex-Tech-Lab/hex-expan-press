@@ -46,15 +46,15 @@ if _ACTIVE_PROFILE:
 
 def call(spec, prompt, max_tokens=None):
     """spec = "agy:<model>:<effort>" (founder's paid AGY plan) or "or:<openrouter id>" (cost-effective models only)."""
-    import subprocess, urllib.request
+    import subprocess, urllib.request  # nosec B404
     backend, rest = spec.split(":", 1)
     budget = 24000
     for attempt in range(3):
         try:
             if backend == "agy":
                 model, effort = rest.rsplit(":", 1)
-                r = subprocess.run(["agy", "-p", prompt + "\n\nReturn ONLY the JSON object, no prose.", "--model", model,
-                                    "--effort", effort, "--print-timeout", "0"], cwd="/tmp", stdin=subprocess.DEVNULL,  # lint-allow: /tmp (AGY must not scan the repo as its workspace)
+                r = subprocess.run(["agy", "-p", prompt + "\n\nReturn ONLY the JSON object, no prose.", "--model", model,  # nosec B603 B607
+                                    "--effort", effort, "--print-timeout", "0"], cwd="/tmp", stdin=subprocess.DEVNULL,  # lint-allow: /tmp (AGY must not scan the repo as its workspace)  # nosec B108
                                    capture_output=True, text=True, timeout=900)
                 txt = r.stdout
             else:
@@ -221,8 +221,8 @@ BOOK:
 
 def to_html(md):
     """Every report also as HTML (founder preference)."""
-    import subprocess
-    subprocess.run([str(PANDOC), "-f", "markdown-yaml_metadata_block", str(md), "-s", "--metadata", f"title={md.stem}",
+    import subprocess  # nosec B404
+    subprocess.run([str(PANDOC), "-f", "markdown-yaml_metadata_block", str(md), "-s", "--metadata", f"title={md.stem}",  # nosec B603
                     "--embed-resources", "--css", str(QA / "report.css"), "-o", str(md.with_suffix(".html"))], check=False)
 
 

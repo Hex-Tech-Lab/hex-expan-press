@@ -58,6 +58,7 @@ vi.mock("../../../../../../src/infrastructure/redis/redis.client.ts", async (imp
 }));
 
 // Point the registry module at a temp ledger path — tests never touch data/db.
+// nosemgrep: javascript.crypto.rule-node-insecure-random-generator -- test-only temp dir
 const salesFileDir = vi.hoisted(() => `/tmp/allowlist-${Date.now()}-${Math.random().toString(36).slice(2)}`);
 const salesFilePath = vi.hoisted(() => `${salesFileDir}/sales.jsonl`);
 

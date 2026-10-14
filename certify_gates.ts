@@ -241,6 +241,7 @@ function allowlistRegex(term: string): RegExp {
   const esc = escapeRegExp(term.toLowerCase());
   const pre = /^[a-z0-9]/.test(esc) ? "\\b" : "";
   const post = /[a-z0-9]$/.test(esc) ? "\\b" : "";
+  // nosemgrep: javascript.dos.rule-non-literal-regexp -- internal root script; input is repo-controlled
   return new RegExp(`${pre}${esc}${post}`, "g");
 }
 
@@ -295,6 +296,7 @@ export function runContentIdentityGate(pdfPath: string, creator: CreatorRecord):
     if (n > 0) blocklistHits[term] = n;
   }
   for (const re of BLOCKLIST_REGEXES) {
+    // nosemgrep: javascript.dos.rule-non-literal-regexp -- internal root script; input is repo-controlled
     const globalRe = new RegExp(re.source, re.flags.includes("g") ? re.flags : re.flags + "g");
     const matches = text.match(globalRe) ?? [];
     if (matches.length > 0) blocklistHits[`/${re.source}/i`] = matches.length;

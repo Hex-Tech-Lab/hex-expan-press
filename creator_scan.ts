@@ -694,6 +694,7 @@ async function fetchPageHtml(url: string): Promise<string> {
   return stdout;
 }
 
+// nosemgrep: javascript.dos.rule-non-literal-regexp -- internal root script; input is repo-controlled
 const EMAIL_JUNK = new RegExp(CONFIG.emailJunkRegex, "i");
 
 // Stage 3.6: per-creator contact hunt. Niche-level Brave hits are mostly generic how-to

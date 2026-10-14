@@ -13,7 +13,7 @@ Exit 1 on any BLOCK.
 Usage: python3 scripts/compliance_check.py [--no-jev]
 """
 import re
-import subprocess
+import subprocess  # nosec B404
 import sys
 from pathlib import Path
 
@@ -100,7 +100,7 @@ def main():
         out.append("")
     rep = QA / "compliance_report.md"
     rep.write_text("\n".join(out))
-    subprocess.run(["bash", "scripts/render_report.sh", str(rep)])
+    subprocess.run(["bash", "scripts/render_report.sh", str(rep)])  # nosec B603 B607
     tot_b = sum(b[3] for b in blocks)
     print(f"COMPLIANCE: {'FAIL' if tot_b else 'PASS'} ({tot_b} BLOCK, {sum(b[4] for b in blocks)} FLAG, "
           f"{sum(b[5] for b in blocks)} UNCHECKED) -> {rep}")

@@ -14,7 +14,7 @@ Jev gates (T33-J1):
 - pairwise: per dimension Jev is asked choice {old,new,tie}; top p >= 0.8 decides for all 6 votes
   and the judge LLM pair call is skipped; otherwise the existing LLM call is used (fallback).
 """
-import difflib, json, re, statistics, subprocess, sys
+import difflib, json, re, statistics, subprocess, sys  # nosec B404
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -239,7 +239,7 @@ def main():
     out = QA / "chapter_briefs" / f"ch{NUM.index(n) + 1}_regrade.md"
     out.write_text("\n".join(L))
     (out.with_suffix(".json")).write_text(json.dumps({"|".join(k): v for k, v in res.items()}, indent=1, ensure_ascii=False))
-    subprocess.run([str(PANDOC), "-f", "markdown-yaml_metadata_block", str(out), "-s", "--metadata",
+    subprocess.run([str(PANDOC), "-f", "markdown-yaml_metadata_block", str(out), "-s", "--metadata",  # nosec B603
                     f"title=Re-grade — Chapter {n}", "--embed-resources", "--css", str(QA / "report.css"), "-o", str(out.with_suffix(".html"))], check=False)
     print("\n".join(L))
 
