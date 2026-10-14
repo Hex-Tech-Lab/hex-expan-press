@@ -1,0 +1,21 @@
+web/app/api/billing/webhook/handler.ts
+  s_4e2b0b0a92fc08::t_f48fcb262d1e5f 36,167
+web/app/api/esign/webhook/route.ts
+  s_4e2b0b0a92fc08::t_11d8392b0464c2 106
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "efc8973502c88e4612c01ae703d161b759dd5eab",
+  "prompts": {},
+  "sessions": {
+    "s_4e2b0b0a92fc08": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "69ec633a-0c01-486a-80de-180205f86530",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "CCW <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
