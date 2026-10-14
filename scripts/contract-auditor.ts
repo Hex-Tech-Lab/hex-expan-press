@@ -9,7 +9,6 @@
  * linter -- false positives here train people to ignore the tool, which
  * defeats the point. Run: `pnpm contract-audit`.
  * Exits 1 only on CRITICAL findings. It is not wired into CI.
- * bug that used to stay invisible; WARNING findings are informational.
  */
 import { readFileSync, readdirSync, statSync } from 'fs';
 import { dirname, join, relative } from 'path';
@@ -136,9 +135,8 @@ function stripStringsAndCommentsForBraceCounting(line: string): string {
  *
  * Covers: console.error/warn, Sentry.captureException/captureMessage, and
  * the bare (non-method) `logError(...)` call from
- * telemetry helper (confirmed by reading its implementation: it dispatches
- * to console.error/warn/info internally), so a file whose only reporting is
- * `logError(...)` was previously invisible to this rule.
+ * telemetry helper, so a file whose only reporting is `logError(...)` is not
+ * flagged by this rule.
  *
  * Deliberately does NOT match `.logError(` (with a preceding dot) --
  * useAnalysisStore's `store.logError(message)` / `analysisStore.getState()
@@ -188,14 +186,14 @@ function auditSilentCatchNoTelemetry(file: string, content: string) {
         severity: 'warning',
         file,
         line: i + 1,
-        why: 'This catch block has no console.error/warn or Sentry.captureException/captureMessage call -- the failure it exists to handle is invisible to every telemetry surface. Confirmed pattern: worker/src/services/a persistence service had 4 of these, one of which was the root cause of a chunk that silently vanished with zero trace anywhere (fixed in a prior fix).',
+        why: 'This catch block has no console.error/warn or Sentry.captureException/captureMessage call -- the failure it exists to handle is invisible to every telemetry surface.',
         snippet: line.trim(),
       });
       continue;
     }
 
     // Multi-line form: collect the catch block body by brace depth, capped
-    // at 15 lines so a huge block doesn't false-negative on telemetry
+    // at 15 lines to keep the scan bounded; a telemetry call past that cap is not seen (accepted).
     // buried far below.
     const openLineBraces = countBraces(line);
     let depth = openLineBraces.open - openLineBraces.close;
@@ -228,7 +226,7 @@ function auditSilentCatchNoTelemetry(file: string, content: string) {
       severity: 'warning',
       file,
       line: i + 1,
-      why: 'This catch block has no console.error/warn or Sentry.captureException/captureMessage call anywhere in its body -- the failure it exists to handle is invisible to every telemetry surface. Confirmed pattern: worker/src/services/a persistence service had 4 of these, one of which was the root cause of a chunk that silently vanished with zero trace anywhere (fixed in a prior fix).',
+      why: 'This catch block has no console.error/warn or Sentry.captureException/captureMessage call anywhere in its body -- the failure it exists to handle is invisible to every telemetry surface.',
       snippet: line.trim(),
     });
   }
@@ -291,7 +289,7 @@ function auditSilentErrorReturnNoTelemetry(file: string, content: string) {
       severity: 'warning',
       file,
       line: i + 1,
-      why: 'This return of a failure object (success/ok set to false) has no console.error/warn or Sentry.captureException/captureMessage call anywhere in its enclosing block -- a real failure path with no throw, so it is invisible to telemetry and to SILENT_CATCH_NO_TELEMETRY alike. Confirmed pattern: an LLM cascade had 4 of these across callLLM/callLLMStream (fixed in a prior fix).',
+      why: 'This return of a failure object (success/ok set to false) has no console.error/warn or Sentry.captureException/captureMessage call anywhere in its enclosing block -- a real failure path with no throw, so it is invisible to telemetry and to SILENT_CATCH_NO_TELEMETRY alike.',
       snippet: line.trim(),
     });
   }
