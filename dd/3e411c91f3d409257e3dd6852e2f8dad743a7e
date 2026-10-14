@@ -1,0 +1,19 @@
+scripts/contract-auditor.ts
+  s_4e2b0b0a92fc08::t_10b4d6fbbc2cf6 138-139,189,196,229,292
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "dd3e411c91f3d409257e3dd6852e2f8dad743a7e",
+  "prompts": {},
+  "sessions": {
+    "s_4e2b0b0a92fc08": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "69ec633a-0c01-486a-80de-180205f86530",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "CCW <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
