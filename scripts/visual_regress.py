@@ -48,7 +48,7 @@ def main():
                 (base / "manifest.json").write_text(json.dumps({
                     "approved_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
                     "source_pdf": Path(a.pdf).name, "pdf_pages": ranges[ch],
-                    "pdf_md5": hashlib.md5(Path(a.pdf).read_bytes()).hexdigest(), "pages": len(pages)}, indent=1))
+                    "pdf_md5": hashlib.md5(Path(a.pdf).read_bytes(), usedforsecurity=False).hexdigest(), "pages": len(pages)}, indent=1))
                 print(f"visual: Chapter {ch} baseline approved ({len(pages)} pages)")
                 continue
             if not base.exists():

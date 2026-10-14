@@ -86,6 +86,7 @@ def fact_guard(old, new, use_jev=True):
 
 
 def chapter_text(ms, n):
+    from literary_panel import prose  # noqa: E402
     from book_config import chapter_sources
     for name, title, src in chapter_sources(ms):
         if name == n:
@@ -93,6 +94,7 @@ def chapter_text(ms, n):
 
 
 def pair_prompt(n, t, first, second):
+    from literary_panel import DIMS, BOOK, ANCHORS  # noqa: E402
     dims = ", ".join(DIMS)
     return f"""You are a senior nonfiction editor. {BOOK}
 Two versions of Chapter {n}, "{t}", follow: VERSION 1 and VERSION 2. {ANCHORS}
@@ -107,6 +109,7 @@ VERSION 2:
 
 
 def pair_prompt_dim(n, t, first, second, dim, first_is_old):
+    from literary_panel import BOOK, ANCHORS  # noqa: E402
     return f"""You are a senior nonfiction editor. {BOOK}
 Two versions of Chapter {n}, "{t}", follow: VERSION 1 and VERSION 2. {ANCHORS}
 Which version is better on the dimension "{dim}"? Say "1", "2" or "tie". Judge quality, not length.
@@ -121,6 +124,7 @@ VERSION 2:
 
 
 def reader_prompt(persona, prev, n, t, text):
+    from literary_panel import BOOK  # noqa: E402
     return f"""You are {persona}. {BOOK} You just read the previous chapter (below, for context) and now read Chapter {n}, "{t}".
 Report honestly as this reader about Chapter {n} only: engagement 1-5; would you stop reading (and at which sentence, verbatim <= 15 words, or null); what felt repetitive (or null); one thing you would actually do tomorrow (or 'nothing').
 Return JSON only: {{"engagement": 4, "stop_at": null, "repetitive": null, "do_tomorrow": "..."}}
@@ -146,7 +150,7 @@ def main():
     if len(argv) != 2:
         usage()
     n, before = argv[0], Path(argv[1])
-    from literary_panel import DIMS, JUDGES, PERSONAS, READER, BOOK, ANCHORS, call, judge_prompt, gi, gname, prose  # noqa: E402
+    from literary_panel import DIMS, JUDGES, PERSONAS, READER, call, judge_prompt, gi, gname  # noqa: E402
     # backup before ANY manuscript write (none expected in this script, but guaranteed)
     bak = backup(MS_PATH, f"pre-regrade-{n}")
     print(f"backup: {bak}")
@@ -165,7 +169,7 @@ def main():
     if use_jev:
         for d in DIMS:
             a = decide({"before": plain(old)[:4000], "after": plain(new)[:4000]},
-                       {f"pair": {"type": "choice", "instructions": f"Old vs new chapter text: which is better on the dimension '{d}'? "
+                       {"pair": {"type": "choice", "instructions": f"Old vs new chapter text: which is better on the dimension '{d}'? "
                                                           "Judge quality, not length.",
                                   "criteria": {"old": "BEFORE is better on this dimension.",
                                                "new": "AFTER is better on this dimension.",

@@ -1033,7 +1033,7 @@ def main():
     runs = load_runs(repo_root)
     regrades = parse_regrades(repo_root)
     qa_fails = parse_qa_report(repo_root)
-    print(f"Section counts:")
+    print("Section counts:")
     print(f"  1. Header/Runs: {len(runs)} runs")
     print(f"  2. Chapter x Run grid: 10 chapters x {len(runs)} runs")
     print(f"  3. Reader heatmap: 3 personas x 10 chapters (newest run: {runs[-1]['timestamp'] if runs else 'None'})")

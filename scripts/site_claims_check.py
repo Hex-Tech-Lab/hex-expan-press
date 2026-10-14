@@ -176,7 +176,7 @@ def main():
     subprocess.run(["bash", "scripts/render_report.sh", str(rep)])
     print(f"SITE-CLAIMS: {tot['BLOCK']} BLOCK, {tot['FLAG']} FLAG, {tot['UNSUPPORTED']} UNSUPPORTED, "
           f"{tot['UNCHECKED']} UNCHECKED, {tot['NOT-BOOK']} NOT-BOOK -> {rep}")
-    print(f"Disclaimer: " + "; ".join(f"{rel}={disclaim}" for rel, _, disclaim, _ in report))
+    print("Disclaimer: " + "; ".join(f"{rel}={disclaim}" for rel, _, disclaim, _ in report))
 
 
 if __name__ == "__main__":

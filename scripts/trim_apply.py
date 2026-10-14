@@ -8,7 +8,7 @@ Fill-back: after applying trims, try reverting each applied trim one at a time
 first). Rebuild the book (pandoc+typst, same as scripts/book_build.sh) and keep
 the revert only if the marker text is still on PDF page N; else undo it.
 """
-import argparse, json, shutil, subprocess, sys
+import argparse, json, subprocess, sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))

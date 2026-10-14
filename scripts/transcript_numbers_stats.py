@@ -67,7 +67,7 @@ def main():
     m = re.search(r"--measured[= ]([\d.]+)", " ".join(sys.argv))
     measured = m.group(1) if m else None
     rows = json.loads((QA / "transcript_numbers_rows.json").read_text())
-    meta = json.loads((SAMPLES / "metadata.json").read_text())
+    json.loads((SAMPLES / "metadata.json").read_text())
     # Live channel inventory (YouTube uploads playlist). NOT metadata.json's total_videos_seen, which
     # is how many videos an old scraper looked at (capped at 300), not the channel size.
     invs = sorted(SAMPLES.glob("channel_inventory_*.json"))
@@ -87,7 +87,7 @@ def main():
     cache = json.loads(cache_path.read_text()) if cache_path.exists() else {}
 
     def key(r):
-        return hashlib.sha1(f"{r['file']}|{r['line']}|{r['num']}|{r['sentence']}".encode()).hexdigest()
+        return hashlib.sha1(f"{r['file']}|{r['line']}|{r['num']}|{r['sentence']}".encode(), usedforsecurity=False).hexdigest()
 
     def classify(r):
         k = key(r)

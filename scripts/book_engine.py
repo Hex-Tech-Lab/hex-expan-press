@@ -183,7 +183,7 @@ def cmd_p_fix(args):
         if rc != 0:
             return rc
         if r == 2:
-            print(f"round 2 still FAILing after fixers: "
+            print("round 2 still FAILing after fixers: "
                   + ", ".join(f"{k}={v}" for k, v in sorted(fails.items())))
     print("| Rule | round 1 FAILs | round 2 FAILs |")
     print("|---|---|---|")

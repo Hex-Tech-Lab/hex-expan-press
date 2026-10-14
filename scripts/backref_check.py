@@ -121,7 +121,7 @@ def main():
             chap = chap_of(new, offs[at])
             # context is the checked paragraph's OWN neighbours (for prev/next that includes the moved unit u)
             cp, cn = unit_at(nu, at - 1)[:400], unit_at(nu, at + 1)[:400]
-            key = hashlib.sha1(f"{txt[:900]}|{cp}|{cn}".encode()).hexdigest()
+            key = hashlib.sha1(f"{txt[:900]}|{cp}|{cn}".encode(), usedforsecurity=False).hexdigest()
             if key in seen:
                 continue
             seen.add(key)
