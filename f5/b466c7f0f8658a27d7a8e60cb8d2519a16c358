@@ -1,0 +1,43 @@
+.gitignore
+  s_4e2b0b0a92fc08::t_861cb64c807804 96-98
+package.json
+  s_4e2b0b0a92fc08::t_da5cf1b3fafd82 21-22
+scripts/contract-auditor.ts
+  s_4e2b0b0a92fc08::t_c7314e9a83213a 1-353
+scripts/strict-merge.sh
+  s_4e2b0b0a92fc08::t_08308cd59b731a 1-174
+web/app/api/billing/checkout/route.ts
+  s_4e2b0b0a92fc08::t_8a6291737a1da8 64
+web/app/api/billing/webhook/handler.ts
+  s_4e2b0b0a92fc08::t_d2525fdb6ba01e 36,219
+web/src/components/storefront/buy-link.tsx
+  s_4e2b0b0a92fc08::t_0a8b23f12b57a4 23-25,48-50
+web/src/lib/skew-retry-fetch.ts
+  s_4e2b0b0a92fc08::t_23c6a309f96429 49
+web/app/api/esign/webhook/route.ts
+  s_5a6d444c2e213a::t_feaae1514c966e 106
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f5b466c7f0f8658a27d7a8e60cb8d2519a16c358",
+  "prompts": {},
+  "sessions": {
+    "s_4e2b0b0a92fc08": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "69ec633a-0c01-486a-80de-180205f86530",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "CCW <104952356+TechHypeXP@users.noreply.github.com>"
+    },
+    "s_5a6d444c2e213a": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a1cef2c070523e762",
+        "model": "unknown"
+      },
+      "human_author": "CCW <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
