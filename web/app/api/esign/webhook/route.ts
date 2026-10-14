@@ -15,7 +15,8 @@ const MAX_BODY_BYTES = 1_048_576;
 
 /** Best-effort terminal-reject quarantine insert (sha256 only — the raw body
  *  carries signer PII and audit_log must not hold it). Takes an AbortSignal so
- *  the caller can bound a stalled Supabase request. */
+ *  the caller can bound a stalled Supabase request. Write and timeout failures are best-effort;
+ *  a missing audit config throws AuditUnavailableError (fail-closed). */
 async function insertTerminalRejectAudit(bodyBuffer: Buffer, err: unknown, signal: AbortSignal): Promise<void> {
   // Outside the try: e-sign trails never fail open. A missing audit trail propagates to POST,
   // which answers 500 so Firma retries instead of accepting a rejected event with no record.
@@ -109,7 +110,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       try {
         await Promise.race([insertTerminalRejectAudit(bodyBuffer, err, controller.signal), timeout]);
       } catch (auditErr) {
-        // Missing audit config: fail closed with a fixed 500 instead of an unhandled rejection.
+        // Missing audit config: fail closed with a fixed 500 (see auditUnavailableResponse). Other errors rethrow.
         return auditUnavailableResponse(auditErr);
       } finally {
         clearTimeout(timer);
