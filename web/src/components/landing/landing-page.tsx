@@ -197,7 +197,7 @@ function JourneyArt({
 const BENTO = [
   { title: "We Learn Your Voice", body: "We immerse ourselves in your videos, capturing your exact phrasing, cadence, and lived insights.", Art: VoiceArt },
   { title: "Zero Writing Required", body: "No blank pages or writer's block. We assemble the complete manuscript; you simply review and sign off.", Art: WriteArt },
-  { title: "Income As You Sleep", body: "Every release ships with its own storefront, checkout rails, and automated payouts. Your audience buys; the system delivers.", Art: IncomeArt },
+  { title: "Earn as it sells", body: "ExpanPress publishes and sells your book. You receive a share of revenue every month.", Art: IncomeArt },
   { title: "Your Journey", body: "Step-by-step author review. Digitally signed, watermarked, and legally protected under your own name.", Art: JourneyArt },
 ];
 
