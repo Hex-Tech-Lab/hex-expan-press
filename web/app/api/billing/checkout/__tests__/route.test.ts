@@ -339,6 +339,61 @@ describe("billing/checkout wave85 sandbox + raw-URL fail-closed", () => {
   });
 });
 
+describe("billing/checkout strict rail flags (item 5, 2026-10-15)", () => {
+  beforeEach(() => {
+    vi.stubEnv("VERCEL_ENV", "production");
+    vi.stubEnv("CHECKOUT_URL_DUANE_RETIREMENT_PLAYBOOK_V1", undefined as unknown as string);
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.mocked(MatrixRouter.getNextProvider).mockReset();
+    vi.mocked(MatrixRouter.getNextProvider).mockResolvedValue("polar");
+  });
+
+  it("active: \"false\" (string) is not an active rail: the product is disabled, not sold", async () => {
+    adminModule.mockAdminClient = gateAdminClient(undefined, undefined, {
+      data: [{ provider: "polar", weight: 100, checkout_url: "https://buy.polar.sh/live", active: "false" }],
+      error: null,
+    });
+    const res = await GET(request());
+    expect(res.status).toBe(404);
+    expect(res.headers.get("location")).toBeNull();
+  });
+
+  it("active: false (boolean) and active: 1 are not active rails", async () => {
+    for (const active of [false, 1]) {
+      adminModule.mockAdminClient = gateAdminClient(undefined, undefined, {
+        data: [{ provider: "polar", weight: 100, checkout_url: "https://buy.polar.sh/live", active }],
+        error: null,
+      });
+      const res = await GET(request());
+      expect(res.status, `active=${JSON.stringify(active)}`).toBe(404);
+      expect(res.headers.get("location")).toBeNull();
+    }
+  });
+
+  it("active: \"true\" (string) enables the rail", async () => {
+    adminModule.mockAdminClient = gateAdminClient(undefined, undefined, {
+      data: [{ provider: "polar", weight: 100, checkout_url: "https://buy.polar.sh/live", active: "true" }],
+      error: null,
+    });
+    const res = await GET(request());
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("https://buy.polar.sh/live?reference_id=direct");
+  });
+
+  it("an active rail with a null provider fails closed 500 (no \"null\" provider string)", async () => {
+    adminModule.mockAdminClient = gateAdminClient(undefined, undefined, {
+      data: [{ provider: null, weight: 100, checkout_url: "https://buy.polar.sh/live", active: true }],
+      error: null,
+    });
+    const res = await GET(request());
+    expect(res.status).toBe(500);
+    expect(res.headers.get("location")).toBeNull();
+  });
+});
+
 describe("billing/checkout path traversal sanitization (P3)", () => {
   it("rejects path traversal attempts with 400 Bad Request", async () => {
     for (const badProduct of [
