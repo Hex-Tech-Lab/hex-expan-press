@@ -199,6 +199,12 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       console.error(`[billing/checkout] rails query failed for '${product}': ${railErr.message}`);
       return jsonError(500, "Checkout consent verification failed");
     }
+    // Checked before the map below, which would throw on a null row. A non-object row is a
+    // data-integrity failure: never an operator disable, never a silent fallthrough (fail closed).
+    if ((railRows ?? []).some((r) => r === null || typeof r !== "object")) {
+      console.error(`[billing/checkout] product '${product}' has a malformed product_rails row — failing closed`);
+      return jsonError(500, "Checkout is not configured");
+    }
     const allRails = (railRows ?? []).map((r) => ({
       provider: String((r as { provider: unknown }).provider),
       weight: Number((r as { weight: unknown }).weight),
@@ -211,11 +217,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     // failure that the raw-URL validation below rejects with 500 — it must
     // never be misreported as an operator disable.
     const configuredRowCount = (railRows ?? []).filter((r) => r !== null && typeof r === "object").length;
-    // A non-object row is a data-integrity failure, never an operator disable and never a silent fallthrough (fail closed).
-    if ((railRows ?? []).some((r) => r === null || typeof r !== "object")) {
-      console.error(`[billing/checkout] product '${product}' has a malformed product_rails row — failing closed`);
-      return jsonError(500, "Checkout is not configured");
-    }
+
     if (configuredRowCount > 0 && dbRails.length === 0) {
       console.error(`[billing/checkout] product '${product}' has ${configuredRowCount} configured rail(s) but none active — the database disable is authoritative`);
       return jsonError(404, `Checkout is disabled for product '${product}'`);
@@ -230,7 +232,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     rails = dbRails;
   } else {
     // No DB rails: the env override is the configured source, otherwise 404.
-    // The former launch-product Polar sandbox fallback was removed (ADR 0061, fail closed). A SET override is the configured source even
+    // The launch-product Polar sandbox fallback was removed (PR 102): no rails and no override return 404. A SET override is the configured source even
     // when its raw value is blank — no trimming it away, no fall-through to
     // the default rail; the shared validator below rejects blank values with
     // the controlled 500.

@@ -23,7 +23,8 @@ const PAY_HOST = "pay.expanpress.com";
 const MAIN_HOST = "expanpress.com";
 const PAY_ORIGIN = "https://pay.expanpress.com";
 const MAIN_ORIGIN = "https://expanpress.com";
-const PAY_ALLOWED_PREFIXES = ["/checkout/", "/api/billing/checkout", "/_next/", "/assets/"];
+const PAY_ALLOWED_PREFIXES = ["/checkout/", "/api/billing/checkout/", "/_next/", "/assets/"];
+const PAY_ALLOWED_EXACT_API = ["/api/billing/checkout"];
 const PAY_ALLOWED_EXACT = ["/terms.html", "/privacy.html", "/refund-policy.html", "/legal/providers.html", "/favicon.ico"];
 
 export async function proxy(request: NextRequest): Promise<NextResponse> {
@@ -32,7 +33,7 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   const path = url.pathname;
   if (host === PAY_HOST) {
     if (path === "/robots.txt") return NextResponse.rewrite(new URL("/robots-pay.txt", request.url));
-    const allowed = PAY_ALLOWED_EXACT.includes(path) || PAY_ALLOWED_PREFIXES.some((p) => path.startsWith(p));
+    const allowed = PAY_ALLOWED_EXACT.includes(path) || PAY_ALLOWED_EXACT_API.includes(path) || PAY_ALLOWED_PREFIXES.some((p) => path.startsWith(p));
     // Collapse leading slashes so "//host/..." cannot become a protocol-relative redirect (open redirect).
     if (!allowed) return NextResponse.redirect(new URL("/" + path.replace(/^\/+/, "") + url.search, MAIN_ORIGIN), 302);
     return NextResponse.next({ request });

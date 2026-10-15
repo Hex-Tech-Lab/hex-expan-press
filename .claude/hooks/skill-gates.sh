@@ -93,7 +93,7 @@ for s in $req; do
   ev="${ev/#\~/$HOME}"
   # Canonicalize before the prefix check so "..", symlinks and relative tricks cannot leave the git dir.
   ev_real=$(realpath -m -- "$ev" 2>/dev/null) || { noev="$noev $s"; continue; }
-  case "$ev_real" in "$ev_root_real"*) ;; *) noev="$noev $s"; continue;; esac
+  case "$ev_real" in "$ev_root_real"/*) ;; *) noev="$noev $s"; continue;; esac
   { [ -s "$ev_real" ] && [ "$(wc -c <"$ev_real")" -ge 200 ]; } || { noev="$noev $s"; continue; }
   # 2026-10-15 (owner): the verdict is the second token and must be PASS, N/A, or "waiver:" followed by a reason.
   # Anything else (PARTIAL, FAIL, pending, unknown words, or "waiver:" appearing later in the line) is refused.
