@@ -83,7 +83,7 @@ const DETAILS: { steps: string[] }[] = [
   { steps: ["Ingest your videos", "Extract your voiceprint", "Draft in your cadence"] },
   { steps: ["You talk, we listen", "We assemble the manuscript", "You approve and sign"] },
   { steps: ["Release ships", "Storefront goes live", "Payouts run themselves"] },
-  { steps: ["Author review", "Signed and watermarked", "Published under your name"] },
+  { steps: ["Author review", "Signed", "Published under your name"] },
 ];
 
 /* ------------------------------------------- variant factories (altitude) */
@@ -198,7 +198,7 @@ const BENTO = [
   { title: "We Learn Your Voice", body: "We immerse ourselves in your videos, capturing your exact phrasing, cadence, and lived insights.", Art: VoiceArt },
   { title: "Zero Writing Required", body: "No blank pages or writer's block. We assemble the complete manuscript; you simply review and sign off.", Art: WriteArt },
   { title: "Earn as it sells", body: "ExpanPress publishes and sells your book. You receive a share of revenue every month.", Art: IncomeArt },
-  { title: "Your Journey", body: "Step-by-step author review. Digitally signed, watermarked, and legally protected under your own name.", Art: JourneyArt },
+  { title: "Your Journey", body: "Step-by-step author review. Digitally signed and legally protected under your own name.", Art: JourneyArt },
 ];
 
 /* INP remediation (Sprint 16): the journey step list was inlined in the bento

@@ -24,3 +24,4 @@ The E-Sign boundary contracts (Firma live shape, state finality, strict final UR
 
 - **contract-auditor** is referenced by the global skill-gate hook (`~/.claude/hooks/skill-gates.sh`) but is not installed. Restore or replace it. Owner: CC.
 - **qa-intel engine not ported to hex-expan.** Its rules are written for hex-yt-intel's layout (for example, adapters/ boundaries). The hook requires `qa-intel` only when `scripts/verify-quality-engine.ts` exists, and records it as N/A otherwise. Port deferred post-MVP. Owner: CC.
+- **Sonar and Snyk are not configured on this repo.** The PR tool stack expects both; neither appears in the PR checks. Configure or retire them. Owner: CC.
