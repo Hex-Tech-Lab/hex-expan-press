@@ -103,3 +103,13 @@ describe("proxy host boundary (ADR 0061)", () => {
     expect(res.headers.get("location")).toBe("https://pay.expanpress.com/api/billing/checkout?product=abc");
   });
 });
+
+describe("proxy host boundary: no open redirect", () => {
+  it("a protocol-relative path on the pay host stays on the main origin", async () => {
+    const { proxy } = await import("../proxy");
+    const req = { cookies: { getAll: () => [], set: cookiesSetSpy }, url: "https://pay.expanpress.com//evil.example/x", headers: new Headers() };
+    const res = await proxy(req as never);
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("https://expanpress.com/evil.example/x");
+  });
+});
