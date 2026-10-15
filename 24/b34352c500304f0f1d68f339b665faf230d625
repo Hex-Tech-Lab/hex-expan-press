@@ -1,0 +1,21 @@
+web/public/legal/providers.html
+  s_05b2d330202471::t_7323158369ce5e 1-76
+web/public/privacy.html
+  s_05b2d330202471::t_33ca5ca9a4fbb2 56
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "24b34352c500304f0f1d68f339b665faf230d625",
+  "prompts": {},
+  "sessions": {
+    "s_05b2d330202471": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ccf684ff-aee0-4752-a325-a0ab260efd02",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "CCW <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
