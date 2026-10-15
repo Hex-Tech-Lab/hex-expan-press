@@ -65,6 +65,8 @@ export interface GlobalSettings {
     /** Default page size for admin audit-log listing. */
     audit_log_page_size: number;
   };
+  /** Buyer delivery: download_events links, Dub short links, signed release URLs. */
+  delivery: { bucket: string; link_ttl_days: number; signed_url_seconds: number; short_domain: string };
   /** Transactional email (Resend). `from` must be on `sending_domain` (DKIM-verified in Resend). */
   email: {
     from: string;
@@ -116,6 +118,13 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
       "This is a digital product (PDF); no physical item will be shipped.",
       "Educational content only — nothing in this document is financial advice. Do your own research.",
     ],
+  },
+  // Buyer delivery (download_events). The bucket holds release files only, never review copies.
+  delivery: {
+    bucket: "release-files",
+    link_ttl_days: 7,
+    signed_url_seconds: 300,
+    short_domain: "go.expanpress.com",
   },
   email: {
     from: "ExpanPress <support@esign.expanpress.com>",

@@ -321,6 +321,7 @@ export class PaddleAdapter implements PaymentProviderPort {
         totalCents,
         currency,
         buyerEmailHash: hashEmail(email),
+        buyerEmail: email,
         occurredAt: validated.data.changed_at || new Date().toISOString(),
         attributionId: cleanAttributionId(validated.data.custom_data?.reference_id),
         rawPayload: parsedJson
