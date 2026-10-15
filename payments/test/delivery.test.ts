@@ -1,0 +1,108 @@
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { deliverSale, createDubShortLink, tokenHash, newToken, TOKEN_RE, type DeliveryDeps } from "../src/delivery";
+
+const arg = <T>(m: { mock: { calls: unknown[][] } }, i = 0): T => m.mock.calls[i][0] as T;
+
+const NOW = new Date("2026-10-15T12:00:00Z");
+const PRODUCT = { id: "11111111-1111-4111-8111-111111111111", title: "500K Playbook", releasePath: "p/file.pdf" };
+
+function fakes(over: Partial<DeliveryDeps> & { product?: unknown; inserted?: boolean } = {}) {
+  const recordLinkIssued = vi.fn(async () => over.inserted ?? true);
+  const sendEmail = vi.fn(async () => ({ id: "e1" }));
+  const createShortLink = vi.fn(async (u: string) => `https://go.expanpress.com/abc?to=${encodeURIComponent(u)}`);
+  const deps: DeliveryDeps = {
+    db: { productForAlias: vi.fn(async () => (over.product === undefined ? PRODUCT : (over.product as typeof PRODUCT | null))), recordLinkIssued },
+    sendEmail, createShortLink, origin: "https://expanpress.com", replyTo: "support@expanpress.com",
+    now: () => NOW, newToken: () => "T".repeat(43),
+  };
+  return { deps, recordLinkIssued, sendEmail, createShortLink };
+}
+const sale = { saleId: "s-1", productAlias: "alias-1", buyerEmail: "buyer@example.com" };
+
+describe("deliverSale", () => {
+  it("does nothing without a buyer email (no grant, no mail)", async () => {
+    const f = fakes();
+    expect(await deliverSale({ ...sale, buyerEmail: undefined }, f.deps)).toBe("no_email");
+    expect(f.recordLinkIssued).not.toHaveBeenCalled();
+    expect(f.sendEmail).not.toHaveBeenCalled();
+  });
+
+  it("fails closed when the product has no release file: no link to nothing", async () => {
+    const f = fakes({ product: { ...PRODUCT, releasePath: null } });
+    expect(await deliverSale(sale, f.deps)).toBe("no_release_file");
+    expect(f.recordLinkIssued).not.toHaveBeenCalled();
+    expect(f.sendEmail).not.toHaveBeenCalled();
+  });
+
+  it("stores only the token hash, expiring after the registry TTL, and mails the short link", async () => {
+    const f = fakes();
+    expect(await deliverSale(sale, f.deps)).toBe("sent");
+    const row = arg<{ tokenHash: string; expiresAt: Date; saleId: string; productId: string }>(f.recordLinkIssued);
+    expect(row.tokenHash).toBe(tokenHash("T".repeat(43)));
+    expect(row.tokenHash).toMatch(/^[0-9a-f]{64}$/);
+    expect(JSON.stringify(row)).not.toContain("T".repeat(43));
+    expect(row.expiresAt.getTime() - NOW.getTime()).toBe(7 * 24 * 60 * 60 * 1000);
+    expect(row.productId).toBe(PRODUCT.id);
+    expect(f.createShortLink).toHaveBeenCalledWith(`https://expanpress.com/d/${"T".repeat(43)}`);
+    const mail = arg<{ to: string; text: string; subject: string }>(f.sendEmail);
+    expect(mail.to).toBe("buyer@example.com");
+    expect(mail.text).toContain("https://go.expanpress.com/abc");
+    expect(mail.text).toContain("valid for 7 days");
+    expect(mail.text).not.toMatch(/instant/i);
+  });
+
+  it("is a no-op on a second webhook for the same sale", async () => {
+    const f = fakes({ inserted: false });
+    expect(await deliverSale(sale, f.deps)).toBe("duplicate");
+    expect(f.sendEmail).not.toHaveBeenCalled();
+    expect(f.createShortLink).not.toHaveBeenCalled();
+  });
+
+  it("propagates a mail failure to the caller (deliverSaleSafely logs it; the webhook still succeeds)", async () => {
+    const f = fakes();
+    f.sendEmail.mockRejectedValueOnce(new Error("resend down"));
+    await expect(deliverSale(sale, f.deps)).rejects.toThrow("resend down");
+  });
+
+  it("escapes the product title in the HTML part", async () => {
+    const f = fakes({ product: { ...PRODUCT, title: "<img src=x onerror=alert(1)>" } });
+    await deliverSale(sale, f.deps);
+    const html = arg<{ html: string }>(f.sendEmail).html;
+    expect(html).not.toContain("<img");
+    expect(html).toContain("&#60;img");
+  });
+});
+
+describe("tokens", () => {
+  it("are 43-character base64url and match the route's validator", () => {
+    for (let i = 0; i < 20; i++) expect(newToken()).toMatch(TOKEN_RE);
+  });
+});
+
+describe("createDubShortLink", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("refuses to run without DUB_API_KEY", async () => {
+    vi.stubEnv("DUB_API_KEY", "");
+    await expect(createDubShortLink("https://expanpress.com/d/x")).rejects.toThrow("DUB_API_KEY is missing");
+  });
+
+  it("returns the shortLink on success and sends the key only in the header", async () => {
+    vi.stubEnv("DUB_API_KEY", "dub_test_key");
+    const calls: { url: string; init: RequestInit }[] = [];
+    const fetchImpl = (async (url: string, init: RequestInit) => {
+      calls.push({ url, init });
+      return new Response(JSON.stringify({ shortLink: "https://go.expanpress.com/abc" }), { status: 200 });
+    }) as unknown as typeof fetch;
+    expect(await createDubShortLink("https://expanpress.com/d/x", fetchImpl)).toBe("https://go.expanpress.com/abc");
+    expect(calls[0].url).toBe("https://api.dub.co/links");
+    expect((calls[0].init.headers as Record<string, string>).Authorization).toBe("Bearer dub_test_key");
+    expect(String(calls[0].init.body)).not.toContain("dub_test_key");
+  });
+
+  it("throws on a non-2xx response", async () => {
+    vi.stubEnv("DUB_API_KEY", "k");
+    const fetchImpl = (async () => new Response("no", { status: 402 })) as unknown as typeof fetch;
+    await expect(createDubShortLink("https://expanpress.com/d/x", fetchImpl)).rejects.toThrow("HTTP 402");
+  });
+});

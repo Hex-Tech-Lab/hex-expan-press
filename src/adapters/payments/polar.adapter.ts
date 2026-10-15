@@ -149,6 +149,7 @@ export class PolarAdapter implements PaymentProviderPort {
         totalCents: validated.data.total_amount,
         currency: validated.data.currency.toUpperCase(),
         buyerEmailHash: hashEmail(validated.data.customer.email),
+        buyerEmail: validated.data.customer.email,
         occurredAt: validated.data.created_at,
         attributionId: cleanAttributionId(validated.data.metadata?.reference_id),
         rawPayload: parsedJson
