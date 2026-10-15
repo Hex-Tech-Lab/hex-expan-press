@@ -15,6 +15,7 @@ import os
 import re
 import subprocess
 import sys
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -37,6 +38,9 @@ PRIMARY = re.compile(r'<a[^>]*data-checkout-slot="primary"[^>]*>')
 def fetch(path, local):
     # --local reads the SSR pages from a running `next start` / `next dev` server (default http://localhost:3000).
     base = os.environ.get("SITE_LOCAL_BASE", "http://localhost:3000") if local else BASE
+    # Only http(s) reaches urlopen: a file: or custom scheme in the environment must not be fetched.
+    if urllib.parse.urlsplit(base).scheme not in ("http", "https"):
+        raise SystemExit(f"SITE_LOCAL_BASE must be http or https, got {base.split(':', 1)[0]!r}")
     req = urllib.request.Request(base + path + "?nocache=1", headers={"User-Agent": "expan-site-check"})
     with urllib.request.urlopen(req, timeout=20) as r:
         return r.read().decode()
