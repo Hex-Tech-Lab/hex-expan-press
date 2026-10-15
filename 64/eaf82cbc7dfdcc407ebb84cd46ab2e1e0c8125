@@ -1,0 +1,21 @@
+web/public/legal/providers.html
+  s_05b2d330202471::t_38b79fac774566 87-88
+web/public/refund-policy.html
+  s_05b2d330202471::t_b0c9376ba88667 49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "64eaf82cbc7dfdcc407ebb84cd46ab2e1e0c8125",
+  "prompts": {},
+  "sessions": {
+    "s_05b2d330202471": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ccf684ff-aee0-4752-a325-a0ab260efd02",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "CCW <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
