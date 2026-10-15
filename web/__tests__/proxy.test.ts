@@ -1,6 +1,6 @@
 // Proxy contract tests (qa-intel security rule: the getUser session
 // boundary needs a sibling regression test).
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const getUserMock = vi.fn();
 const createServerClientMock = vi.fn(() => ({ auth: { getUser: getUserMock } }));
@@ -121,5 +121,54 @@ describe("proxy pay-host allowlist is path-bounded", () => {
     const res = await proxy(req as never);
     expect(res.status).toBe(302);
     expect(res.headers.get("location")).toBe("https://expanpress.com/api/billing/checkoutevil");
+  });
+});
+
+describe("proxy checkout API forwarding is symmetric (Cubic P2, 2026-10-15)", () => {
+  const mk = (url: string, host = "") => ({ cookies: { getAll: () => [], set: cookiesSetSpy }, url, headers: new Headers(host ? { host } : {}) });
+
+  it("main host does not forward a sibling of /api/billing/checkout", async () => {
+    const { proxy } = await import("../proxy");
+    const res = await proxy(mk("https://expanpress.com/api/billing/checkoutevil") as never);
+    expect(res.headers.get("location")).toBeNull();
+  });
+
+  it("main host forwards the exact route and its sub-paths to pay", async () => {
+    const { proxy } = await import("../proxy");
+    for (const p of ["/api/billing/checkout", "/api/billing/checkout/x"]) {
+      const res = await proxy(mk(`https://expanpress.com${p}?product=a`) as never);
+      expect(res.status, p).toBe(307);
+      expect(res.headers.get("location"), p).toBe(`https://pay.expanpress.com${p}?product=a`);
+    }
+  });
+
+  it("a forwarded request is accepted on pay and does not bounce back (no loop)", async () => {
+    const { proxy } = await import("../proxy");
+    for (const p of ["/api/billing/checkout", "/api/billing/checkout/x"]) {
+      const forwarded = await proxy(mk(`https://expanpress.com${p}`) as never);
+      const landed = forwarded.headers.get("location") as string;
+      const onPay = await proxy(mk(landed) as never);
+      expect(onPay.headers.get("location"), p).toBeNull();
+    }
+  });
+});
+
+describe("proxy E2E host probe is test-only", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("answers with the hostname only when the flag is set outside production", async () => {
+    const { proxy } = await import("../proxy");
+    vi.stubEnv("E2E_PROXY_HOST_DIAGNOSTIC", "1");
+    const req = { cookies: { getAll: () => [], set: cookiesSetSpy }, url: "https://pay.expanpress.com/__e2e/proxy-host", headers: new Headers({ host: "expanpress.com" }) };
+    const res = await proxy(req as never);
+    expect(await res.json()).toEqual({ requestUrlHostname: "pay.expanpress.com", hostHeader: "expanpress.com" });
+  });
+
+  it("is inert without the flag", async () => {
+    const { proxy } = await import("../proxy");
+    vi.stubEnv("E2E_PROXY_HOST_DIAGNOSTIC", "");
+    const req = { cookies: { getAll: () => [], set: cookiesSetSpy }, url: "https://expanpress.com/__e2e/proxy-host", headers: new Headers() };
+    const res = await proxy(req as never);
+    expect(res.headers.get("content-type") ?? "").not.toContain("application/json");
   });
 });
