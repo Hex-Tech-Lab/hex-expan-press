@@ -1,0 +1,20 @@
+.claude/hooks/skill-gates.sh
+  s_05b2d330202471::t_97cd4a0d534e26 32,40
+  s_05b2d330202471::t_74648da45e361d 1-31,33-39,41-103
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c26e6d6c8510b710b9d3fc5500ae76639c200d94",
+  "prompts": {},
+  "sessions": {
+    "s_05b2d330202471": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ccf684ff-aee0-4752-a325-a0ab260efd02",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "CCW <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
