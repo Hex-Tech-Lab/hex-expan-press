@@ -1,0 +1,60 @@
+web/src/components/storefront/storefront.tsx
+  s_05b2d330202471::t_3af393866c42ab 140-166
+scripts/live_site_check.py
+  s_05b2d330202471::t_a7cd6489f0a1b1 26-27,65
+web/public/robots.txt
+  s_05b2d330202471::t_4f9bb6db8a35fa 2
+web/e2e/creator_funnel.spec.ts
+  s_05b2d330202471::t_8dd8b41ec13871 78
+web/src/components/storefront/buy-link.tsx
+  s_05b2d330202471::t_eba048d07d4de3 46
+docs/adr/0061-payment-domain-pay-subdomain.md
+  s_05b2d330202471::t_19a04256755b1c 3,16-19
+web/__tests__/proxy.test.ts
+  s_05b2d330202471::t_474bf93e27d803 62-105
+web/e2e/a11y.spec.ts
+  s_05b2d330202471::t_8dd8b41ec13871 40
+web/app/api/billing/checkout/__tests__/route.test.ts
+  s_05b2d330202471::t_2fd73ad67f3eda 141
+  s_05b2d330202471::t_8038141026365a 125,133,164,173,181,189,197,213,252,261,278,286,294,569,582,594
+  s_05b2d330202471::t_cd31d4403c36e3 139,143-144,162,166,170,175,249,254,258,263,267,270
+web/e2e/focus.spec.ts
+  s_05b2d330202471::t_8dd8b41ec13871 4
+web/app/books/[handle]/[product]/page.tsx
+  s_05b2d330202471::t_eba048d07d4de3 6
+  s_05b2d330202471::t_0a63628a2dc19b 36,57,63,92
+web/app/checkout/[productId]/page.tsx
+  s_05b2d330202471::t_19fd5c603b8fc8 1-94
+CLAUDE.md
+  s_05b2d330202471::t_19a04256755b1c 17
+web/public/robots-pay.txt
+  s_05b2d330202471::t_4f9bb6db8a35fa 1-2
+web/app/api/billing/checkout/route.ts
+  s_05b2d330202471::t_9ec6b66e32995d 232-233
+  s_05b2d330202471::t_cd31d4403c36e3 214-218
+web/vercel.json
+  s_05b2d330202471::t_8dd8b41ec13871 2-3
+web/proxy.ts
+  s_05b2d330202471::t_4f9bb6db8a35fa 17-28,33-35,37-39,41-44,101-102
+  s_05b2d330202471::t_a0690b6fd9c642 30-32,36,40
+web/next.config.ts
+  s_05b2d330202471::t_8dd8b41ec13871 41-47
+web/app/books/[handle]/page.tsx
+  s_05b2d330202471::t_5758e147184788 34,108
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8caaa901e30e5f8fd9d07765206faf96a804219b",
+  "prompts": {},
+  "sessions": {
+    "s_05b2d330202471": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ccf684ff-aee0-4752-a325-a0ab260efd02",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "CCW <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
