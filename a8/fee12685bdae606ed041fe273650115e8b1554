@@ -1,0 +1,24 @@
+web/proxy.ts
+  s_05b2d330202471::t_737b3e9c1d0925 51
+  s_05b2d330202471::t_f68d79f8c65961 30-34,39-43,46
+web/__tests__/proxy.test.ts
+  s_05b2d330202471::t_aedc14ce57243f 3
+  s_05b2d330202471::t_2416d89e97782e 126-171,173-174
+  s_05b2d330202471::t_20e5fb80feb1c9 172
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a8fee12685bdae606ed041fe273650115e8b1554",
+  "prompts": {},
+  "sessions": {
+    "s_05b2d330202471": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ccf684ff-aee0-4752-a325-a0ab260efd02",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "CCW <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
