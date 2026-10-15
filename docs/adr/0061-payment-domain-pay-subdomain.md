@@ -2,7 +2,7 @@
 
 **Status:** Accepted (2026-10-15, founder decisions incl. URL form in Decision 4)
 **Date:** 2026-10-15
-**Supersedes:** — (the earlier practice of linking Buy buttons to `/api/billing/checkout` on the main site)
+**Supersedes (in part):** the "NO subdomains" rule in archived ADR 0030 (`docs/_archive/legacy_adrs/0030-domain-architecture-subpaths.md`) and locked decision 5 of the 2026-09-14 handover (`data/intel/THOS_2026-09-14_payment_rails.md` §2). Those rules still stand for creator pages: per-creator subdomains remain forbidden. This ADR adds one checkout hostname, `pay.expanpress.com`, because provider reviews work at hostname level and one fixed hostname is reviewed once for every provider. The earlier practice of linking Buy buttons to `/api/billing/checkout` on the main site is also replaced.
 **Superseded-by:** —
 
 ## Context
