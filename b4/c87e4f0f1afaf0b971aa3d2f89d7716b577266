@@ -1,0 +1,29 @@
+web/public/terms.html
+  s_05b2d330202471::t_38972d48953ed0 32,34-35,37-38,40-41,43-44,46-47,50,52-53,55-65,68
+web/public/refund-policy.html
+  s_05b2d330202471::t_31c94a047e6267 34,36,40,43,45-46,49,52,55-56
+web/public/privacy.html
+  s_05b2d330202471::t_654069c8121f0c 6,31-32,34-35,37,39-42,44,46,48-52,55-68,70-71,73-74,77
+web/app/legal/providers/page.tsx
+  s_05b2d330202471::t_694ddf18ba2037 1-62
+web/src/components/landing/landing-page.tsx
+  s_05b2d330202471::t_f1b9771329df5a 200
+web/public/robots.txt
+  s_05b2d330202471::t_9921875a860e6a 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b4c87e4f0f1afaf0b971aa3d2f89d7716b577266",
+  "prompts": {},
+  "sessions": {
+    "s_05b2d330202471": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ccf684ff-aee0-4752-a325-a0ab260efd02",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "CCW <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
