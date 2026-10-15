@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Service Providers — ExpanPress</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    font-family: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: #FAF5EE; color: #2B2520; line-height: 1.65; padding: 48px 20px 40px;
+  }
+  .wrap { max-width: 720px; margin: 0 auto; }
+  .back { font-size: 13px; margin-bottom: 26px; display: inline-block; color: #2E7D5B; text-decoration: none; }
+  .back:hover { text-decoration: underline; }
+  .kicker { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: #E8622C; font-weight: 600; margin-bottom: 12px; }
+  h1 { font-family: "Fraunces", Georgia, "Times New Roman", serif; font-size: 30px; font-weight: 700; letter-spacing: -.015em; margin-bottom: 8px; }
+  .updated { font-size: 13px; color: #6E5F53; margin-bottom: 28px; }
+  p { font-size: 14.5px; color: #2B2520; margin-bottom: 16px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; vertical-align: top; padding: 8px 6px; border-bottom: 1px solid #EADFD1; }
+  th { font-weight: 600; }
+  td.name { font-weight: 600; }
+  footer { border-top: 1px solid #EADFD1; margin-top: 36px; padding-top: 18px; font-size: 13px; color: #6E5F53; display: flex; flex-wrap: wrap; gap: 8px 22px; }
+  footer a { color: #2E7D5B; text-decoration: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="/" data-backlink>&larr; Back to ExpanPress</a>
+  <p class="kicker">Legal</p>
+  <h1>Service providers</h1>
+  <p class="updated">Last updated: 15 October 2026</p>
+
+  <p>These providers process personal data on ExpanPress's behalf. This list is updated whenever a provider is added.</p>
+
+  <table>
+    <thead>
+      <tr><th>Provider</th><th>Role</th><th>Data processed</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="name">Paddle.com</td>
+        <td>Merchant of Record: checkout, payment, tax, refunds and buyer billing support</td>
+        <td>Name, email, country, order details, payment data (held by Paddle, not by ExpanPress)</td>
+      </tr>
+      <tr>
+        <td class="name">Supabase</td>
+        <td>Database and sign-in for creator accounts and access records</td>
+        <td>Account email, order and access records, support messages</td>
+      </tr>
+      <tr>
+        <td class="name">Vercel</td>
+        <td>Website hosting and delivery</td>
+        <td>IP address, request and device data</td>
+      </tr>
+      <tr>
+        <td class="name">Sentry</td>
+        <td>Error monitoring, so we can fix faults</td>
+        <td>Technical data from errors, such as IP address, browser and device details</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <footer>
+    <a href="/">Product page</a>
+    <a href="/privacy.html">Privacy Notice</a>
+    <a href="/terms.html">Terms of Service</a>
+    <a href="/refund-policy.html">Refund Policy</a>
+  </footer>
+</div>
+<script src="/assets/backlink.js"></script>
+</body>
+</html>
