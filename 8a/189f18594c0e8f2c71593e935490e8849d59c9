@@ -1,0 +1,22 @@
+scripts/live_site_check.py
+  s_05b2d330202471::t_93bb1f82111de5 41-43
+  s_05b2d330202471::t_50137ef6026e2b 18
+web/app/api/billing/checkout/route.ts
+  s_05b2d330202471::t_adb37e41a7ab82 229-231
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8a189f18594c0e8f2c71593e935490e8849d59c9",
+  "prompts": {},
+  "sessions": {
+    "s_05b2d330202471": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ccf684ff-aee0-4752-a325-a0ab260efd02",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "CCW <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
