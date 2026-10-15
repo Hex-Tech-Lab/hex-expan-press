@@ -418,12 +418,14 @@ void _shapeCheck;
 describe("esign webhook route — terminal-reject quarantine (compiled sweep)", () => {
   it("a validation-failed delivery returns 400 and quarantines the event (sha256, no raw body)", async () => {
     vi.resetModules();
+    // Import the error class from the same (post-reset) module graph the route uses;
+    // the top-level import is a different class instance, so instanceof would miss.
+    const { WebhookValidationError: FreshValidationError } = await import("../../../../src/domain/webhook/webhook_errors");
     const inserts: Array<{ event?: string; details?: Record<string, unknown> }> = [];
-    vi.doMock("../../../../../../src/use_cases/process_esign_webhook", () => ({
-      processEsignWebhookUseCase: vi.fn(() => {
-        throw new WebhookValidationError("Webhook validation failed: completed envelope env_q has a missing or invalid document_sha256");
-      }),
-    }));
+    const processEsignWebhookUseCaseMock = vi.fn(() => {
+      throw new FreshValidationError("Webhook validation failed: completed envelope env_q has a missing or invalid document_sha256");
+    });
+    vi.doMock("../../../../src/use_cases/process_esign_webhook", () => ({ processEsignWebhookUseCase: processEsignWebhookUseCaseMock }));
     vi.doMock("@supabase/supabase-js", () => ({
       createClient: () => ({
         from: (table: string) => ({
@@ -447,20 +449,34 @@ describe("esign webhook route — terminal-reject quarantine (compiled sweep)", 
       headers: { "x-firma-signature": signature },
     });
     const res = await POST(req as never);
+    expect(processEsignWebhookUseCaseMock).toHaveBeenCalledTimes(1);
     expect(res.status).toBe(400);
     expect(inserts).toHaveLength(1);
     expect(inserts[0]).toMatchObject({ event: "WEBHOOK_TERMINAL_REJECT", details: { provider: "esign", reason: "WebhookValidationError" } });
-    expect(inserts[0]?.details?.payload_sha256).toMatch(/^[0-9a-f]{64}$/);
+    // Exact record: any extra field (including a raw body under any spelling)
+    // fails here. payload_sha256 must be the SHA-256 of the delivered body.
+    expect(inserts[0]).toEqual({
+      event: "WEBHOOK_TERMINAL_REJECT",
+      details: {
+        provider: "esign",
+        reason: "WebhookValidationError",
+        payload_sha256: crypto.createHash("sha256").update(payload).digest("hex"),
+      },
+    });
+    // Format check on top of the exact value: 64 lowercase hex characters.
+    expect(inserts[0].details.payload_sha256).toMatch(/^[0-9a-f]{64}$/);
   });
 
   it("an unauthenticated (401) reject returns 401 and does NOT quarantine", async () => {
     vi.resetModules();
+    // Import the error class from the same (post-reset) module graph the route uses;
+    // the top-level import is a different class instance, so instanceof would miss.
+    const { WebhookValidationError: FreshValidationError } = await import("../../../../src/domain/webhook/webhook_errors");
     const inserts: Array<{ event?: string; details?: Record<string, unknown> }> = [];
-    vi.doMock("../../../../../../src/use_cases/process_esign_webhook", () => ({
-      processEsignWebhookUseCase: vi.fn(() => {
-        throw new WebhookValidationError("Webhook validation failed: Invalid signature", 401);
-      }),
-    }));
+    const processEsignWebhookUseCaseMock = vi.fn(() => {
+      throw new FreshValidationError("Webhook validation failed: Invalid signature", 401);
+    });
+    vi.doMock("../../../../src/use_cases/process_esign_webhook", () => ({ processEsignWebhookUseCase: processEsignWebhookUseCaseMock }));
     vi.doMock("@supabase/supabase-js", () => ({
       createClient: () => ({
         from: (table: string) => ({
@@ -483,6 +499,7 @@ describe("esign webhook route — terminal-reject quarantine (compiled sweep)", 
       headers: { "x-firma-signature": "0".repeat(64) }, // present but wrong → 401
     });
     const res = await POST(req as never);
+    expect(processEsignWebhookUseCaseMock).toHaveBeenCalledTimes(1);
     expect(res.status).toBe(401);
     expect(inserts).toHaveLength(0); // unauthenticated senders must not force service-role audit writes
   });
