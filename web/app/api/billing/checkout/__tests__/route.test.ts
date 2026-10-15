@@ -122,7 +122,7 @@ describe("billing/checkout launch-product default rail", () => {
 
   it("fails closed with 500 and no redirect when POLAR_CHECKOUT_URL is unset in production", async () => {
     vi.stubEnv("VERCEL_ENV", "production");
-    vi.stubEnv("POLAR_CHECKOUT_URL", "");
+    vi.stubEnv("CHECKOUT_URL_DUANE_RETIREMENT_PLAYBOOK_V1", "");
     const res = await GET(request());
     expect(res.status).toBe(500);
     expect(res.headers.get("location")).toBeNull();
@@ -130,18 +130,18 @@ describe("billing/checkout launch-product default rail", () => {
 
   it("redirects to POLAR_CHECKOUT_URL in production when configured", async () => {
     vi.stubEnv("VERCEL_ENV", "production");
-    vi.stubEnv("POLAR_CHECKOUT_URL", "https://buy.polar.sh/live-test-link");
+    vi.stubEnv("CHECKOUT_URL_DUANE_RETIREMENT_PLAYBOOK_V1", "https://buy.polar.sh/live-test-link");
     const res = await GET(request());
     expect(res.status).toBe(302);
     expect(res.headers.get("location")).toBe("https://buy.polar.sh/live-test-link?reference_id=direct");
   });
 
-  it("falls back to the sandbox link outside production", async () => {
+  it("does not fall back to the Polar sandbox link outside production (no rails, no override -> 404)", async () => {
     vi.stubEnv("VERCEL_ENV", "preview");
-    vi.stubEnv("POLAR_CHECKOUT_URL", "");
+    vi.stubEnv("CHECKOUT_URL_DUANE_RETIREMENT_PLAYBOOK_V1", undefined as unknown as string);
     const res = await GET(request());
-    expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toContain("sandbox-api.polar.sh");
+    expect(res.status).toBe(404);
+    expect(res.headers.get("location")).toBeNull();
   });
 });
 
@@ -159,26 +159,26 @@ describe("billing/checkout unified checkout_url policy", () => {
     vi.unstubAllEnvs();
   });
 
-  it("production with POLAR_CHECKOUT_URL truly unset returns 500 without a location", async () => {
+  it("production with no rails and no override returns 404 without a location", async () => {
     vi.stubEnv("VERCEL_ENV", "production");
-    vi.stubEnv("POLAR_CHECKOUT_URL", undefined as unknown as string);
+    vi.stubEnv("CHECKOUT_URL_DUANE_RETIREMENT_PLAYBOOK_V1", undefined as unknown as string);
     const res = await GET(request());
-    expect(res.status).toBe(500);
+    expect(res.status).toBe(404);
     expect(res.headers.get("location")).toBeNull();
   });
 
-  it("VERCEL_ENV unset with NODE_ENV=production and POLAR_CHECKOUT_URL unset returns 500", async () => {
+  it("VERCEL_ENV unset with NODE_ENV=production and no rails or override returns 404", async () => {
     vi.stubEnv("VERCEL_ENV", undefined as unknown as string);
     vi.stubEnv("NODE_ENV", "production");
-    vi.stubEnv("POLAR_CHECKOUT_URL", undefined as unknown as string);
+    vi.stubEnv("CHECKOUT_URL_DUANE_RETIREMENT_PLAYBOOK_V1", undefined as unknown as string);
     const res = await GET(request());
-    expect(res.status).toBe(500);
+    expect(res.status).toBe(404);
     expect(res.headers.get("location")).toBeNull();
   });
 
   it("production with whitespace-only POLAR_CHECKOUT_URL returns 500", async () => {
     vi.stubEnv("VERCEL_ENV", "production");
-    vi.stubEnv("POLAR_CHECKOUT_URL", "   ");
+    vi.stubEnv("CHECKOUT_URL_DUANE_RETIREMENT_PLAYBOOK_V1", "   ");
     const res = await GET(request());
     expect(res.status).toBe(500);
     expect(res.headers.get("location")).toBeNull();
@@ -186,7 +186,7 @@ describe("billing/checkout unified checkout_url policy", () => {
 
   it("production with a malformed POLAR_CHECKOUT_URL returns 500", async () => {
     vi.stubEnv("VERCEL_ENV", "production");
-    vi.stubEnv("POLAR_CHECKOUT_URL", "not a url");
+    vi.stubEnv("CHECKOUT_URL_DUANE_RETIREMENT_PLAYBOOK_V1", "not a url");
     const res = await GET(request());
     expect(res.status).toBe(500);
     expect(res.headers.get("location")).toBeNull();
@@ -194,7 +194,7 @@ describe("billing/checkout unified checkout_url policy", () => {
 
   it("production with a sandbox POLAR_CHECKOUT_URL returns 500", async () => {
     vi.stubEnv("VERCEL_ENV", "production");
-    vi.stubEnv("POLAR_CHECKOUT_URL", "https://sandbox-api.polar.sh/v1/checkout-links/x/redirect");
+    vi.stubEnv("CHECKOUT_URL_DUANE_RETIREMENT_PLAYBOOK_V1", "https://sandbox-api.polar.sh/v1/checkout-links/x/redirect");
     const res = await GET(request());
     expect(res.status).toBe(500);
     expect(res.headers.get("location")).toBeNull();
@@ -210,7 +210,7 @@ describe("billing/checkout unified checkout_url policy", () => {
 
   it("production CHECKOUT_URL_<PRODUCT> override wins over POLAR_CHECKOUT_URL and redirects", async () => {
     vi.stubEnv("VERCEL_ENV", "production");
-    vi.stubEnv("POLAR_CHECKOUT_URL", "https://buy.polar.sh/live-test-link");
+    vi.stubEnv("CHECKOUT_URL_DUANE_RETIREMENT_PLAYBOOK_V1", "https://buy.polar.sh/live-test-link");
     vi.stubEnv("CHECKOUT_URL_DUANE_RETIREMENT_PLAYBOOK_V1", "https://buy.polar.sh/live-override");
     const res = await GET(request());
     expect(res.status).toBe(302);
@@ -246,28 +246,28 @@ describe("billing/checkout wave85 sandbox + raw-URL fail-closed", () => {
     vi.mocked(MatrixRouter.getNextProvider).mockResolvedValue("polar");
   });
 
-  it("VERCEL_ENV unset + NODE_ENV unset + POLAR_CHECKOUT_URL unset returns 500 (absent signals fail closed)", async () => {
+  it("VERCEL_ENV unset + NODE_ENV unset + no override returns 404 (absent signals fail closed)", async () => {
     vi.stubEnv("VERCEL_ENV", undefined as unknown as string);
     vi.stubEnv("NODE_ENV", undefined as unknown as string);
-    vi.stubEnv("POLAR_CHECKOUT_URL", undefined as unknown as string);
+    vi.stubEnv("CHECKOUT_URL_DUANE_RETIREMENT_PLAYBOOK_V1", undefined as unknown as string);
     const res = await GET(request());
-    expect(res.status).toBe(500);
+    expect(res.status).toBe(404);
     expect(res.headers.get("location")).toBeNull();
   });
 
-  it("VERCEL_ENV unset + NODE_ENV=staging + POLAR_CHECKOUT_URL unset returns 500", async () => {
+  it("VERCEL_ENV unset + NODE_ENV=staging + no override returns 404", async () => {
     vi.stubEnv("VERCEL_ENV", undefined as unknown as string);
     vi.stubEnv("NODE_ENV", "staging");
-    vi.stubEnv("POLAR_CHECKOUT_URL", undefined as unknown as string);
+    vi.stubEnv("CHECKOUT_URL_DUANE_RETIREMENT_PLAYBOOK_V1", undefined as unknown as string);
     const res = await GET(request());
-    expect(res.status).toBe(500);
+    expect(res.status).toBe(404);
     expect(res.headers.get("location")).toBeNull();
   });
 
-  it("VERCEL_ENV unset + NODE_ENV=test still serves the sandbox link (302)", async () => {
+  it("VERCEL_ENV unset + NODE_ENV=test serves an explicitly configured sandbox override (302)", async () => {
     vi.stubEnv("VERCEL_ENV", undefined as unknown as string);
     vi.stubEnv("NODE_ENV", "test");
-    vi.stubEnv("POLAR_CHECKOUT_URL", undefined as unknown as string);
+    vi.stubEnv("CHECKOUT_URL_DUANE_RETIREMENT_PLAYBOOK_V1", "https://sandbox-api.polar.sh/v1/checkout-links/x/redirect");
     const res = await GET(request());
     expect(res.status).toBe(302);
     expect(res.headers.get("location")).toContain("sandbox-api.polar.sh");
@@ -275,7 +275,7 @@ describe("billing/checkout wave85 sandbox + raw-URL fail-closed", () => {
 
   it("production rejects POLAR_CHECKOUT_URL whose hostname carries a sandbox label", async () => {
     vi.stubEnv("VERCEL_ENV", "production");
-    vi.stubEnv("POLAR_CHECKOUT_URL", "https://foo-sandbox-api.example.com/x");
+    vi.stubEnv("CHECKOUT_URL_DUANE_RETIREMENT_PLAYBOOK_V1", "https://foo-sandbox-api.example.com/x");
     const res = await GET(request());
     expect(res.status).toBe(500);
     expect(res.headers.get("location")).toBeNull();
@@ -283,7 +283,7 @@ describe("billing/checkout wave85 sandbox + raw-URL fail-closed", () => {
 
   it("production allows a host where 'sandbox' is only a substring (no sandbox label)", async () => {
     vi.stubEnv("VERCEL_ENV", "production");
-    vi.stubEnv("POLAR_CHECKOUT_URL", "https://sandboxpay.example.com/x");
+    vi.stubEnv("CHECKOUT_URL_DUANE_RETIREMENT_PLAYBOOK_V1", "https://sandboxpay.example.com/x");
     const res = await GET(request());
     expect(res.status).toBe(302);
     expect(res.headers.get("location")).toBe("https://sandboxpay.example.com/x?reference_id=direct");
@@ -291,7 +291,7 @@ describe("billing/checkout wave85 sandbox + raw-URL fail-closed", () => {
 
   it("production with SET-but-blank override does not fall through to a valid POLAR_CHECKOUT_URL", async () => {
     vi.stubEnv("VERCEL_ENV", "production");
-    vi.stubEnv("POLAR_CHECKOUT_URL", "https://buy.polar.sh/live-test-link");
+    vi.stubEnv("CHECKOUT_URL_DUANE_RETIREMENT_PLAYBOOK_V1", "https://buy.polar.sh/live-test-link");
     vi.stubEnv("CHECKOUT_URL_DUANE_RETIREMENT_PLAYBOOK_V1", "   ");
     const res = await GET(request());
     expect(res.status).toBe(500);
@@ -566,7 +566,7 @@ describe("billing/checkout DB-driven rails (Sprint 15 heritage eradication)", ()
 
   it("serves the DB rail when product_rails has active rows (no env needed)", async () => {
     vi.stubEnv("VERCEL_ENV", "production");
-    vi.stubEnv("POLAR_CHECKOUT_URL", undefined as unknown as string);
+    vi.stubEnv("CHECKOUT_URL_DUANE_RETIREMENT_PLAYBOOK_V1", undefined as unknown as string);
     adminModule.mockAdminClient = gateAdminClient(undefined, undefined, {
       data: [{ provider: "polar", weight: 100, checkout_url: "https://buy.polar.sh/from-db", active: true }],
       error: null,
@@ -579,7 +579,7 @@ describe("billing/checkout DB-driven rails (Sprint 15 heritage eradication)", ()
   it("returns 404 when rails are configured but ALL inactive — the database disable defeats env/legacy fallback", async () => {
     vi.stubEnv("VERCEL_ENV", "production");
     vi.stubEnv("CHECKOUT_URL_DUANE_RETIREMENT_PLAYBOOK_V1", "https://buy.polar.sh/env-override");
-    vi.stubEnv("POLAR_CHECKOUT_URL", "https://buy.polar.sh/live-legacy-default");
+    vi.stubEnv("CHECKOUT_URL_DUANE_RETIREMENT_PLAYBOOK_V1", "https://buy.polar.sh/live-legacy-default");
     adminModule.mockAdminClient = gateAdminClient(undefined, undefined, {
       data: [{ provider: "polar", weight: 100, checkout_url: "https://buy.polar.sh/from-db", active: false }],
       error: null,
@@ -591,7 +591,7 @@ describe("billing/checkout DB-driven rails (Sprint 15 heritage eradication)", ()
 
   it("serves the DB rail when SOME configured rails are active (inactive ones excluded from routing)", async () => {
     vi.stubEnv("VERCEL_ENV", "production");
-    vi.stubEnv("POLAR_CHECKOUT_URL", undefined as unknown as string);
+    vi.stubEnv("CHECKOUT_URL_DUANE_RETIREMENT_PLAYBOOK_V1", undefined as unknown as string);
     adminModule.mockAdminClient = gateAdminClient(undefined, undefined, {
       data: [
         { provider: "polar", weight: 100, checkout_url: "https://buy.polar.sh/live-from-db", active: true },

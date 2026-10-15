@@ -59,3 +59,47 @@ describe("proxy (session refresh boundary)", () => {
     );
   });
 });
+
+// Host boundary (ADR 0061): pay.expanpress.com serves checkout only; expanpress.com sends checkout paths to pay.
+describe("proxy host boundary (ADR 0061)", () => {
+  function hostRequest(url: string): unknown {
+    return { cookies: { getAll: () => [], set: cookiesSetSpy }, url, headers: new Headers() };
+  }
+
+  beforeEach(() => {
+    getUserMock.mockReset();
+    createServerClientMock.mockClear();
+    process.env.SUPABASE_URL = "https://example.supabase.co";
+    process.env.SUPABASE_PUBLISHABLE_KEY = "test-key";
+    process.env.NODE_ENV = "test";
+  });
+
+  it("pay host serves checkout pages and legal pages without a session refresh", async () => {
+    const { proxy } = await import("../proxy");
+    const res = await proxy(hostRequest("https://pay.expanpress.com/checkout/57596c19-c550-4bde-b17a-e87b86d005c5") as never);
+    expect(res.headers.get("location")).toBeNull();
+    const legal = await proxy(hostRequest("https://pay.expanpress.com/terms.html") as never);
+    expect(legal.headers.get("location")).toBeNull();
+    expect(getUserMock).not.toHaveBeenCalled();
+  });
+
+  it("pay host rewrites robots.txt to the disallow-all file", async () => {
+    const { proxy } = await import("../proxy");
+    const res = await proxy(hostRequest("https://pay.expanpress.com/robots.txt") as never);
+    expect(res.headers.get("x-middleware-rewrite")).toContain("/robots-pay.txt");
+  });
+
+  it("pay host sends other paths back to the main site", async () => {
+    const { proxy } = await import("../proxy");
+    const res = await proxy(hostRequest("https://pay.expanpress.com/books/retirearly500k/500k-playbook") as never);
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("https://expanpress.com/books/retirearly500k/500k-playbook");
+  });
+
+  it("main host sends checkout and checkout API paths to pay with 307", async () => {
+    const { proxy } = await import("../proxy");
+    const res = await proxy(hostRequest("https://expanpress.com/api/billing/checkout?product=abc") as never);
+    expect(res.status).toBe(307);
+    expect(res.headers.get("location")).toBe("https://pay.expanpress.com/api/billing/checkout?product=abc");
+  });
+});

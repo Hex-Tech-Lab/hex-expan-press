@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { MatrixRouter } from "../../../../../src/infrastructure/matrix_router/matrix_router";
-import { GLOBAL } from "../../../../../payments/src/settings_registry";
 import { getSupabaseAdmin } from "../../../../../payments/src/supabase_admin";
 import { attributionRef } from "../../../../src/lib/attribution";
 import { normalizeSha256, strictActiveConsentKinds, strictChainHead } from "../../../../src/lib/consent-chain";
@@ -101,7 +100,6 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   // client, a product lookup error, or an unresolved product all return 500
   // instead of skipping verification (ADR-0060: fail closed, never fail open).
   let dbRails: CheckoutRail[] = [];
-  let resolvedProductId = "";
   try {
     const supabase = await getSupabaseAdmin();
     if (!supabase) {
@@ -138,7 +136,6 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       console.error(`[billing/checkout] product '${product}' is not launched (checkout_mode=${mode ?? "null"})`);
       return jsonError(403, "Checkout forbidden: product is not launched");
     }
-    resolvedProductId = resolvedProduct.id;
 
     // Tenant isolation: the service-role client bypasses RLS, so the chain is
     // explicitly scoped to the product OWNER (creator_id — the schema column,
@@ -214,6 +211,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     // failure that the raw-URL validation below rejects with 500 — it must
     // never be misreported as an operator disable.
     const configuredRowCount = (railRows ?? []).filter((r) => r !== null && typeof r === "object").length;
+    // A non-object row is a data-integrity failure, never an operator disable and never a silent fallthrough (fail closed).
+    if ((railRows ?? []).some((r) => r === null || typeof r !== "object")) {
+      console.error(`[billing/checkout] product '${product}' has a malformed product_rails row — failing closed`);
+      return jsonError(500, "Checkout is not configured");
+    }
     if (configuredRowCount > 0 && dbRails.length === 0) {
       console.error(`[billing/checkout] product '${product}' has ${configuredRowCount} configured rail(s) but none active — the database disable is authoritative`);
       return jsonError(404, `Checkout is disabled for product '${product}'`);
@@ -227,8 +229,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   if (dbRails.length > 0) {
     rails = dbRails;
   } else {
-    // No DB rails: the env override is the configured source, then the legacy
-    // launch default, then 404. A SET override is the configured source even
+    // No DB rails: the env override is the configured source, otherwise 404.
+    // The former launch-product Polar sandbox fallback was removed (ADR 0061, fail closed). A SET override is the configured source even
     // when its raw value is blank — no trimming it away, no fall-through to
     // the default rail; the shared validator below rejects blank values with
     // the controlled 500.
@@ -236,20 +238,6 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const overrideUrl = process.env[envSlugKey];
     if (overrideUrl !== undefined) {
       rails = [{ provider: "polar", weight: 100, checkout_url: overrideUrl }];
-    } else if (resolvedProductId === LAUNCH_PRODUCT_ID) {
-      const liveCheckoutUrl = process.env.POLAR_CHECKOUT_URL?.trim();
-      if (!liveCheckoutUrl && !sandboxAllowed()) {
-        // Fail closed: never send a real buyer to the sandbox checkout (insecure-defaults audit, 2026-10-01).
-        console.error("[billing/checkout] POLAR_CHECKOUT_URL is not set and sandbox is not allowed here — refusing to serve the sandbox checkout");
-        return jsonError(500, "Checkout is not configured");
-      }
-      rails = [
-        {
-          provider: "polar",
-          weight: 100,
-          checkout_url: liveCheckoutUrl || GLOBAL.payments.polar.sandbox_checkout_fallback_url,
-        },
-      ];
     } else {
       return jsonError(404, `No rails configuration found for product '${product}'`);
     }

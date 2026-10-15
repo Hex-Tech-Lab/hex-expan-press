@@ -31,7 +31,7 @@ export async function generateMetadata({ params }: { params: Promise<{ handle: s
   const description = creator.bio
     ? creator.bio.slice(0, 155)
     : `Publications by ${creator.display_name} on ExpanPress.`;
-  const canonical = `${origin}/c/${creator.handle}`;
+  const canonical = `${origin}/books/${creator.handle}`;
   return {
     robots: storefrontRobots(creator.products),
     title,
@@ -105,7 +105,7 @@ export default async function CreatorHubPage({ params }: { params: Promise<{ han
               return (
                 <Link
                   key={p.id}
-                  href={`/c/${creator.handle}/${productSlugOf(p)}`}
+                  href={`/books/${creator.handle}/${productSlugOf(p)}`}
                   className="card"
                   data-card-source={`supabase:products/${p.id}`}
                 >

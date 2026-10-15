@@ -23,8 +23,8 @@ from book_config import QA, REPO  # noqa: E402
 CFG = json.loads((REPO / "payments/config.duane.json").read_text())  # the site's config, not the book's
 BASE = "https://expanpress.com"
 PAGES = {"/": "index.html",
-         "/c/retirearly500k/": "c/retirearly500k/index.html",
-         f"/c/{CFG['site_slug']}/": f"c/{CFG['site_slug']}/index.html"}
+         "/books/retirearly500k/": "c/retirearly500k/index.html",
+         f"/books/{CFG['site_slug']}/": f"c/{CFG['site_slug']}/index.html"}
 PRICE_SLOT = re.compile(r'class="(?:price|card-price)">\$(\d+)')
 TITLE_SLOT = re.compile(r"<h1>(.*?)</h1>|class=\"cover-title\">(.*?)</p>", re.S)
 HEAD_TITLE = re.compile(r"<title>(.*?)(?: — [^<]*)?</title>", re.S)  # " — with Duane" suffix allowed
@@ -62,7 +62,7 @@ def main():
             probs.append("no price slot found")
         probs += [f"price ${p} != ${want_price}" for p in prices if p != want_price]
         # the creator hub's <h1>/<title>/og are the creator's; only its product cover carries the book title
-        hub = path == "/c/retirearly500k/"
+        hub = path == "/books/retirearly500k/"
         titles = []
         for h1, cover in TITLE_SLOT.findall(page):
             if hub and not cover:
