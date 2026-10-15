@@ -1,0 +1,21 @@
+web/__tests__/proxy.test.ts
+  s_05b2d330202471::t_ff004f76bcc784 106-115
+web/proxy.ts
+  s_05b2d330202471::t_ff004f76bcc784 36-37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ff2936b8293e639c209812843b912d1bf7084499",
+  "prompts": {},
+  "sessions": {
+    "s_05b2d330202471": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ccf684ff-aee0-4752-a325-a0ab260efd02",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "CCW <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
