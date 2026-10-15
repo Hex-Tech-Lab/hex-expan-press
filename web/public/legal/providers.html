@@ -22,6 +22,7 @@
   table { width: 100%; border-collapse: collapse; font-size: 14px; }
   th, td { text-align: left; vertical-align: top; padding: 8px 6px; border-bottom: 1px solid #EADFD1; }
   th { font-weight: 600; }
+  h2 { font-family: "Fraunces", Georgia, "Times New Roman", serif; font-size: 19px; font-weight: 700; margin: 26px 0 10px; }
   td.name { font-weight: 600; }
   footer { border-top: 1px solid #EADFD1; margin-top: 36px; padding-top: 18px; font-size: 13px; color: #6E5F53; display: flex; flex-wrap: wrap; gap: 8px 22px; }
   footer a { color: #2E7D5B; text-decoration: none; }
@@ -34,8 +35,9 @@
   <h1>Service providers</h1>
   <p class="updated">Last updated: 15 October 2026</p>
 
-  <p>These providers process personal data on ExpanPress's behalf. This list is updated whenever a provider is added.</p>
+  <p>This page lists the companies that process personal data for ExpanPress. It is updated whenever a provider is added or removed.</p>
 
+  <h2>Merchant of Record</h2>
   <table>
     <thead>
       <tr><th>Provider</th><th>Role</th><th>Data processed</th></tr>
@@ -43,13 +45,32 @@
     <tbody>
       <tr>
         <td class="name">Paddle.com</td>
-        <td>Merchant of Record: checkout, payment, tax, refunds and buyer billing support</td>
-        <td>Name, email, country, order details, payment data (held by Paddle, not by ExpanPress)</td>
+        <td>Merchant of Record for orders: takes payment, calculates and remits tax, handles refunds and buyer billing support</td>
+        <td>Name, email, country, order details and payment data. Paddle is the seller of record for orders it processes, and its own privacy policy applies to that data.</td>
       </tr>
+    </tbody>
+  </table>
+
+  <h2>Service providers</h2>
+  <table>
+    <thead>
+      <tr><th>Provider</th><th>Role</th><th>Data processed</th></tr>
+    </thead>
+    <tbody>
       <tr>
         <td class="name">Supabase</td>
-        <td>Database and sign-in for creator accounts and access records</td>
-        <td>Account email, order and access records, support messages</td>
+        <td>Database, sign-in and creator account records</td>
+        <td>Account email, order and access records, agreement records, support messages</td>
+      </tr>
+      <tr>
+        <td class="name">Firma</td>
+        <td>Electronic signature for creator agreements</td>
+        <td>Creator name, email and the signed agreement with its audit record</td>
+      </tr>
+      <tr>
+        <td class="name">Resend</td>
+        <td>Transactional email, such as receipts and account messages</td>
+        <td>Email address and the content of the messages sent</td>
       </tr>
       <tr>
         <td class="name">Vercel</td>
@@ -59,7 +80,12 @@
       <tr>
         <td class="name">Sentry</td>
         <td>Error monitoring, so we can fix faults</td>
-        <td>Technical data from errors, such as IP address, browser and device details</td>
+        <td>Technical error data, which may include IP address and browser details</td>
+      </tr>
+      <tr>
+        <td class="name">Upstash</td>
+        <td>Short-lived keys that prevent a payment webhook from being processed twice</td>
+        <td>Transaction reference IDs only. No names or email addresses.</td>
       </tr>
     </tbody>
   </table>
