@@ -113,3 +113,13 @@ describe("proxy host boundary: no open redirect", () => {
     expect(res.headers.get("location")).toBe("https://expanpress.com/evil.example/x");
   });
 });
+
+describe("proxy pay-host allowlist is path-bounded", () => {
+  it("does not let a sibling of /api/billing/checkout through on the pay host", async () => {
+    const { proxy } = await import("../proxy");
+    const req = { cookies: { getAll: () => [], set: cookiesSetSpy }, url: "https://pay.expanpress.com/api/billing/checkoutevil", headers: new Headers() };
+    const res = await proxy(req as never);
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("https://expanpress.com/api/billing/checkoutevil");
+  });
+});
