@@ -59,6 +59,9 @@ expect "empty cwd, PR create" deny "" "gh pr create --fill"
 expect "missing cwd, PR create" deny "$T/does-not-exist" "gh pr create --fill"
 # 4. Unrelated commands pass through.
 expect "plain ls" allow "$R" "ls -la"
+# 4b. Tab-separated tokens are still a PR command or a commit (bash accepts tabs).
+expect "tab-separated PR merge is gated" deny "$R" $'gh\tpr\tmerge 5'
+expect "tab-separated git commit is advisory" advisory "$R" $'git\t-C\t.\tcommit -m x'
 # 5. Commit is advisory, including the git -C form the old regex missed.
 expect "git -C commit is advisory" advisory "$R" "git -C . commit -m x"
 # 6. No gate record for HEAD: deny, and the required list is shown.

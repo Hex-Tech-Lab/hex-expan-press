@@ -14,11 +14,13 @@ cmd=$(jq -r '.tool_input.command // ""' <<<"$in" 2>/dev/null) || cmd="$in"
 cwd=$(jq -r '.cwd // ""' <<<"$in" 2>/dev/null) || cwd=""
 
 is_commit=0; is_pr=0
-grep -qE '(^|[;&|(`"'"'"'[:space:]])git( +-[Cc] +[^ ]+| +-[^ ]+)* +commit( |$|")' <<<"$cmd" && is_commit=1
+# Bash accepts tabs as well as spaces between tokens, so every separator below is [[:space:]] (2026-10-15 CodeRabbit).
+S='[[:space:]]'
+grep -qE "(^|[;&|(\`\"'[:space:]])git(${S}+-[Cc]${S}+[^[:space:]]+|${S}+-[^[:space:]]+)*${S}+commit(${S}|\$|\")" <<<"$cmd" && is_commit=1
 # Global gh options (-R/--repo, --hostname, ...) may sit between `gh` and `pr`; match them.
 # Wrapped forms (env VAR=x gh ..., bash -c "gh ...", quoted command) are matched too: the gh token may follow whitespace or a quote.
-grep -qE '(^|[;&|(`"'"'"'[:space:]])gh( +-[^ ]+( +[^- ][^ ]*)?)* +pr +(create|merge|ready)( |$|")' <<<"$cmd" && is_pr=1
-grep -qE '(^|[;&|(`"'"'"'[:space:]])gh( +-[^ ]+( +[^- ][^ ]*)?)* +api +[^;&|]*/merge' <<<"$cmd" && is_pr=1
+grep -qE "(^|[;&|(\`\"'[:space:]])gh(${S}+-[^[:space:]]+(${S}+[^-[:space:]][^[:space:]]*)?)*${S}+pr${S}+(create|merge|ready)(${S}|\$|\")" <<<"$cmd" && is_pr=1
+grep -qE "(^|[;&|(\`\"'[:space:]])gh(${S}+-[^[:space:]]+(${S}+[^-[:space:]][^[:space:]]*)?)*${S}+api${S}+[^;&|]*/merge" <<<"$cmd" && is_pr=1
 [ $is_commit -eq 0 ] && [ $is_pr -eq 0 ] && exit 0
 
 # Hand-built JSON so a missing jq cannot turn a deny into an allow.
@@ -82,7 +84,7 @@ if [ $is_pr -eq 1 ]; then
   # (no numbered PR) or equal the numbered PR's head. gh failing or returning nothing denies.
   head_sha=$(git rev-parse HEAD 2>/dev/null)
   upstream=$(git rev-parse --verify -q '@{u}' 2>/dev/null) || upstream=""
-  pr_num=$(grep -oE '(pr +(merge|ready) +#?[0-9]+|pulls/[0-9]+/merge)' <<<"$cmd" | grep -oE '[0-9]+' | head -1)
+  pr_num=$(grep -oE "(pr${S}+(merge|ready)${S}+#?[0-9]+|pulls/[0-9]+/merge)" <<<"$cmd" | grep -oE '[0-9]+' | head -1)
   api_repo=$(grep -oE 'repos/[^/ ]+/[^/ ]+/pulls/' <<<"$cmd" | head -1 | sed -E 's#^repos/##; s#/pulls/$##')
   repo_arg=${api_repo:-${target:-$origin_repo}}
   if [ -n "$pr_num" ]; then
