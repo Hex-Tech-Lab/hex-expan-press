@@ -33,7 +33,8 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   if (host === PAY_HOST) {
     if (path === "/robots.txt") return NextResponse.rewrite(new URL("/robots-pay.txt", request.url));
     const allowed = PAY_ALLOWED_EXACT.includes(path) || PAY_ALLOWED_PREFIXES.some((p) => path.startsWith(p));
-    if (!allowed) return NextResponse.redirect(new URL(path + url.search, MAIN_ORIGIN), 302);
+    // Collapse leading slashes so "//host/..." cannot become a protocol-relative redirect (open redirect).
+    if (!allowed) return NextResponse.redirect(new URL("/" + path.replace(/^\/+/, "") + url.search, MAIN_ORIGIN), 302);
     return NextResponse.next({ request });
   }
   if (host === MAIN_HOST && (path.startsWith("/checkout/") || path.startsWith("/api/billing/checkout"))) {
