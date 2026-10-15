@@ -11,8 +11,9 @@ in=$(cat); cmd=$(jq -r '.tool_input.command // ""' <<<"$in"); cwd=$(jq -r '.cwd 
 is_commit=0; is_pr=0
 grep -qE '(^|[;&|(][[:space:]]*)git (-c [^ ]+ )*commit( |$)' <<<"$cmd" && is_commit=1
 # Global gh options (-R/--repo, --hostname, ...) may sit between `gh` and `pr`; match them.
-grep -qE '(^|[;&|(][[:space:]]*)gh( +-[^ ]+( +[^- ][^ ]*)?)* +pr +(create|merge|ready)( |$)' <<<"$cmd" && is_pr=1
-grep -qE '(^|[;&|(][[:space:]]*)gh( +-[^ ]+( +[^- ][^ ]*)?)* +api +[^;&|]*/merge' <<<"$cmd" && is_pr=1
+# Wrapped forms (env VAR=x gh ..., bash -c "gh ...", quoted command) are matched too: the gh token may follow whitespace or a quote.
+grep -qE '(^|[;&|(`"'"'"'[:space:]])gh( +-[^ ]+( +[^- ][^ ]*)?)* +pr +(create|merge|ready)( |$|")' <<<"$cmd" && is_pr=1
+grep -qE '(^|[;&|(`"'"'"'[:space:]])gh( +-[^ ]+( +[^- ][^ ]*)?)* +api +[^;&|]*/merge' <<<"$cmd" && is_pr=1
 [ $is_commit -eq 0 ] && [ $is_pr -eq 0 ] && exit 0
 
 deny(){ jq -n --arg c "$1" '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:$c}}'; exit 0; }
@@ -67,7 +68,7 @@ grep -qE '^(scripts/|\.memory/|.*\.config\.|\.[a-z-]*ignore)' <<<"$files" && req
 grep -qE '^web/(src/)?app/.*(page|route)\.tsx?$' <<<"$files" && req="$req vercel-optimize"
 req=$(tr ' ' '\n' <<<"$req" | awk 'NF && !seen[$0]++' | tr '\n' ' ')
 # 2026-10-13 (owner): opening/advancing a PR means the full PR skill set, each with evidence.
-[ $is_pr -eq 1 ] && req="$req pr-review-workflow review-pr pr-review-toolkit:review-pr find-bugs differential-review mp-code-review"
+[ $is_pr -eq 1 ] && req="$req pr-review-workflow review-pr pr-review-toolkit:review-pr find-bugs differential-review mp-code-review code-review"
 
 GUIDE="Required skills for this diff (TEMPLATE §3 CORE+SELECT): ${req}. Also: /pr-review-workflow to open/advance, /code-review ONCE before merge. Record: line1 = git rev-parse HEAD, then one line per skill '<skill> <PASS|N/A|waiver: reason> evidence:<abs path under \$(git rev-parse --git-dir)/skill-gates/, >=200 bytes>' in \$(git rev-parse --git-dir)/skill-gates-ok. PARTIAL/FAIL/pending lines are refused unless they carry 'waiver:'."
 
@@ -78,6 +79,7 @@ fi
 gd=$(git rev-parse --git-dir 2>/dev/null); gd=$(cd "$gd" 2>/dev/null && pwd)
 marker="$gd/skill-gates-ok"
 ev_root="$gd/skill-gates/"
+ev_root_real=$(realpath -m -- "$ev_root")
 # Line 1 must be HEAD.
 [ "$(head -1 "$marker" 2>/dev/null)" = "$(git rev-parse HEAD)" ] || deny "Skill gates not recorded for current HEAD. $GUIDE"
 missing=""
@@ -89,15 +91,22 @@ for s in $req; do
   # A typed verdict is not proof: the line must cite evidence:<file> under the git dir holding the skill's real output.
   ev=$(grep -oE 'evidence:[^ ]+' <<<"$line" | head -1 | cut -d: -f2-)
   ev="${ev/#\~/$HOME}"
-  case "$ev" in "$ev_root"*) ;; *) noev="$noev $s"; continue;; esac
-  { [ -s "$ev" ] && [ "$(wc -c <"$ev")" -ge 200 ]; } || { noev="$noev $s"; continue; }
-  # 2026-10-15 (owner): PARTIAL, FAIL, NOT RUN or pending is not a pass unless the line carries a written waiver.
-  if grep -qiE '(^|[^A-Za-z])(PARTIAL|FAIL|NOT RUN|pending|TIMEOUT)([^A-Za-z]|$)' <<<"$line" && ! grep -qi 'waiver:' <<<"$line"; then
-    partial="$partial $s"
-  fi
+  # Canonicalize before the prefix check so "..", symlinks and relative tricks cannot leave the git dir.
+  ev_real=$(realpath -m -- "$ev" 2>/dev/null) || { noev="$noev $s"; continue; }
+  case "$ev_real" in "$ev_root_real"*) ;; *) noev="$noev $s"; continue;; esac
+  { [ -s "$ev_real" ] && [ "$(wc -c <"$ev_real")" -ge 200 ]; } || { noev="$noev $s"; continue; }
+  # 2026-10-15 (owner): the verdict is the second token and must be PASS, N/A, or "waiver:" followed by a reason.
+  # Anything else (PARTIAL, FAIL, pending, unknown words, or "waiver:" appearing later in the line) is refused.
+  verdict=$(awk '{print $2}' <<<"$line")
+  reason=$(awk '{print $3}' <<<"$line")
+  case "$verdict" in
+    PASS|N/A) ;;
+    "waiver:") [ -n "$reason" ] && [[ "$reason" != evidence:* ]] || partial="$partial $s" ;;
+    *) partial="$partial $s" ;;
+  esac
 done
 [ -n "$noev" ] && missing="$missing (no durable evidence >=200B under $ev_root for:$noev)"
 [ -n "$partial" ] && missing="$missing (PARTIAL/FAIL without waiver:$partial)"
-grep -qE '^code-review( |$)' "$marker" || { grep -qE 'gh pr merge' <<<"$cmd" && missing="$missing code-review"; }
+grep -qE '^code-review( |$)' "$marker" || { grep -qE 'gh pr merge|api [^;&|]*/merge' <<<"$cmd" && missing="$missing code-review"; }
 [ -n "$missing" ] && deny "Skill gates incomplete for HEAD. Missing:${missing}. $GUIDE"
 exit 0

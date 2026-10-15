@@ -11,6 +11,7 @@ Usage: python3 scripts/live_site_check.py [--local]
 import argparse
 import html
 import json
+import os
 import re
 import subprocess
 import sys
@@ -34,9 +35,9 @@ PRIMARY = re.compile(r'<a[^>]*data-checkout-slot="primary"[^>]*>')
 
 
 def fetch(path, local):
-    if local:
-        return (REPO / "web" / PAGES[path]).read_text()
-    req = urllib.request.Request(BASE + path + "?nocache=1", headers={"User-Agent": "expan-site-check"})
+    # --local reads the SSR pages from a running `next start` / `next dev` server (default http://localhost:3000).
+    base = os.environ.get("SITE_LOCAL_BASE", "http://localhost:3000") if local else BASE
+    req = urllib.request.Request(base + path + "?nocache=1", headers={"User-Agent": "expan-site-check"})
     with urllib.request.urlopen(req, timeout=20) as r:
         return r.read().decode()
 
