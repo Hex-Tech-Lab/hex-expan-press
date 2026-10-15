@@ -226,9 +226,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     // Runtime-checked above; the cast only drops the `active` flag from the shape.
     dbRails = activeRaw.map(({ active: _active, ...rail }) => rail as CheckoutRail);
     // The disable guard counts only WELL-FORMED rows (real product_rails rows
-    // are objects with an active boolean). A malformed row is a data-integrity
-    // failure that the raw-URL validation below rejects with 500 — it must
-    // never be misreported as an operator disable.
+    // are objects). A malformed row is a data-integrity failure: an active one
+    // is rejected with 500 by the active-rail check above, and it must never be
+    // misreported as an operator disable.
     const configuredRowCount = (railRows ?? []).filter((r) => r !== null && typeof r === "object").length;
 
     if (configuredRowCount > 0 && dbRails.length === 0) {
