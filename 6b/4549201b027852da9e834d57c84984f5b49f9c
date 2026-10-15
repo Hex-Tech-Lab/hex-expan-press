@@ -1,0 +1,25 @@
+docs/agent_ledger.jsonl
+  s_05b2d330202471::t_7d5feec996ab19 523-524
+  s_05b2d330202471::t_6dc3046f84eb41 525
+CLAUDE.md
+  s_05b2d330202471::t_34c27665bec4d3 17
+docs/adr/0061-payment-domain-pay-subdomain.md
+  s_05b2d330202471::t_d484ad36617723 15
+  s_05b2d330202471::t_adcb7a877132af 1-14,16-35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6b4549201b027852da9e834d57c84984f5b49f9c",
+  "prompts": {},
+  "sessions": {
+    "s_05b2d330202471": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ccf684ff-aee0-4752-a325-a0ab260efd02",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "CCW <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
