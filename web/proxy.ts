@@ -14,7 +14,34 @@ import { createServerClient } from "@supabase/ssr";
  * Cookie options are EXPLICIT — the @supabase/ssr default is httpOnly:false
  * (verified v0.12.7 constants.js), which would defeat the Wave 5 objective.
  */
+/**
+ * Host boundary (ADR 0061). pay.expanpress.com is the only checkout origin: it
+ * serves checkout pages, the checkout API, the legal pages and its own robots
+ * file, and nothing else. expanpress.com sends checkout paths to pay.
+ */
+const PAY_HOST = "pay.expanpress.com";
+const MAIN_HOST = "expanpress.com";
+const PAY_ORIGIN = "https://pay.expanpress.com";
+const MAIN_ORIGIN = "https://expanpress.com";
+const PAY_ALLOWED_PREFIXES = ["/checkout/", "/api/billing/checkout", "/_next/", "/assets/"];
+const PAY_ALLOWED_EXACT = ["/terms.html", "/privacy.html", "/refund-policy.html", "/legal/providers.html", "/favicon.ico"];
+
 export async function proxy(request: NextRequest): Promise<NextResponse> {
+  const url = new URL(request.url);
+  const host = url.hostname.toLowerCase();
+  const path = url.pathname;
+  if (host === PAY_HOST) {
+    if (path === "/robots.txt") return NextResponse.rewrite(new URL("/robots-pay.txt", request.url));
+    const allowed = PAY_ALLOWED_EXACT.includes(path) || PAY_ALLOWED_PREFIXES.some((p) => path.startsWith(p));
+    if (!allowed) return NextResponse.redirect(new URL(path + url.search, MAIN_ORIGIN), 302);
+    return NextResponse.next({ request });
+  }
+  if (host === MAIN_HOST && (path.startsWith("/checkout/") || path.startsWith("/api/billing/checkout"))) {
+    return NextResponse.redirect(new URL(path + url.search, PAY_ORIGIN), 307);
+  }
+  // Session refresh is needed only on creator-portal routes and the auth callback.
+  if (!(path.startsWith("/creator") || path === "/auth/callback")) return NextResponse.next({ request });
+
   let response = NextResponse.next({ request });
 
   // Attributes forced onto every Set-Cookie. The storage-key `name` is kept
@@ -71,5 +98,6 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
 }
 
 export const config = {
-  matcher: ["/creator/:path*", "/auth/callback"],
+  // Every page request, so the host boundary applies. Static build assets are skipped.
+  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
 };

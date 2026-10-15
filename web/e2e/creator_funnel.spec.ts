@@ -75,7 +75,7 @@ test("creator funnel: sign in → review → consents → e-sign → gated buyer
   page.on("request", (r) => {
     if (r.url().includes("paddle.com")) paddleRequests.push(r.url());
   });
-  await page.goto("/c/retirearly500k/500k-playbook/");
+  await page.goto("/books/retirearly500k/500k-playbook");
   const buy = page.locator('[data-checkout-slot="primary"]');
   await expect(buy).toHaveAttribute("data-checkout-mode", "gated");
   await expect(buy).toBeVisible();

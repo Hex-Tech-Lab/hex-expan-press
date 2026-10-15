@@ -1,6 +1,6 @@
 # 0061 — Dedicated Payment Domain: pay.expanpress.com as the Sole Provider-Agnostic Checkout Origin
 
-**Status:** Accepted (domain and routing rules); the books URL key is still open (see Decision 4)
+**Status:** Accepted (2026-10-15, founder decisions incl. URL form in Decision 4)
 **Date:** 2026-10-15
 **Supersedes:** — (the earlier practice of linking Buy buttons to `/api/billing/checkout` on the main site)
 **Superseded-by:** —
@@ -13,10 +13,10 @@ Payment providers review the URL they approve. Paddle (and any other rail) asks 
 
 1. **`pay.expanpress.com` is the only checkout origin.** It is the one domain submitted to every payment provider that reviews URLs. Submitting `expanpress.com` as the checkout domain is forbidden. Provider submissions wait until `pay.expanpress.com` is live.
 2. **Provider SDKs and provider checkout code run only on `pay.expanpress.com`.** No provider SDK may be imported or loaded by a page served from `expanpress.com`. Verified by a code inventory and by the red-team audit of 2026-10-15.
-3. **Route shape on `pay.expanpress.com`:** `/checkout/{product-id}` renders product, price, a Buy button and a footer with Terms, Privacy, Refund Policy and the support email. It is not a bare redirect, because reviewers check the domain they approve and must see a real page. The Buy button starts the server-side checkout for the active rail. The footer's legal links point at the legal pages served on both domains.
-4. **Books URL key (OPEN, founder decision needed).** Sales pages live at `expanpress.com/books/{key}`, and creator shelves at `/authors/{creator-slug}`. `/creators/` is not used because it collides with the creator portal at `/creator/signin`. The `{key}` cannot be the bare product slug: `products.slug` is unique only per creator (`UNIQUE (creator_id, slug)`), and the live data already has two products with slug `retirearly500k` under different creators. The key must be a globally unique value such as `composite_slug` (unique, but null on test rows) or `site_slug` (unique). The pricing URL in the Paddle form (`/books/retirearly500k`) must match the chosen key. Until the founder picks one, no `/books/` route ships.
-5. **Legacy redirects.** `/c/{handle}` returns 301 to `/authors/{handle}`. `/c/{handle}/{product}` returns 301 to the `/books/{key}` form chosen under Decision 4. Redirects stay in place so existing links keep working.
-6. **robots.** `expanpress.com`: published `/books/*` and `/authors/*` may be indexed; draft or unpublished titles get `noindex`. `pay.expanpress.com`: disallowed for all crawlers (`Disallow: /`), while its legal pages stay reachable by humans through the footer.
+3. **Route shape on `pay.expanpress.com`:** `/checkout/{product-uuid}` renders product, price, merchant-of-record line, a Buy button and a footer with Terms, Privacy, Refund Policy and the support email. It is a real page, not a redirect, because reviewers check the domain they approve. The Buy button calls the checkout route, which enforces consent and picks the rail. `proxy.ts` sends every other `pay.` path back to `expanpress.com`, except the legal pages, the checkout API and build assets. `expanpress.com` sends `/checkout/*` and `/api/billing/checkout` to `pay.`.
+4. **URL form (decided 2026-10-15).** Sales pages are `expanpress.com/books/{creator}/{product}`, where `{product}` is the `site_slug` second segment. Creator shelves are `/books/{creator}`. There is no `/authors` route. `/creators/` is not used because it collides with the creator portal at `/creator/signin`. `products.slug` is unique only per creator (`UNIQUE (creator_id, slug)`), so the creator stays in the path. `site_slug` is globally unique (`UNIQUE (site_slug)`).
+5. **Legacy redirects.** `/c/{creator}` returns 301 to `/books/{creator}`, and `/c/{creator}/{product}` returns 301 to `/books/{creator}/{product}`. They are configured in `web/next.config.ts`. Redirects stay in place so existing links keep working.
+6. **robots.** `expanpress.com`: published `/books/*` may be indexed; drafts and unpublished titles get `noindex` (`storefrontRobots`). `/c/*` no longer carries a blanket `X-Robots-Tag` header. `pay.expanpress.com`: `Disallow: /` for all crawlers (`public/robots-pay.txt`, served by the proxy). Its legal pages stay reachable by humans through the footer.
 7. **Legal pages are served on both domains.** Terms, Privacy, Refund Policy and the providers page must return 200 on `expanpress.com` and `pay.expanpress.com`.
 
 ## Consequences / Tradeoffs

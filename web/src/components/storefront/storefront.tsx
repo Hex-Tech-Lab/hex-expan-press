@@ -137,6 +137,33 @@ export const fetchStoreProduct = cache(async function fetchStoreProduct(
   return { creator, product, origin };
 });
 
+/** The single provider-agnostic checkout origin (ADR 0061). Buy links and the checkout page live here. */
+export const PAY_ORIGIN = "https://pay.expanpress.com";
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Checkout page lookup by product UUID (ADR 0061). Commercial products only, same rule as the storefront. */
+export const fetchCheckoutProduct = cache(async function fetchCheckoutProduct(
+  productId: string,
+): Promise<{ creator: { handle: string; display_name: string }; product: StoreProduct } | null> {
+  if (!UUID_RE.test(productId)) return null;
+  const supabase = await getSupabaseAdmin();
+  if (!supabase) {
+    throw new Error("storefront: Supabase admin client unavailable — checkout page cannot render (fail closed)");
+  }
+  const { data, error } = await supabase
+    .from("products")
+    .select("id, store_product_id, composite_slug, site_slug, slug, title, price_usd, currency, working_note, description, disclaimers, checkout_mode, inside, creators(handle, display_name)")
+    .eq("id", productId)
+    .maybeSingle();
+  if (error) throw new Error(`storefront: checkout product query failed for '${productId}': ${error.message}`);
+  if (!data) return null;
+  const row = data as unknown as StoreProduct & { creators: { handle: string; display_name: string } | Array<{ handle: string; display_name: string }> | null };
+  const creator = Array.isArray(row.creators) ? row.creators[0] : row.creators;
+  if (!creator || commercialProducts([row]).length === 0) return null;
+  return { creator, product: row };
+});
+
 /** Well-formed {label, text} entries from products.inside, others dropped. */
 export function insideItems(raw: unknown): Array<{ label: string; text: string }> {
   if (!Array.isArray(raw)) return [];
