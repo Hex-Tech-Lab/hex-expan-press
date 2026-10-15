@@ -1,0 +1,28 @@
+web/public/refund-policy.html
+  s_05b2d330202471::t_0ffd0faf150913 36,40,43,45-46,49
+web/app/api/billing/checkout/route.ts
+  s_05b2d330202471::t_8964091881e782 204-207,220
+  s_05b2d330202471::t_914605edd4bf37 202-203,235
+web/proxy.ts
+  s_05b2d330202471::t_914605edd4bf37 26-27,36
+.claude/hooks/skill-gates.sh
+  s_05b2d330202471::t_8964091881e782 96
+web/__tests__/proxy.test.ts
+  s_05b2d330202471::t_b9a7934e8b909c 116-125
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "50f53d9d4d0612e676d4aa000d9457e8e4fe0c45",
+  "prompts": {},
+  "sessions": {
+    "s_05b2d330202471": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ccf684ff-aee0-4752-a325-a0ab260efd02",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "CCW <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
