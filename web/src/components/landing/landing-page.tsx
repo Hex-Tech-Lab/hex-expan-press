@@ -82,7 +82,7 @@ const DOCK_ITEMS = [
 const DETAILS: { steps: string[] }[] = [
   { steps: ["Ingest your videos", "Extract your voiceprint", "Draft in your cadence"] },
   { steps: ["You talk, we listen", "We assemble the manuscript", "You approve and sign"] },
-  { steps: ["Release ships", "Storefront goes live", "Payouts run themselves"] },
+  { steps: ["Release ships", "Storefront goes live", "Payouts follow your creator agreement"] },
   { steps: ["Author review", "Signed", "Published under your name"] },
 ];
 
