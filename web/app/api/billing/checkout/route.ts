@@ -205,13 +205,26 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       console.error(`[billing/checkout] product '${product}' has a malformed product_rails row — failing closed`);
       return jsonError(500, "Checkout is not configured");
     }
-    const allRails = (railRows ?? []).map((r) => ({
-      provider: String((r as { provider: unknown }).provider),
-      weight: Number((r as { weight: unknown }).weight),
-      checkout_url: String((r as { checkout_url: unknown }).checkout_url),
-      active: Boolean((r as { active: unknown }).active),
-    }));
-    dbRails = allRails.filter((r) => r.active).map(({ active: _active, ...rail }) => rail);
+    // Raw values are kept as read (no String()/Boolean() coercion: String(null) is "null", Boolean("false")
+    // is true). Only boolean true or the string "true" enables a rail; anything else is off.
+    const allRails = (railRows ?? []).map((r) => {
+      const row = r as { provider: unknown; weight: unknown; checkout_url: unknown; active: unknown };
+      return {
+        provider: row.provider,
+        weight: Number(row.weight),
+        checkout_url: row.checkout_url,
+        active: row.active === true || row.active === "true",
+      };
+    });
+    // Active rails must carry a non-empty provider and a string checkout_url, checked on the raw value.
+    // A null or non-string URL on a live rail fails closed here, not via a stringified "null".
+    const activeRaw = allRails.filter((r) => r.active);
+    if (activeRaw.some((r) => typeof r.provider !== "string" || r.provider === "" || typeof r.checkout_url !== "string")) {
+      console.error(`[billing/checkout] product '${product}' has an active rail with a missing provider or non-string checkout_url — failing closed`);
+      return jsonError(500, "Checkout is not configured");
+    }
+    // Runtime-checked above; the cast only drops the `active` flag from the shape.
+    dbRails = activeRaw.map(({ active: _active, ...rail }) => rail as CheckoutRail);
     // The disable guard counts only WELL-FORMED rows (real product_rails rows
     // are objects with an active boolean). A malformed row is a data-integrity
     // failure that the raw-URL validation below rejects with 500 — it must
