@@ -19,3 +19,9 @@ A few things worth restating because they are easy to violate accidentally:
 ## Sprint 12/13 sealed contracts (2026-10-05)
 
 The E-Sign boundary contracts (Firma live shape, state finality, strict final URL, SSRF/memory/credential defenses, evidence attestation chain, consents bucket IaC, `getSupabaseAdmin()` seam) are sealed in `AGENTS.md` under "Sealed E-Sign contracts (2026-10-05, Sprint 12)" — treat them as binding. Sprint 13 adds the DNS-pinned download transport (TOCTOU eradicated — ADR-0058) and the GET/HEAD-only skew-retry gate (ADR-0059); full forensic detail: `docs/history/THOS_2026-10-05_sprint12.md`.
+
+## Tooling Debt
+
+- **contract-auditor** was referenced by the global skill-gate hook (`~/.claude/hooks/skill-gates.sh`) and is not installed. It was removed from the hook's required list on 2026-10-15; the previous hook is kept as `skill-gates.sh.bak-pre-qa-intel-20261015`. Restore or replace it. Owner: CC.
+- **qa-intel engine not ported to hex-expan.** Its rules are written for hex-yt-intel's layout (for example, adapters/ boundaries). The hook requires `qa-intel` only when `scripts/verify-quality-engine.ts` exists, and records it as N/A otherwise. Port deferred post-MVP. Owner: CC.
+- **Sonar and Snyk are not configured on this repo.** The PR tool stack expects both; neither appears in the PR checks. Configure or retire them. Owner: CC.
