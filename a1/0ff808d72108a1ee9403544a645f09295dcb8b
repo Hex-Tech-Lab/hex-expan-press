@@ -1,0 +1,24 @@
+.claude/hooks/test-redact-env.sh
+  s_05b2d330202471::t_3d1a7073bc5370 1-22
+.claude/hooks/redact-env.sh
+  s_05b2d330202471::t_85d1dfb4d18df5 1-7,12-27,29-33
+  s_05b2d330202471::t_5aca76764ae473 28
+  s_05b2d330202471::t_5e52a101813a57 8-10
+  s_05b2d330202471::t_e1dd1b6c5af3c2 11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a10ff808d72108a1ee9403544a645f09295dcb8b",
+  "prompts": {},
+  "sessions": {
+    "s_05b2d330202471": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ccf684ff-aee0-4752-a325-a0ab260efd02",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "CCW <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
