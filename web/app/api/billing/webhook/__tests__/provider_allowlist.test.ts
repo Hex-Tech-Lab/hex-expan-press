@@ -1,12 +1,12 @@
 // Sharp-edges audit 2026-10-01: the webhook route routes by first header match
 // over an adapter allowlist. Payhip's "verifier" is a static hash of the API
 // key (not body-covering), so the routable set was narrowed to ONLY the
-// providers we actually sell through (Polar, Fungies). These tests prove the
+// providers we actually sell through (Paddle, Fungies). These tests prove the
 // excluded verifiers are unreachable: even a fully valid Payhip/LemonSqueezy
 // signature over a sale-shaped payload must NOT be accepted as a sale — no
 // ledger row, no order/audit write, no idempotency lock.
 //
-// Mocking pattern follows the sibling tests (polar-partial-refund.test.ts):
+// Mocking pattern follows the sibling tests in this directory:
 // Supabase writes are captured, the distributed lock is a spy, and the
 // settings registry points the sales ledger at a throwaway temp file.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
