@@ -114,10 +114,11 @@ beforeEach(() => {
   adminModule.mockAdminClient = null;
 });
 
-describe("billing/checkout launch-product default rail", () => {
+describe("billing/checkout DB rail in production, fail-closed without rails", () => {
   beforeEach(() => {
-    // Gate must pass and DB rails must be EMPTY so these tests reach the
-    // env/legacy fallback branches they exist to cover.
+    // Gate must pass. DB rails start EMPTY so the no-rail case reaches the
+    // 404 fail-closed branch; the production cases install their own rail
+    // with setLiveRail, which replaces this fixture.
     adminModule.mockAdminClient = gateAdminClient(undefined, undefined, { data: [], error: null });
   });
 
@@ -207,7 +208,7 @@ describe("billing/checkout unified checkout_url policy", () => {
     expect(res.headers.get("location")).toBeNull();
   });
 
-  it("production rail redirects to its configured checkout_url", async () => {
+  it("production DB rail redirects to its configured checkout_url (no env override)", async () => {
     vi.stubEnv("VERCEL_ENV", "production");
     setLiveRail("https://buy.paddle.com/live-override");
     const res = await GET(request());
