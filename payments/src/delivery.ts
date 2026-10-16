@@ -133,15 +133,16 @@ function supabaseDeliveryDb(): DeliveryDb {
     async productForAlias(alias) {
       const sb = await getSupabaseAdmin();
       if (!sb) throw new Error("Supabase admin client unavailable");
+      // The alias comes from the provider payload: match each column exactly, never splice it into a PostgREST filter string.
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(alias);
-      const { data, error } = await sb
-        .from("products")
-        .select("id, title, release_path")
-        .or([`store_product_id.eq.${alias}`, `paddle_product_id.eq.${alias}`, ...(isUuid ? [`id.eq.${alias}`] : [])].join(","))
-        .maybeSingle();
-      if (error) throw new Error(`product lookup failed: ${error.message}`);
-      if (!data) return null;
-      return { id: data.id as string, title: (data.title as string | null) ?? "your ExpanPress title", releasePath: (data.release_path as string | null) ?? null };
+      const columns = ["store_product_id", "paddle_product_id", ...(isUuid ? ["id"] : [])];
+      for (const column of columns) {
+        const { data, error } = await sb.from("products").select("id, title, release_path").eq(column, alias).maybeSingle();
+        if (error) throw new Error(`product lookup failed: ${error.message}`);
+        if (!data) continue;
+        return { id: data.id as string, title: (data.title as string | null) ?? "your ExpanPress title", releasePath: (data.release_path as string | null) ?? null };
+      }
+      return null;
     },
     async recordLinkIssued(row) {
       const sb = await getSupabaseAdmin();
