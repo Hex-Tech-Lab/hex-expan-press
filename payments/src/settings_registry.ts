@@ -55,7 +55,6 @@ export interface GlobalSettings {
     /** Retry-After seconds sent on 503 webhook responses (in-flight AND generic 503 paths). */
     retry_after_seconds: number;
     paddle: { api_base: { production: string; sandbox: string }; js_cdn_url: string };
-    polar: { sandbox_checkout_fallback_url: string };
   };
   landing: { fallbacks: { title: string; creator: string }; disclaimers: string[] };
   /** Admin API allowlist + pagination (admin audit-log route). */
@@ -110,7 +109,6 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
       api_base: { production: "https://api.paddle.com", sandbox: "https://sandbox-api.paddle.com" },
       js_cdn_url: "https://cdn.paddle.com/paddle/v2/paddle.js",
     },
-    polar: { sandbox_checkout_fallback_url: "https://sandbox-api.polar.sh/v1/checkout-links/polar_cl_g84ByoGAeZiahkWtCasYmeu1ShLtZIwwayzyI4ZdZsM/redirect" },
   },
   landing: {
     fallbacks: { title: "Product", creator: "the creator" },
@@ -209,7 +207,6 @@ export function loadPaymentsSection(raw: Record<string, unknown> | undefined): G
   if (!raw) return d;
   const p = raw as Partial<GlobalSettings["payments"]> & Record<string, unknown>;
   const paddle = (p.paddle ?? {}) as Partial<GlobalSettings["payments"]["paddle"]>;
-  const polar = (p.polar ?? {}) as Partial<GlobalSettings["payments"]["polar"]>;
   const apiBase = (paddle.api_base ?? {}) as Partial<GlobalSettings["payments"]["paddle"]["api_base"]>;
   const fallbacks: string[] = [];
   // Warn ONLY for keys explicitly present and invalid; omitted keys default silently.
@@ -243,7 +240,6 @@ export function loadPaymentsSection(raw: Record<string, unknown> | undefined): G
     (x) => isCanonicalPaddleApiUrl(x, "https://sandbox-api.paddle.com") ? (x as string).replace(/\/+$/, "") : null,
   );
   const jsCdn = paddleUrl(paddle.js_cdn_url, d.paddle.js_cdn_url, "paddle.js_cdn_url", (x) => (isPaddleJsCdnUrl(x) ? (x as string) : null));
-  const polarFallback = paddleUrl(polar.sandbox_checkout_fallback_url, d.polar.sandbox_checkout_fallback_url, "polar.sandbox_checkout_fallback_url", (x) => (isHttpsUrl(x) ? (x as string) : null));
   let currencies = d.allowed_currencies;
   if (p.allowed_currencies !== undefined) {
     const list = Array.isArray(p.allowed_currencies)
@@ -265,7 +261,6 @@ export function loadPaymentsSection(raw: Record<string, unknown> | undefined): G
     review_queue_page_size: reviewQueuePageSize,
     retry_after_seconds: retryAfterSeconds,
     paddle: { api_base: { production: apiProduction, sandbox: apiSandbox }, js_cdn_url: jsCdn },
-    polar: { sandbox_checkout_fallback_url: polarFallback },
   };
 }
 
@@ -404,22 +399,6 @@ export interface PaymentProviderSetting {
 
 // Inline mirror of data/settings/providers.json "payments" section (fallback contract).
 const DEFAULT_PAYMENT_PROVIDERS: Record<string, PaymentProviderSetting> = {
-  polar: {
-    route: "polar",
-    signature_header: "webhook-signature",
-    sale_events: ["order.created", "order.paid"],
-    secret_env: "POLAR_WEBHOOK_SECRET",
-    token_env: "POLAR_ACCESS_TOKEN",
-    base_urls: { sandbox: "https://sandbox-api.polar.sh/v1", live: "https://api.polar.sh/v1" },
-    field_map: {
-      product_id: "data.product_id",
-      sale_id: "data.id",
-      total_cents: "data.total_amount",
-      currency: "data.currency",
-      ts: "data.created_at",
-      email: "data.customer.email",
-    },
-  },
   lemonsqueezy: {
     route: "lemonsqueezy",
     signature_header: "x-signature",

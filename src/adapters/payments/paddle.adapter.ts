@@ -129,7 +129,7 @@ export class PaddleAdapter implements PaymentProviderPort {
     }
 
     // Freshness BEFORE HMAC: a non-integer or stale ts never reaches signature
-    // verification (replay-window fail-closed, mirrors POLAR_WEBHOOK_TOLERANCE_SECONDS).
+    // verification (replay-window fail-closed).
     const ts = tsMatch[1].trim();
     const tsSeconds = Number(ts);
     if (!Number.isInteger(tsSeconds) || Math.abs(Math.floor(Date.now() / 1000) - tsSeconds) > PADDLE_WEBHOOK_TOLERANCE_SECONDS) {
