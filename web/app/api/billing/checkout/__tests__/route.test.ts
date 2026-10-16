@@ -125,7 +125,7 @@ describe("billing/checkout launch-product default rail", () => {
     vi.unstubAllEnvs();
   });
 
-  it("fails closed with 500 and no redirect when the CHECKOUT_URL_<PRODUCT> override is blank in production", async () => {
+  it("fails closed with 500 and no redirect when the live rail's checkout_url is blank in production", async () => {
     vi.stubEnv("VERCEL_ENV", "production");
     setLiveRail("");
     const res = await GET(request());
@@ -133,7 +133,7 @@ describe("billing/checkout launch-product default rail", () => {
     expect(res.headers.get("location")).toBeNull();
   });
 
-  it("redirects to the CHECKOUT_URL_<PRODUCT> override in production when configured", async () => {
+  it("redirects to the live rail's checkout_url in production when configured", async () => {
     vi.stubEnv("VERCEL_ENV", "production");
     setLiveRail("https://buy.paddle.com/live-test-link");
     const res = await GET(request());
@@ -141,7 +141,7 @@ describe("billing/checkout launch-product default rail", () => {
     expect(res.headers.get("location")).toBe("https://buy.paddle.com/live-test-link");
   });
 
-  it("does not fall back to the Polar sandbox link outside production (no rails, no override -> 404)", async () => {
+  it("does not serve a fallback link outside production (no rails -> 404)", async () => {
     vi.stubEnv("VERCEL_ENV", "preview");
     const res = await GET(request());
     expect(res.status).toBe(404);
@@ -175,7 +175,7 @@ describe("billing/checkout unified checkout_url policy", () => {
     expect(res.headers.get("location")).toBeNull();
   });
 
-  it("production with whitespace-only checkout URL override returns 500", async () => {
+  it("production with a whitespace-only rail checkout_url returns 500", async () => {
     vi.stubEnv("VERCEL_ENV", "production");
     setLiveRail("   ");
     const res = await GET(request());
@@ -183,7 +183,7 @@ describe("billing/checkout unified checkout_url policy", () => {
     expect(res.headers.get("location")).toBeNull();
   });
 
-  it("production with a malformed checkout URL override returns 500", async () => {
+  it("production with a malformed rail checkout_url returns 500", async () => {
     vi.stubEnv("VERCEL_ENV", "production");
     setLiveRail("not a url");
     const res = await GET(request());
@@ -191,7 +191,7 @@ describe("billing/checkout unified checkout_url policy", () => {
     expect(res.headers.get("location")).toBeNull();
   });
 
-  it("production with a sandbox checkout URL override returns 500", async () => {
+  it("production with a sandbox rail checkout_url returns 500", async () => {
     vi.stubEnv("VERCEL_ENV", "production");
     setLiveRail("https://sandbox-api.polar.sh/v1/checkout-links/x/redirect");
     const res = await GET(request());
@@ -199,7 +199,7 @@ describe("billing/checkout unified checkout_url policy", () => {
     expect(res.headers.get("location")).toBeNull();
   });
 
-  it("production with a sandbox CHECKOUT_URL_<PRODUCT> override returns 500", async () => {
+  it("production with a sandbox-host rail checkout_url returns 500", async () => {
     vi.stubEnv("VERCEL_ENV", "production");
     setLiveRail("https://sandbox-api.polar.sh/x");
     const res = await GET(request());
@@ -207,9 +207,8 @@ describe("billing/checkout unified checkout_url policy", () => {
     expect(res.headers.get("location")).toBeNull();
   });
 
-  it("production CHECKOUT_URL_<PRODUCT> override: the last stubbed value wins and redirects", async () => {
+  it("production rail redirects to its configured checkout_url", async () => {
     vi.stubEnv("VERCEL_ENV", "production");
-    setLiveRail("https://buy.paddle.com/live-test-link");
     setLiveRail("https://buy.paddle.com/live-override");
     const res = await GET(request());
     expect(res.status).toBe(302);
@@ -283,15 +282,6 @@ describe("billing/checkout wave85 sandbox + raw-URL fail-closed", () => {
     const res = await GET(request());
     expect(res.status).toBe(302);
     expect(res.headers.get("location")).toBe("https://sandboxpay.example.com/x");
-  });
-
-  it("production SET-but-blank CHECKOUT_URL_<PRODUCT> override does not fall through to an earlier value", async () => {
-    vi.stubEnv("VERCEL_ENV", "production");
-    setLiveRail("https://buy.paddle.com/live-test-link");
-    setLiveRail("   ");
-    const res = await GET(request());
-    expect(res.status).toBe(500);
-    expect(res.headers.get("location")).toBeNull();
   });
 
   it("production DB rails with checkout_url omitted / null / 42, or a null / non-object rail, returns 500 each with no location", async () => {
@@ -627,8 +617,6 @@ describe("billing/checkout DB-driven rails (Sprint 15 heritage eradication)", ()
 
   it("returns 404 when rails are configured but ALL inactive — the database disable defeats env/legacy fallback", async () => {
     vi.stubEnv("VERCEL_ENV", "production");
-    setLiveRail("https://buy.paddle.com/env-override");
-    setLiveRail("https://buy.paddle.com/live-legacy-default");
     adminModule.mockAdminClient = gateAdminClient(undefined, undefined, {
       data: [{ provider: "paddle", weight: 100, checkout_url: "https://buy.paddle.com/from-db", active: false }],
       error: null,
@@ -663,9 +651,8 @@ describe("billing/checkout DB-driven rails (Sprint 15 heritage eradication)", ()
     expect(res.headers.get("location")).toBeNull();
   });
 
-  it("returns 404 when the DB has no rails rows, even with a CHECKOUT_URL_<PRODUCT> override set (no env fallback)", async () => {
+  it("returns 404 when the DB has no rails rows (no env fallback)", async () => {
     vi.stubEnv("VERCEL_ENV", "production");
-    setLiveRail("https://buy.paddle.com/env-override");
     adminModule.mockAdminClient = gateAdminClient(undefined, undefined, { data: [], error: null });
     const res = await GET(request());
     expect(res.status).toBe(404);
