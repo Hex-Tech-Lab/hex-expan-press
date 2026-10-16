@@ -104,10 +104,12 @@ export async function deliverSale(
 export async function createDubShortLink(targetUrl: string, fetchImpl: typeof fetch = fetch): Promise<string> {
   const key = process.env.DUB_API_KEY;
   if (!key) throw new Error("DUB_API_KEY is missing — cannot create the download short link");
+  // Bounded by the webhook-internal budget: this call runs while the sale's idempotency lock is held.
   const res = await fetchImpl("https://api.dub.co/links", {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
     body: JSON.stringify({ url: targetUrl, domain: GLOBAL.delivery.short_domain }),
+    signal: AbortSignal.timeout(GLOBAL.payments.http_timeout_ms),
   });
   if (!res.ok) throw new Error(`Dub link create failed: HTTP ${res.status}`);
   const body = (await res.json()) as { shortLink?: unknown };
@@ -118,7 +120,7 @@ export async function createDubShortLink(targetUrl: string, fetchImpl: typeof fe
 }
 
 /** Production wiring: Supabase for persistence, Resend for mail, Dub for the short link. */
-export function productionDeps(): DeliveryDeps | null {
+export function productionDeps(): DeliveryDeps {
   const origin = "https://expanpress.com";
   const replyTo = GLOBAL.email.reply_to;
   return {
@@ -133,9 +135,7 @@ export function productionDeps(): DeliveryDeps | null {
 /** Webhook entry point. Never throws: a delivery failure is logged and the webhook still succeeds. */
 export async function deliverSaleSafely(input: { saleId: string; productAlias: string; buyerEmail?: string }): Promise<void> {
   try {
-    const deps = productionDeps();
-    if (!deps) throw new Error("Supabase admin client unavailable");
-    const outcome = await deliverSale(input, deps);
+    const outcome = await deliverSale(input, productionDeps());
     if (outcome !== "sent") console.warn(`[delivery] sale ${input.saleId}: ${outcome}`);
   } catch (err) {
     console.error(`[delivery] sale ${input.saleId} not delivered: ${(err as Error).message}`);

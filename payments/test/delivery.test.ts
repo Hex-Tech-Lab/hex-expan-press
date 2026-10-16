@@ -120,6 +120,7 @@ describe("createDubShortLink", () => {
     expect(calls[0].url).toBe("https://api.dub.co/links");
     expect((calls[0].init.headers as Record<string, string>).Authorization).toBe("Bearer dub_test_key");
     expect(String(calls[0].init.body)).not.toContain("dub_test_key");
+    expect(calls[0].init.signal).toBeInstanceOf(AbortSignal);
   });
 
   it("throws on a non-2xx response", async () => {
