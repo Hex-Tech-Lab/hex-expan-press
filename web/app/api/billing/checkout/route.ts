@@ -17,16 +17,14 @@ interface CheckoutRail {
  * Billing checkout router (Wave 6, native route handler — replaces the
  * shim-bridged legacy handler; Sprint 15: rails come from the product_rails
  * table, not from repo JSON files). GET/HEAD only: resolves the product's
- * rail config from the Supabase product_rails table, a CHECKOUT_URL_<PRODUCT>
- * env override, or the built-in default launch rail, and 302-redirects to the
+ * rail config from the Supabase product_rails table (no routable rail: 404;
+ * Polar rows are never routed), and 302-redirects to the
  * weighted-selected provider checkout URL via MatrixRouter, falling back to
  * the highest-weight rail if the router fails. Every source's checkout_url
  * passes one validation policy — raw value must be a string (non-string
  * fails closed), then trimmed: non-empty, https, and sandbox hosts
  * (hostname label match) only in explicitly recognised non-production
- * environments — and any violation (including an unset POLAR_CHECKOUT_URL
- * for the default rail in production, or a SET-but-blank
- * CHECKOUT_URL_<PRODUCT> override) fails closed with 500 "Checkout is not
+ * environments — and any violation fails closed with 500 "Checkout is not
  * configured".
  */
 function jsonError(status: number, error: string): NextResponse {
@@ -224,7 +222,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       return jsonError(500, "Checkout is not configured");
     }
     // Runtime-checked above; the cast only drops the `active` flag from the shape.
-    dbRails = activeRaw.map(({ active: _active, ...rail }) => rail as CheckoutRail);
+    // Polar is never a routable rail (PR 102): a polar row is dropped here, so a product whose only
+    // active rows are polar fails closed through the disable guard below.
+    dbRails = activeRaw.filter((r) => r.provider !== "polar").map(({ active: _active, ...rail }) => rail as CheckoutRail);
     // The disable guard counts only WELL-FORMED rows (real product_rails rows
     // are objects). A malformed row is a data-integrity failure: an active one
     // is rejected with 500 by the active-rail check above, and it must never be
@@ -240,23 +240,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return jsonError(500, "Checkout consent verification failed");
   }
 
-  let rails: CheckoutRail[];
-  if (dbRails.length > 0) {
-    rails = dbRails;
-  } else {
-    // No DB rails: the env override is the configured source, otherwise 404.
-    // The launch-product Polar sandbox fallback was removed (PR 102): no rails and no override return 404. A SET override is the configured source even
-    // when its raw value is blank — no trimming it away, no fall-through to
-    // the default rail; the shared validator below rejects blank values with
-    // the controlled 500.
-    const envSlugKey = `CHECKOUT_URL_${product.toUpperCase().replace(/[^A-Z0-9]/g, "_")}`;
-    const overrideUrl = process.env[envSlugKey];
-    if (overrideUrl !== undefined) {
-      rails = [{ provider: "polar", weight: 100, checkout_url: overrideUrl }];
-    } else {
-      return jsonError(404, `No rails configuration found for product '${product}'`);
-    }
+  // No routable DB rails: fail closed. There is no CHECKOUT_URL_<PRODUCT> override and no Polar fallback (PR 102).
+  if (dbRails.length === 0) {
+    return jsonError(404, `No rails configuration found for product '${product}'`);
   }
+  const rails: CheckoutRail[] = dbRails;
 
 
   // Fail closed on non-string RAW checkout_url values (missing/null/number
