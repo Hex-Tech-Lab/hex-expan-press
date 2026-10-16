@@ -25,7 +25,7 @@ event | 401 bad signature | 400 bad payload / non-USD | 501 unimplemented (Payhi
 Anything written from memory instead of fetched docs is marked `UNVERIFIED vs provider docs` in
 source — verify every such marker before go-live. Payhip is fully rejected (501) until then.
 
-Polar (providers/polar.ts, 2026-09-14) — first LIVE-VERIFIED provider, not yet routed in webhook_server.ts.
+Polar: removed from routing (PR 102). The provider module was deleted; `polar` survives only as a historical provider string on existing sale rows.
 Base URLs: sandbox `https://sandbox-api.polar.sh/v1` | live `https://api.polar.sh/v1`; auth `Authorization: Bearer <POLAR_ACCESS_TOKEN>` (OAT).
 Live-verified: orgs 200; product create/get 201/200 (price_amount in CENTS; one-time = omit recurring_interval); checkout-link create 201 -> url; webhook-endpoint create 201 (secret `whsec_…`, uses_standard_webhook_signature=true) / delete 204.
 Signature: Standard Webhooks (`webhook-id`/`webhook-timestamp`/`webhook-signature`, HMAC-SHA256 over `id.timestamp.body`, base64); secrets created on/after 2026-09-08 = base64-decode after `whsec_`, older = UTF-8 bytes of full `whsec_` string (adapter tries both).
