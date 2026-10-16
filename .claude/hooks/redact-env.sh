@@ -18,7 +18,7 @@ deny(){
 }
 
 S='[[:space:]]'
-SENSITIVE_RE='[A-Za-z_]*(KEY|TOKEN|SECRET|PASS|PASSWORD|DSN|AUTH|PRIVATE)[A-Za-z_]*'
+SENSITIVE_RE='[A-Za-z_]*(KEY|TOKEN|SECRET|PASS|PASSWORD|DSN|AUTH|PRIVATE|CREDENTIAL|COOKIE|_URL|_URI)[A-Za-z_]*'
 # Bare env / printenv / set (print everything), or printenv with any argument (prints the value).
 grep -qE "(^|[;&|(])${S}*(env|set)${S}*($|[|;&)])" <<<"$cmd" && deny "Redaction guard: bare env/set prints every environment value. Use vercel env ls (names only)."
 grep -qE "(^|[;&|(])${S}*printenv(${S}|$)" <<<"$cmd" && deny "Redaction guard: printenv prints environment values. Name the variable in code instead."
