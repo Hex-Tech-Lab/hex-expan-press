@@ -8,14 +8,19 @@ const PRODUCT = { id: "11111111-1111-4111-8111-111111111111", title: "500K Playb
 
 function fakes(over: Partial<DeliveryDeps> & { product?: unknown; inserted?: boolean } = {}) {
   const recordLinkIssued = vi.fn(async () => over.inserted ?? true);
+  const releaseLinkIssued = vi.fn(async () => undefined);
   const sendEmail = vi.fn(async () => ({ id: "e1" }));
   const createShortLink = vi.fn(async (u: string) => `https://go.expanpress.com/abc?to=${encodeURIComponent(u)}`);
   const deps: DeliveryDeps = {
-    db: { productForAlias: vi.fn(async () => (over.product === undefined ? PRODUCT : (over.product as typeof PRODUCT | null))), recordLinkIssued },
+    db: {
+      productForAlias: vi.fn(async () => (over.product === undefined ? PRODUCT : (over.product as typeof PRODUCT | null))),
+      recordLinkIssued,
+      releaseLinkIssued,
+    },
     sendEmail, createShortLink, origin: "https://expanpress.com", replyTo: "support@expanpress.com",
     now: () => NOW, newToken: () => "T".repeat(43),
   };
-  return { deps, recordLinkIssued, sendEmail, createShortLink };
+  return { deps, recordLinkIssued, releaseLinkIssued, sendEmail, createShortLink };
 }
 const sale = { saleId: "s-1", productAlias: "alias-1", buyerEmail: "buyer@example.com" };
 
@@ -62,6 +67,23 @@ describe("deliverSale", () => {
     const f = fakes();
     f.sendEmail.mockRejectedValueOnce(new Error("resend down"));
     await expect(deliverSale(sale, f.deps)).rejects.toThrow("resend down");
+  });
+
+  it("releases the issued link row when mail fails, so a webhook retry can deliver", async () => {
+    const f = fakes();
+    f.sendEmail.mockRejectedValueOnce(new Error("resend down"));
+    await expect(deliverSale(sale, f.deps)).rejects.toThrow("resend down");
+    expect(f.releaseLinkIssued).toHaveBeenCalledTimes(1);
+    const released = arg<{ saleId: string; tokenHash: string }>(f.releaseLinkIssued);
+    expect(released).toEqual({ saleId: "s-1", tokenHash: arg<{ tokenHash: string }>(f.recordLinkIssued).tokenHash });
+    f.sendEmail.mockResolvedValueOnce({ id: "e2" });
+    await expect(deliverSale(sale, f.deps)).resolves.toBe("sent");
+  });
+
+  it("does not release the link row when delivery succeeds", async () => {
+    const f = fakes();
+    await deliverSale(sale, f.deps);
+    expect(f.releaseLinkIssued).not.toHaveBeenCalled();
   });
 
   it("escapes the product title in the HTML part", async () => {

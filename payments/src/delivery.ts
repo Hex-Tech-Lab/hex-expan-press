@@ -8,7 +8,8 @@
  * claim; it records that a signed URL was issued, not that the browser finished the transfer.
  *
  * Failure policy: delivery never fails the webhook. The ledger write is the money record and
- * stays authoritative. A failure here is logged, and the grant row (if written) stays in place.
+ * stays authoritative. If the link cannot be shortened or mailed, its download_events row is
+ * released so a webhook retry can issue and send a fresh link.
  */
 import { createHash, randomBytes } from "node:crypto";
 import { GLOBAL } from "./settings_registry.ts";
@@ -31,6 +32,8 @@ export interface DeliveryDb {
   productForAlias(alias: string): Promise<DeliveryProduct | null>;
   /** Inserts the link_issued row. Returns false when a row for this sale already exists. */
   recordLinkIssued(row: { saleId: string; productId: string; tokenHash: string; expiresAt: Date }): Promise<boolean>;
+  /** Removes the link_issued row for this sale and token, so a later attempt can issue again. */
+  releaseLinkIssued(row: { saleId: string; tokenHash: string }): Promise<void>;
 }
 
 export interface DeliveryDeps {
@@ -59,30 +62,41 @@ export async function deliverSale(
   const now = deps.now ? deps.now() : new Date();
   const token = (deps.newToken ?? newToken)();
   const expiresAt = new Date(now.getTime() + GLOBAL.delivery.link_ttl_days * 24 * 60 * 60 * 1000);
+  const hash = tokenHash(token);
   const issued = await deps.db.recordLinkIssued({
     saleId: input.saleId,
     productId: product.id,
-    tokenHash: tokenHash(token),
+    tokenHash: hash,
     expiresAt,
   });
   if (!issued) return "duplicate";
 
-  const link = await deps.createShortLink(`${deps.origin}/d/${token}`);
-  const days = GLOBAL.delivery.link_ttl_days;
-  const title = product.title;
-  await deps.sendEmail({
-    to: input.buyerEmail,
-    subject: `Your download: ${title}`,
-    text:
-      `Thank you for your purchase of ${title}.\n\n` +
-      `Download your copy here (the link is valid for ${days} days):\n${link}\n\n` +
-      `Questions? Reply to this email or write to ${deps.replyTo}.\n`,
-    html:
-      `<p>Thank you for your purchase of <strong>${esc(title)}</strong>.</p>` +
-      `<p>Download your copy here (the link is valid for ${days} days):<br><a href="${esc(link)}">${esc(link)}</a></p>` +
-      `<p>Questions? Reply to this email or write to ${esc(deps.replyTo)}.</p>`,
-    replyTo: deps.replyTo,
-  });
+  try {
+    const link = await deps.createShortLink(`${deps.origin}/d/${token}`);
+    const days = GLOBAL.delivery.link_ttl_days;
+    const title = product.title;
+    await deps.sendEmail({
+      to: input.buyerEmail,
+      subject: `Your download: ${title}`,
+      text:
+        `Thank you for your purchase of ${title}.\n\n` +
+        `Download your copy here (the link is valid for ${days} days):\n${link}\n\n` +
+        `Questions? Reply to this email or write to ${deps.replyTo}.\n`,
+      html:
+        `<p>Thank you for your purchase of <strong>${esc(title)}</strong>.</p>` +
+        `<p>Download your copy here (the link is valid for ${days} days):<br><a href="${esc(link)}">${esc(link)}</a></p>` +
+        `<p>Questions? Reply to this email or write to ${esc(deps.replyTo)}.</p>`,
+      replyTo: deps.replyTo,
+    });
+  } catch (err) {
+    // Free the sale's one link slot so a webhook retry can deliver. The original error still propagates.
+    try {
+      await deps.db.releaseLinkIssued({ saleId: input.saleId, tokenHash: hash });
+    } catch (releaseErr) {
+      console.error(`[delivery] sale ${input.saleId}: could not release link row: ${(releaseErr as Error).message}`);
+    }
+    throw err;
+  }
   return "sent";
 }
 
@@ -157,6 +171,17 @@ function supabaseDeliveryDb(): DeliveryDb {
       if (!error) return true;
       if (error.code === "23505") return false; // one link per sale: a webhook retry is a no-op
       throw new Error(`link insert failed: ${error.message}`);
+    },
+    async releaseLinkIssued(row) {
+      const sb = await getSupabaseAdmin();
+      if (!sb) throw new Error("Supabase admin client unavailable");
+      const { error } = await sb
+        .from("download_events")
+        .delete()
+        .eq("sale_id", row.saleId)
+        .eq("token_hash", row.tokenHash)
+        .eq("event_type", "link_issued");
+      if (error) throw new Error(`link release failed: ${error.message}`);
     },
   };
 }
