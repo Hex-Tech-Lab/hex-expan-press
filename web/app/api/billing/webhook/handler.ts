@@ -35,11 +35,8 @@ async function auditBounded(details: { provider?: string; sale_id?: string; reas
   const timeout = new Promise<void>((resolve) => {
     timer = setTimeout(() => { controller.abort(); resolve(); }, GLOBAL.payments.http_timeout_ms);
   });
-  try {
-    await Promise.race([record503Audit(details, controller.signal), timeout]);
-  } finally {
-    clearTimeout(timer);
-  }
+  // .finally, not try/finally: eslint-plugin-security-node crashes on a TryStatement with no catch.
+  await Promise.race([record503Audit(details, controller.signal), timeout]).finally(() => clearTimeout(timer));
 }
 
 // Webhooks are small JSON bodies (KBs) — cap buffering at 1 MiB (the Wave 4
@@ -166,11 +163,8 @@ async function quarantineTerminalEvent(
   const timeout = new Promise<void>((resolve) => {
     timer = setTimeout(() => { controller.abort(); resolve(); }, GLOBAL.payments.http_timeout_ms);
   });
-  try {
-    await Promise.race([insertTerminalRejectAudit(headers, bodyBuffer, reason, controller.signal), timeout]);
-  } finally {
-    clearTimeout(timer);
-  }
+  // .finally, not try/finally: see auditBounded.
+  await Promise.race([insertTerminalRejectAudit(headers, bodyBuffer, reason, controller.signal), timeout]).finally(() => clearTimeout(timer));
 }
 
 async function insertTerminalRejectAudit(
