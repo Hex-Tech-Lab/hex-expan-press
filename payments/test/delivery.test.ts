@@ -210,3 +210,22 @@ describe("deliverSale retry after a failed send (stateful link slot)", () => {
     expect(retryText).toContain("U".repeat(43));
   });
 });
+
+describe("deliverSaleForWebhook fails closed (non-2xx, retryable)", () => {
+  it("rejects when the sale has no buyer email, so the provider retries", async () => {
+    const f = fakes();
+    await expect(deliverSaleForWebhook({ ...sale, buyerEmail: undefined }, f.deps)).rejects.toThrow(/no buyer email/i);
+    expect(f.sendEmail).not.toHaveBeenCalled();
+  });
+
+  it("rejects when the product is unknown, so the provider retries", async () => {
+    const f = fakes({ product: null });
+    await expect(deliverSaleForWebhook(sale, f.deps)).rejects.toThrow(/no release file/i);
+  });
+
+  it("rejects when the product has no release file, so the provider retries", async () => {
+    const f = fakes({ product: { ...PRODUCT, releasePath: null } });
+    await expect(deliverSaleForWebhook(sale, f.deps)).rejects.toThrow(/no release file/i);
+    expect(f.sendEmail).not.toHaveBeenCalled();
+  });
+});

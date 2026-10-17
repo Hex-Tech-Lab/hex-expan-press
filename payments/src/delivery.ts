@@ -132,12 +132,18 @@ export function productionDeps(): DeliveryDeps {
   };
 }
 
-/** Webhook entry point. A delivery failure is rethrown, so the webhook answers 500 and the provider retries. */
+/**
+ * Webhook entry point. A delivery failure is rethrown, so the webhook answers 500 and the provider retries.
+ * A sale that cannot be delivered (no buyer email, no release file) also throws: the buyer is owed a link, so
+ * the webhook must not acknowledge the sale as delivered.
+ */
 export async function deliverSaleForWebhook(
   input: { saleId: string; productAlias: string; buyerEmail?: string },
   deps: DeliveryDeps = productionDeps(),
 ): Promise<void> {
   const outcome = await deliverSale(input, deps);
+  if (outcome === "no_email") throw new Error(`delivery blocked: sale ${input.saleId} has no buyer email`);
+  if (outcome === "no_release_file") throw new Error(`delivery blocked: sale ${input.saleId} has no release file`);
   if (outcome !== "sent") console.warn(`[delivery] sale ${input.saleId}: ${outcome}`);
 }
 
