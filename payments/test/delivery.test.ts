@@ -64,7 +64,7 @@ describe("deliverSale", () => {
     expect(f.createShortLink).not.toHaveBeenCalled();
   });
 
-  it("propagates a mail failure to the caller (deliverSaleSafely logs it; the webhook still succeeds)", async () => {
+  it("propagates a mail failure to the caller of deliverSale", async () => {
     const f = fakes();
     f.sendEmail.mockRejectedValueOnce(new Error("resend down"));
     await expect(deliverSale(sale, f.deps)).rejects.toThrow("resend down");
