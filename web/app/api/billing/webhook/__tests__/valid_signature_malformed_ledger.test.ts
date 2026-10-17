@@ -37,6 +37,8 @@ vi.mock("../../../../../../payments/src/terms.ts", () => ({
   effectiveCreatorSplitPct: () => 50,
   effectiveCreatorSplitPctAsync: () => Promise.resolve(50),
 }));
+// Delivery is stubbed: this file asserts ledger recording and the webhook status, not mail or Dub.
+vi.mock("../../../../../../payments/src/delivery.ts", () => ({ deliverSaleForWebhook: async () => undefined }));
 vi.mock("../../../../../../payments/src/settings_registry.ts", () => ({
   GLOBAL: {
     paths: { sales_ledger: `${ledgerDir}/sales.jsonl` },
