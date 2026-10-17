@@ -1,0 +1,20 @@
+payments/test/delivery.test.ts
+  s_6625bc67577472::t_ad7605788a2809 103-141
+  s_6625bc67577472::t_3268222d4943bb 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "bcea40fbb362381965e83b07618c24b350edea50",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "CCW <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
