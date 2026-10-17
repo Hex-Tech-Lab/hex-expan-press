@@ -1,0 +1,21 @@
+web/src/components/landing/landing-page.tsx
+  s_6625bc67577472::t_439767e446d569 200
+web/__tests__/landing-revenue-copy.test.ts
+  s_6625bc67577472::t_2e15f39e1ae4af 1-16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "16619340ed18e71621aaec3c1a71ca6d6ca35e53",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "CCW <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
