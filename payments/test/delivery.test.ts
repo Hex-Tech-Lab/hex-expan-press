@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { deliverSale, createDubShortLink, tokenHash, newToken, TOKEN_RE, type DeliveryDeps } from "../src/delivery";
 
@@ -98,6 +99,45 @@ describe("deliverSale", () => {
 describe("tokens", () => {
   it("are 43-character base64url and match the route's validator", () => {
     for (let i = 0; i < 20; i++) expect(newToken()).toMatch(TOKEN_RE);
+  });
+
+  it("newToken: valid output decodes to 32 random bytes and never contains padding or '+' '/'", () => {
+    for (let i = 0; i < 20; i++) {
+      const t = newToken();
+      expect(Buffer.from(t, "base64url")).toHaveLength(32);
+      expect(t).not.toMatch(/[+/=]/);
+    }
+    expect(new Set(Array.from({ length: 20 }, () => newToken())).size).toBe(20);
+  });
+
+  it("newToken: an empty or malformed string is rejected by the route's validator", () => {
+    expect(TOKEN_RE.test("")).toBe(false);
+    expect(TOKEN_RE.test("A".repeat(42))).toBe(false);
+    expect(TOKEN_RE.test("A".repeat(43) + "=")).toBe(false);
+    expect(TOKEN_RE.test("A".repeat(42) + "+")).toBe(false);
+  });
+
+  it("tokenHash: valid token yields a 64-char lowercase hex sha256, deterministic", () => {
+    const token = newToken();
+    const expected = createHash("sha256").update(token).digest("hex");
+    expect(tokenHash(token)).toBe(expected);
+    expect(tokenHash(token)).toBe(tokenHash(token));
+    expect(tokenHash(token)).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it("tokenHash: malformed token still hashes (validation lives in the route), and differs from a valid one", () => {
+    const malformed = "short";
+    expect(TOKEN_RE.test(malformed)).toBe(false);
+    expect(tokenHash(malformed)).toMatch(/^[0-9a-f]{64}$/);
+    expect(tokenHash(malformed)).not.toBe(tokenHash("A".repeat(43)));
+  });
+
+  it("tokenHash: empty string hashes to the known sha256 of empty input", () => {
+    expect(tokenHash("")).toBe("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+  });
+
+  it("tokenHash: non-string input throws instead of hashing undefined", () => {
+    expect(() => tokenHash(undefined as unknown as string)).toThrow();
   });
 });
 
