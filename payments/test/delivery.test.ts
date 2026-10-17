@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { deliverSale, createDubShortLink, tokenHash, newToken, TOKEN_RE, type DeliveryDeps } from "../src/delivery";
+import { deliverSale, deliverSaleForWebhook, createDubShortLink, tokenHash, newToken, TOKEN_RE, type DeliveryDeps } from "../src/delivery";
 
 const arg = <T>(m: { mock: { calls: unknown[][] } }, i = 0): T => m.mock.calls[i][0] as T;
 
@@ -167,5 +167,19 @@ describe("createDubShortLink", () => {
     vi.stubEnv("DUB_API_KEY", "k");
     const fetchImpl = (async () => new Response("no", { status: 402 })) as unknown as typeof fetch;
     await expect(createDubShortLink("https://expanpress.com/d/x", fetchImpl)).rejects.toThrow("HTTP 402");
+  });
+});
+
+describe("deliverSaleForWebhook (webhook entry point)", () => {
+  it("rethrows a mail failure so the webhook answers non-2xx and the provider retries", async () => {
+    const f = fakes();
+    f.sendEmail.mockRejectedValueOnce(new Error("resend down"));
+    await expect(deliverSaleForWebhook(sale, f.deps)).rejects.toThrow("resend down");
+  });
+
+  it("resolves when delivery succeeds", async () => {
+    const f = fakes();
+    await expect(deliverSaleForWebhook(sale, f.deps)).resolves.toBeUndefined();
+    expect(f.sendEmail).toHaveBeenCalledTimes(1);
   });
 });

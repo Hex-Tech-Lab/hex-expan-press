@@ -8,6 +8,10 @@ import { appendSale, SaleRecord } from "../../../../payments/src/ledger.ts";
 import { processBillingWebhookUseCase } from "../process_billing_webhook.ts";
 import type { PaymentProviderPort, SaleCompletedEvent, RefundIssuedEvent } from "../../../../src/domain/payments/payments.port.ts";
 
+// Delivery is stubbed here: the sale-path tests assert the webhook contract, not mail or Dub.
+const delivery = vi.hoisted(() => ({ deliverSaleForWebhook: vi.fn(async (_input: unknown) => undefined) }));
+vi.mock("../../../../payments/src/delivery.ts", () => delivery);
+
 const SALE: SaleCompletedEvent = {
   eventType: "sale_completed",
   providerName: "polar",
@@ -348,6 +352,29 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
     const rows = readFileSync(salesFilePath, "utf8").split(/\r?\n/).filter(Boolean);
     expect(rows).toHaveLength(1); // only the pre-existing record
     expect(setnx).toHaveBeenCalledWith("lock:sale:polar:sale_dup_1", "1", expect.anything());
+  });
+
+  it("a retry for a recorded sale re-attempts delivery (a prior attempt may have failed after the ledger write)", async () => {
+    setnx.mockResolvedValue(1);
+    await appendSale(BASE_SALE, salesFilePath);
+    delivery.deliverSaleForWebhook.mockClear();
+    await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(SALE)]);
+    expect(delivery.deliverSaleForWebhook).toHaveBeenCalledTimes(1);
+    expect(delivery.deliverSaleForWebhook).toHaveBeenCalledWith({ saleId: "sale_dup_1", productAlias: "p1", buyerEmail: undefined });
+  });
+
+  it("a delivery failure on retry propagates as a non-validation error, so the webhook answers 500 and the provider retries", async () => {
+    setnx.mockResolvedValue(1);
+    await appendSale(BASE_SALE, salesFilePath);
+    delivery.deliverSaleForWebhook.mockRejectedValueOnce(new Error("resend down"));
+    await expect(processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(SALE)])).rejects.toThrow("resend down");
+  });
+
+  it("a successful delivery on retry resolves (webhook answers 200)", async () => {
+    setnx.mockResolvedValue(1);
+    await appendSale(BASE_SALE, salesFilePath);
+    delivery.deliverSaleForWebhook.mockResolvedValueOnce(undefined);
+    await expect(processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(SALE)])).resolves.toBeUndefined();
   });
 
   it("duplicate refund → returns normally, exactly 1 refund row", async () => {
