@@ -110,7 +110,7 @@ describe("tokens", () => {
     expect(new Set(Array.from({ length: 20 }, () => newToken())).size).toBe(20);
   });
 
-  it("newToken: an empty or malformed string is rejected by the route's validator", () => {
+  it("TOKEN_RE rejects empty, short, padded, and '+'-containing token strings", () => {
     expect(TOKEN_RE.test("")).toBe(false);
     expect(TOKEN_RE.test("A".repeat(42))).toBe(false);
     expect(TOKEN_RE.test("A".repeat(43) + "=")).toBe(false);
