@@ -206,8 +206,17 @@ describe("deliverSale retry after a failed send (stateful link slot)", () => {
     await expect(deliverSale(sale, f.deps)).resolves.toBe("sent");
     expect(f.sendEmail).toHaveBeenCalledTimes(2);
     expect(slots.size).toBe(1);
-    const retryText = (f.sendEmail.mock.calls[1][0] as { text: string }).text;
+    const retryText = (f.sendEmail.mock.calls[1] as unknown as [{ text: string }])[0].text;
     expect(retryText).toContain("U".repeat(43));
+  });
+});
+
+describe("deliverSale is bounded while the sale lock is held", () => {
+  it("a send that never settles times out and releases the link slot, so the lock is not held forever", async () => {
+    const f = fakes();
+    f.sendEmail.mockImplementationOnce(() => new Promise<never>(() => {}));
+    await expect(deliverSale(sale, { ...f.deps, timeoutMs: 20 })).rejects.toThrow(/timed out/);
+    expect(f.releaseLinkIssued).toHaveBeenCalledTimes(1);
   });
 });
 
