@@ -59,7 +59,7 @@ export default async function StoreProductPage({
   return (
     <div className="sf-root">
       <div className="wrap">
-        <p className="kicker">Digital PDF &middot; Instant Download</p>
+        <p className="kicker">Digital PDF &middot; Download link by email</p>
         <Link href={`/books/${creator.handle}`} className="backlink">
           &larr; Back to {creator.display_name}&rsquo;s page
         </Link>
@@ -89,7 +89,7 @@ export default async function StoreProductPage({
             Coming soon &mdash; not yet available for purchase
           </p>
         )}
-        <p className="assurance">Secure checkout hosted by our payment partners &middot; Instant download after purchase</p>
+        <p className="assurance">Secure checkout hosted by our payment partners &middot; A download link is emailed after purchase</p>
 
         {inside.length > 0 && (
           <div className="inside">
