@@ -1,0 +1,32 @@
+docs/agent_ledger.jsonl
+  s_05b2d330202471::t_62467742297fa8 530-535
+  s_05b2d330202471::t_17dda8a0bc6a77 536
+  s_05b2d330202471::t_7f8e740f456c91 538
+  s_6625bc67577472::t_1ec962709a77fe 570
+  s_05b2d330202471::t_fc12923dc1d52b 537
+  s_6625bc67577472::t_19c0cdacb6876f 571-573
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4fca931f2dce30eba41ff5100ef3ac95b23102d2",
+  "prompts": {},
+  "sessions": {
+    "s_05b2d330202471": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ccf684ff-aee0-4752-a325-a0ab260efd02",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "CCW <104952356+TechHypeXP@users.noreply.github.com>"
+    },
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "CCW <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
