@@ -183,3 +183,30 @@ describe("deliverSaleForWebhook (webhook entry point)", () => {
     expect(f.sendEmail).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("deliverSale retry after a failed send (stateful link slot)", () => {
+  it("a failed send frees the sale's link slot, and the retry issues and sends a fresh link", async () => {
+    const slots = new Set<string>();
+    const tokens = ["T".repeat(43), "U".repeat(43)];
+    const f = fakes();
+    f.deps.newToken = () => tokens.shift() as string;
+    f.deps.db.recordLinkIssued = vi.fn(async (row: { saleId: string }) => {
+      if (slots.has(row.saleId)) return false;
+      slots.add(row.saleId);
+      return true;
+    });
+    f.deps.db.releaseLinkIssued = vi.fn(async (row: { saleId: string }) => {
+      slots.delete(row.saleId);
+    });
+    f.sendEmail.mockRejectedValueOnce(new Error("resend down"));
+
+    await expect(deliverSale(sale, f.deps)).rejects.toThrow("resend down");
+    expect(slots.size).toBe(0);
+
+    await expect(deliverSale(sale, f.deps)).resolves.toBe("sent");
+    expect(f.sendEmail).toHaveBeenCalledTimes(2);
+    expect(slots.size).toBe(1);
+    const retryText = (f.sendEmail.mock.calls[1][0] as { text: string }).text;
+    expect(retryText).toContain("U".repeat(43));
+  });
+});
