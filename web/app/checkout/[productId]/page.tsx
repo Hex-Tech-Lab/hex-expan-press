@@ -85,7 +85,7 @@ export default async function CheckoutPage({
             Coming soon &mdash; not yet available for purchase
           </p>
         )}
-        <p className="assurance">Instant download after purchase</p>
+        <p className="assurance">A download link is emailed after purchase</p>
 
         <StorefrontFooter />
       </div>
