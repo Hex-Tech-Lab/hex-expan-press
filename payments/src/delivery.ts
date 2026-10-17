@@ -7,9 +7,9 @@
  * 300-second signed URL for the release file. Only the server-side log makes the served-download
  * claim; it records that a signed URL was issued, not that the browser finished the transfer.
  *
- * Failure policy: delivery never fails the webhook. The ledger write is the money record and
- * stays authoritative. If the link cannot be shortened or mailed, its download_events row is
- * released so a webhook retry can issue and send a fresh link.
+ * Failure policy: the ledger write is the money record and stays authoritative. A delivery failure
+ * is rethrown to the webhook, which answers 500 so the provider retries. Its download_events row is
+ * released first, and the retry re-attempts delivery for the already-recorded sale.
  */
 import { createHash, randomBytes } from "node:crypto";
 import { GLOBAL } from "./settings_registry.ts";
@@ -132,14 +132,13 @@ export function productionDeps(): DeliveryDeps {
   };
 }
 
-/** Webhook entry point. Never throws: a delivery failure is logged and the webhook still succeeds. */
-export async function deliverSaleSafely(input: { saleId: string; productAlias: string; buyerEmail?: string }): Promise<void> {
-  try {
-    const outcome = await deliverSale(input, productionDeps());
-    if (outcome !== "sent") console.warn(`[delivery] sale ${input.saleId}: ${outcome}`);
-  } catch (err) {
-    console.error(`[delivery] sale ${input.saleId} not delivered: ${(err as Error).message}`);
-  }
+/** Webhook entry point. A delivery failure is rethrown, so the webhook answers 500 and the provider retries. */
+export async function deliverSaleForWebhook(
+  input: { saleId: string; productAlias: string; buyerEmail?: string },
+  deps: DeliveryDeps = productionDeps(),
+): Promise<void> {
+  const outcome = await deliverSale(input, deps);
+  if (outcome !== "sent") console.warn(`[delivery] sale ${input.saleId}: ${outcome}`);
 }
 
 function supabaseDeliveryDb(): DeliveryDb {

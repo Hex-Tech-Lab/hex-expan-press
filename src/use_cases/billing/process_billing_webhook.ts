@@ -12,7 +12,7 @@ import { appendSale, appendRefund, appendRefundReversal, findSaleAsync, findRefu
 import { computeSplit, usdToCents } from "../../../payments/src/split.ts";
 import { effectiveCreatorSplitPctAsync } from "../../../payments/src/terms.ts";
 import { resolveProductByAlias, withIdempotencyLock, WebhookInFlightError } from "../../../payments/src/webhook_core.ts";
-import { deliverSaleSafely } from "../../../payments/src/delivery.ts";
+import { deliverSaleForWebhook } from "../../../payments/src/delivery.ts";
 import { GLOBAL } from "../../../payments/src/settings_registry.ts";
 
 type LockedResult = { status: number; payload: Record<string, unknown> };
@@ -463,9 +463,12 @@ export async function processBillingWebhookUseCase(
       `lock:sale:${saleEvent.providerName}:${saleEvent.saleId}`,
       async () => (await findSaleAsync(saleEvent.providerName, saleEvent.saleId)) !== null,
       async () => {
-        // Duplicate guard: if sale already recorded, exit early without duplicating splits
+        // Duplicate guard: if sale already recorded, do not duplicate splits. A prior attempt may have
+        // failed after the ledger write, so re-attempt delivery; it is idempotent per sale, and a
+        // failure rethrows (500) so the provider retries.
         const existing = await findSaleAsync(saleEvent.providerName, saleEvent.saleId);
         if (existing) {
+          await deliverSaleForWebhook({ saleId: saleEvent.saleId, productAlias: saleEvent.productId, buyerEmail: saleEvent.buyerEmail });
           return { status: 200, payload: { ok: true, recorded: false, reason: "duplicate", sale_id: saleEvent.saleId } };
         }
 
@@ -504,8 +507,9 @@ export async function processBillingWebhookUseCase(
           currency: cfg.currency,
           ...(saleEvent.attributionId ? { attribution_id: saleEvent.attributionId } : {})
         });
-        // Receipt and download link, after the ledger write. Never throws: a delivery failure is logged and does not fail the webhook.
-        await deliverSaleSafely({ saleId: saleEvent.saleId, productAlias: saleEvent.productId, buyerEmail: saleEvent.buyerEmail });
+        // Receipt and download link, after the ledger write. A delivery failure rethrows: the webhook answers 500 and the
+        // provider retries, which re-attempts delivery on the duplicate path above.
+        await deliverSaleForWebhook({ saleId: saleEvent.saleId, productAlias: saleEvent.productId, buyerEmail: saleEvent.buyerEmail });
         return { status: 200, payload: { ok: true, recorded: true, sale_id: saleEvent.saleId } };
       },
     );
