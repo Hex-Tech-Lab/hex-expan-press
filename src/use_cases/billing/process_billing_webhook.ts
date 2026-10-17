@@ -154,14 +154,12 @@ export async function processBillingWebhookUseCase(
   }
 
   if (!matchedAdapter) {
-    // No adapter claims the signature headers → nothing was verified. A request with no provider
-    // signature shape at all is marked senderVerified=false so the route does NOT quarantine it
-    // (unauthenticated traffic must not force audit_log writes). A provider-shaped delivery (Standard
-    // Webhooks headers) with no routable adapter is left unmarked, so the route quarantines it and
-    // writes a WEBHOOK_TERMINAL_REJECT audit row for replay. The event is not treated as verified.
+    // No adapter claims the signature headers → nothing was verified. Marked senderVerified=false so the
+    // route does NOT quarantine or audit it: an unverified request must write no row, whatever its shape
+    // (unauthenticated traffic must not force audit_log writes, PR #78). A provider-shaped delivery with no
+    // routable adapter is answered 400 and logged. Replay needs a verifier for that provider.
     const err = new WebhookValidationError("No payment provider configured to handle this webhook signature.");
-    const providerShaped = req.headers["webhook-signature"] !== undefined && req.headers["webhook-id"] !== undefined;
-    if (!providerShaped) err.senderVerified = false;
+    err.senderVerified = false;
     throw err;
   }
 

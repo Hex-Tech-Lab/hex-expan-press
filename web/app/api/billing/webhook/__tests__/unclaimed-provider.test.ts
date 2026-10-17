@@ -1,17 +1,17 @@
-// A provider-shaped delivery that no routable adapter claims (e.g. a Polar order.paid sent after Polar was
-// removed) must not vanish: the event is quarantined and audited for replay. A request with no provider
-// signature headers at all stays unquarantined, so unauthenticated traffic cannot force audit writes (PR #78).
+// A provider-shaped delivery that no routable adapter claims has no verifier, so the request is unauthenticated.
+// It must not write any row: no audit_log insert, no quarantine. The event answers 400 and is logged only.
+// The same holds for a request with no provider signature headers at all (PR #78: unauthenticated traffic must
+// not force audit_log writes).
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { NextRequest } from "next/server";
 
-const db = vi.hoisted(() => ({ terminalRejects: [] as { event?: string; details?: Record<string, unknown> }[] }));
+const db = vi.hoisted(() => ({ writes: [] as { table: string; row: unknown }[] }));
 
 vi.mock("@supabase/supabase-js", () => ({
   createClient: () => ({
     from: (table: string) => ({
       insert: (row: unknown) => {
-        const r = row as { event?: string; details?: Record<string, unknown> };
-        if (table === "audit_log" && r.event === "WEBHOOK_TERMINAL_REJECT") db.terminalRejects.push(r);
+        db.writes.push({ table, row });
         const insertResult = Promise.resolve({ error: null });
         return Object.assign(insertResult, { abortSignal: () => insertResult });
       },
@@ -44,23 +44,22 @@ const standardWebhookHeaders = {
 const call = (headers: Record<string, string>) =>
   POST(new Request("https://expanpress.com/api/billing/webhook", { method: "POST", body: "{}", headers }) as unknown as NextRequest);
 
-describe("billing webhook: provider-shaped delivery with no routable adapter", () => {
+describe("billing webhook: unverified requests write nothing", () => {
   beforeEach(() => {
-    db.terminalRejects = [];
+    db.writes = [];
     vi.stubEnv("SUPABASE_URL", "https://unit.test.supabase.co");
     vi.stubEnv("SUPABASE_SECRET_KEY", "unit-test-key");
   });
 
-  it("answers 400 and quarantines the event with a WEBHOOK_TERMINAL_REJECT audit row for replay", async () => {
+  it("a provider-shaped delivery with no routable adapter answers 400 and writes zero rows", async () => {
     const res = await call(standardWebhookHeaders);
     expect(res.status).toBe(400);
-    expect(db.terminalRejects).toHaveLength(1);
-    expect(db.terminalRejects[0].details?.reason).toBe("WebhookValidationError");
+    expect(db.writes).toHaveLength(0);
   });
 
-  it("does not quarantine a request that carries no provider signature headers", async () => {
+  it("a request with no provider signature headers answers 400 and writes zero rows", async () => {
     const res = await call({});
     expect(res.status).toBe(400);
-    expect(db.terminalRejects).toHaveLength(0);
+    expect(db.writes).toHaveLength(0);
   });
 });
