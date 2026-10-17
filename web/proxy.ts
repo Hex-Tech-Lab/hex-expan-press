@@ -44,8 +44,9 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   if (host === PAY_HOST) {
     if (path === "/robots.txt") return NextResponse.rewrite(new URL("/robots-pay.txt", request.url));
     const allowed = PAY_ALLOWED_EXACT.includes(path) || isPayCheckoutApi(path) || PAY_ALLOWED_PREFIXES.some((p) => path.startsWith(p));
-    // Collapse leading slashes so "//host/..." cannot become a protocol-relative redirect (open redirect).
-    if (!allowed) return NextResponse.redirect(new URL("/" + path.replace(/^\/+/, "") + url.search, MAIN_ORIGIN), 302);
+    // Pay serves checkout, legal pages and their assets only. Everything else is a hard 404: no redirect
+    // to the main site, so a pay URL never bounces to the apex or www.
+    if (!allowed) return new NextResponse(null, { status: 404 });
     return NextResponse.next({ request });
   }
   if (host === MAIN_HOST && (path.startsWith("/checkout/") || isPayCheckoutApi(path))) {

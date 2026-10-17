@@ -89,11 +89,13 @@ describe("proxy host boundary (ADR 0061)", () => {
     expect(res.headers.get("x-middleware-rewrite")).toContain("/robots-pay.txt");
   });
 
-  it("pay host sends other paths back to the main site", async () => {
+  it("pay host returns 404 with no location for paths outside checkout and legal pages", async () => {
     const { proxy } = await import("../proxy");
-    const res = await proxy(hostRequest("https://pay.expanpress.com/books/retirearly500k/500k-playbook") as never);
-    expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toBe("https://expanpress.com/books/retirearly500k/500k-playbook");
+    for (const p of ["/", "/books/retirearly500k/500k-playbook", "/creator/dashboard", "/checkoutevil", "//evil.example/x"]) {
+      const res = await proxy(hostRequest(`https://pay.expanpress.com${p}`) as never);
+      expect(res.status, p).toBe(404);
+      expect(res.headers.get("location"), p).toBeNull();
+    }
   });
 
   it("main host sends checkout and checkout API paths to pay with 307", async () => {
@@ -105,12 +107,12 @@ describe("proxy host boundary (ADR 0061)", () => {
 });
 
 describe("proxy host boundary: no open redirect", () => {
-  it("a protocol-relative path on the pay host stays on the main origin", async () => {
+  it("a protocol-relative path on the pay host is a 404, never a redirect", async () => {
     const { proxy } = await import("../proxy");
     const req = { cookies: { getAll: () => [], set: cookiesSetSpy }, url: "https://pay.expanpress.com//evil.example/x", headers: new Headers() };
     const res = await proxy(req as never);
-    expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toBe("https://expanpress.com/evil.example/x");
+    expect(res.status).toBe(404);
+    expect(res.headers.get("location")).toBeNull();
   });
 });
 
@@ -119,8 +121,8 @@ describe("proxy pay-host allowlist is path-bounded", () => {
     const { proxy } = await import("../proxy");
     const req = { cookies: { getAll: () => [], set: cookiesSetSpy }, url: "https://pay.expanpress.com/api/billing/checkoutevil", headers: new Headers() };
     const res = await proxy(req as never);
-    expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toBe("https://expanpress.com/api/billing/checkoutevil");
+    expect(res.status).toBe(404);
+    expect(res.headers.get("location")).toBeNull();
   });
 });
 
