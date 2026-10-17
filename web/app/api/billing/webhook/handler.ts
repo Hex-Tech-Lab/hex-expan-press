@@ -39,7 +39,8 @@ export async function auditBounded(
     timer = setTimeout(() => { controller.abort(); resolve(); }, GLOBAL.payments.http_timeout_ms);
   });
   // .finally, not try/finally: eslint-plugin-security-node crashes on a TryStatement with no catch.
-  await Promise.race([run(details, controller.signal), timeout]).finally(() => clearTimeout(timer));
+  // The async wrapper turns a synchronous throw from run into a rejection, so .finally still clears the timer.
+  await Promise.race([(async () => run(details, controller.signal))(), timeout]).finally(() => clearTimeout(timer));
 }
 
 // Webhooks are small JSON bodies (KBs) — cap buffering at 1 MiB (the Wave 4
