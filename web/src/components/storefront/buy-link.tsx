@@ -43,7 +43,7 @@ export function BuyLink({ href, className, children }: { href: string; className
         const v = sessionStorage.getItem(key);
         if (v) u.searchParams.set(param, v);
       }
-      e.currentTarget.href = u.pathname + u.search;
+      e.currentTarget.href = u.toString();
     } catch {
       /* leave the plain link on any failure */
     }

@@ -48,6 +48,11 @@
         <td>Merchant of Record for orders: takes payment, calculates and remits tax, handles refunds and buyer billing support</td>
         <td>Name, email, country, order details and payment data. Paddle is the seller of record for orders it processes, and its own privacy policy applies to that data.</td>
       </tr>
+      <tr>
+        <td class="name">Other resellers, as enabled</td>
+        <td>Merchant of Record for orders on any other checkout provider enabled for a title. Each one is named here before it processes orders.</td>
+        <td>Same categories as Paddle.com, under that provider's privacy policy.</td>
+      </tr>
     </tbody>
   </table>
 
@@ -63,14 +68,14 @@
         <td>Account email, order and access records, agreement records, support messages</td>
       </tr>
       <tr>
+        <td class="name">Google</td>
+        <td>Sign-in with Google, for creator accounts</td>
+        <td>Google account identity and the email address and name Google shares for sign-in</td>
+      </tr>
+      <tr>
         <td class="name">Firma</td>
         <td>Electronic signature for creator agreements</td>
         <td>Creator name, email and the signed agreement with its audit record</td>
-      </tr>
-      <tr>
-        <td class="name">Resend</td>
-        <td>Transactional email, such as receipts and account messages</td>
-        <td>Email address and the content of the messages sent</td>
       </tr>
       <tr>
         <td class="name">Vercel</td>
@@ -86,6 +91,46 @@
         <td class="name">Upstash</td>
         <td>Short-lived webhook locks and payment routing configuration</td>
         <td>Transaction reference IDs and routing configuration only. No names or email addresses.</td>
+      </tr>
+      <tr>
+        <td class="name">OpenRouter</td>
+        <td>AI model access used to research and draft book content</td>
+        <td>Text submitted for research and drafting, which may include creator-supplied material and publicly available information</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Creator research</h2>
+  <p>We find and verify public creators before offering them a publishing agreement. These providers process public information about creators, and may hold public contact details, such as email addresses and phone numbers, published on creators' own pages.</p>
+  <table>
+    <thead>
+      <tr><th>Provider</th><th>Role</th><th>Data processed</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="name">Exa</td>
+        <td>Web search for public creator profiles</td>
+        <td>Search queries and public page results</td>
+      </tr>
+      <tr>
+        <td class="name">Brave Search</td>
+        <td>Web search for public creator profiles</td>
+        <td>Search queries and public page results</td>
+      </tr>
+      <tr>
+        <td class="name">HikerAPI</td>
+        <td>Public Instagram profile and follower checks</td>
+        <td>Public profile handles and public profile statistics</td>
+      </tr>
+      <tr>
+        <td class="name">Decodo</td>
+        <td>Retrieval of public web pages</td>
+        <td>Public page content, which may include published contact details</td>
+      </tr>
+      <tr>
+        <td class="name">YouTube Data API</td>
+        <td>Public channel and video information</td>
+        <td>Public channel and video metadata</td>
       </tr>
     </tbody>
   </table>

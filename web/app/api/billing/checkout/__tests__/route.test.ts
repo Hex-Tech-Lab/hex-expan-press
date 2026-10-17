@@ -17,7 +17,7 @@ vi.mock("../../../../../../payments/src/supabase_admin", () => ({
 // Mock depth is 6 ups from __tests__ (route.ts resolves the same module with
 // 5 ups from checkout/) — both resolve to src/infrastructure/matrix_router/matrix_router.ts.
 vi.mock("../../../../../../src/infrastructure/matrix_router/matrix_router", () => ({
-  MatrixRouter: { getNextProvider: vi.fn().mockResolvedValue("polar") },
+  MatrixRouter: { getNextProvider: vi.fn().mockResolvedValue("paddle") },
 }));
 
 const CHECKOUT_URL = "http://localhost:3000/api/billing/checkout?product=duane_retirement_playbook_v1";
@@ -75,7 +75,7 @@ function railsTableMock(rails: DbResult) {
 function gateAdminClient(
   products: DbResult = { data: { id: PID, creator_id: OWNER_ID, release_sha256: RELEASE_SHA, checkout_mode: "live" }, error: null },
   consents: DbResult = { data: givenConsents(), error: null },
-  rails: DbResult = { data: [{ provider: "polar", weight: 100, checkout_url: "https://buy.polar.sh/live-rail", active: true }], error: null },
+  rails: DbResult = { data: [{ provider: "paddle", weight: 100, checkout_url: "https://buy.paddle.com/live-rail", active: true }], error: null },
 ) {
   return {
     from: (table: string) => {
@@ -93,6 +93,14 @@ function gateAdminClient(
   };
 }
 
+// The checkout URL under test is a DB rail for this product now (no env override exists).
+function setLiveRail(checkoutUrl: string): void {
+  adminModule.mockAdminClient = gateAdminClient(undefined, undefined, {
+    data: [{ provider: "paddle", weight: 100, checkout_url: checkoutUrl, active: true }],
+    error: null,
+  });
+}
+
 // The handler reads request.nextUrl, so a plain Request cast is not enough —
 // build a real NextRequest.
 function request(): NextRequest {
@@ -106,13 +114,11 @@ beforeEach(() => {
   adminModule.mockAdminClient = null;
 });
 
-describe("billing/checkout launch-product default rail", () => {
+describe("billing/checkout DB rail in production, fail-closed without rails", () => {
   beforeEach(() => {
-    // true unset (not "") — under the wave85 policy a SET-but-blank override
-    // is itself a 500, which would break every default-rail test here.
-    vi.stubEnv("CHECKOUT_URL_DUANE_RETIREMENT_PLAYBOOK_V1", undefined as unknown as string);
-    // Gate must pass and DB rails must be EMPTY so these tests reach the
-    // env/legacy fallback branches they exist to cover.
+    // Gate must pass. DB rails start EMPTY so the no-rail case reaches the
+    // 404 fail-closed branch; the production cases install their own rail
+    // with setLiveRail, which replaces this fixture.
     adminModule.mockAdminClient = gateAdminClient(undefined, undefined, { data: [], error: null });
   });
 
@@ -120,36 +126,32 @@ describe("billing/checkout launch-product default rail", () => {
     vi.unstubAllEnvs();
   });
 
-  it("fails closed with 500 and no redirect when POLAR_CHECKOUT_URL is unset in production", async () => {
+  it("fails closed with 500 and no redirect when the live rail's checkout_url is blank in production", async () => {
     vi.stubEnv("VERCEL_ENV", "production");
-    vi.stubEnv("POLAR_CHECKOUT_URL", "");
+    setLiveRail("");
     const res = await GET(request());
     expect(res.status).toBe(500);
     expect(res.headers.get("location")).toBeNull();
   });
 
-  it("redirects to POLAR_CHECKOUT_URL in production when configured", async () => {
+  it("redirects to the live rail's checkout_url in production when configured", async () => {
     vi.stubEnv("VERCEL_ENV", "production");
-    vi.stubEnv("POLAR_CHECKOUT_URL", "https://buy.polar.sh/live-test-link");
+    setLiveRail("https://buy.paddle.com/live-test-link");
     const res = await GET(request());
     expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toBe("https://buy.polar.sh/live-test-link?reference_id=direct");
+    expect(res.headers.get("location")).toBe("https://buy.paddle.com/live-test-link");
   });
 
-  it("falls back to the sandbox link outside production", async () => {
+  it("does not serve a fallback link outside production (no rails -> 404)", async () => {
     vi.stubEnv("VERCEL_ENV", "preview");
-    vi.stubEnv("POLAR_CHECKOUT_URL", "");
     const res = await GET(request());
-    expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toContain("sandbox-api.polar.sh");
+    expect(res.status).toBe(404);
+    expect(res.headers.get("location")).toBeNull();
   });
 });
 
 describe("billing/checkout unified checkout_url policy", () => {
   beforeEach(() => {
-    // true unset (not "") — under the wave85 policy a SET-but-blank override
-    // is itself a 500, which would break every default-rail test here.
-    vi.stubEnv("CHECKOUT_URL_DUANE_RETIREMENT_PLAYBOOK_V1", undefined as unknown as string);
     // Gate must pass and DB rails must be EMPTY so these tests reach the
     // env/legacy fallback branches they exist to cover.
     adminModule.mockAdminClient = gateAdminClient(undefined, undefined, { data: [], error: null });
@@ -159,68 +161,65 @@ describe("billing/checkout unified checkout_url policy", () => {
     vi.unstubAllEnvs();
   });
 
-  it("production with POLAR_CHECKOUT_URL truly unset returns 500 without a location", async () => {
+  it("production with no rails and no override returns 404 without a location", async () => {
     vi.stubEnv("VERCEL_ENV", "production");
-    vi.stubEnv("POLAR_CHECKOUT_URL", undefined as unknown as string);
     const res = await GET(request());
-    expect(res.status).toBe(500);
+    expect(res.status).toBe(404);
     expect(res.headers.get("location")).toBeNull();
   });
 
-  it("VERCEL_ENV unset with NODE_ENV=production and POLAR_CHECKOUT_URL unset returns 500", async () => {
+  it("VERCEL_ENV unset with NODE_ENV=production and no rails or override returns 404", async () => {
     vi.stubEnv("VERCEL_ENV", undefined as unknown as string);
     vi.stubEnv("NODE_ENV", "production");
-    vi.stubEnv("POLAR_CHECKOUT_URL", undefined as unknown as string);
+    const res = await GET(request());
+    expect(res.status).toBe(404);
+    expect(res.headers.get("location")).toBeNull();
+  });
+
+  it("production with a whitespace-only rail checkout_url returns 500", async () => {
+    vi.stubEnv("VERCEL_ENV", "production");
+    setLiveRail("   ");
     const res = await GET(request());
     expect(res.status).toBe(500);
     expect(res.headers.get("location")).toBeNull();
   });
 
-  it("production with whitespace-only POLAR_CHECKOUT_URL returns 500", async () => {
+  it("production with a malformed rail checkout_url returns 500", async () => {
     vi.stubEnv("VERCEL_ENV", "production");
-    vi.stubEnv("POLAR_CHECKOUT_URL", "   ");
+    setLiveRail("not a url");
     const res = await GET(request());
     expect(res.status).toBe(500);
     expect(res.headers.get("location")).toBeNull();
   });
 
-  it("production with a malformed POLAR_CHECKOUT_URL returns 500", async () => {
+  it("production with a sandbox rail checkout_url returns 500", async () => {
     vi.stubEnv("VERCEL_ENV", "production");
-    vi.stubEnv("POLAR_CHECKOUT_URL", "not a url");
+    setLiveRail("https://sandbox-api.polar.sh/v1/checkout-links/x/redirect");
     const res = await GET(request());
     expect(res.status).toBe(500);
     expect(res.headers.get("location")).toBeNull();
   });
 
-  it("production with a sandbox POLAR_CHECKOUT_URL returns 500", async () => {
+  it("production with a sandbox-host rail checkout_url returns 500", async () => {
     vi.stubEnv("VERCEL_ENV", "production");
-    vi.stubEnv("POLAR_CHECKOUT_URL", "https://sandbox-api.polar.sh/v1/checkout-links/x/redirect");
+    setLiveRail("https://sandbox-api.polar.sh/x");
     const res = await GET(request());
     expect(res.status).toBe(500);
     expect(res.headers.get("location")).toBeNull();
   });
 
-  it("production with a sandbox CHECKOUT_URL_<PRODUCT> override returns 500", async () => {
+  it("production DB rail redirects to its configured checkout_url (no env override)", async () => {
     vi.stubEnv("VERCEL_ENV", "production");
-    vi.stubEnv("CHECKOUT_URL_DUANE_RETIREMENT_PLAYBOOK_V1", "https://sandbox-api.polar.sh/x");
-    const res = await GET(request());
-    expect(res.status).toBe(500);
-    expect(res.headers.get("location")).toBeNull();
-  });
-
-  it("production CHECKOUT_URL_<PRODUCT> override wins over POLAR_CHECKOUT_URL and redirects", async () => {
-    vi.stubEnv("VERCEL_ENV", "production");
-    vi.stubEnv("POLAR_CHECKOUT_URL", "https://buy.polar.sh/live-test-link");
-    vi.stubEnv("CHECKOUT_URL_DUANE_RETIREMENT_PLAYBOOK_V1", "https://buy.polar.sh/live-override");
+    setLiveRail("https://buy.paddle.com/live-override");
     const res = await GET(request());
     expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toBe("https://buy.polar.sh/live-override?reference_id=direct");
+    expect(res.headers.get("location")).toBe("https://buy.paddle.com/live-override");
   });
 
   it("production DB rails serving a sandbox checkout_url returns 500", async () => {
     vi.stubEnv("VERCEL_ENV", "production");
     adminModule.mockAdminClient = gateAdminClient(undefined, undefined, {
-      data: [{ provider: "polar", weight: 100, checkout_url: "https://sandbox-api.polar.sh/x", active: true }],
+      data: [{ provider: "paddle", weight: 100, checkout_url: "https://sandbox-api.polar.sh/x", active: true }],
       error: null,
     });
     const res = await GET(request());
@@ -232,7 +231,6 @@ describe("billing/checkout unified checkout_url policy", () => {
 describe("billing/checkout wave85 sandbox + raw-URL fail-closed", () => {
   beforeEach(() => {
     // true unset (not "") — a SET-but-blank override is itself a 500.
-    vi.stubEnv("CHECKOUT_URL_DUANE_RETIREMENT_PLAYBOOK_V1", undefined as unknown as string);
     // Gate must pass and DB rails must be EMPTY so these tests reach the
     // env/legacy fallback branches they exist to cover.
     adminModule.mockAdminClient = gateAdminClient(undefined, undefined, { data: [], error: null });
@@ -243,39 +241,37 @@ describe("billing/checkout wave85 sandbox + raw-URL fail-closed", () => {
     // A queued mockRejectedValueOnce can survive an early-500 test (router
     // never reached) — reset so later tests keep the default resolution.
     vi.mocked(MatrixRouter.getNextProvider).mockReset();
-    vi.mocked(MatrixRouter.getNextProvider).mockResolvedValue("polar");
+    vi.mocked(MatrixRouter.getNextProvider).mockResolvedValue("paddle");
   });
 
-  it("VERCEL_ENV unset + NODE_ENV unset + POLAR_CHECKOUT_URL unset returns 500 (absent signals fail closed)", async () => {
+  it("VERCEL_ENV unset + NODE_ENV unset + no override returns 404 (absent signals fail closed)", async () => {
     vi.stubEnv("VERCEL_ENV", undefined as unknown as string);
     vi.stubEnv("NODE_ENV", undefined as unknown as string);
-    vi.stubEnv("POLAR_CHECKOUT_URL", undefined as unknown as string);
     const res = await GET(request());
-    expect(res.status).toBe(500);
+    expect(res.status).toBe(404);
     expect(res.headers.get("location")).toBeNull();
   });
 
-  it("VERCEL_ENV unset + NODE_ENV=staging + POLAR_CHECKOUT_URL unset returns 500", async () => {
+  it("VERCEL_ENV unset + NODE_ENV=staging + no override returns 404", async () => {
     vi.stubEnv("VERCEL_ENV", undefined as unknown as string);
     vi.stubEnv("NODE_ENV", "staging");
-    vi.stubEnv("POLAR_CHECKOUT_URL", undefined as unknown as string);
     const res = await GET(request());
-    expect(res.status).toBe(500);
+    expect(res.status).toBe(404);
     expect(res.headers.get("location")).toBeNull();
   });
 
-  it("VERCEL_ENV unset + NODE_ENV=test still serves the sandbox link (302)", async () => {
+  it("VERCEL_ENV unset + NODE_ENV=test serves an explicitly configured sandbox override (302)", async () => {
     vi.stubEnv("VERCEL_ENV", undefined as unknown as string);
     vi.stubEnv("NODE_ENV", "test");
-    vi.stubEnv("POLAR_CHECKOUT_URL", undefined as unknown as string);
+    setLiveRail("https://sandbox-api.polar.sh/v1/checkout-links/x/redirect");
     const res = await GET(request());
     expect(res.status).toBe(302);
     expect(res.headers.get("location")).toContain("sandbox-api.polar.sh");
   });
 
-  it("production rejects POLAR_CHECKOUT_URL whose hostname carries a sandbox label", async () => {
+  it("production rejects checkout URL override whose hostname carries a sandbox label", async () => {
     vi.stubEnv("VERCEL_ENV", "production");
-    vi.stubEnv("POLAR_CHECKOUT_URL", "https://foo-sandbox-api.example.com/x");
+    setLiveRail("https://foo-sandbox-api.example.com/x");
     const res = await GET(request());
     expect(res.status).toBe(500);
     expect(res.headers.get("location")).toBeNull();
@@ -283,27 +279,18 @@ describe("billing/checkout wave85 sandbox + raw-URL fail-closed", () => {
 
   it("production allows a host where 'sandbox' is only a substring (no sandbox label)", async () => {
     vi.stubEnv("VERCEL_ENV", "production");
-    vi.stubEnv("POLAR_CHECKOUT_URL", "https://sandboxpay.example.com/x");
+    setLiveRail("https://sandboxpay.example.com/x");
     const res = await GET(request());
     expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toBe("https://sandboxpay.example.com/x?reference_id=direct");
-  });
-
-  it("production with SET-but-blank override does not fall through to a valid POLAR_CHECKOUT_URL", async () => {
-    vi.stubEnv("VERCEL_ENV", "production");
-    vi.stubEnv("POLAR_CHECKOUT_URL", "https://buy.polar.sh/live-test-link");
-    vi.stubEnv("CHECKOUT_URL_DUANE_RETIREMENT_PLAYBOOK_V1", "   ");
-    const res = await GET(request());
-    expect(res.status).toBe(500);
-    expect(res.headers.get("location")).toBeNull();
+    expect(res.headers.get("location")).toBe("https://sandboxpay.example.com/x");
   });
 
   it("production DB rails with checkout_url omitted / null / 42, or a null / non-object rail, returns 500 each with no location", async () => {
     vi.stubEnv("VERCEL_ENV", "production");
     for (const rails of [
-      [{ provider: "polar", weight: 100, active: true }],
-      [{ provider: "polar", weight: 100, checkout_url: null, active: true }],
-      [{ provider: "polar", weight: 100, checkout_url: 42, active: true }],
+      [{ provider: "paddle", weight: 100, active: true }],
+      [{ provider: "paddle", weight: 100, checkout_url: null, active: true }],
+      [{ provider: "paddle", weight: 100, checkout_url: 42, active: true }],
       [null],
       ["not-an-object"],
     ]) {
@@ -317,22 +304,76 @@ describe("billing/checkout wave85 sandbox + raw-URL fail-closed", () => {
   it("production with rejecting MatrixRouter and valid live rails falls back 302 to the live url", async () => {
     vi.stubEnv("VERCEL_ENV", "production");
     adminModule.mockAdminClient = gateAdminClient(undefined, undefined, {
-      data: [{ provider: "polar", weight: 100, checkout_url: "https://buy.polar.sh/live-rail", active: true }],
+      data: [{ provider: "paddle", weight: 100, checkout_url: "https://buy.paddle.com/live-rail", active: true }],
       error: null,
     });
     vi.mocked(MatrixRouter.getNextProvider).mockRejectedValueOnce(new Error("router down"));
     const res = await GET(request());
     expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toBe("https://buy.polar.sh/live-rail?reference_id=direct");
+    expect(res.headers.get("location")).toBe("https://buy.paddle.com/live-rail");
   });
 
   it("production with rejecting MatrixRouter and a null-url rail fails closed 500 before the router", async () => {
     vi.stubEnv("VERCEL_ENV", "production");
     adminModule.mockAdminClient = gateAdminClient(undefined, undefined, {
-      data: [{ provider: "polar", weight: 100, checkout_url: null, active: true }],
+      data: [{ provider: "paddle", weight: 100, checkout_url: null, active: true }],
       error: null,
     });
     vi.mocked(MatrixRouter.getNextProvider).mockRejectedValueOnce(new Error("router down"));
+    const res = await GET(request());
+    expect(res.status).toBe(500);
+    expect(res.headers.get("location")).toBeNull();
+  });
+});
+
+describe("billing/checkout strict rail flags (item 5, 2026-10-15)", () => {
+  beforeEach(() => {
+    vi.stubEnv("VERCEL_ENV", "production");
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.mocked(MatrixRouter.getNextProvider).mockReset();
+    vi.mocked(MatrixRouter.getNextProvider).mockResolvedValue("paddle");
+  });
+
+  it("active: \"false\" (string) is not an active rail: the product is disabled, not sold", async () => {
+    adminModule.mockAdminClient = gateAdminClient(undefined, undefined, {
+      data: [{ provider: "paddle", weight: 100, checkout_url: "https://buy.paddle.com/live", active: "false" }],
+      error: null,
+    });
+    const res = await GET(request());
+    expect(res.status).toBe(404);
+    expect(res.headers.get("location")).toBeNull();
+  });
+
+  it("active: false (boolean) and active: 1 are not active rails", async () => {
+    for (const active of [false, 1]) {
+      adminModule.mockAdminClient = gateAdminClient(undefined, undefined, {
+        data: [{ provider: "paddle", weight: 100, checkout_url: "https://buy.paddle.com/live", active }],
+        error: null,
+      });
+      const res = await GET(request());
+      expect(res.status, `active=${JSON.stringify(active)}`).toBe(404);
+      expect(res.headers.get("location")).toBeNull();
+    }
+  });
+
+  it("active: \"true\" (string) enables the rail", async () => {
+    adminModule.mockAdminClient = gateAdminClient(undefined, undefined, {
+      data: [{ provider: "paddle", weight: 100, checkout_url: "https://buy.paddle.com/live", active: "true" }],
+      error: null,
+    });
+    const res = await GET(request());
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("https://buy.paddle.com/live");
+  });
+
+  it("an active rail with a null provider fails closed 500 (no \"null\" provider string)", async () => {
+    adminModule.mockAdminClient = gateAdminClient(undefined, undefined, {
+      data: [{ provider: null, weight: 100, checkout_url: "https://buy.paddle.com/live", active: true }],
+      error: null,
+    });
     const res = await GET(request());
     expect(res.status).toBe(500);
     expect(res.headers.get("location")).toBeNull();
@@ -478,7 +519,7 @@ describe("billing/checkout consent gate fails closed (CR remediation)", () => {
             };
           }
           if (table === "product_rails") {
-            return railsTableMock({ data: [{ provider: "polar", weight: 100, checkout_url: "https://buy.polar.sh/live-rail", active: true }], error: null });
+            return railsTableMock({ data: [{ provider: "paddle", weight: 100, checkout_url: "https://buy.paddle.com/live-rail", active: true }], error: null });
           }
           return consentsTableMock({ data: givenConsents(), error: null });
         },
@@ -507,7 +548,7 @@ describe("billing/checkout consent gate fails closed (CR remediation)", () => {
             };
           }
           if (table === "product_rails") {
-            return railsTableMock({ data: [{ provider: "polar", weight: 100, checkout_url: "https://buy.polar.sh/live-rail", active: true }], error: null });
+            return railsTableMock({ data: [{ provider: "paddle", weight: 100, checkout_url: "https://buy.paddle.com/live-rail", active: true }], error: null });
           }
           return consentsTableMock({ data: givenConsents(), error: null });
         },
@@ -547,7 +588,7 @@ describe("billing/checkout consent gate fails closed (CR remediation)", () => {
           };
         }
         if (table === "product_rails") {
-          return railsTableMock({ data: [{ provider: "polar", weight: 100, checkout_url: "https://buy.polar.sh/live-rail", active: true }], error: null });
+          return railsTableMock({ data: [{ provider: "paddle", weight: 100, checkout_url: "https://buy.paddle.com/live-rail", active: true }], error: null });
         }
         return productTableMock({ data: { id: PID, creator_id: OWNER_ID, release_sha256: RELEASE_SHA, checkout_mode: "live" }, error: null });
       },
@@ -566,22 +607,19 @@ describe("billing/checkout DB-driven rails (Sprint 15 heritage eradication)", ()
 
   it("serves the DB rail when product_rails has active rows (no env needed)", async () => {
     vi.stubEnv("VERCEL_ENV", "production");
-    vi.stubEnv("POLAR_CHECKOUT_URL", undefined as unknown as string);
     adminModule.mockAdminClient = gateAdminClient(undefined, undefined, {
-      data: [{ provider: "polar", weight: 100, checkout_url: "https://buy.polar.sh/from-db", active: true }],
+      data: [{ provider: "paddle", weight: 100, checkout_url: "https://buy.paddle.com/from-db", active: true }],
       error: null,
     });
     const res = await GET(request());
     expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toBe("https://buy.polar.sh/from-db?reference_id=direct");
+    expect(res.headers.get("location")).toBe("https://buy.paddle.com/from-db");
   });
 
   it("returns 404 when rails are configured but ALL inactive — the database disable defeats env/legacy fallback", async () => {
     vi.stubEnv("VERCEL_ENV", "production");
-    vi.stubEnv("CHECKOUT_URL_DUANE_RETIREMENT_PLAYBOOK_V1", "https://buy.polar.sh/env-override");
-    vi.stubEnv("POLAR_CHECKOUT_URL", "https://buy.polar.sh/live-legacy-default");
     adminModule.mockAdminClient = gateAdminClient(undefined, undefined, {
-      data: [{ provider: "polar", weight: 100, checkout_url: "https://buy.polar.sh/from-db", active: false }],
+      data: [{ provider: "paddle", weight: 100, checkout_url: "https://buy.paddle.com/from-db", active: false }],
       error: null,
     });
     const res = await GET(request());
@@ -591,17 +629,16 @@ describe("billing/checkout DB-driven rails (Sprint 15 heritage eradication)", ()
 
   it("serves the DB rail when SOME configured rails are active (inactive ones excluded from routing)", async () => {
     vi.stubEnv("VERCEL_ENV", "production");
-    vi.stubEnv("POLAR_CHECKOUT_URL", undefined as unknown as string);
     adminModule.mockAdminClient = gateAdminClient(undefined, undefined, {
       data: [
-        { provider: "polar", weight: 100, checkout_url: "https://buy.polar.sh/live-from-db", active: true },
+        { provider: "paddle", weight: 100, checkout_url: "https://buy.paddle.com/live-from-db", active: true },
         { provider: "paddle", weight: 50, checkout_url: "https://sandbox-api.polar.sh/inactive", active: false },
       ],
       error: null,
     });
     const res = await GET(request());
     expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toBe("https://buy.polar.sh/live-from-db?reference_id=direct");
+    expect(res.headers.get("location")).toBe("https://buy.paddle.com/live-from-db");
   });
 
   it("returns 500 when the product_rails query errors (fail closed)", async () => {
@@ -615,13 +652,12 @@ describe("billing/checkout DB-driven rails (Sprint 15 heritage eradication)", ()
     expect(res.headers.get("location")).toBeNull();
   });
 
-  it("falls through to the env override when the DB has no rails rows", async () => {
+  it("returns 404 when the DB has no rails rows (no env fallback)", async () => {
     vi.stubEnv("VERCEL_ENV", "production");
-    vi.stubEnv("CHECKOUT_URL_DUANE_RETIREMENT_PLAYBOOK_V1", "https://buy.polar.sh/env-override");
     adminModule.mockAdminClient = gateAdminClient(undefined, undefined, { data: [], error: null });
     const res = await GET(request());
-    expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toBe("https://buy.polar.sh/env-override?reference_id=direct");
+    expect(res.status).toBe(404);
+    expect(res.headers.get("location")).toBeNull();
   });
 
   it("returns 404 for an unknown product with no DB rails, no env override, and no legacy mapping", async () => {
@@ -652,7 +688,7 @@ describe("billing/checkout sandbox-rail purge regression (Sprint 17)", () => {
     vi.unstubAllEnvs();
   });
 
-  it("importer skips a sandbox rail, leaving 0 rows, so checkout reaches the CHECKOUT_URL_<PRODUCT> fallback (302, not 404)", async () => {
+  it("importer skips a sandbox rail, leaving 0 rows, so checkout is 404 (no CHECKOUT_URL_<PRODUCT> fallback)", async () => {
     // In-memory product_rails, shared by the importer and the route.
     const railRows: Array<Record<string, unknown>> = [];
     const store = {
@@ -675,35 +711,35 @@ describe("billing/checkout sandbox-rail purge regression (Sprint 17)", () => {
       store as never,
       "sandboxed-book",
       PID,
-      [{ provider: "polar", weight: 1, checkout_url: "https://sandbox-api.polar.sh/v1/checkout-links/x/redirect" }],
+      [{ provider: "paddle", weight: 1, checkout_url: "https://sandbox-api.polar.sh/v1/checkout-links/x/redirect" }],
       false,
     );
     expect(railRows).toHaveLength(0);
 
     vi.stubEnv("VERCEL_ENV", "production");
-    vi.stubEnv("CHECKOUT_URL_SANDBOXED_BOOK", "https://buy.polar.sh/live-sandboxed-book");
+    vi.stubEnv("CHECKOUT_URL_SANDBOXED_BOOK", "https://buy.paddle.com/live-sandboxed-book");
     adminModule.mockAdminClient = store;
     const res = await GET(new NextRequest("http://localhost:3000/api/billing/checkout?product=sandboxed-book"));
-    expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toBe("https://buy.polar.sh/live-sandboxed-book?reference_id=direct");
+    expect(res.status).toBe(404);
+    expect(res.headers.get("location")).toBeNull();
   });
 
   it("importer aborts on a malformed checkout_url and ignores stray rail fields", async () => {
     const railRows: Array<Record<string, unknown>> = [];
     const store = { from: () => ({ upsert: async (row: Record<string, unknown>) => (railRows.push(row), { error: null }) }) };
     await expect(
-      portRails(store as never, "bad-book", PID, [{ provider: "polar", weight: 1, checkout_url: "not a url" }], false),
+      portRails(store as never, "bad-book", PID, [{ provider: "paddle", weight: 1, checkout_url: "not a url" }], false),
     ).rejects.toThrow(/malformed checkout_url/);
-    const stray = { provider: "polar", weight: 1, checkout_url: "https://buy.polar.sh/x", product_id: "other" };
+    const stray = { provider: "paddle", weight: 1, checkout_url: "https://buy.paddle.com/x", product_id: "other" };
     await portRails(store as never, "stray-book", PID, [stray], false);
-    expect(railRows).toEqual([{ product_id: PID, provider: "polar", weight: 1, checkout_url: "https://buy.polar.sh/x", active: true }]);
+    expect(railRows).toEqual([{ product_id: PID, provider: "paddle", weight: 1, checkout_url: "https://buy.paddle.com/x", active: true }]);
   });
 
   it("importer still ports a live rail as active", async () => {
     const railRows: Array<Record<string, unknown>> = [];
     const store = { from: () => ({ upsert: async (row: Record<string, unknown>) => (railRows.push(row), { error: null }) }) };
-    await portRails(store as never, "live-book", PID, [{ provider: "polar", weight: 100, checkout_url: "https://buy.polar.sh/live" }], false);
-    expect(railRows).toEqual([{ product_id: PID, provider: "polar", weight: 100, checkout_url: "https://buy.polar.sh/live", active: true }]);
+    await portRails(store as never, "live-book", PID, [{ provider: "paddle", weight: 100, checkout_url: "https://buy.paddle.com/live" }], false);
+    expect(railRows).toEqual([{ product_id: PID, provider: "paddle", weight: 100, checkout_url: "https://buy.paddle.com/live", active: true }]);
   });
 });
 
@@ -804,41 +840,9 @@ describe("billing/checkout attribution forwarding (Sprint 17 P3)", () => {
     vi.unstubAllEnvs();
   });
 
-  const go = async (qs: string) => {
-    vi.stubEnv("VERCEL_ENV", "preview");
-    adminModule.mockAdminClient = gateAdminClient();
-    const res = await GET(new NextRequest(`${CHECKOUT_URL}${qs}`));
-    expect(res.status).toBe(302);
-    return new URL(res.headers.get("location")!).searchParams.get("reference_id");
-  };
-
-  it("forwards src and dub_id as reference_id=src:dub_id", async () => {
-    expect(await go("&src=yt-desc&dub_id=abc123")).toBe("yt-desc:abc123");
-  });
-
-  it("defaults src to direct", async () => {
-    expect(await go("&dub_id=abc123")).toBe("direct:abc123");
-    expect(await go("")).toBe("direct");
-  });
-
-  it.each(["&src=%3Cscript%3E", "&src=a%26reference_id%3Devil", `&src=${"x".repeat(65)}`])(
-    "drops unsafe attribution values (%s)",
-    async (qs) => {
-      expect(await go(qs)).toBe("direct");
-    },
-  );
-
-  it("replaces, never duplicates, a reference_id already on the provider link", async () => {
-    vi.stubEnv("VERCEL_ENV", "preview");
-    adminModule.mockAdminClient = gateAdminClient(undefined, undefined, {
-      data: [{ provider: "polar", weight: 100, checkout_url: "https://buy.polar.sh/live-rail?reference_id=stale", active: true }],
-      error: null,
-    });
-    const res = await GET(new NextRequest(`${CHECKOUT_URL}&src=ig`));
-    expect(new URL(res.headers.get("location")!).searchParams.getAll("reference_id")).toEqual(["ig"]);
-  });
-
-  it("does not add reference_id to non-Polar rails (Paddle reads custom_data, not the link query)", async () => {
+  // reference_id forwarding was Polar-only; Polar is no longer routable (PR 102), so no
+  // provider forwards attribution through the link. Paddle reads custom_data, not the link query.
+  it("does not add reference_id to a Paddle rail, whatever src the buyer arrived with", async () => {
     vi.stubEnv("VERCEL_ENV", "preview");
     vi.mocked(MatrixRouter.getNextProvider).mockResolvedValueOnce("paddle");
     adminModule.mockAdminClient = gateAdminClient(undefined, undefined, {
@@ -846,6 +850,54 @@ describe("billing/checkout attribution forwarding (Sprint 17 P3)", () => {
       error: null,
     });
     const res = await GET(new NextRequest(`${CHECKOUT_URL}&src=ig`));
+    expect(res.status).toBe(302);
     expect(res.headers.get("location")).toBe("https://pay.paddle.io/checkout/x");
+  });
+});
+
+describe("billing/checkout fail-closed without rails, and Polar never routes (PR 102)", () => {
+  beforeEach(() => {
+    vi.mocked(MatrixRouter.getNextProvider).mockClear();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("returns 404 with no location when there are no rails, even with a CHECKOUT_URL override set", async () => {
+    vi.stubEnv("VERCEL_ENV", "production");
+    vi.stubEnv("CHECKOUT_URL_DUANE_RETIREMENT_PLAYBOOK_V1", "https://buy.paddle.com/override-must-not-route");
+    adminModule.mockAdminClient = gateAdminClient(undefined, undefined, { data: [], error: null });
+    const res = await GET(request());
+    expect(res.status).toBe(404);
+    expect(res.headers.get("location")).toBeNull();
+    expect(MatrixRouter.getNextProvider).not.toHaveBeenCalled();
+  });
+
+  it("returns 404 and never calls the router when the only active rail is Polar", async () => {
+    vi.stubEnv("VERCEL_ENV", "production");
+    adminModule.mockAdminClient = gateAdminClient(undefined, undefined, {
+      data: [{ provider: "polar", weight: 100, checkout_url: "https://buy.polar.sh/live-only-polar", active: true }],
+      error: null,
+    });
+    const res = await GET(request());
+    expect(res.status).toBe(404);
+    expect(res.headers.get("location")).toBeNull();
+    expect(MatrixRouter.getNextProvider).not.toHaveBeenCalled();
+  });
+
+  it("routes to the Paddle rail, never the Polar rail, when both are configured", async () => {
+    vi.stubEnv("VERCEL_ENV", "production");
+    adminModule.mockAdminClient = gateAdminClient(undefined, undefined, {
+      data: [
+        { provider: "polar", weight: 100, checkout_url: "https://buy.polar.sh/live-polar", active: true },
+        { provider: "paddle", weight: 1, checkout_url: "https://buy.paddle.com/live-paddle", active: true },
+      ],
+      error: null,
+    });
+    vi.mocked(MatrixRouter.getNextProvider).mockResolvedValueOnce("paddle");
+    const res = await GET(request());
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("https://buy.paddle.com/live-paddle");
   });
 });

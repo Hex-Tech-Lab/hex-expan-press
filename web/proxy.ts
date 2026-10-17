@@ -14,7 +14,47 @@ import { createServerClient } from "@supabase/ssr";
  * Cookie options are EXPLICIT — the @supabase/ssr default is httpOnly:false
  * (verified v0.12.7 constants.js), which would defeat the Wave 5 objective.
  */
+/**
+ * Host boundary (ADR 0061). pay.expanpress.com is the only checkout origin: it
+ * serves checkout pages, the checkout API, the legal pages and its own robots
+ * file, and nothing else. expanpress.com sends checkout paths to pay.
+ */
+const PAY_HOST = "pay.expanpress.com";
+const MAIN_HOST = "expanpress.com";
+const PAY_ORIGIN = "https://pay.expanpress.com";
+const MAIN_ORIGIN = "https://expanpress.com";
+const PAY_ALLOWED_PREFIXES = ["/checkout/", "/api/billing/checkout/", "/_next/", "/assets/"];
+const PAY_ALLOWED_EXACT_API = ["/api/billing/checkout"];
+const PAY_ALLOWED_EXACT = ["/terms.html", "/privacy.html", "/refund-policy.html", "/legal/providers.html", "/favicon.ico"];
+
+// The checkout API, bounded to the exact route or its sub-paths. Used on BOTH hosts so a main-host
+// forward and the pay-host allowlist agree: a looser main-host match (startsWith) forwarded
+// /api/billing/checkoutevil to pay, which bounced it back to main in a loop (Cubic P2, 2026-10-15).
+const isPayCheckoutApi = (path: string): boolean => PAY_ALLOWED_EXACT_API.includes(path) || path.startsWith("/api/billing/checkout/");
+
 export async function proxy(request: NextRequest): Promise<NextResponse> {
+  const url = new URL(request.url);
+  const host = url.hostname.toLowerCase();
+  const path = url.pathname;
+  // Test-only probe for the cross-origin E2E: reports the hostname the proxy sees. Off in production builds
+  // and unless the flag is explicitly set.
+  if (process.env.NODE_ENV !== "production" && process.env.E2E_PROXY_HOST_DIAGNOSTIC === "1" && path === "/__e2e/proxy-host") {
+    return NextResponse.json({ requestUrlHostname: url.hostname, hostHeader: request.headers.get("host") });
+  }
+  if (host === PAY_HOST) {
+    if (path === "/robots.txt") return NextResponse.rewrite(new URL("/robots-pay.txt", request.url));
+    const allowed = PAY_ALLOWED_EXACT.includes(path) || isPayCheckoutApi(path) || PAY_ALLOWED_PREFIXES.some((p) => path.startsWith(p));
+    // Pay serves checkout, legal pages and their assets only. Everything else is a hard 404: no redirect
+    // to the main site, so a pay URL never bounces to the apex or www.
+    if (!allowed) return new NextResponse(null, { status: 404 });
+    return NextResponse.next({ request });
+  }
+  if (host === MAIN_HOST && (path.startsWith("/checkout/") || isPayCheckoutApi(path))) {
+    return NextResponse.redirect(new URL(path + url.search, PAY_ORIGIN), 307);
+  }
+  // Session refresh is needed only on creator-portal routes and the auth callback.
+  if (!(path.startsWith("/creator") || path === "/auth/callback")) return NextResponse.next({ request });
+
   let response = NextResponse.next({ request });
 
   // Attributes forced onto every Set-Cookie. The storage-key `name` is kept
@@ -71,5 +111,6 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
 }
 
 export const config = {
-  matcher: ["/creator/:path*", "/auth/callback"],
+  // Every page request, so the host boundary applies. Static build assets are skipped.
+  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
 };

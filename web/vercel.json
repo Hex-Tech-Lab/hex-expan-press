@@ -1,11 +1,5 @@
 {
-  "regions": ["cdg1"],
-  "headers": [
-    {
-      "source": "/c/(.*)",
-      "headers": [
-        { "key": "X-Robots-Tag", "value": "noindex, nofollow" }
-      ]
-    }
+  "regions": [
+    "cdg1"
   ]
 }

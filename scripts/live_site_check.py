@@ -11,9 +11,11 @@ Usage: python3 scripts/live_site_check.py [--local]
 import argparse
 import html
 import json
+import os
 import re
 import subprocess
 import sys
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -23,8 +25,8 @@ from book_config import QA, REPO  # noqa: E402
 CFG = json.loads((REPO / "payments/config.duane.json").read_text())  # the site's config, not the book's
 BASE = "https://expanpress.com"
 PAGES = {"/": "index.html",
-         "/c/retirearly500k/": "c/retirearly500k/index.html",
-         f"/c/{CFG['site_slug']}/": f"c/{CFG['site_slug']}/index.html"}
+         "/books/retirearly500k/": "c/retirearly500k/index.html",
+         f"/books/{CFG['site_slug']}/": f"c/{CFG['site_slug']}/index.html"}
 PRICE_SLOT = re.compile(r'class="(?:price|card-price)">\$(\d+)')
 TITLE_SLOT = re.compile(r"<h1>(.*?)</h1>|class=\"cover-title\">(.*?)</p>", re.S)
 HEAD_TITLE = re.compile(r"<title>(.*?)(?: — [^<]*)?</title>", re.S)  # " — with Duane" suffix allowed
@@ -34,9 +36,12 @@ PRIMARY = re.compile(r'<a[^>]*data-checkout-slot="primary"[^>]*>')
 
 
 def fetch(path, local):
-    if local:
-        return (REPO / "web" / PAGES[path]).read_text()
-    req = urllib.request.Request(BASE + path + "?nocache=1", headers={"User-Agent": "expan-site-check"})
+    # --local reads the SSR pages from a running `next start` / `next dev` server (default http://localhost:3000).
+    base = os.environ.get("SITE_LOCAL_BASE", "http://localhost:3000") if local else BASE
+    # Only http(s) reaches urlopen: a file: or custom scheme in the environment must not be fetched.
+    if urllib.parse.urlsplit(base).scheme not in ("http", "https"):
+        raise SystemExit(f"SITE_LOCAL_BASE must be http or https, got {base.split(':', 1)[0]!r}")
+    req = urllib.request.Request(base + path + "?nocache=1", headers={"User-Agent": "expan-site-check"})
     with urllib.request.urlopen(req, timeout=20) as r:
         return r.read().decode()
 
@@ -62,7 +67,7 @@ def main():
             probs.append("no price slot found")
         probs += [f"price ${p} != ${want_price}" for p in prices if p != want_price]
         # the creator hub's <h1>/<title>/og are the creator's; only its product cover carries the book title
-        hub = path == "/c/retirearly500k/"
+        hub = path == "/books/retirearly500k/"
         titles = []
         for h1, cover in TITLE_SLOT.findall(page):
             if hub and not cover:

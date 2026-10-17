@@ -29,17 +29,18 @@ async function record503Audit(details: { provider?: string; sale_id?: string; re
 /** Run the 503 audit for at most payments.http_timeout_ms (the webhook's short internal-call
  *  budget), then abort the insert so a stalled Supabase can't pile up open requests. The race
  *  keeps the response bounded even if the abort doesn't settle promptly. */
-async function auditBounded(details: { provider?: string; sale_id?: string; reason: string }): Promise<void> {
+export async function auditBounded(
+  details: { provider?: string; sale_id?: string; reason: string },
+  run: typeof record503Audit = record503Audit,
+): Promise<void> {
   const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<void>((resolve) => {
     timer = setTimeout(() => { controller.abort(); resolve(); }, GLOBAL.payments.http_timeout_ms);
   });
-  try {
-    await Promise.race([record503Audit(details, controller.signal), timeout]);
-  } finally {
-    clearTimeout(timer);
-  }
+  // .finally, not try/finally: eslint-plugin-security-node crashes on a TryStatement with no catch.
+  // The async wrapper turns a synchronous throw from run into a rejection, so .finally still clears the timer.
+  await Promise.race([(async () => run(details, controller.signal))(), timeout]).finally(() => clearTimeout(timer));
 }
 
 // Webhooks are small JSON bodies (KBs) — cap buffering at 1 MiB (the Wave 4
@@ -166,11 +167,8 @@ async function quarantineTerminalEvent(
   const timeout = new Promise<void>((resolve) => {
     timer = setTimeout(() => { controller.abort(); resolve(); }, GLOBAL.payments.http_timeout_ms);
   });
-  try {
-    await Promise.race([insertTerminalRejectAudit(headers, bodyBuffer, reason, controller.signal), timeout]);
-  } finally {
-    clearTimeout(timer);
-  }
+  // .finally, not try/finally: see auditBounded.
+  await Promise.race([insertTerminalRejectAudit(headers, bodyBuffer, reason, controller.signal), timeout]).finally(() => clearTimeout(timer));
 }
 
 async function insertTerminalRejectAudit(
@@ -193,8 +191,8 @@ async function insertTerminalRejectAudit(
       })
       .abortSignal(signal);
     if (error) console.error("[billing-webhook] terminal-reject quarantine insert failed:", error.message);
-  } catch (qErr) {
-    console.error("[billing-webhook] terminal-reject quarantine exception:", qErr);
+  } catch (err) {
+    console.error("[billing-webhook] terminal-reject quarantine exception:", err);
   }
 }
 

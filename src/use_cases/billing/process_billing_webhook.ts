@@ -12,6 +12,7 @@ import { appendSale, appendRefund, appendRefundReversal, findSaleAsync, findRefu
 import { computeSplit, usdToCents } from "../../../payments/src/split.ts";
 import { effectiveCreatorSplitPctAsync } from "../../../payments/src/terms.ts";
 import { resolveProductByAlias, withIdempotencyLock, WebhookInFlightError } from "../../../payments/src/webhook_core.ts";
+import { deliverSaleSafely } from "../../../payments/src/delivery.ts";
 import { GLOBAL } from "../../../payments/src/settings_registry.ts";
 
 type LockedResult = { status: number; payload: Record<string, unknown> };
@@ -503,6 +504,8 @@ export async function processBillingWebhookUseCase(
           currency: cfg.currency,
           ...(saleEvent.attributionId ? { attribution_id: saleEvent.attributionId } : {})
         });
+        // Receipt and download link, after the ledger write. Never throws: a delivery failure is logged and does not fail the webhook.
+        await deliverSaleSafely({ saleId: saleEvent.saleId, productAlias: saleEvent.productId, buyerEmail: saleEvent.buyerEmail });
         return { status: 200, payload: { ok: true, recorded: true, sale_id: saleEvent.saleId } };
       },
     );
