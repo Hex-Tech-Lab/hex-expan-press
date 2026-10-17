@@ -44,6 +44,17 @@ export interface DeliveryDeps {
   replyTo: string;
   now?: () => Date;
   newToken?: () => string;
+  /** Deadline for the mail send, which runs while the sale lock is held. Defaults to payments.http_timeout_ms. */
+  timeoutMs?: number;
+}
+
+/** Rejects if the promise has not settled within ms. The send may still complete after a timeout. */
+function withDeadline<T>(work: Promise<T>, ms: number, label: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+  });
+  return Promise.race([work, deadline]).finally(() => clearTimeout(timer));
 }
 
 export type DeliveryOutcome = "sent" | "duplicate" | "no_email" | "no_release_file";
@@ -75,7 +86,8 @@ export async function deliverSale(
     const link = await deps.createShortLink(`${deps.origin}/d/${token}`);
     const days = GLOBAL.delivery.link_ttl_days;
     const title = product.title;
-    await deps.sendEmail({
+    const deadlineMs = deps.timeoutMs ?? GLOBAL.payments.http_timeout_ms;
+    await withDeadline(deps.sendEmail({
       to: input.buyerEmail,
       subject: `Your download: ${title}`,
       text:
@@ -87,7 +99,7 @@ export async function deliverSale(
         `<p>Download your copy here (the link is valid for ${days} days):<br><a href="${esc(link)}">${esc(link)}</a></p>` +
         `<p>Questions? Reply to this email or write to ${esc(deps.replyTo)}.</p>`,
       replyTo: deps.replyTo,
-    });
+    }), deadlineMs, "email send");
   } catch (err) {
     // Free the sale's one link slot so a webhook retry can deliver. The original error still propagates.
     try {
