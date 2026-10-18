@@ -9,13 +9,13 @@
  *
  * Failure policy: the ledger write is the money record and stays authoritative. A delivery failure
  * is rethrown to the webhook, which answers 500 so the provider retries. Its download_events row is
- * released first. A sale counts as delivered only once its send is confirmed (an audit_log row with
+ * released only on a definite provider rejection; an ambiguous failure keeps the link valid. A sale counts as delivered only once its send is confirmed (an audit_log row with
  * event DELIVERY_LINK_SENT). A retry finding an unconfirmed link row frees it and sends again, so a
  * failed send whose release also failed is never acknowledged without a delivered link.
  */
 import { createHash, randomBytes } from "node:crypto";
 import { GLOBAL } from "./settings_registry.ts";
-import { sendEmail as realSendEmail } from "./email.ts";
+import { EmailSendError, sendEmail as realSendEmail } from "./email.ts";
 import { getSupabaseAdmin } from "./supabase_admin.ts";
 
 export const TOKEN_RE = /^[A-Za-z0-9_-]{43}$/;
@@ -115,11 +115,15 @@ export async function deliverSale(
       replyTo: deps.replyTo,
     }), deadlineMs, "email send");
   } catch (err) {
-    // Free the sale's one link slot so a webhook retry can deliver. The original error still propagates.
-    try {
-      await deps.db.releaseLinkIssued({ saleId: input.saleId, tokenHash: hash });
-    } catch (releaseErr) {
-      console.error(`[delivery] sale ${input.saleId}: could not release link row: ${(releaseErr as Error).message}`);
+    // Release the link only on a definite provider rejection: nothing was sent, so the slot can be reused.
+    // An ambiguous failure may still have been accepted, so its link stays valid. A retry may then send
+    // a second email (an accepted duplicate). The original error still propagates.
+    if (err instanceof EmailSendError && err.definite) {
+      try {
+        await deps.db.releaseLinkIssued({ saleId: input.saleId, tokenHash: hash });
+      } catch (releaseErr) {
+        console.error(`[delivery] sale ${input.saleId}: could not release link row: ${(releaseErr as Error).message}`);
+      }
     }
     throw err;
   }
