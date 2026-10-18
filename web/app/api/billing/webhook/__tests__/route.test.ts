@@ -1,15 +1,15 @@
-// Regression tests for the NATIVE billing webhook route handler (Wave 6 —
+// Regression test for the NATIVE billing webhook route handler (Wave 6 —
 // replaces the shim-bridged legacy handler; the shim-era bridge tests died
 // with web/app/api/_legacy).
 //
-// Contract carried over from the shim era (external-review-motivated):
-//   1. A VALID provider signature over the raw body must verify end-to-end.
-//   2. A tampered body must reject 400 when signatures are enforced.
-//   3. Oversized streamed bodies must be rejected 413 mid-read (no Content-
-//      Length trust) so a flood of huge POSTs cannot buffer in memory.
-//   4. Multi-byte UTF-8 must survive byte-exactly (the route buffers via
-//      Buffer.concat, never string concatenation) — proven by a valid HMAC
-//      over a body whose signature only verifies if every byte survives.
+// Covers one contract in this file: oversized streamed bodies are rejected
+// 413 mid-read (no Content-Length trust), so a flood of huge POSTs cannot
+// buffer in memory.
+//
+// Not covered here (open debt, CLAUDE.md Tooling Debt):
+//   - a VALID provider signature verifying end-to-end;
+//   - a tampered body rejecting 400 when signatures are enforced;
+//   - multi-byte UTF-8 surviving byte-exactly through Buffer.concat.
 import { describe, it, expect, afterEach, vi } from "vitest";
 import type { NextRequest } from "next/server";
 import { POST as billingPost } from "../route";
@@ -20,7 +20,7 @@ const asNextRequest = (req: Request): NextRequest => req as unknown as NextReque
 
 const WEBHOOK_URL = "http://localhost:3000/api/billing/webhook";
 
-describe("billing webhook native route (Wave 6)", () => {
+describe("billing webhook native route: streamed body cap (413)", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
   });
