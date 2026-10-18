@@ -11,13 +11,13 @@ expect(){ # expect <allow|deny> <command>
 # SC2016: single quotes are deliberate. Each string is a literal command payload
 # the hook must see unexpanded (e.g. the text '$RESEND_API_KEY', not its value).
 # shellcheck disable=SC2016
-for c in 'env' 'printenv' 'printenv RESEND_API_KEY' 'set''ls && set' 'export -p' 'declare -p' 'cat /proc/self/environ' \
+for c in 'env' 'printenv' 'printenv RESEND_API_KEY' 'set' 'ls && set' 'export -p' 'declare -p' 'cat /proc/self/environ' \
   'cat .env' 'sed -n 1,5p .env.local' 'head -3 ./.env' 'echo $RESEND_API_KEY' 'printf "%s" "$DUB_API_KEY"' 'echo ${SUPABASE_SECRET_KEY}' 'env | grep KEY' \
   'echo $DATABASE_URL' 'printenv REDIS_URL' 'printf "%s" "$SESSION_COOKIE"' 'echo ${POSTGRES_URL}' 'echo $SUPABASE_CREDENTIALS'; do
   expect deny "$c"
 done
 # shellcheck disable=SC2016
-for c in 'vercel env ls production''env NODE_ENV=test node x.js' 'set -e' 'grep -c "^RESEND_API_KEY=" .env' \
+for c in 'vercel env ls production' 'env NODE_ENV=test node x.js' 'set -e' 'grep -c "^RESEND_API_KEY=" .env' \
   "grep '^RESEND_API_KEY=' .env | cut -d= -f2- | vercel env add RESEND_API_KEY production" 'echo "hello world"' 'printf "%s" "$NODE_ENV"' 'git status'; do
   expect allow "$c"
 done
