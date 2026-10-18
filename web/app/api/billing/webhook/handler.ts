@@ -16,7 +16,11 @@ async function record503Audit(details: { provider?: string; sale_id?: string; re
   try {
     const url = process.env.SUPABASE_URL;
     const key = process.env.SUPABASE_SECRET_KEY;
-    if (!url || !key) return; // unconfigured Supabase: nothing durable to write
+    if (!url || !key) {
+      // Unconfigured Supabase: nothing durable to write. Logged so the missing row is visible to operators.
+      console.error(`[billing-webhook] audit skipped: SUPABASE_URL or SUPABASE_SECRET_KEY unset (event=WEBHOOK_503_RETRYING reason=${details.reason})`);
+      return;
+    }
     const { createClient } = await import("@supabase/supabase-js");
     const supabase = createClient(url, key);
     const { error } = await supabase.from("audit_log").insert({ event: "WEBHOOK_503_RETRYING", details }).abortSignal(signal);
@@ -170,7 +174,7 @@ async function quarantineTerminalEvent(
   await Promise.race([insertTerminalRejectAudit(headers, bodyBuffer, reason, controller.signal), timeout]).finally(() => clearTimeout(timer));
 }
 
-async function insertTerminalRejectAudit(
+export async function insertTerminalRejectAudit(
   headers: Record<string, string | string[] | undefined>,
   bodyBuffer: Buffer,
   reason: string,
@@ -179,7 +183,10 @@ async function insertTerminalRejectAudit(
   try {
     const url = process.env.SUPABASE_URL;
     const key = process.env.SUPABASE_SECRET_KEY;
-    if (!url || !key) return;
+    if (!url || !key) {
+      console.error(`[billing-webhook] audit skipped: SUPABASE_URL or SUPABASE_SECRET_KEY unset (event=WEBHOOK_TERMINAL_REJECT reason=${reason})`);
+      return;
+    }
     const { createClient } = await import("@supabase/supabase-js");
     const supabase = createClient(url, key);
     const { error } = await supabase
