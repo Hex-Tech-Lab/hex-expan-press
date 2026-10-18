@@ -1,0 +1,22 @@
+payments/test/delivery_db_adapter.test.ts
+  s_6625bc67577472::t_1937cd39e08e4b 165-171
+  s_6625bc67577472::t_f2b06752a71398 1-164,172-183
+web/app/checkout/[productId]/__tests__/page.test.ts
+  s_6625bc67577472::t_addb90f2b33a88 1-129
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "17a6fc1efe6c5fb526b47366836bc3f5def5b39a",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
