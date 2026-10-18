@@ -457,12 +457,13 @@ export async function processBillingWebhookUseCase(
     const saleEvent = event as SaleCompletedEvent;
 
     // 5a. Distributed idempotency lock: concurrent/duplicate deliveries for the same sale
-    // take the lock. Already-recorded sale → return normally (no double payout); lock held
-    // by an in-flight delivery → WebhookInFlightError → 503 so the provider retries.
+    // take the lock. Already-recorded sale → the lock holder re-attempts delivery under the lock
+    // (no double payout); lock held by another delivery → WebhookInFlightError → 503 so the provider retries.
+    // A recorded sale is never acknowledged from outside the lock: the holder may still be delivering it,
+    // or may have failed. Only a retry that takes the lock can confirm delivery.
     // withIdempotencyLock also frees the slot when nothing was written (payload.recorded !== true).
-    await underLockOrConfirmed(
+    await withIdempotencyLock(
       `lock:sale:${saleEvent.providerName}:${saleEvent.saleId}`,
-      async () => (await findSaleAsync(saleEvent.providerName, saleEvent.saleId)) !== null,
       async () => {
         // Duplicate guard: if sale already recorded, do not duplicate splits. A prior attempt may have
         // failed after the ledger write, so re-attempt delivery; it is idempotent per sale, and a

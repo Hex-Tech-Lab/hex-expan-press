@@ -203,12 +203,18 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
     expect(setnx.mock.calls[0]?.[0]).toBe("lock:sale:polar:sale_dup_1");
   });
 
-  it("lock held but the sale is already durably recorded → acknowledged (resolves), no re-write", async () => {
+  // A recorded sale is not proof of delivery: the lock holder may still be sending the receipt, or may have
+  // failed it. Contention on a recorded sale is therefore retryable (503), never an acknowledgement.
+  it("lock held while the sale is durably recorded → rejects as in-flight, never acknowledged, no re-write", async () => {
+    delivery.deliverSaleForWebhook.mockClear();
     await appendSale(BASE_SALE, salesFilePath);
     setnx.mockResolvedValue(0);
-    await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(SALE)]);
+    await expect(processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(SALE)])).rejects.toMatchObject({
+      name: "WebhookInFlightError",
+    });
     const rows = readFileSync(salesFilePath, "utf8").split(/\r?\n/).filter(Boolean);
     expect(rows).toHaveLength(1);
+    expect(delivery.deliverSaleForWebhook).not.toHaveBeenCalled();
   });
 
   it("partial refund (amount < original sale) → rejected as validation failure, never recorded", async () => {
