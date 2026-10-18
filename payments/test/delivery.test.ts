@@ -7,7 +7,7 @@ const arg = <T>(m: { mock: { calls: unknown[][] } }, i = 0): T => m.mock.calls[i
 const NOW = new Date("2026-10-15T12:00:00Z");
 const PRODUCT = { id: "11111111-1111-4111-8111-111111111111", title: "500K Playbook", releasePath: "p/file.pdf" };
 
-function fakes(over: Partial<DeliveryDeps> & { product?: unknown; inserted?: boolean } = {}) {
+function fakes(over: Partial<DeliveryDeps> & { product?: unknown; inserted?: boolean; confirmed?: boolean } = {}) {
   const recordLinkIssued = vi.fn(async () => over.inserted ?? true);
   const releaseLinkIssued = vi.fn(async () => undefined);
   const sendEmail = vi.fn(async () => ({ id: "e1" }));
@@ -17,6 +17,9 @@ function fakes(over: Partial<DeliveryDeps> & { product?: unknown; inserted?: boo
       productForAlias: vi.fn(async () => (over.product === undefined ? PRODUCT : (over.product as typeof PRODUCT | null))),
       recordLinkIssued,
       releaseLinkIssued,
+      releaseOrphanedLinks: vi.fn(async () => undefined),
+      deliveryConfirmed: vi.fn(async () => over.confirmed ?? false),
+      confirmDelivery: vi.fn(async () => undefined),
     },
     sendEmail, createShortLink, origin: "https://expanpress.com", replyTo: "support@expanpress.com",
     now: () => NOW, newToken: () => "T".repeat(43),
@@ -57,8 +60,8 @@ describe("deliverSale", () => {
     expect(mail.text).not.toMatch(/instant/i);
   });
 
-  it("is a no-op on a second webhook for the same sale", async () => {
-    const f = fakes({ inserted: false });
+  it("is a no-op on a second webhook for the same sale once its delivery is confirmed", async () => {
+    const f = fakes({ inserted: false, confirmed: true });
     expect(await deliverSale(sale, f.deps)).toBe("duplicate");
     expect(f.sendEmail).not.toHaveBeenCalled();
     expect(f.createShortLink).not.toHaveBeenCalled();
@@ -208,6 +211,39 @@ describe("deliverSale retry after a failed send (stateful link slot)", () => {
     expect(slots.size).toBe(1);
     const retryText = (f.sendEmail.mock.calls[1] as unknown as [{ text: string }])[0].text;
     expect(retryText).toContain("U".repeat(43));
+  });
+});
+
+describe("deliverSaleForWebhook never acknowledges an unconfirmed sale", () => {
+  it("a failed send whose release also fails: the retry delivers, it does not answer duplicate", async () => {
+    const rows = new Set<string>();
+    const confirmed = new Set<string>();
+    const f = fakes();
+    f.deps.db.recordLinkIssued = vi.fn(async (row: { saleId: string }) => {
+      if (rows.has(row.saleId)) return false;
+      rows.add(row.saleId);
+      return true;
+    });
+    // The release fails, so the stale link row survives the failed send.
+    f.deps.db.releaseLinkIssued = vi.fn(async () => {
+      throw new Error("db down");
+    });
+    f.deps.db.releaseOrphanedLinks = vi.fn(async (saleId: string) => {
+      rows.delete(saleId);
+    });
+    f.deps.db.deliveryConfirmed = vi.fn(async (saleId: string) => confirmed.has(saleId));
+    f.deps.db.confirmDelivery = vi.fn(async ({ saleId }: { saleId: string }) => {
+      confirmed.add(saleId);
+    });
+    f.sendEmail.mockRejectedValueOnce(new Error("resend down"));
+
+    await expect(deliverSaleForWebhook(sale, f.deps)).rejects.toThrow("resend down");
+    expect(rows.has("s-1")).toBe(true);
+    expect(confirmed.has("s-1")).toBe(false);
+
+    await expect(deliverSaleForWebhook(sale, f.deps)).resolves.toBeUndefined();
+    expect(f.sendEmail).toHaveBeenCalledTimes(2);
+    expect(confirmed.has("s-1")).toBe(true);
   });
 });
 
