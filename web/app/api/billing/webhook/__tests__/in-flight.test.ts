@@ -5,6 +5,7 @@
 //  - dead-letter/infra failure → 500 (retryable).
 import { describe, it, expect, vi } from "vitest";
 import type { NextRequest } from "next/server";
+import { WebhookValidationError } from "../../../../../../src/domain/webhook/webhook_errors";
 
 const useCase = vi.hoisted(() => ({ error: null as Error | null, outcome: undefined as unknown }));
 vi.mock("../../../../../../src/use_cases/billing/process_billing_webhook", () => ({
@@ -30,7 +31,8 @@ describe("billing webhook — HTTP status contract (Wave 7 / 7.2)", () => {
   });
 
   it("mismatched refund (flagged for manual review) → 400 Bad Request", async () => {
-    useCase.error = new Error(
+    // The use case throws the typed WebhookValidationError (process_billing_webhook.ts), never a plain Error.
+    useCase.error = new WebhookValidationError(
       "Webhook validation failed: refund amount 1000c != sale 3900c for sale s1 — full reversals only, flagged for manual review",
     );
     const res = await post();

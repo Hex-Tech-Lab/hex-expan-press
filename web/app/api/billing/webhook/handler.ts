@@ -108,7 +108,6 @@ async function handleWebhook(request: NextRequest, adapters: WebhookAdapters): P
       );
     }
     console.error("Billing webhook error:", err);
-    const message = err instanceof Error ? err.message : String(err);
     // Ledger schema violations are permanent for the payload (e.g. sub-cent amounts):
     // a 500 would make Paddle/Polar retry forever. Terminal 400 halts the retry loop;
     // the raw event is quarantined durably (sha256 + provider + sale id — the raw body
@@ -117,9 +116,9 @@ async function handleWebhook(request: NextRequest, adapters: WebhookAdapters): P
       await quarantineTerminalEvent(headers, bodyBuffer, err.name);
       return NextResponse.json({ ok: false, error: "Bad Request" }, { status: 400 });
     }
-    // Typed classification first (sprint-10 F5); the substring checks are a
-    // deprecated fallback kept one release for legacy error paths.
-    const isValidationErr = err instanceof WebhookValidationError || message.includes("validation failed") || message.includes("No payment provider");
+    // Typed classification only. Message text is never inspected: a transient failure can mention
+    // "validation failed" and must stay retryable (500), not become a terminal 400.
+    const isValidationErr = err instanceof WebhookValidationError;
     // The use case attaches httpStatus to validation failures (e.g. 401 for a
     // bad/stale signature) — honor it when in the 4xx band; otherwise the
     // legacy 400/500 split stands.
