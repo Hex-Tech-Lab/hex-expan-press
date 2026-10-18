@@ -30,6 +30,12 @@ export async function GET(_request: NextRequest, ctx: { params: Promise<{ token:
     return new NextResponse("Download unavailable", { status: 500 });
   }
   if (!link) return new NextResponse("Not found", { status: 404 });
+  // Every issued link carries an expiry. A row without one is a data fault: fail closed, never serve it.
+  // (Before this guard, new Date(null) read as epoch and the row was refused only as "expired".)
+  if (!link.expires_at) {
+    console.error(`[delivery] link row for sale ${link.sale_id as string} has no expiry`);
+    return new NextResponse("Download unavailable", { status: 500 });
+  }
   if (new Date(link.expires_at as string).getTime() <= Date.now()) {
     return new NextResponse("This download link has expired. Reply to your receipt email for a new one.", { status: 410 });
   }
