@@ -1,0 +1,14 @@
+docs/agent_ledger.jsonl
+  h_e6b68dcbbd0983 582-622
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d7e3e3166fc3e1c954277c1fcfb1b6df6796b1e0",
+  "prompts": {},
+  "humans": {
+    "h_e6b68dcbbd0983": {
+      "author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
