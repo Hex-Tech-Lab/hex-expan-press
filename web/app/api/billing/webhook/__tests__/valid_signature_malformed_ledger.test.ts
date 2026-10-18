@@ -67,7 +67,7 @@ const signedFixtureAdapter = {
     const p = JSON.parse(body) as { id: string; totalCents: number };
     return {
       isValid: true,
-      event: { eventType: "sale_completed", providerName: "polar", saleId: p.id, productId: "p1", totalCents: p.totalCents, currency: "USD", buyerEmailHash: "0xabc", occurredAt: "2026-10-04T00:00:00.000Z", rawPayload: null },
+      event: { eventType: "sale_completed", providerName: "polar", saleId: p.id, productId: "p1", totalCents: p.totalCents, currency: "USD", buyerEmailHash: "0xabc", buyerEmail: "buyer@example.com", occurredAt: "2026-10-04T00:00:00.000Z", rawPayload: null },
     };
   },
 };

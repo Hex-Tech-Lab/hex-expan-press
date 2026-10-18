@@ -20,6 +20,7 @@ const SALE: SaleCompletedEvent = {
   totalCents: 3900,
   currency: "USD",
   buyerEmailHash: "0xabc",
+  buyerEmail: "buyer@example.com",
   occurredAt: "2026-09-28T00:00:00.000Z",
   rawPayload: null,
 };
@@ -366,7 +367,7 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
     delivery.deliverSaleForWebhook.mockClear();
     await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(SALE)]);
     expect(delivery.deliverSaleForWebhook).toHaveBeenCalledTimes(1);
-    expect(delivery.deliverSaleForWebhook).toHaveBeenCalledWith({ saleId: "sale_dup_1", productAlias: "p1", buyerEmail: undefined });
+    expect(delivery.deliverSaleForWebhook).toHaveBeenCalledWith({ saleId: "sale_dup_1", productAlias: "p1", buyerEmail: "buyer@example.com" });
   });
 
   it("a delivery failure on retry propagates as a non-validation error, so the webhook answers 500 and the provider retries", async () => {
@@ -457,6 +458,29 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
     expect(revRow.event_type).toBe("refund_reversal");
     expect(revRow.creator_split_usd).toBe(19.5);
     expect(revRow.our_split_usd).toBe(19.5);
+  });
+
+  // Fungies events carry no buyer email, so no download link can be sent. Delivery would throw on every retry,
+  // a 500 loop. A non-Paddle sale without an email is refused with a final 422 instead.
+  it("a non-Paddle sale with no buyer email is refused (422) before any write, not retried into a 500 loop", async () => {
+    delivery.deliverSaleForWebhook.mockClear();
+    setnx.mockResolvedValue(1);
+    const fungies: SaleCompletedEvent = { ...SALE, providerName: "fungies", saleId: "sale_fungies_1", buyerEmail: undefined };
+    await expect(processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(fungies)])).rejects.toMatchObject({
+      message: expect.stringMatching(/no buyer email/),
+      httpStatus: 422,
+    });
+    expect(() => readFileSync(salesFilePath, "utf8")).toThrow(); // nothing written
+    expect(delivery.deliverSaleForWebhook).not.toHaveBeenCalled();
+  });
+
+  it("a recorded non-Paddle sale with no buyer email is also refused (422), not acknowledged or looped", async () => {
+    delivery.deliverSaleForWebhook.mockClear();
+    setnx.mockResolvedValue(1);
+    await appendSale({ ...BASE_SALE, provider: "fungies", sale_id: "sale_fungies_2" }, salesFilePath);
+    const fungies: SaleCompletedEvent = { ...SALE, providerName: "fungies", saleId: "sale_fungies_2", buyerEmail: undefined };
+    await expect(processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(fungies)])).rejects.toMatchObject({ httpStatus: 422 });
+    expect(delivery.deliverSaleForWebhook).not.toHaveBeenCalled();
   });
 
   it("a USD sale for a EUR product is rejected by the use case (422)", async () => {
