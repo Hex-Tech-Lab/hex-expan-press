@@ -1,6 +1,10 @@
 import { createHash } from "node:crypto";
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { deliverSale, deliverSaleForWebhook, createDubShortLink, tokenHash, newToken, TOKEN_RE, type DeliveryDeps } from "../src/delivery";
+import { EmailSendError } from "../src/email";
+
+// A definite rejection: the provider refused the request, so no email was accepted.
+const definiteRejection = () => new EmailSendError("Resend error (422): invalid to", false, 422, true);
 
 const arg = <T>(m: { mock: { calls: unknown[][] } }, i = 0): T => m.mock.calls[i][0] as T;
 
@@ -73,10 +77,10 @@ describe("deliverSale", () => {
     await expect(deliverSale(sale, f.deps)).rejects.toThrow("resend down");
   });
 
-  it("releases the issued link row when mail fails, so a webhook retry can deliver", async () => {
+  it("releases the issued link row on a definite rejection, so a webhook retry can deliver", async () => {
     const f = fakes();
-    f.sendEmail.mockRejectedValueOnce(new Error("resend down"));
-    await expect(deliverSale(sale, f.deps)).rejects.toThrow("resend down");
+    f.sendEmail.mockRejectedValueOnce(definiteRejection());
+    await expect(deliverSale(sale, f.deps)).rejects.toThrow("Resend error (422)");
     expect(f.releaseLinkIssued).toHaveBeenCalledTimes(1);
     const released = arg<{ saleId: string; tokenHash: string }>(f.releaseLinkIssued);
     expect(released).toEqual({ saleId: "s-1", tokenHash: arg<{ tokenHash: string }>(f.recordLinkIssued).tokenHash });
@@ -201,9 +205,9 @@ describe("deliverSale retry after a failed send (stateful link slot)", () => {
     f.deps.db.releaseLinkIssued = vi.fn(async (row: { saleId: string }) => {
       slots.delete(row.saleId);
     });
-    f.sendEmail.mockRejectedValueOnce(new Error("resend down"));
+    f.sendEmail.mockRejectedValueOnce(definiteRejection());
 
-    await expect(deliverSale(sale, f.deps)).rejects.toThrow("resend down");
+    await expect(deliverSale(sale, f.deps)).rejects.toThrow("Resend error (422)");
     expect(slots.size).toBe(0);
 
     await expect(deliverSale(sale, f.deps)).resolves.toBe("sent");
@@ -235,9 +239,9 @@ describe("deliverSaleForWebhook never acknowledges an unconfirmed sale", () => {
     f.deps.db.confirmDelivery = vi.fn(async ({ saleId }: { saleId: string }) => {
       confirmed.add(saleId);
     });
-    f.sendEmail.mockRejectedValueOnce(new Error("resend down"));
+    f.sendEmail.mockRejectedValueOnce(definiteRejection());
 
-    await expect(deliverSaleForWebhook(sale, f.deps)).rejects.toThrow("resend down");
+    await expect(deliverSaleForWebhook(sale, f.deps)).rejects.toThrow("Resend error (422)");
     expect(rows.has("s-1")).toBe(true);
     expect(confirmed.has("s-1")).toBe(false);
 
@@ -247,11 +251,34 @@ describe("deliverSaleForWebhook never acknowledges an unconfirmed sale", () => {
   });
 });
 
-describe("deliverSale is bounded while the sale lock is held", () => {
-  it("a send that never settles times out and releases the link slot, so the lock is not held forever", async () => {
+// The link is released only on a definite rejection. Any other failure is ambiguous: the provider may still
+// have accepted the email, so the buyer's link stays valid. A possible duplicate email is accepted.
+describe("an ambiguous send error keeps the link; only a definite rejection releases it", () => {
+  it("a transport failure keeps the link row", async () => {
+    const f = fakes();
+    f.sendEmail.mockRejectedValueOnce(new Error("socket hang up"));
+    await expect(deliverSale(sale, f.deps)).rejects.toThrow("socket hang up");
+    expect(f.releaseLinkIssued).not.toHaveBeenCalled();
+  });
+
+  it("a 5xx from Resend keeps the link row", async () => {
+    const f = fakes();
+    f.sendEmail.mockRejectedValueOnce(new EmailSendError("Resend error (503)", true, 503, false));
+    await expect(deliverSale(sale, f.deps)).rejects.toThrow("Resend error (503)");
+    expect(f.releaseLinkIssued).not.toHaveBeenCalled();
+  });
+
+  it("a send that never settles times out and keeps the link: the send may still be accepted", async () => {
     const f = fakes();
     f.sendEmail.mockImplementationOnce(() => new Promise<never>(() => {}));
     await expect(deliverSale(sale, { ...f.deps, timeoutMs: 20 })).rejects.toThrow(/timed out/);
+    expect(f.releaseLinkIssued).not.toHaveBeenCalled();
+  });
+
+  it("a definite 4xx rejection releases the link row", async () => {
+    const f = fakes();
+    f.sendEmail.mockRejectedValueOnce(definiteRejection());
+    await expect(deliverSale(sale, f.deps)).rejects.toThrow("Resend error (422)");
     expect(f.releaseLinkIssued).toHaveBeenCalledTimes(1);
   });
 });
