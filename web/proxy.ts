@@ -22,7 +22,6 @@ import { createServerClient } from "@supabase/ssr";
 const PAY_HOST = "pay.expanpress.com";
 const MAIN_HOST = "expanpress.com";
 const PAY_ORIGIN = "https://pay.expanpress.com";
-const MAIN_ORIGIN = "https://expanpress.com";
 const PAY_ALLOWED_PREFIXES = ["/checkout/", "/api/billing/checkout/", "/_next/", "/assets/"];
 const PAY_ALLOWED_EXACT_API = ["/api/billing/checkout"];
 const PAY_ALLOWED_EXACT = ["/terms.html", "/privacy.html", "/refund-policy.html", "/legal/providers.html", "/favicon.ico"];
