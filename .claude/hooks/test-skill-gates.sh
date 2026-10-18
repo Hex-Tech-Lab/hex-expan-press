@@ -40,7 +40,7 @@ expect(){ # expect <name> <allow|deny|advisory> <cwd> <command>
 }
 reason_has(){ # reason_has <name> <substring>: the last deny reason must contain the substring
   if jq -r '.hookSpecificOutput.permissionDecisionReason // empty' <<<"$LAST" 2>/dev/null | grep -qF -- "$2"; then pass=$((pass+1))
-  else fail=$((fail+1)); echo "FAIL: $1 (reason lacks: $2)"; fi
+  else fail=$((fail+1)); echo "FAIL: $1 (reason lacks: $2; got: $(jq -r '.hookSpecificOutput.permissionDecisionReason // empty' <<<"$LAST" 2>/dev/null | cut -c1-160))"; fi
 }
 reqlist(){ jq -r '.hookSpecificOutput.permissionDecisionReason // empty' <<<"$LAST" | sed -nE 's/.*SELECT\): ([^.]*)\..*/\1/p'; }
 start_marker(){ git -C "$R" rev-parse HEAD > "$GD/skill-gates-ok"; }
@@ -122,6 +122,40 @@ for s in $REQ; do record "$s" PASS; done
 expect "qa-intel required when base has the engine" deny "$R" "gh pr create --fill"
 reason_has "qa-intel listed" "qa-intel"
 git -C "$R" update-ref refs/remotes/origin/master "$BASE_SHA"
+
+# 19. A required line's verdict must be exactly PASS, N/A, or "waiver:" followed by a reason (second token only).
+for v in "pass" "PASS:" "N/A:" "waiver:" "waiver:nope" "PARTIAL" "FAIL" "pending"; do
+  start_marker
+  for s in $REQ; do record "$s" PASS; done
+  sed -i "s|^build-graph PASS|build-graph $v|" "$GD/skill-gates-ok"
+  expect "verdict '$v' is refused" deny "$R" "gh pr create --fill"
+done
+start_marker
+for s in $REQ; do record "$s" PASS; done
+sed -i "s/^build-graph PASS/build-graph N\/A/" "$GD/skill-gates-ok"
+expect "verdict N/A is accepted" allow "$R" "gh pr create --fill"
+# 20. Evidence cannot escape the git dir through a symlink or "..": both canonicalize outside and are refused.
+start_marker
+for s in $REQ; do record "$s" PASS; done
+ln -sf "$T/outside.txt" "$GD/skill-gates/link.txt"
+sed -i "s|^code-reviewer PASS evidence:.*|code-reviewer PASS evidence:$GD/skill-gates/link.txt|" "$GD/skill-gates-ok"
+expect "symlink inside skill-gates to an outside file is refused" deny "$R" "gh pr create --fill"
+start_marker
+for s in $REQ; do record "$s" PASS; done
+sed -i "s|^code-reviewer PASS evidence:.*|code-reviewer PASS evidence:$GD/skill-gates/../outside.txt|" "$GD/skill-gates-ok"
+expect "dot-dot evidence escaping the git dir is refused" deny "$R" "gh pr create --fill"
+# 21. Every merge form requires the code-review record. Only code-review is left missing, so the reason names it alone.
+start_marker
+for s in $REQ; do [ "$s" = code-review ] || record "$s" PASS; done
+for c in "gh pr merge 5 --squash" "gh -R Hex-Tech-Lab/hex-expan-press pr merge 5 --squash" \
+  "gh api repos/Hex-Tech-Lab/hex-expan-press/pulls/5/merge -X PUT" "gh api -X PUT /repos/Hex-Tech-Lab/hex-expan-press/pulls/5/merge" \
+  "env GH_TOKEN=x gh pr merge 5 --squash" "bash -c 'gh pr merge 5 --squash'" "sh -c \"gh pr merge 5 --squash\""; do
+  FAKE_GH_HEAD=$(git -C "$R" rev-parse HEAD) expect "merge without code-review: $c" deny "$R" "$c"
+  reason_has "code-review is the only missing record: $c" "Missing: code-review code-review."
+done
+start_marker
+for s in $REQ; do record "$s" PASS; done
+FAKE_GH_HEAD=$(git -C "$R" rev-parse HEAD) expect "merge with full record incl. code-review" allow "$R" "gh pr merge 5 --squash"
 
 echo "skill-gates regression: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]
