@@ -9,7 +9,9 @@
  *
  * Failure policy: the ledger write is the money record and stays authoritative. A delivery failure
  * is rethrown to the webhook, which answers 500 so the provider retries. Its download_events row is
- * released first, and the retry re-attempts delivery for the already-recorded sale.
+ * released first. A sale counts as delivered only once its send is confirmed (an audit_log row with
+ * event DELIVERY_LINK_SENT). A retry finding an unconfirmed link row frees it and sends again, so a
+ * failed send whose release also failed is never acknowledged without a delivered link.
  */
 import { createHash, randomBytes } from "node:crypto";
 import { GLOBAL } from "./settings_registry.ts";
@@ -17,6 +19,9 @@ import { sendEmail as realSendEmail } from "./email.ts";
 import { getSupabaseAdmin } from "./supabase_admin.ts";
 
 export const TOKEN_RE = /^[A-Za-z0-9_-]{43}$/;
+
+/** audit_log event written once a link's send is accepted. Its absence marks a sale as not yet delivered. */
+const DELIVERY_CONFIRMED_EVENT = "DELIVERY_LINK_SENT";
 
 export const tokenHash = (token: string): string => createHash("sha256").update(token).digest("hex");
 export const newToken = (): string => randomBytes(32).toString("base64url");
@@ -34,6 +39,12 @@ export interface DeliveryDb {
   recordLinkIssued(row: { saleId: string; productId: string; tokenHash: string; expiresAt: Date }): Promise<boolean>;
   /** Removes the link_issued row for this sale and token, so a later attempt can issue again. */
   releaseLinkIssued(row: { saleId: string; tokenHash: string }): Promise<void>;
+  /** True once a send for this sale has been confirmed accepted. */
+  deliveryConfirmed(saleId: string): Promise<boolean>;
+  /** Records that the send for this sale's link was accepted. Called only after the send resolves. */
+  confirmDelivery(row: { saleId: string; tokenHash: string }): Promise<void>;
+  /** Removes an unconfirmed link_issued row left by a send whose release failed. */
+  releaseOrphanedLinks(saleId: string): Promise<void>;
 }
 
 export interface DeliveryDeps {
@@ -74,13 +85,16 @@ export async function deliverSale(
   const token = (deps.newToken ?? newToken)();
   const expiresAt = new Date(now.getTime() + GLOBAL.delivery.link_ttl_days * 24 * 60 * 60 * 1000);
   const hash = tokenHash(token);
-  const issued = await deps.db.recordLinkIssued({
-    saleId: input.saleId,
-    productId: product.id,
-    tokenHash: hash,
-    expiresAt,
-  });
-  if (!issued) return "duplicate";
+  const row = { saleId: input.saleId, productId: product.id, tokenHash: hash, expiresAt };
+  if (!(await deps.db.recordLinkIssued(row))) {
+    // The sale already holds a link row. That is a finished delivery only when its send was confirmed.
+    if (await deps.db.deliveryConfirmed(input.saleId)) return "duplicate";
+    // An earlier send failed and its release failed too, so the row is stale. Free it and deliver now.
+    await deps.db.releaseOrphanedLinks(input.saleId);
+    if (!(await deps.db.recordLinkIssued(row))) {
+      throw new Error(`delivery blocked: sale ${input.saleId} link slot is held by an unconfirmed send`);
+    }
+  }
 
   try {
     const link = await deps.createShortLink(`${deps.origin}/d/${token}`);
@@ -109,6 +123,8 @@ export async function deliverSale(
     }
     throw err;
   }
+  // Written only after the send resolved. If this write fails, the row stays unconfirmed and a retry sends again.
+  await deps.db.confirmDelivery({ saleId: input.saleId, tokenHash: hash });
   return "sent";
 }
 
@@ -199,6 +215,32 @@ function supabaseDeliveryDb(): DeliveryDb {
         .eq("token_hash", row.tokenHash)
         .eq("event_type", "link_issued");
       if (error) throw new Error(`link release failed: ${error.message}`);
+    },
+    async deliveryConfirmed(saleId) {
+      const sb = await getSupabaseAdmin();
+      if (!sb) throw new Error("Supabase admin client unavailable");
+      const { data, error } = await sb
+        .from("audit_log")
+        .select("id")
+        .eq("event", DELIVERY_CONFIRMED_EVENT)
+        .contains("details", { sale_id: saleId })
+        .limit(1);
+      if (error) throw new Error(`delivery confirmation lookup failed: ${error.message}`);
+      return (data ?? []).length > 0;
+    },
+    async confirmDelivery(row) {
+      const sb = await getSupabaseAdmin();
+      if (!sb) throw new Error("Supabase admin client unavailable");
+      const { error } = await sb
+        .from("audit_log")
+        .insert({ event: DELIVERY_CONFIRMED_EVENT, details: { sale_id: row.saleId, token_hash: row.tokenHash } });
+      if (error) throw new Error(`delivery confirmation write failed: ${error.message}`);
+    },
+    async releaseOrphanedLinks(saleId) {
+      const sb = await getSupabaseAdmin();
+      if (!sb) throw new Error("Supabase admin client unavailable");
+      const { error } = await sb.from("download_events").delete().eq("sale_id", saleId).eq("event_type", "link_issued");
+      if (error) throw new Error(`orphan link release failed: ${error.message}`);
     },
   };
 }
