@@ -16,6 +16,7 @@
 import { createHash, randomBytes } from "node:crypto";
 import { GLOBAL } from "./settings_registry.ts";
 import { EmailSendError, sendEmail as realSendEmail } from "./email.ts";
+import { DeliveryBlockedError } from "./delivery_errors.ts";
 import { getSupabaseAdmin } from "./supabase_admin.ts";
 
 export const TOKEN_RE = /^[A-Za-z0-9_-]{43}$/;
@@ -174,8 +175,8 @@ export async function deliverSaleForWebhook(
   deps: DeliveryDeps = productionDeps(),
 ): Promise<void> {
   const outcome = await deliverSale(input, deps);
-  if (outcome === "no_email") throw new Error(`delivery blocked: sale ${input.saleId} has no buyer email`);
-  if (outcome === "no_release_file") throw new Error(`delivery blocked: sale ${input.saleId} has no release file`);
+  if (outcome === "no_email") throw new DeliveryBlockedError("no_email", input.saleId);
+  if (outcome === "no_release_file") throw new DeliveryBlockedError("no_release_file", input.saleId);
   if (outcome !== "sent") console.warn(`[delivery] sale ${input.saleId}: ${outcome}`);
 }
 

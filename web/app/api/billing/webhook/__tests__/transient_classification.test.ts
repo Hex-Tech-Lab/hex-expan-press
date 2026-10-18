@@ -3,6 +3,7 @@
 import { describe, it, expect, vi } from "vitest";
 import type { NextRequest } from "next/server";
 import { WebhookValidationError } from "../../../../../../src/domain/webhook/webhook_errors";
+import { DeliveryBlockedError } from "../../../../../../payments/src/delivery_errors";
 
 vi.mock("@supabase/supabase-js", () => ({
   createClient: () => ({
@@ -60,5 +61,16 @@ describe("billing webhook: error classification is typed, not by message text", 
   it("a typed WebhookValidationError stays a terminal 400", async () => {
     const res = await call(handlerThrowing(new WebhookValidationError("bad payload shape")));
     expect(res.status).toBe(400);
+  });
+
+  it("a delivery blocked for a missing buyer email answers terminal 422", async () => {
+    const res = await call(handlerThrowing(new DeliveryBlockedError("no_email", "s-1")));
+    expect(res.status).toBe(422);
+  });
+
+  it("a delivery blocked for a missing release file answers retryable 503 with Retry-After", async () => {
+    const res = await call(handlerThrowing(new DeliveryBlockedError("no_release_file", "s-1")));
+    expect(res.status).toBe(503);
+    expect(res.headers.get("Retry-After")).toBe("30");
   });
 });
