@@ -37,6 +37,14 @@ const call = (token: string) => GET(new NextRequest(`https://expanpress.com/d/${
 describe("GET /d/{token}", () => {
   beforeEach(() => { inserts.length = 0; });
 
+  it("a link row with no expires_at fails closed (500) and is never served", async () => {
+    adminModule.client = client({ link: { sale_id: "s-1", product_id: "p-1", expires_at: null } });
+    const res = await call(TOKEN);
+    expect(res.status).toBe(500);
+    expect(res.headers.get("location")).toBeNull();
+    expect(inserts).toHaveLength(0);
+  });
+
   it("rejects a malformed token without touching the database", async () => {
     adminModule.client = client({});
     const res = await call("short");
