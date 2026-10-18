@@ -465,6 +465,15 @@ export async function processBillingWebhookUseCase(
     await withIdempotencyLock(
       `lock:sale:${saleEvent.providerName}:${saleEvent.saleId}`,
       async () => {
+        // Fail closed for a non-Paddle sale without a buyer email: no download link can be sent, and a retry cannot
+        // change that. Delivery would throw on every retry (a 500 loop), so the sale is refused with a final 422.
+        if (saleEvent.providerName !== "paddle" && !saleEvent.buyerEmail) {
+          console.error(`[billing-webhook] sale ${saleEvent.saleId} from ${saleEvent.providerName} has no buyer email; refused`);
+          throw new WebhookValidationError(
+            `Webhook validation failed: sale ${saleEvent.saleId} from ${saleEvent.providerName} has no buyer email; refused, no download link can be sent`,
+            422,
+          );
+        }
         // Duplicate guard: if sale already recorded, do not duplicate splits. A prior attempt may have
         // failed after the ledger write, so re-attempt delivery; it is idempotent per sale, and a
         // failure rethrows (500) so the provider retries.
