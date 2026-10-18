@@ -106,9 +106,12 @@ export const fetchCreatorHub = cache(async function fetchCreatorHub(handle: stri
     .maybeSingle();
   if (error) throw new Error(`storefront: creator hub query failed for '${handle}': ${error.message}`);
   const creator = data as HubCreator | null;
-  const products = commercialProducts(creator?.products);
-  if (!creator || products.length === 0) return null;
+  const commercial = commercialProducts(creator?.products);
+  if (!creator || commercial.length === 0) return null;
   const origin = await fetchSiteOrigin(supabase);
+  // Only live (published) products are rendered or linked from the hub. A gated product keeps its own page.
+  // storefrontRobots depends only on whether a live product exists, so its result is unchanged.
+  const products = commercial.filter((p) => p.checkout_mode === "live");
   return { creator: { ...creator, products }, origin };
 });
 
