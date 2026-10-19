@@ -215,6 +215,70 @@ export async function headR2Object(options: HeadR2ObjectOptions): Promise<boolea
   }
 }
 
+export interface PutR2ObjectOptions {
+  endpoint: string;
+  bucket: string;
+  key: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+  region?: string;
+  body: Buffer | Uint8Array | string;
+  contentType?: string;
+  fetchImpl?: typeof fetch;
+  timeoutMs?: number;
+}
+
+/**
+ * Uploads an object to Cloudflare R2 using a signed PUT request.
+ * Returns true if the upload succeeded (2xx), false otherwise.
+ */
+export async function putR2Object(options: PutR2ObjectOptions): Promise<boolean> {
+  const {
+    endpoint,
+    bucket,
+    key,
+    accessKeyId,
+    secretAccessKey,
+    region = "auto",
+    body,
+    contentType = "application/octet-stream",
+    fetchImpl = fetch,
+    timeoutMs = 30000,
+  } = options;
+
+  try {
+    const putUrl = generateR2PresignedUrl({
+      endpoint,
+      bucket,
+      key,
+      accessKeyId,
+      secretAccessKey,
+      region,
+      expiresInSeconds: 300,
+      method: "PUT",
+    });
+
+    const res = await fetchImpl(putUrl, {
+      method: "PUT",
+      headers: {
+        "Content-Type": contentType,
+      },
+      body: (body instanceof Uint8Array ? body : typeof body === "string" ? body : Buffer.from(body)) as unknown as BodyInit,
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+
+    if (!res.ok) {
+      console.warn(`[r2-storage] PUT object returned status ${res.status}`);
+      return false;
+    }
+
+    return true;
+  } catch (err) {
+    console.warn(`[r2-storage] PUT object failed:`, err instanceof Error ? err.message : err);
+    return false;
+  }
+}
+
 /**
  * Storage adapter implementing 0% egress delivery via Cloudflare R2 presigned URLs.
  */
@@ -235,6 +299,36 @@ export class R2StorageAdapter implements StoragePort {
     this.endpoint = config.endpoint || `https://${this.accountId}.r2.cloudflarestorage.com`;
     this.region = config.region || "auto";
     this.fetchImpl = config.fetchImpl || fetch;
+  }
+
+  async hasObject(path: string): Promise<boolean> {
+    return headR2Object({
+      endpoint: this.endpoint,
+      bucket: this.bucket,
+      key: path,
+      accessKeyId: this.accessKeyId,
+      secretAccessKey: this.secretAccessKey,
+      region: this.region,
+      fetchImpl: this.fetchImpl,
+    });
+  }
+
+  async uploadObject(
+    path: string,
+    body: Buffer | Uint8Array | string,
+    contentType = "application/octet-stream",
+  ): Promise<boolean> {
+    return putR2Object({
+      endpoint: this.endpoint,
+      bucket: this.bucket,
+      key: path,
+      accessKeyId: this.accessKeyId,
+      secretAccessKey: this.secretAccessKey,
+      region: this.region,
+      body,
+      contentType,
+      fetchImpl: this.fetchImpl,
+    });
   }
 
   async createSignedDownloadUrl(
