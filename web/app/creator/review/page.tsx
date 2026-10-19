@@ -40,8 +40,8 @@ export default async function ReviewPage() {
       supabase,
       "id, slug, title, release_path",
     ),
-    supabase.from("review_items").select("id, code, kind, question, options, anchor, product_id"),
-    supabase.from("review_answers").select("item_id, choice, free_text, answered_at").order("answered_at", { ascending: false }),
+    supabase.from("review_items").select("id, code, kind, question, options, anchor, product_id").limit(100),
+    supabase.from("review_answers").select("item_id, choice, free_text, answered_at").order("answered_at", { ascending: false }).limit(100),
   ]);
 
   const product = productRes.product;

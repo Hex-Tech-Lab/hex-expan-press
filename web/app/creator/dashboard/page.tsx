@@ -61,12 +61,12 @@ export default async function DashboardPage({
   const [profileRes, productRes, itemsRes, answersRes, consentsRes] = await Promise.all([
     supabase.from("profiles").select("full_name, email").eq("user_id", user.id).maybeSingle(),
     resolvePrimaryProduct<{ id: string }>(supabase, "id"),
-    supabase.from("review_items").select("id, product_id"),
-    supabase.from("review_answers").select("item_id"),
+    supabase.from("review_items").select("id, product_id").limit(100),
+    supabase.from("review_answers").select("item_id").limit(100),
     // Chain-head resolution needs ALL decisions + the supersedes pointers —
     // filtering to decision='given' here would let a superseded row read as
     // signed (sprint 12 B2, AGY audit P1).
-    supabase.from("consents").select("id, kind, decision, product_id, supersedes"),
+    supabase.from("consents").select("id, kind, decision, product_id, supersedes").limit(100),
   ]);
 
   const failed = (

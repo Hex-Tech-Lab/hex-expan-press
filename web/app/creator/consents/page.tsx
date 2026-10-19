@@ -41,7 +41,8 @@ export default async function ConsentsPage() {
   // supersession is resolved creator-wide first, then filtered to this product.
   const consentsRes = await supabase
     .from("consents")
-    .select("id, kind, decision, product_id, supersedes");
+    .select("id, kind, decision, product_id, supersedes")
+    .limit(100);
   if (consentsRes.error) {
     return (
       <ConsentNotice

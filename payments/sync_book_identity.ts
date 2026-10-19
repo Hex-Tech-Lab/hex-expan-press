@@ -35,7 +35,8 @@ const loadSyncConfigFromDb = async (): Promise<SyncConfig> => {
   const { data, error } = await supabase
     .from("products")
     .select("id, store_product_id, book_registry, paddle_product_ref")
-    .not("book_registry", "is", null);
+    .not("book_registry", "is", null)
+    .limit(10);
   if (error) throw new Error(`sync_book_identity: products query failed: ${error.message}`);
   if (!data || data.length === 0) {
     throw new Error("sync_book_identity: no products row carries book_registry — nothing to sync");
