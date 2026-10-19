@@ -104,7 +104,7 @@ describe("decomposed helpers", () => {
     expect(canonicalRequest).toContain("GET\n/bucket/file.pdf\nX-Amz-Algorithm=AWS4-HMAC-SHA256\nhost:acc.r2.cloudflarestorage.com\n");
   });
 
-  it("headR2Object returns true on 200, false on 404, false on network error", async () => {
+  it("headR2Object returns true on 200, false only on confirmed 404, throws on network or auth errors", async () => {
     const mock200 = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));
     expect(await headR2Object({
       endpoint: "https://acc.r2.cloudflarestorage.com",
@@ -126,14 +126,24 @@ describe("decomposed helpers", () => {
     })).toBe(false);
 
     const mockThrow = vi.fn().mockRejectedValue(new Error("network error"));
-    expect(await headR2Object({
+    await expect(headR2Object({
       endpoint: "https://acc.r2.cloudflarestorage.com",
       bucket: "b",
       key: "k",
       accessKeyId: "ak",
       secretAccessKey: "sk",
       fetchImpl: mockThrow as unknown as typeof fetch,
-    })).toBe(false);
+    })).rejects.toThrow("network error");
+
+    const mock403 = vi.fn().mockResolvedValue(new Response(null, { status: 403, statusText: "Forbidden" }));
+    await expect(headR2Object({
+      endpoint: "https://acc.r2.cloudflarestorage.com",
+      bucket: "b",
+      key: "k",
+      accessKeyId: "ak",
+      secretAccessKey: "sk",
+      fetchImpl: mock403 as unknown as typeof fetch,
+    })).rejects.toThrow("[r2-storage] HEAD object returned status 403");
   });
 });
 

@@ -56,7 +56,7 @@ export async function startPublisherAgreementAction(): Promise<void> {
     .select("product_id, kind, decision, signed_at, id, supersedes")
     .in("kind", ["C1_data_accuracy", "C2_release_approval"])
     .order("created_at", { ascending: false })
-    .limit(200)) as { data: ConsentRow[] | null; error: unknown };
+    .limit(500)) as { data: ConsentRow[] | null; error: unknown };
 
   if (consentsError || !consents || consents.length === 0) {
     redirect("/creator/dashboard?error=c2_required");

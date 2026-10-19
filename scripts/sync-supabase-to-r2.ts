@@ -1,5 +1,5 @@
 import dotenv from "dotenv";
-dotenv.config({ override: true });
+dotenv.config();
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { headR2Object, putR2Object } from "../src/adapters/storage/r2.adapter";
@@ -142,15 +142,24 @@ export async function syncSupabaseToR2(options: SyncOptions = {}): Promise<SyncR
     logger.log(`\n🔍 Checking: ${filePath}`);
 
     // Check if file already exists in R2
-    const existsInR2 = await headR2Object({
-      endpoint: r2Endpoint,
-      bucket: r2BucketName,
-      key: filePath,
-      accessKeyId: r2AccessKeyId,
-      secretAccessKey: r2SecretAccessKey,
-      region: r2Region,
-      fetchImpl,
-    });
+    let existsInR2 = false;
+    try {
+      existsInR2 = await headR2Object({
+        endpoint: r2Endpoint,
+        bucket: r2BucketName,
+        key: filePath,
+        accessKeyId: r2AccessKeyId,
+        secretAccessKey: r2SecretAccessKey,
+        region: r2Region,
+        fetchImpl,
+      });
+    } catch (headErr) {
+      const errMsg = headErr instanceof Error ? headErr.message : String(headErr);
+      logger.error(`   ❌ Failed HEAD check on R2 for ${filePath}: ${errMsg}`);
+      summary.failed++;
+      summary.errors.push({ path: filePath, error: `R2 HEAD check failed: ${errMsg}` });
+      continue;
+    }
 
     if (existsInR2) {
       logger.log(`   ✅ Already present and verified in Cloudflare R2.`);
@@ -203,15 +212,22 @@ export async function syncSupabaseToR2(options: SyncOptions = {}): Promise<SyncR
 
     // Post-upload verification health check (HEAD request)
     logger.log(`   🩺 Verifying uploaded object in Cloudflare R2...`);
-    const verified = await headR2Object({
-      endpoint: r2Endpoint,
-      bucket: r2BucketName,
-      key: filePath,
-      accessKeyId: r2AccessKeyId,
-      secretAccessKey: r2SecretAccessKey,
-      region: r2Region,
-      fetchImpl,
-    });
+    let verified = false;
+    try {
+      verified = await headR2Object({
+        endpoint: r2Endpoint,
+        bucket: r2BucketName,
+        key: filePath,
+        accessKeyId: r2AccessKeyId,
+        secretAccessKey: r2SecretAccessKey,
+        region: r2Region,
+        fetchImpl,
+      });
+    } catch (verifyErr) {
+      const errMsg = verifyErr instanceof Error ? verifyErr.message : String(verifyErr);
+      logger.warn(`   ⚠️ Post-upload verification HEAD request failed for ${filePath}: ${errMsg}`);
+      verified = false;
+    }
 
     if (verified) {
       logger.log(`   ✨ Successfully uploaded and verified in R2!`);
