@@ -3,11 +3,11 @@ import { getSupabaseAdmin } from "./supabase_admin.ts";
 import { expanRedis, isRedisRestConfigured } from "../../src/infrastructure/redis/redis.client.ts";
 import type { ProviderName } from "./provider.ts";
 
-const FALLBACK_SECRET_ENV: Record<ProviderName, string> = {
+// Polar is not routable (PR 102), so it has no fallback secret. Partial because "polar" stays in ProviderName for historical rows.
+const FALLBACK_SECRET_ENV: Partial<Record<ProviderName, string>> = {
   lemonsqueezy: "LEMONSQUEEZY_WEBHOOK_SECRET",
   payhip: "PAYHIP_WEBHOOK_SECRET",
   paddle: "PADDLE_WEBHOOK_SECRET",
-  polar: "POLAR_WEBHOOK_SECRET",
   fungies: "FUNGIES_WEBHOOK_SECRET",
   fastspring: "FASTSPRING_WEBHOOK_SECRET",
 };

@@ -8,6 +8,10 @@ import { appendSale, SaleRecord } from "../../../../payments/src/ledger.ts";
 import { processBillingWebhookUseCase } from "../process_billing_webhook.ts";
 import type { PaymentProviderPort, SaleCompletedEvent, RefundIssuedEvent } from "../../../../src/domain/payments/payments.port.ts";
 
+// Delivery is stubbed here: the sale-path tests assert the webhook contract, not mail or Dub.
+const delivery = vi.hoisted(() => ({ deliverSaleForWebhook: vi.fn(async (_input: unknown) => undefined) }));
+vi.mock("../../../../payments/src/delivery.ts", () => delivery);
+
 const SALE: SaleCompletedEvent = {
   eventType: "sale_completed",
   providerName: "polar",
@@ -16,6 +20,7 @@ const SALE: SaleCompletedEvent = {
   totalCents: 3900,
   currency: "USD",
   buyerEmailHash: "0xabc",
+  buyerEmail: "buyer@example.com",
   occurredAt: "2026-09-28T00:00:00.000Z",
   rawPayload: null,
 };
@@ -199,12 +204,18 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
     expect(setnx.mock.calls[0]?.[0]).toBe("lock:sale:polar:sale_dup_1");
   });
 
-  it("lock held but the sale is already durably recorded → acknowledged (resolves), no re-write", async () => {
+  // A recorded sale is not proof of delivery: the lock holder may still be sending the receipt, or may have
+  // failed it. Contention on a recorded sale is therefore retryable (503), never an acknowledgement.
+  it("lock held while the sale is durably recorded → rejects as in-flight, never acknowledged, no re-write", async () => {
+    delivery.deliverSaleForWebhook.mockClear();
     await appendSale(BASE_SALE, salesFilePath);
     setnx.mockResolvedValue(0);
-    await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(SALE)]);
+    await expect(processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(SALE)])).rejects.toMatchObject({
+      name: "WebhookInFlightError",
+    });
     const rows = readFileSync(salesFilePath, "utf8").split(/\r?\n/).filter(Boolean);
     expect(rows).toHaveLength(1);
+    expect(delivery.deliverSaleForWebhook).not.toHaveBeenCalled();
   });
 
   it("partial refund (amount < original sale) → rejected as validation failure, never recorded", async () => {
@@ -350,6 +361,29 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
     expect(setnx).toHaveBeenCalledWith("lock:sale:polar:sale_dup_1", "1", expect.anything());
   });
 
+  it("a retry for a recorded sale re-attempts delivery (a prior attempt may have failed after the ledger write)", async () => {
+    setnx.mockResolvedValue(1);
+    await appendSale(BASE_SALE, salesFilePath);
+    delivery.deliverSaleForWebhook.mockClear();
+    await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(SALE)]);
+    expect(delivery.deliverSaleForWebhook).toHaveBeenCalledTimes(1);
+    expect(delivery.deliverSaleForWebhook).toHaveBeenCalledWith({ saleId: "sale_dup_1", productAlias: "p1", buyerEmail: "buyer@example.com" });
+  });
+
+  it("a delivery failure on retry propagates as a non-validation error, so the webhook answers 500 and the provider retries", async () => {
+    setnx.mockResolvedValue(1);
+    await appendSale(BASE_SALE, salesFilePath);
+    delivery.deliverSaleForWebhook.mockRejectedValueOnce(new Error("resend down"));
+    await expect(processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(SALE)])).rejects.toThrow("resend down");
+  });
+
+  it("a successful delivery on retry resolves (webhook answers 200)", async () => {
+    setnx.mockResolvedValue(1);
+    await appendSale(BASE_SALE, salesFilePath);
+    delivery.deliverSaleForWebhook.mockResolvedValueOnce(undefined);
+    await expect(processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(SALE)])).resolves.toBeUndefined();
+  });
+
   it("duplicate refund → returns normally, exactly 1 refund row", async () => {
     // Record the linked sale first (refunds must reference a recorded sale).
     await appendSale(
@@ -424,6 +458,29 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
     expect(revRow.event_type).toBe("refund_reversal");
     expect(revRow.creator_split_usd).toBe(19.5);
     expect(revRow.our_split_usd).toBe(19.5);
+  });
+
+  // Fungies events carry no buyer email, so no download link can be sent. Delivery would throw on every retry,
+  // a 500 loop. A non-Paddle sale without an email is refused with a final 422 instead.
+  it("a non-Paddle sale with no buyer email is refused (422) before any write, not retried into a 500 loop", async () => {
+    delivery.deliverSaleForWebhook.mockClear();
+    setnx.mockResolvedValue(1);
+    const fungies: SaleCompletedEvent = { ...SALE, providerName: "fungies", saleId: "sale_fungies_1", buyerEmail: undefined };
+    await expect(processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(fungies)])).rejects.toMatchObject({
+      message: expect.stringMatching(/no buyer email/),
+      httpStatus: 422,
+    });
+    expect(() => readFileSync(salesFilePath, "utf8")).toThrow(); // nothing written
+    expect(delivery.deliverSaleForWebhook).not.toHaveBeenCalled();
+  });
+
+  it("a recorded non-Paddle sale with no buyer email is also refused (422), not acknowledged or looped", async () => {
+    delivery.deliverSaleForWebhook.mockClear();
+    setnx.mockResolvedValue(1);
+    await appendSale({ ...BASE_SALE, provider: "fungies", sale_id: "sale_fungies_2" }, salesFilePath);
+    const fungies: SaleCompletedEvent = { ...SALE, providerName: "fungies", saleId: "sale_fungies_2", buyerEmail: undefined };
+    await expect(processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(fungies)])).rejects.toMatchObject({ httpStatus: 422 });
+    expect(delivery.deliverSaleForWebhook).not.toHaveBeenCalled();
   });
 
   it("a USD sale for a EUR product is rejected by the use case (422)", async () => {

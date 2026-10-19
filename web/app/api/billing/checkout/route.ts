@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { MatrixRouter } from "../../../../../src/infrastructure/matrix_router/matrix_router";
-import { GLOBAL } from "../../../../../payments/src/settings_registry";
 import { getSupabaseAdmin } from "../../../../../payments/src/supabase_admin";
 import { attributionRef } from "../../../../src/lib/attribution";
 import { normalizeSha256, strictActiveConsentKinds, strictChainHead } from "../../../../src/lib/consent-chain";
@@ -18,16 +17,14 @@ interface CheckoutRail {
  * Billing checkout router (Wave 6, native route handler — replaces the
  * shim-bridged legacy handler; Sprint 15: rails come from the product_rails
  * table, not from repo JSON files). GET/HEAD only: resolves the product's
- * rail config from the Supabase product_rails table, a CHECKOUT_URL_<PRODUCT>
- * env override, or the built-in default launch rail, and 302-redirects to the
+ * rail config from the Supabase product_rails table (no routable rail: 404;
+ * Polar rows are never routed), and 302-redirects to the
  * weighted-selected provider checkout URL via MatrixRouter, falling back to
  * the highest-weight rail if the router fails. Every source's checkout_url
  * passes one validation policy — raw value must be a string (non-string
  * fails closed), then trimmed: non-empty, https, and sandbox hosts
  * (hostname label match) only in explicitly recognised non-production
- * environments — and any violation (including an unset POLAR_CHECKOUT_URL
- * for the default rail in production, or a SET-but-blank
- * CHECKOUT_URL_<PRODUCT> override) fails closed with 500 "Checkout is not
+ * environments — and any violation fails closed with 500 "Checkout is not
  * configured".
  */
 function jsonError(status: number, error: string): NextResponse {
@@ -101,7 +98,6 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   // client, a product lookup error, or an unresolved product all return 500
   // instead of skipping verification (ADR-0060: fail closed, never fail open).
   let dbRails: CheckoutRail[] = [];
-  let resolvedProductId = "";
   try {
     const supabase = await getSupabaseAdmin();
     if (!supabase) {
@@ -138,7 +134,6 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       console.error(`[billing/checkout] product '${product}' is not launched (checkout_mode=${mode ?? "null"})`);
       return jsonError(403, "Checkout forbidden: product is not launched");
     }
-    resolvedProductId = resolvedProduct.id;
 
     // Tenant isolation: the service-role client bypasses RLS, so the chain is
     // explicitly scoped to the product OWNER (creator_id — the schema column,
@@ -202,18 +197,40 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       console.error(`[billing/checkout] rails query failed for '${product}': ${railErr.message}`);
       return jsonError(500, "Checkout consent verification failed");
     }
-    const allRails = (railRows ?? []).map((r) => ({
-      provider: String((r as { provider: unknown }).provider),
-      weight: Number((r as { weight: unknown }).weight),
-      checkout_url: String((r as { checkout_url: unknown }).checkout_url),
-      active: Boolean((r as { active: unknown }).active),
-    }));
-    dbRails = allRails.filter((r) => r.active).map(({ active: _active, ...rail }) => rail);
+    // Checked before the map below, which would throw on a null row. A non-object row is a
+    // data-integrity failure: never an operator disable, never a silent fallthrough (fail closed).
+    if ((railRows ?? []).some((r) => r === null || typeof r !== "object")) {
+      console.error(`[billing/checkout] product '${product}' has a malformed product_rails row — failing closed`);
+      return jsonError(500, "Checkout is not configured");
+    }
+    // Raw values are kept as read (no String()/Boolean() coercion: String(null) is "null", Boolean("false")
+    // is true). Only boolean true or the string "true" enables a rail; anything else is off.
+    const allRails = (railRows ?? []).map((r) => {
+      const row = r as { provider: unknown; weight: unknown; checkout_url: unknown; active: unknown };
+      return {
+        provider: row.provider,
+        weight: Number(row.weight),
+        checkout_url: row.checkout_url,
+        active: row.active === true || row.active === "true",
+      };
+    });
+    // Active rails must carry a non-empty provider and a string checkout_url, checked on the raw value.
+    // A null or non-string URL on a live rail fails closed here, not via a stringified "null".
+    const activeRaw = allRails.filter((r) => r.active);
+    if (activeRaw.some((r) => typeof r.provider !== "string" || r.provider === "" || typeof r.checkout_url !== "string")) {
+      console.error(`[billing/checkout] product '${product}' has an active rail with a missing provider or non-string checkout_url — failing closed`);
+      return jsonError(500, "Checkout is not configured");
+    }
+    // Runtime-checked above; the cast only drops the `active` flag from the shape.
+    // Polar is never a routable rail (PR 102): a polar row is dropped here, so a product whose only
+    // active rows are polar fails closed through the disable guard below.
+    dbRails = activeRaw.filter((r) => r.provider !== "polar").map(({ active: _active, ...rail }) => rail as CheckoutRail);
     // The disable guard counts only WELL-FORMED rows (real product_rails rows
-    // are objects with an active boolean). A malformed row is a data-integrity
-    // failure that the raw-URL validation below rejects with 500 — it must
-    // never be misreported as an operator disable.
+    // are objects). A malformed row is a data-integrity failure: an active one
+    // is rejected with 500 by the active-rail check above, and it must never be
+    // misreported as an operator disable.
     const configuredRowCount = (railRows ?? []).filter((r) => r !== null && typeof r === "object").length;
+
     if (configuredRowCount > 0 && dbRails.length === 0) {
       console.error(`[billing/checkout] product '${product}' has ${configuredRowCount} configured rail(s) but none active — the database disable is authoritative`);
       return jsonError(404, `Checkout is disabled for product '${product}'`);
@@ -223,37 +240,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return jsonError(500, "Checkout consent verification failed");
   }
 
-  let rails: CheckoutRail[];
-  if (dbRails.length > 0) {
-    rails = dbRails;
-  } else {
-    // No DB rails: the env override is the configured source, then the legacy
-    // launch default, then 404. A SET override is the configured source even
-    // when its raw value is blank — no trimming it away, no fall-through to
-    // the default rail; the shared validator below rejects blank values with
-    // the controlled 500.
-    const envSlugKey = `CHECKOUT_URL_${product.toUpperCase().replace(/[^A-Z0-9]/g, "_")}`;
-    const overrideUrl = process.env[envSlugKey];
-    if (overrideUrl !== undefined) {
-      rails = [{ provider: "polar", weight: 100, checkout_url: overrideUrl }];
-    } else if (resolvedProductId === LAUNCH_PRODUCT_ID) {
-      const liveCheckoutUrl = process.env.POLAR_CHECKOUT_URL?.trim();
-      if (!liveCheckoutUrl && !sandboxAllowed()) {
-        // Fail closed: never send a real buyer to the sandbox checkout (insecure-defaults audit, 2026-10-01).
-        console.error("[billing/checkout] POLAR_CHECKOUT_URL is not set and sandbox is not allowed here — refusing to serve the sandbox checkout");
-        return jsonError(500, "Checkout is not configured");
-      }
-      rails = [
-        {
-          provider: "polar",
-          weight: 100,
-          checkout_url: liveCheckoutUrl || GLOBAL.payments.polar.sandbox_checkout_fallback_url,
-        },
-      ];
-    } else {
-      return jsonError(404, `No rails configuration found for product '${product}'`);
-    }
+  // No routable DB rails: fail closed. There is no CHECKOUT_URL_<PRODUCT> override and no Polar fallback (PR 102).
+  if (dbRails.length === 0) {
+    return jsonError(404, `No rails configuration found for product '${product}'`);
   }
+  const rails: CheckoutRail[] = dbRails;
 
 
   // Fail closed on non-string RAW checkout_url values (missing/null/number

@@ -192,7 +192,7 @@ export default function ConsentCards({ bookTitle, hasC1, hasC2, hasC3 }: Consent
             ) : (
               <>
                 <p className="mt-1.5 text-[length:var(--font-size-base)] leading-relaxed text-[#4A4136]">
-                  Sign the revenue split agreement electronically — a signed copy and its audit-trail certificate are emailed to you afterwards.{" "}
+                  Sign the revenue split agreement electronically with our e-signature provider, Firma.{" "}
                   <LegalIncorporationClause />
                 </p>
                 <form

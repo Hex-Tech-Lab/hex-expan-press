@@ -14,12 +14,18 @@ export interface SendEmailInput {
  * A failed send. `retryable` is true for rate limits (429) and provider/network
  * failures (5xx, no status) — the caller may queue a retry; false means the
  * request itself is wrong (bad address, unverified domain) and must be fixed.
+ *
+ * `definite` is true only when the provider certainly did not accept the message: a
+ * local config check failed before any request, or Resend answered with a 4xx (429 included).
+ * Anything else (a transport failure, a 5xx, an error with no status) is ambiguous: the message
+ * may have been accepted. Callers must not treat an ambiguous failure as a non-delivery.
  */
 export class EmailSendError extends Error {
   constructor(
     message: string,
     readonly retryable: boolean,
     readonly statusCode?: number,
+    readonly definite: boolean = false,
   ) {
     super(message);
     this.name = "EmailSendError";
@@ -54,15 +60,16 @@ export const isOnSendingDomain = (from: string, domain: string = GLOBAL.email.se
 
 export async function sendEmail({ to, subject, html, text, replyTo }: SendEmailInput): Promise<{ id: string }> {
   const apiKey = process.env.RESEND_API_KEY;
+  // The checks below run before any request, so nothing can have been sent.
   if (!apiKey) {
-    throw new EmailSendError("RESEND_API_KEY is missing — cannot send email", false);
+    throw new EmailSendError("RESEND_API_KEY is missing — cannot send email", false, undefined, true);
   }
   if (!text.trim()) {
-    throw new EmailSendError("Email text part is empty — send multipart (html + text)", false);
+    throw new EmailSendError("Email text part is empty — send multipart (html + text)", false, undefined, true);
   }
   const from = process.env.EMAIL_FROM || GLOBAL.email.from;
   if (!isOnSendingDomain(from)) {
-    throw new EmailSendError(`From address ${addressOf(from)} is not on ${GLOBAL.email.sending_domain}`, false);
+    throw new EmailSendError(`From address ${addressOf(from)} is not on ${GLOBAL.email.sending_domain}`, false, undefined, true);
   }
 
   const resend = new Resend(apiKey);
@@ -86,10 +93,13 @@ export async function sendEmail({ to, subject, html, text, replyTo }: SendEmailI
     const errObj = error as { name?: string | null; statusCode?: number | null } | null;
     const name = errObj?.name ?? undefined;
     const status = errObj?.statusCode ?? undefined;
+    // A 4xx means Resend refused the request. Without a status, or with a 5xx, the outcome is ambiguous.
+    const refused = typeof status === "number" && status >= 400 && status < 500;
     throw new EmailSendError(
       `Resend error${status ? ` (${status})` : ""}: ${error?.message ?? "no data"}`,
       isRetryableError(name, status),
       status,
+      refused,
     );
   }
   return { id: data.id };
