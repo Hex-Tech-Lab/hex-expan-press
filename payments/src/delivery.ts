@@ -37,7 +37,13 @@ export interface DeliveryProduct {
 export interface DeliveryDb {
   productForAlias(alias: string): Promise<DeliveryProduct | null>;
   /** Inserts the link_issued row. Returns false when a row for this sale already exists. */
-  recordLinkIssued(row: { saleId: string; productId: string; tokenHash: string; expiresAt: Date }): Promise<boolean>;
+  recordLinkIssued(row: {
+    saleId: string;
+    productId: string;
+    tokenHash: string;
+    expiresAt: Date;
+    linkGeneration?: number;
+  }): Promise<boolean>;
   /** Removes the link_issued row for this sale and token, so a later attempt can issue again. */
   releaseLinkIssued(row: { saleId: string; tokenHash: string }): Promise<void>;
   /** True once a send for this sale has been confirmed accepted. */
@@ -82,13 +88,17 @@ export async function deliverSale(
   // Fail closed on a product with no release file: a buyer must never get a link to nothing.
   if (!product || !product.releasePath) return "no_release_file";
 
+  // If this sale was already successfully delivered and confirmed, do not issue another link or send another email.
+  if (await deps.db.deliveryConfirmed(input.saleId)) return "duplicate";
+
   const now = deps.now ? deps.now() : new Date();
   const token = (deps.newToken ?? newToken)();
   const expiresAt = new Date(now.getTime() + GLOBAL.delivery.link_ttl_days * 24 * 60 * 60 * 1000);
   const hash = tokenHash(token);
-  const row = { saleId: input.saleId, productId: product.id, tokenHash: hash, expiresAt };
+  const linkGeneration = now.getTime();
+  const row = { saleId: input.saleId, productId: product.id, tokenHash: hash, expiresAt, linkGeneration };
   if (!(await deps.db.recordLinkIssued(row))) {
-    // The sale already holds a link row. That is a finished delivery only when its send was confirmed.
+    // If a generation collided in the exact same millisecond or legacy single-slot mock:
     if (await deps.db.deliveryConfirmed(input.saleId)) return "duplicate";
     // An earlier send failed and its release failed too, so the row is stale. Free it and deliver now.
     await deps.db.releaseOrphanedLinks(input.saleId);
@@ -199,15 +209,19 @@ function supabaseDeliveryDb(): DeliveryDb {
     async recordLinkIssued(row) {
       const sb = await getSupabaseAdmin();
       if (!sb) throw new Error("Supabase admin client unavailable");
-      const { error } = await sb.from("download_events").insert({
+      const insertPayload: Record<string, unknown> = {
         sale_id: row.saleId,
         product_id: row.productId,
         token_hash: row.tokenHash,
         event_type: "link_issued",
         expires_at: row.expiresAt.toISOString(),
-      });
+      };
+      if (row.linkGeneration !== undefined) {
+        insertPayload.link_generation = row.linkGeneration;
+      }
+      const { error } = await sb.from("download_events").insert(insertPayload);
       if (!error) return true;
-      if (error.code === "23505") return false; // one link per sale: a webhook retry is a no-op
+      if (error.code === "23505") return false; // generation collision: a webhook retry is a no-op
       throw new Error(`link insert failed: ${error.message}`);
     },
     async releaseLinkIssued(row) {
