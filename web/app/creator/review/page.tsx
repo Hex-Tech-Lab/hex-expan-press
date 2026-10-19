@@ -35,14 +35,10 @@ export default async function ReviewPage() {
   }
   const { supabase } = session;
 
-  const [productRes, itemsRes, answersRes] = await Promise.all([
-    resolvePrimaryProduct<{ id: string; slug: string; title: string; release_path: string | null }>(
-      supabase,
-      "id, slug, title, release_path",
-    ),
-    supabase.from("review_items").select("id, code, kind, question, options, anchor, product_id").limit(100),
-    supabase.from("review_answers").select("item_id, choice, free_text, answered_at").order("answered_at", { ascending: false }).limit(100),
-  ]);
+  const productRes = await resolvePrimaryProduct<{ id: string; slug: string; title: string; release_path: string | null }>(
+    supabase,
+    "id, slug, title, release_path",
+  );
 
   const product = productRes.product;
   if (productRes.error || !product) {
@@ -58,9 +54,14 @@ export default async function ReviewPage() {
     );
   }
 
-  const allItems = (itemsRes.data ?? [])
-    .filter((it) => it.product_id === product.id)
-    .sort((a, b) => naturalCode(a.code, b.code));
+  const itemsRes = await supabase
+    .from("review_items")
+    .select("id, code, kind, question, options, anchor, product_id")
+    .eq("product_id", product.id)
+    .order("code", { ascending: true })
+    .limit(500);
+
+  const allItems = (itemsRes.data ?? []).sort((a, b) => naturalCode(a.code, b.code));
 
   if (itemsRes.error || allItems.length === 0) {
     return (
@@ -70,6 +71,14 @@ export default async function ReviewPage() {
       />
     );
   }
+
+  const itemIds = allItems.map((it) => it.id);
+  const answersRes = await supabase
+    .from("review_answers")
+    .select("item_id, choice, free_text, answered_at")
+    .in("item_id", itemIds)
+    .order("answered_at", { ascending: false })
+    .limit(500);
 
   // A failed answers read must not look like "nothing answered yet".
   if (answersRes.error) {

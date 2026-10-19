@@ -165,4 +165,31 @@ describe("getPortalSession (Wave 5 ssr-only authorization branches)", () => {
     expect(session).not.toBeNull();
     expect(getUserMock).toHaveBeenCalledWith(accessToken);
   });
+
+  it("derives user identity strictly from verified getClaims() claims rather than unverified cookie session.user", async () => {
+    setCookie("sb-portal-auth", "tampered-cookie-token");
+    const accessToken = "valid-token";
+    const futureExpiry = Math.floor(Date.now() / 1000) + 3600;
+    getSessionMock.mockResolvedValue({
+      data: {
+        session: {
+          access_token: accessToken,
+          expires_at: futureExpiry,
+          // Cookie has unverified/tampered email
+          user: { id: "attacker-id", email: "attacker@spoofed.com" },
+        },
+      },
+    });
+    // getClaims returns the cryptographically verified JWT claims
+    getClaimsMock.mockResolvedValue({
+      data: { claims: { sub: "verified-sub-123", email: "creator@expanpress.com" } },
+      error: null,
+    });
+
+    const { getPortalSession } = await import("../supabase-server");
+    const session = await getPortalSession();
+    expect(session).not.toBeNull();
+    expect(session?.user.id).toBe("verified-sub-123");
+    expect(session?.user.email).toBe("creator@expanpress.com");
+  });
 });

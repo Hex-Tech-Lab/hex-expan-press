@@ -103,7 +103,9 @@ describe("C3 binding (startPublisherAgreementAction)", () => {
   });
 
   const setupSupabaseConsents = (consentsData: unknown[] | null, error: unknown = null, primaryProductId: string | null = "prod-new") => {
-    const inMock = vi.fn().mockResolvedValue({ data: consentsData, error });
+    const limitMock = vi.fn().mockResolvedValue({ data: consentsData, error });
+    const orderMock = vi.fn().mockReturnValue({ limit: limitMock });
+    const inMock = vi.fn().mockReturnValue({ order: orderMock });
     const eqMock = vi.fn().mockResolvedValue({ data: consentsData, error });
     const selectMock = vi.fn().mockReturnValue({ in: inMock, eq: eqMock });
     const productsChain = {
@@ -115,7 +117,15 @@ describe("C3 binding (startPublisherAgreementAction)", () => {
       if (table === "products") return { select: vi.fn().mockReturnValue(productsChain) };
       throw new Error(`Unexpected table ${table}`);
     });
-    const supabase = { from: fromMock } as unknown as SupabaseClient;
+    const supabase = {
+      auth: {
+        getUser: vi.fn().mockResolvedValue({
+          data: { user: { id: "user-123", email: "author@example.com" } },
+          error: null,
+        }),
+      },
+      from: fromMock,
+    } as unknown as SupabaseClient;
     currentPortalSession = {
       user: { id: "user-123", email: "author@example.com" },
       supabase,

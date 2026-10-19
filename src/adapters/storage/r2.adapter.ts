@@ -9,7 +9,9 @@ export interface R2Config {
   bucket: string;
   endpoint?: string;
   region?: string;
+  /** @deprecated Cloudflare rejects S3 presigned URLs on custom domains; ignored */
   publicDomain?: string;
+  fetchImpl?: typeof fetch;
 }
 
 function rfc3986(str: string): string {
@@ -24,6 +26,46 @@ function sha256Hex(data: string): string {
   return createHash("sha256").update(data, "utf8").digest("hex");
 }
 
+/**
+ * Derives the AWS SigV4 signing key for a given date, region, and service.
+ */
+export function deriveSigningKey(
+  secretAccessKey: string,
+  dateStamp: string,
+  region: string,
+  service: string = "s3",
+): Buffer {
+  const kDate = hmac("AWS4" + secretAccessKey, dateStamp);
+  const kRegion = hmac(kDate, region);
+  const kService = hmac(kRegion, service);
+  return hmac(kService, "aws4_request");
+}
+
+/**
+ * Builds the canonical request and returns the signed headers string.
+ */
+export function buildCanonicalRequest(
+  method: string,
+  canonicalUri: string,
+  canonicalQueryString: string,
+  host: string,
+): { canonicalRequest: string; signedHeaders: string } {
+  const canonicalHeaders = `host:${host.toLowerCase()}\n`;
+  const signedHeaders = "host";
+  const payloadHash = "UNSIGNED-PAYLOAD";
+
+  const canonicalRequest = [
+    method,
+    canonicalUri,
+    canonicalQueryString,
+    canonicalHeaders,
+    signedHeaders,
+    payloadHash,
+  ].join("\n");
+
+  return { canonicalRequest, signedHeaders };
+}
+
 export interface GeneratePresignedUrlOptions {
   endpoint: string;
   bucket: string;
@@ -33,13 +75,15 @@ export interface GeneratePresignedUrlOptions {
   region?: string;
   expiresInSeconds?: number;
   date?: Date;
+  /** @deprecated Cloudflare rejects S3 presigned URLs on custom domains; ignored */
   publicDomain?: string;
+  method?: string;
 }
 
 /**
- * Generates an AWS SigV4 Presigned GET URL for Cloudflare R2 / S3-compatible storage.
- * Runs in pure Node.js (node:crypto) with 0 third-party dependencies, adhering strictly to
- * the frozen stack protocol.
+ * Generates an AWS SigV4 Presigned URL for Cloudflare R2 / S3-compatible storage.
+ * Always signs and returns URLs using the S3 API endpoint's host (<accountid>.r2.cloudflarestorage.com).
+ * Runs in pure Node.js (node:crypto) with 0 third-party dependencies.
  */
 export function generateR2PresignedUrl(options: GeneratePresignedUrlOptions): string {
   const {
@@ -51,11 +95,12 @@ export function generateR2PresignedUrl(options: GeneratePresignedUrlOptions): st
     region = "auto",
     expiresInSeconds = 300,
     date = new Date(),
-    publicDomain,
+    method = "GET",
   } = options;
 
   const url = new URL(endpoint);
-  const host = publicDomain || url.host;
+  // Always use the S3 API endpoint host (Cloudflare rejects S3 presigned URLs on custom domains).
+  const host = url.host;
 
   // Clean key and build canonical URI (RFC 3986 encoded segments)
   const cleanKey = key.replace(/^\/+/, "");
@@ -89,18 +134,12 @@ export function generateR2PresignedUrl(options: GeneratePresignedUrlOptions): st
     .map((k) => `${rfc3986(k)}=${rfc3986(queryParams[k])}`)
     .join("&");
 
-  const canonicalHeaders = `host:${host.toLowerCase()}\n`;
-  const signedHeaders = "host";
-  const payloadHash = "UNSIGNED-PAYLOAD";
-
-  const canonicalRequest = [
-    "GET",
+  const { canonicalRequest } = buildCanonicalRequest(
+    method,
     canonicalUri,
     canonicalQueryString,
-    canonicalHeaders,
-    signedHeaders,
-    payloadHash,
-  ].join("\n");
+    host,
+  );
 
   const stringToSign = [
     "AWS4-HMAC-SHA256",
@@ -109,15 +148,71 @@ export function generateR2PresignedUrl(options: GeneratePresignedUrlOptions): st
     sha256Hex(canonicalRequest),
   ].join("\n");
 
-  const kDate = hmac("AWS4" + secretAccessKey, dateStamp);
-  const kRegion = hmac(kDate, region);
-  const kService = hmac(kRegion, "s3");
-  const kSigning = hmac(kService, "aws4_request");
+  const kSigning = deriveSigningKey(secretAccessKey, dateStamp, region);
   const signature = createHmac("sha256", kSigning).update(stringToSign, "utf8").digest("hex");
 
   const scheme = url.protocol || "https:";
-  const baseHost = publicDomain ? `${scheme}//${publicDomain}` : `${scheme}//${url.host}`;
-  return `${baseHost}${canonicalUri}?${canonicalQueryString}&X-Amz-Signature=${signature}`;
+  return `${scheme}//${host}${canonicalUri}?${canonicalQueryString}&X-Amz-Signature=${signature}`;
+}
+
+export interface HeadR2ObjectOptions {
+  endpoint: string;
+  bucket: string;
+  key: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+  region?: string;
+  fetchImpl?: typeof fetch;
+  timeoutMs?: number;
+}
+
+/**
+ * Checks whether an object exists in Cloudflare R2 using a bounded signed HEAD request.
+ * Returns true if the object exists (2xx), false if absent (404) or failed.
+ */
+export async function headR2Object(options: HeadR2ObjectOptions): Promise<boolean> {
+  const {
+    endpoint,
+    bucket,
+    key,
+    accessKeyId,
+    secretAccessKey,
+    region = "auto",
+    fetchImpl = fetch,
+    timeoutMs = 5000,
+  } = options;
+
+  try {
+    const headUrl = generateR2PresignedUrl({
+      endpoint,
+      bucket,
+      key,
+      accessKeyId,
+      secretAccessKey,
+      region,
+      expiresInSeconds: 60,
+      method: "HEAD",
+    });
+
+    const res = await fetchImpl(headUrl, {
+      method: "HEAD",
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+
+    if (res.status === 404) {
+      return false;
+    }
+
+    if (!res.ok) {
+      console.warn(`[r2-storage] HEAD object returned status ${res.status}`);
+      return false;
+    }
+
+    return true;
+  } catch (err) {
+    console.warn(`[r2-storage] HEAD object check failed:`, err instanceof Error ? err.message : err);
+    return false;
+  }
 }
 
 /**
@@ -130,7 +225,7 @@ export class R2StorageAdapter implements StoragePort {
   private readonly bucket: string;
   private readonly endpoint: string;
   private readonly region: string;
-  private readonly publicDomain?: string;
+  private readonly fetchImpl: typeof fetch;
 
   constructor(config: R2Config) {
     this.accountId = config.accountId;
@@ -139,7 +234,7 @@ export class R2StorageAdapter implements StoragePort {
     this.bucket = config.bucket;
     this.endpoint = config.endpoint || `https://${this.accountId}.r2.cloudflarestorage.com`;
     this.region = config.region || "auto";
-    this.publicDomain = config.publicDomain;
+    this.fetchImpl = config.fetchImpl || fetch;
   }
 
   async createSignedDownloadUrl(
@@ -148,6 +243,20 @@ export class R2StorageAdapter implements StoragePort {
     now: Date = new Date(),
   ): Promise<string | null> {
     try {
+      const exists = await headR2Object({
+        endpoint: this.endpoint,
+        bucket: this.bucket,
+        key: path,
+        accessKeyId: this.accessKeyId,
+        secretAccessKey: this.secretAccessKey,
+        region: this.region,
+        fetchImpl: this.fetchImpl,
+      });
+
+      if (!exists) {
+        return null;
+      }
+
       return generateR2PresignedUrl({
         endpoint: this.endpoint,
         bucket: this.bucket,
@@ -157,7 +266,6 @@ export class R2StorageAdapter implements StoragePort {
         region: this.region,
         expiresInSeconds,
         date: now,
-        publicDomain: this.publicDomain,
       });
     } catch (err) {
       console.error("[r2-storage] Failed to generate presigned download URL:", err instanceof Error ? err.message : err);
@@ -201,6 +309,24 @@ export class SupabaseStorageAdapter implements StoragePort {
   }
 }
 
+/**
+ * Composite storage adapter that attempts primary storage first, falling back to secondary storage
+ * if the primary adapter returns null (e.g. object missing in R2 or URL generation failure).
+ */
+export class CompositeStorageAdapter implements StoragePort {
+  constructor(
+    private readonly primary: StoragePort,
+    private readonly fallback: StoragePort,
+  ) {}
+
+  async createSignedDownloadUrl(path: string, expiresInSeconds: number): Promise<string | null> {
+    const url = await this.primary.createSignedDownloadUrl(path, expiresInSeconds);
+    if (url) return url;
+    console.warn("[delivery-storage] Primary storage returned null; falling back to secondary storage");
+    return this.fallback.createSignedDownloadUrl(path, expiresInSeconds);
+  }
+}
+
 export interface DeliveryStorageOptions {
   bucket?: string;
   forceR2?: boolean;
@@ -209,8 +335,8 @@ export interface DeliveryStorageOptions {
 /**
  * Factory for the delivery storage adapter.
  * Prefers Cloudflare R2 when credentials (R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY)
- * are present, providing 0% egress delivery fees. Falls back to Supabase Storage if R2
- * is unconfigured or if R2 URL generation fails.
+ * and an explicit R2_BUCKET_NAME are present, providing 0% egress delivery fees.
+ * Falls back to Supabase Storage if R2 is unconfigured or if R2 object presence / URL generation fails.
  */
 export function getDeliveryStorageAdapter(
   sbAdmin: SupabaseStorageAdmin,
@@ -219,9 +345,11 @@ export function getDeliveryStorageAdapter(
   const accountId = process.env.R2_ACCOUNT_ID || process.env.CLOUDFLARE_ACCOUNT_ID;
   const accessKeyId = process.env.R2_ACCESS_KEY_ID || process.env.CLOUDFLARE_R2_ACCESS_KEY_ID;
   const secretAccessKey = process.env.R2_SECRET_ACCESS_KEY || process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY;
-  const r2Bucket = process.env.R2_BUCKET_NAME || process.env.CLOUDFLARE_R2_BUCKET || bucket;
+  const r2Bucket = process.env.R2_BUCKET_NAME || process.env.CLOUDFLARE_R2_BUCKET;
 
-  if (accountId && accessKeyId && secretAccessKey) {
+  const fallback = new SupabaseStorageAdapter(sbAdmin, bucket);
+
+  if (accountId && accessKeyId && secretAccessKey && r2Bucket) {
     const r2Adapter = new R2StorageAdapter({
       accountId,
       accessKeyId,
@@ -229,20 +357,11 @@ export function getDeliveryStorageAdapter(
       bucket: r2Bucket,
       endpoint: process.env.R2_ENDPOINT,
       region: process.env.R2_REGION,
-      publicDomain: process.env.R2_PUBLIC_URL || process.env.R2_CUSTOM_DOMAIN,
     });
 
-    return {
-      async createSignedDownloadUrl(path: string, expiresInSeconds: number): Promise<string | null> {
-        const url = await r2Adapter.createSignedDownloadUrl(path, expiresInSeconds);
-        if (url) return url;
-        console.warn("[delivery-storage] R2 URL generation returned null; falling back to Supabase Storage");
-        const fallback = new SupabaseStorageAdapter(sbAdmin, bucket);
-        return fallback.createSignedDownloadUrl(path, expiresInSeconds);
-      },
-    };
+    return new CompositeStorageAdapter(r2Adapter, fallback);
   }
 
-  // R2 credentials unset: fallback to Supabase Storage
-  return new SupabaseStorageAdapter(sbAdmin, bucket);
+  // R2 credentials or bucket unset: fallback to Supabase Storage
+  return fallback;
 }

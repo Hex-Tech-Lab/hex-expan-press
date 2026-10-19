@@ -88,11 +88,11 @@ export async function getPortalSession(): Promise<PortalSession | null> {
           if (claims.sub) {
             user = {
               id: claims.sub as string,
-              email: (claims.email as string) ?? session.user?.email ?? "",
-              app_metadata: (claims.app_metadata as Record<string, unknown>) ?? session.user?.app_metadata ?? {},
-              user_metadata: (claims.user_metadata as Record<string, unknown>) ?? session.user?.user_metadata ?? {},
+              email: typeof claims.email === "string" ? claims.email : "",
+              app_metadata: (claims.app_metadata as Record<string, unknown>) ?? {},
+              user_metadata: (claims.user_metadata as Record<string, unknown>) ?? {},
               aud: (claims.aud as string) ?? "authenticated",
-              created_at: session.user?.created_at ?? new Date().toISOString(),
+              created_at: typeof claims.created_at === "string" ? claims.created_at : new Date().toISOString(),
             } as User;
           }
         }
