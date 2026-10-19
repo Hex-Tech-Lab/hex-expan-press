@@ -64,6 +64,7 @@ export default function ReviewClient({ items, saved, pdfUrl, bookTitle }: Review
   const [justSaved, setJustSaved] = useState(false);
   const [busy, setBusy] = useState(false);
   const busyRef = useRef(false);
+  const navTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ---- PDF.js viewer state (React lifecycle, lazily loaded) ----
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -109,6 +110,14 @@ export default function ReviewClient({ items, saved, pdfUrl, bookTitle }: Review
     const anchor = target.anchorPage;
     if (docRef.current && anchor && anchor >= 1 && anchor <= total) setPage(anchor);
   }
+
+  useEffect(() => {
+    return () => {
+      if (navTimerRef.current !== null) {
+        clearTimeout(navTimerRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!focusQuestionRef.current) return;
@@ -258,9 +267,10 @@ export default function ReviewClient({ items, saved, pdfUrl, bookTitle }: Review
       delete draftsRef.current[item.id];
       setJustSaved(true);
       const nextOpen = items.findIndex((it, k) => k > index && !answers[it.id]);
-      window.setTimeout(() => {
+      if (navTimerRef.current !== null) clearTimeout(navTimerRef.current);
+      navTimerRef.current = setTimeout(() => {
         showItem(nextOpen !== -1 ? nextOpen : (index < items.length - 1 ? index + 1 : index), false);
-        window.scrollTo(0, 0);
+        if (typeof window !== "undefined") window.scrollTo?.(0, 0);
         busyRef.current = false;
         setBusy(false);
       }, 300);
@@ -281,9 +291,10 @@ export default function ReviewClient({ items, saved, pdfUrl, bookTitle }: Review
       setJustSaved(true);
       willNavigate = true;
       const nextOpen = items.findIndex((it, k) => k > index && !updated[it.id]);
-      window.setTimeout(() => {
+      if (navTimerRef.current !== null) clearTimeout(navTimerRef.current);
+      navTimerRef.current = setTimeout(() => {
         showItem(nextOpen !== -1 ? nextOpen : index, false);
-        window.scrollTo(0, 0);
+        if (typeof window !== "undefined") window.scrollTo?.(0, 0);
         busyRef.current = false;
         setBusy(false);
       }, 500);

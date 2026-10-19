@@ -106,7 +106,8 @@ describe("C3 binding (startPublisherAgreementAction)", () => {
     const limitMock = vi.fn().mockResolvedValue({ data: consentsData, error });
     const orderMock = vi.fn().mockReturnValue({ limit: limitMock });
     const inMock = vi.fn().mockReturnValue({ order: orderMock });
-    const eqMock = vi.fn().mockResolvedValue({ data: consentsData, error });
+    const eqMock = vi.fn().mockReturnValue({ in: inMock, order: orderMock, limit: limitMock });
+    inMock.mockReturnValue({ order: orderMock, eq: eqMock });
     const selectMock = vi.fn().mockReturnValue({ in: inMock, eq: eqMock });
     const productsChain = {
       order: vi.fn().mockReturnThis(),

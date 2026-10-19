@@ -24,6 +24,7 @@ function fakeClient() {
         delete: (...a: unknown[]) => (rec.ops.push(["delete", a]), chain),
         eq: (...a: unknown[]) => (rec.ops.push(["eq", a]), chain),
         contains: (...a: unknown[]) => (rec.ops.push(["contains", a]), chain),
+        order: (...a: unknown[]) => (rec.ops.push(["order", a]), chain),
         limit: (...a: unknown[]) => (rec.ops.push(["limit", a]), chain),
         maybeSingle: (...a: unknown[]) => (rec.ops.push(["maybeSingle", a]), chain),
       };

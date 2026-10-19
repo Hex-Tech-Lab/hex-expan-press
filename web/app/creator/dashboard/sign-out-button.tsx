@@ -17,6 +17,8 @@ export default function SignOutButton({ iconsReady }: { iconsReady: boolean }) {
     setBusy(true);
     try {
       await signOutAction(); // server-side revoke + cookie clear + redirect
+    } catch (error) {
+      console.error("[signout] sign-out failed", error);
     } finally {
       setBusy(false);
     }
