@@ -166,21 +166,23 @@ export class R2StorageAdapter implements StoragePort {
   }
 }
 
+export interface SupabaseStorageAdmin {
+  storage: {
+    from: (bucket: string) => {
+      createSignedUrl: (path: string, expiresIn: number) => Promise<{
+        data: { signedUrl: string } | null;
+        error: { message?: string } | null;
+      }>;
+    };
+  };
+}
+
 /**
  * Storage adapter targeting Supabase Storage (fallback path when R2 is unconfigured).
  */
 export class SupabaseStorageAdapter implements StoragePort {
   constructor(
-    private readonly sbAdmin: {
-      storage: {
-        from: (bucket: string) => {
-          createSignedUrl: (path: string, expiresIn: number) => Promise<{
-            data: { signedUrl: string } | null;
-            error: { message?: string } | null;
-          }>;
-        };
-      };
-    },
+    private readonly sbAdmin: SupabaseStorageAdmin,
     private readonly bucket: string,
   ) {}
 
@@ -211,7 +213,7 @@ export interface DeliveryStorageOptions {
  * is unconfigured or if R2 URL generation fails.
  */
 export function getDeliveryStorageAdapter(
-  sbAdmin: Parameters<typeof SupabaseStorageAdapter.prototype.constructor>[0],
+  sbAdmin: SupabaseStorageAdmin,
   bucket: string = GLOBAL.delivery.bucket,
 ): StoragePort {
   const accountId = process.env.R2_ACCOUNT_ID || process.env.CLOUDFLARE_ACCOUNT_ID;
