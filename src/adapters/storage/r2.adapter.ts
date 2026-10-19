@@ -168,7 +168,8 @@ export interface HeadR2ObjectOptions {
 
 /**
  * Checks whether an object exists in Cloudflare R2 using a bounded signed HEAD request.
- * Returns true if the object exists (2xx), false if absent (404) or failed.
+ * Returns true if the object exists (2xx), false ONLY on confirmed absence (404).
+ * Throws on network errors, timeouts, auth errors, or unexpected HTTP status codes.
  */
 export async function headR2Object(options: HeadR2ObjectOptions): Promise<boolean> {
   const {
@@ -182,37 +183,31 @@ export async function headR2Object(options: HeadR2ObjectOptions): Promise<boolea
     timeoutMs = 5000,
   } = options;
 
-  try {
-    const headUrl = generateR2PresignedUrl({
-      endpoint,
-      bucket,
-      key,
-      accessKeyId,
-      secretAccessKey,
-      region,
-      expiresInSeconds: 60,
-      method: "HEAD",
-    });
+  const headUrl = generateR2PresignedUrl({
+    endpoint,
+    bucket,
+    key,
+    accessKeyId,
+    secretAccessKey,
+    region,
+    expiresInSeconds: 60,
+    method: "HEAD",
+  });
 
-    const res = await fetchImpl(headUrl, {
-      method: "HEAD",
-      signal: AbortSignal.timeout(timeoutMs),
-    });
+  const res = await fetchImpl(headUrl, {
+    method: "HEAD",
+    signal: AbortSignal.timeout(timeoutMs),
+  });
 
-    if (res.status === 404) {
-      return false;
-    }
-
-    if (!res.ok) {
-      console.warn(`[r2-storage] HEAD object returned status ${res.status}`);
-      return false;
-    }
-
-    return true;
-  } catch (err) {
-    console.warn(`[r2-storage] HEAD object check failed:`, err instanceof Error ? err.message : err);
+  if (res.status === 404) {
     return false;
   }
+
+  if (!res.ok) {
+    throw new Error(`[r2-storage] HEAD object returned status ${res.status}`);
+  }
+
+  return true;
 }
 
 export interface PutR2ObjectOptions {

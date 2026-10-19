@@ -192,5 +192,47 @@ describe("sync-supabase-to-r2", () => {
       expect(result.uploaded).toBe(0);
       expect(downloadMock).not.toHaveBeenCalled();
     });
+
+    it("handles R2 HEAD network/auth errors gracefully without downloading or uploading", async () => {
+      const listMock = vi.fn().mockResolvedValue({
+        data: [{ name: "error-file.pdf", id: "id4", metadata: {} }],
+        error: null,
+      });
+      const downloadMock = vi.fn();
+      const fakeClient = {
+        storage: {
+          from: vi.fn(() => ({
+            list: listMock,
+            download: downloadMock,
+          })),
+        },
+      };
+
+      // R2 HEAD throws network error
+      const fetchImpl = vi.fn().mockRejectedValue(new Error("Connection refused"));
+
+      const logs: string[] = [];
+      const testLogger = {
+        log: (m: string) => logs.push(m),
+        warn: (m: string) => logs.push(m),
+        error: (m: string) => logs.push(m),
+      };
+
+      const result = await syncSupabaseToR2({
+        supabaseClient: fakeClient as never,
+        fetchImpl: fetchImpl as never,
+        logger: testLogger,
+      });
+
+      expect(result.totalFound).toBe(1);
+      expect(result.alreadySynced).toBe(0);
+      expect(result.uploaded).toBe(0);
+      expect(result.failed).toBe(1);
+      expect(result.errors).toEqual([
+        { path: "error-file.pdf", error: "R2 HEAD check failed: Connection refused" },
+      ]);
+      expect(downloadMock).not.toHaveBeenCalled();
+    });
   });
 });
+
