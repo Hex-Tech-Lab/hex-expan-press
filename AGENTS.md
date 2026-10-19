@@ -21,6 +21,14 @@ This project is sometimes worked by more than one agent session at once (e.g. th
 2. **Log every discrete action at tick level** (not just a session summary at the end) by appending one JSON line per action to `docs/agent_ledger.jsonl`: `{"ts": "<exact output of `date -u +%FT%TZ` at append time — never typed or estimated; 91 invented/future timestamps had to be re-timed from git blame on 2026-10-01>", "agent": "<model/tool identity, e.g. 'claude-sonnet-5' or 'agy-antigravity'>", "action": "<short verb phrase>", "files": ["<paths touched>"], "note": "<one line>"}`. Log the action as you take it, not retroactively in a batch at session end — retroactive summaries are exactly what produced the unverifiable/inaccurate claims found in the 2026-09-18 audit (see `docs/creator-lifecycle-and-samples.md` history / session record for that incident).
 3. **Self-report accuracy matters.** A prior handover falsely claimed a `package.json` change that was never actually made — self-reports must be checked against the actual file state, not asserted from memory of intent.
 
+## Search tools (binding for all agents)
+
+From now on, use fzf for quick file search, the graph for codebase structure, and recoll for finding files by content.
+
+- **fzf** for file names: `plocate -i <term> | fzf -f '<term>'` (typo-tolerant, ranked). Use `plocate` first; it is the fast index.
+- **Graph** (`build-graph`, `explore-codebase`, `review-pr`) for code structure, callers, and blast radius.
+- **recoll** for text inside files, scoped to hex-expan: `recollq -c ~/.recoll-hex-expan -t -q "<query>"`. Its index is persistent at `~/.cache/recoll-hex-expan/`. Rebuild with `recollindex -c ~/.recoll-hex-expan` after large changes.
+
 ## Commands
 
 ```bash
@@ -106,6 +114,7 @@ pnpm exec esbuild harvest.ts --outfile=/dev/null   # repeat for any changed .ts
 - **`gh pr edit --base` can FAIL SILENTLY** when gh's default GraphQL query hits the deprecated-Projects error (2026-10-05, Sprint 12: the edit aborted, the subsequent merge executed against the ORIGINAL base, folding a stacked PR into the wrong branch). Always verify `baseRefName` after a base edit, before merging.
 - Models (verified 2026-09-08): `x-ai/grok-4-fast` is **deprecated** (404) → use `x-ai/grok-4.3`. Grok on OpenRouter has no live web access by default — grounding requires `plugins: [{ id: "web" }]` in the request body.
 - `cachedFetch` refuses to cache error objects or empty arrays — 401s and LLM empty-grounding results would otherwise poison the 6h cache.
+- **Tagged PDF marked-content suppression in pypdf assemblies (2026-10-16):** When reordering, assembling, or merging pages from Word-exported or Tagged PDFs using `pypdf`, page content streams contain Marked Content tags (`/P <</MCID N>> BDC ... EMC`), but `pypdf.PdfWriter` drops `/StructTreeRoot` from the Document Catalog. Adobe Acrobat and Microsoft Edge (Windows) strictly validate Tagged PDF structure and silently SUPPRESS marked-content blocks pointing to missing/broken structure trees, rendering pages completely blank/white (while poppler/pdftoppm still renders them). Always re-distill assembled PDFs via Ghostscript in prepress mode (`gs -sDEVICE=pdfwrite -dCompatibilityLevel=1.7 -dPDFSETTINGS=/prepress -dNOPAUSE -dQUIET -dBATCH`) or sanitize tags with `pikepdf`, converting streams to clean graphics operators (`q ... /Image Do ... Q`) and preserving 100% native image resolution with zero downsampling.
 
 ## Secrets
 
