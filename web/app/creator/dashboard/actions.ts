@@ -43,15 +43,17 @@ export async function startPublisherAgreementAction(): Promise<void> {
   // Prerequisite chain verification (sprint 14 ARTAS Track A2):
   // C3 publisher agreement requires the ENTIRE prerequisite chain (both C1 AND C2)
   // to be actively given on the creator's primary product.
-  // Query all C1 and C2 rows for this creator (RLS-scoped).
+  type ConsentRow = { product_id: string; kind: string; decision: string; signed_at: string; id: string; supersedes: string | null };
   const consentsQuery = supabase
     .from("consents")
     .select("product_id, kind, decision, signed_at, id, supersedes")
     .in("kind", ["C1_data_accuracy", "C2_release_approval"]);
-  const { data: consents, error: consentsError } =
+  const res =
     typeof (consentsQuery as { limit?: unknown }).limit === "function"
-      ? await (consentsQuery as unknown as { limit: (n: number) => Promise<{ data: typeof consents; error: typeof consentsError }> }).limit(50)
-      : await consentsQuery;
+      ? await (consentsQuery as unknown as { limit: (n: number) => Promise<{ data: ConsentRow[] | null; error: unknown }> }).limit(50)
+      : await (consentsQuery as unknown as Promise<{ data: ConsentRow[] | null; error: unknown }>);
+  const consents = res.data;
+  const consentsError = res.error;
 
   if (consentsError || !consents || consents.length === 0) {
     redirect("/creator/dashboard?error=c2_required");
