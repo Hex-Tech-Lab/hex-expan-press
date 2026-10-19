@@ -11,6 +11,7 @@ export default defineConfig({
       "src/adapters/**/__tests__/**/*.test.ts",
       "src/use_cases/**/__tests__/**/*.test.ts",
       "web/__tests__/**/*.test.ts",
+      "scripts/**/__tests__/**/*.test.ts",
     ],
     environment: "node",
   },

@@ -4,6 +4,7 @@ import {
   deriveSigningKey,
   buildCanonicalRequest,
   headR2Object,
+  putR2Object,
   R2StorageAdapter,
   SupabaseStorageAdapter,
   getDeliveryStorageAdapter,
@@ -338,3 +339,69 @@ describe("getDeliveryStorageAdapter (fallback & preference)", () => {
     expect(createSignedUrlMock).toHaveBeenCalledWith("folder/missing.pdf", 300);
   });
 });
+
+describe("putR2Object & R2StorageAdapter upload/has", () => {
+  it("successfully uploads buffer to R2 and returns true", async () => {
+    const fetchSpy = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));
+    const success = await putR2Object({
+      endpoint: "https://acc1.r2.cloudflarestorage.com",
+      bucket: "releases",
+      key: "books/test.pdf",
+      accessKeyId: "key1",
+      secretAccessKey: "sec1",
+      body: Buffer.from("pdf-content"),
+      contentType: "application/pdf",
+      fetchImpl: fetchSpy as never,
+    });
+
+    expect(success).toBe(true);
+    expect(fetchSpy).toHaveBeenCalledWith(
+      expect.stringContaining("https://acc1.r2.cloudflarestorage.com/releases/books/test.pdf"),
+      expect.objectContaining({
+        method: "PUT",
+        headers: { "Content-Type": "application/pdf" },
+      }),
+    );
+  });
+
+  it("returns false when PUT fails with non-2xx status", async () => {
+    const fetchSpy = vi.fn().mockResolvedValue(new Response("AccessDenied", { status: 403 }));
+    const success = await putR2Object({
+      endpoint: "https://acc1.r2.cloudflarestorage.com",
+      bucket: "releases",
+      key: "books/test.pdf",
+      accessKeyId: "key1",
+      secretAccessKey: "sec1",
+      body: Buffer.from("pdf-content"),
+      fetchImpl: fetchSpy as never,
+    });
+
+    expect(success).toBe(false);
+  });
+
+  it("R2StorageAdapter hasObject and uploadObject delegate to helpers", async () => {
+    const fetchSpy = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));
+    const adapter = new R2StorageAdapter({
+      accountId: "acc1",
+      accessKeyId: "k1",
+      secretAccessKey: "s1",
+      bucket: "b1",
+      fetchImpl: fetchSpy as never,
+    });
+
+    const has = await adapter.hasObject("file.pdf");
+    expect(has).toBe(true);
+    expect(fetchSpy).toHaveBeenCalledWith(
+      expect.stringContaining("file.pdf"),
+      expect.objectContaining({ method: "HEAD" }),
+    );
+
+    const uploaded = await adapter.uploadObject("file.pdf", Buffer.from("hello"), "text/plain");
+    expect(uploaded).toBe(true);
+    expect(fetchSpy).toHaveBeenCalledWith(
+      expect.stringContaining("file.pdf"),
+      expect.objectContaining({ method: "PUT" }),
+    );
+  });
+});
+
