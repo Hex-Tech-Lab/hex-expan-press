@@ -14,8 +14,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const getUserMock = vi.fn();
 const getSessionMock = vi.fn();
+const getClaimsMock = vi.fn();
 const createClientMock = vi.fn(() => ({ auth: { getUser: getUserMock } }));
-const createServerClientMock = vi.fn(() => ({ auth: { getSession: getSessionMock } }));
+const createServerClientMock = vi.fn(() => ({ auth: { getSession: getSessionMock, getClaims: getClaimsMock } }));
 
 vi.mock("@supabase/supabase-js", () => ({
   createClient: ((...args: unknown[]) => createClientMock(...(args as []))) as never,
@@ -48,6 +49,7 @@ describe("getPortalSession (Wave 5 ssr-only authorization branches)", () => {
     cookieStore.clear();
     getUserMock.mockReset();
     getSessionMock.mockReset();
+    getClaimsMock.mockReset();
     createClientMock.mockClear();
     createServerClientMock.mockClear();
     vi.stubEnv("NODE_ENV", "test");
@@ -114,5 +116,53 @@ describe("getPortalSession (Wave 5 ssr-only authorization branches)", () => {
     const { getPortalSession } = await import("../supabase-server");
     const result = await getPortalSession();
     expect(result).toBeNull();
+  });
+
+  it("verifies session locally with getClaims when token has >60s until expiry (0 getUser network calls)", async () => {
+    setCookie("sb-portal-auth", "valid-local-token");
+    const accessToken = "valid-unexpired-token";
+    const futureExpiry = Math.floor(Date.now() / 1000) + 3600;
+    getSessionMock.mockResolvedValue({
+      data: {
+        session: {
+          access_token: accessToken,
+          expires_at: futureExpiry,
+          user: { id: "u-local-1", email: "local@expanpress.com" },
+        },
+      },
+    });
+    getClaimsMock.mockResolvedValue({
+      data: { claims: { sub: "u-local-1", email: "local@expanpress.com" } },
+      error: null,
+    });
+
+    const { getPortalSession } = await import("../supabase-server");
+    const session = await getPortalSession();
+    expect(session).not.toBeNull();
+    expect(session?.user.id).toBe("u-local-1");
+    // Local verification succeeded without any getUser network round-trip!
+    expect(getClaimsMock).toHaveBeenCalledWith(accessToken);
+    expect(getUserMock).not.toHaveBeenCalled();
+  });
+
+  it("falls back to validateJwt (getUser) when token expires within 60s", async () => {
+    setCookie("sb-portal-auth", "near-expiry-token");
+    const accessToken = "near-expiry-token-val";
+    const soonExpiry = Math.floor(Date.now() / 1000) + 30; // 30s remaining
+    getSessionMock.mockResolvedValue({
+      data: {
+        session: {
+          access_token: accessToken,
+          expires_at: soonExpiry,
+          user: { id: "u-near-1", email: "near@expanpress.com" },
+        },
+      },
+    });
+    getUserMock.mockResolvedValue({ data: { user: { id: "u-near-1", email: "near@expanpress.com" } }, error: null });
+
+    const { getPortalSession } = await import("../supabase-server");
+    const session = await getPortalSession();
+    expect(session).not.toBeNull();
+    expect(getUserMock).toHaveBeenCalledWith(accessToken);
   });
 });
