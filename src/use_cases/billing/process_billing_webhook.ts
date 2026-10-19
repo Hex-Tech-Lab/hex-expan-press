@@ -12,6 +12,7 @@ import { appendSale, appendRefund, appendRefundReversal, findSaleAsync, findRefu
 import { computeSplit, usdToCents } from "../../../payments/src/split.ts";
 import { effectiveCreatorSplitPctAsync } from "../../../payments/src/terms.ts";
 import { resolveProductByAlias, withIdempotencyLock, WebhookInFlightError } from "../../../payments/src/webhook_core.ts";
+import { deliverSaleForWebhook } from "../../../payments/src/delivery.ts";
 import { GLOBAL } from "../../../payments/src/settings_registry.ts";
 
 type LockedResult = { status: number; payload: Record<string, unknown> };
@@ -153,9 +154,10 @@ export async function processBillingWebhookUseCase(
   }
 
   if (!matchedAdapter) {
-    // No adapter claims the signature headers → nothing was verified. Marked
-    // senderVerified=false so the route does NOT quarantine this reject
-    // (unauthenticated traffic must not force audit_log writes).
+    // No adapter claims the signature headers → nothing was verified. Marked senderVerified=false so the
+    // route does NOT quarantine or audit it: an unverified request must write no row, whatever its shape
+    // (unauthenticated traffic must not force audit_log writes, PR #78). A provider-shaped delivery with no
+    // routable adapter is answered 400 and logged. Replay needs a verifier for that provider.
     const err = new WebhookValidationError("No payment provider configured to handle this webhook signature.");
     err.senderVerified = false;
     throw err;
@@ -455,16 +457,29 @@ export async function processBillingWebhookUseCase(
     const saleEvent = event as SaleCompletedEvent;
 
     // 5a. Distributed idempotency lock: concurrent/duplicate deliveries for the same sale
-    // take the lock. Already-recorded sale → return normally (no double payout); lock held
-    // by an in-flight delivery → WebhookInFlightError → 503 so the provider retries.
+    // take the lock. Already-recorded sale → the lock holder re-attempts delivery under the lock
+    // (no double payout); lock held by another delivery → WebhookInFlightError → 503 so the provider retries.
+    // A recorded sale is never acknowledged from outside the lock: the holder may still be delivering it,
+    // or may have failed. Only a retry that takes the lock can confirm delivery.
     // withIdempotencyLock also frees the slot when nothing was written (payload.recorded !== true).
-    await underLockOrConfirmed(
+    await withIdempotencyLock(
       `lock:sale:${saleEvent.providerName}:${saleEvent.saleId}`,
-      async () => (await findSaleAsync(saleEvent.providerName, saleEvent.saleId)) !== null,
       async () => {
-        // Duplicate guard: if sale already recorded, exit early without duplicating splits
+        // Fail closed for a non-Paddle sale without a buyer email: no download link can be sent, and a retry cannot
+        // change that. Delivery would throw on every retry (a 500 loop), so the sale is refused with a final 422.
+        if (saleEvent.providerName !== "paddle" && !saleEvent.buyerEmail) {
+          console.error(`[billing-webhook] sale ${saleEvent.saleId} from ${saleEvent.providerName} has no buyer email; refused`);
+          throw new WebhookValidationError(
+            `Webhook validation failed: sale ${saleEvent.saleId} from ${saleEvent.providerName} has no buyer email; refused, no download link can be sent`,
+            422,
+          );
+        }
+        // Duplicate guard: if sale already recorded, do not duplicate splits. A prior attempt may have
+        // failed after the ledger write, so re-attempt delivery; it is idempotent per sale, and a
+        // failure rethrows (500) so the provider retries.
         const existing = await findSaleAsync(saleEvent.providerName, saleEvent.saleId);
         if (existing) {
+          await deliverSaleForWebhook({ saleId: saleEvent.saleId, productAlias: saleEvent.productId, buyerEmail: saleEvent.buyerEmail });
           return { status: 200, payload: { ok: true, recorded: false, reason: "duplicate", sale_id: saleEvent.saleId } };
         }
 
@@ -503,6 +518,9 @@ export async function processBillingWebhookUseCase(
           currency: cfg.currency,
           ...(saleEvent.attributionId ? { attribution_id: saleEvent.attributionId } : {})
         });
+        // Receipt and download link, after the ledger write. A delivery failure rethrows: the webhook answers 500 and the
+        // provider retries, which re-attempts delivery on the duplicate path above.
+        await deliverSaleForWebhook({ saleId: saleEvent.saleId, productAlias: saleEvent.productId, buyerEmail: saleEvent.buyerEmail });
         return { status: 200, payload: { ok: true, recorded: true, sale_id: saleEvent.saleId } };
       },
     );

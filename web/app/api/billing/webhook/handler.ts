@@ -16,7 +16,11 @@ async function record503Audit(details: { provider?: string; sale_id?: string; re
   try {
     const url = process.env.SUPABASE_URL;
     const key = process.env.SUPABASE_SECRET_KEY;
-    if (!url || !key) return; // unconfigured Supabase: nothing durable to write
+    if (!url || !key) {
+      // Unconfigured Supabase: nothing durable to write. Logged so the missing row is visible to operators.
+      console.error(`[billing-webhook] audit skipped: SUPABASE_URL or SUPABASE_SECRET_KEY unset (event=WEBHOOK_503_RETRYING reason=${details.reason})`);
+      return;
+    }
     const { createClient } = await import("@supabase/supabase-js");
     const supabase = createClient(url, key);
     const { error } = await supabase.from("audit_log").insert({ event: "WEBHOOK_503_RETRYING", details }).abortSignal(signal);
@@ -29,17 +33,18 @@ async function record503Audit(details: { provider?: string; sale_id?: string; re
 /** Run the 503 audit for at most payments.http_timeout_ms (the webhook's short internal-call
  *  budget), then abort the insert so a stalled Supabase can't pile up open requests. The race
  *  keeps the response bounded even if the abort doesn't settle promptly. */
-async function auditBounded(details: { provider?: string; sale_id?: string; reason: string }): Promise<void> {
+export async function auditBounded(
+  details: { provider?: string; sale_id?: string; reason: string },
+  run: typeof record503Audit = record503Audit,
+): Promise<void> {
   const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<void>((resolve) => {
     timer = setTimeout(() => { controller.abort(); resolve(); }, GLOBAL.payments.http_timeout_ms);
   });
-  try {
-    await Promise.race([record503Audit(details, controller.signal), timeout]);
-  } finally {
-    clearTimeout(timer);
-  }
+  // .finally, not try/finally: eslint-plugin-security-node crashes on a TryStatement with no catch.
+  // The async wrapper turns a synchronous throw from run into a rejection, so .finally still clears the timer.
+  await Promise.race([(async () => run(details, controller.signal))(), timeout]).finally(() => clearTimeout(timer));
 }
 
 // Webhooks are small JSON bodies (KBs) — cap buffering at 1 MiB (the Wave 4
@@ -107,7 +112,6 @@ async function handleWebhook(request: NextRequest, adapters: WebhookAdapters): P
       );
     }
     console.error("Billing webhook error:", err);
-    const message = err instanceof Error ? err.message : String(err);
     // Ledger schema violations are permanent for the payload (e.g. sub-cent amounts):
     // a 500 would make Paddle/Polar retry forever. Terminal 400 halts the retry loop;
     // the raw event is quarantined durably (sha256 + provider + sale id — the raw body
@@ -116,9 +120,9 @@ async function handleWebhook(request: NextRequest, adapters: WebhookAdapters): P
       await quarantineTerminalEvent(headers, bodyBuffer, err.name);
       return NextResponse.json({ ok: false, error: "Bad Request" }, { status: 400 });
     }
-    // Typed classification first (sprint-10 F5); the substring checks are a
-    // deprecated fallback kept one release for legacy error paths.
-    const isValidationErr = err instanceof WebhookValidationError || message.includes("validation failed") || message.includes("No payment provider");
+    // Typed classification only. Message text is never inspected: a transient failure can mention
+    // "validation failed" and must stay retryable (500), not become a terminal 400.
+    const isValidationErr = err instanceof WebhookValidationError;
     // The use case attaches httpStatus to validation failures (e.g. 401 for a
     // bad/stale signature) — honor it when in the 4xx band; otherwise the
     // legacy 400/500 split stands.
@@ -166,14 +170,11 @@ async function quarantineTerminalEvent(
   const timeout = new Promise<void>((resolve) => {
     timer = setTimeout(() => { controller.abort(); resolve(); }, GLOBAL.payments.http_timeout_ms);
   });
-  try {
-    await Promise.race([insertTerminalRejectAudit(headers, bodyBuffer, reason, controller.signal), timeout]);
-  } finally {
-    clearTimeout(timer);
-  }
+  // .finally, not try/finally: see auditBounded.
+  await Promise.race([insertTerminalRejectAudit(headers, bodyBuffer, reason, controller.signal), timeout]).finally(() => clearTimeout(timer));
 }
 
-async function insertTerminalRejectAudit(
+export async function insertTerminalRejectAudit(
   headers: Record<string, string | string[] | undefined>,
   bodyBuffer: Buffer,
   reason: string,
@@ -182,7 +183,10 @@ async function insertTerminalRejectAudit(
   try {
     const url = process.env.SUPABASE_URL;
     const key = process.env.SUPABASE_SECRET_KEY;
-    if (!url || !key) return;
+    if (!url || !key) {
+      console.error(`[billing-webhook] audit skipped: SUPABASE_URL or SUPABASE_SECRET_KEY unset (event=WEBHOOK_TERMINAL_REJECT reason=${reason})`);
+      return;
+    }
     const { createClient } = await import("@supabase/supabase-js");
     const supabase = createClient(url, key);
     const { error } = await supabase
@@ -193,8 +197,8 @@ async function insertTerminalRejectAudit(
       })
       .abortSignal(signal);
     if (error) console.error("[billing-webhook] terminal-reject quarantine insert failed:", error.message);
-  } catch (qErr) {
-    console.error("[billing-webhook] terminal-reject quarantine exception:", qErr);
+  } catch (err) {
+    console.error("[billing-webhook] terminal-reject quarantine exception:", err);
   }
 }
 
