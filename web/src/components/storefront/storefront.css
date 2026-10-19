@@ -89,5 +89,5 @@
   .sf-root footer a { color: #2E7D5B; text-decoration: none; }
   .sf-root footer a:hover { text-decoration: underline; }
   .sf-root footer .sep { color: #CBB3A7; }
-  .sf-root a:focus-visible, .sf-root button:focus-visible { outline: 3px solid #B3401E; outline-offset: 3px; }
+  .sf-root a:focus, .sf-root a:focus-visible, .sf-root button:focus, .sf-root button:focus-visible { outline: 3px solid #B3401E; outline-offset: 3px; }
   @media (max-width: 480px) { .sf-root h1 { font-size: 27px; } .sf-root { padding: 36px 16px 32px; } }

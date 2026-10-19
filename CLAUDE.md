@@ -21,6 +21,14 @@ A few things worth restating because they are easy to violate accidentally:
 
 The E-Sign boundary contracts (Firma live shape, state finality, strict final URL, SSRF/memory/credential defenses, evidence attestation chain, consents bucket IaC, `getSupabaseAdmin()` seam) are sealed in `AGENTS.md` under "Sealed E-Sign contracts (2026-10-05, Sprint 12)" — treat them as binding. Sprint 13 adds the DNS-pinned download transport (TOCTOU eradicated — ADR-0058) and the GET/HEAD-only skew-retry gate (ADR-0059); full forensic detail: `docs/history/THOS_2026-10-05_sprint12.md`.
 
+## Search tools (binding for all agents)
+
+From now on, use fzf for quick file search, the graph for codebase structure, and recoll for finding files by content.
+
+- **fzf** for file names: `plocate -i <term> | fzf -f '<term>'` (typo-tolerant, ranked). Use `plocate` first; it is the fast index.
+- **Graph** (`build-graph`, `explore-codebase`, `review-pr`) for code structure, callers, and blast radius.
+- **recoll** for text inside files, scoped to hex-expan: `recollq -c ~/.recoll-hex-expan -t -q "<query>"`. Its index is persistent at `~/.cache/recoll-hex-expan/`. Rebuild with `recollindex -c ~/.recoll-hex-expan` after large changes.
+
 ## Tooling Debt
 
 - **contract-auditor** was referenced by the global skill-gate hook (`~/.claude/hooks/skill-gates.sh`) and is not installed. It was removed from the hook's required list on 2026-10-15; the previous hook is kept as `skill-gates.sh.bak-pre-qa-intel-20261015`. Restore or replace it. Owner: CC.

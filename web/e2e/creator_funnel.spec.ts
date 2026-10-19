@@ -34,9 +34,11 @@ test("creator funnel: sign in → review → consents → e-sign → gated buyer
   await expect(page).toHaveURL(/\/creator\/review/);
   for (const code of ["Q1", "Q2"]) {
     // The stepper advances ~500ms after a save — wait for THIS question first.
-    const options = page.getByRole("radiogroup", { name: `Options for ${code}` });
-    await expect(options).toBeVisible();
-    await options.getByLabel("Yes").check();
+    await expect(page.getByText(code, { exact: true })).toBeVisible();
+    const yesRadio = page.getByRole("radio", { name: "Yes" });
+    await expect(yesRadio).toBeVisible();
+    await yesRadio.click();
+    await expect(yesRadio).toBeChecked();
     await page.getByRole("button", { name: "Save & next" }).click();
   }
   await expect(page.getByRole("heading", { name: "Every answer is saved and logged" })).toBeVisible();

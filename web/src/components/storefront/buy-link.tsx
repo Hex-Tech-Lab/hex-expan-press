@@ -32,7 +32,12 @@ export function AttributionCapture() {
   return null;
 }
 
-export function BuyLink({ href, className, children }: { href: string; className: string; children: React.ReactNode }) {
+export function BuyLink({
+  href,
+  className,
+  children,
+  ...props
+}: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string; className: string; children: React.ReactNode }) {
   useAttributionCapture();
 
   // Forward on click (as the static page did): no state, no hydration mismatch.
@@ -50,7 +55,7 @@ export function BuyLink({ href, className, children }: { href: string; className
   };
 
   return (
-    <a className={className} href={href} onClick={onClick}>
+    <a className={className} href={href} onClick={onClick} {...props}>
       {children}
     </a>
   );
