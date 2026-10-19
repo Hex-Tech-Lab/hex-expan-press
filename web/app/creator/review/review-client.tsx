@@ -87,11 +87,21 @@ export default function ReviewClient({ items, saved, pdfUrl, bookTitle }: Review
   const isNoAnswerNeeded = /no answer needed/i.test(item?.question ?? "");
   const hasBlank = /_{3,}/.test(item?.question ?? "");
 
+  // In-memory client draft cache (Task 4: zero egress on navigation, prevents data loss)
+  const draftsRef = useRef<Record<string, SavedAnswer>>({});
+
   function showItem(i: number) {
+    if (items[index]) {
+      draftsRef.current[items[index].id] = {
+        choice: choice.trim() || null,
+        freeText: freeText.trim() || null,
+      };
+    }
     const target = items[i];
     setIndex(i);
-    setChoice(answers[target.id]?.choice ?? "");
-    setFreeText(answers[target.id]?.freeText ?? "");
+    const cached = draftsRef.current[target.id];
+    setChoice(cached?.choice ?? answers[target.id]?.choice ?? "");
+    setFreeText(cached?.freeText ?? answers[target.id]?.freeText ?? "");
     setError(null);
     setJustSaved(false);
     focusQuestionRef.current = true;
@@ -221,6 +231,9 @@ export default function ReviewClient({ items, saved, pdfUrl, bookTitle }: Review
   }, [total, folio]);
 
   async function saveAndNext() {
+    // Immediate double-click guard (Task 4: debounce duplicate submissions)
+    if (busy) return;
+
     const a = choice.trim() || null;
     const f = freeText.trim() || null;
     if (!a && !f) {
@@ -231,6 +244,21 @@ export default function ReviewClient({ items, saved, pdfUrl, bookTitle }: Review
       );
       return;
     }
+
+    // Zero-egress optimization (Task 4): if the answer is unchanged from saved state,
+    // skip network round-trip and advance to the next question immediately.
+    const currentSaved = answers[item.id];
+    if (currentSaved && currentSaved.choice === a && currentSaved.freeText === f) {
+      delete draftsRef.current[item.id];
+      setJustSaved(true);
+      const nextOpen = items.findIndex((it, k) => k > index && !answers[it.id]);
+      window.setTimeout(() => {
+        showItem(nextOpen !== -1 ? nextOpen : (index < items.length - 1 ? index + 1 : index));
+        window.scrollTo(0, 0);
+      }, 300);
+      return;
+    }
+
     setBusy(true);
     setError(null);
     let res: Awaited<ReturnType<typeof submitReviewAnswerAction>>;
@@ -248,6 +276,7 @@ export default function ReviewClient({ items, saved, pdfUrl, bookTitle }: Review
       setError(res.error ?? "Could not save — please try again.");
       return;
     }
+    delete draftsRef.current[item.id];
     const updated = { ...answers, [item.id]: { choice: a, freeText: f } };
     setAnswers(updated);
     setJustSaved(true);
