@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "../../../../payments/src/supabase_admin";
 import { GLOBAL } from "../../../../payments/src/settings_registry";
 import { TOKEN_RE, tokenHash } from "../../../../payments/src/delivery";
+import { getDeliveryStorageAdapter } from "../../../../src/adapters/storage/r2.adapter";
 
 export const runtime = "nodejs";
 
@@ -50,11 +51,13 @@ export async function GET(_request: NextRequest, ctx: { params: Promise<{ token:
     return new NextResponse("Download unavailable", { status: 500 });
   }
 
-  const { data: signed, error: signErr } = await sb.storage
-    .from(GLOBAL.delivery.bucket)
-    .createSignedUrl(product.release_path as string, GLOBAL.delivery.signed_url_seconds);
-  if (signErr || !signed?.signedUrl) {
-    console.error(`[delivery] signed URL failed for sale ${link.sale_id as string}: ${signErr?.message ?? "no url"}`);
+  const storage = getDeliveryStorageAdapter(sb, GLOBAL.delivery.bucket);
+  const signedUrl = await storage.createSignedDownloadUrl(
+    product.release_path as string,
+    GLOBAL.delivery.signed_url_seconds,
+  );
+  if (!signedUrl) {
+    console.error(`[delivery] signed URL failed for sale ${link.sale_id as string}`);
     return new NextResponse("Download unavailable", { status: 500 });
   }
 
@@ -70,7 +73,7 @@ export async function GET(_request: NextRequest, ctx: { params: Promise<{ token:
     return new NextResponse("Download unavailable", { status: 500 });
   }
 
-  const res = NextResponse.redirect(signed.signedUrl, 302);
+  const res = NextResponse.redirect(signedUrl, 302);
   res.headers.set("Cache-Control", "no-store");
   res.headers.set("Referrer-Policy", "no-referrer");
   return res;

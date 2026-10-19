@@ -14,47 +14,13 @@ vi.mock("../actions", () => ({
   submitReviewAnswerAction: vi.fn().mockResolvedValue({ ok: true }),
 }));
 
-vi.mock("next/link", () => ({
-  default: (props: Record<string, unknown> & { children?: React.ReactNode }) =>
-    React.createElement("a", props, props.children),
-}));
-
-vi.mock("framer-motion", () => {
-  const MOTION_ONLY_PROPS = ["initial", "animate", "exit", "transition", "variants", "whileTap", "whileHover", "layout"];
-  const stripMotionProps = (props: Record<string, unknown>) => {
-    const rest: Record<string, unknown> = {};
-    for (const key of Object.keys(props)) {
-      if (!MOTION_ONLY_PROPS.includes(key)) rest[key] = props[key];
-    }
-    return rest;
-  };
-  const m = new Proxy(
-    {},
-    {
-      get: (_target, tag) => {
-        if (typeof tag !== "string") return undefined;
-        const Motionless = (props: Record<string, unknown>) => React.createElement(tag, stripMotionProps(props));
-        return Motionless;
-      },
-    },
-  );
-  return {
-    m,
-    useReducedMotion: () => true,
-    LazyMotion: (props: { children?: React.ReactNode }) => props?.children ?? null,
-    domAnimation: {},
-  };
-});
+vi.mock("next/link", async () => (await import("./test-helpers")).mockNextLink());
+vi.mock("framer-motion", async () => (await import("./test-helpers")).mockFramerMotion());
 
 import ReviewClient from "../review-client";
-import type { ReviewItemView } from "../page";
+import { STEPPER_FOCUS_ITEMS } from "./test-helpers";
 
-const ITEMS: ReviewItemView[] = [
-  { id: "i1", code: "Q1", kind: "confirm", question: "Question one?", options: [], anchorPage: null },
-  { id: "i2", code: "Q2", kind: "confirm", question: "Question two?", options: [], anchorPage: null },
-  { id: "i3", code: "Q3", kind: "confirm", question: "Question three?", options: [], anchorPage: null },
-];
-
+const ITEMS = STEPPER_FOCUS_ITEMS;
 const SAVED = { i1: { choice: "A", freeText: "" } };
 
 let container: HTMLDivElement | null = null;

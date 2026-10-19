@@ -45,6 +45,29 @@ const nextConfig: NextConfig = {
       { source: "/c/:handle/:product", destination: "/books/:handle/:product", statusCode: 301 },
     ];
   },
+  // Task 3: Cache-Control public, max-age=31536000, immutable on public static book covers & assets
+  async headers() {
+    return [
+      {
+        source: "/covers/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=31536000, immutable",
+          },
+        ],
+      },
+      {
+        source: "/assets/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=86400, stale-while-revalidate=604800",
+          },
+        ],
+      },
+    ];
+  },
   // Sprint 15: the webhook resolves products from Supabase (resolveProductByAlias)
   // — no runtime config.*.json enumeration, so the former outputFileTracingIncludes
   // bundling of payments/config.*.json + books/*.json is gone.

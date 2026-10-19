@@ -32,13 +32,19 @@ const loadSyncConfigFromDb = async (): Promise<SyncConfig> => {
   if (!supabase) {
     throw new Error("sync_book_identity: SUPABASE_URL/SUPABASE_SECRET_KEY not configured — the DB is the only source of the sync target (fail closed)");
   }
+  const PRODUCTS_QUERY_LIMIT = 500;
   const { data, error } = await supabase
     .from("products")
     .select("id, store_product_id, book_registry, paddle_product_ref")
-    .not("book_registry", "is", null);
+    .not("book_registry", "is", null)
+    .order("id", { ascending: true })
+    .limit(PRODUCTS_QUERY_LIMIT);
   if (error) throw new Error(`sync_book_identity: products query failed: ${error.message}`);
   if (!data || data.length === 0) {
     throw new Error("sync_book_identity: no products row carries book_registry — nothing to sync");
+  }
+  if (data.length >= PRODUCTS_QUERY_LIMIT) {
+    throw new Error(`sync_book_identity: products query reached limit of ${PRODUCTS_QUERY_LIMIT} rows; potential truncation, failing closed`);
   }
   if (data.length > 1) {
     throw new Error(`sync_book_identity: ${data.length} products carry book_registry — sync target ambiguous, failing loud`);
