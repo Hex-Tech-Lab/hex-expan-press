@@ -83,8 +83,18 @@ export async function getPortalSession(): Promise<PortalSession | null> {
       // verify claims locally using getClaims() to avoid blocking network round-trips.
       if (expiresAt - now > 60 && typeof ssr.auth.getClaims === "function") {
         const { data: claimsData, error: claimsError } = await ssr.auth.getClaims(session.access_token);
-        if (!claimsError && claimsData?.claims && session.user) {
-          user = session.user;
+        if (!claimsError && claimsData?.claims) {
+          const claims = claimsData.claims as Record<string, unknown>;
+          if (claims.sub) {
+            user = {
+              id: claims.sub as string,
+              email: (claims.email as string) ?? session.user?.email ?? "",
+              app_metadata: (claims.app_metadata as Record<string, unknown>) ?? session.user?.app_metadata ?? {},
+              user_metadata: (claims.user_metadata as Record<string, unknown>) ?? session.user?.user_metadata ?? {},
+              aud: (claims.aud as string) ?? "authenticated",
+              created_at: session.user?.created_at ?? new Date().toISOString(),
+            } as User;
+          }
         }
       }
       if (!user) {
