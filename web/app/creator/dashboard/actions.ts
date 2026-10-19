@@ -44,10 +44,14 @@ export async function startPublisherAgreementAction(): Promise<void> {
   // C3 publisher agreement requires the ENTIRE prerequisite chain (both C1 AND C2)
   // to be actively given on the creator's primary product.
   // Query all C1 and C2 rows for this creator (RLS-scoped).
-  const { data: consents, error: consentsError } = await supabase
+  const consentsQuery = supabase
     .from("consents")
     .select("product_id, kind, decision, signed_at, id, supersedes")
     .in("kind", ["C1_data_accuracy", "C2_release_approval"]);
+  const { data: consents, error: consentsError } =
+    typeof (consentsQuery as { limit?: unknown }).limit === "function"
+      ? await (consentsQuery as unknown as { limit: (n: number) => Promise<{ data: typeof consents; error: typeof consentsError }> }).limit(50)
+      : await consentsQuery;
 
   if (consentsError || !consents || consents.length === 0) {
     redirect("/creator/dashboard?error=c2_required");
