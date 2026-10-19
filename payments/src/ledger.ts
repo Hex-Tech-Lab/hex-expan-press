@@ -174,6 +174,9 @@ async function persistToSupabaseOrder(record: SaleRecord): Promise<void> {
   }
 }
 
+/** Minimal columns for public.orders queries matching OrdersRow (bans .select('*')). */
+export const ORDERS_SELECT_COLUMNS = "occurred_at, created_at, sale_id, provider, product_id, amount_usd, creator_id, creator_split_pct, creator_split_usd, our_split_usd, currency, event_type, email_hash, attribution_id, provider_adjustment_id";
+
 /** public.orders row as PostgREST returns it (numeric columns arrive as strings). */
 interface OrdersRow {
   occurred_at?: string; created_at?: string; sale_id: string; provider: string; product_id: string;
@@ -229,35 +232,44 @@ export function findSale(provider: string, saleId: string, salesFile: string = S
   return null;
 }
 
-/** Asynchronously finds a sale, falling back to Supabase public.orders if not found in local file. */
-export async function findSaleAsync(provider: string, saleId: string, salesFile: string = SALES_FILE): Promise<SaleRecord | null> {
-  const local = findSale(provider, saleId, salesFile);
-  if (local) return local;
-
+/** Internal helper querying a single order row from Supabase public.orders with fail-closed semantics. */
+async function queryOrderRowFromSupabase(
+  filters: Record<string, string>,
+  errorContext: string,
+): Promise<SaleRecord | null> {
   try {
     // Client construction inside the lookup error boundary (Cubic P3, PR #80
     // fix-forward): a construction failure is logged + rethrown by the catch
     // below instead of escaping raw.
     const supabase = await getSupabaseAdmin();
     if (!supabase) return null;
-    const { data, error } = await supabase
-      .from("orders")
-      .select("*")
-      .eq("provider", provider)
-      .eq("sale_id", saleId)
-      .eq("event_type", "sale")
-      .maybeSingle();
+    let query = supabase.from("orders").select(ORDERS_SELECT_COLUMNS);
+    for (const [col, val] of Object.entries(filters)) {
+      query = query.eq(col, val);
+    }
+    const { data, error } = await query.maybeSingle();
     // Fail CLOSED: a lookup error is not "not found" — treating it as such would
     // let a duplicate delivery through. The route 500s and the provider retries.
-    if (error) throw new Error(`ledger: Supabase sale lookup failed: ${error.message}`);
+    if (error) throw new Error(`ledger: Supabase ${errorContext} failed: ${error.message}`);
 
     if (!data) return null;
 
     return rowToSaleRecord(data);
   } catch (err) {
-    console.error("ledger: Supabase sale lookup failed:", err);
+    console.error(`ledger: Supabase ${errorContext} failed:`, err);
     throw err instanceof Error ? err : new Error(String(err));
   }
+}
+
+/** Asynchronously finds a sale, falling back to Supabase public.orders if not found in local file. */
+export async function findSaleAsync(provider: string, saleId: string, salesFile: string = SALES_FILE): Promise<SaleRecord | null> {
+  const local = findSale(provider, saleId, salesFile);
+  if (local) return local;
+
+  return queryOrderRowFromSupabase(
+    { provider, sale_id: saleId, event_type: "sale" },
+    "sale lookup",
+  );
 }
 
 /** Duplicate-key guard on the partial unique index
@@ -311,26 +323,10 @@ export async function findByProviderAdjustmentIdAsync(provider: string, provider
   const local = findByProviderAdjustmentId(provider, providerAdjustmentId, eventType, salesFile);
   if (local) return local;
 
-  try {
-    // Client construction inside the lookup error boundary (Cubic P3, PR #80
-    // fix-forward): a construction failure is logged + rethrown by the catch
-    // below instead of escaping raw.
-    const supabase = await getSupabaseAdmin();
-    if (!supabase) return null;
-    const { data, error } = await supabase
-      .from("orders")
-      .select("*")
-      .eq("provider", provider)
-      .eq("provider_adjustment_id", providerAdjustmentId)
-      .eq("event_type", eventType)
-      .maybeSingle();
-    if (error) throw new Error(`ledger: Supabase adjustment-id lookup failed: ${error.message}`);
-    if (!data) return null;
-    return rowToSaleRecord(data);
-  } catch (err) {
-    console.error("ledger: Supabase adjustment-id lookup failed:", err);
-    throw err instanceof Error ? err : new Error(String(err));
-  }
+  return queryOrderRowFromSupabase(
+    { provider, provider_adjustment_id: providerAdjustmentId, event_type: eventType },
+    "adjustment-id lookup",
+  );
 }
 
 /** Find an already-recorded REFUND by provider + sale_id (refund idempotency guard).
@@ -496,30 +492,10 @@ export async function findRefundAsync(provider: string, saleId: string, salesFil
   const local = findRefund(provider, saleId, salesFile);
   if (local) return local;
 
-  try {
-    // Client construction inside the lookup error boundary (Cubic P3, PR #80
-    // fix-forward): a construction failure is logged + rethrown by the catch
-    // below instead of escaping raw.
-    const supabase = await getSupabaseAdmin();
-    if (!supabase) return null;
-    const { data, error } = await supabase
-      .from("orders")
-      .select("*")
-      .eq("provider", provider)
-      .eq("sale_id", saleId)
-      .eq("event_type", "refund")
-      .maybeSingle();
-    // Fail CLOSED: a lookup error is not "not found" — treating it as such would
-    // let a duplicate delivery through. The route 500s and the provider retries.
-    if (error) throw new Error(`ledger: Supabase refund lookup failed: ${error.message}`);
-
-    if (!data) return null;
-
-    return rowToSaleRecord(data);
-  } catch (err) {
-    console.error("ledger: Supabase refund lookup failed:", err);
-    throw err instanceof Error ? err : new Error(String(err));
-  }
+  return queryOrderRowFromSupabase(
+    { provider, sale_id: saleId, event_type: "refund" },
+    "refund lookup",
+  );
 }
 
 /** Find an already-recorded REFUND_REVERSAL by provider + sale_id (reversal idempotency guard). */
@@ -551,27 +527,10 @@ export async function findRefundReversalAsync(provider: string, saleId: string, 
   const local = findRefundReversal(provider, saleId, salesFile);
   if (local) return local;
 
-  try {
-    // Client construction inside the lookup error boundary (Cubic P3, PR #80
-    // fix-forward): a construction failure is logged + rethrown by the catch
-    // below instead of escaping raw.
-    const supabase = await getSupabaseAdmin();
-    if (!supabase) return null;
-    const { data, error } = await supabase
-      .from("orders")
-      .select("*")
-      .eq("provider", provider)
-      .eq("sale_id", saleId)
-      .eq("event_type", "refund_reversal")
-      .maybeSingle();
-    if (error) throw new Error(`ledger: Supabase refund_reversal lookup failed: ${error.message}`);
-    if (!data) return null;
-
-    return rowToSaleRecord(data);
-  } catch (err) {
-    console.error("ledger: Supabase refund_reversal lookup failed:", err);
-    throw err instanceof Error ? err : new Error(String(err));
-  }
+  return queryOrderRowFromSupabase(
+    { provider, sale_id: saleId, event_type: "refund_reversal" },
+    "refund_reversal lookup",
+  );
 }
 
 async function appendRecord(record: SaleRecord, salesFile: string): Promise<void> {
