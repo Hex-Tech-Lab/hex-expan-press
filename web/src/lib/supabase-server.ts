@@ -76,7 +76,20 @@ export async function getPortalSession(): Promise<PortalSession | null> {
     const { data } = await ssr.auth.getSession();
     const session = data.session;
     if (session?.access_token) {
-      const user = await validateJwt(session.access_token);
+      let user: User | null = null;
+      const expiresAt = session.expires_at ?? 0;
+      const now = Math.floor(Date.now() / 1000);
+      // Egress optimization (Task 2): when access token has >60s until expiry,
+      // verify claims locally using getClaims() to avoid blocking network round-trips.
+      if (expiresAt - now > 60 && typeof ssr.auth.getClaims === "function") {
+        const { data: claimsData, error: claimsError } = await ssr.auth.getClaims(session.access_token);
+        if (!claimsError && claimsData?.claims && session.user) {
+          user = session.user;
+        }
+      }
+      if (!user) {
+        user = await validateJwt(session.access_token);
+      }
       if (user) return { user, supabase: clientWithJwt(session.access_token) };
     }
   } catch (err) {

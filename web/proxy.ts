@@ -97,7 +97,32 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
       },
     );
 
-    await supabase.auth.getUser();
+    // Egress optimization (Task 2): Check session expiry locally first.
+    // If token is valid and not within 60s of expiry, verify claims locally via
+    // getClaims() to avoid blocking HTTP round-trips to Supabase Auth on every request.
+    // If expired, near expiry (<= 60s), or getSession is unavailable/fails, getUser()
+    // triggers @supabase/ssr session refresh and writes chunked cookies.
+    let needsRefresh = true;
+    if (typeof supabase.auth.getSession === "function") {
+      const { data } = await supabase.auth.getSession();
+      const session = data?.session;
+      if (session?.access_token) {
+        const expiresAt = session.expires_at ?? 0;
+        const now = Math.floor(Date.now() / 1000);
+        if (expiresAt - now > 60) {
+          if (typeof supabase.auth.getClaims === "function") {
+            const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(session.access_token);
+            if (!claimsError && claimsData?.claims) {
+              needsRefresh = false;
+            }
+          }
+        }
+      }
+    }
+
+    if (needsRefresh) {
+      await supabase.auth.getUser();
+    }
   } catch (err) {
     // Missing env or network/auth-service failure must not take pages down —
     // pages enforce their own fail-closed redirects; the response carries on.
