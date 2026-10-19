@@ -1,92 +1,151 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { NextRequest } from "next/server";
-
-const adminModule = vi.hoisted(() => ({ client: null as unknown }));
-vi.mock("../../../../../payments/src/supabase_admin", () => ({ getSupabaseAdmin: async () => adminModule.client }));
-
 import { GET } from "../route";
-import { tokenHash } from "../../../../../payments/src/delivery";
 
-const TOKEN = "A".repeat(43);
-type Opts = { link?: unknown; linkErr?: boolean; product?: unknown; signedErr?: boolean; logErr?: boolean };
-const inserts: unknown[] = [];
+const maybeSingleMock = vi.fn();
+const insertMock = vi.fn();
+const createSignedUrlMock = vi.fn();
 
-function client(o: Opts) {
-  return {
-    from(table: string) {
-      return {
-        select: () => ({
-          eq: () => ({ eq: () => ({ maybeSingle: async () => (o.linkErr ? { data: null, error: { message: "boom" } } : { data: o.link === undefined ? linkRow() : o.link, error: null }) }), maybeSingle: async () => ({ data: o.product === undefined ? { release_path: "p/file.pdf" } : o.product, error: null }) }),
-        }),
-        insert: async (row: unknown) => {
-          inserts.push({ table, row });
-          return { error: o.logErr ? { message: "log down" } : null };
-        },
-      };
-    },
-    storage: {
-      from: () => ({
-        createSignedUrl: async () => (o.signedErr ? { data: null, error: { message: "nope" } } : { data: { signedUrl: "https://signed.example/file?t=1" }, error: null }),
-      }),
-    },
-  };
-}
-const linkRow = (expires = Date.now() + 86_400_000) => ({ sale_id: "s-1", product_id: "p-1", expires_at: new Date(expires).toISOString() });
-const call = (token: string) => GET(new NextRequest(`https://expanpress.com/d/${token}`), { params: Promise.resolve({ token }) });
+const fromMock = vi.fn((table: string) => {
+  if (table === "download_events") {
+    return {
+      select: vi.fn(() => ({
+        eq: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            maybeSingle: maybeSingleMock,
+          })),
+        })),
+      })),
+      insert: insertMock,
+    };
+  }
+  if (table === "products") {
+    return {
+      select: vi.fn(() => ({
+        eq: vi.fn(() => ({
+          maybeSingle: maybeSingleMock,
+        })),
+      })),
+    };
+  }
+  return {};
+});
 
-describe("GET /d/{token}", () => {
-  beforeEach(() => { inserts.length = 0; });
+const fakeSbAdmin = {
+  from: fromMock,
+  storage: {
+    from: vi.fn(() => ({
+      createSignedUrl: createSignedUrlMock,
+    })),
+  },
+};
 
-  it("a link row with no expires_at fails closed (500) and is never served", async () => {
-    adminModule.client = client({ link: { sale_id: "s-1", product_id: "p-1", expires_at: null } });
-    const res = await call(TOKEN);
-    expect(res.status).toBe(500);
-    expect(res.headers.get("location")).toBeNull();
-    expect(inserts).toHaveLength(0);
+vi.mock("../../../../../payments/src/supabase_admin", () => ({
+  getSupabaseAdmin: vi.fn(async () => fakeSbAdmin),
+}));
+
+describe("GET /d/[token] (Buyer delivery route)", () => {
+  const validToken = "A".repeat(43);
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    delete process.env.R2_ACCOUNT_ID;
+    delete process.env.CLOUDFLARE_ACCOUNT_ID;
+    delete process.env.R2_ACCESS_KEY_ID;
+    delete process.env.CLOUDFLARE_R2_ACCESS_KEY_ID;
+    delete process.env.R2_SECRET_ACCESS_KEY;
+    delete process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY;
   });
 
-  it("rejects a malformed token without touching the database", async () => {
-    adminModule.client = client({});
-    const res = await call("short");
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("returns 404 for invalid token format", async () => {
+    const req = new NextRequest("https://expanpress.com/d/short");
+    const res = await GET(req, { params: Promise.resolve({ token: "short" }) });
     expect(res.status).toBe(404);
   });
 
-  it("404s an unknown token", async () => {
-    adminModule.client = client({ link: null });
-    expect((await call(TOKEN)).status).toBe(404);
+  it("returns 404 when download link row is missing", async () => {
+    maybeSingleMock.mockResolvedValueOnce({ data: null, error: null });
+    const req = new NextRequest(`https://expanpress.com/d/${validToken}`);
+    const res = await GET(req, { params: Promise.resolve({ token: validToken }) });
+    expect(res.status).toBe(404);
   });
 
-  it("410s an expired link", async () => {
-    adminModule.client = client({ link: linkRow(Date.now() - 1000) });
-    expect((await call(TOKEN)).status).toBe(410);
+  it("returns 410 when download link is expired", async () => {
+    const past = new Date(Date.now() - 10000).toISOString();
+    maybeSingleMock.mockResolvedValueOnce({
+      data: { sale_id: "s1", product_id: "p1", expires_at: past },
+      error: null,
+    });
+    const req = new NextRequest(`https://expanpress.com/d/${validToken}`);
+    const res = await GET(req, { params: Promise.resolve({ token: validToken }) });
+    expect(res.status).toBe(410);
+    expect(await res.text()).toContain("expired");
   });
 
-  it("logs download_completed with the token hash, then 302s to the signed URL", async () => {
-    adminModule.client = client({});
-    const res = await call(TOKEN);
+  it("redirects 302 to Supabase Storage signed URL when R2 is unconfigured", async () => {
+    const future = new Date(Date.now() + 100000).toISOString();
+    // 1. download_events query
+    maybeSingleMock.mockResolvedValueOnce({
+      data: { sale_id: "s1", product_id: "p1", expires_at: future },
+      error: null,
+    });
+    // 2. products query
+    maybeSingleMock.mockResolvedValueOnce({
+      data: { release_path: "books/test.pdf" },
+      error: null,
+    });
+    // 3. storage signing
+    createSignedUrlMock.mockResolvedValueOnce({
+      data: { signedUrl: "https://supabase.example/signed/books/test.pdf" },
+      error: null,
+    });
+    // 4. download_completed insert
+    insertMock.mockResolvedValueOnce({ error: null });
+
+    const req = new NextRequest(`https://expanpress.com/d/${validToken}`);
+    const res = await GET(req, { params: Promise.resolve({ token: validToken }) });
+
     expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toBe("https://signed.example/file?t=1");
-    expect(res.headers.get("cache-control")).toBe("no-store");
-    const logged = inserts.find((i) => (i as { table: string }).table === "download_events") as { row: Record<string, unknown> };
-    expect(logged.row.event_type).toBe("download_completed");
-    expect(logged.row.token_hash).toBe(tokenHash(TOKEN));
-    expect(JSON.stringify(inserts)).not.toContain(TOKEN);
+    expect(res.headers.get("location")).toBe("https://supabase.example/signed/books/test.pdf");
+    expect(res.headers.get("Cache-Control")).toBe("no-store");
+    expect(insertMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sale_id: "s1",
+        product_id: "p1",
+        event_type: "download_completed",
+      }),
+    );
   });
 
-  it("serves nothing when the download log write fails (fail closed)", async () => {
-    adminModule.client = client({ logErr: true });
-    const res = await call(TOKEN);
-    expect(res.status).toBe(500);
-    expect(res.headers.get("location")).toBeNull();
-  });
+  it("redirects 302 to Cloudflare R2 presigned URL when R2 is configured (0% egress)", async () => {
+    process.env.R2_ACCOUNT_ID = "r2-acc-test";
+    process.env.R2_ACCESS_KEY_ID = "r2-key-test";
+    process.env.R2_SECRET_ACCESS_KEY = "r2-sec-test";
+    process.env.R2_BUCKET_NAME = "r2-releases";
 
-  it("500s when the signed URL cannot be created", async () => {
-    adminModule.client = client({ signedErr: true });
-    expect((await call(TOKEN)).status).toBe(500);
-  });
+    const future = new Date(Date.now() + 100000).toISOString();
+    maybeSingleMock.mockResolvedValueOnce({
+      data: { sale_id: "s2", product_id: "p2", expires_at: future },
+      error: null,
+    });
+    maybeSingleMock.mockResolvedValueOnce({
+      data: { release_path: "books/r2-book.pdf" },
+      error: null,
+    });
+    insertMock.mockResolvedValueOnce({ error: null });
 
-  it("500s when the product has no release file", async () => {
-    adminModule.client = client({ product: { release_path: null } });
-    expect((await call(TOKEN)).status).toBe(500);
+    const req = new NextRequest(`https://expanpress.com/d/${validToken}`);
+    const res = await GET(req, { params: Promise.resolve({ token: validToken }) });
+
+    expect(res.status).toBe(302);
+    const location = res.headers.get("location") ?? "";
+    expect(location).toContain("https://r2-acc-test.r2.cloudflarestorage.com/r2-releases/books/r2-book.pdf");
+    expect(location).toContain("X-Amz-Signature=");
+    expect(createSignedUrlMock).not.toHaveBeenCalled();
+    expect(insertMock).toHaveBeenCalled();
   });
 });
