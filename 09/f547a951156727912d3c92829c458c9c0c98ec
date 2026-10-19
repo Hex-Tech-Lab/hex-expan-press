@@ -1,0 +1,18 @@
+CLAUDE.md
+  h_e6b68dcbbd0983 11
+GEMINI.md
+  h_e6b68dcbbd0983 1-8
+docs/agent_ledger.jsonl
+  h_e6b68dcbbd0983 680-682
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "09f547a951156727912d3c92829c458c9c0c98ec",
+  "prompts": {},
+  "humans": {
+    "h_e6b68dcbbd0983": {
+      "author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
