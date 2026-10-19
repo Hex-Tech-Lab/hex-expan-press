@@ -38,22 +38,25 @@ export async function signOutAction(): Promise<void> {
 export async function startPublisherAgreementAction(): Promise<void> {
   const session = await getPortalSession();
   if (!session) redirect("/creator/signin");
-  const { user, supabase } = session;
+  const { supabase } = session;
+
+  // Online auth verification: ensure revoked session cannot trigger e-sign dispatch
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  if (userError || !userData?.user) {
+    redirect("/creator/signin");
+  }
+  const user = userData.user;
 
   // Prerequisite chain verification (sprint 14 ARTAS Track A2):
   // C3 publisher agreement requires the ENTIRE prerequisite chain (both C1 AND C2)
   // to be actively given on the creator's primary product.
   type ConsentRow = { product_id: string; kind: string; decision: string; signed_at: string; id: string; supersedes: string | null };
-  const consentsQuery = supabase
+  const { data: consents, error: consentsError } = (await supabase
     .from("consents")
     .select("product_id, kind, decision, signed_at, id, supersedes")
-    .in("kind", ["C1_data_accuracy", "C2_release_approval"]);
-  const res =
-    typeof (consentsQuery as { limit?: unknown }).limit === "function"
-      ? await (consentsQuery as unknown as { limit: (n: number) => Promise<{ data: ConsentRow[] | null; error: unknown }> }).limit(50)
-      : await (consentsQuery as unknown as Promise<{ data: ConsentRow[] | null; error: unknown }>);
-  const consents = res.data;
-  const consentsError = res.error;
+    .in("kind", ["C1_data_accuracy", "C2_release_approval"])
+    .order("created_at", { ascending: false })
+    .limit(200)) as { data: ConsentRow[] | null; error: unknown };
 
   if (consentsError || !consents || consents.length === 0) {
     redirect("/creator/dashboard?error=c2_required");

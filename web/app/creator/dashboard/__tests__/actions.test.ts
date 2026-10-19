@@ -20,6 +20,12 @@ interface ConsentTestRow {
 let consentsData: ConsentTestRow[] = [];
 let consentsError: { message: string } | null = null;
 
+const getUserMock = vi.fn<
+  () => Promise<{ data: { user: { id: string; email: string } | null }; error: { message: string } | null }>
+>(async () => ({
+  data: { user: { id: "u1", email: "creator@expanpress.com" } },
+  error: null,
+}));
 
 const createEnvelopeMock = vi.fn().mockResolvedValue({ signUrl: "https://firma.im/sign/envelope_123" });
 
@@ -31,13 +37,20 @@ vi.mock("../../../../src/lib/supabase-server", () => ({
   getPortalSession: vi.fn(async () => ({
     user: { id: "u1", email: "creator@expanpress.com" },
     supabase: {
+      auth: {
+        getUser: getUserMock,
+      },
       from: (table: string) => {
         if (table === "consents") {
           return {
             select: () => ({
-              in: async () => ({
-                data: consentsData,
-                error: consentsError,
+              in: () => ({
+                order: () => ({
+                  limit: async () => ({
+                    data: consentsData,
+                    error: consentsError,
+                  }),
+                }),
               }),
             }),
           };
@@ -66,8 +79,19 @@ import { startPublisherAgreementAction } from "../actions";
 describe("startPublisherAgreementAction — complete consent prerequisite chain (P1)", () => {
   beforeEach(() => {
     createEnvelopeMock.mockClear();
+    getUserMock.mockReset();
+    getUserMock.mockResolvedValue({
+      data: { user: { id: "u1", email: "creator@expanpress.com" } },
+      error: null,
+    });
     consentsError = null;
     consentsData = [];
+  });
+
+  it("fails closed and redirects to signin when online supabase.auth.getUser() reports a revoked session", async () => {
+    getUserMock.mockResolvedValueOnce({ data: { user: null }, error: { message: "session revoked" } });
+    await expect(startPublisherAgreementAction()).rejects.toThrow("NEXT_REDIRECT:/creator/signin");
+    expect(createEnvelopeMock).not.toHaveBeenCalled();
   });
 
   it("fails closed and redirects with error=c2_required when consents query fails or is empty", async () => {

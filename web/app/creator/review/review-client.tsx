@@ -63,6 +63,7 @@ export default function ReviewClient({ items, saved, pdfUrl, bookTitle }: Review
   const [error, setError] = useState<string | null>(null);
   const [justSaved, setJustSaved] = useState(false);
   const [busy, setBusy] = useState(false);
+  const busyRef = useRef(false);
 
   // ---- PDF.js viewer state (React lifecycle, lazily loaded) ----
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -90,8 +91,8 @@ export default function ReviewClient({ items, saved, pdfUrl, bookTitle }: Review
   // In-memory client draft cache (Task 4: zero egress on navigation, prevents data loss)
   const draftsRef = useRef<Record<string, SavedAnswer>>({});
 
-  function showItem(i: number) {
-    if (items[index]) {
+  function showItem(i: number, saveCurrentDraft = true) {
+    if (saveCurrentDraft && items[index]) {
       draftsRef.current[items[index].id] = {
         choice: choice.trim() || null,
         freeText: freeText.trim() || null,
@@ -231,12 +232,16 @@ export default function ReviewClient({ items, saved, pdfUrl, bookTitle }: Review
   }, [total, folio]);
 
   async function saveAndNext() {
-    // Immediate double-click guard (Task 4: debounce duplicate submissions)
-    if (busy) return;
+    // Immediate synchronous double-click guard
+    if (busyRef.current) return;
+    busyRef.current = true;
+    setBusy(true);
 
     const a = choice.trim() || null;
     const f = freeText.trim() || null;
     if (!a && !f) {
+      busyRef.current = false;
+      setBusy(false);
       setError(
         isNoAnswerNeeded
           ? "Type OK to confirm you've read this, then continue."
@@ -245,46 +250,53 @@ export default function ReviewClient({ items, saved, pdfUrl, bookTitle }: Review
       return;
     }
 
-    // Zero-egress optimization (Task 4): if the answer is unchanged from saved state,
-    // skip network round-trip and advance to the next question immediately.
+    // Zero-egress optimization (Task 4): normalize empty string vs null
     const currentSaved = answers[item.id];
-    if (currentSaved && currentSaved.choice === a && currentSaved.freeText === f) {
+    const savedChoice = currentSaved?.choice?.trim() || null;
+    const savedFreeText = currentSaved?.freeText?.trim() || null;
+    if (currentSaved && savedChoice === a && savedFreeText === f) {
       delete draftsRef.current[item.id];
       setJustSaved(true);
       const nextOpen = items.findIndex((it, k) => k > index && !answers[it.id]);
       window.setTimeout(() => {
-        showItem(nextOpen !== -1 ? nextOpen : (index < items.length - 1 ? index + 1 : index));
+        showItem(nextOpen !== -1 ? nextOpen : (index < items.length - 1 ? index + 1 : index), false);
         window.scrollTo(0, 0);
+        busyRef.current = false;
+        setBusy(false);
       }, 300);
       return;
     }
 
-    setBusy(true);
     setError(null);
-    let res: Awaited<ReturnType<typeof submitReviewAnswerAction>>;
+    let willNavigate = false;
     try {
-      res = await submitReviewAnswerAction(item.id, a, f);
+      const res = await submitReviewAnswerAction(item.id, a, f);
+      if (!res.ok) {
+        setError(res.error ?? "Could not save — please try again.");
+        return;
+      }
+      delete draftsRef.current[item.id];
+      const updated = { ...answers, [item.id]: { choice: a, freeText: f } };
+      setAnswers(updated);
+      setJustSaved(true);
+      willNavigate = true;
+      const nextOpen = items.findIndex((it, k) => k > index && !updated[it.id]);
+      window.setTimeout(() => {
+        showItem(nextOpen !== -1 ? nextOpen : index, false);
+        window.scrollTo(0, 0);
+        busyRef.current = false;
+        setBusy(false);
+      }, 500);
     } catch (err) {
       // Network/runtime rejection: keep the typed answer and let the creator retry.
       console.error("[review] save failed:", err);
       setError("Could not save — check your connection and try again.");
-      return;
     } finally {
-      setBusy(false);
+      if (!willNavigate) {
+        busyRef.current = false;
+        setBusy(false);
+      }
     }
-    if (!res.ok) {
-      setError(res.error ?? "Could not save — please try again.");
-      return;
-    }
-    delete draftsRef.current[item.id];
-    const updated = { ...answers, [item.id]: { choice: a, freeText: f } };
-    setAnswers(updated);
-    setJustSaved(true);
-    const nextOpen = items.findIndex((it, k) => k > index && !updated[it.id]);
-    window.setTimeout(() => {
-      showItem(nextOpen !== -1 ? nextOpen : index);
-      window.scrollTo(0, 0);
-    }, 500);
   }
 
   const printed = (p: number) => (folio !== null ? Math.max(1, p - folio) : p);
@@ -429,7 +441,7 @@ export default function ReviewClient({ items, saved, pdfUrl, bookTitle }: Review
             <button
               type="button"
               onClick={() => index > 0 && showItem(index - 1)}
-              disabled={index === 0}
+              disabled={index === 0 || busy}
               className="min-h-11 rounded-[10px] border border-[#EADFD1] px-5 text-[length:var(--font-size-sm)] font-semibold text-[#6E5F53] transition-colors hover:bg-[#F3ECDF] disabled:cursor-not-allowed disabled:opacity-40"
             >
               ← Back

@@ -56,18 +56,43 @@ export default async function DashboardPage({
 
   const { user, supabase } = session;
 
-  // Independent reads run in parallel (async-avoid-waterfall) — mirrors the
-  // review page: the creator's product, its review items, and the answer rows.
-  const [profileRes, productRes, itemsRes, answersRes, consentsRes] = await Promise.all([
+  // Profile and primary product resolved first
+  const [profileRes, productRes] = await Promise.all([
     supabase.from("profiles").select("full_name, email").eq("user_id", user.id).maybeSingle(),
     resolvePrimaryProduct<{ id: string }>(supabase, "id"),
-    supabase.from("review_items").select("id, product_id").limit(100),
-    supabase.from("review_answers").select("item_id").limit(100),
-    // Chain-head resolution needs ALL decisions + the supersedes pointers —
-    // filtering to decision='given' here would let a superseded row read as
-    // signed (sprint 12 B2, AGY audit P1).
-    supabase.from("consents").select("id, kind, decision, product_id, supersedes").limit(100),
   ]);
+
+  const product = productRes.product;
+
+  // Review items and consents scoped strictly to the primary product
+  const [itemsRes, consentsRes] = product
+    ? await Promise.all([
+        supabase
+          .from("review_items")
+          .select("id, product_id, code")
+          .eq("product_id", product.id)
+          .order("code", { ascending: true })
+          .limit(500),
+        // Chain-head resolution needs ALL decisions + supersedes pointers
+        supabase
+          .from("consents")
+          .select("id, kind, decision, product_id, supersedes")
+          .eq("product_id", product.id)
+          .order("signed_at", { ascending: false })
+          .limit(500),
+      ])
+    : [{ data: [], error: null }, { data: [], error: null }];
+
+  const itemIds = (itemsRes.data ?? []).map((it) => it.id);
+  const answersRes =
+    itemIds.length > 0
+      ? await supabase
+          .from("review_answers")
+          .select("item_id, answered_at")
+          .in("item_id", itemIds)
+          .order("answered_at", { ascending: false })
+          .limit(500)
+      : { data: [], error: null };
 
   const failed = (
     [
@@ -107,8 +132,6 @@ export default async function DashboardPage({
   const email = profileRes.data?.email || user.email || "";
   // Mirror the review page's data model: the creator's first product, the
   // review items belonging to it, and answers counted as DISTINCT item_ids.
-  const product = productRes.product;
-  const itemIds = (itemsRes.data ?? []).filter((it) => it.product_id === product?.id).map((it) => it.id);
   const { answered, total } = reviewProgress(itemIds, (answersRes.data ?? []).map((a) => a.item_id));
   // NOTE: DB enum kind is C2_release_approval (the legacy HTML checked a
   // non-existent "C2_marketing_release" — step 2 could never complete there).
