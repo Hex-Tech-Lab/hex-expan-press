@@ -1,0 +1,34 @@
+AGENTS.md
+  h_e6b68dcbbd0983 24-31,117
+CLAUDE.md
+  h_e6b68dcbbd0983 24-31
+docs/agent_ledger.jsonl
+  h_e6b68dcbbd0983 676-678
+package.json
+  h_e6b68dcbbd0983 18-19,41,44-46,49-51,53
+pnpm-lock.yaml
+  h_e6b68dcbbd0983 113,122,125,128,132,135,138,144
+tech-freeze.json
+  h_e6b68dcbbd0983 5-6,14-15
+web/app/books/[handle]/[product]/page.tsx
+  h_e6b68dcbbd0983 84-89,93-98
+web/e2e/creator_funnel.spec.ts
+  h_e6b68dcbbd0983 37-41
+web/e2e/mock-supabase.ts
+  h_e6b68dcbbd0983 48-76
+web/src/components/storefront/buy-link.tsx
+  h_e6b68dcbbd0983 35-40,58
+web/src/components/storefront/storefront.css
+  h_e6b68dcbbd0983 92
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3499b6b4174b86d4ff65877db6c6953ebddb4396",
+  "prompts": {},
+  "humans": {
+    "h_e6b68dcbbd0983": {
+      "author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
