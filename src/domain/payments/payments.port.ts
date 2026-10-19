@@ -108,6 +108,8 @@ export interface SaleCompletedEvent {
 
   // --- Buyer ---
   buyerEmailHash: HashedEmail;   // sha256 of trim+lowercase email
+  // Transient, for the receipt email only. Never persisted; the ledger keeps buyerEmailHash.
+  buyerEmail?: string;
 
   // --- Time ---
   occurredAt: IsoTimestamp;      // Provider event timestamp, not our receipt timestamp

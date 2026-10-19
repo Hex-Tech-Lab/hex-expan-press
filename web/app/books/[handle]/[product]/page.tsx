@@ -3,6 +3,7 @@ import Link from "next/link";
 import { BuyLink } from "../../../../src/components/storefront/buy-link";
 import {
   NOINDEX,
+  PAY_ORIGIN,
   StorefrontFooter,
   storefrontRobots,
   insideItems,
@@ -32,7 +33,7 @@ export async function generateMetadata({
   const { creator, product: p, origin } = result;
   const title = `${p.title ?? p.composite_slug} · ${creator.display_name} · ExpanPress`;
   const description = (p.description ?? `A publication by ${creator.display_name} on ExpanPress.`).slice(0, 155);
-  const canonical = `${origin}/c/${creator.handle}/${product}`;
+  const canonical = `${origin}/books/${creator.handle}/${product}`;
   return {
     robots: storefrontRobots([p]),
     title,
@@ -53,13 +54,13 @@ export default async function StoreProductPage({
 
   const price = priceOf(p);
   const inside = insideItems(p.inside);
-  const buyUrl = `/api/billing/checkout?product=${encodeURIComponent(p.id)}`;
+  const buyUrl = `${PAY_ORIGIN}/checkout/${p.id}`;
 
   return (
     <div className="sf-root">
       <div className="wrap">
-        <p className="kicker">Digital PDF &middot; Instant Download</p>
-        <Link href={`/c/${creator.handle}`} className="backlink">
+        <p className="kicker">Digital PDF &middot; Download link by email</p>
+        <Link href={`/books/${creator.handle}`} className="backlink">
           &larr; Back to {creator.display_name}&rsquo;s page
         </Link>
         <h1>{p.title ?? p.composite_slug}</h1>
@@ -80,15 +81,25 @@ export default async function StoreProductPage({
         <p className="taxnote">Sales tax / VAT is calculated and collected at checkout by our payment partners.</p>
 
         {p.checkout_mode === "live" ? (
-          <BuyLink className="buybtn" href={buyUrl}>
+          <BuyLink
+            className="buybtn"
+            href={buyUrl}
+            data-checkout-slot="primary"
+            data-checkout-mode="live"
+          >
             Buy now &mdash; secure checkout
           </BuyLink>
         ) : (
-          <p className="buybtn buybtn-gated" aria-disabled="true">
+          <p
+            className="buybtn buybtn-gated"
+            aria-disabled="true"
+            data-checkout-slot="primary"
+            data-checkout-mode="gated"
+          >
             Coming soon &mdash; not yet available for purchase
           </p>
         )}
-        <p className="assurance">Secure checkout hosted by our payment partners &middot; PDF delivered by email</p>
+        <p className="assurance">Secure checkout hosted by our payment partners &middot; A download link is emailed after purchase</p>
 
         {inside.length > 0 && (
           <div className="inside">
