@@ -38,6 +38,13 @@ const nextConfig: NextConfig = {
     },
   },
   eslint: { ignoreDuringBuilds: false },
+  // ADR 0061: creator storefronts moved from /c/ to /books/. Old links keep working through 301s.
+  async redirects() {
+    return [
+      { source: "/c/:handle", destination: "/books/:handle", statusCode: 301 },
+      { source: "/c/:handle/:product", destination: "/books/:handle/:product", statusCode: 301 },
+    ];
+  },
   // Sprint 15: the webhook resolves products from Supabase (resolveProductByAlias)
   // — no runtime config.*.json enumeration, so the former outputFileTracingIncludes
   // bundling of payments/config.*.json + books/*.json is gone.

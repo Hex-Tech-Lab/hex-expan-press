@@ -45,6 +45,35 @@ function seed(): Record<string, Row[]> {
     ],
     review_answers: [],
     consents: [],
+    creators: [
+      {
+        handle: "retirearly500k",
+        display_name: "Retire Early 500k",
+        platform_handles: null,
+        bio: "Retire early playbook",
+        photo: null,
+        products: [
+          {
+            id: "22222222-0000-4000-8000-000000000001",
+            store_product_id: "prod_retire_500k",
+            composite_slug: "retirearly500k/500k-playbook",
+            site_slug: "retirearly500k/500k-playbook",
+            slug: "500k-playbook",
+            title: "500k Playbook",
+            price_usd: "47",
+            currency: "USD",
+            working_note: null,
+            description: "A playbook for retiring early with 500k.",
+            disclaimers: [],
+            checkout_mode: "gated",
+            inside: [{ label: "Chapter 1", text: "The strategy" }],
+          },
+        ],
+      },
+    ],
+    system_config: [
+      { key: "site.origin", value: "https://expanpress.com" },
+    ],
   };
 }
 

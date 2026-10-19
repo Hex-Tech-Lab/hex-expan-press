@@ -1,7 +1,7 @@
 /** Keyboard focus is visible: tabbing to a link/button paints an outline. */
 import { test, expect } from "@playwright/test";
 
-for (const path of ["/", "/c/retirearly500k/500k-playbook/", "/creator/signin"]) {
+for (const path of ["/", "/books/retirearly500k/500k-playbook", "/creator/signin"]) {
   test(`focus ring visible on ${path}`, async ({ page }) => {
     await page.goto(path);
     await page.keyboard.press("Tab");

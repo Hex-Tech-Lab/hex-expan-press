@@ -54,7 +54,7 @@ export async function signConsentAction(_prev: ConsentFormState, formData: FormD
   if (rawKind === SIGNABLE_KINDS.C2) {
     const sha = String(product.release_sha256 ?? "").toLowerCase();
     if (!/^[0-9a-f]{64}$/.test(sha) || sha === ZEROS_HASH) {
-      return { error: "Your final release file isn't ready to approve yet — we'll email you when it is." };
+      return { error: "Your final release file isn't ready to approve yet — check back here when it is ready." };
     }
     documentSha256 = sha;
   }

@@ -119,7 +119,7 @@ export default function SignInClient({
                 className="mt-1 h-[26px] w-[26px] flex-[0_0_auto] accent-[#E8622C]"
               />
               <label htmlFor="optin" className="text-base font-normal">
-                Send me occasional emails about new guides and tools (you can unsubscribe anytime)
+                Remember my preference for updates (stored in a cookie on this device; no marketing emails are sent yet)
               </label>
             </div>
             <button

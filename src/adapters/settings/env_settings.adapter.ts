@@ -17,8 +17,7 @@ export class EnvSettingsAdapter implements SettingsRegistryPort {
         checkoutStrategy: {
           mode: '2d',
           distribution: [
-            { provider: "polar", weight: 50 },
-            { provider: "paddle", weight: 50 }
+            { provider: "paddle", weight: 100 }
           ],
           fallbacks: ["lemonsqueezy", "fastspring"]
         }

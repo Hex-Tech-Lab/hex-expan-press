@@ -37,7 +37,7 @@ test.beforeEach(async () => {
 
 test("public pages have no WCAG AA violations", async ({ page }) => {
   const results: Record<string, unknown[]> = {};
-  for (const path of ["/", "/c/retirearly500k/", "/c/retirearly500k/500k-playbook/", "/creator/signin"]) {
+  for (const path of ["/", "/books/retirearly500k", "/books/retirearly500k/500k-playbook", "/creator/signin"]) {
     await page.goto(path);
     await page.waitForLoadState("networkidle");
     await page.waitForTimeout(SETTLE_MS);

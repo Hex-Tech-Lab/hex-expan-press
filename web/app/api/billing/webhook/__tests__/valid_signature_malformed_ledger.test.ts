@@ -37,6 +37,8 @@ vi.mock("../../../../../../payments/src/terms.ts", () => ({
   effectiveCreatorSplitPct: () => 50,
   effectiveCreatorSplitPctAsync: () => Promise.resolve(50),
 }));
+// Delivery is stubbed: this file asserts ledger recording and the webhook status, not mail or Dub.
+vi.mock("../../../../../../payments/src/delivery.ts", () => ({ deliverSaleForWebhook: async () => undefined }));
 vi.mock("../../../../../../payments/src/settings_registry.ts", () => ({
   GLOBAL: {
     paths: { sales_ledger: `${ledgerDir}/sales.jsonl` },
@@ -65,7 +67,7 @@ const signedFixtureAdapter = {
     const p = JSON.parse(body) as { id: string; totalCents: number };
     return {
       isValid: true,
-      event: { eventType: "sale_completed", providerName: "polar", saleId: p.id, productId: "p1", totalCents: p.totalCents, currency: "USD", buyerEmailHash: "0xabc", occurredAt: "2026-10-04T00:00:00.000Z", rawPayload: null },
+      event: { eventType: "sale_completed", providerName: "polar", saleId: p.id, productId: "p1", totalCents: p.totalCents, currency: "USD", buyerEmailHash: "0xabc", buyerEmail: "buyer@example.com", occurredAt: "2026-10-04T00:00:00.000Z", rawPayload: null },
     };
   },
 };
