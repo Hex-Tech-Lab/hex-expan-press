@@ -10,7 +10,7 @@ import { expanRedis, ExpanRedisClient } from "../../src/infrastructure/redis/red
 // reads credentials LAZILY on every command (getUrl/getToken → redisRestEnv()), never
 // at construction. The "reads env at call time" test below locks that invariant in.
 const RUN_INTEGRATION = process.env.RUN_INTEGRATION_TESTS === "true";
-if (RUN_INTEGRATION) dotenv.config({ path: ".env", override: true });
+if (RUN_INTEGRATION) dotenv.config({ path: ".env" });
 
 describe.skipIf(!RUN_INTEGRATION)("payments/src/redis — live Upstash namespace isolation (integration)", () => {
   const testKey = "test:safety_check_" + Date.now();

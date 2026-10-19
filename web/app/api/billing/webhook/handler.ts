@@ -58,17 +58,24 @@ async function readBodyCapped(request: NextRequest): Promise<Buffer | null> {
   const reader = request.body.getReader();
   const chunks: Buffer[] = [];
   let total = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    total += value.byteLength;
-    if (total > MAX_BODY_BYTES) {
-      await reader.cancel();
-      return null;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > MAX_BODY_BYTES) {
+        await reader.cancel().catch(() => {});
+        return null;
+      }
+      chunks.push(Buffer.from(value));
     }
-    chunks.push(Buffer.from(value));
+    return Buffer.concat(chunks);
+  } catch (err) {
+    await reader.cancel().catch(() => {});
+    throw err;
+  } finally {
+    reader.releaseLock();
   }
-  return Buffer.concat(chunks);
 }
 
 /**

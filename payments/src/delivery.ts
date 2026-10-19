@@ -243,6 +243,7 @@ function supabaseDeliveryDb(): DeliveryDb {
         .select("id")
         .eq("event", DELIVERY_CONFIRMED_EVENT)
         .contains("details", { sale_id: saleId })
+        .order("id", { ascending: true })
         .limit(1);
       if (error) throw new Error(`delivery confirmation lookup failed: ${error.message}`);
       return (data ?? []).length > 0;

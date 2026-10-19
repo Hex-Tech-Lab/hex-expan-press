@@ -37,13 +37,14 @@ export default async function ConsentsPage() {
   }
 
   // Chain-head resolution (sprint 12 B2, AGY audit P1, sprint 14 Track C1):
-  // fetch ALL decisions for the creator across their complete chain —
-  // supersession is resolved creator-wide first, then filtered to this product.
+  // fetch decisions for the creator scoped strictly to this product with deterministic order and bound.
   const consentsRes = await supabase
     .from("consents")
     .select("id, kind, decision, product_id, supersedes")
-    .limit(100);
-  if (consentsRes.error) {
+    .eq("product_id", product.id)
+    .order("signed_at", { ascending: false })
+    .limit(500);
+  if (consentsRes.error || (consentsRes.data && consentsRes.data.length >= 500)) {
     return (
       <ConsentNotice
         title="We couldn't load your consent states."

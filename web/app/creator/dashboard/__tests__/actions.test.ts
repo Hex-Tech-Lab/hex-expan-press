@@ -42,18 +42,24 @@ vi.mock("../../../../src/lib/supabase-server", () => ({
       },
       from: (table: string) => {
         if (table === "consents") {
-          return {
-            select: () => ({
-              in: () => ({
-                order: () => ({
-                  limit: async () => ({
-                    data: consentsData,
-                    error: consentsError,
-                  }),
-                }),
-              }),
+          let rows = [...consentsData];
+          const query = {
+            select: () => query,
+            eq: (col: string, val: unknown) => {
+              rows = rows.filter((r) => (r as unknown as Record<string, unknown>)[col] === val);
+              return query;
+            },
+            in: (col: string, vals: unknown[]) => {
+              rows = rows.filter((r) => vals.includes((r as unknown as Record<string, unknown>)[col]));
+              return query;
+            },
+            order: () => query,
+            limit: async () => ({
+              data: rows,
+              error: consentsError,
             }),
           };
+          return query;
         }
         if (table === "products") {
           return productSelect;
@@ -240,4 +246,54 @@ describe("startPublisherAgreementAction — complete consent prerequisite chain 
       expect.anything(),
     );
   });
+
+  it("scopes consents strictly to primary product and ignores active heads on other products (multi-product isolation)", async () => {
+    consentsData = [
+      // Product 1 (primary) valid heads
+      {
+        id: "c1_p1",
+        product_id: "p1",
+        kind: "C1_data_accuracy",
+        decision: "given",
+        signed_at: "2026-10-01T00:00:00Z",
+        supersedes: null,
+      },
+      {
+        id: "c2_p1",
+        product_id: "p1",
+        kind: "C2_release_approval",
+        decision: "given",
+        signed_at: "2026-10-01T00:00:00Z",
+        supersedes: null,
+      },
+      // Product 2 (secondary) extra active heads that would contaminate unscoped query
+      {
+        id: "c1_p2",
+        product_id: "p2",
+        kind: "C1_data_accuracy",
+        decision: "given",
+        signed_at: "2026-10-01T00:00:00Z",
+        supersedes: null,
+      },
+      {
+        id: "c2_p2",
+        product_id: "p2",
+        kind: "C2_release_approval",
+        decision: "given",
+        signed_at: "2026-10-01T00:00:00Z",
+        supersedes: null,
+      },
+    ];
+
+    await expect(startPublisherAgreementAction()).rejects.toThrow("NEXT_REDIRECT:https://firma.im/sign/envelope_123");
+    expect(createEnvelopeMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        productId: "p1",
+        userId: "u1",
+        userEmail: "creator@expanpress.com",
+      }),
+      expect.anything(),
+    );
+  });
 });
+

@@ -47,6 +47,14 @@ export async function startPublisherAgreementAction(): Promise<void> {
   }
   const user = userData.user;
 
+  // Every portal status surface (dashboard, consents page, esign_done) reads the PRIMARY product,
+  // so the C3 envelope may only be created for it — resolve it first to scope all consent checks.
+  const { product: primary } = await resolvePrimaryProduct<{ id: string }>(supabase, "id");
+  if (!primary || !primary.id) {
+    redirect("/creator/dashboard?error=c2_required");
+  }
+  const productId = primary.id;
+
   // Prerequisite chain verification (sprint 14 ARTAS Track A2):
   // C3 publisher agreement requires the ENTIRE prerequisite chain (both C1 AND C2)
   // to be actively given on the creator's primary product.
@@ -54,11 +62,12 @@ export async function startPublisherAgreementAction(): Promise<void> {
   const { data: consents, error: consentsError } = (await supabase
     .from("consents")
     .select("product_id, kind, decision, signed_at, id, supersedes")
+    .eq("product_id", productId)
     .in("kind", ["C1_data_accuracy", "C2_release_approval"])
     .order("created_at", { ascending: false })
     .limit(500)) as { data: ConsentRow[] | null; error: unknown };
 
-  if (consentsError || !consents || consents.length === 0) {
+  if (consentsError || !consents || consents.length === 0 || consents.length >= 500) {
     redirect("/creator/dashboard?error=c2_required");
   }
 
@@ -78,17 +87,9 @@ export async function startPublisherAgreementAction(): Promise<void> {
   const c1Head = c1Heads[0];
   const c2Head = c2Heads[0];
 
-  if (c1Head.decision !== "given" || !c1Head.product_id || c2Head.decision !== "given" || !c2Head.product_id) {
+  if (c1Head.decision !== "given" || c1Head.product_id !== productId || c2Head.decision !== "given" || c2Head.product_id !== productId) {
     redirect("/creator/dashboard?error=c2_required");
   }
-
-  // Every portal status surface (dashboard, consents page, esign_done) reads the PRIMARY product,
-  // so the C3 envelope may only be created for it — both C1 and C2 must bind to it.
-  const { product: primary } = await resolvePrimaryProduct<{ id: string }>(supabase, "id");
-  if (!primary || primary.id !== c2Head.product_id || primary.id !== c1Head.product_id) {
-    redirect("/creator/dashboard?error=c2_required");
-  }
-  const productId = primary.id;
 
 
   const siteOrigin = process.env.NEXT_PUBLIC_SITE_ORIGIN ?? "https://expanpress.com";
