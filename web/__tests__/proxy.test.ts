@@ -1,6 +1,8 @@
 // Proxy contract tests (qa-intel security rule: the getUser session
 // boundary needs a sibling regression test).
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { createHmac } from "node:crypto";
+import { decodeAndVerifyJwt } from "../src/lib/jwt-verify";
 
 const getUserMock = vi.fn();
 const getSessionMock = vi.fn();
@@ -16,10 +18,24 @@ vi.mock("@supabase/ssr", () => ({
   createServerClient: (...args: unknown[]) => createServerClientMock(...(args as [])),
 }));
 
-function makeTestJwt(payload: Record<string, unknown>): string {
-  const header = Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url");
+const MOCK_HMAC_KEY = "dummy-testing-only-hmac-fixture-string";
+
+function makeTestJwt(
+  payload: Record<string, unknown>,
+  options: { secret?: string; alg?: string; rawSignature?: string } = {},
+): string {
+  const alg = options.alg ?? "HS256";
+  const secret = options.secret ?? MOCK_HMAC_KEY;
+  const header = Buffer.from(JSON.stringify({ alg, typ: "JWT" })).toString("base64url");
   const body = Buffer.from(JSON.stringify(payload)).toString("base64url");
-  const sig = Buffer.from("test-signature").toString("base64url");
+  let sig: string;
+  if (options.rawSignature !== undefined) {
+    sig = options.rawSignature;
+  } else if (alg === "none") {
+    sig = "";
+  } else {
+    sig = createHmac("sha256", secret).update(`${header}.${body}`).digest("base64url");
+  }
   return `${header}.${body}.${sig}`;
 }
 
@@ -45,6 +61,7 @@ describe("proxy (session refresh boundary)", () => {
     cookiesSetSpy.mockClear();
     process.env.SUPABASE_URL = "https://example.supabase.co";
     process.env.SUPABASE_PUBLISHABLE_KEY = "test-key";
+    process.env.SUPABASE_JWT_SECRET = MOCK_HMAC_KEY;
     process.env.NODE_ENV = "test";
   });
 
@@ -147,6 +164,71 @@ describe("proxy (session refresh boundary)", () => {
     await proxy(fakeRequest(["sb-portal-auth"]) as never);
     expect(getUserMock).toHaveBeenCalledTimes(1);
   });
+
+  it("calls getUser when signature is signed with the wrong HMAC secret (adversarial forged token)", async () => {
+    const futureExp = Math.floor(Date.now() / 1000) + 3600;
+    const forgedToken = makeTestJwt(
+      { sub: TEST_SUB_UUID, aud: "authenticated", exp: futureExp },
+      { secret: "wrong-hmac-key-fixture-32-chars-long" },
+    );
+    expect(decodeAndVerifyJwt(forgedToken)).toBeNull();
+    getSessionMock.mockResolvedValue({
+      data: { session: { access_token: forgedToken, expires_at: futureExp } },
+    });
+    getUserMock.mockResolvedValue({ data: { user: null }, error: null });
+    const { proxy } = await import("../proxy");
+    await proxy(fakeRequest(["sb-portal-auth"]) as never);
+    expect(getUserMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("calls getUser when payload claim is tampered with original signature (adversarial payload tampering)", async () => {
+    const futureExp = Math.floor(Date.now() / 1000) + 3600;
+    const validToken = makeTestJwt({ sub: TEST_SUB_UUID, aud: "authenticated", exp: futureExp });
+    const [header, , sig] = validToken.split(".");
+    const tamperedPayload = Buffer.from(
+      JSON.stringify({ sub: "00000000-0000-0000-0000-000000000000", aud: "authenticated", exp: futureExp }),
+    ).toString("base64url");
+    const tamperedToken = `${header}.${tamperedPayload}.${sig}`;
+
+    expect(decodeAndVerifyJwt(tamperedToken)).toBeNull();
+    getSessionMock.mockResolvedValue({
+      data: { session: { access_token: tamperedToken, expires_at: futureExp } },
+    });
+    getUserMock.mockResolvedValue({ data: { user: null }, error: null });
+    const { proxy } = await import("../proxy");
+    await proxy(fakeRequest(["sb-portal-auth"]) as never);
+    expect(getUserMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("calls getUser when alg is none (adversarial alg none attack)", async () => {
+    const futureExp = Math.floor(Date.now() / 1000) + 3600;
+    const noneToken = makeTestJwt(
+      { sub: TEST_SUB_UUID, aud: "authenticated", exp: futureExp },
+      { alg: "none", rawSignature: "" },
+    );
+    expect(decodeAndVerifyJwt(noneToken)).toBeNull();
+    getSessionMock.mockResolvedValue({
+      data: { session: { access_token: noneToken, expires_at: futureExp } },
+    });
+    getUserMock.mockResolvedValue({ data: { user: null }, error: null });
+    const { proxy } = await import("../proxy");
+    await proxy(fakeRequest(["sb-portal-auth"]) as never);
+    expect(getUserMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("calls getUser when SUPABASE_JWT_SECRET is missing or empty (fail-closed rule)", async () => {
+    delete process.env.SUPABASE_JWT_SECRET;
+    const futureExp = Math.floor(Date.now() / 1000) + 3600;
+    const validToken = makeTestJwt({ sub: TEST_SUB_UUID, aud: "authenticated", exp: futureExp });
+    expect(decodeAndVerifyJwt(validToken)).toBeNull();
+    getSessionMock.mockResolvedValue({
+      data: { session: { access_token: validToken, expires_at: futureExp } },
+    });
+    getUserMock.mockResolvedValue({ data: { user: null }, error: null });
+    const { proxy } = await import("../proxy");
+    await proxy(fakeRequest(["sb-portal-auth"]) as never);
+    expect(getUserMock).toHaveBeenCalledTimes(1);
+  });
 });
 
 // Host boundary (ADR 0061): pay.expanpress.com serves checkout only; expanpress.com sends checkout paths to pay.
@@ -160,6 +242,7 @@ describe("proxy host boundary (ADR 0061)", () => {
     createServerClientMock.mockClear();
     process.env.SUPABASE_URL = "https://example.supabase.co";
     process.env.SUPABASE_PUBLISHABLE_KEY = "test-key";
+    process.env.SUPABASE_JWT_SECRET = MOCK_HMAC_KEY;
     process.env.NODE_ENV = "test";
   });
 
