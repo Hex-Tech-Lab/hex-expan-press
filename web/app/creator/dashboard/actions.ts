@@ -58,16 +58,38 @@ export async function startPublisherAgreementAction(): Promise<void> {
   // Prerequisite chain verification (sprint 14 ARTAS Track A2):
   // C3 publisher agreement requires the ENTIRE prerequisite chain (both C1 AND C2)
   // to be actively given on the creator's primary product.
+  // DEF-005: consents has no created_at; order by signed_at desc, id desc.
+  // Bounded pagination helper fetches pages of 500 up to safety cap of 5,000 rows.
   type ConsentRow = { product_id: string; kind: string; decision: string; signed_at: string; id: string; supersedes: string | null };
-  const { data: consents, error: consentsError } = (await supabase
-    .from("consents")
-    .select("product_id, kind, decision, signed_at, id, supersedes")
-    .eq("product_id", productId)
-    .in("kind", ["C1_data_accuracy", "C2_release_approval"])
-    .order("created_at", { ascending: false })
-    .limit(500)) as { data: ConsentRow[] | null; error: unknown };
+  const PAGE_SIZE = 500;
+  const SAFETY_CAP = 5000;
+  const consents: ConsentRow[] = [];
+  let offset = 0;
+  let consentsError: unknown = null;
 
-  if (consentsError || !consents || consents.length === 0 || consents.length >= 500) {
+  while (offset < SAFETY_CAP) {
+    const { data, error } = (await supabase
+      .from("consents")
+      .select("product_id, kind, decision, signed_at, id, supersedes")
+      .eq("product_id", productId)
+      .in("kind", ["C1_data_accuracy", "C2_release_approval"])
+      .order("signed_at", { ascending: false })
+      .order("id", { ascending: false })
+      .range(offset, offset + PAGE_SIZE - 1)) as { data: ConsentRow[] | null; error: unknown };
+
+    if (error || !data) {
+      consentsError = error ?? new Error("Missing consent data");
+      break;
+    }
+
+    consents.push(...data);
+    if (data.length < PAGE_SIZE) {
+      break;
+    }
+    offset += PAGE_SIZE;
+  }
+
+  if (consentsError || consents.length === 0 || consents.length >= SAFETY_CAP) {
     redirect("/creator/dashboard?error=c2_required");
   }
 

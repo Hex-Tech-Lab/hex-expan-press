@@ -38,13 +38,42 @@ export default async function ConsentsPage() {
 
   // Chain-head resolution (sprint 12 B2, AGY audit P1, sprint 14 Track C1):
   // fetch decisions for the creator scoped strictly to this product with deterministic order and bound.
-  const consentsRes = await supabase
-    .from("consents")
-    .select("id, kind, decision, product_id, supersedes")
-    .eq("product_id", product.id)
-    .order("signed_at", { ascending: false })
-    .limit(500);
-  if (consentsRes.error || (consentsRes.data && consentsRes.data.length >= 500)) {
+  // DEF-005: replace single-page .limit(500) lockout with bounded pagination up to 5,000 rows.
+  type ConsentPageRow = {
+    id: string;
+    kind: string;
+    decision: string;
+    product_id?: string | null;
+    supersedes?: string | null;
+  };
+  const PAGE_SIZE = 500;
+  const SAFETY_CAP = 5000;
+  const allConsents: ConsentPageRow[] = [];
+  let offset = 0;
+  let consentsError: unknown = null;
+
+  while (offset < SAFETY_CAP) {
+    const { data, error } = (await supabase
+      .from("consents")
+      .select("id, kind, decision, product_id, supersedes")
+      .eq("product_id", product.id)
+      .order("signed_at", { ascending: false })
+      .order("id", { ascending: false })
+      .range(offset, offset + PAGE_SIZE - 1)) as { data: ConsentPageRow[] | null; error: unknown };
+
+    if (error || !data) {
+      consentsError = error ?? new Error("Missing consent data");
+      break;
+    }
+
+    allConsents.push(...data);
+    if (data.length < PAGE_SIZE) {
+      break;
+    }
+    offset += PAGE_SIZE;
+  }
+
+  if (consentsError || allConsents.length >= SAFETY_CAP) {
     return (
       <ConsentNotice
         title="We couldn't load your consent states."
@@ -52,7 +81,7 @@ export default async function ConsentsPage() {
       />
     );
   }
-  const active = activeConsentKinds(consentsRes.data ?? [], product.id);
+  const active = activeConsentKinds(allConsents, product.id);
 
   return (
     <ConsentCards

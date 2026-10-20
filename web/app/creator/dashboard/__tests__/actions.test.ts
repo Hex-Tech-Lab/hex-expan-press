@@ -53,9 +53,18 @@ vi.mock("../../../../src/lib/supabase-server", () => ({
               rows = rows.filter((r) => vals.includes((r as unknown as Record<string, unknown>)[col]));
               return query;
             },
-            order: () => query,
+            order: (col: string) => {
+              if (col === "created_at") {
+                throw new Error("PostgREST 400: column consents.created_at does not exist");
+              }
+              return query;
+            },
+            range: async (from: number, to: number) => ({
+              data: consentsError ? null : rows.slice(from, to + 1),
+              error: consentsError,
+            }),
             limit: async () => ({
-              data: rows,
+              data: consentsError ? null : rows,
               error: consentsError,
             }),
           };
@@ -294,6 +303,116 @@ describe("startPublisherAgreementAction — complete consent prerequisite chain 
       }),
       expect.anything(),
     );
+  });
+
+  it("throws PostgREST 400 if consents query attempts to order by created_at", async () => {
+    const session = await (await import("../../../../src/lib/supabase-server")).getPortalSession();
+    expect(session).not.toBeNull();
+    const query = session!.supabase.from("consents").select("*");
+    expect(() => (query as unknown as { order: (col: string) => void }).order("created_at")).toThrow(
+      "PostgREST 400: column consents.created_at does not exist",
+    );
+  });
+
+  it("proves a creator with 500 valid consent records succeeds (paginated properly, no false lockout)", async () => {
+    // 1 active C1 head, 1 active C2 head, and 498 older superseded records (249 for C1, 249 for C2)
+    const records: ConsentTestRow[] = [
+      {
+        id: "c1_head",
+        product_id: "p1",
+        kind: "C1_data_accuracy",
+        decision: "given",
+        signed_at: "2026-10-15T00:00:00Z",
+        supersedes: "c1_old_0",
+      },
+      {
+        id: "c2_head",
+        product_id: "p1",
+        kind: "C2_release_approval",
+        decision: "given",
+        signed_at: "2026-10-15T00:00:00Z",
+        supersedes: "c2_old_0",
+      },
+    ];
+
+    for (let i = 0; i < 249; i++) {
+      records.push({
+        id: `c1_old_${i}`,
+        product_id: "p1",
+        kind: "C1_data_accuracy",
+        decision: "given",
+        signed_at: `2026-10-01T00:00:00.${String(i).padStart(3, "0")}Z`,
+        supersedes: i < 248 ? `c1_old_${i + 1}` : null,
+      });
+      records.push({
+        id: `c2_old_${i}`,
+        product_id: "p1",
+        kind: "C2_release_approval",
+        decision: "given",
+        signed_at: `2026-10-01T00:00:00.${String(i).padStart(3, "0")}Z`,
+        supersedes: i < 248 ? `c2_old_${i + 1}` : null,
+      });
+    }
+
+    expect(records.length).toBe(500);
+    consentsData = records;
+
+    await expect(startPublisherAgreementAction()).rejects.toThrow("NEXT_REDIRECT:https://firma.im/sign/envelope_123");
+    expect(createEnvelopeMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        productId: "p1",
+        userId: "u1",
+        userEmail: "creator@expanpress.com",
+      }),
+      expect.anything(),
+    );
+  });
+
+  it("fails closed when safety cap of 5,000 rows is reached", async () => {
+    // 5,000 valid records (hits safety cap)
+    const records: ConsentTestRow[] = [
+      {
+        id: "c1_head",
+        product_id: "p1",
+        kind: "C1_data_accuracy",
+        decision: "given",
+        signed_at: "2026-10-15T00:00:00Z",
+        supersedes: "c1_old_0",
+      },
+      {
+        id: "c2_head",
+        product_id: "p1",
+        kind: "C2_release_approval",
+        decision: "given",
+        signed_at: "2026-10-15T00:00:00Z",
+        supersedes: "c2_old_0",
+      },
+    ];
+
+    for (let i = 0; i < 2499; i++) {
+      records.push({
+        id: `c1_old_${i}`,
+        product_id: "p1",
+        kind: "C1_data_accuracy",
+        decision: "given",
+        signed_at: "2026-10-01T00:00:00Z",
+        supersedes: i < 2498 ? `c1_old_${i + 1}` : null,
+      });
+      records.push({
+        id: `c2_old_${i}`,
+        product_id: "p1",
+        kind: "C2_release_approval",
+        decision: "given",
+        signed_at: "2026-10-01T00:00:00Z",
+        supersedes: i < 2498 ? `c2_old_${i + 1}` : null,
+      });
+    }
+
+    expect(records.length).toBe(5000);
+    consentsData = records;
+
+    await expect(startPublisherAgreementAction()).rejects.toThrow("NEXT_REDIRECT:/creator/dashboard?error=c2_required");
+    expect(createEnvelopeMock).not.toHaveBeenCalled();
   });
 });
 

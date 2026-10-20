@@ -36,6 +36,24 @@ export interface SyncResult {
 }
 
 /**
+ * Parses `--prefix <val>` or `--prefix=<val>` from CLI arguments.
+ */
+export function parsePrefixArg(argv: string[] = process.argv): string | undefined {
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    if (arg.startsWith("--prefix=")) {
+      return arg.slice("--prefix=".length);
+    }
+    if (arg === "--prefix" && i + 1 < argv.length) {
+      return argv[i + 1];
+    }
+  }
+  return undefined;
+}
+export const parsePrefix = parsePrefixArg;
+export const parseCliPrefix = parsePrefixArg;
+
+/**
  * Recursively lists all file keys in a Supabase Storage bucket.
  */
 export async function listAllSupabaseFiles(
@@ -44,22 +62,39 @@ export async function listAllSupabaseFiles(
   prefix: string = "",
 ): Promise<Array<{ path: string; mimetype?: string; size?: number }>> {
   const result: Array<{ path: string; mimetype?: string; size?: number }> = [];
+  const limit = 1000;
+  let offset = 0;
+  const allItems: Array<{ name: string; id?: string | null; metadata?: Record<string, unknown> | null }> = [];
 
-  const { data: items, error } = await supabase.storage.from(bucket).list(prefix, {
-    limit: 1000,
-    offset: 0,
-    sortBy: { column: "name", order: "asc" },
-  });
+  while (true) {
+    const { data: items, error } = await supabase.storage.from(bucket).list(prefix, {
+      limit,
+      offset,
+      sortBy: { column: "name", order: "asc" },
+    });
 
-  if (error) {
-    throw new Error(`Failed to list files from Supabase Storage bucket [${bucket}] at path [${prefix}]: ${error.message}`);
+    if (error) {
+      throw new Error(`Failed to list files from Supabase Storage bucket [${bucket}] at path [${prefix}]: ${error.message}`);
+    }
+
+    if (!items || items.length === 0) {
+      break;
+    }
+
+    allItems.push(...items);
+
+    if (items.length < limit) {
+      break;
+    }
+
+    offset += limit;
   }
 
-  if (!items || items.length === 0) {
+  if (allItems.length === 0) {
     return result;
   }
 
-  for (const item of items) {
+  for (const item of allItems) {
     const fullPath = prefix ? `${prefix}/${item.name}` : item.name;
 
     // In Supabase Storage, folders have id === null (or no id)
@@ -85,13 +120,35 @@ export async function syncSupabaseToR2(options: SyncOptions = {}): Promise<SyncR
   const logger = options.logger || console;
 
   const supabaseUrl = options.supabaseUrl || process.env.SUPABASE_URL || "";
-  const supabaseKey = options.supabaseServiceRoleKey || process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+  const supabaseKey =
+    options.supabaseServiceRoleKey ||
+    process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    process.env.SUPABASE_SECRET_KEY ||
+    "";
   const supabaseBucket = options.supabaseBucket || process.env.SUPABASE_STORAGE_BUCKET || "release-files";
 
-  const r2AccountId = options.r2AccountId || process.env.R2_ACCOUNT_ID || "";
-  const r2AccessKeyId = options.r2AccessKeyId || process.env.R2_ACCESS_KEY_ID || "";
-  const r2SecretAccessKey = options.r2SecretAccessKey || process.env.R2_SECRET_ACCESS_KEY || "";
-  const r2BucketName = options.r2BucketName || process.env.R2_BUCKET_NAME || process.env.CLOUDFLARE_R2_BUCKET || "";
+  const r2AccountId =
+    options.r2AccountId ||
+    process.env.R2_ACCOUNT_ID ||
+    process.env.CLOUDFLARE_R2_ACCOUNT_ID ||
+    process.env.CLOUDFLARE_ACCOUNT_ID ||
+    "";
+  const r2AccessKeyId =
+    options.r2AccessKeyId ||
+    process.env.R2_ACCESS_KEY_ID ||
+    process.env.CLOUDFLARE_R2_ACCESS_KEY_ID ||
+    "";
+  const r2SecretAccessKey =
+    options.r2SecretAccessKey ||
+    process.env.R2_SECRET_ACCESS_KEY ||
+    process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY ||
+    "";
+  const r2BucketName =
+    options.r2BucketName ||
+    process.env.R2_BUCKET_NAME ||
+    process.env.CLOUDFLARE_R2_BUCKET ||
+    process.env.CLOUDFLARE_R2_BUCKET_NAME ||
+    "";
   const r2Region = options.r2Region || process.env.R2_REGION || "auto";
   const r2Endpoint =
     options.r2Endpoint ||
@@ -99,11 +156,11 @@ export async function syncSupabaseToR2(options: SyncOptions = {}): Promise<SyncR
     (r2AccountId ? `https://${r2AccountId}.r2.cloudflarestorage.com` : "");
 
   const dryRun = options.dryRun ?? process.argv.includes("--dry-run");
-  const prefix = options.prefix ?? "";
+  const prefix = options.prefix ?? parsePrefixArg(process.argv) ?? "";
   const fetchImpl = options.fetchImpl || fetch;
 
   if (!supabaseUrl || !supabaseKey) {
-    throw new Error("Missing required Supabase environment variables: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY");
+    throw new Error("Missing required Supabase environment variables: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY or SUPABASE_SECRET_KEY");
   }
 
   if (!r2AccountId || !r2AccessKeyId || !r2SecretAccessKey || !r2BucketName) {
@@ -255,7 +312,8 @@ export async function syncSupabaseToR2(options: SyncOptions = {}): Promise<SyncR
 
 // Direct execution via CLI (e.g. `pnpm dlx tsx scripts/sync-supabase-to-r2.ts` or `tsx scripts/sync-supabase-to-r2.ts`)
 if (process.argv[1] && process.argv[1].includes("sync-supabase-to-r2")) {
-  syncSupabaseToR2()
+  const prefix = parsePrefixArg(process.argv);
+  syncSupabaseToR2({ prefix })
     .then((result) => {
       if (result.failed > 0) {
         process.exitCode = 1;
