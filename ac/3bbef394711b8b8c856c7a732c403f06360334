@@ -1,0 +1,45 @@
+supabase/migrations/20261020100300_link_generation_index_concurrently.sql
+  s_6625bc67577472::t_43e51d6d38d5ff 1-8
+payments/test/delivery_retry_trade_off.test.ts
+  s_6625bc67577472::t_c8975d0d8db7de 1-2,5-7,9-27,29-39,41-43,49,54,59,62-63,65,68-72,75-76,78,81,84-98,100-101,103,105,108,114-118,121-122,127,135,141,144-145,154,167
+payments/test/delivery.test.ts
+  s_6625bc67577472::t_a32073d9801e2e 225-227
+  s_6625bc67577472::t_512a949e73261c 247
+supabase/migrations/20261020100400_assert_generation_index_valid.sql
+  s_6625bc67577472::t_96d4fd4bea0517 1-16
+supabase/tests/link_generation_distinct.sql
+  s_6625bc67577472::t_2fe9c7d0da3ab4 1-19
+payments/src/delivery.ts
+  s_6625bc67577472::t_25164fdcc20985 39
+  s_6625bc67577472::t_2bb5814b636a10 95,97-98
+  s_6625bc67577472::t_badabf1e624304 215,221,223-224
+supabase/migrations/20261020100000_link_generation_add_nullable.sql
+  s_6625bc67577472::t_3257c92a8fe972 1-11
+supabase/migrations/20261020100100_link_generation_backfill.sql
+  s_6625bc67577472::t_ec727a87e25621 1-26
+supabase/migrations/20261020100500_drop_one_link_per_sale_concurrently.sql
+  s_6625bc67577472::t_1e00b9fef6ef28 1-4
+payments/test/delivery_db_adapter.test.ts
+  s_6625bc67577472::t_4bd594560b6a1f 62,64,66-67,70,72-74,79-86
+  s_6625bc67577472::t_cf00d7319e0d74 87-88
+supabase/migrations/20261020100600_audit_log_delivery_index_concurrently.sql
+  s_6625bc67577472::t_525bb72835a2c9 1-6
+supabase/migrations/20261020100200_link_generation_not_null.sql
+  s_6625bc67577472::t_2f76133ebbc006 1-17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ac3bbef394711b8b8c856c7a732c403f06360334",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
