@@ -24,6 +24,7 @@ function fakeClient() {
         delete: (...a: unknown[]) => (rec.ops.push(["delete", a]), chain),
         eq: (...a: unknown[]) => (rec.ops.push(["eq", a]), chain),
         contains: (...a: unknown[]) => (rec.ops.push(["contains", a]), chain),
+        order: (...a: unknown[]) => (rec.ops.push(["order", a]), chain),
         limit: (...a: unknown[]) => (rec.ops.push(["limit", a]), chain),
         maybeSingle: (...a: unknown[]) => (rec.ops.push(["maybeSingle", a]), chain),
       };
@@ -55,6 +56,19 @@ describe("supabaseDeliveryDb: recordLinkIssued", () => {
     expect(calls[0].table).toBe("download_events");
     expect(insert).toMatchObject({ sale_id: "s-1", product_id: "p-1", token_hash: "h".repeat(64), event_type: "link_issued" });
     expect(insert.expires_at).toBe(EXPIRES.toISOString());
+    expect(insert.link_generation).toBeUndefined();
+  });
+
+  it("includes link_generation when provided, and omits it when undefined", async () => {
+    useClient();
+    results = [{ data: null, error: null }, { data: null, error: null }];
+    await db().recordLinkIssued({ saleId: "s-1", productId: "p-1", tokenHash: "h".repeat(64), expiresAt: EXPIRES, linkGeneration: 1700000000000 });
+    const insertWithGen = calls[0].ops.find(([op]) => op === "insert")![1][0] as Record<string, unknown>;
+    expect(insertWithGen.link_generation).toBe(1700000000000);
+
+    await db().recordLinkIssued({ saleId: "s-1", productId: "p-1", tokenHash: "h".repeat(64), expiresAt: EXPIRES });
+    const insertWithoutGen = calls[1].ops.find(([op]) => op === "insert")![1][0] as Record<string, unknown>;
+    expect(insertWithoutGen.link_generation).toBeUndefined();
   });
 
   it("returns false on unique violation 23505 (one link per sale)", async () => {

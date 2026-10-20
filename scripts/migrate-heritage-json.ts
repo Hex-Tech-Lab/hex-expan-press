@@ -37,7 +37,7 @@ import { portRails } from "./lib/heritage-rails.ts";
 const here = dirname(fileURLToPath(import.meta.url));
 const root = join(here, "..");
 
-dotenv.config({ override: true, path: join(root, ".env") });
+dotenv.config({ path: join(root, ".env") });
 
 const dryRun = process.argv.includes("--dry-run");
 

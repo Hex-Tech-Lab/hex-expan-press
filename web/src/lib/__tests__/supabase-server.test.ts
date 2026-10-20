@@ -14,9 +14,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const getUserMock = vi.fn();
 const getSessionMock = vi.fn();
-const getClaimsMock = vi.fn();
 const createClientMock = vi.fn(() => ({ auth: { getUser: getUserMock } }));
-const createServerClientMock = vi.fn(() => ({ auth: { getSession: getSessionMock, getClaims: getClaimsMock } }));
+const createServerClientMock = vi.fn(() => ({ auth: { getSession: getSessionMock } }));
 
 vi.mock("@supabase/supabase-js", () => ({
   createClient: ((...args: unknown[]) => createClientMock(...(args as []))) as never,
@@ -25,6 +24,15 @@ vi.mock("@supabase/supabase-js", () => ({
 vi.mock("@supabase/ssr", () => ({
   createServerClient: ((...args: unknown[]) => createServerClientMock(...(args as []))) as never,
 }));
+
+function makeTestJwt(payload: Record<string, unknown>): string {
+  const header = Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url");
+  const body = Buffer.from(JSON.stringify(payload)).toString("base64url");
+  const sig = Buffer.from("test-signature").toString("base64url");
+  return `${header}.${body}.${sig}`;
+}
+
+const TEST_SUB_UUID = "57596c19-c550-4bde-b17a-e87b86d005c5";
 
 const cookieStore = new Map<string, { name: string; value: string }>();
 function setCookie(name: string, value: string): void {
@@ -49,7 +57,6 @@ describe("getPortalSession (Wave 5 ssr-only authorization branches)", () => {
     cookieStore.clear();
     getUserMock.mockReset();
     getSessionMock.mockReset();
-    getClaimsMock.mockReset();
     createClientMock.mockClear();
     createServerClientMock.mockClear();
     vi.stubEnv("NODE_ENV", "test");
@@ -118,47 +125,53 @@ describe("getPortalSession (Wave 5 ssr-only authorization branches)", () => {
     expect(result).toBeNull();
   });
 
-  it("verifies session locally with getClaims when token has >60s until expiry (0 getUser network calls)", async () => {
+  it("verifies session locally with valid JWT when token has >60s until expiry (0 getUser network calls)", async () => {
     setCookie("sb-portal-auth", "valid-local-token");
-    const accessToken = "valid-unexpired-token";
     const futureExpiry = Math.floor(Date.now() / 1000) + 3600;
+    const accessToken = makeTestJwt({
+      sub: TEST_SUB_UUID,
+      aud: "authenticated",
+      exp: futureExpiry,
+      email: "local@expanpress.com",
+    });
     getSessionMock.mockResolvedValue({
       data: {
         session: {
           access_token: accessToken,
           expires_at: futureExpiry,
-          user: { id: "u-local-1", email: "local@expanpress.com" },
+          user: { id: "unverified-user", email: "unverified@expanpress.com" },
         },
       },
-    });
-    getClaimsMock.mockResolvedValue({
-      data: { claims: { sub: "u-local-1", email: "local@expanpress.com" } },
-      error: null,
     });
 
     const { getPortalSession } = await import("../supabase-server");
     const session = await getPortalSession();
     expect(session).not.toBeNull();
-    expect(session?.user.id).toBe("u-local-1");
+    expect(session?.user.id).toBe(TEST_SUB_UUID);
+    expect(session?.user.email).toBe("local@expanpress.com");
     // Local verification succeeded without any getUser network round-trip!
-    expect(getClaimsMock).toHaveBeenCalledWith(accessToken);
     expect(getUserMock).not.toHaveBeenCalled();
   });
 
   it("falls back to validateJwt (getUser) when token expires within 60s", async () => {
     setCookie("sb-portal-auth", "near-expiry-token");
-    const accessToken = "near-expiry-token-val";
     const soonExpiry = Math.floor(Date.now() / 1000) + 30; // 30s remaining
+    const accessToken = makeTestJwt({
+      sub: TEST_SUB_UUID,
+      aud: "authenticated",
+      exp: soonExpiry,
+      email: "near@expanpress.com",
+    });
     getSessionMock.mockResolvedValue({
       data: {
         session: {
           access_token: accessToken,
           expires_at: soonExpiry,
-          user: { id: "u-near-1", email: "near@expanpress.com" },
+          user: { id: TEST_SUB_UUID, email: "near@expanpress.com" },
         },
       },
     });
-    getUserMock.mockResolvedValue({ data: { user: { id: "u-near-1", email: "near@expanpress.com" } }, error: null });
+    getUserMock.mockResolvedValue({ data: { user: { id: TEST_SUB_UUID, email: "near@expanpress.com" } }, error: null });
 
     const { getPortalSession } = await import("../supabase-server");
     const session = await getPortalSession();
@@ -166,30 +179,72 @@ describe("getPortalSession (Wave 5 ssr-only authorization branches)", () => {
     expect(getUserMock).toHaveBeenCalledWith(accessToken);
   });
 
-  it("derives user identity strictly from verified getClaims() claims rather than unverified cookie session.user", async () => {
+  it("derives user identity strictly from verified JWT payload claims rather than unverified cookie session.user", async () => {
     setCookie("sb-portal-auth", "tampered-cookie-token");
-    const accessToken = "valid-token";
     const futureExpiry = Math.floor(Date.now() / 1000) + 3600;
+    const accessToken = makeTestJwt({
+      sub: TEST_SUB_UUID,
+      aud: "authenticated",
+      exp: futureExpiry,
+      email: "creator@expanpress.com",
+    });
     getSessionMock.mockResolvedValue({
       data: {
         session: {
           access_token: accessToken,
           expires_at: futureExpiry,
-          // Cookie has unverified/tampered email
+          // Cookie has unverified/tampered identity
           user: { id: "attacker-id", email: "attacker@spoofed.com" },
         },
       },
-    });
-    // getClaims returns the cryptographically verified JWT claims
-    getClaimsMock.mockResolvedValue({
-      data: { claims: { sub: "verified-sub-123", email: "creator@expanpress.com" } },
-      error: null,
     });
 
     const { getPortalSession } = await import("../supabase-server");
     const session = await getPortalSession();
     expect(session).not.toBeNull();
-    expect(session?.user.id).toBe("verified-sub-123");
+    expect(session?.user.id).toBe(TEST_SUB_UUID);
     expect(session?.user.email).toBe("creator@expanpress.com");
+    expect(getUserMock).not.toHaveBeenCalled();
+  });
+
+  it("falls back to validateJwt (getUser) when JWT payload has non-UUID sub or wrong aud", async () => {
+    setCookie("sb-portal-auth", "bad-claims-token");
+    const futureExpiry = Math.floor(Date.now() / 1000) + 3600;
+    const badToken = makeTestJwt({
+      sub: "not-a-valid-uuid",
+      aud: "authenticated",
+      exp: futureExpiry,
+    });
+    getSessionMock.mockResolvedValue({
+      data: {
+        session: {
+          access_token: badToken,
+          expires_at: futureExpiry,
+        },
+      },
+    });
+    getUserMock.mockResolvedValue({ data: { user: { id: "u-online-fallback" } }, error: null });
+
+    const { getPortalSession } = await import("../supabase-server");
+    const session = await getPortalSession();
+    expect(session).not.toBeNull();
+    expect(getUserMock).toHaveBeenCalledWith(badToken);
+  });
+
+  it("falls back to validateJwt (getUser) when token is malformed", async () => {
+    setCookie("sb-portal-auth", "malformed-jwt");
+    getSessionMock.mockResolvedValue({
+      data: {
+        session: {
+          access_token: "not-a-valid-jwt",
+        },
+      },
+    });
+    getUserMock.mockResolvedValue({ data: { user: { id: "u-online-fallback" } }, error: null });
+
+    const { getPortalSession } = await import("../supabase-server");
+    const session = await getPortalSession();
+    expect(session).not.toBeNull();
+    expect(getUserMock).toHaveBeenCalledWith("not-a-valid-jwt");
   });
 });
