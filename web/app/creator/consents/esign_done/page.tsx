@@ -35,8 +35,14 @@ async function hasRecordedC3(): Promise<boolean> {
     const productId = product?.id;
     if (productError || !productId) return false;
     const { data } = await session.supabase
-      .from("consents").select("kind")
-      .eq("product_id", productId).eq("kind", "C3_revenue_split").eq("decision", "given").limit(1);
+      .from("consents")
+      .select("kind")
+      .eq("product_id", productId)
+      .eq("kind", "C3_revenue_split")
+      .eq("decision", "given")
+      .order("signed_at", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(1);
     return (data?.length ?? 0) > 0;
   } catch (err) {
     console.error("[esign_done] C3 status check failed:", err);

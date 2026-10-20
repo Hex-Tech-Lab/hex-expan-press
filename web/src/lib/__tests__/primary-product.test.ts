@@ -103,10 +103,20 @@ describe("C3 binding (startPublisherAgreementAction)", () => {
   });
 
   const setupSupabaseConsents = (consentsData: unknown[] | null, error: unknown = null, primaryProductId: string | null = "prod-new") => {
+    const rangeMock = vi.fn().mockImplementation(async (from: number, to: number) => ({
+      data: error ? null : (consentsData ? consentsData.slice(from, to + 1) : []),
+      error,
+    }));
     const limitMock = vi.fn().mockResolvedValue({ data: consentsData, error });
-    const orderMock = vi.fn().mockReturnValue({ limit: limitMock });
+    const orderMock: ReturnType<typeof vi.fn> = vi.fn();
+    orderMock.mockReturnValue({
+      order: orderMock,
+      range: rangeMock,
+      limit: limitMock,
+    });
     const inMock = vi.fn().mockReturnValue({ order: orderMock });
-    const eqMock = vi.fn().mockResolvedValue({ data: consentsData, error });
+    const eqMock = vi.fn().mockReturnValue({ in: inMock, order: orderMock, limit: limitMock, range: rangeMock });
+    inMock.mockReturnValue({ order: orderMock, eq: eqMock });
     const selectMock = vi.fn().mockReturnValue({ in: inMock, eq: eqMock });
     const productsChain = {
       order: vi.fn().mockReturnThis(),

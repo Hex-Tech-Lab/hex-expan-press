@@ -31,6 +31,47 @@ const PAY_ALLOWED_EXACT = ["/terms.html", "/privacy.html", "/refund-policy.html"
 // /api/billing/checkoutevil to pay, which bounced it back to main in a loop (Cubic P2, 2026-10-15).
 const isPayCheckoutApi = (path: string): boolean => PAY_ALLOWED_EXACT_API.includes(path) || path.startsWith("/api/billing/checkout/");
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const BASE64URL_REGEX = /^[A-Za-z0-9_-]+$/;
+
+/**
+ * Validates and decodes a Supabase JWT locally without network calls.
+ * Ensures 3 base64url segments, valid sub UUID, aud === "authenticated",
+ * and at least 60s remaining before expiry (exp > now + 60).
+ */
+export function decodeAndVerifyJwt(token: string): Record<string, unknown> | null {
+  if (typeof token !== "string") return null;
+  const parts = token.split(".");
+  if (parts.length !== 3) return null;
+  if (!parts[0] || !parts[1] || !parts[2]) return null;
+  if (!BASE64URL_REGEX.test(parts[0]) || !BASE64URL_REGEX.test(parts[1]) || !BASE64URL_REGEX.test(parts[2])) {
+    return null;
+  }
+
+  try {
+    const jsonStr =
+      typeof Buffer !== "undefined"
+        ? Buffer.from(parts[1], "base64url").toString("utf8")
+        : atob(parts[1].replace(/-/g, "+").replace(/_/g, "/") + "=".repeat((4 - (parts[1].length % 4)) % 4));
+    const payload = JSON.parse(jsonStr);
+    if (!payload || typeof payload !== "object" || Array.isArray(payload)) return null;
+
+    const now = Math.floor(Date.now() / 1000);
+    if (typeof payload.exp !== "number" || !Number.isFinite(payload.exp) || payload.exp - now <= 60) {
+      return null;
+    }
+    if (typeof payload.sub !== "string" || !UUID_REGEX.test(payload.sub)) return null;
+
+    const aud = payload.aud;
+    const isValidAud = aud === "authenticated" || (Array.isArray(aud) && aud.includes("authenticated"));
+    if (!isValidAud) return null;
+
+    return payload as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
 export async function proxy(request: NextRequest): Promise<NextResponse> {
   const url = new URL(request.url);
   const host = url.hostname.toLowerCase();
@@ -97,25 +138,19 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
       },
     );
 
-    // Egress optimization (Task 2): Check session expiry locally first.
-    // If token is valid and not within 60s of expiry, verify claims locally via
-    // getClaims() to avoid blocking HTTP round-trips to Supabase Auth on every request.
-    // If expired, near expiry (<= 60s), or getSession is unavailable/fails, getUser()
-    // triggers @supabase/ssr session refresh and writes chunked cookies.
+    // Egress optimization: Check session token locally first.
+    // If token is valid, has valid sub UUID, aud === "authenticated", and >60s remaining
+    // before expiry, skip getUser() to avoid blocking HTTP round-trips to Supabase Auth.
+    // If expired, near expiry (<= 60s), invalid, or getSession is unavailable/fails,
+    // getUser() triggers @supabase/ssr session refresh and writes chunked cookies.
     let needsRefresh = true;
     if (typeof supabase.auth.getSession === "function") {
       const { data } = await supabase.auth.getSession();
       const session = data?.session;
       if (session?.access_token) {
-        const expiresAt = session.expires_at ?? 0;
-        const now = Math.floor(Date.now() / 1000);
-        if (expiresAt - now > 60) {
-          if (typeof supabase.auth.getClaims === "function") {
-            const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(session.access_token);
-            if (!claimsError && claimsData?.claims) {
-              needsRefresh = false;
-            }
-          }
+        const claims = decodeAndVerifyJwt(session.access_token);
+        if (claims) {
+          needsRefresh = false;
         }
       }
     }

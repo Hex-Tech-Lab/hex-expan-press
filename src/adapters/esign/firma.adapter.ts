@@ -153,7 +153,8 @@ export class FirmaAdapter implements EsignProviderPort, EsignWebhookPort, EsignE
     const key = process.env.SUPABASE_SECRET_KEY;
     if (!url || !key) throw new Error("SUPABASE_URL/SUPABASE_SECRET_KEY are not configured");
     const res = await this.fetchWithRelease(`${url}/storage/v1/object/${bucket}/${objectPath}`, {
-      headers: { apikey: key, Authorization: `Bearer ${key}` }
+      headers: { apikey: key, Authorization: `Bearer ${key}` },
+      signal: AbortSignal.timeout(15_000),
     });
     if (!res.ok) throw new Error(`Agreement PDF fetch failed (${res.status}) for ${path}`);
     return new Uint8Array(await res.arrayBuffer());

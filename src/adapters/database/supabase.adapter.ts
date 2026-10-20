@@ -70,6 +70,7 @@ export class SupabaseAdapter implements ConsentDatabasePort {
       .select("id")
       .eq("kind", kind)
       .eq("external_ref", externalRef)
+      .order("id", { ascending: true })
       .limit(1);
     if (error) throw new Error(`Failed to check existing consent: ${error.message}`);
     return (data?.length ?? 0) > 0;

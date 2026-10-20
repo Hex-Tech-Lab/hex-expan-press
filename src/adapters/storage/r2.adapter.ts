@@ -183,6 +183,11 @@ export async function headR2Object(options: HeadR2ObjectOptions): Promise<boolea
     timeoutMs = 5000,
   } = options;
 
+  const parsedUrl = new URL(endpoint);
+  if (parsedUrl.protocol === "http:" && process.env.R2_ALLOW_INSECURE_HTTP !== "true") {
+    throw new Error(`[r2-storage] Insecure HTTP endpoint rejected: ${endpoint}`);
+  }
+
   const headUrl = generateR2PresignedUrl({
     endpoint,
     bucket,
@@ -240,6 +245,11 @@ export async function putR2Object(options: PutR2ObjectOptions): Promise<boolean>
     fetchImpl = fetch,
     timeoutMs = 30000,
   } = options;
+
+  const parsedUrl = new URL(endpoint);
+  if (parsedUrl.protocol === "http:" && process.env.R2_ALLOW_INSECURE_HTTP !== "true") {
+    throw new Error(`[r2-storage] Insecure HTTP endpoint rejected: ${endpoint}`);
+  }
 
   try {
     const putUrl = generateR2PresignedUrl({

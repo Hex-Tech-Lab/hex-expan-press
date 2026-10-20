@@ -10,8 +10,8 @@
  * Failure policy: the ledger write is the money record and stays authoritative. A delivery failure
  * is rethrown to the webhook, which answers 500 so the provider retries. Its download_events row is
  * released only on a definite provider rejection; an ambiguous failure keeps the link valid. A sale counts as delivered only once its send is confirmed (an audit_log row with
- * event DELIVERY_LINK_SENT). A retry finding an unconfirmed link row frees it and sends again, so a
- * failed send whose release also failed is never acknowledged without a delivered link.
+ * event DELIVERY_LINK_SENT). A retry mints a fresh monotonic generation link row without destroying prior links,
+ * so previously emailed buyer links remain valid and a failed send whose release also failed is never acknowledged without a delivered link.
  */
 import { createHash, randomBytes } from "node:crypto";
 import { GLOBAL } from "./settings_registry.ts";
@@ -27,6 +27,23 @@ const DELIVERY_CONFIRMED_EVENT = "DELIVERY_LINK_SENT";
 export const tokenHash = (token: string): string => createHash("sha256").update(token).digest("hex");
 export const newToken = (): string => randomBytes(32).toString("base64url");
 
+let lastGeneration = 0;
+
+/**
+ * Monotonically increasing generation number for download link issuance.
+ * Ensures same-millisecond retries never produce duplicate generation timestamps.
+ */
+export function nextGeneration(nowMs: number): number {
+  const gen = Math.max(nowMs, lastGeneration + 1);
+  lastGeneration = gen;
+  return gen;
+}
+
+/** Reset helper for test determinism. */
+export function resetLastGenerationForTest(val = 0): void {
+  lastGeneration = val;
+}
+
 export interface DeliveryProduct {
   id: string;
   title: string;
@@ -36,7 +53,7 @@ export interface DeliveryProduct {
 /** The persistence the delivery flow needs. Injected so the flow is testable without a database. */
 export interface DeliveryDb {
   productForAlias(alias: string): Promise<DeliveryProduct | null>;
-  /** Inserts the link_issued row. Returns false when a row for this sale already exists. */
+  /** Inserts the link_issued row. Returns false on generation collision (sale_id, link_generation). */
   recordLinkIssued(row: {
     saleId: string;
     productId: string;
@@ -95,16 +112,24 @@ export async function deliverSale(
   const token = (deps.newToken ?? newToken)();
   const expiresAt = new Date(now.getTime() + GLOBAL.delivery.link_ttl_days * 24 * 60 * 60 * 1000);
   const hash = tokenHash(token);
-  const linkGeneration = now.getTime();
-  const row = { saleId: input.saleId, productId: product.id, tokenHash: hash, expiresAt, linkGeneration };
-  if (!(await deps.db.recordLinkIssued(row))) {
-    // If a generation collided in the exact same millisecond or legacy single-slot mock:
+  let linkGeneration = nextGeneration(now.getTime());
+  let row = { saleId: input.saleId, productId: product.id, tokenHash: hash, expiresAt, linkGeneration };
+
+  const MAX_GENERATION_ATTEMPTS = 3;
+  let inserted = false;
+  for (let attempt = 0; attempt < MAX_GENERATION_ATTEMPTS; attempt++) {
+    inserted = await deps.db.recordLinkIssued(row);
+    if (inserted) break;
+    // If a concurrent worker completed delivery while we were attempting issuance:
     if (await deps.db.deliveryConfirmed(input.saleId)) return "duplicate";
-    // An earlier send failed and its release failed too, so the row is stale. Free it and deliver now.
-    await deps.db.releaseOrphanedLinks(input.saleId);
-    if (!(await deps.db.recordLinkIssued(row))) {
-      throw new Error(`delivery blocked: sale ${input.saleId} link slot is held by an unconfirmed send`);
-    }
+    // Monotonic generation retry without destroying prior links:
+    linkGeneration = nextGeneration(Math.max(now.getTime(), linkGeneration + 1));
+    row = { ...row, linkGeneration };
+  }
+
+  if (!inserted) {
+    if (await deps.db.deliveryConfirmed(input.saleId)) return "duplicate";
+    throw new Error(`delivery blocked: sale ${input.saleId} link generation collision`);
   }
 
   try {
@@ -243,6 +268,7 @@ function supabaseDeliveryDb(): DeliveryDb {
         .select("id")
         .eq("event", DELIVERY_CONFIRMED_EVENT)
         .contains("details", { sale_id: saleId })
+        .order("id", { ascending: true })
         .limit(1);
       if (error) throw new Error(`delivery confirmation lookup failed: ${error.message}`);
       return (data ?? []).length > 0;

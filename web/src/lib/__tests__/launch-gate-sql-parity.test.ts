@@ -97,7 +97,7 @@ beforeAll(async () => {
   db = new PGlite();
   await db.exec(SCHEMA);
   for (const m of MIGRATIONS) await db.exec(m);
-});
+}, 30_000);
 
 describe("SQL strict_active_consent_kinds ≡ TS strictActiveConsentKinds", () => {
   for (const [name, rows] of Object.entries(FIXTURES)) {

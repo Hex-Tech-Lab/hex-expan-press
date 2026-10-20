@@ -223,9 +223,10 @@ describe("deliverSaleForWebhook never acknowledges an unconfirmed sale", () => {
     const rows = new Set<string>();
     const confirmed = new Set<string>();
     const f = fakes();
-    f.deps.db.recordLinkIssued = vi.fn(async (row: { saleId: string }) => {
-      if (rows.has(row.saleId)) return false;
-      rows.add(row.saleId);
+    f.deps.db.recordLinkIssued = vi.fn(async (row: { saleId: string; linkGeneration?: number }) => {
+      const key = `${row.saleId}:${row.linkGeneration}`;
+      if (rows.has(key)) return false;
+      rows.add(key);
       return true;
     });
     // The release fails, so the stale link row survives the failed send.
@@ -233,7 +234,9 @@ describe("deliverSaleForWebhook never acknowledges an unconfirmed sale", () => {
       throw new Error("db down");
     });
     f.deps.db.releaseOrphanedLinks = vi.fn(async (saleId: string) => {
-      rows.delete(saleId);
+      for (const k of rows) {
+        if (k.startsWith(`${saleId}:`)) rows.delete(k);
+      }
     });
     f.deps.db.deliveryConfirmed = vi.fn(async (saleId: string) => confirmed.has(saleId));
     f.deps.db.confirmDelivery = vi.fn(async ({ saleId }: { saleId: string }) => {
@@ -242,12 +245,15 @@ describe("deliverSaleForWebhook never acknowledges an unconfirmed sale", () => {
     f.sendEmail.mockRejectedValueOnce(definiteRejection());
 
     await expect(deliverSaleForWebhook(sale, f.deps)).rejects.toThrow("Resend error (422)");
-    expect(rows.has("s-1")).toBe(true);
+    expect(rows.size).toBe(1);
     expect(confirmed.has("s-1")).toBe(false);
 
     await expect(deliverSaleForWebhook(sale, f.deps)).resolves.toBeUndefined();
     expect(f.sendEmail).toHaveBeenCalledTimes(2);
     expect(confirmed.has("s-1")).toBe(true);
+    // Non-destructive: releaseOrphanedLinks was not called, both link generation rows survive
+    expect(f.deps.db.releaseOrphanedLinks).not.toHaveBeenCalled();
+    expect(rows.size).toBe(2);
   });
 });
 

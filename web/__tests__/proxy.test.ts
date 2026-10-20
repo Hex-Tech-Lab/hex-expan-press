@@ -4,12 +4,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const getUserMock = vi.fn();
 const getSessionMock = vi.fn();
-const getClaimsMock = vi.fn();
 const createServerClientMock = vi.fn(() => ({
   auth: {
     getUser: getUserMock,
     getSession: getSessionMock,
-    getClaims: getClaimsMock,
   },
 }));
 const cookiesSetSpy = vi.fn();
@@ -17,6 +15,15 @@ const cookiesSetSpy = vi.fn();
 vi.mock("@supabase/ssr", () => ({
   createServerClient: (...args: unknown[]) => createServerClientMock(...(args as [])),
 }));
+
+function makeTestJwt(payload: Record<string, unknown>): string {
+  const header = Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url");
+  const body = Buffer.from(JSON.stringify(payload)).toString("base64url");
+  const sig = Buffer.from("test-signature").toString("base64url");
+  return `${header}.${body}.${sig}`;
+}
+
+const TEST_SUB_UUID = "57596c19-c550-4bde-b17a-e87b86d005c5";
 
 function fakeRequest(cookieNames: string[]): unknown {
   return {
@@ -33,7 +40,6 @@ describe("proxy (session refresh boundary)", () => {
   beforeEach(() => {
     getUserMock.mockReset();
     getSessionMock.mockReset();
-    getClaimsMock.mockReset();
     getSessionMock.mockResolvedValue({ data: { session: null } });
     createServerClientMock.mockClear();
     cookiesSetSpy.mockClear();
@@ -70,60 +76,75 @@ describe("proxy (session refresh boundary)", () => {
     );
   });
 
-  it("skips getUser network round-trip when access token has >60s remaining and getClaims succeeds", async () => {
+  it("skips getUser network round-trip when access token has >60s remaining and valid JWT claims", async () => {
     const futureExp = Math.floor(Date.now() / 1000) + 3600;
+    const token = makeTestJwt({ sub: TEST_SUB_UUID, aud: "authenticated", exp: futureExp });
     getSessionMock.mockResolvedValue({
-      data: { session: { access_token: "valid-jwt", expires_at: futureExp } },
-    });
-    getClaimsMock.mockResolvedValue({
-      data: { claims: { sub: "u1", exp: futureExp } },
-      error: null,
+      data: { session: { access_token: token, expires_at: futureExp } },
     });
     const { proxy } = await import("../proxy");
     const response = await proxy(fakeRequest(["sb-portal-auth"]) as never);
     expect(getSessionMock).toHaveBeenCalledTimes(1);
-    expect(getClaimsMock).toHaveBeenCalledWith("valid-jwt");
     expect(getUserMock).not.toHaveBeenCalled();
     expect(response).toBeDefined();
   });
 
   it("calls getUser to refresh when access token is within 60s of expiry", async () => {
     const nearExp = Math.floor(Date.now() / 1000) + 30;
+    const token = makeTestJwt({ sub: TEST_SUB_UUID, aud: "authenticated", exp: nearExp });
     getSessionMock.mockResolvedValue({
-      data: { session: { access_token: "near-exp-jwt", expires_at: nearExp } },
+      data: { session: { access_token: token, expires_at: nearExp } },
     });
-    getUserMock.mockResolvedValue({ data: { user: { id: "u1" } }, error: null });
+    getUserMock.mockResolvedValue({ data: { user: { id: TEST_SUB_UUID } }, error: null });
     const { proxy } = await import("../proxy");
     await proxy(fakeRequest(["sb-portal-auth"]) as never);
-    expect(getClaimsMock).not.toHaveBeenCalled();
     expect(getUserMock).toHaveBeenCalledTimes(1);
   });
 
   it("calls getUser to refresh when access token is expired", async () => {
     const pastExp = Math.floor(Date.now() / 1000) - 100;
+    const token = makeTestJwt({ sub: TEST_SUB_UUID, aud: "authenticated", exp: pastExp });
     getSessionMock.mockResolvedValue({
-      data: { session: { access_token: "expired-jwt", expires_at: pastExp } },
+      data: { session: { access_token: token, expires_at: pastExp } },
     });
     getUserMock.mockResolvedValue({ data: { user: null }, error: null });
     const { proxy } = await import("../proxy");
     await proxy(fakeRequest(["sb-portal-auth"]) as never);
-    expect(getClaimsMock).not.toHaveBeenCalled();
     expect(getUserMock).toHaveBeenCalledTimes(1);
   });
 
-  it("calls getUser when getClaims returns an error", async () => {
+  it("calls getUser when token has invalid format or corrupt payload", async () => {
     const futureExp = Math.floor(Date.now() / 1000) + 3600;
     getSessionMock.mockResolvedValue({
-      data: { session: { access_token: "corrupt-jwt", expires_at: futureExp } },
-    });
-    getClaimsMock.mockResolvedValue({
-      data: null,
-      error: new Error("invalid token signature"),
+      data: { session: { access_token: "corrupt.jwt.format!", expires_at: futureExp } },
     });
     getUserMock.mockResolvedValue({ data: { user: null }, error: null });
     const { proxy } = await import("../proxy");
     await proxy(fakeRequest(["sb-portal-auth"]) as never);
-    expect(getClaimsMock).toHaveBeenCalledWith("corrupt-jwt");
+    expect(getUserMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("calls getUser when token sub is not a valid UUID", async () => {
+    const futureExp = Math.floor(Date.now() / 1000) + 3600;
+    const token = makeTestJwt({ sub: "not-a-uuid", aud: "authenticated", exp: futureExp });
+    getSessionMock.mockResolvedValue({
+      data: { session: { access_token: token, expires_at: futureExp } },
+    });
+    getUserMock.mockResolvedValue({ data: { user: null }, error: null });
+    const { proxy } = await import("../proxy");
+    await proxy(fakeRequest(["sb-portal-auth"]) as never);
+    expect(getUserMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("calls getUser when token aud is not authenticated", async () => {
+    const futureExp = Math.floor(Date.now() / 1000) + 3600;
+    const token = makeTestJwt({ sub: TEST_SUB_UUID, aud: "anon", exp: futureExp });
+    getSessionMock.mockResolvedValue({
+      data: { session: { access_token: token, expires_at: futureExp } },
+    });
+    getUserMock.mockResolvedValue({ data: { user: null }, error: null });
+    const { proxy } = await import("../proxy");
+    await proxy(fakeRequest(["sb-portal-auth"]) as never);
     expect(getUserMock).toHaveBeenCalledTimes(1);
   });
 });

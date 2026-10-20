@@ -145,6 +145,38 @@ describe("decomposed helpers", () => {
       fetchImpl: mock403 as unknown as typeof fetch,
     })).rejects.toThrow("[r2-storage] HEAD object returned status 403");
   });
+
+  it("headR2Object rejects insecure http endpoint by default", async () => {
+    delete process.env.R2_ALLOW_INSECURE_HTTP;
+    await expect(
+      headR2Object({
+        endpoint: "http://insecure.r2.cloudflarestorage.com",
+        bucket: "b",
+        key: "k",
+        accessKeyId: "ak",
+        secretAccessKey: "sk",
+      }),
+    ).rejects.toThrow("[r2-storage] Insecure HTTP endpoint rejected: http://insecure.r2.cloudflarestorage.com");
+  });
+
+  it("headR2Object allows insecure http endpoint when R2_ALLOW_INSECURE_HTTP is true", async () => {
+    vi.stubEnv("R2_ALLOW_INSECURE_HTTP", "true");
+    const mock200 = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));
+    const result = await headR2Object({
+      endpoint: "http://localhost:9000",
+      bucket: "b",
+      key: "k",
+      accessKeyId: "ak",
+      secretAccessKey: "sk",
+      fetchImpl: mock200 as unknown as typeof fetch,
+    });
+    expect(result).toBe(true);
+    expect(mock200).toHaveBeenCalledWith(
+      expect.stringContaining("http://localhost:9000/b/k"),
+      expect.any(Object),
+    );
+    vi.unstubAllEnvs();
+  });
 });
 
 describe("R2StorageAdapter", () => {
@@ -387,6 +419,40 @@ describe("putR2Object & R2StorageAdapter upload/has", () => {
     });
 
     expect(success).toBe(false);
+  });
+
+  it("putR2Object rejects insecure http endpoint by default", async () => {
+    delete process.env.R2_ALLOW_INSECURE_HTTP;
+    await expect(
+      putR2Object({
+        endpoint: "http://insecure.r2.cloudflarestorage.com",
+        bucket: "b",
+        key: "k",
+        accessKeyId: "ak",
+        secretAccessKey: "sk",
+        body: Buffer.from("test-body"),
+      }),
+    ).rejects.toThrow("[r2-storage] Insecure HTTP endpoint rejected: http://insecure.r2.cloudflarestorage.com");
+  });
+
+  it("putR2Object allows insecure http endpoint when R2_ALLOW_INSECURE_HTTP is true", async () => {
+    vi.stubEnv("R2_ALLOW_INSECURE_HTTP", "true");
+    const mock200 = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));
+    const success = await putR2Object({
+      endpoint: "http://localhost:9000",
+      bucket: "b",
+      key: "k",
+      accessKeyId: "ak",
+      secretAccessKey: "sk",
+      body: Buffer.from("test-body"),
+      fetchImpl: mock200 as unknown as typeof fetch,
+    });
+    expect(success).toBe(true);
+    expect(mock200).toHaveBeenCalledWith(
+      expect.stringContaining("http://localhost:9000/b/k"),
+      expect.any(Object),
+    );
+    vi.unstubAllEnvs();
   });
 
   it("R2StorageAdapter hasObject and uploadObject delegate to helpers", async () => {
