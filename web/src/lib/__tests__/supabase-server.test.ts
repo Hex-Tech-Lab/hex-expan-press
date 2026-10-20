@@ -12,7 +12,7 @@
 //   5. Session token rejected by getUser → null (fail-closed).
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { decodeAndVerifyJwt } from "../jwt-verify";
-import { MOCK_HMAC_KEY, makeTestJwt } from "./jwt-fixtures";
+import { ASYMMETRIC_ALG_FIXTURES, MOCK_HMAC_KEY, makeTestJwt } from "./jwt-fixtures";
 
 const getUserMock = vi.fn();
 const getSessionMock = vi.fn();
@@ -320,6 +320,23 @@ describe("getPortalSession (Wave 5 ssr-only authorization branches)", () => {
     expect(session).toBeNull();
     expect(getUserMock).toHaveBeenCalledWith(noneToken);
   });
+
+  it.each(ASYMMETRIC_ALG_FIXTURES)(
+    "%s token: rejected locally, getUser called, online auth rejects: fails closed to null",
+    async (alg) => {
+      setCookie("sb-portal-auth", `asym-${alg}-token`);
+      const futureExpiry = Math.floor(Date.now() / 1000) + 3600;
+      const token = makeTestJwt({ sub: TEST_SUB_UUID, aud: "authenticated", exp: futureExpiry }, { alg });
+      expect(token.split(".")[2]).toMatch(/^[A-Za-z0-9_-]+$/);
+      expect(decodeAndVerifyJwt(token)).toBeNull();
+      getSessionMock.mockResolvedValue({ data: { session: { access_token: token, expires_at: futureExpiry } } });
+      getUserMock.mockResolvedValue({ data: { user: null }, error: { name: "AuthApiError", message: "invalid JWT", status: 401 } });
+
+      const { getPortalSession } = await import("../supabase-server");
+      expect(await getPortalSession()).toBeNull();
+      expect(getUserMock).toHaveBeenCalledWith(token);
+    },
+  );
 
   it("fails closed to validateJwt (getUser) when SUPABASE_JWT_SECRET is missing or empty", async () => {
     delete process.env.SUPABASE_JWT_SECRET;

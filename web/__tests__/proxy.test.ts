@@ -2,7 +2,7 @@
 // boundary needs a sibling regression test).
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { decodeAndVerifyJwt } from "../src/lib/jwt-verify";
-import { MOCK_HMAC_KEY, makeTestJwt } from "../src/lib/__tests__/jwt-fixtures";
+import { ASYMMETRIC_ALG_FIXTURES, MOCK_HMAC_KEY, makeTestJwt } from "../src/lib/__tests__/jwt-fixtures";
 
 const getUserMock = vi.fn();
 const getSessionMock = vi.fn();
@@ -219,6 +219,8 @@ describe("proxy getUser outcome is pass-through", () => {
     getSessionMock.mockResolvedValue({ data: { session: null } });
     process.env.SUPABASE_URL = "https://example.supabase.co";
     process.env.SUPABASE_PUBLISHABLE_KEY = "test-key";
+    // Secret set explicitly: the alg-gate cases must be rejected by the header check alone, not by a missing secret.
+    process.env.SUPABASE_JWT_SECRET = MOCK_HMAC_KEY;
     process.env.NODE_ENV = "test";
   });
 
@@ -246,6 +248,23 @@ describe("proxy getUser outcome is pass-through", () => {
     expect(res.headers.get("location")).toBeNull();
     expect(res.headers.get("set-cookie")).toBeNull();
   });
+
+  it.each(ASYMMETRIC_ALG_FIXTURES)(
+    "%s token: rejected locally, getUser called, online auth rejects: passes through with no session cookie",
+    async (alg) => {
+      const futureExp = Math.floor(Date.now() / 1000) + 3600;
+      const token = makeTestJwt({ sub: TEST_SUB_UUID, aud: "authenticated", exp: futureExp }, { alg });
+      expect(token.split(".")[2]).toMatch(/^[A-Za-z0-9_-]+$/);
+      expect(decodeAndVerifyJwt(token)).toBeNull();
+      getSessionMock.mockResolvedValue({ data: { session: { access_token: token, expires_at: futureExp } } });
+      getUserMock.mockResolvedValue({ data: { user: null }, error: { name: "AuthApiError", message: "invalid JWT", status: 401 } });
+      const { proxy } = await import("../proxy");
+      const res = await proxy(fakeRequest(["sb-portal-auth"]) as never);
+      expect(getUserMock).toHaveBeenCalledTimes(1);
+      expect(res.status).toBe(200);
+      expect(res.headers.get("set-cookie")).toBeNull();
+    },
+  );
 
   it("getUser rejects: passes the response through and warns outside production", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});

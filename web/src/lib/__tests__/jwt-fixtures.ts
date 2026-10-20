@@ -4,6 +4,11 @@ import { createHmac } from "node:crypto";
 
 export const MOCK_HMAC_KEY = "dummy-testing-only-hmac-fixture-string";
 
+// Asymmetric algorithms a forged token may claim in its header. makeTestJwt signs them with the HMAC
+// secret, so the signature is non-empty base64url and verifies under HS256. Only the header alg gate
+// in decodeAndVerifyJwt can reject these (alg-confusion fixtures).
+export const ASYMMETRIC_ALG_FIXTURES = ["RS256", "ES256"] as const;
+
 export function makeTestJwt(
   payload: Record<string, unknown>,
   options: { secret?: string; alg?: string; rawSignature?: string } = {},
