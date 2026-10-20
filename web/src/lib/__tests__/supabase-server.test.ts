@@ -11,6 +11,8 @@
 //      server, queries run under the user's Authorization header (RLS).
 //   5. Session token rejected by getUser → null (fail-closed).
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { createHmac } from "node:crypto";
+import { decodeAndVerifyJwt } from "../jwt-verify";
 
 const getUserMock = vi.fn();
 const getSessionMock = vi.fn();
@@ -25,10 +27,24 @@ vi.mock("@supabase/ssr", () => ({
   createServerClient: ((...args: unknown[]) => createServerClientMock(...(args as []))) as never,
 }));
 
-function makeTestJwt(payload: Record<string, unknown>): string {
-  const header = Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url");
+const MOCK_HMAC_KEY = "dummy-testing-only-hmac-fixture-string";
+
+function makeTestJwt(
+  payload: Record<string, unknown>,
+  options: { secret?: string; alg?: string; rawSignature?: string } = {},
+): string {
+  const alg = options.alg ?? "HS256";
+  const secret = options.secret ?? MOCK_HMAC_KEY;
+  const header = Buffer.from(JSON.stringify({ alg, typ: "JWT" })).toString("base64url");
   const body = Buffer.from(JSON.stringify(payload)).toString("base64url");
-  const sig = Buffer.from("test-signature").toString("base64url");
+  let sig: string;
+  if (options.rawSignature !== undefined) {
+    sig = options.rawSignature;
+  } else if (alg === "none") {
+    sig = "";
+  } else {
+    sig = createHmac("sha256", secret).update(`${header}.${body}`).digest("base64url");
+  }
   return `${header}.${body}.${sig}`;
 }
 
@@ -59,6 +75,7 @@ describe("getPortalSession (Wave 5 ssr-only authorization branches)", () => {
     getSessionMock.mockReset();
     createClientMock.mockClear();
     createServerClientMock.mockClear();
+    process.env.SUPABASE_JWT_SECRET = MOCK_HMAC_KEY;
     vi.stubEnv("NODE_ENV", "test");
   });
 
@@ -246,5 +263,105 @@ describe("getPortalSession (Wave 5 ssr-only authorization branches)", () => {
     const session = await getPortalSession();
     expect(session).not.toBeNull();
     expect(getUserMock).toHaveBeenCalledWith("not-a-valid-jwt");
+  });
+
+  it("falls back to validateJwt (getUser) when signature is signed with wrong secret (adversarial forged token)", async () => {
+    setCookie("sb-portal-auth", "forged-secret-token");
+    const futureExpiry = Math.floor(Date.now() / 1000) + 3600;
+    const forgedToken = makeTestJwt(
+      { sub: TEST_SUB_UUID, aud: "authenticated", exp: futureExpiry, email: "victim@expanpress.com" },
+      { secret: "wrong-hmac-key-fixture-32-chars-long" },
+    );
+    expect(decodeAndVerifyJwt(forgedToken)).toBeNull();
+    getSessionMock.mockResolvedValue({
+      data: {
+        session: {
+          access_token: forgedToken,
+          expires_at: futureExpiry,
+        },
+      },
+    });
+    // Online check fails because auth server knows the real secret and rejects forged signature
+    getUserMock.mockResolvedValue({ data: { user: null }, error: { message: "invalid signature" } });
+
+    const { getPortalSession } = await import("../supabase-server");
+    const session = await getPortalSession();
+    // Must fail closed (null)
+    expect(session).toBeNull();
+    expect(getUserMock).toHaveBeenCalledWith(forgedToken);
+  });
+
+  it("falls back to validateJwt (getUser) and rejects when payload claim is tampered with original signature", async () => {
+    setCookie("sb-portal-auth", "tampered-payload-token");
+    const futureExpiry = Math.floor(Date.now() / 1000) + 3600;
+    const validToken = makeTestJwt({ sub: TEST_SUB_UUID, aud: "authenticated", exp: futureExpiry });
+    const [header, , sig] = validToken.split(".");
+    const tamperedPayload = Buffer.from(
+      JSON.stringify({ sub: "00000000-0000-0000-0000-000000000000", aud: "authenticated", exp: futureExpiry }),
+    ).toString("base64url");
+    const tamperedToken = `${header}.${tamperedPayload}.${sig}`;
+
+    expect(decodeAndVerifyJwt(tamperedToken)).toBeNull();
+    getSessionMock.mockResolvedValue({
+      data: {
+        session: {
+          access_token: tamperedToken,
+          expires_at: futureExpiry,
+        },
+      },
+    });
+    getUserMock.mockResolvedValue({ data: { user: null }, error: { message: "signature mismatch" } });
+
+    const { getPortalSession } = await import("../supabase-server");
+    const session = await getPortalSession();
+    expect(session).toBeNull();
+    expect(getUserMock).toHaveBeenCalledWith(tamperedToken);
+  });
+
+  it("falls back to validateJwt (getUser) when alg is none (adversarial alg:none attack)", async () => {
+    setCookie("sb-portal-auth", "none-alg-token");
+    const futureExpiry = Math.floor(Date.now() / 1000) + 3600;
+    const noneToken = makeTestJwt(
+      { sub: TEST_SUB_UUID, aud: "authenticated", exp: futureExpiry },
+      { alg: "none", rawSignature: "" },
+    );
+    expect(decodeAndVerifyJwt(noneToken)).toBeNull();
+    getSessionMock.mockResolvedValue({
+      data: {
+        session: {
+          access_token: noneToken,
+          expires_at: futureExpiry,
+        },
+      },
+    });
+    getUserMock.mockResolvedValue({ data: { user: null }, error: { message: "unsupported algorithm" } });
+
+    const { getPortalSession } = await import("../supabase-server");
+    const session = await getPortalSession();
+    expect(session).toBeNull();
+    expect(getUserMock).toHaveBeenCalledWith(noneToken);
+  });
+
+  it("fails closed to validateJwt (getUser) when SUPABASE_JWT_SECRET is missing or empty", async () => {
+    delete process.env.SUPABASE_JWT_SECRET;
+    setCookie("sb-portal-auth", "no-secret-env-token");
+    const futureExpiry = Math.floor(Date.now() / 1000) + 3600;
+    const validToken = makeTestJwt({ sub: TEST_SUB_UUID, aud: "authenticated", exp: futureExpiry });
+    expect(decodeAndVerifyJwt(validToken)).toBeNull();
+    getSessionMock.mockResolvedValue({
+      data: {
+        session: {
+          access_token: validToken,
+          expires_at: futureExpiry,
+        },
+      },
+    });
+    getUserMock.mockResolvedValue({ data: { user: { id: TEST_SUB_UUID } }, error: null });
+
+    const { getPortalSession } = await import("../supabase-server");
+    const session = await getPortalSession();
+    expect(session).not.toBeNull();
+    // Without the local secret, it MUST fall back to getUser online verification
+    expect(getUserMock).toHaveBeenCalledWith(validToken);
   });
 });
