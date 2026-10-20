@@ -40,7 +40,8 @@ async function hasRecordedC3(): Promise<boolean> {
       .eq("product_id", productId)
       .eq("kind", "C3_revenue_split")
       .eq("decision", "given")
-      .order("created_at", { ascending: false })
+      .order("signed_at", { ascending: false })
+      .order("id", { ascending: false })
       .limit(1);
     return (data?.length ?? 0) > 0;
   } catch (err) {

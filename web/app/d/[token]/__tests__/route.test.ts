@@ -48,9 +48,31 @@ vi.mock("../../../../../payments/src/supabase_admin", () => ({
 describe("GET /d/[token] (Buyer delivery route)", () => {
   const validToken = "A".repeat(43);
 
+  function clearR2Envs() {
+    vi.stubEnv("R2_ACCOUNT_ID", "");
+    vi.stubEnv("CLOUDFLARE_ACCOUNT_ID", "");
+    vi.stubEnv("R2_ACCESS_KEY_ID", "");
+    vi.stubEnv("CLOUDFLARE_R2_ACCESS_KEY_ID", "");
+    vi.stubEnv("R2_SECRET_ACCESS_KEY", "");
+    vi.stubEnv("CLOUDFLARE_R2_SECRET_ACCESS_KEY", "");
+    vi.stubEnv("R2_BUCKET_NAME", "");
+    vi.stubEnv("CLOUDFLARE_R2_BUCKET", "");
+  }
+
+  async function expectRedirectTo(token: string, expectedUrlSubstring: string) {
+    const req = new NextRequest(`https://expanpress.com/d/${token}`);
+    const res = await GET(req, { params: Promise.resolve({ token }) });
+
+    expect(res.status).toBe(302);
+    const location = res.headers.get("location") ?? "";
+    expect(location).toContain(expectedUrlSubstring);
+    return { res, location };
+  }
+
   beforeEach(() => {
     vi.clearAllMocks();
     vi.unstubAllEnvs();
+    clearR2Envs();
   });
 
   afterEach(() => {
@@ -162,11 +184,7 @@ describe("GET /d/[token] (Buyer delivery route)", () => {
     // 4. download_completed insert
     insertMock.mockResolvedValueOnce({ error: null });
 
-    const req = new NextRequest(`https://expanpress.com/d/${validToken}`);
-    const res = await GET(req, { params: Promise.resolve({ token: validToken }) });
-
-    expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toBe("https://supabase.example/signed/books/test.pdf");
+    const { res } = await expectRedirectTo(validToken, "https://supabase.example/signed/books/test.pdf");
     expect(res.headers.get("Cache-Control")).toBe("no-store");
     expect(insertMock).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -199,12 +217,10 @@ describe("GET /d/[token] (Buyer delivery route)", () => {
     });
     insertMock.mockResolvedValueOnce({ error: null });
 
-    const req = new NextRequest(`https://expanpress.com/d/${validToken}`);
-    const res = await GET(req, { params: Promise.resolve({ token: validToken }) });
-
-    expect(res.status).toBe(302);
-    const location = res.headers.get("location") ?? "";
-    expect(location).toContain("https://r2-acc-test.r2.cloudflarestorage.com/r2-releases/books/r2-book.pdf");
+    const { location } = await expectRedirectTo(
+      validToken,
+      "https://r2-acc-test.r2.cloudflarestorage.com/r2-releases/books/r2-book.pdf",
+    );
     expect(location).toContain("X-Amz-Signature=");
     expect(createSignedUrlMock).not.toHaveBeenCalled();
     expect(insertMock).toHaveBeenCalled();
@@ -234,11 +250,7 @@ describe("GET /d/[token] (Buyer delivery route)", () => {
     });
     insertMock.mockResolvedValueOnce({ error: null });
 
-    const req = new NextRequest(`https://expanpress.com/d/${validToken}`);
-    const res = await GET(req, { params: Promise.resolve({ token: validToken }) });
-
-    expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toBe("https://supabase.example/signed/books/fallback-book.pdf");
+    await expectRedirectTo(validToken, "https://supabase.example/signed/books/fallback-book.pdf");
     expect(createSignedUrlMock).toHaveBeenCalledWith("books/fallback-book.pdf", expect.any(Number));
     expect(insertMock).toHaveBeenCalled();
   });

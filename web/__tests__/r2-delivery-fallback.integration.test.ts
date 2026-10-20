@@ -74,25 +74,48 @@ describe("Automated Integration Test: R2 Object Delivery & Fallback Behavior (/d
     insertMock.mockResolvedValueOnce({ error: null });
   }
 
-  it("CASE 1 (Optimal Egress): R2 configured & object present -> serves R2 presigned URL with 0 Supabase storage egress", async () => {
+  function stubR2Envs() {
     vi.stubEnv("R2_ACCOUNT_ID", "r2-live-account");
     vi.stubEnv("R2_ACCESS_KEY_ID", "r2-live-key");
     vi.stubEnv("R2_SECRET_ACCESS_KEY", "r2-live-secret");
     vi.stubEnv("R2_BUCKET_NAME", "production-releases");
+  }
+
+  function clearR2Envs() {
+    vi.stubEnv("R2_ACCOUNT_ID", "");
+    vi.stubEnv("CLOUDFLARE_ACCOUNT_ID", "");
+    vi.stubEnv("R2_ACCESS_KEY_ID", "");
+    vi.stubEnv("CLOUDFLARE_R2_ACCESS_KEY_ID", "");
+    vi.stubEnv("R2_SECRET_ACCESS_KEY", "");
+    vi.stubEnv("CLOUDFLARE_R2_SECRET_ACCESS_KEY", "");
+    vi.stubEnv("R2_BUCKET_NAME", "");
+    vi.stubEnv("CLOUDFLARE_R2_BUCKET", "");
+  }
+
+  async function expectRedirectTo(token: string, expectedUrlPrefix: string) {
+    const req = new NextRequest(`https://expanpress.com/d/${token}`);
+    const res = await GET(req, { params: Promise.resolve({ token }) });
+
+    expect(res.status).toBe(302);
+    const location = res.headers.get("location") || "";
+    expect(location).toContain(expectedUrlPrefix);
+    return { res, location };
+  }
+
+  it("CASE 1 (Optimal Egress): R2 configured & object present -> serves R2 presigned URL with 0 Supabase storage egress", async () => {
+    stubR2Envs();
 
     // Mock R2 HEAD presence check returning 200 OK
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 200 }));
 
     setupValidDownloadRow("books/mastering-scale.pdf");
 
-    const req = new NextRequest(`https://expanpress.com/d/${validToken}`);
-    const res = await GET(req, { params: Promise.resolve({ token: validToken }) });
-
-    expect(res.status).toBe(302);
-    const location = res.headers.get("location") || "";
+    const { location } = await expectRedirectTo(
+      validToken,
+      "https://r2-live-account.r2.cloudflarestorage.com/production-releases/books/mastering-scale.pdf",
+    );
 
     // 1. Must redirect to Cloudflare R2 S3 API host
-    expect(location).toContain("https://r2-live-account.r2.cloudflarestorage.com/production-releases/books/mastering-scale.pdf");
     expect(location).toContain("X-Amz-Signature=");
 
     // 2. Supabase Storage must NOT be hit (0 bytes transferred from Supabase storage)
@@ -112,75 +135,61 @@ describe("Automated Integration Test: R2 Object Delivery & Fallback Behavior (/d
     // 4. Verification HEAD request was properly bounded
     expect(fetchSpy).toHaveBeenCalledWith(
       expect.stringContaining("https://r2-live-account.r2.cloudflarestorage.com/production-releases/books/mastering-scale.pdf"),
-      expect.objectContaining({ method: "HEAD" }),
+      expect.objectContaining({ method: "HEAD", signal: expect.any(AbortSignal) }),
     );
   });
 
   it("CASE 2 (Object Fallback): R2 configured but object is 404 in R2 -> falls back to Supabase Storage seamlessly", async () => {
-    vi.stubEnv("R2_ACCOUNT_ID", "r2-live-account");
-    vi.stubEnv("R2_ACCESS_KEY_ID", "r2-live-key");
-    vi.stubEnv("R2_SECRET_ACCESS_KEY", "r2-live-secret");
-    vi.stubEnv("R2_BUCKET_NAME", "production-releases");
+    stubR2Envs();
 
     // Mock R2 HEAD check returning 404 NOT FOUND (object not yet synced to R2)
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 404 }));
 
     // Mock Supabase Storage signing succeeding
+    const fallbackUrl = "https://supabase.co/storage/v1/object/sign/release-files/books/unsynced.pdf?token=sb-tok";
     createSignedUrlMock.mockResolvedValueOnce({
-      data: { signedUrl: "https://supabase.co/storage/v1/object/sign/release-files/books/unsynced.pdf?token=sb-tok" },
+      data: { signedUrl: fallbackUrl },
       error: null,
     });
 
     setupValidDownloadRow("books/unsynced.pdf");
 
-    const req = new NextRequest(`https://expanpress.com/d/${validToken}`);
-    const res = await GET(req, { params: Promise.resolve({ token: validToken }) });
-
     // Buyer must NOT receive a 404! Seamless 302 redirect to Supabase fallback
-    expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toBe("https://supabase.co/storage/v1/object/sign/release-files/books/unsynced.pdf?token=sb-tok");
+    await expectRedirectTo(validToken, fallbackUrl);
     expect(createSignedUrlMock).toHaveBeenCalledWith("books/unsynced.pdf", expect.any(Number));
     expect(insertMock).toHaveBeenCalled();
   });
 
   it("CASE 3 (Network Resiliency): R2 HEAD check throws network error -> falls back to Supabase Storage", async () => {
-    vi.stubEnv("R2_ACCOUNT_ID", "r2-live-account");
-    vi.stubEnv("R2_ACCESS_KEY_ID", "r2-live-key");
-    vi.stubEnv("R2_SECRET_ACCESS_KEY", "r2-live-secret");
-    vi.stubEnv("R2_BUCKET_NAME", "production-releases");
+    stubR2Envs();
 
     // Mock R2 network failure (e.g. DNS timeout, connection reset)
     vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("Network connection reset"));
 
+    const fallbackUrl = "https://supabase.co/storage/v1/object/sign/release-files/books/network-fallback.pdf?token=sb-tok";
     createSignedUrlMock.mockResolvedValueOnce({
-      data: { signedUrl: "https://supabase.co/storage/v1/object/sign/release-files/books/network-fallback.pdf?token=sb-tok" },
+      data: { signedUrl: fallbackUrl },
       error: null,
     });
 
     setupValidDownloadRow("books/network-fallback.pdf");
 
-    const req = new NextRequest(`https://expanpress.com/d/${validToken}`);
-    const res = await GET(req, { params: Promise.resolve({ token: validToken }) });
-
-    expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toBe("https://supabase.co/storage/v1/object/sign/release-files/books/network-fallback.pdf?token=sb-tok");
+    await expectRedirectTo(validToken, fallbackUrl);
     expect(createSignedUrlMock).toHaveBeenCalledWith("books/network-fallback.pdf", expect.any(Number));
   });
 
   it("CASE 4 (Zero Configuration): R2 env vars missing -> transparently uses Supabase Storage default", async () => {
-    // No R2 env vars set
+    clearR2Envs();
+
+    const standardUrl = "https://supabase.co/storage/v1/object/sign/release-files/books/standard.pdf?token=sb-tok";
     createSignedUrlMock.mockResolvedValueOnce({
-      data: { signedUrl: "https://supabase.co/storage/v1/object/sign/release-files/books/standard.pdf?token=sb-tok" },
+      data: { signedUrl: standardUrl },
       error: null,
     });
 
     setupValidDownloadRow("books/standard.pdf");
 
-    const req = new NextRequest(`https://expanpress.com/d/${validToken}`);
-    const res = await GET(req, { params: Promise.resolve({ token: validToken }) });
-
-    expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toBe("https://supabase.co/storage/v1/object/sign/release-files/books/standard.pdf?token=sb-tok");
+    await expectRedirectTo(validToken, standardUrl);
     expect(createSignedUrlMock).toHaveBeenCalledWith("books/standard.pdf", expect.any(Number));
   });
 });

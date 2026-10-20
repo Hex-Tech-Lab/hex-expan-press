@@ -51,6 +51,64 @@ function clientWithJwt(jwt: string): SupabaseClient {
   });
 }
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const BASE64URL_REGEX = /^[A-Za-z0-9_-]+$/;
+
+/**
+ * Validates and decodes a Supabase JWT locally without network calls.
+ * Ensures 3 base64url segments, valid sub UUID, aud === "authenticated",
+ * and at least 60s remaining before expiry (exp > now + 60).
+ */
+export function decodeAndVerifyJwt(token: string): Record<string, unknown> | null {
+  if (typeof token !== "string") return null;
+  const parts = token.split(".");
+  if (parts.length !== 3) return null;
+  if (!parts[0] || !parts[1] || !parts[2]) return null;
+  if (!BASE64URL_REGEX.test(parts[0]) || !BASE64URL_REGEX.test(parts[1]) || !BASE64URL_REGEX.test(parts[2])) {
+    return null;
+  }
+
+  try {
+    const jsonStr =
+      typeof Buffer !== "undefined"
+        ? Buffer.from(parts[1], "base64url").toString("utf8")
+        : atob(parts[1].replace(/-/g, "+").replace(/_/g, "/") + "=".repeat((4 - (parts[1].length % 4)) % 4));
+    const payload = JSON.parse(jsonStr);
+    if (!payload || typeof payload !== "object" || Array.isArray(payload)) return null;
+
+    const now = Math.floor(Date.now() / 1000);
+    if (typeof payload.exp !== "number" || !Number.isFinite(payload.exp) || payload.exp - now <= 60) {
+      return null;
+    }
+    if (typeof payload.sub !== "string" || !UUID_REGEX.test(payload.sub)) return null;
+
+    const aud = payload.aud;
+    const isValidAud = aud === "authenticated" || (Array.isArray(aud) && aud.includes("authenticated"));
+    if (!isValidAud) return null;
+
+    return payload as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Hydrates a User object locally from a verified JWT token.
+ * Returns null if token is invalid, expired, near expiry (<= 60s), or claims are invalid.
+ */
+export function hydrateUserFromLocalJwt(token: string): User | null {
+  const claims = decodeAndVerifyJwt(token);
+  if (!claims) return null;
+  return {
+    id: claims.sub as string,
+    email: typeof claims.email === "string" ? claims.email : "",
+    app_metadata: (claims.app_metadata && typeof claims.app_metadata === "object" && !Array.isArray(claims.app_metadata) ? claims.app_metadata : {}) as Record<string, unknown>,
+    user_metadata: (claims.user_metadata && typeof claims.user_metadata === "object" && !Array.isArray(claims.user_metadata) ? claims.user_metadata : {}) as Record<string, unknown>,
+    aud: typeof claims.aud === "string" ? claims.aud : "authenticated",
+    created_at: typeof claims.created_at === "string" ? claims.created_at : new Date().toISOString(),
+  } as User;
+}
+
 /**
  * Resolve the portal session from the ssr HttpOnly cookie. Returns null when
  * unauthenticated — callers redirect to /creator/signin (server-side).
@@ -76,27 +134,9 @@ export async function getPortalSession(): Promise<PortalSession | null> {
     const { data } = await ssr.auth.getSession();
     const session = data.session;
     if (session?.access_token) {
-      let user: User | null = null;
-      const expiresAt = session.expires_at ?? 0;
-      const now = Math.floor(Date.now() / 1000);
-      // Egress optimization (Task 2): when access token has >60s until expiry,
-      // verify claims locally using getClaims() to avoid blocking network round-trips.
-      if (expiresAt - now > 60 && typeof ssr.auth.getClaims === "function") {
-        const { data: claimsData, error: claimsError } = await ssr.auth.getClaims(session.access_token);
-        if (!claimsError && claimsData?.claims) {
-          const claims = claimsData.claims as Record<string, unknown>;
-          if (claims.sub) {
-            user = {
-              id: claims.sub as string,
-              email: typeof claims.email === "string" ? claims.email : "",
-              app_metadata: (claims.app_metadata as Record<string, unknown>) ?? {},
-              user_metadata: (claims.user_metadata as Record<string, unknown>) ?? {},
-              aud: (claims.aud as string) ?? "authenticated",
-              created_at: typeof claims.created_at === "string" ? claims.created_at : new Date().toISOString(),
-            } as User;
-          }
-        }
-      }
+      // Egress optimization: when access token is locally valid and
+      // has >60s until expiry, hydrate user locally to avoid blocking network round-trips.
+      let user: User | null = hydrateUserFromLocalJwt(session.access_token);
       if (!user) {
         user = await validateJwt(session.access_token);
       }
