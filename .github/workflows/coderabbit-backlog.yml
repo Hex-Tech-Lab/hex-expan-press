@@ -1,0 +1,126 @@
+name: coderabbit-backlog
+
+# Requests a CodeRabbit review for at most one open PR per run, oldest first.
+# Read and comment only: this workflow never edits code, never merges, and uses only the default GITHUB_TOKEN.
+
+on:
+  schedule:
+    - cron: "17 */3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: coderabbit-backlog
+  cancel-in-progress: false
+
+jobs:
+  request-review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+    steps:
+      - name: Find the oldest open PR without a CodeRabbit review on its head
+        id: pick
+        run: |
+          set -euo pipefail
+          mkdir -p backlog
+          gh pr list -R "$REPO" --state open --limit 100 --json number,headRefOid,createdAt,isDraft \
+            --jq 'map(select(.isDraft | not)) | sort_by(.createdAt)' > backlog/open.json
+          picked=""
+          while IFS=$'\t' read -r num sha; do
+            reviewed=$(gh api "repos/$REPO/pulls/$num/reviews" --paginate \
+              --jq '.[] | select(.user.login == "coderabbitai[bot]" and .commit_id == "'"$sha"'") | .id' | wc -l)
+            if [ "$reviewed" = "0" ]; then
+              picked="$num $sha"
+              break
+            fi
+          done < <(jq -r '.[] | [.number, .headRefOid] | @tsv' backlog/open.json)
+          if [ -z "$picked" ]; then
+            echo "outcome=no_candidate" >> "$GITHUB_OUTPUT"
+            echo "candidate=" >> "$GITHUB_OUTPUT"
+          else
+            read -r num sha <<< "$picked"
+            echo "outcome=candidate" >> "$GITHUB_OUTPUT"
+            echo "num=$num" >> "$GITHUB_OUTPUT"
+            echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Request the review once per head, stop on monthly quota, then record the result
+        if: steps.pick.outputs.outcome == 'candidate'
+        env:
+          NUM: ${{ steps.pick.outputs.num }}
+          SHA: ${{ steps.pick.outputs.sha }}
+        run: |
+          set -euo pipefail
+          marker="<!-- coderabbit-backlog:${SHA} -->"
+          record() {
+            python3 - "$1" "$NUM" "$SHA" <<'PY'
+          import json, sys, datetime
+          outcome, num, sha = sys.argv[1], sys.argv[2], sys.argv[3]
+          json.dump({"pr": int(num), "head": sha, "outcome": outcome,
+                     "checked_at": datetime.datetime.now(datetime.timezone.utc).isoformat()},
+                    open("backlog/result.json", "w"), indent=2)
+          PY
+          }
+
+          # Monthly quota: the newest CodeRabbit comment says the monthly allowance is spent. Stop, and do not post.
+          quota=$(gh api "repos/$REPO/issues/$NUM/comments" --paginate \
+            | jq -s -r '[.[][] | select(.user.login == "coderabbitai[bot]") | .body] | join("\n---\n")' \
+            | python3 -c 'import sys, re; t = sys.stdin.read(); print("yes" if re.search(r"monthly.{0,120}(limit|quota|allowance)|(quota|allowance).{0,60}(exhaust|used up|reached)", t, re.I | re.S) else "no")')
+          if [ "$quota" = "yes" ]; then
+            record quota_exhausted
+            echo "Monthly CodeRabbit quota is exhausted. Stopping without a request."
+            exit 0
+          fi
+
+          # Once per head: if this run already requested it for this head, wait for the result and do not post again.
+          already=$(gh api "repos/$REPO/issues/$NUM/comments" --paginate \
+            | jq -s --arg m "$marker" '[.[][] | select(.user.login == "github-actions[bot]" and (.body | contains($m)))] | length')
+          if [ "$already" = "0" ]; then
+            gh pr comment "$NUM" -R "$REPO" --body "$(printf '@coderabbitai review\n\n%s' "$marker")"
+            echo "Requested a CodeRabbit review on PR $NUM at $SHA."
+          else
+            echo "Review already requested for PR $NUM at $SHA in an earlier run; waiting for the result."
+          fi
+
+          # Wait up to 25 minutes for a formal CodeRabbit review on this head.
+          outcome="timeout"
+          deadline=$((SECONDS + 1500))
+          while [ "$SECONDS" -lt "$deadline" ]; do
+            reviewed=$(gh api "repos/$REPO/pulls/$NUM/reviews" --paginate \
+              --jq '.[] | select(.user.login == "coderabbitai[bot]" and .commit_id == "'"$SHA"'") | .id' | wc -l)
+            if [ "$reviewed" -gt 0 ]; then
+              outcome="reviewed"
+              break
+            fi
+            latest=$(gh api "repos/$REPO/issues/$NUM/comments" --paginate \
+              | jq -s -r '[.[][] | select(.user.login == "coderabbitai[bot]") | .body] | last // ""')
+            if printf '%s' "$latest" | python3 -c 'import sys, re; sys.exit(0 if re.search(r"rate limit", sys.stdin.read(), re.I) else 1)'; then
+              outcome="rate_limited"
+              break
+            fi
+            sleep 60
+          done
+          record "$outcome"
+          echo "Outcome for PR $NUM: $outcome"
+
+      - name: Record the no-candidate outcome
+        if: steps.pick.outputs.outcome == 'no_candidate'
+        run: |
+          mkdir -p backlog
+          printf '{"outcome": "no_candidate", "checked_at": "%s"}\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > backlog/result.json
+          echo "No open PR lacks a CodeRabbit review on its head."
+
+      - name: Upload the run record
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coderabbit-backlog-${{ github.run_id }}
+          path: backlog/
+          if-no-files-found: warn
