@@ -14,6 +14,16 @@ const createServerClientMock = vi.fn(() => ({
 }));
 const cookiesSetSpy = vi.fn();
 
+// Every test gets the same stubbed environment, and it is restored after each test. The alg-gate cases
+// are rejected by the header check alone, because the secret is set for every test.
+beforeEach(() => {
+  vi.stubEnv("SUPABASE_URL", "https://example.supabase.co");
+  vi.stubEnv("SUPABASE_PUBLISHABLE_KEY", "test-key");
+  vi.stubEnv("SUPABASE_JWT_SECRET", MOCK_HMAC_KEY);
+  vi.stubEnv("NODE_ENV", "test");
+});
+afterEach(() => vi.unstubAllEnvs());
+
 vi.mock("@supabase/ssr", () => ({
   createServerClient: (...args: unknown[]) => createServerClientMock(...(args as [])),
 }));
@@ -38,10 +48,6 @@ describe("proxy (session refresh boundary)", () => {
     getSessionMock.mockResolvedValue({ data: { session: null } });
     createServerClientMock.mockClear();
     cookiesSetSpy.mockClear();
-    process.env.SUPABASE_URL = "https://example.supabase.co";
-    process.env.SUPABASE_PUBLISHABLE_KEY = "test-key";
-    process.env.SUPABASE_JWT_SECRET = MOCK_HMAC_KEY;
-    process.env.NODE_ENV = "test";
   });
 
   it("calls getUser (network validation) and passes the response through", async () => {
@@ -196,7 +202,7 @@ describe("proxy (session refresh boundary)", () => {
   });
 
   it("calls getUser when SUPABASE_JWT_SECRET is missing or empty (fail-closed rule)", async () => {
-    delete process.env.SUPABASE_JWT_SECRET;
+    vi.stubEnv("SUPABASE_JWT_SECRET", "");
     const futureExp = Math.floor(Date.now() / 1000) + 3600;
     const validToken = makeTestJwt({ sub: TEST_SUB_UUID, aud: "authenticated", exp: futureExp });
     expect(decodeAndVerifyJwt(validToken)).toBeNull();
@@ -217,11 +223,6 @@ describe("proxy getUser outcome is pass-through", () => {
     getUserMock.mockReset();
     getSessionMock.mockReset();
     getSessionMock.mockResolvedValue({ data: { session: null } });
-    process.env.SUPABASE_URL = "https://example.supabase.co";
-    process.env.SUPABASE_PUBLISHABLE_KEY = "test-key";
-    // Secret set explicitly: the alg-gate cases must be rejected by the header check alone, not by a missing secret.
-    process.env.SUPABASE_JWT_SECRET = MOCK_HMAC_KEY;
-    process.env.NODE_ENV = "test";
   });
 
   afterEach(() => vi.restoreAllMocks());
@@ -277,7 +278,7 @@ describe("proxy getUser outcome is pass-through", () => {
   });
 
   it("getUser rejects in production: passes the response through and stays silent", async () => {
-    process.env.NODE_ENV = "production";
+    vi.stubEnv("NODE_ENV", "production");
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     getUserMock.mockRejectedValue(new Error("auth down"));
     const { proxy } = await import("../proxy");
@@ -296,10 +297,6 @@ describe("proxy host boundary (ADR 0061)", () => {
   beforeEach(() => {
     getUserMock.mockReset();
     createServerClientMock.mockClear();
-    process.env.SUPABASE_URL = "https://example.supabase.co";
-    process.env.SUPABASE_PUBLISHABLE_KEY = "test-key";
-    process.env.SUPABASE_JWT_SECRET = MOCK_HMAC_KEY;
-    process.env.NODE_ENV = "test";
   });
 
   it("pay host serves checkout pages and legal pages without a session refresh", async () => {
