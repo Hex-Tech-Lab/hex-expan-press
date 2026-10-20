@@ -11,8 +11,8 @@
 //      server, queries run under the user's Authorization header (RLS).
 //   5. Session token rejected by getUser → null (fail-closed).
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { createHmac } from "node:crypto";
 import { decodeAndVerifyJwt } from "../jwt-verify";
+import { MOCK_HMAC_KEY, makeTestJwt } from "./jwt-fixtures";
 
 const getUserMock = vi.fn();
 const getSessionMock = vi.fn();
@@ -26,27 +26,6 @@ vi.mock("@supabase/supabase-js", () => ({
 vi.mock("@supabase/ssr", () => ({
   createServerClient: ((...args: unknown[]) => createServerClientMock(...(args as []))) as never,
 }));
-
-const MOCK_HMAC_KEY = "dummy-testing-only-hmac-fixture-string";
-
-function makeTestJwt(
-  payload: Record<string, unknown>,
-  options: { secret?: string; alg?: string; rawSignature?: string } = {},
-): string {
-  const alg = options.alg ?? "HS256";
-  const secret = options.secret ?? MOCK_HMAC_KEY;
-  const header = Buffer.from(JSON.stringify({ alg, typ: "JWT" })).toString("base64url");
-  const body = Buffer.from(JSON.stringify(payload)).toString("base64url");
-  let sig: string;
-  if (options.rawSignature !== undefined) {
-    sig = options.rawSignature;
-  } else if (alg === "none") {
-    sig = "";
-  } else {
-    sig = createHmac("sha256", secret).update(`${header}.${body}`).digest("base64url");
-  }
-  return `${header}.${body}.${sig}`;
-}
 
 const TEST_SUB_UUID = "57596c19-c550-4bde-b17a-e87b86d005c5";
 

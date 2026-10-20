@@ -1,8 +1,8 @@
 // Proxy contract tests (qa-intel security rule: the getUser session
 // boundary needs a sibling regression test).
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { createHmac } from "node:crypto";
 import { decodeAndVerifyJwt } from "../src/lib/jwt-verify";
+import { MOCK_HMAC_KEY, makeTestJwt } from "../src/lib/__tests__/jwt-fixtures";
 
 const getUserMock = vi.fn();
 const getSessionMock = vi.fn();
@@ -17,27 +17,6 @@ const cookiesSetSpy = vi.fn();
 vi.mock("@supabase/ssr", () => ({
   createServerClient: (...args: unknown[]) => createServerClientMock(...(args as [])),
 }));
-
-const MOCK_HMAC_KEY = "dummy-testing-only-hmac-fixture-string";
-
-function makeTestJwt(
-  payload: Record<string, unknown>,
-  options: { secret?: string; alg?: string; rawSignature?: string } = {},
-): string {
-  const alg = options.alg ?? "HS256";
-  const secret = options.secret ?? MOCK_HMAC_KEY;
-  const header = Buffer.from(JSON.stringify({ alg, typ: "JWT" })).toString("base64url");
-  const body = Buffer.from(JSON.stringify(payload)).toString("base64url");
-  let sig: string;
-  if (options.rawSignature !== undefined) {
-    sig = options.rawSignature;
-  } else if (alg === "none") {
-    sig = "";
-  } else {
-    sig = createHmac("sha256", secret).update(`${header}.${body}`).digest("base64url");
-  }
-  return `${header}.${body}.${sig}`;
-}
 
 const TEST_SUB_UUID = "57596c19-c550-4bde-b17a-e87b86d005c5";
 
