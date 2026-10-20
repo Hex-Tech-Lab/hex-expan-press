@@ -210,6 +210,64 @@ describe("proxy (session refresh boundary)", () => {
   });
 });
 
+// getUser outcome contract (proxy.ts): the proxy reads neither `user` nor `error` from getUser().
+// It never redirects, never sets an auth status and never throws. Pages enforce the fail-closed redirect.
+describe("proxy getUser outcome is pass-through", () => {
+  beforeEach(() => {
+    getUserMock.mockReset();
+    getSessionMock.mockReset();
+    getSessionMock.mockResolvedValue({ data: { session: null } });
+    process.env.SUPABASE_URL = "https://example.supabase.co";
+    process.env.SUPABASE_PUBLISHABLE_KEY = "test-key";
+    process.env.NODE_ENV = "test";
+  });
+
+  afterEach(() => vi.restoreAllMocks());
+
+  it("no user: passes the response through with no redirect, auth status or cookie write", async () => {
+    getUserMock.mockResolvedValue({ data: { user: null }, error: null });
+    const { proxy } = await import("../proxy");
+    const res = await proxy(fakeRequest(["sb-portal-auth"]) as never);
+    expect(getUserMock).toHaveBeenCalledTimes(1);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("location")).toBeNull();
+    expect(res.headers.get("set-cookie")).toBeNull();
+  });
+
+  it("getUser resolves with an error: passes the response through without throwing", async () => {
+    getUserMock.mockResolvedValue({
+      data: { user: null },
+      error: { name: "AuthApiError", message: "invalid JWT", status: 401 },
+    });
+    const { proxy } = await import("../proxy");
+    const res = await proxy(fakeRequest(["sb-portal-auth"]) as never);
+    expect(getUserMock).toHaveBeenCalledTimes(1);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("location")).toBeNull();
+    expect(res.headers.get("set-cookie")).toBeNull();
+  });
+
+  it("getUser rejects: passes the response through and warns outside production", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    getUserMock.mockRejectedValue(new Error("auth down"));
+    const { proxy } = await import("../proxy");
+    const res = await proxy(fakeRequest(["sb-portal-auth"]) as never);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("location")).toBeNull();
+    expect(warn).toHaveBeenCalledWith("[proxy] session refresh skipped:", "auth down");
+  });
+
+  it("getUser rejects in production: passes the response through and stays silent", async () => {
+    process.env.NODE_ENV = "production";
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    getUserMock.mockRejectedValue(new Error("auth down"));
+    const { proxy } = await import("../proxy");
+    const res = await proxy(fakeRequest(["sb-portal-auth"]) as never);
+    expect(res.status).toBe(200);
+    expect(warn).not.toHaveBeenCalled();
+  });
+});
+
 // Host boundary (ADR 0061): pay.expanpress.com serves checkout only; expanpress.com sends checkout paths to pay.
 describe("proxy host boundary (ADR 0061)", () => {
   function hostRequest(url: string): unknown {
