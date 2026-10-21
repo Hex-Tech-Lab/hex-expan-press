@@ -237,6 +237,17 @@ describe("proxy getUser outcome is pass-through", () => {
     expect(res.headers.get("set-cookie")).toBeNull();
   });
 
+  it("getSession rejects: getUser is called once and response is getUser outcome", async () => {
+    getSessionMock.mockRejectedValue(new Error("network blip on getSession"));
+    getUserMock.mockResolvedValue({ data: { user: { id: "u-fallback" } }, error: null });
+    const { proxy } = await import("../proxy");
+    const res = await proxy(fakeRequest(["sb-portal-auth"]) as never);
+    expect(getSessionMock).toHaveBeenCalledTimes(1);
+    expect(getUserMock).toHaveBeenCalledTimes(1);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("location")).toBeNull();
+  });
+
   it("getUser resolves with an error: passes the response through without throwing", async () => {
     getUserMock.mockResolvedValue({
       data: { user: null },

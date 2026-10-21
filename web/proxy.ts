@@ -107,13 +107,17 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
     // getUser() triggers @supabase/ssr session refresh and writes chunked cookies.
     let needsRefresh = true;
     if (typeof supabase.auth.getSession === "function") {
-      const { data } = await supabase.auth.getSession();
-      const session = data?.session;
-      if (session?.access_token) {
-        const claims = decodeAndVerifyJwt(session.access_token);
-        if (claims) {
-          needsRefresh = false;
+      try {
+        const { data } = await supabase.auth.getSession();
+        const session = data?.session;
+        if (session?.access_token) {
+          const claims = decodeAndVerifyJwt(session.access_token);
+          if (claims) {
+            needsRefresh = false;
+          }
         }
+      } catch {
+        // If getSession throws or fails, proceed to getUser fallback
       }
     }
 
