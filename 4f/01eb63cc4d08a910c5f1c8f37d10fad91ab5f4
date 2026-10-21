@@ -1,0 +1,16 @@
+docs/agent_ledger.jsonl
+  h_e6b68dcbbd0983 815-816
+web/proxy.ts
+  h_e6b68dcbbd0983 10-13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4f01eb63cc4d08a910c5f1c8f37d10fad91ab5f4",
+  "prompts": {},
+  "humans": {
+    "h_e6b68dcbbd0983": {
+      "author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
