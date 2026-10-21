@@ -286,6 +286,45 @@ describe("proxy getUser outcome is pass-through", () => {
     expect(res.status).toBe(200);
     expect(warn).not.toHaveBeenCalled();
   });
+
+  it("enforces HttpOnly, Secure, and SameSite attributes on refreshed cookies", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    createServerClientMock.mockImplementationOnce((_url, _key, options: unknown) => ({
+      auth: {
+        getSession: getSessionMock,
+        getUser: vi.fn(async () => {
+          const opts = options as {
+            cookies: {
+              setAll: (
+                cookiesToSet: Array<{
+                  name: string;
+                  value: string;
+                  options?: Record<string, unknown>;
+                }>,
+              ) => void;
+            };
+          };
+          opts.cookies.setAll([
+            { name: "sb-portal-auth", value: "refreshed-token", options: { path: "/" } },
+          ]);
+          return { data: { user: { id: "u1" } }, error: null };
+        }),
+      },
+    }));
+
+    const { proxy } = await import("../proxy");
+    const response = await proxy(fakeRequest(["sb-portal-auth"]) as never);
+
+    const cookie = response.cookies.get("sb-portal-auth");
+    expect(cookie).toBeDefined();
+    expect(cookie?.value).toBe("refreshed-token");
+    expect(cookie?.httpOnly).toBe(true);
+    expect(cookie?.secure).toBe(true);
+    expect(cookie?.sameSite).toBe("lax");
+    expect(response.headers.get("set-cookie")).toContain("HttpOnly");
+    expect(response.headers.get("set-cookie")).toContain("SameSite=lax");
+    expect(response.headers.get("set-cookie")).toContain("Secure");
+  });
 });
 
 // Host boundary (ADR 0061): pay.expanpress.com serves checkout only; expanpress.com sends checkout paths to pay.
@@ -328,6 +367,13 @@ describe("proxy host boundary (ADR 0061)", () => {
     const res = await proxy(hostRequest("https://expanpress.com/api/billing/checkout?product=abc") as never);
     expect(res.status).toBe(307);
     expect(res.headers.get("location")).toBe("https://pay.expanpress.com/api/billing/checkout?product=abc");
+  });
+
+  it("redirects main host /checkout/ paths to pay origin with 307 (ADR 0061)", async () => {
+    const { proxy } = await import("../proxy");
+    const res = await proxy(hostRequest("https://expanpress.com/checkout/57596c19-c550-4bde-b17a-e87b86d005c5?coupon=early") as never);
+    expect(res.status).toBe(307);
+    expect(res.headers.get("location")).toBe("https://pay.expanpress.com/checkout/57596c19-c550-4bde-b17a-e87b86d005c5?coupon=early");
   });
 });
 

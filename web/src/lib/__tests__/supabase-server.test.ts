@@ -366,4 +366,47 @@ describe("getPortalSession (Wave 5 ssr-only authorization branches)", () => {
     // Without the local secret, it MUST fall back to getUser online verification
     expect(getUserMock).toHaveBeenCalledWith(validToken);
   });
+
+  it("sends user JWT Authorization header on the query client for RLS enforcement", async () => {
+    setCookie("sb-portal-auth", "user-rls-token");
+    const futureExpiry = Math.floor(Date.now() / 1000) + 3600;
+    const accessToken = makeTestJwt(
+      { sub: TEST_SUB_UUID, aud: "authenticated", exp: futureExpiry },
+      { secret: MOCK_HMAC_KEY },
+    );
+    getSessionMock.mockResolvedValue({
+      data: { session: { access_token: accessToken, expires_at: futureExpiry } },
+    });
+    getUserMock.mockResolvedValue({ data: { user: { id: TEST_SUB_UUID } }, error: null });
+    const { getPortalSession } = await import("../supabase-server");
+    createClientMock.mockClear();
+
+    const session = await getPortalSession();
+    expect(session).not.toBeNull();
+    expect(createClientMock).toHaveBeenCalledTimes(1);
+    expect(createClientMock).toHaveBeenLastCalledWith(
+      "https://example.supabase.co",
+      "test-publishable-key",
+      expect.objectContaining({
+        global: expect.objectContaining({
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }),
+      }),
+    );
+  });
+
+  it("clears all portal auth cookies on sign-out", async () => {
+    setCookie("sb-portal-auth", "auth-token-main");
+    setCookie("sb-portal-auth.0", "chunk-0");
+    setCookie("sb-portal-auth.1", "chunk-1");
+    setCookie("unrelated-cookie", "keep-me");
+
+    const { clearPortalCookies } = await import("../supabase-server");
+    await clearPortalCookies();
+
+    expect(cookieStore.has("sb-portal-auth")).toBe(false);
+    expect(cookieStore.has("sb-portal-auth.0")).toBe(false);
+    expect(cookieStore.has("sb-portal-auth.1")).toBe(false);
+    expect(cookieStore.has("unrelated-cookie")).toBe(true);
+  });
 });
