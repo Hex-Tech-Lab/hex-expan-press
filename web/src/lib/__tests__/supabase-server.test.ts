@@ -10,7 +10,7 @@
 //   4. Valid ssr session → user validated via getUser against the auth
 //      server, queries run under the user's Authorization header (RLS).
 //   5. Session token rejected by getUser → null (fail-closed).
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { decodeAndVerifyJwt } from "../jwt-verify";
 import { ASYMMETRIC_ALG_FIXTURES, MOCK_HMAC_KEY, makeTestJwt } from "./jwt-fixtures";
 
@@ -44,8 +44,14 @@ vi.mock("next/headers", () => ({
     }),
 }));
 
-process.env.SUPABASE_URL = "https://example.supabase.co";
-process.env.SUPABASE_PUBLISHABLE_KEY = "test-publishable-key";
+beforeEach(() => {
+  vi.stubEnv("SUPABASE_URL", "https://example.supabase.co");
+  vi.stubEnv("SUPABASE_PUBLISHABLE_KEY", "test-publishable-key");
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 describe("getPortalSession (Wave 5 ssr-only authorization branches)", () => {
   beforeEach(() => {
@@ -54,7 +60,7 @@ describe("getPortalSession (Wave 5 ssr-only authorization branches)", () => {
     getSessionMock.mockReset();
     createClientMock.mockClear();
     createServerClientMock.mockClear();
-    process.env.SUPABASE_JWT_SECRET = MOCK_HMAC_KEY;
+    vi.stubEnv("SUPABASE_JWT_SECRET", MOCK_HMAC_KEY);
     vi.stubEnv("NODE_ENV", "test");
   });
 
@@ -339,7 +345,7 @@ describe("getPortalSession (Wave 5 ssr-only authorization branches)", () => {
   );
 
   it("fails closed to validateJwt (getUser) when SUPABASE_JWT_SECRET is missing or empty", async () => {
-    delete process.env.SUPABASE_JWT_SECRET;
+    vi.stubEnv("SUPABASE_JWT_SECRET", "");
     setCookie("sb-portal-auth", "no-secret-env-token");
     const futureExpiry = Math.floor(Date.now() / 1000) + 3600;
     const validToken = makeTestJwt({ sub: TEST_SUB_UUID, aud: "authenticated", exp: futureExpiry });
