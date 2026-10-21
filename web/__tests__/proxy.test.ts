@@ -361,6 +361,91 @@ describe("proxy getUser outcome is pass-through", () => {
     expect(response.headers.get("set-cookie")).toContain("SameSite=lax");
     expect(response.headers.get("set-cookie")).toContain("Secure");
   });
+
+  it("preserves chunked-cookie name pattern (.0, .1) when setAll writes chunked session tokens", async () => {
+    createServerClientMock.mockImplementationOnce((_url, _key, options: unknown) => ({
+      auth: {
+        getSession: getSessionMock,
+        getUser: vi.fn(async () => {
+          const opts = options as {
+            cookies: {
+              setAll: (
+                cookiesToSet: Array<{
+                  name: string;
+                  value: string;
+                  options?: Record<string, unknown>;
+                }>,
+              ) => void;
+            };
+          };
+          opts.cookies.setAll([
+            { name: "sb-portal-auth.0", value: "chunk0-data", options: { path: "/" } },
+            { name: "sb-portal-auth.1", value: "chunk1-data", options: { path: "/" } },
+          ]);
+          return { data: { user: { id: "u1" } }, error: null };
+        }),
+      },
+    }));
+
+    const { proxy } = await import("../proxy");
+    const response = await proxy(fakeRequest(["sb-portal-auth"]) as never);
+
+    expect(cookiesSetSpy).toHaveBeenCalledWith("sb-portal-auth.0", "chunk0-data");
+    expect(cookiesSetSpy).toHaveBeenCalledWith("sb-portal-auth.1", "chunk1-data");
+
+    const chunk0 = response.cookies.get("sb-portal-auth.0");
+    const chunk1 = response.cookies.get("sb-portal-auth.1");
+    expect(chunk0).toBeDefined();
+    expect(chunk0?.value).toBe("chunk0-data");
+    expect(chunk1).toBeDefined();
+    expect(chunk1?.value).toBe("chunk1-data");
+
+    const setCookie = response.headers.get("set-cookie") ?? "";
+    expect(setCookie).toContain("sb-portal-auth.0=chunk0-data");
+    expect(setCookie).toContain("sb-portal-auth.1=chunk1-data");
+    expect(response.cookies.get("sb-portal-auth")).toBeUndefined();
+  });
+
+  it("passes incoming chunked cookies (.0, .1) through getAll for client reassembly", async () => {
+    let capturedCookies: Array<{ name: string; value: string }> = [];
+    createServerClientMock.mockImplementationOnce((_url, _key, options: unknown) => {
+      const opts = options as { cookies: { getAll: () => Array<{ name: string; value: string }> } };
+      capturedCookies = opts.cookies.getAll();
+      return {
+        auth: {
+          getSession: getSessionMock,
+          getUser: getUserMock.mockResolvedValue({ data: { user: null }, error: null }),
+        },
+      };
+    });
+
+    const chunkRequest = {
+      cookies: {
+        getAll: () => [
+          { name: "sb-portal-auth.0", value: "token-part-1." },
+          { name: "sb-portal-auth.1", value: "token-part-2" },
+        ],
+        set: cookiesSetSpy,
+      },
+      url: "http://localhost:3000/creator/dashboard",
+      headers: new Headers(),
+    };
+
+    const { proxy } = await import("../proxy");
+    await proxy(chunkRequest as never);
+
+    expect(capturedCookies).toEqual([
+      { name: "sb-portal-auth.0", value: "token-part-1." },
+      { name: "sb-portal-auth.1", value: "token-part-2" },
+    ]);
+
+    const reassembled = capturedCookies
+      .filter((c) => c.name.startsWith("sb-portal-auth."))
+      .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }))
+      .map((c) => c.value)
+      .join("");
+    expect(reassembled).toBe("token-part-1.token-part-2");
+  });
 });
 
 // Host boundary (ADR 0061): pay.expanpress.com serves checkout only; expanpress.com sends checkout paths to pay.
