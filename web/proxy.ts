@@ -7,9 +7,10 @@ import { createServerClient } from "@supabase/ssr";
  * Server Components cannot mutate cookies (next/headers set() is ignored
  * during RSC render), so the refresh must happen here.
  *
- * Runs getUser() (network validation — never trust getSession locally) on
- * creator-portal routes; pages still enforce their own redirects, this
- * proxy only guarantees fresh cookies ride the response.
+ * Verifies the session JWT locally via HMAC-SHA256 (skipping getUser network
+ * egress when valid with >60s remaining); falls back to network validation via
+ * getUser() on expiry, tampering, or missing secret. Pages still enforce their
+ * own redirects; this proxy guarantees fresh cookies ride the response.
  *
  * Cookie options are EXPLICIT — the @supabase/ssr default is httpOnly:false
  * (verified v0.12.7 constants.js), which would defeat the Wave 5 objective.
