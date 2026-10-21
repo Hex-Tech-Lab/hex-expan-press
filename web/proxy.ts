@@ -116,8 +116,11 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
             needsRefresh = false;
           }
         }
-      } catch {
+      } catch (err) {
         // If getSession throws or fails, proceed to getUser fallback
+        if (process.env.NODE_ENV !== "production") {
+          console.warn("[proxy] session refresh skipped:", err instanceof Error ? err.message : err);
+        }
       }
     }
 
