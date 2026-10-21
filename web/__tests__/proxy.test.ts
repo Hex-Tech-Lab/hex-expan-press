@@ -1,43 +1,59 @@
 // Proxy contract tests (qa-intel security rule: the getUser session
 // boundary needs a sibling regression test).
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { createHmac } from "node:crypto";
 import { decodeAndVerifyJwt } from "../src/lib/jwt-verify";
+import { ASYMMETRIC_ALG_FIXTURES, MOCK_HMAC_KEY, makeTestJwt } from "../src/lib/__tests__/jwt-fixtures";
+
+interface CookieToSet {
+  name: string;
+  value: string;
+  options?: Record<string, unknown>;
+}
+
+let lastCapturedOptions: {
+  cookies?: {
+    getAll: () => Array<{ name: string; value: string }>;
+    setAll: (cookiesToSet: CookieToSet[]) => void;
+  };
+} | null = null;
+const recordedSetAllCalls: CookieToSet[][] = [];
 
 const getUserMock = vi.fn();
 const getSessionMock = vi.fn();
-const createServerClientMock = vi.fn(() => ({
-  auth: {
-    getUser: getUserMock,
-    getSession: getSessionMock,
-  },
-}));
+const createServerClientMock = vi.fn((_url?: unknown, _key?: unknown, options?: unknown) => {
+  const opts = options as typeof lastCapturedOptions;
+  if (opts?.cookies) {
+    lastCapturedOptions = opts;
+    const originalSetAll = opts.cookies.setAll;
+    opts.cookies.setAll = (cookiesToSet: CookieToSet[]) => {
+      recordedSetAllCalls.push(cookiesToSet);
+      return originalSetAll(cookiesToSet);
+    };
+  }
+  return {
+    auth: {
+      getUser: getUserMock,
+      getSession: getSessionMock,
+    },
+  };
+});
 const cookiesSetSpy = vi.fn();
+
+// Every test gets the same stubbed environment, and it is restored after each test. The alg-gate cases
+// are rejected by the header check alone, because the secret is set for every test.
+beforeEach(() => {
+  vi.stubEnv("SUPABASE_URL", "https://example.supabase.co");
+  vi.stubEnv("SUPABASE_PUBLISHABLE_KEY", "test-key");
+  vi.stubEnv("SUPABASE_JWT_SECRET", MOCK_HMAC_KEY);
+  vi.stubEnv("NODE_ENV", "test");
+  recordedSetAllCalls.length = 0;
+  lastCapturedOptions = null;
+});
+afterEach(() => vi.unstubAllEnvs());
 
 vi.mock("@supabase/ssr", () => ({
   createServerClient: (...args: unknown[]) => createServerClientMock(...(args as [])),
 }));
-
-const MOCK_HMAC_KEY = "dummy-testing-only-hmac-fixture-string";
-
-function makeTestJwt(
-  payload: Record<string, unknown>,
-  options: { secret?: string; alg?: string; rawSignature?: string } = {},
-): string {
-  const alg = options.alg ?? "HS256";
-  const secret = options.secret ?? MOCK_HMAC_KEY;
-  const header = Buffer.from(JSON.stringify({ alg, typ: "JWT" })).toString("base64url");
-  const body = Buffer.from(JSON.stringify(payload)).toString("base64url");
-  let sig: string;
-  if (options.rawSignature !== undefined) {
-    sig = options.rawSignature;
-  } else if (alg === "none") {
-    sig = "";
-  } else {
-    sig = createHmac("sha256", secret).update(`${header}.${body}`).digest("base64url");
-  }
-  return `${header}.${body}.${sig}`;
-}
 
 const TEST_SUB_UUID = "57596c19-c550-4bde-b17a-e87b86d005c5";
 
@@ -59,10 +75,8 @@ describe("proxy (session refresh boundary)", () => {
     getSessionMock.mockResolvedValue({ data: { session: null } });
     createServerClientMock.mockClear();
     cookiesSetSpy.mockClear();
-    process.env.SUPABASE_URL = "https://example.supabase.co";
-    process.env.SUPABASE_PUBLISHABLE_KEY = "test-key";
-    process.env.SUPABASE_JWT_SECRET = MOCK_HMAC_KEY;
-    process.env.NODE_ENV = "test";
+    recordedSetAllCalls.length = 0;
+    lastCapturedOptions = null;
   });
 
   it("calls getUser (network validation) and passes the response through", async () => {
@@ -217,7 +231,7 @@ describe("proxy (session refresh boundary)", () => {
   });
 
   it("calls getUser when SUPABASE_JWT_SECRET is missing or empty (fail-closed rule)", async () => {
-    delete process.env.SUPABASE_JWT_SECRET;
+    vi.stubEnv("SUPABASE_JWT_SECRET", "");
     const futureExp = Math.floor(Date.now() / 1000) + 3600;
     const validToken = makeTestJwt({ sub: TEST_SUB_UUID, aud: "authenticated", exp: futureExp });
     expect(decodeAndVerifyJwt(validToken)).toBeNull();
@@ -231,6 +245,303 @@ describe("proxy (session refresh boundary)", () => {
   });
 });
 
+// getUser outcome contract (proxy.ts): the proxy reads neither `user` nor `error` from getUser().
+// It never redirects, never sets an auth status and never throws. Pages enforce the fail-closed redirect.
+describe("proxy getUser outcome is pass-through", () => {
+  beforeEach(() => {
+    getUserMock.mockReset();
+    getSessionMock.mockReset();
+    getSessionMock.mockResolvedValue({ data: { session: null } });
+  });
+
+  afterEach(() => vi.restoreAllMocks());
+
+  it("no user: passes the response through with no redirect, auth status or cookie write", async () => {
+    getUserMock.mockResolvedValue({ data: { user: null }, error: null });
+    const { proxy } = await import("../proxy");
+    const res = await proxy(fakeRequest(["sb-portal-auth"]) as never);
+    expect(getUserMock).toHaveBeenCalledTimes(1);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("location")).toBeNull();
+    expect(res.headers.get("set-cookie")).toBeNull();
+  });
+
+  it("getSession rejects: getUser is called once and response is getUser outcome", async () => {
+    getSessionMock.mockRejectedValue(new Error("network blip on getSession"));
+    getUserMock.mockResolvedValue({ data: { user: { id: "u-fallback" } }, error: null });
+    const { proxy } = await import("../proxy");
+    const res = await proxy(fakeRequest(["sb-portal-auth"]) as never);
+    expect(getSessionMock).toHaveBeenCalledTimes(1);
+    expect(getUserMock).toHaveBeenCalledTimes(1);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("location")).toBeNull();
+  });
+
+  it("getSession rejects outside production: warns with session refresh skipped and falls back to getUser", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    getSessionMock.mockRejectedValue(new Error("network blip on getSession"));
+    getUserMock.mockResolvedValue({ data: { user: { id: "u-fallback" } }, error: null });
+    const { proxy } = await import("../proxy");
+    const res = await proxy(fakeRequest(["sb-portal-auth"]) as never);
+    expect(getSessionMock).toHaveBeenCalledTimes(1);
+    expect(getUserMock).toHaveBeenCalledTimes(1);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("location")).toBeNull();
+    expect(warn).toHaveBeenCalledWith("[proxy] session refresh skipped:", "network blip on getSession");
+  });
+
+  it("getSession rejects in production: stays silent and falls back to getUser", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    getSessionMock.mockRejectedValue(new Error("network blip on getSession"));
+    getUserMock.mockResolvedValue({ data: { user: { id: "u-fallback" } }, error: null });
+    const { proxy } = await import("../proxy");
+    const res = await proxy(fakeRequest(["sb-portal-auth"]) as never);
+    expect(getUserMock).toHaveBeenCalledTimes(1);
+    expect(res.status).toBe(200);
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it("getUser resolves with an error: passes the response through without throwing", async () => {
+    getUserMock.mockResolvedValue({
+      data: { user: null },
+      error: { name: "AuthApiError", message: "invalid JWT", status: 401 },
+    });
+    const { proxy } = await import("../proxy");
+    const res = await proxy(fakeRequest(["sb-portal-auth"]) as never);
+    expect(getUserMock).toHaveBeenCalledTimes(1);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("location")).toBeNull();
+    expect(res.headers.get("set-cookie")).toBeNull();
+  });
+
+  it.each(ASYMMETRIC_ALG_FIXTURES)(
+    "%s token: rejected locally, getUser called, online auth rejects: passes through with no session cookie",
+    async (alg) => {
+      const futureExp = Math.floor(Date.now() / 1000) + 3600;
+      const token = makeTestJwt({ sub: TEST_SUB_UUID, aud: "authenticated", exp: futureExp }, { alg });
+      expect(token.split(".")[2]).toMatch(/^[A-Za-z0-9_-]+$/);
+      expect(decodeAndVerifyJwt(token)).toBeNull();
+      getSessionMock.mockResolvedValue({ data: { session: { access_token: token, expires_at: futureExp } } });
+      getUserMock.mockResolvedValue({ data: { user: null }, error: { name: "AuthApiError", message: "invalid JWT", status: 401 } });
+      const { proxy } = await import("../proxy");
+      const res = await proxy(fakeRequest(["sb-portal-auth"]) as never);
+      expect(getUserMock).toHaveBeenCalledTimes(1);
+      expect(res.status).toBe(200);
+      expect(res.headers.get("set-cookie")).toBeNull();
+    },
+  );
+
+  it("getUser rejects: passes the response through and warns outside production", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    getUserMock.mockRejectedValue(new Error("auth down"));
+    const { proxy } = await import("../proxy");
+    const res = await proxy(fakeRequest(["sb-portal-auth"]) as never);
+    expect(res.status).toBe(200);
+    expect(res.headers.get("location")).toBeNull();
+    expect(warn).toHaveBeenCalledWith("[proxy] session refresh skipped:", "auth down");
+  });
+
+  it("getUser rejects in production: passes the response through and stays silent", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    getUserMock.mockRejectedValue(new Error("auth down"));
+    const { proxy } = await import("../proxy");
+    const res = await proxy(fakeRequest(["sb-portal-auth"]) as never);
+    expect(res.status).toBe(200);
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it("enforces HttpOnly, Secure, and SameSite attributes on refreshed cookies", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    createServerClientMock.mockImplementationOnce((_url, _key, options: unknown) => ({
+      auth: {
+        getSession: getSessionMock,
+        getUser: vi.fn(async () => {
+          const opts = options as {
+            cookies: {
+              setAll: (
+                cookiesToSet: Array<{
+                  name: string;
+                  value: string;
+                  options?: Record<string, unknown>;
+                }>,
+              ) => void;
+            };
+          };
+          opts.cookies.setAll([
+            { name: "sb-portal-auth", value: "refreshed-token", options: { path: "/" } },
+          ]);
+          return { data: { user: { id: "u1" } }, error: null };
+        }),
+      },
+    }));
+
+    const { proxy } = await import("../proxy");
+    const response = await proxy(fakeRequest(["sb-portal-auth"]) as never);
+
+    const cookie = response.cookies.get("sb-portal-auth");
+    expect(cookie).toBeDefined();
+    expect(cookie?.value).toBe("refreshed-token");
+    expect(cookie?.httpOnly).toBe(true);
+    expect(cookie?.secure).toBe(true);
+    expect(cookie?.sameSite).toBe("lax");
+    expect(response.headers.get("set-cookie")).toContain("HttpOnly");
+    expect(response.headers.get("set-cookie")).toContain("SameSite=lax");
+    expect(response.headers.get("set-cookie")).toContain("Secure");
+  });
+
+  it("preserves chunked-cookie name pattern (.0, .1) when setAll writes chunked session tokens", async () => {
+    createServerClientMock.mockImplementationOnce((_url, _key, options: unknown) => ({
+      auth: {
+        getSession: getSessionMock,
+        getUser: vi.fn(async () => {
+          const opts = options as {
+            cookies: {
+              setAll: (
+                cookiesToSet: Array<{
+                  name: string;
+                  value: string;
+                  options?: Record<string, unknown>;
+                }>,
+              ) => void;
+            };
+          };
+          opts.cookies.setAll([
+            { name: "sb-portal-auth.0", value: "chunk0-data", options: { path: "/" } },
+            { name: "sb-portal-auth.1", value: "chunk1-data", options: { path: "/" } },
+          ]);
+          return { data: { user: { id: "u1" } }, error: null };
+        }),
+      },
+    }));
+
+    const { proxy } = await import("../proxy");
+    const response = await proxy(fakeRequest(["sb-portal-auth"]) as never);
+
+    expect(cookiesSetSpy).toHaveBeenCalledWith("sb-portal-auth.0", "chunk0-data");
+    expect(cookiesSetSpy).toHaveBeenCalledWith("sb-portal-auth.1", "chunk1-data");
+
+    const chunk0 = response.cookies.get("sb-portal-auth.0");
+    const chunk1 = response.cookies.get("sb-portal-auth.1");
+    expect(chunk0).toBeDefined();
+    expect(chunk0?.value).toBe("chunk0-data");
+    expect(chunk1).toBeDefined();
+    expect(chunk1?.value).toBe("chunk1-data");
+
+    const setCookie = response.headers.get("set-cookie") ?? "";
+    expect(setCookie).toContain("sb-portal-auth.0=chunk0-data");
+    expect(setCookie).toContain("sb-portal-auth.1=chunk1-data");
+    expect(response.cookies.get("sb-portal-auth")).toBeUndefined();
+  });
+
+  it("passes incoming chunked cookies (.0, .1) through getAll for client reassembly", async () => {
+    let capturedCookies: Array<{ name: string; value: string }> = [];
+    createServerClientMock.mockImplementationOnce((_url, _key, options: unknown) => {
+      const opts = options as { cookies: { getAll: () => Array<{ name: string; value: string }> } };
+      capturedCookies = opts.cookies.getAll();
+      return {
+        auth: {
+          getSession: getSessionMock,
+          getUser: getUserMock.mockResolvedValue({ data: { user: null }, error: null }),
+        },
+      };
+    });
+
+    const chunkRequest = {
+      cookies: {
+        getAll: () => [
+          { name: "sb-portal-auth.0", value: "token-part-1." },
+          { name: "sb-portal-auth.1", value: "token-part-2" },
+        ],
+        set: cookiesSetSpy,
+      },
+      url: "http://localhost:3000/creator/dashboard",
+      headers: new Headers(),
+    };
+
+    const { proxy } = await import("../proxy");
+    await proxy(chunkRequest as never);
+
+    expect(capturedCookies).toEqual([
+      { name: "sb-portal-auth.0", value: "token-part-1." },
+      { name: "sb-portal-auth.1", value: "token-part-2" },
+    ]);
+
+    const reassembled = capturedCookies
+      .filter((c) => c.name.startsWith("sb-portal-auth."))
+      .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }))
+      .map((c) => c.value)
+      .join("");
+    expect(reassembled).toBe("token-part-1.token-part-2");
+  });
+
+  it("records mock setAll calls and asserts HttpOnly, Secure, and SameSite on each set call in production", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    getUserMock.mockImplementation(async () => {
+      lastCapturedOptions?.cookies?.setAll([
+        {
+          name: "sb-portal-auth",
+          value: "new-token",
+          options: { httpOnly: false, secure: false, sameSite: "none", path: "/" },
+        },
+        {
+          name: "sb-portal-refresh",
+          value: "new-refresh",
+          options: { httpOnly: false, secure: false, sameSite: "none", path: "/" },
+        },
+      ]);
+      return { data: { user: { id: "u-prod" } }, error: null };
+    });
+
+    const { proxy } = await import("../proxy");
+    const response = await proxy(fakeRequest(["sb-portal-auth"]) as never);
+
+    expect(recordedSetAllCalls).toHaveLength(1);
+    expect(recordedSetAllCalls[0]).toHaveLength(2);
+    expect(recordedSetAllCalls[0][0].name).toBe("sb-portal-auth");
+    expect(recordedSetAllCalls[0][1].name).toBe("sb-portal-refresh");
+
+    const authCookie = response.cookies.get("sb-portal-auth");
+    expect(authCookie?.httpOnly).toBe(true);
+    expect(authCookie?.secure).toBe(true);
+    expect(authCookie?.sameSite).toBe("lax");
+
+    const refreshCookie = response.cookies.get("sb-portal-refresh");
+    expect(refreshCookie?.httpOnly).toBe(true);
+    expect(refreshCookie?.secure).toBe(true);
+    expect(refreshCookie?.sameSite).toBe("lax");
+
+    const setCookieHeader = response.headers.get("set-cookie") ?? "";
+    expect(setCookieHeader).toContain("HttpOnly");
+    expect(setCookieHeader).toContain("Secure");
+    expect(setCookieHeader).toContain("SameSite=lax");
+  });
+
+  it("records mock setAll calls and asserts HttpOnly, SameSite, and non-secure on each set call outside production", async () => {
+    vi.stubEnv("NODE_ENV", "test");
+    getUserMock.mockImplementation(async () => {
+      lastCapturedOptions?.cookies?.setAll([
+        {
+          name: "sb-portal-auth",
+          value: "test-token",
+          options: { httpOnly: false, secure: true, sameSite: "strict", path: "/" },
+        },
+      ]);
+      return { data: { user: { id: "u-test" } }, error: null };
+    });
+
+    const { proxy } = await import("../proxy");
+    const response = await proxy(fakeRequest(["sb-portal-auth"]) as never);
+
+    expect(recordedSetAllCalls).toHaveLength(1);
+    const authCookie = response.cookies.get("sb-portal-auth");
+    expect(authCookie?.httpOnly).toBe(true);
+    expect(authCookie?.secure).toBe(false);
+    expect(authCookie?.sameSite).toBe("lax");
+  });
+});
+
 // Host boundary (ADR 0061): pay.expanpress.com serves checkout only; expanpress.com sends checkout paths to pay.
 describe("proxy host boundary (ADR 0061)", () => {
   function hostRequest(url: string): unknown {
@@ -240,10 +551,6 @@ describe("proxy host boundary (ADR 0061)", () => {
   beforeEach(() => {
     getUserMock.mockReset();
     createServerClientMock.mockClear();
-    process.env.SUPABASE_URL = "https://example.supabase.co";
-    process.env.SUPABASE_PUBLISHABLE_KEY = "test-key";
-    process.env.SUPABASE_JWT_SECRET = MOCK_HMAC_KEY;
-    process.env.NODE_ENV = "test";
   });
 
   it("pay host serves checkout pages and legal pages without a session refresh", async () => {
@@ -275,6 +582,13 @@ describe("proxy host boundary (ADR 0061)", () => {
     const res = await proxy(hostRequest("https://expanpress.com/api/billing/checkout?product=abc") as never);
     expect(res.status).toBe(307);
     expect(res.headers.get("location")).toBe("https://pay.expanpress.com/api/billing/checkout?product=abc");
+  });
+
+  it("redirects main host /checkout/ paths to pay origin with 307 (ADR 0061)", async () => {
+    const { proxy } = await import("../proxy");
+    const res = await proxy(hostRequest("https://expanpress.com/checkout/57596c19-c550-4bde-b17a-e87b86d005c5?coupon=early") as never);
+    expect(res.status).toBe(307);
+    expect(res.headers.get("location")).toBe("https://pay.expanpress.com/checkout/57596c19-c550-4bde-b17a-e87b86d005c5?coupon=early");
   });
 });
 
