@@ -4,14 +4,39 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { decodeAndVerifyJwt } from "../src/lib/jwt-verify";
 import { ASYMMETRIC_ALG_FIXTURES, MOCK_HMAC_KEY, makeTestJwt } from "../src/lib/__tests__/jwt-fixtures";
 
+interface CookieToSet {
+  name: string;
+  value: string;
+  options?: Record<string, unknown>;
+}
+
+let lastCapturedOptions: {
+  cookies?: {
+    getAll: () => Array<{ name: string; value: string }>;
+    setAll: (cookiesToSet: CookieToSet[]) => void;
+  };
+} | null = null;
+const recordedSetAllCalls: CookieToSet[][] = [];
+
 const getUserMock = vi.fn();
 const getSessionMock = vi.fn();
-const createServerClientMock = vi.fn(() => ({
-  auth: {
-    getUser: getUserMock,
-    getSession: getSessionMock,
-  },
-}));
+const createServerClientMock = vi.fn((_url?: unknown, _key?: unknown, options?: unknown) => {
+  const opts = options as typeof lastCapturedOptions;
+  if (opts?.cookies) {
+    lastCapturedOptions = opts;
+    const originalSetAll = opts.cookies.setAll;
+    opts.cookies.setAll = (cookiesToSet: CookieToSet[]) => {
+      recordedSetAllCalls.push(cookiesToSet);
+      return originalSetAll(cookiesToSet);
+    };
+  }
+  return {
+    auth: {
+      getUser: getUserMock,
+      getSession: getSessionMock,
+    },
+  };
+});
 const cookiesSetSpy = vi.fn();
 
 // Every test gets the same stubbed environment, and it is restored after each test. The alg-gate cases
@@ -21,6 +46,8 @@ beforeEach(() => {
   vi.stubEnv("SUPABASE_PUBLISHABLE_KEY", "test-key");
   vi.stubEnv("SUPABASE_JWT_SECRET", MOCK_HMAC_KEY);
   vi.stubEnv("NODE_ENV", "test");
+  recordedSetAllCalls.length = 0;
+  lastCapturedOptions = null;
 });
 afterEach(() => vi.unstubAllEnvs());
 
@@ -48,6 +75,8 @@ describe("proxy (session refresh boundary)", () => {
     getSessionMock.mockResolvedValue({ data: { session: null } });
     createServerClientMock.mockClear();
     cookiesSetSpy.mockClear();
+    recordedSetAllCalls.length = 0;
+    lastCapturedOptions = null;
   });
 
   it("calls getUser (network validation) and passes the response through", async () => {
@@ -445,6 +474,71 @@ describe("proxy getUser outcome is pass-through", () => {
       .map((c) => c.value)
       .join("");
     expect(reassembled).toBe("token-part-1.token-part-2");
+  });
+
+  it("records mock setAll calls and asserts HttpOnly, Secure, and SameSite on each set call in production", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    getUserMock.mockImplementation(async () => {
+      lastCapturedOptions?.cookies?.setAll([
+        {
+          name: "sb-portal-auth",
+          value: "new-token",
+          options: { httpOnly: false, secure: false, sameSite: "none", path: "/" },
+        },
+        {
+          name: "sb-portal-refresh",
+          value: "new-refresh",
+          options: { httpOnly: false, secure: false, sameSite: "none", path: "/" },
+        },
+      ]);
+      return { data: { user: { id: "u-prod" } }, error: null };
+    });
+
+    const { proxy } = await import("../proxy");
+    const response = await proxy(fakeRequest(["sb-portal-auth"]) as never);
+
+    expect(recordedSetAllCalls).toHaveLength(1);
+    expect(recordedSetAllCalls[0]).toHaveLength(2);
+    expect(recordedSetAllCalls[0][0].name).toBe("sb-portal-auth");
+    expect(recordedSetAllCalls[0][1].name).toBe("sb-portal-refresh");
+
+    const authCookie = response.cookies.get("sb-portal-auth");
+    expect(authCookie?.httpOnly).toBe(true);
+    expect(authCookie?.secure).toBe(true);
+    expect(authCookie?.sameSite).toBe("lax");
+
+    const refreshCookie = response.cookies.get("sb-portal-refresh");
+    expect(refreshCookie?.httpOnly).toBe(true);
+    expect(refreshCookie?.secure).toBe(true);
+    expect(refreshCookie?.sameSite).toBe("lax");
+
+    const setCookieHeader = response.headers.get("set-cookie") ?? "";
+    expect(setCookieHeader).toContain("HttpOnly");
+    expect(setCookieHeader).toContain("Secure");
+    expect(setCookieHeader).toContain("SameSite=lax");
+  });
+
+  it("records mock setAll calls and asserts HttpOnly, SameSite, and non-secure on each set call outside production", async () => {
+    vi.stubEnv("NODE_ENV", "test");
+    getUserMock.mockImplementation(async () => {
+      lastCapturedOptions?.cookies?.setAll([
+        {
+          name: "sb-portal-auth",
+          value: "test-token",
+          options: { httpOnly: false, secure: true, sameSite: "strict", path: "/" },
+        },
+      ]);
+      return { data: { user: { id: "u-test" } }, error: null };
+    });
+
+    const { proxy } = await import("../proxy");
+    const response = await proxy(fakeRequest(["sb-portal-auth"]) as never);
+
+    expect(recordedSetAllCalls).toHaveLength(1);
+    const authCookie = response.cookies.get("sb-portal-auth");
+    expect(authCookie?.httpOnly).toBe(true);
+    expect(authCookie?.secure).toBe(false);
+    expect(authCookie?.sameSite).toBe("lax");
   });
 });
 
