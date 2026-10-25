@@ -476,6 +476,40 @@ describe("proxy getUser outcome is pass-through", () => {
     expect(reassembled).toBe("token-part-1.token-part-2");
   });
 
+  it("reassembles chunked cookies (.0, .1) into the expected token using real @supabase/ssr createServerClient", async () => {
+    const { createServerClient: realCreateServerClient } =
+      await vi.importActual<typeof import("@supabase/ssr")>("@supabase/ssr");
+
+    const expectedToken = "token-part-1.token-part-2";
+    const sessionPayload = JSON.stringify({
+      access_token: expectedToken,
+      refresh_token: "mock-refresh-token",
+      expires_at: Math.floor(Date.now() / 1000) + 3600,
+      user: { id: TEST_SUB_UUID, aud: "authenticated" },
+    });
+
+    const cookieSlices = [
+      { name: "sb-portal-auth.0", value: sessionPayload.slice(0, 40) },
+      { name: "sb-portal-auth.1", value: sessionPayload.slice(40) },
+    ];
+
+    const client = realCreateServerClient("https://example.supabase.co", "test-key", {
+      cookieOptions: { name: "sb-portal-auth" },
+      cookies: {
+        getAll: () => cookieSlices,
+        setAll: () => {},
+      },
+    });
+
+    const { data } = await client.auth.getSession();
+    expect(data.session?.access_token).toBe(expectedToken);
+
+    const rawStorageItem = await (
+      client.auth as unknown as { storage: { getItem: (k: string) => Promise<string | null> } }
+    ).storage.getItem("sb-portal-auth");
+    expect(rawStorageItem).toBe(sessionPayload);
+  });
+
   it("records mock setAll calls and asserts HttpOnly, Secure, and SameSite on each set call in production", async () => {
     vi.stubEnv("NODE_ENV", "production");
     getUserMock.mockImplementation(async () => {
