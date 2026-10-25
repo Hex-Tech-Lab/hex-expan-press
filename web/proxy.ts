@@ -7,9 +7,10 @@ import { createServerClient } from "@supabase/ssr";
  * Server Components cannot mutate cookies (next/headers set() is ignored
  * during RSC render), so the refresh must happen here.
  *
- * Runs getUser() (network validation — never trust getSession locally) on
- * creator-portal routes; pages still enforce their own redirects, this
- * proxy only guarantees fresh cookies ride the response.
+ * Verifies the session JWT locally via HMAC-SHA256 (skipping getUser network
+ * egress when valid with >60s remaining); falls back to network validation via
+ * getUser() on expiry, tampering, or missing secret. Pages still enforce their
+ * own redirects; this proxy guarantees fresh cookies ride the response.
  *
  * Cookie options are EXPLICIT — the @supabase/ssr default is httpOnly:false
  * (verified v0.12.7 constants.js), which would defeat the Wave 5 objective.
@@ -107,12 +108,19 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
     // getUser() triggers @supabase/ssr session refresh and writes chunked cookies.
     let needsRefresh = true;
     if (typeof supabase.auth.getSession === "function") {
-      const { data } = await supabase.auth.getSession();
-      const session = data?.session;
-      if (session?.access_token) {
-        const claims = decodeAndVerifyJwt(session.access_token);
-        if (claims) {
-          needsRefresh = false;
+      try {
+        const { data } = await supabase.auth.getSession();
+        const session = data?.session;
+        if (session?.access_token) {
+          const claims = decodeAndVerifyJwt(session.access_token);
+          if (claims) {
+            needsRefresh = false;
+          }
+        }
+      } catch (err) {
+        // If getSession throws or fails, proceed to getUser fallback
+        if (process.env.NODE_ENV !== "production") {
+          console.warn("[proxy] session refresh skipped:", err instanceof Error ? err.message : err);
         }
       }
     }
