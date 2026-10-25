@@ -10,9 +10,9 @@
 //   4. Valid ssr session → user validated via getUser against the auth
 //      server, queries run under the user's Authorization header (RLS).
 //   5. Session token rejected by getUser → null (fail-closed).
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { createHmac } from "node:crypto";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { decodeAndVerifyJwt } from "../jwt-verify";
+import { ASYMMETRIC_ALG_FIXTURES, MOCK_HMAC_KEY, makeTestJwt } from "./jwt-fixtures";
 
 const getUserMock = vi.fn();
 const getSessionMock = vi.fn();
@@ -26,27 +26,6 @@ vi.mock("@supabase/supabase-js", () => ({
 vi.mock("@supabase/ssr", () => ({
   createServerClient: ((...args: unknown[]) => createServerClientMock(...(args as []))) as never,
 }));
-
-const MOCK_HMAC_KEY = "dummy-testing-only-hmac-fixture-string";
-
-function makeTestJwt(
-  payload: Record<string, unknown>,
-  options: { secret?: string; alg?: string; rawSignature?: string } = {},
-): string {
-  const alg = options.alg ?? "HS256";
-  const secret = options.secret ?? MOCK_HMAC_KEY;
-  const header = Buffer.from(JSON.stringify({ alg, typ: "JWT" })).toString("base64url");
-  const body = Buffer.from(JSON.stringify(payload)).toString("base64url");
-  let sig: string;
-  if (options.rawSignature !== undefined) {
-    sig = options.rawSignature;
-  } else if (alg === "none") {
-    sig = "";
-  } else {
-    sig = createHmac("sha256", secret).update(`${header}.${body}`).digest("base64url");
-  }
-  return `${header}.${body}.${sig}`;
-}
 
 const TEST_SUB_UUID = "57596c19-c550-4bde-b17a-e87b86d005c5";
 
@@ -65,8 +44,14 @@ vi.mock("next/headers", () => ({
     }),
 }));
 
-process.env.SUPABASE_URL = "https://example.supabase.co";
-process.env.SUPABASE_PUBLISHABLE_KEY = "test-publishable-key";
+beforeEach(() => {
+  vi.stubEnv("SUPABASE_URL", "https://example.supabase.co");
+  vi.stubEnv("SUPABASE_PUBLISHABLE_KEY", "test-publishable-key");
+});
+
+afterEach(() => {
+  vi.unstubAllEnvs();
+});
 
 describe("getPortalSession (Wave 5 ssr-only authorization branches)", () => {
   beforeEach(() => {
@@ -75,7 +60,7 @@ describe("getPortalSession (Wave 5 ssr-only authorization branches)", () => {
     getSessionMock.mockReset();
     createClientMock.mockClear();
     createServerClientMock.mockClear();
-    process.env.SUPABASE_JWT_SECRET = MOCK_HMAC_KEY;
+    vi.stubEnv("SUPABASE_JWT_SECRET", MOCK_HMAC_KEY);
     vi.stubEnv("NODE_ENV", "test");
   });
 
@@ -342,8 +327,25 @@ describe("getPortalSession (Wave 5 ssr-only authorization branches)", () => {
     expect(getUserMock).toHaveBeenCalledWith(noneToken);
   });
 
+  it.each(ASYMMETRIC_ALG_FIXTURES)(
+    "%s token: rejected locally, getUser called, online auth rejects: fails closed to null",
+    async (alg) => {
+      setCookie("sb-portal-auth", `asym-${alg}-token`);
+      const futureExpiry = Math.floor(Date.now() / 1000) + 3600;
+      const token = makeTestJwt({ sub: TEST_SUB_UUID, aud: "authenticated", exp: futureExpiry }, { alg });
+      expect(token.split(".")[2]).toMatch(/^[A-Za-z0-9_-]+$/);
+      expect(decodeAndVerifyJwt(token)).toBeNull();
+      getSessionMock.mockResolvedValue({ data: { session: { access_token: token, expires_at: futureExpiry } } });
+      getUserMock.mockResolvedValue({ data: { user: null }, error: { name: "AuthApiError", message: "invalid JWT", status: 401 } });
+
+      const { getPortalSession } = await import("../supabase-server");
+      expect(await getPortalSession()).toBeNull();
+      expect(getUserMock).toHaveBeenCalledWith(token);
+    },
+  );
+
   it("fails closed to validateJwt (getUser) when SUPABASE_JWT_SECRET is missing or empty", async () => {
-    delete process.env.SUPABASE_JWT_SECRET;
+    vi.stubEnv("SUPABASE_JWT_SECRET", "");
     setCookie("sb-portal-auth", "no-secret-env-token");
     const futureExpiry = Math.floor(Date.now() / 1000) + 3600;
     const validToken = makeTestJwt({ sub: TEST_SUB_UUID, aud: "authenticated", exp: futureExpiry });
@@ -363,5 +365,48 @@ describe("getPortalSession (Wave 5 ssr-only authorization branches)", () => {
     expect(session).not.toBeNull();
     // Without the local secret, it MUST fall back to getUser online verification
     expect(getUserMock).toHaveBeenCalledWith(validToken);
+  });
+
+  it("sends user JWT Authorization header on the query client for RLS enforcement", async () => {
+    setCookie("sb-portal-auth", "user-rls-token");
+    const futureExpiry = Math.floor(Date.now() / 1000) + 3600;
+    const accessToken = makeTestJwt(
+      { sub: TEST_SUB_UUID, aud: "authenticated", exp: futureExpiry },
+      { secret: MOCK_HMAC_KEY },
+    );
+    getSessionMock.mockResolvedValue({
+      data: { session: { access_token: accessToken, expires_at: futureExpiry } },
+    });
+    getUserMock.mockResolvedValue({ data: { user: { id: TEST_SUB_UUID } }, error: null });
+    const { getPortalSession } = await import("../supabase-server");
+    createClientMock.mockClear();
+
+    const session = await getPortalSession();
+    expect(session).not.toBeNull();
+    expect(createClientMock).toHaveBeenCalledTimes(1);
+    expect(createClientMock).toHaveBeenLastCalledWith(
+      "https://example.supabase.co",
+      "test-publishable-key",
+      expect.objectContaining({
+        global: expect.objectContaining({
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }),
+      }),
+    );
+  });
+
+  it("clears all portal auth cookies on sign-out", async () => {
+    setCookie("sb-portal-auth", "auth-token-main");
+    setCookie("sb-portal-auth.0", "chunk-0");
+    setCookie("sb-portal-auth.1", "chunk-1");
+    setCookie("unrelated-cookie", "keep-me");
+
+    const { clearPortalCookies } = await import("../supabase-server");
+    await clearPortalCookies();
+
+    expect(cookieStore.has("sb-portal-auth")).toBe(false);
+    expect(cookieStore.has("sb-portal-auth.0")).toBe(false);
+    expect(cookieStore.has("sb-portal-auth.1")).toBe(false);
+    expect(cookieStore.has("unrelated-cookie")).toBe(true);
   });
 });
