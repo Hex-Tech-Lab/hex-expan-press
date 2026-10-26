@@ -83,7 +83,14 @@ export class QualityEngine {
             }
           }
         } catch (fileErr) {
+          // Recorded as a rule error so the run fails. A file that cannot be loaded is not a clean pass.
           console.error(`Failed to process file ${file}:`, fileErr);
+          this.ruleErrors.push({
+            ruleName: "file-load",
+            filePath: file,
+            message: fileErr instanceof Error ? fileErr.message : String(fileErr),
+            timestamp: Date.now(),
+          });
         }
       }
     };
@@ -102,14 +109,8 @@ export class QualityEngine {
       return this.registry.get(path)!;
     }
 
-    const cached = await this.cache?.getAST(path);
-    if (cached) {
-      // Use cached AST text to construct AST structure without hitting disk
-      const ast = await this.loader.loadFromText(path, cached);
-      this.registry.add(path, ast);
-      return ast;
-    }
-
+    // The AST cache is write-only here. It is keyed by path and not by content, so a cached text could be served
+    // after the file changed on disk. Reading the cache back waits on a content-keyed cache.
     const ast = await this.loader.load(path);
     try {
       const astAny = ast as any;

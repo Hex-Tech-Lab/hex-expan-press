@@ -12,6 +12,7 @@ Requires OPENROUTER_API_KEY in .env and "TypeSafe" in the account's allowed prov
 import json
 import os
 import pathlib
+import sys
 import urllib.request
 
 URL = "https://openrouter.ai/api/alpha/decisions"
@@ -35,6 +36,7 @@ def decide(state, questions, timeout=5.0):
     Returns the `answers` dict, or None on any failure."""
     key = _key()
     if not key:
+        print("jev: no OPENROUTER_API_KEY found; returning None", file=sys.stderr)
         return None
     body = json.dumps({"model": MODEL, "state": state, "questions": questions}).encode()
     req = urllib.request.Request(URL, data=body, headers={
@@ -42,7 +44,10 @@ def decide(state, questions, timeout=5.0):
         "HTTP-Referer": "https://github.com/Hex-Tech-Lab/hex-expan-press", "X-Title": "ExpanPress Jev"})
     try:
         return json.load(urllib.request.urlopen(req, timeout=timeout)).get("answers")
-    except Exception:
+    except Exception as exc:  # any failure is a None the caller must treat as unchecked; the reason is logged
+        status = getattr(exc, "code", None)
+        print(f"jev: call failed: {type(exc).__name__}" + (f" HTTP {status}" if status else "") + f": {exc}",
+              file=sys.stderr)
         return None
 
 

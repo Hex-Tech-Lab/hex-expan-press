@@ -16,6 +16,7 @@ Jev down / --no-jev -> UNCHECKED.
 Usage: python3 scripts/commit_guard.py [--diff-file <path>] [--no-jev]
 """
 import argparse
+import os
 import re
 import subprocess
 import sys
@@ -47,8 +48,13 @@ DETERMINISTIC = [
 ENV_ASSIGN = re.compile(r"(?im)^[A-Z_]*(?:KEY|TOKEN|SECRET|PASSWORD)[A-Z_]*\s*=")
 
 
+def _chunks(lines):
+    """Split added lines into Jev-sized chunks. Every line reaches the checks; none is dropped."""
+    return [lines[i:i + 60] for i in range(0, len(lines), 60)]
+
+
 def hunks(diff_text):
-    """[(file, [added lines])] grouped per file, added text hunks capped at 60 lines each."""
+    """[(file, [added lines])] grouped per file, each hunk split into chunks of at most 60 lines."""
     out, cur_file, cur_adds = [], None, []
     for line in diff_text.splitlines():
         if line.startswith("+++ b/"):
@@ -59,13 +65,10 @@ def hunks(diff_text):
             cur_adds.append(line[1:])
         elif line.startswith(("diff --git", "@@")) or line.startswith("-") and not line.startswith("---"):
             if cur_file and cur_adds:
-                out.append((cur_file, cur_adds[:60]))
-            if line.startswith("diff --git") or line.startswith("@@"):
-                cur_adds = []
-            else:
-                cur_adds = []
+                out.extend((cur_file, c) for c in _chunks(cur_adds))
+            cur_adds = []
     if cur_file and cur_adds:
-        out.append((cur_file, cur_adds[:60]))
+        out.extend((cur_file, c) for c in _chunks(cur_adds))
     return out
 
 
@@ -109,6 +112,7 @@ def main():
                 continue
             a = decide({"file": fname, "hunk": blob}, QUESTIONS, timeout=20)
             if a is None:
+                # Fail closed: a hunk Jev did not classify is not a pass. Overridden only by an explicit env var.
                 flags.append((fname, None, "UNCHECKED (Jev unavailable)"))
                 continue
             p = max(a["business_sensitive"]["noul"], a["secret_like"]["noul"])
@@ -121,7 +125,20 @@ def main():
                 flags.append((fname, p, "PASS"))
     for fname, p, v in flags:
         print(f"{v}{'' if p is None else f' (p={p:.2f})'}: {fname}")
-    print(f"COMMIT-GUARD: {'BLOCK' if worst else 'CLEAR'} ({len(flags)} Jev-checked hunks)")
+    checked = sum(1 for _, p, _ in flags if p is not None)
+    unavailable = sum(1 for _, _, v in flags if v == "UNCHECKED (Jev unavailable)")
+    if unavailable:
+        if os.environ.get("COMMIT_GUARD_ALLOW_UNCHECKED") == "1":
+            print(f"WARNING: {unavailable} hunk(s) NOT checked by Jev. COMMIT_GUARD_ALLOW_UNCHECKED=1 lets them through.")
+        else:
+            print(f"BLOCK: {unavailable} hunk(s) NOT checked by Jev (unavailable). Retry, or set COMMIT_GUARD_ALLOW_UNCHECKED=1 to override.")
+            worst = 1
+    if args.no_jev:
+        verdict = "BLOCK" if worst else "CLEAR"
+        print(f"COMMIT-GUARD: {verdict} (deterministic checks only: --no-jev)")
+    else:
+        verdict = "BLOCK" if worst else ("CLEAR-WITH-UNCHECKED" if unavailable else "CLEAR")
+        print(f"COMMIT-GUARD: {verdict} (checked {checked}, unchecked {unavailable})")
     sys.exit(worst)
 
 

@@ -43,8 +43,20 @@ export function buildBaseline(findings: Finding[], previous: BaselineEntry[]): B
     }));
 }
 
-export function newCriticals(findings: Finding[], accepted: Set<string>): Finding[] {
-  return findings.filter((f) => f.severity === "critical" && !accepted.has(f.fingerprint!));
+/**
+ * Criticals not covered by the baseline. Each accepted entry covers exactly one finding with its fingerprint, so a
+ * second copy of an accepted snippet in the same file is new. A plain set would let it through.
+ */
+export function newCriticals(findings: Finding[], acceptedFingerprints: string[]): Finding[] {
+  const budget = new Map<string, number>();
+  for (const fp of acceptedFingerprints) budget.set(fp, (budget.get(fp) ?? 0) + 1);
+  return findings.filter((f) => {
+    if (f.severity !== "critical") return false;
+    const left = budget.get(f.fingerprint!) ?? 0;
+    if (left === 0) return true;
+    budget.set(f.fingerprint!, left - 1);
+    return false;
+  });
 }
 
 export function writeBaseline(path: string, entries: BaselineEntry[]): void {

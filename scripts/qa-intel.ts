@@ -15,6 +15,9 @@ import { resolveCacheMode } from "./qa-intel/cache-mode";
 import { createExpanRedisPort } from "./qa-intel/engine/redis-port";
 import { isRedisRestConfigured } from "../src/infrastructure/redis/redis.client";
 const gitRun: GitRun = (args) => execFileSync("git", [...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+// Work from the repo root: git reports root-relative paths, and the tsconfig, baseline and existence checks are
+// root-relative too. Running from a subdirectory used to drop every file without an error and exit 0.
+process.chdir(execFileSync("git", ["rev-parse", "--show-toplevel"], { encoding: "utf8" }).trim());
 
 // ─── CLI flag parsing (hoisted before any module init) ──────────────────────
 const { flags, mode, baseline, compare, ci, useRedisCache } = parseCliFlags();
@@ -178,8 +181,13 @@ if (mode === "full" || mode === "watch") {
 }
 
 const fsAdapter = new NodeFileSystem();
-// Ensure files exist
+// Ensure files exist. If git named files and none exist, that is an error, not an empty scan.
+const namedByGit = fileList.length;
 fileList = fileList.filter(f => fsAdapter.exists(f));
+if (namedByGit > 0 && fileList.length === 0) {
+  console.error(`❌ qa-intel: git named ${namedByGit} changed file(s) and none exist in the working tree.`);
+  process.exit(1);
+}
 
 // Partition (R12, 2026-09-24): TS/TSX goes through the full rule set;
 // tracked text files (.md/.sql/...) go to ConflictMarkerRule ONLY -- they
@@ -198,8 +206,13 @@ console.log(`✅ qa-intel: No changed TS/TSX/SQL-migration/text files detected t
   process.exit(1);
 }
 
-const concurrencyFlag = flags.concurrency ? parseInt(String(flags.concurrency), 10) : 3;
-const concurrency = isNaN(concurrencyFlag) ? 3 : concurrencyFlag;
+// A concurrency of 0 or a non-number used to run no rules and exit 0. Only a positive integer is accepted.
+const rawConcurrency = flags.concurrency === undefined ? "3" : String(flags.concurrency);
+const concurrency = /^[1-9]\d*$/.test(rawConcurrency) ? Number(rawConcurrency) : NaN;
+if (!Number.isInteger(concurrency)) {
+  console.error(`❌ qa-intel: --concurrency must be a positive integer (got ${JSON.stringify(flags.concurrency)}).`);
+  process.exit(1);
+}
 
 // Initialize cache adapter
 const cacheMode = resolveCacheMode({ requested: useRedisCache, ci: isCi, redisConfigured: isRedisRestConfigured() });

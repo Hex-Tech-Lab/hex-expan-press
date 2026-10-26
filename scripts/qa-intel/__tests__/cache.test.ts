@@ -163,6 +163,15 @@ describe("RedisCache", () => {
     expect(errors).toHaveBeenCalledWith("[redis-cache]", { message: "redis down", operation: "del" });
   });
 
+  test("a refused write does not block a later valid write to the same key", async () => {
+    const { port } = fakePort();
+    const cache = createCache(true, port) as { set: (k: string, v: unknown) => Promise<void> };
+    await cache.set("k", { getFilePath: () => "x.ts" });
+    await cache.set("k", { ok: true });
+    expect(port.setRedisValue).toHaveBeenCalledTimes(1);
+    expect(port.setRedisValue).toHaveBeenCalledWith("k", '{"ok":true}', 3600);
+  });
+
   test("an AST object is refused before it reaches Redis, and is logged", async () => {
     const { port } = fakePort();
     const cache = createCache(true, port) as { set: (k: string, v: unknown) => Promise<void> };

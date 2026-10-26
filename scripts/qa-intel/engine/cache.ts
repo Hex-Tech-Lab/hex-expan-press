@@ -66,7 +66,7 @@ class RedisCache extends InMemoryCache {
     if (this.activeWrites.has(key)) {
       return this.activeWrites.get(key);
     }
-    const writePromise = (async () => {
+    const write = (async () => {
       try {
         // Type validation to ensure AST objects (e.g. objects containing complex project/node helpers or ts-morph methods) are not stored.
         if (value && (typeof value === "object") && ("getFilePath" in value || "getProject" in value || "forEachDescendant" in value)) {
@@ -76,12 +76,14 @@ class RedisCache extends InMemoryCache {
         await this.redis.setRedisValue(key, raw, ttlSeconds);
       } catch (error) {
         this.report(error, "set");
-      } finally {
-        this.activeWrites.delete(key);
       }
     })();
-    this.activeWrites.set(key, writePromise);
-    return writePromise;
+    // Cleanup is attached after the entry is recorded. A write that fails before its first await settles inside
+    // this call, so a cleanup placed inside the async body would run before the entry exists and leave it behind.
+    // An entry is stored only when the key has none, so at cleanup the stored entry is always this write.
+    const tracked = write.finally(() => this.activeWrites.delete(key));
+    this.activeWrites.set(key, tracked);
+    return tracked;
   }
   async del(key: string) {
     try {
