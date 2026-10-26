@@ -2,7 +2,7 @@
 """Commit guard (T37-W1c, I8+I9): pre-commit gate over STAGED changes only.
 
 Reads `git diff --cached` (read-only git) or a synthetic diff via --diff-file (for testing).
-Deterministic layer (exit 1 immediately on any hit):
+Deterministic layer (any hit sets a BLOCK verdict; the remaining files are still checked):
   - key-like strings: sk-..., Bearer <token>, AKIA..., 32+ char hex/base64 on a line near key/token/secret
   - .env content: added lines that are dotenv-style assignments for secret-ish variable names
   - forbidden paths: any added file under data/, adr/, manuscript/book/, docs/history/ (Rule #0)
@@ -11,7 +11,7 @@ Jev layer on added TEXT hunks (<=60 lines each): two noul questions per hunk:
                        creator financial details, legal strategy
   secret_like        - looks like a credential, key or secret
 Bands: p >= 0.8 -> BLOCK (exit 1), 0.5-0.8 -> FLAG (printed, exit 0), < 0.5 -> PASS.
-Jev down / --no-jev -> UNCHECKED.
+Jev unavailable -> BLOCK unless COMMIT_GUARD_ALLOW_UNCHECKED=1; --no-jev -> UNCHECKED (deterministic checks only).
 
 Usage: python3 scripts/commit_guard.py [--diff-file <path>] [--no-jev]
 """

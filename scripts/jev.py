@@ -1,6 +1,6 @@
 """Minimal client for TypeSafe Jev (OpenRouter Decisions API): typed yes/no, choice and score answers
-with calibrated probabilities. Never raises into the caller: any failure (provider not allowed,
-timeout, bad response) returns None, so every call site must keep a fallback path.
+with calibrated probabilities. Failures (provider not allowed, timeout, bad response) return None and
+log the reason to stderr, so every call site must keep a fallback path.
 
     from jev import decide
     a = decide({"before": b, "after": a}, {"adds_fact": {"type": "noul", "instructions": "...",

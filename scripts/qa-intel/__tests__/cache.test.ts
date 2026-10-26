@@ -39,10 +39,8 @@ describe("createCache", () => {
     expect(port.setRedisValue).not.toHaveBeenCalled();
   });
 
-  test("uses the in-memory cache when Redis is requested but no port is injected", () => {
-    const cache = createCache(true);
-    cache.set("k", "v");
-    expect(cache.get("k")).toBe("v");
+  test("refuses Redis without a port instead of falling back to memory", () => {
+    expect(() => createCache(true)).toThrow("Redis requested without a RedisPort");
   });
 
   test("the in-memory cache treats an expired entry as absent and drops it", () => {

@@ -29,7 +29,9 @@ export class TsMorphLoader implements FileLoaderPort {
         const val = d.getModuleSpecifierValue();
         return internalPrefixes.some((prefix) => val.startsWith(prefix));
       })
-      .map((d) => d.getModuleSpecifierSourceFile()?.getFilePath())
-      .filter((p): p is string => Boolean(p));
+      .flatMap((d) => {
+        const resolved = d.getModuleSpecifierSourceFile()?.getFilePath();
+        return resolved ? [String(resolved)] : [];
+      });
   }
 }

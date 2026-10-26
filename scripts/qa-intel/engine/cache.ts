@@ -34,14 +34,13 @@ class InMemoryCache {
   }
 }
 
-class RedisCache extends InMemoryCache {
+// Standalone: it shares no state with InMemoryCache. Inheriting its sync get() conflicted with the async one here.
+class RedisCache {
   private activeWrites = new Map<string, Promise<void>>();
   constructor(
     private readonly redis: RedisPort,
     private readonly reporter?: ErrorReporter,
-  ) {
-    super();
-  }
+  ) {}
   /** Every Redis failure is logged and reported, then swallowed: the caller sees a cache miss, never an exception. */
   private report(error: unknown, method: "get" | "set" | "del") {
     const message = error instanceof Error ? error.message : String(error);
@@ -94,8 +93,11 @@ class RedisCache extends InMemoryCache {
   }
 }
 
+/** Redis is requested only with a port. Requesting it without one throws; it never falls back to memory silently. */
 export function createCache(useRedis: boolean, redis?: RedisPort, reporter?: ErrorReporter) {
-  return useRedis && redis ? new RedisCache(redis, reporter) : new InMemoryCache();
+  if (!useRedis) return new InMemoryCache();
+  if (!redis) throw new Error("createCache: Redis requested without a RedisPort");
+  return new RedisCache(redis, reporter);
 }
 
 export type QaIntelCache = InMemoryCache | RedisCache;
