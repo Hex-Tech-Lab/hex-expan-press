@@ -1,0 +1,9 @@
+[
+  {
+    "fingerprint": "a31d465d1aaa",
+    "rule": "SILENT_SUCCESS_ON_MISSING_CONFIG",
+    "file": "scripts/qa-intel/engine/calibration/run-smellycode-calibration.ts",
+    "snippet": "console.warn(\"[SmellyCode++] Dataset not found — this is optional and local-only.\");",
+    "reason": "Optional, local-only SmellyCode calibration dataset. A missing dataset is an intended skip (see the calibration README), not a silent failure."
+  }
+]
