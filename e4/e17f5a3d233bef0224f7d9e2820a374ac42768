@@ -1,0 +1,41 @@
+scripts/contract-auditor/__tests__/gate.test.ts
+  s_6625bc67577472::t_dedbe4c7486890 87-102
+CLAUDE.md
+  s_6625bc67577472::t_bfd54fed691b65 36
+scripts/qa-intel/__tests__/cache.test.ts
+  s_6625bc67577472::t_ea05f05a998db4 166-174
+scripts/contract-auditor/cli.ts
+  s_6625bc67577472::t_c84e15778f6e23 49
+scripts/qa-intel.ts
+  s_6625bc67577472::t_167659da7606ca 184-185,187-190
+  s_6625bc67577472::t_bf82f6405dbad2 18-20
+  s_6625bc67577472::t_ab7e31e96aeb45 209-215
+scripts/qa-intel/engine/cache.ts
+  s_6625bc67577472::t_850de2181352c0 69,81-82,85-86
+  s_6625bc67577472::t_73bb2387bbc1c0 83-84
+scripts/contract-auditor/gate.ts
+  s_6625bc67577472::t_0f0a3034079a26 46-59
+scripts/commit_guard.py
+  s_6625bc67577472::t_55f4637e8a67e4 19,51-55,57,68-69,71,115,128-141
+scripts/jev.py
+  s_6625bc67577472::t_55f4637e8a67e4 15,39,47-50
+scripts/qa-intel/engine/application/QualityEngine.ts
+  s_6625bc67577472::t_dee616e975f15b 112-113
+  s_6625bc67577472::t_c5b8e6fdf7727a 86,88-93
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e4e17f5a3d233bef0224f7d9e2820a374ac42768",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
