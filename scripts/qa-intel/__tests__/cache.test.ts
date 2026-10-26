@@ -1,8 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { createCache, type RedisPort } from "../engine/cache";
-
-const captureException = vi.hoisted(() => vi.fn());
-vi.mock("@sentry/nextjs", () => ({ captureException }));
+import { createCache, type ErrorReporter, type RedisPort } from "../engine/cache";
 
 function fakePort(overrides: Partial<RedisPort> = {}) {
   const store = new Map<string, string>();
@@ -21,11 +18,14 @@ function fakePort(overrides: Partial<RedisPort> = {}) {
   return { port, store };
 }
 
+function fakeReporter(overrides: Partial<ErrorReporter> = {}): ErrorReporter {
+  return { report: vi.fn(), ...overrides };
+}
+
 describe("createCache", () => {
   let errors: ReturnType<typeof vi.spyOn>;
   beforeEach(() => {
     errors = vi.spyOn(console, "error").mockImplementation(() => {});
-    captureException.mockReset();
   });
   afterEach(() => {
     errors.mockRestore();
@@ -64,7 +64,6 @@ describe("RedisCache", () => {
   let errors: ReturnType<typeof vi.spyOn>;
   beforeEach(() => {
     errors = vi.spyOn(console, "error").mockImplementation(() => {});
-    captureException.mockReset();
   });
   afterEach(() => {
     errors.mockRestore();
@@ -106,23 +105,23 @@ describe("RedisCache", () => {
     await expect(createCache(true, nullPort.port).get("absent")).resolves.toBeUndefined();
   });
 
-  test("a corrupt cache entry is logged, reported to Sentry, and read as undefined", async () => {
+  test("a corrupt cache entry is logged, reported, and read as undefined", async () => {
+    const reporter = fakeReporter();
     const { port } = fakePort({ getRedisValue: vi.fn(async () => "{not json") });
-    await expect(createCache(true, port).get("k")).resolves.toBeUndefined();
+    await expect(createCache(true, port, reporter).get("k")).resolves.toBeUndefined();
     expect(errors).toHaveBeenCalledWith("[redis-cache]", expect.objectContaining({ operation: "get" }));
-    expect(captureException).toHaveBeenCalledWith(expect.any(SyntaxError), {
-      contexts: { operation: "redis-cache", method: "get" },
-    });
+    expect(reporter.report).toHaveBeenCalledWith(expect.any(SyntaxError), { method: "get" });
   });
 
-  test.each(["get", "set", "del"] as const)("a %s failure is logged with its operation and does not throw", async (op) => {
+  test.each(["get", "set", "del"] as const)("a %s failure is logged, reported, and does not throw", async (op) => {
     const boom = new Error("redis down");
+    const reporter = fakeReporter();
     const failing: Partial<RedisPort> = {
       getRedisValue: vi.fn(async () => { throw boom; }),
       setRedisValue: vi.fn(async () => { throw boom; }),
       deleteRedisKey: vi.fn(async () => { throw boom; }),
     };
-    const cache = createCache(true, fakePort(failing).port) as {
+    const cache = createCache(true, fakePort(failing).port, reporter) as {
       get: (k: string) => Promise<unknown>;
       set: (k: string, v: unknown) => Promise<void>;
       del: (k: string) => Promise<void>;
@@ -131,7 +130,7 @@ describe("RedisCache", () => {
     if (op === "set") await expect(cache.set("k", 1)).resolves.toBeUndefined();
     if (op === "del") await expect(cache.del("k")).resolves.toBeUndefined();
     expect(errors).toHaveBeenCalledWith("[redis-cache]", { message: "redis down", operation: op });
-    expect(captureException).toHaveBeenCalledWith(boom, { contexts: { operation: "redis-cache", method: op } });
+    expect(reporter.report).toHaveBeenCalledWith(boom, { method: op });
   });
 
   test.each(["get", "set", "del"] as const)("a non-Error %s rejection is logged as its string value", async (op) => {
@@ -151,11 +150,17 @@ describe("RedisCache", () => {
     expect(errors).toHaveBeenCalledWith("[redis-cache]", { message: "plain string", operation: op });
   });
 
-  test("a Sentry failure after a Redis failure is logged and does not escape", async () => {
-    captureException.mockImplementation(() => { throw new Error("sentry down"); });
+  test("a failing reporter is logged and does not escape the cache call", async () => {
+    const reporter = fakeReporter({ report: vi.fn(() => { throw new Error("reporter down"); }) });
     const { port } = fakePort({ getRedisValue: vi.fn(async () => { throw new Error("redis down"); }) });
-    await expect(createCache(true, port).get("k")).resolves.toBeUndefined();
-    expect(errors).toHaveBeenCalledWith("[redis-cache-sentry]", expect.any(Error));
+    await expect(createCache(true, port, reporter).get("k")).resolves.toBeUndefined();
+    expect(errors).toHaveBeenCalledWith("[redis-cache-reporter]", expect.any(Error));
+  });
+
+  test("with no reporter injected, a failure is still logged and swallowed", async () => {
+    const { port } = fakePort({ deleteRedisKey: vi.fn(async () => { throw new Error("redis down"); }) });
+    await expect(createCache(true, port).del("k")).resolves.toBeUndefined();
+    expect(errors).toHaveBeenCalledWith("[redis-cache]", { message: "redis down", operation: "del" });
   });
 
   test("an AST object is refused before it reaches Redis, and is logged", async () => {
@@ -180,20 +185,6 @@ describe("RedisCache", () => {
     const { port } = fakePort();
     await (createCache(true, port) as { set: (k: string, v: unknown) => Promise<void> }).set("k", null);
     expect(port.setRedisValue).toHaveBeenCalledWith("k", "null", 3600);
-  });
-
-  test("the Sentry-failure branch of a write is logged and does not escape", async () => {
-    captureException.mockImplementation(() => { throw new Error("sentry down"); });
-    const { port } = fakePort({ setRedisValue: vi.fn(async () => { throw new Error("redis down"); }) });
-    await expect((createCache(true, port) as { set: (k: string, v: unknown) => Promise<void> }).set("k", 1)).resolves.toBeUndefined();
-    expect(errors).toHaveBeenCalledWith("[redis-cache-sentry]", expect.any(Error));
-  });
-
-  test("the Sentry-failure branch of a delete is logged and does not escape", async () => {
-    captureException.mockImplementation(() => { throw new Error("sentry down"); });
-    const { port } = fakePort({ deleteRedisKey: vi.fn(async () => { throw new Error("redis down"); }) });
-    await expect((createCache(true, port) as { del: (k: string) => Promise<void> }).del("k")).resolves.toBeUndefined();
-    expect(errors).toHaveBeenCalledWith("[redis-cache-sentry]", expect.any(Error));
   });
 
   test("del removes the key through the port", async () => {

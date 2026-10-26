@@ -4,7 +4,11 @@ export interface RedisPort {
   setRedisValue(key: string, raw: string, ttlSeconds: number): Promise<unknown>;
   deleteRedisKey(key: string): Promise<unknown>;
 }
-import type { SourceFile } from "ts-morph";
+
+/** Receives each Redis failure the cache swallows. The web app can inject Sentry here; the engine runner injects nothing. */
+export interface ErrorReporter {
+  report(error: unknown, context: { method: "get" | "set" | "del" }): void;
+}
 
 interface CacheItem<T> {
   value: T;
@@ -32,23 +36,29 @@ class InMemoryCache {
 
 class RedisCache extends InMemoryCache {
   private activeWrites = new Map<string, Promise<void>>();
-  constructor(private readonly redis: RedisPort) {
+  constructor(
+    private readonly redis: RedisPort,
+    private readonly reporter?: ErrorReporter,
+  ) {
     super();
+  }
+  /** Every Redis failure is logged and reported, then swallowed: the caller sees a cache miss, never an exception. */
+  private report(error: unknown, method: "get" | "set" | "del") {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error("[redis-cache]", { message, operation: method });
+    try {
+      this.reporter?.report(error, { method });
+    } catch (reporterError) {
+      console.error("[redis-cache-reporter]", reporterError);
+    }
   }
   async get<T>(key: string): Promise<T | undefined> {
     try {
       const raw = await this.redis.getRedisValue(key);
       if (raw === undefined || raw === null) return undefined;
       return JSON.parse(raw) as T;
-    } catch (e: any) {
-      const message = e instanceof Error ? e.message : String(e);
-      console.error('[redis-cache]', { message, operation: 'get' });
-      try {
-        const Sentry = await import("@sentry/nextjs");
-        Sentry.captureException(e, { contexts: { operation: 'redis-cache', method: 'get' } });
-      } catch (sentryErr) {
-        console.error('[redis-cache-sentry]', sentryErr);
-      }
+    } catch (error) {
+      this.report(error, "get");
       return undefined;
     }
   }
@@ -64,15 +74,8 @@ class RedisCache extends InMemoryCache {
         }
         const raw = JSON.stringify(value);
         await this.redis.setRedisValue(key, raw, ttlSeconds);
-      } catch (e: any) {
-        const message = e instanceof Error ? e.message : String(e);
-        console.error('[redis-cache]', { message, operation: 'set' });
-        try {
-          const Sentry = await import("@sentry/nextjs");
-          Sentry.captureException(e, { contexts: { operation: 'redis-cache', method: 'set' } });
-        } catch (sentryErr) {
-          console.error('[redis-cache-sentry]', sentryErr);
-        }
+      } catch (error) {
+        this.report(error, "set");
       } finally {
         this.activeWrites.delete(key);
       }
@@ -83,21 +86,14 @@ class RedisCache extends InMemoryCache {
   async del(key: string) {
     try {
       await this.redis.deleteRedisKey(key);
-    } catch (e: any) {
-      const message = e instanceof Error ? e.message : String(e);
-      console.error('[redis-cache]', { message, operation: 'del' });
-      try {
-        const Sentry = await import("@sentry/nextjs");
-        Sentry.captureException(e, { contexts: { operation: 'redis-cache', method: 'del' } });
-      } catch (sentryErr) {
-        console.error('[redis-cache-sentry]', sentryErr);
-      }
+    } catch (error) {
+      this.report(error, "del");
     }
   }
 }
 
-export function createCache(useRedis: boolean, redis?: RedisPort) {
-  return useRedis && redis ? new RedisCache(redis) : new InMemoryCache();
+export function createCache(useRedis: boolean, redis?: RedisPort, reporter?: ErrorReporter) {
+  return useRedis && redis ? new RedisCache(redis, reporter) : new InMemoryCache();
 }
 
 export type QaIntelCache = InMemoryCache | RedisCache;

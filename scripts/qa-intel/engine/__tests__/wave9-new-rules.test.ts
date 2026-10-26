@@ -10,10 +10,12 @@ import { SourceFile, Project } from 'ts-morph';
 import { VariableNamingRule } from '../rules/quality';
 import { TruncationValidationRule } from '../rules/data-integrity';
 
-// Helper to create a test source file
+// Helper to create a test source file. One in-memory project is shared by the file: building a Project per
+// source costs ~0.3s each and pushed the truncation cases past the 5s test timeout under suite load.
+const sharedProject = new Project({ useInMemoryFileSystem: true });
+let sourceCount = 0;
 function createTestSource(code: string): SourceFile {
-  const project = new Project({ useInMemoryFileSystem: true });
-  return project.createSourceFile('test.ts', code);
+  return sharedProject.createSourceFile(`test-${sourceCount++}.ts`, code, { overwrite: true });
 }
 
 describe('WAVE 9: New Security Rules', () => {
