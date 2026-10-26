@@ -173,12 +173,6 @@ if (mode === "full" || mode === "watch") {
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : String(e);
     console.error('[qa-intel]', { message, operation: 'git-diff', command: diffArgs });
-    try {
-      const Sentry = await import("@sentry/nextjs");
-      Sentry.captureException(e, { contexts: { operation: 'qa-intel', method: 'git-diff', command: diffArgs } });
-    } catch (sentryErr) {
-      console.error('[qa-intel-sentry]', sentryErr);
-    }
     process.exit(1);
   }
 }
