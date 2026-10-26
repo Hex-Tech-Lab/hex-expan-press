@@ -84,7 +84,22 @@ describe("buildBaseline", () => {
 describe("newCriticals", () => {
   test("returns criticals whose fingerprint is not accepted", () => {
     const findings = [finding({ fingerprint: "a" }), finding({ fingerprint: "b" }), finding({ fingerprint: "c", severity: "warning" })];
-    expect(newCriticals(findings, new Set(["a"])).map((f) => f.fingerprint)).toEqual(["b"]);
+    expect(newCriticals(findings, ["a"]).map((f) => f.fingerprint)).toEqual(["b"]);
+  });
+
+  test("an accepted entry covers one finding only: a second copy with the same fingerprint is new", () => {
+    const findings = [finding({ fingerprint: "a" }), finding({ fingerprint: "a" })];
+    expect(newCriticals(findings, ["a"]).map((f) => f.fingerprint)).toEqual(["a"]);
+  });
+
+  test("two accepted entries with one fingerprint cover two copies", () => {
+    const findings = [finding({ fingerprint: "a" }), finding({ fingerprint: "a" })];
+    expect(newCriticals(findings, ["a", "a"])).toEqual([]);
+  });
+
+  test("an accepted fingerprint with no matching finding changes nothing", () => {
+    const findings = [finding({ fingerprint: "b" })];
+    expect(newCriticals(findings, ["a"]).map((f) => f.fingerprint)).toEqual(["b"]);
   });
 });
 

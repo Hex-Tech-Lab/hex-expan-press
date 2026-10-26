@@ -46,8 +46,7 @@ export function runContractAudit(argv: readonly string[], fallbackRoot: string, 
     return 0;
   }
 
-  const accepted = new Set(readBaseline(baselinePath).map((e) => e.fingerprint));
-  const fresh = newCriticals(findings, accepted);
+  const fresh = newCriticals(findings, readBaseline(baselinePath).map((e) => e.fingerprint));
   io.err(
     `Contract Auditor: ${fresh.length} new critical finding(s) not in the baseline (${criticalCount - fresh.length} accepted).`,
   );
