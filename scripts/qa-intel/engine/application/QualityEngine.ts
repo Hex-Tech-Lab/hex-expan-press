@@ -22,7 +22,12 @@ export class QualityEngine {
 
   async analyze(files: string[]): Promise<Finding[]> {
     this.ruleErrors = [];
-    const existing = files.filter((filePath) => this.fs.exists(filePath));
+    // A listed file that is gone is an error. Dropping it silently would make the run look clean.
+    const existing = files.filter((filePath) => {
+      if (this.fs.exists(filePath)) return true;
+      this.ruleErrors.push({ ruleName: "file-missing", filePath, message: "listed file does not exist", timestamp: Date.now() });
+      return false;
+    });
 
     // GRAPH CONSTRUCTION: buildGraph() parses imports and constructs the overall dependency graph
     const needsGraph = this.rules.some(rule => rule.scope === "graph" || rule.scope === "neighbors" || this.config.defaultScope === "graph" || this.config.defaultScope === "neighbors");

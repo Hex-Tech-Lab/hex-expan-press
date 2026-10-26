@@ -76,7 +76,7 @@ Usage: qa-intel [options]
 
 Options:
   --mode <mode>        Scan mode: "diff" (default), "full", "watch", "working-tree", "HEAD"
-  --base <ref>         Base ref for "diff" mode. Defaults to "origin/main".
+  --base <ref>         Base ref for "diff" mode. Defaults to origin/HEAD, else origin/master, else origin/main.
   --concurrency <num>  Set concurrency limit (default: 3).
   --baseline           Write current findings to baseline.json.
   --compare            Compare findings against baseline.json.
@@ -84,9 +84,9 @@ Options:
   --help, -h           Show this help text.
 
 Modes:
-  diff                 Scan files changed between the current branch and a base ref (defaults to origin/main).
+  diff                 Scan files changed between the current branch and a base ref (see --base for the default).
   full                 Scan all TypeScript/TSX files in the repository.
-  watch                Watch files and scan on change.
+  watch                One full scan. File watching is not implemented.
   working-tree         Scan unstaged/staged files in the current working directory compared to HEAD.
   HEAD                 Scan files changed in the last commit (HEAD vs HEAD~1).
 `);

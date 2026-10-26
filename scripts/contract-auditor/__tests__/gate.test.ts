@@ -45,19 +45,38 @@ describe("readBaseline", () => {
   test("a JSON object instead of a list throws, naming the file", () => {
     const path = join(dir, "obj.json");
     writeFileSync(path, JSON.stringify({ fingerprint: "x" }));
-    expect(() => readBaseline(path)).toThrow("is not a list of accepted fingerprints");
+    expect(() => readBaseline(path)).toThrow("is not a list of complete accepted entries");
   });
 
   test("a list with an entry lacking a fingerprint throws", () => {
     const path = join(dir, "nofp.json");
     writeFileSync(path, JSON.stringify([{ rule: "R" }]));
-    expect(() => readBaseline(path)).toThrow("is not a list of accepted fingerprints");
+    expect(() => readBaseline(path)).toThrow("is not a list of complete accepted entries");
+  });
+
+  test("an entry with no written reason is refused, naming the count", () => {
+    const path = join(dir, "noreason.json");
+    writeFileSync(path, JSON.stringify([{ fingerprint: "a", rule: "R", file: "f.ts", snippet: "s", reason: "" }]));
+    expect(() => readBaseline(path)).toThrow("has 1 accepted entry with no reason");
+  });
+
+  test("two unreasoned entries are counted in the plural", () => {
+    const path = join(dir, "two-noreason.json");
+    const entry = { rule: "R", file: "f.ts", snippet: "s", reason: "" };
+    writeFileSync(path, JSON.stringify([{ ...entry, fingerprint: "a" }, { ...entry, fingerprint: "b" }]));
+    expect(() => readBaseline(path)).toThrow("has 2 accepted entries with no reason");
+  });
+
+  test("an entry missing its file or snippet is refused as incomplete", () => {
+    const path = join(dir, "partial.json");
+    writeFileSync(path, JSON.stringify([{ fingerprint: "a", rule: "R", reason: "why" }]));
+    expect(() => readBaseline(path)).toThrow("is not a list of complete accepted entries");
   });
 
   test("a list containing null throws", () => {
     const path = join(dir, "null.json");
     writeFileSync(path, JSON.stringify([null]));
-    expect(() => readBaseline(path)).toThrow("is not a list of accepted fingerprints");
+    expect(() => readBaseline(path)).toThrow("is not a list of complete accepted entries");
   });
 });
 

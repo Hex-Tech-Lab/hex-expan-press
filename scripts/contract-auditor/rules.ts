@@ -19,8 +19,9 @@ export interface Finding {
 }
 
 
-const SKIP_DIRS = new Set(CONTRACT_AUDITOR_CONFIG.skipDirs);
-const CODE_EXT = new Set(CONTRACT_AUDITOR_CONFIG.codeExtensions);
+const SKIP_DIRS: ReadonlySet<string> = new Set<string>(CONTRACT_AUDITOR_CONFIG.skipDirs);
+const CODE_EXT: ReadonlySet<string> = new Set<string>(CONTRACT_AUDITOR_CONFIG.codeExtensions);
+const SELF_FILES: readonly string[] = CONTRACT_AUDITOR_CONFIG.selfFiles;
 const TEST_MARKERS = CONTRACT_AUDITOR_CONFIG.testMarkers;
 
 export function* walk(dir: string): Generator<string> {
@@ -294,7 +295,7 @@ export function scan(repoRoot: string): Finding[] {
       auditUnverifiedEndpoints(relPath, content, hasSiblingTest);
       // Self-exemption: these files contain the exact patterns the two no-telemetry rules search for,
       // so they cannot be scanned for those rules without flagging their own detection logic.
-      const isSelf = CONTRACT_AUDITOR_CONFIG.selfFiles.includes(relPath);
+      const isSelf = SELF_FILES.includes(relPath);
       if (!isSelf) {
         auditSilentCatchNoTelemetry(relPath, content);
         auditSilentErrorReturnNoTelemetry(relPath, content);

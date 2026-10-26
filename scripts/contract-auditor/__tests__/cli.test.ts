@@ -59,9 +59,18 @@ describe("runContractAudit", () => {
     expect(written[0].reason).toBe("");
   });
 
-  test("after --baseline the gate passes, and the accepted count is reported", () => {
+  test("--baseline without a written reason makes the next gate run refuse", () => {
     seedCriticalRepo(root);
     runContractAudit([root, "--baseline"], root, io);
+    expect(() => runContractAudit([root], root, io)).toThrow("with no reason");
+  });
+
+  test("after --baseline and a written reason the gate passes, and the accepted count is reported", () => {
+    seedCriticalRepo(root);
+    runContractAudit([root, "--baseline"], root, io);
+    const path = join(root, CONTRACT_AUDITOR_CONFIG.baselineFile);
+    const entries = JSON.parse(readFileSync(path, "utf-8"));
+    writeFileSync(path, JSON.stringify(entries.map((e: { reason: string }) => ({ ...e, reason: "reviewed in test" })), null, 2));
     err = [];
     expect(runContractAudit([root], root, io)).toBe(0);
     expect(err.join("\n")).toContain("0 new critical finding(s) not in the baseline (1 accepted)");
