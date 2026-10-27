@@ -1,0 +1,39 @@
+scripts/__tests__/test_bundle_manifest.py
+  s_b6b134f229aac2::t_218703a498fa99 1-196
+scripts/generate_bundle_manifest.py
+  s_c40e25c9696cc6::t_b3c6c5b9029417 1-215
+scripts/watermark_pdf.py
+  s_fcc5a9a73592ad::t_1e8698240b3dd8 5-11,19,33-34,36-42,44-45,97-169,171,176-189,196-199,201-205,212,216,218-222,224-229,231-234,236-256,261,263-264,270-272,284
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "39fe99e45c640c226dc677f31e8eb4578a575ea7",
+  "prompts": {},
+  "sessions": {
+    "s_b6b134f229aac2": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-af51ba6cbcdb39a47",
+        "model": "unknown"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    },
+    "s_c40e25c9696cc6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-aeca21042a237bac2",
+        "model": "unknown"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    },
+    "s_fcc5a9a73592ad": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a93212ac2427a9380",
+        "model": "unknown"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
