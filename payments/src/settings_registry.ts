@@ -6,6 +6,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { DOMAINS } from "./domains";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const CANDIDATE_DIRS = [
@@ -45,6 +46,7 @@ export interface GlobalSettings {
   server: { bind_host: string; bind_port: number; max_body_bytes: number };
   user_agent: string;
   defaults: { currency: string };
+  domains: { site: string; pay: string };
   payments: {
     allowed_currencies: string[];
     webhook_tolerance_seconds: number;
@@ -97,6 +99,7 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
   user_agent:
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
   defaults: { currency: "USD" },
+  domains: { site: DOMAINS.site, pay: DOMAINS.pay },
   payments: {
     allowed_currencies: ["USD"],
     webhook_tolerance_seconds: 300,

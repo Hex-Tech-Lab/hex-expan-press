@@ -20,9 +20,9 @@ import { createServerClient } from "@supabase/ssr";
  * serves checkout pages, the checkout API, the legal pages and its own robots
  * file, and nothing else. expanpress.com sends checkout paths to pay.
  */
-const PAY_HOST = "pay.expanpress.com";
-const MAIN_HOST = "expanpress.com";
-const PAY_ORIGIN = "https://pay.expanpress.com";
+const PAY_HOST = new URL(DOMAINS.pay).host;
+const MAIN_HOST = new URL(DOMAINS.site).host;
+const PAY_ORIGIN = DOMAINS.pay;
 const PAY_ALLOWED_PREFIXES = ["/checkout/", "/api/billing/checkout/", "/_next/", "/assets/"];
 const PAY_ALLOWED_EXACT_API = ["/api/billing/checkout"];
 const PAY_ALLOWED_EXACT = ["/terms.html", "/privacy.html", "/refund-policy.html", "/legal/providers.html", "/favicon.ico"];
@@ -33,6 +33,7 @@ const PAY_ALLOWED_EXACT = ["/terms.html", "/privacy.html", "/refund-policy.html"
 const isPayCheckoutApi = (path: string): boolean => PAY_ALLOWED_EXACT_API.includes(path) || path.startsWith("/api/billing/checkout/");
 
 import { decodeAndVerifyJwt } from "./src/lib/jwt-verify";
+import { DOMAINS } from "../payments/src/domains";
 export { decodeAndVerifyJwt };
 
 export async function proxy(request: NextRequest): Promise<NextResponse> {

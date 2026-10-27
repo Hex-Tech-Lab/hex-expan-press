@@ -2,6 +2,7 @@
 
 import { redirect, unstable_rethrow } from "next/navigation";
 import { createSsrClient } from "../../../src/lib/supabase-ssr";
+import { GLOBAL } from "../../../../payments/src/settings_registry";
 import { clearPortalCookies, getPortalSession } from "../../../src/lib/supabase-server";
 import { EnvSettingsAdapter } from "../../../../src/adapters/settings/env_settings.adapter";
 import { resolvePrimaryProduct } from "../../../src/lib/primary-product";
@@ -114,7 +115,7 @@ export async function startPublisherAgreementAction(): Promise<void> {
   }
 
 
-  const siteOrigin = process.env.NEXT_PUBLIC_SITE_ORIGIN ?? "https://expanpress.com";
+  const siteOrigin = process.env.NEXT_PUBLIC_SITE_ORIGIN ?? GLOBAL.domains.site;
   try {
     const result = await createEsignEnvelopeUseCase(
       { productId, userId: user.id, userEmail: user.email ?? "", hostUrl: siteOrigin },

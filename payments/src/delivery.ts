@@ -189,7 +189,7 @@ export async function createDubShortLink(targetUrl: string, fetchImpl: typeof fe
 
 /** Production wiring: Supabase for persistence, Resend for mail, Dub for the short link. */
 export function productionDeps(): DeliveryDeps {
-  const origin = "https://expanpress.com";
+  const origin = GLOBAL.domains.site;
   const replyTo = GLOBAL.email.reply_to;
   return {
     db: supabaseDeliveryDb(),

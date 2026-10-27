@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import "server-only";
 import "./storefront.css";
 import { getSupabaseAdmin } from "../../../../payments/src/supabase_admin";
+import { GLOBAL } from "../../../../payments/src/settings_registry";
 
 /**
  * Storefront SSR (Sprint 16 — the dynamic handoff).
@@ -86,7 +87,7 @@ export function commercialProducts(products: StoreProduct[] | null | undefined):
 async function fetchSiteOrigin(supabase: NonNullable<Awaited<ReturnType<typeof getSupabaseAdmin>>>): Promise<string> {
   const { data, error } = await supabase.from("system_config").select("value").eq("key", "site.origin").maybeSingle();
   if (error) throw new Error(`storefront: site.origin lookup failed: ${error.message}`);
-  const origin = String((data as { value?: unknown } | null)?.value ?? "https://expanpress.com").replace(/\/$/, "");
+  const origin = String((data as { value?: unknown } | null)?.value ?? GLOBAL.domains.site).replace(/\/$/, "");
   return origin;
 }
 
@@ -141,7 +142,7 @@ export const fetchStoreProduct = cache(async function fetchStoreProduct(
 });
 
 /** The single provider-agnostic checkout origin (ADR 0061). Buy links and the checkout page live here. */
-export const PAY_ORIGIN = "https://pay.expanpress.com";
+export const PAY_ORIGIN = GLOBAL.domains.pay;
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 

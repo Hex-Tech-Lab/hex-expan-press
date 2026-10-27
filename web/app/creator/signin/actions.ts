@@ -3,6 +3,7 @@
 import { headers } from "next/headers";
 import { redirect, unstable_rethrow } from "next/navigation";
 import { createSsrClient } from "../../../src/lib/supabase-ssr";
+import { GLOBAL } from "../../../../payments/src/settings_registry";
 
 /**
  * Sign-in Server Actions (Wave 5): authentication lives entirely server-side.
@@ -36,7 +37,7 @@ async function resolveOrigin(): Promise<string> {
     const h = await headers();
     const host = (h.get("x-forwarded-host") ?? h.get("host") ?? "").split(",")[0].trim().toLowerCase();
     if (host && allowedProdHosts().has(host)) return `https://${host}`;
-    return process.env.NEXT_PUBLIC_SITE_ORIGIN ?? "https://expanpress.com";
+    return process.env.NEXT_PUBLIC_SITE_ORIGIN ?? GLOBAL.domains.site;
   }
   // Previews/local: bind the OAuth round-trip to the EXACT host the user is
   // on (request-scoped, not env-scoped). The PKCE verifier cookie is
