@@ -1,0 +1,19 @@
+web/src/lib/__tests__/esign-webhook.test.ts
+  s_4e2b0b0a92fc08::t_25e156eb360633 418-430,438-441,465,469-471,481-484,507
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "20e6613abee233d0576b20a0930824f0e27c559b",
+  "prompts": {},
+  "sessions": {
+    "s_4e2b0b0a92fc08": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "69ec633a-0c01-486a-80de-180205f86530",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "CCW <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}

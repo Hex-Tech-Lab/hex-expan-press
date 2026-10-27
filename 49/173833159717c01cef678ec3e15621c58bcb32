@@ -1,0 +1,21 @@
+web/app/api/billing/webhook/__tests__/audit-bounded.test.ts
+  s_6625bc67577472::t_5ae92a6267af2b 20-32
+web/app/api/billing/webhook/handler.ts
+  s_6625bc67577472::t_d129e31a460f77 42-43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "49173833159717c01cef678ec3e15621c58bcb32",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "CCW <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}

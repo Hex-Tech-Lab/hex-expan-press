@@ -1,0 +1,21 @@
+docs/agent_ledger.jsonl
+  s_1582e826c96fb8::t_90166c4165a696 483
+  s_1582e826c96fb8::t_3e1e641a69ece3 482
+  s_1582e826c96fb8::t_62b29d65ac404a 484
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "96a166cbabdd941d7f6fba72ceee6adf090bfbe5",
+  "prompts": {},
+  "sessions": {
+    "s_1582e826c96fb8": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef1d18fd4ffeu8wsfD9JiDUJTX",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}

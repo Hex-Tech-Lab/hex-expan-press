@@ -1,0 +1,41 @@
+web/app/d/[token]/route.ts
+  s_05b2d330202471::t_f50b8aed73a070 2-4
+  s_05b2d330202471::t_aa062978877cc6 1,5-71
+payments/src/delivery.ts
+  s_05b2d330202471::t_65a0e7bc94b168 1-161
+src/adapters/payments/paddle.adapter.ts
+  s_05b2d330202471::t_a692fb5d05382d 324
+payments/test/delivery.test.ts
+  s_05b2d330202471::t_9cebccaaa514aa 4-5,40,47,70
+  s_05b2d330202471::t_82d7180cd0ca3b 1-3,6-39,41-46,48-69,71-108
+supabase/migrations/20261015120000_download_events.sql
+  s_05b2d330202471::t_804e856c494292 1-26
+  s_05b2d330202471::t_3b1234d576d917 27-32
+src/adapters/payments/polar.adapter.ts
+  s_05b2d330202471::t_a692fb5d05382d 152
+web/app/d/[token]/__tests__/route.test.ts
+  s_05b2d330202471::t_f8f6114a008deb 1-84
+src/domain/payments/payments.port.ts
+  s_05b2d330202471::t_a692fb5d05382d 111-112
+payments/src/settings_registry.ts
+  s_05b2d330202471::t_8aaaf76d6e7d64 68-69
+  s_05b2d330202471::t_897dafbbaf954a 122-128
+src/use_cases/billing/process_billing_webhook.ts
+  s_05b2d330202471::t_1061b190533bab 15,507-508
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e82ca86efac89856c15507a3e18b7e829dd8d37e",
+  "prompts": {},
+  "sessions": {
+    "s_05b2d330202471": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ccf684ff-aee0-4752-a325-a0ab260efd02",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "CCW <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}

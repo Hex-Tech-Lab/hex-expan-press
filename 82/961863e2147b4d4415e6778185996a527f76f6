@@ -1,0 +1,24 @@
+docs/agent_ledger.jsonl
+  s_6625bc67577472::t_c36e9ce312ee21 740-741
+  s_6625bc67577472::t_61095aff9fba29 798-801
+  s_6625bc67577472::t_be899302d10709 742
+  s_6625bc67577472::t_3670d92989a365 737-739
+  s_6625bc67577472::t_34abf773607c24 743-745,795-797
+  s_6625bc67577472::t_b4facf01765b7b 802-804
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "82961863e2147b4d4415e6778185996a527f76f6",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "unknown"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}

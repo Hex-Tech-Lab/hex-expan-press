@@ -1,0 +1,38 @@
+web/app/books/[handle]/[product]/page.tsx
+  s_05b2d330202471::t_c124628cc29297 1-55,57-90,92-118
+  s_05b2d330202471::t_eba048d07d4de3 56,91
+web/app/creator/consents/consent-cards.tsx
+  s_05b2d330202471::t_a95020b60fe51c 195
+web/public/refund-policy.html
+  s_05b2d330202471::t_a95020b60fe51c 49
+web/app/creator/consents/actions.ts
+  s_05b2d330202471::t_a95020b60fe51c 57
+web/app/creator/signin/signin-client.tsx
+  s_05b2d330202471::t_a95020b60fe51c 122
+web/public/privacy.html
+  s_05b2d330202471::t_a95020b60fe51c 35,52,56,65
+web/src/components/landing/landing-page.tsx
+  s_05b2d330202471::t_a95020b60fe51c 85
+web/app/books/[handle]/page.tsx
+  s_05b2d330202471::t_c124628cc29297 1-146
+web/public/legal/providers.html
+  s_05b2d330202471::t_30f7b9bc7cfa46 51-55,70-74,95-134
+web/public/terms.html
+  s_05b2d330202471::t_a95020b60fe51c 44
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a755f15e65483cc5eda348385f517c7133ae42f5",
+  "prompts": {},
+  "sessions": {
+    "s_05b2d330202471": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ccf684ff-aee0-4752-a325-a0ab260efd02",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "CCW <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}

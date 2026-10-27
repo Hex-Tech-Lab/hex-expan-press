@@ -1,0 +1,50 @@
+scripts/qa-intel/engine/rules/persistence.ts
+  s_6625bc67577472::t_be2ff21c293a9c 71
+scripts/qa-intel/engine/rules/quality.ts
+  s_6625bc67577472::t_2326f0d3a83900 55,137
+  s_6625bc67577472::t_5de9384bdb11d6 281-286
+  s_6625bc67577472::t_90184a6eeb4615 17,25,93,95,143
+vitest.config.ts
+  s_6625bc67577472::t_7e3589afe01edc 17-27
+scripts/qa-intel/engine/rules/streaming.ts
+  s_6625bc67577472::t_02fc58cb243a7e 60
+scripts/qa-intel/engine/rules/security.ts
+  s_6625bc67577472::t_fb16cf8b0d5f75 416
+  s_6625bc67577472::t_50d91474b0aa2c 384-396,402
+  s_6625bc67577472::t_2326f0d3a83900 410
+  s_6625bc67577472::t_8b903c30422c64 502
+  s_6625bc67577472::t_f4aa9a02b150da 604-607
+  s_6625bc67577472::t_90184a6eeb4615 657
+  s_6625bc67577472::t_d13e5b50bf690b 403
+  s_6625bc67577472::t_a523a930248d92 379-383
+  s_6625bc67577472::t_4bf19bfd09fc98 516
+scripts/qa-intel/engine/__tests__/ts-morph-api.test.ts
+  s_6625bc67577472::t_38fba7c76b02da 1-28
+scripts/qa-intel/engine/rules/ui.ts
+  s_6625bc67577472::t_bdc5456a0db247 250-253
+  s_6625bc67577472::t_bece722611ff55 139-141
+  s_6625bc67577472::t_724c051820e537 142-160,162
+scripts/qa-intel/engine/rules/reliability-lessons-20260924.ts
+  s_6625bc67577472::t_2326f0d3a83900 287-288
+tsconfig.qa-intel.json
+  s_6625bc67577472::t_0b6affa4440ed7 1-11
+scripts/qa-intel/engine/__tests__/unsafe-property-access.test.ts
+  s_6625bc67577472::t_851b7c8acd993a 1-87,97-101
+  s_6625bc67577472::t_fd4992205621c8 88-96
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c5bc94a274c2002864223398573df4efbcee3172",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}

@@ -1,0 +1,19 @@
+docs/agent_ledger.jsonl
+  s_04aaddd1b3201b::t_4357ced57f7ac8 494
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "61f37f03baa3c1e794f4c7b71875c83448a70ada",
+  "prompts": {},
+  "sessions": {
+    "s_04aaddd1b3201b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ac96f60f-59e3-4774-bda5-c1985e3d3af8",
+        "model": "unknown"
+      },
+      "human_author": "CCW <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}

@@ -1,0 +1,44 @@
+scripts/qa-intel/engine/__tests__/persistence-rules.test.ts
+  s_6625bc67577472::t_f3d46da309d15b 1-161
+scripts/qa-intel/engine/__tests__/architecture-error-rules.test.ts
+  s_6625bc67577472::t_47f08061d0e175 1-91
+scripts/qa-intel/engine/__tests__/quality-error-rules.test.ts
+  s_6625bc67577472::t_4568a97fd1af76 1-204
+scripts/qa-intel/engine/__tests__/security-rules.test.ts
+  s_6625bc67577472::t_846a03acc59dd4 493,496
+  s_6625bc67577472::t_ea722501b7df94 492
+  s_6625bc67577472::t_e56e69a5c7b397 99
+  s_6625bc67577472::t_d7946060233603 502-515
+  s_6625bc67577472::t_be85ce3bd48d2f 1-98,100-245,247-254,256-491,494-495,497-501,516-548
+  s_6625bc67577472::t_24e2b09c583213 246
+  s_6625bc67577472::t_8f3e595b0c86c0 255
+scripts/qa-intel/engine/__tests__/reliability-q2-rules.test.ts
+  s_6625bc67577472::t_837c8b4a7db727 23-24,26
+  s_6625bc67577472::t_dd672cc93738ea 20
+scripts/qa-intel/engine/__tests__/reliability-lessons-rules.test.ts
+  s_6625bc67577472::t_4ad9a9cc6622dd 20-22
+  s_6625bc67577472::t_97307858029e2d 179
+  s_6625bc67577472::t_5f861cc115f3a0 1-19,23-178,180-284
+scripts/qa-intel/engine/__tests__/streaming-critical-rules.test.ts
+  s_6625bc67577472::t_f0f3d0b41fce94 1-98
+scripts/qa-intel/engine/__tests__/data-integrity-rules.test.ts
+  s_6625bc67577472::t_0aebefdee36fef 1-235
+scripts/qa-intel/engine/__tests__/ui-error-rules.test.ts
+  s_6625bc67577472::t_1a722f5e796899 1-112
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a9041b3fbff65b8299b11690c2998ecee17651da",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}

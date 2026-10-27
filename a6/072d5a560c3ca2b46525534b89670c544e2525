@@ -1,0 +1,23 @@
+web/app/api/billing/webhook/__tests__/missing-supabase-env.test.ts
+  s_6625bc67577472::t_640c2b1fbc59aa 1-35
+web/app/api/billing/webhook/handler.ts
+  s_6625bc67577472::t_26d78d3d8f8e3f 19-23
+  s_6625bc67577472::t_f7574f285f080e 186-189
+  s_6625bc67577472::t_3c3cb5d61df154 177
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a6072d5a560c3ca2b46525534b89670c544e2525",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}

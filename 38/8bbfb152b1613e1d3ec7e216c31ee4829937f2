@@ -1,0 +1,202 @@
+scripts/qa-intel/config.ts
+  s_6625bc67577472::t_386cc22429c6d5 1-12
+scripts/qa-intel/engine/__tests__/verify-decomposition.ts
+  s_6625bc67577472::t_991bbc66f8492a 1-376
+scripts/qa-intel/engine/cache.ts
+  s_6625bc67577472::t_991bbc66f8492a 7-34,36-39,41-65,67-84,86-98,101-103
+  s_6625bc67577472::t_eb5418a747b33a 1-6,35,40,66,85,99-100
+scripts/qa-intel/engine/infra/LegacyRuleAdapter.ts
+  s_6625bc67577472::t_991bbc66f8492a 1-20
+scripts/qa-intel/engine/rules/__tests__/security-lessons-20260924.test.ts
+  s_6625bc67577472::t_991bbc66f8492a 1-506
+scripts/qa-intel/engine/domain/SourceGraph.ts
+  s_6625bc67577472::t_991bbc66f8492a 1-20
+scripts/qa-intel/engine/rules/rules-config.ts
+  s_6625bc67577472::t_991bbc66f8492a 1-176
+scripts/qa-intel/engine/__tests__/wave9-new-rules.test.ts
+  s_6625bc67577472::t_991bbc66f8492a 1-296
+scripts/qa-intel/engine/rules/security-lessons-20260905.ts
+  s_6625bc67577472::t_991bbc66f8492a 1-236
+scripts/qa-intel/engine/__tests__/reliability-q2-rules.test.ts
+  s_6625bc67577472::t_991bbc66f8492a 1-478
+scripts/qa-intel/engine/rules/artas-rules.ts
+  s_6625bc67577472::t_991bbc66f8492a 1-451
+scripts/contract-auditor/cli.ts
+  s_6625bc67577472::t_cd122c2d685c3a 1-55
+scripts/qa-intel/engine/rules/ui.ts
+  s_6625bc67577472::t_991bbc66f8492a 1-366
+scripts/qa-intel/engine/application/SourceRegistry.ts
+  s_6625bc67577472::t_991bbc66f8492a 1-20
+scripts/qa-intel/engine/rules/__tests__/security-lessons-20260905.test.ts
+  s_6625bc67577472::t_991bbc66f8492a 1-179
+scripts/qa-intel/__tests__/cache.test.ts
+  s_6625bc67577472::t_532e5fe8232931 1-206
+scripts/contract-auditor/__tests__/gate.test.ts
+  s_6625bc67577472::t_229d44ab1c4a26 1-98
+scripts/qa-intel/engine/rules/__tests__/security-lessons-20260905-registration.test.ts
+  s_6625bc67577472::t_991bbc66f8492a 1-80
+scripts/qa-intel/engine/infra/TsMorphLoader.ts
+  s_6625bc67577472::t_991bbc66f8492a 1-35
+scripts/qa-intel/engine/rules/security-lessons-20261010.ts
+  s_6625bc67577472::t_991bbc66f8492a 1-213
+scripts/qa-intel/engine/rules/persistence.ts
+  s_6625bc67577472::t_991bbc66f8492a 1-135
+scripts/qa-intel/engine/rules/security.ts
+  s_6625bc67577472::t_991bbc66f8492a 1-676
+scripts/qa-intel/engine/rules/__tests__/data-lessons-20260924.test.ts
+  s_6625bc67577472::t_991bbc66f8492a 1-428
+scripts/qa-intel/engine/rules/sql-migrations.ts
+  s_6625bc67577472::t_991bbc66f8492a 1-555
+scripts/qa-intel/engine/application/ports/CachePort.ts
+  s_6625bc67577472::t_991bbc66f8492a 1-5
+scripts/qa-intel/engine/domain/RuleError.ts
+  s_6625bc67577472::t_991bbc66f8492a 1-13
+scripts/qa-intel/base-ref.ts
+  s_6625bc67577472::t_386cc22429c6d5 1-30
+docs/qa-intel/BASELINE_TRIAGE_2026-10-26.md
+  s_6625bc67577472::t_f30133f0bb5774 19
+  s_6625bc67577472::t_9802cf5bccf7b1 1-18,20-38
+scripts/qa-intel/engine/rules/__tests__/artas-rules-registration.test.ts
+  s_6625bc67577472::t_991bbc66f8492a 1-37
+scripts/qa-intel/engine/engine.ts
+  s_6625bc67577472::t_991bbc66f8492a 1-81
+scripts/qa-intel/engine/redis-port.ts
+  s_6625bc67577472::t_386cc22429c6d5 1-20
+scripts/qa-intel.ts
+  s_6625bc67577472::t_c003a24236e0d2 21
+  s_6625bc67577472::t_991bbc66f8492a 1-12,18-20,22-64,66-137,139-151,153-210,216-404
+  s_6625bc67577472::t_6904135a3aac48 13-17,65,138,152,211-215
+scripts/qa-intel/engine/rules/data-lessons-20260924.ts
+  s_6625bc67577472::t_991bbc66f8492a 1-295
+scripts/qa-intel/engine/infra/TrackedFileEnumeration.ts
+  s_6625bc67577472::t_991bbc66f8492a 1-50
+scripts/qa-intel/engine/application/QualityEngine.ts
+  s_6625bc67577472::t_991bbc66f8492a 1-154
+scripts/qa-intel/engine/rules/__tests__/lessons-20261009.test.ts
+  s_6625bc67577472::t_991bbc66f8492a 2-8,10-84,107-190
+  s_6625bc67577472::t_afc4718270b439 1,9,85-106
+scripts/qa-intel/engine/rules/reliability-lessons-20260924.ts
+  s_6625bc67577472::t_991bbc66f8492a 1-457
+scripts/qa-intel/cache-mode.ts
+  s_6625bc67577472::t_386cc22429c6d5 1-22
+scripts/qa-intel/engine/domain/Finding.ts
+  s_6625bc67577472::t_991bbc66f8492a 1-7
+scripts/qa-intel/__tests__/cache-mode.test.ts
+  s_6625bc67577472::t_7c34acaea37e47 1-23
+scripts/qa-intel/engine/application/EngineConfig.ts
+  s_6625bc67577472::t_991bbc66f8492a 1-9
+scripts/qa-intel/engine/infra/NodeFileSystem.ts
+  s_6625bc67577472::t_991bbc66f8492a 1-15
+scripts/qa-intel/engine/rules/__tests__/data-lessons-20260924-registration.test.ts
+  s_6625bc67577472::t_991bbc66f8492a 1-40
+scripts/qa-intel/engine/rules/quality.ts
+  s_6625bc67577472::t_991bbc66f8492a 1-497
+scripts/contract-auditor.ts
+  s_6625bc67577472::t_991bbc66f8492a 1,5
+  s_6625bc67577472::t_cd122c2d685c3a 2-4,6-15
+  s_6625bc67577472::t_cf12a61058a750 16
+scripts/qa-intel/engine/rules/security-lessons-20260924.ts
+  s_6625bc67577472::t_991bbc66f8492a 1-414
+scripts/qa-intel/engine/rules/__tests__/sql-migrations.test.ts
+  s_6625bc67577472::t_991bbc66f8492a 1-111,116-709,712-713,720-721
+  s_6625bc67577472::t_d844727da7bcb1 112-115,710-711,714-719
+scripts/qa-intel/engine/rules/index.ts
+  s_6625bc67577472::t_991bbc66f8492a 1-62
+scripts/qa-intel/engine/rules/streaming.ts
+  s_6625bc67577472::t_991bbc66f8492a 1-338
+package.json
+  s_6625bc67577472::t_991bbc66f8492a 54-55
+scripts/qa-intel/engine/infra/CacheAdapter.ts
+  s_6625bc67577472::t_991bbc66f8492a 1-29
+CLAUDE.md
+  s_6625bc67577472::t_a9c873a40a1633 35
+scripts/qa-intel/engine/__tests__/wave10-new-rules.test.ts
+  s_6625bc67577472::t_991bbc66f8492a 1-152
+scripts/contract-auditor/gate.ts
+  s_6625bc67577472::t_cd122c2d685c3a 1-52
+scripts/qa-intel/engine/rules/__tests__/security-lessons-20261010.test.ts
+  s_6625bc67577472::t_991bbc66f8492a 1-128
+scripts/qa-intel/__tests__/redis-port.test.ts
+  s_6625bc67577472::t_7c34acaea37e47 1-52
+scripts/qa-intel/engine/rules/data-integrity.ts
+  s_6625bc67577472::t_991bbc66f8492a 1-203
+scripts/qa-intel/engine/rules/rules-engine.ts
+  s_6625bc67577472::t_991bbc66f8492a 1-46
+scripts/qa-intel/engine/rules/architecture.ts
+  s_6625bc67577472::t_991bbc66f8492a 1-375
+scripts/qa-intel/engine/rules/rules-registry.ts
+  s_6625bc67577472::t_991bbc66f8492a 1-132
+scripts/qa-intel/engine/infra/MemoryCache.ts
+  s_6625bc67577472::t_991bbc66f8492a 1-17
+scripts/contract-auditor.baseline.json
+  s_6625bc67577472::t_3c4a5f55ee5e37 7
+  s_6625bc67577472::t_ac8ff71afe92d4 1-6,8-9
+.qa-intel/baseline.json
+  s_6625bc67577472::t_a373c28e0ec8a8 52-66,72-92,198-204,212-266,269-295,356,409-413,416,418-420,423,425-427,430-451,457-560,564-568,572-574,579-581,587,660-673,727,765-771,807-813,878-987,1017,1019-1024,1026-1030,1065-1113,1116,1118-1120,1157-1163,1171-1191,1213-1219,1227-1240,1290-1296,1361,1364,1367-1394,1466,1473,1480,1487-1491,1494-1498,1501,1503-1505,1508,1525,1661-1702,1756,1766-1779,1850-1947,1969-1982
+  s_6625bc67577472::t_ff11ada4b33f59 1061-1064
+  s_6625bc67577472::t_3c4a5f55ee5e37 267-268,561-563,1060
+  s_6625bc67577472::t_cc21f173d1013a 1018,1025
+scripts/qa-intel/engine/rules/__tests__/artas-rules.test.ts
+  s_6625bc67577472::t_991bbc66f8492a 1-418
+vitest.qa-intel.config.ts
+  s_6625bc67577472::t_3d8883429d348d 1-2,14-21,24-26,28-34
+  s_6625bc67577472::t_a1c62c58236a60 3-9,11-13,27
+  s_6625bc67577472::t_532e5fe8232931 10,22-23
+scripts/contract-auditor/rules.ts
+  s_6625bc67577472::t_05e506d64e37d4 197-200
+  s_6625bc67577472::t_e4017930250015 181,184-185,251-252
+  s_6625bc67577472::t_229d44ab1c4a26 85
+  s_6625bc67577472::t_a9d610707f5c26 15,58,89,148,163-164,166-167,182-183,238,241-242
+  s_6625bc67577472::t_dc65a85720f660 285-301
+  s_6625bc67577472::t_61ecfe7282087d 140-144,147,149-150,159,162,188-190,193,196,204,223-227,230,239,243,253,262
+  s_6625bc67577472::t_cb1f5c7b7b363f 275-281,284
+  s_6625bc67577472::t_bc16d112c432f6 1-14,16-57,59-84,86-88,90-139,145-146,151-158,160-161,165,168-180,186-187,191-192,194-195,201-203,205-222,228-229,231-237,240,244-250,254-261,263-274,282-283,302-313
+scripts/qa-intel/engine/domain/Rule.ts
+  s_6625bc67577472::t_991bbc66f8492a 1-43
+scripts/qa-intel/engine/rules/__tests__/tracked-file-enumeration.test.ts
+  s_6625bc67577472::t_991bbc66f8492a 1-2,4,6-8,11-12,14-18,21-22,27-28,32,34-36,38,51-72
+  s_6625bc67577472::t_24208674ca1a7c 37,39-50
+  s_6625bc67577472::t_7964ee5971f716 3
+  s_6625bc67577472::t_d844727da7bcb1 5,9-10,13,19-20,23-26,29-31,33
+scripts/contract-auditor/__tests__/cli.test.ts
+  s_6625bc67577472::t_229d44ab1c4a26 1-14,16-104,106-108
+  s_6625bc67577472::t_b483504e87e47c 15,105
+scripts/qa-intel/engine/application/ports/FileSystemPort.ts
+  s_6625bc67577472::t_991bbc66f8492a 1-4
+scripts/qa-intel/engine/application/ports/FileLoaderPort.ts
+  s_6625bc67577472::t_991bbc66f8492a 1-7
+scripts/qa-intel/engine/rules/lessons-20261009.ts
+  s_6625bc67577472::t_991bbc66f8492a 1-182
+scripts/qa-intel/__tests__/base-ref.test.ts
+  s_6625bc67577472::t_7c34acaea37e47 1-49
+scripts/contract-auditor/config.ts
+  s_6625bc67577472::t_cd122c2d685c3a 8-14
+  s_6625bc67577472::t_229d44ab1c4a26 18-19
+  s_6625bc67577472::t_bc16d112c432f6 1-7,15-17,20
+scripts/contract-auditor/__tests__/rules.test.ts
+  s_6625bc67577472::t_e4017930250015 82,97-101
+  s_6625bc67577472::t_05e506d64e37d4 83-84
+  s_6625bc67577472::t_61ecfe7282087d 85-87,120-124
+  s_6625bc67577472::t_ebcdcd7aa209fe 75-76,177-182,184-187,189-196
+  s_6625bc67577472::t_c012de3ab3eb18 1-74,77-81,88-96,102-119,125-176,183,188,197-205
+scripts/contract-auditor/__tests__/shim.test.ts
+  s_6625bc67577472::t_8f2b2a87873ebb 1-42
+pnpm-lock.yaml
+  s_6625bc67577472::t_7a4fa8d8c39c75 146-151,2263-2265,3044-3046,4906-4908,6707-6712,7643-7644,9867-9871
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "388bbfb152b1613e1d3ec7e216c31ee4829937f2",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}

@@ -1,0 +1,22 @@
+web/app/api/billing/webhook/__tests__/route.test.ts
+  s_6625bc67577472::t_c38e25323d27fe 23
+  s_6625bc67577472::t_3ff36002ec1a4d 1,5-12
+CLAUDE.md
+  s_6625bc67577472::t_6dbb6ffde5f899 38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "de695fbc1d17594613c92ac2adf88e931a85bba6",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}

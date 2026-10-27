@@ -1,0 +1,19 @@
+web/src/lib/__tests__/supabase-server.test.ts
+  s_bb4a654b1c43f5::t_32f0daf4796338 369-411
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e3ae09428e9971c04b213dc598d8be0be3438dec",
+  "prompts": {},
+  "sessions": {
+    "s_bb4a654b1c43f5": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-aedd953cc712c03fc",
+        "model": "unknown"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}

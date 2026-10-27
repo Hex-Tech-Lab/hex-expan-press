@@ -1,0 +1,16 @@
+docs/agent_ledger.jsonl
+  h_e6b68dcbbd0983 850-852
+supabase/migrations/20261019180000_download_events_generation_key.sql
+  h_e6b68dcbbd0983 7
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "51714f0e1bff1e77387880ee3cc3a0accd7cfb00",
+  "prompts": {},
+  "humans": {
+    "h_e6b68dcbbd0983": {
+      "author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}

@@ -1,0 +1,20 @@
+web/app/creator/signin/actions.ts
+  s_1c0c12b5f78e15::t_34020b6958090c 14-29
+  s_1c0c12b5f78e15::t_59900f8e4b3246 37,66
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "0a0d163a2652149734a6e79e0dbfc095e74f81b1",
+  "prompts": {},
+  "sessions": {
+    "s_1c0c12b5f78e15": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f16d2b389ffeHH33POrKiH1FLh",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}

@@ -1,0 +1,27 @@
+web/public/terms.html
+  s_05b2d330202471::t_d53f6e61293dae 44
+scripts/live_site_check.py
+  s_05b2d330202471::t_d53f6e61293dae 38-40
+  s_05b2d330202471::t_cb2d95f254da06 14
+docs/agent_ledger.jsonl
+  s_05b2d330202471::t_32f70afc02ace7 526-529
+.claude/hooks/skill-gates.sh
+  s_05b2d330202471::t_148d40da0cccf4 71
+  s_05b2d330202471::t_d53f6e61293dae 14-16,82,94-106,110
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "80019d03f0dadf1091592c1f06917e01227a3291",
+  "prompts": {},
+  "sessions": {
+    "s_05b2d330202471": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "ccf684ff-aee0-4752-a325-a0ab260efd02",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "CCW <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}

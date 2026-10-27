@@ -1,0 +1,19 @@
+payments/test/redis.test.ts
+  s_768059c0b6e1e9::t_14e8b09ce4a6fe 1,3,8-11,39-62
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "e541818e88f2f18c25f43f0e39b2c5df48465d45",
+  "prompts": {},
+  "sessions": {
+    "s_768059c0b6e1e9": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f0e6d424affe0Ob52pmUhM39UX",
+        "model": "@preset/glm-53-flash-on-cheap"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}

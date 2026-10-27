@@ -1,0 +1,19 @@
+payments/test/money_path_guard.test.ts
+  s_3e8d78dfced48a::t_ad10a67dd60de0 1-126
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "90d04808ade409bbd6b5471833a2f2553bcc15f2",
+  "prompts": {},
+  "sessions": {
+    "s_3e8d78dfced48a": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ef74d41ccffeSr112kzKunxuT5",
+        "model": "z-ai/glm-5.3-flash"
+      },
+      "human_author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}

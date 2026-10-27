@@ -1,0 +1,18 @@
+src/adapters/database/supabase.adapter.ts
+  h_90c2451a76ba0d 38,40-50
+src/use_cases/__tests__/audit-esign-replay.test.ts
+  h_90c2451a76ba0d 24-29,47-70
+src/use_cases/process_esign_webhook.ts
+  h_90c2451a76ba0d 66-76
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "7886789ca6133e248d0a17f127fb972e2a2f3ee2",
+  "prompts": {},
+  "humans": {
+    "h_90c2451a76ba0d": {
+      "author": "CCW <119903405+kellybakri@users.noreply.github.com>"
+    }
+  }
+}

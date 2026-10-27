@@ -1,0 +1,24 @@
+scripts/qa-intel/engine/cache.ts
+  s_6625bc67577472::t_42cc2fde8633e1 8-11,39-42,45-54,60-61,77-78,89-90,95-96,99
+  s_6625bc67577472::t_eb0c43277dd4a5 7
+scripts/qa-intel/__tests__/cache.test.ts
+  s_6625bc67577472::t_b234c8a5828be6 2,21-24,108-109,111,113,116,118,124,133,153-154,156-163
+scripts/qa-intel/engine/__tests__/wave9-new-rules.test.ts
+  s_6625bc67577472::t_88c49267531a47 13-16,18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "378e4514fdd93b7cdd30431fa884a4749f674a64",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
