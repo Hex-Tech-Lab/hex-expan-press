@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "noEmit": true, "strict": true, "skipLibCheck": true },
+  "include": [
+    "scripts/qa-intel.ts",
+    "scripts/qa-intel/**/*.ts",
+    "scripts/contract-auditor.ts",
+    "scripts/contract-auditor/**/*.ts"
+  ],
+  "exclude": ["scripts/qa-intel/engine/rules/**", "node_modules"]
+}

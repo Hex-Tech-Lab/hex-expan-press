@@ -57,7 +57,7 @@ function checkSentryInAbortCatch(source: SourceFile): boolean {
   let foundSentryInAbortCatch = false;
 
   source.forEachDescendant((node) => {
-    if (node.getKind() !== SyntaxKind.CatchClause) return;
+    if (!Node.isCatchClause(node)) return;
 
     const catchClause = node;
     const catchBlock = catchClause.getBlock();
