@@ -1,0 +1,21 @@
+docs/adr/0062-database-schema-access-model.md
+  s_6625bc67577472::t_adc39a61ccf0b5 1-66
+supabase/migrations/20261027120000_deny_client_access_explicit.sql
+  s_6625bc67577472::t_0bf1711fabeb24 1-13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1bafd431d949860b6c3c08ddde64dcefd4554d88",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
