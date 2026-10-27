@@ -1,0 +1,44 @@
+web/src/components/storefront/storefront.tsx
+  s_6625bc67577472::t_09cac30d436fa3 145
+  s_6625bc67577472::t_697568742e2eaa 6
+  s_6625bc67577472::t_de07dbe61db766 90
+web/app/creator/dashboard/actions.ts
+  s_6625bc67577472::t_c6550b654641b9 5
+  s_6625bc67577472::t_d8355b59a6542f 118
+web/app/creator/signin/actions.ts
+  s_6625bc67577472::t_c5c0384388df7b 6
+  s_6625bc67577472::t_2ba48854d88646 40
+web/proxy.ts
+  s_6625bc67577472::t_6f4b5b396b55b7 23-25
+  s_6625bc67577472::t_1077d156bd2d0c 36
+payments/src/domains.ts
+  s_6625bc67577472::t_7b0aa18e313158 1-7
+payments/src/settings_registry.ts
+  s_6625bc67577472::t_645a10fde711e7 9
+  s_6625bc67577472::t_5ac65d7587e8a1 102
+  s_6625bc67577472::t_b5a1cfa35cd041 49
+payments/src/delivery.ts
+  s_6625bc67577472::t_79b2cf5c8cf170 192
+web/app/page.tsx
+  s_6625bc67577472::t_4f5dda9ce37102 10
+  s_6625bc67577472::t_4833eea2cda768 4
+  s_6625bc67577472::t_2068de71260de4 17
+payments/test/domains.test.ts
+  s_6625bc67577472::t_11ffdad8b0bd53 1-15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "dd9353823a141b3eb75dc4201935485cca9f1f0d",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
