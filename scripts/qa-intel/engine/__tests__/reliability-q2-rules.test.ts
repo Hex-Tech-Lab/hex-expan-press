@@ -17,12 +17,13 @@ import {
   ErrorPathAsymmetryRule,
   SuccessGuardedPersistenceRule,
 } from '../rules/reliability-lessons-20260924';
-import type { Rule } from '../rules/reliability-lessons-20260924';
+import type { Rule } from '../domain/Rule';
 import type { SourceFile } from 'ts-morph';
 
+// One project for the file: building a Project per test pays the lib-load cost each time and timed out under coverage load.
+const sharedProject = new Project({ useInMemoryFileSystem: true });
 function createTestSource(code: string, path = 'test.ts'): SourceFile {
-  const project = new Project({ useInMemoryFileSystem: true });
-  return project.createSourceFile(path, code);
+  return sharedProject.createSourceFile(path, code, { overwrite: true });
 }
 
 function check(rule: Rule, code: string, path = 'test.ts') {
