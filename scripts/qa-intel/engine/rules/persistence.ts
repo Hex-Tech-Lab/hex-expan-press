@@ -68,7 +68,7 @@ export const RetryFlagInterferenceRule: IRule = {
       // targets -- false-positived on web/lib/redis.ts's executeRedisScript, whose
       // `attempt` is a plain retry-count index, not a flag gating an early return.
       // Require a boolean-literal initializer so only the real "flag" shape matches.
-      const flagPatterns = text.match(/let\s+\w*(attempt|persisted|done)\w*\s*=\s*(true|false)\b/g) || [];
+      const flagPatterns = text.match(/let\s+\w*([aA]ttempt|persisted|done)\w*\s*=\s*(true|false)\b/g) || [];
       if (flagPatterns.length > 0) {
         findings.push({
           file: filePath,

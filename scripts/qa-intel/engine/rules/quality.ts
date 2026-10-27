@@ -14,9 +14,7 @@ export const AsyncWithoutAwaitRule: IRule = {
         const isAsync = node.getModifiers().some(m => m.getKind() === SyntaxKind.AsyncKeyword);
         if (isAsync) {
           // Check if body contains any await
-          const body = Node.isFunctionDeclaration(node) || Node.isFunctionExpression(node)
-            ? node.getBody()
-            : (node as any).getBody?.();
+          const body = Node.isBodyable(node) ? node.getBody() : undefined;
 
           if (body) {
             const bodyText = body.getText();
@@ -24,7 +22,7 @@ export const AsyncWithoutAwaitRule: IRule = {
 
             if (!hasAwait) {
               // Get function name for better reporting
-              const funcName = (node as any).getName?.() || 'anonymous';
+              const funcName = (Node.isNameable(node) ? node.getName() : undefined) || 'anonymous';
               findings.push({
                 file: filePath,
                 severity: "medium",
@@ -54,7 +52,7 @@ export const DeadCodeRule: IRule = {
           // Detect unreachable if statements (always false conditions)
           if (Node.isIfStatement(node)) {
             try {
-              const condition = node.getCondition?.();
+              const condition = node.getExpression();
               if (condition) {
                 const condText = condition.getText().trim();
                 // Check for obviously false conditions like !optionsSent when it's always true
@@ -92,9 +90,9 @@ export const VariableNamingRule: IRule = {
 
     source.forEachDescendant((node) => {
       if (Node.isVariableDeclaration(node) || Node.isParameterDeclaration(node)) {
-        const nameNode = node.getNameNode?.() || (node as any).getName?.();
+        const nameNode = node.getNameNode();
         if (nameNode) {
-          const name = typeof nameNode === 'string' ? nameNode : nameNode.getText?.() ?? '';
+          const name = nameNode.getText();
 
           // Flag single-letter variable names (except in loops or very short scopes)
           if (name.length === 1 && name !== 'i' && name !== 'j' && name !== 'x' && name !== 'y') {
@@ -136,13 +134,13 @@ export const VariableNamingRule: IRule = {
             }
             // Check if this is in a loop context
             let inLoop = false;
-            let current = node.getParent();
+            let current: Node | undefined = node.getParent();
             while (current) {
               if (Node.isForStatement(current) || Node.isForInStatement(current) || Node.isForOfStatement(current) || Node.isWhileStatement(current)) {
                 inLoop = true;
                 break;
               }
-              current = current.getParent?.();
+              current = current.getParent();
             }
 
             if (!inLoop) {
@@ -280,8 +278,12 @@ export const ErrorObservabilityRule: IRule = {
           if (block) {
             const bodyText = block.getText();
 
-            // Check if catch block contains any logging or Sentry
-            const hasObservability = bodyText.includes('console.') || bodyText.includes('Sentry.') || bodyText.includes('logger.');
+            // Observability must be a real call. A substring test over the raw body let a comment or a string
+            // such as "Sentry. unavailable" silence the rule on a catch that swallows the error.
+            const hasObservability = block.getDescendantsOfKind(SyntaxKind.CallExpression).some((call) => {
+              const callee = call.getExpression().getText();
+              return callee.includes('console.') || callee.includes('Sentry.') || callee.includes('logger.');
+            });
 
             if (!hasObservability && !bodyText.trim().startsWith('//')) {
               findings.push({

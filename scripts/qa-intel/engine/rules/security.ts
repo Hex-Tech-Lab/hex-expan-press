@@ -376,24 +376,44 @@ export const HmacMessageFormatRule: IRule = {
   }
 };
 
+/** `str.split(sep)` always returns at least one element, so index 0 of its result cannot be out of range. */
+function isSplitResult(base: Node): boolean {
+  return Node.isCallExpression(base) && /\.split$/.test(base.getExpression().getText());
+}
+
+/**
+ * True when an if-statement earlier in the same function tests the array this access reads from, such as
+ * `if (parts.length !== 3) return null;` before `parts[0]`. An access inside that if's own branch also counts.
+ */
+function guardedByEarlierCheck(func: Node, base: Node, access: Node): boolean {
+  const name = base.getText().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const reference = new RegExp(`(?<![\\w$])${name}(?![\\w$])`);
+  return func.getDescendantsOfKind(SyntaxKind.IfStatement).some((ifStatement) => {
+    const condition = ifStatement.getExpression();
+    return condition.getEnd() <= access.getStart() && reference.test(condition.getText());
+  });
+}
+
 export const UnsafePropertyAccessRule: IRule = {
   name: "unsafe-property-access",
   check: (source: SourceFile) => {
     const findings: Finding[] = [];
     const filePath = source.getFilePath().replace(/\\/g, "/");
+    // Production I/O only, as the title says. Test files index fixtures on purpose and are out of scope.
+    if (/\.(test|spec)\.[tj]sx?$/.test(filePath) || filePath.includes('__tests__/')) return findings;
 
     source.forEachDescendant((node) => {
       if (Node.isElementAccessExpression(node)) {
         try {
           const index = node.getArgumentExpression()?.getText();
           if (index === '0' || index === '1') {
-            const hasOptional = node.getQuestionTokenNode() !== undefined;
+            const hasOptional = node.getQuestionDotTokenNode() !== undefined;
             if (!hasOptional) {
               const tryStatement = node.getFirstAncestorByKind(SyntaxKind.TryStatement);
               if (!tryStatement) {
                 const func = node.getFirstAncestorByKind(SyntaxKind.ArrowFunction)
                   || node.getFirstAncestorByKind(SyntaxKind.FunctionDeclaration);
-                if (func && (func.getText().includes('fetch') || func.getText().includes('extract') || func.getText().includes('parse'))) {
+                if (func && (func.getText().includes('fetch') || func.getText().includes('extract') || func.getText().includes('parse')) && !isSplitResult(node.getExpression()) && !guardedByEarlierCheck(func, node.getExpression(), node)) {
                   findings.push({
                     file: filePath,
                     severity: "medium",
@@ -479,7 +499,7 @@ export const SqlInjectionRule: IRule = {
       source.forEachDescendant((node) => {
         if (Node.isTemplateExpression(node)) {
           const literalText = node.getText();
-          if (literalText.includes("SELECT") || literalText.includes("INSERT") || literalText.includes("UPDATE")) {
+          if (literalText.includes("SELECT") || literalText.includes("INSERT") || literalText.includes("UPDATE") || literalText.includes("DELETE")) {
             findings.push({
               file: filePath,
               severity: "critical",
@@ -493,7 +513,7 @@ export const SqlInjectionRule: IRule = {
           const operator = node.getOperatorToken().getKind();
           if (operator === SyntaxKind.PlusToken) {
             const nodeText = node.getText();
-            if (nodeText.includes("SELECT") || nodeText.includes("INSERT") || nodeText.includes("UPDATE")) {
+            if (nodeText.includes("SELECT") || nodeText.includes("INSERT") || nodeText.includes("UPDATE") || nodeText.includes("DELETE")) {
               findings.push({
                 file: filePath,
                 severity: "critical",
@@ -581,8 +601,10 @@ export const YamlInjectionRule: IRule = {
     const filePath = source.getFilePath().replace(/\\/g, "/");
     const text = source.getText();
 
-    // Detect YAML front matter without proper escaping
-    if (text.includes('---') && (text.includes('front matter') || text.includes('YAML') || filePath.includes('markdown'))) {
+    // Detect YAML front matter without proper escaping. The mention check reads getFullText(): getText() drops the
+    // leading comments of the first statement, so a header note such as "YAML front matter" was invisible to this gate.
+    const fullText = source.getFullText();
+    if (text.includes('---') && (fullText.includes('front matter') || fullText.includes('YAML') || filePath.includes('markdown'))) {
       // Look for unescaped YAML values (missing quotes) - handle both Unix and Windows line endings
       const yamlPattern = /---\r?\n[^:]+:\s*\$\{[^}]+\}/;
       if (yamlPattern.test(text)) {
@@ -632,7 +654,7 @@ export const ReservedKeywordRule: IRule = {
           Node.isBindingElement(parent) ||
           Node.isFunctionDeclaration(parent) ||
           Node.isClassDeclaration(parent)) &&
-        parent.getNameNode?.() === node;
+        parent.getNameNode() === node;
       if (!isDeclarationName) return;
 
       const name = node.getText();

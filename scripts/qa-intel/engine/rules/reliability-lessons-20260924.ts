@@ -284,7 +284,8 @@ export const ServerFetchWithoutTimeoutRule: Rule = {
         return arg.getProperties().some((prop) => {
           if (Node.isPropertyAssignment(prop)) {
             if (prop.getNameNode().getText() !== "signal") return false;
-            return signalExprIsBounded(prop.getInitializer());
+            const init = prop.getInitializer();
+            return init !== undefined && signalExprIsBounded(init);
           }
           if (Node.isShorthandPropertyAssignment(prop)) {
             if (prop.getName() !== "signal") return false;

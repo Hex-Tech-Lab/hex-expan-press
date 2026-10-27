@@ -136,13 +136,30 @@ export const UnhandledClipboardPromiseRule: IRule = {
       source.forEachDescendant((node) => {
         if (Node.isCallExpression(node)) {
           const expr = node.getExpression().getText();
-          if (expr.includes('clipboard.writeText') || expr.includes('clipboard.readText')) {
-            const tryStatement = node.getFirstAncestorByKind(SyntaxKind.TryStatement);
-            const hasCatch = node.getFirstAncestorByKind(SyntaxKind.CatchClause);
-            const parentText = node.getParent()?.getText() || '';
-            const hasDotCatch = parentText.includes('.catch(');
+          // Anchored at the end: the outer `.catch(...)` call's callee text also contains "clipboard.writeText", and
+          // checking it as a clipboard call flagged the very `.catch` remedy the rule recommends.
+          if (/clipboard\.(?:writeText|readText)$/.test(expr)) {
+            // Handled only when a try WITH a catch clause encloses the call in its try block, or when a `.catch`
+            // member is chained onto the call. A finally-only try, or a call inside a catch body, does not catch.
+            let coveredByCatch = false;
+            let child: Node = node;
+            for (let parent = node.getParent(); parent; child = parent, parent = parent.getParent()) {
+              if (Node.isTryStatement(parent) && parent.getTryBlock() === child && parent.getCatchClause()) {
+                coveredByCatch = true;
+                break;
+              }
+            }
+            let hasDotCatch = false;
+            let chained: Node = node;
+            for (let parent = node.getParent(); parent; chained = parent, parent = parent.getParent()) {
+              if (Node.isPropertyAccessExpression(parent) && parent.getExpression() === chained && parent.getName() === 'catch') {
+                hasDotCatch = true;
+                break;
+              }
+              if (!Node.isPropertyAccessExpression(parent) && !Node.isCallExpression(parent)) break;
+            }
 
-            if (!tryStatement && !hasCatch && !hasDotCatch) {
+            if (!coveredByCatch && !hasDotCatch) {
               findings.push({
                 file: filePath,
                 severity: "medium",
@@ -230,7 +247,10 @@ export const SwallowedErrorRule: IRule = {
             return trimmed === '' || trimmed.startsWith('//');
           });
         };
-        const hasOnlyComments = statements.length === 0 && block.getFullText().trim().length > 0 && (/^\s*\/\*[\s\S]*\*\/\s*$/.test(block.getFullText()) || isAllLineComments(block.getFullText().trim()));
+        // Judge the comment content between the braces. The full block text still carries `{` and `}`, so testing it
+        // against an all-comment pattern could never match and deliberately documented catches were flagged.
+        const innerText = block.getText().replace(/^\{/, '').replace(/\}$/, '').trim();
+        const hasOnlyComments = statements.length === 0 && innerText.length > 0 && (/^\/\*[\s\S]*\*\/$/.test(innerText) || isAllLineComments(innerText));
         if (statements.length === 0 && !hasOnlyComments) {
           findings.push({
             file: filePath,
