@@ -1,0 +1,30 @@
+payments/src/delivery.ts
+  s_6625bc67577472::t_38f12bb60ad5ab 159
+docs/adr/0064-remove-immutable-cover-cache.md
+  s_6625bc67577472::t_c348641336814d 33
+scripts/__tests__/sync-supabase-to-r2.test.ts
+  s_6625bc67577472::t_022e9d7adea453 488-576
+src/adapters/storage/__tests__/r2.adapter.test.ts
+  s_6625bc67577472::t_c4deb1e440a648 500
+src/adapters/storage/r2.adapter.ts
+  s_6625bc67577472::t_5a04ef15c28a4b 340
+  s_6625bc67577472::t_4e8dd55a6b820d 274
+scripts/sync-supabase-to-r2.ts
+  s_6625bc67577472::t_ed43b2a1611fc2 178-181,220,222-223,225-231,233-250,252-257,259-264,266-268,270-274,276-279,281-287,289-291,293-297,304-305,307-308,310-349,351,353-355,357,376-378
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "72f787a3d1f41dcf9e6419424408197501a9321e",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
