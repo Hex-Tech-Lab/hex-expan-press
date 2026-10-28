@@ -12,7 +12,6 @@ function deps(product: unknown): DeliveryDeps {
       productForAlias: vi.fn(async () => product as typeof PRODUCT | null),
       recordLinkIssued: vi.fn(async () => true),
       releaseLinkIssued: vi.fn(async () => undefined),
-      releaseOrphanedLinks: vi.fn(async () => undefined),
       deliveryConfirmed: vi.fn(async () => false),
       confirmDelivery: vi.fn(async () => undefined),
     },

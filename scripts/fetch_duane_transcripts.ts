@@ -33,7 +33,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import dotenv from "dotenv";
 
-dotenv.config({ override: true });
+dotenv.config();
 
 const SAMPLE_DIR = "data/db/samples/duane_retirearly500";
 const OUT_DIR = path.join(SAMPLE_DIR, "transcripts");

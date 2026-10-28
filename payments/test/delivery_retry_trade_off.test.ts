@@ -21,9 +21,6 @@ describe("retry after an ambiguous send retains earlier link generations (multi-
     const tokens = ["T".repeat(43), "U".repeat(43)];
     const sendEmail = vi.fn(async () => ({ id: "e1" }));
     sendEmail.mockRejectedValueOnce(new Error("socket hang up")); // ambiguous: the link row is kept
-    const releaseOrphanedLinks = vi.fn(async (saleId: string) => {
-      rows.delete(saleId);
-    });
 
     const deps: DeliveryDeps = {
       db: {
@@ -38,7 +35,6 @@ describe("retry after an ambiguous send retains earlier link generations (multi-
           return true;
         }),
         releaseLinkIssued: vi.fn(async () => undefined),
-        releaseOrphanedLinks,
         deliveryConfirmed: vi.fn(async (saleId: string) => confirmed.has(saleId)),
         confirmDelivery: vi.fn(async ({ saleId }: { saleId: string }) => {
           confirmed.add(saleId);
@@ -70,21 +66,14 @@ describe("retry after an ambiguous send retains earlier link generations (multi-
     expect(rows.get("s-1")?.[1].generation).toBe(FROZEN_MS + 1);
     expect(sendEmail).toHaveBeenCalledTimes(2);
 
-    // releaseOrphanedLinks must NEVER be called (non-destructive guarantee)
-    expect(releaseOrphanedLinks).not.toHaveBeenCalled();
-
     // Subsequent webhook retry is an idempotent duplicate
     await expect(deliverSale(sale, deps)).resolves.toBe("duplicate");
     expect(sendEmail).toHaveBeenCalledTimes(2);
-    expect(releaseOrphanedLinks).not.toHaveBeenCalled();
   });
 
   it("an insert collision on (sale_id, link_generation) retries with next monotonic generation without destroying prior rows", async () => {
     const FROZEN_MS = 1700000000000;
     const rows = new Map<string, Array<{ tokenHash: string; generation?: number }>>();
-    const releaseOrphanedLinks = vi.fn(async (saleId: string) => {
-      rows.delete(saleId);
-    });
     let collideCount = 1; // force first recordLinkIssued to collide (simulate concurrent process collision)
 
     const deps: DeliveryDeps = {
@@ -101,7 +90,6 @@ describe("retry after an ambiguous send retains earlier link generations (multi-
           return true;
         }),
         releaseLinkIssued: vi.fn(async () => undefined),
-        releaseOrphanedLinks,
         deliveryConfirmed: vi.fn(async () => false),
         confirmDelivery: vi.fn(async () => undefined),
       },
@@ -115,20 +103,17 @@ describe("retry after an ambiguous send retains earlier link generations (multi-
     const sale = { saleId: "s-2", productAlias: "alias-1", buyerEmail: "buyer@example.com" };
 
     await expect(deliverSale(sale, deps)).resolves.toBe("sent");
-    expect(releaseOrphanedLinks).not.toHaveBeenCalled();
     expect(rows.get("s-2")?.length).toBe(1);
     expect(rows.get("s-2")?.[0].tokenHash).toBe(tokenHash("V".repeat(43)));
   });
 
   it("persistent collisions when unconfirmed fail closed without destroying prior rows", async () => {
     const FROZEN_MS = 1700000000000;
-    const releaseOrphanedLinks = vi.fn(async () => undefined);
     const deps: DeliveryDeps = {
       db: {
         productForAlias: vi.fn(async () => PRODUCT),
         recordLinkIssued: vi.fn(async () => false), // persistent collision
         releaseLinkIssued: vi.fn(async () => undefined),
-        releaseOrphanedLinks,
         deliveryConfirmed: vi.fn(async () => false),
         confirmDelivery: vi.fn(async () => undefined),
       },
@@ -142,11 +127,9 @@ describe("retry after an ambiguous send retains earlier link generations (multi-
     const sale = { saleId: "s-3", productAlias: "alias-1", buyerEmail: "buyer@example.com" };
 
     await expect(deliverSale(sale, deps)).rejects.toThrow("delivery blocked: sale s-3 link generation collision");
-    expect(releaseOrphanedLinks).not.toHaveBeenCalled();
   });
 
   it("collision when already confirmed returns duplicate without destroying prior rows", async () => {
-    const releaseOrphanedLinks = vi.fn(async () => undefined);
     let confirmed = false;
     const deps: DeliveryDeps = {
       db: {
@@ -156,7 +139,6 @@ describe("retry after an ambiguous send retains earlier link generations (multi-
           return false;
         }),
         releaseLinkIssued: vi.fn(async () => undefined),
-        releaseOrphanedLinks,
         deliveryConfirmed: vi.fn(async () => confirmed),
         confirmDelivery: vi.fn(async () => undefined),
       },
@@ -169,7 +151,6 @@ describe("retry after an ambiguous send retains earlier link generations (multi-
     const sale = { saleId: "s-4", productAlias: "alias-1", buyerEmail: "buyer@example.com" };
 
     await expect(deliverSale(sale, deps)).resolves.toBe("duplicate");
-    expect(releaseOrphanedLinks).not.toHaveBeenCalled();
   });
 });
 

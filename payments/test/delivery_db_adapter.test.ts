@@ -188,10 +188,4 @@ describe("supabaseDeliveryDb: confirmation and release", () => {
       /link release failed: locked/,
     );
   });
-
-  it("releaseOrphanedLinks throws on error", async () => {
-    useClient();
-    results = [{ data: null, error: { message: "locked" } }];
-    await expect(db().releaseOrphanedLinks("s-1")).rejects.toThrow(/orphan link release failed: locked/);
-  });
 });

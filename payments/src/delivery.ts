@@ -67,8 +67,6 @@ export interface DeliveryDb {
   deliveryConfirmed(saleId: string): Promise<boolean>;
   /** Records that the send for this sale's link was accepted. Called only after the send resolves. */
   confirmDelivery(row: { saleId: string; tokenHash: string }): Promise<void>;
-  /** Removes an unconfirmed link_issued row left by a send whose release failed. */
-  releaseOrphanedLinks(saleId: string): Promise<void>;
 }
 
 export interface DeliveryDeps {
@@ -280,12 +278,6 @@ function supabaseDeliveryDb(): DeliveryDb {
         .from("audit_log")
         .insert({ event: DELIVERY_CONFIRMED_EVENT, details: { sale_id: row.saleId, token_hash: row.tokenHash } });
       if (error) throw new Error(`delivery confirmation write failed: ${error.message}`);
-    },
-    async releaseOrphanedLinks(saleId) {
-      const sb = await getSupabaseAdmin();
-      if (!sb) throw new Error("Supabase admin client unavailable");
-      const { error } = await sb.from("download_events").delete().eq("sale_id", saleId).eq("event_type", "link_issued");
-      if (error) throw new Error(`orphan link release failed: ${error.message}`);
     },
   };
 }

@@ -21,7 +21,6 @@ function fakes(over: Partial<DeliveryDeps> & { product?: unknown; inserted?: boo
       productForAlias: vi.fn(async () => (over.product === undefined ? PRODUCT : (over.product as typeof PRODUCT | null))),
       recordLinkIssued,
       releaseLinkIssued,
-      releaseOrphanedLinks: vi.fn(async () => undefined),
       deliveryConfirmed: vi.fn(async () => over.confirmed ?? false),
       confirmDelivery: vi.fn(async () => undefined),
     },
@@ -233,11 +232,6 @@ describe("deliverSaleForWebhook never acknowledges an unconfirmed sale", () => {
     f.deps.db.releaseLinkIssued = vi.fn(async () => {
       throw new Error("db down");
     });
-    f.deps.db.releaseOrphanedLinks = vi.fn(async (saleId: string) => {
-      for (const k of rows) {
-        if (k.startsWith(`${saleId}:`)) rows.delete(k);
-      }
-    });
     f.deps.db.deliveryConfirmed = vi.fn(async (saleId: string) => confirmed.has(saleId));
     f.deps.db.confirmDelivery = vi.fn(async ({ saleId }: { saleId: string }) => {
       confirmed.add(saleId);
@@ -251,8 +245,7 @@ describe("deliverSaleForWebhook never acknowledges an unconfirmed sale", () => {
     await expect(deliverSaleForWebhook(sale, f.deps)).resolves.toBeUndefined();
     expect(f.sendEmail).toHaveBeenCalledTimes(2);
     expect(confirmed.has("s-1")).toBe(true);
-    // Non-destructive: releaseOrphanedLinks was not called, both link generation rows survive
-    expect(f.deps.db.releaseOrphanedLinks).not.toHaveBeenCalled();
+    // Non-destructive: both link generation rows survive the retry
     expect(rows.size).toBe(2);
   });
 });
