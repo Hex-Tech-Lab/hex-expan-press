@@ -1,0 +1,20 @@
+docs/adr/proposed/generation-allocation.md
+  s_6625bc67577472::t_444b4a016020ee 78
+  s_6625bc67577472::t_3c7799f8df273e 71
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3d9e2bf5452297efdf07eea71e355e4f41bb38ca",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
