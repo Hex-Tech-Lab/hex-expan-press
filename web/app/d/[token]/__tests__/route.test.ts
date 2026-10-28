@@ -6,6 +6,8 @@ import { tokenHash } from "../../../../../payments/src/delivery";
 const maybeSingleMock = vi.fn();
 const insertMock = vi.fn();
 const createSignedUrlMock = vi.fn();
+const listMock = vi.fn();
+const SOURCE_ETAG = '"etag-1"';
 
 const fromMock = vi.fn((table: string) => {
   if (table === "download_events") {
@@ -37,6 +39,7 @@ const fakeSbAdmin = {
   storage: {
     from: vi.fn(() => ({
       createSignedUrl: createSignedUrlMock,
+      list: listMock,
     })),
   },
 };
@@ -47,6 +50,14 @@ vi.mock("../../../../../payments/src/supabase_admin", () => ({
 
 describe("GET /d/[token] (Buyer delivery route)", () => {
   const validToken = "A".repeat(43);
+
+  beforeEach(() => {
+    // The source listing returns the current ETag for whatever object is asked for.
+    listMock.mockImplementation(async (_dir: string, opts: { search?: string }) => ({
+      data: [{ name: opts.search ?? "", metadata: { eTag: SOURCE_ETAG } }],
+      error: null,
+    }));
+  });
 
   function clearR2Envs() {
     vi.stubEnv("R2_ACCOUNT_ID", "");
@@ -203,8 +214,10 @@ describe("GET /d/[token] (Buyer delivery route)", () => {
     vi.stubEnv("R2_SECRET_ACCESS_KEY", "r2-sec-test");
     vi.stubEnv("R2_BUCKET_NAME", "r2-releases");
 
-    // R2 object presence check succeeds (200)
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 200 }));
+    // R2 object present (200) and written from the current source (marker matches the listing)
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(null, { status: 200, headers: { "x-amz-meta-supabase-etag": SOURCE_ETAG } }),
+    );
 
     const future = new Date(Date.now() + 100000).toISOString();
     maybeSingleMock.mockResolvedValueOnce({

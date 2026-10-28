@@ -237,6 +237,7 @@ export async function statR2Object(options: HeadR2ObjectOptions): Promise<StatR2
 
   const res = await fetchImpl(headUrl, {
     method: "HEAD",
+    redirect: "error",
     signal: AbortSignal.timeout(timeoutMs),
   });
 
@@ -317,6 +318,7 @@ export async function putR2Object(options: PutR2ObjectOptions): Promise<boolean>
 
     const res = await fetchImpl(putUrl, {
       method: "PUT",
+      redirect: "error",
       headers: {
         "Content-Type": contentType,
       },
@@ -404,6 +406,7 @@ export async function putR2ObjectIf(options: PutR2ObjectIfOptions): Promise<PutR
 
     const res = await fetchImpl(putUrl, {
       method: "PUT",
+      redirect: "error",
       headers: {
         "Content-Type": contentType,
         ...conditionalHeaders,

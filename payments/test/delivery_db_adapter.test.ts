@@ -148,6 +148,15 @@ describe("supabaseDeliveryDb: confirmation and release", () => {
     expect(await db().deliveryConfirmed("s-2")).toBe(false);
   });
 
+  it("deliveryConfirmed filters on the indexed expression details->>sale_id, not contains", async () => {
+    useClient();
+    results = [{ data: [], error: null }];
+    await db().deliveryConfirmed("s-3");
+    const ops = calls[calls.length - 1].ops.map(([name, args]) => [name, args]);
+    expect(ops).toContainEqual(["eq", ["details->>sale_id", "s-3"]]);
+    expect(ops.some(([name]) => name === "contains")).toBe(false);
+  });
+
   it("deliveryConfirmed throws on a lookup error rather than reporting unconfirmed", async () => {
     useClient();
     results = [{ data: null, error: { message: "boom" } }];

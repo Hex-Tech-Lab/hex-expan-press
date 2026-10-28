@@ -265,7 +265,7 @@ function supabaseDeliveryDb(): DeliveryDb {
         .from("audit_log")
         .select("id")
         .eq("event", DELIVERY_CONFIRMED_EVENT)
-        .contains("details", { sale_id: saleId })
+        .eq("details->>sale_id", saleId)
         .order("id", { ascending: true })
         .limit(1);
       if (error) throw new Error(`delivery confirmation lookup failed: ${error.message}`);

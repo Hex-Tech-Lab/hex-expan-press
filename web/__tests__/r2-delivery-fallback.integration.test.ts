@@ -6,6 +6,8 @@ import { tokenHash } from "../../payments/src/delivery";
 const maybeSingleMock = vi.fn();
 const insertMock = vi.fn();
 const createSignedUrlMock = vi.fn();
+const listMock = vi.fn();
+const SOURCE_ETAG = '"etag-1"';
 
 const fromMock = vi.fn((table: string) => {
   if (table === "download_events") {
@@ -37,6 +39,7 @@ const fakeSbAdmin = {
   storage: {
     from: vi.fn(() => ({
       createSignedUrl: createSignedUrlMock,
+      list: listMock,
     })),
   },
 };
@@ -52,6 +55,11 @@ describe("Automated Integration Test: R2 Object Delivery & Fallback Behavior (/d
   beforeEach(() => {
     vi.clearAllMocks();
     vi.unstubAllEnvs();
+    // The source listing returns the current ETag for whatever object is asked for.
+    listMock.mockImplementation(async (_dir: string, opts: { search?: string }) => ({
+      data: [{ name: opts.search ?? "", metadata: { eTag: SOURCE_ETAG } }],
+      error: null,
+    }));
   });
 
   afterEach(() => {
@@ -106,7 +114,9 @@ describe("Automated Integration Test: R2 Object Delivery & Fallback Behavior (/d
     stubR2Envs();
 
     // Mock R2 HEAD presence check returning 200 OK
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 200 }));
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(null, { status: 200, headers: { "x-amz-meta-supabase-etag": SOURCE_ETAG } }),
+    );
 
     setupValidDownloadRow("books/mastering-scale.pdf");
 
