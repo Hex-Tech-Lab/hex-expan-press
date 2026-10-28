@@ -1,5 +1,12 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { buildCanonicalRequest, putR2ObjectIf, statR2Object } from "../r2.adapter";
+import {
+  buildCanonicalRequest,
+  getDeliveryStorageAdapter,
+  putR2ObjectIf,
+  R2StorageAdapter,
+  resolveSupabaseSourceEtag,
+  statR2Object,
+} from "../r2.adapter";
 
 const endpoint = "https://acc.r2.cloudflarestorage.com";
 const creds = { accessKeyId: "ak", secretAccessKey: "sk" };
@@ -139,5 +146,132 @@ describe("buildCanonicalRequest with signed extra headers", () => {
     expect(canonicalRequest).toContain(
       'host:acc.r2.cloudflarestorage.com\nif-match:"e"\nx-amz-meta-supabase-etag:"s"\n\nhost;if-match;x-amz-meta-supabase-etag\n',
     );
+  });
+});
+
+describe("R2 delivery freshness gate", () => {
+  const r2Config = { accountId: "acc-1", accessKeyId: "ak", secretAccessKey: "sk", bucket: "r2-b" };
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+
+  it("serves a presigned URL when the stored marker equals the current source ETag", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      new Response(null, { status: 200, headers: { "x-amz-meta-supabase-etag": '"src-1"' } }),
+    );
+    const adapter = new R2StorageAdapter({
+      ...r2Config,
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      resolveSourceEtag: async () => '"src-1"',
+    });
+
+    const url = await adapter.createSignedDownloadUrl("book.pdf", 300);
+
+    expect(url).toContain("https://acc-1.r2.cloudflarestorage.com/r2-b/book.pdf");
+    expect(url).toContain("X-Amz-Signature=");
+  });
+
+  it("returns null on a marker mismatch and the composite falls back to the Supabase signed URL", async () => {
+    vi.stubEnv("R2_ACCOUNT_ID", "acc-1");
+    vi.stubEnv("R2_ACCESS_KEY_ID", "ak");
+    vi.stubEnv("R2_SECRET_ACCESS_KEY", "sk");
+    vi.stubEnv("R2_BUCKET_NAME", "r2-b");
+    vi.stubEnv("R2_ENDPOINT", "https://acc-1.r2.cloudflarestorage.com");
+    // R2 holds a copy written from an older source ETag.
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(null, { status: 200, headers: { "x-amz-meta-supabase-etag": '"old-1"' } }),
+    );
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const createSignedUrlMock = vi.fn().mockResolvedValue({
+      data: { signedUrl: "https://supabase.example/signed/book.pdf" },
+      error: null,
+    });
+    const listMock = vi.fn().mockResolvedValue({
+      data: [{ name: "book.pdf", metadata: { eTag: '"src-2"' } }],
+      error: null,
+    });
+    const fakeSb = {
+      storage: { from: vi.fn(() => ({ createSignedUrl: createSignedUrlMock, list: listMock })) },
+    };
+
+    const adapter = getDeliveryStorageAdapter(fakeSb as never, "supabase-bucket");
+    const url = await adapter.createSignedDownloadUrl("book.pdf", 300);
+
+    expect(url).toBe("https://supabase.example/signed/book.pdf");
+    expect(createSignedUrlMock).toHaveBeenCalledWith("book.pdf", 300);
+    const logged = warn.mock.calls.map((call) => String(call[0])).join("\n");
+    expect(logged).toContain("book.pdf");
+    // Log only that the markers differ; never the ETag values.
+    expect(logged).not.toContain("old-1");
+    expect(logged).not.toContain("src-2");
+  });
+
+  it("returns null for an R2 object with no stored marker (legacy write)", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(null, { status: 200, headers: { etag: '"r2-1"' } }));
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const adapter = new R2StorageAdapter({
+      ...r2Config,
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      resolveSourceEtag: async () => '"src-1"',
+    });
+
+    expect(await adapter.createSignedDownloadUrl("book.pdf", 300)).toBeNull();
+    expect(warn.mock.calls.map((call) => String(call[0])).join("\n")).toContain("legacy");
+  });
+
+  it("returns null when the current source ETag is unavailable", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      new Response(null, { status: 200, headers: { "x-amz-meta-supabase-etag": '"src-1"' } }),
+    );
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const adapter = new R2StorageAdapter({
+      ...r2Config,
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      resolveSourceEtag: async () => null,
+    });
+
+    expect(await adapter.createSignedDownloadUrl("book.pdf", 300)).toBeNull();
+    expect(warn.mock.calls.map((call) => String(call[0])).join("\n")).toContain("source ETag unknown");
+  });
+
+  it("resolveSupabaseSourceEtag returns null, without throwing, when the listing throws or errors", async () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const throwingSb = {
+      storage: { from: () => ({ createSignedUrl: vi.fn(), list: vi.fn().mockRejectedValue(new Error("network down")) }) },
+    };
+    const erroringSb = {
+      storage: {
+        from: () => ({
+          createSignedUrl: vi.fn(),
+          list: vi.fn().mockResolvedValue({ data: null, error: { message: "boom" } }),
+        }),
+      },
+    };
+
+    await expect(resolveSupabaseSourceEtag(throwingSb as never, "b", "book.pdf")).resolves.toBeNull();
+    await expect(resolveSupabaseSourceEtag(erroringSb as never, "b", "book.pdf")).resolves.toBeNull();
+    expect(error).toHaveBeenCalled();
+  });
+
+  it("resolveSupabaseSourceEtag matches the exact file name, not a prefix match", async () => {
+    const listMock = vi.fn().mockResolvedValue({
+      data: [{ name: "book.pdf.bak", metadata: { eTag: '"bak"' } }],
+      error: null,
+    });
+    const sb = { storage: { from: () => ({ createSignedUrl: vi.fn(), list: listMock }) } };
+
+    expect(await resolveSupabaseSourceEtag(sb as never, "b", "folder/book.pdf")).toBeNull();
+    expect(listMock).toHaveBeenCalledWith("folder", { search: "book.pdf", limit: 100 });
+
+    listMock.mockResolvedValueOnce({
+      data: [
+        { name: "book.pdf.bak", metadata: { eTag: '"bak"' } },
+        { name: "book.pdf", metadata: { eTag: '"exact"' } },
+      ],
+      error: null,
+    });
+    expect(await resolveSupabaseSourceEtag(sb as never, "b", "folder/book.pdf")).toBe('"exact"');
   });
 });

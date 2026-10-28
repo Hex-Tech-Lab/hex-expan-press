@@ -12,6 +12,11 @@ export interface R2Config {
   /** @deprecated Cloudflare rejects S3 presigned URLs on custom domains; ignored */
   publicDomain?: string;
   fetchImpl?: typeof fetch;
+  /**
+   * Returns the current Supabase source ETag for the path, or null if unknown. The R2 copy is served
+   * only when its stored source-ETag marker equals this value; otherwise the adapter returns null.
+   */
+  resolveSourceEtag: (path: string) => Promise<string | null>;
 }
 
 function rfc3986(str: string): string {
@@ -430,6 +435,7 @@ export class R2StorageAdapter implements StoragePort {
   private readonly endpoint: string;
   private readonly region: string;
   private readonly fetchImpl: typeof fetch;
+  private readonly resolveSourceEtag: (path: string) => Promise<string | null>;
 
   constructor(config: R2Config) {
     this.accountId = config.accountId;
@@ -439,6 +445,7 @@ export class R2StorageAdapter implements StoragePort {
     this.endpoint = config.endpoint || `https://${this.accountId}.r2.cloudflarestorage.com`;
     this.region = config.region || "auto";
     this.fetchImpl = config.fetchImpl || fetch;
+    this.resolveSourceEtag = config.resolveSourceEtag;
   }
 
   async hasObject(path: string): Promise<boolean> {
@@ -459,7 +466,7 @@ export class R2StorageAdapter implements StoragePort {
     now: Date = new Date(),
   ): Promise<string | null> {
     try {
-      const exists = await headR2Object({
+      const stat = await statR2Object({
         endpoint: this.endpoint,
         bucket: this.bucket,
         key: path,
@@ -469,7 +476,22 @@ export class R2StorageAdapter implements StoragePort {
         fetchImpl: this.fetchImpl,
       });
 
-      if (!exists) {
+      if (!stat.exists) {
+        return null;
+      }
+
+      // Serve the R2 copy only when it was written from the current source. Anything else falls back.
+      const sourceEtag = await this.resolveSourceEtag(path);
+      if (!sourceEtag || !stat.sourceEtag || stat.sourceEtag !== sourceEtag) {
+        let reason: string;
+        if (!sourceEtag) {
+          reason = "source ETag unknown";
+        } else if (!stat.sourceEtag) {
+          reason = "R2 object has no source ETag marker (legacy write)";
+        } else {
+          reason = "R2 copy is stale: stored marker differs from the source";
+        }
+        console.warn(`[r2-storage] Not serving R2 copy of ${path}: ${reason}`);
         return null;
       }
 
@@ -497,8 +519,40 @@ export interface SupabaseStorageAdmin {
         data: { signedUrl: string } | null;
         error: { message?: string } | null;
       }>;
+      list: (path: string, options?: { search?: string; limit?: number }) => Promise<{
+        data: Array<{ name: string; metadata?: Record<string, unknown> | null }> | null;
+        error: { message?: string } | null;
+      }>;
     };
   };
+}
+
+/**
+ * Reads the current source ETag of a Supabase Storage object from its listing metadata.
+ * Matches the name exactly (the listing `search` is a prefix match). Returns null when the object or
+ * its eTag is absent, or when the listing fails. Never throws.
+ */
+export async function resolveSupabaseSourceEtag(
+  sbAdmin: SupabaseStorageAdmin,
+  bucket: string,
+  path: string,
+): Promise<string | null> {
+  const slash = path.lastIndexOf("/");
+  const directory = slash === -1 ? "" : path.slice(0, slash);
+  const name = path.slice(slash + 1);
+  try {
+    const { data, error } = await sbAdmin.storage.from(bucket).list(directory, { search: name, limit: 100 });
+    if (error) {
+      console.error(`[r2-storage] source ETag lookup failed for ${path}:`, error.message ?? "unknown error");
+      return null;
+    }
+    const item = data?.find((entry) => entry.name === name);
+    const eTag = item?.metadata?.eTag;
+    return typeof eTag === "string" ? eTag : null;
+  } catch (err) {
+    console.error(`[r2-storage] source ETag lookup threw for ${path}:`, err instanceof Error ? err.message : err);
+    return null;
+  }
 }
 
 /**
@@ -573,6 +627,7 @@ export function getDeliveryStorageAdapter(
       bucket: r2Bucket,
       endpoint: process.env.R2_ENDPOINT,
       region: process.env.R2_REGION,
+      resolveSourceEtag: (p) => resolveSupabaseSourceEtag(sbAdmin, bucket, p),
     });
 
     return new CompositeStorageAdapter(r2Adapter, fallback);

@@ -181,13 +181,16 @@ describe("decomposed helpers", () => {
 
 describe("R2StorageAdapter", () => {
   it("creates signed download URL using config when object exists", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(null, { status: 200, headers: { "x-amz-meta-supabase-etag": '"src-1"' } }),
+    );
     const adapter = new R2StorageAdapter({
       accountId: "acc-123",
       accessKeyId: "ak-123",
       secretAccessKey: "sk-123",
       bucket: "books-bucket",
       fetchImpl: fetchMock as unknown as typeof fetch,
+      resolveSourceEtag: async () => '"src-1"',
     });
 
     const url = await adapter.createSignedDownloadUrl("release.epub", 600);
@@ -208,6 +211,7 @@ describe("R2StorageAdapter", () => {
       secretAccessKey: "sk-123",
       bucket: "books-bucket",
       fetchImpl: fetchMock as unknown as typeof fetch,
+      resolveSourceEtag: async () => '"src-1"',
     });
 
     const url = await adapter.createSignedDownloadUrl("missing.epub", 600);
@@ -221,6 +225,7 @@ describe("R2StorageAdapter", () => {
       secretAccessKey: "sk-123",
       bucket: "books-bucket",
       endpoint: "not-a-valid-url",
+      resolveSourceEtag: async () => '"src-1"',
     });
 
     const url = await adapter.createSignedDownloadUrl("release.epub", 600);
@@ -326,11 +331,18 @@ describe("getDeliveryStorageAdapter (fallback & preference)", () => {
     vi.stubEnv("R2_PUBLIC_URL", "https://custom.expanpress.com");
     vi.stubEnv("R2_CUSTOM_DOMAIN", "custom.expanpress.com");
 
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 200 }));
+    // The stored marker matches the Supabase source ETag, so the R2 copy is fresh.
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(null, { status: 200, headers: { "x-amz-meta-supabase-etag": '"src-1"' } }),
+    );
     const createSignedUrlMock = vi.fn();
+    const listMock = vi.fn().mockResolvedValue({
+      data: [{ name: "book.pdf", metadata: { eTag: '"src-1"' } }],
+      error: null,
+    });
     const fakeSb = {
       storage: {
-        from: vi.fn(() => ({ createSignedUrl: createSignedUrlMock })),
+        from: vi.fn(() => ({ createSignedUrl: createSignedUrlMock, list: listMock })),
       },
     };
 
@@ -505,6 +517,7 @@ describe("putR2Object & R2StorageAdapter upload/has", () => {
       secretAccessKey: "s1",
       bucket: "b1",
       fetchImpl: fetchSpy as never,
+      resolveSourceEtag: async () => null,
     });
 
     const has = await adapter.hasObject("file.pdf");
