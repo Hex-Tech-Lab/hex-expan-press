@@ -44,14 +44,33 @@ export function deriveSigningKey(
 /**
  * Builds the canonical request and returns the signed headers string.
  */
+/**
+ * SigV4 canonical headers. The host is always signed. Extra headers (write preconditions,
+ * x-amz-meta-*) are signed as well, so R2 authenticates them and they cannot be altered in transit.
+ */
+function canonicalHeaderBlock(
+  host: string,
+  extraHeaders: Record<string, string>,
+): { canonicalHeaders: string; signedHeaders: string } {
+  const entries: Array<[string, string]> = [["host", host.toLowerCase()]];
+  for (const [name, value] of Object.entries(extraHeaders)) {
+    entries.push([name.toLowerCase(), value.trim()]);
+  }
+  entries.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  return {
+    canonicalHeaders: entries.map(([name, value]) => `${name}:${value}\n`).join(""),
+    signedHeaders: entries.map(([name]) => name).join(";"),
+  };
+}
+
 export function buildCanonicalRequest(
   method: string,
   canonicalUri: string,
   canonicalQueryString: string,
   host: string,
+  extraHeaders: Record<string, string> = {},
 ): { canonicalRequest: string; signedHeaders: string } {
-  const canonicalHeaders = `host:${host.toLowerCase()}\n`;
-  const signedHeaders = "host";
+  const { canonicalHeaders, signedHeaders } = canonicalHeaderBlock(host, extraHeaders);
   const payloadHash = "UNSIGNED-PAYLOAD";
 
   const canonicalRequest = [
@@ -78,6 +97,8 @@ export interface GeneratePresignedUrlOptions {
   /** @deprecated Cloudflare rejects S3 presigned URLs on custom domains; ignored */
   publicDomain?: string;
   method?: string;
+  /** Headers the caller will send unchanged; they are signed so R2 authenticates them. */
+  signHeaders?: Record<string, string>;
 }
 
 /**
@@ -96,6 +117,7 @@ export function generateR2PresignedUrl(options: GeneratePresignedUrlOptions): st
     expiresInSeconds = 300,
     date = new Date(),
     method = "GET",
+    signHeaders = {},
   } = options;
 
   const url = new URL(endpoint);
@@ -126,7 +148,7 @@ export function generateR2PresignedUrl(options: GeneratePresignedUrlOptions): st
     "X-Amz-Credential": `${accessKeyId}/${credentialScope}`,
     "X-Amz-Date": amzDate,
     "X-Amz-Expires": expiresInSeconds.toString(),
-    "X-Amz-SignedHeaders": "host",
+    "X-Amz-SignedHeaders": canonicalHeaderBlock(host, signHeaders).signedHeaders,
   };
 
   const sortedParamKeys = Object.keys(queryParams).sort();
@@ -139,6 +161,7 @@ export function generateR2PresignedUrl(options: GeneratePresignedUrlOptions): st
     canonicalUri,
     canonicalQueryString,
     host,
+    signHeaders,
   );
 
   const stringToSign = [
@@ -166,12 +189,23 @@ export interface HeadR2ObjectOptions {
   timeoutMs?: number;
 }
 
+/** Header carrying the source ETag recorded when the object was written (metadata key `supabase-etag`). */
+export const SOURCE_ETAG_HEADER = "x-amz-meta-supabase-etag";
+
+export interface StatR2ObjectResult {
+  exists: boolean;
+  /** R2's own ETag for the stored bytes. The If-Match precondition for a refresh. */
+  etag?: string;
+  /** Source ETag stored with the object. Absent on objects written before the freshness contract. */
+  sourceEtag?: string;
+}
+
 /**
- * Checks whether an object exists in Cloudflare R2 using a bounded signed HEAD request.
- * Returns true if the object exists (2xx), false ONLY on confirmed absence (404).
- * Throws on network errors, timeouts, auth errors, or unexpected HTTP status codes.
+ * Reads an object's state in Cloudflare R2 with a bounded signed HEAD request.
+ * Returns exists:false ONLY on confirmed absence (404). Any other non-2xx status,
+ * network error, or timeout throws, so callers never treat an inconclusive read as absence.
  */
-export async function headR2Object(options: HeadR2ObjectOptions): Promise<boolean> {
+export async function statR2Object(options: HeadR2ObjectOptions): Promise<StatR2ObjectResult> {
   const {
     endpoint,
     bucket,
@@ -205,14 +239,23 @@ export async function headR2Object(options: HeadR2ObjectOptions): Promise<boolea
   });
 
   if (res.status === 404) {
-    return false;
+    return { exists: false };
   }
 
   if (!res.ok) {
     throw new Error(`[r2-storage] HEAD object returned status ${res.status}`);
   }
 
-  return true;
+  return {
+    exists: true,
+    etag: res.headers.get("etag") ?? undefined,
+    sourceEtag: res.headers.get(SOURCE_ETAG_HEADER) ?? undefined,
+  };
+}
+
+/** Boolean view of statR2Object: true on 2xx, false only on confirmed 404, throws otherwise. */
+export async function headR2Object(options: HeadR2ObjectOptions): Promise<boolean> {
+  return (await statR2Object(options)).exists;
 }
 
 export interface PutR2ObjectOptions {
@@ -246,7 +289,13 @@ export async function putR2Object(options: PutR2ObjectOptions): Promise<boolean>
     timeoutMs = 30000,
   } = options;
 
-  const parsedUrl = new URL(endpoint);
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(endpoint);
+  } catch (err) {
+    console.warn(`[r2-storage] PUT object failed:`, err instanceof Error ? err.message : err);
+    return false;
+  }
   if (parsedUrl.protocol === "http:" && process.env.R2_ALLOW_INSECURE_HTTP !== "true") {
     throw new Error(`[r2-storage] Insecure HTTP endpoint rejected: ${endpoint}`);
   }
@@ -281,6 +330,94 @@ export async function putR2Object(options: PutR2ObjectOptions): Promise<boolean>
   } catch (err) {
     console.warn(`[r2-storage] PUT object failed:`, err instanceof Error ? err.message : err);
     return false;
+  }
+}
+
+export interface PutR2ObjectIfOptions extends PutR2ObjectOptions {
+  /** Stored as x-amz-meta-<name> headers. Signed. */
+  metadata?: Record<string, string>;
+  /** Write only if the stored object's ETag equals this value (refresh). */
+  ifMatch?: string;
+  /** Write only if no object exists at the key ("*" for create-once). */
+  ifNoneMatch?: string;
+}
+
+export type PutR2ObjectResult =
+  | { status: "written" }
+  | { status: "precondition_failed" }
+  | { status: "failed"; reason: string };
+
+/**
+ * Conditional signed PUT. R2 evaluates If-Match / If-None-Match atomically against the committed
+ * object, so a write based on a stale read fails with 412 instead of silently overwriting.
+ * Throws on an insecure endpoint (same guard as putR2Object); any other failure is returned.
+ */
+export async function putR2ObjectIf(options: PutR2ObjectIfOptions): Promise<PutR2ObjectResult> {
+  const {
+    endpoint,
+    bucket,
+    key,
+    accessKeyId,
+    secretAccessKey,
+    region = "auto",
+    body,
+    contentType = "application/octet-stream",
+    fetchImpl = fetch,
+    timeoutMs = 30000,
+    metadata = {},
+    ifMatch,
+    ifNoneMatch,
+  } = options;
+
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(endpoint);
+  } catch (err) {
+    return { status: "failed", reason: err instanceof Error ? err.message : String(err) };
+  }
+  if (parsedUrl.protocol === "http:" && process.env.R2_ALLOW_INSECURE_HTTP !== "true") {
+    throw new Error(`[r2-storage] Insecure HTTP endpoint rejected: ${endpoint}`);
+  }
+
+  const conditionalHeaders: Record<string, string> = {};
+  for (const [name, value] of Object.entries(metadata)) {
+    conditionalHeaders[`x-amz-meta-${name.toLowerCase()}`] = value;
+  }
+  if (ifMatch !== undefined) conditionalHeaders["if-match"] = ifMatch;
+  if (ifNoneMatch !== undefined) conditionalHeaders["if-none-match"] = ifNoneMatch;
+
+  try {
+    const putUrl = generateR2PresignedUrl({
+      endpoint,
+      bucket,
+      key,
+      accessKeyId,
+      secretAccessKey,
+      region,
+      expiresInSeconds: 300,
+      method: "PUT",
+      signHeaders: conditionalHeaders,
+    });
+
+    const res = await fetchImpl(putUrl, {
+      method: "PUT",
+      headers: {
+        "Content-Type": contentType,
+        ...conditionalHeaders,
+      },
+      body: (body instanceof Uint8Array ? body : typeof body === "string" ? body : Buffer.from(body)) as unknown as BodyInit,
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+
+    if (res.status === 412) {
+      return { status: "precondition_failed" };
+    }
+    if (!res.ok) {
+      return { status: "failed", reason: `PUT object returned status ${res.status}` };
+    }
+    return { status: "written" };
+  } catch (err) {
+    return { status: "failed", reason: err instanceof Error ? err.message : String(err) };
   }
 }
 

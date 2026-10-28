@@ -382,6 +382,48 @@ describe("getDeliveryStorageAdapter (fallback & preference)", () => {
   });
 });
 
+describe("putR2Object endpoint validation", () => {
+  it("returns false for a malformed endpoint instead of throwing, and sends no request", async () => {
+    vi.stubEnv("R2_ALLOW_INSECURE_HTTP", "");
+    const fetchSpy = vi.fn();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const success = await putR2Object({
+        endpoint: "not a url",
+        bucket: "releases",
+        key: "books/test.pdf",
+        accessKeyId: "key1",
+        secretAccessKey: "sec1",
+        body: Buffer.from("pdf-content"),
+        fetchImpl: fetchSpy as never,
+      });
+      expect(success).toBe(false);
+      expect(fetchSpy).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
+    vi.unstubAllEnvs();
+  });
+
+  it("still throws the explicit insecure-HTTP error for an http endpoint", async () => {
+    vi.stubEnv("R2_ALLOW_INSECURE_HTTP", "");
+    const fetchSpy = vi.fn();
+    await expect(
+      putR2Object({
+        endpoint: "http://insecure.r2.cloudflarestorage.com",
+        bucket: "releases",
+        key: "books/test.pdf",
+        accessKeyId: "key1",
+        secretAccessKey: "sec1",
+        body: Buffer.from("pdf-content"),
+        fetchImpl: fetchSpy as never,
+      }),
+    ).rejects.toThrow("[r2-storage] Insecure HTTP endpoint rejected: http://insecure.r2.cloudflarestorage.com");
+    expect(fetchSpy).not.toHaveBeenCalled();
+    vi.unstubAllEnvs();
+  });
+});
+
 describe("putR2Object & R2StorageAdapter upload/has", () => {
   it("successfully uploads buffer to R2 and returns true", async () => {
     const fetchSpy = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));

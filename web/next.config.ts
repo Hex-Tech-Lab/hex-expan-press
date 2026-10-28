@@ -45,18 +45,11 @@ const nextConfig: NextConfig = {
       { source: "/c/:handle/:product", destination: "/books/:handle/:product", statusCode: 301 },
     ];
   },
-  // Task 3: Cache-Control public, max-age=31536000, immutable on public static book covers & assets
+  // Static assets only. The former immutable /covers rule was removed: no cover is
+  // published at a fixed path, so an immutable one-year cache would serve stale covers.
+  // See docs/adr/0064-remove-immutable-cover-cache.md before reinstating it.
   async headers() {
     return [
-      {
-        source: "/covers/:path*",
-        headers: [
-          {
-            key: "Cache-Control",
-            value: "public, max-age=31536000, immutable",
-          },
-        ],
-      },
       {
         source: "/assets/:path*",
         headers: [
