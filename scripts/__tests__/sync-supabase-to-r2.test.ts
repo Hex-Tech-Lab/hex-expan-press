@@ -485,5 +485,94 @@ describe("sync-supabase-to-r2", () => {
 
       expect(harness.listMock).toHaveBeenCalledWith("releases/2026", expect.any(Object));
     });
+
+    it("rejects an empty programmatic prefix before any storage listing", async () => {
+      const harness = makeSyncTestHarness({ files: [syncFile("book.pdf")] });
+
+      await expect(runSync(harness, { prefix: "" })).rejects.toThrow(/Empty prefix/);
+      expect(harness.fakeClient.storage.from).not.toHaveBeenCalled();
+      expect(harness.listMock).not.toHaveBeenCalled();
+    });
+
+    it("isolates a thrown download error so the other files still upload", async () => {
+      // Calls: a HEAD, a PUT, a verify | bad HEAD (download throws) | c HEAD, c PUT, c verify
+      const fetchImpl = vi
+        .fn()
+        .mockResolvedValueOnce(r2Head(404))
+        .mockResolvedValueOnce(new Response(null, { status: 200 }))
+        .mockResolvedValueOnce(r2Head(200, { etag: '"r2-a"', [SOURCE_HDR]: SRC_ETAG }))
+        .mockResolvedValueOnce(r2Head(404))
+        .mockResolvedValueOnce(r2Head(404))
+        .mockResolvedValueOnce(new Response(null, { status: 200 }))
+        .mockResolvedValueOnce(r2Head(200, { etag: '"r2-c"', [SOURCE_HDR]: SRC_ETAG }));
+      const harness = makeSyncTestHarness({
+        files: [syncFile("a.pdf"), syncFile("bad.pdf"), syncFile("c.pdf")],
+        downloadBlob: new Blob(["bytes"]),
+        fetchImpl: fetchImpl as never,
+      });
+      harness.downloadMock.mockImplementation((path: string) =>
+        path === "bad.pdf"
+          ? Promise.reject(new Error("socket reset"))
+          : Promise.resolve({ data: new Blob(["bytes"]), error: null }),
+      );
+
+      const result = await runSync(harness);
+
+      expect(result).toMatchObject({ totalFound: 3, uploaded: 2, verified: 2, failed: 1 });
+      expect(result.errors).toEqual([{ path: "bad.pdf", error: "Error: socket reset" }]);
+      expect(fetchImpl).toHaveBeenCalledTimes(7);
+    });
+
+    it("records an HTTP 500 PUT for one file without counting it as uploaded, and keeps going", async () => {
+      // Calls: a HEAD, a PUT, a verify | bad HEAD, bad PUT (500, no verify) | c HEAD, c PUT, c verify
+      const fetchImpl = vi
+        .fn()
+        .mockResolvedValueOnce(r2Head(404))
+        .mockResolvedValueOnce(new Response(null, { status: 200 }))
+        .mockResolvedValueOnce(r2Head(200, { etag: '"r2-a"', [SOURCE_HDR]: SRC_ETAG }))
+        .mockResolvedValueOnce(r2Head(404))
+        .mockResolvedValueOnce(new Response(null, { status: 500 }))
+        .mockResolvedValueOnce(r2Head(404))
+        .mockResolvedValueOnce(new Response(null, { status: 200 }))
+        .mockResolvedValueOnce(r2Head(200, { etag: '"r2-c"', [SOURCE_HDR]: SRC_ETAG }));
+      const harness = makeSyncTestHarness({
+        files: [syncFile("a.pdf"), syncFile("bad.pdf"), syncFile("c.pdf")],
+        downloadBlob: new Blob(["bytes"]),
+        fetchImpl: fetchImpl as never,
+      });
+
+      const result = await runSync(harness);
+
+      expect(result).toMatchObject({ totalFound: 3, uploaded: 2, verified: 2, failed: 1 });
+      expect(result.errors).toEqual([
+        { path: "bad.pdf", error: "R2 PUT request failed: PUT object returned status 500" },
+      ]);
+      expect(fetchImpl).toHaveBeenCalledTimes(8);
+    });
+
+    it("counts a write as uploaded but not verified when the post-upload check throws, and keeps going", async () => {
+      // Calls: book HEAD, book PUT, book verify (throws) | next HEAD, next PUT, next verify
+      const fetchImpl = vi
+        .fn()
+        .mockResolvedValueOnce(r2Head(404))
+        .mockResolvedValueOnce(new Response(null, { status: 200 }))
+        .mockRejectedValueOnce(new Error("verify socket closed"))
+        .mockResolvedValueOnce(r2Head(404))
+        .mockResolvedValueOnce(new Response(null, { status: 200 }))
+        .mockResolvedValueOnce(r2Head(200, { etag: '"r2-next"', [SOURCE_HDR]: SRC_ETAG }));
+      const harness = makeSyncTestHarness({
+        files: [syncFile("book.pdf"), syncFile("next.pdf")],
+        downloadBlob: new Blob(["bytes"]),
+        fetchImpl: fetchImpl as never,
+      });
+
+      const result = await runSync(harness);
+
+      expect(result).toMatchObject({ totalFound: 2, uploaded: 2, verified: 1, failed: 1 });
+      expect(result.errors).toEqual([
+        { path: "book.pdf", error: "Post-upload verification failed: verify socket closed" },
+      ]);
+      expect(fetchImpl).toHaveBeenCalledTimes(6);
+    });
   });
 });

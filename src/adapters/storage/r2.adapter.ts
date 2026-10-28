@@ -42,9 +42,6 @@ export function deriveSigningKey(
 }
 
 /**
- * Builds the canonical request and returns the signed headers string.
- */
-/**
  * SigV4 canonical headers. The host is always signed. Extra headers (write preconditions,
  * x-amz-meta-*) are signed as well, so R2 authenticates them and they cannot be altered in transit.
  */
@@ -274,6 +271,7 @@ export interface PutR2ObjectOptions {
 /**
  * Uploads an object to Cloudflare R2 using a signed PUT request.
  * Returns true if the upload succeeded (2xx), false otherwise.
+ * Throws on an insecure endpoint. Returns false for a malformed endpoint.
  */
 export async function putR2Object(options: PutR2ObjectOptions): Promise<boolean> {
   const {
@@ -339,7 +337,7 @@ export interface PutR2ObjectIfOptions extends PutR2ObjectOptions {
   /** Write only if the stored object's ETag equals this value (refresh). */
   ifMatch?: string;
   /** Write only if no object exists at the key ("*" for create-once). */
-  ifNoneMatch?: string;
+  ifNoneMatch?: "*";
 }
 
 export type PutR2ObjectResult =
@@ -451,24 +449,6 @@ export class R2StorageAdapter implements StoragePort {
       accessKeyId: this.accessKeyId,
       secretAccessKey: this.secretAccessKey,
       region: this.region,
-      fetchImpl: this.fetchImpl,
-    });
-  }
-
-  async uploadObject(
-    path: string,
-    body: Buffer | Uint8Array | string,
-    contentType = "application/octet-stream",
-  ): Promise<boolean> {
-    return putR2Object({
-      endpoint: this.endpoint,
-      bucket: this.bucket,
-      key: path,
-      accessKeyId: this.accessKeyId,
-      secretAccessKey: this.secretAccessKey,
-      region: this.region,
-      body,
-      contentType,
       fetchImpl: this.fetchImpl,
     });
   }

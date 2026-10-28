@@ -175,6 +175,10 @@ export async function syncSupabaseToR2(options: SyncOptions = {}): Promise<SyncR
 
   const dryRun = options.dryRun ?? process.argv.includes("--dry-run");
   const prefix = options.prefix ?? parsePrefixArg(process.argv) ?? "";
+  // An empty programmatic prefix would list the whole bucket. Reject it before any listing call.
+  if (options.prefix === "") {
+    throw new Error('Empty prefix: options.prefix must name a folder such as "releases/v1"; omit it to sync the whole bucket');
+  }
   const fetchImpl = options.fetchImpl || fetch;
 
   if (!supabaseUrl || !supabaseKey) {
@@ -213,136 +217,144 @@ export async function syncSupabaseToR2(options: SyncOptions = {}): Promise<SyncR
   };
 
   for (const file of files) {
-    const filePath = file.path;
-    logger.log(`\n🔍 Checking: ${filePath}`);
-
-    // Without the source ETag there is no version to compare or record, so the copy cannot be proven fresh.
-    if (!file.etag) {
-      logger.error(`   ❌ Supabase listing returned no ETag for ${filePath}; refusing to sync an unversioned object.`);
-      summary.failed++;
-      summary.errors.push({ path: filePath, error: "Supabase listing returned no ETag" });
-      continue;
-    }
-
-    let remote: StatR2ObjectResult;
+    // Per-file isolation: an unexpected throw while handling one file is recorded and the run continues.
     try {
-      remote = await statR2Object({
-        endpoint: r2Endpoint,
-        bucket: r2BucketName,
-        key: filePath,
-        accessKeyId: r2AccessKeyId,
-        secretAccessKey: r2SecretAccessKey,
-        region: r2Region,
-        fetchImpl,
-      });
-    } catch (headErr) {
-      const errMsg = headErr instanceof Error ? headErr.message : String(headErr);
-      logger.error(`   ❌ Failed HEAD check on R2 for ${filePath}: ${errMsg}`);
-      summary.failed++;
-      summary.errors.push({ path: filePath, error: `R2 HEAD check failed: ${errMsg}` });
-      continue;
-    }
+      const filePath = file.path;
+      logger.log(`\n🔍 Checking: ${filePath}`);
 
-    // Skip only on an exact source-ETag match. Presence alone proves nothing about freshness.
-    if (remote.exists && remote.sourceEtag === file.etag) {
-      logger.log(`   ✅ Up to date in Cloudflare R2 (source ETag matches).`);
-      summary.alreadySynced++;
-      continue;
-    }
-
-    if (remote.exists && !remote.etag) {
-      logger.error(`   ❌ R2 returned no ETag for ${filePath}; refusing an unconditioned overwrite.`);
-      summary.failed++;
-      summary.errors.push({ path: filePath, error: "R2 returned no ETag; overwrite not conditioned" });
-      continue;
-    }
-
-    if (remote.exists) {
-      logger.log(`   ♻️ Stale or unversioned copy in R2 (source ETag ${remote.sourceEtag ?? "missing"}); refreshing.`);
-    }
-
-    if (dryRun) {
-      logger.log(`   ℹ️ [DRY RUN] Would download from Supabase and upload to R2.`);
-      summary.skipped++;
-      continue;
-    }
-
-    logger.log(`   📥 Downloading from Supabase Storage...`);
-    const { data: fileBlob, error: downloadError } = await supabase.storage
-      .from(supabaseBucket)
-      .download(filePath);
-
-    if (downloadError || !fileBlob) {
-      const errMsg = downloadError?.message || "Empty download blob";
-      logger.error(`   ❌ Failed to download ${filePath}: ${errMsg}`);
-      summary.failed++;
-      summary.errors.push({ path: filePath, error: errMsg });
-      continue;
-    }
-
-    const arrayBuffer = await fileBlob.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    const contentType = file.mimetype || "application/pdf";
-
-    logger.log(`   📤 Uploading to Cloudflare R2 (${buffer.byteLength} bytes, ${contentType})...`);
-    // Create-once when absent. Refresh only against the ETag just read, so a concurrent writer
-    // makes this PUT fail with 412 instead of being overwritten by older bytes.
-    const precondition = remote.exists ? { ifMatch: remote.etag } : { ifNoneMatch: "*" };
-    const put = await putR2ObjectIf({
-      endpoint: r2Endpoint,
-      bucket: r2BucketName,
-      key: filePath,
-      accessKeyId: r2AccessKeyId,
-      secretAccessKey: r2SecretAccessKey,
-      region: r2Region,
-      body: buffer,
-      contentType,
-      fetchImpl,
-      metadata: { "supabase-etag": file.etag },
-      ...precondition,
-    });
-
-    if (put.status === "precondition_failed") {
-      logger.error(`   ❌ R2 rejected the write for ${filePath}: the object changed after it was read. Re-run the sync.`);
-      summary.failed++;
-      summary.errors.push({ path: filePath, error: "R2 precondition failed (concurrent write); re-run sync" });
-      continue;
-    }
-
-    if (put.status === "failed") {
-      logger.error(`   ❌ Failed to upload ${filePath} to Cloudflare R2: ${put.reason}`);
-      summary.failed++;
-      summary.errors.push({ path: filePath, error: `R2 PUT request failed: ${put.reason}` });
-      continue;
-    }
-
-    // Written: counted before verification, so a failed check never hides a successful write.
-    summary.uploaded++;
-
-    logger.log(`   🩺 Verifying uploaded object in Cloudflare R2...`);
-    try {
-      const after = await statR2Object({
-        endpoint: r2Endpoint,
-        bucket: r2BucketName,
-        key: filePath,
-        accessKeyId: r2AccessKeyId,
-        secretAccessKey: r2SecretAccessKey,
-        region: r2Region,
-        fetchImpl,
-      });
-      if (after.exists && after.sourceEtag === file.etag) {
-        logger.log(`   ✨ Successfully uploaded and verified in R2!`);
-        summary.verified++;
-      } else {
-        logger.warn(`   ⚠️ WARNING: Uploaded ${filePath} but its source ETag did not verify in R2.`);
+      // Without the source ETag there is no version to compare or record, so the copy cannot be proven fresh.
+      if (!file.etag) {
+        logger.error(`   ❌ Supabase listing returned no ETag for ${filePath}; refusing to sync an unversioned object.`);
         summary.failed++;
-        summary.errors.push({ path: filePath, error: "Post-upload source ETag verification failed" });
+        summary.errors.push({ path: filePath, error: "Supabase listing returned no ETag" });
+        continue;
       }
-    } catch (verifyErr) {
-      const errMsg = verifyErr instanceof Error ? verifyErr.message : String(verifyErr);
-      logger.warn(`   ⚠️ Post-upload verification request failed for ${filePath}: ${errMsg}`);
+
+      let remote: StatR2ObjectResult;
+      try {
+        remote = await statR2Object({
+          endpoint: r2Endpoint,
+          bucket: r2BucketName,
+          key: filePath,
+          accessKeyId: r2AccessKeyId,
+          secretAccessKey: r2SecretAccessKey,
+          region: r2Region,
+          fetchImpl,
+        });
+      } catch (headErr) {
+        const errMsg = headErr instanceof Error ? headErr.message : String(headErr);
+        logger.error(`   ❌ Failed HEAD check on R2 for ${filePath}: ${errMsg}`);
+        summary.failed++;
+        summary.errors.push({ path: filePath, error: `R2 HEAD check failed: ${errMsg}` });
+        continue;
+      }
+
+      // Skip only on an exact source-ETag match. Presence alone proves nothing about freshness.
+      if (remote.exists && remote.sourceEtag === file.etag) {
+        logger.log(`   ✅ Up to date in Cloudflare R2 (source ETag matches).`);
+        summary.alreadySynced++;
+        continue;
+      }
+
+      if (remote.exists && !remote.etag) {
+        logger.error(`   ❌ R2 returned no ETag for ${filePath}; refusing an unconditioned overwrite.`);
+        summary.failed++;
+        summary.errors.push({ path: filePath, error: "R2 returned no ETag; overwrite not conditioned" });
+        continue;
+      }
+
+      if (remote.exists) {
+        logger.log(`   ♻️ Stale or unversioned copy in R2 (source ETag ${remote.sourceEtag ?? "missing"}); refreshing.`);
+      }
+
+      if (dryRun) {
+        logger.log(`   ℹ️ [DRY RUN] Would download from Supabase and upload to R2.`);
+        summary.skipped++;
+        continue;
+      }
+
+      logger.log(`   📥 Downloading from Supabase Storage...`);
+      const { data: fileBlob, error: downloadError } = await supabase.storage
+        .from(supabaseBucket)
+        .download(filePath);
+
+      if (downloadError || !fileBlob) {
+        const errMsg = downloadError?.message || "Empty download blob";
+        logger.error(`   ❌ Failed to download ${filePath}: ${errMsg}`);
+        summary.failed++;
+        summary.errors.push({ path: filePath, error: errMsg });
+        continue;
+      }
+
+      const arrayBuffer = await fileBlob.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      const contentType = file.mimetype || "application/pdf";
+
+      logger.log(`   📤 Uploading to Cloudflare R2 (${buffer.byteLength} bytes, ${contentType})...`);
+      // Create-once when absent. Refresh only against the ETag just read, so a concurrent writer
+      // makes this PUT fail with 412 instead of being overwritten by older bytes.
+      const precondition = remote.exists ? { ifMatch: remote.etag } : { ifNoneMatch: "*" as const };
+      const put = await putR2ObjectIf({
+        endpoint: r2Endpoint,
+        bucket: r2BucketName,
+        key: filePath,
+        accessKeyId: r2AccessKeyId,
+        secretAccessKey: r2SecretAccessKey,
+        region: r2Region,
+        body: buffer,
+        contentType,
+        fetchImpl,
+        metadata: { "supabase-etag": file.etag },
+        ...precondition,
+      });
+
+      if (put.status === "precondition_failed") {
+        logger.error(`   ❌ R2 rejected the write for ${filePath}: the object changed after it was read. Re-run the sync.`);
+        summary.failed++;
+        summary.errors.push({ path: filePath, error: "R2 precondition failed (concurrent write); re-run sync" });
+        continue;
+      }
+
+      if (put.status === "failed") {
+        logger.error(`   ❌ Failed to upload ${filePath} to Cloudflare R2: ${put.reason}`);
+        summary.failed++;
+        summary.errors.push({ path: filePath, error: `R2 PUT request failed: ${put.reason}` });
+        continue;
+      }
+
+      // Written: counted before verification, so a failed check never hides a successful write.
+      summary.uploaded++;
+
+      logger.log(`   🩺 Verifying uploaded object in Cloudflare R2...`);
+      try {
+        const after = await statR2Object({
+          endpoint: r2Endpoint,
+          bucket: r2BucketName,
+          key: filePath,
+          accessKeyId: r2AccessKeyId,
+          secretAccessKey: r2SecretAccessKey,
+          region: r2Region,
+          fetchImpl,
+        });
+        if (after.exists && after.sourceEtag === file.etag) {
+          logger.log(`   ✨ Successfully uploaded and verified in R2!`);
+          summary.verified++;
+        } else {
+          logger.warn(`   ⚠️ WARNING: Uploaded ${filePath} but its source ETag did not verify in R2.`);
+          summary.failed++;
+          summary.errors.push({ path: filePath, error: "Post-upload source ETag verification failed" });
+        }
+      } catch (verifyErr) {
+        const errMsg = verifyErr instanceof Error ? verifyErr.message : String(verifyErr);
+        logger.warn(`   ⚠️ Post-upload verification request failed for ${filePath}: ${errMsg}`);
+        summary.failed++;
+        summary.errors.push({ path: filePath, error: `Post-upload verification failed: ${errMsg}` });
+      }
+    } catch (fileErr) {
+      const errMsg = String(fileErr);
+      logger.error(`   ❌ Unexpected error while syncing ${file.path}: ${errMsg}`);
       summary.failed++;
-      summary.errors.push({ path: filePath, error: `Post-upload verification failed: ${errMsg}` });
+      summary.errors.push({ path: file.path, error: errMsg });
     }
   }
 
@@ -361,8 +373,9 @@ export async function syncSupabaseToR2(options: SyncOptions = {}): Promise<SyncR
 
 // Direct execution via CLI (e.g. `pnpm dlx tsx scripts/sync-supabase-to-r2.ts` or `tsx scripts/sync-supabase-to-r2.ts`)
 if (process.argv[1] && process.argv[1].includes("sync-supabase-to-r2")) {
-  const prefix = parsePrefixArg(process.argv);
-  syncSupabaseToR2({ prefix })
+  // parsePrefixArg runs inside the promise chain so a malformed --prefix reaches the .catch handler.
+  Promise.resolve()
+    .then(() => syncSupabaseToR2({ prefix: parsePrefixArg(process.argv) }))
     .then((result) => {
       if (result.failed > 0) {
         process.exitCode = 1;

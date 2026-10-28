@@ -30,7 +30,7 @@ An `immutable` one-year cache is safe only when a changed file gets a new URL, f
 ## Consequences / Tradeoffs
 
 - Covers, if they are ever added, will not be cached for a year until the conditions above are met. This costs nothing today, because no covers are served.
-- The config now has one cache rule instead of two that disagreed in scope.
+- The immutable cover rule is removed from both `web/next.config.ts` and `web/vercel.json`. The `/assets/*` rule remains in both files and is not consolidated into one.
 - Failure mode to watch: a future cover pipeline that writes to a fixed path and copies the old rule. Reinstatement conditions above exist to stop that.
 
 ## Sources

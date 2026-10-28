@@ -156,7 +156,7 @@ export async function deliverSale(
       try {
         await deps.db.releaseLinkIssued({ saleId: input.saleId, tokenHash: hash });
       } catch (releaseErr) {
-        console.error(`[delivery] sale ${input.saleId}: could not release link row: ${(releaseErr as Error).message}`);
+        console.error(`[delivery] sale ${input.saleId}: could not release link row: ${String(releaseErr)}`);
       }
     }
     throw err;

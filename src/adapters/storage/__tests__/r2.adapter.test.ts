@@ -497,7 +497,7 @@ describe("putR2Object & R2StorageAdapter upload/has", () => {
     vi.unstubAllEnvs();
   });
 
-  it("R2StorageAdapter hasObject and uploadObject delegate to helpers", async () => {
+  it("R2StorageAdapter hasObject delegates to the HEAD helper", async () => {
     const fetchSpy = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));
     const adapter = new R2StorageAdapter({
       accountId: "acc1",
@@ -512,13 +512,6 @@ describe("putR2Object & R2StorageAdapter upload/has", () => {
     expect(fetchSpy).toHaveBeenCalledWith(
       expect.stringContaining("file.pdf"),
       expect.objectContaining({ method: "HEAD" }),
-    );
-
-    const uploaded = await adapter.uploadObject("file.pdf", Buffer.from("hello"), "text/plain");
-    expect(uploaded).toBe(true);
-    expect(fetchSpy).toHaveBeenCalledWith(
-      expect.stringContaining("file.pdf"),
-      expect.objectContaining({ method: "PUT" }),
     );
   });
 });
