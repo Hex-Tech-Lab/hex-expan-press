@@ -68,14 +68,14 @@ Rollback of the code is a single revert of this change.
 
 ## Test plan
 
-**Available harnesses**
+### Available harnesses
 
 - **PGlite** (`@electric-sql/pglite` 0.5.8, `package.json:49`). Used by `web/src/lib/__tests__/launch-gate-sql-parity.test.ts:7, 97`. It reads migration files by name (`:11`) and runs real SQL. Context7: PGlite is single-user and single-connection, and `exec` uses the simple protocol without parameters. That test also notes that PGlite ignores isolation levels (`:149`).
 - **Mock supabase chain** in `payments/test/delivery_db_adapter.test.ts:22-23`. It checks the insert payload and does not reach a database.
 - **Fakes** in `payments/test/delivery.test.ts` and `payments/test/delivery_retry_trade_off.test.ts`. They simulate collisions in memory.
 - **Not present:** no real Postgres service is wired into the repo. Supabase is remote only (CLAUDE.md). Local port 54322 must not be probed.
 
-**Tests to add**
+### Tests to add
 
 1. The migration chain applies in order on PGlite, through `20261020090000`. The unique index and the sequence default exist. *(PGlite, feasible.)*
 2. An insert without `link_generation` takes a sequence value, and the returning select returns that value. *(PGlite, feasible.)*
