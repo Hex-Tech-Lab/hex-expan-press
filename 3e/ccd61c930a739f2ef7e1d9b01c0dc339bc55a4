@@ -1,0 +1,33 @@
+web/__tests__/r2-delivery-fallback.integration.test.ts
+  s_6625bc67577472::t_bd7c00a818e12c 42
+  s_6625bc67577472::t_fc7dc3159b4b80 117-119
+  s_6625bc67577472::t_65661ede22da1d 58-62
+  s_6625bc67577472::t_61e75c5750a0ae 9-10
+web/app/d/[token]/__tests__/route.test.ts
+  s_6625bc67577472::t_267d7ebdc478b1 9-10
+  s_6625bc67577472::t_b0cabf7a4cd7ef 54-61
+  s_6625bc67577472::t_8f65884d5db2c9 217-220
+  s_6625bc67577472::t_9d825b1623a80f 42
+payments/src/delivery.ts
+  s_6625bc67577472::t_817a8d86181f8c 268
+payments/test/delivery_db_adapter.test.ts
+  s_6625bc67577472::t_bbb4fc18af492b 151-159
+src/adapters/storage/r2.adapter.ts
+  s_6625bc67577472::t_08dabb6d2a80af 240,321,409
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3eccd61c930a739f2ef7e1d9b01c0dc339bc55a4",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
