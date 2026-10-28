@@ -1,0 +1,30 @@
+web/proxy.ts
+  s_6625bc67577472::t_6990b216d35a7e 101-104
+  s_6625bc67577472::t_afdf8b694f7479 10-13
+web/src/lib/supabase-server.ts
+  s_6625bc67577472::t_e8a2053bfc17ee 70,74-76
+  s_6625bc67577472::t_8d6de2a5e48c7c 33
+web/src/lib/__tests__/supabase-server.test.ts
+  s_6625bc67577472::t_f0ae6cc606372d 199,218,225
+  s_6625bc67577472::t_79d2d4b3bc67ad 402
+  s_6625bc67577472::t_72d55b37289c6a 130,148,154-170
+web/__tests__/proxy.test.ts
+  s_6625bc67577472::t_911afab1087888 269-270,278,280,286,289,292
+  s_6625bc67577472::t_d9e184bbeb36b3 110,116,119
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "bdcbf547c72095ce3cb28beb62216d78a2e19c6c",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
