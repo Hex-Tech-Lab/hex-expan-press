@@ -1,0 +1,60 @@
+src/adapters/storage/__tests__/r2.freshness.test.ts
+  s_6625bc67577472::t_6b2247183878d7 114-125
+  s_6625bc67577472::t_c0e786eddd5d8d 1-113,126-143
+docs/adr/README.md
+  s_6625bc67577472::t_8e877d416365c0 16
+  s_6625bc67577472::t_1619e9e040e405 17
+src/adapters/storage/r2.adapter.ts
+  s_6625bc67577472::t_f0aaf622c9af21 192-202,204-206,208
+  s_6625bc67577472::t_87695628c57210 164
+  s_6625bc67577472::t_3050329cf2c326 120
+  s_6625bc67577472::t_72808af6e36ed0 151
+  s_6625bc67577472::t_648219843fdf3e 292-298
+  s_6625bc67577472::t_2d248e8856f527 47-65,71,73
+  s_6625bc67577472::t_82b36d3a60dd29 336-371,378-423
+  s_6625bc67577472::t_c484252cc199d1 242,249-258
+  s_6625bc67577472::t_27194ff40aa83c 100-101
+  s_6625bc67577472::t_d13f4a0267b582 372-377
+web/next.config.ts
+  s_6625bc67577472::t_2785bbda3b8c56 48-50
+scripts/sync-supabase-to-r2.ts
+  s_6625bc67577472::t_de5ec3441e6190 28-35
+  s_6625bc67577472::t_66c4bf3a7ff059 80-81
+  s_6625bc67577472::t_95f81aef711c42 288-291,301-302,305-313,315,319-321,324,333-340,343,345
+  s_6625bc67577472::t_ec159ff9aaa682 219-227,229,246-248,253-262
+  s_6625bc67577472::t_8008b7f32a8d57 5
+  s_6625bc67577472::t_25a0cd4a545745 48-49,52-53,57-59,61-62,64-65
+  s_6625bc67577472::t_5a96818573fc33 63
+  s_6625bc67577472::t_a02ffadf447611 124
+  s_6625bc67577472::t_92f884992d44f8 263
+docs/adr/0063-r2-sync-freshness-contract.md
+  s_6625bc67577472::t_b87329bc68e8f2 1-38
+scripts/__tests__/sync-supabase-to-r2.test.ts
+  s_6625bc67577472::t_9bf589e97a3d6e 93-97,102-113
+  s_6625bc67577472::t_b6472b569ea197 98-101
+  s_6625bc67577472::t_e5b70bddc8caec 221-232,236,239-244,248,252,255,257-275,277-282,284-285,289-307,310,312-383,388,392,403,407
+docs/adr/0064-remove-immutable-cover-cache.md
+  s_6625bc67577472::t_88b66833a594ba 1-40
+src/adapters/storage/__tests__/r2.adapter.test.ts
+  s_6625bc67577472::t_073a2b79850fc7 385-426
+docs/adr/proposed/generation-allocation.md
+  s_6625bc67577472::t_4d17bfc00a719a 1-125
+docs/agent_ledger.jsonl
+  s_6625bc67577472::t_0bfd47f3d5b506 854-863
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1e80a13702bfe40b8ebbaeea28de7db0eaf96031",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
