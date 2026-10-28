@@ -1,0 +1,22 @@
+payments/src/settings_registry.ts
+  s_6625bc67577472::t_65f68225bceca5 334-338,340
+  s_6625bc67577472::t_c94046824fbba9 138
+payments/test/session_check_timeout_clamp.test.ts
+  s_6625bc67577472::t_7d677c4e5d4eca 5-7,10-11,14-15,18-19,22-25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f90efd35d9094f723ac19928c1babc17d6bf37a9",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
