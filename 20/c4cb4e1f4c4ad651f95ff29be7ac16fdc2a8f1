@@ -1,0 +1,59 @@
+payments/test/delivery.test.ts
+  s_6625bc67577472::t_d8253063b8dc52 32
+  s_6625bc67577472::t_d89ba036ff98f4 235-236
+payments/test/delivery_retry_trade_off.test.ts
+  s_6625bc67577472::t_c6ad28f7b4bf1a 103
+  s_6625bc67577472::t_201faec5fa67c4 127
+  s_6625bc67577472::t_02d03de96ff58f 151
+  s_6625bc67577472::t_3b27f92222d1b3 38-39
+  s_6625bc67577472::t_13497ab8c64cf6 50
+src/adapters/storage/__tests__/r2.freshness.test.ts
+  s_6625bc67577472::t_75c91961a635cf 267
+  s_6625bc67577472::t_f246a78195e445 296-315
+payments/test/delivery_db_adapter.test.ts
+  s_6625bc67577472::t_a3610916c8e8db 187
+  s_6625bc67577472::t_6067945ca6925d 146,148,154,160-167,171,174,177,181
+src/adapters/storage/r2.adapter.ts
+  s_6625bc67577472::t_4dab6fcd80d4d3 553-554,557-560
+  s_6625bc67577472::t_c6f66bbd227a6f 563
+  s_6625bc67577472::t_a933769ebe2c62 525-529
+payments/src/delivery.ts
+  s_6625bc67577472::t_6a60b232915ba7 98
+  s_6625bc67577472::t_ead8705a7402ad 107,122,129
+  s_6625bc67577472::t_b9bd9b8fae0a0c 207
+  s_6625bc67577472::t_f5c0ca7b4f9de2 261,264-266,272
+  s_6625bc67577472::t_917846758aa828 283-286
+  s_6625bc67577472::t_115deaaefc4d7e 66-69
+  s_6625bc67577472::t_99ca2d7a54bb11 165
+payments/test/delivery_provider_scope.test.ts
+  s_6625bc67577472::t_49ae71f3d554f7 1-49
+docs/adr/proposed/generation-allocation.md
+  s_6625bc67577472::t_519e8c1ff87529 87
+  s_6625bc67577472::t_031f5c98bd10aa 43
+payments/test/delivery_block_outcome.test.ts
+  s_6625bc67577472::t_cb2cf3b947ea1c 7
+docs/adr/0063-r2-sync-freshness-contract.md
+  s_6625bc67577472::t_c71c48c22db300 25
+  s_6625bc67577472::t_ddac3a29c4948e 31
+  s_6625bc67577472::t_2e9c39bb4b07a6 33
+src/use_cases/billing/process_billing_webhook.ts
+  s_6625bc67577472::t_0cc667bd56a4dd 482,523
+src/use_cases/billing/__tests__/process_billing_webhook.test.ts
+  s_6625bc67577472::t_cee68a3295498e 370
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "20c4cb4e1f4c4ad651f95ff29be7ac16fdc2a8f1",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
