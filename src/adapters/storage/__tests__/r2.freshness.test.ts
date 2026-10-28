@@ -5,6 +5,7 @@ import {
   putR2ObjectIf,
   R2StorageAdapter,
   resolveSupabaseSourceEtag,
+  SOURCE_LISTING_TIMEOUT_MS,
   statR2Object,
 } from "../r2.adapter";
 
@@ -273,5 +274,23 @@ describe("R2 delivery freshness gate", () => {
       error: null,
     });
     expect(await resolveSupabaseSourceEtag(sb as never, "b", "folder/book.pdf")).toBe('"exact"');
+  });
+});
+
+describe("resolveSupabaseSourceEtag timeout", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("returns null once the listing exceeds the bound, so the download falls back", async () => {
+    vi.useFakeTimers();
+    const hungListing = vi.fn(() => new Promise<never>(() => {}));
+    const sbAdmin = { storage: { from: () => ({ createSignedUrl: vi.fn(), list: hungListing }) } };
+
+    const pending = resolveSupabaseSourceEtag(sbAdmin as never, "release-files", "books/hung.pdf");
+    await vi.advanceTimersByTimeAsync(SOURCE_LISTING_TIMEOUT_MS);
+
+    await expect(pending).resolves.toBeNull();
+    expect(hungListing).toHaveBeenCalledTimes(1);
   });
 });

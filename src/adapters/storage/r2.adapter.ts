@@ -530,10 +530,13 @@ export interface SupabaseStorageAdmin {
   };
 }
 
+/** Bound on the source listing. The buyer download path awaits it, so a hung listing must not hold the request. */
+export const SOURCE_LISTING_TIMEOUT_MS = 5000;
+
 /**
  * Reads the current source ETag of a Supabase Storage object from its listing metadata.
  * Matches the name exactly (the listing `search` is a prefix match). Returns null when the object or
- * its eTag is absent, or when the listing fails. Never throws.
+ * its eTag is absent, when the listing fails, or when it exceeds SOURCE_LISTING_TIMEOUT_MS. Never throws.
  */
 export async function resolveSupabaseSourceEtag(
   sbAdmin: SupabaseStorageAdmin,
@@ -543,8 +546,16 @@ export async function resolveSupabaseSourceEtag(
   const slash = path.lastIndexOf("/");
   const directory = slash === -1 ? "" : path.slice(0, slash);
   const name = path.slice(slash + 1);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () => reject(new Error(`listing exceeded ${SOURCE_LISTING_TIMEOUT_MS} ms`)),
+      SOURCE_LISTING_TIMEOUT_MS,
+    );
+  });
   try {
-    const { data, error } = await sbAdmin.storage.from(bucket).list(directory, { search: name, limit: 100 });
+    const listing = sbAdmin.storage.from(bucket).list(directory, { search: name, limit: 100 });
+    const { data, error } = await Promise.race([listing, timeout]);
     if (error) {
       console.error(`[r2-storage] source ETag lookup failed for ${path}:`, error.message ?? "unknown error");
       return null;
@@ -555,6 +566,8 @@ export async function resolveSupabaseSourceEtag(
   } catch (err) {
     console.error(`[r2-storage] source ETag lookup threw for ${path}:`, err instanceof Error ? err.message : err);
     return null;
+  } finally {
+    clearTimeout(timer);
   }
 }
 
