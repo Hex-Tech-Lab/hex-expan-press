@@ -22,14 +22,15 @@ The Supabase-to-R2 sync skipped any object that already existed in R2, with no c
 6. **Unversioned input refused.** A listed object with no ETag is not synced. An R2 object with no ETag is not overwritten, because the write could not be conditioned.
 7. **Counters.** `uploaded` increments on a successful PUT, before verification. `verified` increments only when a post-write HEAD shows the expected source marker. A successful PUT whose verification fails counts as `uploaded: 1, verified: 0, failed: 1`.
 8. **Missing-marker policy.** Objects written before this decision carry no marker. They are refreshed once, with `If-Match`, and carry the marker from then on. Consequence: one re-upload per legacy object, then none.
+9. **Download-time freshness gate.** `R2StorageAdapter.createSignedDownloadUrl` serves the R2 copy only when its stored `x-amz-meta-supabase-etag` equals the ETag from a fresh Supabase listing made for that request. Any mismatch, missing marker, unknown ETag, or listing timeout falls back to the Supabase copy. The check is a point-in-time comparison: it does not guarantee that the source is unchanged after the check.
 
 ## Consequences / Tradeoffs
 
 - **Easier:** a changed source is picked up at the same key. Concurrent runs cannot silently overwrite a newer object.
 - **Harder:** the adapter now exposes `statR2Object` (ETags and marker) alongside the boolean `headR2Object`, which remains for existing callers.
-- **Accepted cost:** every run issues one HEAD per listed object, as before, and one additional HEAD after each write.
+- **Accepted cost:** every run issues one HEAD per listed object, as before, and one additional HEAD after each write. Each download of an object that exists in R2 also issues one uncached Supabase listing (the download-time freshness gate, item 9). Its timeout is 5 s, and the listing is aborted when the timeout fires (ledger entry 2026-10-28T09:13:17Z records the decision).
 - **Known failure mode to watch:** a `412` in a run means another writer touched the same key. The run reports it as failed so a human re-runs it. It does not guess which writer is correct.
-- **Not verified live in this decision.** The conditional-write behaviour is confirmed from Cloudflare's documentation and checked by unit tests against the request shape. It has not been exercised against a real bucket. A live check against a scratch key, using credentials the founder approves, is the next verification step.
+- **Live verification status is unresolved.** The conditional-write behaviour is confirmed from Cloudflare's documentation and checked by unit tests against the request shape. The PR #112 description reports a live check on `expanpress-release-files` (create, repeat create 412, stale If-Match 412, correct If-Match write, delete). The agent ledger (2026-10-28) records that live R2 behaviour was not exercised. Until a re-run is logged with its date and result, treat the live behaviour as unverified.
 
 ## Sources
 

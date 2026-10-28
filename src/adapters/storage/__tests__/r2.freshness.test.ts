@@ -264,7 +264,7 @@ describe("R2 delivery freshness gate", () => {
     const sb = { storage: { from: () => ({ createSignedUrl: vi.fn(), list: listMock }) } };
 
     expect(await resolveSupabaseSourceEtag(sb as never, "b", "folder/book.pdf")).toBeNull();
-    expect(listMock).toHaveBeenCalledWith("folder", { search: "book.pdf", limit: 100 });
+    expect(listMock).toHaveBeenCalledWith("folder", { search: "book.pdf", limit: 100 }, { signal: expect.any(AbortSignal) });
 
     listMock.mockResolvedValueOnce({
       data: [
@@ -292,5 +292,25 @@ describe("resolveSupabaseSourceEtag timeout", () => {
 
     await expect(pending).resolves.toBeNull();
     expect(hungListing).toHaveBeenCalledTimes(1);
+  });
+
+  it("aborts the in-flight listing request when the bound is hit, not just stops waiting for it", async () => {
+    vi.useFakeTimers();
+    let observedSignal: AbortSignal | undefined;
+    // A listing that rejects only when the signal it was given is aborted, as the real client does.
+    const cancellableListing = vi.fn((_dir: string, _opts: unknown, parameters?: { signal?: AbortSignal }) => {
+      observedSignal = parameters?.signal;
+      return new Promise<never>((_resolve, reject) => {
+        observedSignal?.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
+      });
+    });
+    const sbAdmin = { storage: { from: () => ({ createSignedUrl: vi.fn(), list: cancellableListing }) } };
+
+    const pending = resolveSupabaseSourceEtag(sbAdmin as never, "release-files", "books/slow.pdf");
+    expect(observedSignal?.aborted).toBe(false);
+    await vi.advanceTimersByTimeAsync(SOURCE_LISTING_TIMEOUT_MS);
+
+    await expect(pending).resolves.toBeNull();
+    expect(observedSignal?.aborted).toBe(true);
   });
 });

@@ -35,8 +35,8 @@ describe("retry after an ambiguous send retains earlier link generations (multi-
           return true;
         }),
         releaseLinkIssued: vi.fn(async () => undefined),
-        deliveryConfirmed: vi.fn(async (saleId: string) => confirmed.has(saleId)),
-        confirmDelivery: vi.fn(async ({ saleId }: { saleId: string }) => {
+        deliveryConfirmed: vi.fn(async (_provider: string, saleId: string) => confirmed.has(saleId)),
+        confirmDelivery: vi.fn(async ({ saleId }: { provider: string; saleId: string }) => {
           confirmed.add(saleId);
         }),
       },
@@ -47,7 +47,7 @@ describe("retry after an ambiguous send retains earlier link generations (multi-
       now: () => new Date(FROZEN_MS),
       newToken: () => tokens.shift() as string,
     };
-    const sale = { saleId: "s-1", productAlias: "alias-1", buyerEmail: "buyer@example.com" };
+    const sale = { provider: "paddle", saleId: "s-1", productAlias: "alias-1", buyerEmail: "buyer@example.com" };
 
     // Initial attempt: sendEmail fails ambiguously
     await expect(deliverSale(sale, deps)).rejects.toThrow("socket hang up");
@@ -100,7 +100,7 @@ describe("retry after an ambiguous send retains earlier link generations (multi-
       now: () => new Date(FROZEN_MS),
       newToken: () => "V".repeat(43),
     };
-    const sale = { saleId: "s-2", productAlias: "alias-1", buyerEmail: "buyer@example.com" };
+    const sale = { provider: "paddle", saleId: "s-2", productAlias: "alias-1", buyerEmail: "buyer@example.com" };
 
     await expect(deliverSale(sale, deps)).resolves.toBe("sent");
     expect(rows.get("s-2")?.length).toBe(1);
@@ -124,7 +124,7 @@ describe("retry after an ambiguous send retains earlier link generations (multi-
       now: () => new Date(FROZEN_MS),
       newToken: () => "W".repeat(43),
     };
-    const sale = { saleId: "s-3", productAlias: "alias-1", buyerEmail: "buyer@example.com" };
+    const sale = { provider: "paddle", saleId: "s-3", productAlias: "alias-1", buyerEmail: "buyer@example.com" };
 
     await expect(deliverSale(sale, deps)).rejects.toThrow("delivery blocked: sale s-3 link generation collision");
   });
@@ -148,7 +148,7 @@ describe("retry after an ambiguous send retains earlier link generations (multi-
       replyTo: "support@expanpress.com",
       newToken: () => "X".repeat(43),
     };
-    const sale = { saleId: "s-4", productAlias: "alias-1", buyerEmail: "buyer@example.com" };
+    const sale = { provider: "paddle", saleId: "s-4", productAlias: "alias-1", buyerEmail: "buyer@example.com" };
 
     await expect(deliverSale(sale, deps)).resolves.toBe("duplicate");
   });

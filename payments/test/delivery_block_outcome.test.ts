@@ -4,7 +4,7 @@ import { deliverSaleForWebhook, type DeliveryDeps } from "../src/delivery";
 // A sale that cannot be delivered answers a typed status: a missing buyer email is final (422, the provider
 // stops retrying); a missing release file is fixable by ops, so it stays retryable (503).
 const PRODUCT = { id: "11111111-1111-4111-8111-111111111111", title: "500K Playbook", releasePath: "p/file.pdf" };
-const sale = { saleId: "s-1", productAlias: "alias-1", buyerEmail: "buyer@example.com" };
+const sale = { provider: "paddle", saleId: "s-1", productAlias: "alias-1", buyerEmail: "buyer@example.com" };
 
 function deps(product: unknown): DeliveryDeps {
   return {

@@ -63,10 +63,10 @@ export interface DeliveryDb {
   }): Promise<boolean>;
   /** Removes the link_issued row for this sale and token, so a later attempt can issue again. */
   releaseLinkIssued(row: { saleId: string; tokenHash: string }): Promise<void>;
-  /** True once a send for this sale has been confirmed accepted. */
-  deliveryConfirmed(saleId: string): Promise<boolean>;
-  /** Records that the send for this sale's link was accepted. Called only after the send resolves. */
-  confirmDelivery(row: { saleId: string; tokenHash: string }): Promise<void>;
+  /** True once a send for this provider's sale has been confirmed accepted. Sale IDs are scoped by provider. */
+  deliveryConfirmed(provider: string, saleId: string): Promise<boolean>;
+  /** Records that the send for this provider's sale link was accepted. Called only after the send resolves. */
+  confirmDelivery(row: { provider: string; saleId: string; tokenHash: string }): Promise<void>;
 }
 
 export interface DeliveryDeps {
@@ -95,7 +95,7 @@ export type DeliveryOutcome = "sent" | "duplicate" | "no_email" | "no_release_fi
 const esc = (s: string): string => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
 export async function deliverSale(
-  input: { saleId: string; productAlias: string; buyerEmail?: string },
+  input: { provider: string; saleId: string; productAlias: string; buyerEmail?: string },
   deps: DeliveryDeps,
 ): Promise<DeliveryOutcome> {
   if (!input.buyerEmail) return "no_email";
@@ -104,7 +104,7 @@ export async function deliverSale(
   if (!product || !product.releasePath) return "no_release_file";
 
   // If this sale was already successfully delivered and confirmed, do not issue another link or send another email.
-  if (await deps.db.deliveryConfirmed(input.saleId)) return "duplicate";
+  if (await deps.db.deliveryConfirmed(input.provider, input.saleId)) return "duplicate";
 
   const now = deps.now ? deps.now() : new Date();
   const token = (deps.newToken ?? newToken)();
@@ -119,14 +119,14 @@ export async function deliverSale(
     inserted = await deps.db.recordLinkIssued(row);
     if (inserted) break;
     // If a concurrent worker completed delivery while we were attempting issuance:
-    if (await deps.db.deliveryConfirmed(input.saleId)) return "duplicate";
+    if (await deps.db.deliveryConfirmed(input.provider, input.saleId)) return "duplicate";
     // Monotonic generation retry without destroying prior links:
     linkGeneration = nextGeneration(Math.max(now.getTime(), linkGeneration + 1));
     row = { ...row, linkGeneration };
   }
 
   if (!inserted) {
-    if (await deps.db.deliveryConfirmed(input.saleId)) return "duplicate";
+    if (await deps.db.deliveryConfirmed(input.provider, input.saleId)) return "duplicate";
     throw new Error(`delivery blocked: sale ${input.saleId} link generation collision`);
   }
 
@@ -162,7 +162,7 @@ export async function deliverSale(
     throw err;
   }
   // Written only after the send resolved. If this write fails, the row stays unconfirmed and a retry sends again.
-  await deps.db.confirmDelivery({ saleId: input.saleId, tokenHash: hash });
+  await deps.db.confirmDelivery({ provider: input.provider, saleId: input.saleId, tokenHash: hash });
   return "sent";
 }
 
@@ -204,7 +204,7 @@ export function productionDeps(): DeliveryDeps {
  * the webhook must not acknowledge the sale as delivered.
  */
 export async function deliverSaleForWebhook(
-  input: { saleId: string; productAlias: string; buyerEmail?: string },
+  input: { provider: string; saleId: string; productAlias: string; buyerEmail?: string },
   deps: DeliveryDeps = productionDeps(),
 ): Promise<void> {
   const outcome = await deliverSale(input, deps);
@@ -258,14 +258,18 @@ function supabaseDeliveryDb(): DeliveryDb {
         .eq("event_type", "link_issued");
       if (error) throw new Error(`link release failed: ${error.message}`);
     },
-    async deliveryConfirmed(saleId) {
+    async deliveryConfirmed(provider, saleId) {
       const sb = await getSupabaseAdmin();
       if (!sb) throw new Error("Supabase admin client unavailable");
+      // Provider-scoped: the same sale ID from another provider must not count as delivered. Confirmations
+      // written before this column existed have no details.provider, so they never match and the link is re-sent
+      // (a duplicate email, which is the safer failure than a buyer with no link).
       const { data, error } = await sb
         .from("audit_log")
         .select("id")
         .eq("event", DELIVERY_CONFIRMED_EVENT)
         .eq("details->>sale_id", saleId)
+        .eq("details->>provider", provider)
         .order("id", { ascending: true })
         .limit(1);
       if (error) throw new Error(`delivery confirmation lookup failed: ${error.message}`);
@@ -276,7 +280,10 @@ function supabaseDeliveryDb(): DeliveryDb {
       if (!sb) throw new Error("Supabase admin client unavailable");
       const { error } = await sb
         .from("audit_log")
-        .insert({ event: DELIVERY_CONFIRMED_EVENT, details: { sale_id: row.saleId, token_hash: row.tokenHash } });
+        .insert({
+          event: DELIVERY_CONFIRMED_EVENT,
+          details: { provider: row.provider, sale_id: row.saleId, token_hash: row.tokenHash },
+        });
       if (error) throw new Error(`delivery confirmation write failed: ${error.message}`);
     },
   };

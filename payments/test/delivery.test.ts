@@ -29,7 +29,7 @@ function fakes(over: Partial<DeliveryDeps> & { product?: unknown; inserted?: boo
   };
   return { deps, recordLinkIssued, releaseLinkIssued, sendEmail, createShortLink };
 }
-const sale = { saleId: "s-1", productAlias: "alias-1", buyerEmail: "buyer@example.com" };
+const sale = { provider: "paddle", saleId: "s-1", productAlias: "alias-1", buyerEmail: "buyer@example.com" };
 
 describe("deliverSale", () => {
   it("does nothing without a buyer email (no grant, no mail)", async () => {
@@ -232,8 +232,8 @@ describe("deliverSaleForWebhook never acknowledges an unconfirmed sale", () => {
     f.deps.db.releaseLinkIssued = vi.fn(async () => {
       throw new Error("db down");
     });
-    f.deps.db.deliveryConfirmed = vi.fn(async (saleId: string) => confirmed.has(saleId));
-    f.deps.db.confirmDelivery = vi.fn(async ({ saleId }: { saleId: string }) => {
+    f.deps.db.deliveryConfirmed = vi.fn(async (_provider: string, saleId: string) => confirmed.has(saleId));
+    f.deps.db.confirmDelivery = vi.fn(async ({ saleId }: { provider: string; saleId: string }) => {
       confirmed.add(saleId);
     });
     f.sendEmail.mockRejectedValueOnce(definiteRejection());

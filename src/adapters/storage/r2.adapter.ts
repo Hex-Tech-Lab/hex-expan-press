@@ -522,7 +522,11 @@ export interface SupabaseStorageAdmin {
         data: { signedUrl: string } | null;
         error: { message?: string } | null;
       }>;
-      list: (path: string, options?: { search?: string; limit?: number }) => Promise<{
+      list: (
+        path: string,
+        options?: { search?: string; limit?: number },
+        parameters?: { signal?: AbortSignal },
+      ) => Promise<{
         data: Array<{ name: string; metadata?: Record<string, unknown> | null }> | null;
         error: { message?: string } | null;
       }>;
@@ -546,15 +550,17 @@ export async function resolveSupabaseSourceEtag(
   const slash = path.lastIndexOf("/");
   const directory = slash === -1 ? "" : path.slice(0, slash);
   const name = path.slice(slash + 1);
+  // Abort the request on timeout, not just stop waiting for it: a hung listing must not keep running in the background.
+  const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(
-      () => reject(new Error(`listing exceeded ${SOURCE_LISTING_TIMEOUT_MS} ms`)),
-      SOURCE_LISTING_TIMEOUT_MS,
-    );
+    timer = setTimeout(() => {
+      controller.abort();
+      reject(new Error(`listing exceeded ${SOURCE_LISTING_TIMEOUT_MS} ms`));
+    }, SOURCE_LISTING_TIMEOUT_MS);
   });
   try {
-    const listing = sbAdmin.storage.from(bucket).list(directory, { search: name, limit: 100 });
+    const listing = sbAdmin.storage.from(bucket).list(directory, { search: name, limit: 100 }, { signal: controller.signal });
     const { data, error } = await Promise.race([listing, timeout]);
     if (error) {
       console.error(`[r2-storage] source ETag lookup failed for ${path}:`, error.message ?? "unknown error");

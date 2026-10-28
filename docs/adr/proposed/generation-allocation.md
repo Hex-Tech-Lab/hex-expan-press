@@ -40,7 +40,7 @@ The app uses milliseconds (`Date.getTime`, `delivery.ts:36-40`, `111`). The epoc
 1. **The database allocates `link_generation`.** The insert omits `link_generation`. The column default (`nextval` on the sequence) supplies it. The adapter reads the value back with a returning select on the insert and returns it to `deliverSale`.
 2. **Only the sequence assigns generations.** The application never computes one. The production path of `nextGeneration` and the local counter (`delivery.ts:30-45`) is removed. Tests that reset it are updated in the same change.
 3. **A conflict is a typed result, not a silent `false`.** A `23505` on `(sale_id, link_generation)` becomes a `conflict` result. Any other error still throws. A sequence cannot produce a duplicate for new rows, so the conflict path guards against a future writer that sets the value explicitly. Use a plain insert, not `ON CONFLICT DO NOTHING`. DO NOTHING returns no row and would hide a lost insert.
-4. **Retry semantics. Proposed: every attempt gets a fresh generation and a fresh token (Option A).** This is the current behaviour (`delivery.ts:110`, `113`), pinned by `payments/test/delivery_retry_trade_off.test.ts`. The database stores only token hashes, so a reused link cannot be re-sent without a new secret or a schema change.
+4. **Retry semantics. Proposed: every delivery invocation gets a fresh generation and a fresh token (Option A).** Collision retries within one invocation get a fresh generation but reuse that invocation's token and hash. A later delivery invocation creates a new token. This is the current behaviour (`delivery.ts` collision loop), pinned by `payments/test/delivery_retry_trade_off.test.ts`. The database stores only token hashes, so a reused link cannot be re-sent without a new secret or a schema change.
 
    | Option | For | Against |
    |---|---|---|
@@ -84,7 +84,7 @@ Rollback of the code is a single revert of this change.
 5. A rolled-back insert consumes a sequence value, and the gap is accepted. Context7 confirms `nextval` is not rolled back. *(PGlite, feasible.)*
 6. The adapter maps `23505` to `conflict`, and other errors throw. *(Mock chain, feasible.)*
 7. The adapter returns the database-assigned generation from the read-back, and a missing value throws. *(Mock chain, feasible.)*
-8. Concurrency: N parallel `deliverSale` calls for one sale. Generations are distinct, and under the lock only one delivery is confirmed. *(Needs a real Postgres; PGlite is single-connection.)*
+8. Concurrency: N parallel deliveries for one sale, driven through the lock-bearing entrypoint `process_billing_webhook` (which takes the Redis sale lock before `deliverSaleForWebhook`). Calling `deliverSale` directly would skip the lock and prove nothing about it. Generations are distinct, and under the lock only one delivery is confirmed. *(Needs a real Postgres; PGlite is single-connection.)*
 9. Concurrent inserts from separate connections to real Postgres at read committed: no duplicate `(sale_id, link_generation)`. *(Missing harness.)*
 
 **What is missing for tests 8 and 9:** a real Postgres in CI (a service container), or a separate Supabase branch. A Supabase branch is remote, billed, and needs approval. A PGlite multiplexer is not a faithful isolation test.
