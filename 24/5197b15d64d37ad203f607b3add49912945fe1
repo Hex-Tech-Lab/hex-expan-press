@@ -1,0 +1,27 @@
+web/app/creator/dashboard/actions.ts
+  s_6625bc67577472::t_dcb66df6d5fb70 31-40
+  s_6625bc67577472::t_cb4933734aaf4b 12-14,16,19
+web/app/creator/dashboard/sign-out-button.tsx
+  s_6625bc67577472::t_488e9ddb5db77e 4-5,7-9,13,19,23,36,43-49
+  s_6625bc67577472::t_f23af8dff933af 50
+web/public/terms.html
+  s_6625bc67577472::t_48224474b5b1f8 64-67
+web/app/creator/dashboard/__tests__/sign-out-scope.test.ts
+  s_6625bc67577472::t_fef013fad340cf 1-58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "245197b15d64d37ad203f607b3add49912945fe1",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
