@@ -14,7 +14,7 @@ Usage:
   python3 scripts/watermark_pdf.py \
     --input data/intel/duane_book/releases/current.pdf \
     --output data/intel/duane_book/releases/current.review_watermarked.pdf \
-    --creator-id "retirearly500k" \
+    --creator-id "example-creator" \
     --creator-name "the owner" \
     --mode "diagonal" \
     --purpose "review"
@@ -176,7 +176,7 @@ def main():
     parser = argparse.ArgumentParser(description="Stamp visual watermark and HMAC metadata fingerprint on PDF assets/contracts.")
     parser.add_argument("--input", required=True, help="Path to source PDF")
     parser.add_argument("--output", required=True, help="Path to destination watermarked PDF")
-    parser.add_argument("--creator-id", required=True, help="Creator identifier (e.g. retirearly500k)")
+    parser.add_argument("--creator-id", required=True, help="Creator identifier (e.g. example-creator)")
     parser.add_argument("--creator-name", required=True, help="Creator full legal name (e.g. the owner)")
     parser.add_argument(
         "--mode",
