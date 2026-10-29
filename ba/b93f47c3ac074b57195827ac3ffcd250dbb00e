@@ -1,0 +1,26 @@
+scripts/generate_bundle_manifest.py
+  s_6625bc67577472::t_f513908987f94a 39-40
+  s_6625bc67577472::t_b1aad349c63d19 156-157
+scripts/__tests__/test_bundle_manifest.py
+  s_6625bc67577472::t_6f6940501284a2 220-264,268-282
+  s_6625bc67577472::t_642588ac281aa1 265-267
+scripts/watermark_pdf.py
+  s_6625bc67577472::t_55c55037f4926e 200-201
+  s_6625bc67577472::t_de4bd8d643de77 36-37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "bab93f47c3ac074b57195827ac3ffcd250dbb00e",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
