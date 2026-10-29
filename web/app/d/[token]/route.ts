@@ -2,13 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "../../../../payments/src/supabase_admin";
 import { GLOBAL } from "../../../../payments/src/settings_registry";
 import { TOKEN_RE, tokenHash } from "../../../../payments/src/delivery";
+import { readSaleAccessEvents, saleAccessState, type SaleAccess } from "../../../../payments/src/sale_access";
 import { getDeliveryStorageAdapter } from "../../../../src/adapters/storage/r2.adapter";
 
 export const runtime = "nodejs";
 
 /**
  * GET /d/{token} (buyer delivery, ADR 0061 origin expanpress.com). Validates the hash and expiry of an
- * issued link, logs download_completed, and 302s to a short-lived signed URL for the release file.
+ * issued link, denies a sale refunded in the ledger (410), logs download_completed, and 302s to a short-lived
+ * signed URL for the release file.
  * Fail closed: the redirect happens only after the server-side log row is written, so an unlogged
  * download is never served. The token is never logged.
  */
@@ -39,6 +41,19 @@ export async function GET(_request: NextRequest, ctx: { params: Promise<{ token:
   }
   if (new Date(link.expires_at as string).getTime() <= Date.now()) {
     return new NextResponse("This download link has expired. Reply to your receipt email for a new one.", { status: 410 });
+  }
+
+  // A refunded sale loses its links until the provider reverses the refund. The ledger decides. An unreadable or
+  // unknown state denies: nothing is served on a lookup failure.
+  let access: SaleAccess;
+  try {
+    access = saleAccessState(await readSaleAccessEvents(sb, link.sale_id as string));
+  } catch (err) {
+    console.error(`[delivery] sale access unreadable for sale ${link.sale_id as string}: ${(err as Error).message}`);
+    return new NextResponse("Download unavailable", { status: 500 });
+  }
+  if (access === "revoked") {
+    return new NextResponse("This purchase was refunded, so its download link no longer works.", { status: 410 });
   }
 
   const { data: product, error: prodErr } = await sb

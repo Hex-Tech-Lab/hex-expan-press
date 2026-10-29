@@ -29,6 +29,16 @@ const fromMock = vi.fn((table: string) => {
       })),
     };
   }
+  if (table === "orders") {
+    // The sale's ledger rows: one un-refunded sale, so the route serves the file.
+    return {
+      select: vi.fn(() => ({
+        eq: vi.fn(() => ({
+          order: vi.fn(() => Promise.resolve({ data: [{ provider: "paddle", event_type: "sale", occurred_at: "2026-10-01T00:00:00Z" }], error: null })),
+        })),
+      })),
+    };
+  }
   return {};
 });
 

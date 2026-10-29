@@ -1,8 +1,9 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
-// The code does not revoke download access on refund or chargeback (backlog: refund revocation). Refund copy
-// must therefore not promise that access ends. It must say refunds are decided by the Merchant of Record.
+// The code revokes download access on a refund (payments/src/sale_access.ts, route /d/[token]), but the public
+// copy is not asked to promise it. The copy must not claim a revocation it does not make, and must say refunds
+// are decided by the Merchant of Record.
 const read = (rel: string) => readFileSync(new URL(`../${rel}`, import.meta.url), "utf8");
 const REVOCATION_CLAIM = /revok|access (ends|will end|is removed|is terminated|stops)|lose (your )?access|no longer (have|hold) access|terminat\w* (your )?access/i;
 

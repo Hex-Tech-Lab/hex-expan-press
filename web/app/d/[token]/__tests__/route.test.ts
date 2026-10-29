@@ -7,7 +7,24 @@ const maybeSingleMock = vi.fn();
 const insertMock = vi.fn();
 const createSignedUrlMock = vi.fn();
 
+// The sale's ledger rows (public.orders). Each test sets this; the default is an un-refunded sale.
+type OrdersResult = { data: Array<{ provider: string; event_type: string; occurred_at: string }> | null; error: { message: string } | null };
+let ordersResult: OrdersResult = { data: [], error: null };
+const defaultSaleOnly = (): OrdersResult => ({
+  data: [{ provider: "paddle", event_type: "sale", occurred_at: "2026-10-01T00:00:00Z" }],
+  error: null,
+});
+
 const fromMock = vi.fn((table: string) => {
+  if (table === "orders") {
+    return {
+      select: vi.fn(() => ({
+        eq: vi.fn(() => ({
+          order: vi.fn(() => Promise.resolve(ordersResult)),
+        })),
+      })),
+    };
+  }
   if (table === "download_events") {
     return {
       select: vi.fn(() => ({
@@ -73,6 +90,10 @@ describe("GET /d/[token] (Buyer delivery route)", () => {
     vi.clearAllMocks();
     vi.unstubAllEnvs();
     clearR2Envs();
+    maybeSingleMock.mockReset();
+    createSignedUrlMock.mockReset();
+    insertMock.mockReset();
+    ordersResult = defaultSaleOnly();
   });
 
   afterEach(() => {
@@ -253,5 +274,89 @@ describe("GET /d/[token] (Buyer delivery route)", () => {
     await expectRedirectTo(validToken, "https://supabase.example/signed/books/fallback-book.pdf");
     expect(createSignedUrlMock).toHaveBeenCalledWith("books/fallback-book.pdf", expect.any(Number));
     expect(insertMock).toHaveBeenCalled();
+  });
+
+  describe("refund revocation (sale access state)", () => {
+    const future = () => new Date(Date.now() + 100000).toISOString();
+
+    function linkRow() {
+      maybeSingleMock.mockResolvedValueOnce({
+        data: { sale_id: "s-refund", product_id: "p-refund", expires_at: future() },
+        error: null,
+      });
+    }
+
+    /** Queues the rest of a successful serve: product lookup, signed URL, and the download log write. */
+    function queueServePath() {
+      maybeSingleMock.mockResolvedValueOnce({ data: { release_path: "books/test.pdf" }, error: null });
+      createSignedUrlMock.mockResolvedValueOnce({ data: { signedUrl: "https://supabase.example/signed/books/test.pdf" }, error: null });
+      insertMock.mockResolvedValueOnce({ error: null });
+    }
+
+    it("a refunded sale gets 410, no signed URL, and no download logged", async () => {
+      ordersResult = {
+        data: [
+          { provider: "paddle", event_type: "sale", occurred_at: "2026-10-01T00:00:00Z" },
+          { provider: "paddle", event_type: "refund", occurred_at: "2026-10-05T00:00:00Z" },
+        ],
+        error: null,
+      };
+      linkRow();
+      // The full success path is queued, so without the revocation check the route serves the file (302).
+      queueServePath();
+
+      const req = new NextRequest(`https://expanpress.com/d/${validToken}`);
+      const res = await GET(req, { params: Promise.resolve({ token: validToken }) });
+
+      expect(res.status).toBe(410);
+      expect(await res.text()).toContain("refunded");
+      expect(res.headers.get("location")).toBeNull();
+      expect(createSignedUrlMock).not.toHaveBeenCalled();
+      expect(insertMock).not.toHaveBeenCalled();
+    });
+
+    it("a refund the provider reversed (won dispute) is served again", async () => {
+      ordersResult = {
+        data: [
+          { provider: "paddle", event_type: "sale", occurred_at: "2026-10-01T00:00:00Z" },
+          { provider: "paddle", event_type: "refund", occurred_at: "2026-10-05T00:00:00Z" },
+          { provider: "paddle", event_type: "refund_reversal", occurred_at: "2026-10-09T00:00:00Z" },
+        ],
+        error: null,
+      };
+      linkRow();
+      queueServePath();
+
+      await expectRedirectTo(validToken, "https://supabase.example/signed/books/test.pdf");
+    });
+
+    it("fails closed (500, nothing served) when the sale's ledger read errors", async () => {
+      ordersResult = { data: null, error: { message: "orders unreachable" } };
+      linkRow();
+      // Success path queued: only a fail-closed ledger check stops the file being served.
+      queueServePath();
+
+      const req = new NextRequest(`https://expanpress.com/d/${validToken}`);
+      const res = await GET(req, { params: Promise.resolve({ token: validToken }) });
+
+      expect(res.status).toBe(500);
+      expect(res.headers.get("location")).toBeNull();
+      expect(createSignedUrlMock).not.toHaveBeenCalled();
+      expect(insertMock).not.toHaveBeenCalled();
+    });
+
+    it("fails closed (500) when the sale has no ledger sale row", async () => {
+      ordersResult = { data: [], error: null };
+      linkRow();
+      // Success path queued: only a fail-closed ledger check stops the file being served.
+      queueServePath();
+
+      const req = new NextRequest(`https://expanpress.com/d/${validToken}`);
+      const res = await GET(req, { params: Promise.resolve({ token: validToken }) });
+
+      expect(res.status).toBe(500);
+      expect(res.headers.get("location")).toBeNull();
+      expect(createSignedUrlMock).not.toHaveBeenCalled();
+    });
   });
 });
