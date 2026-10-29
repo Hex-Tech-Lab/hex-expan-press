@@ -36,8 +36,8 @@ import sys
 def fingerprint_salt() -> bytes:
     """Returns the bundle HMAC salt. Fails closed: a default salt would make the provenance signature forgeable."""
     salt = os.environ.get("ASSET_SALT", "")
-    if not salt:
-        raise RuntimeError("ASSET_SALT is not set; refusing to sign with a default salt")
+    if not salt.strip():
+        raise RuntimeError("ASSET_SALT is not set (or blank); refusing to sign with a default salt")
     return salt.encode("utf-8")
 
 
@@ -153,7 +153,8 @@ def create_bundle(
 
         stamped_paths = {}
         for key, src_path, mode, purpose in tasks:
-            out_name = f"{os.path.splitext(os.path.basename(src_path))[0]}.bundle_stamped.pdf"
+            # Prefix with the artifact key: two sources may share a basename (e.g. */doc.pdf).
+            out_name = f"{key}_{os.path.splitext(os.path.basename(src_path))[0]}.bundle_stamped.pdf"
             dest_path = os.path.join(output_dir, out_name)
             cmd = [
                 sys.executable,

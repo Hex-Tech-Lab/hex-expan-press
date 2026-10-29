@@ -33,8 +33,8 @@ import pypdf
 def fingerprint_salt() -> bytes:
     """Returns the bundle HMAC salt. Fails closed: a default salt would make the provenance signature forgeable."""
     salt = os.environ.get("ASSET_SALT", "")
-    if not salt:
-        raise RuntimeError("ASSET_SALT is not set; refusing to sign with a default salt")
+    if not salt.strip():
+        raise RuntimeError("ASSET_SALT is not set (or blank); refusing to sign with a default salt")
     return salt.encode("utf-8")
 
 
@@ -197,6 +197,8 @@ def main():
 
     if not os.path.exists(args.input):
         sys.exit(f"Error: input file does not exist: {args.input}")
+    if os.path.abspath(args.output) == os.path.abspath(args.input):
+        sys.exit("Error: --output must differ from --input; refusing to overwrite the source PDF")
 
     # Compute source file hash
     source_sha256 = compute_sha256(args.input)

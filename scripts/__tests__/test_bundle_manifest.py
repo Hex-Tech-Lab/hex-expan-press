@@ -217,6 +217,69 @@ class TestAssetSaltFailsClosed(unittest.TestCase):
             self.assertNotEqual(res.returncode, 0)
             self.assertIn("ASSET_SALT is not set", res.stderr)
 
+    def test_manifest_itself_refuses_to_sign_without_salt(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            docs = {}
+            for name in ("c1", "c2", "c3", "ebook"):
+                docs[name] = os.path.join(tmp, f"{name}.pdf")
+                create_dummy_pdf(docs[name], name)
+            manifest = os.path.join(tmp, "m.json")
+            res = self._run_without_salt(MANIFEST_SCRIPT, [
+                "--c1-doc", docs["c1"], "--c2-doc", docs["c2"], "--c3-doc", docs["c3"],
+                "--ebook-doc", docs["ebook"], "--creator-id", "c", "--creator-name", "n",
+                "--product-id", "p", "--output-manifest", manifest,
+            ])
+            self.assertNotEqual(res.returncode, 0)
+            self.assertIn("ASSET_SALT is not set", res.stderr)
+            self.assertFalse(os.path.exists(manifest), "no manifest may be written unsigned")
+
+    def test_whitespace_only_salt_is_refused(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            src = os.path.join(tmp, "x.pdf")
+            create_dummy_pdf(src)
+            env = dict(os.environ, ASSET_SALT="   ")
+            res = subprocess.run(
+                [sys.executable, WATERMARK_SCRIPT, "--input", src, "--output", os.path.join(tmp, "o.pdf"),
+                 "--creator-id", "c", "--creator-name", "n", "--mode", "perimeter", "--purpose", "review"],
+                capture_output=True, text=True, env=env)
+            self.assertNotEqual(res.returncode, 0)
+            self.assertIn("ASSET_SALT is not set", res.stderr)
+
+    def test_same_basename_sources_get_distinct_stamped_outputs(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            d1, d2 = os.path.join(tmp, "d1"), os.path.join(tmp, "d2")
+            c1 = os.path.join(d2, "doc.pdf"); ebook = os.path.join(d1, "doc.pdf")
+            create_dummy_pdf(c1, "C1 contract"); create_dummy_pdf(ebook, "ebook body")
+            c2 = os.path.join(tmp, "c2.pdf"); c3 = os.path.join(tmp, "c3.pdf")
+            create_dummy_pdf(c2, "C2"); create_dummy_pdf(c3, "C3")
+            manifest = os.path.join(tmp, "m.json")
+            res = subprocess.run([
+                sys.executable, MANIFEST_SCRIPT, "--c1-doc", c1, "--c2-doc", c2, "--c3-doc", c3,
+                "--ebook-doc", ebook, "--creator-id", "c", "--creator-name", "n", "--product-id", "p",
+                "--output-manifest", manifest, "--output-dir", os.path.join(tmp, "out"), "--stamp-bundle"],
+                capture_output=True, text=True)
+            self.assertEqual(res.returncode, 0, res.stderr)
+            with open(manifest) as f:
+                stamped = json.load(f)["stamped_artifacts"]
+            self.assertEqual(len(set(stamped.values())), 4, f"stamped outputs collide: {stamped}")
+            with open(c1, "rb") as f:
+                c1_sha = hashlib.sha256(f.read()).hexdigest()
+            self.assertEqual(pypdf.PdfReader(stamped["c1"]).metadata.get("/SourceSha256"), c1_sha)
+
+    def test_watermark_refuses_to_overwrite_its_input(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            src = os.path.join(tmp, "x.pdf")
+            create_dummy_pdf(src)
+            with open(src, "rb") as f:
+                before = f.read()
+            res = subprocess.run(
+                [sys.executable, WATERMARK_SCRIPT, "--input", src, "--output", src,
+                 "--creator-id", "c", "--creator-name", "n", "--mode", "diagonal"],
+                capture_output=True, text=True, env=dict(os.environ, ASSET_SALT="test-only-salt"))
+            self.assertNotEqual(res.returncode, 0)
+            with open(src, "rb") as f:
+                self.assertEqual(f.read(), before, "source PDF was overwritten")
+
 
 if __name__ == "__main__":
     unittest.main()
