@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-scripts/generate_bundle_manifest.py  -  Unified Cryptographic Merkle Bundle Engine
+scripts/generate_bundle_manifest.py  -  Unified Cryptographic Bundle Signing Engine
 
 Binds all four critical transaction artifacts:
 1. C1 Data Accuracy Consent
@@ -8,8 +8,9 @@ Binds all four critical transaction artifacts:
 3. C3 Publisher Agreement (Firma e-signature envelope)
 4. The Published E-Book Asset
 
-Under a single deterministic Bundle ID, root Merkle hash, and HMAC provenance signature.
-Generates an immutable bundle_manifest.json audit receipt and optionally pre-stamps or seals
+Under one Bundle ID and one HMAC-SHA256 root signature over the four artifact digests and IDs.
+This is NOT a Merkle tree. Writes a plain-JSON bundle_manifest.json (not write-once; no verifier
+exists yet) and optionally pre-stamps or seals
 all bundle PDFs with perimeter and diagonal provenance banners.
 
 Usage:

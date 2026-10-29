@@ -193,6 +193,25 @@ class TestBundleManifest(unittest.TestCase):
 
         self.assertNotEqual(sig1, sig2, "Tampered artifact failed to alter root bundle signature!")
 
+    def _signature_for(self, c1, c2, c3, ebook, name):
+        out = os.path.join(self.test_dir, f"{name}.json")
+        subprocess.run([
+            sys.executable, MANIFEST_SCRIPT, "--c1-doc", c1, "--c2-doc", c2, "--c3-doc", c3,
+            "--ebook-doc", ebook, "--creator-id", "retirearly500k", "--creator-name", "the owner",
+            "--product-id", "500k-playbook", "--output-manifest", out], check=True, capture_output=True)
+        with open(out) as f:
+            return json.load(f)["bundle_root_signature"]
+
+    def test_each_contract_change_alters_signature(self):
+        baseline = self._signature_for(self.c1_pdf, self.c2_pdf, self.c3_pdf, self.ebook_pdf, "base")
+        for label, idx in (("c1", 0), ("c2", 1), ("c3", 2)):
+            docs = [self.c1_pdf, self.c2_pdf, self.c3_pdf]
+            altered = os.path.join(self.test_dir, f"{label}_altered.pdf")
+            create_dummy_pdf(altered, f"{label} altered clause")
+            docs[idx] = altered
+            sig = self._signature_for(*docs, self.ebook_pdf, f"alt_{label}")
+            self.assertNotEqual(sig, baseline, f"altering {label} did not change the root signature")
+
 
 
 class TestAssetSaltFailsClosed(unittest.TestCase):
@@ -207,7 +226,7 @@ class TestAssetSaltFailsClosed(unittest.TestCase):
             env=env,
         )
 
-    def test_manifest_refuses_to_sign_without_salt(self):
+    def test_watermark_refuses_without_salt_and_manifest_help_needs_none(self):
         res = self._run_without_salt(MANIFEST_SCRIPT, ["--help"])
         self.assertEqual(res.returncode, 0, "--help must not need the salt")
         with tempfile.TemporaryDirectory() as tmp:
