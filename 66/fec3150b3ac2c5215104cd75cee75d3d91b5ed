@@ -1,0 +1,35 @@
+web/app/d/[token]/__tests__/route.test.ts
+  s_6625bc67577472::t_86e5903aba0788 93
+  s_6625bc67577472::t_013e1959c877a9 10-17,19-27,348
+  s_6625bc67577472::t_a38ebcf3926efa 94,278-347
+  s_6625bc67577472::t_fc613a444fbbb2 95-96,349-361
+payments/src/sale_access.ts
+  s_6625bc67577472::t_bb3a918e5405d5 1-54
+web/app/d/[token]/route.ts
+  s_6625bc67577472::t_22e3ae5c78fc41 46-57
+  s_6625bc67577472::t_d75ea0970ef51e 5
+  s_6625bc67577472::t_4e792330ee290d 12
+  s_6625bc67577472::t_2809e19554a20a 13,58
+web/__tests__/refund-copy.test.ts
+  s_6625bc67577472::t_247dfcab116ff6 4-6
+web/__tests__/r2-delivery-fallback.integration.test.ts
+  s_6625bc67577472::t_0826963824bb10 32-41
+payments/test/sale_access.test.ts
+  s_6625bc67577472::t_51eea602ba4415 1-96
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "66fec3150b3ac2c5215104cd75cee75d3d91b5ed",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
