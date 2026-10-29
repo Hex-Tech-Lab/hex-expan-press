@@ -1,0 +1,76 @@
+payments/test/delivery_db_adapter.test.ts
+  s_6625bc67577472::t_99aec2b38cb55b 27
+  s_6625bc67577472::t_71070974d7bf47 99,105,113-117
+  s_6625bc67577472::t_253a71dbb60acb 128
+  s_6625bc67577472::t_2f202eaa5ff66c 146
+  s_6625bc67577472::t_62baaa75114f02 140
+  s_6625bc67577472::t_d03036c01c8439 172-173
+  s_6625bc67577472::t_63c1cb2183f3a8 118-119
+docs/adr/0063-r2-sync-freshness-contract.md
+  s_6625bc67577472::t_9723e9178617a7 18
+  s_6625bc67577472::t_b3075be9c7a24f 33
+  s_6625bc67577472::t_e9284de4dc158d 31
+scripts/sync-supabase-to-r2.ts
+  s_6625bc67577472::t_b5b0c6c4a658ba 74,76-86
+  s_6625bc67577472::t_7ce9a733fed474 75
+  s_6625bc67577472::t_96b62ba96f5f30 303,306-307,309-313
+  s_6625bc67577472::t_835d7d6d96a60e 319
+  s_6625bc67577472::t_46e07948385213 304-305
+  s_6625bc67577472::t_354ccbfe93987f 308
+  s_6625bc67577472::t_3ea867af67dd32 73
+src/adapters/storage/__tests__/r2.freshness.test.ts
+  s_6625bc67577472::t_bd53313920bb09 105
+  s_6625bc67577472::t_33a79c0f95f58f 95
+  s_6625bc67577472::t_f709b7e264bbc0 117
+  s_6625bc67577472::t_9e88fc04384322 128
+src/adapters/storage/__tests__/r2.put-precondition.test.ts
+  s_6625bc67577472::t_659c2cb6f8b5bc 1-37
+src/adapters/storage/r2.adapter.ts
+  s_6625bc67577472::t_9201aa8b18f38a 580
+  s_6625bc67577472::t_04cfc194de5fd3 518-519
+  s_6625bc67577472::t_e37eda3cc32bce 378-382
+  s_6625bc67577472::t_d2386d29a6a3d8 638
+  s_6625bc67577472::t_d366232207bdd2 492
+  s_6625bc67577472::t_65e9cb82e04859 573
+  s_6625bc67577472::t_8b8291499ebdcd 356-358
+docs/adr/proposed/generation-allocation.md
+  s_6625bc67577472::t_fd65b54ce3ddac 47
+  s_6625bc67577472::t_f54db5706b66e4 87
+  s_6625bc67577472::t_0c433c06c6961f 105
+  s_6625bc67577472::t_c25841a8cec8f9 89
+scripts/__tests__/sync-supabase-to-r2.test.ts
+  s_6625bc67577472::t_83f2890e3f2e5f 304-307
+  s_6625bc67577472::t_d99d54f44755ca 302-303,308-320
+  s_6625bc67577472::t_e9ecea6a7d9852 287-291
+payments/src/delivery.ts
+  s_6625bc67577472::t_318578dc9422c2 13
+  s_6625bc67577472::t_80e038bad95f81 102
+  s_6625bc67577472::t_0bb0a36494ea26 218,222-223,225-229
+  s_6625bc67577472::t_615632d8eb80bb 55
+  s_6625bc67577472::t_3b76892669a15a 271
+  s_6625bc67577472::t_5202a55490f9e8 282-295
+web/app/d/[token]/route.ts
+  s_6625bc67577472::t_0b22ec07afaefb 60-63
+src/use_cases/billing/__tests__/process_billing_webhook.test.ts
+  s_6625bc67577472::t_0cd1bef3c2b476 373-380
+payments/test/delivery_provider_filter.test.ts
+  s_6625bc67577472::t_0808f11b21211f 28-31
+  s_6625bc67577472::t_3d91e1b9fdf16c 1-27,32-72,87
+  s_6625bc67577472::t_a6b515b208458d 73-86
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "53035fb535f9d76e08e2949f5ebfd0ce3e844f7c",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
