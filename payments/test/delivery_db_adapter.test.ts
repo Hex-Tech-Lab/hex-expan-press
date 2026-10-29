@@ -24,6 +24,7 @@ function fakeClient() {
         delete: (...a: unknown[]) => (rec.ops.push(["delete", a]), chain),
         eq: (...a: unknown[]) => (rec.ops.push(["eq", a]), chain),
         contains: (...a: unknown[]) => (rec.ops.push(["contains", a]), chain),
+        is: (...a: unknown[]) => (rec.ops.push(["is", a]), chain),
         order: (...a: unknown[]) => (rec.ops.push(["order", a]), chain),
         limit: (...a: unknown[]) => (rec.ops.push(["limit", a]), chain),
         maybeSingle: (...a: unknown[]) => (rec.ops.push(["maybeSingle", a]), chain),
@@ -95,18 +96,25 @@ describe("supabaseDeliveryDb: recordLinkIssued", () => {
 });
 
 describe("supabaseDeliveryDb: productForAlias", () => {
-  it("matches a non-UUID alias on store_product_id, then paddle_product_id, never id", async () => {
+  it("matches a Paddle alias on store_product_id, then paddle_product_id, never id", async () => {
     useClient();
     results = [
       { data: null, error: null },
       { data: { id: "p-9", title: "Book", release_path: "r/file.pdf" }, error: null },
     ];
-    const product = await db().productForAlias("paddle-alias");
+    const product = await db().productForAlias("paddle", "paddle-alias");
     expect(product).toEqual({ id: "p-9", title: "Book", releasePath: "r/file.pdf" });
     expect(calls.map((c) => c.ops.find(([op]) => op === "eq")![1])).toEqual([
       ["store_product_id", "paddle-alias"],
       ["paddle_product_id", "paddle-alias"],
     ]);
+  });
+
+  it("a non-Paddle sale matches only store_product_id, never a Paddle-issued column", async () => {
+    useClient();
+    results = [{ data: null, error: null }];
+    expect(await db().productForAlias("fungies", "shared-alias")).toBeNull();
+    expect(calls.map((c) => c.ops.find(([op]) => op === "eq")![1])).toEqual([["store_product_id", "shared-alias"]]);
   });
 
   it("also matches a UUID alias on id", async () => {
@@ -117,7 +125,7 @@ describe("supabaseDeliveryDb: productForAlias", () => {
       { data: null, error: null },
       { data: { id: uuid, title: null, release_path: null }, error: null },
     ];
-    const product = await db().productForAlias(uuid);
+    const product = await db().productForAlias("paddle", uuid);
     expect(product).toEqual({ id: uuid, title: "your ExpanPress title", releasePath: null });
     const lastColumn = calls[2].ops.find(([op]) => op === "eq")![1][0];
     expect(lastColumn).toBe("id");
@@ -129,13 +137,13 @@ describe("supabaseDeliveryDb: productForAlias", () => {
       { data: null, error: null },
       { data: null, error: null },
     ];
-    expect(await db().productForAlias("unknown-alias")).toBeNull();
+    expect(await db().productForAlias("paddle", "unknown-alias")).toBeNull();
   });
 
   it("throws on a lookup error instead of reporting the product as missing", async () => {
     useClient();
     results = [{ data: null, error: { message: "timeout" } }];
-    await expect(db().productForAlias("paddle-alias")).rejects.toThrow(/product lookup failed: timeout/);
+    await expect(db().productForAlias("paddle", "paddle-alias")).rejects.toThrow(/product lookup failed: timeout/);
   });
 });
 
@@ -161,7 +169,8 @@ describe("supabaseDeliveryDb: confirmation and release", () => {
     useClient();
     results = [{ data: [], error: null }];
     await db().deliveryConfirmed("fungies", "s-4");
-    const ops = calls[calls.length - 1].ops.map(([name, args]) => [name, args]);
+    // The provider-scoped lookup is the first query; the legacy check runs only when it finds nothing.
+    const ops = calls[0].ops.map(([name, args]) => [name, args]);
     expect(ops).toContainEqual(["eq", ["details->>provider", "fungies"]]);
   });
 

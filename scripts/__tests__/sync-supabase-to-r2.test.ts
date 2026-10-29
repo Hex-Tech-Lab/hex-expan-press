@@ -281,10 +281,14 @@ describe("sync-supabase-to-r2", () => {
         .mockResolvedValueOnce(new Response(null, { status: 200 }))
         .mockResolvedValueOnce(r2Head(200, { etag: '"r2-1"', [SOURCE_HDR]: SRC_ETAG }));
       const harness = makeSyncTestHarness({
-        files: [syncFile("books/new.pdf")],
         downloadBlob: new Blob(["bytes"]),
         fetchImpl: fetchImpl as never,
       });
+      // Real listings return the folder, then its children by base name. The re-read lists the folder again.
+      harness.listMock
+        .mockResolvedValueOnce({ data: [{ name: "books", id: null }], error: null })
+        .mockResolvedValueOnce({ data: [syncFile("new.pdf")], error: null })
+        .mockResolvedValueOnce({ data: [syncFile("new.pdf")], error: null });
 
       const result = await runSync(harness);
 
@@ -293,6 +297,25 @@ describe("sync-supabase-to-r2", () => {
       const putHeaders = (fetchImpl.mock.calls[1][1] as RequestInit).headers as Record<string, string>;
       expect(putHeaders["if-none-match"]).toBe("*");
       expect(putHeaders["if-match"]).toBeUndefined();
+    });
+
+    it("refuses to upload bytes when the source object changes between listing and download", async () => {
+      // The listing saw v1. The path-only download can return v2 bytes, so the post-download re-read sees v2.
+      const fetchImpl = vi
+        .fn()
+        .mockResolvedValueOnce(r2Head(404))
+        .mockResolvedValueOnce(new Response(null, { status: 200 }));
+      const harness = makeSyncTestHarness({ files: [], downloadBlob: new Blob(["v2-bytes"]), fetchImpl: fetchImpl as never });
+      harness.listMock
+        .mockResolvedValueOnce({ data: [syncFile("book.pdf")], error: null })
+        .mockResolvedValueOnce({ data: [{ ...syncFile("book.pdf"), metadata: { mimetype: "application/pdf", eTag: '"src-v2"' } }], error: null });
+
+      const result = await runSync(harness);
+
+      expect(result).toMatchObject({ uploaded: 0, failed: 1 });
+      expect(harness.downloadMock).toHaveBeenCalledWith("book.pdf");
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
+      expect(result.errors[0]).toMatchObject({ path: "book.pdf" });
     });
 
     it("refreshes an unversioned copy that has no source ETag recorded", async () => {

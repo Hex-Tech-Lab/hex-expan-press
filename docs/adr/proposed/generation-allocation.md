@@ -44,7 +44,7 @@ The app uses milliseconds (`Date.getTime`, `delivery.ts:36-40`, `111`). The epoc
 
    | Option | For | Against |
    |---|---|---|
-   | A. Fresh generation and token per attempt (proposed) | No new state. Matches pinned tests. Retries are never blocked. | Several valid links per sale. A leaked earlier link stays valid until expiry. The count is bounded only by the retry count. |
+   | A. Fresh generation and token per delivery invocation (proposed) | No new state. Matches pinned tests. Retries are never blocked. | Several valid links per sale. A leaked earlier link stays valid until expiry. The count is bounded only by the retry count. |
    | B. Reuse the generation for the same issuance intent | One live link per sale. | Needs the token again. Either store the token (breaks the hash-only policy in `20261015120000:2`) or derive it from a server secret (new secret, rotation, and a leak exposes every link). Needs an issuance key column that does not exist. |
    | C. Reuse, and enforce one live link per sale in the database (a partial unique index on `sale_id`) | Strongest database guarantee. | Reverses `20261019180000`. An ambiguous-send retry needs a replacement path. The release path (`delivery.ts:157`) becomes the only way to re-issue. |
 
@@ -84,8 +84,9 @@ Rollback of the code is a single revert of this change.
 5. A rolled-back insert consumes a sequence value, and the gap is accepted. Context7 confirms `nextval` is not rolled back. *(PGlite, feasible.)*
 6. The adapter maps `23505` to `conflict`, and other errors throw. *(Mock chain, feasible.)*
 7. The adapter returns the database-assigned generation from the read-back, and a missing value throws. *(Mock chain, feasible.)*
-8. Concurrency: N parallel deliveries for one sale, driven through the lock-bearing entrypoint `process_billing_webhook` (which takes the Redis sale lock before `deliverSaleForWebhook`). Calling `deliverSale` directly would skip the lock and prove nothing about it. Generations are distinct, and under the lock only one delivery is confirmed. *(Needs a real Postgres; PGlite is single-connection.)*
+8. Concurrency: N parallel deliveries for one sale, driven through the lock-bearing entrypoint `process_billing_webhook` (which takes the Redis sale lock before `deliverSaleForWebhook`). Calling `deliverSale` directly would skip the lock and prove nothing about it. On the success path, exactly one delivery inserts a link row and is confirmed. After an ambiguous send, a retry can insert a second row (`delivery.ts` retry path). The others either fail to acquire the lock or observe the confirmation before inserting. *(Needs a real Postgres; PGlite is single-connection.)*
 9. Concurrent inserts from separate connections to real Postgres at read committed: no duplicate `(sale_id, link_generation)`. *(Missing harness.)*
+10. Distinct generations: consecutive or parallel invocations for one sale return pairwise-distinct generation values. This is a sequence property, kept separate from test 8's single-confirmation check. *(Sequential form on PGlite is feasible. True concurrency needs a real Postgres.)*
 
 **What is missing for tests 8 and 9:** a real Postgres in CI (a service container), or a separate Supabase branch. A Supabase branch is remote, billed, and needs approval. A PGlite multiplexer is not a faithful isolation test.
 
@@ -101,7 +102,7 @@ Rollback of the code is a single revert of this change.
 
 ## Open decisions for the founder
 
-1. Retry semantics: a fresh link per attempt (Option A), or one live link per sale (B or C)?
+1. Retry semantics: a fresh link per delivery invocation (Option A), or one live link per sale (B or C)?
 2. Should the database enforce one live link per sale again, reversing `20261019180000` (Option C)?
 3. Approve a real-Postgres concurrency harness: a CI service container, or a separate Supabase branch?
 4. Accept the mixed microsecond and millisecond scale and the sequence gaps, or re-base the sequence?

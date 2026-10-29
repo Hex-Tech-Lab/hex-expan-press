@@ -92,7 +92,7 @@ describe("putR2ObjectIf", () => {
     const fetchImpl = vi.fn().mockResolvedValue(new Response(null, { status: 500 }));
 
     const result = await putR2ObjectIf({
-      endpoint, bucket: "b", key: "k", ...creds, body: "x", fetchImpl: fetchImpl as unknown as typeof fetch,
+      endpoint, bucket: "b", key: "k", ...creds, body: "x", ifNoneMatch: "*", fetchImpl: fetchImpl as unknown as typeof fetch,
     });
 
     expect(result).toEqual({ status: "failed", reason: "PUT object returned status 500" });
@@ -102,7 +102,7 @@ describe("putR2ObjectIf", () => {
     const fetchImpl = vi.fn().mockRejectedValue(new Error("socket hang up"));
 
     const result = await putR2ObjectIf({
-      endpoint, bucket: "b", key: "k", ...creds, body: "x", fetchImpl: fetchImpl as unknown as typeof fetch,
+      endpoint, bucket: "b", key: "k", ...creds, body: "x", ifNoneMatch: "*", fetchImpl: fetchImpl as unknown as typeof fetch,
     });
 
     expect(result).toEqual({ status: "failed", reason: "socket hang up" });
@@ -114,7 +114,7 @@ describe("putR2ObjectIf", () => {
 
     await expect(
       putR2ObjectIf({
-        endpoint: "http://acc.example.test", bucket: "b", key: "k", ...creds, body: "x", fetchImpl: fetchImpl as unknown as typeof fetch,
+        endpoint: "http://acc.example.test", bucket: "b", key: "k", ...creds, body: "x", ifNoneMatch: "*", fetchImpl: fetchImpl as unknown as typeof fetch,
       }),
     ).rejects.toThrow("Insecure HTTP endpoint rejected");
     expect(fetchImpl).not.toHaveBeenCalled();
@@ -125,7 +125,7 @@ describe("putR2ObjectIf", () => {
     const fetchImpl = vi.fn();
 
     const result = await putR2ObjectIf({
-      endpoint: "not a url", bucket: "b", key: "k", ...creds, body: "x", fetchImpl: fetchImpl as unknown as typeof fetch,
+      endpoint: "not a url", bucket: "b", key: "k", ...creds, body: "x", ifNoneMatch: "*", fetchImpl: fetchImpl as unknown as typeof fetch,
     });
 
     expect(result.status).toBe("failed");

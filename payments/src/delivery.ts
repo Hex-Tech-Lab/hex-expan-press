@@ -10,7 +10,7 @@
  * Failure policy: the ledger write is the money record and stays authoritative. A delivery failure
  * is rethrown to the webhook, which answers 500 so the provider retries. Its download_events row is
  * released only on a definite provider rejection; an ambiguous failure keeps the link valid. A sale counts as delivered only once its send is confirmed (an audit_log row with
- * event DELIVERY_LINK_SENT). A retry mints a fresh monotonic generation link row without destroying prior links,
+ * event DELIVERY_LINK_SENT, scoped to the provider that issued the sale). A retry mints a fresh monotonic generation link row without destroying prior links,
  * so previously emailed buyer links remain valid and a failed send whose release also failed is never acknowledged without a delivered link.
  */
 import { createHash, randomBytes } from "node:crypto";
@@ -52,7 +52,7 @@ export interface DeliveryProduct {
 
 /** The persistence the delivery flow needs. Injected so the flow is testable without a database. */
 export interface DeliveryDb {
-  productForAlias(alias: string): Promise<DeliveryProduct | null>;
+  productForAlias(provider: string, alias: string): Promise<DeliveryProduct | null>;
   /** Inserts the link_issued row. Returns false on generation collision (sale_id, link_generation). */
   recordLinkIssued(row: {
     saleId: string;
@@ -99,7 +99,7 @@ export async function deliverSale(
   deps: DeliveryDeps,
 ): Promise<DeliveryOutcome> {
   if (!input.buyerEmail) return "no_email";
-  const product = await deps.db.productForAlias(input.productAlias);
+  const product = await deps.db.productForAlias(input.provider, input.productAlias);
   // Fail closed on a product with no release file: a buyer must never get a link to nothing.
   if (!product || !product.releasePath) return "no_release_file";
 
@@ -215,12 +215,18 @@ export async function deliverSaleForWebhook(
 
 function supabaseDeliveryDb(): DeliveryDb {
   return {
-    async productForAlias(alias) {
+    async productForAlias(provider, alias) {
       const sb = await getSupabaseAdmin();
       if (!sb) throw new Error("Supabase admin client unavailable");
       // The alias comes from the provider payload: match each column exactly, never splice it into a PostgREST filter string.
+      // store_product_id is the internal key every provider carries. paddle_product_id is Paddle's own column, so only
+      // a Paddle sale may match it; any other provider matching it would resolve a sale through another provider's ID.
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(alias);
-      const columns = ["store_product_id", "paddle_product_id", ...(isUuid ? ["id"] : [])];
+      const columns = [
+        "store_product_id",
+        ...(provider === "paddle" ? ["paddle_product_id"] : []),
+        ...(isUuid ? ["id"] : []),
+      ];
       for (const column of columns) {
         const { data, error } = await sb.from("products").select("id, title, release_path").eq(column, alias).maybeSingle();
         if (error) throw new Error(`product lookup failed: ${error.message}`);
@@ -262,7 +268,7 @@ function supabaseDeliveryDb(): DeliveryDb {
       const sb = await getSupabaseAdmin();
       if (!sb) throw new Error("Supabase admin client unavailable");
       // Provider-scoped: the same sale ID from another provider must not count as delivered. Confirmations
-      // written before this column existed have no details.provider, so they never match and the link is re-sent
+      // written before details.provider was recorded have no provider, so they never match and the link is re-sent
       // (a duplicate email, which is the safer failure than a buyer with no link).
       const { data, error } = await sb
         .from("audit_log")
@@ -273,7 +279,20 @@ function supabaseDeliveryDb(): DeliveryDb {
         .order("id", { ascending: true })
         .limit(1);
       if (error) throw new Error(`delivery confirmation lookup failed: ${error.message}`);
-      return (data ?? []).length > 0;
+      if ((data ?? []).length > 0) return true;
+      // A sale confirmed before details.provider existed is re-sent, so surface it: the buyer gets a second email.
+      const { data: legacy, error: legacyError } = await sb
+        .from("audit_log")
+        .select("id")
+        .eq("event", DELIVERY_CONFIRMED_EVENT)
+        .eq("details->>sale_id", saleId)
+        .is("details->>provider", null)
+        .limit(1);
+      if (legacyError) throw new Error(`delivery confirmation lookup failed: ${legacyError.message}`);
+      if ((legacy ?? []).length > 0) {
+        console.warn(`[delivery] legacy confirmation without provider for sale ${saleId}; re-sending (a second buyer email)`);
+      }
+      return false;
     },
     async confirmDelivery(row) {
       const sb = await getSupabaseAdmin();

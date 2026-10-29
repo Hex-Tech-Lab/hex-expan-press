@@ -71,6 +71,20 @@ export const parsePrefix = parsePrefixArg;
 export const parseCliPrefix = parsePrefixArg;
 
 /**
+ * Re-reads the current Supabase ETag of one object by listing its folder.
+ * Returns undefined when the object is absent or the listing carries no ETag. Throws when the listing fails.
+ */
+async function readSourceEtag(supabase: SupabaseClient, bucket: string, filePath: string): Promise<string | undefined> {
+  const slash = filePath.lastIndexOf("/");
+  const folder = slash === -1 ? "" : filePath.slice(0, slash);
+  const name = filePath.slice(slash + 1);
+  const { data, error } = await supabase.storage.from(bucket).list(folder, { search: name, limit: 100 });
+  if (error) throw new Error(`Failed to re-read the Supabase version of ${filePath}: ${error.message}`);
+  const item = data?.find((entry) => entry.name === name);
+  return (item?.metadata as { eTag?: string } | undefined)?.eTag;
+}
+
+/**
  * Recursively lists all file keys in a Supabase Storage bucket.
  */
 export async function listAllSupabaseFiles(
@@ -286,12 +300,23 @@ export async function syncSupabaseToR2(options: SyncOptions = {}): Promise<SyncR
         continue;
       }
 
+      // The download is by path, not by version. Re-read the source version before stamping the listed ETag on
+      // these bytes. This detects a change visible at this re-read only. It does not cover a change after the
+      // re-read, or a revert (A to B to A) between the listing and the re-read. A deleted object is refused too.
+      const currentEtag = await readSourceEtag(supabase, supabaseBucket, filePath);
+      if (currentEtag !== file.etag) {
+        logger.error(`   ❌ ${filePath} changed or was removed in Supabase after it was listed; refusing to write its bytes under the listed version. Re-run the sync.`);
+        summary.failed++;
+        summary.errors.push({ path: filePath, error: "source changed between listing and download; re-run sync" });
+        continue;
+      }
+
       const arrayBuffer = await fileBlob.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
       const contentType = file.mimetype || "application/pdf";
 
       logger.log(`   📤 Uploading to Cloudflare R2 (${buffer.byteLength} bytes, ${contentType})...`);
-      // Create-once when absent. Refresh only against the ETag just read, so a concurrent writer
+      // Create-once when absent. Refresh only against the ETag read by the HEAD earlier in this item, so a concurrent writer
       // makes this PUT fail with 412 instead of being overwritten by older bytes.
       const precondition = remote.exists ? { ifMatch: remote.etag } : { ifNoneMatch: "*" as const };
       const put = await putR2ObjectIf({

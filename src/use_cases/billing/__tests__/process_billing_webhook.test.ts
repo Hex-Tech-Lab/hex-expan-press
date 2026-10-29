@@ -370,6 +370,14 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
     expect(delivery.deliverSaleForWebhook).toHaveBeenCalledWith({ provider: "polar", saleId: "sale_dup_1", productAlias: "p1", buyerEmail: "buyer@example.com" });
   });
 
+  it("a newly recorded sale delivers under the provider that issued it, not a shared default", async () => {
+    setnx.mockResolvedValue(1);
+    delivery.deliverSaleForWebhook.mockClear();
+    await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter({ ...SALE, providerName: "fungies", saleId: "sale_fungies_new" })]);
+    expect(delivery.deliverSaleForWebhook).toHaveBeenCalledTimes(1);
+    expect(delivery.deliverSaleForWebhook).toHaveBeenCalledWith(expect.objectContaining({ provider: "fungies", saleId: "sale_fungies_new" }));
+  });
+
   it("a delivery failure on retry propagates as a non-validation error, so the webhook answers 500 and the provider retries", async () => {
     setnx.mockResolvedValue(1);
     await appendSale(BASE_SALE, salesFilePath);

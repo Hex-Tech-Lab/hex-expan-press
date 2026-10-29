@@ -353,8 +353,9 @@ export type PutR2ObjectResult =
   | { status: "failed"; reason: string };
 
 /**
- * Conditional signed PUT. R2 evaluates If-Match / If-None-Match atomically against the committed
- * object, so a write based on a stale read fails with 412 instead of silently overwriting.
+ * Conditional signed PUT. R2 is documented to evaluate If-Match / If-None-Match against the committed
+ * object, so a write based on a stale read fails with 412 instead of silently overwriting. Not yet live-verified
+ * on the account, see ADR 0063.
  * Throws on an insecure endpoint (same guard as putR2Object); any other failure is returned.
  */
 export async function putR2ObjectIf(options: PutR2ObjectIfOptions): Promise<PutR2ObjectResult> {
@@ -373,6 +374,11 @@ export async function putR2ObjectIf(options: PutR2ObjectIfOptions): Promise<PutR
     ifMatch,
     ifNoneMatch,
   } = options;
+
+  // Exactly one precondition. Neither set would be an unconditional overwrite, which is the failure this write exists to prevent.
+  if ((ifMatch === undefined) === (ifNoneMatch === undefined)) {
+    return { status: "failed", reason: "exactly one of ifMatch or ifNoneMatch is required" };
+  }
 
   let parsedUrl: URL;
   try {
@@ -483,7 +489,7 @@ export class R2StorageAdapter implements StoragePort {
         return null;
       }
 
-      // Serve the R2 copy only when it was written from the current source. Anything else falls back.
+      // Serve the R2 copy only when, at the moment of this check, it was written from the current source. Anything else falls back.
       const sourceEtag = await this.resolveSourceEtag(path);
       if (!sourceEtag || !stat.sourceEtag || stat.sourceEtag !== sourceEtag) {
         let reason: string;
@@ -509,7 +515,8 @@ export class R2StorageAdapter implements StoragePort {
         date: now,
       });
     } catch (err) {
-      console.error("[r2-storage] Failed to generate presigned download URL:", err instanceof Error ? err.message : err);
+      // Serving falls back to Supabase, so the buyer is not blocked. The id lets an operator match a buyer report to this line.
+      console.error(`[r2-storage] error=${globalThis.crypto.randomUUID().slice(0, 8)} presigned URL failed; serving the Supabase copy:`, err instanceof Error ? err.message : err);
       return null;
     }
   }
@@ -563,14 +570,14 @@ export async function resolveSupabaseSourceEtag(
     const listing = sbAdmin.storage.from(bucket).list(directory, { search: name, limit: 100 }, { signal: controller.signal });
     const { data, error } = await Promise.race([listing, timeout]);
     if (error) {
-      console.error(`[r2-storage] source ETag lookup failed for ${path}:`, error.message ?? "unknown error");
+      console.error(`[r2-storage] error=${globalThis.crypto.randomUUID().slice(0, 8)} source ETag lookup failed for ${path}; serving the Supabase copy:`, error.message ?? "unknown error");
       return null;
     }
     const item = data?.find((entry) => entry.name === name);
     const eTag = item?.metadata?.eTag;
     return typeof eTag === "string" ? eTag : null;
   } catch (err) {
-    console.error(`[r2-storage] source ETag lookup threw for ${path}:`, err instanceof Error ? err.message : err);
+    console.error(`[r2-storage] error=${globalThis.crypto.randomUUID().slice(0, 8)} source ETag lookup threw for ${path}; serving the Supabase copy:`, err instanceof Error ? err.message : err);
     return null;
   } finally {
     clearTimeout(timer);
@@ -628,7 +635,7 @@ export interface DeliveryStorageOptions {
  * Factory for the delivery storage adapter.
  * Prefers Cloudflare R2 when credentials (R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY)
  * and an explicit R2_BUCKET_NAME are present, providing 0% egress delivery fees.
- * Falls back to Supabase Storage if R2 is unconfigured or if R2 object presence / URL generation fails.
+ * Falls back to Supabase Storage if R2 is unconfigured or if the R2 copy is absent or not provably current.
  */
 export function getDeliveryStorageAdapter(
   sbAdmin: SupabaseStorageAdmin,

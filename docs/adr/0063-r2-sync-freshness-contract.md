@@ -15,7 +15,7 @@ The Supabase-to-R2 sync skipped any object that already existed in R2, with no c
 2. **Skip rule.** The sync skips an object only on an exact match between the stored marker and the listed source ETag. Presence alone never skips.
 3. **Conditional writes.**
    - Absent object: `PUT` with `If-None-Match: *` (create-once).
-   - Existing object: `PUT` with `If-Match` set to R2's own ETag, read by the HEAD just before the write (refresh).
+   - Existing object: `PUT` with `If-Match` set to R2's own ETag, read by the HEAD earlier in the same item (refresh).
    - A `412` response is a failed run item with the error "R2 precondition failed (concurrent write); re-run sync". The sync does not retry or overwrite inside the same run.
 4. **Signed preconditions.** The conditional headers and the `x-amz-meta-*` header are included in the SigV4 signed headers, so R2 authenticates them. The host-only signature used before this decision is not sufficient for them.
 5. **Inconclusive reads never mean absence.** `statR2Object` returns `exists: false` only on a confirmed 404. Any other status or a network error throws, and the sync records a failure without writing.
@@ -28,9 +28,9 @@ The Supabase-to-R2 sync skipped any object that already existed in R2, with no c
 
 - **Easier:** a changed source is picked up at the same key. Concurrent runs cannot silently overwrite a newer object.
 - **Harder:** the adapter now exposes `statR2Object` (ETags and marker) alongside the boolean `headR2Object`, which remains for existing callers.
-- **Accepted cost:** every run issues one HEAD per listed object, as before, and one additional HEAD after each write. Each download of an object that exists in R2 also issues one uncached Supabase listing (the download-time freshness gate, item 9). Its timeout is 5 s, and the listing is aborted when the timeout fires (ledger entry 2026-10-28T09:13:17Z records the decision).
+- **Accepted cost:** every run issues one HEAD per listed object, as before, one additional HEAD after each write, and one re-list of the source folder after each download (the source-version re-check in the sync). Each download of an object that exists in R2 also issues one uncached Supabase listing (the download-time freshness gate, item 9). Its timeout is 5 s, and the listing is aborted when the timeout fires (ledger entry 2026-10-28T09:13:17Z records the decision).
 - **Known failure mode to watch:** a `412` in a run means another writer touched the same key. The run reports it as failed so a human re-runs it. It does not guess which writer is correct.
-- **Live verification status is unresolved.** The conditional-write behaviour is confirmed from Cloudflare's documentation and checked by unit tests against the request shape. The PR #112 description reports a live check on `expanpress-release-files` (create, repeat create 412, stale If-Match 412, correct If-Match write, delete). The agent ledger (2026-10-28) records that live R2 behaviour was not exercised. Until a re-run is logged with its date and result, treat the live behaviour as unverified.
+- **Live verification: confirmed 2026-10-29** on a dedicated scratch bucket (`expanpress-live-check-scratch`) in the same account and endpoint, using a bucket-scoped token that was revoked afterward. Results: create when absent written; create again 412; stale If-Match 412; correct If-Match written and the ETag changed. The bucket, object and token were removed afterward. The check did not run against `expanpress-release-files`. The PR #112 description's claim of a live check on that bucket is not recorded in the agent ledger.
 
 ## Sources
 

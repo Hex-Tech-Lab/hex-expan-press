@@ -57,8 +57,10 @@ export async function GET(_request: NextRequest, ctx: { params: Promise<{ token:
     GLOBAL.delivery.signed_url_seconds,
   );
   if (!signedUrl) {
-    console.error(`[delivery] signed URL failed for sale ${link.sale_id as string}`);
-    return new NextResponse("Download unavailable", { status: 500 });
+    // The id is quoted in the server log so a buyer report can be matched to this failure.
+    const errorId = globalThis.crypto.randomUUID().slice(0, 8);
+    console.error(`[delivery] error=${errorId} signed URL failed for sale ${link.sale_id as string}`);
+    return new NextResponse(`Download unavailable. Please try again shortly (ref ${errorId}).`, { status: 500 });
   }
 
   const { error: logErr } = await sb.from("download_events").insert({
