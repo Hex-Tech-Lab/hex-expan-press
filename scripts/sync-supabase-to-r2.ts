@@ -1,8 +1,8 @@
 import dotenv from "dotenv";
-dotenv.config();
+dotenv.config({ override: true });
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { headR2Object, putR2Object } from "../src/adapters/storage/r2.adapter";
+import { putR2ObjectIf, statR2Object, type StatR2ObjectResult } from "../src/adapters/storage/r2.adapter";
 
 export interface SyncOptions {
   supabaseUrl?: string;
@@ -25,6 +25,14 @@ export interface SyncOptions {
   };
 }
 
+/** A Supabase Storage object as listed. `etag` is the source version the sync compares against R2. */
+export interface SyncFile {
+  path: string;
+  mimetype?: string;
+  size?: number;
+  etag?: string;
+}
+
 export interface SyncResult {
   totalFound: number;
   alreadySynced: number;
@@ -37,15 +45,24 @@ export interface SyncResult {
 
 /**
  * Parses `--prefix <val>` or `--prefix=<val>` from CLI arguments.
+ * Returns undefined only when the flag is absent. A present flag with no usable value throws,
+ * so a malformed flag can never fall back to listing the whole bucket.
  */
 export function parsePrefixArg(argv: string[] = process.argv): string | undefined {
+  const invalid = (detail: string) =>
+    new Error(`--prefix ${detail}; pass a folder such as --prefix releases/v1 or --prefix=releases/v1`);
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg.startsWith("--prefix=")) {
-      return arg.slice("--prefix=".length);
+      const value = arg.slice("--prefix=".length);
+      if (value === "") throw invalid("was given an empty value");
+      return value;
     }
-    if (arg === "--prefix" && i + 1 < argv.length) {
-      return argv[i + 1];
+    if (arg === "--prefix") {
+      const next = argv[i + 1];
+      if (next === undefined || next === "") throw invalid("has no value");
+      if (next.startsWith("--")) throw invalid(`was followed by the flag ${next} instead of a value`);
+      return next;
     }
   }
   return undefined;
@@ -54,14 +71,28 @@ export const parsePrefix = parsePrefixArg;
 export const parseCliPrefix = parsePrefixArg;
 
 /**
+ * Re-reads the current Supabase ETag of one object by listing its folder.
+ * Returns undefined when the object is absent or the listing carries no ETag. Throws when the listing fails.
+ */
+async function readSourceEtag(supabase: SupabaseClient, bucket: string, filePath: string): Promise<string | undefined> {
+  const slash = filePath.lastIndexOf("/");
+  const folder = slash === -1 ? "" : filePath.slice(0, slash);
+  const name = filePath.slice(slash + 1);
+  const { data, error } = await supabase.storage.from(bucket).list(folder, { search: name, limit: 100 });
+  if (error) throw new Error(`Failed to re-read the Supabase version of ${filePath}: ${error.message}`);
+  const item = data?.find((entry) => entry.name === name);
+  return (item?.metadata as { eTag?: string } | undefined)?.eTag;
+}
+
+/**
  * Recursively lists all file keys in a Supabase Storage bucket.
  */
 export async function listAllSupabaseFiles(
   supabase: SupabaseClient,
   bucket: string,
   prefix: string = "",
-): Promise<Array<{ path: string; mimetype?: string; size?: number }>> {
-  const result: Array<{ path: string; mimetype?: string; size?: number }> = [];
+): Promise<SyncFile[]> {
+  const result: SyncFile[] = [];
   const limit = 1000;
   let offset = 0;
   const allItems: Array<{ name: string; id?: string | null; metadata?: Record<string, unknown> | null }> = [];
@@ -104,6 +135,7 @@ export async function listAllSupabaseFiles(
     } else {
       result.push({
         path: fullPath,
+        etag: (item.metadata as { eTag?: string })?.eTag,
         mimetype: (item.metadata as { mimetype?: string })?.mimetype || "application/octet-stream",
         size: (item.metadata as { size?: number })?.size,
       });
@@ -157,6 +189,10 @@ export async function syncSupabaseToR2(options: SyncOptions = {}): Promise<SyncR
 
   const dryRun = options.dryRun ?? process.argv.includes("--dry-run");
   const prefix = options.prefix ?? parsePrefixArg(process.argv) ?? "";
+  // An empty programmatic prefix would list the whole bucket. Reject it before any listing call.
+  if (options.prefix === "") {
+    throw new Error('Empty prefix: options.prefix must name a folder such as "releases/v1"; omit it to sync the whole bucket');
+  }
   const fetchImpl = options.fetchImpl || fetch;
 
   if (!supabaseUrl || !supabaseKey) {
@@ -195,105 +231,155 @@ export async function syncSupabaseToR2(options: SyncOptions = {}): Promise<SyncR
   };
 
   for (const file of files) {
-    const filePath = file.path;
-    logger.log(`\n🔍 Checking: ${filePath}`);
-
-    // Check if file already exists in R2
-    let existsInR2 = false;
+    // Per-file isolation: an unexpected throw while handling one file is recorded and the run continues.
     try {
-      existsInR2 = await headR2Object({
+      const filePath = file.path;
+      logger.log(`\n🔍 Checking: ${filePath}`);
+
+      // Without the source ETag there is no version to compare or record, so the copy cannot be proven fresh.
+      if (!file.etag) {
+        logger.error(`   ❌ Supabase listing returned no ETag for ${filePath}; refusing to sync an unversioned object.`);
+        summary.failed++;
+        summary.errors.push({ path: filePath, error: "Supabase listing returned no ETag" });
+        continue;
+      }
+
+      let remote: StatR2ObjectResult;
+      try {
+        remote = await statR2Object({
+          endpoint: r2Endpoint,
+          bucket: r2BucketName,
+          key: filePath,
+          accessKeyId: r2AccessKeyId,
+          secretAccessKey: r2SecretAccessKey,
+          region: r2Region,
+          fetchImpl,
+        });
+      } catch (headErr) {
+        const errMsg = headErr instanceof Error ? headErr.message : String(headErr);
+        logger.error(`   ❌ Failed HEAD check on R2 for ${filePath}: ${errMsg}`);
+        summary.failed++;
+        summary.errors.push({ path: filePath, error: `R2 HEAD check failed: ${errMsg}` });
+        continue;
+      }
+
+      // Skip only on an exact source-ETag match. Presence alone proves nothing about freshness.
+      if (remote.exists && remote.sourceEtag === file.etag) {
+        logger.log(`   ✅ Up to date in Cloudflare R2 (source ETag matches).`);
+        summary.alreadySynced++;
+        continue;
+      }
+
+      if (remote.exists && !remote.etag) {
+        logger.error(`   ❌ R2 returned no ETag for ${filePath}; refusing an unconditioned overwrite.`);
+        summary.failed++;
+        summary.errors.push({ path: filePath, error: "R2 returned no ETag; overwrite not conditioned" });
+        continue;
+      }
+
+      if (remote.exists) {
+        logger.log(`   ♻️ Stale or unversioned copy in R2 (source ETag ${remote.sourceEtag ?? "missing"}); refreshing.`);
+      }
+
+      if (dryRun) {
+        logger.log(`   ℹ️ [DRY RUN] Would download from Supabase and upload to R2.`);
+        summary.skipped++;
+        continue;
+      }
+
+      logger.log(`   📥 Downloading from Supabase Storage...`);
+      const { data: fileBlob, error: downloadError } = await supabase.storage
+        .from(supabaseBucket)
+        .download(filePath);
+
+      if (downloadError || !fileBlob) {
+        const errMsg = downloadError?.message || "Empty download blob";
+        logger.error(`   ❌ Failed to download ${filePath}: ${errMsg}`);
+        summary.failed++;
+        summary.errors.push({ path: filePath, error: errMsg });
+        continue;
+      }
+
+      // The download is by path, not by version. Re-read the source version before stamping the listed ETag on
+      // these bytes. This detects a change visible at this re-read only. It does not cover a change after the
+      // re-read, or a revert (A to B to A) between the listing and the re-read. A deleted object is refused too.
+      const currentEtag = await readSourceEtag(supabase, supabaseBucket, filePath);
+      if (currentEtag !== file.etag) {
+        logger.error(`   ❌ ${filePath} changed or was removed in Supabase after it was listed; refusing to write its bytes under the listed version. Re-run the sync.`);
+        summary.failed++;
+        summary.errors.push({ path: filePath, error: "source changed between listing and download; re-run sync" });
+        continue;
+      }
+
+      const arrayBuffer = await fileBlob.arrayBuffer();
+      const buffer = Buffer.from(arrayBuffer);
+      const contentType = file.mimetype || "application/pdf";
+
+      logger.log(`   📤 Uploading to Cloudflare R2 (${buffer.byteLength} bytes, ${contentType})...`);
+      // Create-once when absent. Refresh only against the ETag read by the HEAD earlier in this item, so a concurrent writer
+      // makes this PUT fail with 412 instead of being overwritten by older bytes.
+      const precondition = remote.exists ? { ifMatch: remote.etag } : { ifNoneMatch: "*" as const };
+      const put = await putR2ObjectIf({
         endpoint: r2Endpoint,
         bucket: r2BucketName,
         key: filePath,
         accessKeyId: r2AccessKeyId,
         secretAccessKey: r2SecretAccessKey,
         region: r2Region,
+        body: buffer,
+        contentType,
         fetchImpl,
+        metadata: { "supabase-etag": file.etag },
+        ...precondition,
       });
-    } catch (headErr) {
-      const errMsg = headErr instanceof Error ? headErr.message : String(headErr);
-      logger.error(`   ❌ Failed HEAD check on R2 for ${filePath}: ${errMsg}`);
-      summary.failed++;
-      summary.errors.push({ path: filePath, error: `R2 HEAD check failed: ${errMsg}` });
-      continue;
-    }
 
-    if (existsInR2) {
-      logger.log(`   ✅ Already present and verified in Cloudflare R2.`);
-      summary.alreadySynced++;
-      continue;
-    }
+      if (put.status === "precondition_failed") {
+        logger.error(`   ❌ R2 rejected the write for ${filePath}: the object changed after it was read. Re-run the sync.`);
+        summary.failed++;
+        summary.errors.push({ path: filePath, error: "R2 precondition failed (concurrent write); re-run sync" });
+        continue;
+      }
 
-    if (dryRun) {
-      logger.log(`   ℹ️ [DRY RUN] Would download from Supabase and upload to R2.`);
-      summary.skipped++;
-      continue;
-    }
+      if (put.status === "failed") {
+        logger.error(`   ❌ Failed to upload ${filePath} to Cloudflare R2: ${put.reason}`);
+        summary.failed++;
+        summary.errors.push({ path: filePath, error: `R2 PUT request failed: ${put.reason}` });
+        continue;
+      }
 
-    logger.log(`   📥 Downloading from Supabase Storage...`);
-    const { data: fileBlob, error: downloadError } = await supabase.storage
-      .from(supabaseBucket)
-      .download(filePath);
-
-    if (downloadError || !fileBlob) {
-      const errMsg = downloadError?.message || "Empty download blob";
-      logger.error(`   ❌ Failed to download ${filePath}: ${errMsg}`);
-      summary.failed++;
-      summary.errors.push({ path: filePath, error: errMsg });
-      continue;
-    }
-
-    const arrayBuffer = await fileBlob.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    const contentType = file.mimetype || "application/pdf";
-
-    logger.log(`   📤 Uploading to Cloudflare R2 (${buffer.byteLength} bytes, ${contentType})...`);
-    const putSuccess = await putR2Object({
-      endpoint: r2Endpoint,
-      bucket: r2BucketName,
-      key: filePath,
-      accessKeyId: r2AccessKeyId,
-      secretAccessKey: r2SecretAccessKey,
-      region: r2Region,
-      body: buffer,
-      contentType,
-      fetchImpl,
-    });
-
-    if (!putSuccess) {
-      logger.error(`   ❌ Failed to upload ${filePath} to Cloudflare R2.`);
-      summary.failed++;
-      summary.errors.push({ path: filePath, error: "R2 PUT request failed" });
-      continue;
-    }
-
-    // Post-upload verification health check (HEAD request)
-    logger.log(`   🩺 Verifying uploaded object in Cloudflare R2...`);
-    let verified = false;
-    try {
-      verified = await headR2Object({
-        endpoint: r2Endpoint,
-        bucket: r2BucketName,
-        key: filePath,
-        accessKeyId: r2AccessKeyId,
-        secretAccessKey: r2SecretAccessKey,
-        region: r2Region,
-        fetchImpl,
-      });
-    } catch (verifyErr) {
-      const errMsg = verifyErr instanceof Error ? verifyErr.message : String(verifyErr);
-      logger.warn(`   ⚠️ Post-upload verification HEAD request failed for ${filePath}: ${errMsg}`);
-      verified = false;
-    }
-
-    if (verified) {
-      logger.log(`   ✨ Successfully uploaded and verified in R2!`);
+      // Written: counted before verification, so a failed check never hides a successful write.
       summary.uploaded++;
-      summary.verified++;
-    } else {
-      logger.warn(`   ⚠️ WARNING: Uploaded ${filePath} but post-upload HEAD verification failed!`);
+
+      logger.log(`   🩺 Verifying uploaded object in Cloudflare R2...`);
+      try {
+        const after = await statR2Object({
+          endpoint: r2Endpoint,
+          bucket: r2BucketName,
+          key: filePath,
+          accessKeyId: r2AccessKeyId,
+          secretAccessKey: r2SecretAccessKey,
+          region: r2Region,
+          fetchImpl,
+        });
+        if (after.exists && after.sourceEtag === file.etag) {
+          logger.log(`   ✨ Successfully uploaded and verified in R2!`);
+          summary.verified++;
+        } else {
+          logger.warn(`   ⚠️ WARNING: Uploaded ${filePath} but its source ETag did not verify in R2.`);
+          summary.failed++;
+          summary.errors.push({ path: filePath, error: "Post-upload source ETag verification failed" });
+        }
+      } catch (verifyErr) {
+        const errMsg = verifyErr instanceof Error ? verifyErr.message : String(verifyErr);
+        logger.warn(`   ⚠️ Post-upload verification request failed for ${filePath}: ${errMsg}`);
+        summary.failed++;
+        summary.errors.push({ path: filePath, error: `Post-upload verification failed: ${errMsg}` });
+      }
+    } catch (fileErr) {
+      const errMsg = String(fileErr);
+      logger.error(`   ❌ Unexpected error while syncing ${file.path}: ${errMsg}`);
       summary.failed++;
-      summary.errors.push({ path: filePath, error: "Post-upload HEAD verification failed" });
+      summary.errors.push({ path: file.path, error: errMsg });
     }
   }
 
@@ -312,8 +398,9 @@ export async function syncSupabaseToR2(options: SyncOptions = {}): Promise<SyncR
 
 // Direct execution via CLI (e.g. `pnpm dlx tsx scripts/sync-supabase-to-r2.ts` or `tsx scripts/sync-supabase-to-r2.ts`)
 if (process.argv[1] && process.argv[1].includes("sync-supabase-to-r2")) {
-  const prefix = parsePrefixArg(process.argv);
-  syncSupabaseToR2({ prefix })
+  // parsePrefixArg runs inside the promise chain so a malformed --prefix reaches the .catch handler.
+  Promise.resolve()
+    .then(() => syncSupabaseToR2({ prefix: parsePrefixArg(process.argv) }))
     .then((result) => {
       if (result.failed > 0) {
         process.exitCode = 1;

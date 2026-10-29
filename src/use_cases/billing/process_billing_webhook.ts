@@ -479,7 +479,7 @@ export async function processBillingWebhookUseCase(
         // failure rethrows (500) so the provider retries.
         const existing = await findSaleAsync(saleEvent.providerName, saleEvent.saleId);
         if (existing) {
-          await deliverSaleForWebhook({ saleId: saleEvent.saleId, productAlias: saleEvent.productId, buyerEmail: saleEvent.buyerEmail });
+          await deliverSaleForWebhook({ provider: saleEvent.providerName, saleId: saleEvent.saleId, productAlias: saleEvent.productId, buyerEmail: saleEvent.buyerEmail });
           return { status: 200, payload: { ok: true, recorded: false, reason: "duplicate", sale_id: saleEvent.saleId } };
         }
 
@@ -520,7 +520,7 @@ export async function processBillingWebhookUseCase(
         });
         // Receipt and download link, after the ledger write. A delivery failure rethrows: the webhook answers 500 and the
         // provider retries, which re-attempts delivery on the duplicate path above.
-        await deliverSaleForWebhook({ saleId: saleEvent.saleId, productAlias: saleEvent.productId, buyerEmail: saleEvent.buyerEmail });
+        await deliverSaleForWebhook({ provider: saleEvent.providerName, saleId: saleEvent.saleId, productAlias: saleEvent.productId, buyerEmail: saleEvent.buyerEmail });
         return { status: 200, payload: { ok: true, recorded: true, sale_id: saleEvent.saleId } };
       },
     );

@@ -12,6 +12,11 @@ export interface R2Config {
   /** @deprecated Cloudflare rejects S3 presigned URLs on custom domains; ignored */
   publicDomain?: string;
   fetchImpl?: typeof fetch;
+  /**
+   * Returns the current Supabase source ETag for the path, or null if unknown. The R2 copy is served
+   * only when its stored source-ETag marker equals this value; otherwise the adapter returns null.
+   */
+  resolveSourceEtag: (path: string) => Promise<string | null>;
 }
 
 function rfc3986(str: string): string {
@@ -42,16 +47,32 @@ export function deriveSigningKey(
 }
 
 /**
- * Builds the canonical request and returns the signed headers string.
+ * SigV4 canonical headers. The host is always signed. Extra headers (write preconditions,
+ * x-amz-meta-*) are signed as well, so R2 authenticates them and they cannot be altered in transit.
  */
+function canonicalHeaderBlock(
+  host: string,
+  extraHeaders: Record<string, string>,
+): { canonicalHeaders: string; signedHeaders: string } {
+  const entries: Array<[string, string]> = [["host", host.toLowerCase()]];
+  for (const [name, value] of Object.entries(extraHeaders)) {
+    entries.push([name.toLowerCase(), value.trim()]);
+  }
+  entries.sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  return {
+    canonicalHeaders: entries.map(([name, value]) => `${name}:${value}\n`).join(""),
+    signedHeaders: entries.map(([name]) => name).join(";"),
+  };
+}
+
 export function buildCanonicalRequest(
   method: string,
   canonicalUri: string,
   canonicalQueryString: string,
   host: string,
+  extraHeaders: Record<string, string> = {},
 ): { canonicalRequest: string; signedHeaders: string } {
-  const canonicalHeaders = `host:${host.toLowerCase()}\n`;
-  const signedHeaders = "host";
+  const { canonicalHeaders, signedHeaders } = canonicalHeaderBlock(host, extraHeaders);
   const payloadHash = "UNSIGNED-PAYLOAD";
 
   const canonicalRequest = [
@@ -78,6 +99,8 @@ export interface GeneratePresignedUrlOptions {
   /** @deprecated Cloudflare rejects S3 presigned URLs on custom domains; ignored */
   publicDomain?: string;
   method?: string;
+  /** Headers the caller will send unchanged; they are signed so R2 authenticates them. */
+  signHeaders?: Record<string, string>;
 }
 
 /**
@@ -96,6 +119,7 @@ export function generateR2PresignedUrl(options: GeneratePresignedUrlOptions): st
     expiresInSeconds = 300,
     date = new Date(),
     method = "GET",
+    signHeaders = {},
   } = options;
 
   const url = new URL(endpoint);
@@ -126,7 +150,7 @@ export function generateR2PresignedUrl(options: GeneratePresignedUrlOptions): st
     "X-Amz-Credential": `${accessKeyId}/${credentialScope}`,
     "X-Amz-Date": amzDate,
     "X-Amz-Expires": expiresInSeconds.toString(),
-    "X-Amz-SignedHeaders": "host",
+    "X-Amz-SignedHeaders": canonicalHeaderBlock(host, signHeaders).signedHeaders,
   };
 
   const sortedParamKeys = Object.keys(queryParams).sort();
@@ -139,6 +163,7 @@ export function generateR2PresignedUrl(options: GeneratePresignedUrlOptions): st
     canonicalUri,
     canonicalQueryString,
     host,
+    signHeaders,
   );
 
   const stringToSign = [
@@ -166,12 +191,23 @@ export interface HeadR2ObjectOptions {
   timeoutMs?: number;
 }
 
+/** Header carrying the source ETag recorded when the object was written (metadata key `supabase-etag`). */
+export const SOURCE_ETAG_HEADER = "x-amz-meta-supabase-etag";
+
+export interface StatR2ObjectResult {
+  exists: boolean;
+  /** R2's own ETag for the stored bytes. The If-Match precondition for a refresh. */
+  etag?: string;
+  /** Source ETag stored with the object. Absent on objects written before the freshness contract. */
+  sourceEtag?: string;
+}
+
 /**
- * Checks whether an object exists in Cloudflare R2 using a bounded signed HEAD request.
- * Returns true if the object exists (2xx), false ONLY on confirmed absence (404).
- * Throws on network errors, timeouts, auth errors, or unexpected HTTP status codes.
+ * Reads an object's state in Cloudflare R2 with a bounded signed HEAD request.
+ * Returns exists:false ONLY on confirmed absence (404). Any other non-2xx status,
+ * network error, or timeout throws, so callers never treat an inconclusive read as absence.
  */
-export async function headR2Object(options: HeadR2ObjectOptions): Promise<boolean> {
+export async function statR2Object(options: HeadR2ObjectOptions): Promise<StatR2ObjectResult> {
   const {
     endpoint,
     bucket,
@@ -201,18 +237,28 @@ export async function headR2Object(options: HeadR2ObjectOptions): Promise<boolea
 
   const res = await fetchImpl(headUrl, {
     method: "HEAD",
+    redirect: "error",
     signal: AbortSignal.timeout(timeoutMs),
   });
 
   if (res.status === 404) {
-    return false;
+    return { exists: false };
   }
 
   if (!res.ok) {
     throw new Error(`[r2-storage] HEAD object returned status ${res.status}`);
   }
 
-  return true;
+  return {
+    exists: true,
+    etag: res.headers.get("etag") ?? undefined,
+    sourceEtag: res.headers.get(SOURCE_ETAG_HEADER) ?? undefined,
+  };
+}
+
+/** Boolean view of statR2Object: true on 2xx, false only on confirmed 404, throws otherwise. */
+export async function headR2Object(options: HeadR2ObjectOptions): Promise<boolean> {
+  return (await statR2Object(options)).exists;
 }
 
 export interface PutR2ObjectOptions {
@@ -231,6 +277,7 @@ export interface PutR2ObjectOptions {
 /**
  * Uploads an object to Cloudflare R2 using a signed PUT request.
  * Returns true if the upload succeeded (2xx), false otherwise.
+ * Throws on an insecure endpoint. Returns false for a malformed endpoint.
  */
 export async function putR2Object(options: PutR2ObjectOptions): Promise<boolean> {
   const {
@@ -246,7 +293,13 @@ export async function putR2Object(options: PutR2ObjectOptions): Promise<boolean>
     timeoutMs = 30000,
   } = options;
 
-  const parsedUrl = new URL(endpoint);
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(endpoint);
+  } catch (err) {
+    console.warn(`[r2-storage] PUT object failed:`, err instanceof Error ? err.message : err);
+    return false;
+  }
   if (parsedUrl.protocol === "http:" && process.env.R2_ALLOW_INSECURE_HTTP !== "true") {
     throw new Error(`[r2-storage] Insecure HTTP endpoint rejected: ${endpoint}`);
   }
@@ -265,6 +318,7 @@ export async function putR2Object(options: PutR2ObjectOptions): Promise<boolean>
 
     const res = await fetchImpl(putUrl, {
       method: "PUT",
+      redirect: "error",
       headers: {
         "Content-Type": contentType,
       },
@@ -284,6 +338,101 @@ export async function putR2Object(options: PutR2ObjectOptions): Promise<boolean>
   }
 }
 
+export interface PutR2ObjectIfOptions extends PutR2ObjectOptions {
+  /** Stored as x-amz-meta-<name> headers. Signed. */
+  metadata?: Record<string, string>;
+  /** Write only if the stored object's ETag equals this value (refresh). */
+  ifMatch?: string;
+  /** Write only if no object exists at the key ("*" for create-once). */
+  ifNoneMatch?: "*";
+}
+
+export type PutR2ObjectResult =
+  | { status: "written" }
+  | { status: "precondition_failed" }
+  | { status: "failed"; reason: string };
+
+/**
+ * Conditional signed PUT. R2 is documented to evaluate If-Match / If-None-Match against the committed
+ * object, so a write based on a stale read fails with 412 instead of silently overwriting. Not yet live-verified
+ * on the account, see ADR 0063.
+ * Throws on an insecure endpoint (same guard as putR2Object); any other failure is returned.
+ */
+export async function putR2ObjectIf(options: PutR2ObjectIfOptions): Promise<PutR2ObjectResult> {
+  const {
+    endpoint,
+    bucket,
+    key,
+    accessKeyId,
+    secretAccessKey,
+    region = "auto",
+    body,
+    contentType = "application/octet-stream",
+    fetchImpl = fetch,
+    timeoutMs = 30000,
+    metadata = {},
+    ifMatch,
+    ifNoneMatch,
+  } = options;
+
+  // Exactly one precondition. Neither set would be an unconditional overwrite, which is the failure this write exists to prevent.
+  if ((ifMatch === undefined) === (ifNoneMatch === undefined)) {
+    return { status: "failed", reason: "exactly one of ifMatch or ifNoneMatch is required" };
+  }
+
+  let parsedUrl: URL;
+  try {
+    parsedUrl = new URL(endpoint);
+  } catch (err) {
+    return { status: "failed", reason: err instanceof Error ? err.message : String(err) };
+  }
+  if (parsedUrl.protocol === "http:" && process.env.R2_ALLOW_INSECURE_HTTP !== "true") {
+    throw new Error(`[r2-storage] Insecure HTTP endpoint rejected: ${endpoint}`);
+  }
+
+  const conditionalHeaders: Record<string, string> = {};
+  for (const [name, value] of Object.entries(metadata)) {
+    conditionalHeaders[`x-amz-meta-${name.toLowerCase()}`] = value;
+  }
+  if (ifMatch !== undefined) conditionalHeaders["if-match"] = ifMatch;
+  if (ifNoneMatch !== undefined) conditionalHeaders["if-none-match"] = ifNoneMatch;
+
+  try {
+    const putUrl = generateR2PresignedUrl({
+      endpoint,
+      bucket,
+      key,
+      accessKeyId,
+      secretAccessKey,
+      region,
+      expiresInSeconds: 300,
+      method: "PUT",
+      signHeaders: conditionalHeaders,
+    });
+
+    const res = await fetchImpl(putUrl, {
+      method: "PUT",
+      redirect: "error",
+      headers: {
+        "Content-Type": contentType,
+        ...conditionalHeaders,
+      },
+      body: (body instanceof Uint8Array ? body : typeof body === "string" ? body : Buffer.from(body)) as unknown as BodyInit,
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+
+    if (res.status === 412) {
+      return { status: "precondition_failed" };
+    }
+    if (!res.ok) {
+      return { status: "failed", reason: `PUT object returned status ${res.status}` };
+    }
+    return { status: "written" };
+  } catch (err) {
+    return { status: "failed", reason: err instanceof Error ? err.message : String(err) };
+  }
+}
+
 /**
  * Storage adapter implementing 0% egress delivery via Cloudflare R2 presigned URLs.
  */
@@ -295,6 +444,7 @@ export class R2StorageAdapter implements StoragePort {
   private readonly endpoint: string;
   private readonly region: string;
   private readonly fetchImpl: typeof fetch;
+  private readonly resolveSourceEtag: (path: string) => Promise<string | null>;
 
   constructor(config: R2Config) {
     this.accountId = config.accountId;
@@ -304,6 +454,7 @@ export class R2StorageAdapter implements StoragePort {
     this.endpoint = config.endpoint || `https://${this.accountId}.r2.cloudflarestorage.com`;
     this.region = config.region || "auto";
     this.fetchImpl = config.fetchImpl || fetch;
+    this.resolveSourceEtag = config.resolveSourceEtag;
   }
 
   async hasObject(path: string): Promise<boolean> {
@@ -318,31 +469,13 @@ export class R2StorageAdapter implements StoragePort {
     });
   }
 
-  async uploadObject(
-    path: string,
-    body: Buffer | Uint8Array | string,
-    contentType = "application/octet-stream",
-  ): Promise<boolean> {
-    return putR2Object({
-      endpoint: this.endpoint,
-      bucket: this.bucket,
-      key: path,
-      accessKeyId: this.accessKeyId,
-      secretAccessKey: this.secretAccessKey,
-      region: this.region,
-      body,
-      contentType,
-      fetchImpl: this.fetchImpl,
-    });
-  }
-
   async createSignedDownloadUrl(
     path: string,
     expiresInSeconds: number,
     now: Date = new Date(),
   ): Promise<string | null> {
     try {
-      const exists = await headR2Object({
+      const stat = await statR2Object({
         endpoint: this.endpoint,
         bucket: this.bucket,
         key: path,
@@ -352,7 +485,22 @@ export class R2StorageAdapter implements StoragePort {
         fetchImpl: this.fetchImpl,
       });
 
-      if (!exists) {
+      if (!stat.exists) {
+        return null;
+      }
+
+      // Serve the R2 copy only when, at the moment of this check, it was written from the current source. Anything else falls back.
+      const sourceEtag = await this.resolveSourceEtag(path);
+      if (!sourceEtag || !stat.sourceEtag || stat.sourceEtag !== sourceEtag) {
+        let reason: string;
+        if (!sourceEtag) {
+          reason = "source ETag unknown";
+        } else if (!stat.sourceEtag) {
+          reason = "R2 object has no source ETag marker (legacy write)";
+        } else {
+          reason = "R2 copy is stale: stored marker differs from the source";
+        }
+        console.warn(`[r2-storage] Not serving R2 copy of ${path}: ${reason}`);
         return null;
       }
 
@@ -367,7 +515,8 @@ export class R2StorageAdapter implements StoragePort {
         date: now,
       });
     } catch (err) {
-      console.error("[r2-storage] Failed to generate presigned download URL:", err instanceof Error ? err.message : err);
+      // Serving falls back to Supabase, so the buyer is not blocked. The id lets an operator match a buyer report to this line.
+      console.error(`[r2-storage] error=${globalThis.crypto.randomUUID().slice(0, 8)} presigned URL failed; serving the Supabase copy:`, err instanceof Error ? err.message : err);
       return null;
     }
   }
@@ -380,8 +529,59 @@ export interface SupabaseStorageAdmin {
         data: { signedUrl: string } | null;
         error: { message?: string } | null;
       }>;
+      list: (
+        path: string,
+        options?: { search?: string; limit?: number },
+        parameters?: { signal?: AbortSignal },
+      ) => Promise<{
+        data: Array<{ name: string; metadata?: Record<string, unknown> | null }> | null;
+        error: { message?: string } | null;
+      }>;
     };
   };
+}
+
+/** Bound on the source listing. The buyer download path awaits it, so a hung listing must not hold the request. */
+export const SOURCE_LISTING_TIMEOUT_MS = 5000;
+
+/**
+ * Reads the current source ETag of a Supabase Storage object from its listing metadata.
+ * Matches the name exactly (the listing `search` is a prefix match). Returns null when the object or
+ * its eTag is absent, when the listing fails, or when it exceeds SOURCE_LISTING_TIMEOUT_MS. Never throws.
+ */
+export async function resolveSupabaseSourceEtag(
+  sbAdmin: SupabaseStorageAdmin,
+  bucket: string,
+  path: string,
+): Promise<string | null> {
+  const slash = path.lastIndexOf("/");
+  const directory = slash === -1 ? "" : path.slice(0, slash);
+  const name = path.slice(slash + 1);
+  // Abort the request on timeout, not just stop waiting for it: a hung listing must not keep running in the background.
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      controller.abort();
+      reject(new Error(`listing exceeded ${SOURCE_LISTING_TIMEOUT_MS} ms`));
+    }, SOURCE_LISTING_TIMEOUT_MS);
+  });
+  try {
+    const listing = sbAdmin.storage.from(bucket).list(directory, { search: name, limit: 100 }, { signal: controller.signal });
+    const { data, error } = await Promise.race([listing, timeout]);
+    if (error) {
+      console.error(`[r2-storage] error=${globalThis.crypto.randomUUID().slice(0, 8)} source ETag lookup failed for ${path}; serving the Supabase copy:`, error.message ?? "unknown error");
+      return null;
+    }
+    const item = data?.find((entry) => entry.name === name);
+    const eTag = item?.metadata?.eTag;
+    return typeof eTag === "string" ? eTag : null;
+  } catch (err) {
+    console.error(`[r2-storage] error=${globalThis.crypto.randomUUID().slice(0, 8)} source ETag lookup threw for ${path}; serving the Supabase copy:`, err instanceof Error ? err.message : err);
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /**
@@ -435,7 +635,7 @@ export interface DeliveryStorageOptions {
  * Factory for the delivery storage adapter.
  * Prefers Cloudflare R2 when credentials (R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY)
  * and an explicit R2_BUCKET_NAME are present, providing 0% egress delivery fees.
- * Falls back to Supabase Storage if R2 is unconfigured or if R2 object presence / URL generation fails.
+ * Falls back to Supabase Storage if R2 is unconfigured or if the R2 copy is absent or not provably current.
  */
 export function getDeliveryStorageAdapter(
   sbAdmin: SupabaseStorageAdmin,
@@ -456,6 +656,7 @@ export function getDeliveryStorageAdapter(
       bucket: r2Bucket,
       endpoint: process.env.R2_ENDPOINT,
       region: process.env.R2_REGION,
+      resolveSourceEtag: (p) => resolveSupabaseSourceEtag(sbAdmin, bucket, p),
     });
 
     return new CompositeStorageAdapter(r2Adapter, fallback);
