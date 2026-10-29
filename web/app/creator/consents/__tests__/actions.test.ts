@@ -63,21 +63,21 @@ describe("signConsentAction (Wave 6.1)", () => {
   it("fails closed to the signin redirect when there is no session", async () => {
     const { getPortalSession } = await import("../../../../src/lib/supabase-server");
     (getPortalSession as ReturnType<typeof vi.fn>).mockResolvedValueOnce(null);
-    await expect(signConsentAction({}, fd("C1_data_accuracy", "Duane Smith"))).rejects.toThrow(
+    await expect(signConsentAction({}, fd("C1_data_accuracy", "Jane Example"))).rejects.toThrow(
       "NEXT_REDIRECT:/creator/signin",
     );
     expect(rpcMock).not.toHaveBeenCalled();
   });
 
   it("rejects a name that is not a full legal name (single word) without writing", async () => {
-    const res = await signConsentAction({}, fd("C1_data_accuracy", "Duane"));
+    const res = await signConsentAction({}, fd("C1_data_accuracy", "Jane"));
     expect(res.ok).toBeUndefined();
     expect(res.error).toMatch(/full legal name/i);
     expect(rpcMock).not.toHaveBeenCalled();
   });
 
   it("rejects unknown consent kinds — C3 comes only from the Firma webhook", async () => {
-    const res = await signConsentAction({}, fd("C3_revenue_split", "Duane Smith"));
+    const res = await signConsentAction({}, fd("C3_revenue_split", "Jane Example"));
     expect(res.error).toMatch(/unknown consent/i);
     expect(rpcMock).not.toHaveBeenCalled();
   });
@@ -88,12 +88,12 @@ describe("signConsentAction (Wave 6.1)", () => {
     ["0.0.0.0 when no IP header is present", [], "0.0.0.0"],
   ] as Array<[string, Array<[string, string]>, string]>)("audit IP: %s", async (_l, hs, want) => {
     headerMap.current = new Map([...hs, ["user-agent", "vitest-agent/1.0"]]);
-    await signConsentAction({}, fd("C1_data_accuracy", "Duane Smith"));
+    await signConsentAction({}, fd("C1_data_accuracy", "Jane Example"));
     expect(rpcMock).toHaveBeenCalledWith("submit_consent", expect.objectContaining({ p_ip: want }));
   });
 
   it("records C1 with the zeros document hash and request IP/UA", async () => {
-    const res = await signConsentAction({}, fd("C1_data_accuracy", "Duane Smith"));
+    const res = await signConsentAction({}, fd("C1_data_accuracy", "Jane Example"));
     expect(res).toEqual({ ok: true });
     expect(rpcMock).toHaveBeenCalledWith(
       "submit_consent",
@@ -103,7 +103,7 @@ describe("signConsentAction (Wave 6.1)", () => {
         p_decision: "given",
         p_text_version: "v1.1",
         p_document_sha256: "0".repeat(64),
-        p_typed_name: "Duane Smith",
+        p_typed_name: "Jane Example",
         p_ip: "203.0.113.9",
         p_user_agent: "vitest-agent/1.0",
         p_auth_provider: "google",
@@ -112,7 +112,7 @@ describe("signConsentAction (Wave 6.1)", () => {
   });
 
   it("records C2 with the product release hash when present", async () => {
-    const res = await signConsentAction({}, fd("C2_release_approval", "Duane Smith"));
+    const res = await signConsentAction({}, fd("C2_release_approval", "Jane Example"));
     expect(res).toEqual({ ok: true });
     expect(rpcMock).toHaveBeenCalledWith(
       "submit_consent",
@@ -126,7 +126,7 @@ describe("signConsentAction (Wave 6.1)", () => {
   it("refuses C2 when the release hash is missing or the zero placeholder — never writes", async () => {
     for (const bad of [null, "0".repeat(64), "not-a-hash"]) {
       releaseSha = bad;
-      const res = await signConsentAction({}, fd("C2_release_approval", "Duane Smith"));
+      const res = await signConsentAction({}, fd("C2_release_approval", "Jane Example"));
       expect(res.error).toMatch(/isn't ready to approve/);
     }
     expect(rpcMock).not.toHaveBeenCalled();
@@ -134,7 +134,7 @@ describe("signConsentAction (Wave 6.1)", () => {
 
   it("maps an RPC failure to a friendly error, never a crash", async () => {
     rpcMock.mockResolvedValueOnce({ error: { message: "append-only violation" } });
-    const res = await signConsentAction({}, fd("C1_data_accuracy", "Duane Smith"));
+    const res = await signConsentAction({}, fd("C1_data_accuracy", "Jane Example"));
     expect(res.error).toMatch(/could not record/i);
   });
 });

@@ -39,7 +39,7 @@ export async function signConsentAction(_prev: ConsentFormState, formData: FormD
   const typedName = String(formData.get("typedName") ?? "").trim();
   const words = typedName.split(/\s+/).filter(Boolean);
   if (words.length < 2 || !words.every((w) => /^[\p{L}'’-]{2,}$/u.test(w))) {
-    return { error: "Please type your full legal name — first and last name, as in your passport (e.g. “Duane Smith”)." };
+    return { error: "Please type your full legal name — first and last name, as in your passport (e.g. “Jane Example”)." };
   }
 
   const { product, error: productError } = await resolvePrimaryProduct<{ id: string; release_sha256: string | null }>(

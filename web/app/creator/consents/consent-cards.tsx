@@ -107,7 +107,7 @@ function ConsentFormCard({
             name="typedName"
             type="text"
             required
-            placeholder="e.g. Duane Smith"
+            placeholder="e.g. Jane Example"
             className="mt-2 w-full rounded-lg border border-[#EADFD1] bg-[#FFFDF9] p-3 text-[length:var(--font-size-base)] text-[#2B2520] outline-none focus:border-[#E8622C] focus-visible:ring-2 focus-visible:ring-[#B3401E] focus-visible:ring-offset-2 focus-visible:ring-offset-[#FFFDF9]"
           />
           {state.error && (
