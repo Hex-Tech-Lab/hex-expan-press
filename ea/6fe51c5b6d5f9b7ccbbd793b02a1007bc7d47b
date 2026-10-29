@@ -1,0 +1,21 @@
+web/app/d/[token]/route.ts
+  s_6625bc67577472::t_1fced9830a8364 55-56
+payments/src/sale_access.ts
+  s_6625bc67577472::t_e3c20d7b544f38 9-10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ea6fe51c5b6d5f9b7ccbbd793b02a1007bc7d47b",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
