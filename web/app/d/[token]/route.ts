@@ -52,7 +52,8 @@ export async function GET(_request: NextRequest, ctx: { params: Promise<{ token:
     console.error(`[delivery] sale access unreadable for sale ${link.sale_id as string}: ${(err as Error).message}`);
     return new NextResponse("Download unavailable", { status: 500 });
   }
-  if (access === "revoked") {
+  // Only "active" serves. A state added to SaleAccess later (for example a pause) denies until it is handled here.
+  if (access !== "active") {
     return new NextResponse("This purchase was refunded, so its download link no longer works.", { status: 410 });
   }
 

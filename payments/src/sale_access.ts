@@ -6,7 +6,8 @@
  *
  * The ledger records no chargeback event. A Paddle chargeback arrives as an adjustment and is mapped to the same
  * refund_issued event as a refund (src/adapters/payments/paddle.adapter.ts), so a chargeback revokes like a refund.
- * There is no "paused" state, because the ledger cannot tell a chargeback from a refund.
+ * A "paused" state is planned for when the ledger records disputes as their own event. Until then the state set
+ * stays {active, revoked}, and the route denies every state other than "active", so adding one fails closed.
  *
  * Unknown input throws (no sale row, unknown event_type). Callers treat a throw as an unknown state and fail closed.
  */
