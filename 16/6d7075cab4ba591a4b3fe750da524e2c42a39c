@@ -1,0 +1,26 @@
+web/app/d/[token]/route.ts
+  s_6625bc67577472::t_94f9bf19ea29d2 5
+  s_6625bc67577472::t_a01c549d7f50cd 50-52
+web/app/d/[token]/__tests__/route.test.ts
+  s_6625bc67577472::t_e5d2b6df51682a 425-480
+payments/src/sale_access.ts
+  s_6625bc67577472::t_89306f80fcf4c8 23-28,39-57
+payments/test/sale_access.test.ts
+  s_6625bc67577472::t_a95010af5324dd 43-53
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "166d7075cab4ba591a4b3fe750da524e2c42a39c",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
