@@ -23,7 +23,8 @@ import unittest
 import unittest.mock
 import pypdf
 
-os.environ.setdefault("ASSET_SALT", "test-only-salt")
+TEST_SALT = "test-only-salt-that-is-at-least-32-chars"  # 40 characters; the scripts refuse anything shorter
+os.environ.setdefault("ASSET_SALT", TEST_SALT)
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 WATERMARK_SCRIPT = os.path.join(REPO_ROOT, "scripts/watermark_pdf.py")
@@ -267,6 +268,42 @@ class TestAssetSaltFailsClosed(unittest.TestCase):
             self.assertNotEqual(res.returncode, 0)
             self.assertIn("ASSET_SALT is not set", res.stderr)
 
+    def test_short_salt_is_refused_by_both_scripts(self):
+        """P2: ASSET_SALT must be at least 32 characters. A short salt makes the HMAC forgeable."""
+        with tempfile.TemporaryDirectory() as tmp:
+            src = os.path.join(tmp, "x.pdf")
+            create_dummy_pdf(src)
+            docs = {}
+            for name in ("c1", "c2", "c3", "ebook"):
+                docs[name] = os.path.join(tmp, f"{name}.pdf")
+                create_dummy_pdf(docs[name], name)
+            for short in ("x", "a" * 31, " " + "a" * 30):
+                with self.subTest(salt_length=len(short)):
+                    res = subprocess.run(
+                        [sys.executable, WATERMARK_SCRIPT, "--input", src, "--output", os.path.join(tmp, "o.pdf"),
+                         "--creator-id", "c", "--creator-name", "n", "--mode", "perimeter", "--purpose", "review"],
+                        capture_output=True, text=True, env=dict(os.environ, ASSET_SALT=short))
+                    self.assertNotEqual(res.returncode, 0, "watermark signed with a short salt")
+                    self.assertIn("ASSET_SALT", res.stderr)
+                    manifest = os.path.join(tmp, "m.json")
+                    res = subprocess.run([
+                        sys.executable, MANIFEST_SCRIPT, "--c1-doc", docs["c1"], "--c2-doc", docs["c2"],
+                        "--c3-doc", docs["c3"], "--ebook-doc", docs["ebook"], "--creator-id", "c",
+                        "--creator-name", "n", "--product-id", "p", "--output-manifest", manifest],
+                        capture_output=True, text=True, env=dict(os.environ, ASSET_SALT=short))
+                    self.assertNotEqual(res.returncode, 0, "manifest signed with a short salt")
+                    self.assertFalse(os.path.exists(manifest), "no manifest may be written with a short salt")
+
+    def test_salt_of_exactly_32_characters_is_accepted(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            src = os.path.join(tmp, "x.pdf")
+            create_dummy_pdf(src)
+            res = subprocess.run(
+                [sys.executable, WATERMARK_SCRIPT, "--input", src, "--output", os.path.join(tmp, "o.pdf"),
+                 "--creator-id", "c", "--creator-name", "n", "--mode", "perimeter", "--purpose", "review"],
+                capture_output=True, text=True, env=dict(os.environ, ASSET_SALT="a" * 32))
+            self.assertEqual(res.returncode, 0, res.stderr)
+
     def test_same_basename_sources_get_distinct_stamped_outputs(self):
         with tempfile.TemporaryDirectory() as tmp:
             d1, d2 = os.path.join(tmp, "d1"), os.path.join(tmp, "d2")
@@ -297,7 +334,7 @@ class TestAssetSaltFailsClosed(unittest.TestCase):
             res = subprocess.run(
                 [sys.executable, WATERMARK_SCRIPT, "--input", src, "--output", src,
                  "--creator-id", "c", "--creator-name", "n", "--mode", "diagonal"],
-                capture_output=True, text=True, env=dict(os.environ, ASSET_SALT="test-only-salt"))
+                capture_output=True, text=True, env=dict(os.environ, ASSET_SALT=TEST_SALT))
             self.assertNotEqual(res.returncode, 0)
             with open(src, "rb") as f:
                 self.assertEqual(f.read(), before, "source PDF was overwritten")

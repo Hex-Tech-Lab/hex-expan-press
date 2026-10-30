@@ -38,11 +38,16 @@ import subprocess
 import sys
 import tempfile
 
+MIN_SALT_CHARS = 32
+
+
 def fingerprint_salt() -> bytes:
-    """Returns the bundle HMAC salt. Fails closed: a default salt would make the provenance signature forgeable."""
+    """Returns the bundle HMAC salt. Fails closed: a default or short salt would make the provenance signature forgeable."""
     salt = os.environ.get("ASSET_SALT", "")
-    if not salt.strip():
-        raise RuntimeError("ASSET_SALT is not set (or blank); refusing to sign with a default salt")
+    if not salt.strip() or len(salt) < MIN_SALT_CHARS:
+        raise RuntimeError(
+            f"ASSET_SALT is not set, blank, or shorter than {MIN_SALT_CHARS} characters; refusing to sign with a weak salt"
+        )
     return salt.encode("utf-8")
 
 
