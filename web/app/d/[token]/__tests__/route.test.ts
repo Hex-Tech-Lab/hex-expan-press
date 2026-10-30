@@ -311,6 +311,21 @@ describe("GET /d/[token] (Buyer delivery route)", () => {
     expect(insertMock).toHaveBeenCalled();
   });
 
+  // A refund during a download leaves the signed URL valid for its whole lifetime. 120 seconds bounds that window.
+  it("signs the release URL for 120 seconds (GLOBAL.delivery.signed_url_seconds)", async () => {
+    const future = new Date(Date.now() + 100000).toISOString();
+    maybeSingleMock.mockResolvedValueOnce({
+      data: { sale_id: "s1", product_id: "p1", expires_at: future },
+      error: null,
+    });
+    maybeSingleMock.mockResolvedValueOnce({ data: { release_path: "books/test.pdf" }, error: null });
+    createSignedUrlMock.mockResolvedValueOnce({ data: { signedUrl: "https://supabase.example/signed/books/test.pdf" }, error: null });
+    insertMock.mockResolvedValueOnce({ error: null });
+
+    await expectRedirectTo(validToken, "https://supabase.example/signed/books/test.pdf");
+    expect(createSignedUrlMock).toHaveBeenCalledWith("books/test.pdf", 120);
+  });
+
   it("falls back to Supabase Storage when R2 returns null / object missing (404)", async () => {
     vi.stubEnv("R2_ACCOUNT_ID", "r2-acc-test");
     vi.stubEnv("R2_ACCESS_KEY_ID", "r2-key-test");

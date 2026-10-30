@@ -121,7 +121,9 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
   delivery: {
     bucket: "release-files",
     link_ttl_days: 7,
-    signed_url_seconds: 300,
+    // 120: no release-size or bandwidth data in the repo to justify more. The URL is checked when the redirect is
+    // followed, and a refund during a download leaves it valid for this long, so 120 bounds that window to two minutes.
+    signed_url_seconds: 120,
     short_domain: "go.expanpress.com",
   },
   email: {

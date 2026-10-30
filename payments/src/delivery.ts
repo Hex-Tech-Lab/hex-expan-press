@@ -4,7 +4,7 @@
  *   2. wrap {origin}/d/{token} in a Dub short link (go.expanpress.com)
  *   3. email the buyer the link via Resend
  * GET /d/{token} then validates the hash and expiry, logs download_completed, and 302s to a
- * 300-second signed URL for the release file. Only the server-side log makes the served-download
+ * 120-second signed URL for the release file (GLOBAL.delivery.signed_url_seconds). Only the server-side log makes the served-download
  * claim; it records that a signed URL was issued, not that the browser finished the transfer.
  *
  * Failure policy: the ledger write is the money record and stays authoritative. A delivery failure
