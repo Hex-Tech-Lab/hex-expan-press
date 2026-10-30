@@ -332,6 +332,33 @@ class TestAssetSaltFailsClosed(unittest.TestCase):
                 capture_output=True, text=True, env=dict(os.environ, ASSET_SALT="a" * 32))
             self.assertEqual(res.returncode, 0, res.stderr)
 
+    def test_manifest_salt_boundary_refuses_31_and_accepts_32(self):
+        """The manifest path must enforce the same 32-character floor as the watermarker."""
+        with tempfile.TemporaryDirectory() as tmp:
+            docs = {}
+            for name in ("c1", "c2", "c3", "ebook"):
+                docs[name] = os.path.join(tmp, f"{name}.pdf")
+                create_dummy_pdf(docs[name], name)
+            manifest = os.path.join(tmp, "m.json")
+
+            def generate(salt):
+                return subprocess.run([
+                    sys.executable, MANIFEST_SCRIPT, "--c1-doc", docs["c1"], "--c2-doc", docs["c2"],
+                    "--c3-doc", docs["c3"], "--ebook-doc", docs["ebook"], "--creator-id", "c",
+                    "--creator-name", "n", "--product-id", "p", "--output-manifest", manifest],
+                    capture_output=True, text=True, env=dict(os.environ, ASSET_SALT=salt))
+
+            res = generate("a" * 31)
+            self.assertNotEqual(res.returncode, 0, "manifest signed with a 31-character salt")
+            self.assertIn("ASSET_SALT is not set", res.stderr)
+            self.assertFalse(os.path.exists(manifest), "no manifest may be written with a 31-character salt")
+
+            res = generate("a" * 32)
+            self.assertEqual(res.returncode, 0, f"a 32-character salt must be accepted: {res.stderr}")
+            verify = subprocess.run([sys.executable, MANIFEST_SCRIPT, "--verify", manifest],
+                                    capture_output=True, text=True, env=dict(os.environ, ASSET_SALT="a" * 32))
+            self.assertEqual(verify.returncode, 0, verify.stderr)
+
     def test_same_basename_sources_get_distinct_stamped_outputs(self):
         with tempfile.TemporaryDirectory() as tmp:
             d1, d2 = os.path.join(tmp, "d1"), os.path.join(tmp, "d2")
