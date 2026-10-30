@@ -12,6 +12,7 @@ Tests:
 
 import copy
 import hashlib
+import importlib.util
 import json
 import os
 import shutil
@@ -19,6 +20,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import unittest.mock
 import pypdf
 
 os.environ.setdefault("ASSET_SALT", "test-only-salt")
@@ -382,6 +384,50 @@ class TestManifestSignatureCoversEveryField(unittest.TestCase):
         del removed["created_at"]
         res = self._verify(self._write(removed, os.path.join(self.tmp, "removed.json")))
         self.assertEqual(res.returncode, 1, res.stderr)
+
+
+class TestStampedBytesAreTheHashedBytes(unittest.TestCase):
+    """P1-2: a source replaced after it was hashed must not make the stamped output differ from the signed digest."""
+
+    def test_source_swapped_between_hash_and_stamp_is_not_what_gets_stamped(self):
+        spec = importlib.util.spec_from_file_location("generate_bundle_manifest", MANIFEST_SCRIPT)
+        gbm = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(gbm)
+        real_run = subprocess.run
+        with tempfile.TemporaryDirectory() as tmp:
+            docs = {name: os.path.join(tmp, f"{name}.pdf") for name in ("c1", "c2", "c3", "ebook")}
+            for name, path in docs.items():
+                create_dummy_pdf(path, f"{name} original")
+            with open(docs["c1"], "rb") as f:
+                original_c1_sha = hashlib.sha256(f.read()).hexdigest()
+
+            swapped = {"done": False}
+
+            def swap_then_run(cmd, *args, **kwargs):
+                # The first stamping subprocess starts only after every source has been hashed.
+                if not swapped["done"]:
+                    swapped["done"] = True
+                    create_dummy_pdf(docs["c1"], "SWAPPED after hashing")
+                return real_run(cmd, *args, **kwargs)
+
+            with unittest.mock.patch.object(gbm.subprocess, "run", side_effect=swap_then_run):
+                manifest = gbm.create_bundle(
+                    docs["c1"], docs["c2"], docs["c3"], docs["ebook"],
+                    "example-creator", "the owner", "500k-playbook",
+                    os.path.join(tmp, "manifest.json"), output_dir=os.path.join(tmp, "out"), stamp_bundle=True,
+                )
+
+            self.assertTrue(swapped["done"], "the swap never ran; the test proves nothing")
+            self.assertEqual(manifest["artifacts"]["c1_data_accuracy"]["sha256"], original_c1_sha)
+            pairs = (
+                ("c1", "c1_data_accuracy"), ("c2", "c2_release_approval"),
+                ("c3", "c3_publisher_agreement"), ("ebook", "ebook_asset"),
+            )
+            for key, artifact in pairs:
+                with self.subTest(artifact=artifact):
+                    signed = manifest["artifacts"][artifact]["sha256"]
+                    stamped = pypdf.PdfReader(manifest["stamped_artifacts"][key]).metadata.get("/SourceSha256")
+                    self.assertEqual(stamped, signed, f"{artifact}: stamped bytes differ from the signed digest")
 
 
 if __name__ == "__main__":

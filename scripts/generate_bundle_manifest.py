@@ -36,6 +36,7 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 
 def fingerprint_salt() -> bytes:
     """Returns the bundle HMAC salt. Fails closed: a default salt would make the provenance signature forgeable."""
@@ -45,15 +46,12 @@ def fingerprint_salt() -> bytes:
     return salt.encode("utf-8")
 
 
-def compute_sha256(filepath: str) -> str:
-    """Computes SHA-256 hash of a file."""
+def read_source(filepath: str) -> bytes:
+    """Reads a bundle document once. The digest and the stamped copy are both made from these exact bytes."""
     if not os.path.exists(filepath):
         raise FileNotFoundError(f"Bundle document not found: {filepath}")
-    h = hashlib.sha256()
     with open(filepath, "rb") as f:
-        while chunk := f.read(65536):
-            h.update(chunk)
-    return h.hexdigest()
+        return f.read()
 
 
 SIGNATURE_FIELD = "bundle_root_signature"
@@ -97,11 +95,12 @@ def create_bundle(
     output_dir: str = None,
     stamp_bundle: bool = False
 ) -> dict:
-    # 1. Compute individual SHA-256 digests
-    c1_hash = compute_sha256(c1_path)
-    c2_hash = compute_sha256(c2_path)
-    c3_hash = compute_sha256(c3_path)
-    ebook_hash = compute_sha256(ebook_path)
+    # 1. Read each document exactly once and hash that buffer. Stamping later uses the same buffer,
+    # so the signed digest always describes the bytes that get stamped.
+    sources = {"c1": c1_path, "c2": c2_path, "c3": c3_path, "ebook": ebook_path}
+    buffers = {key: read_source(path) for key, path in sources.items()}
+    digests = {key: hashlib.sha256(data).hexdigest() for key, data in buffers.items()}
+    c1_hash, c2_hash, c3_hash, ebook_hash = digests["c1"], digests["c2"], digests["c3"], digests["ebook"]
 
     # 2. Derive deterministic Bundle Identifier
     timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
@@ -121,7 +120,6 @@ def create_bundle(
         if not output_dir:
             output_dir = os.path.dirname(os.path.abspath(output_manifest))
         os.makedirs(output_dir, exist_ok=True)
-        sources = {"c1": c1_path, "c2": c2_path, "c3": c3_path, "ebook": ebook_path}
         for key, _mode, _purpose in STAMP_TASKS:
             # Prefix with the artifact key: two sources may share a basename (e.g. */doc.pdf).
             out_name = f"{key}_{os.path.splitext(os.path.basename(sources[key]))[0]}.bundle_stamped.pdf"
@@ -181,25 +179,29 @@ def create_bundle(
     if stamp_bundle:
         script_dir = os.path.dirname(os.path.abspath(__file__))
         watermarker = os.path.join(script_dir, "watermark_pdf.py")
-        sources = {"c1": c1_path, "c2": c2_path, "c3": c3_path, "ebook": ebook_path}
 
-        for key, mode, purpose in STAMP_TASKS:
-            src_path = sources[key]
-            cmd = [
-                sys.executable,
-                watermarker,
-                "--input", src_path,
-                "--output", stamped_paths[key],
-                "--creator-id", creator_id,
-                "--creator-name", creator_name,
-                "--mode", mode,
-                "--purpose", purpose,
-                "--bundle-id", bundle_id,
-                "--bundle-root-hash", root_signature
-            ]
-            res = subprocess.run(cmd, capture_output=True, text=True)
-            if res.returncode != 0:
-                raise RuntimeError(f"Failed to stamp {key} ({src_path}): {res.stderr}")
+        # Each document is stamped from a private copy written from the buffer that was hashed,
+        # never from the source path, which may have changed since it was read.
+        with tempfile.TemporaryDirectory() as staging:
+            for key, mode, purpose in STAMP_TASKS:
+                staged_path = os.path.join(staging, f"{key}.pdf")
+                with open(staged_path, "wb") as f_stage:
+                    f_stage.write(buffers[key])
+                cmd = [
+                    sys.executable,
+                    watermarker,
+                    "--input", staged_path,
+                    "--output", stamped_paths[key],
+                    "--creator-id", creator_id,
+                    "--creator-name", creator_name,
+                    "--mode", mode,
+                    "--purpose", purpose,
+                    "--bundle-id", bundle_id,
+                    "--bundle-root-hash", root_signature
+                ]
+                res = subprocess.run(cmd, capture_output=True, text=True)
+                if res.returncode != 0:
+                    raise RuntimeError(f"Failed to stamp {key} ({sources[key]}): {res.stderr}")
 
     # 7. Write manifest
     os.makedirs(os.path.dirname(os.path.abspath(output_manifest)), exist_ok=True)
