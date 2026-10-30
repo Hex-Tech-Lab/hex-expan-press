@@ -13,7 +13,7 @@ except the signature itself, serialized canonically (sorted keys, no whitespace,
 a Merkle tree and the manifest is not write-once. Optionally pre-stamps all bundle PDFs with
 perimeter and diagonal provenance banners.
 
-Verify a manifest (exit 0 = untouched, 1 = any field changed, 2 = usage or salt error):
+Verify a manifest (exit 0 = untouched, 1 = any field changed, 2 = usage, read, parse or salt error):
   ASSET_SALT=... python3 scripts/generate_bundle_manifest.py --verify path/to/bundle_manifest.json
 
 Usage:
@@ -214,7 +214,7 @@ def create_bundle(
 def main() -> int:
     parser = argparse.ArgumentParser(description="Generate cryptographic Bundle Manifest for contracts and assets, or verify one.")
     parser.add_argument("--verify", metavar="MANIFEST", default=None,
-                        help="Verify an existing bundle_manifest.json (needs ASSET_SALT). Exit 0 untouched, 1 tampered.")
+                        help="Verify an existing bundle_manifest.json (needs ASSET_SALT). Exit 0 untouched, 1 tampered, 2 usage, read, parse or salt error.")
     parser.add_argument("--c1-doc", help="Path to C1 Data Accuracy document/PDF")
     parser.add_argument("--c2-doc", help="Path to C2 Release Approval document/PDF")
     parser.add_argument("--c3-doc", help="Path to C3 Publisher Agreement document/PDF")

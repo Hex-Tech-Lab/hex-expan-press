@@ -7,7 +7,7 @@ Supports dual operation modes:
 2. 'perimeter': Clean legal header/footer perimeter audit stamp for contracts (C1 Consents, C2 Releases,
    C3 Publisher Agreements) that preserves courtroom admissibility and never obscures text.
 
-Injects unified Merkle Bundle provenance metadata (/BundleId, /BundleRootHash, /ProvenanceFingerprint)
+Injects unified bundle provenance metadata (/BundleId, /BundleRootHash, /ProvenanceFingerprint)
 into the PDF catalog dictionary.
 
 Usage:
@@ -197,7 +197,7 @@ def main():
         help="Classification purpose of the stamped document"
     )
     parser.add_argument("--bundle-id", default=None, help="Unified execution bundle identifier")
-    parser.add_argument("--bundle-root-hash", default=None, help="Merkle root hash of the complete bundle")
+    parser.add_argument("--bundle-root-hash", default=None, help="HMAC root signature of the complete bundle")
 
     args = parser.parse_args()
 

@@ -155,67 +155,78 @@ class TestBundleManifest(unittest.TestCase):
             self.assertEqual(reader.metadata.get("/BundleId"), manifest["bundle_id"])
             self.assertEqual(reader.metadata.get("/BundleRootHash"), manifest["bundle_root_signature"])
 
-    def test_tamper_detection(self):
-        """Verify that tampering with any document in the bundle produces a completely different root signature."""
-        manifest1_path = os.path.join(self.test_dir, "manifest1.json")
-        cmd1 = [
-            sys.executable,
-            MANIFEST_SCRIPT,
-            "--c1-doc", self.c1_pdf,
-            "--c2-doc", self.c2_pdf,
-            "--c3-doc", self.c3_pdf,
-            "--ebook-doc", self.ebook_pdf,
-            "--creator-id", "example-creator",
-            "--creator-name", "the owner",
-            "--product-id", "500k-playbook",
-            "--output-manifest", manifest1_path
-        ]
-        subprocess.run(cmd1, check=True)
-        with open(manifest1_path) as f:
-            sig1 = json.load(f)["bundle_root_signature"]
-
-        # Tamper with the E-Book asset
-        tampered_ebook = os.path.join(self.test_dir, "ebook_tampered.pdf")
-        create_dummy_pdf(tampered_ebook, "TAMPERED: Altered royalties clause or contents!")
-
-        manifest2_path = os.path.join(self.test_dir, "manifest2.json")
-        cmd2 = [
-            sys.executable,
-            MANIFEST_SCRIPT,
-            "--c1-doc", self.c1_pdf,
-            "--c2-doc", self.c2_pdf,
-            "--c3-doc", self.c3_pdf,
-            "--ebook-doc", tampered_ebook,
-            "--creator-id", "example-creator",
-            "--creator-name", "the owner",
-            "--product-id", "500k-playbook",
-            "--output-manifest", manifest2_path
-        ]
-        subprocess.run(cmd2, check=True)
-        with open(manifest2_path) as f:
-            sig2 = json.load(f)["bundle_root_signature"]
-
-        self.assertNotEqual(sig1, sig2, "Tampered artifact failed to alter root bundle signature!")
-
-    def _signature_for(self, c1, c2, c3, ebook, name):
+    def _manifest_for(self, c1, c2, c3, ebook, name):
         out = os.path.join(self.test_dir, f"{name}.json")
-        subprocess.run([
+        res = subprocess.run([
             sys.executable, MANIFEST_SCRIPT, "--c1-doc", c1, "--c2-doc", c2, "--c3-doc", c3,
             "--ebook-doc", ebook, "--creator-id", "example-creator", "--creator-name", "the owner",
-            "--product-id", "500k-playbook", "--output-manifest", out], check=True, capture_output=True)
-        with open(out) as f:
-            return json.load(f)["bundle_root_signature"]
+            "--product-id", "500k-playbook", "--output-manifest", out], capture_output=True, text=True)
+        self.assertEqual(res.returncode, 0, res.stderr)
+        with open(out, encoding="utf-8") as f:
+            return json.load(f), out
 
-    def test_each_contract_change_alters_signature(self):
-        baseline = self._signature_for(self.c1_pdf, self.c2_pdf, self.c3_pdf, self.ebook_pdf, "base")
-        for label, idx in (("c1", 0), ("c2", 1), ("c3", 2)):
-            docs = [self.c1_pdf, self.c2_pdf, self.c3_pdf]
-            altered = os.path.join(self.test_dir, f"{label}_altered.pdf")
-            create_dummy_pdf(altered, f"{label} altered clause")
-            docs[idx] = altered
-            sig = self._signature_for(*docs, self.ebook_pdf, f"alt_{label}")
-            self.assertNotEqual(sig, baseline, f"altering {label} did not change the root signature")
+    def _verify_file(self, path):
+        return subprocess.run([sys.executable, MANIFEST_SCRIPT, "--verify", path],
+                              capture_output=True, text=True).returncode
 
+    def _verify_spliced(self, baseline, artifact, sha, name):
+        """Verifies the baseline manifest with one artifact digest replaced and the baseline signature kept.
+
+        Timestamps differ between runs, so comparing two independent signatures proves nothing. Keeping the
+        baseline signature isolates the digest: only a signature that covers the digest can reject this.
+        """
+        spliced = copy.deepcopy(baseline)
+        spliced["artifacts"][artifact]["sha256"] = sha
+        path = os.path.join(self.test_dir, f"{name}.json")
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(spliced, f)
+        return self._verify_file(path)
+
+    def test_tamper_detection(self):
+        """A changed e-book digest must be rejected under the baseline root signature."""
+        base, _ = self._manifest_for(self.c1_pdf, self.c2_pdf, self.c3_pdf, self.ebook_pdf, "base")
+        tampered_ebook = os.path.join(self.test_dir, "ebook_tampered.pdf")
+        create_dummy_pdf(tampered_ebook, "TAMPERED: Altered royalties clause or contents!")
+        altered, altered_path = self._manifest_for(self.c1_pdf, self.c2_pdf, self.c3_pdf, tampered_ebook, "altered")
+        self.assertEqual(self._verify_file(altered_path), 0, "the altered manifest must verify with its own signature")
+        new_sha = altered["artifacts"]["ebook_asset"]["sha256"]
+        self.assertNotEqual(new_sha, base["artifacts"]["ebook_asset"]["sha256"])
+        self.assertEqual(self._verify_spliced(base, "ebook_asset", new_sha, "splice_ebook"), 1,
+                         "a changed e-book digest verified under the baseline signature")
+
+    def test_each_contract_change_breaks_the_signed_digest(self):
+        base, _ = self._manifest_for(self.c1_pdf, self.c2_pdf, self.c3_pdf, self.ebook_pdf, "base")
+        for key, artifact, idx in (("c1", "c1_data_accuracy", 0), ("c2", "c2_release_approval", 1),
+                                   ("c3", "c3_publisher_agreement", 2)):
+            with self.subTest(source=key):
+                docs = [self.c1_pdf, self.c2_pdf, self.c3_pdf]
+                altered_doc = os.path.join(self.test_dir, f"{key}_altered.pdf")
+                create_dummy_pdf(altered_doc, f"{key} altered clause")
+                docs[idx] = altered_doc
+                altered, _ = self._manifest_for(*docs, self.ebook_pdf, f"alt_{key}")
+                new_sha = altered["artifacts"][artifact]["sha256"]
+                self.assertNotEqual(new_sha, base["artifacts"][artifact]["sha256"])
+                self.assertEqual(self._verify_spliced(base, artifact, new_sha, f"splice_{key}"), 1,
+                                 f"altering {key} verified under the baseline signature")
+
+    def test_failed_stamp_raises_and_writes_no_manifest(self):
+        spec = importlib.util.spec_from_file_location("generate_bundle_manifest", MANIFEST_SCRIPT)
+        gbm = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(gbm)
+        real_run = subprocess.run
+
+        def failing_stamp(cmd, *args, **kwargs):
+            if os.path.basename(str(cmd[1])) == "watermark_pdf.py":
+                return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="stamp boom")
+            return real_run(cmd, *args, **kwargs)
+
+        manifest_path = os.path.join(self.test_dir, "failed_stamp.json")
+        with unittest.mock.patch.object(gbm.subprocess, "run", side_effect=failing_stamp):
+            with self.assertRaisesRegex(RuntimeError, "Failed to stamp"):
+                gbm.create_bundle(self.c1_pdf, self.c2_pdf, self.c3_pdf, self.ebook_pdf,
+                                  "example-creator", "the owner", "500k-playbook", manifest_path,
+                                  output_dir=os.path.join(self.test_dir, "failed_out"), stamp_bundle=True)
+        self.assertFalse(os.path.exists(manifest_path), "a failed stamp must not leave a signed manifest")
 
 
 class TestAssetSaltFailsClosed(unittest.TestCase):
@@ -398,7 +409,7 @@ class TestAssetSaltFailsClosed(unittest.TestCase):
 class TestManifestSignatureCoversEveryField(unittest.TestCase):
     """P1-1: the root signature covers every manifest field a reader relies on, and --verify rejects any change.
 
-    Verifier exit codes: 0 = verified, 1 = signature mismatch (tampered), 2 = usage/salt error.
+    Verifier exit codes: 0 = verified, 1 = signature mismatch (tampered), 2 = usage, read, parse or salt error.
     """
 
     def setUp(self):
@@ -554,6 +565,35 @@ class TestVerifyExitCodes(unittest.TestCase):
         """A blank salt of valid length is refused by the strip rule alone."""
         env = dict(os.environ, ASSET_SALT=" " * 40)
         self._assert_usage_error(self._verify(self.good, env), "40-space salt")
+
+    def test_wrong_salt_of_valid_length_is_tampered_not_usage(self):
+        """A valid-length salt that differs from the signing salt is a verdict (exit 1), not a usage error."""
+        self.assertEqual(self._verify(self.good, dict(os.environ, ASSET_SALT="b" * 32)).returncode, 1)
+
+    def test_missing_or_non_string_signature_is_tampered_without_traceback(self):
+        with open(self.good, encoding="utf-8") as f:
+            base = json.load(f)
+        cases = {
+            "missing": lambda m: m.pop("bundle_root_signature"),
+            "number": lambda m: m.__setitem__("bundle_root_signature", 123),
+            "null": lambda m: m.__setitem__("bundle_root_signature", None),
+        }
+        for label, mutate in cases.items():
+            with self.subTest(signature=label):
+                manifest = copy.deepcopy(base)
+                mutate(manifest)
+                path = os.path.join(self.tmp, f"sig_{label}.json")
+                with open(path, "w", encoding="utf-8") as f:
+                    json.dump(manifest, f)
+                res = self._verify(path)
+                self.assertEqual(res.returncode, 1, res.stderr)
+                self.assertNotIn("Traceback", res.stderr)
+
+    def test_verify_help_documents_exit_2(self):
+        """The --verify help must name every exit code, including the usage, read, parse and salt error."""
+        res = subprocess.run([sys.executable, MANIFEST_SCRIPT, "--help"], capture_output=True, text=True)
+        self.assertEqual(res.returncode, 0, res.stderr)
+        self.assertIn("2 usage, read, parse or salt error", " ".join(res.stdout.split()))
 
     def test_untouched_manifest_still_exits_0(self):
         res = self._verify(self.good)
