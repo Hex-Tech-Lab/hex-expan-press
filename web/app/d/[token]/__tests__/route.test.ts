@@ -7,23 +7,74 @@ const maybeSingleMock = vi.fn();
 const insertMock = vi.fn();
 const createSignedUrlMock = vi.fn();
 
-// The sale's ledger rows (public.orders). Each test sets this; the default is an un-refunded sale.
-type OrdersResult = { data: Array<{ provider: string; event_type: string; occurred_at: string }> | null; error: { message: string } | null };
-let ordersResult: OrdersResult = { data: [], error: null };
-const defaultSaleOnly = (): OrdersResult => ({
-  data: [{ provider: "paddle", event_type: "sale", occurred_at: "2026-10-01T00:00:00Z" }],
-  error: null,
-});
+type Row = Record<string, unknown>;
+type QueryResult = { data: Row[] | null; error: { message: string } | null };
+
+// Table contents for the fake Supabase client. Each test seeds what it needs in beforeEach or in the test.
+const tableRows: Record<string, Row[]> = {};
+const tableError: Record<string, { message: string } | null> = {};
+
+/**
+ * A chainable stand-in for a PostgREST read. It applies eq filters, one order and a limit to its rows, as the
+ * server does, so a query that drops its sale_id filter returns other sales' rows and changes the outcome.
+ * A column path with "->>" reads a key inside a jsonb object (for example "details->>sale_id").
+ */
+interface ReadBuilder extends PromiseLike<QueryResult> {
+  select(...args: unknown[]): ReadBuilder;
+  eq(column: string, value: unknown): ReadBuilder;
+  order(column: string, opts?: { ascending?: boolean }): ReadBuilder;
+  limit(n: number): ReadBuilder;
+}
+
+function readPath(row: Row, path: string): unknown {
+  const [head, key] = path.split("->>");
+  if (key === undefined) return row[head];
+  return (row[head] as Record<string, unknown> | undefined)?.[key];
+}
+
+function readBuilder(table: string): ReadBuilder {
+  const filters: Array<[string, unknown]> = [];
+  let sort: { column: string; ascending: boolean } | null = null;
+  let limitN: number | null = null;
+
+  const run = (): QueryResult => {
+    const error = tableError[table] ?? null;
+    if (error) return { data: null, error };
+    let rows = (tableRows[table] ?? []).filter((r) => filters.every(([c, v]) => readPath(r, c) === v));
+    if (sort) {
+      const { column, ascending } = sort;
+      rows = [...rows].sort((a, b) => {
+        const x = String(readPath(a, column));
+        const y = String(readPath(b, column));
+        return x === y ? 0 : (x < y ? -1 : 1) * (ascending ? 1 : -1);
+      });
+    }
+    if (limitN !== null) rows = rows.slice(0, limitN);
+    return { data: rows, error: null };
+  };
+
+  const builder: ReadBuilder = {
+    select: () => builder,
+    eq: (column, value) => {
+      filters.push([column, value]);
+      return builder;
+    },
+    order: (column, opts) => {
+      sort = { column, ascending: opts?.ascending !== false };
+      return builder;
+    },
+    limit: (n) => {
+      limitN = n;
+      return builder;
+    },
+    then: (onfulfilled, onrejected) => Promise.resolve(run()).then(onfulfilled, onrejected),
+  };
+  return builder;
+}
 
 const fromMock = vi.fn((table: string) => {
-  if (table === "orders") {
-    return {
-      select: vi.fn(() => ({
-        eq: vi.fn(() => ({
-          order: vi.fn(() => Promise.resolve(ordersResult)),
-        })),
-      })),
-    };
+  if (table === "orders" || table === "audit_log") {
+    return { select: vi.fn(() => readBuilder(table)) };
   }
   if (table === "download_events") {
     return {
@@ -62,6 +113,15 @@ vi.mock("../../../../../payments/src/supabase_admin", () => ({
   getSupabaseAdmin: vi.fn(async () => fakeSbAdmin),
 }));
 
+const ledgerRow = (sale_id: string, event_type: string, created_at: string, provider = "paddle"): Row => ({
+  sale_id,
+  provider,
+  event_type,
+  created_at,
+  occurred_at: created_at,
+});
+const saleRow = (sale_id: string): Row => ledgerRow(sale_id, "sale", "2026-10-01T00:00:00Z");
+
 describe("GET /d/[token] (Buyer delivery route)", () => {
   const validToken = "A".repeat(43);
 
@@ -93,7 +153,11 @@ describe("GET /d/[token] (Buyer delivery route)", () => {
     maybeSingleMock.mockReset();
     createSignedUrlMock.mockReset();
     insertMock.mockReset();
-    ordersResult = defaultSaleOnly();
+    // Every sale these tests use has a plain sale row (un-refunded). A test that needs a refund sets its own rows.
+    for (const k of Object.keys(tableRows)) delete tableRows[k];
+    for (const k of Object.keys(tableError)) delete tableError[k];
+    tableRows.orders = ["s1", "s2", "s3", "s-refund", "s-flag", "s-a", "s-b"].map(saleRow);
+    tableRows.audit_log = [];
   });
 
   afterEach(() => {
@@ -279,9 +343,9 @@ describe("GET /d/[token] (Buyer delivery route)", () => {
   describe("refund revocation (sale access state)", () => {
     const future = () => new Date(Date.now() + 100000).toISOString();
 
-    function linkRow() {
+    function linkRow(saleId = "s-refund") {
       maybeSingleMock.mockResolvedValueOnce({
-        data: { sale_id: "s-refund", product_id: "p-refund", expires_at: future() },
+        data: { sale_id: saleId, product_id: "p-refund", expires_at: future() },
         error: null,
       });
     }
@@ -294,13 +358,7 @@ describe("GET /d/[token] (Buyer delivery route)", () => {
     }
 
     it("a refunded sale gets 410, no signed URL, and no download logged", async () => {
-      ordersResult = {
-        data: [
-          { provider: "paddle", event_type: "sale", occurred_at: "2026-10-01T00:00:00Z" },
-          { provider: "paddle", event_type: "refund", occurred_at: "2026-10-05T00:00:00Z" },
-        ],
-        error: null,
-      };
+      tableRows.orders = [saleRow("s-refund"), ledgerRow("s-refund", "refund", "2026-10-05T00:00:00Z")];
       linkRow();
       // The full success path is queued, so without the revocation check the route serves the file (302).
       queueServePath();
@@ -316,22 +374,28 @@ describe("GET /d/[token] (Buyer delivery route)", () => {
     });
 
     it("a refund the provider reversed (won dispute) is served again", async () => {
-      ordersResult = {
-        data: [
-          { provider: "paddle", event_type: "sale", occurred_at: "2026-10-01T00:00:00Z" },
-          { provider: "paddle", event_type: "refund", occurred_at: "2026-10-05T00:00:00Z" },
-          { provider: "paddle", event_type: "refund_reversal", occurred_at: "2026-10-09T00:00:00Z" },
-        ],
-        error: null,
-      };
+      tableRows.orders = [
+        saleRow("s-refund"),
+        ledgerRow("s-refund", "refund", "2026-10-05T00:00:00Z"),
+        ledgerRow("s-refund", "refund_reversal", "2026-10-09T00:00:00Z"),
+      ];
       linkRow();
       queueServePath();
 
       await expectRedirectTo(validToken, "https://supabase.example/signed/books/test.pdf");
     });
 
+    it("a sale is served when another sale's refund is in the ledger (the query is scoped by sale_id)", async () => {
+      // s-b is refunded; s-a is not. Serving s-a requires the ledger read to filter to s-a's rows.
+      tableRows.orders = [saleRow("s-a"), saleRow("s-b"), ledgerRow("s-b", "refund", "2026-10-05T00:00:00Z")];
+      linkRow("s-a");
+      queueServePath();
+
+      await expectRedirectTo(validToken, "https://supabase.example/signed/books/test.pdf");
+    });
+
     it("fails closed (500, nothing served) when the sale's ledger read errors", async () => {
-      ordersResult = { data: null, error: { message: "orders unreachable" } };
+      tableError.orders = { message: "orders unreachable" };
       linkRow();
       // Success path queued: only a fail-closed ledger check stops the file being served.
       queueServePath();
@@ -346,7 +410,7 @@ describe("GET /d/[token] (Buyer delivery route)", () => {
     });
 
     it("fails closed (500) when the sale has no ledger sale row", async () => {
-      ordersResult = { data: [], error: null };
+      tableRows.orders = [];
       linkRow();
       // Success path queued: only a fail-closed ledger check stops the file being served.
       queueServePath();
