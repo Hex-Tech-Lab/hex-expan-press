@@ -660,5 +660,36 @@ class TestStampedBytesAreTheHashedBytes(unittest.TestCase):
                 self.assertEqual(stamped_sha[swap_key], signed, f"{artifact}: stamped bytes differ from the signed digest")
 
 
+class TestSaltHelperHasOneHome(unittest.TestCase):
+    """P3: the salt rule lives in one module that both scripts import, so the refusal cannot drift apart."""
+
+    @staticmethod
+    def _load(path, name):
+        spec = importlib.util.spec_from_file_location(name, path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+
+    def test_both_scripts_use_the_shared_salt_function(self):
+        scripts_dir = os.path.dirname(MANIFEST_SCRIPT)
+        if scripts_dir not in sys.path:
+            sys.path.insert(0, scripts_dir)
+        shared = importlib.import_module("bundle_salt")
+        gbm = self._load(MANIFEST_SCRIPT, "generate_bundle_manifest")
+        wm = self._load(WATERMARK_SCRIPT, "watermark_pdf")
+        self.assertIs(gbm.fingerprint_salt, shared.fingerprint_salt, "generate_bundle_manifest has its own salt helper")
+        self.assertIs(wm.fingerprint_salt, shared.fingerprint_salt, "watermark_pdf has its own salt helper")
+
+    def test_salt_function_is_defined_in_exactly_one_script_file(self):
+        scripts_dir = os.path.dirname(MANIFEST_SCRIPT)
+        definers = []
+        for name in sorted(os.listdir(scripts_dir)):
+            if name.endswith(".py"):
+                with open(os.path.join(scripts_dir, name), encoding="utf-8") as f:
+                    if "def fingerprint_salt(" in f.read():
+                        definers.append(name)
+        self.assertEqual(len(definers), 1, f"fingerprint_salt is defined in {definers}")
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -30,22 +30,18 @@ import os
 import sys
 import pypdf
 
-MIN_SALT_CHARS = 32
+# bundle_salt sits beside this script. Put this directory on the path so the import also works when the
+# script is loaded by path (as the tests do) rather than run directly.
+_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+if _SCRIPT_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPT_DIR)
+from bundle_salt import fingerprint_salt  # noqa: E402
+
 # Contract purposes take perimeter stamps only; diagonal body watermarks never touch legal text.
 CONTRACT_PURPOSES = frozenset({"c1_data_accuracy", "c2_release_approval", "c3_agreement", "legal_contract"})
 # Non-contract purposes. --purpose accepts exactly CONTRACT_PURPOSES plus these, so the two cannot drift apart.
 NON_CONTRACT_PURPOSES = frozenset({"review", "author_copy"})
 PURPOSES = tuple(sorted(CONTRACT_PURPOSES | NON_CONTRACT_PURPOSES))
-
-
-def fingerprint_salt() -> bytes:
-    """Returns the bundle HMAC salt. Fails closed: a default or short salt would make the provenance signature forgeable."""
-    salt = os.environ.get("ASSET_SALT", "")
-    if not salt.strip() or len(salt) < MIN_SALT_CHARS:
-        raise RuntimeError(
-            f"ASSET_SALT is not set, blank, or shorter than {MIN_SALT_CHARS} characters; refusing to sign with a weak salt"
-        )
-    return salt.encode("utf-8")
 
 
 def compute_sha256(filepath: str) -> str:

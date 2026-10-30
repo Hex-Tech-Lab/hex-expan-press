@@ -38,17 +38,12 @@ import subprocess
 import sys
 import tempfile
 
-MIN_SALT_CHARS = 32
-
-
-def fingerprint_salt() -> bytes:
-    """Returns the bundle HMAC salt. Fails closed: a default or short salt would make the provenance signature forgeable."""
-    salt = os.environ.get("ASSET_SALT", "")
-    if not salt.strip() or len(salt) < MIN_SALT_CHARS:
-        raise RuntimeError(
-            f"ASSET_SALT is not set, blank, or shorter than {MIN_SALT_CHARS} characters; refusing to sign with a weak salt"
-        )
-    return salt.encode("utf-8")
+# bundle_salt sits beside this script. Put this directory on the path so the import also works when the
+# script is loaded by path (as the tests do) rather than run directly.
+_SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+if _SCRIPT_DIR not in sys.path:
+    sys.path.insert(0, _SCRIPT_DIR)
+from bundle_salt import fingerprint_salt  # noqa: E402
 
 
 def read_source(filepath: str) -> bytes:
