@@ -268,6 +268,34 @@ class TestAssetSaltFailsClosed(unittest.TestCase):
             self.assertNotEqual(res.returncode, 0)
             self.assertIn("ASSET_SALT is not set", res.stderr)
 
+    def test_forty_space_salt_is_refused_only_by_the_blank_rule(self):
+        """P2: 40 spaces clear the 32-character length rule, so only the strip (blank) rule refuses them."""
+        blank = " " * 40
+        self.assertGreaterEqual(len(blank), 32)  # the length rule alone would accept this salt
+        with tempfile.TemporaryDirectory() as tmp:
+            docs = {}
+            for name in ("c1", "c2", "c3", "ebook"):
+                docs[name] = os.path.join(tmp, f"{name}.pdf")
+                create_dummy_pdf(docs[name], name)
+            out = os.path.join(tmp, "o.pdf")
+            res = subprocess.run(
+                [sys.executable, WATERMARK_SCRIPT, "--input", docs["c1"], "--output", out,
+                 "--creator-id", "c", "--creator-name", "n", "--mode", "perimeter", "--purpose", "review"],
+                capture_output=True, text=True, env=dict(os.environ, ASSET_SALT=blank))
+            self.assertNotEqual(res.returncode, 0, "watermark signed with a 40-space salt")
+            self.assertIn("ASSET_SALT is not set", res.stderr)
+            self.assertFalse(os.path.exists(out), "a refused stamp must not write output")
+
+            manifest = os.path.join(tmp, "m.json")
+            res = subprocess.run([
+                sys.executable, MANIFEST_SCRIPT, "--c1-doc", docs["c1"], "--c2-doc", docs["c2"],
+                "--c3-doc", docs["c3"], "--ebook-doc", docs["ebook"], "--creator-id", "c",
+                "--creator-name", "n", "--product-id", "p", "--output-manifest", manifest],
+                capture_output=True, text=True, env=dict(os.environ, ASSET_SALT=blank))
+            self.assertNotEqual(res.returncode, 0, "manifest signed with a 40-space salt")
+            self.assertIn("ASSET_SALT is not set", res.stderr)
+            self.assertFalse(os.path.exists(manifest), "no manifest may be written with a blank salt")
+
     def test_short_salt_is_refused_by_both_scripts(self):
         """P2: ASSET_SALT must be at least 32 characters. A short salt makes the HMAC forgeable."""
         with tempfile.TemporaryDirectory() as tmp:
@@ -494,6 +522,11 @@ class TestVerifyExitCodes(unittest.TestCase):
     def test_short_salt_exits_2(self):
         env = dict(os.environ, ASSET_SALT="a" * 31)
         self._assert_usage_error(self._verify(self.good, env), "31-character salt")
+
+    def test_forty_space_salt_exits_2(self):
+        """A blank salt of valid length is refused by the strip rule alone."""
+        env = dict(os.environ, ASSET_SALT=" " * 40)
+        self._assert_usage_error(self._verify(self.good, env), "40-space salt")
 
     def test_untouched_manifest_still_exits_0(self):
         res = self._verify(self.good)
