@@ -387,27 +387,31 @@ class TestManifestSignatureCoversEveryField(unittest.TestCase):
         res = self._verify(path)
         self.assertEqual(res.returncode, 0, res.stderr)
 
-    def test_editing_any_single_field_fails_verification(self):
-        fields = [
-            ("schema_version",), ("bundle_id",), ("created_at",), ("status",), ("product_id",),
-            ("creator", "id"), ("creator", "legal_name"),
-            ("security_policy", "zero_obscured_legal_text"),
-            ("artifacts", "c1_data_accuracy", "sha256"),
-            ("artifacts", "c1_data_accuracy", "source_path"),
-            ("artifacts", "c2_release_approval", "identical_to_asset_binary"),
-            ("artifacts", "c3_publisher_agreement", "role"),
-            ("artifacts", "ebook_asset", "stamping_mode"),
-            ("stamped_artifacts", "ebook"),
-            ("bundle_root_signature",),
-        ]
-        for path in fields:
+    @staticmethod
+    def _leaves(node, path=()):
+        """Yields (path, value) for every leaf of a nested manifest, so no field is hand-listed."""
+        if isinstance(node, dict):
+            for key in node:
+                yield from TestManifestSignatureCoversEveryField._leaves(node[key], path + (key,))
+        else:
+            yield path, node
+
+    def test_editing_every_leaf_fails_verification(self):
+        leaves = list(self._leaves(self.original))
+        # The generated manifest has 33 leaves, including the signature. Fewer means the walker lost fields.
+        self.assertGreaterEqual(len(leaves), 33, f"walker found only {len(leaves)} leaves")
+        for path, value in leaves:
             with self.subTest(field="/".join(path)):
                 tampered = copy.deepcopy(self.original)
                 node = tampered
                 for key in path[:-1]:
                     node = node[key]
-                old = node[path[-1]]
-                node[path[-1]] = (not old) if isinstance(old, bool) else old + "X"
+                if isinstance(value, bool):
+                    node[path[-1]] = not value
+                elif isinstance(value, str):
+                    node[path[-1]] = value + "X"
+                else:
+                    self.fail(f"unexpected leaf type at {'/'.join(path)}: {type(value).__name__}")
                 res = self._verify(self._write(tampered, os.path.join(self.tmp, "tampered.json")))
                 self.assertEqual(res.returncode, 1, f"edit to {'/'.join(path)} was not rejected: {res.stdout} {res.stderr}")
 
