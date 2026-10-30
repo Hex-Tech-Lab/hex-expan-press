@@ -7,7 +7,18 @@ const maybeSingleMock = vi.fn();
 const insertMock = vi.fn();
 const createSignedUrlMock = vi.fn();
 
+/** A read chain (select/eq/order/limit) that resolves to no rows: no manual-review flag on the sale. */
+function noRowsReadChain(): Record<string, unknown> {
+  const chain: Record<string, unknown> = {};
+  for (const m of ["select", "eq", "order", "limit"]) chain[m] = vi.fn(() => chain);
+  chain.then = (resolve: (v: unknown) => unknown) => Promise.resolve({ data: [], error: null }).then(resolve);
+  return chain;
+}
+
 const fromMock = vi.fn((table: string) => {
+  if (table === "audit_log") {
+    return { select: vi.fn(() => noRowsReadChain()) };
+  }
   if (table === "download_events") {
     return {
       select: vi.fn(() => ({
