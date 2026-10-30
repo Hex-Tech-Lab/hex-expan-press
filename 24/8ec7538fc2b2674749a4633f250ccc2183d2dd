@@ -1,0 +1,22 @@
+scripts/live_site_check.py
+  s_6625bc67577472::t_5d4d1dfc59f3ed 71
+  s_6625bc67577472::t_5ac0ec26ab9219 27,29-30
+scripts/__tests__/test_bundle_manifest.py
+  s_6625bc67577472::t_0f5f7cdec5b560 121,138,168,189,204
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "248ec7538fc2b2674749a4633f250ccc2183d2dd",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
