@@ -423,6 +423,79 @@ class TestManifestSignatureCoversEveryField(unittest.TestCase):
         self.assertEqual(res.returncode, 1, res.stderr)
 
 
+class TestVerifyExitCodes(unittest.TestCase):
+    """P1: --verify exits 0 untouched, 1 tampered, 2 for any usage, read, parse, or salt error.
+
+    Exit 1 means tampered and must never be produced by a read or parse failure.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="bundle_exit_")
+        docs = {}
+        for name in ("c1", "c2", "c3", "ebook"):
+            docs[name] = os.path.join(self.tmp, f"{name}.pdf")
+            create_dummy_pdf(docs[name], f"{name} body")
+        self.good = os.path.join(self.tmp, "bundle_manifest.json")
+        res = subprocess.run([
+            sys.executable, MANIFEST_SCRIPT,
+            "--c1-doc", docs["c1"], "--c2-doc", docs["c2"], "--c3-doc", docs["c3"],
+            "--ebook-doc", docs["ebook"], "--creator-id", "example-creator", "--creator-name", "the owner",
+            "--product-id", "500k-playbook", "--output-manifest", self.good,
+        ], capture_output=True, text=True)
+        self.assertEqual(res.returncode, 0, res.stderr)
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def _verify(self, path, env=None):
+        return subprocess.run(
+            [sys.executable, MANIFEST_SCRIPT, "--verify", path],
+            capture_output=True, text=True,
+            env=env if env is not None else dict(os.environ),
+        )
+
+    def _assert_usage_error(self, res, label):
+        self.assertEqual(res.returncode, 2, f"{label}: expected exit 2, got {res.returncode}; stderr={res.stderr!r}")
+        self.assertNotIn("Traceback", res.stderr, f"{label}: a raw traceback leaked to stderr")
+        self.assertEqual(len(res.stderr.strip().splitlines()), 1, f"{label}: expected one line, got {res.stderr!r}")
+
+    def test_missing_file_exits_2(self):
+        res = self._verify(os.path.join(self.tmp, "does_not_exist.json"))
+        self._assert_usage_error(res, "missing file")
+
+    def test_malformed_json_exits_2(self):
+        bad = os.path.join(self.tmp, "malformed.json")
+        with open(bad, "w", encoding="utf-8") as f:
+            f.write('{"bundle_id": ')
+        self._assert_usage_error(self._verify(bad), "malformed JSON")
+
+    def test_undecodable_bytes_exit_2(self):
+        bad = os.path.join(self.tmp, "binary.json")
+        with open(bad, "wb") as f:
+            f.write(b"\xff\xfe\x00\x81")
+        self._assert_usage_error(self._verify(bad), "undecodable bytes")
+
+    def test_non_object_json_exits_2(self):
+        for label, body in (("array", "[1, 2]"), ("string", '"x"'), ("null", "null")):
+            with self.subTest(body=label):
+                path = os.path.join(self.tmp, f"non_object_{label}.json")
+                with open(path, "w", encoding="utf-8") as f:
+                    f.write(body)
+                self._assert_usage_error(self._verify(path), f"non-object JSON ({label})")
+
+    def test_unset_salt_exits_2(self):
+        env = {k: v for k, v in os.environ.items() if k != "ASSET_SALT"}
+        self._assert_usage_error(self._verify(self.good, env), "unset salt")
+
+    def test_short_salt_exits_2(self):
+        env = dict(os.environ, ASSET_SALT="a" * 31)
+        self._assert_usage_error(self._verify(self.good, env), "31-character salt")
+
+    def test_untouched_manifest_still_exits_0(self):
+        res = self._verify(self.good)
+        self.assertEqual(res.returncode, 0, res.stderr)
+
+
 class TestStamperRefusesDiagonalOnContracts(unittest.TestCase):
     """P2: diagonal stamping is for media only. The stamper refuses it on any contract document."""
 

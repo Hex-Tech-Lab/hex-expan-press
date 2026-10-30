@@ -239,8 +239,16 @@ def main() -> int:
         except RuntimeError as exc:
             print(f"ERROR: {exc}", file=sys.stderr)
             return 2
-        with open(args.verify, encoding="utf-8") as f_in:
-            manifest = json.load(f_in)
+        try:
+            with open(args.verify, encoding="utf-8") as f_in:
+                manifest = json.load(f_in)
+        except (OSError, ValueError) as exc:
+            # Read and parse failures are usage errors (exit 2), never a tamper verdict (exit 1).
+            print(f"ERROR: cannot read manifest {args.verify}: {exc}", file=sys.stderr)
+            return 2
+        if not isinstance(manifest, dict):
+            print(f"ERROR: manifest {args.verify} is not a JSON object", file=sys.stderr)
+            return 2
         if verify_manifest(manifest, salt):
             print(f"VERIFIED: {manifest.get('bundle_id')} root signature matches every manifest field")
             return 0
