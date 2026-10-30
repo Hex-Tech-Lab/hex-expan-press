@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "../../../../payments/src/supabase_admin";
 import { GLOBAL } from "../../../../payments/src/settings_registry";
 import { TOKEN_RE, tokenHash } from "../../../../payments/src/delivery";
-import { readSaleAccessEvents, saleAccessState, type SaleAccess } from "../../../../payments/src/sale_access";
+import { readOpenReviewFlag, readSaleAccessEvents, saleAccessState, type SaleAccess } from "../../../../payments/src/sale_access";
 import { getDeliveryStorageAdapter } from "../../../../src/adapters/storage/r2.adapter";
 
 export const runtime = "nodejs";
@@ -47,7 +47,9 @@ export async function GET(_request: NextRequest, ctx: { params: Promise<{ token:
   // unknown state denies: nothing is served on a lookup failure.
   let access: SaleAccess;
   try {
-    access = saleAccessState(await readSaleAccessEvents(sb, link.sale_id as string));
+    const saleId = link.sale_id as string;
+    // A refund flagged for manual review (after a reversal) revokes too: the ledger alone would read active.
+    access = saleAccessState(await readSaleAccessEvents(sb, saleId), { reviewOpen: await readOpenReviewFlag(sb, saleId) });
   } catch (err) {
     console.error(`[delivery] sale access unreadable for sale ${link.sale_id as string}: ${(err as Error).message}`);
     return new NextResponse("Download unavailable", { status: 500 });

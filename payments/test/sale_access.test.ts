@@ -40,6 +40,17 @@ describe("saleAccessState", () => {
     expect(() => saleAccessState([{ event_type: "refund" }])).toThrow(/no sale/);
   });
 
+  // Red before the fix: the option did not exist, so the ledger's active state was returned.
+  it("an open manual-review flag revokes a sale the ledger shows active", () => {
+    const reversed = [{ event_type: "sale" }, { event_type: "refund" }, { event_type: "refund_reversal" }];
+    expect(saleAccessState(reversed)).toBe("active");
+    expect(saleAccessState(reversed, { reviewOpen: true })).toBe("revoked");
+  });
+
+  it("an open review flag still refuses a sale with no sale row (unknown state)", () => {
+    expect(() => saleAccessState([], { reviewOpen: true })).toThrow(/no sale/);
+  });
+
   it("refuses an unknown event type rather than guessing", () => {
     expect(() => saleAccessState([{ event_type: "sale" }, { event_type: "chargeback" as never }])).toThrow(/unknown event_type/);
   });

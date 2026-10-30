@@ -422,5 +422,61 @@ describe("GET /d/[token] (Buyer delivery route)", () => {
       expect(res.headers.get("location")).toBeNull();
       expect(createSignedUrlMock).not.toHaveBeenCalled();
     });
+
+    // A refund that arrives after a reversal is answered 200 and flagged (audit_log MANUAL_REVIEW_REQUIRED_REFUND,
+    // reason refund_after_reversal). The ledger still shows the sale active, so the flag alone must deny.
+    describe("a sale flagged for manual review", () => {
+      function activeSaleWithFlag(saleId: string, flagSaleId = saleId) {
+        tableRows.orders = [
+          saleRow(saleId),
+          ledgerRow(saleId, "refund", "2026-10-05T00:00:00Z"),
+          ledgerRow(saleId, "refund_reversal", "2026-10-09T00:00:00Z"),
+        ];
+        tableRows.audit_log = [
+          {
+            event: "MANUAL_REVIEW_REQUIRED_REFUND",
+            details: { provider: "paddle", sale_id: flagSaleId, reason: "refund_after_reversal" },
+          },
+        ];
+      }
+
+      it("a flagged sale gets 410, no signed URL, and no download logged, even though the ledger shows it active", async () => {
+        activeSaleWithFlag("s-flag");
+        linkRow("s-flag");
+        // The full success path is queued, so without the flag check the route serves the file (302).
+        queueServePath();
+
+        const req = new NextRequest(`https://expanpress.com/d/${validToken}`);
+        const res = await GET(req, { params: Promise.resolve({ token: validToken }) });
+
+        expect(res.status).toBe(410);
+        expect(res.headers.get("location")).toBeNull();
+        expect(createSignedUrlMock).not.toHaveBeenCalled();
+        expect(insertMock).not.toHaveBeenCalled();
+      });
+
+      it("a flag on another sale does not deny this sale", async () => {
+        activeSaleWithFlag("s-other", "s-other");
+        tableRows.orders = [...(tableRows.orders ?? []), saleRow("s-flag")];
+        linkRow("s-flag");
+        queueServePath();
+
+        await expectRedirectTo(validToken, "https://supabase.example/signed/books/test.pdf");
+      });
+
+      it("fails closed (500, nothing served) when the review-flag read errors", async () => {
+        tableError.audit_log = { message: "audit_log unreachable" };
+        linkRow();
+        queueServePath();
+
+        const req = new NextRequest(`https://expanpress.com/d/${validToken}`);
+        const res = await GET(req, { params: Promise.resolve({ token: validToken }) });
+
+        expect(res.status).toBe(500);
+        expect(res.headers.get("location")).toBeNull();
+        expect(createSignedUrlMock).not.toHaveBeenCalled();
+        expect(insertMock).not.toHaveBeenCalled();
+      });
+    });
   });
 });

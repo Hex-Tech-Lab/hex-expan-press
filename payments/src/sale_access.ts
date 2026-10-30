@@ -20,8 +20,12 @@ export interface SaleAccessEvent {
   event_type?: string | null;
 }
 
-/** Decides access from a sale's ledger events, given oldest first. */
-export function saleAccessState(events: readonly SaleAccessEvent[]): SaleAccess {
+/**
+ * Decides access from a sale's ledger events, given oldest first. An open manual-review flag (see
+ * readOpenReviewFlag) revokes the sale whatever the ledger shows: a flagged refund is not in the ledger, so
+ * the ledger alone would still read active.
+ */
+export function saleAccessState(events: readonly SaleAccessEvent[], options: { reviewOpen?: boolean } = {}): SaleAccess {
   let sawSale = false;
   let refundOutstanding = false;
   for (const ev of events) {
@@ -32,7 +36,25 @@ export function saleAccessState(events: readonly SaleAccessEvent[]): SaleAccess 
     else throw new TypeError(`sale access: unknown event_type "${String(type)}"`);
   }
   if (!sawSale) throw new TypeError("sale access: no sale row recorded (state unknown)");
-  return refundOutstanding ? "revoked" : "active";
+  return refundOutstanding || options.reviewOpen === true ? "revoked" : "active";
+}
+
+/**
+ * True when a refund arriving after a reversal is flagged for manual review and not yet reviewed. The webhook
+ * answers such a refund 200 and writes the flag (audit_log MANUAL_REVIEW_REQUIRED_REFUND, reason
+ * refund_after_reversal) before it does: a provider stops retrying on any 2xx, so the audit row is the only
+ * durable record. The flag is keyed by sale_id alone, so a match can only deny more, never serve more.
+ */
+export async function readOpenReviewFlag(sb: SupabaseClient, saleId: string): Promise<boolean> {
+  const { data, error } = await sb
+    .from("audit_log")
+    .select("id")
+    .eq("event", "MANUAL_REVIEW_REQUIRED_REFUND")
+    .eq("details->>sale_id", saleId)
+    .eq("details->>reason", "refund_after_reversal")
+    .limit(1);
+  if (error) throw new Error(`sale access: review flag read failed: ${error.message}`);
+  return (data ?? []).length > 0;
 }
 
 /** Causal rank of a ledger event. A refund follows its sale and a reversal follows its refund. */
