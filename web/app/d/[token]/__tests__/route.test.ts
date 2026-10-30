@@ -465,6 +465,10 @@ describe("GET /d/[token] (Buyer delivery route)", () => {
         const res = await GET(req, { params: Promise.resolve({ token: validToken }) });
 
         expect(res.status).toBe(410);
+        // The ledger shows no refund for this sale (it was reversed), so "refunded" would be inaccurate.
+        const body = await res.text();
+        expect(body).not.toContain("refunded");
+        expect(body).toContain("under review");
         expect(res.headers.get("location")).toBeNull();
         expect(createSignedUrlMock).not.toHaveBeenCalled();
         expect(insertMock).not.toHaveBeenCalled();

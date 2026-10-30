@@ -46,17 +46,24 @@ export async function GET(_request: NextRequest, ctx: { params: Promise<{ token:
   // A refunded sale loses its links until the provider reverses the refund. The ledger decides. An unreadable or
   // unknown state denies: nothing is served on a lookup failure.
   let access: SaleAccess;
+  let refundOutstanding = false;
   try {
     const saleId = link.sale_id as string;
+    const events = await readSaleAccessEvents(sb, saleId);
     // A refund flagged for manual review (after a reversal) revokes too: the ledger alone would read active.
-    access = saleAccessState(await readSaleAccessEvents(sb, saleId), { reviewOpen: await readOpenReviewFlag(sb, saleId) });
+    access = saleAccessState(events, { reviewOpen: await readOpenReviewFlag(sb, saleId) });
+    refundOutstanding = saleAccessState(events) === "revoked";
   } catch (err) {
     console.error(`[delivery] sale access unreadable for sale ${link.sale_id as string}: ${(err as Error).message}`);
     return new NextResponse("Download unavailable", { status: 500 });
   }
   // Only "active" serves. A state added to SaleAccess later (for example a pause) denies until it is handled here.
   if (access !== "active") {
-    return new NextResponse("This purchase was refunded, so its download link no longer works.", { status: 410 });
+    // Only a refund in the ledger says "refunded". A sale held by an open review flag alone is not refunded.
+    const body = refundOutstanding
+      ? "This purchase was refunded, so its download link no longer works."
+      : "This purchase is under review, so its download link is paused.";
+    return new NextResponse(body, { status: 410 });
   }
 
   const { data: product, error: prodErr } = await sb
