@@ -31,6 +31,8 @@ import sys
 import pypdf
 
 MIN_SALT_CHARS = 32
+# Contract purposes take perimeter stamps only; diagonal body watermarks never touch legal text.
+CONTRACT_PURPOSES = frozenset({"c1_data_accuracy", "c2_release_approval", "c3_agreement", "legal_contract"})
 
 
 def fingerprint_salt() -> bytes:
@@ -204,6 +206,11 @@ def main():
         sys.exit(f"Error: input file does not exist: {args.input}")
     if os.path.abspath(args.output) == os.path.abspath(args.input):
         sys.exit("Error: --output must differ from --input; refusing to overwrite the source PDF")
+    if args.mode == "diagonal" and args.purpose in CONTRACT_PURPOSES:
+        sys.exit(
+            f"Error: diagonal stamping is refused for contract purpose '{args.purpose}'; "
+            "contracts take perimeter stamps only"
+        )
 
     # Compute source file hash
     source_sha256 = compute_sha256(args.input)

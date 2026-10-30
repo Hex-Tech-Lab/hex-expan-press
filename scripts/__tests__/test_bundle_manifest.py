@@ -423,6 +423,26 @@ class TestManifestSignatureCoversEveryField(unittest.TestCase):
         self.assertEqual(res.returncode, 1, res.stderr)
 
 
+class TestStamperRefusesDiagonalOnContracts(unittest.TestCase):
+    """P2: diagonal stamping is for media only. The stamper refuses it on any contract document."""
+
+    def test_diagonal_stamp_on_each_contract_purpose_is_refused(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            src = os.path.join(tmp, "contract.pdf")
+            create_dummy_pdf(src)
+            for purpose in ("c1_data_accuracy", "c2_release_approval", "c3_agreement", "legal_contract"):
+                with self.subTest(purpose=purpose):
+                    out = os.path.join(tmp, f"{purpose}.pdf")
+                    res = subprocess.run(
+                        [sys.executable, WATERMARK_SCRIPT, "--input", src, "--output", out,
+                         "--creator-id", "c", "--creator-name", "n", "--mode", "diagonal",
+                         "--purpose", purpose, "--bundle-id", "BND-TEST-002"],
+                        capture_output=True, text=True, env=dict(os.environ, ASSET_SALT=TEST_SALT))
+                    self.assertNotEqual(res.returncode, 0, f"diagonal stamp on contract purpose {purpose} exited 0")
+                    self.assertIn("contract", res.stderr.lower())
+                    self.assertFalse(os.path.exists(out), "a refused stamp must not write output")
+
+
 class TestStampedBytesAreTheHashedBytes(unittest.TestCase):
     """P1-2: a source replaced after it was hashed must not make the stamped output differ from the signed digest."""
 
