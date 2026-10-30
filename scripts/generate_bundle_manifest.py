@@ -8,10 +8,13 @@ Binds all four critical transaction artifacts:
 3. C3 Publisher Agreement (Firma e-signature envelope)
 4. The Published E-Book Asset
 
-Under one Bundle ID and one HMAC-SHA256 root signature over the four artifact digests and IDs.
-This is NOT a Merkle tree. Writes a plain-JSON bundle_manifest.json (not write-once; no verifier
-exists yet) and optionally pre-stamps or seals
-all bundle PDFs with perimeter and diagonal provenance banners.
+Under one Bundle ID and one HMAC-SHA256 root signature. The signature covers every manifest field
+except the signature itself, serialized canonically (sorted keys, no whitespace, UTF-8). This is NOT
+a Merkle tree and the manifest is not write-once. Optionally pre-stamps all bundle PDFs with
+perimeter and diagonal provenance banners.
+
+Verify a manifest (exit 0 = untouched, 1 = any field changed, 2 = usage or salt error):
+  ASSET_SALT=... python3 scripts/generate_bundle_manifest.py --verify path/to/bundle_manifest.json
 
 Usage:
   python3 scripts/generate_bundle_manifest.py \
@@ -19,7 +22,7 @@ Usage:
     --c2-doc path/to/c2.pdf \
     --c3-doc path/to/c3.pdf \
     --ebook-doc path/to/ebook.pdf \
-    --creator-id "retirearly500k" \
+    --creator-id "example-creator" \
     --creator-name "the owner" \
     --product-id "500k-playbook" \
     --output-manifest path/to/bundle_manifest.json
@@ -53,6 +56,35 @@ def compute_sha256(filepath: str) -> str:
     return h.hexdigest()
 
 
+SIGNATURE_FIELD = "bundle_root_signature"
+
+# (artifact key, stamping mode, purpose) for each bundle document, in stamping order.
+STAMP_TASKS = (
+    ("c1", "perimeter", "c1_data_accuracy"),
+    ("c2", "perimeter", "c2_release_approval"),
+    ("c3", "perimeter", "c3_agreement"),
+    ("ebook", "diagonal", "author_copy"),
+)
+
+
+def canonical_payload(manifest: dict) -> bytes:
+    """Every manifest field except the signature, as canonical JSON: sorted keys, no whitespace, UTF-8."""
+    body = {k: v for k, v in manifest.items() if k != SIGNATURE_FIELD}
+    return json.dumps(body, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+
+
+def sign_manifest(manifest: dict, salt: bytes) -> str:
+    return hmac.new(salt, canonical_payload(manifest), hashlib.sha256).hexdigest()
+
+
+def verify_manifest(manifest: dict, salt: bytes) -> bool:
+    """True only if the root signature matches the canonical form of every other field."""
+    signature = manifest.get(SIGNATURE_FIELD)
+    if not isinstance(signature, str):
+        return False
+    return hmac.compare_digest(sign_manifest(manifest, salt), signature)
+
+
 def create_bundle(
     c1_path: str,
     c2_path: str,
@@ -78,22 +110,26 @@ def create_bundle(
     bundle_hash = hashlib.sha256(bundle_entropy.encode("utf-8")).hexdigest()[:8].upper()
     bundle_id = f"BND-{date_slug}-{creator_id[:10].upper()}-{bundle_hash}"
 
-    # 3. Compute Composite Merkle Root & HMAC Provenance Signature
-    merkle_leaf_str = f"{bundle_id}|c1:{c1_hash}|c2:{c2_hash}|c3:{c3_hash}|ebook:{ebook_hash}|{creator_id}|{product_id}"
-    root_signature = hmac.new(
-        fingerprint_salt(),
-        merkle_leaf_str.encode("utf-8"),
-        hashlib.sha256
-    ).hexdigest()
-
-    # 4. Parity & Launch-Gate Safety Check:
+    # 3. Parity & Launch-Gate Safety Check:
     # Check if C2 is approval of the exact release asset or contains e-book hash
     matches_ebook_hash = (c2_hash == ebook_hash)
+
+    # 4. Plan the stamped outputs now. Their paths are deterministic, so the signed payload can name them
+    # before any stamping runs.
+    stamped_paths = {}
+    if stamp_bundle:
+        if not output_dir:
+            output_dir = os.path.dirname(os.path.abspath(output_manifest))
+        os.makedirs(output_dir, exist_ok=True)
+        sources = {"c1": c1_path, "c2": c2_path, "c3": c3_path, "ebook": ebook_path}
+        for key, _mode, _purpose in STAMP_TASKS:
+            # Prefix with the artifact key: two sources may share a basename (e.g. */doc.pdf).
+            out_name = f"{key}_{os.path.splitext(os.path.basename(sources[key]))[0]}.bundle_stamped.pdf"
+            stamped_paths[key] = os.path.join(output_dir, out_name)
 
     manifest_data = {
         "schema_version": "1.0.0",
         "bundle_id": bundle_id,
-        "bundle_root_signature": root_signature,
         "created_at": timestamp,
         "creator": {
             "id": creator_id,
@@ -133,35 +169,27 @@ def create_bundle(
             "zero_obscured_legal_text": True,
             "launch_gate_verified": True
         },
-        "status": "SEALED_AND_BINDING"
+        "status": "SEALED_AND_BINDING",
+        "stamped_artifacts": stamped_paths,
     }
 
-    # 5. Optional stamping pass using scripts/watermark_pdf.py
-    if stamp_bundle:
-        if not output_dir:
-            output_dir = os.path.dirname(os.path.abspath(output_manifest))
-        os.makedirs(output_dir, exist_ok=True)
+    # 5. Root signature over every field above (stamped_artifacts included), canonically serialized.
+    root_signature = sign_manifest(manifest_data, fingerprint_salt())
+    manifest_data[SIGNATURE_FIELD] = root_signature
 
+    # 6. Stamping pass using scripts/watermark_pdf.py, carrying the bundle id and root signature
+    if stamp_bundle:
         script_dir = os.path.dirname(os.path.abspath(__file__))
         watermarker = os.path.join(script_dir, "watermark_pdf.py")
+        sources = {"c1": c1_path, "c2": c2_path, "c3": c3_path, "ebook": ebook_path}
 
-        tasks = [
-            ("c1", c1_path, "perimeter", "c1_data_accuracy"),
-            ("c2", c2_path, "perimeter", "c2_release_approval"),
-            ("c3", c3_path, "perimeter", "c3_agreement"),
-            ("ebook", ebook_path, "diagonal", "author_copy"),
-        ]
-
-        stamped_paths = {}
-        for key, src_path, mode, purpose in tasks:
-            # Prefix with the artifact key: two sources may share a basename (e.g. */doc.pdf).
-            out_name = f"{key}_{os.path.splitext(os.path.basename(src_path))[0]}.bundle_stamped.pdf"
-            dest_path = os.path.join(output_dir, out_name)
+        for key, mode, purpose in STAMP_TASKS:
+            src_path = sources[key]
             cmd = [
                 sys.executable,
                 watermarker,
                 "--input", src_path,
-                "--output", dest_path,
+                "--output", stamped_paths[key],
                 "--creator-id", creator_id,
                 "--creator-name", creator_name,
                 "--mode", mode,
@@ -172,11 +200,8 @@ def create_bundle(
             res = subprocess.run(cmd, capture_output=True, text=True)
             if res.returncode != 0:
                 raise RuntimeError(f"Failed to stamp {key} ({src_path}): {res.stderr}")
-            stamped_paths[key] = dest_path
 
-        manifest_data["stamped_artifacts"] = stamped_paths
-
-    # 6. Write manifest
+    # 7. Write manifest
     os.makedirs(os.path.dirname(os.path.abspath(output_manifest)), exist_ok=True)
     with open(output_manifest, "w", encoding="utf-8") as f_out:
         json.dump(manifest_data, f_out, indent=2)
@@ -184,20 +209,41 @@ def create_bundle(
     return manifest_data
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Generate immutable cryptographic Bundle Manifest for contracts and assets.")
-    parser.add_argument("--c1-doc", required=True, help="Path to C1 Data Accuracy document/PDF")
-    parser.add_argument("--c2-doc", required=True, help="Path to C2 Release Approval document/PDF")
-    parser.add_argument("--c3-doc", required=True, help="Path to C3 Publisher Agreement document/PDF")
-    parser.add_argument("--ebook-doc", required=True, help="Path to E-Book publication asset PDF")
-    parser.add_argument("--creator-id", required=True, help="Creator identifier (e.g. retirearly500k)")
-    parser.add_argument("--creator-name", required=True, help="Creator full legal name (e.g. the owner)")
-    parser.add_argument("--product-id", required=True, help="Product identifier (e.g. 500k-playbook)")
-    parser.add_argument("--output-manifest", required=True, help="Destination path for bundle_manifest.json")
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Generate cryptographic Bundle Manifest for contracts and assets, or verify one.")
+    parser.add_argument("--verify", metavar="MANIFEST", default=None,
+                        help="Verify an existing bundle_manifest.json (needs ASSET_SALT). Exit 0 untouched, 1 tampered.")
+    parser.add_argument("--c1-doc", help="Path to C1 Data Accuracy document/PDF")
+    parser.add_argument("--c2-doc", help="Path to C2 Release Approval document/PDF")
+    parser.add_argument("--c3-doc", help="Path to C3 Publisher Agreement document/PDF")
+    parser.add_argument("--ebook-doc", help="Path to E-Book publication asset PDF")
+    parser.add_argument("--creator-id", help="Creator identifier (e.g. example-creator)")
+    parser.add_argument("--creator-name", help="Creator full legal name (e.g. the owner)")
+    parser.add_argument("--product-id", help="Product identifier (e.g. 500k-playbook)")
+    parser.add_argument("--output-manifest", help="Destination path for bundle_manifest.json")
     parser.add_argument("--output-dir", default=None, help="Directory to save stamped bundle PDFs")
     parser.add_argument("--stamp-bundle", action="store_true", help="Stamp all documents with perimeter/diagonal banners")
 
     args = parser.parse_args()
+
+    if args.verify:
+        try:
+            salt = fingerprint_salt()
+        except RuntimeError as exc:
+            print(f"ERROR: {exc}", file=sys.stderr)
+            return 2
+        with open(args.verify, encoding="utf-8") as f_in:
+            manifest = json.load(f_in)
+        if verify_manifest(manifest, salt):
+            print(f"VERIFIED: {manifest.get('bundle_id')} root signature matches every manifest field")
+            return 0
+        print(f"TAMPERED: {args.verify} does not match its root signature", file=sys.stderr)
+        return 1
+
+    required = ("c1_doc", "c2_doc", "c3_doc", "ebook_doc", "creator_id", "creator_name", "product_id", "output_manifest")
+    missing = [f"--{name.replace('_', '-')}" for name in required if getattr(args, name) is None]
+    if missing:
+        parser.error(f"the following arguments are required: {', '.join(missing)}")
 
     manifest = create_bundle(
         c1_path=args.c1_doc,
@@ -214,9 +260,10 @@ def main():
 
     print(f"Successfully generated cryptographic Bundle Manifest: {args.output_manifest}")
     print(f"Bundle ID: {manifest['bundle_id']}")
-    print(f"Root Signature: {manifest['bundle_root_signature'][:24]}...")
+    print(f"Root Signature: {manifest[SIGNATURE_FIELD][:24]}...")
     print(f"Status: {manifest['status']}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

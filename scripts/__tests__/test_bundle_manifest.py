@@ -10,6 +10,7 @@ Tests:
 4. Tamper detection: verifying that altering any file breaks the bundle signature.
 """
 
+import copy
 import hashlib
 import json
 import os
@@ -298,6 +299,89 @@ class TestAssetSaltFailsClosed(unittest.TestCase):
             self.assertNotEqual(res.returncode, 0)
             with open(src, "rb") as f:
                 self.assertEqual(f.read(), before, "source PDF was overwritten")
+
+
+class TestManifestSignatureCoversEveryField(unittest.TestCase):
+    """P1-1: the root signature covers every manifest field a reader relies on, and --verify rejects any change.
+
+    Verifier exit codes: 0 = verified, 1 = signature mismatch (tampered), 2 = usage/salt error.
+    """
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="bundle_verify_")
+        self.docs = {}
+        for name in ("c1", "c2", "c3", "ebook"):
+            self.docs[name] = os.path.join(self.tmp, f"{name}.pdf")
+            create_dummy_pdf(self.docs[name], f"{name} body")
+        self.manifest = os.path.join(self.tmp, "bundle_manifest.json")
+        res = subprocess.run([
+            sys.executable, MANIFEST_SCRIPT,
+            "--c1-doc", self.docs["c1"], "--c2-doc", self.docs["c2"], "--c3-doc", self.docs["c3"],
+            "--ebook-doc", self.docs["ebook"], "--creator-id", "example-creator", "--creator-name", "the owner",
+            "--product-id", "500k-playbook", "--output-manifest", self.manifest,
+            "--output-dir", os.path.join(self.tmp, "stamped"), "--stamp-bundle",
+        ], capture_output=True, text=True)
+        self.assertEqual(res.returncode, 0, res.stderr)
+        with open(self.manifest, encoding="utf-8") as f:
+            self.original = json.load(f)
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def _verify(self, path):
+        return subprocess.run([sys.executable, MANIFEST_SCRIPT, "--verify", path], capture_output=True, text=True)
+
+    def _write(self, manifest, path):
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(manifest, f, indent=2)
+        return path
+
+    def test_untouched_manifest_verifies(self):
+        res = self._verify(self.manifest)
+        self.assertEqual(res.returncode, 0, res.stderr)
+
+    def test_reserialized_manifest_still_verifies(self):
+        """The signed form is canonical: key order and whitespace must not matter."""
+        path = os.path.join(self.tmp, "reserialized.json")
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(self.original, f, sort_keys=True, separators=(",", ":"))
+        res = self._verify(path)
+        self.assertEqual(res.returncode, 0, res.stderr)
+
+    def test_editing_any_single_field_fails_verification(self):
+        fields = [
+            ("schema_version",), ("bundle_id",), ("created_at",), ("status",), ("product_id",),
+            ("creator", "id"), ("creator", "legal_name"),
+            ("security_policy", "zero_obscured_legal_text"),
+            ("artifacts", "c1_data_accuracy", "sha256"),
+            ("artifacts", "c1_data_accuracy", "source_path"),
+            ("artifacts", "c2_release_approval", "identical_to_asset_binary"),
+            ("artifacts", "c3_publisher_agreement", "role"),
+            ("artifacts", "ebook_asset", "stamping_mode"),
+            ("stamped_artifacts", "ebook"),
+            ("bundle_root_signature",),
+        ]
+        for path in fields:
+            with self.subTest(field="/".join(path)):
+                tampered = copy.deepcopy(self.original)
+                node = tampered
+                for key in path[:-1]:
+                    node = node[key]
+                old = node[path[-1]]
+                node[path[-1]] = (not old) if isinstance(old, bool) else old + "X"
+                res = self._verify(self._write(tampered, os.path.join(self.tmp, "tampered.json")))
+                self.assertEqual(res.returncode, 1, f"edit to {'/'.join(path)} was not rejected: {res.stdout} {res.stderr}")
+
+    def test_added_or_removed_field_fails_verification(self):
+        added = copy.deepcopy(self.original)
+        added["reviewer"] = "someone"
+        res = self._verify(self._write(added, os.path.join(self.tmp, "added.json")))
+        self.assertEqual(res.returncode, 1, res.stderr)
+
+        removed = copy.deepcopy(self.original)
+        del removed["created_at"]
+        res = self._verify(self._write(removed, os.path.join(self.tmp, "removed.json")))
+        self.assertEqual(res.returncode, 1, res.stderr)
 
 
 if __name__ == "__main__":
