@@ -33,6 +33,9 @@ import pypdf
 MIN_SALT_CHARS = 32
 # Contract purposes take perimeter stamps only; diagonal body watermarks never touch legal text.
 CONTRACT_PURPOSES = frozenset({"c1_data_accuracy", "c2_release_approval", "c3_agreement", "legal_contract"})
+# Non-contract purposes. --purpose accepts exactly CONTRACT_PURPOSES plus these, so the two cannot drift apart.
+NON_CONTRACT_PURPOSES = frozenset({"review", "author_copy"})
+PURPOSES = tuple(sorted(CONTRACT_PURPOSES | NON_CONTRACT_PURPOSES))
 
 
 def fingerprint_salt() -> bytes:
@@ -193,7 +196,7 @@ def main():
     )
     parser.add_argument(
         "--purpose",
-        choices=["review", "author_copy", "c1_data_accuracy", "c2_release_approval", "c3_agreement", "legal_contract"],
+        choices=PURPOSES,
         default="review",
         help="Classification purpose of the stamped document"
     )

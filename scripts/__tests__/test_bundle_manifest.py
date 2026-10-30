@@ -536,11 +536,21 @@ class TestVerifyExitCodes(unittest.TestCase):
 class TestStamperRefusesDiagonalOnContracts(unittest.TestCase):
     """P2: diagonal stamping is for media only. The stamper refuses it on any contract document."""
 
+    @staticmethod
+    def _contract_purposes():
+        """The contract list comes from the stamper's own constant, never a copy in this test."""
+        spec = importlib.util.spec_from_file_location("watermark_pdf", WATERMARK_SCRIPT)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return sorted(module.CONTRACT_PURPOSES)
+
     def test_diagonal_stamp_on_each_contract_purpose_is_refused(self):
+        purposes = self._contract_purposes()
+        self.assertTrue(purposes, "CONTRACT_PURPOSES is empty; the refusal would not be tested")
         with tempfile.TemporaryDirectory() as tmp:
             src = os.path.join(tmp, "contract.pdf")
             create_dummy_pdf(src)
-            for purpose in ("c1_data_accuracy", "c2_release_approval", "c3_agreement", "legal_contract"):
+            for purpose in purposes:
                 with self.subTest(purpose=purpose):
                     out = os.path.join(tmp, f"{purpose}.pdf")
                     res = subprocess.run(
@@ -549,8 +559,24 @@ class TestStamperRefusesDiagonalOnContracts(unittest.TestCase):
                          "--purpose", purpose, "--bundle-id", "BND-TEST-002"],
                         capture_output=True, text=True, env=dict(os.environ, ASSET_SALT=TEST_SALT))
                     self.assertNotEqual(res.returncode, 0, f"diagonal stamp on contract purpose {purpose} exited 0")
-                    self.assertIn("contract", res.stderr.lower())
+                    self.assertIn(f"diagonal stamping is refused for contract purpose '{purpose}'", res.stderr)
                     self.assertFalse(os.path.exists(out), "a refused stamp must not write output")
+
+    def test_every_contract_purpose_is_an_accepted_argparse_choice(self):
+        """A purpose in CONTRACT_PURPOSES must also be accepted by --purpose, or it can never be stamped."""
+        purposes = self._contract_purposes()
+        with tempfile.TemporaryDirectory() as tmp:
+            src = os.path.join(tmp, "contract.pdf")
+            create_dummy_pdf(src)
+            for purpose in purposes:
+                with self.subTest(purpose=purpose):
+                    out = os.path.join(tmp, f"{purpose}.perimeter.pdf")
+                    res = subprocess.run(
+                        [sys.executable, WATERMARK_SCRIPT, "--input", src, "--output", out,
+                         "--creator-id", "c", "--creator-name", "n", "--mode", "perimeter",
+                         "--purpose", purpose, "--bundle-id", "BND-TEST-002"],
+                        capture_output=True, text=True, env=dict(os.environ, ASSET_SALT=TEST_SALT))
+                    self.assertEqual(res.returncode, 0, f"perimeter stamp rejected for {purpose}: {res.stderr}")
 
 
 class TestStampedBytesAreTheHashedBytes(unittest.TestCase):
