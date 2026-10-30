@@ -9,7 +9,8 @@ export const runtime = "nodejs";
 
 /**
  * GET /d/{token} (buyer delivery, ADR 0061 origin expanpress.com). Validates the hash and expiry of an
- * issued link, denies a sale refunded in the ledger (410), logs download_completed, and 302s to a short-lived
+ * issued link, denies a sale with an outstanding ledger refund or an open review flag (410, refund or review wording),
+ * logs download_completed, and 302s to a short-lived
  * signed URL for the release file.
  * Fail closed: the redirect happens only after the server-side log row is written, so an unlogged
  * download is never served. The token is never logged.
@@ -43,7 +44,7 @@ export async function GET(_request: NextRequest, ctx: { params: Promise<{ token:
     return new NextResponse("This download link has expired. Reply to your receipt email for a new one.", { status: 410 });
   }
 
-  // A refunded sale loses its links until the provider reverses the refund. The ledger decides. An unreadable or
+  // A refunded sale loses its links until the provider reverses the refund, and a sale with an open review flag is paused. The ledger and the flag decide. An unreadable or
   // unknown state denies: nothing is served on a lookup failure.
   let access: SaleAccess;
   let refundOutstanding = false;

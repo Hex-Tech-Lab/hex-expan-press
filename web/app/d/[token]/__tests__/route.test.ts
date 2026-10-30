@@ -465,7 +465,7 @@ describe("GET /d/[token] (Buyer delivery route)", () => {
         const res = await GET(req, { params: Promise.resolve({ token: validToken }) });
 
         expect(res.status).toBe(410);
-        // The ledger shows no refund for this sale (it was reversed), so "refunded" would be inaccurate.
+        // The ledger's only refund was reversed, so no refund is outstanding. The provider's flag does not confirm a refund, so the body says "under review" instead.
         const body = await res.text();
         expect(body).not.toContain("refunded");
         expect(body).toContain("under review");
