@@ -118,7 +118,7 @@ class TestBundleManifest(unittest.TestCase):
             "--c2-doc", self.c2_pdf,
             "--c3-doc", self.c3_pdf,
             "--ebook-doc", self.ebook_pdf,
-            "--creator-id", "retirearly500k",
+            "--creator-id", "example-creator",
             "--creator-name", "the owner",
             "--product-id", "500k-playbook",
             "--output-manifest", manifest_path,
@@ -135,7 +135,7 @@ class TestBundleManifest(unittest.TestCase):
         # Check required fields
         self.assertIn("bundle_id", manifest)
         self.assertIn("bundle_root_signature", manifest)
-        self.assertEqual(manifest["creator"]["id"], "retirearly500k")
+        self.assertEqual(manifest["creator"]["id"], "example-creator")
         self.assertEqual(manifest["creator"]["legal_name"], "the owner")
         self.assertEqual(manifest["status"], "SEALED_AND_BINDING")
 
@@ -165,7 +165,7 @@ class TestBundleManifest(unittest.TestCase):
             "--c2-doc", self.c2_pdf,
             "--c3-doc", self.c3_pdf,
             "--ebook-doc", self.ebook_pdf,
-            "--creator-id", "retirearly500k",
+            "--creator-id", "example-creator",
             "--creator-name", "the owner",
             "--product-id", "500k-playbook",
             "--output-manifest", manifest1_path
@@ -186,7 +186,7 @@ class TestBundleManifest(unittest.TestCase):
             "--c2-doc", self.c2_pdf,
             "--c3-doc", self.c3_pdf,
             "--ebook-doc", tampered_ebook,
-            "--creator-id", "retirearly500k",
+            "--creator-id", "example-creator",
             "--creator-name", "the owner",
             "--product-id", "500k-playbook",
             "--output-manifest", manifest2_path
@@ -201,7 +201,7 @@ class TestBundleManifest(unittest.TestCase):
         out = os.path.join(self.test_dir, f"{name}.json")
         subprocess.run([
             sys.executable, MANIFEST_SCRIPT, "--c1-doc", c1, "--c2-doc", c2, "--c3-doc", c3,
-            "--ebook-doc", ebook, "--creator-id", "retirearly500k", "--creator-name", "the owner",
+            "--ebook-doc", ebook, "--creator-id", "example-creator", "--creator-name", "the owner",
             "--product-id", "500k-playbook", "--output-manifest", out], check=True, capture_output=True)
         with open(out) as f:
             return json.load(f)["bundle_root_signature"]
