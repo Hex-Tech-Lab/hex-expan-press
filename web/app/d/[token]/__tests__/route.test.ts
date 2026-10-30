@@ -496,6 +496,33 @@ describe("GET /d/[token] (Buyer delivery route)", () => {
         expect(createSignedUrlMock).not.toHaveBeenCalled();
         expect(insertMock).not.toHaveBeenCalled();
       });
+
+      // A second refund after a reversal is outstanding in the ledger AND flagged. The ledger refund wins the wording.
+      it("a sale with an outstanding refund and an open flag keeps the refund wording", async () => {
+        tableRows.orders = [
+          saleRow("s-both"),
+          ledgerRow("s-both", "refund", "2026-10-05T00:00:00Z"),
+          ledgerRow("s-both", "refund_reversal", "2026-10-09T00:00:00Z"),
+          ledgerRow("s-both", "refund", "2026-10-12T00:00:00Z"),
+        ];
+        tableRows.audit_log = [
+          {
+            event: "MANUAL_REVIEW_REQUIRED_REFUND",
+            details: { provider: "paddle", sale_id: "s-both", reason: "refund_after_reversal" },
+          },
+        ];
+        linkRow("s-both");
+        queueServePath();
+
+        const req = new NextRequest(`https://expanpress.com/d/${validToken}`);
+        const res = await GET(req, { params: Promise.resolve({ token: validToken }) });
+
+        expect(res.status).toBe(410);
+        const body = await res.text();
+        expect(body).toContain("refunded");
+        expect(body).not.toContain("under review");
+        expect(res.headers.get("location")).toBeNull();
+      });
     });
   });
 });
