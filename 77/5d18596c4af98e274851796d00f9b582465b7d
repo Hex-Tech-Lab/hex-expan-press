@@ -1,0 +1,22 @@
+.github/workflows/real-browser-latency.yml
+  s_6625bc67577472::t_838df66b88f2f0 69
+  s_6625bc67577472::t_7b87584a173b24 1-68,70-104
+scripts/latency/summarize-browsertime.mjs
+  s_6625bc67577472::t_4a84e25ee39e62 1-82
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "775d18596c4af98e274851796d00f9b582465b7d",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
