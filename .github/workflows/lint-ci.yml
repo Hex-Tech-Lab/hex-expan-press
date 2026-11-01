@@ -1,0 +1,119 @@
+# Lint gates on every PR and on push to master. actionlint + shellcheck check the workflow files,
+# gitleaks checks the new commits for secrets (values redacted), and ruff checks only the Python
+# files this change touches (the older scripts/ tree has existing findings this change does not own).
+# Every check fails the run on a finding. No continue-on-error anywhere.
+name: lint-ci
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: read
+
+jobs:
+  actionlint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Install actionlint v1.7.7 and shellcheck 0.10.0
+        env:
+          SHELLCHECK_SHA256: 6c881ab0698e4e6ea235245f22832860544f17ba386442fe7e9d629f8cbedf87
+        run: |
+          set -euo pipefail
+          go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+          curl -sSfL -o "$RUNNER_TEMP/shellcheck.tar.xz" \
+            https://github.com/koalaman/shellcheck/releases/download/v0.10.0/shellcheck-v0.10.0.linux.x86_64.tar.xz
+          echo "${SHELLCHECK_SHA256}  $RUNNER_TEMP/shellcheck.tar.xz" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/shellcheck-bin"
+          tar -xJf "$RUNNER_TEMP/shellcheck.tar.xz" -C "$RUNNER_TEMP/shellcheck-bin" --strip-components=1 shellcheck-v0.10.0/shellcheck
+          echo "$RUNNER_TEMP/shellcheck-bin" >> "$GITHUB_PATH"
+
+      - name: Run actionlint on workflow files
+        run: actionlint -shellcheck=shellcheck .github/workflows/*.yml
+
+  gitleaks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Install gitleaks v8.24.2
+        run: |
+          set -euo pipefail
+          go install github.com/zricethezav/gitleaks/v8@v8.24.2
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Scan new commits for secrets
+        # Event data goes through env, never interpolated into the script.
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          BEFORE_SHA: ${{ github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            LOG_OPTS="origin/${BASE_REF}..HEAD"
+          elif git cat-file -e "$BEFORE_SHA" 2>/dev/null; then
+            LOG_OPTS="${BEFORE_SHA}..HEAD"
+          else
+            # New branch or force-push with no usable 'before': scan only commits the remote lacks.
+            LOG_OPTS="HEAD --not --remotes=origin"
+          fi
+          echo "gitleaks log range: ${LOG_OPTS}"
+          gitleaks git --redact --no-banner --log-opts="${LOG_OPTS}" .
+
+  ruff:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.12"
+
+      - name: Install ruff 0.8.6
+        run: python -m pip install --disable-pip-version-check ruff==0.8.6
+
+      - name: Lint Python files changed by this change
+        # Only the .py files this change adds or modifies, not the whole scripts/ tree.
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            BASE="origin/${BASE_REF}"
+          elif git cat-file -e "$BEFORE_SHA" 2>/dev/null; then
+            BASE="$BEFORE_SHA"
+          else
+            # No usable 'before' (new branch or force-push): judge the head commit's own changes.
+            # The empty tree is only for a root commit, so the whole repo is never linted here.
+            BASE="$(git rev-parse --verify -q HEAD~1 || echo 4b825dc642cb6eb9a060e54bf8d69288fbee4904)"
+          fi
+          # Write the list to a file first so a failing git diff stops the job instead of skipping ruff.
+          CHANGED_LIST="$(mktemp)"
+          git diff -z --name-only --diff-filter=ACMR "$BASE" HEAD -- '*.py' > "$CHANGED_LIST"
+          mapfile -d '' -t FILES < "$CHANGED_LIST"
+          if [ "${#FILES[@]}" -eq 0 ]; then
+            echo "No Python files changed against ${BASE}; ruff skipped."
+            exit 0
+          fi
+          echo "Linting ${#FILES[@]} changed Python file(s)."
+          python -m ruff check -- "${FILES[@]}"
