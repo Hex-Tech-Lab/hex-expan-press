@@ -1,0 +1,67 @@
+latency-probe/.gitignore
+  s_6625bc67577472::t_1bf84555e7fbc7 1
+latency-probe/app/api/dashboard-data/route.ts
+  s_6625bc67577472::t_17fdabf3832e93 1-80
+latency-probe/app/api/ingest/route.ts
+  s_6625bc67577472::t_d6c6a28322667d 1-30
+latency-probe/app/api/probe/route.ts
+  s_6625bc67577472::t_d47836df041115 1-31
+latency-probe/app/api/readout/route.ts
+  s_6625bc67577472::t_2822582b2a969e 1-67
+latency-probe/app/layout.tsx
+  s_6625bc67577472::t_99d3278e004ede 1-159
+latency-probe/app/page.tsx
+  s_6625bc67577472::t_434f1076a06306 1-105
+latency-probe/lib/__tests__/edge.test.ts
+  s_6625bc67577472::t_acafc82428fa66 1-36
+latency-probe/lib/__tests__/measure.test.ts
+  s_6625bc67577472::t_956e1b37defd76 1-75
+latency-probe/lib/edge.ts
+  s_6625bc67577472::t_7c96c0693a3692 1-26
+latency-probe/lib/ingest.ts
+  s_6625bc67577472::t_1a7fd1db7c6eee 1-69
+latency-probe/lib/locations.ts
+  s_6625bc67577472::t_caa38a101d6083 1-5
+latency-probe/lib/measure.ts
+  s_6625bc67577472::t_f6005eb7240801 1-160
+latency-probe/lib/pages.ts
+  s_6625bc67577472::t_60320e0043c9ef 1-14
+latency-probe/lib/schedule.ts
+  s_6625bc67577472::t_9fca5053fd470b 1-20
+latency-probe/lib/store.ts
+  s_6625bc67577472::t_57f2c8148e243e 1-56
+latency-probe/lib/summary.ts
+  s_6625bc67577472::t_8c975057a301ce 1-46
+latency-probe/lib/targets.ts
+  s_6625bc67577472::t_708feb25d4861a 1-16
+latency-probe/next-env.d.ts
+  s_6625bc67577472::t_2605b8fb90b1af 1-6
+latency-probe/next.config.mjs
+  s_6625bc67577472::t_d7cc4c1f2a325c 1-4
+latency-probe/package-lock.json
+  s_6625bc67577472::t_a0efb8d976fe15 1-1098
+latency-probe/package.json
+  s_6625bc67577472::t_1b5201a4f8a0e4 1-21
+latency-probe/public/dashboard.js
+  s_6625bc67577472::t_7782f1dc8601ba 1-2067
+latency-probe/tsconfig.json
+  s_6625bc67577472::t_9ba920bed1b4e5 1-41
+latency-probe/vercel.json
+  s_6625bc67577472::t_563ab32fda9e59 1-5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7c3e7cf6c7661f87128e60e94a16e5bb6f3372a8",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
