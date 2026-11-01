@@ -1,0 +1,42 @@
+docs/lessons/PROJECT_LESSONS_HEX_EXPAN.md
+  s_6625bc67577472::t_8e2bd6192cefe3 80
+  s_6625bc67577472::t_2b32382537c904 50
+  s_6625bc67577472::t_8c4aa41c3be873 63
+  s_6625bc67577472::t_2f2489c9a0df51 70
+  s_6625bc67577472::t_f7563d42b48b76 44
+  s_6625bc67577472::t_d296d087d9614e 25
+  s_6625bc67577472::t_455169224e8ed5 32
+  s_6625bc67577472::t_ad529012ce5373 36-37
+  s_6625bc67577472::t_9cc2d12d962913 65
+  s_6625bc67577472::t_94e27effcb9b40 73
+  s_6625bc67577472::t_e3363b662b89b4 19
+  s_6625bc67577472::t_11a9bc0e0dc8e8 78
+  s_6625bc67577472::t_67c9d2bedd1da3 104
+docs/lessons/ECOSYSTEM_LESSONS.md
+  s_6625bc67577472::t_efac970a7db87a 24
+  s_6625bc67577472::t_c18e2a9d81e301 73
+  s_6625bc67577472::t_6ddaa0e8802d44 66
+  s_6625bc67577472::t_e4f4222923acfe 17
+  s_6625bc67577472::t_6260e2f71d4e37 21
+  s_6625bc67577472::t_72a80012c1463d 84
+  s_6625bc67577472::t_e0730d6b4fdbf9 80
+  s_6625bc67577472::t_7e3a3e7cda8d37 31
+  s_6625bc67577472::t_e1a909aaa91e2c 63
+  s_6625bc67577472::t_780297503bbd21 87
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1d934eb99fc20d119407a6072150580fd352b35e",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
