@@ -6,6 +6,9 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 const WORKFLOW = new URL("../../.github/workflows/real-browser-latency.yml", import.meta.url);
+const JOB_KEY = /^  [A-Za-z0-9_-]+:\s*$/;
+const SECRET_REF = /PROBE_INGEST_SECRET|\bsecrets\b/;
+const BROWSER_TOOL = /google-chrome|chromium|chromedriver|browsertime|puppeteer|playwright/i;
 
 // Text of one job: from its "  <name>:" line up to the next two-space job key.
 function jobBlock(text, name) {
@@ -14,7 +17,7 @@ function jobBlock(text, name) {
   if (start < 0) return null;
   let end = lines.length;
   for (let i = start + 1; i < lines.length; i++) {
-    if (/^  [a-z-]+:\s*$/.test(lines[i])) {
+    if (JOB_KEY.test(lines[i])) {
       end = i;
       break;
     }
@@ -22,39 +25,69 @@ function jobBlock(text, name) {
   return lines.slice(start, end).join("\n");
 }
 
+// Drops comment lines so header notes do not count as references.
+const codeOnly = (text) => text.split("\n").filter((l) => !/^\s*#/.test(l)).join("\n");
+
 // Returns the violated invariants (empty when the workflow is clean).
 export function invariantViolations(text) {
   const violations = [];
-  const measure = jobBlock(text, "measure");
-  const send = jobBlock(text, "send");
+  const code = codeOnly(text);
+  const measure = jobBlock(code, "measure");
+  const send = jobBlock(code, "send");
   if (!measure) violations.push("missing measure job");
   if (!send) violations.push("missing send job");
-  if (/no-sandbox/.test(text)) violations.push("--no-sandbox present");
-  if (measure && /PROBE_INGEST_SECRET|secrets\./.test(measure)) violations.push("secret reachable from measure job");
-  if (send && !/PROBE_INGEST_SECRET/.test(send)) violations.push("send job lacks the probe secret");
-  if (send && /google-chrome|chromedriver|browsertime/.test(send)) violations.push("send job runs a browser tool");
-  if (send && !/^    needs: measure\s*$/m.test(send)) violations.push("send job does not depend on measure");
+  if (/no-sandbox/.test(code)) violations.push("--no-sandbox present");
+  if (measure && SECRET_REF.test(measure)) violations.push("secret reachable from measure job");
+  if (send) {
+    // Every secret reference (top-level env, expressions, toJSON(secrets)) must sit inside the send job.
+    if (SECRET_REF.test(code.replace(send, ""))) violations.push("secret reference outside send job");
+    if (!/PROBE_INGEST_SECRET/.test(send)) violations.push("send job lacks the probe secret");
+    if (BROWSER_TOOL.test(send)) violations.push("send job runs a browser tool");
+    if (!/^    needs: measure\s*$/m.test(send)) violations.push("send job does not depend on measure");
+  }
   return violations;
+}
+
+function mutate(good, from, to) {
+  const bad = good.replace(from, to);
+  assert.notEqual(bad, good, `mutation target not found: ${from.trim()}`);
+  return bad;
 }
 
 test("the workflow satisfies the secret-split and sandbox invariants", () => {
   assert.deepEqual(invariantViolations(readFileSync(WORKFLOW, "utf8")), []);
 });
 
-test("negative control: re-adding --no-sandbox or a secret to measure is caught", () => {
+test("negative controls: each bypass shape is caught", () => {
   const good = readFileSync(WORKFLOW, "utf8");
-
-  const withFlag = good.replace(
-    "--chrome.args=--disable-dev-shm-usage \\",
-    "--chrome.args=--no-sandbox \\\n            --chrome.args=--disable-dev-shm-usage \\",
-  );
-  assert.notEqual(withFlag, good, "flag injection must change the workflow text");
-  assert.ok(invariantViolations(withFlag).includes("--no-sandbox present"));
-
-  const withSecret = good.replace(
-    "    timeout-minutes: 25\n",
-    "    timeout-minutes: 25\n    env:\n      PROBE_INGEST_SECRET: ${{ secrets.PROBE_INGEST_SECRET }}\n",
-  );
-  assert.notEqual(withSecret, good, "secret injection must change the workflow text");
-  assert.ok(invariantViolations(withSecret).includes("secret reachable from measure job"));
+  const cases = [
+    [
+      "--no-sandbox added to Chrome args",
+      mutate(good, "--chrome.args=--disable-dev-shm-usage \\", "--chrome.args=--no-sandbox \\\n            --chrome.args=--disable-dev-shm-usage \\"),
+      "--no-sandbox present",
+    ],
+    [
+      "secret in measure job env",
+      mutate(good, "    timeout-minutes: 25\n", "    timeout-minutes: 25\n    env:\n      PROBE_INGEST_SECRET: ${{ secrets.PROBE_INGEST_SECRET }}\n"),
+      "secret reachable from measure job",
+    ],
+    [
+      "secret in top-level env",
+      mutate(good, "name: real-browser-latency\n", "name: real-browser-latency\nenv:\n  PROBE_INGEST_SECRET: ${{ secrets.PROBE_INGEST_SECRET }}\n"),
+      "secret reference outside send job",
+    ],
+    [
+      "toJSON(secrets) in measure job",
+      mutate(good, "    timeout-minutes: 25\n", "    timeout-minutes: 25\n    env:\n      ALL: ${{ toJSON(secrets) }}\n"),
+      "secret reachable from measure job",
+    ],
+    [
+      "browser tool added to send job",
+      mutate(good, "    needs: measure\n", "    needs: measure\n    env:\n      BROWSER: chromium\n"),
+      "send job runs a browser tool",
+    ],
+  ];
+  for (const [label, bad, expected] of cases) {
+    assert.ok(invariantViolations(bad).includes(expected), `${label}: expected "${expected}"`);
+  }
 });
