@@ -2,6 +2,7 @@ name: real-browser-latency
 
 # Measures the buyer-facing pages with a real Chrome on a GitHub-hosted runner,
 # then sends a signed summary per page to the latency probe.
+# Two jobs: "measure" runs Chrome and holds no secrets; "send" holds PROBE_INGEST_SECRET and runs no Chrome.
 # Scheduled runs only fire from the default branch. Use workflow_dispatch to test a branch.
 
 on:
@@ -20,14 +21,16 @@ jobs:
   measure:
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    permissions:
+      contents: read
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "22"
 
@@ -61,7 +64,7 @@ jobs:
           set +e
           google-chrome --version
           chromedriver --version
-          timeout 30 google-chrome --headless=new --no-sandbox --disable-dev-shm-usage --dump-dom about:blank > /dev/null 2> "$RUNNER_TEMP/chrome-direct.err"
+          timeout 30 google-chrome --headless=new --disable-dev-shm-usage --dump-dom about:blank > /dev/null 2> "$RUNNER_TEMP/chrome-direct.err"
           echo "direct headless launch exit=$?"
           head -c 1500 "$RUNNER_TEMP/chrome-direct.err"
           exit 0
@@ -75,7 +78,6 @@ jobs:
             https://expanpress.com/books/retirearly500k/500k-playbook \
             -n 5 \
             --headless \
-            --chrome.args=--no-sandbox \
             --chrome.args=--disable-dev-shm-usage \
             --chrome.enableVerboseChromeDriverLog \
             --resultDir "$RUNNER_TEMP/bt-results"
@@ -86,17 +88,57 @@ jobs:
           node scripts/latency/summarize-browsertime.mjs \
             "$RUNNER_TEMP/bt-results/browsertime.json" "$RUNNER_TEMP/summaries"
 
+      - name: Upload summaries for the send job
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: latency-summaries-${{ github.run_id }}
+          path: ${{ runner.temp }}/summaries
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Keep raw Browsertime output
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: browsertime-${{ github.run_id }}
+          path: ${{ runner.temp }}/bt-results
+          retention-days: 7
+
+  send:
+    needs: measure
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Download summaries from the measure job
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: latency-summaries-${{ github.run_id }}
+          path: ${{ runner.temp }}/summaries
+
       - name: Send signed summaries to the probe
         env:
           PROBE_INGEST_SECRET: ${{ secrets.PROBE_INGEST_SECRET }}
         run: |
           set -uo pipefail
+          shopt -s nullglob
           if [ -z "$PROBE_INGEST_SECRET" ]; then
             echo "::error::PROBE_INGEST_SECRET is not set"
             exit 1
           fi
+          files=("$RUNNER_TEMP"/summaries/*.json)
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "::error::no summaries to send"
+            exit 1
+          fi
           failed=0
-          for f in "$RUNNER_TEMP"/summaries/*.json; do
+          for f in "${files[@]}"; do
             sig=$(openssl dgst -sha256 -hmac "$PROBE_INGEST_SECRET" -hex < "$f" | awk '{print $NF}')
             code=$(curl -sS -o "$RUNNER_TEMP/resp.json" -w '%{http_code}' --max-time 30 \
               -X POST https://expan-latency-probe.vercel.app/api/ingest \
@@ -111,11 +153,3 @@ jobs:
             fi
           done
           exit $failed
-
-      - name: Keep raw Browsertime output
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: browsertime-${{ github.run_id }}
-          path: ${{ runner.temp }}/bt-results
-          retention-days: 7
