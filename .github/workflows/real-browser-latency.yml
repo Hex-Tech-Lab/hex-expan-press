@@ -36,7 +36,12 @@ jobs:
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/bt"
           npm install --prefix "$RUNNER_TEMP/bt" --no-save --no-audit --no-fund browsertime@28.4.0
-          "$RUNNER_TEMP/bt/node_modules/.bin/browsertime" --version
+          # --version prints a wrong number in 28.x, so read the installed package version instead.
+          installed=$(node -p "require('$RUNNER_TEMP/bt/node_modules/browsertime/package.json').version")
+          if [ "$installed" != "28.4.0" ]; then
+            echo "::error::browsertime $installed installed, expected 28.4.0"
+            exit 1
+          fi
 
       - name: Record runner location (country only)
         run: |
@@ -59,8 +64,8 @@ jobs:
             https://expanpress.com/books/retirearly500k/500k-playbook \
             -n 5 \
             --chrome.headless \
-            --chrome.args no-sandbox \
-            --chrome.args disable-dev-shm-usage \
+            --chrome.args=--no-sandbox \
+            --chrome.args=--disable-dev-shm-usage \
             --resultDir "$RUNNER_TEMP/bt-results"
 
       - name: Summarise per page
