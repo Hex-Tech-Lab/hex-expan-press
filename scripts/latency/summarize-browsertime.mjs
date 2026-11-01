@@ -76,7 +76,10 @@ for (const page of pages) {
   console.log(`${id}: n=${summary.samples} ttfb=${summary.metrics.ttfb} fcp=${summary.metrics.firstContentfulPaint} lcp=${summary.metrics.largestContentfulPaint} load=${summary.metrics.pageLoadTime}`);
 }
 
-if (written.length === 0) {
-  console.error("no summaries written");
+// Fail when any expected page is missing, so a renamed URL cannot pass the job with partial data.
+const measured = new Set(written.map((f) => f.split("/").pop().replace(/\.json$/, "")));
+const missing = [...PAGE_IDS.values()].filter((id) => !measured.has(id));
+if (missing.length > 0) {
+  console.error(`missing pages: ${missing.join(", ")}`);
   process.exit(1);
 }
