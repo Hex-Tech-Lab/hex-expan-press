@@ -148,6 +148,8 @@ Order is fixed: **harvest → GLM generates `candidates.json` → score**. Never
 **Skills are the single most overriding operational mandate across ALL agents (CCT, OC, AGY).**
 They are NOT optional suggestions or cosmetic advice. Every agent turn MUST explicitly invoke and report its active skills. Missing a skill turn is an immediate quality gate failure.
 
+**When to use each skill:** see `docs/skills/SKILLS_CATALOGUE.md` (governed by ADR 0062). Pick skills by the trigger in that catalogue, not from memory.
+
 ### 1. Unified Ecosystem Count
 - **Claude Code (CCT / SSOT):** 198 skills available (`~/.claude/skills/`).
 - **OpenCode (OC):** 217 skills available (`~/.opencode/skills/`).
