@@ -1,0 +1,21 @@
+scripts/latency/workflow-invariants.test.mjs
+  s_6625bc67577472::t_7bff8a733c89e8 68-73
+  s_6625bc67577472::t_29d852c6bc5c31 2-4
+  s_6625bc67577472::t_44e1adb3854c55 40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "64fbbde6201a9b1691576267a3d7666e2c47cb6b",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "unknown"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
