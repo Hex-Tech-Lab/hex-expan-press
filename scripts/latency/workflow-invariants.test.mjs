@@ -1,6 +1,7 @@
 // Run with: node --test scripts/latency/workflow-invariants.test.mjs
-// Guards the Cubic P1 fix: the job that runs Chrome must never hold the probe secret, Chrome keeps its sandbox,
-// and the send job runs no browser.
+// Guards the Cubic P1 fix: the job that runs Chrome must never hold the probe secret, no Chrome sandbox
+// switch (--no-sandbox or --disable-setuid-sandbox) may appear, and the send job runs no browser.
+// It checks the workflow text only; it does not observe Chrome's sandbox at runtime.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -36,7 +37,7 @@ export function invariantViolations(text) {
   const send = jobBlock(code, "send");
   if (!measure) violations.push("missing measure job");
   if (!send) violations.push("missing send job");
-  if (/no-sandbox/.test(code)) violations.push("--no-sandbox present");
+  if (/--no-sandbox|--disable-setuid-sandbox/.test(code)) violations.push("Chrome sandbox disabled");
   if (measure && SECRET_REF.test(measure)) violations.push("secret reachable from measure job");
   if (send) {
     // Every secret reference (top-level env, expressions, toJSON(secrets)) must sit inside the send job.
@@ -64,7 +65,12 @@ test("negative controls: each bypass shape is caught", () => {
     [
       "--no-sandbox added to Chrome args",
       mutate(good, "--chrome.args=--disable-dev-shm-usage \\", "--chrome.args=--no-sandbox \\\n            --chrome.args=--disable-dev-shm-usage \\"),
-      "--no-sandbox present",
+      "Chrome sandbox disabled",
+    ],
+    [
+      "--disable-setuid-sandbox added to Chrome args",
+      mutate(good, "--chrome.args=--disable-dev-shm-usage \\", "--chrome.args=--disable-setuid-sandbox \\\n            --chrome.args=--disable-dev-shm-usage \\"),
+      "Chrome sandbox disabled",
     ],
     [
       "secret in measure job env",
