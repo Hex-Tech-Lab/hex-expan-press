@@ -1,7 +1,8 @@
 // Turns Browsertime's browsertime.json into one signed-ready summary per page.
 // Usage: node summarize-browsertime.mjs <browsertime.json> <outDir>
 // Env:   LATENCY_LOCATION (lowercase a-z0-9-, e.g. gha-us), LATENCY_RUN_AT (ms epoch, optional)
-// Output: <outDir>/<page-id>.json, one per measured page, matching the probe ingest schema v1.
+// Output: <outDir>/<page-id>.json, one per expected page, matching the probe ingest schema v1.
+// Exits 1 if any expected page is missing, so a partial run cannot pass.
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 
