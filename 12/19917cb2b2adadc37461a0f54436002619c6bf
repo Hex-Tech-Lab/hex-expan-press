@@ -1,0 +1,24 @@
+docs/adr/0065-storage-factory-r2-primary-second-provider.md
+  s_6625bc67577472::t_806e0fa2c33119 1-48
+src/adapters/storage/replica/replica-manifest.ts
+  s_6625bc67577472::t_7ca719a1ac0f96 1-21,23-144
+  s_6625bc67577472::t_960cea251335c4 22
+src/adapters/storage/replica/__tests__/replica-manifest.test.ts
+  s_6625bc67577472::t_b303f03d6f6025 1-168
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1219917cb2b2adadc37461a0f54436002619c6bf",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
