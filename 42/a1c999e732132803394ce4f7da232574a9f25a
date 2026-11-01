@@ -1,0 +1,23 @@
+docs/skills/SKILLS_CATALOGUE.md
+  s_6625bc67577472::t_5669eb0af7232e 1-103
+AGENTS.md
+  s_6625bc67577472::t_0a8fa616972905 151-152
+docs/adr/0062-skills-catalogue-and-selection.md
+  s_6625bc67577472::t_5560893e437034 1-24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "42a1c999e732132803394ce4f7da232574a9f25a",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
