@@ -60,7 +60,6 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           BASE_REF: ${{ github.base_ref }}
           BEFORE_SHA: ${{ github.event.before }}
-          HEAD_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
           if [ "$EVENT_NAME" = "pull_request" ]; then
@@ -68,8 +67,10 @@ jobs:
           elif git cat-file -e "$BEFORE_SHA" 2>/dev/null; then
             LOG_OPTS="${BEFORE_SHA}..HEAD"
           else
-            # New branch or force-push with no usable 'before': scan only commits the remote lacks.
-            LOG_OPTS="HEAD --not --remotes=origin"
+            # New branch or force-push with no usable 'before'. Do not use "HEAD --not --remotes=origin":
+            # in this checkout origin/<branch> already points at HEAD, so that range is empty and scans nothing.
+            # Scan the full history reachable from HEAD instead (fails closed).
+            LOG_OPTS="HEAD"
           fi
           echo "gitleaks log range: ${LOG_OPTS}"
           gitleaks git --redact --no-banner --log-opts="${LOG_OPTS}" .
@@ -103,13 +104,14 @@ jobs:
           elif git cat-file -e "$BEFORE_SHA" 2>/dev/null; then
             BASE="$BEFORE_SHA"
           else
-            # No usable 'before' (new branch or force-push): judge the head commit's own changes.
-            # The empty tree is only for a root commit, so the whole repo is never linted here.
+            # No usable 'before' (new branch or force-push): judge the head commit's own changes against its parent.
+            # A root commit has no parent, so the empty tree is the base and every .py file it adds is judged.
             BASE="$(git rev-parse --verify -q HEAD~1 || echo 4b825dc642cb6eb9a060e54bf8d69288fbee4904)"
           fi
           # Write the list to a file first so a failing git diff stops the job instead of skipping ruff.
+          # Three dots: diff from the merge-base, so files that only the base branch changed are not linted.
           CHANGED_LIST="$(mktemp)"
-          git diff -z --name-only --diff-filter=ACMR "$BASE" HEAD -- '*.py' > "$CHANGED_LIST"
+          git diff -z --name-only --diff-filter=ACMR "$BASE...HEAD" -- '*.py' > "$CHANGED_LIST"
           mapfile -d '' -t FILES < "$CHANGED_LIST"
           if [ "${#FILES[@]}" -eq 0 ]; then
             echo "No Python files changed against ${BASE}; ruff skipped."
