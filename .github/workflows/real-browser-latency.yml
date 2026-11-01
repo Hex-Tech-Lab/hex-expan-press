@@ -74,7 +74,7 @@ jobs:
             https://expanpress.com/books/retirearly500k \
             https://expanpress.com/books/retirearly500k/500k-playbook \
             -n 5 \
-            --chrome.headless \
+            --headless \
             --chrome.args=--no-sandbox \
             --chrome.args=--disable-dev-shm-usage \
             --chrome.enableVerboseChromeDriverLog \
