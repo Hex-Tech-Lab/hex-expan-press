@@ -1,0 +1,23 @@
+.github/workflows/commit-guard.yml
+  s_6625bc67577472::t_76402512b19978 44
+.github/workflows/lint-ci.yml
+  s_6625bc67577472::t_9b64b9399377a0 106-108
+  s_6625bc67577472::t_1d6901602308a3 1-105,109,114-119
+  s_6625bc67577472::t_89be62b01ad9c7 110-113
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2bcd1f8ca01cfa577924b51ed467e846ddb76c07",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
