@@ -3,7 +3,8 @@ name: real-browser-latency
 # Measures the buyer-facing pages with a real Chrome on a GitHub-hosted runner,
 # then sends a signed summary per page to the latency probe.
 # Two jobs: "measure" runs Chrome and holds no secrets; "send" holds PROBE_INGEST_SECRET and runs no Chrome.
-# Scheduled runs only fire from the default branch. Use workflow_dispatch to test a branch.
+# Scheduled runs only fire from the default branch. A workflow_dispatch from ANY branch also runs the send job,
+# which posts to the production probe with PROBE_INGEST_SECRET. Dispatch a branch only when production probe data is acceptable.
 
 on:
   schedule:
