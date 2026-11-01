@@ -1,0 +1,21 @@
+{
+  "name": "expan-latency-probe",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "build": "next build",
+    "dev": "next dev"
+  },
+  "dependencies": {
+    "@upstash/qstash": "2.12.0",
+    "@upstash/redis": "1.40.0",
+    "next": "15.5.28",
+    "react": "19.1.1",
+    "react-dom": "19.1.1"
+  },
+  "devDependencies": {
+    "@types/node": "22.15.3",
+    "@types/react": "19.1.2",
+    "typescript": "5.8.3"
+  }
+}
