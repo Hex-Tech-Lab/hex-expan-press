@@ -2,7 +2,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, mkdirSync, writeFileSync, readdirSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
@@ -44,8 +44,11 @@ function run(input, { env = {}, seed = {} } = {}) {
     encoding: "utf8",
   });
   const files = (() => { try { return readdirSync(out).sort(); } catch { return []; } })();
-  return { status: res.status, stderr: res.stderr, files };
+  return { status: res.status, stderr: res.stderr, files, out };
 }
+
+// Parsed summary for one page id from a successful run.
+const summaryOf = (r, id) => JSON.parse(readFileSync(join(r.out, `${id}.json`), "utf8"));
 
 test("writes one summary per expected page and exits 0", () => {
   const r = run(URLS.map((u, i) => page(u, 100 + i)));
@@ -131,3 +134,77 @@ for (const bad of ["abc", "", "-1", "1.5"]) {
     assert.deepEqual(r.files, []);
   });
 }
+
+// Timings for one iteration with a custom list of iterations per page.
+const pageWithTimings = (url, timingList) => ({
+  info: { url },
+  browserScripts: timingList.map((t) => ({ timings: t })),
+});
+
+// Median: an odd count takes the middle value; an even count takes the mean of the two middle values.
+test("median of an odd sample count is the middle value", () => {
+  const r = run(URLS.map((u) => pageWithSamples(u, [300, 100, 200])));
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(summaryOf(r, "expanpress-home").metrics.ttfb, 200);
+});
+
+test("median of an even sample count is the mean of the two middle values, not either one", () => {
+  // Sorted: 100, 200, 300, 400. The middle pair is 200 and 300, so the median is 250.
+  // The upper middle value would be 300 and the lower 200.
+  const r = run(URLS.map((u) => pageWithSamples(u, [400, 100, 300, 200])));
+  assert.equal(r.status, 0, r.stderr);
+  const s = summaryOf(r, "expanpress-home");
+  assert.equal(s.samples, 4);
+  assert.equal(s.metrics.ttfb, 250);
+});
+
+// A page with no iterations must fail the run. Without this guard it would publish a summary with
+// zero samples and zeroed metrics.
+const EMPTY_PAGES = [
+  ["an empty browserScripts array", { info: { url: URLS[1] }, browserScripts: [] }],
+  ["no browserScripts key", { info: { url: URLS[1] } }],
+];
+for (const [label, emptyPage] of EMPTY_PAGES) {
+  test(`exits 1 and writes nothing when the page has ${label}`, () => {
+    const r = run([page(URLS[0], 100), emptyPage, page(URLS[2], 100)]);
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, /expanpress-storefront: no samples/);
+    assert.deepEqual(r.files, []);
+  });
+}
+
+// The same page URL twice would make the second copy silently replace the first. The run must fail instead.
+test("exits 1 and writes nothing when the same page appears twice", () => {
+  const r = run([page(URLS[0], 100), page(URLS[0], 200), page(URLS[1], 100), page(URLS[2], 100)]);
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /expanpress-home: appears more than once in the input/);
+  assert.deepEqual(r.files, []);
+});
+
+// Metrics are rounded to 0.1 ms: a value of .04 rounds down, a value of .06 rounds up.
+test("rounds each metric to 0.1 ms", () => {
+  const r = run([
+    pageWithSamples(URLS[0], [100.04]),
+    pageWithSamples(URLS[1], [100.06]),
+    pageWithSamples(URLS[2], [100.04]),
+  ]);
+  assert.equal(r.status, 0, r.stderr);
+  assert.equal(summaryOf(r, "expanpress-home").metrics.ttfb, 100);
+  assert.equal(summaryOf(r, "expanpress-storefront").metrics.ttfb, 100.1);
+});
+
+// Browsertime 28.4.0 reports first contentful paint under paintTiming and has no firstPaint key.
+test("reads first contentful paint from paintTiming when firstPaint is absent", () => {
+  const paintTimingOnly = (ttfb) => ({
+    ttfb,
+    paintTiming: { "first-paint": ttfb + 200, "first-contentful-paint": ttfb + 300 },
+    largestContentfulPaint: { renderTime: ttfb + 900 },
+    loadEventEnd: ttfb + 400,
+  });
+  const r = run(URLS.map((u) => pageWithTimings(u, [paintTimingOnly(100)])));
+  assert.equal(r.status, 0, r.stderr);
+  const m = summaryOf(r, "expanpress-home").metrics;
+  assert.equal(m.firstContentfulPaint, 400);
+  assert.equal(m.largestContentfulPaint, 1000);
+  assert.equal(m.pageLoadTime, 500);
+});
