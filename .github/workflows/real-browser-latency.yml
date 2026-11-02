@@ -5,7 +5,8 @@ name: real-browser-latency
 # Two jobs: "measure" runs Chrome and holds no secrets; "send" holds PROBE_INGEST_SECRET and runs no Chrome.
 # Scheduled runs fire only from the default branch. A workflow_dispatch from another branch runs measure only:
 # the send job is skipped unless the ref is master (if: below), and the probe-ingest environment also allows
-# only master. Measurements from a branch never reach the production probe.
+# only master. These guards live in this file, so a branch that edits the file can remove them until
+# PROBE_INGEST_SECRET moves into the environment (see the send job). Until then, a branch can reach the probe.
 
 on:
   schedule:
@@ -62,10 +63,14 @@ jobs:
 
       - name: Chrome diagnostics
         run: |
-          # Shows whether Chrome and ChromeDriver start on the runner at all, outside Browsertime.
+          # Diagnostic only, outside Browsertime. It prints versions and checks that headless Chrome launches.
+          # It does not open a WebDriver session; the Browsertime run below is the session test.
           set +e
           google-chrome --version
-          chromedriver --version
+          # Browsertime uses the ChromeDriver that @sitespeed.io/chromedriver bundles, not the one on PATH.
+          driver=$(cd "$RUNNER_TEMP/bt" && node --input-type=module -e 'import c from "@sitespeed.io/chromedriver"; process.stdout.write(c.binPath())')
+          echo "bundled chromedriver: $driver"
+          "$driver" --version
           timeout 30 google-chrome --headless=new --disable-dev-shm-usage --dump-dom about:blank > /dev/null 2> "$RUNNER_TEMP/chrome-direct.err"
           echo "direct headless launch exit=$?"
           head -c 1500 "$RUNNER_TEMP/chrome-direct.err"
