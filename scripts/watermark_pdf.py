@@ -219,8 +219,10 @@ def main():
     date_slug = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d")
     bundle_id = args.bundle_id or f"BND-{date_slug}-{args.creator_id[:12].upper()}-{source_sha256[:8].upper()}"
 
-    # Build provenance fingerprint
-    fingerprint_payload = f"{bundle_id}:{args.creator_id}:{args.creator_name}:{args.purpose}:{source_sha256}:{timestamp}"
+    # Build provenance fingerprint. The payload names the bundle root the stamp carries, so /BundleRootHash cannot
+    # change without breaking the fingerprint. Empty when no root was supplied: the root is then the fingerprint.
+    supplied_root = args.bundle_root_hash or ""
+    fingerprint_payload = f"{bundle_id}:{args.creator_id}:{args.creator_name}:{args.purpose}:{source_sha256}:{timestamp}:{supplied_root}"
     hmac_digest = hmac.new(
         fingerprint_salt(),
         fingerprint_payload.encode("utf-8"),

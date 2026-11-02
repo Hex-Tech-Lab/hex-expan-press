@@ -11,6 +11,7 @@ Tests:
 """
 
 import copy
+import datetime
 import hashlib
 import importlib.util
 import json
@@ -20,6 +21,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import types
 import unittest.mock
 import pypdf
 
@@ -718,6 +720,42 @@ class TestManifestParsingIsStrict(unittest.TestCase):
         res = self._verify_text(self.text.replace('"product_id": "500k-playbook"', '"product_id": "\\udc80"', 1))
         self.assertEqual(res.returncode, 2, f"lone surrogate exited {res.returncode}: {res.stderr[-300:]}")
         self.assertNotIn("Traceback", res.stderr)
+
+
+class TestProvenanceFingerprintCoversBundleRoot(unittest.TestCase):
+    """High: the provenance HMAC must cover the bundle root it is stamped with. Otherwise the root can change without breaking the fingerprint."""
+
+    FIXED_NOW = datetime.datetime(2026, 11, 2, 12, 0, 0, tzinfo=datetime.timezone.utc)
+
+    def _stamp_with_root(self, src, out, root):
+        """Runs the stamper in-process with the clock frozen, so only the bundle root differs between calls."""
+        spec = importlib.util.spec_from_file_location("watermark_pdf", WATERMARK_SCRIPT)
+        wm = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(wm)
+        frozen_now = self.FIXED_NOW
+
+        class FrozenDatetime(datetime.datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return frozen_now
+
+        argv = ["watermark_pdf.py", "--input", src, "--output", out, "--creator-id", "c",
+                "--creator-name", "n", "--mode", "perimeter", "--purpose", "review", "--bundle-root-hash", root]
+        with unittest.mock.patch.object(wm, "datetime", types.SimpleNamespace(datetime=FrozenDatetime, timezone=datetime.timezone)), \
+                unittest.mock.patch.object(sys, "argv", argv):
+            wm.main()
+        return pypdf.PdfReader(out).metadata
+
+    def test_changing_the_bundle_root_changes_the_fingerprint(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            src = os.path.join(tmp, "x.pdf")
+            create_dummy_pdf(src, "x")
+            first = self._stamp_with_root(src, os.path.join(tmp, "a.pdf"), "a" * 64)
+            second = self._stamp_with_root(src, os.path.join(tmp, "b.pdf"), "b" * 64)
+            self.assertEqual(first["/BundleRootHash"], "a" * 64)
+            self.assertEqual(second["/BundleRootHash"], "b" * 64)
+            self.assertNotEqual(first["/ProvenanceFingerprint"], second["/ProvenanceFingerprint"],
+                                "the provenance fingerprint does not cover the bundle root it is stamped with")
 
 
 class TestStamperRefusesDiagonalOnContracts(unittest.TestCase):
