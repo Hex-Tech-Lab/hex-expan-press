@@ -1,0 +1,43 @@
+latency-probe/.gitignore
+  s_6625bc67577472::t_3331de6f2650e6 2-3
+latency-probe/public/dashboard.js
+  s_6625bc67577472::t_c9e1fa18d42667 1089-1090
+  s_6625bc67577472::t_4ca1ac630e71fe 976-977
+  s_6625bc67577472::t_b433d79e2dc6be 1105-1106,1109-1110
+  s_6625bc67577472::t_72b1dc26ab9948 1099
+  s_6625bc67577472::t_f755bd1ef86e60 92-95,97
+latency-probe/tests/dashboard-no-webgl.spec.ts
+  s_6625bc67577472::t_0ac3f9e13fb353 1-47,50-58
+  s_6625bc67577472::t_547a929811f6d2 48-49
+latency-probe/package.json
+  s_6625bc67577472::t_1260adc664625b 7-8
+  s_8e2417d915e863::t_8fe63093875842 18
+latency-probe/playwright.config.ts
+  s_6625bc67577472::t_1510df8cd730d6 1-16
+latency-probe/package-lock.json
+  s_6625bc67577472::t_857889ad908562 18,729-744,931-959
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3b73c0c5d88ab897e48d64894926f435b5998db8",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    },
+    "s_8e2417d915e863": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a30c81c3c4c9cd407",
+        "model": "unknown"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
