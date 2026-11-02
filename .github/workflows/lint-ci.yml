@@ -167,7 +167,7 @@ jobs:
           fi
           # Write the list to a file first so a failing git diff stops the job instead of skipping ruff.
           # Diff from the merge-base, so files that only the base branch changed are not linted.
-          # The root-commit base is the empty tree, which has no merge-base with HEAD: use the base itself.
+          # If BASE and HEAD share no history (no merge-base), fall back to diffing against BASE itself.
           MERGE_BASE="$(git merge-base "$BASE" HEAD 2>/dev/null || echo "$BASE")"
           CHANGED_LIST="$(mktemp)"
           git diff -z --name-only --diff-filter=ACMR "$MERGE_BASE" HEAD -- '*.py' > "$CHANGED_LIST"
