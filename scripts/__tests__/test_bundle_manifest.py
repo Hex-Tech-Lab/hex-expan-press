@@ -820,19 +820,97 @@ class TestOverlayStreamsAreLatin1Exact(unittest.TestCase):
         pdf = wm.generate_diagonal_overlay_pdf(612, 792, "CONFIDENTIAL REVIEW COPY - ZOÉ")
         self._assert_length_matches(self, pdf)
 
-    def test_non_latin1_creator_name_stamps_instead_of_crashing(self):
+    def test_overlay_text_refuses_characters_outside_latin1(self):
+        wm = TestStampReadsTheSourceOnce._load_watermarker()
+        self.assertEqual(wm.overlay_text("Zoé"), "Zoé")
+        with self.assertRaises(ValueError):
+            wm.overlay_text("Zoé Ω 漢")
+
+
+class TestStampRefusesWhatItCannotShow(unittest.TestCase):
+    """High: a name outside Latin-1 must never reach the stamp as '?'. The stamp refuses it with a clear error and writes nothing."""
+
+    def test_stamper_refuses_non_latin1_name_in_both_modes_and_writes_nothing(self):
         with tempfile.TemporaryDirectory() as tmp:
             src = os.path.join(tmp, "x.pdf")
             create_dummy_pdf(src, "x")
-            out = os.path.join(tmp, "o.pdf")
-            for mode, purpose in (("perimeter", "c1_data_accuracy"), ("diagonal", "review")):
-                with self.subTest(mode=mode):
+            cases = (
+                ("perimeter", "c1_data_accuracy", "Zoé Ω 漢"),
+                ("diagonal", "review", "Zoé Ω 漢"),
+                # The diagonal text is upper-cased: 'ÿ' is Latin-1 but its upper case 'Ÿ' is not.
+                ("diagonal", "review", "Aÿ"),
+            )
+            for mode, purpose, name in cases:
+                with self.subTest(mode=mode, name=name):
+                    out = os.path.join(tmp, f"o_{mode}_{len(name)}.pdf")
                     res = subprocess.run(
                         [sys.executable, WATERMARK_SCRIPT, "--input", src, "--output", out, "--creator-id", "c",
-                         "--creator-name", "Zoé Ω 漢", "--mode", mode, "--purpose", purpose],
+                         "--creator-name", name, "--mode", mode, "--purpose", purpose],
                         capture_output=True, text=True, env=dict(os.environ, ASSET_SALT=TEST_SALT))
-                    self.assertEqual(res.returncode, 0, f"{mode} stamp crashed: {res.stderr[-300:]}")
-                    self.assertTrue(pypdf.PdfReader(out).metadata.get("/Author", "").startswith("Zo"))
+                    self.assertNotEqual(res.returncode, 0, f"{mode} stamped {name!r} without refusing it")
+                    self.assertIn("Latin-1", res.stderr)
+                    self.assertFalse(os.path.exists(out), "a refused stamp left an output file")
+
+    def test_bundle_with_stamp_and_non_latin1_name_exits_2_and_writes_no_manifest(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            docs = {}
+            for name in ("c1", "c2", "c3", "ebook"):
+                docs[name] = os.path.join(tmp, f"{name}.pdf")
+                create_dummy_pdf(docs[name], f"{name} body")
+            manifest = os.path.join(tmp, "m.json")
+            out_dir = os.path.join(tmp, "out")
+            res = subprocess.run([
+                sys.executable, MANIFEST_SCRIPT, "--c1-doc", docs["c1"], "--c2-doc", docs["c2"],
+                "--c3-doc", docs["c3"], "--ebook-doc", docs["ebook"], "--creator-id", "example-creator",
+                "--creator-name", "Zoé Ω 漢", "--product-id", "500k-playbook", "--output-manifest", manifest,
+                "--output-dir", out_dir, "--stamp-bundle"],
+                capture_output=True, text=True, env=dict(os.environ, ASSET_SALT=TEST_SALT))
+            self.assertEqual(res.returncode, 2, f"expected a usage refusal, got {res.returncode}: {res.stderr[-300:]}")
+            self.assertFalse(os.path.exists(manifest), "a refused stamp left a signed manifest")
+            leftover = sorted(os.listdir(out_dir)) if os.path.isdir(out_dir) else []
+            self.assertEqual([n for n in leftover if n.endswith(".bundle_stamped.pdf")], [])
+
+
+class TestBlankIdentifiersAreRefusedBeforeSigning(unittest.TestCase):
+    """Finding 2: a blank creator-id, creator-name or product-id must stop the run before anything is signed."""
+
+    BLANKS = ("", "   ")
+
+    def test_manifest_refuses_each_blank_identifier_and_writes_no_manifest(self):
+        base = {"--creator-id": "example-creator", "--creator-name": "the owner", "--product-id": "500k-playbook"}
+        for flag in base:
+            for blank in self.BLANKS:
+                with self.subTest(flag=flag, value=blank), tempfile.TemporaryDirectory() as tmp:
+                    docs = {}
+                    for name in ("c1", "c2", "c3", "ebook"):
+                        docs[name] = os.path.join(tmp, f"{name}.pdf")
+                        create_dummy_pdf(docs[name], f"{name} body")
+                    manifest = os.path.join(tmp, "m.json")
+                    argv = [sys.executable, MANIFEST_SCRIPT, "--c1-doc", docs["c1"], "--c2-doc", docs["c2"],
+                            "--c3-doc", docs["c3"], "--ebook-doc", docs["ebook"], "--output-manifest", manifest]
+                    for key, value in base.items():
+                        argv += [key, blank if key == flag else value]
+                    res = subprocess.run(argv, capture_output=True, text=True,
+                                         env=dict(os.environ, ASSET_SALT=TEST_SALT))
+                    self.assertNotEqual(res.returncode, 0, f"a blank {flag} was signed")
+                    self.assertFalse(os.path.exists(manifest), f"a blank {flag} left a manifest")
+
+    def test_stamper_refuses_each_blank_identifier_and_writes_no_output(self):
+        base = {"--creator-id": "c", "--creator-name": "the owner"}
+        with tempfile.TemporaryDirectory() as tmp:
+            src = os.path.join(tmp, "x.pdf")
+            create_dummy_pdf(src, "x")
+            for flag in base:
+                for blank in self.BLANKS:
+                    with self.subTest(flag=flag, value=blank):
+                        out = os.path.join(tmp, f"o_{flag.strip('-')}_{len(blank)}.pdf")
+                        argv = [sys.executable, WATERMARK_SCRIPT, "--input", src, "--output", out]
+                        for key, value in base.items():
+                            argv += [key, blank if key == flag else value]
+                        res = subprocess.run(argv, capture_output=True, text=True,
+                                             env=dict(os.environ, ASSET_SALT=TEST_SALT))
+                        self.assertNotEqual(res.returncode, 0, f"a blank {flag} was stamped and signed")
+                        self.assertFalse(os.path.exists(out), f"a blank {flag} left an output file")
 
 
 class TestBundlePublishIsAtomicAndBounded(unittest.TestCase):
