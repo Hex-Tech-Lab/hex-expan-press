@@ -82,6 +82,18 @@ function median(xs) {
   const a = xs.filter((v) => v != null).sort((x, y) => x - y);
   return a.length ? a[Math.min(a.length - 1, Math.max(0, Math.ceil(0.5 * a.length) - 1))] : null;
 }
+// Largest value, or null when there is none. Used for the "worst" card figures.
+const maxOf = (xs) => {
+  const a = xs.filter((v) => v != null);
+  return a.length ? Math.max(...a) : null;
+};
+// Source names as people know them. An unlisted source shows its stored id.
+const SOURCE_NAME = { "sitespeed.io": "sitespeed.io", webpagetest: "WebPageTest" };
+// Cairo time of the newest reading, so a gap in the readings is visible on the card.
+const lastStamp = (rs) => {
+  const t = maxOf(rs.map((r) => r.runAt));
+  return t == null ? "n/a" : `${CAIRO_DM.format(t)}, ${CAIRO_HM.format(t)}`;
+};
 const STEPS = [50, 100, 200, 250, 500, 1000, 2000, 2500, 5000, 10000, 20000, 25000, 50000, 100000];
 function niceScale(peak) {
   const target = Math.max(peak * 1.08, 100);
@@ -1070,8 +1082,9 @@ function renderCards(d) {
     const ok = rs.reduce((a, s) => a + s.ok, 0);
     const card = document.createElement("article");
     card.className = "stat";
+    const timedOut = rs.length ? rs.reduce((a, s) => a + s.to, 0) : null;
     card.innerHTML = `<h3>${plainLabel(loc)}</h3><p class="small sub">From our server</p>
-      <div class="bigs">${big("First byte", short(median(rs.map((s) => s.ttfb))))}${big("Full load", short(median(rs.map((s) => s.total))))}${big("Worked", pct(ok, n))}</div>
+      <div class="bigs">${big("First byte", short(median(rs.map((s) => s.ttfb))))}${big("Full load", short(median(rs.map((s) => s.total))))}${big("Worked", pct(ok, n))}${big("Worst full load", short(maxOf(rs.map((s) => s.total))))}${big("Timed out", timedOut ?? "n/a")}</div>
       <p class="small foot">${n} checks</p>`;
     host.append(card);
   }
@@ -1087,9 +1100,9 @@ function renderCards(d) {
       const samples = rs.reduce((a, r) => a + r.samples, 0);
       const sub = document.createElement("div");
       sub.className = "src";
-      sub.innerHTML = `<p class="small sub">Real browser, US computers</p>
-        <div class="bigs">${big("First byte", short(median(rs.map((r) => r.metrics.ttfb))))}${big("Full load", short(median(rs.map((r) => r.metrics.pageLoadTime))))}${big("Main content", short(median(rs.map((r) => r.metrics.largestContentfulPaint))))}</div>
-        <p class="small foot">${samples} checks · ${rs.length} report${rs.length === 1 ? "" : "s"}</p>`;
+      sub.innerHTML = `<p class="small sub">Real browser · ${SOURCE_NAME[src] ?? src}</p>
+        <div class="bigs">${big("First byte", short(median(rs.map((r) => r.metrics.ttfb))))}${big("Full load", short(median(rs.map((r) => r.metrics.pageLoadTime))))}${big("Main content", short(median(rs.map((r) => r.metrics.largestContentfulPaint))))}${big("Worst full load", short(maxOf(rs.map((r) => r.metrics.pageLoadTime))))}${big("First paint", short(median(rs.map((r) => r.metrics.firstContentfulPaint))))}</div>
+        <p class="small foot">${samples} checks · last ${lastStamp(rs)} Cairo</p>`;
       card.append(sub);
     }
     host.append(card);
