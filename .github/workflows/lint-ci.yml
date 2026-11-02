@@ -179,4 +179,6 @@ jobs:
           echo "Linting ${#FILES[@]} changed Python file(s)."
           # --isolated: ignore every ruff config file. Otherwise a PR's ruff.toml or pyproject.toml could
           # switch the rules off and pass a file that fails on the base.
-          python -m ruff check --isolated -- "${FILES[@]}"
+          # --ignore-noqa: ignore inline "# noqa" comments too. --isolated alone lets a PR add
+          # "# noqa: F401" to a changed line and pass an unused import.
+          python -m ruff check --isolated --ignore-noqa -- "${FILES[@]}"
