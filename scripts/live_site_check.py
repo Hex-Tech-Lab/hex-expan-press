@@ -24,10 +24,12 @@ from book_config import QA, REPO  # noqa: E402
 
 CFG = json.loads((REPO / "payments/config.duane.json").read_text())  # the site's config, not the book's
 BASE = "https://expanpress.com"
-# Creator hub route, taken from the site config (the slug is not hard-coded here).
+# site_slug is "<handle>/<product_slug>" (migration 20261007000000, ADR 0061). The product page is /books/<site_slug>/
+# and the creator hub is /books/<handle>/, so the hub is derived from the handle. Neither route is hard-coded here.
+PRODUCT_PAGE = f"/books/{CFG['site_slug']}/"
+CREATOR_HUB = f"/books/{CFG['site_slug'].partition('/')[0]}/"
 # Live storefront routes, requested as-is in both modes. The baked c/ HTML is frozen legacy output and is not read.
-CREATOR_HUB = f"/books/{CFG['site_slug']}/"
-PAGES = ("/", CREATOR_HUB)
+PAGES = ("/", PRODUCT_PAGE, CREATOR_HUB)
 PRICE_SLOT = re.compile(r'class="(?:price|card-price)">\$(\d+)')
 TITLE_SLOT = re.compile(r"<h1>(.*?)</h1>|class=\"cover-title\">(.*?)</p>", re.S)
 HEAD_TITLE = re.compile(r"<title>(.*?)(?: — [^<]*)?</title>", re.S)  # " — with Duane" suffix allowed

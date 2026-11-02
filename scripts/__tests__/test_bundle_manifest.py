@@ -1125,5 +1125,111 @@ class TestSaltHelperHasOneHome(unittest.TestCase):
         self.assertEqual(len(definers), 1, f"fingerprint_salt is defined in {definers}")
 
 
+def _file_digest(path: str) -> str:
+    with open(path, "rb") as f:
+        return hashlib.sha256(f.read()).hexdigest()
+
+
+class TestOutputPathsNeverOverwriteSources(unittest.TestCase):
+    """A destination that is a source document, or that another output names, is refused before any write."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        patch = unittest.mock.patch.dict(os.environ, {"ASSET_SALT": TEST_SALT})
+        patch.start()
+        self.addCleanup(patch.stop)
+        spec = importlib.util.spec_from_file_location("generate_bundle_manifest", MANIFEST_SCRIPT)
+        self.gbm = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.gbm)
+        self.src_dir = os.path.join(self.tmp, "src")
+        os.makedirs(self.src_dir)
+        self.docs = {}
+        for key in ("c1", "c2", "c3", "ebook"):
+            path = os.path.join(self.src_dir, f"{key}.pdf")
+            create_dummy_pdf(path, key)
+            self.docs[key] = path
+
+    def _bundle(self, output_manifest, output_dir=None, stamp=False, docs=None):
+        d = docs or self.docs
+        return self.gbm.create_bundle(d["c1"], d["c2"], d["c3"], d["ebook"], "example-creator", "the owner",
+                                      "sample-product", output_manifest, output_dir=output_dir, stamp_bundle=stamp)
+
+    def test_manifest_path_that_is_a_source_is_refused_and_source_is_untouched(self):
+        before = _file_digest(self.docs["c1"])
+        with self.assertRaisesRegex(ValueError, "source document c1"):
+            self._bundle(output_manifest=self.docs["c1"])
+        self.assertEqual(_file_digest(self.docs["c1"]), before, "the source must not be overwritten")
+
+    def test_stamped_output_that_is_another_source_is_refused_before_any_stamp(self):
+        out_dir = os.path.join(self.tmp, "out")
+        os.makedirs(out_dir)
+        # c1's stamped output is out/c1_doc.bundle_stamped.pdf. Make that the ebook source, so a stamp would overwrite it.
+        doc1 = os.path.join(self.src_dir, "doc.pdf")
+        create_dummy_pdf(doc1, "c1 source")
+        clash = os.path.join(out_dir, "c1_doc.bundle_stamped.pdf")
+        create_dummy_pdf(clash, "ebook source")
+        docs = dict(self.docs, c1=doc1, ebook=clash)
+        before = _file_digest(clash)
+        manifest = os.path.join(out_dir, "bundle_manifest.json")
+        with self.assertRaisesRegex(ValueError, "source document ebook"):
+            self._bundle(output_manifest=manifest, output_dir=out_dir, stamp=True, docs=docs)
+        self.assertEqual(_file_digest(clash), before)
+        self.assertFalse(os.path.exists(manifest), "no manifest may be written for a refused call")
+
+    def test_manifest_path_equal_to_a_stamped_output_is_refused(self):
+        out_dir = os.path.join(self.tmp, "out")
+        os.makedirs(out_dir)
+        doc1 = os.path.join(self.src_dir, "doc.pdf")
+        create_dummy_pdf(doc1, "c1 source")
+        docs = dict(self.docs, c1=doc1)
+        with self.assertRaisesRegex(ValueError, "both name"):
+            self._bundle(output_manifest=os.path.join(out_dir, "c1_doc.bundle_stamped.pdf"),
+                         output_dir=out_dir, stamp=True, docs=docs)
+
+    def test_cli_refuses_a_manifest_path_that_is_a_source_with_exit_2(self):
+        before = _file_digest(self.docs["c2"])
+        env = dict(os.environ, ASSET_SALT=TEST_SALT)
+        res = subprocess.run(
+            [sys.executable, MANIFEST_SCRIPT, "--c1-doc", self.docs["c1"], "--c2-doc", self.docs["c2"],
+             "--c3-doc", self.docs["c3"], "--ebook-doc", self.docs["ebook"], "--creator-id", "example-creator",
+             "--creator-name", "the owner", "--product-id", "sample-product", "--output-manifest", self.docs["c2"]],
+            capture_output=True, text=True, env=env,
+        )
+        self.assertEqual(res.returncode, 2, res.stderr)
+        self.assertIn("source document c2", res.stderr)
+        self.assertEqual(_file_digest(self.docs["c2"]), before)
+
+
+class TestSiteCheckRoutes(unittest.TestCase):
+    """live_site_check.py must check the product page and the creator hub, and derive the hub from the handle."""
+
+    def _load_with_config(self, site_slug):
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        os.makedirs(os.path.join(tmp, "payments"))
+        with open(os.path.join(tmp, "payments", "config.duane.json"), "w", encoding="utf-8") as f:
+            json.dump({"site_slug": site_slug, "price_usd": 1, "title": "t", "checkout_mode": "gated"}, f)
+        from pathlib import Path
+        fake_book_config = types.ModuleType("book_config")  # live_site_check imports REPO and QA from it
+        fake_book_config.REPO = Path(tmp)
+        fake_book_config.QA = Path(tmp) / "qa"
+        spec = importlib.util.spec_from_file_location(
+            "live_site_check", os.path.join(REPO_ROOT, "scripts", "live_site_check.py"))
+        module = importlib.util.module_from_spec(spec)
+        with unittest.mock.patch.dict(sys.modules, {"book_config": fake_book_config}):
+            spec.loader.exec_module(module)
+        return module
+
+    def test_pages_are_the_home_page_the_product_page_and_the_creator_hub(self):
+        mod = self._load_with_config("example-creator/sample-book")
+        self.assertEqual(mod.PAGES, ("/", "/books/example-creator/sample-book/", "/books/example-creator/"))
+        self.assertEqual(mod.CREATOR_HUB, "/books/example-creator/")
+
+    def test_hub_is_not_the_product_page(self):
+        mod = self._load_with_config("example-creator/sample-book")
+        self.assertNotEqual(mod.CREATOR_HUB, mod.PRODUCT_PAGE)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -181,6 +181,29 @@ def _hash_and_copy(src: str, dst: str | None) -> str:
     return h.hexdigest()
 
 
+def _same_path(a: str, b: str) -> bool:
+    """True when two paths name one file: the same real path, or hard links to one existing file."""
+    if os.path.realpath(a) == os.path.realpath(b):
+        return True
+    return os.path.exists(a) and os.path.exists(b) and os.path.samefile(a, b)
+
+
+def check_output_paths(sources: dict, outputs: dict) -> None:
+    """Refuses an output that is a source document or that another output names. os.replace would overwrite either.
+
+    Called before any output is written, so a refused call leaves every source and every existing file untouched.
+    """
+    seen = {}
+    for name, dest in outputs.items():
+        for key, src in sources.items():
+            if _same_path(dest, src):
+                raise ValueError(f"{name} output {dest} is the source document {key} ({src}); choose another path")
+        for other, other_dest in seen.items():
+            if _same_path(dest, other_dest):
+                raise ValueError(f"{name} and {other} outputs both name {dest}; choose distinct paths")
+        seen[name] = dest
+
+
 def create_bundle(
     c1_path: str,
     c2_path: str,
@@ -233,6 +256,9 @@ def create_bundle(
                 # Prefix with the artifact key: two sources may share a basename (e.g. */doc.pdf).
                 out_name = f"{key}_{os.path.splitext(os.path.basename(sources[key]))[0]}.bundle_stamped.pdf"
                 stamped_paths[key] = os.path.join(stamp_dir, out_name)
+
+        # Refused before anything reaches a final path: os.replace below would overwrite a source or a sibling output.
+        check_output_paths(sources, {"manifest": output_manifest, **stamped_paths})
 
         manifest_data = {
             "schema_version": "1.0.0",
@@ -402,18 +428,23 @@ def main() -> int:
     if missing:
         parser.error(f"the following arguments are required: {', '.join(missing)}")
 
-    manifest = create_bundle(
-        c1_path=args.c1_doc,
-        c2_path=args.c2_doc,
-        c3_path=args.c3_doc,
-        ebook_path=args.ebook_doc,
-        creator_id=args.creator_id,
-        creator_name=args.creator_name,
-        product_id=args.product_id,
-        output_manifest=args.output_manifest,
-        output_dir=args.output_dir,
-        stamp_bundle=args.stamp_bundle
-    )
+    try:
+        manifest = create_bundle(
+            c1_path=args.c1_doc,
+            c2_path=args.c2_doc,
+            c3_path=args.c3_doc,
+            ebook_path=args.ebook_doc,
+            creator_id=args.creator_id,
+            creator_name=args.creator_name,
+            product_id=args.product_id,
+            output_manifest=args.output_manifest,
+            output_dir=args.output_dir,
+            stamp_bundle=args.stamp_bundle
+        )
+    except ValueError as exc:
+        # A colliding output path is a usage error. Nothing was written.
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 2
 
     print(f"Successfully generated cryptographic Bundle Manifest: {args.output_manifest}")
     print(f"Bundle ID: {manifest['bundle_id']}")
