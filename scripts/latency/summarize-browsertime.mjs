@@ -72,6 +72,12 @@ for (const page of pages) {
       pageLoadTime: round(median(load)),
     },
   };
+  // A metric absent from the trace is not a measurement. Skip the page so the run fails, rather than publish null.
+  const unmeasured = Object.entries(summary.metrics).filter(([, v]) => v === null).map(([k]) => k);
+  if (unmeasured.length > 0) {
+    console.error(`skip: ${id} has no ${unmeasured.join(", ")} sample`);
+    continue;
+  }
   const file = join(outDir, `${id}.json`);
   writeFileSync(file, JSON.stringify(summary));
   written.push(file);

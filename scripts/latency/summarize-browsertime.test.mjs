@@ -55,6 +55,15 @@ test("reads FCP from paintTiming and load time from loadEventEnd", () => {
   assert.equal(s.metrics.pageLoadTime, 500);
 });
 
+test("exits 1 when a metric is missing from the trace instead of publishing null", () => {
+  const pages = URLS.map((u) => page(u, 100));
+  delete pages[0].browserScripts[0].timings.paintTiming;
+  const r = run(pages);
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /has no firstContentfulPaint sample/);
+  assert.match(r.stderr, /missing pages: expanpress-home/);
+});
+
 test("exits 1 and names the page when a URL no longer matches", () => {
   const r = run([page(URLS[0], 100), page("https://expanpress.com/renamed", 100), page(URLS[2], 100)]);
   assert.equal(r.status, 1);
