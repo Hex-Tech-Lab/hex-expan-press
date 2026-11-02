@@ -135,7 +135,7 @@ for (const bad of ["abc", "", "-1", "1.5"]) {
   });
 }
 
-// Timings for one iteration with a custom list of iterations per page.
+// Page whose iterations carry the given timings objects, one per iteration.
 const pageWithTimings = (url, timingList) => ({
   info: { url },
   browserScripts: timingList.map((t) => ({ timings: t })),
@@ -193,7 +193,8 @@ test("rounds each metric to 0.1 ms", () => {
   assert.equal(summaryOf(r, "expanpress-storefront").metrics.ttfb, 100.1);
 });
 
-// Browsertime 28.4.0 reports first contentful paint under paintTiming and has no firstPaint key.
+// Browsertime 28.4.0 sets first-contentful-paint under paintTiming (lib/chrome/webdriver/chromium.js).
+// This fixture omits firstPaint, so the paintTiming fallback is the only source of FCP.
 test("reads first contentful paint from paintTiming when firstPaint is absent", () => {
   const paintTimingOnly = (ttfb) => ({
     ttfb,
