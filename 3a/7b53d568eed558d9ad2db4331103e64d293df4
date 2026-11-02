@@ -1,0 +1,25 @@
+.github/workflows/real-browser-latency.yml
+  s_6625bc67577472::t_6bcb8fb68ec598 101-104
+  s_6625bc67577472::t_dc86308d07ec00 137
+scripts/latency/workflow-invariants.test.mjs
+  s_6625bc67577472::t_5680e761235917 54-57
+  s_6625bc67577472::t_27cdacb20323da 53,58
+  s_6625bc67577472::t_bf3e4f4141a2a0 117-120
+  s_6625bc67577472::t_9d662a0d106347 116
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3a7b53d568eed558d9ad2db4331103e64d293df4",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
