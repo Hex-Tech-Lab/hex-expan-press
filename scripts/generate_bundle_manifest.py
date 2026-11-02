@@ -193,7 +193,7 @@ def _same_path(a: str, b: str) -> bool:
 
 
 def check_output_paths(sources: dict, outputs: dict) -> None:
-    """Refuses an output that is a source document or that another output names. os.replace would overwrite either.
+    """Refuses an output that is a source document or that another output names. Publishing would overwrite either.
 
     Called before any output reaches its final path. A refused call leaves every source and every existing file
     untouched. It can leave an empty output directory behind, because directories are created before this check.
@@ -231,6 +231,63 @@ def refuse_unshowable_stamp_text(creator_name: str, bundle_id: str) -> None:
             ) from None
 
 
+def _collision(dst: str) -> ValueError:
+    return ValueError(f"output already exists, refusing to overwrite: {dst}")
+
+
+def _publish_new(src: str, dst: str) -> os.stat_result:
+    """Gives dst the bytes of src only if dst does not exist. Returns the identity of the file this run created at dst.
+
+    A hard link is created in one step and fails when dst exists, so an existing file is never replaced and no reader
+    sees a partial file. Where the filesystem refuses hard links, dst is created exclusively and filled from src.
+    """
+    # A hard link shares src's inode, so src's identity is dst's. Reading it from dst after the link could pick up
+    # a file another writer put at dst in the meantime.
+    owned = os.stat(src)
+    try:
+        os.link(src, dst)
+    except FileExistsError:
+        raise _collision(dst) from None
+    except OSError:
+        owned = _copy_new(src, dst)
+    return owned
+
+
+def _copy_new(src: str, dst: str) -> os.stat_result:
+    """Fallback for a filesystem without hard links: creates dst exclusively, fills it from src, returns its identity."""
+    try:
+        f_out = open(dst, "xb")
+    except FileExistsError:
+        raise _collision(dst) from None
+    try:
+        with f_out, open(src, "rb") as f_in:
+            shutil.copyfileobj(f_in, f_out, COPY_CHUNK_BYTES)
+            owned = os.fstat(f_out.fileno())
+    except BaseException:
+        # The open above created dst, so this run owns it and removes the partial copy.
+        try:
+            os.remove(dst)
+        except OSError:
+            print(f"WARNING: could not remove partial output {dst}; this run created it", file=sys.stderr)
+        raise
+    return owned
+
+
+def _unpublish(published: list) -> list:
+    """Removes each file this run published, newest first. A path is removed only while it still names the file this
+    run published, so a file another writer put there is left alone. Returns the paths that could not be removed."""
+    leftovers = []
+    for dst, owned in reversed(published):
+        try:
+            if os.path.samestat(os.stat(dst), owned):
+                os.remove(dst)
+        except FileNotFoundError:
+            pass  # already gone
+        except OSError:
+            leftovers.append(dst)
+    return leftovers
+
+
 def create_bundle(
     c1_path: str,
     c2_path: str,
@@ -248,6 +305,7 @@ def create_bundle(
     sources = {"c1": c1_path, "c2": c2_path, "c3": c3_path, "ebook": ebook_path}
     stage_dir = None
     manifest_tmp = None
+    published = []  # (final path, its stat) for each output this run has published, in publish order
     try:
         staged = {}
         stamp_dir = None
@@ -256,7 +314,7 @@ def create_bundle(
                 output_dir = os.path.dirname(os.path.abspath(output_manifest))
             stamp_dir = os.path.abspath(output_dir)
             os.makedirs(stamp_dir, exist_ok=True)
-            # Staging sits beside the final outputs, so publishing them is a rename on the same filesystem.
+            # Staging sits beside the final outputs, so publishing them is a hard link on the same filesystem.
             stage_dir = tempfile.mkdtemp(prefix=".bundle_stage_", dir=stamp_dir)
             staged = {key: os.path.join(stage_dir, f"{key}.pdf") for key in sources}
 
@@ -289,13 +347,14 @@ def create_bundle(
                 out_name = f"{key}_{os.path.splitext(os.path.basename(sources[key]))[0]}.bundle_stamped.pdf"
                 stamped_paths[key] = os.path.join(stamp_dir, out_name)
 
-        # Refused before anything reaches a final path: os.replace below would overwrite a source or a sibling output.
+        # Refused before anything reaches a final path: publishing would overwrite a source or a sibling output.
         check_output_paths(sources, {"manifest": output_manifest, **stamped_paths})
         # A second run into the same directory would silently replace the first bundle's stamped PDFs and leave
         # its manifest pointing at bytes that no longer match. Refuse instead; the caller picks a fresh directory.
+        # This check runs before stamping, so a file created later at one of these paths is refused at publish time.
         existing = [p for p in [output_manifest, *stamped_paths.values()] if os.path.exists(p)]
         if existing:
-            raise ValueError(f"output already exists, refusing to overwrite: {existing[0]}")
+            raise _collision(existing[0])
 
         manifest_data = {
             "schema_version": "1.0.0",
@@ -350,8 +409,8 @@ def create_bundle(
         root_signature = sign_manifest(manifest_data, fingerprint_salt())
         manifest_data[SIGNATURE_FIELD] = root_signature
 
-        # 6. Write the manifest to a temporary file beside its target. It is renamed into place last, once every stamp
-        # has succeeded, so a failed run never leaves a manifest that points at outputs it did not produce.
+        # 6. Write the manifest to a temporary file beside its target. It is published last, once every stamp has
+        # succeeded, so a failed run never leaves a manifest that points at outputs it did not produce.
         manifest_dir = os.path.dirname(os.path.abspath(output_manifest))
         os.makedirs(manifest_dir, exist_ok=True)
         fd, manifest_tmp = tempfile.mkstemp(prefix=".manifest_", suffix=".tmp", dir=manifest_dir)
@@ -398,10 +457,15 @@ def create_bundle(
                     raise RuntimeError(f"Failed to stamp {key} ({sources[key]}): {res.stderr}")
                 stamped_staging[key] = stamp_out
             for key, stamp_out in stamped_staging.items():
-                os.replace(stamp_out, stamped_paths[key])
+                published.append((stamped_paths[key], _publish_new(stamp_out, stamped_paths[key])))
 
-        os.replace(manifest_tmp, output_manifest)
-        manifest_tmp = None
+        published.append((output_manifest, _publish_new(manifest_tmp, output_manifest)))
+    except BaseException:
+        # A file that appeared at an output path during stamping fails the run here. Remove what this run published
+        # so no partial bundle remains. Files this run did not create are never touched.
+        for leftover in _unpublish(published):
+            print(f"WARNING: could not remove {leftover}; this run published it and it remains", file=sys.stderr)
+        raise
     finally:
         if stage_dir:
             shutil.rmtree(stage_dir, ignore_errors=True)

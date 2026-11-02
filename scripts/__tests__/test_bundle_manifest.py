@@ -11,10 +11,13 @@ Tests:
    A stamped file's page bytes are not hashed, so changing them alone is not detected.
 """
 
+import contextlib
 import copy
 import datetime
+import errno
 import hashlib
 import importlib.util
+import io
 import json
 import os
 import re
@@ -1365,3 +1368,153 @@ class TestAliasAndRepeatRunOverwrites(unittest.TestCase):
             gbm.create_bundle(*args, output_dir=out_dir, stamp_bundle=True)
             with self.assertRaisesRegex(ValueError, "already exists"):
                 gbm.create_bundle(*args, output_dir=out_dir, stamp_bundle=True)
+
+
+class TestPublishNeverOverwritesAFileCreatedDuringTheRun(unittest.TestCase):
+    """The existence check runs before stamping, so a second writer can create an output path during the stamping
+    window. Publishing must refuse to replace that file, fail the run, and remove only what this run published."""
+
+    INJECTED = b"written by a second writer during the stamping window"
+
+    @staticmethod
+    def _load_generator():
+        spec = importlib.util.spec_from_file_location("generate_bundle_manifest", MANIFEST_SCRIPT)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.gbm = self._load_generator()
+        self.docs = {}
+        for name in ("c1", "c2", "c3", "ebook"):
+            self.docs[name] = os.path.join(self.tmp, f"{name}.pdf")
+            create_dummy_pdf(self.docs[name], f"{name} body")
+        self.out_dir = os.path.join(self.tmp, "out")
+        self.manifest = os.path.join(self.out_dir, "bundle_manifest.json")
+        self.real_run = subprocess.run
+
+    def _stamped_path(self, key):
+        return os.path.join(self.out_dir, f"{key}_{key}.bundle_stamped.pdf")
+
+    def _injecting_run(self, stamp_number, path):
+        """Runs each subprocess as usual. When the stamp_number-th stamp returns, a second writer creates path."""
+        calls = {"n": 0}
+
+        def run(cmd, *args, **kwargs):
+            result = self.real_run(cmd, *args, **kwargs)
+            if os.path.basename(str(cmd[1])) == "watermark_pdf.py":
+                calls["n"] += 1
+                if calls["n"] == stamp_number:
+                    with open(path, "wb") as f:
+                        f.write(self.INJECTED)
+            return result
+
+        return run
+
+    def _create(self):
+        return self.gbm.create_bundle(self.docs["c1"], self.docs["c2"], self.docs["c3"], self.docs["ebook"],
+                                      "example-creator", "the owner", "500k-playbook", self.manifest,
+                                      output_dir=self.out_dir, stamp_bundle=True)
+
+    def test_file_created_at_a_stamped_path_mid_run_fails_the_run_and_is_kept(self):
+        injected = self._stamped_path("c2")
+        argv = ["generate_bundle_manifest.py", "--c1-doc", self.docs["c1"], "--c2-doc", self.docs["c2"],
+                "--c3-doc", self.docs["c3"], "--ebook-doc", self.docs["ebook"], "--creator-id", "example-creator",
+                "--creator-name", "the owner", "--product-id", "500k-playbook",
+                "--output-manifest", self.manifest, "--output-dir", self.out_dir, "--stamp-bundle"]
+        with unittest.mock.patch.object(self.gbm.subprocess, "run", side_effect=self._injecting_run(2, injected)), \
+                unittest.mock.patch.object(sys, "argv", argv), contextlib.redirect_stderr(io.StringIO()):
+            status = self.gbm.main()
+        self.assertNotEqual(status, 0, "a run that found a file at an output path it was publishing must not succeed")
+        with open(injected, "rb") as f:
+            self.assertEqual(f.read(), self.INJECTED, "the second writer's file was overwritten")
+        self.assertFalse(os.path.exists(self.manifest), "a failed run wrote a manifest")
+
+    def test_manifest_created_mid_run_fails_the_run_and_leaves_no_stamped_output(self):
+        with unittest.mock.patch.object(self.gbm.subprocess, "run", side_effect=self._injecting_run(1, self.manifest)):
+            with self.assertRaisesRegex(ValueError, "already exists"):
+                self._create()
+        with open(self.manifest, "rb") as f:
+            self.assertEqual(f.read(), self.INJECTED, "the second writer's manifest was overwritten")
+        for key in ("c1", "c2", "c3", "ebook"):
+            self.assertFalse(os.path.exists(self._stamped_path(key)),
+                             f"a failed run left its {key} stamped output at the final path")
+
+    def test_failed_publish_leaves_no_partial_bundle_in_the_output_directory(self):
+        # The ebook output is published last among the stamped outputs, so c1 to c3 are already published when it collides.
+        injected = self._stamped_path("ebook")
+        with unittest.mock.patch.object(self.gbm.subprocess, "run", side_effect=self._injecting_run(4, injected)):
+            with self.assertRaisesRegex(ValueError, "already exists"):
+                self._create()
+        self.assertEqual(sorted(os.listdir(self.out_dir)), [os.path.basename(injected)],
+                         "a failed publish left files other than the one the second writer created")
+        with open(injected, "rb") as f:
+            self.assertEqual(f.read(), self.INJECTED)
+
+    def test_collision_is_refused_where_hard_links_are_unavailable(self):
+        injected = self._stamped_path("c2")
+        no_links = unittest.mock.patch.object(os, "link", side_effect=OSError(errno.EPERM, "hard links refused"))
+        with no_links, unittest.mock.patch.object(self.gbm.subprocess, "run", side_effect=self._injecting_run(2, injected)):
+            with self.assertRaisesRegex(ValueError, "already exists"):
+                self._create()
+        with open(injected, "rb") as f:
+            self.assertEqual(f.read(), self.INJECTED)
+        self.assertEqual(sorted(os.listdir(self.out_dir)), [os.path.basename(injected)],
+                         "the copy fallback left a partial output behind")
+
+    def test_bundle_is_published_where_hard_links_are_unavailable(self):
+        with unittest.mock.patch.object(os, "link", side_effect=OSError(errno.EPERM, "hard links refused")):
+            self._create()
+        stamped_paths = [self._stamped_path(key) for key in ("c1", "c2", "c3", "ebook")]
+        for path in stamped_paths:
+            self.assertTrue(os.path.isfile(path), f"stamped output missing: {path}")
+        self.assertTrue(os.path.isfile(self.manifest))
+        with open(self.manifest, encoding="utf-8") as f:
+            stamped = json.load(f)["stamped_artifacts"]
+        self.assertEqual(sorted(stamped.values()), sorted(stamped_paths))
+
+
+class TestRollbackRemovesOnlyWhatItPublished(unittest.TestCase):
+    """Publishing records the identity of the file it created. Rollback removes only that file, and reports any it cannot remove."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        spec = importlib.util.spec_from_file_location("generate_bundle_manifest", MANIFEST_SCRIPT)
+        self.gbm = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.gbm)
+        self.src = os.path.join(self.tmp, "staged.pdf")
+        self.dst = os.path.join(self.tmp, "final.pdf")
+        with open(self.src, "wb") as f:
+            f.write(b"this run's bytes")
+
+    def test_rollback_does_not_remove_a_file_another_writer_put_at_the_path_right_after_the_link(self):
+        real_link = os.link
+
+        def link_then_other_writer(a, b, *args, **kwargs):
+            real_link(a, b, *args, **kwargs)
+            other = os.path.join(self.tmp, "other.pdf")
+            with open(other, "wb") as f:
+                f.write(b"another writer")
+            os.replace(other, b)
+
+        with unittest.mock.patch.object(os, "link", side_effect=link_then_other_writer):
+            owned = self.gbm._publish_new(self.src, self.dst)
+        self.assertEqual(self.gbm._unpublish([(self.dst, owned)]), [])
+        with open(self.dst, "rb") as f:
+            self.assertEqual(f.read(), b"another writer", "rollback removed a file this run did not publish")
+
+    def test_failed_copy_fallback_removes_the_partial_copy_it_created(self):
+        with unittest.mock.patch.object(os, "link", side_effect=OSError(errno.EPERM, "hard links refused")), \
+                unittest.mock.patch.object(self.gbm.shutil, "copyfileobj", side_effect=OSError(errno.EIO, "disk")):
+            with self.assertRaises(OSError):
+                self.gbm._publish_new(self.src, self.dst)
+        self.assertFalse(os.path.exists(self.dst), "the failed copy left a partial output behind")
+
+    def test_rollback_reports_a_published_file_it_cannot_remove(self):
+        owned = self.gbm._publish_new(self.src, self.dst)
+        with unittest.mock.patch.object(os, "remove", side_effect=PermissionError(errno.EACCES, "denied")):
+            leftovers = self.gbm._unpublish([(self.dst, owned)])
+        self.assertEqual(leftovers, [self.dst], "a leftover this run published must be reported, not dropped silently")
