@@ -835,6 +835,83 @@ class TestOverlayStreamsAreLatin1Exact(unittest.TestCase):
                     self.assertTrue(pypdf.PdfReader(out).metadata.get("/Author", "").startswith("Zo"))
 
 
+class TestBundlePublishIsAtomicAndBounded(unittest.TestCase):
+    """Medium: a failed run publishes no partial bundle, stamped paths are absolute, and sources are not held in memory."""
+
+    @staticmethod
+    def _load_generator():
+        spec = importlib.util.spec_from_file_location("generate_bundle_manifest", MANIFEST_SCRIPT)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+
+    def _docs(self, tmp):
+        docs = {}
+        for name in ("c1", "c2", "c3", "ebook"):
+            docs[name] = os.path.join(tmp, f"{name}.pdf")
+            create_dummy_pdf(docs[name], f"{name} body")
+        return docs
+
+    def test_failed_fourth_stamp_publishes_no_stamped_outputs(self):
+        gbm = self._load_generator()
+        real_run = subprocess.run
+        calls = {"stamps": 0}
+
+        def fail_on_fourth_stamp(cmd, *args, **kwargs):
+            if os.path.basename(str(cmd[1])) == "watermark_pdf.py":
+                calls["stamps"] += 1
+                if calls["stamps"] == 4:
+                    return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="ebook stamp boom")
+            return real_run(cmd, *args, **kwargs)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            docs = self._docs(tmp)
+            out_dir = os.path.join(tmp, "out")
+            manifest = os.path.join(tmp, "m.json")
+            with unittest.mock.patch.object(gbm.subprocess, "run", side_effect=fail_on_fourth_stamp):
+                with self.assertRaisesRegex(RuntimeError, "Failed to stamp ebook"):
+                    gbm.create_bundle(docs["c1"], docs["c2"], docs["c3"], docs["ebook"], "example-creator",
+                                      "the owner", "500k-playbook", manifest, output_dir=out_dir, stamp_bundle=True)
+            self.assertEqual(calls["stamps"], 4, "the failure was not on the fourth stamp")
+            published = sorted(n for n in os.listdir(out_dir) if n.endswith(".bundle_stamped.pdf"))
+            self.assertEqual(published, [], f"a failed run left stamped outputs at their final paths: {published}")
+            self.assertFalse(os.path.exists(manifest))
+
+    def test_relative_output_dir_yields_absolute_stamped_paths(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            docs = self._docs(tmp)
+            res = subprocess.run([
+                sys.executable, MANIFEST_SCRIPT, "--c1-doc", docs["c1"], "--c2-doc", docs["c2"], "--c3-doc", docs["c3"],
+                "--ebook-doc", docs["ebook"], "--creator-id", "c", "--creator-name", "n", "--product-id", "p",
+                "--output-manifest", "m.json", "--output-dir", "out", "--stamp-bundle"],
+                capture_output=True, text=True, cwd=tmp)
+            self.assertEqual(res.returncode, 0, res.stderr)
+            with open(os.path.join(tmp, "m.json"), encoding="utf-8") as f:
+                stamped = json.load(f)["stamped_artifacts"]
+            self.assertEqual(len(stamped), 4)
+            for key, path in stamped.items():
+                self.assertTrue(os.path.isabs(path), f"{key} stamped path is relative: {path}")
+
+    def test_hashing_large_sources_does_not_hold_them_in_memory(self):
+        import tracemalloc
+        gbm = self._load_generator()
+        size = 8 * 1024 * 1024
+        with tempfile.TemporaryDirectory() as tmp:
+            docs = {}
+            for name in ("c1", "c2", "c3", "ebook"):
+                docs[name] = os.path.join(tmp, f"{name}.pdf")
+                with open(docs[name], "wb") as f:
+                    f.write(b"x" * size)
+            tracemalloc.start()
+            try:
+                gbm.create_bundle(docs["c1"], docs["c2"], docs["c3"], docs["ebook"], "c", "n", "p",
+                                  os.path.join(tmp, "m.json"))
+                _, peak = tracemalloc.get_traced_memory()
+            finally:
+                tracemalloc.stop()
+        self.assertLess(peak, 4 * 1024 * 1024, f"peak {peak} bytes: the four {size}-byte sources were held whole")
+
+
 class TestStamperRefusesDiagonalOnContracts(unittest.TestCase):
     """P2: diagonal stamping is for media only. The stamper refuses it on any contract document."""
 

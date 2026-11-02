@@ -31,11 +31,13 @@ Usage:
 """
 
 import argparse
+import contextlib
 import datetime
 import hashlib
 import hmac
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -46,14 +48,6 @@ _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 if _SCRIPT_DIR not in sys.path:
     sys.path.insert(0, _SCRIPT_DIR)
 from bundle_salt import fingerprint_salt  # noqa: E402
-
-
-def read_source(filepath: str) -> bytes:
-    """Reads a bundle document once. The digest and the stamped copy are both made from these exact bytes."""
-    if not os.path.exists(filepath):
-        raise FileNotFoundError(f"Bundle document not found: {filepath}")
-    with open(filepath, "rb") as f:
-        return f.read()
 
 
 SIGNATURE_FIELD = "bundle_root_signature"
@@ -169,6 +163,22 @@ def referenced_file_problems(manifest: dict) -> list:
     return problems
 
 
+COPY_CHUNK_BYTES = 1 << 16
+
+
+def _hash_and_copy(src: str, dst: str | None) -> str:
+    """Streams one source once: hashes it and, when dst is given, writes the same bytes there. Memory use is one chunk."""
+    if not os.path.exists(src):
+        raise FileNotFoundError(f"Bundle document not found: {src}")
+    h = hashlib.sha256()
+    with open(src, "rb") as f_in, (open(dst, "wb") if dst else contextlib.nullcontext()) as f_out:
+        for chunk in iter(lambda: f_in.read(COPY_CHUNK_BYTES), b""):
+            h.update(chunk)
+            if f_out is not None:
+                f_out.write(chunk)
+    return h.hexdigest()
+
+
 def create_bundle(
     c1_path: str,
     c2_path: str,
@@ -181,106 +191,120 @@ def create_bundle(
     output_dir: str = None,
     stamp_bundle: bool = False
 ) -> dict:
-    # 1. Read each document exactly once and hash that buffer. Stamping later uses the same buffer,
-    # so the signed digest always describes the bytes that get stamped.
     sources = {"c1": c1_path, "c2": c2_path, "c3": c3_path, "ebook": ebook_path}
-    buffers = {key: read_source(path) for key, path in sources.items()}
-    digests = {key: hashlib.sha256(data).hexdigest() for key, data in buffers.items()}
-    c1_hash, c2_hash, c3_hash, ebook_hash = digests["c1"], digests["c2"], digests["c3"], digests["ebook"]
+    stage_dir = None
+    manifest_tmp = None
+    try:
+        staged = {}
+        stamp_dir = None
+        if stamp_bundle:
+            if not output_dir:
+                output_dir = os.path.dirname(os.path.abspath(output_manifest))
+            stamp_dir = os.path.abspath(output_dir)
+            os.makedirs(stamp_dir, exist_ok=True)
+            # Staging sits beside the final outputs, so publishing them is a rename on the same filesystem.
+            stage_dir = tempfile.mkdtemp(prefix=".bundle_stage_", dir=stamp_dir)
+            staged = {key: os.path.join(stage_dir, f"{key}.pdf") for key in sources}
 
-    # 2. Derive deterministic Bundle Identifier
-    timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
-    date_slug = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d")
-    bundle_entropy = f"{creator_id}:{product_id}:{ebook_hash[:16]}"
-    bundle_hash = hashlib.sha256(bundle_entropy.encode("utf-8")).hexdigest()[:8].upper()
-    bundle_id = f"BND-{date_slug}-{creator_id[:10].upper()}-{bundle_hash}"
+        # 1. Stream each source once. The digest is taken from the same bytes that are staged for stamping, so the
+        # signed digest always describes the bytes that get stamped. No source is held in memory whole.
+        digests = {key: _hash_and_copy(path, staged.get(key)) for key, path in sources.items()}
+        c1_hash, c2_hash, c3_hash, ebook_hash = digests["c1"], digests["c2"], digests["c3"], digests["ebook"]
 
-    # 3. Byte identity only. This says the C2 file and the e-book file are the same bytes. It is not the launch
-    # gate: the gate compares the active C2 document_sha256 with the product's release_sha256 and needs the active
-    # C1, C2 and C3 consents, none of which this script can read. So the generator never signs a gate result.
-    matches_ebook_hash = (c2_hash == ebook_hash)
+        # 2. Derive deterministic Bundle Identifier
+        timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
+        date_slug = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d")
+        bundle_entropy = f"{creator_id}:{product_id}:{ebook_hash[:16]}"
+        bundle_hash = hashlib.sha256(bundle_entropy.encode("utf-8")).hexdigest()[:8].upper()
+        bundle_id = f"BND-{date_slug}-{creator_id[:10].upper()}-{bundle_hash}"
 
-    # 4. Plan the stamped outputs now. Their paths are deterministic, so the signed payload can name them
-    # before any stamping runs.
-    stamped_paths = {}
-    if stamp_bundle:
-        if not output_dir:
-            output_dir = os.path.dirname(os.path.abspath(output_manifest))
-        os.makedirs(output_dir, exist_ok=True)
-        for key, _mode, _purpose in STAMP_TASKS:
-            # Prefix with the artifact key: two sources may share a basename (e.g. */doc.pdf).
-            out_name = f"{key}_{os.path.splitext(os.path.basename(sources[key]))[0]}.bundle_stamped.pdf"
-            stamped_paths[key] = os.path.join(output_dir, out_name)
+        # 3. Byte identity only. This says the C2 file and the e-book file are the same bytes. It is not the launch
+        # gate: the gate compares the active C2 document_sha256 with the product's release_sha256 and needs the active
+        # C1, C2 and C3 consents, none of which this script can read. So the generator never signs a gate result.
+        matches_ebook_hash = (c2_hash == ebook_hash)
 
-    manifest_data = {
-        "schema_version": "1.0.0",
-        "bundle_id": bundle_id,
-        "created_at": timestamp,
-        "creator": {
-            "id": creator_id,
-            "legal_name": creator_name
-        },
-        "product_id": product_id,
-        "artifacts": {
-            "c1_data_accuracy": {
-                "role": "DATA_ACCURACY_CONSENT",
-                "source_path": os.path.abspath(c1_path),
-                "sha256": c1_hash,
-                "stamping_mode": "perimeter"
+        # 4. Plan the stamped outputs now. Their paths are deterministic and absolute, so the signed payload can
+        # name them and a consumer finds them whatever its working directory.
+        stamped_paths = {}
+        if stamp_bundle:
+            for key, _mode, _purpose in STAMP_TASKS:
+                # Prefix with the artifact key: two sources may share a basename (e.g. */doc.pdf).
+                out_name = f"{key}_{os.path.splitext(os.path.basename(sources[key]))[0]}.bundle_stamped.pdf"
+                stamped_paths[key] = os.path.join(stamp_dir, out_name)
+
+        manifest_data = {
+            "schema_version": "1.0.0",
+            "bundle_id": bundle_id,
+            "created_at": timestamp,
+            "creator": {
+                "id": creator_id,
+                "legal_name": creator_name
             },
-            "c2_release_approval": {
-                "role": "RELEASE_APPROVAL_CONSENT",
-                "source_path": os.path.abspath(c2_path),
-                "sha256": c2_hash,
-                "stamping_mode": "perimeter",
-                "identical_to_asset_binary": matches_ebook_hash
+            "product_id": product_id,
+            "artifacts": {
+                "c1_data_accuracy": {
+                    "role": "DATA_ACCURACY_CONSENT",
+                    "source_path": os.path.abspath(c1_path),
+                    "sha256": c1_hash,
+                    "stamping_mode": "perimeter"
+                },
+                "c2_release_approval": {
+                    "role": "RELEASE_APPROVAL_CONSENT",
+                    "source_path": os.path.abspath(c2_path),
+                    "sha256": c2_hash,
+                    "stamping_mode": "perimeter",
+                    "identical_to_asset_binary": matches_ebook_hash
+                },
+                "c3_publisher_agreement": {
+                    "role": "PUBLISHER_AGREEMENT_ESIGN",
+                    "source_path": os.path.abspath(c3_path),
+                    "sha256": c3_hash,
+                    "stamping_mode": "perimeter"
+                },
+                "ebook_asset": {
+                    "role": "PUBLISHED_MEDIA_ASSET",
+                    "source_path": os.path.abspath(ebook_path),
+                    "sha256": ebook_hash,
+                    "stamping_mode": "diagonal"
+                }
             },
-            "c3_publisher_agreement": {
-                "role": "PUBLISHER_AGREEMENT_ESIGN",
-                "source_path": os.path.abspath(c3_path),
-                "sha256": c3_hash,
-                "stamping_mode": "perimeter"
+            # The two True values are fixed by STAMP_TASKS. The two False values are claims this script does not
+            # compute: it never checks page content for obscured legal text, and it never runs the launch gate.
+            "security_policy": {
+                "watermark_diagonal_restricted_to_assets": True,
+                "contracts_stamped_with_perimeter_only": True,
+                "zero_obscured_legal_text": False,
+                "launch_gate_verified": False
             },
-            "ebook_asset": {
-                "role": "PUBLISHED_MEDIA_ASSET",
-                "source_path": os.path.abspath(ebook_path),
-                "sha256": ebook_hash,
-                "stamping_mode": "diagonal"
-            }
-        },
-        # The two True values are fixed by STAMP_TASKS. The two False values are claims this script does not
-        # compute: it never checks page content for obscured legal text, and it never runs the launch gate.
-        "security_policy": {
-            "watermark_diagonal_restricted_to_assets": True,
-            "contracts_stamped_with_perimeter_only": True,
-            "zero_obscured_legal_text": False,
-            "launch_gate_verified": False
-        },
-        "status": STATUS_PENDING_LAUNCH_GATE,
-        "stamped_artifacts": stamped_paths,
-    }
+            "status": STATUS_PENDING_LAUNCH_GATE,
+            "stamped_artifacts": stamped_paths,
+        }
 
-    # 5. Root signature over every field above (stamped_artifacts included), canonically serialized.
-    root_signature = sign_manifest(manifest_data, fingerprint_salt())
-    manifest_data[SIGNATURE_FIELD] = root_signature
+        # 5. Root signature over every field above (stamped_artifacts included), canonically serialized.
+        root_signature = sign_manifest(manifest_data, fingerprint_salt())
+        manifest_data[SIGNATURE_FIELD] = root_signature
 
-    # 6. Stamping pass using scripts/watermark_pdf.py, carrying the bundle id and root signature
-    if stamp_bundle:
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        watermarker = os.path.join(script_dir, "watermark_pdf.py")
+        # 6. Write the manifest to a temporary file beside its target. It is renamed into place last, once every stamp
+        # has succeeded, so a failed run never leaves a manifest that points at outputs it did not produce.
+        manifest_dir = os.path.dirname(os.path.abspath(output_manifest))
+        os.makedirs(manifest_dir, exist_ok=True)
+        fd, manifest_tmp = tempfile.mkstemp(prefix=".manifest_", suffix=".tmp", dir=manifest_dir)
+        with os.fdopen(fd, "w", encoding="utf-8") as f_out:
+            json.dump(manifest_data, f_out, indent=2)
 
-        # Each document is stamped from a private copy written from the buffer that was hashed,
-        # never from the source path, which may have changed since it was read.
-        with tempfile.TemporaryDirectory() as staging:
+        # 7. Stamping pass using scripts/watermark_pdf.py, carrying the bundle id and root signature. Each stamp writes
+        # into the staging directory; nothing reaches a final path until all four have succeeded.
+        if stamp_bundle:
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            watermarker = os.path.join(script_dir, "watermark_pdf.py")
+            stamped_staging = {}
             for key, mode, purpose in STAMP_TASKS:
-                staged_path = os.path.join(staging, f"{key}.pdf")
-                with open(staged_path, "wb") as f_stage:
-                    f_stage.write(buffers[key])
+                stamp_out = os.path.join(stage_dir, f"{key}.stamped.pdf")
                 cmd = [
                     sys.executable,
                     watermarker,
-                    "--input", staged_path,
-                    "--output", stamped_paths[key],
+                    "--input", staged[key],
+                    "--output", stamp_out,
                     "--creator-id", creator_id,
                     "--creator-name", creator_name,
                     "--mode", mode,
@@ -291,11 +315,17 @@ def create_bundle(
                 res = subprocess.run(cmd, capture_output=True, text=True)
                 if res.returncode != 0:
                     raise RuntimeError(f"Failed to stamp {key} ({sources[key]}): {res.stderr}")
+                stamped_staging[key] = stamp_out
+            for key, stamp_out in stamped_staging.items():
+                os.replace(stamp_out, stamped_paths[key])
 
-    # 7. Write manifest
-    os.makedirs(os.path.dirname(os.path.abspath(output_manifest)), exist_ok=True)
-    with open(output_manifest, "w", encoding="utf-8") as f_out:
-        json.dump(manifest_data, f_out, indent=2)
+        os.replace(manifest_tmp, output_manifest)
+        manifest_tmp = None
+    finally:
+        if stage_dir:
+            shutil.rmtree(stage_dir, ignore_errors=True)
+        if manifest_tmp and os.path.exists(manifest_tmp):
+            os.remove(manifest_tmp)
 
     return manifest_data
 
