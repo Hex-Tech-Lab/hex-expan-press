@@ -32,7 +32,21 @@ jobs:
       - run: pnpm --dir web exec tsc --noEmit
       - run: pnpm test
       # Latency summarizer tests use node:test, not vitest (vitest.config.ts globs only .ts).
-      - run: node --test scripts/latency/summarize-browsertime.test.mjs
+      # A file with no test() calls still exits 0, so require at least 22 passing tests and none failing.
+      - name: Latency summarizer tests (at least 22 passing)
+        run: |
+          min=22
+          tap="$RUNNER_TEMP/summarizer-tap.txt"
+          status=0
+          node --test --test-reporter=tap scripts/latency/summarize-browsertime.test.mjs > "$tap" || status=$?
+          cat "$tap"
+          pass=$(sed -n 's/^# pass \([0-9]*\)$/\1/p' "$tap" | tail -n1)
+          fail=$(sed -n 's/^# fail \([0-9]*\)$/\1/p' "$tap" | tail -n1)
+          echo "summarizer tests: pass=${pass:-none} fail=${fail:-none} exit=$status (minimum $min)"
+          if [ "$status" -ne 0 ] || [ "${fail:-1}" != "0" ] || [ "${pass:-0}" -lt "$min" ]; then
+            echo "::error::latency summarizer test gate failed"
+            exit 1
+          fi
       - run: pnpm --dir web run build
         env:
           NEXT_TELEMETRY_DISABLED: 1
