@@ -1442,6 +1442,24 @@ class TestPublishNeverOverwritesAFileCreatedDuringTheRun(unittest.TestCase):
             self.assertFalse(os.path.exists(self._stamped_path(key)),
                              f"a failed run left its {key} stamped output at the final path")
 
+    def test_rollback_warns_about_a_published_output_it_cannot_remove(self):
+        stuck = self._stamped_path("c1")
+        real_remove = os.remove
+
+        def remove(path, *args, **kwargs):
+            if os.path.abspath(str(path)) == stuck:
+                raise PermissionError(errno.EACCES, "denied")
+            return real_remove(path, *args, **kwargs)
+
+        err = io.StringIO()
+        with unittest.mock.patch.object(self.gbm.subprocess, "run", side_effect=self._injecting_run(1, self.manifest)), \
+                unittest.mock.patch.object(os, "remove", side_effect=remove), contextlib.redirect_stderr(err):
+            with self.assertRaisesRegex(ValueError, "already exists"):
+                self._create()
+        self.assertIn(f"WARNING: could not remove {stuck}", err.getvalue(),
+                      "a published output the rollback could not remove was dropped silently")
+        self.assertTrue(os.path.exists(stuck), "the path the warning names must still exist")
+
     def test_failed_publish_leaves_no_partial_bundle_in_the_output_directory(self):
         # The ebook output is published last among the stamped outputs, so c1 to c3 are already published when it collides.
         injected = self._stamped_path("ebook")
