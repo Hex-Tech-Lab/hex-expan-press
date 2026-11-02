@@ -2,6 +2,15 @@
 # gitleaks checks the new commits for secrets (values redacted), and ruff checks only the Python
 # files this change touches (the older scripts/ tree has existing findings this change does not own).
 # Every check fails the run on a finding. No continue-on-error anywhere.
+#
+# Limits, stated so this gate is not read as more than it is:
+# - Secrets already in history are not covered. The gitleaks job scans only the commits in the PR or
+#   push range. The history audit is tracked separately.
+# - This workflow file is PR-controlled for the PR that adds it, so a PR can change these checks.
+#   The fix is a base-controlled workflow on pull_request_target that runs no PR code, plus a required
+#   branch-protection check. That is a follow-up. This file becomes trusted only after it lands on master.
+# - ruff checks the whole of each changed .py file, so older violations in a file this PR touches can
+#   still fail the job. Files this PR does not touch are not linted.
 name: lint-ci
 on:
   pull_request:
@@ -56,24 +65,53 @@ jobs:
 
       - name: Scan new commits for secrets
         # Event data goes through env, never interpolated into the script.
+        # The config comes from the trust ref, never from this checkout. The trust ref is the base
+        # commit for a PR and the previous tip for a push. Config discovery is off (--config is set),
+        # so a PR's .gitleaks.toml has no effect. A PR's .gitleaksignore has no effect (its path is
+        # replaced by an empty file). Inline gitleaks:allow comments are ignored.
+        # Limit: this step is PR-controlled for the PR that adds it. See the header.
         env:
           EVENT_NAME: ${{ github.event_name }}
           BASE_REF: ${{ github.base_ref }}
           BEFORE_SHA: ${{ github.event.before }}
         run: |
           set -euo pipefail
+          TRUST_REF=""
           if [ "$EVENT_NAME" = "pull_request" ]; then
+            git rev-parse --verify -q "origin/${BASE_REF}" >/dev/null \
+              || { echo "::error::origin/${BASE_REF} is missing; cannot read the trusted config"; exit 1; }
+            TRUST_REF="origin/${BASE_REF}"
             LOG_OPTS="origin/${BASE_REF}..HEAD"
           elif git cat-file -e "$BEFORE_SHA" 2>/dev/null; then
+            TRUST_REF="$BEFORE_SHA"
             LOG_OPTS="${BEFORE_SHA}..HEAD"
           else
             # New branch or force-push with no usable 'before'. Do not use "HEAD --not --remotes=origin":
             # in this checkout origin/<branch> already points at HEAD, so that range is empty and scans nothing.
-            # Scan the full history reachable from HEAD instead (fails closed).
+            # Scan the full history reachable from HEAD instead (fails closed). No trust ref, so default rules.
             LOG_OPTS="HEAD"
           fi
+
+          CONFIG="${RUNNER_TEMP}/gitleaks-trusted.toml"
+          IGNORE="${RUNNER_TEMP}/gitleaks-empty.ignore"
+          : > "$IGNORE"
+          if [ -n "$TRUST_REF" ] && git cat-file -e "${TRUST_REF}:.github/security/gitleaks.toml" 2>/dev/null; then
+            # Present on the trust ref: read it from there. A failed read stops the job (set -e). No fallback.
+            git show "${TRUST_REF}:.github/security/gitleaks.toml" > "$CONFIG"
+            [ -s "$CONFIG" ] || { echo "::error::trusted gitleaks config is empty"; exit 1; }
+            echo "gitleaks config: .github/security/gitleaks.toml from ${TRUST_REF}"
+          else
+            # Not on the trust ref: gitleaks default rules. --config below still turns discovery off.
+            printf '[extend]\nuseDefault = true\n' > "$CONFIG"
+            echo "gitleaks config: default rules (no trusted config on ${TRUST_REF:-no trust ref})"
+          fi
+
           echo "gitleaks log range: ${LOG_OPTS}"
-          gitleaks git --redact --no-banner --log-opts="${LOG_OPTS}" .
+          gitleaks git --redact --no-banner \
+            --config "$CONFIG" \
+            --gitleaks-ignore-path "$IGNORE" \
+            --ignore-gitleaks-allow \
+            --log-opts="${LOG_OPTS}" .
 
   ruff:
     runs-on: ubuntu-latest
@@ -93,6 +131,8 @@ jobs:
 
       - name: Lint Python files changed by this change
         # Only the .py files this change adds or modifies, not the whole scripts/ tree.
+        # ruff checks the whole of each changed file, so older violations in a file this PR touches can
+        # still fail the job. Files this PR does not touch are not linted.
         env:
           EVENT_NAME: ${{ github.event_name }}
           BASE_REF: ${{ github.base_ref }}
