@@ -1,0 +1,52 @@
+docs/qa-intel/FOLLOWUP_HISTORY_SECRET_AUDIT.md
+  s_6625bc67577472::t_be66a35f010c50 1-27
+docs/qa-intel/SPINOFF_PLAN.md
+  s_6625bc67577472::t_a8aeaad826c53a 1-33
+docs/qa-intel/PLAN_B_STATUS.md
+  s_6625bc67577472::t_4abbad0995f4e4 1-21
+docs/lessons/ECOSYSTEM_LESSONS.md
+  s_6625bc67577472::t_4e9ce42af0e6cd 31
+  s_6625bc67577472::t_a48e7edda570b4 73
+  s_6625bc67577472::t_b9419bf8691425 29
+  s_6625bc67577472::t_23f0ca02695906 66
+  s_6625bc67577472::t_a9f58aa6bc5df2 87
+  s_6625bc67577472::t_251368d274d61b 19
+  s_6625bc67577472::t_f1c107f08e322b 70
+  s_6625bc67577472::t_459287ea097ec8 59
+  s_6625bc67577472::t_684c3c47b8f0a4 63
+  s_6625bc67577472::t_659463885b3bb5 24
+  s_6625bc67577472::t_fefaa7a457bb6d 82,84
+docs/lessons/PROJECT_LESSONS_HEX_EXPAN.md
+  s_6625bc67577472::t_afabb7b273079d 29
+  s_6625bc67577472::t_21dbc16d7942f4 32
+  s_6625bc67577472::t_ee472280f68a14 47
+  s_6625bc67577472::t_13bf8497889785 62
+  s_6625bc67577472::t_4abae2ba0c9456 66
+  s_6625bc67577472::t_2d7553d8d4a1ab 60
+  s_6625bc67577472::t_32420cc680c77b 68
+  s_6625bc67577472::t_dff90d745aed5d 76
+  s_6625bc67577472::t_e3d98760948521 34,36-40
+  s_6625bc67577472::t_3cc9b1d758a197 108
+  s_6625bc67577472::t_1cfd9c30b53937 94
+  s_6625bc67577472::t_9ae7afc06caefc 96
+  s_6625bc67577472::t_651ece0be63269 105
+  s_6625bc67577472::t_90cc4ab0c203cb 19
+docs/agent_ledger.jsonl
+  s_6625bc67577472::t_dfc85fd9e46806 854-871
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0382a9c1d0fa433c8a21361731f15bb20a52a141",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
