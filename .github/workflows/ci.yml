@@ -31,6 +31,8 @@ jobs:
       - run: pnpm exec tsc --noEmit
       - run: pnpm --dir web exec tsc --noEmit
       - run: pnpm test
+      # Latency summarizer tests use node:test, not vitest (vitest.config.ts globs only .ts).
+      - run: node --test scripts/latency/summarize-browsertime.test.mjs
       - run: pnpm --dir web run build
         env:
           NEXT_TELEMETRY_DISABLED: 1
