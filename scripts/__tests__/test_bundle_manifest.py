@@ -656,6 +656,70 @@ class TestVerifyChecksReferencedFiles(unittest.TestCase):
         self.assertEqual(res.returncode, 1, f"a removed stamped file still verified: {res.stdout} {res.stderr}")
 
 
+class TestManifestParsingIsStrict(unittest.TestCase):
+    """High: a duplicate key is rejected, not last-wins. Every parse or encoding failure is exit 2, never a traceback or a tamper verdict."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="bundle_strict_")
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        docs = {}
+        for name in ("c1", "c2", "c3", "ebook"):
+            docs[name] = os.path.join(self.tmp, f"{name}.pdf")
+            create_dummy_pdf(docs[name], f"{name} body")
+        self.good = os.path.join(self.tmp, "bundle_manifest.json")
+        res = subprocess.run([
+            sys.executable, MANIFEST_SCRIPT, "--c1-doc", docs["c1"], "--c2-doc", docs["c2"], "--c3-doc", docs["c3"],
+            "--ebook-doc", docs["ebook"], "--creator-id", "example-creator", "--creator-name", "the owner",
+            "--product-id", "500k-playbook", "--output-manifest", self.good,
+        ], capture_output=True, text=True)
+        self.assertEqual(res.returncode, 0, res.stderr)
+        with open(self.good, encoding="utf-8") as f:
+            self.text = f.read()
+
+    def _verify_text(self, text):
+        path = os.path.join(self.tmp, "candidate.json")
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(text)
+        return subprocess.run([sys.executable, MANIFEST_SCRIPT, "--verify", path], capture_output=True, text=True)
+
+    def test_untouched_text_still_verifies(self):
+        self.assertEqual(self._verify_text(self.text).returncode, 0)
+
+    def test_duplicate_top_level_key_is_rejected_not_last_wins(self):
+        forged = self.text.replace("{", '{"bundle_id": "BND-FORGED", ', 1)
+        res = self._verify_text(forged)
+        self.assertEqual(res.returncode, 2, f"duplicate key was not rejected: rc={res.returncode} {res.stdout} {res.stderr}")
+        self.assertNotIn("Traceback", res.stderr)
+
+    def test_duplicate_nested_key_is_rejected(self):
+        forged = self.text.replace('"creator": {', '"creator": {"id": "forged", ', 1)
+        res = self._verify_text(forged)
+        self.assertEqual(res.returncode, 2, f"nested duplicate key was not rejected: {res.stdout} {res.stderr}")
+
+    def test_nan_constant_is_a_parse_error(self):
+        res = self._verify_text(self.text.replace('"product_id": "500k-playbook"', '"product_id": NaN', 1))
+        self.assertEqual(res.returncode, 2, f"NaN was accepted: rc={res.returncode} {res.stderr}")
+        self.assertNotIn("Traceback", res.stderr)
+
+    def test_deeply_nested_manifest_is_a_parse_error(self):
+        deep = '"deep": ' + "[" * 100000 + "]" * 100000 + ", "
+        res = self._verify_text(self.text.replace("{", "{" + deep, 1))
+        self.assertEqual(res.returncode, 2, f"deep nesting exited {res.returncode}: {res.stderr[-300:]}")
+        self.assertNotIn("Traceback", res.stderr)
+
+    def test_non_ascii_signature_is_a_tamper_verdict_not_a_crash(self):
+        manifest = json.loads(self.text)
+        manifest["bundle_root_signature"] = "sígnature-é"
+        res = self._verify_text(json.dumps(manifest, ensure_ascii=False))
+        self.assertEqual(res.returncode, 1, f"rc={res.returncode}: {res.stderr[-300:]}")
+        self.assertNotIn("Traceback", res.stderr)
+
+    def test_lone_surrogate_in_a_field_is_a_parse_error(self):
+        res = self._verify_text(self.text.replace('"product_id": "500k-playbook"', '"product_id": "\\udc80"', 1))
+        self.assertEqual(res.returncode, 2, f"lone surrogate exited {res.returncode}: {res.stderr[-300:]}")
+        self.assertNotIn("Traceback", res.stderr)
+
+
 class TestStamperRefusesDiagonalOnContracts(unittest.TestCase):
     """P2: diagonal stamping is for media only. The stamper refuses it on any contract document."""
 

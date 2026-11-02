@@ -84,7 +84,33 @@ def verify_manifest(manifest: dict, salt: bytes) -> bool:
     signature = manifest.get(SIGNATURE_FIELD)
     if not isinstance(signature, str):
         return False
-    return hmac.compare_digest(sign_manifest(manifest, salt), signature)
+    # Both sides as bytes: compare_digest raises TypeError on a non-ASCII str. A signature that is not ASCII can never match.
+    return hmac.compare_digest(
+        sign_manifest(manifest, salt).encode("ascii"),
+        signature.encode("utf-8", "backslashreplace"),
+    )
+
+
+def _reject_duplicate_keys(pairs: list) -> dict:
+    """json object hook: a repeated key is an error. Python's default keeps the last value, which a first-value reader would not."""
+    obj = {}
+    for key, value in pairs:
+        if key in obj:
+            raise ValueError(f"duplicate key {key!r}")
+        obj[key] = value
+    return obj
+
+
+def _reject_constant(name: str):
+    """json parse_constant hook: NaN, Infinity and -Infinity are not JSON."""
+    raise ValueError(f"non-standard JSON constant {name}")
+
+
+def load_manifest(path: str) -> dict:
+    """Parses a manifest strictly. Raises OSError, ValueError or RecursionError on any read or parse failure."""
+    with open(path, encoding="utf-8") as f_in:
+        text = f_in.read()
+    return json.loads(text, object_pairs_hook=_reject_duplicate_keys, parse_constant=_reject_constant)
 
 
 # Manifest artifact name for each source and stamp key. The keys match STAMP_TASKS.
@@ -298,16 +324,21 @@ def main() -> int:
             print(f"ERROR: {exc}", file=sys.stderr)
             return 2
         try:
-            with open(args.verify, encoding="utf-8") as f_in:
-                manifest = json.load(f_in)
-        except (OSError, ValueError) as exc:
+            manifest = load_manifest(args.verify)
+        except (OSError, ValueError, RecursionError) as exc:
             # Read and parse failures are usage errors (exit 2), never a tamper verdict (exit 1).
             print(f"ERROR: cannot read manifest {args.verify}: {exc}", file=sys.stderr)
             return 2
         if not isinstance(manifest, dict):
             print(f"ERROR: manifest {args.verify} is not a JSON object", file=sys.stderr)
             return 2
-        if verify_manifest(manifest, salt):
+        try:
+            signed_ok = verify_manifest(manifest, salt)
+        except (RecursionError, UnicodeEncodeError) as exc:
+            # The signed form cannot be serialized (too deep, or a lone surrogate): the document is malformed, so exit 2.
+            print(f"ERROR: manifest {args.verify} cannot be canonicalized: {type(exc).__name__}", file=sys.stderr)
+            return 2
+        if signed_ok:
             problems = referenced_file_problems(manifest)
             if problems:
                 print(f"TAMPERED: {args.verify} has a valid root signature, but a referenced file does not match:", file=sys.stderr)
