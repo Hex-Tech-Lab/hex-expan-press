@@ -55,6 +55,8 @@ def read_source(filepath: str) -> bytes:
 
 
 SIGNATURE_FIELD = "bundle_root_signature"
+# Written while the launch gate is not run by this generator. Not a sealed or binding status.
+STATUS_PENDING_LAUNCH_GATE = "PENDING_LAUNCH_GATE"
 
 # (artifact key, stamping mode, purpose) for each bundle document, in stamping order.
 STAMP_TASKS = (
@@ -109,8 +111,9 @@ def create_bundle(
     bundle_hash = hashlib.sha256(bundle_entropy.encode("utf-8")).hexdigest()[:8].upper()
     bundle_id = f"BND-{date_slug}-{creator_id[:10].upper()}-{bundle_hash}"
 
-    # 3. Parity & Launch-Gate Safety Check:
-    # Check if C2 is approval of the exact release asset or contains e-book hash
+    # 3. Byte identity only. This says the C2 file and the e-book file are the same bytes. It is not the launch
+    # gate: the gate compares the active C2 document_sha256 with the product's release_sha256 and needs the active
+    # C1, C2 and C3 consents, none of which this script can read. So the generator never signs a gate result.
     matches_ebook_hash = (c2_hash == ebook_hash)
 
     # 4. Plan the stamped outputs now. Their paths are deterministic, so the signed payload can name them
@@ -161,13 +164,15 @@ def create_bundle(
                 "stamping_mode": "diagonal"
             }
         },
+        # The two True values are fixed by STAMP_TASKS. The two False values are claims this script does not
+        # compute: it never checks page content for obscured legal text, and it never runs the launch gate.
         "security_policy": {
             "watermark_diagonal_restricted_to_assets": True,
             "contracts_stamped_with_perimeter_only": True,
-            "zero_obscured_legal_text": True,
-            "launch_gate_verified": True
+            "zero_obscured_legal_text": False,
+            "launch_gate_verified": False
         },
-        "status": "SEALED_AND_BINDING",
+        "status": STATUS_PENDING_LAUNCH_GATE,
         "stamped_artifacts": stamped_paths,
     }
 

@@ -142,7 +142,7 @@ class TestBundleManifest(unittest.TestCase):
         self.assertIn("bundle_root_signature", manifest)
         self.assertEqual(manifest["creator"]["id"], "example-creator")
         self.assertEqual(manifest["creator"]["legal_name"], "the owner")
-        self.assertEqual(manifest["status"], "SEALED_AND_BINDING")
+        self.assertEqual(manifest["status"], "PENDING_LAUNCH_GATE")
 
         # Verify all 4 artifacts are registered
         artifacts = manifest["artifacts"]
@@ -703,6 +703,31 @@ class TestStampedBytesAreTheHashedBytes(unittest.TestCase):
                 signed = manifest["artifacts"][artifact]["sha256"]
                 self.assertEqual(signed, original[swap_key], f"{artifact}: signed digest is not the hashed bytes")
                 self.assertEqual(stamped_sha[swap_key], signed, f"{artifact}: stamped bytes differ from the signed digest")
+
+
+class TestLaunchGateClaimsAreNotOverstated(unittest.TestCase):
+    """High: the manifest must not sign a launch-gate result or a legal-text check that the generator never computed."""
+
+    def test_identical_c2_and_ebook_does_not_sign_a_passed_gate(self):
+        tmp = tempfile.mkdtemp(prefix="bundle_gate_")
+        self.addCleanup(shutil.rmtree, tmp, True)
+        same = os.path.join(tmp, "same.pdf")  # C2 and the e-book are the same bytes: the case the finding names
+        create_dummy_pdf(same, "identical release bytes")
+        c1, c3 = os.path.join(tmp, "c1.pdf"), os.path.join(tmp, "c3.pdf")
+        create_dummy_pdf(c1, "c1 body")
+        create_dummy_pdf(c3, "c3 body")
+        manifest_path = os.path.join(tmp, "m.json")
+        res = subprocess.run([
+            sys.executable, MANIFEST_SCRIPT, "--c1-doc", c1, "--c2-doc", same, "--c3-doc", c3,
+            "--ebook-doc", same, "--creator-id", "example-creator", "--creator-name", "the owner",
+            "--product-id", "500k-playbook", "--output-manifest", manifest_path], capture_output=True, text=True)
+        self.assertEqual(res.returncode, 0, res.stderr)
+        with open(manifest_path, encoding="utf-8") as f:
+            manifest = json.load(f)
+        self.assertTrue(manifest["artifacts"]["c2_release_approval"]["identical_to_asset_binary"])
+        self.assertFalse(manifest["security_policy"]["launch_gate_verified"], "the generator never runs the launch gate")
+        self.assertFalse(manifest["security_policy"]["zero_obscured_legal_text"], "the generator never checks page content")
+        self.assertEqual(manifest["status"], "PENDING_LAUNCH_GATE")
 
 
 class TestSaltHelperHasOneHome(unittest.TestCase):
