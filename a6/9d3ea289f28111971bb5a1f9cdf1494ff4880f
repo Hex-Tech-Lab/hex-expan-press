@@ -1,0 +1,23 @@
+docs/lessons/PROJECT_LESSONS_HEX_EXPAN.md
+  s_6625bc67577472::t_5819b4aec5a2f1 39-40
+docs/agent_ledger.jsonl
+  s_6625bc67577472::t_9458344d4d5f25 871
+docs/lessons/ECOSYSTEM_LESSONS.md
+  s_6625bc67577472::t_f4abf5ef188d1b 31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a69d3ea289f28111971bb5a1f9cdf1494ff4880f",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
