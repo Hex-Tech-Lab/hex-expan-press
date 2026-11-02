@@ -1,0 +1,27 @@
+scripts/latency/summarize-browsertime.mjs
+  s_6625bc67577472::t_a3eabefa68738e 75-80
+.github/workflows/real-browser-latency.yml
+  s_6625bc67577472::t_8ebe4122d212f2 34,38-43
+scripts/latency/summarize-browsertime.test.mjs
+  s_6625bc67577472::t_b829fc86562242 58-66
+scripts/latency/browsertime/package.json
+  s_6625bc67577472::t_321ef7cf75939c 1
+scripts/latency/browsertime/package-lock.json
+  s_6625bc67577472::t_051f7dbdf685e4 1-2415
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "673b34b957a2b7501d3fd899fb061f95aff7e6a4",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "unknown"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
