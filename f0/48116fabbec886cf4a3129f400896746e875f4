@@ -1,0 +1,33 @@
+scripts/watermark_pdf.py
+  s_6625bc67577472::t_8d5fbcc4b0a08d 28
+  s_6625bc67577472::t_f16bd43ea1585d 230-237
+  s_6625bc67577472::t_aa045b170b60c2 203-213
+  s_6625bc67577472::t_9e208f9a0e85b8 180-200
+scripts/generate_bundle_manifest.py
+  s_6625bc67577472::t_21a09f7cd4c065 319
+  s_6625bc67577472::t_404bb8dcda5ca2 167-168
+  s_6625bc67577472::t_b3561293b46e75 305-318,320-323,328-332
+  s_6625bc67577472::t_a3217cebb991e9 324-326
+  s_6625bc67577472::t_fa25507b56601c 327
+scripts/__tests__/test_bundle_manifest.py
+  s_6625bc67577472::t_9d888d833b8cbc 929-935,938-940,943-946
+  s_6625bc67577472::t_2d8c68aa1c051b 922-923
+  s_6625bc67577472::t_a80534f020710e 895-921,925-928,936-937,941-942,947-951
+  s_6625bc67577472::t_82072a81ab5500 924
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f048116fabbec886cf4a3129f400896746e875f4",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
