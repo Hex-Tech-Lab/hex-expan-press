@@ -1,0 +1,20 @@
+.github/workflows/ci.yml
+  s_6625bc67577472::t_0b994be6d10e73 38,45-46
+  s_6625bc67577472::t_832c80c3c43f50 35-37,39-44,47-49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "fcb682ba380c8a0979446213f085cb1286650c35",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
