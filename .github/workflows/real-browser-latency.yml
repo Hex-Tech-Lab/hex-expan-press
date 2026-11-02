@@ -98,7 +98,10 @@ jobs:
       - name: Upload summaries for the send job
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: latency-summaries-${{ github.run_id }}-${{ github.run_attempt }}
+          # Stable name, so a send-only rerun (which bumps run_attempt) still finds it. overwrite replaces the
+          # upload of an earlier attempt, so a full rerun does not collide.
+          name: latency-summaries-${{ github.run_id }}
+          overwrite: true
           path: ${{ runner.temp }}/summaries
           if-no-files-found: error
           retention-days: 1
@@ -131,7 +134,7 @@ jobs:
       - name: Download summaries from the measure job
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
-          name: latency-summaries-${{ github.run_id }}-${{ github.run_attempt }}
+          name: latency-summaries-${{ github.run_id }}
           path: ${{ runner.temp }}/summaries
 
       - name: Send signed summaries to the probe

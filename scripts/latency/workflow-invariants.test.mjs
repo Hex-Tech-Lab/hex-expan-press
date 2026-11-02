@@ -50,6 +50,12 @@ export function invariantViolations(text) {
     if (BROWSER_TOOL.test(send)) violations.push("send job runs a browser tool");
     if (!/^    needs: measure\s*$/m.test(send)) violations.push("send job does not depend on measure");
     if (!/^    if: github\.ref == 'refs\/heads\/master'\s*$/m.test(send)) violations.push("send job does not run only on master");
+    // The send job must download the artifact the measure job uploads, under the same name.
+    // Whole value of the "name:" line, since the expression contains spaces.
+    const artifactName = (block) => block?.match(/^\s+name: (latency-summaries-.*?)\s*$/m)?.[1];
+    const uploadName = artifactName(measure);
+    const downloadName = artifactName(send);
+    if (!uploadName || uploadName !== downloadName) violations.push("send job downloads a different summaries artifact name than measure uploads");
   }
   return violations;
 }
@@ -106,6 +112,11 @@ test("negative controls: each bypass shape is caught", () => {
       "measure job drops --headless",
       mutate(good, "            --headless \\\n", ""),
       "measure job lacks --headless",
+    ],
+    [
+      "send job downloads a per-attempt artifact name measure does not upload",
+      mutate(good, "          name: latency-summaries-${{ github.run_id }}\n          path: ${{ runner.temp }}/summaries\n\n      - name: Send", "          name: latency-summaries-${{ github.run_id }}-${{ github.run_attempt }}\n          path: ${{ runner.temp }}/summaries\n\n      - name: Send"),
+      "send job downloads a different summaries artifact name than measure uploads",
     ],
     [
       "master-only if: guard removed from send job",
