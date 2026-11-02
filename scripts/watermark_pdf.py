@@ -238,7 +238,10 @@ def main():
 
     if not os.path.exists(args.input):
         sys.exit(f"Error: input file does not exist: {args.input}")
-    if os.path.abspath(args.output) == os.path.abspath(args.input):
+    # realpath and samefile catch a symlink or hard link to the source, not only an identical string.
+    _out, _src = os.path.realpath(args.output), os.path.realpath(args.input)
+    if _out == _src or (os.path.exists(args.output) and os.path.exists(args.input)
+                        and os.path.samefile(args.output, args.input)):
         sys.exit("Error: --output must differ from --input; refusing to overwrite the source PDF")
     if args.mode == "diagonal" and args.purpose in CONTRACT_PURPOSES:
         sys.exit(

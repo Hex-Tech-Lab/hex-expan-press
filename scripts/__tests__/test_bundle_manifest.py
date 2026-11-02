@@ -1233,3 +1233,56 @@ class TestSiteCheckRoutes(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestAliasAndRepeatRunOverwrites(unittest.TestCase):
+    """A symlink or hard link to a source is the same file, and a second run must not replace a bundle."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.src = os.path.join(self.tmp, "src.pdf")
+        create_dummy_pdf(self.src, "source")
+        self.digest = _file_digest(self.src)
+
+    def _watermark(self, output):
+        env = dict(os.environ, ASSET_SALT=TEST_SALT)
+        return subprocess.run(
+            [sys.executable, WATERMARK_SCRIPT, "--input", self.src, "--output", output, "--mode", "perimeter",
+             "--creator-id", "c", "--creator-name", "n", "--purpose", "review"],
+            capture_output=True, text=True, env=env,
+        )
+
+    def test_watermark_refuses_a_symlink_to_the_source(self):
+        alias = os.path.join(self.tmp, "alias.pdf")
+        os.symlink(self.src, alias)
+        res = self._watermark(alias)
+        self.assertNotEqual(res.returncode, 0, res.stderr)
+        self.assertIn("must differ from --input", res.stderr)
+        self.assertEqual(_file_digest(self.src), self.digest, "the source must not be overwritten through a symlink")
+
+    def test_watermark_refuses_a_hard_link_to_the_source(self):
+        link = os.path.join(self.tmp, "hard.pdf")
+        os.link(self.src, link)
+        res = self._watermark(link)
+        self.assertNotEqual(res.returncode, 0, res.stderr)
+        self.assertIn("must differ from --input", res.stderr)
+        self.assertEqual(_file_digest(self.src), self.digest)
+
+    def test_second_bundle_run_into_the_same_directory_is_refused(self):
+        spec = importlib.util.spec_from_file_location("generate_bundle_manifest", MANIFEST_SCRIPT)
+        gbm = importlib.util.module_from_spec(spec)
+        with unittest.mock.patch.dict(os.environ, {"ASSET_SALT": TEST_SALT}):
+            spec.loader.exec_module(gbm)
+            docs = {}
+            for key in ("c1", "c2", "c3", "ebook"):
+                docs[key] = os.path.join(self.tmp, f"{key}.pdf")
+                create_dummy_pdf(docs[key], key)
+            out_dir = os.path.join(self.tmp, "out")
+            os.makedirs(out_dir)
+            manifest = os.path.join(out_dir, "bundle_manifest.json")
+            args = (docs["c1"], docs["c2"], docs["c3"], docs["ebook"], "example-creator", "the owner",
+                    "sample-product", manifest)
+            gbm.create_bundle(*args, output_dir=out_dir, stamp_bundle=True)
+            with self.assertRaisesRegex(ValueError, "already exists"):
+                gbm.create_bundle(*args, output_dir=out_dir, stamp_bundle=True)

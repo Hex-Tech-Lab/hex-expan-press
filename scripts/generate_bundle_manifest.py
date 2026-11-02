@@ -259,6 +259,11 @@ def create_bundle(
 
         # Refused before anything reaches a final path: os.replace below would overwrite a source or a sibling output.
         check_output_paths(sources, {"manifest": output_manifest, **stamped_paths})
+        # A second run into the same directory would silently replace the first bundle's stamped PDFs and leave
+        # its manifest pointing at bytes that no longer match. Refuse instead; the caller picks a fresh directory.
+        existing = [p for p in [output_manifest, *stamped_paths.values()] if os.path.exists(p)]
+        if existing:
+            raise ValueError(f"output already exists, refusing to overwrite: {existing[0]}")
 
         manifest_data = {
             "schema_version": "1.0.0",
