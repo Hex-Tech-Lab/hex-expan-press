@@ -3,12 +3,13 @@
 scripts/watermark_pdf.py  -  PDF Visual Watermarking & Cryptographic Provenance Fingerprinting
 
 Supports dual operation modes:
-1. 'diagonal': Semi-transparent diagonal body watermark for media assets and e-book review/author copies.
-2. 'perimeter': Clean legal header/footer perimeter audit stamp for contracts (C1 Consents, C2 Releases,
-   C3 Publisher Agreements) that preserves courtroom admissibility and never obscures text.
+1. 'diagonal': Light-gray diagonal body watermark for media assets and e-book review/author copies.
+2. 'perimeter': Header and footer audit stamp for contracts (C1 Consents, C2 Releases, C3 Publisher
+   Agreements). It is drawn at fixed offsets from the top and bottom edges. The script does not check that
+   those lines avoid the page content.
 
-Injects unified bundle provenance metadata (/BundleId, /BundleRootHash, /ProvenanceFingerprint)
-into the PDF catalog dictionary.
+Writes unified bundle provenance metadata (/BundleId, /BundleRootHash, /ProvenanceFingerprint) into the
+PDF document information dictionary.
 
 Usage:
   python3 scripts/watermark_pdf.py \
@@ -38,7 +39,7 @@ if _SCRIPT_DIR not in sys.path:
     sys.path.insert(0, _SCRIPT_DIR)
 from bundle_salt import fingerprint_salt  # noqa: E402
 
-# Contract purposes take perimeter stamps only; diagonal body watermarks never touch legal text.
+# Contract purposes take perimeter stamps only. main() refuses diagonal stamping for these purposes.
 CONTRACT_PURPOSES = frozenset({"c1_data_accuracy", "c2_release_approval", "c3_agreement", "legal_contract"})
 # Non-contract purposes. --purpose accepts exactly CONTRACT_PURPOSES plus these, so the two cannot drift apart.
 NON_CONTRACT_PURPOSES = frozenset({"review", "author_copy"})
@@ -46,8 +47,16 @@ PURPOSES = tuple(sorted(CONTRACT_PURPOSES | NON_CONTRACT_PURPOSES))
 
 
 def overlay_text(text: str) -> str:
-    """Text for a PDF string in an overlay stream. Latin-1 is the stream's encoding, so characters outside it become '?'."""
-    return text.encode("latin-1", "replace").decode("latin-1")
+    """Text for a PDF string in an overlay stream. The stream is Latin-1. A character outside it raises ValueError
+    instead of being replaced, because a substituted character would put a wrong name on the stamp."""
+    try:
+        text.encode("latin-1")
+    except UnicodeEncodeError as exc:
+        raise ValueError(
+            f"stamp text contains {exc.object[exc.start:exc.end]!r}, which is outside Latin-1 and cannot be shown; "
+            "refusing to stamp a substituted name"
+        ) from None
+    return text
 
 
 def generate_diagonal_overlay_pdf(width: float, height: float, text: str) -> bytes:
@@ -181,7 +190,7 @@ PARAM_FIELDS = ("input", "output", "creator_id", "creator_name", "mode", "purpos
 
 
 def apply_params_file(parser, args):
-    """Fills args from a JSON object file. Only the known string fields are accepted; anything else is refused."""
+    """Fills args from a JSON object file. Only the known fields are accepted, and each value must be a string or null."""
     try:
         with open(args.params, encoding="utf-8") as f_in:
             settings = json.load(f_in)
@@ -233,6 +242,9 @@ def main():
                if getattr(args, name) is None]
     if missing:
         parser.error(f"the following arguments are required: {', '.join(missing)}")
+    for name in ("creator_id", "creator_name"):
+        if not getattr(args, name).strip():
+            sys.exit(f"Error: --{name.replace('_', '-')} must not be blank; the stamp is signed with it")
     if args.mode not in ("diagonal", "perimeter") or args.purpose not in PURPOSES:
         parser.error("mode or purpose is not one of the allowed values")
 
@@ -261,8 +273,17 @@ def main():
     date_slug = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d")
     bundle_id = args.bundle_id or f"BND-{date_slug}-{args.creator_id[:12].upper()}-{source_sha256[:8].upper()}"
 
-    # Build provenance fingerprint. The payload names the bundle root the stamp carries, so /BundleRootHash cannot
-    # change without breaking the fingerprint. Empty when no root was supplied: the root is then the fingerprint.
+    # Every text the stamp draws must be Latin-1. The diagonal text is upper-cased, so its form is checked too.
+    # Refused here, before anything is signed or written.
+    for stamp_text in (args.creator_name, args.creator_name.upper(), bundle_id):
+        try:
+            overlay_text(stamp_text)
+        except ValueError as exc:
+            sys.exit(f"Error: {exc}")
+
+    # Build provenance fingerprint. The payload includes the supplied bundle root, so a stamp made with a different
+    # root has a different fingerprint. Nothing in this script re-verifies a stamped file afterwards. The root is
+    # empty in the payload when none was supplied, and the root is then the fingerprint.
     supplied_root = args.bundle_root_hash or ""
     fingerprint_payload = f"{bundle_id}:{args.creator_id}:{args.creator_name}:{args.purpose}:{source_sha256}:{timestamp}:{supplied_root}"
     hmac_digest = hmac.new(
@@ -317,7 +338,8 @@ def main():
             page.merge_page(overlay_reader.pages[0])
             writer.add_page(page)
 
-    # Ingest / Preserve existing metadata while adding security provenance
+    # Build the Info dictionary. Only /Title is carried over from the source. Every other source key is dropped,
+    # and /Author is set to the creator name.
     existing_meta = reader.metadata or {}
     new_meta = {
         "/Producer": "ExpanPress Unified Provenance Engine",

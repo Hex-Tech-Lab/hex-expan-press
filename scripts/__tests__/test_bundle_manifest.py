@@ -6,8 +6,9 @@ Automated integration test for the Unified Cryptographic Bundle Engine & Dual-Mo
 Tests:
 1. Perimeter watermarking mode for legal contracts (C1, C2, C3).
 2. Diagonal watermarking mode for digital media assets (E-Book).
-3. Bundle manifest generation with deterministic root Merkle/HMAC signature.
-4. Tamper detection: verifying that altering any file breaks the bundle signature.
+3. Bundle manifest generation with a root HMAC-SHA256 signature (not a Merkle tree).
+4. Tamper detection: altering a manifest field, a source file, or a stamped file's metadata breaks verification.
+   A stamped file's page bytes are not hashed, so changing them alone is not detected.
 """
 
 import copy
@@ -1209,7 +1210,7 @@ def _file_digest(path: str) -> str:
 
 
 class TestOutputPathsNeverOverwriteSources(unittest.TestCase):
-    """A destination that is a source document, or that another output names, is refused before any write."""
+    """A destination that is a source document, or that another output names, is refused before anything reaches its final path."""
 
     def setUp(self):
         self.tmp = tempfile.mkdtemp()

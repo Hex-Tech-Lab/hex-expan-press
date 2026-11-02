@@ -11,11 +11,13 @@ Binds all four critical transaction artifacts:
 Under one Bundle ID and one HMAC-SHA256 root signature. The signature covers every manifest field
 except the signature itself, serialized canonically (sorted keys, no whitespace, UTF-8). This is NOT
 a Merkle tree and the manifest is not write-once. Optionally pre-stamps all bundle PDFs with
-perimeter and diagonal provenance banners.
+stamps every bundle PDF: perimeter banners on the three contracts and a diagonal watermark on the e-book.
 
-Verify a manifest (exit 0 = untouched, 1 = tampered: a field changed, or a source or stamped file it names is
-missing or no longer matches, 2 = usage, read, parse or salt error). Verification reads the source paths
-recorded at signing, so run it where those files are:
+Verify a manifest. Exit 0: the root signature matches and every referenced file verifies. Exit 1: tampered, meaning
+a manifest field changed, a source file it names is missing or its digest differs, or a stamped file it names is
+missing or its metadata differs. A stamped file's bytes are not hashed. A source file that exists but cannot be
+read raises an error, which also exits 1 but with a traceback instead of a verdict. Exit 2: usage, read, parse or
+salt error. Verification reads the source paths recorded at signing, so run it where those files are:
   ASSET_SALT=... python3 scripts/generate_bundle_manifest.py --verify path/to/bundle_manifest.json
 
 Usage:
@@ -125,7 +127,8 @@ def _sha256_file(path: str) -> str:
 
 
 def _stamp_problems(path: str, name: str, manifest: dict) -> list:
-    """A stamped file is bound to the signed manifest by its own metadata: bundle id, root signature, source digest."""
+    """Checks a stamped file's metadata against the signed manifest: bundle id, root signature and source digest.
+    The file's bytes are not hashed, so a change to page content that leaves this metadata alone is not detected."""
     import pypdf  # imported here: only verification of stamped files needs it
 
     try:
@@ -142,7 +145,8 @@ def _stamp_problems(path: str, name: str, manifest: dict) -> list:
 
 
 def referenced_file_problems(manifest: dict) -> list:
-    """Why the files a signed manifest names no longer match it. An empty list means every one still matches."""
+    """Why the files a signed manifest names no longer match it. An empty list means every source file matches its
+    recorded digest and every stamped file's metadata matches the manifest."""
     problems = []
     artifacts = manifest.get("artifacts") or {}
     for name in ARTIFACT_NAMES.values():
@@ -164,7 +168,7 @@ def referenced_file_problems(manifest: dict) -> list:
 
 
 COPY_CHUNK_BYTES = 1 << 16
-# A stuck PDF parser or child must fail the bundle, not block it. Generous: a stamp is a few hundred ms.
+# A stuck PDF parser or child must fail the bundle, not block it. This is a fixed bound, not a measured stamp time.
 STAMP_TIMEOUT_SECONDS = 300
 
 
@@ -191,7 +195,8 @@ def _same_path(a: str, b: str) -> bool:
 def check_output_paths(sources: dict, outputs: dict) -> None:
     """Refuses an output that is a source document or that another output names. os.replace would overwrite either.
 
-    Called before any output is written, so a refused call leaves every source and every existing file untouched.
+    Called before any output reaches its final path. A refused call leaves every source and every existing file
+    untouched. It can leave an empty output directory behind, because directories are created before this check.
     """
     seen = {}
     for name, dest in outputs.items():
@@ -202,6 +207,28 @@ def check_output_paths(sources: dict, outputs: dict) -> None:
             if _same_path(dest, other_dest):
                 raise ValueError(f"{name} and {other} outputs both name {dest}; choose distinct paths")
         seen[name] = dest
+
+
+def require_identifiers(creator_id: str, creator_name: str, product_id: str) -> None:
+    """Refuses a blank creator id, creator name or product id. Each one is signed, so a blank value would sign nothing useful."""
+    for label, value in (("creator_id", creator_id), ("creator_name", creator_name), ("product_id", product_id)):
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError(f"{label} must not be blank")
+
+
+def refuse_unshowable_stamp_text(creator_name: str, bundle_id: str) -> None:
+    """Refuses a stamp whose text has a character outside Latin-1. The stamp cannot show it, and a '?' would be a wrong name.
+
+    The diagonal stamp draws the upper-case name, and 'ÿ' is Latin-1 while its upper case 'Ÿ' is not, so that form is checked too.
+    """
+    for text in (creator_name, creator_name.upper(), bundle_id):
+        try:
+            text.encode("latin-1")
+        except UnicodeEncodeError:
+            raise ValueError(
+                f"stamp text {text!r} has a character outside Latin-1 that the stamp cannot show; "
+                "use a name that Latin-1 can represent, or create the bundle without --stamp-bundle"
+            ) from None
 
 
 def create_bundle(
@@ -216,6 +243,8 @@ def create_bundle(
     output_dir: str = None,
     stamp_bundle: bool = False
 ) -> dict:
+    # Refused before any file is read or any signature is made.
+    require_identifiers(creator_id, creator_name, product_id)
     sources = {"c1": c1_path, "c2": c2_path, "c3": c3_path, "ebook": ebook_path}
     stage_dir = None
     manifest_tmp = None
@@ -236,12 +265,15 @@ def create_bundle(
         digests = {key: _hash_and_copy(path, staged.get(key)) for key, path in sources.items()}
         c1_hash, c2_hash, c3_hash, ebook_hash = digests["c1"], digests["c2"], digests["c3"], digests["ebook"]
 
-        # 2. Derive deterministic Bundle Identifier
+        # 2. Derive the Bundle Identifier from the creator, the product and the e-book hash, plus the current date.
+        # The date slug changes from day to day, so the identifier is not the same across days.
         timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
         date_slug = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d")
         bundle_entropy = f"{creator_id}:{product_id}:{ebook_hash[:16]}"
         bundle_hash = hashlib.sha256(bundle_entropy.encode("utf-8")).hexdigest()[:8].upper()
         bundle_id = f"BND-{date_slug}-{creator_id[:10].upper()}-{bundle_hash}"
+        if stamp_bundle:
+            refuse_unshowable_stamp_text(creator_name, bundle_id)
 
         # 3. Byte identity only. This says the C2 file and the e-book file are the same bytes. It is not the launch
         # gate: the gate compares the active C2 document_sha256 with the product's release_sha256 and needs the active
@@ -301,8 +333,9 @@ def create_bundle(
                     "stamping_mode": "diagonal"
                 }
             },
-            # The two True values are fixed by STAMP_TASKS. The two False values are claims this script does not
-            # compute: it never checks page content for obscured legal text, and it never runs the launch gate.
+            # The two True values are literals written to match STAMP_TASKS. They are not checked against it. The two
+            # False values are claims this script does not compute: it never checks page content for obscured legal
+            # text, and it never runs the launch gate.
             "security_policy": {
                 "watermark_diagonal_restricted_to_assets": True,
                 "contracts_stamped_with_perimeter_only": True,
@@ -381,7 +414,7 @@ def create_bundle(
 def main() -> int:
     parser = argparse.ArgumentParser(description="Generate cryptographic Bundle Manifest for contracts and assets, or verify one.")
     parser.add_argument("--verify", metavar="MANIFEST", default=None,
-                        help="Verify an existing bundle_manifest.json (needs ASSET_SALT). Exit 0 untouched, 1 tampered (a field, or a referenced source or stamped file, changed or is missing), 2 usage, read, parse or salt error.")
+                        help="Verify an existing bundle_manifest.json (needs ASSET_SALT). Exit 0 verified, 1 tampered (a field, or a referenced source file, changed or is missing, or a stamped file is missing or its metadata differs), 2 usage, read, parse or salt error.")
     parser.add_argument("--c1-doc", help="Path to C1 Data Accuracy document/PDF")
     parser.add_argument("--c2-doc", help="Path to C2 Release Approval document/PDF")
     parser.add_argument("--c3-doc", help="Path to C3 Publisher Agreement document/PDF")
@@ -447,7 +480,7 @@ def main() -> int:
             stamp_bundle=args.stamp_bundle
         )
     except ValueError as exc:
-        # A colliding output path is a usage error. Nothing was written.
+        # A refused identifier, stamp text or output path is a usage error (exit 2). No manifest or stamped PDF was published.
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
 
