@@ -1,0 +1,21 @@
+scripts/latency/summarize-browsertime.test.mjs
+  s_6625bc67577472::t_d5d189a1b48125 47,50-51
+  s_6625bc67577472::t_cf90612ceb54eb 5
+  s_6625bc67577472::t_a62d178e0cb924 52,137-210
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f28bba75b520f8a20c6fdcd3e1cfe59241ba6583",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "unknown"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
