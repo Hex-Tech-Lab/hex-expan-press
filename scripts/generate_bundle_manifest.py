@@ -238,8 +238,9 @@ def _collision(dst: str) -> ValueError:
 def _publish_new(src: str, dst: str) -> os.stat_result:
     """Gives dst the bytes of src only if dst does not exist. Returns the identity of the file this run created at dst.
 
-    A hard link is created in one step and fails when dst exists, so an existing file is never replaced and no reader
-    sees a partial file. Where the filesystem refuses hard links, dst is created exclusively and filled from src.
+    A hard link is created in one step and fails when dst exists, so an existing file is never replaced. On a filesystem
+    with hard links, no reader sees a partial file. Where the filesystem refuses hard links, dst is created exclusively
+    and filled from src, and a reader can see it partly filled while the copy runs.
     """
     # A hard link shares src's inode, so src's identity is dst's. Reading it from dst after the link could pick up
     # a file another writer put at dst in the meantime.
@@ -544,7 +545,8 @@ def main() -> int:
             stamp_bundle=args.stamp_bundle
         )
     except ValueError as exc:
-        # A refused identifier, stamp text or output path is a usage error (exit 2). No manifest or stamped PDF was published.
+        # A refused identifier, stamp text or output path is a usage error (exit 2). No manifest or stamped PDF was published;
+        # a rollback that cannot remove one prints a WARNING.
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
 
