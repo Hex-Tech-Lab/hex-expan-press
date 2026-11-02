@@ -4,8 +4,9 @@
 # Every check fails the run on a finding. No continue-on-error anywhere.
 #
 # Limits, stated so this gate is not read as more than it is:
-# - Secrets already in history are not covered. The gitleaks job scans only the commits in the PR or
-#   push range. The history audit is tracked separately.
+# - Secrets already in history are not covered. The gitleaks job scans the commits in the PR range, or,
+#   for a push, the range since the previous tip. A push with no usable previous tip scans full history.
+#   The history audit is tracked separately.
 # - This workflow file is PR-controlled for the PR that adds it, so a PR can change these checks.
 #   The fix is a base-controlled workflow on pull_request_target that runs no PR code, plus a required
 #   branch-protection check. That is a follow-up. This file becomes trusted only after it lands on master.
@@ -72,8 +73,9 @@ jobs:
         # Event data goes through env, never interpolated into the script.
         # The config comes from the trust ref, never from this checkout. The trust ref is the base
         # commit for a PR and the previous tip for a push. Config discovery is off (--config is set),
-        # so a PR's .gitleaks.toml has no effect. A PR's .gitleaksignore has no effect (its path is
-        # replaced by an empty file). Inline gitleaks:allow comments are ignored.
+        # so a PR's .gitleaks.toml has no effect. gitleaks still loads ./.gitleaksignore even when
+        # --gitleaks-ignore-path is set, so the step deletes that file first (see the rm below).
+        # Inline gitleaks:allow comments are ignored.
         # Limit: this step is PR-controlled for the PR that adds it. See the header.
         env:
           EVENT_NAME: ${{ github.event_name }}
@@ -175,4 +177,6 @@ jobs:
             exit 0
           fi
           echo "Linting ${#FILES[@]} changed Python file(s)."
-          python -m ruff check -- "${FILES[@]}"
+          # --isolated: ignore every ruff config file. Otherwise a PR's ruff.toml or pyproject.toml could
+          # switch the rules off and pass a file that fails on the base.
+          python -m ruff check --isolated -- "${FILES[@]}"
