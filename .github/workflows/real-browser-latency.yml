@@ -5,8 +5,8 @@ name: real-browser-latency
 # Two jobs: "measure" runs Chrome and holds no secrets; "send" holds PROBE_INGEST_SECRET and runs no Chrome.
 # Scheduled runs fire only from the default branch. A workflow_dispatch from another branch runs measure only:
 # the send job is skipped unless the ref is master (if: below), and the probe-ingest environment also allows
-# only master. These guards live in this file, so a branch that edits the file can remove them until
-# PROBE_INGEST_SECRET moves into the environment (see the send job). Until then, a branch can reach the probe.
+# only master. These guards live in this file, so a branch that edits the file could remove them. The secret
+# itself is held only in the probe-ingest environment, which allows master only, so a branch cannot read it.
 
 on:
   schedule:
@@ -117,8 +117,7 @@ jobs:
   send:
     needs: measure
     # Defense in depth: only master sends. The probe-ingest environment (master-only branch policy)
-    # is the real gate for the environment's secrets. Limit: PROBE_INGEST_SECRET is still a repository
-    # secret, so a branch that edits this file could reach it. Moving it into probe-ingest is a founder action.
+    # is the gate for PROBE_INGEST_SECRET, which is held only in that environment (no repository-level copy).
     if: github.ref == 'refs/heads/master'
     environment: probe-ingest
     runs-on: ubuntu-latest
