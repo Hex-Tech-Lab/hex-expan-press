@@ -36,8 +36,8 @@ Note on the workflow: `.github/workflows/real-browser-latency.yml` on master sti
   - PR #116 heads `eb25878`, `593b4a8` and `70085a0`: `rg` finds no `--no-sandbox` in the workflow, and `PROBE_INGEST_SECRET` appears only in the `send` job and the header comment (checked). A PR comment says the High was addressed in `eb2587876` (checked).
 - **Attribution.**
   - The High finding is from sourcery-ai (checked on the API).
-  - The Cubic P1 about the secret sharing a job with the `--no-sandbox` browser is cited as "Cubic web review (founder paste)". The GitHub API does not show it: no Cubic comment, review or issue comment on PR #116 mentions the sandbox or a shared job (checked by search). **That P1 is UNVERIFIED** and rests on the founder's paste alone.
-  - The API does show other Cubic findings on this file (CONFIRMED): a P3 about `chromedriver --version` (review on `0042880`); a P2 that the summary artifact name is not unique across reruns (review on `eb25878`); and, on `70085a0`, a P1 that `environment: probe-ingest` does not protect the repository-level `PROBE_INGEST_SECRET`, plus a P2 that the file header describes branch dispatch wrongly. None of these is the founder-pasted P1.
+  - The Cubic P1 on head `70085a0` is API-confirmed: `environment: probe-ingest` does not protect the repository-level `PROBE_INGEST_SECRET` (`.github/workflows/real-browser-latency.yml:114` at `70085a0`; review comment by `cubic-dev-ai[bot]`). It is a different finding from the sourcery High above. An earlier version of this lesson cited a Cubic P1 about a shared job as a "founder paste". No Cubic comment on PR #116 says that, so that attribution is withdrawn.
+  - The other Cubic findings on this file (CONFIRMED on the API): a P3 about `chromedriver --version` (review on `0042880`); a P2 that the summary artifact name is not unique across reruns (review on `eb25878`); and a P2 that the file header describes branch dispatch wrongly (review on `70085a0`).
 
 ## P3. Vercel Function Storage is team-wide and grows with every production deploy
 
