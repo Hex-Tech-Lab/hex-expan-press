@@ -2,16 +2,23 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, writeFileSync, readdirSync } from "node:fs";
+import { mkdtempSync, writeFileSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 
 const script = new URL("./summarize-browsertime.mjs", import.meta.url).pathname;
 
-// Minimal Browsertime-shaped page with one iteration.
+// Minimal Browsertime-shaped page with one iteration. Shapes match browsertime 28.4.0: firstPaint is a
+// number, paintTiming is keyed by entry name, LCP is an object with renderTime.
 const page = (url, ttfb) => ({
   info: { url },
-  browserScripts: [{ timings: { ttfb, firstPaint: { firstPaint: ttfb + 300 }, largestContentfulPaint: { renderTime: ttfb + 900 }, loadEventEnd: ttfb + 400 } }],
+  browserScripts: [{ timings: {
+    ttfb,
+    loadEventEnd: ttfb + 400,
+    firstPaint: ttfb + 200,
+    paintTiming: { "first-paint": ttfb + 200, "first-contentful-paint": ttfb + 300 },
+    largestContentfulPaint: { renderTime: ttfb + 900 },
+  } }],
 });
 const URLS = [
   "https://expanpress.com/",
@@ -29,13 +36,23 @@ function run(pages) {
     encoding: "utf8",
   });
   const files = (() => { try { return readdirSync(out).sort(); } catch { return []; } })();
-  return { status: res.status, stderr: res.stderr, files };
+  return { status: res.status, stderr: res.stderr, files, out };
 }
 
 test("writes one summary per expected page and exits 0", () => {
   const r = run(URLS.map((u, i) => page(u, 100 + i)));
   assert.equal(r.status, 0, r.stderr);
   assert.deepEqual(r.files, ["expanpress-home.json", "expanpress-playbook.json", "expanpress-storefront.json"]);
+});
+
+test("reads FCP from paintTiming and load time from loadEventEnd", () => {
+  const r = run(URLS.map((u) => page(u, 100)));
+  assert.equal(r.status, 0, r.stderr);
+  const s = JSON.parse(readFileSync(join(r.out, "expanpress-home.json"), "utf8"));
+  assert.equal(s.metrics.ttfb, 100);
+  assert.equal(s.metrics.firstContentfulPaint, 400);
+  assert.equal(s.metrics.largestContentfulPaint, 1000);
+  assert.equal(s.metrics.pageLoadTime, 500);
 });
 
 test("exits 1 and names the page when a URL no longer matches", () => {

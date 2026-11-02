@@ -32,9 +32,10 @@ const median = (xs) => {
 };
 const num = (v) => (typeof v === "number" && Number.isFinite(v) ? v : null);
 
-// Browsertime reports paint and LCP under different shapes across versions; take whichever is present.
-const fcpOf = (t) => num(t.firstPaint?.firstPaint) ?? num(t.paintTiming?.["first-contentful-paint"]);
-const lcpOf = (t) => num(t.largestContentfulPaint?.renderTime) ?? num(t.largestContentfulPaint);
+// Shapes checked against browsertime 28.4.0 (browserscripts/timings): paintTiming is keyed by entry name.
+// timings.firstPaint is a bare number for first-paint, not FCP, so it is not read here.
+const fcpOf = (t) => num(t.paintTiming?.["first-contentful-paint"]);
+const lcpOf = (t) => num(t.largestContentfulPaint?.renderTime);
 
 const pages = JSON.parse(readFileSync(inFile, "utf8"));
 mkdirSync(outDir, { recursive: true });
