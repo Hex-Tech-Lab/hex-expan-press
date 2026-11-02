@@ -44,13 +44,9 @@ NON_CONTRACT_PURPOSES = frozenset({"review", "author_copy"})
 PURPOSES = tuple(sorted(CONTRACT_PURPOSES | NON_CONTRACT_PURPOSES))
 
 
-def compute_sha256(filepath: str) -> str:
-    """Computes SHA-256 hash of a file."""
-    h = hashlib.sha256()
-    with open(filepath, "rb") as f:
-        while chunk := f.read(65536):
-            h.update(chunk)
-    return h.hexdigest()
+def overlay_text(text: str) -> str:
+    """Text for a PDF string in an overlay stream. Latin-1 is the stream's encoding, so characters outside it become '?'."""
+    return text.encode("latin-1", "replace").decode("latin-1")
 
 
 def generate_diagonal_overlay_pdf(width: float, height: float, text: str) -> bytes:
@@ -67,7 +63,7 @@ def generate_diagonal_overlay_pdf(width: float, height: float, text: str) -> byt
     tx = cx - (approx_text_width / 2.0) * cos_a
     ty = cy - (approx_text_width / 2.0) * sin_a
 
-    safe_text = text.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+    safe_text = overlay_text(text).replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
 
     content = f"""q
 0.72 0.72 0.72 rg
@@ -78,7 +74,8 @@ BT
 ET
 Q
 """
-    stream_bytes = content.encode("utf-8")
+    # Latin-1, the same encoding the whole overlay PDF is written in, so /Length counts the bytes actually emitted.
+    stream_bytes = content.encode("latin-1")
     stream_len = len(stream_bytes)
 
     pdf_str = f"""%PDF-1.4
@@ -124,8 +121,8 @@ def generate_perimeter_overlay_pdf(
     header_text = f"EXPANPRESS EXECUTION BUNDLE  |  BUNDLE ID: {bundle_id}  |  LEGAL PROVENANCE HOLD"
     footer_text = f"Digitally Sealed & Fingerprinted  |  Doc SHA-256: {doc_hash_short}...  |  Page {page_num} of {total_pages}  |  Legal Signer: {creator_name}"
 
-    safe_header = header_text.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
-    safe_footer = footer_text.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+    safe_header = overlay_text(header_text).replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+    safe_footer = overlay_text(footer_text).replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
 
     font_size = 7.0
 
@@ -151,7 +148,8 @@ ET
 S
 Q
 """
-    stream_bytes = content.encode("utf-8")
+    # Latin-1, the same encoding the whole overlay PDF is written in, so /Length counts the bytes actually emitted.
+    stream_bytes = content.encode("latin-1")
     stream_len = len(stream_bytes)
 
     pdf_str = f"""%PDF-1.4
@@ -212,7 +210,11 @@ def main():
         )
 
     # Compute source file hash
-    source_sha256 = compute_sha256(args.input)
+    # Read the source once. The digest and the parsed PDF both come from this buffer, so a file replaced between
+    # hashing and parsing cannot make /SourceSha256 describe different bytes.
+    with open(args.input, "rb") as f_in:
+        source_bytes = f_in.read()
+    source_sha256 = hashlib.sha256(source_bytes).hexdigest()
 
     # Establish or derive Bundle ID
     timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
@@ -231,7 +233,7 @@ def main():
 
     bundle_root = args.bundle_root_hash or hmac_digest
 
-    reader = pypdf.PdfReader(args.input)
+    reader = pypdf.PdfReader(io.BytesIO(source_bytes))
     writer = pypdf.PdfWriter()
     total_pages = len(reader.pages)
 

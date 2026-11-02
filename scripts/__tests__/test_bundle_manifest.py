@@ -16,6 +16,7 @@ import hashlib
 import importlib.util
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -756,6 +757,82 @@ class TestProvenanceFingerprintCoversBundleRoot(unittest.TestCase):
             self.assertEqual(second["/BundleRootHash"], "b" * 64)
             self.assertNotEqual(first["/ProvenanceFingerprint"], second["/ProvenanceFingerprint"],
                                 "the provenance fingerprint does not cover the bundle root it is stamped with")
+
+
+class TestStampReadsTheSourceOnce(unittest.TestCase):
+    """Medium: the digest written to /SourceSha256 must describe the bytes the PDF parser reads, not a second read of the path."""
+
+    @staticmethod
+    def _load_watermarker():
+        spec = importlib.util.spec_from_file_location("watermark_pdf", WATERMARK_SCRIPT)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+
+    def test_parser_consumes_the_bytes_that_were_hashed(self):
+        wm = self._load_watermarker()
+        with tempfile.TemporaryDirectory() as tmp:
+            src = os.path.join(tmp, "x.pdf")
+            create_dummy_pdf(src, "original")
+            out = os.path.join(tmp, "o.pdf")
+            seen = {}
+            real_reader = pypdf.PdfReader
+
+            def spy(stream, *args, **kwargs):
+                if "parsed" not in seen:
+                    if isinstance(stream, str):
+                        # The old code reopens the path here: swap the file first to simulate a concurrent replacement.
+                        create_dummy_pdf(src, "swapped in after hashing")
+                        with open(stream, "rb") as f:
+                            seen["parsed"] = f.read()
+                    else:
+                        seen["parsed"] = stream.getvalue()
+                return real_reader(stream, *args, **kwargs)
+
+            argv = ["watermark_pdf.py", "--input", src, "--output", out, "--creator-id", "c",
+                    "--creator-name", "n", "--mode", "perimeter", "--purpose", "review", "--bundle-id", "BND-T-9"]
+            with unittest.mock.patch.object(pypdf, "PdfReader", side_effect=spy), \
+                    unittest.mock.patch.object(sys, "argv", argv):
+                wm.main()
+            self.assertIn("parsed", seen)
+            parsed_sha = hashlib.sha256(seen["parsed"]).hexdigest()
+            self.assertEqual(real_reader(out).metadata.get("/SourceSha256"), parsed_sha,
+                             "/SourceSha256 describes different bytes from the ones the parser read")
+
+
+class TestOverlayStreamsAreLatin1Exact(unittest.TestCase):
+    """Medium/Low: overlay streams must be encodable, and /Length must count the bytes actually written."""
+
+    @staticmethod
+    def _assert_length_matches(testcase, pdf: bytes):
+        m = re.search(rb"/Length (\d+) >>\nstream\n", pdf)
+        testcase.assertIsNotNone(m, "no stream length found")
+        end = pdf.index(b"endstream", m.end())
+        testcase.assertEqual(int(m.group(1)), end - m.end(), "declared /Length differs from the stream bytes written")
+
+    def test_perimeter_length_counts_latin1_bytes(self):
+        wm = TestStampReadsTheSourceOnce._load_watermarker()
+        pdf = wm.generate_perimeter_overlay_pdf(612, 792, "BND-T-9", "abcd", "Zoé", 1, 1)
+        self._assert_length_matches(self, pdf)
+
+    def test_diagonal_length_counts_latin1_bytes(self):
+        wm = TestStampReadsTheSourceOnce._load_watermarker()
+        pdf = wm.generate_diagonal_overlay_pdf(612, 792, "CONFIDENTIAL REVIEW COPY - ZOÉ")
+        self._assert_length_matches(self, pdf)
+
+    def test_non_latin1_creator_name_stamps_instead_of_crashing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            src = os.path.join(tmp, "x.pdf")
+            create_dummy_pdf(src, "x")
+            out = os.path.join(tmp, "o.pdf")
+            for mode, purpose in (("perimeter", "c1_data_accuracy"), ("diagonal", "review")):
+                with self.subTest(mode=mode):
+                    res = subprocess.run(
+                        [sys.executable, WATERMARK_SCRIPT, "--input", src, "--output", out, "--creator-id", "c",
+                         "--creator-name", "Zoé Ω 漢", "--mode", mode, "--purpose", purpose],
+                        capture_output=True, text=True, env=dict(os.environ, ASSET_SALT=TEST_SALT))
+                    self.assertEqual(res.returncode, 0, f"{mode} stamp crashed: {res.stderr[-300:]}")
+                    self.assertTrue(pypdf.PdfReader(out).metadata.get("/Author", "").startswith("Zo"))
 
 
 class TestStamperRefusesDiagonalOnContracts(unittest.TestCase):
