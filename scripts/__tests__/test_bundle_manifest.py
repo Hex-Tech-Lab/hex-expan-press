@@ -24,7 +24,9 @@ import unittest.mock
 import pypdf
 
 TEST_SALT = "test-only-salt-that-is-at-least-32-chars"  # 40 characters; the scripts refuse anything shorter
-os.environ.setdefault("ASSET_SALT", TEST_SALT)
+# Assign, do not setdefault: a developer's shell ASSET_SALT would otherwise sign the fixtures, and a short one
+# would fail every generation test.
+os.environ["ASSET_SALT"] = TEST_SALT
 
 REPO_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 WATERMARK_SCRIPT = os.path.join(REPO_ROOT, "scripts/watermark_pdf.py")
@@ -81,7 +83,9 @@ class TestBundleManifest(unittest.TestCase):
         self.assertEqual(meta.get("/BundleId"), "BND-TEST-001")
         self.assertEqual(meta.get("/DocumentMode"), "perimeter")
         self.assertEqual(meta.get("/ProvenancePurpose"), "c1_data_accuracy")
-        self.assertTrue(meta.get("/ProvenanceFingerprint") is not None)
+        self.assertIsNotNone(meta.get("/ProvenanceFingerprint"))
+        # Metadata alone also passes if the overlay merge is skipped, so the visible audit banner is asserted too.
+        self.assertIn("EXPANPRESS EXECUTION BUNDLE", reader.pages[0].extract_text())
 
     def test_diagonal_watermarking_for_ebook(self):
         """Verify that diagonal mode creates a valid PDF with diagonal watermark and proper metadata."""
@@ -105,6 +109,7 @@ class TestBundleManifest(unittest.TestCase):
         meta = reader.metadata
         self.assertEqual(meta.get("/BundleId"), "BND-TEST-001")
         self.assertEqual(meta.get("/DocumentMode"), "diagonal")
+        self.assertIn("CONFIDENTIAL REVIEW COPY", reader.pages[0].extract_text())
 
     def test_bundle_manifest_generation_and_stamping(self):
         """Verify complete bundle generation linking all 4 documents under one root signature."""
