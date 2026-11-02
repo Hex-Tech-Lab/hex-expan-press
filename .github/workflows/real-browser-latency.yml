@@ -107,6 +107,11 @@ jobs:
 
   send:
     needs: measure
+    # Only master can start this job, so a PR branch cannot reach PROBE_INGEST_SECRET.
+    # The environment is restricted to master by branch policy and has no required reviewer,
+    # so scheduled runs are not stalled. Limit: a PR can still edit this line. Moving the secret
+    # into this environment is the control that closes that gap, and it needs the founder to set it.
+    environment: probe-ingest
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
