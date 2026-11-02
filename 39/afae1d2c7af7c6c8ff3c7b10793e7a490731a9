@@ -1,0 +1,32 @@
+scripts/__tests__/test_bundle_manifest.py
+  s_6625bc67577472::t_94f5e1019238f9 14,17,20
+  s_6625bc67577472::t_ff4451eda8903c 1371-1476
+  s_6625bc67577472::t_e19a0a9762e1e0 1477-1520
+scripts/generate_bundle_manifest.py
+  s_6625bc67577472::t_75d95338dbdf8e 234-238,240-243,247-251,254-255,258-264,266-267,269,272,274-275,283,289-290
+  s_6625bc67577472::t_f4d7a5aa99b0c5 350,354
+  s_6625bc67577472::t_3aa26d3011e95e 412-413
+  s_6625bc67577472::t_09e981a2c44f99 357
+  s_6625bc67577472::t_cb8a411f1a794c 317
+  s_6625bc67577472::t_a290645f513194 196
+  s_6625bc67577472::t_4e44a116d01495 460-465,468
+  s_6625bc67577472::t_a99b96cbb2d06e 466-467
+  s_6625bc67577472::t_0d654208a0e0d8 308
+  s_6625bc67577472::t_c4fa8c3e437990 239,244-246,252-253,256-257,265,268,270-271,273,276-282,284-288
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "39afae1d2c7af7c6c8ff3c7b10793e7a490731a9",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "unknown"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
