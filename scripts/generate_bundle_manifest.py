@@ -2,7 +2,7 @@
 """
 scripts/generate_bundle_manifest.py  -  Unified Cryptographic Bundle Signing Engine
 
-Binds all four critical transaction artifacts:
+Binds four bundle artifacts:
 1. C1 Data Accuracy Consent
 2. C2 Release Approval Consent
 3. C3 Publisher Agreement (Firma e-signature envelope)
