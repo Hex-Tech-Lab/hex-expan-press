@@ -84,7 +84,8 @@ jobs:
           fi
           failed=0
           for f in "$RUNNER_TEMP"/summaries/*.json; do
-            # The key is read from the environment, not passed as an argument, so it never appears in the process list.
+            # The key is read from the environment, not passed as an argument, so it is not in the command line
+            # that ps and /proc/<pid>/cmdline show. The environment itself is still readable by this user's processes.
             sig=$(node -e 'const c = require("crypto"), fs = require("fs"); process.stdout.write(c.createHmac("sha256", process.env.PROBE_INGEST_SECRET).update(fs.readFileSync(process.argv[1])).digest("hex"));' "$f")
             code=$(curl -sS -o "$RUNNER_TEMP/resp.json" -w '%{http_code}' --max-time 30 \
               -X POST https://expan-latency-probe.vercel.app/api/ingest \
