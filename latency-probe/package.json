@@ -4,7 +4,8 @@
   "version": "1.0.0",
   "scripts": {
     "build": "next build",
-    "dev": "next dev"
+    "dev": "next dev",
+    "test:browser": "playwright test"
   },
   "dependencies": {
     "@upstash/qstash": "2.12.0",
@@ -14,6 +15,7 @@
     "react-dom": "19.1.1"
   },
   "devDependencies": {
+    "@playwright/test": "1.63.0",
     "@types/node": "22.15.3",
     "@types/react": "19.1.2",
     "typescript": "5.8.3"
