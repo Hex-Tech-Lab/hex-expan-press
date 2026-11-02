@@ -1,6 +1,7 @@
 // Run with: node --test scripts/latency/workflow-invariants.test.mjs
 // Guards the Cubic P1 fix: the job that runs Chrome must never hold the probe secret, no Chrome sandbox
-// switch (--no-sandbox or --disable-setuid-sandbox) may appear, and the send job runs no browser.
+// switch (--no-sandbox or --disable-setuid-sandbox) may appear, the send job runs no browser, and the send job
+// runs only on master (its if: guard).
 // It checks the workflow text only; it does not observe Chrome's sandbox at runtime.
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -45,6 +46,7 @@ export function invariantViolations(text) {
     if (!/PROBE_INGEST_SECRET/.test(send)) violations.push("send job lacks the probe secret");
     if (BROWSER_TOOL.test(send)) violations.push("send job runs a browser tool");
     if (!/^    needs: measure\s*$/m.test(send)) violations.push("send job does not depend on measure");
+    if (!/^    if: github\.ref == 'refs\/heads\/master'\s*$/m.test(send)) violations.push("send job does not run only on master");
   }
   return violations;
 }
@@ -91,6 +93,11 @@ test("negative controls: each bypass shape is caught", () => {
       "browser tool added to send job",
       mutate(good, "    needs: measure\n", "    needs: measure\n    env:\n      BROWSER: chromium\n"),
       "send job runs a browser tool",
+    ],
+    [
+      "master-only if: guard removed from send job",
+      mutate(good, "    if: github.ref == 'refs/heads/master'\n", ""),
+      "send job does not run only on master",
     ],
   ];
   for (const [label, bad, expected] of cases) {
