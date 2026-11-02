@@ -605,6 +605,57 @@ class TestVerifyExitCodes(unittest.TestCase):
         self.assertEqual(res.returncode, 0, res.stderr)
 
 
+class TestVerifyChecksReferencedFiles(unittest.TestCase):
+    """High: a valid root signature is not enough. --verify must also reject a source or stamped file that changed or vanished."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix="bundle_refs_")
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        self.docs = {}
+        for name in ("c1", "c2", "c3", "ebook"):
+            self.docs[name] = os.path.join(self.tmp, f"{name}.pdf")
+            create_dummy_pdf(self.docs[name], f"{name} body")
+        self.manifest = os.path.join(self.tmp, "bundle_manifest.json")
+        res = subprocess.run([
+            sys.executable, MANIFEST_SCRIPT,
+            "--c1-doc", self.docs["c1"], "--c2-doc", self.docs["c2"], "--c3-doc", self.docs["c3"],
+            "--ebook-doc", self.docs["ebook"], "--creator-id", "example-creator", "--creator-name", "the owner",
+            "--product-id", "500k-playbook", "--output-manifest", self.manifest,
+            "--output-dir", os.path.join(self.tmp, "stamped"), "--stamp-bundle",
+        ], capture_output=True, text=True)
+        self.assertEqual(res.returncode, 0, res.stderr)
+        with open(self.manifest, encoding="utf-8") as f:
+            self.stamped = json.load(f)["stamped_artifacts"]
+
+    def _verify(self):
+        return subprocess.run([sys.executable, MANIFEST_SCRIPT, "--verify", self.manifest],
+                              capture_output=True, text=True)
+
+    def test_untouched_bundle_verifies(self):
+        self.assertEqual(self._verify().returncode, 0)
+
+    def test_changed_source_fails_verification(self):
+        create_dummy_pdf(self.docs["c1"], "c1 REPLACED after signing")
+        res = self._verify()
+        self.assertEqual(res.returncode, 1, f"a changed source still verified: {res.stdout} {res.stderr}")
+        self.assertIn("c1_data_accuracy", res.stderr)
+
+    def test_removed_source_fails_verification(self):
+        os.remove(self.docs["c2"])
+        res = self._verify()
+        self.assertEqual(res.returncode, 1, f"a removed source still verified: {res.stdout} {res.stderr}")
+
+    def test_replaced_stamped_file_fails_verification(self):
+        create_dummy_pdf(self.stamped["c1"], "stamped copy swapped out")
+        res = self._verify()
+        self.assertEqual(res.returncode, 1, f"a replaced stamped file still verified: {res.stdout} {res.stderr}")
+
+    def test_removed_stamped_file_fails_verification(self):
+        os.remove(self.stamped["ebook"])
+        res = self._verify()
+        self.assertEqual(res.returncode, 1, f"a removed stamped file still verified: {res.stdout} {res.stderr}")
+
+
 class TestStamperRefusesDiagonalOnContracts(unittest.TestCase):
     """P2: diagonal stamping is for media only. The stamper refuses it on any contract document."""
 

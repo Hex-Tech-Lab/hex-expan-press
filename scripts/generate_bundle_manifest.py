@@ -13,7 +13,9 @@ except the signature itself, serialized canonically (sorted keys, no whitespace,
 a Merkle tree and the manifest is not write-once. Optionally pre-stamps all bundle PDFs with
 perimeter and diagonal provenance banners.
 
-Verify a manifest (exit 0 = untouched, 1 = any field changed, 2 = usage, read, parse or salt error):
+Verify a manifest (exit 0 = untouched, 1 = tampered: a field changed, or a source or stamped file it names is
+missing or no longer matches, 2 = usage, read, parse or salt error). Verification reads the source paths
+recorded at signing, so run it where those files are:
   ASSET_SALT=... python3 scripts/generate_bundle_manifest.py --verify path/to/bundle_manifest.json
 
 Usage:
@@ -83,6 +85,62 @@ def verify_manifest(manifest: dict, salt: bytes) -> bool:
     if not isinstance(signature, str):
         return False
     return hmac.compare_digest(sign_manifest(manifest, salt), signature)
+
+
+# Manifest artifact name for each source and stamp key. The keys match STAMP_TASKS.
+ARTIFACT_NAMES = {
+    "c1": "c1_data_accuracy",
+    "c2": "c2_release_approval",
+    "c3": "c3_publisher_agreement",
+    "ebook": "ebook_asset",
+}
+
+
+def _sha256_file(path: str) -> str:
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(65536), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _stamp_problems(path: str, name: str, manifest: dict) -> list:
+    """A stamped file is bound to the signed manifest by its own metadata: bundle id, root signature, source digest."""
+    import pypdf  # imported here: only verification of stamped files needs it
+
+    try:
+        meta = pypdf.PdfReader(path).metadata or {}
+    except Exception as exc:  # any read failure of a file named by the manifest is a verdict, not a crash
+        return [f"{name}: stamped file is unreadable ({exc})"]
+    expected = {
+        "/BundleId": manifest.get("bundle_id"),
+        "/BundleRootHash": manifest.get(SIGNATURE_FIELD),
+        "/SourceSha256": (manifest.get("artifacts") or {}).get(name, {}).get("sha256"),
+    }
+    return [f"{name}: stamped file {field} does not match the signed manifest"
+            for field, want in expected.items() if meta.get(field) != want]
+
+
+def referenced_file_problems(manifest: dict) -> list:
+    """Why the files a signed manifest names no longer match it. An empty list means every one still matches."""
+    problems = []
+    artifacts = manifest.get("artifacts") or {}
+    for name in ARTIFACT_NAMES.values():
+        entry = artifacts.get(name) or {}
+        path, digest = entry.get("source_path"), entry.get("sha256")
+        if not isinstance(path, str) or not os.path.isfile(path):
+            problems.append(f"{name}: source file is missing ({path})")
+        elif _sha256_file(path) != digest:
+            problems.append(f"{name}: source file changed since signing ({path})")
+    for key, path in (manifest.get("stamped_artifacts") or {}).items():
+        name = ARTIFACT_NAMES.get(key)
+        if name is None:
+            problems.append(f"stamped_artifacts: unknown key {key!r}")
+        elif not isinstance(path, str) or not os.path.isfile(path):
+            problems.append(f"{name}: stamped file is missing ({path})")
+        else:
+            problems.extend(_stamp_problems(path, name, manifest))
+    return problems
 
 
 def create_bundle(
@@ -219,7 +277,7 @@ def create_bundle(
 def main() -> int:
     parser = argparse.ArgumentParser(description="Generate cryptographic Bundle Manifest for contracts and assets, or verify one.")
     parser.add_argument("--verify", metavar="MANIFEST", default=None,
-                        help="Verify an existing bundle_manifest.json (needs ASSET_SALT). Exit 0 untouched, 1 tampered, 2 usage, read, parse or salt error.")
+                        help="Verify an existing bundle_manifest.json (needs ASSET_SALT). Exit 0 untouched, 1 tampered (a field, or a referenced source or stamped file, changed or is missing), 2 usage, read, parse or salt error.")
     parser.add_argument("--c1-doc", help="Path to C1 Data Accuracy document/PDF")
     parser.add_argument("--c2-doc", help="Path to C2 Release Approval document/PDF")
     parser.add_argument("--c3-doc", help="Path to C3 Publisher Agreement document/PDF")
@@ -250,7 +308,13 @@ def main() -> int:
             print(f"ERROR: manifest {args.verify} is not a JSON object", file=sys.stderr)
             return 2
         if verify_manifest(manifest, salt):
-            print(f"VERIFIED: {manifest.get('bundle_id')} root signature matches every manifest field")
+            problems = referenced_file_problems(manifest)
+            if problems:
+                print(f"TAMPERED: {args.verify} has a valid root signature, but a referenced file does not match:", file=sys.stderr)
+                for problem in problems:
+                    print(f"  - {problem}", file=sys.stderr)
+                return 1
+            print(f"VERIFIED: {manifest.get('bundle_id')} root signature matches every manifest field and every referenced file")
             return 0
         print(f"TAMPERED: {args.verify} does not match its root signature", file=sys.stderr)
         return 1
