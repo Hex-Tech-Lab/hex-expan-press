@@ -1,0 +1,25 @@
+scripts/latency/summarize-browsertime.test.mjs
+  s_6625bc67577472::t_9160e34ea40ed9 39,48-55
+  s_6625bc67577472::t_00b5c616c99772 5
+  s_6625bc67577472::t_7ae701566dc9c0 11-12,15-21
+  s_6625bc67577472::t_b845012eb88979 56-57
+scripts/latency/summarize-browsertime.mjs
+  s_6625bc67577472::t_6e6ceb82f2d0ac 38
+  s_6625bc67577472::t_57e0854f0d5b23 35-37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "55269545e7f6492279056d9309118aab28845a8a",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
