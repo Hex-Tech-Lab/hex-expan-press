@@ -1,0 +1,19 @@
+.github/workflows/real-browser-latency.yml
+  s_6625bc67577472::t_a17a96688b7357 87-88
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1ad8df80a8c4e5ef65d383ee3de6d4d916dbfe21",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "unknown"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
