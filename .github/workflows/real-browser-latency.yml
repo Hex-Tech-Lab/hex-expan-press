@@ -2,7 +2,11 @@ name: real-browser-latency
 
 # Measures the buyer-facing pages with a real Chrome on a GitHub-hosted runner,
 # then sends a signed summary per page to the latency probe.
-# Scheduled runs only fire from the default branch. Use workflow_dispatch to test a branch.
+# Two jobs: "measure" runs Chrome and holds no secrets; "send" holds PROBE_INGEST_SECRET and runs no Chrome.
+# Scheduled runs fire only from the default branch. A workflow_dispatch from another branch runs measure only:
+# the send job is skipped unless the ref is master (if: below), and the probe-ingest environment also allows
+# only master. These guards live in this file, so a branch that edits the file could remove them. The secret
+# itself is held only in the probe-ingest environment, which allows master only, so a branch cannot read it.
 
 on:
   schedule:
@@ -20,14 +24,16 @@ jobs:
   measure:
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    permissions:
+      contents: read
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "22"
 
@@ -36,7 +42,12 @@ jobs:
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/bt"
           npm install --prefix "$RUNNER_TEMP/bt" --no-save --no-audit --no-fund browsertime@28.4.0
-          "$RUNNER_TEMP/bt/node_modules/.bin/browsertime" --version
+          # --version prints a wrong number in 28.x, so read the installed package version instead.
+          installed=$(node -p "require('$RUNNER_TEMP/bt/node_modules/browsertime/package.json').version")
+          if [ "$installed" != "28.4.0" ]; then
+            echo "::error::browsertime $installed installed, expected 28.4.0"
+            exit 1
+          fi
 
       - name: Record runner location (country only)
         run: |
@@ -50,6 +61,21 @@ jobs:
           echo "LATENCY_LOCATION=gha-$country" >> "$GITHUB_ENV"
           echo "runner location: gha-$country"
 
+      - name: Chrome diagnostics
+        run: |
+          # Diagnostic only, outside Browsertime. It prints versions and checks that headless Chrome launches.
+          # It does not open a WebDriver session; the Browsertime run below is the session test.
+          set +e
+          google-chrome --version
+          # Browsertime uses the ChromeDriver that @sitespeed.io/chromedriver bundles, not the one on PATH.
+          driver=$(cd "$RUNNER_TEMP/bt" && node --input-type=module -e 'import c from "@sitespeed.io/chromedriver"; process.stdout.write(c.binPath())')
+          echo "bundled chromedriver: $driver"
+          "$driver" --version
+          timeout 30 google-chrome --headless=new --disable-dev-shm-usage --dump-dom about:blank > /dev/null 2> "$RUNNER_TEMP/chrome-direct.err"
+          echo "direct headless launch exit=$?"
+          head -c 1500 "$RUNNER_TEMP/chrome-direct.err"
+          exit 0
+
       - name: Measure pages in Chrome (5 runs each)
         run: |
           set -euo pipefail
@@ -58,9 +84,9 @@ jobs:
             https://expanpress.com/books/retirearly500k \
             https://expanpress.com/books/retirearly500k/500k-playbook \
             -n 5 \
-            --chrome.headless \
-            --chrome.args no-sandbox \
-            --chrome.args disable-dev-shm-usage \
+            --headless \
+            --chrome.args=--disable-dev-shm-usage \
+            --chrome.enableVerboseChromeDriverLog \
             --resultDir "$RUNNER_TEMP/bt-results"
 
       - name: Summarise per page
@@ -69,18 +95,66 @@ jobs:
           node scripts/latency/summarize-browsertime.mjs \
             "$RUNNER_TEMP/bt-results/browsertime.json" "$RUNNER_TEMP/summaries"
 
+      - name: Upload summaries for the send job
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          # Stable name, so a send-only rerun (which bumps run_attempt) still finds it. overwrite replaces the
+          # upload of an earlier attempt, so a full rerun does not collide.
+          name: latency-summaries-${{ github.run_id }}
+          overwrite: true
+          path: ${{ runner.temp }}/summaries
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Keep raw Browsertime output
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: browsertime-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/bt-results
+          retention-days: 7
+
+  send:
+    needs: measure
+    # Defense in depth: only master sends. The probe-ingest environment (master-only branch policy)
+    # is the gate for PROBE_INGEST_SECRET, which is held only in that environment (no repository-level copy).
+    if: github.ref == 'refs/heads/master'
+    environment: probe-ingest
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Download summaries from the measure job
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: latency-summaries-${{ github.run_id }}
+          path: ${{ runner.temp }}/summaries
+
       - name: Send signed summaries to the probe
         env:
           PROBE_INGEST_SECRET: ${{ secrets.PROBE_INGEST_SECRET }}
         run: |
           set -uo pipefail
+          shopt -s nullglob
           if [ -z "$PROBE_INGEST_SECRET" ]; then
             echo "::error::PROBE_INGEST_SECRET is not set"
             exit 1
           fi
+          files=("$RUNNER_TEMP"/summaries/*.json)
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "::error::no summaries to send"
+            exit 1
+          fi
           failed=0
-          for f in "$RUNNER_TEMP"/summaries/*.json; do
-            sig=$(openssl dgst -sha256 -hmac "$PROBE_INGEST_SECRET" -hex < "$f" | awk '{print $NF}')
+          for f in "${files[@]}"; do
+            # The key stays in the environment. It is never an argv element, so it cannot show in a process listing.
+            sig=$(node -e 'const c=require("crypto"),fs=require("fs");process.stdout.write(c.createHmac("sha256",process.env.PROBE_INGEST_SECRET).update(fs.readFileSync(process.argv[1])).digest("hex"))' "$f")
             code=$(curl -sS -o "$RUNNER_TEMP/resp.json" -w '%{http_code}' --max-time 30 \
               -X POST https://expan-latency-probe.vercel.app/api/ingest \
               -H 'content-type: application/json' \
@@ -94,11 +168,3 @@ jobs:
             fi
           done
           exit $failed
-
-      - name: Keep raw Browsertime output
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: browsertime-${{ github.run_id }}
-          path: ${{ runner.temp }}/bt-results
-          retention-days: 7
