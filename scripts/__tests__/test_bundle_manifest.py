@@ -875,6 +875,28 @@ class TestStampRefusesWhatItCannotShow(unittest.TestCase):
             self.assertEqual([n for n in leftover if n.endswith(".bundle_stamped.pdf")], [])
 
 
+    def test_bundle_with_stamp_and_non_latin1_creator_id_exits_2_and_writes_no_manifest(self):
+        """The creator id feeds the bundle id, and the bundle id is stamped, so a non-Latin-1 creator id is refused the same way."""
+        with tempfile.TemporaryDirectory() as tmp:
+            docs = {}
+            for name in ("c1", "c2", "c3", "ebook"):
+                docs[name] = os.path.join(tmp, f"{name}.pdf")
+                create_dummy_pdf(docs[name], f"{name} body")
+            manifest = os.path.join(tmp, "m.json")
+            out_dir = os.path.join(tmp, "out")
+            res = subprocess.run([
+                sys.executable, MANIFEST_SCRIPT, "--c1-doc", docs["c1"], "--c2-doc", docs["c2"],
+                "--c3-doc", docs["c3"], "--ebook-doc", docs["ebook"], "--creator-id", "作者-01",
+                "--creator-name", "the owner", "--product-id", "500k-playbook", "--output-manifest", manifest,
+                "--output-dir", out_dir, "--stamp-bundle"],
+                capture_output=True, text=True, env=dict(os.environ, ASSET_SALT=TEST_SALT))
+            self.assertEqual(res.returncode, 2, f"expected a usage refusal, got {res.returncode}: {res.stderr[-300:]}")
+            self.assertIn("Latin-1", res.stderr)
+            self.assertFalse(os.path.exists(manifest), "a refused creator id left a signed manifest")
+            leftover = sorted(os.listdir(out_dir)) if os.path.isdir(out_dir) else []
+            self.assertEqual([n for n in leftover if n.endswith(".bundle_stamped.pdf")], [])
+
+
 class TestBlankIdentifiersAreRefusedBeforeSigning(unittest.TestCase):
     """Finding 2: a blank creator-id, creator-name or product-id must stop the run before anything is signed."""
 
