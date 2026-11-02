@@ -892,6 +892,63 @@ class TestBundlePublishIsAtomicAndBounded(unittest.TestCase):
             for key, path in stamped.items():
                 self.assertTrue(os.path.isabs(path), f"{key} stamped path is relative: {path}")
 
+    def test_stamp_subprocess_has_a_timeout_and_a_timeout_fails_the_bundle(self):
+        """Medium: a stuck stamper must fail the bundle, not hang it. The subprocess call carries a finite timeout."""
+        gbm = self._load_generator()
+        real_run = subprocess.run
+        seen = {}
+
+        def stuck_stamp(cmd, *args, **kwargs):
+            if os.path.basename(str(cmd[1])) == "watermark_pdf.py":
+                seen["timeout"] = kwargs.get("timeout")
+                raise subprocess.TimeoutExpired(cmd, kwargs.get("timeout") or 0)
+            return real_run(cmd, *args, **kwargs)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            docs = self._docs(tmp)
+            manifest = os.path.join(tmp, "m.json")
+            with unittest.mock.patch.object(gbm.subprocess, "run", side_effect=stuck_stamp):
+                with self.assertRaisesRegex(RuntimeError, "Failed to stamp c1.*timed out"):
+                    gbm.create_bundle(docs["c1"], docs["c2"], docs["c3"], docs["ebook"], "example-creator",
+                                      "the owner", "500k-playbook", manifest,
+                                      output_dir=os.path.join(tmp, "out"), stamp_bundle=True)
+            self.assertIsInstance(seen.get("timeout"), (int, float), "the stamp subprocess was started without a timeout")
+            self.assertGreater(seen["timeout"], 0)
+            self.assertFalse(os.path.exists(manifest), "a timed-out stamp must not leave a manifest")
+
+    def test_creator_name_that_looks_like_an_option_is_stamped_literally(self):
+        """Medium: values pass as --flag=value, so a name starting with '-' or holding shell syntax is data, never an option or a command."""
+        gbm = self._load_generator()
+        # No space in the name: argparse reads a '-'-prefixed token that contains a space as a value, so only a
+        # space-free token reaches the option-parsing path that this test is about.
+        name = "-Jane$(touch${IFS}INJECTED_MARK)"
+        with tempfile.TemporaryDirectory() as tmp:
+            docs = self._docs(tmp)
+            manifest = os.path.join(tmp, "m.json")
+            cwd = os.getcwd()
+            real_run = subprocess.run
+            argvs = []
+
+            def record(cmd, *args, **kwargs):
+                argvs.append(list(cmd))
+                return real_run(cmd, *args, **kwargs)
+
+            os.chdir(tmp)
+            try:
+                with unittest.mock.patch.object(gbm.subprocess, "run", side_effect=record):
+                    gbm.create_bundle(docs["c1"], docs["c2"], docs["c3"], docs["ebook"], "example-creator", name,
+                                      "500k-playbook", manifest, output_dir=os.path.join(tmp, "out"), stamp_bundle=True)
+            finally:
+                os.chdir(cwd)
+            self.assertEqual(len(argvs), 4)
+            for argv in argvs:
+                self.assertFalse(any(name in token or "INJECTED" in token for token in argv),
+                                 f"the creator name reached the stamper's argv: {argv}")
+            self.assertFalse(os.path.exists(os.path.join(tmp, "INJECTED_MARK")), "a shell ran on the creator name")
+            with open(manifest, encoding="utf-8") as f:
+                stamped = json.load(f)["stamped_artifacts"]
+            self.assertEqual(pypdf.PdfReader(stamped["c1"]).metadata.get("/Author"), name)
+
     def test_hashing_large_sources_does_not_hold_them_in_memory(self):
         import tracemalloc
         gbm = self._load_generator()

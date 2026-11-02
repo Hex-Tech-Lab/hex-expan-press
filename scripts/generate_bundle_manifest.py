@@ -164,6 +164,8 @@ def referenced_file_problems(manifest: dict) -> list:
 
 
 COPY_CHUNK_BYTES = 1 << 16
+# A stuck PDF parser or child must fail the bundle, not block it. Generous: a stamp is a few hundred ms.
+STAMP_TIMEOUT_SECONDS = 300
 
 
 def _hash_and_copy(src: str, dst: str | None) -> str:
@@ -300,19 +302,34 @@ def create_bundle(
             stamped_staging = {}
             for key, mode, purpose in STAMP_TASKS:
                 stamp_out = os.path.join(stage_dir, f"{key}.stamped.pdf")
-                cmd = [
-                    sys.executable,
-                    watermarker,
-                    "--input", staged[key],
-                    "--output", stamp_out,
-                    "--creator-id", creator_id,
-                    "--creator-name", creator_name,
-                    "--mode", mode,
-                    "--purpose", purpose,
-                    "--bundle-id", bundle_id,
-                    "--bundle-root-hash", root_signature
-                ]
-                res = subprocess.run(cmd, capture_output=True, text=True)
+                # The stamp settings travel in a private JSON file, not argv. The argument vector is then the interpreter,
+                # this module's watermark script, and a temp-file path made here, so no caller-supplied string reaches
+                # argv. shell=False, and a creator name that starts with '-' or holds shell syntax is data.
+                settings = {
+                    "input": staged[key],
+                    "output": stamp_out,
+                    "creator_id": creator_id,
+                    "creator_name": creator_name,
+                    "mode": mode,
+                    "purpose": purpose,
+                    "bundle_id": bundle_id,
+                    "bundle_root_hash": root_signature,
+                }
+                fd, params_path = tempfile.mkstemp(prefix="bundle_stamp_", suffix=".json")
+                try:
+                    with os.fdopen(fd, "w", encoding="utf-8") as f_params:
+                        json.dump(settings, f_params)
+                    cmd = [sys.executable, watermarker, "--params", params_path]
+                    try:
+                        # Proof, not a shell: cmd is [sys.executable, <this module's watermark_pdf.py>, "--params",
+                        # <params_path from tempfile.mkstemp>]. Every element is fixed by this module or the interpreter.
+                        # No caller-supplied string reaches argv; the settings go through the private params file.
+                        # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-audit.dangerous-subprocess-use-audit
+                        res = subprocess.run(cmd, capture_output=True, text=True, shell=False, timeout=STAMP_TIMEOUT_SECONDS)
+                    except subprocess.TimeoutExpired:
+                        raise RuntimeError(f"Failed to stamp {key} ({sources[key]}): timed out after {STAMP_TIMEOUT_SECONDS}s")
+                finally:
+                    os.remove(params_path)
                 if res.returncode != 0:
                     raise RuntimeError(f"Failed to stamp {key} ({sources[key]}): {res.stderr}")
                 stamped_staging[key] = stamp_out

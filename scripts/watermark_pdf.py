@@ -25,6 +25,7 @@ import datetime
 import hashlib
 import hmac
 import io
+import json
 import math
 import os
 import sys
@@ -176,12 +177,40 @@ startxref
     return pdf_str.encode("latin-1")
 
 
+PARAM_FIELDS = ("input", "output", "creator_id", "creator_name", "mode", "purpose", "bundle_id", "bundle_root_hash")
+
+
+def apply_params_file(parser, args):
+    """Fills args from a JSON object file. Only the known string fields are accepted; anything else is refused."""
+    try:
+        with open(args.params, encoding="utf-8") as f_in:
+            settings = json.load(f_in)
+    except (OSError, ValueError) as exc:
+        parser.error(f"cannot read --params {args.params}: {exc}")
+    if not isinstance(settings, dict):
+        parser.error("--params must hold a JSON object")
+    unknown = sorted(set(settings) - set(PARAM_FIELDS))
+    if unknown:
+        parser.error(f"--params has unknown fields: {', '.join(unknown)}")
+    for name, value in settings.items():
+        if value is not None and not isinstance(value, str):
+            parser.error(f"--params field {name} must be a string")
+        setattr(args, name, value)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Stamp visual watermark and HMAC metadata fingerprint on PDF assets/contracts.")
-    parser.add_argument("--input", required=True, help="Path to source PDF")
-    parser.add_argument("--output", required=True, help="Path to destination watermarked PDF")
-    parser.add_argument("--creator-id", required=True, help="Creator identifier (e.g. example-creator)")
-    parser.add_argument("--creator-name", required=True, help="Creator full legal name (e.g. the owner)")
+    parser.add_argument("--input", help="Path to source PDF (required unless --params supplies it)")
+    parser.add_argument("--output", help="Path to destination watermarked PDF (required unless --params supplies it)")
+    parser.add_argument("--creator-id", help="Creator identifier (e.g. example-creator)")
+    parser.add_argument("--creator-name", help="Creator full legal name (e.g. the owner)")
+    parser.add_argument(
+        "--params",
+        default=None,
+        metavar="JSON_FILE",
+        help="Read the stamp settings from a JSON object file (keys: input, output, creator_id, creator_name, mode, "
+             "purpose, bundle_id, bundle_root_hash). generate_bundle_manifest.py uses this so no value reaches argv."
+    )
     parser.add_argument(
         "--mode",
         choices=["diagonal", "perimeter"],
@@ -198,6 +227,14 @@ def main():
     parser.add_argument("--bundle-root-hash", default=None, help="HMAC root signature of the complete bundle")
 
     args = parser.parse_args()
+    if args.params is not None:
+        apply_params_file(parser, args)
+    missing = [f"--{name.replace('_', '-')}" for name in ("input", "output", "creator_id", "creator_name")
+               if getattr(args, name) is None]
+    if missing:
+        parser.error(f"the following arguments are required: {', '.join(missing)}")
+    if args.mode not in ("diagonal", "perimeter") or args.purpose not in PURPOSES:
+        parser.error("mode or purpose is not one of the allowed values")
 
     if not os.path.exists(args.input):
         sys.exit(f"Error: input file does not exist: {args.input}")
