@@ -37,9 +37,10 @@ jobs:
             if git cat-file -e "$BEFORE_SHA" 2>/dev/null; then
               RANGE="$BEFORE_SHA..$HEAD_SHA"
             elif [ "$REF_NAME" != "$DEFAULT_BRANCH" ] && git rev-parse --verify -q "refs/remotes/origin/$DEFAULT_BRANCH" >/dev/null; then
-              # New branch or force-push: every commit not already on the default branch. Commits on the
-              # default branch were checked when they landed there. (Do not exclude the pushed branch's own
-              # remote ref: in actions/checkout it points at HEAD, so that range is empty and checks nothing.)
+              # New branch or force-push: every commit not already on the default branch. Commits already on
+              # the default branch are not re-checked here; this job checks what each push adds. (Do not exclude
+              # the pushed branch's own remote ref: in actions/checkout it points at HEAD, so that range is empty
+              # and checks nothing.)
               RANGE="$HEAD_SHA --not refs/remotes/origin/$DEFAULT_BRANCH"
             else
               # Default branch with no usable 'before', or no default ref to compare with: check the full
