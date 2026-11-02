@@ -40,6 +40,9 @@ export function invariantViolations(text) {
   if (!send) violations.push("missing send job");
   if (/--no-sandbox|--disable-setuid-sandbox/.test(code)) violations.push("Chrome sandbox disabled");
   if (measure && SECRET_REF.test(measure)) violations.push("secret reachable from measure job");
+  // Browsertime 28 ignores --chrome.headless, so Chrome starts headful on a runner with no display.
+  if (measure && /--chrome\.headless\b/.test(measure)) violations.push("measure job uses --chrome.headless, which Browsertime 28 ignores");
+  if (measure && !/^\s+--headless\s*\\?\s*$/m.test(measure)) violations.push("measure job lacks --headless");
   if (send) {
     // Every secret reference (top-level env, expressions, toJSON(secrets)) must sit inside the send job.
     if (SECRET_REF.test(code.replace(send, ""))) violations.push("secret reference outside send job");
@@ -93,6 +96,16 @@ test("negative controls: each bypass shape is caught", () => {
       "browser tool added to send job",
       mutate(good, "    needs: measure\n", "    needs: measure\n    env:\n      BROWSER: chromium\n"),
       "send job runs a browser tool",
+    ],
+    [
+      "measure job reverts to --chrome.headless",
+      mutate(good, "            --headless \\\n", "            --chrome.headless \\\n"),
+      "measure job uses --chrome.headless, which Browsertime 28 ignores",
+    ],
+    [
+      "measure job drops --headless",
+      mutate(good, "            --headless \\\n", ""),
+      "measure job lacks --headless",
     ],
     [
       "master-only if: guard removed from send job",
