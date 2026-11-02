@@ -46,7 +46,12 @@ jobs:
           echo "$RUNNER_TEMP/shellcheck-bin" >> "$GITHUB_PATH"
 
       - name: Run actionlint on workflow files
-        run: actionlint -shellcheck=shellcheck .github/workflows/*.yml
+        run: |
+          set -euo pipefail
+          # Both extensions: GitHub accepts .yaml too, and a *.yml glob alone skipped those files.
+          mapfile -d '' -t WF < <(find .github/workflows -maxdepth 1 -type f \( -name '*.yml' -o -name '*.yaml' \) -print0)
+          [ "${#WF[@]}" -gt 0 ] || { echo "::error::no workflow files found"; exit 1; }
+          actionlint -shellcheck=shellcheck "${WF[@]}"
 
   gitleaks:
     runs-on: ubuntu-latest
@@ -107,6 +112,9 @@ jobs:
           fi
 
           echo "gitleaks log range: ${LOG_OPTS}"
+          # gitleaks loads ./.gitleaksignore even when --gitleaks-ignore-path points elsewhere, so a PR-added
+          # ignore file would suppress its own leak. The scan reads history, not the working tree, so drop it.
+          rm -f .gitleaksignore
           gitleaks git --redact --no-banner \
             --config "$CONFIG" \
             --gitleaks-ignore-path "$IGNORE" \
@@ -127,7 +135,10 @@ jobs:
           python-version: "3.12"
 
       - name: Install ruff 0.8.6
-        run: python -m pip install --disable-pip-version-check ruff==0.8.6
+        run: |
+          set -euo pipefail
+          printf '%s\n' 'ruff==0.8.6 --hash=sha256:7ae4478b1471fc0c44ed52a6fb787e641a2ac58b1c1f91763bafbc2faddc5117' > "$RUNNER_TEMP/ruff-req.txt"
+          python -m pip install --disable-pip-version-check --require-hashes --only-binary=:all: --no-deps -r "$RUNNER_TEMP/ruff-req.txt"
 
       - name: Lint Python files changed by this change
         # Only the .py files this change adds or modifies, not the whole scripts/ tree.
@@ -137,16 +148,20 @@ jobs:
           EVENT_NAME: ${{ github.event_name }}
           BASE_REF: ${{ github.base_ref }}
           BEFORE_SHA: ${{ github.event.before }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
         run: |
           set -euo pipefail
           if [ "$EVENT_NAME" = "pull_request" ]; then
-            BASE="origin/${BASE_REF}"
+            # The event's recorded base SHA, not the mutable branch ref, so a base update during the run
+            # cannot change which files are linted.
+            BASE="$BASE_SHA"
           elif git cat-file -e "$BEFORE_SHA" 2>/dev/null; then
             BASE="$BEFORE_SHA"
           else
-            # No usable 'before' (new branch or force-push): judge the head commit's own changes against its parent.
-            # A root commit has no parent, so the empty tree is the base and every .py file it adds is judged.
-            BASE="$(git rev-parse --verify -q HEAD~1 || echo 4b825dc642cb6eb9a060e54bf8d69288fbee4904)"
+            # No usable 'before' (new branch or force-push). Guessing HEAD~1 would lint only the last commit
+            # of a multi-commit push, so fail closed instead.
+            echo "::error::no usable before SHA; cannot bound the Python lint range"
+            exit 1
           fi
           # Write the list to a file first so a failing git diff stops the job instead of skipping ruff.
           # Diff from the merge-base, so files that only the base branch changed are not linted.
