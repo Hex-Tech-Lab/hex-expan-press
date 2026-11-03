@@ -1,0 +1,84 @@
+web/src/lib/admin.ts
+  s_6520ca5ba81489::t_4b090f91c27568 15-17
+web/app/api/billing/webhook/verifiers.ts
+  s_6520ca5ba81489::t_c85dd1d6692bc0 20-25
+src/domain/payments/payments.port.ts
+  s_6520ca5ba81489::t_177c946b3c1a52 145-147
+web/app/api/billing/webhook/__tests__/provider_allowlist.test.ts
+  s_6520ca5ba81489::t_36ccb18c783772 183
+  s_6520ca5ba81489::t_3baa6ca5e3bd0d 14
+payments/README.md
+  s_6520ca5ba81489::t_9e39b414dc2ab9 34
+  s_6520ca5ba81489::t_a23b96c6d13f94 28
+web/app/api/billing/webhook/__tests__/signature-status.test.ts
+  s_6520ca5ba81489::t_dc883c3aadff27 29
+  s_6520ca5ba81489::t_f9b36ceffb26e4 14
+docs/adr/0062-payment-rail-launch-switch.md
+  s_6520ca5ba81489::t_0c552246f5577f 1-47
+docs/adr/README.md
+  s_6520ca5ba81489::t_2568fc7b1d3881 16
+src/use_cases/billing/__tests__/process_billing_webhook.test.ts
+  s_6520ca5ba81489::t_5a399fa120fd23 737-767
+web/app/api/billing/webhook/__tests__/fungies-refund-dlq.test.ts
+  s_6520ca5ba81489::t_4e2b051b5bdc5b 18
+  s_6520ca5ba81489::t_3c742c15cf46a8 6
+payments/src/ledger.ts
+  s_6520ca5ba81489::t_1747d670b010c4 375
+web/app/api/billing/webhook/__tests__/route.test.ts
+  s_6520ca5ba81489::t_f470e3c7cbf6ad 19
+  s_6520ca5ba81489::t_50ea8616283f4c 32
+web/app/api/billing/webhook/route.ts
+  s_6520ca5ba81489::t_a0e2b42c80c435 2,6
+web/app/api/billing/webhook/__tests__/polar-partial-refund.test.ts
+  s_6520ca5ba81489::t_71a81ec8aedcee 20
+  s_6520ca5ba81489::t_27eb9794dd1b8d 7
+web/app/api/billing/webhook/handler.ts
+  s_6520ca5ba81489::t_13c6d7d1fa2c3a 134
+  s_6520ca5ba81489::t_c985c379136868 214,228,236
+  s_6520ca5ba81489::t_76b3d15fe7cf7f 129-133,135
+  s_6520ca5ba81489::t_1b0135c6fd459b 92-99,102
+  s_6520ca5ba81489::t_9066fd4ce36c87 222
+  s_6520ca5ba81489::t_b54e3eb7637884 89-91
+  s_6520ca5ba81489::t_a2dff6678c0e7d 176-192
+  s_6520ca5ba81489::t_5e3c12e20a13a6 203
+src/adapters/payments/__tests__/polar.adapter.test.ts
+  s_6520ca5ba81489::t_c4b8539703c472 45,52-64
+  s_6520ca5ba81489::t_6c2b4ce394ebc6 65
+payments/src/settings_registry.ts
+  s_6520ca5ba81489::t_f3c631aff9b9b0 523-524
+web/app/api/billing/webhook/__tests__/switched_off_manual_review.test.ts
+  s_6520ca5ba81489::t_a6dd55fe24adb7 1-83
+web/app/api/billing/webhook/__tests__/verifiers.test.ts
+  s_6520ca5ba81489::t_25959e1b3de01d 13,15-16
+web/app/api/billing/webhook/__tests__/support/webhook_signer.ts
+  s_6520ca5ba81489::t_2ae23844b4d841 1-27
+src/adapters/payments/polar.adapter.ts
+  s_6520ca5ba81489::t_47f808b718cdf2 55-58
+  s_6520ca5ba81489::t_2f885d0282ca38 135
+src/use_cases/billing/process_billing_webhook.ts
+  s_6520ca5ba81489::t_347c59ad6016d0 231-232,235
+  s_6520ca5ba81489::t_58bb352e173657 211
+  s_6520ca5ba81489::t_c1ab806faf1c70 245-247
+payments/test/providers_loader.test.ts
+  s_6520ca5ba81489::t_22fb48d8601203 63,66
+payments/test/provider_launch_switch.test.ts
+  s_6520ca5ba81489::t_2aee89bdb738a0 15
+docs/agent_ledger.jsonl
+  s_6520ca5ba81489::t_7299a50db260e4 896
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a9a52ec0c83b7eb29ffdc1fce49e7872f99b3c11",
+  "prompts": {},
+  "sessions": {
+    "s_6520ca5ba81489": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3cfee2a0-c80d-4993-a7f0-42827c18b26c",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
