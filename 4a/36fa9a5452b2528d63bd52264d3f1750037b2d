@@ -1,0 +1,53 @@
+docs/qa-intel/SPINOFF_PLAN.md
+  s_6625bc67577472::t_fb235583bb9267 1-33
+scripts/latency/summarize-browsertime.test.mjs
+  s_6625bc67577472::t_fb235583bb9267 1-299
+docs/lessons/PROJECT_LESSONS_HEX_EXPAN.md
+  s_6625bc67577472::t_fb235583bb9267 1-176
+scripts/lint-ci-selftest.sh
+  s_6625bc67577472::t_fb235583bb9267 1-365
+docs/agent_ledger.jsonl
+  s_6625bc67577472::t_fb235583bb9267 869-910
+.github/workflows/lint-ci.yml
+  s_6625bc67577472::t_fb235583bb9267 1-281
+docs/lessons/ECOSYSTEM_LESSONS.md
+  s_6625bc67577472::t_fb235583bb9267 1-94
+docs/qa-intel/PLAN_B_STATUS.md
+  s_6625bc67577472::t_fb235583bb9267 1-21
+.github/workflows/commit-guard.yml
+  s_6625bc67577472::t_fb235583bb9267 29,31,39-44,46-48,53-56,58-61,64-65
+.github/workflows/real-browser-latency.yml
+  s_6625bc67577472::t_fb235583bb9267 1-170
+scripts/latency/summarize-browsertime.mjs
+  s_6625bc67577472::t_fb235583bb9267 1-172
+scripts/latency/workflow-invariants.test.mjs
+  s_6625bc67577472::t_fb235583bb9267 1-130
+web/app/creator/consents/actions.ts
+  s_6625bc67577472::t_fb235583bb9267 42
+scripts/watermark_pdf.py
+  s_6625bc67577472::t_fb235583bb9267 12-13,92-93
+docs/qa-intel/FOLLOWUP_HISTORY_SECRET_AUDIT.md
+  s_6625bc67577472::t_fb235583bb9267 1-27
+web/app/creator/consents/consent-cards.tsx
+  s_6625bc67577472::t_fb235583bb9267 110
+.github/workflows/ci.yml
+  s_6625bc67577472::t_fb235583bb9267 34-51
+web/app/creator/consents/__tests__/actions.test.ts
+  s_6625bc67577472::t_fb235583bb9267 66,73,80,91,96,106,115,129,137
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4a36fa9a5452b2528d63bd52264d3f1750037b2d",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
