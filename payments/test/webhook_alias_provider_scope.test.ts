@@ -38,6 +38,8 @@ describe("resolveProductByAlias: a row that exists but cannot sell is retryable 
   it.each([
     ["a missing store_product_id", { ...row, store_product_id: null }],
     ["a missing creator handle", { ...row, creators: null }],
+    ["an empty creator handle", { ...row, creators: { handle: "" } }],
+    ["a creators row without a handle", { ...row, creators: {} }],
   ])("%s on an existing row throws a 503, never returns null", async (_label, incomplete) => {
     vi.mocked(getSupabaseAdmin).mockResolvedValue({
       from: () => {
