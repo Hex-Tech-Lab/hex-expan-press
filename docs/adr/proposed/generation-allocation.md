@@ -44,7 +44,7 @@ The app uses milliseconds (`Date.getTime`, `delivery.ts:36-40`, `111`). The epoc
 
    | Option | For | Against |
    |---|---|---|
-   | A. Fresh generation and token per delivery invocation (proposed) | No new state. Matches pinned tests. Retries are never blocked. | Several valid links per sale. A leaked earlier link stays valid until expiry. The count is bounded only by the retry count. |
+   | A. Fresh generation and token per delivery invocation (proposed) | No new state. Matches pinned tests. Retries are never blocked. | Several valid links per sale. A leaked earlier link stays valid until expiry. Each delivery invocation issues a link, and a provider retry is a new invocation, so the count has no fixed per-sale bound. The 3-attempt loop caps only collision retries within one invocation. |
    | B. Reuse the generation for the same issuance intent | One live link per sale. | Needs the token again. Either store the token (breaks the hash-only policy in `20261015120000:2`) or derive it from a server secret (new secret, rotation, and a leak exposes every link). Needs an issuance key column that does not exist. |
    | C. Reuse, and enforce one live link per sale in the database (a partial unique index on `sale_id`) | Strongest database guarantee. | Reverses `20261019180000`. An ambiguous-send retry needs a replacement path. The release path (`delivery.ts:157`) becomes the only way to re-issue. |
 
@@ -92,7 +92,7 @@ Rollback of the code is a single revert of this change.
 
 ## Risks and rollback
 
-- **R1. Scale mismatch.** The `20261019180000:7` default is in epoch microseconds, while the app uses milliseconds (`delivery.ts:36-40`). Existing rows carry microsecond values. The sequence starts past the max, so new values are also microsecond-scale. Any code that compares generation to a millisecond timestamp would break. The repo has no such consumer (grep found none outside `delivery.ts` and its tests). Ordering stays monotonic inside the sequence.
+- **R1. Scale mismatch.** The `20261019180000:7` default is in epoch microseconds, while the app uses milliseconds (`delivery.ts:36-40`). The current delivery path passes its millisecond value explicitly, so those rows bypass the default. Existing rows from the default carry microsecond values. The sequence starts at `greatest(max(link_generation), now in ms) + 1` (`20261020090000:7-13`), so its scale depends on the stored rows: if any microsecond row exists, new values stay microsecond-scale; otherwise they start at the millisecond epoch. The live distribution is not checked here (see Not verified). Any code that compares generation to a millisecond timestamp would break. The repo has no such consumer (grep found none outside `delivery.ts` and its tests). Ordering stays monotonic inside the sequence.
 - **R2. Gaps.** `nextval` is never rolled back, and `INSERT ... ON CONFLICT` consumes values before detecting a conflict (Context7, PostgreSQL docs). Accepted. The generation is not a gapless or financial number.
 - **R3. Live state unknown.** Whether the sequence default and the `(sale_id, link_generation)` index are applied in production is not verified. Check with `list_migrations` before implementation.
 - **R4. Read-back dependency.** A missing returned value must fail the delivery, not fall back to a local value.

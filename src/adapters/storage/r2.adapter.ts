@@ -475,7 +475,8 @@ export class R2StorageAdapter implements StoragePort {
     now: Date = new Date(),
   ): Promise<string | null> {
     try {
-      const stat = await statR2Object({
+      // The R2 HEAD and the source listing are independent, so start both now.
+      const statPromise = statR2Object({
         endpoint: this.endpoint,
         bucket: this.bucket,
         key: path,
@@ -484,13 +485,17 @@ export class R2StorageAdapter implements StoragePort {
         region: this.region,
         fetchImpl: this.fetchImpl,
       });
+      const sourcePromise = this.resolveSourceEtag(path);
+      // On a miss the listing is issued but not awaited, so its result is unused there. It never rejects in production (resolveSupabaseSourceEtag catches everything), and this handler keeps an unawaited rejection from surfacing unhandled.
+      sourcePromise.catch(() => undefined);
 
+      const stat = await statPromise;
       if (!stat.exists) {
         return null;
       }
 
       // Serve the R2 copy only when, at the moment of this check, it was written from the current source. Anything else falls back.
-      const sourceEtag = await this.resolveSourceEtag(path);
+      const sourceEtag = await sourcePromise;
       if (!sourceEtag || !stat.sourceEtag || stat.sourceEtag !== sourceEtag) {
         let reason: string;
         if (!sourceEtag) {
