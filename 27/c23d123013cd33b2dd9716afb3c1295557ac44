@@ -1,0 +1,32 @@
+scripts/lint-ci-selftest.sh
+  s_6625bc67577472::t_295a0def207e29 152-166
+  s_6625bc67577472::t_91fef35c2cabf6 1-27,30-100,103-132,151,167-176,178-202
+  s_6625bc67577472::t_39084792883baf 102
+  s_6625bc67577472::t_54d91b4ed86103 101
+  s_6625bc67577472::t_e19a0b74ef6806 28-29
+  s_6625bc67577472::t_79ab46624376ec 177
+  s_6625bc67577472::t_d59171f68cb924 133-150
+.github/workflows/lint-ci.yml
+  s_6625bc67577472::t_04b2e13ae3dde9 70-71,73,75-76,78-89
+  s_6625bc67577472::t_1529cf3460ca5e 44,48-54
+  s_6625bc67577472::t_96f24f9f9192bc 230-279
+  s_6625bc67577472::t_a274a56d6b4241 64-65
+  s_6625bc67577472::t_bf2c90e5bd9406 108-109,112-118
+  s_6625bc67577472::t_ce060085aaf407 13-17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "27c23d123013cd33b2dd9716afb3c1295557ac44",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
