@@ -43,12 +43,17 @@ export async function GET(_request: NextRequest, ctx: { params: Promise<{ token:
 
   const { data: product, error: prodErr } = await sb
     .from("products")
-    .select("release_path")
+    .select("release_path, release_state")
     .eq("id", link.product_id as string)
     .maybeSingle();
   if (prodErr || !product?.release_path) {
     console.error(`[delivery] release file missing for sale ${link.sale_id as string}`);
     return new NextResponse("Download unavailable", { status: 500 });
+  }
+  // Only the released copy (no _draft/_proof suffix) may reach a buyer. Anything else is a pre-release file.
+  if (product.release_state !== "release") {
+    console.error(`[delivery] refused non-release file (state ${String(product.release_state)}) for sale ${link.sale_id as string}`);
+    return new NextResponse("Download unavailable", { status: 409 });
   }
 
   const storage = getDeliveryStorageAdapter(sb, GLOBAL.delivery.bucket);

@@ -67,7 +67,7 @@ describe("Automated Integration Test: R2 Object Delivery & Fallback Behavior (/d
     });
     // 2. products lookup (finding the release file path)
     maybeSingleMock.mockResolvedValueOnce({
-      data: { release_path: releasePath },
+      data: { release_state: "release", release_path: releasePath },
       error: null,
     });
     // 3. download_completed event insertion

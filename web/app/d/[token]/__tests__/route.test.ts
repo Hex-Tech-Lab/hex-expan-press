@@ -125,7 +125,7 @@ describe("GET /d/[token] (Buyer delivery route)", () => {
       error: null,
     });
     maybeSingleMock.mockResolvedValueOnce({
-      data: { release_path: "books/test.pdf" },
+      data: { release_state: "release", release_path: "books/test.pdf" },
       error: null,
     });
     createSignedUrlMock.mockResolvedValueOnce({
@@ -141,6 +141,26 @@ describe("GET /d/[token] (Buyer delivery route)", () => {
     expect(res.headers.get("location")).toBeNull();
   });
 
+  it("refuses to serve a pre-release copy (proof or draft) and never signs its URL", async () => {
+    const future = new Date(Date.now() + 100000).toISOString();
+    maybeSingleMock.mockResolvedValueOnce({
+      data: { sale_id: "s1", product_id: "p1", expires_at: future },
+      error: null,
+    });
+    maybeSingleMock.mockResolvedValueOnce({
+      data: { release_state: "proof", release_path: "books/test_proof.pdf" },
+      error: null,
+    });
+
+    const req = new NextRequest(`https://expanpress.com/d/${validToken}`);
+    const res = await GET(req, { params: Promise.resolve({ token: validToken }) });
+
+    expect(res.status).toBe(409);
+    expect(res.headers.get("location")).toBeNull();
+    expect(createSignedUrlMock).not.toHaveBeenCalled();
+    expect(insertMock).not.toHaveBeenCalled();
+  });
+
   it("500s when signed URL cannot be created (with no Location header)", async () => {
     const future = new Date(Date.now() + 100000).toISOString();
     maybeSingleMock.mockResolvedValueOnce({
@@ -148,7 +168,7 @@ describe("GET /d/[token] (Buyer delivery route)", () => {
       error: null,
     });
     maybeSingleMock.mockResolvedValueOnce({
-      data: { release_path: "books/test.pdf" },
+      data: { release_state: "release", release_path: "books/test.pdf" },
       error: null,
     });
     createSignedUrlMock.mockResolvedValueOnce({
@@ -173,7 +193,7 @@ describe("GET /d/[token] (Buyer delivery route)", () => {
     });
     // 2. products query
     maybeSingleMock.mockResolvedValueOnce({
-      data: { release_path: "books/test.pdf" },
+      data: { release_state: "release", release_path: "books/test.pdf" },
       error: null,
     });
     // 3. storage signing
@@ -212,7 +232,7 @@ describe("GET /d/[token] (Buyer delivery route)", () => {
       error: null,
     });
     maybeSingleMock.mockResolvedValueOnce({
-      data: { release_path: "books/r2-book.pdf" },
+      data: { release_state: "release", release_path: "books/r2-book.pdf" },
       error: null,
     });
     insertMock.mockResolvedValueOnce({ error: null });
@@ -241,7 +261,7 @@ describe("GET /d/[token] (Buyer delivery route)", () => {
       error: null,
     });
     maybeSingleMock.mockResolvedValueOnce({
-      data: { release_path: "books/fallback-book.pdf" },
+      data: { release_state: "release", release_path: "books/fallback-book.pdf" },
       error: null,
     });
     createSignedUrlMock.mockResolvedValueOnce({
