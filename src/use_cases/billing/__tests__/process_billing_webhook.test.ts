@@ -1,3 +1,4 @@
+import { WebhookValidationError } from "../../../domain/webhook/webhook_errors.ts";
 // Regression tests for the billing webhook use case (Wave 6.2 P1): both the
 // sale and refund paths must run under the distributed idempotency lock —
 // an already-recorded event returns normally (no duplicate ledger writes, no
@@ -124,12 +125,16 @@ vi.mock("@supabase/supabase-js", () => ({
 // Deterministic DB product resolver so the use case resolves creator/split
 // (Sprint 15: commercial state is DB-only — the use case now resolves products
 // by alias from the database instead of the file-backed product index).
+const resolveCalls = vi.hoisted(() => [] as Array<[string, string]>);
+
 vi.mock("../../../../payments/src/webhook_core.ts", async (importOriginal) => {
   const orig = await importOriginal<typeof import("../../../../payments/src/webhook_core.ts")>();
   return {
     ...orig,
-    resolveProductByAlias: (alias: string) =>
-      alias === "p1" ? Promise.resolve({ productId: "p1", creatorHandle: "c1", currency: "USD" }) : Promise.resolve(null),
+    resolveProductByAlias: (alias: string, provider: string) => {
+      resolveCalls.push([alias, provider]);
+      return alias === "p1" ? Promise.resolve({ productId: "p1", creatorHandle: "c1", currency: "USD" }) : Promise.resolve(null);
+    },
   };
 });
 
@@ -159,6 +164,17 @@ vi.mock("../../../../payments/src/settings_registry.ts", () => ({
 }));
 
 describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
+  it("a sale whose alias resolves to no product is a terminal 422, and the lookup uses the sale's provider", async () => {
+    setnx.mockResolvedValue(1);
+    resolveCalls.length = 0;
+    const err = await processBillingWebhookUseCase({ headers: {}, body: "" }, [
+      adapter({ ...SALE, productId: "paddle-only-alias", saleId: "sale_unknown_1" }),
+    ]).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(WebhookValidationError);
+    expect((err as WebhookValidationError).httpStatus).toBe(422);
+    expect(resolveCalls).toContainEqual(["paddle-only-alias", "polar"]);
+  });
+
   beforeEach(() => {
     setnx.mockReset();
     supa.lookupResult = { data: null, error: null };

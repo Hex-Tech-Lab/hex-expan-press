@@ -16,8 +16,8 @@ Collisions are a backstop, not the main guard. The Redis sale lock `lock:sale:{p
 ## Problem
 
 1. **The application allocates the generation.** The database detects a duplicate `(sale_id, link_generation)` with `23505`, but it does not choose the value. The sequence exists and is unused.
-2. **Collisions are retried locally, up to 3 attempts.** On a `(sale_id, link_generation)` conflict the adapter returns `false` (`delivery.ts:247`). `deliverSale` then advances its local counter and retries (`delivery.ts:118-125`). After three failed inserts it throws (`delivery.ts:128-130`), so the webhook answers 500 and the provider retries the whole sale.
-3. **The adapter cannot return the generated value.** The insert at `delivery.ts:245` has no returning select, so the application cannot read back what the database chose. The `DeliveryDb.recordLinkIssued` contract returns only a boolean (`delivery.ts:57-63`).
+2. **Collisions are retried locally, up to 3 attempts.** On a `(sale_id, link_generation)` conflict the adapter returns `false` (`delivery.ts:253`). `deliverSale` then advances its local counter and retries (`delivery.ts:123-124`). After three failed inserts it throws (`delivery.ts:128-130`), so the webhook answers 500 and the provider retries the whole sale.
+3. **The adapter cannot return the generated value.** The insert at `delivery.ts:246` has no returning select, so the application cannot read back what the database chose. The `DeliveryDb.recordLinkIssued` contract returns only a boolean (`delivery.ts:56`).
 4. **The unique key is per generation, not per sale.** The one-link-per-sale index was dropped (`supabase/migrations/20261019180000_download_events_generation_key.sql:4`). The database therefore does not limit live links per sale and does not block two confirmed deliveries of one sale. Those rest on the Redis lock and the `audit_log` check (`delivery.ts:107`, `delivery.ts:122`, `delivery.ts:164-165`).
 
 ## Current schema facts (verified in the repo, live state not verified)
@@ -38,7 +38,7 @@ The app uses milliseconds (`Date.getTime`, `delivery.ts:36-40`, `111`). The epoc
 ## Decision (proposed)
 
 1. **The database allocates `link_generation`.** The insert omits `link_generation`. The column default (`nextval` on the sequence) supplies it. The adapter reads the value back with a returning select on the insert and returns it to `deliverSale`.
-2. **Only the sequence assigns generations.** The application never computes one. The production path of `nextGeneration` and the local counter (`delivery.ts:30-45`) is removed. Tests that reset it are updated in the same change.
+2. **Only the sequence assigns generations.** The application never computes one. The production path of `nextGeneration` and the local counter (`delivery.ts:33-45`) is removed. Tests that reset it are updated in the same change.
 3. **A conflict is a typed result, not a silent `false`.** A `23505` on `(sale_id, link_generation)` becomes a `conflict` result. Any other error still throws. A sequence cannot produce a duplicate for new rows, so the conflict path guards against a future writer that sets the value explicitly. Use a plain insert, not `ON CONFLICT DO NOTHING`. DO NOTHING returns no row and would hide a lost insert.
 4. **Retry semantics. Proposed: every delivery invocation gets a fresh generation and a fresh token (Option A).** Collision retries within one invocation get a fresh generation but reuse that invocation's token and hash. A later delivery invocation creates a new token. This is the current behaviour (`delivery.ts` collision loop), pinned by `payments/test/delivery_retry_trade_off.test.ts`. The database stores only token hashes, so a reused link cannot be re-sent without a new secret or a schema change.
 
@@ -59,10 +59,10 @@ The app uses milliseconds (`Date.getTime`, `delivery.ts:36-40`, `111`). The epoc
 
 The webhook entry point does not change. `deliverSaleForWebhook` (`payments/src/delivery.ts:206-214`) keeps its `void` return and its throws. Its callers, `src/use_cases/billing/process_billing_webhook.ts:482` and `:523`, need no edit. The port change is internal to `delivery.ts`.
 
-1. **Result type.** Add `issued` (with `linkGeneration`) and `conflict`. Change `DeliveryDb.recordLinkIssued` (`delivery.ts:57-63`) to return it. Update the loop at `delivery.ts:118-126`. This is the only production caller.
+1. **Result type.** Add `issued` (with `linkGeneration`) and `conflict`. Change `DeliveryDb.recordLinkIssued` (`delivery.ts:56`) to return it. Update the loop at `delivery.ts:118-126`. This is the only production caller.
 2. **Adapter.** `supabaseDeliveryDb.recordLinkIssued` (`delivery.ts:232-249`) omits `link_generation`, reads back the generated value, and maps `23505` to `conflict`. A missing value throws. It must not fall back to a local counter, or the emailed token could diverge from the stored row (R4).
 3. **Test fakes to update in the same change:** `payments/test/delivery.test.ts:15, 199, 225`; `payments/test/delivery_db_adapter.test.ts:49-92`; `payments/test/delivery_retry_trade_off.test.ts:28, 82, 115, 137`; `payments/test/delivery_block_outcome.test.ts:13`.
-4. **Remove** `nextGeneration` and `resetLastGenerationForTest` (`delivery.ts:30-45`) once no test imports them.
+4. **Remove** `nextGeneration` and `resetLastGenerationForTest` (`delivery.ts:33-45`) once no test imports them.
 
 Rollback of the code is a single revert of this change.
 

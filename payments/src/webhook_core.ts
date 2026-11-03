@@ -45,7 +45,7 @@ export function getSecret(provider: ProviderName): string | undefined {
  * unvalidated alias could misparse the filter (400) or append attacker-chosen
  * conditions. The charset mirrors the checkout route's SAFE_PRODUCT_RE
  * ([A-Za-z0-9_-]); anything else resolves to null (the caller then throws
- * "Unknown product_id" → 500 → provider retries).
+ * "Unknown product_id" → 422, a terminal rejection: the sale is quarantined, not retried).
  *
  * Fail closed: an unconfigured Supabase admin client throws (never returns an
  * empty success) — the provider will redeliver once the DB is reachable.

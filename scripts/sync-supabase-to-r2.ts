@@ -3,6 +3,7 @@ dotenv.config();
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { putR2ObjectIf, statR2Object, type StatR2ObjectResult } from "../src/adapters/storage/r2.adapter";
+import { GLOBAL } from "../payments/src/settings_registry.ts";
 
 export interface SyncOptions {
   supabaseUrl?: string;
@@ -72,9 +73,6 @@ export function parsePrefixArg(argv: string[] = process.argv): string | undefine
 export const parsePrefix = parsePrefixArg;
 export const parseCliPrefix = parsePrefixArg;
 
-/** Upper bound on one source object download. A stalled GET fails that file instead of blocking the serial sync. */
-export const SOURCE_GET_TIMEOUT_MS = 60_000;
-
 /**
  * Downloads one object with a single GET. The bytes and the ETag header come from the same response, so the
  * ETag describes exactly these bytes. Throws on a non-2xx status. A network error propagates to the caller.
@@ -92,7 +90,7 @@ async function fetchSourceObject(
   const res = await fetchImpl(url, {
     method: "GET",
     headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` },
-    signal: AbortSignal.timeout(SOURCE_GET_TIMEOUT_MS),
+    signal: AbortSignal.timeout(GLOBAL.payments.sync_http_timeout_ms),
   });
   if (!res.ok) {
     throw new Error(`Supabase download of ${filePath} returned HTTP ${res.status}`);

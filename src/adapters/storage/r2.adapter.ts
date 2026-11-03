@@ -515,7 +515,7 @@ export class R2StorageAdapter implements StoragePort {
         date: now,
       });
     } catch (err) {
-      // Serving falls back to Supabase, so the buyer is not blocked. The id lets an operator match a buyer report to this line.
+      // Serving falls back to Supabase, so the buyer is not blocked. The id is local to this log line: the route's buyer ref is not passed here.
       console.error(`[r2-storage] error=${globalThis.crypto.randomUUID().slice(0, 8)} presigned URL failed; serving the Supabase copy:`, err instanceof Error ? err.message : err);
       return null;
     }
