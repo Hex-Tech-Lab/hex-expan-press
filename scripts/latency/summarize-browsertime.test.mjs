@@ -281,3 +281,19 @@ test("reports the original write error when cleanup also fails", () => {
   assert.equal(r.status, 1);
   assert.match(r.stderr, /cannot write summaries .*ENOSPC; could not remove partial output: EACCES/);
 });
+
+// The output directory cannot be created. This failure must reach the documented message, not an uncaught trace.
+const FAIL_MKDIR = `
+import fs from "node:fs";
+import { syncBuiltinESMExports } from "node:module";
+fs.mkdirSync = () => { const e = new Error("injected mkdir failure"); e.code = "EACCES"; throw e; };
+syncBuiltinESMExports();
+`;
+
+test("reports a documented failure when the output directory cannot be created", () => {
+  const r = run(URLS.map((u, i) => page(u, 100 + i)), { preload: FAIL_MKDIR });
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /cannot write summaries .*EACCES/);
+  assert.doesNotMatch(r.stderr, /\n\s+at /);
+  assert.deepEqual(r.files, []);
+});
