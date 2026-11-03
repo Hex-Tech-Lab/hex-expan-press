@@ -269,7 +269,10 @@ describe("sync-supabase-to-r2", () => {
       const result = await runSync(harness);
 
       expect(result).toMatchObject({ alreadySynced: 0, uploaded: 1, verified: 1, failed: 0 });
+      // One source GET, and the body written to R2 is exactly the bytes that GET returned.
+      expect(harness.sourceFetch).toHaveBeenCalledTimes(1);
       const putInit = fetchImpl.mock.calls[1][1] as RequestInit;
+      expect(Buffer.from(putInit.body as Buffer).toString()).toBe("same-size-bytes");
       const putHeaders = putInit.headers as Record<string, string>;
       expect(putHeaders["if-match"]).toBe('"r2-old"');
       expect(putHeaders["if-none-match"]).toBeUndefined();

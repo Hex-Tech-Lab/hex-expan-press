@@ -1,5 +1,5 @@
 import dotenv from "dotenv";
-dotenv.config({ override: true });
+dotenv.config();
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { putR2ObjectIf, statR2Object, type StatR2ObjectResult } from "../src/adapters/storage/r2.adapter";
@@ -301,9 +301,10 @@ export async function syncSupabaseToR2(options: SyncOptions = {}): Promise<SyncR
       }
 
       logger.log(`   📥 Downloading from Supabase Storage...`);
-      // One GET returns the bytes and the ETag of those bytes. The bytes are stamped with the ETag the server
-      // served, never with the listed one. A served ETag that differs from the listing means the object changed
-      // after it was listed, so these bytes are refused. A revert (A to B to A) is safe: it serves A's bytes with A's ETag.
+      // One GET returns the bytes and the ETag of those bytes. The write is refused unless the served ETag equals the
+      // listed ETag, so the stamped "supabase-etag" (the listed value) is also the ETag of the bytes written. A change
+      // after listing makes the served ETag differ, and the bytes are refused. A revert (A to B to A) serves A's bytes
+      // with A's ETag, so it is accepted and correct.
       const source = await fetchSourceObject(sourceFetchImpl, supabaseUrl, supabaseKey, supabaseBucket, filePath);
       if (!source.etag) {
         logger.error(`   ❌ Supabase download of ${filePath} returned no ETag; refusing to write unversioned bytes.`);
