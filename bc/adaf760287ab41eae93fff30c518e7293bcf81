@@ -1,0 +1,26 @@
+web/app/d/[token]/__tests__/route.test.ts
+  s_6625bc67577472::t_9f6f42b6293248 128,144-163,171,196,235,264
+web/app/d/[token]/route.ts
+  s_6625bc67577472::t_9f6f42b6293248 46,53-56
+  s_6625bc67577472::t_e39feca226ee43 57
+web/__tests__/r2-delivery-fallback.integration.test.ts
+  s_6625bc67577472::t_9f6f42b6293248 70
+supabase/migrations/20261103134245_products_release_lifecycle.sql
+  s_6625bc67577472::t_1dccdd829eaa85 1-40
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "bcadaf760287ab41eae93fff30c518e7293bcf81",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
