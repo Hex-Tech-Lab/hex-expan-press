@@ -1,0 +1,33 @@
+web/app/api/billing/webhook/route.ts
+  s_6625bc67577472::t_c1aeba029aa21a 2,6
+web/app/api/billing/webhook/__tests__/polar-switched-off.test.ts
+  s_6625bc67577472::t_c1aeba029aa21a 33
+web/app/api/billing/checkout/__tests__/route.test.ts
+  s_6625bc67577472::t_3ebc832b38c9a5 229-240
+payments/test/provider_launch_switch.test.ts
+  s_6625bc67577472::t_533171edc31461 1-8,10,12,22-25,28-29
+payments/src/settings_registry.ts
+  s_6625bc67577472::t_c1aeba029aa21a 400
+web/app/api/billing/webhook/__tests__/verifiers.test.ts
+  s_6625bc67577472::t_c1aeba029aa21a 1-17
+web/app/api/billing/webhook/verifiers.ts
+  s_6625bc67577472::t_c1aeba029aa21a 1-14
+web/app/api/billing/checkout/route.ts
+  s_6625bc67577472::t_93e81cec537992 4,226-229
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9d11d02ff4596d90e5cbac1e3e6ff659bfd0af4d",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
