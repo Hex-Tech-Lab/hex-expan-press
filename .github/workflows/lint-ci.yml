@@ -191,7 +191,9 @@ jobs:
           rm -rf "$OUT"
           for f in "${FILES[@]}"; do
             mkdir -p "$OUT/$(dirname "$f")"
-            cp -- "$PR/$f" "$OUT/$f"
+            # Read the blob from git, never the working tree: cat-file does not follow a symlink, so a PR-added
+            # link to a runner file cannot pull that file into the lint input.
+            git -C "$PR" cat-file blob "${HEAD_SHA}:${f}" > "$OUT/$f"
           done
           echo "Linting ${#FILES[@]} changed Python file(s)."
           cd "$OUT"
