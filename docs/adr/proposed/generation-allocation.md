@@ -7,18 +7,18 @@
 
 ## Context
 
-`deliverSale` picks each download link's `link_generation` in the application process. The counter is a module-level variable (`payments/src/delivery.ts:30-40`). It is monotonic only inside one process, and serverless instances do not share it.
+`deliverSale` picks each download link's `link_generation` in the application process. The counter is a module-level variable (`payments/src/delivery.ts` `nextGeneration``). It is monotonic only inside one process, and serverless instances do not share it.
 
-The database already has a sequence default for the same column (`supabase/migrations/20261020090000_download_events_generation_seq.sql:5, 7-13, 15-16`). It is bypassed. The adapter writes `link_generation` whenever the value is defined (`delivery.ts:242-243`), and `deliverSale` always defines it (`delivery.ts:113-114`).
+The database already has a sequence default for the same column (`supabase/migrations/20261020090000_download_events_generation_seq.sql:5, 7-13, 15-16`). It is bypassed. The adapter writes `link_generation` whenever the value is defined (`supabaseDeliveryDb.recordLinkIssued` in `payments/src/delivery.ts`), and `deliverSale` always defines it (`payments/src/delivery.ts` `deliverSale`).
 
 Collisions are a backstop, not the main guard. The Redis sale lock `lock:sale:{provider}:{saleId}` serialises deliveries for one sale (`src/use_cases/billing/process_billing_webhook.ts:465-466`). The lock is mandatory in production (`payments/src/webhook_core.ts:130-134`). No production collision was found in the repo. Production logs were not checked.
 
 ## Problem
 
 1. **The application allocates the generation.** The database detects a duplicate `(sale_id, link_generation)` with `23505`, but it does not choose the value. The sequence exists, and its default is bypassed.
-2. **Collisions are retried locally, up to 3 attempts.** On a `(sale_id, link_generation)` conflict the adapter returns `false` (`delivery.ts:253`). `deliverSale` then advances its local counter and retries (`delivery.ts:123-124`). After three failed inserts it throws (`delivery.ts:128-130`), so the webhook answers 500 and the provider retries the whole sale.
-3. **The adapter cannot return the generated value.** The insert at `delivery.ts:251` has no returning select, so the application cannot read back what the database chose. The `DeliveryDb.recordLinkIssued` contract returns only a boolean (`delivery.ts:56`).
-4. **The unique key is per generation, not per sale.** The one-link-per-sale index was dropped (`supabase/migrations/20261019180000_download_events_generation_key.sql:4`). The database therefore does not limit live links per sale and does not block two confirmed deliveries of one sale. Those rest on the Redis lock and the `audit_log` check (`delivery.ts:107`, `delivery.ts:122`, `delivery.ts:164-165`).
+2. **Collisions are retried locally, up to 3 attempts.** On a `(sale_id, link_generation)` conflict the adapter returns `false` (`supabaseDeliveryDb.recordLinkIssued` in `payments/src/delivery.ts`). `deliverSale` then advances its local counter and retries (`payments/src/delivery.ts` `deliverSale`). After three failed inserts it throws (`payments/src/delivery.ts` `deliverSale`), so the webhook answers 500 and the provider retries the whole sale.
+3. **The adapter cannot return the generated value.** The insert at `payments/src/delivery.ts` `supabaseDeliveryDb.recordLinkIssued` has no returning select, so the application cannot read back what the database chose. The `DeliveryDb.recordLinkIssued` contract returns only a boolean (`payments/src/delivery.ts` `DeliveryDb.recordLinkIssued`).
+4. **The unique key is per generation, not per sale.** The one-link-per-sale index was dropped (`supabase/migrations/20261019180000_download_events_generation_key.sql:4`). The database therefore does not limit live links per sale and does not block two confirmed deliveries of one sale. Those rest on the Redis lock and the `audit_log` check (`payments/src/delivery.ts` `deliverSale`, `payments/src/delivery.ts` `deliverSale`, `payments/src/delivery.ts` `deliverSale`).
 
 ## Current schema facts (verified in the repo, live state not verified)
 
@@ -33,12 +33,12 @@ Collisions are a backstop, not the main guard. The Redis sale lock `lock:sale:{p
 
 The only migrations that define a unique key on `download_events` are `20261015120000` (original, dropped) and `20261019180000` (current). `20261020090000` defines no unique key. There is no issuance identifier column (no intent or idempotency key). It does not exist today, and this ADR does not assume one.
 
-The app uses milliseconds (`Date.getTime`, `delivery.ts:36-40`, `111`). The epoch-microsecond default at `20261019180000:7` is therefore on a different scale. See Risk R1.
+The app uses milliseconds (`Date.getTime`, `payments/src/delivery.ts` `nextGeneration`, `111`). The epoch-microsecond default at `20261019180000:7` is therefore on a different scale. See Risk R1.
 
 ## Decision (proposed)
 
 1. **The database allocates `link_generation`.** The insert omits `link_generation`. The column default (`nextval` on the sequence) supplies it. The adapter reads the value back with a returning select on the insert and returns it to `deliverSale`.
-2. **Only the sequence assigns generations.** The application never computes one. The production path of `nextGeneration` and the local counter (`delivery.ts:33-45`) is removed. Tests that reset it are updated in the same change.
+2. **Only the sequence assigns generations.** The application never computes one. The production path of `nextGeneration` and the local counter (`payments/src/delivery.ts` `nextGeneration`) is removed. Tests that reset it are updated in the same change.
 3. **A conflict is a typed result, not a silent `false`.** A `23505` on `(sale_id, link_generation)` becomes a `conflict` result. Any other error still throws. A sequence cannot produce a duplicate for new rows, so the conflict path guards against a future writer that sets the value explicitly. Use a plain insert, not `ON CONFLICT DO NOTHING`. DO NOTHING returns no row and would hide a lost insert.
 4. **Retry semantics. Proposed: every delivery invocation gets a fresh generation and a fresh token (Option A).** Collision retries within one invocation get a fresh generation but reuse that invocation's token and hash. A later delivery invocation creates a new token. This is the current behaviour (`delivery.ts` collision loop), pinned by `payments/test/delivery_retry_trade_off.test.ts`. The database stores only token hashes, so a reused link cannot be re-sent without a new secret or a schema change.
 
@@ -46,23 +46,23 @@ The app uses milliseconds (`Date.getTime`, `delivery.ts:36-40`, `111`). The epoc
    |---|---|---|
    | A. Fresh generation and token per delivery invocation (proposed) | No new state. Matches pinned tests. Retries are never blocked. | Several valid links per sale. A leaked earlier link stays valid until expiry. Each delivery invocation issues a link, and a provider retry is a new invocation, so the count has no fixed per-sale bound. The 3-attempt loop caps only collision retries within one invocation. |
    | B. Reuse the generation for the same issuance intent | One live link per sale. | Needs the token again. Either store the token (breaks the hash-only policy in `20261015120000:2`) or derive it from a server secret (new secret, rotation, and a leak exposes every link). Needs an issuance key column that does not exist. |
-   | C. Reuse, and enforce one live link per sale in the database (a partial unique index on `sale_id`) | Strongest database guarantee. | Reverses `20261019180000`. An ambiguous-send retry needs a replacement path. The release path (`delivery.ts:157`) becomes the only way to re-issue. |
+   | C. Reuse, and enforce one live link per sale in the database (a partial unique index on `sale_id`) | Strongest database guarantee. | Reverses `20261019180000`. An ambiguous-send retry needs a replacement path. The release path (`payments/src/delivery.ts` `deliverSale`) becomes the only way to re-issue. |
 
 ## Idempotency
 
 - **Issuance identifier: not needed for Option A.** Sale identity (`sale_id`) plus generation is the key. Sale-level idempotency stays with the Redis lock and the `DELIVERY_LINK_SENT` audit row. An issuance identifier is needed only for Option B, and it does not exist today.
 - **What the database must enforce now:** unique `(sale_id, link_generation)` on `link_issued` (exists). A generation from the sequence, non-null (default exists, bypassed). `expires_at` not-null for `link_issued` (check file exists, not applied from its branch).
 - **What it does not enforce, and will not after this ADR under Option A:** at most one live link per sale, and at most one confirmed delivery per sale. Those stay with the lock unless Option C is chosen.
-- **On conflict:** plain insert. A `23505` maps to `conflict`. Any other error throws, as today (`delivery.ts:248`).
+- **On conflict:** plain insert. A `23505` maps to `conflict`. Any other error throws, as today (`supabaseDeliveryDb.recordLinkIssued` in `payments/src/delivery.ts`).
 
 ## Migration path (boolean to result type)
 
-The webhook entry point does not change. `deliverSaleForWebhook` (`payments/src/delivery.ts:206-214`) keeps its `void` return and its throws. Its callers, `src/use_cases/billing/process_billing_webhook.ts:482` and `:523`, need no edit. The port change is internal to `delivery.ts`.
+The webhook entry point does not change. `deliverSaleForWebhook` (`payments/src/delivery.ts` `deliverSaleForWebhook``) keeps its `void` return and its throws. Its callers, `src/use_cases/billing/process_billing_webhook.ts:482` and `:523`, need no edit. The port change is internal to `delivery.ts`.
 
-1. **Result type.** Add `issued` (with `linkGeneration`) and `conflict`. Change `DeliveryDb.recordLinkIssued` (`delivery.ts:56`) to return it. Update the loop at `delivery.ts:118-126`. This is the only production caller.
-2. **Adapter.** `supabaseDeliveryDb.recordLinkIssued` (`delivery.ts:232-249`) omits `link_generation`, reads back the generated value, and maps `23505` to `conflict`. A missing value throws. It must not fall back to a local counter, or the emailed token could diverge from the stored row (R4).
+1. **Result type.** Add `issued` (with `linkGeneration`) and `conflict`. Change `DeliveryDb.recordLinkIssued` (`payments/src/delivery.ts` `DeliveryDb.recordLinkIssued`) to return it. Update the loop at `payments/src/delivery.ts` `deliverSale`. This is the only production caller.
+2. **Adapter.** `supabaseDeliveryDb.recordLinkIssued` (`supabaseDeliveryDb.recordLinkIssued` in `payments/src/delivery.ts`) omits `link_generation`, reads back the generated value, and maps `23505` to `conflict`. A missing value throws. It must not fall back to a local counter, or the emailed token could diverge from the stored row (R4).
 3. **Test fakes to update in the same change:** `payments/test/delivery.test.ts:15, 199, 225`; `payments/test/delivery_db_adapter.test.ts:49-92`; `payments/test/delivery_retry_trade_off.test.ts:28, 82, 115, 137`; `payments/test/delivery_block_outcome.test.ts:13`.
-4. **Remove** `nextGeneration` and `resetLastGenerationForTest` (`delivery.ts:33-45`) once no test imports them.
+4. **Remove** `nextGeneration` and `resetLastGenerationForTest` (`payments/src/delivery.ts` `nextGeneration`) once no test imports them.
 
 Rollback of the code is a single revert of this change.
 
@@ -92,7 +92,7 @@ Rollback of the code is a single revert of this change.
 
 ## Risks and rollback
 
-- **R1. Scale mismatch.** The `20261019180000:7` default is in epoch microseconds, while the app uses milliseconds (`delivery.ts:36-40`). The current delivery path passes its millisecond value explicitly, so those rows bypass the default. Existing rows from the default carry microsecond values. The sequence starts at `greatest(max(link_generation), now in ms) + 1` (`20261020090000:7-13`), so its scale depends on the stored rows: if any microsecond row exists, new values stay microsecond-scale; otherwise they start at the millisecond epoch. The live distribution is not checked here (see Not verified). Any code that compares generation to a millisecond timestamp would break. The repo has no such consumer (grep found none outside `delivery.ts` and its tests). Ordering stays monotonic inside the sequence.
+- **R1. Scale mismatch.** The `20261019180000:7` default is in epoch microseconds, while the app uses milliseconds (`payments/src/delivery.ts` `nextGeneration`). The current delivery path passes its millisecond value explicitly, so those rows bypass the default. Existing rows from the default carry microsecond values. The sequence starts at `greatest(max(link_generation), now in ms) + 1` (`20261020090000:7-13`), so its scale depends on the stored rows: if any microsecond row exists, new values stay microsecond-scale; otherwise they start at the millisecond epoch. The live distribution is not checked here (see Not verified). Any code that compares generation to a millisecond timestamp would break. The repo has no such consumer (grep found none outside `delivery.ts` and its tests). Ordering stays monotonic inside the sequence.
 - **R2. Gaps.** `nextval` is never rolled back, and `INSERT ... ON CONFLICT` consumes values before detecting a conflict (Context7, PostgreSQL docs). Accepted. The generation is not a gapless or financial number.
 - **R3. Live state unknown.** Whether the sequence default and the `(sale_id, link_generation)` index are applied in production is not verified. Check with `list_migrations` before implementation.
 - **R4. Read-back dependency.** A missing returned value must fail the delivery, not fall back to a local value.
@@ -119,7 +119,7 @@ Rollback of the code is a single revert of this change.
 
 ## Sources
 
-- `payments/src/delivery.ts` (lines cited above; the working copy in this worktree, which has uncommitted changes)
+- `payments/src/delivery.ts` (functions cited above, at the head of `fix/r2-sync-freshness`)
 - `supabase/migrations/20261015120000_download_events.sql`, `20261018120000_download_events_link_expiry_check.sql`, `20261019180000_download_events_generation_key.sql`, `20261020090000_download_events_generation_seq.sql`
 - `src/use_cases/billing/process_billing_webhook.ts:465-466, 482, 523`
 - `payments/src/webhook_core.ts:130-134, 139-140`

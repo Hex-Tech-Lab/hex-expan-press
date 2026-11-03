@@ -1,6 +1,7 @@
 import { isRegisteredPaymentProvider, paymentProviderSetting, isMoneyPath, GLOBAL } from "./settings_registry.ts";
 import { getSupabaseAdmin } from "./supabase_admin.ts";
 import { expanRedis, isRedisRestConfigured } from "../../src/infrastructure/redis/redis.client.ts";
+import { WebhookValidationError } from "../../src/domain/webhook/webhook_errors.ts";
 import type { ProviderName } from "./provider.ts";
 
 // Polar is not routable (PR 102), so it has no fallback secret. Partial because "polar" stays in ProviderName for historical rows.
@@ -99,7 +100,8 @@ export async function resolveProductByAlias(alias: string, providerName: string)
   // That is retryable on purpose. A re-enabled provider or a repaired row makes the next delivery succeed, and
   // the sale stays unrecorded until then. Returning null here would quarantine it permanently (422).
   if (!row.store_product_id || !row.creators?.handle || !isRegisteredPaymentProvider(row.provider ?? "")) {
-    throw new Error(`webhook: product '${alias}' exists but cannot sell yet (provider ${row.provider ?? "none"} not enabled, or product incomplete)`);
+    // 503: the handler audits it and sends Retry-After, so each attempt leaves a row and the provider retries.
+    throw new WebhookValidationError(`product '${alias}' exists but cannot sell yet (provider ${row.provider ?? "none"} not enabled, or product incomplete)`, 503);
   }
   return { productId: row.store_product_id, creatorHandle: row.creators.handle, currency: row.currency };
 }

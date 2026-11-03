@@ -486,7 +486,7 @@ export async function processBillingWebhookUseCase(
         // Resolve product from the DATABASE (Sprint 15: commercial state is
         // DB-only — the provider's product alias must map to a products row).
         const cfg = await resolveProductByAlias(saleEvent.productId, saleEvent.providerName);
-        // Terminal: no product row carries this alias. A retry cannot create one, so the quarantined event is for an operator.
+        // Terminal: the alias resolves to no product (no row, or an alias outside the allowed charset). A retry cannot create one; the quarantined event is for an operator.
         if (!cfg) throw new WebhookValidationError(`Unknown product_id for provider ${saleEvent.providerName}`, 422);
 
         // Never book a foreign-currency total as the product's currency (audit F4).

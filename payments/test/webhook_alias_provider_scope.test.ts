@@ -32,6 +32,23 @@ beforeEach(() => {
   vi.mocked(getSupabaseAdmin).mockResolvedValue(fakeClient() as unknown as Awaited<ReturnType<typeof getSupabaseAdmin>>);
 });
 
+import { WebhookValidationError } from "../../src/domain/webhook/webhook_errors.ts";
+
+describe("resolveProductByAlias: a row that exists but cannot sell is retryable (503)", () => {
+  it("an unregistered provider on an existing row throws a 503, never returns null", async () => {
+    const unregistered = { ...row, provider: "polar" };
+    vi.mocked(getSupabaseAdmin).mockResolvedValue({
+      from: () => {
+        const chain = { select: () => chain, or: () => chain, maybeSingle: async () => ({ data: unregistered, error: null }) };
+        return chain;
+      },
+    } as unknown as Awaited<ReturnType<typeof getSupabaseAdmin>>);
+    const err = await resolveProductByAlias(ALIAS, "polar").catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(WebhookValidationError);
+    expect((err as WebhookValidationError).httpStatus).toBe(503);
+  });
+});
+
 describe("resolveProductByAlias: paddle_product_id is matched only for Paddle sales", () => {
   it("a Paddle sale can match paddle_product_id", async () => {
     await resolveProductByAlias(ALIAS, "paddle");
