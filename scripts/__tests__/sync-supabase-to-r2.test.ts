@@ -306,6 +306,7 @@ describe("sync-supabase-to-r2", () => {
       const putHeaders = (fetchImpl.mock.calls[1][1] as RequestInit).headers as Record<string, string>;
       expect(putHeaders["if-none-match"]).toBe("*");
       expect(putHeaders["if-match"]).toBeUndefined();
+      expect(putHeaders[SOURCE_HDR]).toBe(SRC_ETAG);
     });
 
     it("refuses to upload bytes when the served object's ETag differs from the listed one", async () => {
