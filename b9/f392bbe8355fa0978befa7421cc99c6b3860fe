@@ -1,0 +1,21 @@
+web/app/creator/consents/actions.ts
+  s_6625bc67577472::t_bda5130e4c1419 42
+web/app/creator/consents/consent-cards.tsx
+  s_6625bc67577472::t_bda5130e4c1419 110
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b9f392bbe8355fa0978befa7421cc99c6b3860fe",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
