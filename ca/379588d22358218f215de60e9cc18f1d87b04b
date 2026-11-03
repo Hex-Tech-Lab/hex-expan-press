@@ -1,0 +1,27 @@
+docs/adr/proposed/generation-allocation.md
+  s_6625bc67577472::t_8abc09235ee477 47
+  s_6625bc67577472::t_61530b43aabc02 95
+docs/agent_ledger.jsonl
+  s_6625bc67577472::t_78b29c3c940472 866-868
+src/adapters/storage/r2.adapter.ts
+  s_6625bc67577472::t_5b1635a1e5aed6 478-479,488,490,492,498
+  s_6625bc67577472::t_df03063fc9e706 489
+docs/adr/0063-r2-sync-freshness-contract.md
+  s_6625bc67577472::t_ddaca0dbecd1f6 31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ca379588d22358218f215de60e9cc18f1d87b04b",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
