@@ -157,6 +157,13 @@ rm -rf "$WORK/pr-gh-symlink/pr/.github"
 ln -s "$OUT_GH" "$WORK/pr-gh-symlink/pr/.github"
 H=$(commit_change pr-gh-symlink "planted .github symlink")
 check "PR .github is a symlink to a directory outside the checkout -> actionlint fails closed" 1 pr-gh-symlink al pull_request_target "$ZERO" "$H"
+# Exit 1 alone could come from anything. The fail-closed message must be the reason.
+if grep -q "cannot list .github/workflows" "$WORK/out-pr-gh-symlink-al-pull_request_target.txt"; then
+  echo "PASS  PR .github symlink: failed on the fail-closed listing message"
+else
+  echo "FAIL  PR .github symlink: the fail-closed message is missing, so the reason is unproven"
+  FAILED=1
+fi
 
 # A workflow file that is a symlink: actionlint's copy lists the tree with git ls-tree and skips any entry whose
 # mode is not a regular file (120000 is a symlink), so the target's contents must not be read or printed.
@@ -230,6 +237,12 @@ rm -rf "$WORK/push-gh-symlink/pr/.github"
 ln -s "$OUT_GH" "$WORK/push-gh-symlink/pr/.github"
 H=$(commit_change push-gh-symlink "push planted .github symlink")
 check "push .github symlink -> actionlint fails closed" 1 push-gh-symlink al push "$BASE" "$H"
+if grep -q "cannot list .github/workflows" "$WORK/out-push-gh-symlink-al-push.txt"; then
+  echo "PASS  push .github symlink: failed on the fail-closed listing message"
+else
+  echo "FAIL  push .github symlink: the fail-closed message is missing, so the reason is unproven"
+  FAILED=1
+fi
 
 make_repo push-wf-symlink
 BASE=$(cd "$WORK/push-wf-symlink/pr" && git rev-parse master)
