@@ -10,7 +10,7 @@ Usage:
     --input data/intel/duane_book/releases/current.pdf \
     --output data/intel/duane_book/releases/current.review_watermarked.pdf \
     --creator-id "example-creator" \
-    --creator-name "Jane Example" \
+    --creator-name "[Full Legal Name]" \
     --purpose "review"
 """
 
@@ -90,7 +90,7 @@ def main():
     parser.add_argument("--input", required=True, help="Path to source PDF")
     parser.add_argument("--output", required=True, help="Path to destination watermarked PDF")
     parser.add_argument("--creator-id", required=True, help="Creator identifier (e.g. example-creator)")
-    parser.add_argument("--creator-name", required=True, help="Creator full legal name (e.g. Jane Example)")
+    parser.add_argument("--creator-name", required=True, help="Creator full legal name (e.g. [Full Legal Name])")
     parser.add_argument("--purpose", choices=["review", "author_copy"], default="review",
                         help="'review' for pre-publication reviewer copy, 'author_copy' for registered author copy")
 
