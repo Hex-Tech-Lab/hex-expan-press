@@ -8,7 +8,12 @@ vi.mock("node:fs", async (importOriginal) => {
   const find = (p: string) => Object.keys(fsState.files).find((k) => p.endsWith(`/${k}`));
   return {
     ...actual,
-    existsSync: (p: string) => (find(p) !== undefined ? true : actual.existsSync(p)),
+    // providers.json is always test-controlled: a file on the real disk (in the main checkout) must never leak in.
+    existsSync: (p: string) => {
+      if (find(p) !== undefined) return true;
+      if (p.endsWith("/providers.json")) return false;
+      return actual.existsSync(p);
+    },
     readFileSync: (p: string, enc: BufferEncoding) => {
       const k = find(p);
       return k !== undefined ? fsState.files[k] : actual.readFileSync(p, enc);
@@ -94,5 +99,13 @@ describe("providers.json: loader precedence through the real module", () => {
     const m = await import("../src/settings_registry");
     expect(m.isRegisteredPaymentProvider("fungies")).toBe(false);
     expect(m.isEnabledPaymentProvider("fungies")).toBe(false);
+  });
+});
+
+describe("providers.json: a broken copy does not hide a valid one", () => {
+  it("skipping an unparseable candidate still reports invalid only when nothing usable exists", async () => {
+    fsState.files = { "providers.json": "{ not json" };
+    const m = await import("../src/settings_registry");
+    expect(m.isEnabledPaymentProvider("paddle")).toBe(false);
   });
 });

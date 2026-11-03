@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { MatrixRouter } from "../../../../../src/infrastructure/matrix_router/matrix_router";
 import { getSupabaseAdmin } from "../../../../../payments/src/supabase_admin";
 import { isEnabledPaymentProvider } from "../../../../../payments/src/settings_registry";
+import { verifiedProviderNames } from "../webhook/verifiers";
 import { attributionRef } from "../../../../src/lib/attribution";
 import { normalizeSha256, strictActiveConsentKinds, strictChainHead } from "../../../../src/lib/consent-chain";
 
@@ -223,10 +224,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       return jsonError(500, "Checkout is not configured");
     }
     // Runtime-checked above; the cast only drops the `active` flag from the shape.
-    // The launch switch decides which rails can take a buyer: an active row for a switched-off provider
+    // A rail can take a buyer only if its provider is switched on AND has a verifier (a rail that cannot be verified
+    // would refuse its own webhooks). The launch switch decides the first condition: an active row for a switched-off provider
     // is dropped here, so a product whose only active rows are switched off fails closed through the
     // disable guard below. This replaces the old by-name drop of polar rows.
-    dbRails = activeRaw.filter((r) => typeof r.provider === "string" && isEnabledPaymentProvider(r.provider)).map(({ active: _active, ...rail }) => rail as CheckoutRail);
+    dbRails = activeRaw.filter((r) => typeof r.provider === "string" && isEnabledPaymentProvider(r.provider) && verifiedProviderNames().has(r.provider)).map(({ active: _active, ...rail }) => rail as CheckoutRail);
     // The disable guard counts only WELL-FORMED rows (real product_rails rows
     // are objects). A malformed row is a data-integrity failure: an active one
     // is rejected with 500 by the active-rail check above, and it must never be

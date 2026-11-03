@@ -18,6 +18,9 @@ type RegistryRead = { kind: "missing" } | { kind: "invalid" } | { kind: "ok"; da
 /** Reads a settings file from the first candidate directory that has it. A file that exists but cannot be
  *  parsed is reported as "invalid", never as missing, so callers can fail closed. */
 function readRegistryResult(name: string): RegistryRead {
+  // A candidate that cannot be parsed is skipped, as before, so a valid copy in a later directory still wins.
+  // Only when no candidate can be used is an existing-but-broken file reported as "invalid" (for fail-closed).
+  let sawInvalid = false;
   for (const dir of CANDIDATE_DIRS) {
     const p = path.join(dir, name);
     try {
@@ -26,14 +29,14 @@ function readRegistryResult(name: string): RegistryRead {
       if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
         return { kind: "ok", data: parsed as Record<string, unknown> };
       }
-      console.error(`[settings-registry] ${p} is not a JSON object`);
-      return { kind: "invalid" };
+      console.error(`[settings-registry] ${p} is not a JSON object — skipped`);
+      sawInvalid = true;
     } catch (err) {
-      console.error(`[settings-registry] ${p} unreadable/invalid JSON:`, err instanceof Error ? err.message : err);
-      return { kind: "invalid" };
+      console.error(`[settings-registry] ${p} unreadable/invalid JSON — skipped:`, err instanceof Error ? err.message : err);
+      sawInvalid = true;
     }
   }
-  return { kind: "missing" };
+  return sawInvalid ? { kind: "invalid" } : { kind: "missing" };
 }
 
 function readRegistryFile(name: string): Record<string, unknown> | undefined {

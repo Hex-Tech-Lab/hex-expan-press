@@ -6,7 +6,7 @@ vi.mock("node:fs", async (importOriginal) => {
   return { ...actual, existsSync: () => false };
 });
 
-import { routableVerifiers } from "../verifiers";
+import { routableVerifiers, verifiedProviderNames } from "../verifiers";
 import { DEFAULT_PAYMENT_PROVIDERS } from "../../../../../../payments/src/settings_registry";
 
 // Pins the real switch through the route's verifier list (not a mocked switch): with the inline defaults,
@@ -22,5 +22,13 @@ describe("webhook verifier list follows the launch switch", () => {
     const enabled = Object.entries(DEFAULT_PAYMENT_PROVIDERS).filter(([, p]) => p.enabled === true).map(([n]) => n);
     const routable = routableVerifiers().map((a) => a.providerName);
     for (const name of enabled) expect(routable).toContain(name);
+  });
+
+  it("only providers with a verifier can be offered a buyer", () => {
+    const names = verifiedProviderNames();
+    expect(names.has("paddle")).toBe(true);
+    expect(names.has("fungies")).toBe(true);
+    expect(names.has("polar")).toBe(true);
+    expect(names.has("lemonsqueezy")).toBe(false);
   });
 });

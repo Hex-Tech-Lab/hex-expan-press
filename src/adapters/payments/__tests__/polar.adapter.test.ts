@@ -125,3 +125,31 @@ describe("PolarAdapter signature enforcement is unconditional", () => {
     expect((res as { httpStatus?: number }).httpStatus).toBe(401);
   });
 });
+
+// A correctly signed body that is not JSON is permanent: 400, so the provider stops retrying it.
+describe("PolarAdapter non-JSON body with a valid signature", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("returns 400, not a retryable 500", async () => {
+    vi.stubEnv("POLAR_WEBHOOK_SECRET", KEY);
+    const body = "{ not json";
+    const res = await new PolarAdapter().parseAndValidateWebhook(signed(body), body);
+    expect(res.isValid).toBe(false);
+    expect((res as { httpStatus?: number }).httpStatus).toBe(400);
+  });
+});
+
+// An internal failure (not a schema or JSON error) while parsing a verified delivery must stay retryable: 500.
+describe("PolarAdapter internal errors stay retryable", () => {
+  afterEach(() => { vi.restoreAllMocks(); vi.unstubAllEnvs(); });
+
+  it("a non-schema exception during parse returns 500, not a terminal 400", async () => {
+    vi.stubEnv("POLAR_WEBHOOK_SECRET", KEY);
+    const body = refund({});
+    const spy = vi.spyOn(JSON, "parse").mockImplementationOnce(() => { throw new Error("transient internal failure"); });
+    const res = await new PolarAdapter().parseAndValidateWebhook(signed(body), body);
+    spy.mockRestore();
+    expect(res.isValid).toBe(false);
+    expect((res as { httpStatus?: number }).httpStatus).toBe(500);
+  });
+});

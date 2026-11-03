@@ -16,6 +16,7 @@
  */
 import { PaymentProviderPort, WebhookParseResult, CheckoutCommand, CheckoutResult, SaleCompletedEvent, RefundIssuedEvent } from "../../domain/payments/payments.port.ts";
 import { z } from "zod";
+import { safeEqualBytes } from "../../../payments/src/provider";
 import crypto from "crypto";
 import { cleanAttributionId, hashEmail } from "../../../payments/src/provider.ts";
 import { GLOBAL } from "../../../payments/src/settings_registry.ts";
@@ -111,7 +112,7 @@ export class PolarAdapter implements PaymentProviderPort {
     let valid = false;
     for (const got of providedSigs) {
       for (const exp of expectedSigs) {
-        if (got.length === exp.length && crypto.timingSafeEqual(got, exp)) { valid = true; break; }
+        if (safeEqualBytes(got, exp)) { valid = true; break; }
       }
     }
     if (!valid) {
@@ -162,9 +163,15 @@ export class PolarAdapter implements PaymentProviderPort {
     } catch (e: unknown) {
       // Only a schema or shape failure is permanent (400). Anything else is an internal error and must
       // stay retryable (500), or a transient bug would become a terminal reject the provider never retries.
+      // A body that is not JSON is as permanent as a bad shape: SyntaxError is a 400 too.
+      if (e instanceof SyntaxError) {
+        // Never echo the parser message: V8 quotes a slice of the signed body, and the handler logs this text.
+        return { isValid: false, error: "Schema validation failed: body is not valid JSON", httpStatus: 400 };
+      }
       if (e instanceof z.ZodError) {
         return { isValid: false, error: `Schema validation failed: ${e.message}`, httpStatus: 400 };
       }
+      console.error("[polar-adapter] internal error while parsing a verified delivery:", e);
       return { isValid: false, error: "Internal Polar adapter error", httpStatus: 500 };
     }
   }
