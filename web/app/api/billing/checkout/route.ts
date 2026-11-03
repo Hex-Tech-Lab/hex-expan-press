@@ -234,7 +234,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const configuredRowCount = (railRows ?? []).filter((r) => r !== null && typeof r === "object").length;
 
     if (configuredRowCount > 0 && dbRails.length === 0) {
-      console.error(`[billing/checkout] product '${product}' has ${configuredRowCount} configured rail(s) but none active — the database disable is authoritative`);
+      console.error(`[billing/checkout] product '${product}' has ${configuredRowCount} configured rail(s) but none usable (not active, or provider switched off) — refusing checkout`);
       return jsonError(404, `Checkout is disabled for product '${product}'`);
     }
   } catch (err) {

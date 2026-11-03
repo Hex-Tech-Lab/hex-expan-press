@@ -1,11 +1,3 @@
-// Polar ships switched off (payments/src/settings_registry.ts, enabled: false). The
-// Polar verifier is what these tests exercise, so this file switches it on. The
-// switched-off behaviour is pinned separately in polar-switched-off.test.ts.
-vi.mock("../../../../../../payments/src/settings_registry", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../../../../../../payments/src/settings_registry")>();
-  return { ...actual, isEnabledPaymentProvider: (name: string) => name === "polar" || actual.isEnabledPaymentProvider(name) };
-});
-
 // Wave 7.3: a SIGNED Polar PARTIAL refund (amount + tax < original sale) must
 // flow through the REAL webhook route to a durable MANUAL_REVIEW_REQUIRED_REFUND
 // audit row (refund_cents = amount + tax_amount, sale_cents = recorded sale) and

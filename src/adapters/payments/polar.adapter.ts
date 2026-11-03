@@ -160,8 +160,12 @@ export class PolarAdapter implements PaymentProviderPort {
       return { isValid: true, event };
 
     } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : String(e);
-      return { isValid: false, error: `Schema validation failed: ${message}`, httpStatus: 400 };
+      // Only a schema or shape failure is permanent (400). Anything else is an internal error and must
+      // stay retryable (500), or a transient bug would become a terminal reject the provider never retries.
+      if (e instanceof z.ZodError) {
+        return { isValid: false, error: `Schema validation failed: ${e.message}`, httpStatus: 400 };
+      }
+      return { isValid: false, error: "Internal Polar adapter error", httpStatus: 500 };
     }
   }
 

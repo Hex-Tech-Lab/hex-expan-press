@@ -13,22 +13,32 @@ const CANDIDATE_DIRS = [
   path.join(HERE, "..", "..", "data", "settings"), // module-relative fallback (standalone)
 ];
 
-function readRegistryFile(name: string): Record<string, unknown> | undefined {
+type RegistryRead = { kind: "missing" } | { kind: "invalid" } | { kind: "ok"; data: Record<string, unknown> };
+
+/** Reads a settings file from the first candidate directory that has it. A file that exists but cannot be
+ *  parsed is reported as "invalid", never as missing, so callers can fail closed. */
+function readRegistryResult(name: string): RegistryRead {
   for (const dir of CANDIDATE_DIRS) {
     const p = path.join(dir, name);
     try {
       if (!existsSync(p)) continue;
       const parsed: unknown = JSON.parse(readFileSync(p, "utf8"));
       if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-        return parsed as Record<string, unknown>;
+        return { kind: "ok", data: parsed as Record<string, unknown> };
       }
+      console.error(`[settings-registry] ${p} is not a JSON object`);
+      return { kind: "invalid" };
     } catch (err) {
-      // unreadable/invalid -> try next candidate, else fall back to inline defaults (loudly: a corrupt
-      // settings file must never silently become the built-in defaults)
-      console.error(`[settings-registry] ${p} unreadable/invalid JSON — skipped:`, err instanceof Error ? err.message : err);
+      console.error(`[settings-registry] ${p} unreadable/invalid JSON:`, err instanceof Error ? err.message : err);
+      return { kind: "invalid" };
     }
   }
-  return undefined;
+  return { kind: "missing" };
+}
+
+function readRegistryFile(name: string): Record<string, unknown> | undefined {
+  const r = readRegistryResult(name);
+  return r.kind === "ok" ? r.data : undefined;
 }
 
 function warnFallback(file: string, why: string): void {
@@ -529,18 +539,47 @@ export const DEFAULT_PAYMENT_PROVIDERS: Record<string, PaymentProviderSetting> =
   },
 };
 
+/** Every provider in the inline defaults, switched off. Used when providers.json exists but cannot be used. */
+export function allProvidersOff(): Record<string, PaymentProviderSetting> {
+  return Object.fromEntries(Object.entries(DEFAULT_PAYMENT_PROVIDERS).map(([name, s]) => [name, { ...s, enabled: false }]));
+}
+
+/** Normalises a providers.json "payments" map. A missing or non-boolean `enabled` is OFF, with a warning, and a
+ *  non-object entry is dropped. A provider absent from the file is not registered, so it is off too. */
+export function parsePaymentProviders(payments: Record<string, unknown>): Record<string, PaymentProviderSetting> {
+  const out: Record<string, PaymentProviderSetting> = {};
+  for (const [name, value] of Object.entries(payments)) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      console.error(`[settings-registry] providers.json '${name}' is not an object — dropped (off)`);
+      continue;
+    }
+    const setting = value as PaymentProviderSetting;
+    if (typeof setting.enabled !== "boolean") {
+      console.error(`[settings-registry] providers.json '${name}.enabled' is missing or not a boolean — '${name}' is OFF (fail closed)`);
+      out[name] = { ...setting, enabled: false };
+    } else {
+      out[name] = setting;
+    }
+  }
+  return out;
+}
+
 function loadPaymentProviders(): Record<string, PaymentProviderSetting> {
-  const raw = readRegistryFile("providers.json");
-  if (!raw) {
-    warnFallback("providers.json", "missing/unreadable");
+  const read = readRegistryResult("providers.json");
+  if (read.kind === "missing") {
+    warnFallback("providers.json", "missing");
     return DEFAULT_PAYMENT_PROVIDERS;
   }
-  const payments = raw["payments"];
+  if (read.kind === "invalid") {
+    console.error("[settings-registry] providers.json exists but cannot be used — ALL providers OFF (fail closed)");
+    return allProvidersOff();
+  }
+  const payments = read.data["payments"];
   if (!payments || typeof payments !== "object" || Array.isArray(payments)) {
-    warnFallback("providers.json", "has no usable 'payments' section");
-    return DEFAULT_PAYMENT_PROVIDERS;
+    console.error("[settings-registry] providers.json has no usable 'payments' section — ALL providers OFF (fail closed)");
+    return allProvidersOff();
   }
-  return payments as Record<string, PaymentProviderSetting>;
+  return parsePaymentProviders(payments as Record<string, unknown>);
 }
 
 export const PAYMENT_PROVIDERS: Record<string, PaymentProviderSetting> = loadPaymentProviders();

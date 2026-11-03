@@ -1,11 +1,3 @@
-// Polar ships switched off (payments/src/settings_registry.ts, enabled: false). The
-// Polar verifier is what these tests exercise, so this file switches it on. The
-// switched-off behaviour is pinned separately in polar-switched-off.test.ts.
-vi.mock("../../../../../../payments/src/settings_registry", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../../../../../../payments/src/settings_registry")>();
-  return { ...actual, isEnabledPaymentProvider: (name: string) => name === "polar" || actual.isEnabledPaymentProvider(name) };
-});
-
 // Sharp-edges audit 2026-10-01: the webhook route routes by first header match
 // over an adapter allowlist. Payhip's "verifier" is a static hash of the API
 // key (not body-covering), so the routable set was narrowed to ONLY the
