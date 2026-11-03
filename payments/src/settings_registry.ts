@@ -397,7 +397,7 @@ export interface PaymentProviderSetting {
   status?: string;
   /**
    * Launch switch. A provider is fully defined and its code is kept; this flag decides whether it takes sales.
-   * Missing or false = off (fail closed). Off providers still validate config and still answer their own route.
+   * Missing or false = off (fail closed). Off providers keep their config and verifier, and the webhook route refuses them.
    */
   enabled?: boolean;
 }

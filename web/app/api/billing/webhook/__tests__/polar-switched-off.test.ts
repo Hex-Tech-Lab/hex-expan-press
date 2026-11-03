@@ -30,5 +30,6 @@ describe("Polar switched off (launch switch)", () => {
     vi.stubEnv("POLAR_WEBHOOK_SECRET", KEY);
     const res = await billingPost(asNextRequest(new Request(URL_, { method: "POST", headers: signed(PAYLOAD), body: PAYLOAD })));
     expect(res.status).toBe(400); // refused by the switch, not by payload validation (the payload is a complete paid order)
+    expect(await res.json()).toEqual({ ok: false, error: "Bad Request" });
   });
 });
