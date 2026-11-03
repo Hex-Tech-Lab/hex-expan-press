@@ -12,7 +12,7 @@ import { DEFAULT_PAYMENT_PROVIDERS, isEnabledPaymentProvider, isRegisteredPaymen
 // Every configured provider stays defined (code, route and config are kept). Only an enabled one takes sales.
 const EXPECTED_ENABLED: Record<string, boolean> = {
   paddle: true,
-  fungies: true,
+  fungies: false,
   polar: false,
   lemonsqueezy: false,
   payhip: false,

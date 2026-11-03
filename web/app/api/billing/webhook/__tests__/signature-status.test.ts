@@ -11,6 +11,7 @@ vi.mock("../../../../../../payments/src/settings_registry", async (importOrigina
 // failures and the route must honor it instead of the legacy flat 400.
 import { describe, it, expect, afterEach, vi } from "vitest";
 import crypto from "node:crypto";
+import { standardWebhookHeaders } from "./support/webhook_signer";
 import type { NextRequest } from "next/server";
 import { POST as billingPost } from "../route";
 
@@ -24,12 +25,8 @@ const SECRET_B = crypto.randomBytes(32).toString("hex");
 
 function signedHeaders(payload: string, key: string) {
   const id = `whid_${crypto.randomBytes(8).toString("hex")}`;
-  const ts = Math.floor(Date.now() / 1000).toString();
-  const sig = crypto.createHmac("sha256", Buffer.from(key, "utf8")).update(`${id}.${ts}.${payload}`).digest("base64");
   return {
-    "webhook-id": id,
-    "webhook-timestamp": ts,
-    "webhook-signature": `v1,${sig}`,
+    ...standardWebhookHeaders(key, id, payload),
     "content-type": "application/json",
   };
 }

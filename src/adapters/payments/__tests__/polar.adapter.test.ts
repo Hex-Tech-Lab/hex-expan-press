@@ -41,13 +41,26 @@ describe("PolarAdapter refund parsing (Wave 7.2)", () => {
     ["tax_amount missing", { tax_amount: undefined }],
     ["order_id missing (cannot link to a sale)", { order_id: undefined }],
     ["order_id empty", { order_id: "" }],
-    ["status pending (not yet settled)", { status: "pending" }],
-    ["status failed", { status: "failed" }],
     ["status missing", { status: undefined }],
+    ["status outside the known set", { status: "reversed" }],
   ])("rejects a refund with %s → 400, no event", async (_label, patch) => {
     const res = await parse(refund(patch));
     expect(res.isValid).toBe(false);
     expect((res as { httpStatus?: number }).httpStatus).toBe(400);
+  });
+
+  // Pending, failed and canceled refunds are NOT applied to the ledger, but they are parsed and surfaced as
+  // unsettled so manual review sees them (the use case flags them as MANUAL_REVIEW_REQUIRED_REFUND).
+  it.each(["pending", "failed", "canceled"])("surfaces a %s refund as unsettled (not applied, not dropped)", async (status) => {
+    const res = await parse(refund({ status }));
+    expect(res.isValid).toBe(true);
+    const ev = (res as { event: RefundIssuedEvent }).event;
+    expect(ev).toMatchObject({ eventType: "refund_issued", saleId: "ord_1", totalCents: 3900, settled: false });
+  });
+
+  it("a succeeded refund is marked settled", async () => {
+    const res = await parse(refund({}));
+    expect((res as { event: RefundIssuedEvent }).event.settled).toBe(true);
   });
 
   // Wave 7.3 safe-integer guards: JSON numbers past Number.MAX_SAFE_INTEGER (or a

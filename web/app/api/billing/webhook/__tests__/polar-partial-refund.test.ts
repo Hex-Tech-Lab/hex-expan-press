@@ -4,7 +4,7 @@
 // a 400 — with NO refund row ever appended to the ledger (refunds are
 // full-reversal records; a partial must never be recorded as one).
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import crypto from "node:crypto";
+import { standardWebhookHeaders } from "./support/webhook_signer";
 import { mkdirSync, rmSync, readFileSync } from "node:fs";
 import type { NextRequest } from "next/server";
 import { appendSale, SaleRecord } from "../../../../../../payments/src/ledger.ts";
@@ -16,13 +16,8 @@ const HMAC_TEST_KEY = "wave73-partial-refund-test-key";
 const WEBHOOK_URL = "http://localhost:3000/api/billing/webhook";
 
 function signedHeaders(payload: string) {
-  const id = "whid_partial_0001";
-  const ts = Math.floor(Date.now() / 1000).toString();
-  const sig = crypto.createHmac("sha256", Buffer.from(HMAC_TEST_KEY, "utf8")).update(`${id}.${ts}.${payload}`).digest("base64");
   return {
-    "webhook-id": id,
-    "webhook-timestamp": ts,
-    "webhook-signature": `v1,${sig}`,
+    ...standardWebhookHeaders(HMAC_TEST_KEY, "whid_partial_0001", payload),
     "content-type": "application/json",
   };
 }

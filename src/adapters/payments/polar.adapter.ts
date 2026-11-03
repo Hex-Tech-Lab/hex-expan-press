@@ -52,9 +52,10 @@ const PolarRefundDataSchema = z
     order_id: z.string().min(1),
     amount: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
     tax_amount: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
-    // Only a settled refund reverses the creator split. Pending, failed or canceled refunds, and
-    // a payload with no status, fail schema validation (400) and never reach the ledger.
-    status: z.literal("succeeded"),
+    // Only a settled ("succeeded") refund reverses the creator split. Pending, failed and canceled refunds are
+    // parsed and surfaced as unsettled, so manual review sees them; they are never applied to the ledger. A status
+    // outside this set, or a missing one, fails schema validation (400).
+    status: z.enum(["succeeded", "pending", "failed", "canceled"]),
     created_at: z.string().datetime().optional()
   })
   .refine(
@@ -131,6 +132,7 @@ export class PolarAdapter implements PaymentProviderPort {
           refundId: validated.data.id,
           // Gross refunded = net + tax, comparable to the sale's total_amount (tax-inclusive).
           totalCents: validated.data.amount + validated.data.tax_amount,
+          settled: validated.data.status === "succeeded",
           occurredAt: validated.data.created_at || new Date().toISOString(),
           rawPayload: parsedJson
         };

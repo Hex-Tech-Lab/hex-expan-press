@@ -86,12 +86,20 @@ async function readBodyCapped(request: NextRequest): Promise<Buffer | null> {
  */
 export type WebhookAdapters = Parameters<typeof processBillingWebhookUseCase>[1];
 
-/** Handler factory: production wires the real providers below; tests inject a signed fixture adapter. */
-export function createWebhookHandler(buildAdapters: () => WebhookAdapters): (request: NextRequest) => Promise<NextResponse> {
-  return (request) => handleWebhook(request, buildAdapters());
+/** Audit events written for a terminal 4xx: a rejected payload, or a verified delivery for a switched-off rail. */
+type TerminalAuditEvent = "WEBHOOK_TERMINAL_REJECT" | "WEBHOOK_PROVIDER_SWITCHED_OFF";
+
+/** Handler factory: production wires the real providers below; tests inject a signed fixture adapter.
+ *  `buildSwitchedOffAdapters` are the verifiers of switched-off rails: they only recognise a signed delivery
+ *  for a switched-off rail so it can be recorded for manual review. */
+export function createWebhookHandler(
+  buildAdapters: () => WebhookAdapters,
+  buildSwitchedOffAdapters: () => WebhookAdapters = () => [],
+): (request: NextRequest) => Promise<NextResponse> {
+  return (request) => handleWebhook(request, buildAdapters(), buildSwitchedOffAdapters());
 }
 
-async function handleWebhook(request: NextRequest, adapters: WebhookAdapters): Promise<NextResponse> {
+async function handleWebhook(request: NextRequest, adapters: WebhookAdapters, switchedOffAdapters: WebhookAdapters): Promise<NextResponse> {
   const bodyBuffer = await readBodyCapped(request);
   if (bodyBuffer === null) {
     return NextResponse.json({ ok: false, error: "Payload Too Large" }, { status: 413 });
@@ -117,6 +125,13 @@ async function handleWebhook(request: NextRequest, adapters: WebhookAdapters): P
         { ok: false, error: "In flight — retry" },
         { status: 503, headers: retryAfterHeaders() },
       );
+    }
+    // No switched-on rail claimed this signature. If a switched-off rail does, the delivery is a real sale for a
+    // rail we are not taking: record it for manual review rather than let it vanish. Unclaimed traffic falls
+    // through to the generic 400 below and writes no row.
+    if (err instanceof WebhookValidationError && (err as { senderVerified?: boolean }).senderVerified === false) {
+      const offRail = switchedOffAdapters.find((a) => a.canHandleWebhook(headers, body));
+      if (offRail) return refuseSwitchedOffDelivery(offRail, headers, body, bodyBuffer);
     }
     console.error("Billing webhook error:", err);
     // Ledger schema violations are permanent for the payload (e.g. sub-cent amounts):
@@ -158,6 +173,23 @@ async function handleWebhook(request: NextRequest, adapters: WebhookAdapters): P
   }
 }
 
+/** A signed delivery for a switched-off rail. The rail's own verifier must verify it first: only a genuine delivery
+ *  is recorded (WEBHOOK_PROVIDER_SWITCHED_OFF, shown in the admin queue). Either way the answer is a terminal 400, so
+ *  the provider stops retrying a rail we are not taking. The rail stays off, so nothing reaches the ledger. An
+ *  unverified delivery gets the same 400 and writes no row. A verifier that throws counts as unverified. */
+async function refuseSwitchedOffDelivery(
+  rail: WebhookAdapters[number],
+  headers: Record<string, string | string[] | undefined>,
+  body: string,
+  bodyBuffer: Buffer,
+): Promise<NextResponse> {
+  const verified = await rail.parseAndValidateWebhook(headers, body).then((r) => r.isValid, () => false);
+  if (verified) {
+    await quarantineTerminalEvent(headers, bodyBuffer, "provider_switched_off", "WEBHOOK_PROVIDER_SWITCHED_OFF");
+  }
+  return NextResponse.json({ ok: false, error: "Bad Request" }, { status: 400 });
+}
+
 /** Terminal-reject quarantine: the provider stops retrying on this response, so the
  *  rejected event must live somewhere besides the provider's redelivery queue. Durable
  *  audit row keyed by the payload sha256 of the RAW BYTES (NOT the body itself — buyer
@@ -168,6 +200,7 @@ async function quarantineTerminalEvent(
   headers: Record<string, string | string[] | undefined>,
   bodyBuffer: Buffer,
   reason: string,
+  event: TerminalAuditEvent = "WEBHOOK_TERMINAL_REJECT",
 ): Promise<void> {
   // Bounded like auditBounded: a stalled Supabase request must not delay the
   // terminal 400 (the provider would time out and redeliver, defeating the
@@ -178,7 +211,7 @@ async function quarantineTerminalEvent(
     timer = setTimeout(() => { controller.abort(); resolve(); }, GLOBAL.payments.http_timeout_ms);
   });
   // .finally, not try/finally: see auditBounded.
-  await Promise.race([insertTerminalRejectAudit(headers, bodyBuffer, reason, controller.signal), timeout]).finally(() => clearTimeout(timer));
+  await Promise.race([insertTerminalRejectAudit(headers, bodyBuffer, reason, controller.signal, event), timeout]).finally(() => clearTimeout(timer));
 }
 
 export async function insertTerminalRejectAudit(
@@ -186,12 +219,13 @@ export async function insertTerminalRejectAudit(
   bodyBuffer: Buffer,
   reason: string,
   signal: AbortSignal,
+  event: TerminalAuditEvent = "WEBHOOK_TERMINAL_REJECT",
 ): Promise<void> {
   try {
     const url = process.env.SUPABASE_URL;
     const key = process.env.SUPABASE_SECRET_KEY;
     if (!url || !key) {
-      console.error(`[billing-webhook] audit skipped: SUPABASE_URL or SUPABASE_SECRET_KEY unset (event=WEBHOOK_TERMINAL_REJECT reason=${reason})`);
+      console.error(`[billing-webhook] audit skipped: SUPABASE_URL or SUPABASE_SECRET_KEY unset (event=${event} reason=${reason})`);
       return;
     }
     const { createClient } = await import("@supabase/supabase-js");
@@ -199,7 +233,7 @@ export async function insertTerminalRejectAudit(
     const { error } = await supabase
       .from("audit_log")
       .insert({
-        event: "WEBHOOK_TERMINAL_REJECT",
+        event,
         details: { ...auditContext(headers, bodyBuffer.toString("utf8")), reason, payload_sha256: createHash("sha256").update(bodyBuffer).digest("hex") },
       })
       .abortSignal(signal);

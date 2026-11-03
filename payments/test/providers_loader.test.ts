@@ -60,10 +60,10 @@ describe("providers.json: pure normalisation", () => {
 });
 
 describe("providers.json: loader precedence through the real module", () => {
-  it("no file: the inline defaults apply (Paddle and Fungies on, Polar off)", async () => {
+  it("no file: the inline defaults apply (Paddle on, Fungies and Polar off)", async () => {
     const m = await import("../src/settings_registry");
     expect(m.isEnabledPaymentProvider("paddle")).toBe(true);
-    expect(m.isEnabledPaymentProvider("fungies")).toBe(true);
+    expect(m.isEnabledPaymentProvider("fungies")).toBe(false);
     expect(m.isEnabledPaymentProvider("polar")).toBe(false);
   });
 

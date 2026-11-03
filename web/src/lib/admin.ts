@@ -12,7 +12,9 @@ import { GLOBAL } from "../../../payments/src/settings_registry";
  * nobody is an admin (fail closed).
  */
 
-export const ADMIN_AUDIT_EVENTS = ["MANUAL_REVIEW_REQUIRED_REFUND", "WEBHOOK_503_RETRYING"] as const;
+// WEBHOOK_PROVIDER_SWITCHED_OFF: a genuine signed delivery for a rail that is switched off. The rail is not taken,
+// so a person decides what happens to the sale (see docs/adr/0062-payment-rail-launch-switch.md).
+export const ADMIN_AUDIT_EVENTS = ["MANUAL_REVIEW_REQUIRED_REFUND", "WEBHOOK_503_RETRYING", "WEBHOOK_PROVIDER_SWITCHED_OFF"] as const;
 
 export interface AdminAuditRow {
   id: number;

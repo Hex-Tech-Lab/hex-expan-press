@@ -11,6 +11,7 @@
 // settings registry points the sales ledger at a throwaway temp file.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import crypto from "node:crypto";
+import { standardWebhookHeaders } from "./support/webhook_signer";
 import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import type { NextRequest } from "next/server";
 import { POST as billingPost } from "../route";
@@ -163,7 +164,6 @@ describe("billing webhook provider allowlist (sharp-edges audit 2026-10-01)", ()
   it("positive control: a Polar-signed delivery still routes through the narrowed allowlist (200 on an ignored unpaid order.created)", async () => {
     vi.stubEnv("POLAR_WEBHOOK_SECRET", POLAR_KEY);
     const id = "whid_allowlist_0001";
-    const ts = Math.floor(Date.now() / 1000).toString();
     const payload = JSON.stringify({
       type: "order.created",
       data: {
@@ -175,18 +175,12 @@ describe("billing webhook provider allowlist (sharp-edges audit 2026-10-01)", ()
         customer: { email: "buyer@example.com" },
       },
     });
-    const sig = crypto
-      .createHmac("sha256", Buffer.from(POLAR_KEY, "utf8"))
-      .update(`${id}.${ts}.${payload}`)
-      .digest("base64");
     const res = await billingPost(
       asNextRequest(
         new Request(WEBHOOK_URL, {
           method: "POST",
           headers: {
-            "webhook-id": id,
-            "webhook-timestamp": ts,
-            "webhook-signature": `v1,${sig}`,
+            ...standardWebhookHeaders(POLAR_KEY, id, payload),
             "content-type": "application/json",
           },
           body: payload,

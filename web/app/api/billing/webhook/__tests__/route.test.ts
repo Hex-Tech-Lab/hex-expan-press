@@ -16,7 +16,7 @@ vi.mock("../../../../../../payments/src/settings_registry", async (importOrigina
 // oversized streamed bodies are rejected 413 mid-read (no Content-Length
 // trust), and multi-byte UTF-8 survives byte-exactly through Buffer.concat.
 import { describe, it, expect, afterEach, vi } from "vitest";
-import crypto from "node:crypto";
+import { standardWebhookHeaders } from "./support/webhook_signer";
 import type { NextRequest } from "next/server";
 import { POST as billingPost } from "../route";
 
@@ -28,13 +28,8 @@ const HMAC_TEST_KEY = "wave6-unit-test-hmac-key";
 const WEBHOOK_URL = "http://localhost:3000/api/billing/webhook";
 
 function signedHeaders(payload: string, key = HMAC_TEST_KEY) {
-  const id = "whid_test_0001";
-  const ts = Math.floor(Date.now() / 1000).toString();
-  const sig = crypto.createHmac("sha256", Buffer.from(key, "utf8")).update(`${id}.${ts}.${payload}`).digest("base64");
   return {
-    "webhook-id": id,
-    "webhook-timestamp": ts,
-    "webhook-signature": `v1,${sig}`,
+    ...standardWebhookHeaders(key, "whid_test_0001", payload),
     "content-type": "application/json",
   };
 }

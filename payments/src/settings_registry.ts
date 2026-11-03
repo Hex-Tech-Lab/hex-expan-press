@@ -520,7 +520,8 @@ export const DEFAULT_PAYMENT_PROVIDERS: Record<string, PaymentProviderSetting> =
     },
   },
   fungies: {
-    enabled: true,
+    // Off until the founder approves Fungies as a launch rail. Its verifier stays wired so it can be switched on.
+    enabled: false,
     route: "fungies",
     signature_header: "x-fngs-signature",
     signature_scheme:

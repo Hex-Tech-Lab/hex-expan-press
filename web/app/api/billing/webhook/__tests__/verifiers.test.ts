@@ -10,10 +10,10 @@ import { routableVerifiers, verifiedProviderNames } from "../verifiers";
 import { DEFAULT_PAYMENT_PROVIDERS } from "../../../../../../payments/src/settings_registry";
 
 // Pins the real switch through the route's verifier list (not a mocked switch): with the inline defaults,
-// Paddle and Fungies are offered requests and Polar is not.
+// only Paddle is offered requests. Fungies and Polar are switched off, so their verifiers are not offered.
 describe("webhook verifier list follows the launch switch", () => {
-  it("offers Paddle and Fungies, and not switched-off Polar", () => {
-    expect(routableVerifiers().map((a) => a.providerName)).toEqual(["paddle", "fungies"]);
+  it("offers only Paddle, and not the switched-off Fungies or Polar", () => {
+    expect(routableVerifiers().map((a) => a.providerName)).toEqual(["paddle"]);
   });
 
   // Invariant: a provider switched on in the defaults must have a verifier here, or buyers would be sent to a
