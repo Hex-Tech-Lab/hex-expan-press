@@ -1,3 +1,11 @@
+// Polar ships switched off (payments/src/settings_registry.ts, enabled: false). The
+// Polar verifier is what these tests exercise, so this file switches it on. The
+// switched-off behaviour is pinned separately in polar-switched-off.test.ts.
+vi.mock("../../../../../../payments/src/settings_registry", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../../../../../payments/src/settings_registry")>();
+  return { ...actual, isEnabledPaymentProvider: (name: string) => name === "polar" || actual.isEnabledPaymentProvider(name) };
+});
+
 // Sharp-edges audit 2026-10-01: the webhook route routes by first header match
 // over an adapter allowlist. Payhip's "verifier" is a static hash of the API
 // key (not body-covering), so the routable set was narrowed to ONLY the
@@ -21,6 +29,7 @@ const WEBHOOK_URL = "http://localhost:3000/api/billing/webhook";
 // Per-run random fixture keys: nothing credential-shaped is committed.
 const LS_SECRET = crypto.randomBytes(16).toString("hex");
 const PAYHIP_SECRET = crypto.randomBytes(16).toString("hex");
+const POLAR_KEY = crypto.randomBytes(16).toString("hex");
 
 // Supabase is faked: EVERY insert/upsert on ANY table is captured — the
 // allowlist must produce zero writes anywhere.
@@ -67,6 +76,7 @@ vi.mock("../../../../../../payments/src/settings_registry.ts", () => ({
   },
   expandHome: (p: string, home: string) => (home && (p === "~" || p.startsWith("~/")) ? p : p),
   isRegisteredPaymentProvider: (name: unknown) => typeof name === "string",
+  isEnabledPaymentProvider: (name: unknown) => typeof name === "string",
   paymentProviderSetting: () => undefined,
 }));
 
@@ -158,4 +168,42 @@ describe("billing webhook provider allowlist (sharp-edges audit 2026-10-01)", ()
     expect(setnx).not.toHaveBeenCalled();
   });
 
+  it("positive control: a Polar-signed delivery still routes through the narrowed allowlist (200 on an ignored unpaid order.created)", async () => {
+    vi.stubEnv("POLAR_WEBHOOK_SECRET", POLAR_KEY);
+    const id = "whid_allowlist_0001";
+    const ts = Math.floor(Date.now() / 1000).toString();
+    const payload = JSON.stringify({
+      type: "order.created",
+      data: {
+        id: "ord_allowlist_ctrl_1",
+        paid: false,
+        total_amount: 0,
+        currency: "usd",
+        created_at: "2026-10-01T00:00:00.000Z",
+        customer: { email: "buyer@example.com" },
+      },
+    });
+    const sig = crypto
+      .createHmac("sha256", Buffer.from(POLAR_KEY, "utf8"))
+      .update(`${id}.${ts}.${payload}`)
+      .digest("base64");
+    const res = await billingPost(
+      asNextRequest(
+        new Request(WEBHOOK_URL, {
+          method: "POST",
+          headers: {
+            "webhook-id": id,
+            "webhook-timestamp": ts,
+            "webhook-signature": `v1,${sig}`,
+            "content-type": "application/json",
+          },
+          body: payload,
+        }),
+      ),
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true });
+    expect(supa.writes).toHaveLength(0);
+    expect(ledgerRows()).toHaveLength(0);
+  });
 });
