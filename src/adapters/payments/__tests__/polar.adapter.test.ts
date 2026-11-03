@@ -17,7 +17,7 @@ function signed(payload: string) {
 }
 
 const refund = (data: Record<string, unknown>) =>
-  JSON.stringify({ type: "refund.created", data: { id: "rf_1", order_id: "ord_1", amount: 3500, tax_amount: 400, created_at: "2026-09-30T00:00:00.000Z", ...data } });
+  JSON.stringify({ type: "refund.created", data: { id: "rf_1", order_id: "ord_1", amount: 3500, tax_amount: 400, status: "succeeded", created_at: "2026-09-30T00:00:00.000Z", ...data } });
 
 async function parse(body: string) {
   vi.stubEnv("POLAR_WEBHOOK_SECRET", KEY);
@@ -41,6 +41,9 @@ describe("PolarAdapter refund parsing (Wave 7.2)", () => {
     ["tax_amount missing", { tax_amount: undefined }],
     ["order_id missing (cannot link to a sale)", { order_id: undefined }],
     ["order_id empty", { order_id: "" }],
+    ["status pending (not yet settled)", { status: "pending" }],
+    ["status failed", { status: "failed" }],
+    ["status missing", { status: undefined }],
   ])("rejects a refund with %s → 400, no event", async (_label, patch) => {
     const res = await parse(refund(patch));
     expect(res.isValid).toBe(false);
@@ -105,5 +108,20 @@ describe("PolarAdapter webhook replay window", () => {
     expect(res.isValid).toBe(false);
     expect((res as { httpStatus?: number }).httpStatus).toBe(401);
     expect((res as { error?: string }).error).toBe(`Webhook timestamp outside the ${POLAR_WEBHOOK_TOLERANCE_SECONDS}-second tolerance`);
+  });
+});
+
+// A bad signature is refused in every environment. The gate used to apply only when
+// NODE_ENV=production, so outside production an unsigned delivery reached the parser.
+describe("PolarAdapter signature enforcement is unconditional", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it.each(["test", "development"])("rejects a bad signature with NODE_ENV=%s", async (env) => {
+    vi.stubEnv("POLAR_WEBHOOK_SECRET", KEY);
+    vi.stubEnv("NODE_ENV", env);
+    const body = refund({});
+    const res = await new PolarAdapter().parseAndValidateWebhook({ ...signed(body), "webhook-signature": "v1,AAAA" }, body);
+    expect(res.isValid).toBe(false);
+    expect((res as { httpStatus?: number }).httpStatus).toBe(401);
   });
 });

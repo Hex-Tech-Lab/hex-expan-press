@@ -19,7 +19,7 @@ function signed(payload: string) {
 
 const PAYLOAD = JSON.stringify({
   type: "order.paid",
-  data: { id: "ord_off_0001", paid: true, total_amount: 900, currency: "usd", created_at: "2026-11-03T00:00:00.000Z", customer: { email: "buyer@example.com" } },
+  data: { id: "ord_off_0001", paid: true, total_amount: 900, currency: "usd", product_id: "polar_prod_off_0001", created_at: "2026-11-03T00:00:00.000Z", customer: { email: "buyer@example.com" } },
 });
 
 describe("Polar switched off (launch switch)", () => {
@@ -29,6 +29,6 @@ describe("Polar switched off (launch switch)", () => {
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("POLAR_WEBHOOK_SECRET", KEY);
     const res = await billingPost(asNextRequest(new Request(URL_, { method: "POST", headers: signed(PAYLOAD), body: PAYLOAD })));
-    expect(res.status).not.toBe(200);
+    expect(res.status).toBe(400); // refused by the switch, not by payload validation (the payload is a complete paid order)
   });
 });

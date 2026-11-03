@@ -51,6 +51,9 @@ const PolarRefundDataSchema = z
     order_id: z.string().min(1),
     amount: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
     tax_amount: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER),
+    // Only a settled refund reverses the creator split. Pending, failed or canceled refunds, and
+    // a payload with no status, fail schema validation (400) and never reach the ledger.
+    status: z.literal("succeeded"),
     created_at: z.string().datetime().optional()
   })
   .refine(
@@ -111,7 +114,7 @@ export class PolarAdapter implements PaymentProviderPort {
         if (got.length === exp.length && crypto.timingSafeEqual(got, exp)) { valid = true; break; }
       }
     }
-    if (!valid && process.env.NODE_ENV === "production") {
+    if (!valid) {
       return { isValid: false, error: "Invalid Polar signature", httpStatus: 401 };
     }
 

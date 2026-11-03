@@ -145,6 +145,7 @@ describe("polar partial refund via real webhook route (Wave 7.3)", () => {
         order_id: "ord_partial_1",
         amount: 1000,
         tax_amount: 100,
+        status: "succeeded",
         created_at: "2026-09-30T00:00:00.000Z",
       },
     });

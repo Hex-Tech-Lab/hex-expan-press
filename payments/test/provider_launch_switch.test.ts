@@ -1,28 +1,30 @@
 import { describe, it, expect } from "vitest";
-import { isEnabledPaymentProvider, isRegisteredPaymentProvider } from "../src/settings_registry";
+import { DEFAULT_PAYMENT_PROVIDERS, isEnabledPaymentProvider, isRegisteredPaymentProvider } from "../src/settings_registry";
 
 // The launch switch: every configured provider stays defined (code, route and config are kept), and only an
-// enabled one takes sales. Runs against the inline defaults (the production fallback), not a local file.
+// enabled one takes sales. These assertions read the exported inline defaults, which are the production fallback.
+// They do not go through the loader, so a local data/settings/providers.json cannot change the result.
 
-describe("provider launch switch (settings registry)", () => {
-  it("Paddle is the launch rail and is enabled", () => {
-    expect(isRegisteredPaymentProvider("paddle")).toBe(true);
-    expect(isEnabledPaymentProvider("paddle")).toBe(true);
+const EXPECTED_ENABLED: Record<string, boolean> = {
+  paddle: true,
+  fungies: true,
+  polar: false,
+  lemonsqueezy: false,
+  payhip: false,
+  fastspring: false,
+};
+
+describe("provider launch switch (inline defaults)", () => {
+  it.each(Object.keys(EXPECTED_ENABLED))("%s is registered with the expected switch state", (name) => {
+    expect(DEFAULT_PAYMENT_PROVIDERS[name]).toBeDefined();
+    expect(DEFAULT_PAYMENT_PROVIDERS[name].enabled === true).toBe(EXPECTED_ENABLED[name]);
   });
 
-  it("Polar stays defined but is switched off, so it takes no sales", () => {
-    expect(isRegisteredPaymentProvider("polar")).toBe(true);
-    expect(isEnabledPaymentProvider("polar")).toBe(false);
-  });
-
-  it("Fungies stays enabled, as master routed it before the switch existed", () => {
-    expect(isRegisteredPaymentProvider("fungies")).toBe(true);
-    expect(isEnabledPaymentProvider("fungies")).toBe(true);
-  });
-
-  it.each(["lemonsqueezy", "payhip", "fastspring"])("%s is defined and switched off", (name) => {
-    expect(isRegisteredPaymentProvider(name)).toBe(true);
-    expect(isEnabledPaymentProvider(name)).toBe(false);
+  it("the switch reads the same flags as the defaults", () => {
+    for (const [name, on] of Object.entries(EXPECTED_ENABLED)) {
+      expect(isRegisteredPaymentProvider(name)).toBe(true);
+      expect(DEFAULT_PAYMENT_PROVIDERS[name].enabled === true).toBe(on);
+    }
   });
 
   it("an unknown provider is neither registered nor enabled", () => {
