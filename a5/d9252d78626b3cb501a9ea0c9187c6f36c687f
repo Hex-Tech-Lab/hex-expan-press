@@ -1,0 +1,39 @@
+payments/test/webhook_alias_provider_scope.test.ts
+  s_6625bc67577472::t_2f31b2410fe0d7 1-49,51-55,57-59,61-68
+  s_6625bc67577472::t_ea62979c67fe54 50,56,60
+scripts/sync-supabase-to-r2.ts
+  s_6625bc67577472::t_1b17d36bd39acc 75-77,91,95
+src/adapters/storage/r2.adapter.ts
+  s_6625bc67577472::t_5358150a4eacc6 478,491-493
+src/adapters/storage/__tests__/r2.freshness.test.ts
+  s_6625bc67577472::t_dbe4452897fb6c 161-204
+scripts/__tests__/sync-supabase-to-r2.test.ts
+  s_6625bc67577472::t_1b17d36bd39acc 424-433
+src/use_cases/billing/process_billing_webhook.ts
+  s_6625bc67577472::t_75e113e032492f 488
+docs/agent_ledger.jsonl
+  s_6625bc67577472::t_5b6e0eb4038a2d 856
+payments/src/webhook_core.ts
+  s_6625bc67577472::t_75e113e032492f 63-67,76
+docs/adr/proposed/generation-allocation.md
+  s_6625bc67577472::t_4b63690ae3cf20 18
+supabase/migrations/20261028082156_products_paddle_product_id_unique.sql
+  s_6625bc67577472::t_e3a98f31b930df 5
+  s_6625bc67577472::t_4b63690ae3cf20 3-4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a5d9252d78626b3cb501a9ea0c9187c6f36c687f",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
