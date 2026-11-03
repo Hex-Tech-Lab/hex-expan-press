@@ -301,6 +301,8 @@ describe("sync-supabase-to-r2", () => {
 
       expect(result).toMatchObject({ uploaded: 1, verified: 1, failed: 0 });
       expect(String(harness.sourceFetch.mock.calls[0][0])).toMatch(/\/storage\/v1\/object\/release-files\/books\/new\.pdf$/);
+      expect(harness.sourceFetch).toHaveBeenCalledTimes(1);
+      expect(Buffer.from((fetchImpl.mock.calls[1][1] as RequestInit).body as Buffer).toString()).toBe("bytes");
       const putHeaders = (fetchImpl.mock.calls[1][1] as RequestInit).headers as Record<string, string>;
       expect(putHeaders["if-none-match"]).toBe("*");
       expect(putHeaders["if-match"]).toBeUndefined();
@@ -382,6 +384,7 @@ describe("sync-supabase-to-r2", () => {
       expect(result.errors).toEqual([
         { path: "book.pdf", error: "Post-upload source ETag verification failed" },
       ]);
+      expect(harness.sourceFetch).toHaveBeenCalledTimes(1);
     });
 
     it("reports a 412 as a failed concurrent write and does not overwrite or retry", async () => {
@@ -400,6 +403,7 @@ describe("sync-supabase-to-r2", () => {
       expect(result).toMatchObject({ uploaded: 0, verified: 0, failed: 1 });
       expect(result.errors[0].error).toContain("precondition failed");
       expect(fetchImpl).toHaveBeenCalledTimes(2);
+      expect(harness.sourceFetch).toHaveBeenCalledTimes(1);
     });
 
     it("refuses to sync a listed object that has no ETag, without contacting R2", async () => {
@@ -414,6 +418,20 @@ describe("sync-supabase-to-r2", () => {
       expect(result).toMatchObject({ uploaded: 0, failed: 1 });
       expect(result.errors).toEqual([{ path: "x.pdf", error: "Supabase listing returned no ETag" }]);
       expect(fetchImpl).not.toHaveBeenCalled();
+    });
+
+    it("refuses to write when the source GET returns a non-2xx status, without any R2 write", async () => {
+      const fetchImpl = vi.fn().mockResolvedValueOnce(r2Head(404));
+      const harness = makeSyncTestHarness({ files: [syncFile("book.pdf")], fetchImpl: fetchImpl as never });
+      harness.sourceFetch.mockResolvedValueOnce(new Response(null, { status: 500 }));
+
+      const result = await runSync(harness);
+
+      expect(result).toMatchObject({ uploaded: 0, failed: 1 });
+      expect(result.errors).toHaveLength(1);
+      expect(result.errors[0].path).toBe("book.pdf");
+      expect(result.errors[0].error).toContain("HTTP 500");
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
     });
 
     it("refuses an overwrite when R2 returns a copy without an ETag to condition on", async () => {
