@@ -1,0 +1,33 @@
+scripts/__tests__/sync-supabase-to-r2.test.ts
+  s_6625bc67577472::t_d4cd3540d302ca 560-563
+  s_6625bc67577472::t_adab2f7b077f03 254
+  s_6625bc67577472::t_7e5692b163d6fe 445,463
+  s_6625bc67577472::t_cad82a43141710 292,300
+  s_6625bc67577472::t_3c522574480161 30-36,52
+  s_6625bc67577472::t_e32cb8ff495806 10,12-13
+  s_6625bc67577472::t_5f4d9442d0c436 239
+  s_6625bc67577472::t_efeac956a0c31e 306-307,312-336,341
+scripts/sync-supabase-to-r2.ts
+  s_6625bc67577472::t_9264989d8e35a3 304-309,311,314-315,320
+  s_6625bc67577472::t_fd20f4b89a306d 21-22
+  s_6625bc67577472::t_b98fd7a44aeeb4 76-77,79-96
+  s_6625bc67577472::t_885d6637007bc8 209
+docs/adr/0063-r2-sync-freshness-contract.md
+  s_6625bc67577472::t_2bf90e71359b4b 31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "aecdfd46228b241b2074fb864098ad9b8014d2e2",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
