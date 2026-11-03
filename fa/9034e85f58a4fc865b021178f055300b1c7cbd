@@ -1,0 +1,64 @@
+src/adapters/payments/polar.adapter.ts
+  s_6625bc67577472::t_20d1d150498133 1-171
+payments/src/settings_registry.ts
+  s_6625bc67577472::t_60d7cd4bb79cb3 266
+  s_6625bc67577472::t_2000383e1c026e 113
+  s_6625bc67577472::t_c337207814ce60 513
+  s_6625bc67577472::t_e0d828203bf40d 58
+  s_6625bc67577472::t_41e40440779bea 401-405,411,428,450,466,490-511,555-557
+  s_6625bc67577472::t_af06a5782136ee 558-559
+web/app/api/billing/webhook/__tests__/polar-partial-refund.test.ts
+  s_6625bc67577472::t_06bae787587ec2 102
+  s_6625bc67577472::t_bdf1f180b62b93 1-8
+  s_6625bc67577472::t_777a83e6516ea2 9-101,103-176
+payments/README.md
+  s_6625bc67577472::t_977a0a6935eedc 28
+payments/src/providers/polar.ts
+  s_6625bc67577472::t_20d1d150498133 1-190
+web/app/api/billing/webhook/__tests__/route.test.ts
+  s_6625bc67577472::t_bdf1f180b62b93 1-8
+  s_6625bc67577472::t_777a83e6516ea2 19,27,30-57,62-95,122-144
+  s_6625bc67577472::t_5da3cb5371db28 13-17
+web/app/api/billing/webhook/__tests__/unclaimed-provider.test.ts
+  s_6625bc67577472::t_80672027861129 29
+web/app/api/billing/webhook/route.ts
+  s_6625bc67577472::t_a82354eaefb6a7 1,5,10-17
+src/adapters/payments/__tests__/polar.adapter.test.ts
+  s_6625bc67577472::t_20d1d150498133 1-109
+web/app/api/billing/webhook/__tests__/signature-status.test.ts
+  s_6625bc67577472::t_bdf1f180b62b93 1-8
+  s_6625bc67577472::t_777a83e6516ea2 9-66
+web/app/api/billing/webhook/__tests__/lock_contention_503.test.ts
+  s_6625bc67577472::t_80672027861129 45
+web/app/api/billing/webhook/__tests__/provider_allowlist.test.ts
+  s_6625bc67577472::t_777a83e6516ea2 32,171-208
+  s_6625bc67577472::t_bdf1f180b62b93 1-8
+  s_6625bc67577472::t_06bae787587ec2 79
+payments/test/provider_launch_switch.test.ts
+  s_6625bc67577472::t_b8f18bba7ad96f 18-23
+  s_6625bc67577472::t_74a3bae4767cb5 1-17,24-32
+web/app/api/billing/webhook/__tests__/fungies-refund-dlq.test.ts
+  s_6625bc67577472::t_80672027861129 87
+web/app/api/billing/webhook/__tests__/transient_classification.test.ts
+  s_6625bc67577472::t_80672027861129 23
+web/app/api/billing/webhook/__tests__/polar-switched-off.test.ts
+  s_6625bc67577472::t_bdf1f180b62b93 1-34
+web/app/api/billing/webhook/__tests__/valid_signature_malformed_ledger.test.ts
+  s_6625bc67577472::t_80672027861129 50
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "fa9034e85f58a4fc865b021178f055300b1c7cbd",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
