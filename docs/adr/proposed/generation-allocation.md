@@ -7,7 +7,7 @@
 
 ## Context
 
-`deliverSale` picks each download link's `link_generation` in the application process. The counter is a module-level variable (`payments/src/delivery.ts` `nextGeneration``). It is monotonic only inside one process, and serverless instances do not share it.
+`deliverSale` picks each download link's `link_generation` in the application process. The counter is a module-level variable (`payments/src/delivery.ts` `nextGeneration`). It is monotonic only inside one process, and serverless instances do not share it.
 
 The database already has a sequence default for the same column (`supabase/migrations/20261020090000_download_events_generation_seq.sql:5, 7-13, 15-16`). It is bypassed. The adapter writes `link_generation` whenever the value is defined (`supabaseDeliveryDb.recordLinkIssued` in `payments/src/delivery.ts`), and `deliverSale` always defines it (`payments/src/delivery.ts` `deliverSale`).
 
@@ -57,7 +57,7 @@ The app uses milliseconds (`Date.getTime`, `payments/src/delivery.ts` `nextGener
 
 ## Migration path (boolean to result type)
 
-The webhook entry point does not change. `deliverSaleForWebhook` (`payments/src/delivery.ts` `deliverSaleForWebhook``) keeps its `void` return and its throws. Its callers, `src/use_cases/billing/process_billing_webhook.ts:482` and `:523`, need no edit. The port change is internal to `delivery.ts`.
+The webhook entry point does not change. `deliverSaleForWebhook` (`payments/src/delivery.ts` `deliverSaleForWebhook`) keeps its `void` return and its throws. Its callers, `src/use_cases/billing/process_billing_webhook.ts:482` and `:523`, need no edit. The port change is internal to `delivery.ts`.
 
 1. **Result type.** Add `issued` (with `linkGeneration`) and `conflict`. Change `DeliveryDb.recordLinkIssued` (`payments/src/delivery.ts` `DeliveryDb.recordLinkIssued`) to return it. Update the loop at `payments/src/delivery.ts` `deliverSale`. This is the only production caller.
 2. **Adapter.** `supabaseDeliveryDb.recordLinkIssued` (`supabaseDeliveryDb.recordLinkIssued` in `payments/src/delivery.ts`) omits `link_generation`, reads back the generated value, and maps `23505` to `conflict`. A missing value throws. It must not fall back to a local counter, or the emailed token could diverge from the stored row (R4).

@@ -35,6 +35,21 @@ beforeEach(() => {
 import { WebhookValidationError } from "../../src/domain/webhook/webhook_errors.ts";
 
 describe("resolveProductByAlias: a row that exists but cannot sell is retryable (503)", () => {
+  it.each([
+    ["a missing store_product_id", { ...row, store_product_id: null }],
+    ["a missing creator handle", { ...row, creators: null }],
+  ])("%s on an existing row throws a 503, never returns null", async (_label, incomplete) => {
+    vi.mocked(getSupabaseAdmin).mockResolvedValue({
+      from: () => {
+        const chain = { select: () => chain, or: () => chain, maybeSingle: async () => ({ data: incomplete, error: null }) };
+        return chain;
+      },
+    } as unknown as Awaited<ReturnType<typeof getSupabaseAdmin>>);
+    const err = await resolveProductByAlias(ALIAS, "paddle").catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(WebhookValidationError);
+    expect((err as WebhookValidationError).httpStatus).toBe(503);
+  });
+
   it("an unregistered provider on an existing row throws a 503, never returns null", async () => {
     const unregistered = { ...row, provider: "polar" };
     vi.mocked(getSupabaseAdmin).mockResolvedValue({

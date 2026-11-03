@@ -131,6 +131,15 @@ export class WebhookInFlightError extends Error {
   }
 }
 
+/** Releases the lock. A failure is logged and never replaces the caller's error; the lock TTL clears a lock that stays held. */
+async function releaseLock(lockKey: string): Promise<void> {
+  try {
+    await expanRedis.del(lockKey);
+  } catch (delErr) {
+    console.error(`[webhook] lock release failed (lock=${lockKey}); the TTL will clear it:`, delErr);
+  }
+}
+
 export async function withIdempotencyLock(
   lockKey: string,
   fn: () => Promise<{ status: number; payload: Record<string, unknown> }>,
@@ -153,12 +162,13 @@ export async function withIdempotencyLock(
     // Nothing was actually written (true duplicate, unknown product, terms lookup failure,
     // etc.) — free the slot immediately so a corrected retry isn't blocked for the full TTL.
     if (result.payload.recorded !== true) {
-      await expanRedis.del(lockKey);
+      await releaseLock(lockKey);
     }
     return result;
   } catch (err) {
     console.error(`[webhook] locked fn threw (lock=${lockKey}) — releasing lock:`, err);
-    await expanRedis.del(lockKey);
+    // The caller's error must reach the handler unchanged. A failed release is logged; the lock TTL bounds it.
+    await releaseLock(lockKey);
     throw err;
   }
 }

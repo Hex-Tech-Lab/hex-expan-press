@@ -354,8 +354,8 @@ export type PutR2ObjectResult =
 
 /**
  * Conditional signed PUT. R2 is documented to evaluate If-Match / If-None-Match against the committed
- * object, so a write based on a stale read fails with 412 instead of silently overwriting. Not yet live-verified
- * on the account, see ADR 0063.
+ * object, so a write based on a stale read fails with 412 instead of silently overwriting. Live-verified 2026-10-29
+ * on a scratch bucket in the same account (ADR 0063).
  * Throws on an insecure endpoint (same guard as putR2Object); any other failure is returned.
  */
 export async function putR2ObjectIf(options: PutR2ObjectIfOptions): Promise<PutR2ObjectResult> {
