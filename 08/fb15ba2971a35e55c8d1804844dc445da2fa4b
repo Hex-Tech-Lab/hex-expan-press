@@ -1,0 +1,22 @@
+scripts/__tests__/sync-supabase-to-r2.test.ts
+  s_6625bc67577472::t_b048ec26d7e08e 272-273,275
+scripts/sync-supabase-to-r2.ts
+  s_6625bc67577472::t_fb92cce9c43bd7 2
+  s_6625bc67577472::t_8fae335d084cd2 304-307
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "08fb15ba2971a35e55c8d1804844dc445da2fa4b",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
