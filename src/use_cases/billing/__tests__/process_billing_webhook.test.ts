@@ -159,6 +159,7 @@ vi.mock("../../../../payments/src/settings_registry.ts", () => ({
   },
   expandHome: (p: string, home: string) => (home && (p === "~" || p.startsWith("~/")) ? p : p),
   isRegisteredPaymentProvider: (name: unknown) => typeof name === "string",
+  isEnabledPaymentProvider: (name: unknown) => typeof name === "string",
   paymentProviderSetting: () => undefined,
   isMoneyPath: () => process.env.NODE_ENV === "production" || process.env.VERCEL_ENV !== undefined || !!process.env.AWS_LAMBDA_FUNCTION_NAME,
 }));

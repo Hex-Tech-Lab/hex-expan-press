@@ -1,4 +1,4 @@
-import { isRegisteredPaymentProvider, paymentProviderSetting, isMoneyPath, GLOBAL } from "./settings_registry.ts";
+import { isEnabledPaymentProvider, paymentProviderSetting, isMoneyPath, GLOBAL } from "./settings_registry.ts";
 import { getSupabaseAdmin } from "./supabase_admin.ts";
 import { expanRedis, isRedisRestConfigured } from "../../src/infrastructure/redis/redis.client.ts";
 import { WebhookValidationError } from "../../src/domain/webhook/webhook_errors.ts";
@@ -99,7 +99,7 @@ export async function resolveProductByAlias(alias: string, providerName: string)
   // The row exists but cannot sell yet: its provider is not enabled, or it lacks a store id or creator handle.
   // That is retryable on purpose. A re-enabled provider or a repaired row makes the next delivery succeed, and
   // the sale stays unrecorded until then. Returning null here would quarantine it permanently (422).
-  if (!row.store_product_id || !row.creators?.handle || !isRegisteredPaymentProvider(row.provider ?? "")) {
+  if (!row.store_product_id || !row.creators?.handle || !isEnabledPaymentProvider(row.provider ?? "")) {
     // 503: the handler audits it and sends Retry-After, so each attempt leaves a row and the provider retries.
     throw new WebhookValidationError(`product '${alias}' exists but cannot sell yet (provider ${row.provider ?? "none"} not enabled, or product incomplete)`, 503);
   }

@@ -395,11 +395,17 @@ export interface PaymentProviderSetting {
   base_urls_note?: string;
   field_map?: Record<string, unknown> | null;
   status?: string;
+  /**
+   * Launch switch. A provider is fully defined and its code is kept; this flag decides whether it takes sales.
+   * Missing or false = off (fail closed). Off providers still validate config and still answer their own route.
+   */
+  enabled?: boolean;
 }
 
 // Inline mirror of data/settings/providers.json "payments" section (fallback contract).
 const DEFAULT_PAYMENT_PROVIDERS: Record<string, PaymentProviderSetting> = {
   lemonsqueezy: {
+    enabled: false,
     route: "lemonsqueezy",
     signature_header: "x-signature",
     sale_event: "order_created",
@@ -416,6 +422,7 @@ const DEFAULT_PAYMENT_PROVIDERS: Record<string, PaymentProviderSetting> = {
     },
   },
   payhip: {
+    enabled: false,
     route: "payhip",
     signature_header: null,
     signature_field: "signature",
@@ -437,6 +444,7 @@ const DEFAULT_PAYMENT_PROVIDERS: Record<string, PaymentProviderSetting> = {
     },
   },
   paddle: {
+    enabled: true,
     route: "paddle",
     signature_header: "paddle-signature",
     sale_event: "transaction.completed",
@@ -452,6 +460,7 @@ const DEFAULT_PAYMENT_PROVIDERS: Record<string, PaymentProviderSetting> = {
     },
   },
   fastspring: {
+    enabled: false,
     route: "fastspring",
     signature_header: "x-fs-signature",
     signature_scheme: "hmac-sha256-base64: `x-fs-signature` = base64(HMAC-SHA256(raw_body, secret)) (developer.fastspring.com/reference/message-security)",
@@ -475,7 +484,30 @@ const DEFAULT_PAYMENT_PROVIDERS: Record<string, PaymentProviderSetting> = {
       refund_ts_ms: "data.changed",
     },
   },
+  polar: {
+    enabled: false,
+    route: "polar",
+    signature_header: "webhook-signature",
+    signature_scheme: "standard-webhooks: HMAC-SHA256 over `${webhook-id}.${webhook-timestamp}.${raw_body}`, base64; whsec_ secrets created on/after 2026-09-08 = base64-decoded, older = UTF-8 bytes of full string",
+    sale_events: ["order.created", "order.paid"],
+    refund_events: ["refund.created"],
+    secret_env: "POLAR_WEBHOOK_SECRET",
+    token_env: "POLAR_ACCESS_TOKEN",
+    base_urls: { sandbox: "https://sandbox-api.polar.sh/v1", live: "https://api.polar.sh/v1" },
+    field_map: {
+      product_id: "data.product_id",
+      sale_id: "data.id",
+      total_cents: "data.total_amount",
+      currency: "data.currency",
+      ts: "data.created_at",
+      email: "data.customer.email",
+      refund_sale_id: "data.order_id",
+      refund_ts: "data.created_at",
+      attribution_id: "data.metadata.reference_id",
+    },
+  },
   fungies: {
+    enabled: false,
     route: "fungies",
     signature_header: "x-fngs-signature",
     signature_scheme:
@@ -515,6 +547,11 @@ export const PAYMENT_PROVIDERS: Record<string, PaymentProviderSetting> = loadPay
 
 export function paymentProviderSetting(name: string): PaymentProviderSetting | undefined {
   return PAYMENT_PROVIDERS[name];
+}
+
+/** True only for a provider that is defined AND switched on. Use this for anything that takes or routes a sale. */
+export function isEnabledPaymentProvider(name: string): boolean {
+  return isRegisteredPaymentProvider(name) && PAYMENT_PROVIDERS[name]?.enabled === true;
 }
 
 export function isRegisteredPaymentProvider(name: string): boolean {
