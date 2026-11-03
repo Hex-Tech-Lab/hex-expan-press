@@ -1,0 +1,28 @@
+docs/adr/proposed/generation-allocation.md
+  s_6625bc67577472::t_048ed38e07bf30 10,60
+payments/src/webhook_core.ts
+  s_6625bc67577472::t_048ed38e07bf30 134-142,165,170-171
+src/adapters/storage/r2.adapter.ts
+  s_6625bc67577472::t_048ed38e07bf30 357-358
+payments/test/webhook_alias_provider_scope.test.ts
+  s_6625bc67577472::t_048ed38e07bf30 38-52
+payments/test/webhook_core_lock.test.ts
+  s_6625bc67577472::t_26670c82b01653 54,56-61,63-67
+  s_6625bc67577472::t_3da92d4d15ddf2 55,62
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8299b75e8e8b4a14f18966610c0da4d47c02ba4d",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
