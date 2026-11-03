@@ -120,6 +120,13 @@ printf 'name: x\non: [\n' > "$WORK/pr-broken/pr/.github/workflows/broken.yml"
 H=$(commit_change pr-broken "broken workflow")
 check "PR broken workflow -> actionlint" 1 pr-broken al pull_request_target "$ZERO" "$H"
 
+# actionlint runs ShellCheck on each run block. An unquoted expansion is a real ShellCheck finding (SC2086).
+make_repo pr-shellcheck
+# shellcheck disable=SC2016  # the $f is written into the fixture on purpose; it must stay unexpanded
+printf 'name: sc\non: push\njobs:\n  t:\n    runs-on: ubuntu-latest\n    steps:\n      - run: |\n          f="a b"\n          echo $f\n' > "$WORK/pr-shellcheck/pr/.github/workflows/sc.yml"
+H=$(commit_change pr-shellcheck "shellcheck violation")
+check "PR run block with a ShellCheck violation -> actionlint fails" 1 pr-shellcheck al pull_request_target "$ZERO" "$H"
+
 make_repo pr-symlink
 TARGET="$WORK/runner-target.txt"
 printf 'SELFTEST_MARKER = "must-not-appear"\n' > "$TARGET"
@@ -155,7 +162,9 @@ check "PR .github is a symlink to a directory outside the checkout -> actionlint
 # mode is not a regular file (120000 is a symlink), so the target's contents must not be read or printed.
 make_repo pr-wf-symlink
 WF_TARGET="$WORK/runner-wf-target.yml"
-printf 'name: SELFTEST_MARKER_WF\non: push\njobs:\n  t:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo ok\n' > "$WF_TARGET"
+# The target is invalid YAML on purpose: if the copy followed the link, actionlint would fail here, so a regression
+# that follows the link cannot pass this case.
+printf 'name: SELFTEST_MARKER_WF\non: [\n' > "$WF_TARGET"
 ln -s "$WF_TARGET" "$WORK/pr-wf-symlink/pr/.github/workflows/evil.yml"
 H=$(commit_change pr-wf-symlink "planted workflow symlink")
 check "PR workflow symlink to a file outside the checkout -> actionlint skips it" 0 pr-wf-symlink al pull_request_target "$ZERO" "$H"
@@ -195,6 +204,18 @@ H=$(commit_change push-clean "push clean change")
 check "push clean -> gitleaks" 0 push-clean gl push "$BASE" "$H"
 check "push clean -> ruff" 0 push-clean ru push "$BASE" "$H"
 check "push clean -> actionlint" 0 push-clean al push "$BASE" "$H"
+
+# Pin drift. The install blocks are repeated in each job and in the selftest job: a composite action would be read from
+# the PR checkout under pull_request_target, so the copies stay. This check makes a pin that differs between copies fail.
+while read -r name; do
+  n=$(grep -oE "${name}: [0-9a-f]{64}" "$WF" | sort -u | wc -l)
+  if [ "$n" = 1 ]; then
+    echo "PASS  pin drift: $name has one value across the workflow"
+  else
+    echo "FAIL  pin drift: $name has $n distinct values across the workflow"
+    FAILED=1
+  fi
+done < <(grep -oE '[A-Z]+_SHA256' "$WF" | sort -u)
 
 if [ "$FAILED" = 0 ]; then
   echo "ALL CASES PASSED"
