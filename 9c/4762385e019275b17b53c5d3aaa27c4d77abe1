@@ -1,0 +1,35 @@
+payments/test/provider_launch_switch.test.ts
+  s_6625bc67577472::t_265b850405062d 2,5-6,8-15,17-20,23-27
+payments/src/settings_registry.ts
+  s_6625bc67577472::t_faae5234fb8ef2 406
+src/adapters/payments/polar.adapter.ts
+  s_6625bc67577472::t_7fa0a644d6a12c 117
+  s_6625bc67577472::t_faae5234fb8ef2 54-56
+payments/README.md
+  s_6625bc67577472::t_0fa9204dc67272 28
+web/app/api/billing/webhook/__tests__/polar-switched-off.test.ts
+  s_6625bc67577472::t_1eff3bc48226ef 22,32
+src/adapters/payments/__tests__/polar.adapter.test.ts
+  s_6625bc67577472::t_1eff3bc48226ef 20
+  s_6625bc67577472::t_7fa0a644d6a12c 113-124,126-127
+  s_6625bc67577472::t_4d5b038135a643 125
+  s_6625bc67577472::t_ddd18f06366097 44-46
+web/app/api/billing/webhook/__tests__/polar-partial-refund.test.ts
+  s_6625bc67577472::t_c79d0d482d79b8 148
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9c4762385e019275b17b53c5d3aaa27c4d77abe1",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
