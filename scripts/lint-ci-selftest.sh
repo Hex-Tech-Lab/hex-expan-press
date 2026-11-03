@@ -2,8 +2,10 @@
 # Self-test for .github/workflows/lint-ci.yml. Extracts each job's run block from the workflow and runs it
 # against scratch repositories with planted failures and clean changes, for both the pull_request_target path
 # and the push path. Each case must exit with its expected code. Needs actionlint, shellcheck, gitleaks and ruff
-# on PATH at the versions the workflow pins. Run from the repo root. It never runs PR code: it only reads
-# the scratch repositories this script builds.
+# on PATH at the versions the workflow pins. Run from the repo root.
+# It executes the run blocks of THIS checkout's workflow file, so run it only from a trusted checkout: the push job
+# on master. Never run it on a PR head, because that would execute shell written in the PR. The scratch repositories
+# it builds hold the planted cases; it does not read the PR.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -149,8 +151,8 @@ ln -s "$OUT_GH" "$WORK/pr-gh-symlink/pr/.github"
 H=$(commit_change pr-gh-symlink "planted .github symlink")
 check "PR .github is a symlink to a directory outside the checkout -> actionlint fails closed" 1 pr-gh-symlink al pull_request_target "$ZERO" "$H"
 
-# A workflow file that is a symlink: actionlint's copy uses find -type f, so the link is skipped and the
-# target's contents must not be read or printed.
+# A workflow file that is a symlink: actionlint's copy lists the tree with git ls-tree and skips any entry whose
+# mode is not a regular file (120000 is a symlink), so the target's contents must not be read or printed.
 make_repo pr-wf-symlink
 WF_TARGET="$WORK/runner-wf-target.yml"
 printf 'name: SELFTEST_MARKER_WF\non: push\njobs:\n  t:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo ok\n' > "$WF_TARGET"
