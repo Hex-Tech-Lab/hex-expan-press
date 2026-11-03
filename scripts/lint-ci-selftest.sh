@@ -205,17 +205,87 @@ check "push clean -> gitleaks" 0 push-clean gl push "$BASE" "$H"
 check "push clean -> ruff" 0 push-clean ru push "$BASE" "$H"
 check "push clean -> actionlint" 0 push-clean al push "$BASE" "$H"
 
-# Pin drift. The install blocks are repeated in each job and in the selftest job: a composite action would be read from
-# the PR checkout under pull_request_target, so the copies stay. This check makes a pin that differs between copies fail.
-while read -r name; do
-  n=$(grep -oE "${name}: [0-9a-f]{64}" "$WF" | sort -u | wc -l)
-  if [ "$n" = 1 ]; then
-    echo "PASS  pin drift: $name has one value across the workflow"
-  else
-    echo "FAIL  pin drift: $name has $n distinct values across the workflow"
+# Push-path symlinks: the same guards as the PR path, exercised with BEFORE_SHA..HEAD as the range.
+make_repo push-symlink-py
+BASE=$(cd "$WORK/push-symlink-py/pr" && git rev-parse master)
+TARGET="$WORK/push-runner-target.py"
+printf 'SELFTEST_MARKER = "must-not-appear"\n' > "$TARGET"
+ln -s "$TARGET" "$WORK/push-symlink-py/pr/evil.py"
+H=$(commit_change push-symlink-py "push planted Python symlink")
+check "push .py symlink -> ruff lints link text" 1 push-symlink-py ru push "$BASE" "$H"
+if grep -q "must-not-appear" "$WORK/out-push-symlink-py-ru-push.txt" ||
+   ! grep -q "evil.py" "$WORK/out-push-symlink-py-ru-push.txt"; then
+  echo "FAIL  push .py symlink: target was read or evil.py was not linted"
+  FAILED=1
+else
+  echo "PASS  push .py symlink: ruff linted evil.py, not its target"
+fi
+
+make_repo push-gh-symlink
+BASE=$(cd "$WORK/push-gh-symlink/pr" && git rev-parse master)
+OUT_GH="$WORK/push-outside-gh"
+mkdir -p "$OUT_GH/workflows"
+printf 'name: outside\non: push\njobs:\n  t:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo ok\n' > "$OUT_GH/workflows/outside.yml"
+rm -rf "$WORK/push-gh-symlink/pr/.github"
+ln -s "$OUT_GH" "$WORK/push-gh-symlink/pr/.github"
+H=$(commit_change push-gh-symlink "push planted .github symlink")
+check "push .github symlink -> actionlint fails closed" 1 push-gh-symlink al push "$BASE" "$H"
+
+make_repo push-wf-symlink
+BASE=$(cd "$WORK/push-wf-symlink/pr" && git rev-parse master)
+WF_TARGET="$WORK/push-runner-wf-target.yml"
+printf 'name: SELFTEST_MARKER_WF\non: [\n' > "$WF_TARGET"
+ln -s "$WF_TARGET" "$WORK/push-wf-symlink/pr/.github/workflows/evil.yml"
+H=$(commit_change push-wf-symlink "push planted workflow symlink")
+check "push workflow symlink -> actionlint skips it" 0 push-wf-symlink al push "$BASE" "$H"
+if grep -q "SELFTEST_MARKER_WF" "$WORK/out-push-wf-symlink-al-push.txt"; then
+  echo "FAIL  push workflow symlink: target contents reached actionlint"
+  FAILED=1
+else
+  echo "PASS  push workflow symlink: target contents were not read"
+fi
+
+# Pin contract. The install blocks are repeated in the gate jobs and in the selftest job: a composite action would be
+# read from the PR checkout under pull_request_target, so the copies stay. Each pin below is FIXED here, not read from the
+# workflow, and must appear on exactly two lines (its gate job and the selftest job). Format: NAME|VALUE, where NAME is
+# empty for a pip requirement that has no variable name.
+REQUIRED_PINS=(
+  "ACTIONLINT_SHA256|023070a287cd8cccd71515fedc843f1985bf96c436b7effaecce67290e7e0757"
+  "SHELLCHECK_SHA256|6c881ab0698e4e6ea235245f22832860544f17ba386442fe7e9d629f8cbedf87"
+  "GITLEAKS_SHA256|fa0500f6b7e41d28791ebc680f5dd9899cd42b58629218a5f041efa899151a8e"
+  "|ruff==0.8.6 --hash=sha256:7ae4478b1471fc0c44ed52a6fb787e641a2ac58b1c1f91763bafbc2faddc5117"
+)
+pin_check() {
+  local file="$1" spec name value n
+  for spec in "${REQUIRED_PINS[@]}"; do
+    name="${spec%%|*}"
+    value="${spec#*|}"
+    n=$(grep -cF -- "$value" "$file" || true)
+    [ "$n" -eq 2 ] || return 1
+    if [ -n "$name" ]; then
+      n=$(grep -cE "^[[:space:]]*${name}: ${value}\$" "$file" || true)
+      [ "$n" -eq 2 ] || return 1
+    fi
+  done
+}
+if pin_check "$WF"; then
+  echo "PASS  pin contract: every required pin appears on exactly two lines"
+else
+  echo "FAIL  pin contract: a required pin is missing, changed, or on the wrong number of lines"
+  FAILED=1
+fi
+# Mutation: remove one occurrence of each pin from a copy of the workflow. The contract must reject every copy.
+for spec in "${REQUIRED_PINS[@]}"; do
+  value="${spec#*|}"
+  mutant="$RT/pin-mutant-$(printf '%s' "$value" | cksum | cut -d' ' -f1).yml"
+  awk -v v="$value" '!done && index($0, v) { done = 1; next } { print }' "$WF" > "$mutant"
+  if pin_check "$mutant"; then
+    echo "FAIL  pin mutation: removing one occurrence of a pin was accepted (${value%%=*})"
     FAILED=1
+  else
+    echo "PASS  pin mutation: removing one occurrence of a pin is rejected (${value%%=*})"
   fi
-done < <(grep -oE '[A-Z]+_SHA256' "$WF" | sort -u)
+done
 
 if [ "$FAILED" = 0 ]; then
   echo "ALL CASES PASSED"
