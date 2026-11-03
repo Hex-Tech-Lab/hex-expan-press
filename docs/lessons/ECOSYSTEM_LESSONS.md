@@ -14,7 +14,7 @@ Portable lessons from running CI, cloud deploys, review bots and agent-driven wo
 - **What happened.** A browser-automation CLI (Browsertime 28.x) ignored an unknown option (`--chrome.headless`) with no error. The browser then ran in a mode the runner could not support and failed to start. The arguments were also passed without the leading dashes they need. The CLI's `--version` printed a wrong number.
 - **Why.** The tool accepts unknown options without complaint. A version string is not reliable evidence of the installed release.
 - **Rule.** Check each option against the installed version's own documentation or source. Read the version from the installed package's manifest, not from `--version`. Pass flags with their leading dashes. Confirm with a live run.
-- **Origin.** hex-expan run `41343160794` failed on `a9c5179`; runs `41343304723` and `41343374398` passed on `0042880`. Fix in PR #116, which is open. **CONFIRMED** for the runs and commits. The silent ignore and the `--version` misreport are stated in commit messages (`0042880`, `260acb3`). Neither was reproduced, so the `--version` behaviour stays **UNVERIFIED**.
+- **Origin.** hex-expan run `41343160794` failed on `a9c5179`; runs `41343304723` and `41343374398` passed on `0042880`. Fix in PR #116, merged as 4607841 on 2026-11-03. **CONFIRMED** for the runs and commits. The silent ignore and the `--version` misreport are stated in commit messages (`0042880`, `260acb3`). Neither was reproduced, so the `--version` behaviour stays **UNVERIFIED**.
 
 ## E2. Only a live run caught a tool argument error
 

@@ -7,7 +7,7 @@ Written 2026-11-02 against `origin/master` at 77cc649. The portable form of each
 - **CONFIRMED**: checked in this session against git, GitHub (PR, runs, comments) or the repo files. The check is named.
 - **UNVERIFIED**: stated in the source facts but not confirmed here. Nothing in this session contradicts it, except where a correction is noted.
 
-Note on the workflow: `.github/workflows/real-browser-latency.yml` on master still has the broken Browsertime arguments. The fix is on PR #116, which is open and not merged.
+Note on the workflow: `.github/workflows/real-browser-latency.yml` on master had the broken Browsertime arguments until PR #116 landed (merged as 4607841 on 2026-11-03).
 
 ---
 
