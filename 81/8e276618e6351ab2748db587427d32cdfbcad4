@@ -1,0 +1,28 @@
+payments/test/providers_loader.test.ts
+  s_6625bc67577472::t_008da85daaa153 1-98
+src/adapters/payments/polar.adapter.ts
+  s_6625bc67577472::t_f9a5c660ef995d 163-168
+payments/src/settings_registry.ts
+  s_6625bc67577472::t_f9a5c660ef995d 16-20,27,29-30,32-33,36-41,542-566,568-570,573-577,579-580,582
+web/app/api/billing/webhook/__tests__/verifiers.test.ts
+  s_6625bc67577472::t_008da85daaa153 10,18-24
+  s_6625bc67577472::t_2fc38ca2aa80b2 25
+web/app/api/billing/checkout/route.ts
+  s_6625bc67577472::t_f9a5c660ef995d 237
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "818e276618e6351ab2748db587427d32cdfbcad4",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
