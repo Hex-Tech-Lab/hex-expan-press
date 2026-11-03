@@ -300,6 +300,40 @@ for spec in "${REQUIRED_PINS[@]}"; do
   fi
 done
 
+# Verification contract. Every release download is checked with sha256sum -c before extraction: six checks in total
+# (actionlint and shellcheck in the actionlint job, gitleaks in the gitleaks job, and all three in the selftest job).
+# The pip installs use --require-hashes, in the ruff job and the selftest job. The pins above only prove a hash is
+# declared; these counts prove each download is actually verified. Fixed here, not derived from the file.
+verify_contract() {
+  local file="$1" v r
+  v=$(grep -c 'sha256sum -c -' "$file" || true)
+  r=$(grep -c -- '--require-hashes' "$file" || true)
+  [ "$v" -eq 6 ] && [ "$r" -eq 2 ]
+}
+if verify_contract "$WF"; then
+  echo "PASS  verification contract: six sha256 checks and two hashed pip installs are present"
+else
+  echo "FAIL  verification contract: a download check or a hashed install is missing"
+  FAILED=1
+fi
+# Mutation: a gate job that drops its sha256sum -c line still declares its hash, so only this check catches it.
+mutant="$RT/verify-mutant.yml"
+awk '!done && index($0, "sha256sum -c -") { done = 1; next } { print }' "$WF" > "$mutant"
+if verify_contract "$mutant"; then
+  echo "FAIL  verification mutation: removing a sha256sum -c line was accepted"
+  FAILED=1
+else
+  echo "PASS  verification mutation: removing a sha256sum -c line is rejected"
+fi
+mutant="$RT/hashes-mutant.yml"
+awk '!done && index($0, "--require-hashes") { done = 1; next } { print }' "$WF" > "$mutant"
+if verify_contract "$mutant"; then
+  echo "FAIL  verification mutation: removing a --require-hashes install was accepted"
+  FAILED=1
+else
+  echo "PASS  verification mutation: removing a --require-hashes install is rejected"
+fi
+
 if [ "$FAILED" = 0 ]; then
   echo "ALL CASES PASSED"
 else
