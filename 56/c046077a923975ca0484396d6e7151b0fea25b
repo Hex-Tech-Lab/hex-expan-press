@@ -1,0 +1,23 @@
+scripts/lint-ci-selftest.sh
+  s_6625bc67577472::t_4ad49197083fce 123-124,126-129
+  s_6625bc67577472::t_93cf3fb08b36bd 165-167
+  s_6625bc67577472::t_674407cc056255 208-209,211-217,219
+  s_6625bc67577472::t_32b83863f6505e 210,218
+  s_6625bc67577472::t_e6f124c133221e 125
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "56c046077a923975ca0484396d6e7151b0fea25b",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
