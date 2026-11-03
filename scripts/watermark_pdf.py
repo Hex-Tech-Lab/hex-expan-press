@@ -5,8 +5,9 @@ scripts/watermark_pdf.py  -  PDF Visual Watermarking & Cryptographic Provenance 
 Supports dual operation modes:
 1. 'diagonal': Light-gray diagonal body watermark for media assets and e-book review/author copies.
 2. 'perimeter': Header and footer audit stamp for contracts (C1 Consents, C2 Releases, C3 Publisher
-   Agreements). It is drawn at fixed offsets from the top and bottom edges. The script does not check that
-   those lines avoid the page content.
+   Agreements). It is drawn at fixed offsets from the top and bottom edges. A page with text in those
+   bands is refused, so the stamp never covers legal text. Images and vector drawings in the bands are
+   not detected.
 
 Writes unified bundle provenance metadata (/BundleId, /BundleRootHash, /ProvenanceFingerprint) into the
 PDF document information dictionary.
@@ -30,6 +31,7 @@ import json
 import math
 import os
 import sys
+import tempfile
 import pypdf
 
 # bundle_salt sits beside this script. Put this directory on the path so the import also works when the
@@ -44,6 +46,8 @@ CONTRACT_PURPOSES = frozenset({"c1_data_accuracy", "c2_release_approval", "c3_ag
 # Non-contract purposes. --purpose accepts exactly CONTRACT_PURPOSES plus these, so the two cannot drift apart.
 NON_CONTRACT_PURPOSES = frozenset({"review", "author_copy"})
 PURPOSES = tuple(sorted(CONTRACT_PURPOSES | NON_CONTRACT_PURPOSES))
+# The perimeter stamp is drawn within 26 pt of the top and bottom edges. Text in those bands would be covered.
+STAMP_BAND_PT = 30.0
 
 
 def overlay_text(text: str) -> str:
@@ -59,15 +63,43 @@ def overlay_text(text: str) -> str:
     return text
 
 
+def _single_page_pdf(width: float, height: float, base_font: str, content: str) -> bytes:
+    """A one-page PDF around one Latin-1 content stream. Every xref offset is measured from the bytes written, so the
+    table and startxref always name the objects they point at."""
+    stream = content.encode("latin-1")  # /Length counts the bytes actually emitted
+    bodies = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        (f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {width:.2f} {height:.2f}] "
+         "/Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>").encode("latin-1"),
+        f"<< /Type /Font /Subtype /Type1 /BaseFont /{base_font} >>".encode("latin-1"),
+        b"<< /Length %d >>\nstream\n" % len(stream) + stream + b"endstream",
+    ]
+    out = bytearray(b"%PDF-1.4\n")
+    offsets = []
+    for number, body in enumerate(bodies, start=1):
+        offsets.append(len(out))
+        out += b"%d 0 obj\n" % number + body + b"\nendobj\n"
+    xref_at = len(out)
+    size = len(bodies) + 1
+    out += b"xref\n0 %d\n" % size
+    out += b"0000000000 65535 f \n"
+    for offset in offsets:
+        out += b"%010d 00000 n \n" % offset
+    out += b"trailer << /Size %d /Root 1 0 R >>\nstartxref\n%d\n" % (size, xref_at)
+    out += b"%%EOF\n"
+    return bytes(out)
+
+
 def generate_diagonal_overlay_pdf(width: float, height: float, text: str) -> bytes:
     """Generates an in-memory 1-page PDF stream containing diagonal watermark text."""
     cx = width / 2.0
     cy = height / 2.0
-    
+
     angle_rad = math.radians(38)
     cos_a = math.cos(angle_rad)
     sin_a = math.sin(angle_rad)
-    
+
     font_size = 11.5
     approx_text_width = len(text) * (font_size * 0.52)
     tx = cx - (approx_text_width / 2.0) * cos_a
@@ -84,32 +116,7 @@ BT
 ET
 Q
 """
-    # Latin-1, the same encoding the whole overlay PDF is written in, so /Length counts the bytes actually emitted.
-    stream_bytes = content.encode("latin-1")
-    stream_len = len(stream_bytes)
-
-    pdf_str = f"""%PDF-1.4
-1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj
-2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj
-3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 {width:.2f} {height:.2f}] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >> endobj
-4 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >> endobj
-5 0 obj << /Length {stream_len} >>
-stream
-{content}endstream
-endobj
-xref
-0 6
-0000000000 65535 f 
-0000000009 00000 n 
-0000000058 00000 n 
-0000000115 00000 n 
-0000000250 00000 n 
-0000000333 00000 n 
-trailer << /Size 6 /Root 1 0 R >>
-startxref
-{350 + stream_len}
-%%EOF"""
-    return pdf_str.encode("latin-1")
+    return _single_page_pdf(width, height, "Helvetica-Bold", content)
 
 
 def generate_perimeter_overlay_pdf(
@@ -158,32 +165,31 @@ ET
 S
 Q
 """
-    # Latin-1, the same encoding the whole overlay PDF is written in, so /Length counts the bytes actually emitted.
-    stream_bytes = content.encode("latin-1")
-    stream_len = len(stream_bytes)
+    return _single_page_pdf(width, height, "Helvetica", content)
 
-    pdf_str = f"""%PDF-1.4
-1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj
-2 0 obj << /Type /Pages /Kids [3 0 R] /Count 1 >> endobj
-3 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 {width:.2f} {height:.2f}] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >> endobj
-4 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj
-5 0 obj << /Length {stream_len} >>
-stream
-{content}endstream
-endobj
-xref
-0 6
-0000000000 65535 f 
-0000000009 00000 n 
-0000000058 00000 n 
-0000000115 00000 n 
-0000000250 00000 n 
-0000000333 00000 n 
-trailer << /Size 6 /Root 1 0 R >>
-startxref
-{350 + stream_len}
-%%EOF"""
-    return pdf_str.encode("latin-1")
+
+def stamp_band_text_runs(page) -> int:
+    """How many text runs sit in the top or bottom STAMP_BAND_PT of the page, where the perimeter stamp is drawn.
+
+    Only text is measured. An image or a vector drawing in those bands is not detected, so a page can pass this check
+    and still have the stamp drawn over graphics.
+    """
+    box = page.mediabox
+    bottom, top = float(box.bottom), float(box.top)
+    bands = ((bottom, bottom + STAMP_BAND_PT), (top - STAMP_BAND_PT, top))
+    runs = []
+
+    def visit(text, cm, tm, font_dict, font_size):
+        if not text.strip():
+            return
+        # The run's origin in page space: the text-space origin through the text matrix, then the current matrix.
+        y = tm[4] * cm[1] + tm[5] * cm[3] + cm[5]
+        y_top = y + max(float(font_size or 0.0), 1.0)
+        if any(y < band_hi and y_top > band_lo for band_lo, band_hi in bands):
+            runs.append(text)
+
+    page.extract_text(visitor_text=visit)
+    return len(runs)
 
 
 PARAM_FIELDS = ("input", "output", "creator_id", "creator_name", "mode", "purpose", "bundle_id", "bundle_root_hash")
@@ -281,11 +287,13 @@ def main():
         except ValueError as exc:
             sys.exit(f"Error: {exc}")
 
-    # Build provenance fingerprint. The payload includes the supplied bundle root, so a stamp made with a different
-    # root has a different fingerprint. Nothing in this script re-verifies a stamped file afterwards. The root is
-    # empty in the payload when none was supplied, and the root is then the fingerprint.
+    # Build provenance fingerprint. The payload names every stamp setting that is not in the file's own bytes, and the
+    # bundle root it carries, so a stamp made with a different mode or root has a different fingerprint. Nothing in this
+    # script re-verifies a stamped file afterwards. The root is empty in the payload when none was supplied, and the
+    # root is then the fingerprint.
     supplied_root = args.bundle_root_hash or ""
-    fingerprint_payload = f"{bundle_id}:{args.creator_id}:{args.creator_name}:{args.purpose}:{source_sha256}:{timestamp}:{supplied_root}"
+    fingerprint_payload = (f"{bundle_id}:{args.creator_id}:{args.creator_name}:{args.purpose}:{args.mode}:"
+                           f"{source_sha256}:{timestamp}:{supplied_root}")
     hmac_digest = hmac.new(
         fingerprint_salt(),
         fingerprint_payload.encode("utf-8"),
@@ -320,6 +328,12 @@ def main():
             writer.add_page(page)
 
     else:  # perimeter mode
+        # Every page is checked before anything is written, so a refused stamp leaves no output behind.
+        for idx, page in enumerate(reader.pages):
+            hits = stamp_band_text_runs(page)
+            if hits:
+                sys.exit(f"Error: page {idx + 1} has {hits} text run(s) in its top or bottom {STAMP_BAND_PT:.0f} pt, "
+                         "where the perimeter stamp is drawn; refusing to cover legal text")
         for idx, page in enumerate(reader.pages):
             mb = page.mediabox
             width = float(mb.width)
@@ -360,9 +374,21 @@ def main():
 
     writer.add_metadata(new_meta)
 
-    os.makedirs(os.path.dirname(os.path.abspath(args.output)), exist_ok=True)
-    with open(args.output, "wb") as f_out:
-        writer.write(f_out)
+    out_dir = os.path.dirname(os.path.abspath(args.output))
+    os.makedirs(out_dir, exist_ok=True)
+    # Written beside the output and renamed into place. An existing file at the output path is replaced, never written
+    # through, so a symlink there is replaced by the new file and its target is left alone.
+    fd, tmp_path = tempfile.mkstemp(prefix=".watermark_", suffix=".tmp", dir=out_dir)
+    try:
+        with os.fdopen(fd, "wb") as f_out:
+            writer.write(f_out)
+        os.replace(tmp_path, args.output)
+    except BaseException:
+        try:
+            os.remove(tmp_path)
+        except OSError:
+            pass
+        raise
 
     print(f"Successfully created watermarked PDF: {args.output}")
     print(f"Mode: {args.mode.upper()} | Bundle: {bundle_id} | Pages: {len(writer.pages)} | Fingerprint: {hmac_digest[:16]}...")

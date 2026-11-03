@@ -12,10 +12,15 @@ MIN_SALT_CHARS = 32
 
 
 def fingerprint_salt() -> bytes:
-    """Returns the bundle HMAC salt from ASSET_SALT. Raises RuntimeError unless it is non-blank and at least MIN_SALT_CHARS long."""
+    """Returns the bundle HMAC salt from ASSET_SALT. Raises RuntimeError unless it is non-blank, at least MIN_SALT_CHARS
+    long, and encodable as UTF-8. Every failure is a RuntimeError: callers map it to one usage error, never a traceback."""
     salt = os.environ.get("ASSET_SALT", "")
     if not salt.strip() or len(salt) < MIN_SALT_CHARS:
         raise RuntimeError(
             f"ASSET_SALT is not set, blank, or shorter than {MIN_SALT_CHARS} characters; refusing to sign with a weak salt"
         )
-    return salt.encode("utf-8")
+    try:
+        return salt.encode("utf-8")
+    except UnicodeEncodeError:
+        # os.environ keeps undecodable bytes as surrogates, which UTF-8 cannot encode.
+        raise RuntimeError("ASSET_SALT contains bytes that are not valid UTF-8; refusing to sign with a weak salt") from None

@@ -7,15 +7,17 @@ Tests:
 1. Perimeter watermarking mode for legal contracts (C1, C2, C3).
 2. Diagonal watermarking mode for digital media assets (E-Book).
 3. Bundle manifest generation with a root HMAC-SHA256 signature (not a Merkle tree).
-4. Tamper detection: altering a manifest field, a source file, or a stamped file's metadata breaks verification.
-   A stamped file's page bytes are not hashed, so changing them alone is not detected.
+4. Tamper detection: altering a manifest field, a source file, or a stamped file's bytes or metadata breaks verification.
+   A stamped file's bytes are checked against a digest that the salt signs, so an edit that keeps its metadata is caught.
 """
 
+import ast
 import contextlib
 import copy
 import datetime
 import errno
 import hashlib
+import hmac
 import importlib.util
 import io
 import json
@@ -50,6 +52,13 @@ def create_dummy_pdf(filepath: str, text: str = "Test Legal Clause Content"):
         writer.write(f)
 
 
+def run_cli(args, **kwargs):
+    """Runs one of this repository's own scripts. Every argv is built in this file from fixed paths and test fixtures,
+    never from input outside the test."""
+    # nosemgrep: python.lang.security.audit.dangerous-subprocess-use-audit.dangerous-subprocess-use-audit
+    return subprocess.run(args, capture_output=True, text=True, **kwargs)
+
+
 class TestBundleManifest(unittest.TestCase):
     def setUp(self):
         self.test_dir = tempfile.mkdtemp(prefix="bundle_test_")
@@ -80,7 +89,7 @@ class TestBundleManifest(unittest.TestCase):
             "--purpose", "c1_data_accuracy",
             "--bundle-id", "BND-TEST-001"
         ]
-        res = subprocess.run(cmd, capture_output=True, text=True)
+        res = run_cli(cmd)
         self.assertEqual(res.returncode, 0, f"Watermark perimeter failed: {res.stderr}")
 
         # Check PDF readability and metadata
@@ -108,7 +117,7 @@ class TestBundleManifest(unittest.TestCase):
             "--purpose", "review",
             "--bundle-id", "BND-TEST-001"
         ]
-        res = subprocess.run(cmd, capture_output=True, text=True)
+        res = run_cli(cmd)
         self.assertEqual(res.returncode, 0, f"Watermark diagonal failed: {res.stderr}")
 
         reader = pypdf.PdfReader(out_pdf)
@@ -137,7 +146,7 @@ class TestBundleManifest(unittest.TestCase):
             "--output-dir", stamped_dir,
             "--stamp-bundle"
         ]
-        res = subprocess.run(cmd, capture_output=True, text=True)
+        res = run_cli(cmd)
         self.assertEqual(res.returncode, 0, f"Manifest generation failed: {res.stderr}")
 
         self.assertTrue(os.path.exists(manifest_path))
@@ -161,7 +170,7 @@ class TestBundleManifest(unittest.TestCase):
         # Verify stamped files were created
         stamped = manifest.get("stamped_artifacts", {})
         self.assertEqual(len(stamped), 4)
-        for key, p in stamped.items():
+        for p in stamped.values():
             self.assertTrue(os.path.exists(p), f"Stamped file missing: {p}")
             reader = pypdf.PdfReader(p)
             self.assertEqual(reader.metadata.get("/BundleId"), manifest["bundle_id"])
@@ -169,17 +178,16 @@ class TestBundleManifest(unittest.TestCase):
 
     def _manifest_for(self, c1, c2, c3, ebook, name):
         out = os.path.join(self.test_dir, f"{name}.json")
-        res = subprocess.run([
+        res = run_cli([
             sys.executable, MANIFEST_SCRIPT, "--c1-doc", c1, "--c2-doc", c2, "--c3-doc", c3,
             "--ebook-doc", ebook, "--creator-id", "example-creator", "--creator-name", "the owner",
-            "--product-id", "500k-playbook", "--output-manifest", out], capture_output=True, text=True)
+            "--product-id", "500k-playbook", "--output-manifest", out])
         self.assertEqual(res.returncode, 0, res.stderr)
         with open(out, encoding="utf-8") as f:
             return json.load(f), out
 
     def _verify_file(self, path):
-        return subprocess.run([sys.executable, MANIFEST_SCRIPT, "--verify", path],
-                              capture_output=True, text=True).returncode
+        return run_cli([sys.executable, MANIFEST_SCRIPT, "--verify", path]).returncode
 
     def _verify_spliced(self, baseline, artifact, sha, name):
         """Verifies the baseline manifest with one artifact digest replaced and the baseline signature kept.
@@ -229,13 +237,13 @@ class TestBundleManifest(unittest.TestCase):
 
         def failing_stamp(cmd, *args, **kwargs):
             if os.path.basename(str(cmd[1])) == "watermark_pdf.py":
-                return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="stamp boom")
+                return types.SimpleNamespace(returncode=1, stdout="", stderr="stamp boom")
             return real_run(cmd, *args, **kwargs)
 
         manifest_path = os.path.join(self.test_dir, "failed_stamp.json")
         with unittest.mock.patch.object(gbm.subprocess, "run", side_effect=failing_stamp):
             with self.assertRaisesRegex(RuntimeError, "Failed to stamp"):
-                gbm.create_bundle(self.c1_pdf, self.c2_pdf, self.c3_pdf, self.ebook_pdf,
+                gbm.create_bundle({"c1": self.c1_pdf, "c2": self.c2_pdf, "c3": self.c3_pdf, "ebook": self.ebook_pdf},
                                   "example-creator", "the owner", "500k-playbook", manifest_path,
                                   output_dir=os.path.join(self.test_dir, "failed_out"), stamp_bundle=True)
         self.assertFalse(os.path.exists(manifest_path), "a failed stamp must not leave a signed manifest")
@@ -246,10 +254,8 @@ class TestAssetSaltFailsClosed(unittest.TestCase):
 
     def _run_without_salt(self, script, extra_args):
         env = {k: v for k, v in os.environ.items() if k != "ASSET_SALT"}
-        return subprocess.run(
+        return run_cli(
             [sys.executable, script, *extra_args],
-            capture_output=True,
-            text=True,
             env=env,
         )
 
@@ -284,10 +290,9 @@ class TestAssetSaltFailsClosed(unittest.TestCase):
             src = os.path.join(tmp, "x.pdf")
             create_dummy_pdf(src)
             env = dict(os.environ, ASSET_SALT="   ")
-            res = subprocess.run(
+            res = run_cli(
                 [sys.executable, WATERMARK_SCRIPT, "--input", src, "--output", os.path.join(tmp, "o.pdf"),
-                 "--creator-id", "c", "--creator-name", "n", "--mode", "perimeter", "--purpose", "review"],
-                capture_output=True, text=True, env=env)
+                 "--creator-id", "c", "--creator-name", "n", "--mode", "perimeter", "--purpose", "review"], env=env)
             self.assertNotEqual(res.returncode, 0)
             self.assertIn("ASSET_SALT is not set", res.stderr)
 
@@ -301,20 +306,18 @@ class TestAssetSaltFailsClosed(unittest.TestCase):
                 docs[name] = os.path.join(tmp, f"{name}.pdf")
                 create_dummy_pdf(docs[name], name)
             out = os.path.join(tmp, "o.pdf")
-            res = subprocess.run(
+            res = run_cli(
                 [sys.executable, WATERMARK_SCRIPT, "--input", docs["c1"], "--output", out,
-                 "--creator-id", "c", "--creator-name", "n", "--mode", "perimeter", "--purpose", "review"],
-                capture_output=True, text=True, env=dict(os.environ, ASSET_SALT=blank))
+                 "--creator-id", "c", "--creator-name", "n", "--mode", "perimeter", "--purpose", "review"], env=dict(os.environ, ASSET_SALT=blank))
             self.assertNotEqual(res.returncode, 0, "watermark signed with a 40-space salt")
             self.assertIn("ASSET_SALT is not set", res.stderr)
             self.assertFalse(os.path.exists(out), "a refused stamp must not write output")
 
             manifest = os.path.join(tmp, "m.json")
-            res = subprocess.run([
+            res = run_cli([
                 sys.executable, MANIFEST_SCRIPT, "--c1-doc", docs["c1"], "--c2-doc", docs["c2"],
                 "--c3-doc", docs["c3"], "--ebook-doc", docs["ebook"], "--creator-id", "c",
-                "--creator-name", "n", "--product-id", "p", "--output-manifest", manifest],
-                capture_output=True, text=True, env=dict(os.environ, ASSET_SALT=blank))
+                "--creator-name", "n", "--product-id", "p", "--output-manifest", manifest], env=dict(os.environ, ASSET_SALT=blank))
             self.assertNotEqual(res.returncode, 0, "manifest signed with a 40-space salt")
             self.assertIn("ASSET_SALT is not set", res.stderr)
             self.assertFalse(os.path.exists(manifest), "no manifest may be written with a blank salt")
@@ -330,18 +333,16 @@ class TestAssetSaltFailsClosed(unittest.TestCase):
                 create_dummy_pdf(docs[name], name)
             for short in ("x", "a" * 31, " " + "a" * 30):
                 with self.subTest(salt_length=len(short)):
-                    res = subprocess.run(
+                    res = run_cli(
                         [sys.executable, WATERMARK_SCRIPT, "--input", src, "--output", os.path.join(tmp, "o.pdf"),
-                         "--creator-id", "c", "--creator-name", "n", "--mode", "perimeter", "--purpose", "review"],
-                        capture_output=True, text=True, env=dict(os.environ, ASSET_SALT=short))
+                         "--creator-id", "c", "--creator-name", "n", "--mode", "perimeter", "--purpose", "review"], env=dict(os.environ, ASSET_SALT=short))
                     self.assertNotEqual(res.returncode, 0, "watermark signed with a short salt")
                     self.assertIn("ASSET_SALT", res.stderr)
                     manifest = os.path.join(tmp, "m.json")
-                    res = subprocess.run([
+                    res = run_cli([
                         sys.executable, MANIFEST_SCRIPT, "--c1-doc", docs["c1"], "--c2-doc", docs["c2"],
                         "--c3-doc", docs["c3"], "--ebook-doc", docs["ebook"], "--creator-id", "c",
-                        "--creator-name", "n", "--product-id", "p", "--output-manifest", manifest],
-                        capture_output=True, text=True, env=dict(os.environ, ASSET_SALT=short))
+                        "--creator-name", "n", "--product-id", "p", "--output-manifest", manifest], env=dict(os.environ, ASSET_SALT=short))
                     self.assertNotEqual(res.returncode, 0, "manifest signed with a short salt")
                     self.assertFalse(os.path.exists(manifest), "no manifest may be written with a short salt")
 
@@ -349,10 +350,9 @@ class TestAssetSaltFailsClosed(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             src = os.path.join(tmp, "x.pdf")
             create_dummy_pdf(src)
-            res = subprocess.run(
+            res = run_cli(
                 [sys.executable, WATERMARK_SCRIPT, "--input", src, "--output", os.path.join(tmp, "o.pdf"),
-                 "--creator-id", "c", "--creator-name", "n", "--mode", "perimeter", "--purpose", "review"],
-                capture_output=True, text=True, env=dict(os.environ, ASSET_SALT="a" * 32))
+                 "--creator-id", "c", "--creator-name", "n", "--mode", "perimeter", "--purpose", "review"], env=dict(os.environ, ASSET_SALT="a" * 32))
             self.assertEqual(res.returncode, 0, res.stderr)
 
     def test_manifest_salt_boundary_refuses_31_and_accepts_32(self):
@@ -365,11 +365,10 @@ class TestAssetSaltFailsClosed(unittest.TestCase):
             manifest = os.path.join(tmp, "m.json")
 
             def generate(salt):
-                return subprocess.run([
+                return run_cli([
                     sys.executable, MANIFEST_SCRIPT, "--c1-doc", docs["c1"], "--c2-doc", docs["c2"],
                     "--c3-doc", docs["c3"], "--ebook-doc", docs["ebook"], "--creator-id", "c",
-                    "--creator-name", "n", "--product-id", "p", "--output-manifest", manifest],
-                    capture_output=True, text=True, env=dict(os.environ, ASSET_SALT=salt))
+                    "--creator-name", "n", "--product-id", "p", "--output-manifest", manifest], env=dict(os.environ, ASSET_SALT=salt))
 
             res = generate("a" * 31)
             self.assertNotEqual(res.returncode, 0, "manifest signed with a 31-character salt")
@@ -378,8 +377,7 @@ class TestAssetSaltFailsClosed(unittest.TestCase):
 
             res = generate("a" * 32)
             self.assertEqual(res.returncode, 0, f"a 32-character salt must be accepted: {res.stderr}")
-            verify = subprocess.run([sys.executable, MANIFEST_SCRIPT, "--verify", manifest],
-                                    capture_output=True, text=True, env=dict(os.environ, ASSET_SALT="a" * 32))
+            verify = run_cli([sys.executable, MANIFEST_SCRIPT, "--verify", manifest], env=dict(os.environ, ASSET_SALT="a" * 32))
             self.assertEqual(verify.returncode, 0, verify.stderr)
 
     def test_same_basename_sources_get_distinct_stamped_outputs(self):
@@ -390,11 +388,10 @@ class TestAssetSaltFailsClosed(unittest.TestCase):
             c2 = os.path.join(tmp, "c2.pdf"); c3 = os.path.join(tmp, "c3.pdf")
             create_dummy_pdf(c2, "C2"); create_dummy_pdf(c3, "C3")
             manifest = os.path.join(tmp, "m.json")
-            res = subprocess.run([
+            res = run_cli([
                 sys.executable, MANIFEST_SCRIPT, "--c1-doc", c1, "--c2-doc", c2, "--c3-doc", c3,
                 "--ebook-doc", ebook, "--creator-id", "c", "--creator-name", "n", "--product-id", "p",
-                "--output-manifest", manifest, "--output-dir", os.path.join(tmp, "out"), "--stamp-bundle"],
-                capture_output=True, text=True)
+                "--output-manifest", manifest, "--output-dir", os.path.join(tmp, "out"), "--stamp-bundle"])
             self.assertEqual(res.returncode, 0, res.stderr)
             with open(manifest) as f:
                 stamped = json.load(f)["stamped_artifacts"]
@@ -409,10 +406,9 @@ class TestAssetSaltFailsClosed(unittest.TestCase):
             create_dummy_pdf(src)
             with open(src, "rb") as f:
                 before = f.read()
-            res = subprocess.run(
+            res = run_cli(
                 [sys.executable, WATERMARK_SCRIPT, "--input", src, "--output", src,
-                 "--creator-id", "c", "--creator-name", "n", "--mode", "diagonal"],
-                capture_output=True, text=True, env=dict(os.environ, ASSET_SALT=TEST_SALT))
+                 "--creator-id", "c", "--creator-name", "n", "--mode", "diagonal"], env=dict(os.environ, ASSET_SALT=TEST_SALT))
             self.assertNotEqual(res.returncode, 0)
             with open(src, "rb") as f:
                 self.assertEqual(f.read(), before, "source PDF was overwritten")
@@ -431,13 +427,13 @@ class TestManifestSignatureCoversEveryField(unittest.TestCase):
             self.docs[name] = os.path.join(self.tmp, f"{name}.pdf")
             create_dummy_pdf(self.docs[name], f"{name} body")
         self.manifest = os.path.join(self.tmp, "bundle_manifest.json")
-        res = subprocess.run([
+        res = run_cli([
             sys.executable, MANIFEST_SCRIPT,
             "--c1-doc", self.docs["c1"], "--c2-doc", self.docs["c2"], "--c3-doc", self.docs["c3"],
             "--ebook-doc", self.docs["ebook"], "--creator-id", "example-creator", "--creator-name", "the owner",
             "--product-id", "500k-playbook", "--output-manifest", self.manifest,
             "--output-dir", os.path.join(self.tmp, "stamped"), "--stamp-bundle",
-        ], capture_output=True, text=True)
+        ])
         self.assertEqual(res.returncode, 0, res.stderr)
         with open(self.manifest, encoding="utf-8") as f:
             self.original = json.load(f)
@@ -446,7 +442,7 @@ class TestManifestSignatureCoversEveryField(unittest.TestCase):
         shutil.rmtree(self.tmp, ignore_errors=True)
 
     def _verify(self, path):
-        return subprocess.run([sys.executable, MANIFEST_SCRIPT, "--verify", path], capture_output=True, text=True)
+        return run_cli([sys.executable, MANIFEST_SCRIPT, "--verify", path])
 
     def _write(self, manifest, path):
         with open(path, "w", encoding="utf-8") as f:
@@ -518,21 +514,20 @@ class TestVerifyExitCodes(unittest.TestCase):
             docs[name] = os.path.join(self.tmp, f"{name}.pdf")
             create_dummy_pdf(docs[name], f"{name} body")
         self.good = os.path.join(self.tmp, "bundle_manifest.json")
-        res = subprocess.run([
+        res = run_cli([
             sys.executable, MANIFEST_SCRIPT,
             "--c1-doc", docs["c1"], "--c2-doc", docs["c2"], "--c3-doc", docs["c3"],
             "--ebook-doc", docs["ebook"], "--creator-id", "example-creator", "--creator-name", "the owner",
             "--product-id", "500k-playbook", "--output-manifest", self.good,
-        ], capture_output=True, text=True)
+        ])
         self.assertEqual(res.returncode, 0, res.stderr)
 
     def tearDown(self):
         shutil.rmtree(self.tmp, ignore_errors=True)
 
     def _verify(self, path, env=None):
-        return subprocess.run(
+        return run_cli(
             [sys.executable, MANIFEST_SCRIPT, "--verify", path],
-            capture_output=True, text=True,
             env=env if env is not None else dict(os.environ),
         )
 
@@ -578,6 +573,11 @@ class TestVerifyExitCodes(unittest.TestCase):
         env = dict(os.environ, ASSET_SALT=" " * 40)
         self._assert_usage_error(self._verify(self.good, env), "40-space salt")
 
+    def test_salt_with_bytes_that_are_not_utf8_exits_2(self):
+        """os.environ keeps undecodable bytes as surrogates. That is a salt error: exit 2, one line, no traceback."""
+        env = dict(os.environ, ASSET_SALT="a" * 39 + "\udcff")
+        self._assert_usage_error(self._verify(self.good, env), "undecodable salt bytes")
+
     def test_wrong_salt_of_valid_length_is_tampered_not_usage(self):
         """A valid-length salt that differs from the signing salt is a verdict (exit 1), not a usage error."""
         self.assertEqual(self._verify(self.good, dict(os.environ, ASSET_SALT="b" * 32)).returncode, 1)
@@ -603,7 +603,7 @@ class TestVerifyExitCodes(unittest.TestCase):
 
     def test_verify_help_documents_exit_2(self):
         """The --verify help must name every exit code, including the usage, read, parse and salt error."""
-        res = subprocess.run([sys.executable, MANIFEST_SCRIPT, "--help"], capture_output=True, text=True)
+        res = run_cli([sys.executable, MANIFEST_SCRIPT, "--help"])
         self.assertEqual(res.returncode, 0, res.stderr)
         self.assertIn("2 usage, read, parse or salt error", " ".join(res.stdout.split()))
 
@@ -623,20 +623,19 @@ class TestVerifyChecksReferencedFiles(unittest.TestCase):
             self.docs[name] = os.path.join(self.tmp, f"{name}.pdf")
             create_dummy_pdf(self.docs[name], f"{name} body")
         self.manifest = os.path.join(self.tmp, "bundle_manifest.json")
-        res = subprocess.run([
+        res = run_cli([
             sys.executable, MANIFEST_SCRIPT,
             "--c1-doc", self.docs["c1"], "--c2-doc", self.docs["c2"], "--c3-doc", self.docs["c3"],
             "--ebook-doc", self.docs["ebook"], "--creator-id", "example-creator", "--creator-name", "the owner",
             "--product-id", "500k-playbook", "--output-manifest", self.manifest,
             "--output-dir", os.path.join(self.tmp, "stamped"), "--stamp-bundle",
-        ], capture_output=True, text=True)
+        ])
         self.assertEqual(res.returncode, 0, res.stderr)
         with open(self.manifest, encoding="utf-8") as f:
             self.stamped = json.load(f)["stamped_artifacts"]
 
     def _verify(self):
-        return subprocess.run([sys.executable, MANIFEST_SCRIPT, "--verify", self.manifest],
-                              capture_output=True, text=True)
+        return run_cli([sys.executable, MANIFEST_SCRIPT, "--verify", self.manifest])
 
     def test_untouched_bundle_verifies(self):
         self.assertEqual(self._verify().returncode, 0)
@@ -662,6 +661,76 @@ class TestVerifyChecksReferencedFiles(unittest.TestCase):
         res = self._verify()
         self.assertEqual(res.returncode, 1, f"a removed stamped file still verified: {res.stdout} {res.stderr}")
 
+    def _verify_path(self, path):
+        return run_cli([sys.executable, MANIFEST_SCRIPT, "--verify", path])
+
+    def _edited_manifest(self, edit, label):
+        with open(self.manifest, encoding="utf-8") as f:
+            manifest = json.load(f)
+        edit(manifest)
+        path = os.path.join(self.tmp, f"{label}.json")
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(manifest, f)
+        return path
+
+    def test_stamped_bytes_changed_with_metadata_intact_fail_verification(self):
+        """The edit keeps the stamped file's metadata, so only the signed digest of its bytes can catch it."""
+        with open(self.stamped["c1"], "ab") as f:
+            f.write(b"\n% page content edited after stamping\n")
+        with open(self.manifest, encoding="utf-8") as f:
+            root = json.load(f)["bundle_root_signature"]
+        self.assertEqual(pypdf.PdfReader(self.stamped["c1"]).metadata.get("/BundleRootHash"), root,
+                         "the test edit must leave the metadata intact")
+        res = self._verify()
+        self.assertEqual(res.returncode, 1, f"an edited stamped file still verified: {res.stdout} {res.stderr}")
+        self.assertIn("c1_data_accuracy", res.stderr)
+
+    def test_stamp_digest_edit_fails_verification(self):
+        path = self._edited_manifest(lambda m: m["stamped_artifact_sha256"].__setitem__("c1", "0" * 64), "digest_edit")
+        self.assertEqual(self._verify_path(path).returncode, 1)
+
+    def test_stamped_digest_and_bytes_changed_together_fail_verification(self):
+        """Editing a stamped file and recomputing its digest in the manifest still fails: the digest block is signed
+        with the salt, which the editor does not hold."""
+        with open(self.stamped["c1"], "ab") as f:
+            f.write(b"\n% page content edited after stamping\n")
+        with open(self.stamped["c1"], "rb") as f:
+            new_digest = hashlib.sha256(f.read()).hexdigest()
+        path = self._edited_manifest(lambda m: m["stamped_artifact_sha256"].__setitem__("c1", new_digest), "digest_and_bytes")
+        res = self._verify_path(path)
+        self.assertEqual(res.returncode, 1, f"a stamped digest changed without the salt still verified: {res.stdout} {res.stderr}")
+
+    def test_stamp_digest_block_cannot_be_removed(self):
+        def drop(manifest):
+            del manifest["stamped_artifact_sha256"]
+            del manifest["stamped_artifact_signature"]
+        self.assertEqual(self._verify_path(self._edited_manifest(drop, "digest_dropped")).returncode, 1)
+
+    def test_unreadable_referenced_file_is_a_read_error_not_a_verdict(self):
+        """A file the manifest names that exists but cannot be read exits 2 with one line and no traceback."""
+        spec = importlib.util.spec_from_file_location("generate_bundle_manifest", MANIFEST_SCRIPT)
+        gbm = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(gbm)
+        real_hash = gbm._sha256_file
+        for label, target in (("source", self.docs["c2"]), ("stamped", self.stamped["c2"])):
+            with self.subTest(unreadable=label):
+                denied = os.path.abspath(target)
+
+                def unreadable(path, denied=denied):
+                    if os.path.abspath(path) == denied:
+                        raise PermissionError(errno.EACCES, "Permission denied", path)
+                    return real_hash(path)
+
+                err = io.StringIO()
+                argv = ["generate_bundle_manifest.py", "--verify", self.manifest]
+                with unittest.mock.patch.object(gbm, "_sha256_file", side_effect=unreadable), \
+                        unittest.mock.patch.object(sys, "argv", argv), contextlib.redirect_stderr(err), \
+                        contextlib.redirect_stdout(io.StringIO()):
+                    status = gbm.main()
+                self.assertEqual(status, 2, err.getvalue())
+                self.assertEqual(len(err.getvalue().strip().splitlines()), 1, err.getvalue())
+                self.assertIn("cannot read a file the manifest names", err.getvalue())
+
 
 class TestManifestParsingIsStrict(unittest.TestCase):
     """High: a duplicate key is rejected, not last-wins. Every parse or encoding failure is exit 2, never a traceback or a tamper verdict."""
@@ -674,11 +743,11 @@ class TestManifestParsingIsStrict(unittest.TestCase):
             docs[name] = os.path.join(self.tmp, f"{name}.pdf")
             create_dummy_pdf(docs[name], f"{name} body")
         self.good = os.path.join(self.tmp, "bundle_manifest.json")
-        res = subprocess.run([
+        res = run_cli([
             sys.executable, MANIFEST_SCRIPT, "--c1-doc", docs["c1"], "--c2-doc", docs["c2"], "--c3-doc", docs["c3"],
             "--ebook-doc", docs["ebook"], "--creator-id", "example-creator", "--creator-name", "the owner",
             "--product-id", "500k-playbook", "--output-manifest", self.good,
-        ], capture_output=True, text=True)
+        ])
         self.assertEqual(res.returncode, 0, res.stderr)
         with open(self.good, encoding="utf-8") as f:
             self.text = f.read()
@@ -687,7 +756,7 @@ class TestManifestParsingIsStrict(unittest.TestCase):
         path = os.path.join(self.tmp, "candidate.json")
         with open(path, "w", encoding="utf-8") as f:
             f.write(text)
-        return subprocess.run([sys.executable, MANIFEST_SCRIPT, "--verify", path], capture_output=True, text=True)
+        return run_cli([sys.executable, MANIFEST_SCRIPT, "--verify", path])
 
     def test_untouched_text_still_verifies(self):
         self.assertEqual(self._verify_text(self.text).returncode, 0)
@@ -847,10 +916,9 @@ class TestStampRefusesWhatItCannotShow(unittest.TestCase):
             for mode, purpose, name in cases:
                 with self.subTest(mode=mode, name=name):
                     out = os.path.join(tmp, f"o_{mode}_{len(name)}.pdf")
-                    res = subprocess.run(
+                    res = run_cli(
                         [sys.executable, WATERMARK_SCRIPT, "--input", src, "--output", out, "--creator-id", "c",
-                         "--creator-name", name, "--mode", mode, "--purpose", purpose],
-                        capture_output=True, text=True, env=dict(os.environ, ASSET_SALT=TEST_SALT))
+                         "--creator-name", name, "--mode", mode, "--purpose", purpose], env=dict(os.environ, ASSET_SALT=TEST_SALT))
                     self.assertNotEqual(res.returncode, 0, f"{mode} stamped {name!r} without refusing it")
                     self.assertIn("Latin-1", res.stderr)
                     self.assertFalse(os.path.exists(out), "a refused stamp left an output file")
@@ -863,12 +931,11 @@ class TestStampRefusesWhatItCannotShow(unittest.TestCase):
                 create_dummy_pdf(docs[name], f"{name} body")
             manifest = os.path.join(tmp, "m.json")
             out_dir = os.path.join(tmp, "out")
-            res = subprocess.run([
+            res = run_cli([
                 sys.executable, MANIFEST_SCRIPT, "--c1-doc", docs["c1"], "--c2-doc", docs["c2"],
                 "--c3-doc", docs["c3"], "--ebook-doc", docs["ebook"], "--creator-id", "example-creator",
                 "--creator-name", "Zoé Ω 漢", "--product-id", "500k-playbook", "--output-manifest", manifest,
-                "--output-dir", out_dir, "--stamp-bundle"],
-                capture_output=True, text=True, env=dict(os.environ, ASSET_SALT=TEST_SALT))
+                "--output-dir", out_dir, "--stamp-bundle"], env=dict(os.environ, ASSET_SALT=TEST_SALT))
             self.assertEqual(res.returncode, 2, f"expected a usage refusal, got {res.returncode}: {res.stderr[-300:]}")
             self.assertFalse(os.path.exists(manifest), "a refused stamp left a signed manifest")
             leftover = sorted(os.listdir(out_dir)) if os.path.isdir(out_dir) else []
@@ -884,12 +951,11 @@ class TestStampRefusesWhatItCannotShow(unittest.TestCase):
                 create_dummy_pdf(docs[name], f"{name} body")
             manifest = os.path.join(tmp, "m.json")
             out_dir = os.path.join(tmp, "out")
-            res = subprocess.run([
+            res = run_cli([
                 sys.executable, MANIFEST_SCRIPT, "--c1-doc", docs["c1"], "--c2-doc", docs["c2"],
                 "--c3-doc", docs["c3"], "--ebook-doc", docs["ebook"], "--creator-id", "作者-01",
                 "--creator-name", "the owner", "--product-id", "500k-playbook", "--output-manifest", manifest,
-                "--output-dir", out_dir, "--stamp-bundle"],
-                capture_output=True, text=True, env=dict(os.environ, ASSET_SALT=TEST_SALT))
+                "--output-dir", out_dir, "--stamp-bundle"], env=dict(os.environ, ASSET_SALT=TEST_SALT))
             self.assertEqual(res.returncode, 2, f"expected a usage refusal, got {res.returncode}: {res.stderr[-300:]}")
             self.assertIn("Latin-1", res.stderr)
             self.assertFalse(os.path.exists(manifest), "a refused creator id left a signed manifest")
@@ -916,7 +982,7 @@ class TestBlankIdentifiersAreRefusedBeforeSigning(unittest.TestCase):
                             "--c3-doc", docs["c3"], "--ebook-doc", docs["ebook"], "--output-manifest", manifest]
                     for key, value in base.items():
                         argv += [key, blank if key == flag else value]
-                    res = subprocess.run(argv, capture_output=True, text=True,
+                    res = run_cli(argv,
                                          env=dict(os.environ, ASSET_SALT=TEST_SALT))
                     self.assertNotEqual(res.returncode, 0, f"a blank {flag} was signed")
                     self.assertFalse(os.path.exists(manifest), f"a blank {flag} left a manifest")
@@ -933,7 +999,7 @@ class TestBlankIdentifiersAreRefusedBeforeSigning(unittest.TestCase):
                         argv = [sys.executable, WATERMARK_SCRIPT, "--input", src, "--output", out]
                         for key, value in base.items():
                             argv += [key, blank if key == flag else value]
-                        res = subprocess.run(argv, capture_output=True, text=True,
+                        res = run_cli(argv,
                                              env=dict(os.environ, ASSET_SALT=TEST_SALT))
                         self.assertNotEqual(res.returncode, 0, f"a blank {flag} was stamped and signed")
                         self.assertFalse(os.path.exists(out), f"a blank {flag} left an output file")
@@ -965,7 +1031,7 @@ class TestBundlePublishIsAtomicAndBounded(unittest.TestCase):
             if os.path.basename(str(cmd[1])) == "watermark_pdf.py":
                 calls["stamps"] += 1
                 if calls["stamps"] == 4:
-                    return subprocess.CompletedProcess(cmd, 1, stdout="", stderr="ebook stamp boom")
+                    return types.SimpleNamespace(returncode=1, stdout="", stderr="ebook stamp boom")
             return real_run(cmd, *args, **kwargs)
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -974,7 +1040,7 @@ class TestBundlePublishIsAtomicAndBounded(unittest.TestCase):
             manifest = os.path.join(tmp, "m.json")
             with unittest.mock.patch.object(gbm.subprocess, "run", side_effect=fail_on_fourth_stamp):
                 with self.assertRaisesRegex(RuntimeError, "Failed to stamp ebook"):
-                    gbm.create_bundle(docs["c1"], docs["c2"], docs["c3"], docs["ebook"], "example-creator",
+                    gbm.create_bundle({"c1": docs["c1"], "c2": docs["c2"], "c3": docs["c3"], "ebook": docs["ebook"]}, "example-creator",
                                       "the owner", "500k-playbook", manifest, output_dir=out_dir, stamp_bundle=True)
             self.assertEqual(calls["stamps"], 4, "the failure was not on the fourth stamp")
             published = sorted(n for n in os.listdir(out_dir) if n.endswith(".bundle_stamped.pdf"))
@@ -984,11 +1050,10 @@ class TestBundlePublishIsAtomicAndBounded(unittest.TestCase):
     def test_relative_output_dir_yields_absolute_stamped_paths(self):
         with tempfile.TemporaryDirectory() as tmp:
             docs = self._docs(tmp)
-            res = subprocess.run([
+            res = run_cli([
                 sys.executable, MANIFEST_SCRIPT, "--c1-doc", docs["c1"], "--c2-doc", docs["c2"], "--c3-doc", docs["c3"],
                 "--ebook-doc", docs["ebook"], "--creator-id", "c", "--creator-name", "n", "--product-id", "p",
-                "--output-manifest", "m.json", "--output-dir", "out", "--stamp-bundle"],
-                capture_output=True, text=True, cwd=tmp)
+                "--output-manifest", "m.json", "--output-dir", "out", "--stamp-bundle"], cwd=tmp)
             self.assertEqual(res.returncode, 0, res.stderr)
             with open(os.path.join(tmp, "m.json"), encoding="utf-8") as f:
                 stamped = json.load(f)["stamped_artifacts"]
@@ -1005,7 +1070,7 @@ class TestBundlePublishIsAtomicAndBounded(unittest.TestCase):
         def stuck_stamp(cmd, *args, **kwargs):
             if os.path.basename(str(cmd[1])) == "watermark_pdf.py":
                 seen["timeout"] = kwargs.get("timeout")
-                raise subprocess.TimeoutExpired(cmd, kwargs.get("timeout") or 0)
+                raise subprocess.TimeoutExpired("watermark_pdf.py", kwargs.get("timeout") or 0)
             return real_run(cmd, *args, **kwargs)
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -1013,7 +1078,7 @@ class TestBundlePublishIsAtomicAndBounded(unittest.TestCase):
             manifest = os.path.join(tmp, "m.json")
             with unittest.mock.patch.object(gbm.subprocess, "run", side_effect=stuck_stamp):
                 with self.assertRaisesRegex(RuntimeError, "Failed to stamp c1.*timed out"):
-                    gbm.create_bundle(docs["c1"], docs["c2"], docs["c3"], docs["ebook"], "example-creator",
+                    gbm.create_bundle({"c1": docs["c1"], "c2": docs["c2"], "c3": docs["c3"], "ebook": docs["ebook"]}, "example-creator",
                                       "the owner", "500k-playbook", manifest,
                                       output_dir=os.path.join(tmp, "out"), stamp_bundle=True)
             self.assertIsInstance(seen.get("timeout"), (int, float), "the stamp subprocess was started without a timeout")
@@ -1040,7 +1105,7 @@ class TestBundlePublishIsAtomicAndBounded(unittest.TestCase):
             os.chdir(tmp)
             try:
                 with unittest.mock.patch.object(gbm.subprocess, "run", side_effect=record):
-                    gbm.create_bundle(docs["c1"], docs["c2"], docs["c3"], docs["ebook"], "example-creator", name,
+                    gbm.create_bundle({"c1": docs["c1"], "c2": docs["c2"], "c3": docs["c3"], "ebook": docs["ebook"]}, "example-creator", name,
                                       "500k-playbook", manifest, output_dir=os.path.join(tmp, "out"), stamp_bundle=True)
             finally:
                 os.chdir(cwd)
@@ -1065,7 +1130,7 @@ class TestBundlePublishIsAtomicAndBounded(unittest.TestCase):
                     f.write(b"x" * size)
             tracemalloc.start()
             try:
-                gbm.create_bundle(docs["c1"], docs["c2"], docs["c3"], docs["ebook"], "c", "n", "p",
+                gbm.create_bundle({"c1": docs["c1"], "c2": docs["c2"], "c3": docs["c3"], "ebook": docs["ebook"]}, "c", "n", "p",
                                   os.path.join(tmp, "m.json"))
                 _, peak = tracemalloc.get_traced_memory()
             finally:
@@ -1093,11 +1158,10 @@ class TestStamperRefusesDiagonalOnContracts(unittest.TestCase):
             for purpose in purposes:
                 with self.subTest(purpose=purpose):
                     out = os.path.join(tmp, f"{purpose}.pdf")
-                    res = subprocess.run(
+                    res = run_cli(
                         [sys.executable, WATERMARK_SCRIPT, "--input", src, "--output", out,
                          "--creator-id", "c", "--creator-name", "n", "--mode", "diagonal",
-                         "--purpose", purpose, "--bundle-id", "BND-TEST-002"],
-                        capture_output=True, text=True, env=dict(os.environ, ASSET_SALT=TEST_SALT))
+                         "--purpose", purpose, "--bundle-id", "BND-TEST-002"], env=dict(os.environ, ASSET_SALT=TEST_SALT))
                     self.assertNotEqual(res.returncode, 0, f"diagonal stamp on contract purpose {purpose} exited 0")
                     self.assertIn(f"diagonal stamping is refused for contract purpose '{purpose}'", res.stderr)
                     self.assertFalse(os.path.exists(out), "a refused stamp must not write output")
@@ -1111,11 +1175,10 @@ class TestStamperRefusesDiagonalOnContracts(unittest.TestCase):
             for purpose in purposes:
                 with self.subTest(purpose=purpose):
                     out = os.path.join(tmp, f"{purpose}.perimeter.pdf")
-                    res = subprocess.run(
+                    res = run_cli(
                         [sys.executable, WATERMARK_SCRIPT, "--input", src, "--output", out,
                          "--creator-id", "c", "--creator-name", "n", "--mode", "perimeter",
-                         "--purpose", purpose, "--bundle-id", "BND-TEST-002"],
-                        capture_output=True, text=True, env=dict(os.environ, ASSET_SALT=TEST_SALT))
+                         "--purpose", purpose, "--bundle-id", "BND-TEST-002"], env=dict(os.environ, ASSET_SALT=TEST_SALT))
                     self.assertEqual(res.returncode, 0, f"perimeter stamp rejected for {purpose}: {res.stderr}")
 
 
@@ -1149,7 +1212,7 @@ class TestStampedBytesAreTheHashedBytes(unittest.TestCase):
 
             with unittest.mock.patch.object(gbm.subprocess, "run", side_effect=swap_then_run):
                 manifest = gbm.create_bundle(
-                    docs["c1"], docs["c2"], docs["c3"], docs["ebook"],
+                    {"c1": docs["c1"], "c2": docs["c2"], "c3": docs["c3"], "ebook": docs["ebook"]},
                     "example-creator", "the owner", "500k-playbook",
                     os.path.join(tmp, "manifest.json"), output_dir=os.path.join(tmp, "out"), stamp_bundle=True,
                 )
@@ -1185,10 +1248,10 @@ class TestLaunchGateClaimsAreNotOverstated(unittest.TestCase):
         create_dummy_pdf(c1, "c1 body")
         create_dummy_pdf(c3, "c3 body")
         manifest_path = os.path.join(tmp, "m.json")
-        res = subprocess.run([
+        res = run_cli([
             sys.executable, MANIFEST_SCRIPT, "--c1-doc", c1, "--c2-doc", same, "--c3-doc", c3,
             "--ebook-doc", same, "--creator-id", "example-creator", "--creator-name", "the owner",
-            "--product-id", "500k-playbook", "--output-manifest", manifest_path], capture_output=True, text=True)
+            "--product-id", "500k-playbook", "--output-manifest", manifest_path])
         self.assertEqual(res.returncode, 0, res.stderr)
         with open(manifest_path, encoding="utf-8") as f:
             manifest = json.load(f)
@@ -1256,7 +1319,7 @@ class TestOutputPathsNeverOverwriteSources(unittest.TestCase):
 
     def _bundle(self, output_manifest, output_dir=None, stamp=False, docs=None):
         d = docs or self.docs
-        return self.gbm.create_bundle(d["c1"], d["c2"], d["c3"], d["ebook"], "example-creator", "the owner",
+        return self.gbm.create_bundle({"c1": d["c1"], "c2": d["c2"], "c3": d["c3"], "ebook": d["ebook"]}, "example-creator", "the owner",
                                       "sample-product", output_manifest, output_dir=output_dir, stamp_bundle=stamp)
 
     def test_manifest_path_that_is_a_source_is_refused_and_source_is_untouched(self):
@@ -1294,11 +1357,10 @@ class TestOutputPathsNeverOverwriteSources(unittest.TestCase):
     def test_cli_refuses_a_manifest_path_that_is_a_source_with_exit_2(self):
         before = _file_digest(self.docs["c2"])
         env = dict(os.environ, ASSET_SALT=TEST_SALT)
-        res = subprocess.run(
+        res = run_cli(
             [sys.executable, MANIFEST_SCRIPT, "--c1-doc", self.docs["c1"], "--c2-doc", self.docs["c2"],
              "--c3-doc", self.docs["c3"], "--ebook-doc", self.docs["ebook"], "--creator-id", "example-creator",
-             "--creator-name", "the owner", "--product-id", "sample-product", "--output-manifest", self.docs["c2"]],
-            capture_output=True, text=True, env=env,
+             "--creator-name", "the owner", "--product-id", "sample-product", "--output-manifest", self.docs["c2"]], env=env,
         )
         self.assertEqual(res.returncode, 2, res.stderr)
         self.assertIn("source document c2", res.stderr)
@@ -1335,10 +1397,6 @@ class TestSiteCheckRoutes(unittest.TestCase):
         self.assertNotEqual(mod.CREATOR_HUB, mod.PRODUCT_PAGE)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class TestAliasAndRepeatRunOverwrites(unittest.TestCase):
     """A symlink or hard link to a source is the same file, and a second run must not replace a bundle."""
 
@@ -1351,10 +1409,9 @@ class TestAliasAndRepeatRunOverwrites(unittest.TestCase):
 
     def _watermark(self, output):
         env = dict(os.environ, ASSET_SALT=TEST_SALT)
-        return subprocess.run(
+        return run_cli(
             [sys.executable, WATERMARK_SCRIPT, "--input", self.src, "--output", output, "--mode", "perimeter",
-             "--creator-id", "c", "--creator-name", "n", "--purpose", "review"],
-            capture_output=True, text=True, env=env,
+             "--creator-id", "c", "--creator-name", "n", "--purpose", "review"], env=env,
         )
 
     def test_watermark_refuses_a_symlink_to_the_source(self):
@@ -1373,6 +1430,18 @@ class TestAliasAndRepeatRunOverwrites(unittest.TestCase):
         self.assertIn("must differ from --input", res.stderr)
         self.assertEqual(_file_digest(self.src), self.digest)
 
+    def test_watermark_replaces_a_symlink_at_the_output_instead_of_writing_through_it(self):
+        """A symlink at the output path is replaced by the new file. Its target, another document, is left alone."""
+        victim = os.path.join(self.tmp, "victim.pdf")
+        create_dummy_pdf(victim, "victim")
+        before = _file_digest(victim)
+        link = os.path.join(self.tmp, "out.pdf")
+        os.symlink(victim, link)
+        res = self._watermark(link)
+        self.assertEqual(res.returncode, 0, res.stderr)
+        self.assertEqual(_file_digest(victim), before, "the stamper wrote through a symlink into another document")
+        self.assertFalse(os.path.islink(link), "the output path is still a symlink")
+
     def test_second_bundle_run_into_the_same_directory_is_refused(self):
         spec = importlib.util.spec_from_file_location("generate_bundle_manifest", MANIFEST_SCRIPT)
         gbm = importlib.util.module_from_spec(spec)
@@ -1385,7 +1454,7 @@ class TestAliasAndRepeatRunOverwrites(unittest.TestCase):
             out_dir = os.path.join(self.tmp, "out")
             os.makedirs(out_dir)
             manifest = os.path.join(out_dir, "bundle_manifest.json")
-            args = (docs["c1"], docs["c2"], docs["c3"], docs["ebook"], "example-creator", "the owner",
+            args = ({"c1": docs["c1"], "c2": docs["c2"], "c3": docs["c3"], "ebook": docs["ebook"]}, "example-creator", "the owner",
                     "sample-product", manifest)
             gbm.create_bundle(*args, output_dir=out_dir, stamp_bundle=True)
             with self.assertRaisesRegex(ValueError, "already exists"):
@@ -1436,8 +1505,8 @@ class TestPublishNeverOverwritesAFileCreatedDuringTheRun(unittest.TestCase):
         return run
 
     def _create(self):
-        return self.gbm.create_bundle(self.docs["c1"], self.docs["c2"], self.docs["c3"], self.docs["ebook"],
-                                      "example-creator", "the owner", "500k-playbook", self.manifest,
+        sources = {key: self.docs[key] for key in ("c1", "c2", "c3", "ebook")}
+        return self.gbm.create_bundle(sources, "example-creator", "the owner", "500k-playbook", self.manifest,
                                       output_dir=self.out_dir, stamp_bundle=True)
 
     def test_file_created_at_a_stamped_path_mid_run_fails_the_run_and_is_kept(self):
@@ -1493,27 +1562,28 @@ class TestPublishNeverOverwritesAFileCreatedDuringTheRun(unittest.TestCase):
         with open(injected, "rb") as f:
             self.assertEqual(f.read(), self.INJECTED)
 
-    def test_collision_is_refused_where_hard_links_are_unavailable(self):
-        injected = self._stamped_path("c2")
-        no_links = unittest.mock.patch.object(os, "link", side_effect=OSError(errno.EPERM, "hard links refused"))
-        with no_links, unittest.mock.patch.object(self.gbm.subprocess, "run", side_effect=self._injecting_run(2, injected)):
-            with self.assertRaisesRegex(ValueError, "already exists"):
-                self._create()
-        with open(injected, "rb") as f:
-            self.assertEqual(f.read(), self.INJECTED)
-        self.assertEqual(sorted(os.listdir(self.out_dir)), [os.path.basename(injected)],
-                         "the copy fallback left a partial output behind")
-
-    def test_bundle_is_published_where_hard_links_are_unavailable(self):
+    def test_publish_is_refused_where_hard_links_are_unavailable(self):
+        """Without hard links an output cannot appear whole in one step. The run is refused and publishes nothing."""
         with unittest.mock.patch.object(os, "link", side_effect=OSError(errno.EPERM, "hard links refused")):
+            with self.assertRaisesRegex(RuntimeError, "hard links"):
+                self._create()
+        leftovers = sorted(os.listdir(self.out_dir)) if os.path.isdir(self.out_dir) else []
+        self.assertEqual(leftovers, [], "a refused run left files in the output directory")
+
+    def test_temp_manifest_cleanup_failure_after_publish_is_a_warning(self):
+        """The manifest is published before its temporary name is removed. A failure to remove that name must not fail a run that succeeded."""
+        real_remove = os.remove
+
+        def remove(path, *args, **kwargs):
+            if os.path.basename(str(path)).startswith(".manifest_"):
+                raise PermissionError(errno.EACCES, "denied")
+            return real_remove(path, *args, **kwargs)
+
+        err = io.StringIO()
+        with unittest.mock.patch.object(os, "remove", side_effect=remove), contextlib.redirect_stderr(err):
             self._create()
-        stamped_paths = [self._stamped_path(key) for key in ("c1", "c2", "c3", "ebook")]
-        for path in stamped_paths:
-            self.assertTrue(os.path.isfile(path), f"stamped output missing: {path}")
-        self.assertTrue(os.path.isfile(self.manifest))
-        with open(self.manifest, encoding="utf-8") as f:
-            stamped = json.load(f)["stamped_artifacts"]
-        self.assertEqual(sorted(stamped.values()), sorted(stamped_paths))
+        self.assertTrue(os.path.isfile(self.manifest), "the run succeeded but its manifest is missing")
+        self.assertIn("WARNING: could not remove temporary manifest", err.getvalue())
 
 
 class TestRollbackRemovesOnlyWhatItPublished(unittest.TestCase):
@@ -1546,15 +1616,179 @@ class TestRollbackRemovesOnlyWhatItPublished(unittest.TestCase):
         with open(self.dst, "rb") as f:
             self.assertEqual(f.read(), b"another writer", "rollback removed a file this run did not publish")
 
-    def test_failed_copy_fallback_removes_the_partial_copy_it_created(self):
-        with unittest.mock.patch.object(os, "link", side_effect=OSError(errno.EPERM, "hard links refused")), \
-                unittest.mock.patch.object(self.gbm.shutil, "copyfileobj", side_effect=OSError(errno.EIO, "disk")):
-            with self.assertRaises(OSError):
+    def test_publish_without_hard_links_never_creates_the_output(self):
+        """The old copy fallback wrote the output in place, where a reader could see it half-written. Publishing refuses instead."""
+        with unittest.mock.patch.object(os, "link", side_effect=OSError(errno.EPERM, "hard links refused")):
+            with self.assertRaisesRegex(RuntimeError, "hard links"):
                 self.gbm._publish_new(self.src, self.dst)
-        self.assertFalse(os.path.exists(self.dst), "the failed copy left a partial output behind")
+        self.assertFalse(os.path.exists(self.dst), "a publish without hard links left a file at the output path")
 
     def test_rollback_reports_a_published_file_it_cannot_remove(self):
         owned = self.gbm._publish_new(self.src, self.dst)
         with unittest.mock.patch.object(os, "remove", side_effect=PermissionError(errno.EACCES, "denied")):
             leftovers = self.gbm._unpublish([(self.dst, owned)])
         self.assertEqual(leftovers, [self.dst], "a leftover this run published must be reported, not dropped silently")
+
+
+def write_text_pdf(path: str, stream: bytes, width: int = 612, height: int = 792) -> None:
+    """Writes a one-page PDF whose page content is stream. Written independently of the stamper under test."""
+    objects = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        (f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 {width} {height}] "
+         "/Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>").encode("ascii"),
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+        b"<< /Length %d >>\nstream\n" % len(stream) + stream + b"\nendstream",
+    ]
+    out = bytearray(b"%PDF-1.4\n")
+    offsets = []
+    for number, body in enumerate(objects, start=1):
+        offsets.append(len(out))
+        out += b"%d 0 obj\n" % number + body + b"\nendobj\n"
+    xref_at = len(out)
+    out += b"xref\n0 6\n0000000000 65535 f \n" + b"".join(b"%010d 00000 n \n" % offset for offset in offsets)
+    out += b"trailer << /Size 6 /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n" % xref_at
+    with open(path, "wb") as f:
+        f.write(out)
+
+
+class TestPerimeterStampRefusesCoveredText(unittest.TestCase):
+    """The perimeter stamp is drawn in the top and bottom 26 pt. A page with text there is refused, never stamped over."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+
+    def _stamp(self, stream, label):
+        src = os.path.join(self.tmp, f"{label}.pdf")
+        out = os.path.join(self.tmp, f"{label}_out.pdf")
+        write_text_pdf(src, stream)
+        res = run_cli([sys.executable, WATERMARK_SCRIPT, "--input", src, "--output", out, "--mode", "perimeter",
+                       "--creator-id", "c", "--creator-name", "n", "--purpose", "c1_data_accuracy"],
+                      env=dict(os.environ, ASSET_SALT=TEST_SALT))
+        return res, out
+
+    def test_text_in_the_footer_band_is_refused_and_nothing_is_written(self):
+        res, out = self._stamp(b"BT /F1 12 Tf 72 5 Td (Governing law clause) Tj ET", "footer")
+        self.assertNotEqual(res.returncode, 0, "a stamp was drawn over text in the footer band")
+        self.assertIn("stamp is drawn", res.stderr)
+        self.assertFalse(os.path.exists(out), "a refused stamp left an output behind")
+
+    def test_text_in_the_header_band_is_refused(self):
+        res, out = self._stamp(b"BT /F1 12 Tf 72 780 Td (Header clause) Tj ET", "header")
+        self.assertNotEqual(res.returncode, 0, res.stderr)
+        self.assertFalse(os.path.exists(out))
+
+    def test_text_clear_of_both_bands_is_stamped(self):
+        res, out = self._stamp(b"BT /F1 12 Tf 72 400 Td (Body clause) Tj ET", "body")
+        self.assertEqual(res.returncode, 0, res.stderr)
+        self.assertTrue(os.path.isfile(out))
+
+
+class TestOverlayXrefIsMeasured(unittest.TestCase):
+    """The xref table and startxref name the byte offsets of the objects actually written, for both overlay generators."""
+
+    @staticmethod
+    def _load():
+        spec = importlib.util.spec_from_file_location("watermark_pdf", WATERMARK_SCRIPT)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+
+    def _assert_offsets_point_at_objects(self, pdf: bytes):
+        start = pdf.rindex(b"startxref")
+        xref_at = int(pdf[start:].split()[1])
+        self.assertEqual(pdf[xref_at:xref_at + 4], b"xref", "startxref does not point at the xref table")
+        first_entry = xref_at + len(b"xref\n0 6\n")
+        for number in range(1, 6):
+            entry = pdf[first_entry + 20 * number:first_entry + 20 * (number + 1)]
+            label = f"{number} 0 obj".encode("ascii")
+            self.assertEqual(pdf[int(entry[:10]):int(entry[:10]) + len(label)], label,
+                             f"xref entry {number} does not point at object {number}")
+
+    def test_perimeter_overlay(self):
+        wm = self._load()
+        self._assert_offsets_point_at_objects(wm.generate_perimeter_overlay_pdf(612, 792, "BND-T-9", "abcd", "Zoé", 1, 1))
+
+    def test_diagonal_overlay(self):
+        wm = self._load()
+        self._assert_offsets_point_at_objects(wm.generate_diagonal_overlay_pdf(612, 792, "CONFIDENTIAL REVIEW COPY"))
+
+
+class TestFingerprintCoversTheDocumentMode(unittest.TestCase):
+    def test_the_fingerprint_payload_names_the_mode(self):
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        src = os.path.join(tmp, "src.pdf")
+        out = os.path.join(tmp, "out.pdf")
+        create_dummy_pdf(src, "body")
+        res = run_cli([sys.executable, WATERMARK_SCRIPT, "--input", src, "--output", out, "--mode", "diagonal",
+                       "--creator-id", "example-creator", "--creator-name", "the owner", "--purpose", "author_copy"],
+                      env=dict(os.environ, ASSET_SALT=TEST_SALT))
+        self.assertEqual(res.returncode, 0, res.stderr)
+        meta = pypdf.PdfReader(out).metadata
+        payload = (f"{meta['/BundleId']}:example-creator:the owner:author_copy:diagonal:"
+                   f"{meta['/SourceSha256']}:{meta['/ProvenanceTimestamp']}:")
+        expected = hmac.new(TEST_SALT.encode("utf-8"), payload.encode("utf-8"), hashlib.sha256).hexdigest()
+        self.assertEqual(meta["/ProvenanceFingerprint"], expected, "the fingerprint does not name the document mode")
+
+
+class TestSiteCheckAcceptsTheSitePages(unittest.TestCase):
+    """The site prints decimal prices, and the product page's title carries a creator suffix. A matching page passes,
+    and a wrong price still fails."""
+
+    PRODUCT_HTML = (
+        "<html><head><title>Sample Book \u00b7 Duane \u00b7 ExpanPress</title>"
+        '<meta property="og:title" content="Sample Book \u00b7 Duane \u00b7 ExpanPress">'
+        '<meta name="description" content="A sample. Sold for $19.99. Buy now.">'
+        "</head><body><h1>Sample Book</h1>"
+        '<div class="pricebox"><p class="card-price">$19.99 <small>USD</small></p></div></body></html>'
+    )
+
+    def _load(self):
+        tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        os.makedirs(os.path.join(tmp, "payments"))
+        os.makedirs(os.path.join(tmp, "qa"))
+        with open(os.path.join(tmp, "payments", "config.duane.json"), "w", encoding="utf-8") as f:
+            json.dump({"site_slug": "duane/sample-book", "price_usd": 19.99, "title": "Sample Book",
+                       "checkout_mode": "live"}, f)
+        from pathlib import Path
+        fake_book_config = types.ModuleType("book_config")  # live_site_check imports REPO and QA from it
+        fake_book_config.REPO = Path(tmp)
+        fake_book_config.QA = Path(tmp) / "qa"
+        spec = importlib.util.spec_from_file_location(
+            "live_site_check", os.path.join(REPO_ROOT, "scripts", "live_site_check.py"))
+        module = importlib.util.module_from_spec(spec)
+        with unittest.mock.patch.dict(sys.modules, {"book_config": fake_book_config}):
+            spec.loader.exec_module(module)
+        return module
+
+    @staticmethod
+    def _run_main(mod, page_html):
+        mod.fetch = lambda path, local: page_html
+        with unittest.mock.patch.object(sys, "argv", ["live_site_check.py"]), \
+                unittest.mock.patch.object(mod.subprocess, "run"), \
+                contextlib.redirect_stdout(io.StringIO()):
+            return mod.main()
+
+    def test_matching_pages_pass(self):
+        self.assertEqual(self._run_main(self._load(), self.PRODUCT_HTML), 0)
+
+    def test_a_wrong_price_still_fails(self):
+        wrong = self.PRODUCT_HTML.replace("$19.99 <small>", "$19 <small>")
+        self.assertEqual(self._run_main(self._load(), wrong), 1)
+
+
+class TestEntryPointRunsAfterEveryTestClass(unittest.TestCase):
+    def test_the_main_guard_is_the_last_statement(self):
+        """A direct run executes unittest.main() where the guard sits. The guard must come last, or the classes below it never run."""
+        with open(os.path.abspath(__file__), encoding="utf-8") as f:
+            tree = ast.parse(f.read())
+        last = tree.body[-1]
+        self.assertIsInstance(last, ast.If, "the file's last statement is not the __main__ guard")
+        self.assertEqual(ast.unparse(last.test), "__name__ == '__main__'")
+
+
+if __name__ == "__main__":
+    unittest.main()

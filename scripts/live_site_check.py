@@ -17,6 +17,7 @@ import subprocess
 import sys
 import urllib.parse
 import urllib.request
+from decimal import Decimal
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -30,12 +31,26 @@ PRODUCT_PAGE = f"/books/{CFG['site_slug']}/"
 CREATOR_HUB = f"/books/{CFG['site_slug'].partition('/')[0]}/"
 # Live storefront routes, requested as-is in both modes. The baked c/ HTML is frozen legacy output and is not read.
 PAGES = ("/", PRODUCT_PAGE, CREATOR_HUB)
-PRICE_SLOT = re.compile(r'class="(?:price|card-price)">\$(\d+)')
+PRICE_SLOT = re.compile(r'class="(?:price|card-price)">\$(\d+(?:\.\d+)?)')
 TITLE_SLOT = re.compile(r"<h1>(.*?)</h1>|class=\"cover-title\">(.*?)</p>", re.S)
-HEAD_TITLE = re.compile(r"<title>(.*?)(?: — [^<]*)?</title>", re.S)  # " — with Duane" suffix allowed
+HEAD_TITLE = re.compile(r"<title>(.*?)</title>", re.S)
 SOCIAL_TITLE = re.compile(r'<meta (?:property|name)="(?:og|twitter):title" content="([^"]*)"')
-DESC_PRICE = re.compile(r'<meta (?:property|name)="(?:og:|twitter:)?description" content="[^"]*?\$(\d+)\.')
+DESC_PRICE = re.compile(r'<meta (?:property|name)="(?:og:|twitter:)?description" content="[^"]*?\$(\d+(?:\.\d+)?)\.')
 PRIMARY = re.compile(r'<a[^>]*data-checkout-slot="primary"[^>]*>')
+# The product page's <title> and og:title carry "<title> · <creator> · ExpanPress" (web/app/books/[handle]/[product]);
+# the bare title is compared, and a suffix after one of these separators is allowed on the head and social titles only.
+TITLE_SUFFIX_SEPARATORS = (" · ", " — ")
+
+
+def same_price(shown: str, want: str) -> bool:
+    """A decimal price matches by value: '19.99' matches '19.990', and '19' does not match '19.99'."""
+    return Decimal(shown) == Decimal(want)
+
+
+def same_title(shown: str, want: str, allow_suffix: bool) -> bool:
+    if shown == want:
+        return True
+    return allow_suffix and any(shown.startswith(want + sep) for sep in TITLE_SUFFIX_SEPARATORS)
 
 
 def fetch(path, local):
@@ -68,7 +83,7 @@ def main():
         prices = PRICE_SLOT.findall(page)
         if not prices:
             probs.append("no price slot found")
-        probs += [f"price ${p} != ${want_price}" for p in prices if p != want_price]
+        probs += [f"price ${p} != ${want_price}" for p in prices if not same_price(p, want_price)]
         # the creator hub's <h1>/<title>/og are the creator's; only its product cover carries the book title
         hub = path == CREATOR_HUB
         titles = []
@@ -80,10 +95,10 @@ def main():
             titles += [("<title>", t) for t in HEAD_TITLE.findall(page)]
             titles += [("og/twitter title", t) for t in SOCIAL_TITLE.findall(page)]
             probs += [f"meta description says ${p} != ${want_price}"
-                      for p in DESC_PRICE.findall(page) if p != want_price]
+                      for p in DESC_PRICE.findall(page) if not same_price(p, want_price)]
         for where, t in titles:
             t = html.unescape(re.sub(r"<[^>]+>", "", t)).strip().replace("’", "'")
-            if t != want_title:
+            if not same_title(t, want_title, allow_suffix=where != "title"):
                 probs.append(f"{where} \"{t}\" != config")
         if mode != "live":
             for a in PRIMARY.findall(page):
