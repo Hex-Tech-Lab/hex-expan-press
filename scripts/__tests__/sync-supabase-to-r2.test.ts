@@ -421,6 +421,16 @@ describe("sync-supabase-to-r2", () => {
       expect(fetchImpl).not.toHaveBeenCalled();
     });
 
+    it("bounds the source GET with an abort signal", async () => {
+      const fetchImpl = vi.fn().mockResolvedValueOnce(r2Head(404));
+      const harness = makeSyncTestHarness({ files: [syncFile("book.pdf")], downloadBlob: new Blob(["bytes"]), fetchImpl: fetchImpl as never });
+
+      await runSync(harness);
+
+      const init = harness.sourceFetch.mock.calls[0][1] as RequestInit;
+      expect(init.signal).toBeInstanceOf(AbortSignal);
+    });
+
     it("refuses to write when the source GET returns a non-2xx status, without any R2 write", async () => {
       const fetchImpl = vi.fn().mockResolvedValueOnce(r2Head(404));
       const harness = makeSyncTestHarness({ files: [syncFile("book.pdf")], fetchImpl: fetchImpl as never });

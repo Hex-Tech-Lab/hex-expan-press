@@ -158,6 +158,50 @@ describe("R2 delivery freshness gate", () => {
     vi.restoreAllMocks();
   });
 
+  it("reads the source only after the R2 HEAD has completed, never concurrently", async () => {
+    const events: string[] = [];
+    let releaseHead!: (r: Response) => void;
+    const fetchImpl = vi.fn().mockImplementation(
+      () =>
+        new Promise<Response>((resolve) => {
+          releaseHead = (r) => {
+            events.push("head-done");
+            resolve(r);
+          };
+        }),
+    );
+    const adapter = new R2StorageAdapter({
+      ...r2Config,
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      resolveSourceEtag: async () => {
+        events.push("source-read");
+        return '"src-1"';
+      },
+    });
+
+    const pending = adapter.createSignedDownloadUrl("book.pdf", 300);
+    // Let the adapter reach its HEAD. The source must not have been read yet.
+    await new Promise((r) => setTimeout(r, 0));
+    expect(events).toEqual([]);
+    releaseHead(new Response(null, { status: 200, headers: { "x-amz-meta-supabase-etag": '"src-1"' } }));
+    await pending;
+
+    expect(events).toEqual(["head-done", "source-read"]);
+  });
+
+  it("does not read the source at all when the R2 object is absent", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(new Response(null, { status: 404 }));
+    const resolveSourceEtag = vi.fn(async () => '"src-1"');
+    const adapter = new R2StorageAdapter({
+      ...r2Config,
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+      resolveSourceEtag,
+    });
+
+    expect(await adapter.createSignedDownloadUrl("book.pdf", 300)).toBeNull();
+    expect(resolveSourceEtag).not.toHaveBeenCalled();
+  });
+
   it("serves a presigned URL when the stored marker equals the current source ETag", async () => {
     const fetchImpl = vi.fn().mockResolvedValue(
       new Response(null, { status: 200, headers: { "x-amz-meta-supabase-etag": '"src-1"' } }),

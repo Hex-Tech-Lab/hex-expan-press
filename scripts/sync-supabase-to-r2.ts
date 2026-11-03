@@ -72,6 +72,9 @@ export function parsePrefixArg(argv: string[] = process.argv): string | undefine
 export const parsePrefix = parsePrefixArg;
 export const parseCliPrefix = parsePrefixArg;
 
+/** Upper bound on one source object download. A stalled GET fails that file instead of blocking the serial sync. */
+export const SOURCE_GET_TIMEOUT_MS = 60_000;
+
 /**
  * Downloads one object with a single GET. The bytes and the ETag header come from the same response, so the
  * ETag describes exactly these bytes. Throws on a non-2xx status. A network error propagates to the caller.
@@ -85,9 +88,11 @@ async function fetchSourceObject(
 ): Promise<{ bytes: Buffer; etag: string | undefined }> {
   const encodedPath = filePath.split("/").map(encodeURIComponent).join("/");
   const url = `${supabaseUrl.replace(/\/+$/, "")}/storage/v1/object/${encodeURIComponent(bucket)}/${encodedPath}`;
+  // Bounded: a stalled GET aborts (the signal also covers reading the body) and the file is recorded as failed.
   const res = await fetchImpl(url, {
     method: "GET",
     headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` },
+    signal: AbortSignal.timeout(SOURCE_GET_TIMEOUT_MS),
   });
   if (!res.ok) {
     throw new Error(`Supabase download of ${filePath} returned HTTP ${res.status}`);

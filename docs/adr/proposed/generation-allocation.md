@@ -15,7 +15,7 @@ Collisions are a backstop, not the main guard. The Redis sale lock `lock:sale:{p
 
 ## Problem
 
-1. **The application allocates the generation.** The database cannot guarantee uniqueness across processes. The sequence exists and is unused.
+1. **The application allocates the generation.** The database detects a duplicate `(sale_id, link_generation)` with `23505`, but it does not choose the value. The sequence exists and is unused.
 2. **Collisions are retried locally, up to 3 attempts.** On a `(sale_id, link_generation)` conflict the adapter returns `false` (`delivery.ts:247`). `deliverSale` then advances its local counter and retries (`delivery.ts:118-125`). After three failed inserts it throws (`delivery.ts:128-130`), so the webhook answers 500 and the provider retries the whole sale.
 3. **The adapter cannot return the generated value.** The insert at `delivery.ts:245` has no returning select, so the application cannot read back what the database chose. The `DeliveryDb.recordLinkIssued` contract returns only a boolean (`delivery.ts:57-63`).
 4. **The unique key is per generation, not per sale.** The one-link-per-sale index was dropped (`supabase/migrations/20261019180000_download_events_generation_key.sql:4`). The database therefore does not limit live links per sale and does not block two confirmed deliveries of one sale. Those rest on the Redis lock and the `audit_log` check (`delivery.ts:107`, `delivery.ts:122`, `delivery.ts:164-165`).

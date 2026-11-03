@@ -60,7 +60,11 @@ export interface ResolvedProduct {
   currency: string;
 }
 
-export async function resolveProductByAlias(alias: string): Promise<ResolvedProduct | null> {
+/**
+ * Resolves a sale's product alias. paddle_product_id is Paddle's own column, so only a Paddle sale may match it.
+ * Any other provider matching it would book a sale that delivery then cannot deliver (the delivery lookup applies the same rule).
+ */
+export async function resolveProductByAlias(alias: string, providerName: string): Promise<ResolvedProduct | null> {
   if (typeof alias !== "string" || !PRODUCT_ALIAS_RE.test(alias)) return null;
   const supabase = await getSupabaseAdmin();
   if (!supabase) {
@@ -69,7 +73,7 @@ export async function resolveProductByAlias(alias: string): Promise<ResolvedProd
   const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(alias);
   const conditions = [
     `store_product_id.eq.${alias}`,
-    `paddle_product_id.eq.${alias}`,
+    ...(providerName === "paddle" ? [`paddle_product_id.eq.${alias}`] : []),
     `polar_product_id_sandbox.eq.${alias}`,
     `polar_product_id_live.eq.${alias}`,
     `composite_slug.eq.${alias}`,
