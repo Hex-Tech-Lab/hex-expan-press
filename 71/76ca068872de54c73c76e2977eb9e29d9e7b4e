@@ -1,0 +1,22 @@
+scripts/__tests__/sync-supabase-to-r2.test.ts
+  s_6625bc67577472::t_9fff13094b9b94 304-305,387,406,423-434
+  s_6625bc67577472::t_ac048da47c53d6 435-436
+docs/adr/0063-r2-sync-freshness-contract.md
+  s_6625bc67577472::t_91fe3b845e11fc 31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7176ca068872de54c73c76e2977eb9e29d9e7b4e",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
