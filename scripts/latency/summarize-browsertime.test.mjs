@@ -253,3 +253,31 @@ test("removes every written summary when a later write fails", () => {
   assert.match(r.stderr, /ENOSPC/);
   assert.deepEqual(r.files, []);
 });
+
+// Cleanup itself fails (EACCES) after a write failed. The script must still report the original
+// write error and say cleanup failed, not let the cleanup error replace it.
+const FAIL_WRITE_THEN_CLEANUP = `
+import fs from "node:fs";
+import { syncBuiltinESMExports } from "node:module";
+const realWrite = fs.writeFileSync;
+const realRm = fs.rmSync;
+let calls = 0;
+let wrote = false;
+fs.writeFileSync = (...args) => {
+  calls += 1;
+  if (calls === 2) { const e = new Error("injected write failure"); e.code = "ENOSPC"; throw e; }
+  wrote = true;
+  return realWrite(...args);
+};
+fs.rmSync = (...args) => {
+  if (wrote) { const e = new Error("injected cleanup failure"); e.code = "EACCES"; throw e; }
+  return realRm(...args);
+};
+syncBuiltinESMExports();
+`;
+
+test("reports the original write error when cleanup also fails", () => {
+  const r = run(URLS.map((u, i) => page(u, 100 + i)), { preload: FAIL_WRITE_THEN_CLEANUP });
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /cannot write summaries .*ENOSPC; could not remove partial output: EACCES/);
+});

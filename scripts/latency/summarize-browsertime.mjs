@@ -152,15 +152,21 @@ if (errors.length > 0) {
   process.exit(1);
 }
 
-mkdirSync(outDir, { recursive: true });
 try {
+  mkdirSync(outDir, { recursive: true });
   for (const s of summaries) {
     writeFileSync(join(outDir, `${s.page}.json`), JSON.stringify(s));
     console.log(`${s.page}: n=${s.samples} ttfb=${s.metrics.ttfb} fcp=${s.metrics.firstContentfulPaint} lcp=${s.metrics.largestContentfulPaint} load=${s.metrics.pageLoadTime}`);
   }
 } catch (err) {
   // A write can fail after earlier pages are already on disk. Remove every expected output so no partial set is left.
-  clearExpectedOutputs(outDir);
-  console.error(`cannot write summaries to ${outDir}: ${err.code ?? err.message}; removed partial output`);
+  // Cleanup can fail too (for example EACCES); report that instead of letting it replace the original error.
+  let cleanup = "removed partial output";
+  try {
+    clearExpectedOutputs(outDir);
+  } catch (cleanupErr) {
+    cleanup = `could not remove partial output: ${cleanupErr.code ?? cleanupErr.message}`;
+  }
+  console.error(`cannot write summaries to ${outDir}: ${err.code ?? err.message}; ${cleanup}`);
   process.exit(1);
 }
