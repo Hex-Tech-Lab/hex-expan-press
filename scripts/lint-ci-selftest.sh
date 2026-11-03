@@ -305,10 +305,18 @@ done
 # The pip installs use --require-hashes, in the ruff job and the selftest job. The pins above only prove a hash is
 # declared; these counts prove each download is actually verified. Fixed here, not derived from the file.
 verify_contract() {
-  local file="$1" v r
-  v=$(grep -c 'sha256sum -c -' "$file" || true)
-  r=$(grep -c -- '--require-hashes' "$file" || true)
-  [ "$v" -eq 6 ] && [ "$r" -eq 2 ]
+  local file="$1" f seq
+  # Per archive, in file order: download (C), checksum (S), extract (T). Each archive appears in two jobs, so the
+  # sequence must be CST twice. Checking each archive on its own means one job's check cannot stand in for another's.
+  for f in actionlint.tar.gz shellcheck.tar.xz gitleaks.tar.gz; do
+    seq=$(awk -v f="$f" '
+      index($0, "-o \"$RUNNER_TEMP/" f "\"") && index($0, "curl") { s = s "C" }
+      index($0, "/" f "\" | sha256sum -c -") { s = s "S" }
+      index($0, "tar -") && index($0, "\"$RUNNER_TEMP/" f "\"") { s = s "T" }
+      END { print s }' "$file")
+    [ "$seq" = "CSTCST" ] || return 1
+  done
+  [ "$(grep -c -- '--require-hashes' "$file" || true)" -eq 2 ]
 }
 if verify_contract "$WF"; then
   echo "PASS  verification contract: six sha256 checks and two hashed pip installs are present"
@@ -332,6 +340,21 @@ if verify_contract "$mutant"; then
   FAILED=1
 else
   echo "PASS  verification mutation: removing a --require-hashes install is rejected"
+fi
+
+# Mutation: drop one archive's checksum line and duplicate another archive's checksum line. The aggregate count stays
+# the same, so only the per-archive sequence can reject this.
+mutant="$RT/swap-mutant.yml"
+awk '
+  index($0, "/actionlint.tar.gz\" | sha256sum -c -") && !removed { removed = 1; next }
+  { print }
+  index($0, "/shellcheck.tar.xz\" | sha256sum -c -") && !dup { dup = 1; print }
+' "$WF" > "$mutant"
+if verify_contract "$mutant"; then
+  echo "FAIL  verification mutation: dropping one archive's check and duplicating another was accepted"
+  FAILED=1
+else
+  echo "PASS  verification mutation: dropping one archive's check and duplicating another is rejected"
 fi
 
 if [ "$FAILED" = 0 ]; then
