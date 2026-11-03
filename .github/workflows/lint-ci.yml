@@ -1,20 +1,20 @@
-# Lint gates on every PR and on push to master. actionlint + shellcheck check the workflow files,
-# gitleaks checks the new commits for secrets (values redacted), and ruff checks only the Python
-# files this change touches (the older scripts/ tree has existing findings this change does not own).
-# Every check fails the run on a finding. No continue-on-error anywhere.
+# Lint gates for every PR and every push to master: actionlint and shellcheck on the workflow files,
+# gitleaks on the new commits, and ruff on the Python files the change touches.
 #
-# Limits, stated so this gate is not read as more than it is:
-# - Secrets already in history are not covered. The gitleaks job scans the commits in the PR range, or,
-#   for a push, the range since the previous tip. A push with no usable previous tip scans full history.
-#   The history audit is tracked separately.
-# - This workflow file is PR-controlled for the PR that adds it, so a PR can change these checks.
-#   The fix is a base-controlled workflow on pull_request_target that runs no PR code, plus a required
-#   branch-protection check. That is a follow-up. This file becomes trusted only after it lands on master.
-# - ruff checks the whole of each changed .py file, so older violations in a file this PR touches can
-#   still fail the job. Files this PR does not touch are not linted.
+# Trust model: this runs on pull_request_target, so GitHub reads THIS file from the BASE branch. A PR cannot
+# edit, skip or weaken these checks. The PR's code is checked out only to be READ: no step runs a script,
+# package manager or binary from the PR. Every tool comes from a pinned install made by this file, and each
+# tool runs from a runner directory outside the checkout, so no PR-controlled config file is loaded.
+#
+# Bootstrap: this file takes effect on PRs only after it is on master. Until then the first PR that adds it
+# has no run of this workflow, so its head is verified by hand before the merge. After the merge, the three
+# job names are added as required status checks on master.
+#
+# ruff checks the whole of each changed .py file, so older violations in a file this PR touches can still
+# fail the job. Files this PR does not touch are not linted.
 name: lint-ci
 on:
-  pull_request:
+  pull_request_target:
   push:
     branches:
       - master
@@ -27,8 +27,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Check out the PR head for reading only
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          path: pr
           persist-credentials: false
 
       - name: Install actionlint v1.7.7 and shellcheck 0.10.0
@@ -46,20 +49,36 @@ jobs:
           tar -xJf "$RUNNER_TEMP/shellcheck.tar.xz" -C "$RUNNER_TEMP/shellcheck-bin" --strip-components=1 shellcheck-v0.10.0/shellcheck
           echo "$RUNNER_TEMP/shellcheck-bin" >> "$GITHUB_PATH"
 
-      - name: Run actionlint on workflow files
+      - name: Run actionlint on the PR's workflow files
         run: |
           set -euo pipefail
-          # Both extensions: GitHub accepts .yaml too, and a *.yml glob alone skipped those files.
-          mapfile -d '' -t WF < <(find .github/workflows -maxdepth 1 -type f \( -name '*.yml' -o -name '*.yaml' \) -print0)
+          # Copy the workflow files out of the checkout. A PR can add a .shellcheckrc or actionlint config next to
+          # its files, and those would be read from the checkout's directories. Copies outside it are never read that way.
+          # -type f skips symlinks, so a link cannot pull in a file from elsewhere on the runner.
+          SRC="$GITHUB_WORKSPACE/pr/.github/workflows"
+          DST="$RUNNER_TEMP/wf"
+          mkdir -p "$DST"
+          mapfile -d '' -t WF < <(find "$SRC" -maxdepth 1 -type f \( -name '*.yml' -o -name '*.yaml' \) -print0)
           [ "${#WF[@]}" -gt 0 ] || { echo "::error::no workflow files found"; exit 1; }
-          actionlint -shellcheck=shellcheck "${WF[@]}"
+          COPIES=()
+          for f in "${WF[@]}"; do
+            cp -- "$f" "$DST/$(basename "$f")"
+            COPIES+=("$DST/$(basename "$f")")
+          done
+          # Run from the runner temp directory, not the checkout.
+          cd "$RUNNER_TEMP"
+          # Both extensions: GitHub accepts .yaml too.
+          actionlint -shellcheck=shellcheck "${COPIES[@]}"
 
   gitleaks:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Check out the PR head with history, for reading only
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          path: pr
           fetch-depth: 0
           persist-credentials: false
 
@@ -71,64 +90,60 @@ jobs:
 
       - name: Scan new commits for secrets
         # Event data goes through env, never interpolated into the script.
-        # The config comes from the trust ref, never from this checkout. The trust ref is the base
-        # commit for a PR and the previous tip for a push. Config discovery is off (--config is set),
-        # so a PR's .gitleaks.toml has no effect. gitleaks still loads ./.gitleaksignore even when
-        # --gitleaks-ignore-path is set, so the step deletes that file first (see the rm below).
-        # Inline gitleaks:allow comments are ignored.
-        # Limit: this step is PR-controlled for the PR that adds it. See the header.
+        # The config comes from the base branch's tip, fetched here, never from the PR checkout.
+        # Config discovery is off (--config is set). gitleaks also loads ./.gitleaksignore from the working
+        # directory, so the scan runs from the runner temp directory, not the checkout.
         env:
           EVENT_NAME: ${{ github.event_name }}
-          BASE_REF: ${{ github.base_ref }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
           BEFORE_SHA: ${{ github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          TRUST_REF=""
-          if [ "$EVENT_NAME" = "pull_request" ]; then
-            git rev-parse --verify -q "origin/${BASE_REF}" >/dev/null \
-              || { echo "::error::origin/${BASE_REF} is missing; cannot read the trusted config"; exit 1; }
+          PR="$GITHUB_WORKSPACE/pr"
+          if [ "$EVENT_NAME" = "pull_request_target" ]; then
+            git -C "$PR" fetch --no-tags -q origin "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
             TRUST_REF="origin/${BASE_REF}"
-            LOG_OPTS="origin/${BASE_REF}..HEAD"
-          elif git cat-file -e "$BEFORE_SHA" 2>/dev/null; then
+            LOG_OPTS="origin/${BASE_REF}..${HEAD_SHA}"
+          elif git -C "$PR" cat-file -e "$BEFORE_SHA" 2>/dev/null; then
             TRUST_REF="$BEFORE_SHA"
-            LOG_OPTS="${BEFORE_SHA}..HEAD"
+            LOG_OPTS="${BEFORE_SHA}..${HEAD_SHA}"
           else
-            # New branch or force-push with no usable 'before'. Do not use "HEAD --not --remotes=origin":
-            # in this checkout origin/<branch> already points at HEAD, so that range is empty and scans nothing.
-            # Scan the full history reachable from HEAD instead (fails closed). No trust ref, so default rules.
-            LOG_OPTS="HEAD"
+            # New branch or force-push with no usable 'before'. Scan the full history reachable from HEAD (fails closed).
+            # Default rules, no trust ref.
+            TRUST_REF=""
+            LOG_OPTS="${HEAD_SHA}"
           fi
 
           CONFIG="${RUNNER_TEMP}/gitleaks-trusted.toml"
           IGNORE="${RUNNER_TEMP}/gitleaks-empty.ignore"
           : > "$IGNORE"
-          if [ -n "$TRUST_REF" ] && git cat-file -e "${TRUST_REF}:.github/security/gitleaks.toml" 2>/dev/null; then
-            # Present on the trust ref: read it from there. A failed read stops the job (set -e). No fallback.
-            git show "${TRUST_REF}:.github/security/gitleaks.toml" > "$CONFIG"
+          if [ -n "$TRUST_REF" ] && git -C "$PR" cat-file -e "${TRUST_REF}:.github/security/gitleaks.toml" 2>/dev/null; then
+            git -C "$PR" show "${TRUST_REF}:.github/security/gitleaks.toml" > "$CONFIG"
             [ -s "$CONFIG" ] || { echo "::error::trusted gitleaks config is empty"; exit 1; }
             echo "gitleaks config: .github/security/gitleaks.toml from ${TRUST_REF}"
           else
-            # Not on the trust ref: gitleaks default rules. --config below still turns discovery off.
             printf '[extend]\nuseDefault = true\n' > "$CONFIG"
             echo "gitleaks config: default rules (no trusted config on ${TRUST_REF:-no trust ref})"
           fi
 
           echo "gitleaks log range: ${LOG_OPTS}"
-          # gitleaks loads ./.gitleaksignore even when --gitleaks-ignore-path points elsewhere, so a PR-added
-          # ignore file would suppress its own leak. The scan reads history, not the working tree, so drop it.
-          rm -f .gitleaksignore
+          cd "$RUNNER_TEMP"
           gitleaks git --redact --no-banner \
             --config "$CONFIG" \
             --gitleaks-ignore-path "$IGNORE" \
             --ignore-gitleaks-allow \
-            --log-opts="${LOG_OPTS}" .
+            --log-opts="${LOG_OPTS}" "$PR"
 
   ruff:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Check out the PR head with history, for reading only
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          path: pr
           fetch-depth: 0
           persist-credentials: false
 
@@ -143,42 +158,41 @@ jobs:
           python -m pip install --disable-pip-version-check --require-hashes --only-binary=:all: --no-deps -r "$RUNNER_TEMP/ruff-req.txt"
 
       - name: Lint Python files changed by this change
-        # Only the .py files this change adds or modifies, not the whole scripts/ tree.
-        # ruff checks the whole of each changed file, so older violations in a file this PR touches can
-        # still fail the job. Files this PR does not touch are not linted.
         env:
           EVENT_NAME: ${{ github.event_name }}
-          BASE_REF: ${{ github.base_ref }}
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
           BEFORE_SHA: ${{ github.event.before }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          if [ "$EVENT_NAME" = "pull_request" ]; then
-            # The event's recorded base SHA, not the mutable branch ref, so a base update during the run
-            # cannot change which files are linted.
-            BASE="$BASE_SHA"
-          elif git cat-file -e "$BEFORE_SHA" 2>/dev/null; then
+          PR="$GITHUB_WORKSPACE/pr"
+          if [ "$EVENT_NAME" = "pull_request_target" ]; then
+            git -C "$PR" fetch --no-tags -q origin "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
+            BASE="origin/${BASE_REF}"
+          elif git -C "$PR" cat-file -e "$BEFORE_SHA" 2>/dev/null; then
             BASE="$BEFORE_SHA"
           else
-            # No usable 'before' (new branch or force-push). Guessing HEAD~1 would lint only the last commit
-            # of a multi-commit push, so fail closed instead.
             echo "::error::no usable before SHA; cannot bound the Python lint range"
             exit 1
           fi
-          # Write the list to a file first so a failing git diff stops the job instead of skipping ruff.
           # Diff from the merge-base, so files that only the base branch changed are not linted.
-          # If BASE and HEAD share no history (no merge-base), fall back to diffing against BASE itself.
-          MERGE_BASE="$(git merge-base "$BASE" HEAD 2>/dev/null || echo "$BASE")"
-          CHANGED_LIST="$(mktemp)"
-          git diff -z --name-only --diff-filter=ACMR "$MERGE_BASE" HEAD -- '*.py' > "$CHANGED_LIST"
+          MERGE_BASE="$(git -C "$PR" merge-base "$BASE" "$HEAD_SHA" 2>/dev/null)" || { echo "::error::no merge base"; exit 1; }
+          CHANGED_LIST="$RUNNER_TEMP/changed.z"
+          git -C "$PR" diff -z --name-only --diff-filter=ACMR "$MERGE_BASE" "$HEAD_SHA" -- '*.py' > "$CHANGED_LIST"
           mapfile -d '' -t FILES < "$CHANGED_LIST"
           if [ "${#FILES[@]}" -eq 0 ]; then
             echo "No Python files changed against ${BASE}; ruff skipped."
             exit 0
           fi
+          # Copy the changed files out of the checkout and lint the copies from the runner temp directory.
+          # --isolated ignores every config file, and --ignore-noqa ignores inline "# noqa" comments.
+          # python -I ignores the current directory on sys.path, so a PR-added ruff/ directory cannot shadow the tool.
+          OUT="$RUNNER_TEMP/py"
+          rm -rf "$OUT"
+          for f in "${FILES[@]}"; do
+            mkdir -p "$OUT/$(dirname "$f")"
+            cp -- "$PR/$f" "$OUT/$f"
+          done
           echo "Linting ${#FILES[@]} changed Python file(s)."
-          # --isolated: ignore every ruff config file. Otherwise a PR's ruff.toml or pyproject.toml could
-          # switch the rules off and pass a file that fails on the base.
-          # --ignore-noqa: ignore inline "# noqa" comments too. --isolated alone lets a PR add
-          # "# noqa: F401" to a changed line and pass an unused import.
-          python -m ruff check --isolated --ignore-noqa -- "${FILES[@]}"
+          cd "$OUT"
+          python -I -m ruff check --isolated --ignore-noqa --no-cache -- "${FILES[@]}"
