@@ -1,0 +1,42 @@
+payments/src/settings_registry.ts
+  s_6625bc67577472::t_3434686dd89ab7 398-402,408,425,447,463,487-508,510,552-554
+  s_6625bc67577472::t_db4ef9a7da1057 555-556
+web/app/api/billing/webhook/route.ts
+  s_6625bc67577472::t_c10c01744618aa 4,9-14
+payments/test/provider_launch_switch.test.ts
+  s_6625bc67577472::t_126e22f08edb57 1-27
+payments/src/settings.ts
+  s_6625bc67577472::t_5883d1e939b5d8 4,92-93
+payments/src/webhook_core.ts
+  s_6625bc67577472::t_93d01b0fffc20f 1,102
+src/use_cases/billing/__tests__/process_billing_webhook.test.ts
+  s_6625bc67577472::t_a6351f7c4d9947 162
+web/app/api/billing/webhook/__tests__/fungies-refund-dlq.test.ts
+  s_6625bc67577472::t_635d8637d8702c 87
+web/app/api/billing/webhook/__tests__/lock_contention_503.test.ts
+  s_6625bc67577472::t_62478a1e07edb1 45
+web/app/api/billing/webhook/__tests__/provider_allowlist.test.ts
+  s_6625bc67577472::t_34220d55efec06 70
+web/app/api/billing/webhook/__tests__/transient_classification.test.ts
+  s_6625bc67577472::t_e0833ce7b8216a 23
+web/app/api/billing/webhook/__tests__/unclaimed-provider.test.ts
+  s_6625bc67577472::t_40a6e14a402575 29
+web/app/api/billing/webhook/__tests__/valid_signature_malformed_ledger.test.ts
+  s_6625bc67577472::t_bf05fb059998b1 50
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f074d83157adba1e2d26c0640fe95d4464f31f93",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
