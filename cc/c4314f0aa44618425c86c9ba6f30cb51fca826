@@ -1,0 +1,19 @@
+.github/workflows/lint-ci.yml
+  s_6625bc67577472::t_8615eac765baab 1-2,4-14,17,30-31,33-34,52,55-61,63-71,77-78,80-81,93-95,98,100,103-105,107-108,110,112-115,121-122,131,136,142-143,145-146,163,165,168-172,179-181,187-195,197-198
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ccc4314f0aa44618425c86c9ba6f30cb51fca826",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
