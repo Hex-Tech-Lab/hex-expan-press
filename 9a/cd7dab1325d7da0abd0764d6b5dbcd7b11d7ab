@@ -1,0 +1,22 @@
+scripts/lint-ci-selftest.sh
+  s_6625bc67577472::t_47f0b04d45c764 248-283,285-286,288
+  s_6625bc67577472::t_9973eacf8e072d 208-247
+.github/workflows/lint-ci.yml
+  s_6625bc67577472::t_84ea62f60c022d 236
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9acd7dab1325d7da0abd0764d6b5dbcd7b11d7ab",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
