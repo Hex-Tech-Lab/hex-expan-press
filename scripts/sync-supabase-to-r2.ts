@@ -18,6 +18,8 @@ export interface SyncOptions {
   dryRun?: boolean;
   supabaseClient?: SupabaseClient;
   fetchImpl?: typeof fetch;
+  /** Fetch used for the Supabase object GET. Defaults to fetchImpl. Kept separate so tests can script each side. */
+  sourceFetchImpl?: typeof fetch;
   logger?: {
     log: (msg: string) => void;
     warn: (msg: string) => void;
@@ -71,17 +73,27 @@ export const parsePrefix = parsePrefixArg;
 export const parseCliPrefix = parsePrefixArg;
 
 /**
- * Re-reads the current Supabase ETag of one object by listing its folder.
- * Returns undefined when the object is absent or the listing carries no ETag. Throws when the listing fails.
+ * Downloads one object with a single GET. The bytes and the ETag header come from the same response, so the
+ * ETag describes exactly these bytes. Throws on a non-2xx status. A network error propagates to the caller.
  */
-async function readSourceEtag(supabase: SupabaseClient, bucket: string, filePath: string): Promise<string | undefined> {
-  const slash = filePath.lastIndexOf("/");
-  const folder = slash === -1 ? "" : filePath.slice(0, slash);
-  const name = filePath.slice(slash + 1);
-  const { data, error } = await supabase.storage.from(bucket).list(folder, { search: name, limit: 100 });
-  if (error) throw new Error(`Failed to re-read the Supabase version of ${filePath}: ${error.message}`);
-  const item = data?.find((entry) => entry.name === name);
-  return (item?.metadata as { eTag?: string } | undefined)?.eTag;
+async function fetchSourceObject(
+  fetchImpl: typeof fetch,
+  supabaseUrl: string,
+  supabaseKey: string,
+  bucket: string,
+  filePath: string,
+): Promise<{ bytes: Buffer; etag: string | undefined }> {
+  const encodedPath = filePath.split("/").map(encodeURIComponent).join("/");
+  const url = `${supabaseUrl.replace(/\/+$/, "")}/storage/v1/object/${encodeURIComponent(bucket)}/${encodedPath}`;
+  const res = await fetchImpl(url, {
+    method: "GET",
+    headers: { apikey: supabaseKey, Authorization: `Bearer ${supabaseKey}` },
+  });
+  if (!res.ok) {
+    throw new Error(`Supabase download of ${filePath} returned HTTP ${res.status}`);
+  }
+  const etag = res.headers.get("etag") ?? undefined;
+  return { bytes: Buffer.from(await res.arrayBuffer()), etag };
 }
 
 /**
@@ -194,6 +206,7 @@ export async function syncSupabaseToR2(options: SyncOptions = {}): Promise<SyncR
     throw new Error('Empty prefix: options.prefix must name a folder such as "releases/v1"; omit it to sync the whole bucket');
   }
   const fetchImpl = options.fetchImpl || fetch;
+  const sourceFetchImpl = options.sourceFetchImpl || fetchImpl;
 
   if (!supabaseUrl || !supabaseKey) {
     throw new Error("Missing required Supabase environment variables: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY or SUPABASE_SECRET_KEY");
@@ -288,31 +301,23 @@ export async function syncSupabaseToR2(options: SyncOptions = {}): Promise<SyncR
       }
 
       logger.log(`   📥 Downloading from Supabase Storage...`);
-      const { data: fileBlob, error: downloadError } = await supabase.storage
-        .from(supabaseBucket)
-        .download(filePath);
-
-      if (downloadError || !fileBlob) {
-        const errMsg = downloadError?.message || "Empty download blob";
-        logger.error(`   ❌ Failed to download ${filePath}: ${errMsg}`);
+      // One GET returns the bytes and the ETag of those bytes. The bytes are stamped with the ETag the server
+      // served, never with the listed one. A served ETag that differs from the listing means the object changed
+      // after it was listed, so these bytes are refused. A revert (A to B to A) is safe: it serves A's bytes with A's ETag.
+      const source = await fetchSourceObject(sourceFetchImpl, supabaseUrl, supabaseKey, supabaseBucket, filePath);
+      if (!source.etag) {
+        logger.error(`   ❌ Supabase download of ${filePath} returned no ETag; refusing to write unversioned bytes.`);
         summary.failed++;
-        summary.errors.push({ path: filePath, error: errMsg });
+        summary.errors.push({ path: filePath, error: "Supabase download returned no ETag" });
         continue;
       }
-
-      // The download is by path, not by version. Re-read the source version before stamping the listed ETag on
-      // these bytes. This detects a change visible at this re-read only. It does not cover a change after the
-      // re-read, or a revert (A to B to A) between the listing and the re-read. A deleted object is refused too.
-      const currentEtag = await readSourceEtag(supabase, supabaseBucket, filePath);
-      if (currentEtag !== file.etag) {
-        logger.error(`   ❌ ${filePath} changed or was removed in Supabase after it was listed; refusing to write its bytes under the listed version. Re-run the sync.`);
+      if (source.etag !== file.etag) {
+        logger.error(`   ❌ ${filePath} changed in Supabase after it was listed (listed ${file.etag}, served ${source.etag}); refusing to write these bytes. Re-run the sync.`);
         summary.failed++;
         summary.errors.push({ path: filePath, error: "source changed between listing and download; re-run sync" });
         continue;
       }
-
-      const arrayBuffer = await fileBlob.arrayBuffer();
-      const buffer = Buffer.from(arrayBuffer);
+      const buffer = source.bytes;
       const contentType = file.mimetype || "application/pdf";
 
       logger.log(`   📤 Uploading to Cloudflare R2 (${buffer.byteLength} bytes, ${contentType})...`);

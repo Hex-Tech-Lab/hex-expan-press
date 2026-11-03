@@ -7,8 +7,10 @@ import {
 
 interface HarnessOptions {
   files?: Array<{ name: string; id?: string | null; metadata?: Record<string, unknown> }>;
+  /** Bytes served by the Supabase object GET. */
   downloadBlob?: Blob | null;
-  downloadError?: { message: string } | null;
+  /** ETag served with those bytes. Defaults to the listed ETag "src-v1". */
+  sourceEtag?: string;
   fetchImpl?: typeof fetch;
 }
 
@@ -25,16 +27,18 @@ function makeSyncTestHarness(opts: HarnessOptions = {}) {
     error: null,
   });
 
-  const downloadMock = vi.fn().mockResolvedValue({
-    data: opts.downloadBlob ?? null,
-    error: opts.downloadError ?? null,
-  });
+  // The Supabase object GET: bytes and ETag come from one response, as in production.
+  const sourceFetch = vi.fn(async (_url: string) =>
+    new Response(opts.downloadBlob ?? null, {
+      status: 200,
+      headers: { etag: opts.sourceEtag ?? '"src-v1"' },
+    }),
+  );
 
   const fakeClient = {
     storage: {
       from: vi.fn(() => ({
         list: listMock,
-        download: downloadMock,
       })),
     },
   };
@@ -45,7 +49,7 @@ function makeSyncTestHarness(opts: HarnessOptions = {}) {
   return {
     fakeClient,
     listMock,
-    downloadMock,
+    sourceFetch,
     fetchImpl,
     testLogger,
     logs,
@@ -232,6 +236,7 @@ describe("sync-supabase-to-r2", () => {
       syncSupabaseToR2({
         supabaseClient: harness.fakeClient as never,
         fetchImpl: harness.fetchImpl as never,
+        sourceFetchImpl: harness.sourceFetch as never,
         logger: harness.testLogger,
         ...extra,
       });
@@ -246,7 +251,7 @@ describe("sync-supabase-to-r2", () => {
       expect(result.alreadySynced).toBe(1);
       expect(result.uploaded).toBe(0);
       expect(fetchImpl).toHaveBeenCalledTimes(1);
-      expect(harness.downloadMock).not.toHaveBeenCalled();
+      expect(harness.sourceFetch).not.toHaveBeenCalled();
     });
 
     it("refreshes a stale copy with If-Match on its R2 ETag, even when the size is unchanged", async () => {
@@ -284,38 +289,57 @@ describe("sync-supabase-to-r2", () => {
         downloadBlob: new Blob(["bytes"]),
         fetchImpl: fetchImpl as never,
       });
-      // Real listings return the folder, then its children by base name. The re-read lists the folder again.
+      // Real listings return the folder, then its children by base name.
       harness.listMock
         .mockResolvedValueOnce({ data: [{ name: "books", id: null }], error: null })
-        .mockResolvedValueOnce({ data: [syncFile("new.pdf")], error: null })
         .mockResolvedValueOnce({ data: [syncFile("new.pdf")], error: null });
 
       const result = await runSync(harness);
 
       expect(result).toMatchObject({ uploaded: 1, verified: 1, failed: 0 });
-      expect(harness.downloadMock).toHaveBeenCalledWith("books/new.pdf");
+      expect(String(harness.sourceFetch.mock.calls[0][0])).toMatch(/\/storage\/v1\/object\/release-files\/books\/new\.pdf$/);
       const putHeaders = (fetchImpl.mock.calls[1][1] as RequestInit).headers as Record<string, string>;
       expect(putHeaders["if-none-match"]).toBe("*");
       expect(putHeaders["if-match"]).toBeUndefined();
     });
 
-    it("refuses to upload bytes when the source object changes between listing and download", async () => {
-      // The listing saw v1. The path-only download can return v2 bytes, so the post-download re-read sees v2.
+    it("refuses to upload bytes when the served object's ETag differs from the listed one", async () => {
+      // The listing saw v1. The GET serves v2 bytes with v2's ETag, so the served ETag does not match the listing.
       const fetchImpl = vi
         .fn()
         .mockResolvedValueOnce(r2Head(404))
         .mockResolvedValueOnce(new Response(null, { status: 200 }));
-      const harness = makeSyncTestHarness({ files: [], downloadBlob: new Blob(["v2-bytes"]), fetchImpl: fetchImpl as never });
-      harness.listMock
-        .mockResolvedValueOnce({ data: [syncFile("book.pdf")], error: null })
-        .mockResolvedValueOnce({ data: [{ ...syncFile("book.pdf"), metadata: { mimetype: "application/pdf", eTag: '"src-v2"' } }], error: null });
+      const harness = makeSyncTestHarness({
+        files: [syncFile("book.pdf")],
+        downloadBlob: new Blob(["v2-bytes"]),
+        sourceEtag: '"src-v2"',
+        fetchImpl: fetchImpl as never,
+      });
 
       const result = await runSync(harness);
 
       expect(result).toMatchObject({ uploaded: 0, failed: 1 });
-      expect(harness.downloadMock).toHaveBeenCalledWith("book.pdf");
+      expect(String(harness.sourceFetch.mock.calls[0][0])).toMatch(/\/book\.pdf$/);
       expect(fetchImpl).toHaveBeenCalledTimes(1);
-      expect(result.errors[0]).toMatchObject({ path: "book.pdf" });
+      expect(result.errors).toEqual([
+        { path: "book.pdf", error: "source changed between listing and download; re-run sync" },
+      ]);
+    });
+
+    it("refuses to write bytes when the download carries no ETag", async () => {
+      const fetchImpl = vi.fn().mockResolvedValueOnce(r2Head(404));
+      const harness = makeSyncTestHarness({
+        files: [syncFile("book.pdf")],
+        downloadBlob: new Blob(["bytes"]),
+        sourceEtag: "",
+        fetchImpl: fetchImpl as never,
+      });
+
+      const result = await runSync(harness);
+
+      expect(result).toMatchObject({ uploaded: 0, failed: 1 });
+      expect(result.errors).toEqual([{ path: "book.pdf", error: "Supabase download returned no ETag" }]);
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
     });
 
     it("refreshes an unversioned copy that has no source ETag recorded", async () => {
@@ -418,7 +442,7 @@ describe("sync-supabase-to-r2", () => {
       expect(result.alreadySynced).toBe(0);
       expect(result.skipped).toBe(1);
       expect(result.uploaded).toBe(0);
-      expect(harness.downloadMock).not.toHaveBeenCalled();
+      expect(harness.sourceFetch).not.toHaveBeenCalled();
     });
 
     it("handles R2 HEAD network/auth errors gracefully without downloading or uploading", async () => {
@@ -436,7 +460,7 @@ describe("sync-supabase-to-r2", () => {
       expect(result.errors).toEqual([
         { path: "error-file.pdf", error: "R2 HEAD check failed: Connection refused" },
       ]);
-      expect(harness.downloadMock).not.toHaveBeenCalled();
+      expect(harness.sourceFetch).not.toHaveBeenCalled();
     });
 
     it("throws when both SUPABASE_SERVICE_ROLE_KEY and SUPABASE_SECRET_KEY are unset", async () => {
@@ -533,11 +557,10 @@ describe("sync-supabase-to-r2", () => {
         downloadBlob: new Blob(["bytes"]),
         fetchImpl: fetchImpl as never,
       });
-      harness.downloadMock.mockImplementation((path: string) =>
-        path === "bad.pdf"
-          ? Promise.reject(new Error("socket reset"))
-          : Promise.resolve({ data: new Blob(["bytes"]), error: null }),
-      );
+      harness.sourceFetch.mockImplementation(async (url: string) => {
+        if (url.endsWith("/bad.pdf")) throw new Error("socket reset");
+        return new Response(new Blob(["bytes"]), { status: 200, headers: { etag: SRC_ETAG } });
+      });
 
       const result = await runSync(harness);
 
