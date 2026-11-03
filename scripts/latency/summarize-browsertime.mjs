@@ -23,8 +23,13 @@ if (!inFile || !outDir) {
   process.exit(2);
 }
 
-// Clear expected outputs from an earlier run before anything else can fail. Unrelated files are left alone.
-for (const id of PAGE_IDS.values()) rmSync(join(outDir, `${id}.json`), { force: true });
+// Removes the expected output for every page id. Unrelated files in the directory are left alone.
+const clearExpectedOutputs = (dir) => {
+  for (const id of PAGE_IDS.values()) rmSync(join(dir, `${id}.json`), { force: true });
+};
+
+// Clear expected outputs from an earlier run before anything else can fail.
+clearExpectedOutputs(outDir);
 
 const location = process.env.LATENCY_LOCATION ?? "";
 if (!/^[a-z0-9-]{1,40}$/.test(location)) {
@@ -113,7 +118,7 @@ for (const page of pages) {
   });
   if (!complete) continue;
   const metric = (m) => round(median(samples.map((s) => s[m])));
-  summaries.push({
+  const summary = {
     schema: 1,
     source: "sitespeed.io",
     page: id,
@@ -126,7 +131,15 @@ for (const page of pages) {
       largestContentfulPaint: metric("largestContentfulPaint"),
       pageLoadTime: metric("pageLoadTime"),
     },
-  });
+  };
+  // A finite sample can still round to a non-finite value: rounding multiplies by 10 first, so 1e308 overflows.
+  // JSON.stringify writes Infinity as null, so reject it here, before any file is written.
+  const nonFinite = METRICS.filter((m) => !Number.isFinite(summary.metrics[m]));
+  if (nonFinite.length > 0) {
+    errors.push(`${id}: ${nonFinite.join(", ")} is not finite after rounding`);
+    continue;
+  }
+  summaries.push(summary);
 }
 
 // Fail when any expected page is missing, so a renamed URL cannot pass the job with partial data.
@@ -140,7 +153,14 @@ if (errors.length > 0) {
 }
 
 mkdirSync(outDir, { recursive: true });
-for (const s of summaries) {
-  writeFileSync(join(outDir, `${s.page}.json`), JSON.stringify(s));
-  console.log(`${s.page}: n=${s.samples} ttfb=${s.metrics.ttfb} fcp=${s.metrics.firstContentfulPaint} lcp=${s.metrics.largestContentfulPaint} load=${s.metrics.pageLoadTime}`);
+try {
+  for (const s of summaries) {
+    writeFileSync(join(outDir, `${s.page}.json`), JSON.stringify(s));
+    console.log(`${s.page}: n=${s.samples} ttfb=${s.metrics.ttfb} fcp=${s.metrics.firstContentfulPaint} lcp=${s.metrics.largestContentfulPaint} load=${s.metrics.pageLoadTime}`);
+  }
+} catch (err) {
+  // A write can fail after earlier pages are already on disk. Remove every expected output so no partial set is left.
+  clearExpectedOutputs(outDir);
+  console.error(`cannot write summaries to ${outDir}: ${err.code ?? err.message}; removed partial output`);
+  process.exit(1);
 }

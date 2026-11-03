@@ -30,7 +30,8 @@ const URLS = [
 
 // `input` is JSON-encoded unless it is a string, which is written as-is.
 // `seed` maps file names to contents placed in the output directory before the run.
-function run(input, { env = {}, seed = {} } = {}) {
+// `preload` is module source loaded with --import before the script, for fault injection.
+function run(input, { env = {}, seed = {}, preload = null } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "latency-test-"));
   const inFile = join(dir, "browsertime.json");
   const out = join(dir, "out");
@@ -39,7 +40,13 @@ function run(input, { env = {}, seed = {} } = {}) {
     mkdirSync(out);
     for (const [name, body] of Object.entries(seed)) writeFileSync(join(out, name), body);
   }
-  const res = spawnSync(process.execPath, [script, inFile, out], {
+  const nodeArgs = [];
+  if (preload !== null) {
+    const preloadFile = join(dir, "preload.mjs");
+    writeFileSync(preloadFile, preload);
+    nodeArgs.push("--import", preloadFile);
+  }
+  const res = spawnSync(process.execPath, [...nodeArgs, script, inFile, out], {
     env: { ...process.env, LATENCY_LOCATION: "gha-test", LATENCY_RUN_AT: "1", ...env },
     encoding: "utf8",
   });
@@ -208,4 +215,41 @@ test("reads first contentful paint from paintTiming when firstPaint is absent", 
   assert.equal(m.firstContentfulPaint, 400);
   assert.equal(m.largestContentfulPaint, 1000);
   assert.equal(m.pageLoadTime, 500);
+});
+
+// 1e308 is finite, but rounding multiplies by 10 first, which overflows to Infinity. JSON.stringify writes
+// Infinity as null, so the run must fail instead of publishing a null metric.
+test("exits 1 and writes nothing when a finite metric overflows during rounding", () => {
+  const huge = (u) => pageWithTimings(u, [{
+    ttfb: 1e308,
+    firstPaint: { firstPaint: 300 },
+    largestContentfulPaint: { renderTime: 900 },
+    loadEventEnd: 400,
+  }]);
+  const r = run(URLS.map(huge));
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /expanpress-home: ttfb is not finite after rounding/);
+  assert.deepEqual(r.files, []);
+});
+
+// Fails the second writeFileSync call with ENOSPC, after the first summary is already on disk.
+const FAIL_SECOND_WRITE = `
+import fs from "node:fs";
+import { syncBuiltinESMExports } from "node:module";
+const realWrite = fs.writeFileSync;
+let calls = 0;
+fs.writeFileSync = (...args) => {
+  calls += 1;
+  if (calls === 2) { const e = new Error("injected write failure"); e.code = "ENOSPC"; throw e; }
+  return realWrite(...args);
+};
+syncBuiltinESMExports();
+`;
+
+// A write can fail after earlier pages are already written. The run must then leave no partial set behind.
+test("removes every written summary when a later write fails", () => {
+  const r = run(URLS.map((u, i) => page(u, 100 + i)), { preload: FAIL_SECOND_WRITE });
+  assert.equal(r.status, 1);
+  assert.match(r.stderr, /ENOSPC/);
+  assert.deepEqual(r.files, []);
 });
