@@ -175,6 +175,15 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
     expect(resolveCalls).toContainEqual(["paddle-only-alias", "polar"]);
   });
 
+  it("a Paddle sale looks up its alias under paddle, not a fixed provider", async () => {
+    setnx.mockResolvedValue(1);
+    resolveCalls.length = 0;
+    await processBillingWebhookUseCase({ headers: {}, body: "" }, [
+      adapter({ ...SALE, providerName: "paddle", productId: "paddle-alias-2", saleId: "sale_paddle_1" }),
+    ]).catch(() => undefined);
+    expect(resolveCalls).toContainEqual(["paddle-alias-2", "paddle"]);
+  });
+
   beforeEach(() => {
     setnx.mockReset();
     supa.lookupResult = { data: null, error: null };

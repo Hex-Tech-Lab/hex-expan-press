@@ -4,7 +4,7 @@ import { resolveProductByAlias } from "../src/webhook_core";
 
 // Records the OR filter the product lookup sends. A Paddle ID must only be matchable by a Paddle sale.
 const seen: string[] = [];
-const row = { store_product_id: "duane_retirement_playbook_v1", currency: "USD", provider: "polar", creators: { handle: "duane" } };
+const row = { store_product_id: "duane_retirement_playbook_v1", currency: "USD", provider: "paddle", creators: { handle: "duane" } };
 
 function fakeClient() {
   return {

@@ -45,7 +45,8 @@ export function getSecret(provider: ProviderName): string | undefined {
  * unvalidated alias could misparse the filter (400) or append attacker-chosen
  * conditions. The charset mirrors the checkout route's SAFE_PRODUCT_RE
  * ([A-Za-z0-9_-]); anything else resolves to null (the caller then throws
- * "Unknown product_id" → 422, a terminal rejection: the sale is quarantined, not retried).
+ * "Unknown product_id" → 422, a terminal rejection: the sale is quarantined, not retried). A row that exists but
+ * cannot sell yet throws, so the provider retries.
  *
  * Fail closed: an unconfigured Supabase admin client throws (never returns an
  * empty success) — the provider will redeliver once the DB is reachable.
@@ -94,9 +95,11 @@ export async function resolveProductByAlias(alias: string, providerName: string)
     provider: string | null;
     creators?: { handle?: string } | null;
   };
-  // Parity with the legacy index: products on unregistered providers never sold.
+  // The row exists but cannot sell yet: its provider is not enabled, or it lacks a store id or creator handle.
+  // That is retryable on purpose. A re-enabled provider or a repaired row makes the next delivery succeed, and
+  // the sale stays unrecorded until then. Returning null here would quarantine it permanently (422).
   if (!row.store_product_id || !row.creators?.handle || !isRegisteredPaymentProvider(row.provider ?? "")) {
-    return null;
+    throw new Error(`webhook: product '${alias}' exists but cannot sell yet (provider ${row.provider ?? "none"} not enabled, or product incomplete)`);
   }
   return { productId: row.store_product_id, creatorHandle: row.creators.handle, currency: row.currency };
 }
