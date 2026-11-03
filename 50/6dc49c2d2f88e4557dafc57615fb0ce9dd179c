@@ -1,0 +1,33 @@
+src/adapters/storage/r2.adapter.ts
+  s_6625bc67577472::t_4d40396442f43c 518
+payments/src/webhook_core.ts
+  s_6625bc67577472::t_4d40396442f43c 48
+src/use_cases/billing/process_billing_webhook.ts
+  s_6625bc67577472::t_4d40396442f43c 489-490
+src/use_cases/billing/__tests__/process_billing_webhook.test.ts
+  s_6625bc67577472::t_15e3ea65209869 1,128-129,134-137,167-177
+supabase/migrations/20261028082156_products_paddle_product_id_unique.sql
+  s_6625bc67577472::t_7e85130e4125ae 3
+docs/adr/0063-r2-sync-freshness-contract.md
+  s_6625bc67577472::t_4d40396442f43c 31
+scripts/sync-supabase-to-r2.ts
+  s_6625bc67577472::t_4d40396442f43c 6,93
+docs/adr/proposed/generation-allocation.md
+  s_6625bc67577472::t_7e85130e4125ae 19-20,41,62,65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "506dc49c2d2f88e4557dafc57615fb0ce9dd179c",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
