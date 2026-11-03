@@ -108,3 +108,69 @@ Note on the workflow: `.github/workflows/real-browser-latency.yml` on master sti
 - **Repo state.** On master (`77cc649`) no workflow linter is configured: no actionlint, yamllint or zizmor reference in `.github/`, `scripts/` or `package.json` (CONFIRMED). Branch `ci/lint-workflows` (`abb176b`) adds an actionlint workflow at `.github/workflows/lint-ci.yml`; it is not on master. ESLint covers `src` and `payments` only.
 - **Rule.** Treat a workflow change that calls an external tool as untested until a live run passes.
 - **Evidence.** Run IDs above (CONFIRMED). The claim about what actionlint does and does not check: UNVERIFIED (stated in the source facts; not reproduced here).
+
+## P13. A workflow file in the PR can disable its own gates
+
+- **What happened.** The lint gate on PR 117 runs the workflow file from the PR. A PR can edit `lint-ci.yml` to drop or neutralise the gitleaks and ruff jobs, and the run still passes. Cubic raised this as P1 and Sourcery as Medium on the same root cause.
+- **Origin.** PR 117 threads `PRRT_kwDOUrokqs6yfTcc` (Cubic P1, open at triage) and `PRRT_kwDOUrokqs6yfRkt` (Sourcery Medium, open at triage). The header of `.github/workflows/lint-ci.yml` (lines 10-12) states the limit.
+- **Lesson or rule.** A check that the PR defines cannot enforce itself. Enforcement comes from branch protection: list the gates as required status checks, so a job the PR removes leaves a missing required check and blocks the merge. A base-controlled workflow (`pull_request_target`, running no PR code) is the code-side follow-up. Until both exist, a gate added by a PR is advisory for that PR. This is an owner action.
+
+## P14. A fallback range must fail closed
+
+- **What happened.** Two PR 117 gates fell back to a narrower range when the expected one was not available. Gitleaks used `HEAD --not --remotes=origin` when the push had no usable before SHA. Once `origin/<branch>` points at HEAD, that range is empty and the job passed with nothing scanned. Ruff fell back to `HEAD~1`, which linted only the last commit of a multi-commit push.
+- **Origin.** Sourcery High and Cubic P1 on the gitleaks range (`PRRT_kwDOUrokqs6yfRko`, `PRRT_kwDOUrokqs6yfTcW`, resolved by `f4f8bc4`). Cubic P2 on the ruff fallback (`PRRT_kwDOUrokqs6yfTcl`, resolved by `1cdfef8`). Reproduced in a scratch repo: with `refs/remotes/origin/feature` at HEAD, `git log HEAD --not --remotes=origin` lists 0 commits and a full scan lists 2.
+- **Lesson or rule.** When the trusted range cannot be computed, scan the full reachable history or exit 1. Never silently choose a smaller range. Where a scan depends on a range, check that the range is non-empty before reporting success.
+
+## P15. A gate reads its config from the trusted ref, not the PR checkout
+
+- **What happened.** The gitleaks step read `.gitleaks.toml` from the PR checkout, so a PR could add permissive rules or allowlists next to a secret. A PR-added `.gitleaksignore` would suppress its own leak. Ruff could be switched off by a PR's ruff config.
+- **Origin.** Sourcery High `PRRT_kwDOUrokqs6yfRk1` and Cubic P1 `PRRT_kwDOUrokqs6yfTca` (both resolved by `abb176b`). Cubic P1 `PRRT_kwDOUrokqs6ypygj` on `.gitleaksignore` (resolved by `1cdfef8`). Ruff `--isolated` and `--ignore-noqa` (`2ba7927`).
+- **Lesson or rule.** Read every gate's config from the base ref, or ignore the PR's copy. Turn off config discovery (`--config`, `--isolated`). Delete any PR-supplied ignore file before the scan. An inline `# noqa` or `gitleaks:allow` comment is not a configuration.
+
+## P16. Match every extension the platform accepts
+
+- **What happened.** The actionlint step globbed `*.yml` only, so `.yaml` workflows were never checked by actionlint or ShellCheck. GitHub accepts both extensions.
+- **Origin.** Sourcery Medium `PRRT_kwDOUrokqs6yfRk8` and Cubic P2 `PRRT_kwDOUrokqs6yfTcn`. Both resolved by `1cdfef8`, which uses `-name '*.yml' -o -name '*.yaml'`.
+- **Lesson or rule.** For a gate, list every extension the tool or platform accepts before writing the glob. A glob that matches one of two valid extensions skips the other without an error.
+
+## P17. Keep one concern in one PR
+
+- **What happened.** PR 117 is a lint-gate PR, but its branch carried five commits for the real-browser latency workflow and its summarizer: `c8a7d08`, `5526954`, `673b34b`, `74dea50` and `1ad8df8`. Their review threads were about latency code, not about the lint gates.
+- **Origin.** The five commits (`git log --oneline 2ba7927..HEAD` on `ci/lint-workflows`, before the revert). The revert commit `b7c3eca` removes them and restores the lint-only diff against master.
+- **Lesson or rule.** Before a PR is pushed, compare `git diff --stat origin/master...HEAD` with the PR title. Move any unrelated commit to its own branch first. A branch that carries two concerns needs two reviews.
+
+## P18. A comment must not claim more than the code enforces
+
+- **What happened.** The real-browser workflow comment said the signing key stayed out of argv, which read as a stronger protection than the code gave. The key was still in the Node process environment. Cubic P3 `PRRT_kwDOUrokqs6yxxZJ` (resolved) asked for the claim to be narrowed.
+- **Origin.** Cubic P3 thread on `real-browser-latency.yml`. Commit `1ad8df8` narrowed the claim; that file is removed from the lint branch by `b7c3eca`.
+- **Lesson or rule.** State a guarantee in a comment only where the code gives it, and state the limit next to it. A reviewer reads the comment as a claim.
+
+## P19. A test gate must count passes, not only the exit code
+
+- **What happened.** An empty explicit test file passes under `node --test`. The CI step could therefore report success after the summarizer's tests were emptied, with exit 0.
+- **Origin.** Cubic P2 `PRRT_kwDOUrokqs6yxKrU` on `.github/workflows/ci.yml` (resolved). Commit `fcb682b` makes the step require at least 22 passing tests and zero failures.
+- **Lesson or rule.** A test step that can pass with zero tests must set a minimum pass count and fail below it. An exit code alone does not show that any test ran.
+
+## P20. A finite number can serialise as null after rounding
+
+- **What happened.** The summarizer rounded with `Math.round(v * 10) / 10`. Multiplying by 10 first overflows values near `Number.MAX_VALUE` to `Infinity`. `JSON.stringify` writes `Infinity` as `null`. The run exited 0 and wrote `null` metrics. Reproduced on the pre-fix head `b3cc6be` with a browsertime input of 1e308.
+- **Origin.** Cubic P2 `PRRT_kwDOUrokqs6yxKrf` on `scripts/latency/summarize-browsertime.mjs` (open at triage). Fixed in `393919e`, with the new test "exits 1 and writes nothing when a finite metric overflows during rounding".
+- **Lesson or rule.** After an arithmetic step that can overflow, check `Number.isFinite` on the value that is written, not only on the input. A check on the input proves nothing about the output.
+
+## P21. Cleanup must cover a failure after the first write
+
+- **What happened.** The summarizer cleared old output at startup, but it did not clear output when a write failed partway. With the second `writeFileSync` made to throw ENOSPC, the run exited 1 and left `expanpress-home.json` on disk, which contradicted the header's promise. Reproduced on `b3cc6be`.
+- **Origin.** Cubic P2 `PRRT_kwDOUrokqs6yxKrq` on `scripts/latency/summarize-browsertime.mjs` (open at triage). Fixed in `393919e`: a write failure removes every expected output before exit 1.
+- **Lesson or rule.** If a run promises no partial output, the cleanup must run on every failure path after the first write, not only before the run starts.
+
+## P22. Check that a failure fixture fails where the test says it does
+
+- **What happened.** A repro of the write-failure case put a directory at a summary's output path. The run stopped at startup with `ERR_FS_EISDIR` from `rmSync`, before any write. That fixture would not have tested partial output at all. The shipped test injects ENOSPC on the second write with a preload module (`--import`), and the red run showed it failing before the fix.
+- **Origin.** The scratch repro on `b3cc6be`, and the red-then-green run of the two new tests in `393919e` (22 pass and 2 fail before the fix; 24 pass after it).
+- **Lesson or rule.** Before a failure test is trusted, check that the failure is raised at the step it targets. Read the stack or the message of the red run. A fixture that fails earlier proves nothing about the later step.
+
+## P23. Ledger `ts` is the append time; the review time goes in `ts_claimed`
+
+- **What happened.** The backfill rows at `docs/agent_ledger.jsonl` lines 855-861 put the PR review time in `ts`. Ledger order then no longer shows when each entry was written, and the latest action is ambiguous.
+- **Origin.** Cubic P2 `PRRT_kwDOUrokqs6yyS82` on `docs/agent_ledger.jsonl` line 855 (open at triage). Fixed by appending a corrective row with `ts` set to the append time and `ts_claimed` set to the historical time. Existing lines are not edited.
+- **Lesson or rule.** Set `ts` with `date -u` at the moment of the append. Put any historical or claimed time in `ts_claimed` only. Never edit a ledger line to correct it; append a row that says what changed.
