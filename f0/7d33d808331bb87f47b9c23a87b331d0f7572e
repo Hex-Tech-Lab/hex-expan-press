@@ -1,0 +1,26 @@
+src/use_cases/billing/process_billing_webhook.ts
+  s_6625bc67577472::t_6e65a11473fa88 489
+docs/adr/proposed/generation-allocation.md
+  s_6625bc67577472::t_88bf9f808a49b8 122
+  s_6625bc67577472::t_6ff49f2aed3ab2 10,12,19-21,36,41,49,56,60,62-63,65,95
+payments/test/webhook_alias_provider_scope.test.ts
+  s_6625bc67577472::t_6e65a11473fa88 35-51
+payments/src/webhook_core.ts
+  s_6625bc67577472::t_6e65a11473fa88 4,103-104
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f07d33d808331bb87f47b9c23a87b331d0f7572e",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
