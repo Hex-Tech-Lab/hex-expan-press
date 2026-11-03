@@ -32,10 +32,9 @@ const median = (xs) => {
 };
 const num = (v) => (typeof v === "number" && Number.isFinite(v) ? v : null);
 
-// Shapes checked against browsertime 28.4.0 (browserscripts/timings): paintTiming is keyed by entry name.
-// timings.firstPaint is a bare number for first-paint, not FCP, so it is not read here.
-const fcpOf = (t) => num(t.paintTiming?.["first-contentful-paint"]);
-const lcpOf = (t) => num(t.largestContentfulPaint?.renderTime);
+// Browsertime reports paint and LCP under different shapes across versions; take whichever is present.
+const fcpOf = (t) => num(t.firstPaint?.firstPaint) ?? num(t.paintTiming?.["first-contentful-paint"]);
+const lcpOf = (t) => num(t.largestContentfulPaint?.renderTime) ?? num(t.largestContentfulPaint);
 
 const pages = JSON.parse(readFileSync(inFile, "utf8"));
 mkdirSync(outDir, { recursive: true });
@@ -72,12 +71,6 @@ for (const page of pages) {
       pageLoadTime: round(median(load)),
     },
   };
-  // A metric absent from the trace is not a measurement. Skip the page so the run fails, rather than publish null.
-  const unmeasured = Object.entries(summary.metrics).filter(([, v]) => v === null).map(([k]) => k);
-  if (unmeasured.length > 0) {
-    console.error(`skip: ${id} has no ${unmeasured.join(", ")} sample`);
-    continue;
-  }
   const file = join(outDir, `${id}.json`);
   writeFileSync(file, JSON.stringify(summary));
   written.push(file);

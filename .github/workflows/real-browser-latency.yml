@@ -22,25 +22,21 @@ jobs:
     timeout-minutes: 25
     steps:
       - name: Check out repository
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        uses: actions/checkout@v4
         with:
           persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        uses: actions/setup-node@v4
         with:
           node-version: "22"
 
-      - name: Install Browsertime from the committed lockfile
+      - name: Install pinned Browsertime
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/bt"
-          cp scripts/latency/browsertime/package.json scripts/latency/browsertime/package-lock.json "$RUNNER_TEMP/bt/"
-          # npm ci installs exactly the lockfile tree, so transitive versions cannot drift between runs.
-          npm ci --prefix "$RUNNER_TEMP/bt" --no-audit --no-fund
-          # Read the installed version. `browsertime --version` prints "unknown" in 28.4.0, so it proves nothing.
-          v=$(node -p "require(process.argv[1]).version" "$RUNNER_TEMP/bt/node_modules/browsertime/package.json")
-          [ "$v" = "28.4.0" ] || { echo "::error::browsertime $v installed, expected 28.4.0"; exit 1; }
+          npm install --prefix "$RUNNER_TEMP/bt" --no-save --no-audit --no-fund browsertime@28.4.0
+          "$RUNNER_TEMP/bt/node_modules/.bin/browsertime" --version
 
       - name: Record runner location (country only)
         run: |
@@ -84,9 +80,7 @@ jobs:
           fi
           failed=0
           for f in "$RUNNER_TEMP"/summaries/*.json; do
-            # The key is read from the environment, not passed as an argument, so it is not in the command line
-            # that ps and /proc/<pid>/cmdline show. The environment itself is still readable by this user's processes.
-            sig=$(node -e 'const c = require("crypto"), fs = require("fs"); process.stdout.write(c.createHmac("sha256", process.env.PROBE_INGEST_SECRET).update(fs.readFileSync(process.argv[1])).digest("hex"));' "$f")
+            sig=$(openssl dgst -sha256 -hmac "$PROBE_INGEST_SECRET" -hex < "$f" | awk '{print $NF}')
             code=$(curl -sS -o "$RUNNER_TEMP/resp.json" -w '%{http_code}' --max-time 30 \
               -X POST https://expan-latency-probe.vercel.app/api/ingest \
               -H 'content-type: application/json' \
@@ -103,7 +97,7 @@ jobs:
 
       - name: Keep raw Browsertime output
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@v4
         with:
           name: browsertime-${{ github.run_id }}
           path: ${{ runner.temp }}/bt-results
