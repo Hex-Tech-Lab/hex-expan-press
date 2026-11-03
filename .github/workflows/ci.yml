@@ -47,6 +47,8 @@ jobs:
             echo "::error::latency summarizer test gate failed"
             exit 1
           fi
+      # vitest does not collect scripts/latency/*.test.mjs (node:test files), so run them here explicitly.
+      - run: node --test scripts/latency/*.test.mjs
       - run: pnpm --dir web run build
         env:
           NEXT_TELEMETRY_DISABLED: 1
