@@ -6,6 +6,17 @@ import type { NextRequest } from "next/server";
 import { POST as billingPost } from "../route";
 import { standardWebhookHeaders } from "./support/webhook_signer";
 
+// Hermetic: a local data/settings/providers.json must not change the switch, and the sales ledger must never be
+// written (CLAUDE.md: tests must not write the production ledger). The ledger mock lets the test assert no write.
+vi.mock("node:fs", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("node:fs")>();
+  return { ...actual, existsSync: () => false };
+});
+vi.mock("../../../../../../payments/src/ledger", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../../../../../payments/src/ledger")>();
+  return { ...actual, appendSale: vi.fn(async () => { throw new Error("ledger written while the rail is switched off"); }) };
+});
+
 // The switched-off audit insert goes to a stub that succeeds, so the refusal can be a terminal 400.
 vi.mock("@supabase/supabase-js", () => ({
   createClient: () => ({
@@ -41,5 +52,7 @@ describe("Polar switched off (launch switch)", () => {
     const res = await billingPost(asNextRequest(new Request(URL_, { method: "POST", headers: signed(PAYLOAD), body: PAYLOAD })));
     expect(res.status).toBe(400); // refused by the switch, not by payload validation (the payload is a complete paid order)
     expect(await res.json()).toEqual({ ok: false, error: "Bad Request" });
+    const ledger = await import("../../../../../../payments/src/ledger");
+    expect(vi.mocked(ledger.appendSale)).not.toHaveBeenCalled();
   });
 });

@@ -198,7 +198,10 @@ async function refuseSwitchedOffDelivery(
   if (!outcome.ok) return unavailable();
   const result = outcome.r;
   if (!result.isValid) {
-    if (result.httpStatus !== undefined && result.httpStatus >= 500) return unavailable();
+    if (result.httpStatus !== undefined && result.httpStatus >= 500) {
+      console.error(`[billing-webhook] switched-off rail ${rail.providerName} verifier server fault (httpStatus=${result.httpStatus}) — retrying, nothing recorded`);
+      return unavailable();
+    }
     if (result.httpStatus !== 400) return NextResponse.json({ ok: false, error: "Bad Request" }, { status: 400 });
   }
   const payloadSha256 = createHash("sha256").update(bodyBuffer).digest("hex");
