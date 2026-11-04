@@ -1,0 +1,41 @@
+web/app/api/billing/webhook/verifiers.ts
+  s_6520ca5ba81489::t_84b64b3ceb70f0 8-9
+src/adapters/payments/polar.adapter.ts
+  s_6520ca5ba81489::t_4f09bb3ca4aae9 28
+  s_6520ca5ba81489::t_e03a7989db77cc 59-61
+  s_6520ca5ba81489::t_de1a7e3bcb8358 142
+  s_6520ca5ba81489::t_c60e37eb77d724 91-96
+payments/src/providers/fastspring.ts
+  s_6520ca5ba81489::t_164361e6c3df39 33
+  s_6520ca5ba81489::t_5faaca088ccf74 30
+src/use_cases/billing/process_billing_webhook.ts
+  s_6520ca5ba81489::t_609b993718ab5c 239-240
+web/app/api/billing/webhook/handler.ts
+  s_6520ca5ba81489::t_327953ee6a9ddd 180
+src/adapters/payments/__tests__/polar.adapter.test.ts
+  s_6520ca5ba81489::t_cd25ba9ecf6d49 142-170
+src/use_cases/billing/__tests__/process_billing_webhook.test.ts
+  s_6520ca5ba81489::t_15151545457acd 761
+web/app/api/billing/checkout/route.ts
+  s_6520ca5ba81489::t_3da2b4a56c6f8e 230-236,238
+  s_6520ca5ba81489::t_d8ad50d2a6b69e 23
+  s_6520ca5ba81489::t_c5b7a38dbea9a4 237
+docs/agent_ledger.jsonl
+  s_6520ca5ba81489::t_6b6f4436b7c80a 900
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c1462d5a8d7b85e463650b14caddd584e6b267e4",
+  "prompts": {},
+  "sessions": {
+    "s_6520ca5ba81489": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3cfee2a0-c80d-4993-a7f0-42827c18b26c",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
