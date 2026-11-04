@@ -1,0 +1,39 @@
+web/app/api/billing/webhook/__tests__/polar-switched-off.test.ts
+  s_6520ca5ba81489::t_880fee162a6c2f 7
+  s_6520ca5ba81489::t_f144a455205c32 24
+  s_6520ca5ba81489::t_d7694cf1051173 11-16
+docs/adr/0062-payment-rail-launch-switch.md
+  s_6520ca5ba81489::t_accd2fbab13f10 25
+  s_6520ca5ba81489::t_72c7e38b4efbd0 37-38
+  s_6520ca5ba81489::t_df4ea1d25fbcb9 19-20
+web/app/api/billing/webhook/handler.ts
+  s_6520ca5ba81489::t_c7ee7e982d333a 242,249
+  s_6520ca5ba81489::t_6fdeb8483d358c 187-202,204-206
+  s_6520ca5ba81489::t_204213a0bc4775 270-278
+  s_6520ca5ba81489::t_cb4bf3173fd548 259
+web/app/api/billing/webhook/__tests__/switched_off_manual_review.test.ts
+  s_6520ca5ba81489::t_1de2a6791498da 88-94
+  s_6520ca5ba81489::t_6a762022cfada4 85
+  s_6520ca5ba81489::t_ca633f679208e2 64-71,86
+  s_6520ca5ba81489::t_eba7c4fd5fd773 111-113,116-117
+  s_6520ca5ba81489::t_4fd7a8af88f0ca 17-21
+  s_6520ca5ba81489::t_6a4b9667b8c19d 87
+docs/agent_ledger.jsonl
+  s_6520ca5ba81489::t_0622f5e814c6cf 898
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b40bd2ae1eb569c30c521950ba956ced91978bbd",
+  "prompts": {},
+  "sessions": {
+    "s_6520ca5ba81489": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3cfee2a0-c80d-4993-a7f0-42827c18b26c",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
