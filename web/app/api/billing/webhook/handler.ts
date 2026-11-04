@@ -177,7 +177,7 @@ async function handleWebhook(request: NextRequest, adapters: WebhookAdapters, sw
  *  recorded (WEBHOOK_PROVIDER_SWITCHED_OFF, shown in the admin queue) and then answered with a terminal 400, so the
  *  provider stops retrying a rail we are not taking. If that record cannot be written, the delivery is the only
  *  trace of a real sale, so the answer is a 503 with Retry-After and the provider redelivers. An unverified
- *  delivery gets a 400 and writes no row. A verifier that throws counts as unverified. */
+ *  delivery gets a 400 and writes no row. A verifier that throws is logged and answered 503 (retry), never a 400. */
 async function refuseSwitchedOffDelivery(
   rail: WebhookAdapters[number],
   headers: Record<string, string | string[] | undefined>,

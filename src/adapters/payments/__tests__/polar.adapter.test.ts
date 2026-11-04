@@ -139,6 +139,35 @@ describe("PolarAdapter signature enforcement is unconditional", () => {
   });
 });
 
+// Review round (cubic/CodeRabbit): an empty sale id and a repeated header are refused, not mis-keyed or thrown.
+describe("PolarAdapter review fixes", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("refuses a sale with an empty id (it would collapse idempotency and ledger lookups onto one key)", async () => {
+    vi.stubEnv("POLAR_WEBHOOK_SECRET", KEY);
+    const body = JSON.stringify({ type: "order.paid", data: { id: "", paid: true, total_amount: 900, currency: "usd", created_at: "2026-11-04T00:00:00.000Z", customer: { email: "b@example.com" }, product_id: "p" } });
+    const res = await new PolarAdapter().parseAndValidateWebhook(signed(body), body);
+    expect(res.isValid).toBe(false);
+    expect((res as { httpStatus?: number }).httpStatus).toBe(400);
+  });
+
+  it("a repeated (array-valued) webhook header is a controlled 401, not a thrown error", async () => {
+    vi.stubEnv("POLAR_WEBHOOK_SECRET", KEY);
+    const body = refund({});
+    const h = signed(body);
+    const res = await new PolarAdapter().parseAndValidateWebhook({ ...h, "webhook-id": [h["webhook-id"], "dup"] } as never, body);
+    expect(res.isValid).toBe(false);
+    expect((res as { httpStatus?: number }).httpStatus).toBe(401);
+  });
+
+  it("carries the refund currency so the ledger's mismatch guard can see a cross-currency refund", async () => {
+    vi.stubEnv("POLAR_WEBHOOK_SECRET", KEY);
+    const res = await new PolarAdapter().parseAndValidateWebhook(signed(refund({ currency: "eur" })), refund({ currency: "eur" }));
+    expect(res.isValid).toBe(true);
+    expect((res as { event: RefundIssuedEvent }).event.currency).toBe("EUR");
+  });
+});
+
 // A correctly signed body that is not JSON is permanent: 400, so the provider stops retrying it.
 describe("PolarAdapter non-JSON body with a valid signature", () => {
   afterEach(() => vi.unstubAllEnvs());

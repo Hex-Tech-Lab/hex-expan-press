@@ -5,8 +5,8 @@ import { fungiesProvider } from "../../../../../payments/src/providers/fungies";
 import { isEnabledPaymentProvider } from "../../../../../payments/src/settings_registry";
 
 // Every provider with a reviewed verifier is built here. The launch switch (providers.json "enabled", or the
-// inline defaults) decides which ones are offered a request. A switched-off provider's verifier is never offered
-// a request, so its signature is not claimed and the request is refused as unverified, as an unknown provider is.
+// inline defaults) decides which ones are offered a request. A switched-off provider's verifier is offered a request
+// only to recognise a signed delivery for manual-review recording (switchedOffVerifiers). It never processes a sale.
 /** Every provider with a verifier here, switched on or not. */
 export function allVerifiers() {
   return [new PolarAdapter(), new PaddleAdapter(), new LegacyPaymentAdapterWrapper(fungiesProvider)];

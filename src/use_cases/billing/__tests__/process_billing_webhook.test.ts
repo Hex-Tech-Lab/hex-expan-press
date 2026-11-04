@@ -758,7 +758,7 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
     expect(supa.auditInserts).toHaveLength(1);
     expect(supa.auditInserts[0]).toMatchObject({
       event: "MANUAL_REVIEW_REQUIRED_REFUND",
-      details: expect.objectContaining({ reason: "refund_not_settled", sale_id: "sale_unsettled", refund_id: "rf_pending", refund_cents: null }),
+      details: expect.objectContaining({ reason: "refund_not_settled", sale_id: "sale_unsettled", refund_id: "rf_pending", refund_cents: 3900 }),
     });
     // Only the sale row exists: the unsettled refund never reached the ledger.
     const rows = readFileSync(salesFilePath, "utf8").split(/\r?\n/).filter(Boolean);

@@ -25,7 +25,7 @@ import { GLOBAL } from "../../../payments/src/settings_registry.ts";
 const PolarSaleSchema = z.object({
   type: z.enum(["order.created", "order.paid"]),
   data: z.object({
-    id: z.string(),
+    id: z.string().min(1), // an empty sale id would collapse idempotency and ledger lookups onto one key
     product_id: z.string().optional(),
     product: z.object({ id: z.string() }).optional(),
     total_amount: z.number().int().nonnegative(), // cents
@@ -56,6 +56,9 @@ const PolarRefundDataSchema = z
     // parsed and surfaced as unsettled, so manual review sees them; they are never applied to the ledger. A status
     // outside this set, or a missing one, fails schema validation (400).
     status: z.enum(["succeeded", "pending", "failed", "canceled"]),
+    // Refund currency, so the ledger's mismatch guard can see a cross-currency refund. Absent stays absent: the use
+    // case checks currency only when it is present, so a missing field does not reject a real refund.
+    currency: z.string().length(3).transform((c) => c.toUpperCase()).optional(),
     created_at: z.string().datetime().optional()
   })
   .refine(
@@ -85,9 +88,12 @@ export class PolarAdapter implements PaymentProviderPort {
     const secret = process.env.POLAR_WEBHOOK_SECRET;
     if (!secret) return { isValid: false, error: "POLAR_WEBHOOK_SECRET not configured", httpStatus: 500 };
 
-    const signatureStr = headers["webhook-signature"] as string;
-    const id = headers["webhook-id"] as string;
-    const ts = headers["webhook-timestamp"] as string;
+    // Standard Webhooks headers are single values. A repeated header arrives as an array: treat it as missing (401),
+    // instead of letting a string method throw on it.
+    const single = (v: string | string[] | undefined): string => (typeof v === "string" ? v : "");
+    const signatureStr = single(headers["webhook-signature"]);
+    const id = single(headers["webhook-id"]);
+    const ts = single(headers["webhook-timestamp"]);
 
     if (!signatureStr || !id || !ts) {
       return { isValid: false, error: "Missing Polar Standard Webhook headers (webhook-id, webhook-timestamp, webhook-signature)", httpStatus: 401 };
@@ -133,6 +139,7 @@ export class PolarAdapter implements PaymentProviderPort {
           // Gross refunded = net + tax, comparable to the sale's total_amount (tax-inclusive).
           totalCents: validated.data.amount + validated.data.tax_amount,
           settled: validated.data.status === "succeeded",
+          currency: validated.data.currency,
           occurredAt: validated.data.created_at || new Date().toISOString(),
           rawPayload: parsedJson
         };

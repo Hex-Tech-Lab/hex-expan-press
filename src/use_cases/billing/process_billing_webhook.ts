@@ -236,7 +236,8 @@ export async function processBillingWebhookUseCase(
             provider: refundEvent.providerName,
             sale_id: refundEvent.saleId,
             refund_id: refundEvent.refundId ?? null,
-            refund_cents: null,
+            // An unsettled refund still carries the amount Polar requested: keep it so the queue shows it.
+            refund_cents: refundEvent.settled === false ? (refundEvent.totalCents ?? null) : null,
             sale_cents: sale ? Math.round(sale.amount_usd * 100) : null,
             creator_id: sale?.creator_id ?? null,
             occurred_at: refundEvent.occurredAt,

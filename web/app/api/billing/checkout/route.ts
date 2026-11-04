@@ -20,7 +20,7 @@ interface CheckoutRail {
  * shim-bridged legacy handler; Sprint 15: rails come from the product_rails
  * table, not from repo JSON files). GET/HEAD only: resolves the product's
  * rail config from the Supabase product_rails table (no routable rail: 404;
- * Polar rows are never routed), and 302-redirects to the
+ * a rail whose provider is switched off is not routed), and 302-redirects to the
  * weighted-selected provider checkout URL via MatrixRouter, falling back to
  * the highest-weight rail if the router fails. Every source's checkout_url
  * passes one validation policy — raw value must be a string (non-string
@@ -227,8 +227,15 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     // A rail can take a buyer only if its provider is switched on AND has a verifier (a rail that cannot be verified
     // would refuse its own webhooks). The launch switch decides the first condition: an active row for a switched-off provider
     // is dropped here, so a product whose only active rows are switched off fails closed through the
-    // disable guard below. This replaces the old by-name drop of polar rows.
-    dbRails = activeRaw.filter((r) => typeof r.provider === "string" && isEnabledPaymentProvider(r.provider) && verifiedProviderNames().has(r.provider)).map(({ active: _active, ...rail }) => rail as CheckoutRail);
+    // disable guard below.
+    const verified = verifiedProviderNames();
+    dbRails = activeRaw
+      .filter((r) => typeof r.provider === "string" && isEnabledPaymentProvider(r.provider) && verified.has(r.provider))
+      .map((r) => {
+        const rail: Record<string, unknown> = { ...r };
+        delete rail.active; // the active flag is not part of a checkout rail
+        return rail as unknown as CheckoutRail;
+      });
     // The disable guard counts only WELL-FORMED rows (real product_rails rows
     // are objects). A malformed row is a data-integrity failure: an active one
     // is rejected with 500 by the active-rail check above, and it must never be
