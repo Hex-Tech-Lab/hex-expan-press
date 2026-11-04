@@ -2,13 +2,18 @@
 // verifier and config so it can be turned on by a settings change, but with the switch
 // off a delivery that would otherwise verify is refused and never reaches the ledger.
 import { describe, it, expect, afterEach, vi } from "vitest";
-import crypto from "node:crypto";
 import type { NextRequest } from "next/server";
 import { POST as billingPost } from "../route";
+import { standardWebhookHeaders } from "./support/webhook_signer";
 
 // The switched-off audit insert goes to a stub that succeeds, so the refusal can be a terminal 400.
 vi.mock("@supabase/supabase-js", () => ({
-  createClient: () => ({ from: () => ({ insert: () => ({ abortSignal: async () => ({ error: null }) }) }) }),
+  createClient: () => ({
+    from: () => ({
+      insert: () => ({ abortSignal: async () => ({ error: null }) }),
+      upsert: () => ({ abortSignal: async () => ({ error: null }) }),
+    }),
+  }),
 }));
 
 const asNextRequest = (req: Request): NextRequest => req as unknown as NextRequest;
@@ -16,10 +21,7 @@ const KEY = "polar-switched-off-test-key";
 const URL_ = "http://localhost:3000/api/billing/webhook";
 
 function signed(payload: string) {
-  const id = "whid_off_0001";
-  const ts = Math.floor(Date.now() / 1000).toString();
-  const sig = crypto.createHmac("sha256", Buffer.from(KEY, "utf8")).update(`${id}.${ts}.${payload}`).digest("base64");
-  return { "webhook-id": id, "webhook-timestamp": ts, "webhook-signature": `v1,${sig}`, "content-type": "application/json" };
+  return { ...standardWebhookHeaders(KEY, "whid_off_0001", payload), "content-type": "application/json" };
 }
 
 const PAYLOAD = JSON.stringify({

@@ -14,7 +14,11 @@ vi.mock("@supabase/supabase-js", () => ({
   createClient: () => ({
     from: () => ({
       insert: (row: Record<string, unknown>) => {
-        inserts.push(row);
+        inserts.push({ ...row, op: "insert" });
+        return { abortSignal: async () => ({ error: insertFails.on ? { message: "audit_log unavailable" } : null }) };
+      },
+      upsert: (row: Record<string, unknown>) => {
+        inserts.push({ ...row, op: "upsert" });
         return { abortSignal: async () => ({ error: insertFails.on ? { message: "audit_log unavailable" } : null }) };
       },
     }),
@@ -57,6 +61,14 @@ describe("switched-off rail: signed delivery is recorded for manual review", () 
     expect(String((inserts[0].details as { payload_sha256?: unknown }).payload_sha256)).toMatch(/^[0-9a-f]{64}$/);
   });
 
+  it("the row is keyed by rail and payload hash, so a redelivery cannot duplicate it", async () => {
+    await post(standardWebhookHeaders(KEY, "whid_off_mr_0007", PAYLOAD), PAYLOAD);
+    expect(inserts[0]).toMatchObject({
+      op: "upsert",
+      idempotency_key: expect.stringMatching(/^WEBHOOK_PROVIDER_SWITCHED_OFF:polar:[0-9a-f]{64}$/),
+    });
+  });
+
   it("the audit row stores a hash of the body, never the raw body (buyer PII)", async () => {
     await post(standardWebhookHeaders(KEY, "whid_off_mr_0002", PAYLOAD), PAYLOAD);
     expect(JSON.stringify(inserts[0])).not.toContain("buyer@example.com");
@@ -70,6 +82,16 @@ describe("switched-off rail: signed delivery is recorded for manual review", () 
     expect(res.status).toBe(503);
     expect(res.headers.get("Retry-After")).not.toBeNull();
     expect(await res.json()).toEqual({ ok: false, error: "Temporarily unavailable — retry" });
+    expect(inserts).toHaveLength(1); // the write was attempted, and it is the write that failed
+  });
+
+  // Signed by the provider but malformed (the verifier answers 400): it is authenticated, so it is recorded, then refused.
+  it("a correctly signed but malformed delivery for the off rail: recorded, then 400", async () => {
+    const bad = JSON.stringify({ type: "order.paid", data: { id: "ord_off_mr_bad" } });
+    const res = await post(standardWebhookHeaders(KEY, "whid_off_mr_0008", bad), bad);
+    expect(res.status).toBe(400);
+    expect(inserts).toHaveLength(1);
+    expect(inserts[0]).toMatchObject({ event: "WEBHOOK_PROVIDER_SWITCHED_OFF" });
   });
 
   it("a badly signed delivery for the off rail: 400, and NO row (unverified traffic writes nothing)", async () => {
@@ -86,10 +108,13 @@ describe("switched-off rail: signed delivery is recorded for manual review", () 
     expect(inserts).toHaveLength(0);
   });
 
-  it("with the Polar secret missing, a delivery for the off rail is still a terminal 400, not a retry loop (no 500)", async () => {
+  // The verifier answers 500 when POLAR_WEBHOOK_SECRET is missing: a server fault on a real delivery. It must be
+  // retried (503), not turned into a terminal 400 that drops the sale record.
+  it("with the Polar secret missing, a delivery for the off rail is 503 with Retry-After and writes nothing", async () => {
     vi.stubEnv("POLAR_WEBHOOK_SECRET", "");
     const res = await post(standardWebhookHeaders(KEY, "whid_off_mr_0005", PAYLOAD), PAYLOAD);
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(503);
+    expect(res.headers.get("Retry-After")).not.toBeNull();
     expect(inserts).toHaveLength(0);
   });
 });

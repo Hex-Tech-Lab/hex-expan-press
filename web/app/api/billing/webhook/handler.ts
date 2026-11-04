@@ -184,14 +184,26 @@ async function refuseSwitchedOffDelivery(
   body: string,
   bodyBuffer: Buffer,
 ): Promise<NextResponse> {
-  const verified = await rail.parseAndValidateWebhook(headers, body).then((r) => r.isValid, () => false);
-  if (!verified) {
-    return NextResponse.json({ ok: false, error: "Bad Request" }, { status: 400 });
+  const unavailable = () => NextResponse.json({ ok: false, error: "Temporarily unavailable — retry" }, { status: 503, headers: retryAfterHeaders() });
+  // The verifier's status decides the answer. 401 (bad signature or stale timestamp) and anything unclassified are
+  // unverified: a 400 and no row. A 5xx is a server-side fault (missing secret, internal error): retry, never a
+  // terminal 400. A 400 is signed but malformed: it is recorded like any verified delivery, then refused.
+  const outcome = await rail.parseAndValidateWebhook(headers, body).then(
+    (r) => ({ ok: true as const, r }),
+    (err: unknown) => {
+      console.error(`[billing-webhook] switched-off verifier ${rail.providerName} threw:`, err);
+      return { ok: false as const };
+    },
+  );
+  if (!outcome.ok) return unavailable();
+  const result = outcome.r;
+  if (!result.isValid) {
+    if (result.httpStatus !== undefined && result.httpStatus >= 500) return unavailable();
+    if (result.httpStatus !== 400) return NextResponse.json({ ok: false, error: "Bad Request" }, { status: 400 });
   }
-  const recorded = await auditTerminalBounded(headers, bodyBuffer, "provider_switched_off", "WEBHOOK_PROVIDER_SWITCHED_OFF");
-  if (!recorded) {
-    return NextResponse.json({ ok: false, error: "Temporarily unavailable — retry" }, { status: 503, headers: retryAfterHeaders() });
-  }
+  const payloadSha256 = createHash("sha256").update(bodyBuffer).digest("hex");
+  const recorded = await auditTerminalBounded(headers, bodyBuffer, "provider_switched_off", "WEBHOOK_PROVIDER_SWITCHED_OFF", `WEBHOOK_PROVIDER_SWITCHED_OFF:${rail.providerName}:${payloadSha256}`);
+  if (!recorded) return unavailable();
   return NextResponse.json({ ok: false, error: "Bad Request" }, { status: 400 });
 }
 
@@ -227,13 +239,14 @@ async function auditTerminalBounded(
   bodyBuffer: Buffer,
   reason: string,
   event: TerminalAuditEvent,
+  idempotencyKey?: string,
 ): Promise<boolean> {
   const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<boolean>((resolve) => {
     timer = setTimeout(() => { controller.abort(); resolve(false); }, GLOBAL.payments.http_timeout_ms);
   });
-  return Promise.race([writeTerminalAudit(headers, bodyBuffer, reason, controller.signal, event), timeout]).finally(() => clearTimeout(timer));
+  return Promise.race([writeTerminalAudit(headers, bodyBuffer, reason, controller.signal, event, idempotencyKey), timeout]).finally(() => clearTimeout(timer));
 }
 
 /** Writes one terminal audit row. Resolves true only when the row was written. Never throws. */
@@ -243,6 +256,7 @@ async function writeTerminalAudit(
   reason: string,
   signal: AbortSignal,
   event: TerminalAuditEvent,
+  idempotencyKey?: string,
 ): Promise<boolean> {
   try {
     const url = process.env.SUPABASE_URL;
@@ -253,13 +267,15 @@ async function writeTerminalAudit(
     }
     const { createClient } = await import("@supabase/supabase-js");
     const supabase = createClient(url, key);
-    const { error } = await supabase
-      .from("audit_log")
-      .insert({
-        event,
-        details: { ...auditContext(headers, bodyBuffer.toString("utf8")), reason, payload_sha256: createHash("sha256").update(bodyBuffer).digest("hex") },
-      })
-      .abortSignal(signal);
+    const row = {
+      event,
+      details: { ...auditContext(headers, bodyBuffer.toString("utf8")), reason, payload_sha256: createHash("sha256").update(bodyBuffer).digest("hex") },
+    };
+    // A keyed row is written with ON CONFLICT DO NOTHING (same pattern as the manual-review refund flag), so a retry
+    // after a timeout that still committed does not duplicate the record. The audit row is append-only: no UPDATE.
+    const { error } = idempotencyKey
+      ? await supabase.from("audit_log").upsert({ ...row, idempotency_key: idempotencyKey }, { onConflict: "idempotency_key", ignoreDuplicates: true }).abortSignal(signal)
+      : await supabase.from("audit_log").insert(row).abortSignal(signal);
     if (error) {
       console.error(`[billing-webhook] ${event} audit insert failed:`, error.message);
       return false;
