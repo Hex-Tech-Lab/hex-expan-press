@@ -6,6 +6,11 @@ import crypto from "node:crypto";
 import type { NextRequest } from "next/server";
 import { POST as billingPost } from "../route";
 
+// The switched-off audit insert goes to a stub that succeeds, so the refusal can be a terminal 400.
+vi.mock("@supabase/supabase-js", () => ({
+  createClient: () => ({ from: () => ({ insert: () => ({ abortSignal: async () => ({ error: null }) }) }) }),
+}));
+
 const asNextRequest = (req: Request): NextRequest => req as unknown as NextRequest;
 const KEY = "polar-switched-off-test-key";
 const URL_ = "http://localhost:3000/api/billing/webhook";
@@ -26,6 +31,9 @@ describe("Polar switched off (launch switch)", () => {
   afterEach(() => vi.unstubAllEnvs());
 
   it("refuses a correctly signed Polar sale while the switch is off", async () => {
+    // The 400 is only given once the switched-off audit row is written, so the audit write must succeed here.
+    vi.stubEnv("SUPABASE_URL", "https://example.supabase.test");
+    vi.stubEnv("SUPABASE_SECRET_KEY", "test-only-not-a-secret");
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("POLAR_WEBHOOK_SECRET", KEY);
     const res = await billingPost(asNextRequest(new Request(URL_, { method: "POST", headers: signed(PAYLOAD), body: PAYLOAD })));

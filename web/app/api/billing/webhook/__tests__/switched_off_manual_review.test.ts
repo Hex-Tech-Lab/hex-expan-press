@@ -7,6 +7,7 @@ import { POST as billingPost } from "../route";
 import { standardWebhookHeaders } from "./support/webhook_signer";
 
 const inserts = vi.hoisted(() => [] as Array<Record<string, unknown>>);
+const insertFails = vi.hoisted(() => ({ on: false }));
 
 // Capture audit_log inserts without a database. The route only reaches Supabase on the quarantine path.
 vi.mock("@supabase/supabase-js", () => ({
@@ -14,7 +15,7 @@ vi.mock("@supabase/supabase-js", () => ({
     from: () => ({
       insert: (row: Record<string, unknown>) => {
         inserts.push(row);
-        return { abortSignal: async () => ({ error: null }) };
+        return { abortSignal: async () => ({ error: insertFails.on ? { message: "audit_log unavailable" } : null }) };
       },
     }),
   }),
@@ -36,6 +37,7 @@ function post(headers: Record<string, string>, body: string) {
 describe("switched-off rail: signed delivery is recorded for manual review", () => {
   beforeEach(() => {
     inserts.length = 0;
+    insertFails.on = false;
     vi.stubEnv("NODE_ENV", "production");
     vi.stubEnv("POLAR_WEBHOOK_SECRET", KEY);
     vi.stubEnv("SUPABASE_URL", "https://example.supabase.test");
@@ -58,6 +60,16 @@ describe("switched-off rail: signed delivery is recorded for manual review", () 
   it("the audit row stores a hash of the body, never the raw body (buyer PII)", async () => {
     await post(standardWebhookHeaders(KEY, "whid_off_mr_0002", PAYLOAD), PAYLOAD);
     expect(JSON.stringify(inserts[0])).not.toContain("buyer@example.com");
+  });
+
+  // F1: a genuine delivery whose audit row cannot be written is the only trace of a real sale. Telling the
+  // provider to stop (400) would lose it, so the answer is a retryable 503.
+  it("a genuine delivery whose audit row FAILS to write: 503 with Retry-After, not a terminal 400", async () => {
+    insertFails.on = true;
+    const res = await post(standardWebhookHeaders(KEY, "whid_off_mr_0006", PAYLOAD), PAYLOAD);
+    expect(res.status).toBe(503);
+    expect(res.headers.get("Retry-After")).not.toBeNull();
+    expect(await res.json()).toEqual({ ok: false, error: "Temporarily unavailable — retry" });
   });
 
   it("a badly signed delivery for the off rail: 400, and NO row (unverified traffic writes nothing)", async () => {

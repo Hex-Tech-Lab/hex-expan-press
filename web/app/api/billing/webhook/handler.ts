@@ -173,10 +173,11 @@ async function handleWebhook(request: NextRequest, adapters: WebhookAdapters, sw
   }
 }
 
-/** A signed delivery for a switched-off rail. The rail's own verifier must verify it first: only a genuine delivery
- *  is recorded (WEBHOOK_PROVIDER_SWITCHED_OFF, shown in the admin queue). Either way the answer is a terminal 400, so
- *  the provider stops retrying a rail we are not taking. The rail stays off, so nothing reaches the ledger. An
- *  unverified delivery gets the same 400 and writes no row. A verifier that throws counts as unverified. */
+/** A signed delivery for a switched-off rail. The rail's own verifier must verify it first. A verified delivery is
+ *  recorded (WEBHOOK_PROVIDER_SWITCHED_OFF, shown in the admin queue) and then answered with a terminal 400, so the
+ *  provider stops retrying a rail we are not taking. If that record cannot be written, the delivery is the only
+ *  trace of a real sale, so the answer is a 503 with Retry-After and the provider redelivers. An unverified
+ *  delivery gets a 400 and writes no row. A verifier that throws counts as unverified. */
 async function refuseSwitchedOffDelivery(
   rail: WebhookAdapters[number],
   headers: Record<string, string | string[] | undefined>,
@@ -184,8 +185,12 @@ async function refuseSwitchedOffDelivery(
   bodyBuffer: Buffer,
 ): Promise<NextResponse> {
   const verified = await rail.parseAndValidateWebhook(headers, body).then((r) => r.isValid, () => false);
-  if (verified) {
-    await quarantineTerminalEvent(headers, bodyBuffer, "provider_switched_off", "WEBHOOK_PROVIDER_SWITCHED_OFF");
+  if (!verified) {
+    return NextResponse.json({ ok: false, error: "Bad Request" }, { status: 400 });
+  }
+  const recorded = await auditTerminalBounded(headers, bodyBuffer, "provider_switched_off", "WEBHOOK_PROVIDER_SWITCHED_OFF");
+  if (!recorded) {
+    return NextResponse.json({ ok: false, error: "Temporarily unavailable — retry" }, { status: 503, headers: retryAfterHeaders() });
   }
   return NextResponse.json({ ok: false, error: "Bad Request" }, { status: 400 });
 }
@@ -214,19 +219,37 @@ async function quarantineTerminalEvent(
   await Promise.race([insertTerminalRejectAudit(headers, bodyBuffer, reason, controller.signal, event), timeout]).finally(() => clearTimeout(timer));
 }
 
-export async function insertTerminalRejectAudit(
+/** Same bounded write as the quarantine, but reports whether the audit row was actually written. A switched-off
+ *  delivery whose row is not written is the only durable trace of a real sale, so the caller must not tell the
+ *  provider to stop retrying. A timeout or a write failure returns false. */
+async function auditTerminalBounded(
+  headers: Record<string, string | string[] | undefined>,
+  bodyBuffer: Buffer,
+  reason: string,
+  event: TerminalAuditEvent,
+): Promise<boolean> {
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<boolean>((resolve) => {
+    timer = setTimeout(() => { controller.abort(); resolve(false); }, GLOBAL.payments.http_timeout_ms);
+  });
+  return Promise.race([writeTerminalAudit(headers, bodyBuffer, reason, controller.signal, event), timeout]).finally(() => clearTimeout(timer));
+}
+
+/** Writes one terminal audit row. Resolves true only when the row was written. Never throws. */
+async function writeTerminalAudit(
   headers: Record<string, string | string[] | undefined>,
   bodyBuffer: Buffer,
   reason: string,
   signal: AbortSignal,
-  event: TerminalAuditEvent = "WEBHOOK_TERMINAL_REJECT",
-): Promise<void> {
+  event: TerminalAuditEvent,
+): Promise<boolean> {
   try {
     const url = process.env.SUPABASE_URL;
     const key = process.env.SUPABASE_SECRET_KEY;
     if (!url || !key) {
       console.error(`[billing-webhook] audit skipped: SUPABASE_URL or SUPABASE_SECRET_KEY unset (event=${event} reason=${reason})`);
-      return;
+      return false;
     }
     const { createClient } = await import("@supabase/supabase-js");
     const supabase = createClient(url, key);
@@ -237,10 +260,26 @@ export async function insertTerminalRejectAudit(
         details: { ...auditContext(headers, bodyBuffer.toString("utf8")), reason, payload_sha256: createHash("sha256").update(bodyBuffer).digest("hex") },
       })
       .abortSignal(signal);
-    if (error) console.error("[billing-webhook] terminal-reject quarantine insert failed:", error.message);
+    if (error) {
+      console.error(`[billing-webhook] ${event} audit insert failed:`, error.message);
+      return false;
+    }
+    return true;
   } catch (err) {
-    console.error("[billing-webhook] terminal-reject quarantine exception:", err);
+    console.error(`[billing-webhook] ${event} audit exception:`, err);
+    return false;
   }
+}
+
+/** Best-effort terminal-reject audit. Never throws, and its outcome is not reported to the provider. */
+export async function insertTerminalRejectAudit(
+  headers: Record<string, string | string[] | undefined>,
+  bodyBuffer: Buffer,
+  reason: string,
+  signal: AbortSignal,
+  event: TerminalAuditEvent = "WEBHOOK_TERMINAL_REJECT",
+): Promise<void> {
+  await writeTerminalAudit(headers, bodyBuffer, reason, signal, event);
 }
 
 /** Every 503 tells the provider when to redeliver (value from the settings registry). */
