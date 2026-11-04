@@ -1,0 +1,26 @@
+web/app/api/billing/webhook/__tests__/polar-switched-off.test.ts
+  s_6520ca5ba81489::t_e5dcd3b11d89b6 9-19
+  s_6520ca5ba81489::t_f065e206539080 55-56
+docs/adr/0062-payment-rail-launch-switch.md
+  s_6520ca5ba81489::t_d71b03db580655 24
+web/app/api/billing/webhook/handler.ts
+  s_6520ca5ba81489::t_e2014d274bd9a0 201-204
+docs/agent_ledger.jsonl
+  s_6520ca5ba81489::t_777f5e68cf78ee 899
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c3bfc82ce367f5c0bfbe1eb000eaccc583403b4b",
+  "prompts": {},
+  "sessions": {
+    "s_6520ca5ba81489": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3cfee2a0-c80d-4993-a7f0-42827c18b26c",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
