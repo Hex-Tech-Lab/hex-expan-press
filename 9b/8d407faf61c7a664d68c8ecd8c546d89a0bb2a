@@ -1,0 +1,29 @@
+.claude/hooks/skill-gates.sh
+  s_6625bc67577472::t_cad735971c67ff 57
+.claude/hooks/test-skill-gates.sh
+  s_6625bc67577472::t_4c3782b89a1824 24,77,80,119,124
+.github/workflows/ci.yml
+  s_6625bc67577472::t_cd8411e5b90744 6
+AGENTS.md
+  s_6625bc67577472::t_6d6f96f2f8f01f 161,191
+CLAUDE.md
+  s_6625bc67577472::t_4b5d7e0b8490c6 9
+package.json
+  s_6625bc67577472::t_8793ba4852d7d7 18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9b8d407faf61c7a664d68c8ecd8c546d89a0bb2a",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
