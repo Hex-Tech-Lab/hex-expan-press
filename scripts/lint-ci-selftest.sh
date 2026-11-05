@@ -99,6 +99,17 @@ check() {
   fi
 }
 
+# check_leak: a "must catch" gitleaks case. Exit 1 alone is not enough, because gitleaks also exits 1 on a scan
+# error. The run must also print gitleaks' leak summary, so a broken gl command cannot pass these cases.
+check_leak() {
+  check "$@"
+  local out="$WORK/out-$3-$4-$5.txt"
+  if [ "$(cat "$out.exit" 2>/dev/null)" = "1" ] && ! grep -q 'leaks found:' "$out" 2>/dev/null; then
+    echo "FAIL  $1 (exit 1 without gitleaks 'leaks found:' summary: scan error, not a detection)"
+    FAILED=1
+  fi
+}
+
 # Fake credential: the shape gitleaks' GitHub token rule matches. Not a real credential.
 # Assembled from parts so the literal prefix never sits in this file, or the repo's own secret scan would flag it.
 FAKE_CRED="$(printf '%s_%s' ghp 0123456789abcdefghijklmnopqrstuvwxyz)"
@@ -108,7 +119,7 @@ ZERO="0000000000000000000000000000000000000000"
 make_repo pr-token
 printf 'token = "%s"\n' "$FAKE_CRED" > "$WORK/pr-token/pr/leak.txt"
 H=$(commit_change pr-token "planted token")
-check "PR planted token -> gitleaks" 1 pr-token gl pull_request_target "$ZERO" "$H"
+check_leak "PR planted token -> gitleaks" 1 pr-token gl pull_request_target "$ZERO" "$H"
 
 make_repo pr-unused
 printf 'import os\nimport sys\n' > "$WORK/pr-unused/pr/bad.py"
@@ -195,7 +206,7 @@ make_repo push-token
 BASE=$(cd "$WORK/push-token/pr" && git rev-parse master)
 printf 'token = "%s"\n' "$FAKE_CRED" > "$WORK/push-token/pr/leak.txt"
 H=$(commit_change push-token "push planted token")
-check "push planted token -> gitleaks (range before..head)" 1 push-token gl push "$BASE" "$H"
+check_leak "push planted token -> gitleaks (range before..head)" 1 push-token gl push "$BASE" "$H"
 
 make_repo push-unused
 BASE=$(cd "$WORK/push-unused/pr" && git rev-parse master)
@@ -279,7 +290,7 @@ H0=$(commit_change bypass-ignore "planted token")
 printf '%s:leak.txt:github-pat:1\n' "$H0" > "$WORK/bypass-ignore/pr/.gitleaksignore"
 H=$(commit_change bypass-ignore "add .gitleaksignore")
 check "bypass A .gitleaksignore -> old command passes (bypass works)" 0 bypass-ignore gl_old pull_request_target "$ZERO" "$H"
-check "bypass A .gitleaksignore -> gitleaks catches it" 1 bypass-ignore gl pull_request_target "$ZERO" "$H"
+check_leak "bypass A .gitleaksignore -> gitleaks catches it" 1 bypass-ignore gl pull_request_target "$ZERO" "$H"
 
 # (B) A PR-added .gitattributes line "leak.txt -diff" hides the file's content from the patch gitleaks parses.
 make_repo bypass-attr
@@ -288,7 +299,7 @@ commit_change bypass-attr "add .gitattributes" > /dev/null
 printf 'token = "%s"\n' "$FAKE_CRED" > "$WORK/bypass-attr/pr/leak.txt"
 H=$(commit_change bypass-attr "planted token in second commit")
 check "bypass B .gitattributes -diff -> old command passes (bypass works)" 0 bypass-attr gl_old pull_request_target "$ZERO" "$H"
-check "bypass B .gitattributes -diff -> gitleaks catches it" 1 bypass-attr gl pull_request_target "$ZERO" "$H"
+check_leak "bypass B .gitattributes -diff -> gitleaks catches it" 1 bypass-attr gl pull_request_target "$ZERO" "$H"
 
 # (C) A token that exists only in a merge commit's conflict resolution. Both branches change x.txt; the merge resolves it.
 make_repo bypass-merge
@@ -306,7 +317,7 @@ make_repo bypass-merge
 )
 H=$(cd "$WORK/bypass-merge/pr" && git rev-parse HEAD)
 check "bypass C merge-only secret -> old command passes (bypass works)" 0 bypass-merge gl_old pull_request_target "$ZERO" "$H"
-check "bypass C merge-only secret -> gitleaks catches it" 1 bypass-merge gl pull_request_target "$ZERO" "$H"
+check_leak "bypass C merge-only secret -> gitleaks catches it" 1 bypass-merge gl pull_request_target "$ZERO" "$H"
 
 # Control: a clean change with a harmless .gitattributes must pass the current command.
 make_repo bypass-control

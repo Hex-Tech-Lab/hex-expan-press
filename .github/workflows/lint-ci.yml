@@ -121,7 +121,8 @@ jobs:
       - name: Scan new commits for secrets
         # Event data goes through env, never interpolated into the script.
         # On pull_request_target the config comes from the base branch's tip, fetched here. On a push it comes from the
-        # previous tip (BEFORE_SHA). Either way it comes from git history, never from the PR's working tree.
+        # previous tip (BEFORE_SHA). Either way it comes from git history, never from the PR's working tree. If no
+        # trusted config exists at that ref, the scan falls back to default rules (see the "gitleaks config" echo below).
         # Config discovery is off (--config is set). gitleaks also loads .gitleaksignore from the source directory,
         # so that file is deleted from the checkout before the scan (a PR cannot suppress findings this way).
         # --text stops the PR's .gitattributes from hiding file content, and --diff-merges=first-parent
