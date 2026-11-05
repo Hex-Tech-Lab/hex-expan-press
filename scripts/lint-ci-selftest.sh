@@ -258,6 +258,63 @@ else
   echo "PASS  push workflow symlink: target contents were not read"
 fi
 
+# Gitleaks bypass regressions. Each bypass hides a planted token from the OLD scan command (no .gitleaksignore removal,
+# no --text, no --diff-merges) and must be caught by the workflow's current command. The old command is derived from the
+# extracted script so the pair differs only in those hardening pieces; the "old passes" check proves each case really
+# exercises its bypass.
+# shellcheck disable=SC2016  # patterns are literal text to match in the workflow, not expansions
+sed -e '/rm -f "\$PR\/.gitleaksignore"/d' \
+    -e 's/--log-opts="--text --diff-merges=first-parent \${LOG_OPTS}"/--log-opts="${LOG_OPTS}"/' \
+    "$RT/gl.sh" > "$RT/gl_old.sh"
+if grep -q -e '--text' -e 'diff-merges' -e 'rm -f' "$RT/gl_old.sh"; then
+  echo "old-command derivation: the hardening pieces were not stripped" >&2
+  exit 2
+fi
+bash -n "$RT/gl_old.sh"
+
+# (A) A PR-added .gitleaksignore carrying the leak's fingerprint (commit:file:rule:line) suppresses it.
+make_repo bypass-ignore
+printf 'token = "%s"\n' "$FAKE_CRED" > "$WORK/bypass-ignore/pr/leak.txt"
+H0=$(commit_change bypass-ignore "planted token")
+printf '%s:leak.txt:github-pat:1\n' "$H0" > "$WORK/bypass-ignore/pr/.gitleaksignore"
+H=$(commit_change bypass-ignore "add .gitleaksignore")
+check "bypass A .gitleaksignore -> old command passes (bypass works)" 0 bypass-ignore gl_old pull_request_target "$ZERO" "$H"
+check "bypass A .gitleaksignore -> gitleaks catches it" 1 bypass-ignore gl pull_request_target "$ZERO" "$H"
+
+# (B) A PR-added .gitattributes line "leak.txt -diff" hides the file's content from the patch gitleaks parses.
+make_repo bypass-attr
+printf 'leak.txt -diff\n' > "$WORK/bypass-attr/pr/.gitattributes"
+commit_change bypass-attr "add .gitattributes" > /dev/null
+printf 'token = "%s"\n' "$FAKE_CRED" > "$WORK/bypass-attr/pr/leak.txt"
+H=$(commit_change bypass-attr "planted token in second commit")
+check "bypass B .gitattributes -diff -> old command passes (bypass works)" 0 bypass-attr gl_old pull_request_target "$ZERO" "$H"
+check "bypass B .gitattributes -diff -> gitleaks catches it" 1 bypass-attr gl pull_request_target "$ZERO" "$H"
+
+# (C) A token that exists only in a merge commit's conflict resolution. Both branches change x.txt; the merge resolves it.
+make_repo bypass-merge
+(
+  cd "$WORK/bypass-merge/pr"
+  git checkout -q -b side master
+  echo "side" > x.txt && git add x.txt && git commit -qm "side x"
+  git checkout -q feat
+  echo "feat" > x.txt && git add x.txt && git commit -qm "feat x"
+  git merge --no-ff side > /dev/null 2>&1 || true
+  [ -f .git/MERGE_HEAD ] || { echo "setup: expected a merge conflict" >&2; exit 2; }
+  printf 'token = "%s"\n' "$FAKE_CRED" > x.txt
+  git add x.txt && git commit -qm "merge with resolution"
+  [ "$(git rev-list --parents -n 1 HEAD | wc -w)" = 3 ] || { echo "setup: head is not a two-parent merge" >&2; exit 2; }
+)
+H=$(cd "$WORK/bypass-merge/pr" && git rev-parse HEAD)
+check "bypass C merge-only secret -> old command passes (bypass works)" 0 bypass-merge gl_old pull_request_target "$ZERO" "$H"
+check "bypass C merge-only secret -> gitleaks catches it" 1 bypass-merge gl pull_request_target "$ZERO" "$H"
+
+# Control: a clean change with a harmless .gitattributes must pass the current command.
+make_repo bypass-control
+printf '* text=auto\n' > "$WORK/bypass-control/pr/.gitattributes"
+printf 'harmless note\n' > "$WORK/bypass-control/pr/note.txt"
+H=$(commit_change bypass-control "clean change")
+check "bypass control (clean) -> gitleaks passes" 0 bypass-control gl pull_request_target "$ZERO" "$H"
+
 # Pin contract. The install blocks are repeated in the gate jobs and in the selftest job: a composite action would be
 # read from the PR checkout under pull_request_target, so the copies stay. Each pin below is FIXED here, not read from the
 # workflow, and must appear on exactly two lines (its gate job and the selftest job). Format: NAME|VALUE, where NAME is

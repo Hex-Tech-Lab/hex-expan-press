@@ -122,8 +122,10 @@ jobs:
         # Event data goes through env, never interpolated into the script.
         # On pull_request_target the config comes from the base branch's tip, fetched here. On a push it comes from the
         # previous tip (BEFORE_SHA). Either way it comes from git history, never from the PR's working tree.
-        # Config discovery is off (--config is set). gitleaks also loads ./.gitleaksignore from the working
-        # directory, so the scan runs from the runner temp directory, not the checkout.
+        # Config discovery is off (--config is set). gitleaks also loads .gitleaksignore from the source directory,
+        # so that file is deleted from the checkout before the scan (a PR cannot suppress findings this way).
+        # --text stops the PR's .gitattributes from hiding file content, and --diff-merges=first-parent
+        # makes merge-commit content visible to the scan.
         env:
           EVENT_NAME: ${{ github.event_name }}
           BASE_REF: ${{ github.event.pull_request.base.ref }}
@@ -158,13 +160,14 @@ jobs:
             echo "gitleaks config: default rules (no trusted config on ${TRUST_REF:-no trust ref})"
           fi
 
+          rm -f "$PR/.gitleaksignore"
           echo "gitleaks log range: ${LOG_OPTS}"
           cd "$RUNNER_TEMP"
           gitleaks git --redact --no-banner \
             --config "$CONFIG" \
             --gitleaks-ignore-path "$IGNORE" \
             --ignore-gitleaks-allow \
-            --log-opts="${LOG_OPTS}" "$PR"
+            --log-opts="--text --diff-merges=first-parent ${LOG_OPTS}" "$PR"
 
   ruff:
     runs-on: ubuntu-latest
