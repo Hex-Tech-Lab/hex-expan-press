@@ -3,8 +3,9 @@
 #
 # Trust model: this runs on pull_request_target, so GitHub reads THIS file from the BASE branch. A PR cannot
 # edit, skip or weaken these checks. The PR's code is checked out only to be READ: no step runs a script,
-# package manager or binary from the PR. Every tool comes from a pinned install made by this file, and each
-# tool runs from a runner directory outside the checkout, so no PR-controlled config file is loaded.
+# package manager or binary from the PR. Every tool comes from a pinned install made by this file. Tools run
+# from runner directories, not the checkout. The gitleaks step does scan the checkout as its source, so it deletes
+# the PR's .gitleaksignore and neutralizes its .gitattributes with --text (see that step).
 #
 # Bootstrap: this file takes effect on PRs only after it is on master. Until then the first PR that adds it
 # has no run of this workflow, so its head is verified by hand before the merge. After the merge, the three
@@ -122,7 +123,7 @@ jobs:
         # Event data goes through env, never interpolated into the script.
         # On pull_request_target the config comes from the base branch's tip, fetched here. On a push it comes from the
         # previous tip (BEFORE_SHA). Either way it comes from git history, never from the PR's working tree. If no
-        # trusted config exists at that ref, the scan falls back to default rules (see the "gitleaks config" echo below).
+        # trusted config exists at that ref, or no trust ref exists at all, the scan falls back to default rules (see the "gitleaks config" echo below).
         # Config discovery is off (--config is set). gitleaks also loads .gitleaksignore from the source directory,
         # so that file is deleted from the checkout before the scan (a PR cannot suppress findings this way).
         # --text stops the PR's .gitattributes from hiding file content, and --diff-merges=first-parent
