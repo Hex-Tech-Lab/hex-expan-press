@@ -1,4 +1,4 @@
-# Lint gates for every PR and every push to master: actionlint and shellcheck on the workflow files,
+# Lint gates for every PR and every push to main: actionlint and shellcheck on the workflow files,
 # gitleaks on the new commits, and ruff on the Python files the change touches.
 #
 # Trust model: this runs on pull_request_target, so GitHub reads THIS file from the BASE branch. A PR cannot
@@ -6,13 +6,13 @@
 # package manager or binary from the PR. Every tool comes from a pinned install made by this file, and each
 # tool runs from a runner directory outside the checkout, so no PR-controlled config file is loaded.
 #
-# Bootstrap: this file takes effect on PRs only after it is on master. Until then the first PR that adds it
+# Bootstrap: this file takes effect on PRs only after it is on main. Until then the first PR that adds it
 # has no run of this workflow, so its head is verified by hand before the merge. After the merge, the three
-# gate jobs (actionlint, gitleaks, ruff) are added as required status checks on master. The selftest job runs only
-# on a push to master and is not required.
+# gate jobs (actionlint, gitleaks, ruff) are added as required status checks on main. The selftest job runs only
+# on a push to main and is not required.
 #
 # Targets: the trusted base is the PR's own base branch, so a PR into any branch is checked against that
-# branch's gitleaks config and merge base. Only master's protection makes the three gates required.
+# branch's gitleaks config and merge base. Only main's protection makes the three gates required.
 # The base is fetched from origin without credentials, so this needs a public repository. On a private
 # repository the fetch fails and the job fails closed, it does not pass.
 #
@@ -23,7 +23,7 @@ on:
   pull_request_target:
   push:
     branches:
-      - master
+      - main
 
 permissions:
   contents: read
@@ -230,14 +230,14 @@ jobs:
           cd "$OUT"
           python -I -m ruff check --isolated --ignore-noqa --no-cache -- "${FILES[@]}"
 
-  # The self-test runs only on a push to master, where the checkout is already merged. It executes the run blocks of
+  # The self-test runs only on a push to main, where the checkout is already merged. It executes the run blocks of
   # this workflow, so it must never run on a PR head under pull_request_target: that would run PR-authored shell.
   selftest:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: Check out master for the self-test
+      - name: Check out main for the self-test
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
@@ -277,5 +277,5 @@ jobs:
           printf '%s\n' 'ruff==0.8.6 --hash=sha256:7ae4478b1471fc0c44ed52a6fb787e641a2ac58b1c1f91763bafbc2faddc5117' > "$RUNNER_TEMP/ruff-req.txt"
           python -m pip install --disable-pip-version-check --require-hashes --only-binary=:all: --no-deps -r "$RUNNER_TEMP/ruff-req.txt"
 
-      - name: Run the self-test on master
+      - name: Run the self-test on main
         run: bash scripts/lint-ci-selftest.sh
