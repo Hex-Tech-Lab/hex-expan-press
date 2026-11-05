@@ -5,7 +5,7 @@
 # edit, skip or weaken these checks. The PR's code is checked out only to be READ: no step runs a script,
 # package manager or binary from the PR. Every tool comes from a pinned install made by this file. Tools run
 # from runner directories, not the checkout. The gitleaks step does scan the checkout as its source, so it deletes
-# the PR's .gitleaksignore and neutralizes its .gitattributes with --text (see that step).
+# the PR's .gitleaksignore and forces text diffs past binary-marked files with --text (see that step).
 #
 # Bootstrap: this file takes effect on PRs only after it is on master. Until then the first PR that adds it
 # has no run of this workflow, so its head is verified by hand before the merge. After the merge, the three
