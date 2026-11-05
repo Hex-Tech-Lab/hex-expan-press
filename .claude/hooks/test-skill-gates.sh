@@ -21,7 +21,7 @@ mkdir -p "$R" && git -C "$R" init -q && git -C "$R" config user.email t@t && git
 git -C "$R" remote add origin https://github.com/Hex-Tech-Lab/hex-expan-press.git
 echo base > "$R/README.md" && git -C "$R" add -A && git -C "$R" commit -qm base
 BASE_SHA=$(git -C "$R" rev-parse HEAD)
-git -C "$R" update-ref refs/remotes/origin/master HEAD
+git -C "$R" update-ref refs/remotes/origin/main HEAD
 git -C "$R" checkout -qb feature
 echo change > "$R/docs.md" && git -C "$R" add -A && git -C "$R" commit -qm change
 git -C "$R" update-ref refs/remotes/origin/feature HEAD
@@ -74,10 +74,10 @@ expect "unpushed HEAD" deny "$R" "gh pr create --fill"
 reason_has "unpushed reason" "not pushed"
 git -C "$R" update-ref refs/remotes/origin/feature HEAD
 # 8. Base ref does not resolve: deny (old code fell back to the literal ref name).
-git -C "$R" update-ref -d refs/remotes/origin/master
+git -C "$R" update-ref -d refs/remotes/origin/main
 expect "unresolvable base" deny "$R" "gh pr create --fill"
 reason_has "unresolvable base reason" "does not resolve"
-git -C "$R" update-ref refs/remotes/origin/master "$BASE_SHA"
+git -C "$R" update-ref refs/remotes/origin/main "$BASE_SHA"
 # 9. Numbered PR whose head is not local HEAD: deny.
 FAKE_GH_HEAD=0000000000000000000000000000000000000000 expect "PR head differs from HEAD" deny "$R" "gh pr merge 5 --squash"
 # 10. gh cannot report the PR head: deny.
@@ -116,12 +116,12 @@ if grep -q '"permissionDecision":"deny"' <<<"$out"; then pass=$((pass+1)); else 
 git -C "$R" checkout -q -b qa-side "$BASE_SHA" && mkdir -p "$R/scripts" && echo "// engine" > "$R/scripts/verify-quality-engine.ts" \
   && git -C "$R" add -A && git -C "$R" commit -qm engine && QA_SHA=$(git -C "$R" rev-parse HEAD)
 git -C "$R" checkout -q feature
-git -C "$R" update-ref refs/remotes/origin/master "$QA_SHA"
+git -C "$R" update-ref refs/remotes/origin/main "$QA_SHA"
 start_marker
 for s in $REQ; do record "$s" PASS; done
 expect "qa-intel required when base has the engine" deny "$R" "gh pr create --fill"
 reason_has "qa-intel listed" "qa-intel"
-git -C "$R" update-ref refs/remotes/origin/master "$BASE_SHA"
+git -C "$R" update-ref refs/remotes/origin/main "$BASE_SHA"
 
 # 19. A required line's verdict must be exactly PASS, N/A, or "waiver:" followed by a reason (second token only).
 for v in "pass" "PASS:" "N/A:" "waiver:" "waiver:nope" "PARTIAL" "FAIL" "pending"; do
