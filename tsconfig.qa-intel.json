@@ -7,5 +7,5 @@
     "scripts/contract-auditor.ts",
     "scripts/contract-auditor/**/*.ts"
   ],
-  "exclude": ["scripts/qa-intel/engine/rules/**", "node_modules"]
+  "exclude": ["node_modules"]
 }
