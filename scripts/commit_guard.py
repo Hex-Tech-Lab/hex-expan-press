@@ -47,25 +47,58 @@ DETERMINISTIC = [
 ENV_ASSIGN = re.compile(r"(?im)^[A-Z_]*(?:KEY|TOKEN|SECRET|PASSWORD)[A-Z_]*\s*=")
 
 
+HUNK_HEADER = re.compile(r"^@@ -\d+(?:,(\d+))? \+\d+(?:,(\d+))? @@")
+
+
 def hunks(diff_text):
-    """[(file, [added lines])] grouped per file, added text hunks capped at 60 lines each."""
+    """[(file, [added lines])] grouped per file, added text hunks capped at 60 lines each.
+
+    Inside an @@ hunk every '+' line is content, even one that starts with '+++' (the old parser
+    skipped those, so '+++ token = sk-...' passed unscanned). Hunk extent comes from the @@ line
+    counts. A '+++ ' line outside a hunk is a file header only when it directly follows a '--- '
+    line; any other '+' line outside a hunk is scanned as added content (fail closed). Combined
+    ('@@@') or unparsable hunk headers have no usable counts: the hunk then runs until a line
+    without a diff content prefix.
+    """
     out, cur_file, cur_adds = [], None, []
+    in_hunk, old_left, new_left, prev = False, None, None, ""
+
+    def flush():
+        if cur_file and cur_adds:
+            out.append((cur_file, cur_adds[:60]))
+
     for line in diff_text.splitlines():
-        if line.startswith("+++ b/"):
-            cur_file = line[6:]
-        elif line.startswith("+++ /dev/null"):
-            cur_file = "/dev/null"
-        elif line.startswith("+") and not line.startswith("+++"):
+        if in_hunk and line[:1] not in ("+", "-", " ", "\\", ""):
+            in_hunk = False
+        if in_hunk:
+            tag = line[:1]
+            if tag == "+":
+                cur_adds.append(line[1:])
+            elif tag == "-":
+                flush()
+                cur_adds = []
+            if old_left is not None and tag != "\\":
+                old_left -= tag != "+"
+                new_left -= tag != "-"
+                if old_left <= 0 and new_left <= 0:
+                    in_hunk = False
+        elif line.startswith("@@"):
+            flush()
+            cur_adds = []
+            m = HUNK_HEADER.match(line)
+            in_hunk = True
+            old_left, new_left = (None, None) if not m else (int(m.group(1) or 1), int(m.group(2) or 1))
+            if old_left == 0 and new_left == 0:
+                in_hunk = False
+        elif line.startswith("+++ ") and prev.startswith("--- "):
+            cur_file = line[6:] if line.startswith("+++ b/") else line[4:]
+        elif line.startswith("+"):
             cur_adds.append(line[1:])
-        elif line.startswith(("diff --git", "@@")) or line.startswith("-") and not line.startswith("---"):
-            if cur_file and cur_adds:
-                out.append((cur_file, cur_adds[:60]))
-            if line.startswith("diff --git") or line.startswith("@@"):
-                cur_adds = []
-            else:
-                cur_adds = []
-    if cur_file and cur_adds:
-        out.append((cur_file, cur_adds[:60]))
+        elif line.startswith("diff ") or line.startswith("-") and not line.startswith("--- "):
+            flush()
+            cur_adds = []
+        prev = line
+    flush()
     return out
 
 
