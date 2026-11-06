@@ -1,0 +1,22 @@
+.github/workflows/lint-ci.yml
+  s_6625bc67577472::t_12556432a369ed 239-241
+src/adapters/payments/legacy.adapter.ts
+  s_6625bc67577472::t_b6344a7fd869d0 11-12,15-16,20-21
+  s_6625bc67577472::t_6bb007a4a2aaaf 85-86
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b52d34ada328ded2e25f0f33f9cce81ec4430fef",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
