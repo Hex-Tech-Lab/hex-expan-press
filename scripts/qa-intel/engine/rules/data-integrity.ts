@@ -2,6 +2,16 @@ import { Node, SyntaxKind } from "ts-morph";
 import type { SourceFile } from "ts-morph";
 import type { Finding, IRule } from "../engine";
 
+/**
+ * True when a written value can come from outside the function: it names request, body or params style input, or
+ * it reads a parameter of the enclosing function. A value built locally from a trusted config is not external.
+ */
+function isExternalInput(arg: Node): boolean {
+  if (/\b(req|request|body|params|payload|formData|input)\b/i.test(arg.getText())) return true;
+  const identifiers = Node.isIdentifier(arg) ? [arg] : arg.getDescendantsOfKind(SyntaxKind.Identifier);
+  return identifiers.some((id) => Node.isParameterDeclaration(id.getSymbol()?.getValueDeclaration()));
+}
+
 export const DatabaseConstraintRule: IRule = {
   name: "database-constraint-enforcer",
   check: (source: SourceFile) => {
@@ -66,10 +76,13 @@ export const DatabaseConstraintRule: IRule = {
       // Look for direct DB operations without validation
       source.forEachDescendant((node) => {
         if (Node.isCallExpression(node)) {
-          const expr = node.getExpression().getText();
-          if ((expr.includes('insert') || expr.includes('update')) && (expr.includes('db.') || expr.includes('supabase.'))) {
+          const callee = node.getExpression();
+          const expr = callee.getText();
+          // The write itself is the call named insert/update: its chained `.eq(...)` is a filter, not a second write.
+          const isWrite = Node.isPropertyAccessExpression(callee) && ['insert', 'update'].includes(callee.getName());
+          if (isWrite && (expr.includes('db.') || expr.includes('supabase.'))) {
             const args = node.getArguments();
-            if (args.length > 0) {
+            if (args.length > 0 && args.some(isExternalInput)) {
               // Check if there's validation before this call
               const parent = node.getFirstAncestorByKind(SyntaxKind.FunctionDeclaration) ||
                              node.getFirstAncestorByKind(SyntaxKind.ArrowFunction);

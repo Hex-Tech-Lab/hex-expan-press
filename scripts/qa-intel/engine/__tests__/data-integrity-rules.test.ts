@@ -106,6 +106,46 @@ describe('DatabaseConstraintRule', () => {
     expect(findings.filter((f) => f.title === 'Data Integrity: DB operation without validation')).toHaveLength(0);
   });
 
+  // Triage item 9 negative controls and positive: sites from scripts/migrate-heritage-json.ts.
+  const unvalidatedWrites = (code: string[], file = 'scripts/port.ts') =>
+    scan(DatabaseConstraintRule, file, code.join('\n'))
+      .filter((f) => f.title === 'Data Integrity: DB operation without validation');
+
+  test('does not flag a write whose values were built locally from a trusted config', () => {
+    expect(unvalidatedWrites([
+      'export async function port(supabase: any, cfg: { id: string }) {',
+      '  const row = { id: cfg.id, title: "Heritage" };',
+      '  const { creator_id: _owner, ...heritageColumns } = row as any;',
+      '  await supabase.from("products").update(heritageColumns).eq("id", cfg.id);',
+      '}',
+    ])).toHaveLength(0);
+  });
+
+  test('does not match the word update in an unrelated chain', () => {
+    expect(unvalidatedWrites([
+      'export async function logs(supabase: any, id: string) {',
+      '  return supabase.from("update_log").select("*").eq("id", id);',
+      '}',
+    ])).toHaveLength(0);
+  });
+
+  test('counts a chained write once, not once per chained call', () => {
+    expect(unvalidatedWrites([
+      'export async function save(supabase: any, id: string, body: { title: string }) {',
+      '  return supabase.from("products").update(body).eq("id", id);',
+      '}',
+    ])).toHaveLength(1);
+  });
+
+  test('flags a write of a value read from the request body', () => {
+    expect(unvalidatedWrites([
+      'export async function POST(req: Request) {',
+      '  const body = await req.json();',
+      '  return supabase.from("orders").insert(body);',
+      '}',
+    ], 'web/app/api/orders/route.ts')).toHaveLength(1);
+  });
+
   test('does not run the TypeScript write check on test files', () => {
     const findings = scan(DatabaseConstraintRule, 'src/billing/orders.test.ts', [
       'export function seed(db: any, input: unknown) {',
