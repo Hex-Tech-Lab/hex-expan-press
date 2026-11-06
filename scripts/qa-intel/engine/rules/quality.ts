@@ -94,8 +94,8 @@ export const VariableNamingRule: IRule = {
         if (nameNode) {
           const name = nameNode.getText();
 
-          // Flag single-letter variable names (except in loops or very short scopes)
-          if (name.length === 1 && name !== 'i' && name !== 'j' && name !== 'x' && name !== 'y') {
+          // Flag single-letter variable names (except in loops, the discard name `_`, or very short scopes)
+          if (name.length === 1 && !['i', 'j', 'x', 'y', '_'].includes(name)) {
             // Exempt a single-letter PARAMETER that is the sole parameter of
             // an arrow function passed directly as a callback argument to a
             // call expression -- e.g. `useFooStore((s) => s.bar)`,

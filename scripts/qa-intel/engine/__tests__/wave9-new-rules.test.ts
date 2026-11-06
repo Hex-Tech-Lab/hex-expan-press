@@ -296,3 +296,16 @@ describe('Rule Loading and Export', () => {
     }
   });
 });
+
+describe('VariableNamingRule: discard name (triage item 5)', () => {
+  test('does not flag the conventional discard "_" as a parameter', () => {
+    const source = createTestSource(`
+      const q = items.length;
+      styleWarns.forEach((_, i) => { questions[\`w\${i}\`] = i; });
+    `);
+    const findings = VariableNamingRule.check(source);
+    expect(findings.some(f => f.title.includes("'_'"))).toBe(false);
+    // Positive control: the rule still ran and still flags a real single-letter name.
+    expect(findings.some(f => f.title.includes("'q'"))).toBe(true);
+  });
+});
