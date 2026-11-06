@@ -145,6 +145,52 @@ describe("UnboundedBodyReadRule (V10)", () => {
     expect(findings.length).toBe(0);
   });
 
+  // Triage item 7 negative controls: an SDK storage download is bounded by its stored object size.
+  test("negative control: Supabase storage download blob read through arrayBuffer", () => {
+    const findings = check(
+      UnboundedBodyReadRule,
+      "scripts/sync-r2.ts",
+      `
+      export async function copy(supabase: any, bucket: string, filePath: string) {
+        const { data: fileBlob, error } = await supabase.storage.from(bucket).download(filePath);
+        if (error || !fileBlob) return null;
+        const arrayBuffer = await fileBlob.arrayBuffer();
+        return Buffer.from(arrayBuffer);
+      }
+      `,
+    );
+    expect(findings.length).toBe(0);
+  });
+
+  test("negative control: Blob size compared to a cap before the read", () => {
+    const findings = check(
+      UnboundedBodyReadRule,
+      "scripts/sync-r2.ts",
+      `
+      export async function copy(blob: Blob) {
+        if (blob.size > 5_000_000) throw new Error("too large");
+        return Buffer.from(await blob.arrayBuffer());
+      }
+      `,
+    );
+    expect(findings.length).toBe(0);
+  });
+
+  test("positive: arrayBuffer of a blob that is not an SDK download still fires", () => {
+    const findings = check(
+      UnboundedBodyReadRule,
+      "scripts/blob-read.ts",
+      `
+      export async function readIt(url: string) {
+        const res = await fetch(url);
+        const blob = await res.blob();
+        return blob.arrayBuffer();
+      }
+      `,
+    );
+    expect(findings.length).toBe(1);
+  });
+
   test("negative control: hard-coded first-party YouTube fetch", () => {
     const findings = check(
       UnboundedBodyReadRule,

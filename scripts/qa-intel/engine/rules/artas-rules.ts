@@ -157,6 +157,17 @@ export const UnconsumedStreamLeakRule: Rule = {
  * this stays a review-only note); (3) flow analysis is absent — a limit
  * check in a helper is not recognized.
  */
+/** True when the node is a variable bound from `await <client>.storage.from(...).download(...)`. */
+function isStorageDownloadBlob(node: Node): boolean {
+  if (!Node.isIdentifier(node)) return false;
+  const declaration = node.getSymbol()?.getValueDeclaration();
+  const variable = Node.isBindingElement(declaration)
+    ? declaration.getFirstAncestorByKind(SyntaxKind.VariableDeclaration)
+    : declaration;
+  const initializer = Node.isVariableDeclaration(variable) ? variable.getInitializer()?.getText() ?? "" : "";
+  return /\.storage\b[\s\S]*\.download\(/.test(initializer);
+}
+
 export const UnboundedBodyReadRule: Rule = {
   name: "artas-v10-unbounded-body-read",
   scope: "file",
@@ -205,8 +216,12 @@ export const UnboundedBodyReadRule: Rule = {
       // content-length header read (compared to a number anywhere on the
       // same line / nearby comparison) or a counted reader loop.
       const hasContentLengthCap = /content-length/i.test(fnText) && /[><]=?\s*\d/.test(fnText);
+      // A Blob knows its size up front: `blob.size` compared to a number before the read is a byte cap.
+      const hasBlobSizeCap = /\.size\s*[><]=?\s*[\w$]/.test(fnText);
       const hasByteCounter = /(byteCount|bytesRead|bytes)\s*[+]=/.test(fnText);
-      if (hasContentLengthCap || hasByteCounter) return;
+      if (hasContentLengthCap || hasByteCounter || hasBlobSizeCap) return;
+      // An SDK storage download is a stored object whose size the owner already controls, not a remote body.
+      if (isStorageDownloadBlob(expr.getExpression())) return;
 
       const key = node.getStart();
       if (reported.has(key)) return;
