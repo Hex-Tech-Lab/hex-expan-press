@@ -51,6 +51,20 @@ describe("withIdempotencyLock", () => {
     expect(redis.del).toHaveBeenCalledWith("lock:sale:polar:s4");
   });
 
+  it("a failed lock release does not replace the caller's error", async () => {
+    redis.setnx.mockResolvedValue(1);
+    redis.del.mockRejectedValue(new Error("redis down"));
+    const err = await withIdempotencyLock("lock:sale:polar:s6", async () => { throw new Error("boom"); }).catch((e: unknown) => e);
+    expect((err as Error).message).toBe("boom");
+  });
+
+  it("a failed lock release after a non-recorded result does not turn success into an error", async () => {
+    redis.setnx.mockResolvedValue(1);
+    redis.del.mockRejectedValue(new Error("redis down"));
+    const res = await withIdempotencyLock("lock:sale:polar:s7", async () => ({ status: 200, payload: { recorded: false, reason: "duplicate" } }));
+    expect(res).toMatchObject({ status: 200 });
+  });
+
   it("production without Redis config fails closed instead of running unlocked", async () => {
     vi.stubEnv("UPSTASH_REDIS_REST_URL", "");
     vi.stubEnv("UPSTASH_REDIS_REST_TOKEN", "");

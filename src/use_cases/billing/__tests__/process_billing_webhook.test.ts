@@ -1,3 +1,4 @@
+import { WebhookValidationError } from "../../../domain/webhook/webhook_errors.ts";
 // Regression tests for the billing webhook use case (Wave 6.2 P1): both the
 // sale and refund paths must run under the distributed idempotency lock —
 // an already-recorded event returns normally (no duplicate ledger writes, no
@@ -124,12 +125,16 @@ vi.mock("@supabase/supabase-js", () => ({
 // Deterministic DB product resolver so the use case resolves creator/split
 // (Sprint 15: commercial state is DB-only — the use case now resolves products
 // by alias from the database instead of the file-backed product index).
+const resolveCalls = vi.hoisted(() => [] as Array<[string, string]>);
+
 vi.mock("../../../../payments/src/webhook_core.ts", async (importOriginal) => {
   const orig = await importOriginal<typeof import("../../../../payments/src/webhook_core.ts")>();
   return {
     ...orig,
-    resolveProductByAlias: (alias: string) =>
-      alias === "p1" ? Promise.resolve({ productId: "p1", creatorHandle: "c1", currency: "USD" }) : Promise.resolve(null),
+    resolveProductByAlias: (alias: string, provider: string) => {
+      resolveCalls.push([alias, provider]);
+      return alias === "p1" ? Promise.resolve({ productId: "p1", creatorHandle: "c1", currency: "USD" }) : Promise.resolve(null);
+    },
   };
 });
 
@@ -154,11 +159,32 @@ vi.mock("../../../../payments/src/settings_registry.ts", () => ({
   },
   expandHome: (p: string, home: string) => (home && (p === "~" || p.startsWith("~/")) ? p : p),
   isRegisteredPaymentProvider: (name: unknown) => typeof name === "string",
+  isEnabledPaymentProvider: (name: unknown) => typeof name === "string",
   paymentProviderSetting: () => undefined,
   isMoneyPath: () => process.env.NODE_ENV === "production" || process.env.VERCEL_ENV !== undefined || !!process.env.AWS_LAMBDA_FUNCTION_NAME,
 }));
 
 describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
+  it("a sale whose alias resolves to no product is a terminal 422, and the lookup uses the sale's provider", async () => {
+    setnx.mockResolvedValue(1);
+    resolveCalls.length = 0;
+    const err = await processBillingWebhookUseCase({ headers: {}, body: "" }, [
+      adapter({ ...SALE, productId: "paddle-only-alias", saleId: "sale_unknown_1" }),
+    ]).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(WebhookValidationError);
+    expect((err as WebhookValidationError).httpStatus).toBe(422);
+    expect(resolveCalls).toContainEqual(["paddle-only-alias", "polar"]);
+  });
+
+  it("a Paddle sale looks up its alias under paddle, not a fixed provider", async () => {
+    setnx.mockResolvedValue(1);
+    resolveCalls.length = 0;
+    await processBillingWebhookUseCase({ headers: {}, body: "" }, [
+      adapter({ ...SALE, providerName: "paddle", productId: "paddle-alias-2", saleId: "sale_paddle_1" }),
+    ]).catch(() => undefined);
+    expect(resolveCalls).toContainEqual(["paddle-alias-2", "paddle"]);
+  });
+
   beforeEach(() => {
     setnx.mockReset();
     supa.lookupResult = { data: null, error: null };
@@ -367,7 +393,15 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
     delivery.deliverSaleForWebhook.mockClear();
     await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(SALE)]);
     expect(delivery.deliverSaleForWebhook).toHaveBeenCalledTimes(1);
-    expect(delivery.deliverSaleForWebhook).toHaveBeenCalledWith({ saleId: "sale_dup_1", productAlias: "p1", buyerEmail: "buyer@example.com" });
+    expect(delivery.deliverSaleForWebhook).toHaveBeenCalledWith({ provider: "polar", saleId: "sale_dup_1", productAlias: "p1", buyerEmail: "buyer@example.com" });
+  });
+
+  it("a newly recorded sale delivers under the provider that issued it, not a shared default", async () => {
+    setnx.mockResolvedValue(1);
+    delivery.deliverSaleForWebhook.mockClear();
+    await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter({ ...SALE, providerName: "fungies", saleId: "sale_fungies_new" })]);
+    expect(delivery.deliverSaleForWebhook).toHaveBeenCalledTimes(1);
+    expect(delivery.deliverSaleForWebhook).toHaveBeenCalledWith(expect.objectContaining({ provider: "fungies", saleId: "sale_fungies_new" }));
   });
 
   it("a delivery failure on retry propagates as a non-validation error, so the webhook answers 500 and the provider retries", async () => {

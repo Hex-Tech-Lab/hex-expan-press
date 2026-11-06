@@ -13,3 +13,5 @@ New ADRs use [`TEMPLATE.md`](TEMPLATE.md) and take the next free number.
 | [0057](0057-webhook-idempotency-and-fail-closed.md) | Webhook idempotency and fail-closed financial writes |
 | [0058](0058-zero-trust-esign-evidence-pipeline.md) | Zero-trust e-sign evidence pipeline (DNS-pinned SSRF defense) |
 | [0059](0059-idempotent-ssr-retries.md) | Idempotent-only skew retries in Supabase SSR clients |
+| [0063](0063-r2-sync-freshness-contract.md) | R2 sync freshness and overwrite contract (source-ETag marker, conditional writes) |
+| [0064](0064-remove-immutable-cover-cache.md) | Remove the immutable cover cache rule (reinstatement conditions recorded) |

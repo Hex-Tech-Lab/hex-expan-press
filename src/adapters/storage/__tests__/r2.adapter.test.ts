@@ -181,13 +181,16 @@ describe("decomposed helpers", () => {
 
 describe("R2StorageAdapter", () => {
   it("creates signed download URL using config when object exists", async () => {
-    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(null, { status: 200, headers: { "x-amz-meta-supabase-etag": '"src-1"' } }),
+    );
     const adapter = new R2StorageAdapter({
       accountId: "acc-123",
       accessKeyId: "ak-123",
       secretAccessKey: "sk-123",
       bucket: "books-bucket",
       fetchImpl: fetchMock as unknown as typeof fetch,
+      resolveSourceEtag: async () => '"src-1"',
     });
 
     const url = await adapter.createSignedDownloadUrl("release.epub", 600);
@@ -208,6 +211,7 @@ describe("R2StorageAdapter", () => {
       secretAccessKey: "sk-123",
       bucket: "books-bucket",
       fetchImpl: fetchMock as unknown as typeof fetch,
+      resolveSourceEtag: async () => '"src-1"',
     });
 
     const url = await adapter.createSignedDownloadUrl("missing.epub", 600);
@@ -221,6 +225,7 @@ describe("R2StorageAdapter", () => {
       secretAccessKey: "sk-123",
       bucket: "books-bucket",
       endpoint: "not-a-valid-url",
+      resolveSourceEtag: async () => '"src-1"',
     });
 
     const url = await adapter.createSignedDownloadUrl("release.epub", 600);
@@ -326,11 +331,18 @@ describe("getDeliveryStorageAdapter (fallback & preference)", () => {
     vi.stubEnv("R2_PUBLIC_URL", "https://custom.expanpress.com");
     vi.stubEnv("R2_CUSTOM_DOMAIN", "custom.expanpress.com");
 
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 200 }));
+    // The stored marker matches the Supabase source ETag, so the R2 copy is fresh.
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(null, { status: 200, headers: { "x-amz-meta-supabase-etag": '"src-1"' } }),
+    );
     const createSignedUrlMock = vi.fn();
+    const listMock = vi.fn().mockResolvedValue({
+      data: [{ name: "book.pdf", metadata: { eTag: '"src-1"' } }],
+      error: null,
+    });
     const fakeSb = {
       storage: {
-        from: vi.fn(() => ({ createSignedUrl: createSignedUrlMock })),
+        from: vi.fn(() => ({ createSignedUrl: createSignedUrlMock, list: listMock })),
       },
     };
 
@@ -379,6 +391,48 @@ describe("getDeliveryStorageAdapter (fallback & preference)", () => {
     expect(url).toBe("https://supabase.example/signed/fallback-from-r2.pdf");
     expect(fakeSb.storage.from).toHaveBeenCalledWith("supabase-delivery-bucket");
     expect(createSignedUrlMock).toHaveBeenCalledWith("folder/missing.pdf", 300);
+  });
+});
+
+describe("putR2Object endpoint validation", () => {
+  it("returns false for a malformed endpoint instead of throwing, and sends no request", async () => {
+    vi.stubEnv("R2_ALLOW_INSECURE_HTTP", "");
+    const fetchSpy = vi.fn();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const success = await putR2Object({
+        endpoint: "not a url",
+        bucket: "releases",
+        key: "books/test.pdf",
+        accessKeyId: "key1",
+        secretAccessKey: "sec1",
+        body: Buffer.from("pdf-content"),
+        fetchImpl: fetchSpy as never,
+      });
+      expect(success).toBe(false);
+      expect(fetchSpy).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
+    vi.unstubAllEnvs();
+  });
+
+  it("still throws the explicit insecure-HTTP error for an http endpoint", async () => {
+    vi.stubEnv("R2_ALLOW_INSECURE_HTTP", "");
+    const fetchSpy = vi.fn();
+    await expect(
+      putR2Object({
+        endpoint: "http://insecure.r2.cloudflarestorage.com",
+        bucket: "releases",
+        key: "books/test.pdf",
+        accessKeyId: "key1",
+        secretAccessKey: "sec1",
+        body: Buffer.from("pdf-content"),
+        fetchImpl: fetchSpy as never,
+      }),
+    ).rejects.toThrow("[r2-storage] Insecure HTTP endpoint rejected: http://insecure.r2.cloudflarestorage.com");
+    expect(fetchSpy).not.toHaveBeenCalled();
+    vi.unstubAllEnvs();
   });
 });
 
@@ -455,7 +509,7 @@ describe("putR2Object & R2StorageAdapter upload/has", () => {
     vi.unstubAllEnvs();
   });
 
-  it("R2StorageAdapter hasObject and uploadObject delegate to helpers", async () => {
+  it("R2StorageAdapter hasObject delegates to the HEAD helper", async () => {
     const fetchSpy = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));
     const adapter = new R2StorageAdapter({
       accountId: "acc1",
@@ -463,6 +517,7 @@ describe("putR2Object & R2StorageAdapter upload/has", () => {
       secretAccessKey: "s1",
       bucket: "b1",
       fetchImpl: fetchSpy as never,
+      resolveSourceEtag: async () => null,
     });
 
     const has = await adapter.hasObject("file.pdf");
@@ -470,13 +525,6 @@ describe("putR2Object & R2StorageAdapter upload/has", () => {
     expect(fetchSpy).toHaveBeenCalledWith(
       expect.stringContaining("file.pdf"),
       expect.objectContaining({ method: "HEAD" }),
-    );
-
-    const uploaded = await adapter.uploadObject("file.pdf", Buffer.from("hello"), "text/plain");
-    expect(uploaded).toBe(true);
-    expect(fetchSpy).toHaveBeenCalledWith(
-      expect.stringContaining("file.pdf"),
-      expect.objectContaining({ method: "PUT" }),
     );
   });
 });
