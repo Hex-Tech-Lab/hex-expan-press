@@ -1,0 +1,29 @@
+payments/test/amount_strict_parse.test.ts
+  s_6625bc67577472::t_dfb5f83bd8b184 1-164
+payments/src/provider.ts
+  s_6625bc67577472::t_0c5c495218f56f 63-74
+payments/src/providers/fastspring.ts
+  s_6625bc67577472::t_17a585d7ff6b82 33,115-121,140,149
+payments/src/providers/fungies.ts
+  s_6625bc67577472::t_f3000489d61118 3,144,157
+payments/src/providers/lemonsqueezy.ts
+  s_6625bc67577472::t_af9fcbd3e4d634 15,52,66
+payments/src/providers/payhip.ts
+  s_6625bc67577472::t_d46d507de5349a 31,79-80,84,87-91,106,114
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4007ebebe4071bcf35ffdae6a07693c68fd42600",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
