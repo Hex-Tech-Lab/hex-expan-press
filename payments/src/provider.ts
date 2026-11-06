@@ -63,16 +63,20 @@ export function cleanAttributionId(raw: unknown): string | undefined {
   return typeof raw === "string" && ATTRIBUTION_ID_RE.test(raw) ? raw : undefined;
 }
 
+// Optional minus, digits, optional fraction. No sign "+", no exponent, no hex/binary/octal
+// prefix, no thousands separator, no surrounding whitespace.
+const PLAIN_DECIMAL_RE = /^-?\d+(\.\d+)?$/;
+
 /**
  * A raw provider amount as a finite number, or undefined when it is absent, null, blank,
- * non-numeric or not a number/string. Never coerces null or "" to 0 (a $0 sale) and never
+ * non-numeric or not a number/string. A string must be a plain decimal: Number() would read
+ * "0x10" as 16 and "1e3" as 1000. Never coerces null or "" to 0 (a $0 sale) and never
  * yields NaN (which slips past `<`/`!==` amount guards).
  */
 export function strictAmount(raw: unknown): number | undefined {
-  if (typeof raw === "string" && raw.trim() === "") return undefined;
-  if (typeof raw !== "number" && typeof raw !== "string") return undefined;
-  const n = Number(raw);
-  return Number.isFinite(n) ? n : undefined;
+  if (typeof raw === "number") return Number.isFinite(raw) ? raw : undefined;
+  if (typeof raw === "string" && PLAIN_DECIMAL_RE.test(raw)) return Number(raw);
+  return undefined;
 }
 
 export function hashEmail(email: string): string {

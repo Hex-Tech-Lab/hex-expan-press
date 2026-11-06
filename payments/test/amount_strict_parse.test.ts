@@ -51,6 +51,22 @@ describe("strictAmount", () => {
       expect(strictAmount(bad)).toBeUndefined();
     }
   });
+
+  it("accepts only plain decimal strings: hex, exponent and thousands separators are refused, not reinterpreted", () => {
+    expect(strictAmount("12")).toBe(12);
+    expect(strictAmount("12.50")).toBe(12.5);
+    expect(strictAmount("0")).toBe(0);
+    expect(strictAmount("-5")).toBe(-5);
+    // "0x10" would book $0.16 as 16 minor units, "1e3" would book 1000.
+    for (const bad of ["0x10", "1e3", "1E3", "1,000", " ", "NaN", "Infinity", "+12", "12.", ".5", " 12", "12 ", "0b11", "0o7", null, undefined]) {
+      expect(strictAmount(bad)).toBeUndefined();
+    }
+  });
+
+  it("a hex-encoded price on a sale is refused instead of booked", () => {
+    expect(saleAmount(payhip({ ...PAYHIP_SALE, price: "0x10" }))).toBeUndefined();
+    expect(saleAmount(payhip({ ...PAYHIP_SALE, price: "1e3" }))).toBeUndefined();
+  });
 });
 
 describe("payhip refunds: the original price must be present to prove a full reversal", () => {
