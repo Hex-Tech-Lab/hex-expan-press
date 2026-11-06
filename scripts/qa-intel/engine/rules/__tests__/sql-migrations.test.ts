@@ -17,6 +17,7 @@ import { ConflictMarkerRule } from "../data-lessons-20260924";
 import { QualityEngine } from "../../application/QualityEngine";
 import { listTrackedFiles, isSqlMigration, selectScannableTextFiles } from "../../infra/TrackedFileEnumeration";
 import type { Rule } from "../../domain/Rule";
+import type { Finding } from "../../domain/Finding";
 
 function checkSql(
   rule: Rule,
@@ -29,7 +30,7 @@ function checkSql(
   // Pass the repo-relative `path` (not source.getFilePath(), which ts-morph's
   // in-memory fs prefixes with '/') — matches production, where the engine
   // hands rules repo-relative paths.
-  return rule.check({ filePath: path, ast: source, allFiles }) as { severity: string; title: string }[];
+  return rule.check({ filePath: path, ast: source, allFiles }) as Finding[];
 }
 
 // R4 positive fixture — verbatim pre-fix content of

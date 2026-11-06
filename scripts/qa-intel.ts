@@ -119,6 +119,8 @@ let fileList: string[] = [];
 // dirs like .memory/AGENT_LEDGER.md, never untracked files) — see
 // quality-engine/infra/TrackedFileEnumeration.ts. TS/TSX set unchanged.
 const TEXT_FILE_EXT = /\.(md|mdx|sql|json|ya?ml|sh|txt)$/;
+/** Scanner self-sources: rule definitions, engine/auditor fixtures and the runner entry points. */
+const SELF_SCAN_EXCLUDE = /^scripts\/(qa-intel\.ts|qa-intel\/|contract-auditor\.ts|contract-auditor\/)/;
 if (mode === "full" || mode === "watch") {
 // Wave Q4 (2026-09-24): SQL migrations joined the scan surface (R4/R13
   // rules, rules/sql-migrations.ts) — qa-intel previously never scanned
@@ -172,7 +174,11 @@ if (mode === "full" || mode === "watch") {
     fileList = diffOutput
       .split(/\r?\n/)
 .map(f => f.trim())
-      .filter(f => f.length > 0 && (f.endsWith(".ts") || f.endsWith(".tsx") || TEXT_FILE_EXT.test(f)));
+      .filter(f => f.length > 0 && (f.endsWith(".ts") || f.endsWith(".tsx") || TEXT_FILE_EXT.test(f)))
+      // The scanner's own rule definitions, fixtures and runner contain the trigger strings they search for
+      // (e.g. 'NODE_ENV' + 'production'), so scanning them flags the scanner against itself. Their behaviour is
+      // covered by the engine test suites (scripts/qa-intel/**/__tests__, scripts/contract-auditor/__tests__).
+      .filter(f => !SELF_SCAN_EXCLUDE.test(f));
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : String(e);
     console.error('[qa-intel]', { message, operation: 'git-diff', command: diffArgs });
