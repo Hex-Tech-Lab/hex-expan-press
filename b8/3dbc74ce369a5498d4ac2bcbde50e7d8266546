@@ -1,0 +1,22 @@
+scripts/qa-intel/engine/rules/artas-rules.ts
+  s_6625bc67577472::t_949302e5ce25d5 145-158
+  s_6625bc67577472::t_14064dfa72671e 3
+scripts/qa-intel/engine/rules/__tests__/artas-rules.test.ts
+  s_6625bc67577472::t_890289ca789765 209-243
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b83dbc74ce369a5498d4ac2bcbde50e7d8266546",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
