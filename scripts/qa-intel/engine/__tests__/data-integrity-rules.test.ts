@@ -262,6 +262,64 @@ describe('TruncationValidationRule', () => {
     expect(findings).toHaveLength(0);
   });
 
+  // Triage item 8 negative controls and positives: only a slice that reaches storage, a DB row or a response counts.
+  const truncations = (code: string[]) =>
+    scan(TruncationValidationRule, 'scripts/trunc.ts', code.join('\n'));
+
+  test('does not flag a slice that only feeds a console log', () => {
+    expect(truncations([
+      'export function report(excerpt: string) {',
+      '  console.log(`FAIL: ${excerpt.trim().slice(0, 70)}`);',
+      '}',
+    ])).toHaveLength(0);
+  });
+
+  test('does not flag a sliding-window slice used for scoring', () => {
+    expect(truncations([
+      'export function best(transcript: string, norm: (s: string) => string) {',
+      '  let bestScore = 0;',
+      '  for (let i = 0; i < transcript.length; i += 300) {',
+      '    const w = transcript.slice(i, i + 600);',
+      '    bestScore = Math.max(bestScore, norm(w).split(" ").length);',
+      '  }',
+      '  return bestScore;',
+      '}',
+    ])).toHaveLength(0);
+  });
+
+  test('does not flag single-argument prefix strips', () => {
+    expect(truncations([
+      'export function strip(header: string, url: string) {',
+      '  return [header.slice(7), url.slice("https://".length)];',
+      '}',
+    ])).toHaveLength(0);
+  });
+
+  test('does not flag a fixed-width ISO date slice', () => {
+    expect(truncations([
+      'export function day(d: Date) {',
+      '  return d.toISOString().slice(0, 10);',
+      '}',
+    ])).toHaveLength(0);
+  });
+
+  test('flags a truncated value written into a database row', () => {
+    expect(truncations([
+      'export async function save(supabase: any, body: string) {',
+      '  const title = body.slice(0, 80);',
+      '  await supabase.from("notes").insert({ title });',
+      '}',
+    ])).toHaveLength(1);
+  });
+
+  test('flags a truncation passed straight into a response payload', () => {
+    expect(truncations([
+      'export function respond(body: string) {',
+      '  return Response.json({ excerpt: body.slice(0, 80) });',
+      '}',
+    ])).toHaveLength(1);
+  });
+
   test('does not flag a function that is merely named like a slice', () => {
     const findings = scan(TruncationValidationRule, 'web/lib/digest.ts', [
       'declare function sliceDigest(raw: string): string;',

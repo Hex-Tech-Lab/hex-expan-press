@@ -152,6 +152,41 @@ export const DefaultValueConsistencyRule: IRule = {
   }
 };
 
+const SINK_CALL = /^(insert|update|upsert|upload|put|send|json|write|writeFile|set|save|store|append|post|publish)$/;
+
+/**
+ * True when the value of `start` reaches storage or a caller: it is returned, written to a property, or passed to a
+ * storing call (a DB write, an upload, a response). A local alias is followed to each of its reads.
+ */
+function reachesSink(start: Node, seen = new Set<Node>()): boolean {
+  let child: Node = start;
+  for (let cur = start.getParent(); cur; child = cur, cur = cur.getParent()) {
+    if (Node.isReturnStatement(cur)) return true;
+    if (Node.isArrowFunction(cur)) return cur.getBody() === child;
+    if (Node.isCallExpression(cur) && cur.getArguments().includes(child)) {
+      const callee = cur.getExpression();
+      const name = Node.isPropertyAccessExpression(callee) ? callee.getName() : callee.getText();
+      if (SINK_CALL.test(name)) return true;
+    }
+    if (Node.isBinaryExpression(cur) && cur.getRight() === child && cur.getOperatorToken().getKind() === SyntaxKind.EqualsToken) {
+      const target = cur.getLeft();
+      if (Node.isPropertyAccessExpression(target) || Node.isElementAccessExpression(target)) return true;
+    }
+    if (Node.isVariableDeclaration(cur)) {
+      const name = cur.getNameNode();
+      if (!Node.isIdentifier(name) || seen.has(cur)) return false;
+      seen.add(cur);
+      // Same-name reads inside the declaring function (or file): cheaper and steadier than a language-service lookup.
+      const scope = cur.getFirstAncestor((a) => Node.isFunctionLikeDeclaration(a)) ?? cur.getSourceFile();
+      return scope
+        .getDescendantsOfKind(SyntaxKind.Identifier)
+        .some((ref) => ref !== name && ref.getText() === name.getText() && reachesSink(ref, seen));
+    }
+    if (Node.isStatement(cur)) return false;
+  }
+  return false;
+}
+
 export const TruncationValidationRule: IRule = {
   name: "truncation-validation-enforcer",
   check: (source: SourceFile) => {
@@ -177,6 +212,12 @@ export const TruncationValidationRule: IRule = {
           // false-positive class, review finding 2026-09-07:
           // trimUrlTrailingPunctuation's slice(0, -1) loop flagged as if it
           // were lossy display truncation).
+          // A single-argument slice (`.slice(7)`, `.slice(prefix.length)`) strips a prefix and keeps the rest, and a
+          // fixed-width date (`toISOString().slice(0, 10)`) is a format, not lossy truncation.
+          if (node.getArguments().length < 2) return;
+          if (Node.isPropertyAccessExpression(callee) && /\.toISOString\(\)$/.test(callee.getExpression().getText())) return;
+          // Lossy only if the result is kept: stored, written to a row, or returned to a caller or response.
+          if (!reachesSink(node)) return;
           const endArg = node.getArguments()[1];
           const isNegativeEnd = endArg && (
             Node.isPrefixUnaryExpression(endArg) && endArg.getOperatorToken() === SyntaxKind.MinusToken

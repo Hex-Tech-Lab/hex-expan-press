@@ -222,7 +222,7 @@ describe('WAVE 9: New Data Integrity Rules', () => {
 
   test('TruncationValidationRule flags x.slice/substring/substr truncation without ellipsis', () => {
     for (const call of ['question.slice(0, 50)', 'question.substring(0, 50)', 'question.substr(0, 50)']) {
-      const findings = TruncationValidationRule.check(createTestSource(`const truncated = ${call};`));
+      const findings = TruncationValidationRule.check(createTestSource(`const truncated = ${call}; return truncated;`));
       expect(findings.length).toBe(1);
     }
   });
