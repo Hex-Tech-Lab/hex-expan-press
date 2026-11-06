@@ -38,7 +38,7 @@ fi
 # Honour a leading `cd <dir> &&` so gates are checked in the checkout the command targets.
 lead=$(sed -nE 's/^[[:space:]]*\(?[[:space:]]*cd[[:space:]]+("([^"]+)"|'\''([^'\'']+)'\''|([^ ;&|)]+)).*/\2\3\4/p' <<<"$cmd")
 # env -C <dir> runs the command in <dir>, so it is the same as a leading cd (fail closed like cd).
-[ -z "$lead" ] && lead=$(sed -nE 's/.*(^|[[:space:]])env[[:space:]]+-C[[:space:]]+("([^"]+)"|'\''([^'\'']+)'\''|([^ ;&|)]+)).*/\3\4\5/p' <<<"$cmd")
+[ -z "$lead" ] && lead=$(sed -nE 's/^[[:space:]]*\(?[[:space:]]*((\/usr\/bin\/)?env[[:space:]]+-C)[[:space:]]+("([^"]+)"|'\''([^'\'']+)'\''|([^ ;&|)]+)).*/\4\5\6/p' <<<"$cmd")
 # Expand a leading ~ (the shell would; a literal "~/..." made cd fail and the gate silently allow -- 2026-10-12).
 lead="${lead/#\~/$HOME}"
 if [ -n "$lead" ] && ! cd "$lead" 2>/dev/null; then

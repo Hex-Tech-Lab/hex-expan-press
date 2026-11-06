@@ -118,8 +118,9 @@ export const fastspringProvider: CheckoutProvider = {
         if (totalReturn === undefined || originalTotal === undefined) {
           return { ok: false, status: 422, error: `return.created missing totalReturn or original.total (event ${evt?.id ?? "<none>"}) — cannot verify a full refund; record manually` };
         }
-        if (totalReturn + 0.005 < originalTotal) {
-          return { ok: false, status: 422, error: `partial return (${totalReturn} of ${originalTotal}) — ledger refund records are full reversals; partial refunds must be recorded manually` };
+        if (Math.abs(totalReturn - originalTotal) > 0.005) {
+          const kind = totalReturn < originalTotal ? "partial" : "over-";
+          return { ok: false, status: 422, error: `${kind} return (${totalReturn} of ${originalTotal}) — ledger refund records are full reversals; ${kind} refunds must be recorded manually` };
         }
         actions.push({
           refund: { provider: NAME, sale_id: saleId, ts: isoTs(evt?.created, getPath(evt, FM.refund_ts_ms), data?.changed) },

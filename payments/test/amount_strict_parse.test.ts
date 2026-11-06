@@ -55,7 +55,8 @@ describe("strictAmount", () => {
 
 describe("payhip refunds: the original price must be present to prove a full reversal", () => {
   it("price omitted → refused 422, no refund emitted", () => {
-    const { price: _omit, ...body } = PAYHIP_REFUND;
+    const body = { ...PAYHIP_REFUND };
+    delete (body as { price?: unknown }).price;
     expect(status(payhip(body))).toBe(422);
   });
 
@@ -113,6 +114,11 @@ describe("fastspring returns: both totals must be present to prove a full revers
 
   it("partial return → still refused 422", () => {
     const evt = { ...FS_RETURN, data: { ...FS_RETURN.data, totalReturn: 10 } };
+    expect(status(fastspring([evt]))).toBe(422);
+  });
+
+  it("over-return (totalReturn > originalTotal) → refused 422", () => {
+    const evt = { ...FS_RETURN, data: { ...FS_RETURN.data, totalReturn: 50 } };
     expect(status(fastspring([evt]))).toBe(422);
   });
 
