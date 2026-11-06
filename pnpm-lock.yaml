@@ -144,10 +144,10 @@ importers:
         specifier: 9.39.5
         version: 9.39.5(jiti@2.7.0)(supports-color@7.2.0)
       glob:
-        specifier: ^13.0.6
+        specifier: 13.0.6
         version: 13.0.6
       ts-morph:
-        specifier: ^28.0.0
+        specifier: 28.0.0
         version: 28.0.0
       tsx:
         specifier: 4.23.13
