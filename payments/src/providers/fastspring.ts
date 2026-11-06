@@ -30,7 +30,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { IncomingHttpHeaders } from "node:http";
 import type { CheckoutProvider, ParseResult, ProviderName, RefundEvent, SaleEvent } from "../provider.ts";
-import { hashEmail } from "../provider.ts";
+import { hashEmail, strictAmount } from "../provider.ts";
 import { getPath, isAllowedCurrency, paymentProviderSetting } from "../settings_registry.ts";
 
 const NAME = "fastspring" as ProviderName;
@@ -112,9 +112,13 @@ export const fastspringProvider: CheckoutProvider = {
         if (!saleId) {
           return { ok: false, status: 400, error: "return.created missing data.original.order — refund cannot be linked to a recorded sale" };
         }
-        const totalReturn = Number(getPath(evt, FM.refund_total) ?? data?.totalReturn);
-        const originalTotal = Number(getPath(evt, FM.refund_original_total) ?? original?.total);
-        if (Number.isFinite(totalReturn) && Number.isFinite(originalTotal) && totalReturn + 0.005 < originalTotal) {
+        const totalReturn = strictAmount(getPath(evt, FM.refund_total) ?? data?.totalReturn);
+        const originalTotal = strictAmount(getPath(evt, FM.refund_original_total) ?? original?.total);
+        // Without both totals a full reversal cannot be proven: refuse, never assume full.
+        if (totalReturn === undefined || originalTotal === undefined) {
+          return { ok: false, status: 422, error: `return.created missing totalReturn or original.total (event ${evt?.id ?? "<none>"}) — cannot verify a full refund; record manually` };
+        }
+        if (totalReturn + 0.005 < originalTotal) {
           return { ok: false, status: 422, error: `partial return (${totalReturn} of ${originalTotal}) — ledger refund records are full reversals; partial refunds must be recorded manually` };
         }
         actions.push({
@@ -133,7 +137,7 @@ export const fastspringProvider: CheckoutProvider = {
 
       const items: Record<string, unknown>[] = Array.isArray(data?.items) ? (data.items as Record<string, unknown>[]) : [];
       const productId = getPath(evt, FM.product_id) ?? items[0]?.product;
-      const total = Number(getPath(evt, FM.total) ?? data?.total);
+      const total = strictAmount(getPath(evt, FM.total) ?? data?.total);
       const currency = String(getPath(evt, FM.currency) ?? data?.currency ?? "").toUpperCase();
       const saleId = String(getPath(evt, FM.sale_id) ?? data?.id ?? "");
       const ts = isoTs(evt?.created, getPath(evt, FM.ts_ms), data?.changed);
@@ -142,7 +146,7 @@ export const fastspringProvider: CheckoutProvider = {
 
       if (!productId) return { ok: false, status: 400, error: `order.completed missing data.items[].product (event ${evt?.id ?? "<none>"})` };
       if (!saleId) return { ok: false, status: 400, error: `order.completed missing data.id (event ${evt?.id ?? "<none>"})` };
-      if (!Number.isFinite(total) || total < 0) return { ok: false, status: 400, error: `order.completed invalid data.total (event ${evt?.id ?? "<none>"})` };
+      if (total === undefined || total < 0) return { ok: false, status: 400, error: `order.completed invalid data.total (event ${evt?.id ?? "<none>"})` };
       if (currency && !isAllowedCurrency(currency)) return { ok: false, status: 400, error: `unsupported currency: ${currency}` };
       if (typeof email !== "string" || !email.includes("@")) return { ok: false, status: 400, error: `order.completed missing data.customer.email (event ${evt?.id ?? "<none>"})` };
 

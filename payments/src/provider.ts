@@ -60,6 +60,18 @@ export function cleanAttributionId(raw: unknown): string | undefined {
   return typeof raw === "string" && ATTRIBUTION_ID_RE.test(raw) ? raw : undefined;
 }
 
+/**
+ * A raw provider amount as a finite number, or undefined when it is absent, null, blank,
+ * non-numeric or not a number/string. Never coerces null or "" to 0 (a $0 sale) and never
+ * yields NaN (which slips past `<`/`!==` amount guards).
+ */
+export function strictAmount(raw: unknown): number | undefined {
+  if (typeof raw === "string" && raw.trim() === "") return undefined;
+  if (typeof raw !== "number" && typeof raw !== "string") return undefined;
+  const n = Number(raw);
+  return Number.isFinite(n) ? n : undefined;
+}
+
 export function hashEmail(email: string): string {
   return createHash("sha256").update(email.trim().toLowerCase()).digest("hex");
 }

@@ -28,7 +28,7 @@
 import { createHash } from "node:crypto";
 import type { IncomingHttpHeaders } from "node:http";
 import type { CheckoutProvider, ParseResult, ProviderName } from "../provider.ts";
-import { hashEmail, safeEqualHex } from "../provider.ts";
+import { hashEmail, safeEqualHex, strictAmount } from "../provider.ts";
 import { getPath, isAllowedCurrency, paymentProviderSetting } from "../settings_registry.ts";
 
 const NAME: ProviderName = "payhip";
@@ -76,15 +76,19 @@ export const payhipProvider: CheckoutProvider = {
 
     if (REFUND_EVENTS.includes(eventName)) {
       const saleId = String(getPath(body, FM.sale_id) ?? body?.id ?? "");
-      const priceMinor = Number(getPath(body, FM.total_cents) ?? body?.price);
-      const refundedMinor = Number(getPath(body, FM.refund_amount_minor) ?? body?.amount_refunded);
+      const priceMinor = strictAmount(getPath(body, FM.total_cents) ?? body?.price);
+      const refundedMinor = strictAmount(getPath(body, FM.refund_amount_minor) ?? body?.amount_refunded);
       if (!saleId) {
         return { ok: false, status: 400, error: "refunded event missing transaction id — refund cannot be linked to a recorded sale" };
       }
-      if (!Number.isFinite(refundedMinor) || refundedMinor < 0) {
+      if (refundedMinor === undefined || refundedMinor < 0) {
         return { ok: false, status: 400, error: "refunded event missing amount_refunded — cannot classify full vs partial refund" };
       }
-      if (Number.isFinite(priceMinor) && refundedMinor !== priceMinor) {
+      // Without the original price a full reversal cannot be proven: refuse, never assume full.
+      if (priceMinor === undefined) {
+        return { ok: false, status: 422, error: "refunded event missing price — cannot verify a full refund; record manually" };
+      }
+      if (refundedMinor !== priceMinor) {
         return { ok: false, status: 422, error: `partial refund (amount_refunded ${refundedMinor} of price ${priceMinor}) — ledger refund records are full reversals; partial refunds must be recorded manually` };
       }
       return {
@@ -99,7 +103,7 @@ export const payhipProvider: CheckoutProvider = {
 
     const items: Record<string, unknown>[] = Array.isArray(body?.items) ? (body.items as Record<string, unknown>[]) : [];
     const productId = getPath(body, FM.product_id) ?? items[0]?.product_id;
-    const totalMinor = Number(getPath(body, FM.total_cents) ?? body?.price);
+    const totalMinor = strictAmount(getPath(body, FM.total_cents) ?? body?.price);
     const currency = String(getPath(body, FM.currency) ?? body?.currency ?? "").toUpperCase();
     const saleId = String(getPath(body, FM.sale_id) ?? body?.id ?? "");
     const ts = isoTs(getPath(body, FM.ts_epoch_s), body?.date);
@@ -107,7 +111,7 @@ export const payhipProvider: CheckoutProvider = {
 
     if (!productId) return { ok: false, status: 400, error: "missing items[0].product_id" };
     if (!saleId) return { ok: false, status: 400, error: "missing transaction id" };
-    if (!Number.isFinite(totalMinor) || totalMinor < 0) return { ok: false, status: 400, error: "invalid price (minor units)" };
+    if (totalMinor === undefined || totalMinor < 0) return { ok: false, status: 400, error: "invalid price (minor units)" };
     if (currency && !isAllowedCurrency(currency)) return { ok: false, status: 400, error: `unsupported currency: ${currency}` };
     if (typeof email !== "string" || !email.includes("@")) return { ok: false, status: 400, error: "missing buyer email" };
 

@@ -1,6 +1,6 @@
 import type { IncomingHttpHeaders } from "node:http";
 import type { CheckoutProvider, ParseResult, ProviderName } from "../provider.ts";
-import { hashEmail, hmacSha256Hex, safeEqualHex } from "../provider.ts";
+import { hashEmail, hmacSha256Hex, safeEqualHex, strictAmount } from "../provider.ts";
 import { getPath, isAllowedCurrency, paymentProviderSetting } from "../settings_registry.ts";
 
 const NAME: ProviderName = "fungies";
@@ -141,7 +141,7 @@ export const fungiesProvider: CheckoutProvider = {
     const order = data.order as Record<string, unknown> | undefined;
 
     const productId = resolveProductId(body, items);
-    const totalMinor = Number(getPath(body, FM.total_cents) ?? payment?.value ?? order?.value);
+    const totalMinor = strictAmount(getPath(body, FM.total_cents) ?? payment?.value ?? order?.value);
     const currency = String(getPath(body, FM.currency) ?? payment?.currency ?? order?.currency ?? items[0]?.currency ?? "").toUpperCase();
     const saleId = String(getPath(body, FM.sale_id) ?? payment?.id ?? order?.id ?? "");
     const rawTs = firstDefined(getPath(body, FM.ts_ms), payment?.createdAt, order?.createdAt);
@@ -154,7 +154,7 @@ export const fungiesProvider: CheckoutProvider = {
 
     if (!productId) return { ok: false, status: 400, error: "missing product identity (items[].customFields / product.internalId / product.id)" };
     if (!saleId) return { ok: false, status: 400, error: "missing data.payment.id (sale identity)" };
-    if (!Number.isFinite(totalMinor) || totalMinor < 0) return { ok: false, status: 400, error: "invalid payment value (data.payment.value)" };
+    if (totalMinor === undefined || totalMinor < 0) return { ok: false, status: 400, error: "invalid payment value (data.payment.value)" };
     if (currency && !isAllowedCurrency(currency)) return { ok: false, status: 400, error: `unsupported currency: ${currency}` };
     if (typeof email !== "string" || !email.includes("@")) return { ok: false, status: 400, error: "missing buyer email (data.user.email)" };
 
