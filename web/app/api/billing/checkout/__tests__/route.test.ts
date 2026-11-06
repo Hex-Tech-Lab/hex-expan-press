@@ -226,6 +226,18 @@ describe("billing/checkout unified checkout_url policy", () => {
     expect(res.status).toBe(500);
     expect(res.headers.get("location")).toBeNull();
   });
+
+  // The launch switch decides which rails can take a buyer. A switched-off provider's active row is
+  // dropped, so a product whose only active rail is switched off is refused with no redirect.
+  it("an active rail for a switched-off provider (lemonsqueezy) is not offered to the buyer", async () => {
+    adminModule.mockAdminClient = gateAdminClient(undefined, undefined, {
+      data: [{ provider: "lemonsqueezy", weight: 100, checkout_url: "https://example.com/buy", active: true }],
+      error: null,
+    });
+    const res = await GET(request());
+    expect(res.status).toBe(404);
+    expect(res.headers.get("location")).toBeNull();
+  });
 });
 
 describe("billing/checkout wave85 sandbox + raw-URL fail-closed", () => {

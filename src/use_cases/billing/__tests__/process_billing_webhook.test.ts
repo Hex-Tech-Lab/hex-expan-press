@@ -734,6 +734,37 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
     await expect(processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(secondChargeback)])).rejects.toThrow(/in flight/);
   });
 
+  it("an unsettled Polar refund (pending, failed or canceled) is never applied: flagged refund_not_settled, rejected 400, no refund row", async () => {
+    process.env.SUPABASE_URL = "https://example.supabase.co";
+    process.env.SUPABASE_SECRET_KEY = "mock-secret-key";
+    setnx.mockResolvedValue(1);
+    await appendSale(
+      { ts: "2026-09-27T00:00:00.000Z", sale_id: "sale_unsettled", provider: "polar", product_id: "p1", amount_usd: 39, creator_id: "c1", creator_split_pct: 50, creator_split_usd: 19.5, our_split_usd: 19.5, currency: "USD" },
+      salesFilePath,
+    );
+    const unsettled: RefundIssuedEvent = {
+      eventType: "refund_issued",
+      providerName: "polar",
+      saleId: "sale_unsettled",
+      refundId: "rf_pending",
+      totalCents: 3900,
+      currency: "USD",
+      settled: false,
+      occurredAt: "2026-09-28T00:00:00.000Z",
+      rawPayload: null,
+    };
+    await expect(processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(unsettled)])).rejects.toThrow(/refund not settled/);
+
+    expect(supa.auditInserts).toHaveLength(1);
+    expect(supa.auditInserts[0]).toMatchObject({
+      event: "MANUAL_REVIEW_REQUIRED_REFUND",
+      details: expect.objectContaining({ reason: "refund_not_settled", sale_id: "sale_unsettled", refund_id: "rf_pending", refund_cents: 3900 }),
+    });
+    // Only the sale row exists: the unsettled refund never reached the ledger.
+    const rows = readFileSync(salesFilePath, "utf8").split(/\r?\n/).filter(Boolean);
+    expect(rows).toHaveLength(1);
+  });
+
   it("Defect C: reversal with mismatched amount returns 200 recorded:false and flags reversal_amount_mismatch", async () => {
     process.env.SUPABASE_URL = "https://example.supabase.co";
     process.env.SUPABASE_SECRET_KEY = "mock-secret-key";

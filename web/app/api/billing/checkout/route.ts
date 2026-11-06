@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { MatrixRouter } from "../../../../../src/infrastructure/matrix_router/matrix_router";
 import { getSupabaseAdmin } from "../../../../../payments/src/supabase_admin";
+import { isEnabledPaymentProvider } from "../../../../../payments/src/settings_registry";
+import { verifiedProviderNames } from "../webhook/verifiers";
 import { attributionRef } from "../../../../src/lib/attribution";
 import { normalizeSha256, strictActiveConsentKinds, strictChainHead } from "../../../../src/lib/consent-chain";
 
@@ -18,7 +20,7 @@ interface CheckoutRail {
  * shim-bridged legacy handler; Sprint 15: rails come from the product_rails
  * table, not from repo JSON files). GET/HEAD only: resolves the product's
  * rail config from the Supabase product_rails table (no routable rail: 404;
- * Polar rows are never routed), and 302-redirects to the
+ * a rail whose provider is switched off is not routed), and 302-redirects to the
  * weighted-selected provider checkout URL via MatrixRouter, falling back to
  * the highest-weight rail if the router fails. Every source's checkout_url
  * passes one validation policy — raw value must be a string (non-string
@@ -222,9 +224,18 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       return jsonError(500, "Checkout is not configured");
     }
     // Runtime-checked above; the cast only drops the `active` flag from the shape.
-    // Polar is never a routable rail (PR 102): a polar row is dropped here, so a product whose only
-    // active rows are polar fails closed through the disable guard below.
-    dbRails = activeRaw.filter((r) => r.provider !== "polar").map(({ active: _active, ...rail }) => rail as CheckoutRail);
+    // A rail can take a buyer only if its provider is switched on AND has a verifier (a rail that cannot be verified
+    // would refuse its own webhooks). The launch switch decides the first condition: an active row for a switched-off provider
+    // is dropped here, so a product whose only active rows are switched off fails closed through the
+    // disable guard below.
+    const verified = verifiedProviderNames();
+    dbRails = activeRaw
+      .filter((r) => typeof r.provider === "string" && isEnabledPaymentProvider(r.provider) && verified.has(r.provider))
+      .map((r) => {
+        const rail: Record<string, unknown> = { ...r };
+        delete rail.active; // the active flag is not part of a checkout rail
+        return rail as unknown as CheckoutRail;
+      });
     // The disable guard counts only WELL-FORMED rows (real product_rails rows
     // are objects). A malformed row is a data-integrity failure: an active one
     // is rejected with 500 by the active-rail check above, and it must never be
@@ -232,7 +243,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const configuredRowCount = (railRows ?? []).filter((r) => r !== null && typeof r === "object").length;
 
     if (configuredRowCount > 0 && dbRails.length === 0) {
-      console.error(`[billing/checkout] product '${product}' has ${configuredRowCount} configured rail(s) but none active — the database disable is authoritative`);
+      console.error(`[billing/checkout] product '${product}' has ${configuredRowCount} configured rail(s) but none usable (not active, or provider switched off) — refusing checkout`);
       return jsonError(404, `Checkout is disabled for product '${product}'`);
     }
   } catch (err) {

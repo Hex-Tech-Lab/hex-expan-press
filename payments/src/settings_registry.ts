@@ -13,22 +13,35 @@ const CANDIDATE_DIRS = [
   path.join(HERE, "..", "..", "data", "settings"), // module-relative fallback (standalone)
 ];
 
-function readRegistryFile(name: string): Record<string, unknown> | undefined {
+type RegistryRead = { kind: "missing" } | { kind: "invalid" } | { kind: "ok"; data: Record<string, unknown> };
+
+/** Reads a settings file from the first candidate directory that has it. A file that exists but cannot be
+ *  parsed is reported as "invalid", never as missing, so callers can fail closed. */
+function readRegistryResult(name: string): RegistryRead {
+  // A candidate that cannot be parsed is skipped, as before, so a valid copy in a later directory still wins.
+  // Only when no candidate can be used is an existing-but-broken file reported as "invalid" (for fail-closed).
+  let sawInvalid = false;
   for (const dir of CANDIDATE_DIRS) {
     const p = path.join(dir, name);
     try {
       if (!existsSync(p)) continue;
       const parsed: unknown = JSON.parse(readFileSync(p, "utf8"));
       if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-        return parsed as Record<string, unknown>;
+        return { kind: "ok", data: parsed as Record<string, unknown> };
       }
+      console.error(`[settings-registry] ${p} is not a JSON object — skipped`);
+      sawInvalid = true;
     } catch (err) {
-      // unreadable/invalid -> try next candidate, else fall back to inline defaults (loudly: a corrupt
-      // settings file must never silently become the built-in defaults)
       console.error(`[settings-registry] ${p} unreadable/invalid JSON — skipped:`, err instanceof Error ? err.message : err);
+      sawInvalid = true;
     }
   }
-  return undefined;
+  return sawInvalid ? { kind: "invalid" } : { kind: "missing" };
+}
+
+function readRegistryFile(name: string): Record<string, unknown> | undefined {
+  const r = readRegistryResult(name);
+  return r.kind === "ok" ? r.data : undefined;
 }
 
 function warnFallback(file: string, why: string): void {
@@ -395,11 +408,17 @@ export interface PaymentProviderSetting {
   base_urls_note?: string;
   field_map?: Record<string, unknown> | null;
   status?: string;
+  /**
+   * Launch switch. A provider is fully defined and its code is kept; this flag decides whether it takes sales.
+   * Missing or false = off (fail closed). Off providers keep their config and verifier, and the webhook route refuses them.
+   */
+  enabled?: boolean;
 }
 
 // Inline mirror of data/settings/providers.json "payments" section (fallback contract).
-const DEFAULT_PAYMENT_PROVIDERS: Record<string, PaymentProviderSetting> = {
+export const DEFAULT_PAYMENT_PROVIDERS: Record<string, PaymentProviderSetting> = {
   lemonsqueezy: {
+    enabled: false,
     route: "lemonsqueezy",
     signature_header: "x-signature",
     sale_event: "order_created",
@@ -416,6 +435,7 @@ const DEFAULT_PAYMENT_PROVIDERS: Record<string, PaymentProviderSetting> = {
     },
   },
   payhip: {
+    enabled: false,
     route: "payhip",
     signature_header: null,
     signature_field: "signature",
@@ -437,6 +457,7 @@ const DEFAULT_PAYMENT_PROVIDERS: Record<string, PaymentProviderSetting> = {
     },
   },
   paddle: {
+    enabled: true,
     route: "paddle",
     signature_header: "paddle-signature",
     sale_event: "transaction.completed",
@@ -452,6 +473,7 @@ const DEFAULT_PAYMENT_PROVIDERS: Record<string, PaymentProviderSetting> = {
     },
   },
   fastspring: {
+    enabled: false,
     route: "fastspring",
     signature_header: "x-fs-signature",
     signature_scheme: "hmac-sha256-base64: `x-fs-signature` = base64(HMAC-SHA256(raw_body, secret)) (developer.fastspring.com/reference/message-security)",
@@ -475,7 +497,31 @@ const DEFAULT_PAYMENT_PROVIDERS: Record<string, PaymentProviderSetting> = {
       refund_ts_ms: "data.changed",
     },
   },
+  polar: {
+    enabled: false,
+    route: "polar",
+    signature_header: "webhook-signature",
+    signature_scheme: "standard-webhooks: HMAC-SHA256 over `${webhook-id}.${webhook-timestamp}.${raw_body}`, base64; whsec_ secrets created on/after 2026-09-08 = base64-decoded, older = UTF-8 bytes of full string",
+    sale_events: ["order.created", "order.paid"],
+    refund_events: ["refund.created"],
+    secret_env: "POLAR_WEBHOOK_SECRET",
+    token_env: "POLAR_ACCESS_TOKEN",
+    base_urls: { sandbox: "https://sandbox-api.polar.sh/v1", live: "https://api.polar.sh/v1" },
+    field_map: {
+      product_id: "data.product_id",
+      sale_id: "data.id",
+      total_cents: "data.total_amount",
+      currency: "data.currency",
+      ts: "data.created_at",
+      email: "data.customer.email",
+      refund_sale_id: "data.order_id",
+      refund_ts: "data.created_at",
+      attribution_id: "data.metadata.reference_id",
+    },
+  },
   fungies: {
+    // Off until the founder approves Fungies as a launch rail. Its verifier stays wired so it can be switched on.
+    enabled: false,
     route: "fungies",
     signature_header: "x-fngs-signature",
     signature_scheme:
@@ -497,24 +543,58 @@ const DEFAULT_PAYMENT_PROVIDERS: Record<string, PaymentProviderSetting> = {
   },
 };
 
+/** Every provider in the inline defaults, switched off. Used when providers.json exists but cannot be used. */
+export function allProvidersOff(): Record<string, PaymentProviderSetting> {
+  return Object.fromEntries(Object.entries(DEFAULT_PAYMENT_PROVIDERS).map(([name, s]) => [name, { ...s, enabled: false }]));
+}
+
+/** Normalises a providers.json "payments" map. A missing or non-boolean `enabled` is OFF, with a warning, and a
+ *  non-object entry is dropped. A provider absent from the file is not registered, so it is off too. */
+export function parsePaymentProviders(payments: Record<string, unknown>): Record<string, PaymentProviderSetting> {
+  const out: Record<string, PaymentProviderSetting> = {};
+  for (const [name, value] of Object.entries(payments)) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      console.error(`[settings-registry] providers.json '${name}' is not an object — dropped (off)`);
+      continue;
+    }
+    const setting = value as PaymentProviderSetting;
+    if (typeof setting.enabled !== "boolean") {
+      console.error(`[settings-registry] providers.json '${name}.enabled' is missing or not a boolean — '${name}' is OFF (fail closed)`);
+      out[name] = { ...setting, enabled: false };
+    } else {
+      out[name] = setting;
+    }
+  }
+  return out;
+}
+
 function loadPaymentProviders(): Record<string, PaymentProviderSetting> {
-  const raw = readRegistryFile("providers.json");
-  if (!raw) {
-    warnFallback("providers.json", "missing/unreadable");
+  const read = readRegistryResult("providers.json");
+  if (read.kind === "missing") {
+    warnFallback("providers.json", "missing");
     return DEFAULT_PAYMENT_PROVIDERS;
   }
-  const payments = raw["payments"];
+  if (read.kind === "invalid") {
+    console.error("[settings-registry] providers.json exists but cannot be used — ALL providers OFF (fail closed)");
+    return allProvidersOff();
+  }
+  const payments = read.data["payments"];
   if (!payments || typeof payments !== "object" || Array.isArray(payments)) {
-    warnFallback("providers.json", "has no usable 'payments' section");
-    return DEFAULT_PAYMENT_PROVIDERS;
+    console.error("[settings-registry] providers.json has no usable 'payments' section — ALL providers OFF (fail closed)");
+    return allProvidersOff();
   }
-  return payments as Record<string, PaymentProviderSetting>;
+  return parsePaymentProviders(payments as Record<string, unknown>);
 }
 
 export const PAYMENT_PROVIDERS: Record<string, PaymentProviderSetting> = loadPaymentProviders();
 
 export function paymentProviderSetting(name: string): PaymentProviderSetting | undefined {
   return PAYMENT_PROVIDERS[name];
+}
+
+/** True only for a provider that is defined AND switched on. Use this for anything that takes or routes a sale. */
+export function isEnabledPaymentProvider(name: string): boolean {
+  return isRegisteredPaymentProvider(name) && PAYMENT_PROVIDERS[name]?.enabled === true;
 }
 
 export function isRegisteredPaymentProvider(name: string): boolean {

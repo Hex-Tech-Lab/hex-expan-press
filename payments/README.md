@@ -25,13 +25,13 @@ event | 401 bad signature | 400 bad payload / non-USD | 501 unimplemented (Payhi
 Anything written from memory instead of fetched docs is marked `UNVERIFIED vs provider docs` in
 source — verify every such marker before go-live. Payhip is fully rejected (501) until then.
 
-Polar: removed from routing (PR 102). The provider module was deleted; `polar` survives only as a historical provider string on existing sale rows.
+Polar: switched off (`enabled: false`). Its verifier (`src/adapters/payments/polar.adapter.ts`), route and tests are in place. The webhook and checkout both honour the switch: a Polar delivery is refused and never reaches the ledger, and checkout offers Polar only when it is switched on. Enabling Polar is a settings change, subject to the pre-flip checklist in `docs/adr/0062-payment-rail-launch-switch.md`. Earlier history: removed from routing in PR 102 and deleted in commits 3ea973e and 3bd287e (2026-10-16).
 Base URLs: sandbox `https://sandbox-api.polar.sh/v1` | live `https://api.polar.sh/v1`; auth `Authorization: Bearer <POLAR_ACCESS_TOKEN>` (OAT).
 Live-verified: orgs 200; product create/get 201/200 (price_amount in CENTS; one-time = omit recurring_interval); checkout-link create 201 -> url; webhook-endpoint create 201 (secret `whsec_…`, uses_standard_webhook_signature=true) / delete 204.
 Signature: Standard Webhooks (`webhook-id`/`webhook-timestamp`/`webhook-signature`, HMAC-SHA256 over `id.timestamp.body`, base64); secrets created on/after 2026-09-08 = base64-decode after `whsec_`, older = UTF-8 bytes of full `whsec_` string (adapter tries both).
 UNVERIFIED-WITH-REASON: signature vs a live signed delivery (needs a real sandbox payment); payload contents from a real delivery.
 Product API DELETE unsupported (live 405) — archive via PATCH /v1/products/{id} {"is_archived": true} (archived products reject new checkout links).
-Sandbox test product (ARCHIVED — delete manually in dashboard): a5bb6695-ff1f-49b4-852b-b24e68a207c2, twin 6e858fac-629c-481d-8cd2-b8968ebf7b10, org 11971b61-b333-4d15-b81d-9da47ded6722.
+Sandbox test product: archived; delete it manually in the dashboard. Its ids are kept in the private project record, not in this public repo.
 
 Deferred: FastSpring native-split adapter; automated payouts (manual now); config.json-driven
 enrichment of sale records; landing/index.html wired to a real checkout_url + MOR account.
