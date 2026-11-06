@@ -59,7 +59,9 @@ jobs:
           while read -r c; do
             [ -n "$c" ] || continue
             n=$((n+1))
-            git show --format= "$c" > guard.diff
+            # --text: a .gitattributes "-diff" or "binary" marking would otherwise hide the lines the guard scans.
+            # --diff-merges=first-parent: a 2-parent merge otherwise emits no "+" lines for its changes.
+            git show --format= --text --diff-merges=first-parent "$c" > guard.diff
             python3 "$RUNNER_TEMP/guard/scripts/commit_guard.py" --diff-file guard.diff --no-jev || { echo "::error::commit $c"; fail=1; }
           done <<< "$commits"
           echo "commit guard: checked $n commit(s), range: $RANGE"
