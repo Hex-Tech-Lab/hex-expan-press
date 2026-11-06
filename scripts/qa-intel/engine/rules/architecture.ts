@@ -225,20 +225,35 @@ export const WorkflowRule: Rule = {
     const findings: Finding[] = [];
     const filePath = normalizePosixPath(source.getFilePath());
 
+    // `exec` is a process call only when it comes from child_process; RegExp.prototype.exec is not.
+    const execNames = new Set<string>();
+    const childProcessNamespaces = new Set<string>();
+    for (const decl of source.getImportDeclarations()) {
+      if (!/^(node:)?child_process$/.test(decl.getModuleSpecifierValue())) continue;
+      for (const named of decl.getNamedImports()) {
+        if (named.getName() === "exec") execNames.add(named.getAliasNode()?.getText() ?? "exec");
+      }
+      const namespace = decl.getNamespaceImport() ?? decl.getDefaultImport();
+      if (namespace) childProcessNamespaces.add(namespace.getText());
+    }
+    const isChildProcessExec = (text: string): boolean =>
+      execNames.has(text) || [...childProcessNamespaces].some((ns) => text === `${ns}.exec`);
+
     source.forEachDescendant((node) => {
       if (Node.isCallExpression(node)) {
         const expr = node.getExpression();
         const text = expr.getText();
 
-        const isIOCall = ["fetch", "writeFile", "exec", "execSync"].some(name =>
-           text === name || text.endsWith(`.${name}`)
-        );
+        const isNamed = (names: string[]): boolean => names.some(name => text === name || text.endsWith(`.${name}`));
+        const isIOCall = isNamed(["fetch", "writeFile", "exec", "execSync"]);
+        // fetch holds no resource a finally block would release, so only the other calls need one.
+        const needsFinally = isChildProcessExec(text) || isNamed(["writeFile", "execSync"]);
 
         if (isIOCall) {
           const tryStatement = node.getFirstAncestorByKind(SyntaxKind.TryStatement);
           const hasFinally = tryStatement?.getFinallyBlock();
 
-          if (!hasFinally) {
+          if (needsFinally && !hasFinally) {
             findings.push({
               file: filePath,
               severity: "medium",

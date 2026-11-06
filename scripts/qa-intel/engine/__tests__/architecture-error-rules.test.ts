@@ -54,11 +54,11 @@ describe('ErrorTaxonomyRule', () => {
 });
 
 describe('WorkflowRule', () => {
-  test('flags a fetch inside a try that has no finally block', () => {
+  test('flags a resource-holding I/O call inside a try that has no finally block', () => {
     const findings = check(WorkflowRule, 'web/lib/upstream.ts', [
-      'export async function load(url: string) {',
+      'export async function load(path: string, data: string) {',
       '  try {',
-      '    const res = await fetch(url);',
+      '    const res = await writeFile(path, data);',
       '    return res;',
       "  } catch (e) { console.error('load failed', e); }",
       '}',
@@ -66,6 +66,50 @@ describe('WorkflowRule', () => {
     const missing = findings.filter((f) => f.title === 'Workflow: Missing finally block for I/O');
     expect(missing).toHaveLength(1);
     expect(missing[0]?.severity).toBe('medium');
+  });
+
+  // Triage item 3 negative controls: RegExp.prototype.exec and fetch hold no resource that a finally would release.
+  test('does not flag RegExp.exec as child_process exec', () => {
+    const findings = check(WorkflowRule, 'scripts/scan.ts', [
+      'export function scan(text: string) {',
+      '  const out: string[] = [];',
+      '  try {',
+      '    const m = /a(b)/.exec(text);',
+      '    if (m) out.push(m[1]!);',
+      '  } catch (e) { console.error(e); }',
+      '  return out;',
+      '}',
+    ].join('\n'));
+    expect(findings.filter((f) => f.title === 'Workflow: Missing finally block for I/O')).toHaveLength(0);
+  });
+
+  test('does not ask for a finally block around a bare fetch', () => {
+    const findings = check(WorkflowRule, 'scripts/fetch.ts', [
+      'export async function load(url: string) {',
+      '  for (let i = 0; i < 3; i++) {',
+      '    const res = await fetch(url);',
+      '    if (res.ok) return res;',
+      '  }',
+      '}',
+    ].join('\n'));
+    expect(findings.filter((f) => f.title === 'Workflow: Missing finally block for I/O')).toHaveLength(0);
+  });
+
+  test('flags exec imported from child_process, bare or through a namespace', () => {
+    const bare = check(WorkflowRule, 'scripts/run.ts', [
+      "import { exec } from 'node:child_process';",
+      'export function run(cmd: string) {',
+      '  exec(cmd);',
+      '}',
+    ].join('\n'));
+    expect(bare.filter((f) => f.title === 'Workflow: Missing finally block for I/O')).toHaveLength(1);
+    const ns = check(WorkflowRule, 'scripts/run.ts', [
+      "import * as cp from 'child_process';",
+      'export function run(cmd: string) {',
+      '  cp.exec(cmd);',
+      '}',
+    ].join('\n'));
+    expect(ns.filter((f) => f.title === 'Workflow: Missing finally block for I/O')).toHaveLength(1);
   });
 
   test('does not flag a fetch whose try has a finally block', () => {
