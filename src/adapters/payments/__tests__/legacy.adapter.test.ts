@@ -7,6 +7,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import crypto, { createHash, createHmac } from "node:crypto";
 import { LegacyPaymentAdapterWrapper } from "../legacy.adapter.ts";
 import { fungiesProvider } from "../../../../payments/src/providers/fungies.ts";
+import { payhipProvider } from "../../../../payments/src/providers/payhip.ts";
+import { fastspringProvider } from "../../../../payments/src/providers/fastspring.ts";
 import type { SaleCompletedEvent } from "../../../domain/payments/payments.port.ts";
 
 const SECRET = crypto.randomBytes(16).toString("hex");
@@ -65,5 +67,42 @@ describe("R03: the legacy wrapper books the provider's verified currency", () =>
     const { headers, body } = fungiesSale();
     const r = await new LegacyPaymentAdapterWrapper(fungiesProvider).parseAndValidateWebhook(headers, body);
     expect((r as { event: SaleCompletedEvent }).event.currency).toBe("USD");
+  });
+});
+
+describe("R04: Payhip routing and FastSpring multi-event deliveries", () => {
+  const payhipBody = (extra: Record<string, unknown> = {}) =>
+    JSON.stringify({
+      type: "paid", id: "tx_1", price: 3900, currency: "USD", email: "b@example.com", items: [{ product_id: "p1" }], date: 1759000000,
+      signature: createHash("sha256").update(SECRET, "utf8").digest("hex"),
+      ...extra,
+    });
+
+  it("Payhip delivery (signature in the body, no signature header) is claimed and books $39", async () => {
+    const wrapper = new LegacyPaymentAdapterWrapper(payhipProvider);
+    const body = payhipBody();
+    expect(wrapper.canHandleWebhook({}, body)).toBe(true);
+    const r = await wrapper.parseAndValidateWebhook({}, body);
+    expect((r as { event: SaleCompletedEvent }).event.totalCents).toBe(3900);
+  });
+
+  it("negative control: Payhip does not claim a body without a signature property, or a non-JSON body", () => {
+    const wrapper = new LegacyPaymentAdapterWrapper(payhipProvider);
+    expect(wrapper.canHandleWebhook({}, JSON.stringify({ type: "payment_success" }))).toBe(false);
+    expect(wrapper.canHandleWebhook({}, "not json")).toBe(false);
+  });
+
+  it("FastSpring delivery with two orders → both sales reach the engine, none dropped", async () => {
+    const order = (id: string, total: number) => ({
+      id: `evt_${id}`, type: "order.completed", created: 1759000000000,
+      data: { live: true, id, total, currency: "USD", customer: { email: "b@example.com" }, items: [{ product: "p1" }] },
+    });
+    const body = JSON.stringify({ events: [order("ord_1", 29), order("ord_2", 39)] });
+    const sig = createHmac("sha256", SECRET).update(Buffer.from(body, "utf8")).digest("base64");
+    const r = await new LegacyPaymentAdapterWrapper(fastspringProvider).parseAndValidateWebhook({ "x-fs-signature": sig }, body);
+    expect(r.isValid).toBe(true);
+    if (!r.isValid) throw new Error("expected valid");
+    const all = [r.event, ...(r.followingEvents ?? [])] as SaleCompletedEvent[];
+    expect(all.map((e) => [e.saleId, e.totalCents])).toEqual([["ord_1", 2900], ["ord_2", 3900]]);
   });
 });

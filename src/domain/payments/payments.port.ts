@@ -198,6 +198,9 @@ export type BillingEvent =
 export interface WebhookParseSuccess {
   isValid: true;
   event: BillingEvent;
+  // Further events from the same delivery (FastSpring posts several per request). The engine
+  // processes `event` then each of these in order; none may be dropped.
+  followingEvents?: BillingEvent[];
 }
 
 export interface WebhookParseFailure {

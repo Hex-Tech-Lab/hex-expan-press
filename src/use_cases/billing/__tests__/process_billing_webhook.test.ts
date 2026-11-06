@@ -9,6 +9,7 @@ import { processBillingWebhookUseCase } from "../process_billing_webhook.ts";
 import { createHmac, randomBytes } from "node:crypto";
 import { LegacyPaymentAdapterWrapper } from "../../../adapters/payments/legacy.adapter.ts";
 import { fungiesProvider } from "../../../../payments/src/providers/fungies.ts";
+import { fastspringProvider } from "../../../../payments/src/providers/fastspring.ts";
 import type { PaymentProviderPort, SaleCompletedEvent, RefundIssuedEvent } from "../../../../src/domain/payments/payments.port.ts";
 
 // Delivery is stubbed here: the sale-path tests assert the webhook contract, not mail or Dub.
@@ -1473,5 +1474,38 @@ describe("legacy-wrapped Fungies sale end-to-end (audit R01)", () => {
     expect(rows[0]).toMatchObject({ sale_id: "pay_e2e", provider: "fungies", amount_usd: 39, currency: "USD", attribution_id: "yt:e2e" });
     expect(JSON.stringify(rows[0])).not.toContain("buyer@example.com"); // raw email never persisted
     expect(delivery.deliverSaleForWebhook).toHaveBeenCalledWith({ saleId: "pay_e2e", productAlias: "p1", buyerEmail: "buyer@example.com" });
+  });
+});
+
+// Audit R04: a FastSpring POST may carry several events. Every one must be booked; the wrapper
+// used to forward only the first and answer 200, losing the rest for good.
+describe("multi-event delivery end-to-end (audit R04)", () => {
+  const FS_SECRET = randomBytes(16).toString("hex");
+  beforeEach(() => {
+    setnx.mockReset();
+    setnx.mockResolvedValue(1);
+    delivery.deliverSaleForWebhook.mockClear();
+    mkdirSync(salesFileDir, { recursive: true });
+    vi.stubEnv("UPSTASH_REDIS_REST_URL", "https://unit.test.redis.example");
+    vi.stubEnv("UPSTASH_REDIS_REST_TOKEN", "unit-test-token");
+    vi.stubEnv("FASTSPRING_WEBHOOK_SECRET", FS_SECRET);
+  });
+  afterEach(() => {
+    rmSync(salesFileDir, { recursive: true, force: true });
+    vi.unstubAllEnvs();
+  });
+
+  it("signed FastSpring POST with two orders → both sales booked and both buyers delivered", async () => {
+    const order = (id: string, total: number, email: string) => ({
+      id: `evt_${id}`, type: "order.completed", created: 1759000000000,
+      data: { live: true, id, total, currency: "USD", customer: { email }, items: [{ product: "p1" }] },
+    });
+    const body = JSON.stringify({ events: [order("ord_a", 29, "a@example.com"), order("ord_b", 39, "b@example.com")] });
+    const sig = createHmac("sha256", FS_SECRET).update(Buffer.from(body, "utf8")).digest("base64");
+    await processBillingWebhookUseCase({ headers: { "x-fs-signature": sig }, body }, [new LegacyPaymentAdapterWrapper(fastspringProvider)]);
+    const rows = readFileSync(salesFilePath, "utf8").split(/\r?\n/).filter(Boolean).map((r) => JSON.parse(r));
+    expect(rows.map((r) => [r.sale_id, r.amount_usd])).toEqual([["ord_a", 29], ["ord_b", 39]]);
+    expect(delivery.deliverSaleForWebhook).toHaveBeenCalledTimes(2);
+    expect(delivery.deliverSaleForWebhook).toHaveBeenLastCalledWith({ saleId: "ord_b", productAlias: "p1", buyerEmail: "b@example.com" });
   });
 });

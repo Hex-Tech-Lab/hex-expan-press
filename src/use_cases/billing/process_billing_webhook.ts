@@ -6,7 +6,7 @@
  * Knows nothing about Polar, Paddle, or any provider.
  * ADR: ADR-0049, ADR-0050
  */
-import { PaymentProviderPort, SaleCompletedEvent, RefundIssuedEvent, RefundReversedEvent } from "../../domain/payments/payments.port.ts";
+import { PaymentProviderPort, BillingEvent, SaleCompletedEvent, RefundIssuedEvent, RefundReversedEvent } from "../../domain/payments/payments.port.ts";
 import { WebhookValidationError } from "../../domain/webhook/webhook_errors.ts";
 import { appendSale, appendRefund, appendRefundReversal, findSaleAsync, findRefundAsync, findRefundReversalAsync, findByProviderAdjustmentIdAsync, flagRefundForManualReview, recordWebhookConflict, isAdjustmentIdUniqueViolation } from "../../../payments/src/ledger.ts";
 import { computeSplit, usdToCents } from "../../../payments/src/split.ts";
@@ -175,8 +175,18 @@ export async function processBillingWebhookUseCase(
     );
   }
 
-  const { event } = validation;
+  // A delivery may carry several events (FastSpring). Each is processed in order; a failure
+  // throws, so the provider retries the delivery and the events already handled dedupe.
+  // The first conflict_pending outcome is reported; later events still run.
+  let conflict: ConflictPendingOutcome | undefined;
+  for (const event of [validation.event, ...(validation.followingEvents ?? [])]) {
+    const outcome = await processBillingEvent(event); // always runs: never inside ??= (short-circuit)
+    conflict ??= outcome ?? undefined;
+  }
+  return conflict;
+}
 
+async function processBillingEvent(event: BillingEvent): Promise<ConflictPendingOutcome | void> {
   // 3. Ignored events — return silently (controller replies 202)
   if (event.eventType === "ignored") {
     return;
