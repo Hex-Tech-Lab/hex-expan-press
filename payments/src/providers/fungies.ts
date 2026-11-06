@@ -167,6 +167,7 @@ export const fungiesProvider: CheckoutProvider = {
         amount_usd: Math.round(totalMinor) / 10 ** decimals,
         ts,
         email_hash: hashEmail(email),
+        buyer_email: email,
         ...(attributionId ? { attribution_id: attributionId } : {}),
       },
     };

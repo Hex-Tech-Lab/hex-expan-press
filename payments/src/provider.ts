@@ -13,6 +13,8 @@ export interface SaleEvent {
   amount_usd: number;
   ts: string; // ISO-8601, provider event time when available
   email_hash: string; // sha256 hex of lowercased/trimmed buyer email — never store raw email
+  // Transient, for the receipt and download-link email only. Never persisted; the ledger keeps email_hash.
+  buyer_email?: string;
   // Our own canonical cross-provider attribution ID (added 2026-09-18) — generated client-side
   // (payments/bake_checkout.ts's attribution-capture script), NOT provider-owned. Threaded
   // through whichever custom-data/metadata mechanism each provider supports, extracted back out

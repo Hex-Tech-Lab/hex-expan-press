@@ -120,6 +120,7 @@ export const payhipProvider: CheckoutProvider = {
         amount_usd: Math.round(totalMinor) / 100,
         ts,
         email_hash: hashEmail(email),
+        buyer_email: email,
       },
     };
   },

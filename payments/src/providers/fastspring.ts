@@ -154,6 +154,7 @@ export const fastspringProvider: CheckoutProvider = {
           amount_usd: Math.round(total * 100) / 100,
           ts,
           email_hash: hashEmail(email),
+          buyer_email: email,
         },
       });
     }

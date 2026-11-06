@@ -10,11 +10,12 @@
  * Known limitations of legacy path vs Universal Language:
  *   - buyerEmailHash: legacy providers pass email_hash (already hashed) — we preserve it
  *   - totalCents: legacy uses amount_usd (float) — converted to cents (may have rounding)
- *   - attributionId: not extracted by legacy adapters (field_map wiring incomplete)
+ *   - buyerEmail / attributionId: forwarded from the provider parse (attribution label
+ *     shape-checked by cleanAttributionId; a bad label is dropped, never rejects the sale)
  *   - batch events (FastSpring multi-event): only first action processed; rest dropped
  */
 import { PaymentProviderPort, WebhookParseResult, CheckoutResult, SaleCompletedEvent, RefundIssuedEvent } from "../../domain/payments/payments.port.ts";
-import type { CheckoutProvider, SaleEvent, RefundEvent } from "../../../payments/src/provider.ts";
+import { cleanAttributionId, type CheckoutProvider, type SaleEvent, type RefundEvent } from "../../../payments/src/provider.ts";
 import { getSecret } from "../../../payments/src/webhook_core.ts";
 
 export class LegacyPaymentAdapterWrapper implements PaymentProviderPort {
@@ -92,8 +93,10 @@ export class LegacyPaymentAdapterWrapper implements PaymentProviderPort {
         totalCents: Math.round(action.sale.amount_usd * 100),
         currency: "USD", // Legacy adapters do not expose currency; all are USD-only per isAllowedCurrency gate
         buyerEmailHash: action.sale.email_hash,
+        // Delivery needs the address: without it the engine refuses every non-Paddle sale with 422.
+        buyerEmail: action.sale.buyer_email,
+        attributionId: cleanAttributionId(action.sale.attribution_id),
         occurredAt: action.sale.ts,
-        // attribution_id not extracted by legacy adapters — field_map wiring incomplete
         rawPayload: JSON.parse(body)
       };
       return { isValid: true, event };

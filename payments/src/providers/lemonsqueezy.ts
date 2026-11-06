@@ -76,6 +76,7 @@ export const lemonsqueezyProvider: CheckoutProvider = {
         amount_usd: Math.round(totalCents) / 100, // UNVERIFIED vs provider docs — confirm cents denomination
         ts: typeof createdAt === "string" ? createdAt : new Date().toISOString(),
         email_hash: hashEmail(email),
+        buyer_email: email,
         ...(attributionId ? { attribution_id: attributionId } : {}),
       },
     };

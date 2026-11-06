@@ -6,6 +6,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { mkdirSync, rmSync, readFileSync } from "node:fs";
 import { appendSale, SaleRecord } from "../../../../payments/src/ledger.ts";
 import { processBillingWebhookUseCase } from "../process_billing_webhook.ts";
+import { createHmac, randomBytes } from "node:crypto";
+import { LegacyPaymentAdapterWrapper } from "../../../adapters/payments/legacy.adapter.ts";
+import { fungiesProvider } from "../../../../payments/src/providers/fungies.ts";
 import type { PaymentProviderPort, SaleCompletedEvent, RefundIssuedEvent } from "../../../../src/domain/payments/payments.port.ts";
 
 // Delivery is stubbed here: the sale-path tests assert the webhook contract, not mail or Dub.
@@ -155,6 +158,12 @@ vi.mock("../../../../payments/src/settings_registry.ts", () => ({
   expandHome: (p: string, home: string) => (home && (p === "~" || p.startsWith("~/")) ? p : p),
   isRegisteredPaymentProvider: (name: unknown) => typeof name === "string",
   paymentProviderSetting: () => undefined,
+  // Used by the real legacy provider parsers in the end-to-end tests (registry fallbacks: USD only).
+  getPath: (obj: unknown, dotted: string | undefined) =>
+    typeof dotted === "string" && dotted !== ""
+      ? dotted.split(".").reduce<unknown>((cur, k) => (cur && typeof cur === "object" ? (cur as Record<string, unknown>)[k] : undefined), obj)
+      : undefined,
+  isAllowedCurrency: (c: string) => String(c).toUpperCase() === "USD",
   isMoneyPath: () => process.env.NODE_ENV === "production" || process.env.VERCEL_ENV !== undefined || !!process.env.AWS_LAMBDA_FUNCTION_NAME,
 }));
 
@@ -460,7 +469,7 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
     expect(revRow.our_split_usd).toBe(19.5);
   });
 
-  // Fungies events carry no buyer email, so no download link can be sent. Delivery would throw on every retry,
+  // A sale event with no buyer email cannot be sent a download link. Delivery would throw on every retry,
   // a 500 loop. A non-Paddle sale without an email is refused with a final 422 instead.
   it("a non-Paddle sale with no buyer email is refused (422) before any write, not retried into a 500 loop", async () => {
     delivery.deliverSaleForWebhook.mockClear();
@@ -1422,5 +1431,47 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
         cleanup23505();
       }
     });
+  });
+});
+
+// End-to-end through the real legacy wrapper and the real Fungies parser (audit R01): the live
+// Fungies route must book the sale and hand delivery the buyer's email, not refuse it with 422.
+describe("legacy-wrapped Fungies sale end-to-end (audit R01)", () => {
+  const E2E_SECRET = randomBytes(16).toString("hex"); // per run: nothing credential-shaped is committed
+  beforeEach(() => {
+    setnx.mockReset();
+    setnx.mockResolvedValue(1);
+    delivery.deliverSaleForWebhook.mockClear();
+    mkdirSync(salesFileDir, { recursive: true });
+    vi.stubEnv("UPSTASH_REDIS_REST_URL", "https://unit.test.redis.example");
+    vi.stubEnv("UPSTASH_REDIS_REST_TOKEN", "unit-test-token");
+    vi.stubEnv("FUNGIES_WEBHOOK_SECRET", E2E_SECRET);
+  });
+  afterEach(() => {
+    rmSync(salesFileDir, { recursive: true, force: true });
+    vi.unstubAllEnvs();
+  });
+
+  function signedFungiesSale(): { headers: Record<string, string>; body: string } {
+    const body = JSON.stringify({
+      id: "evt_e2e",
+      type: "payment_success",
+      data: {
+        items: [{ customFields: { product_id: "p1", attribution_id: "yt:e2e" } }],
+        payment: { id: "pay_e2e", value: 3900, currency: "USD", currencyDecimals: 2, createdAt: 1759000000000 },
+        user: { email: "buyer@example.com" },
+      },
+    });
+    const sig = createHmac("sha256", E2E_SECRET).update(Buffer.from(body, "utf8")).digest("hex");
+    return { headers: { "x-fngs-signature": `sha256_${sig}` }, body };
+  }
+
+  it("signed Fungies sale → $39 booked with attribution, delivery called with the buyer email", async () => {
+    await processBillingWebhookUseCase(signedFungiesSale(), [new LegacyPaymentAdapterWrapper(fungiesProvider)]);
+    const rows = readFileSync(salesFilePath, "utf8").split(/\r?\n/).filter(Boolean).map((r) => JSON.parse(r));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ sale_id: "pay_e2e", provider: "fungies", amount_usd: 39, currency: "USD", attribution_id: "yt:e2e" });
+    expect(JSON.stringify(rows[0])).not.toContain("buyer@example.com"); // raw email never persisted
+    expect(delivery.deliverSaleForWebhook).toHaveBeenCalledWith({ saleId: "pay_e2e", productAlias: "p1", buyerEmail: "buyer@example.com" });
   });
 });
