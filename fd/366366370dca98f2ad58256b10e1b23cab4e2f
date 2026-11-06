@@ -1,0 +1,21 @@
+payments/test/amount_strict_parse.test.ts
+  s_6625bc67577472::t_eced8d1ad5f06f 54-69
+payments/src/provider.ts
+  s_6625bc67577472::t_93a03b95cef5cd 66-69,72-73,77-79
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "fd366366370dca98f2ad58256b10e1b23cab4e2f",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
