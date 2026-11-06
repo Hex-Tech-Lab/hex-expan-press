@@ -112,7 +112,8 @@ export const payhipProvider: CheckoutProvider = {
     if (!productId) return { ok: false, status: 400, error: "missing items[0].product_id" };
     if (!saleId) return { ok: false, status: 400, error: "missing transaction id" };
     if (totalMinor === undefined || totalMinor < 0) return { ok: false, status: 400, error: "invalid price (minor units)" };
-    if (currency && !isAllowedCurrency(currency)) return { ok: false, status: 400, error: `unsupported currency: ${currency}` };
+    if (!currency) return { ok: false, status: 400, error: "missing currency" };
+    if (!isAllowedCurrency(currency)) return { ok: false, status: 400, error: `unsupported currency: ${currency}` };
     if (typeof email !== "string" || !email.includes("@")) return { ok: false, status: 400, error: "missing buyer email" };
 
     return {
@@ -121,6 +122,7 @@ export const payhipProvider: CheckoutProvider = {
         sale_id: saleId,
         provider: NAME,
         product_id: String(productId),
+        currency,
         amount_usd: Math.round(totalMinor) / 100,
         ts,
         email_hash: hashEmail(email),

@@ -147,7 +147,8 @@ export const fastspringProvider: CheckoutProvider = {
       if (!productId) return { ok: false, status: 400, error: `order.completed missing data.items[].product (event ${evt?.id ?? "<none>"})` };
       if (!saleId) return { ok: false, status: 400, error: `order.completed missing data.id (event ${evt?.id ?? "<none>"})` };
       if (total === undefined || total < 0) return { ok: false, status: 400, error: `order.completed invalid data.total (event ${evt?.id ?? "<none>"})` };
-      if (currency && !isAllowedCurrency(currency)) return { ok: false, status: 400, error: `unsupported currency: ${currency}` };
+      if (!currency) return { ok: false, status: 400, error: "missing currency" };
+      if (!isAllowedCurrency(currency)) return { ok: false, status: 400, error: `unsupported currency: ${currency}` };
       if (typeof email !== "string" || !email.includes("@")) return { ok: false, status: 400, error: `order.completed missing data.customer.email (event ${evt?.id ?? "<none>"})` };
 
       actions.push({
@@ -155,6 +156,7 @@ export const fastspringProvider: CheckoutProvider = {
           sale_id: saleId,
           provider: NAME,
           product_id: String(productId),
+          currency,
           amount_usd: Math.round(total * 100) / 100,
           ts,
           email_hash: hashEmail(email),

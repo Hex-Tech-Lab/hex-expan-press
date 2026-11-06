@@ -11,6 +11,9 @@ export interface SaleEvent {
   provider: ProviderName;
   product_id: string;
   amount_usd: number;
+  // ISO 4217, uppercase, already checked against the allowed-currency gate. Optional only for
+  // providers outside the legacy wrapper; the wrapper refuses a sale without it.
+  currency?: string;
   ts: string; // ISO-8601, provider event time when available
   email_hash: string; // sha256 hex of lowercased/trimmed buyer email — never store raw email
   // Transient, for the receipt and download-link email only. Never persisted; the ledger keeps email_hash.

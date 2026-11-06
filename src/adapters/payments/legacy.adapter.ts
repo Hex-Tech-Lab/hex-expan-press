@@ -83,6 +83,10 @@ export class LegacyPaymentAdapterWrapper implements PaymentProviderPort {
     }
 
     if ("sale" in action && action.sale) {
+      // Book only the currency the provider verified; never stamp a default onto an unknown one.
+      if (!action.sale.currency) {
+        return { isValid: false, error: "Legacy sale missing currency", httpStatus: 400 };
+      }
       const event: SaleCompletedEvent = {
         eventType: "sale_completed",
         providerName: this.providerName,
@@ -91,7 +95,7 @@ export class LegacyPaymentAdapterWrapper implements PaymentProviderPort {
         // Legacy adapters return amount_usd (float USD). Convert to cents.
         // TODO: migrate each provider to return integer cents natively.
         totalCents: Math.round(action.sale.amount_usd * 100),
-        currency: "USD", // Legacy adapters do not expose currency; all are USD-only per isAllowedCurrency gate
+        currency: action.sale.currency,
         buyerEmailHash: action.sale.email_hash,
         // Delivery needs the address: without it the engine refuses every non-Paddle sale with 422.
         buyerEmail: action.sale.buyer_email,

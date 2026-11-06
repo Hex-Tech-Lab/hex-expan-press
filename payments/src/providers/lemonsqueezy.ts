@@ -64,7 +64,8 @@ export const lemonsqueezyProvider: CheckoutProvider = {
     if (!productId) return { ok: false, status: 400, error: "missing meta.custom_data.product_id (set it in the checkout URL)" };
     if (!saleId) return { ok: false, status: 400, error: "missing sale id" };
     if (totalCents === undefined || totalCents < 0) return { ok: false, status: 400, error: "invalid total" };
-    if (currency && !isAllowedCurrency(currency)) return { ok: false, status: 400, error: `unsupported currency: ${currency}` };
+    if (!currency) return { ok: false, status: 400, error: "missing currency" };
+    if (!isAllowedCurrency(currency)) return { ok: false, status: 400, error: `unsupported currency: ${currency}` };
     if (typeof email !== "string" || !email.includes("@")) return { ok: false, status: 400, error: "missing buyer email" };
 
     return {
@@ -73,6 +74,7 @@ export const lemonsqueezyProvider: CheckoutProvider = {
         sale_id: saleId,
         provider: NAME,
         product_id: String(productId),
+        currency,
         amount_usd: Math.round(totalCents) / 100, // UNVERIFIED vs provider docs — confirm cents denomination
         ts: typeof createdAt === "string" ? createdAt : new Date().toISOString(),
         email_hash: hashEmail(email),

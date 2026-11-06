@@ -155,7 +155,8 @@ export const fungiesProvider: CheckoutProvider = {
     if (!productId) return { ok: false, status: 400, error: "missing product identity (items[].customFields / product.internalId / product.id)" };
     if (!saleId) return { ok: false, status: 400, error: "missing data.payment.id (sale identity)" };
     if (totalMinor === undefined || totalMinor < 0) return { ok: false, status: 400, error: "invalid payment value (data.payment.value)" };
-    if (currency && !isAllowedCurrency(currency)) return { ok: false, status: 400, error: `unsupported currency: ${currency}` };
+    if (!currency) return { ok: false, status: 400, error: "missing currency" };
+    if (!isAllowedCurrency(currency)) return { ok: false, status: 400, error: `unsupported currency: ${currency}` };
     if (typeof email !== "string" || !email.includes("@")) return { ok: false, status: 400, error: "missing buyer email (data.user.email)" };
 
     return {
@@ -164,6 +165,7 @@ export const fungiesProvider: CheckoutProvider = {
         sale_id: saleId,
         provider: NAME,
         product_id: String(productId),
+        currency,
         amount_usd: Math.round(totalMinor) / 10 ** decimals,
         ts,
         email_hash: hashEmail(email),

@@ -521,28 +521,39 @@ describe("PaddleAdapter buyer-email fallback (customer lookup)", () => {
     });
   });
 
-  it("uses GLOBAL.defaults.currency when currency_code is omitted", async () => {
-    const { GLOBAL } = await import("../../../../payments/src/settings_registry.ts");
-    const origCurrency = GLOBAL.defaults.currency;
-    try {
-      GLOBAL.defaults.currency = "CAD";
-      const body = JSON.stringify({
-        event_type: "transaction.completed",
-        data: {
-          id: "txn_test_nocurr",
-          details: { totals: { total: "1000" } },
-          items: [{ price: { id: "pri_test_basic" } }],
-          custom_data: { product_id: "test_product_basic", email: "buyer@example.com" },
-          changed_at: new Date().toISOString(),
-        },
-      });
-      const res = await parse(body, freshSig(body));
-      expect(res.isValid).toBe(true);
-      if (!res.isValid) throw new Error("expected valid");
-      expect((res.event as SaleCompletedEvent).currency).toBe("CAD");
-    } finally {
-      GLOBAL.defaults.currency = origCurrency;
-    }
+  // Audit R03: a missing currency must never be booked as GLOBAL.defaults.currency (USD).
+  it.each([["omitted", undefined], ["null", null]])("transaction.completed with currency_code %s → 400, no sale event", async (_l, code) => {
+    const body = JSON.stringify({
+      event_type: "transaction.completed",
+      data: {
+        id: "txn_test_nocurr",
+        ...(code === undefined ? {} : { currency_code: code }),
+        details: { totals: { total: "1000" } },
+        items: [{ price: { id: "pri_test_basic" } }],
+        custom_data: { product_id: "test_product_basic", email: "buyer@example.com" },
+        changed_at: new Date().toISOString(),
+      },
+    });
+    const res = await parse(body, freshSig(body));
+    expect(res.isValid).toBe(false);
+    expect((res as { httpStatus?: number }).httpStatus).toBe(400);
+  });
+
+  it.each(["refund", "chargeback", "chargeback_reverse"])("approved %s adjustment without currency_code → 400, no refund event", async (action) => {
+    const body = JSON.stringify({
+      event_type: "adjustment.updated",
+      data: {
+        id: `adj_nocurr_${action}`,
+        action,
+        status: "approved",
+        transaction_id: "txn_orig_123",
+        totals: { total: "3900" },
+        updated_at: "2026-10-02T12:00:00.000Z",
+      },
+    });
+    const res = await parse(body, freshSig(body));
+    expect(res.isValid).toBe(false);
+    expect((res as { httpStatus?: number }).httpStatus).toBe(400);
   });
 
   it("item 1: accepts transaction.completed when custom_data has null product_id and email, resolving email via customer lookup", async () => {

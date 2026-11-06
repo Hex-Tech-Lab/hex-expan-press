@@ -59,3 +59,11 @@ describe("R01: legacy-wrapped sales carry the buyer email and attribution to the
     expect((r as { event: SaleCompletedEvent }).event.attributionId).toBeUndefined();
   });
 });
+
+describe("R03: the legacy wrapper books the provider's verified currency", () => {
+  it("Fungies USD sale → currency USD on the event (taken from the payload, not stamped)", async () => {
+    const { headers, body } = fungiesSale();
+    const r = await new LegacyPaymentAdapterWrapper(fungiesProvider).parseAndValidateWebhook(headers, body);
+    expect((r as { event: SaleCompletedEvent }).event.currency).toBe("USD");
+  });
+});
