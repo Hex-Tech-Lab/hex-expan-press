@@ -158,7 +158,7 @@ They are NOT optional suggestions or cosmetic advice. Every agent turn MUST expl
 Every agent working on code, architecture, or review MUST run the matching Core skill before opening files or finalizing diffs:
 1. **`build-graph` / `code-graph`**: Run first on any session or repo change to build/update `.code-review-graph/graph.db`.
 2. **`explore-codebase` / `code-graph-view`**: Navigates module topology, communities, and flows before raw globbing/reading.
-3. **`detect-changes` / `review-delta`**: Mandatory pre-commit blast radius check against `origin/master`.
+3. **`detect-changes` / `review-delta`**: Mandatory pre-commit blast radius check against `origin/main`.
 4. **`refactor-safely` / `code-refactor`**: Dependency-backed refactoring preview and dead-code verification.
 5. **`qa-intel`**: Standing gate (`--mode diff` on every commit, `--mode full` at milestones).
 6. **`code-reviewer`**: Correctness, maintainability, null-safety, and API contract invariants.
@@ -188,5 +188,5 @@ Every prompt dispatched to OC/AGY or executed by CCT MUST contain:
 
 ## Gate order (updated 2026-09-28 evening, founder directive)
 
-- **qa-intel diff + full are standing gates now, every time** — order: lint → `pnpm qa:intel` (diff vs origin/master, compared against `.qa-intel/baseline.json`) → tsc → build → vitest; `pnpm qa:intel:full` at milestones/before merges. Engine invoked via hex-yt-intel's tsx binary directly (corepack version pin in hex-yt-intel breaks `pnpm --dir` — ERR_PNPM_BAD_PM_VERSION; binary path bypasses it). Baseline: `.qa-intel/baseline.json` (established 2026-09-28, full scan). Re-run `--mode full --baseline` after accepting new rule classes.
+- **qa-intel diff + full are standing gates now, every time** — order: lint → `pnpm qa:intel` (diff vs origin/main, compared against `.qa-intel/baseline.json`) → tsc → build → vitest; `pnpm qa:intel:full` at milestones/before merges. Engine invoked via hex-yt-intel's tsx binary directly (corepack version pin in hex-yt-intel breaks `pnpm --dir` — ERR_PNPM_BAD_PM_VERSION; binary path bypasses it). Baseline: `.qa-intel/baseline.json` (established 2026-09-28, full scan). Re-run `--mode full --baseline` after accepting new rule classes.
 

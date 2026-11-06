@@ -54,7 +54,7 @@ fi
 
 case "$top" in
   *hex-yt-intel*) BASE_BRANCH=origin/main; mu=$(git merge-base HEAD origin/uat 2>/dev/null); mm=$(git merge-base HEAD origin/main 2>/dev/null); [ -n "$mu" ] && [ "$mu" != "$mm" ] && git merge-base --is-ancestor "$mm" "$mu" 2>/dev/null && BASE_BRANCH=origin/uat ;;
-  *hex-expan*) BASE_BRANCH=origin/master ;;
+  *hex-expan*) BASE_BRANCH=$(for b in origin/main origin/master; do git rev-parse --verify -q "$b" >/dev/null && { echo "$b"; break; }; done); BASE_BRANCH=${BASE_BRANCH:-origin/master} ;;
   *)
     # Not a hex checkout by path (or not a git checkout). A PR command aimed at a hex repo is denied.
     if [ $is_pr -eq 1 ] && { grep -qE 'hex-(expan|yt-intel)' <<<"$cmd" || grep -qE 'hex-(expan|yt-intel)' <<<"$origin_repo"; }; then
