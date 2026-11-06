@@ -1134,6 +1134,43 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
       await appendSale({ ...CB_SALE }, salesFilePath);
     });
 
+    // F3: the batch loop's conflict and throw paths. A conflict is already durable in the inbox, so a
+    // terminal sibling failure still decides the response; a conflict after a failed event still runs.
+    const batch = (events: unknown[]): PaymentProviderPort =>
+      ({
+        providerName: "paddle",
+        canHandleWebhook: () => true,
+        parseAndValidateWebhook: async () => ({ isValid: true, event: events[0], followingEvents: events.slice(1) }),
+        createCheckout: undefined as never,
+      }) as unknown as PaymentProviderPort;
+    const noEmailSale = { ...SALE, providerName: "fungies", saleId: "sale_no_email", buyerEmail: undefined };
+
+    it("batch [conflicting refund, ignored] → the conflict_pending outcome is reported", async () => {
+      race23505();
+      supa.adjLookupResult = conflicts("sale_OTHER");
+      try {
+        const out = await processBillingWebhookUseCase({ headers: {}, body: "" }, [
+          batch([cbRefund("adj_batch_c"), { eventType: "ignored", providerName: "paddle", reason: "test" }]),
+        ]);
+        expectConflictPending(out);
+        expect(supa.conflicts.size).toBe(1);
+      } finally {
+        cleanup23505();
+      }
+    });
+
+    it("batch [no-email sale (422), conflicting refund] → the conflict is still stored, the delivery answers 422", async () => {
+      race23505();
+      supa.adjLookupResult = conflicts("sale_OTHER");
+      try {
+        const run = processBillingWebhookUseCase({ headers: {}, body: "" }, [batch([noEmailSale, cbRefund("adj_batch_t")])]);
+        await expect(run).rejects.toMatchObject({ name: "WebhookValidationError", httpStatus: 422 });
+        expect(supa.conflicts.size).toBe(1);
+      } finally {
+        cleanup23505();
+      }
+    });
+
     it("refund: 23505 + matching conflicting row -> resolves 200", async () => {
       race23505();
       supa.adjLookupResult = conflicts();
@@ -1507,5 +1544,59 @@ describe("multi-event delivery end-to-end (audit R04)", () => {
     expect(rows.map((r) => [r.sale_id, r.amount_usd])).toEqual([["ord_a", 29], ["ord_b", 39]]);
     expect(delivery.deliverSaleForWebhook).toHaveBeenCalledTimes(2);
     expect(delivery.deliverSaleForWebhook).toHaveBeenLastCalledWith({ saleId: "ord_b", productAlias: "p1", buyerEmail: "b@example.com" });
+  });
+
+  // F1: a failed event must not stop its siblings. A terminal (4xx) failure is final for the provider,
+  // so any sale after it would never be booked; a retryable failure makes the whole delivery retry.
+  const batchAdapter = (events: (SaleCompletedEvent | RefundIssuedEvent)[]): PaymentProviderPort =>
+    ({
+      providerName: "fastspring",
+      canHandleWebhook: () => true,
+      parseAndValidateWebhook: async () => ({ isValid: true, event: events[0], followingEvents: events.slice(1) }),
+      createCheckout: undefined as never,
+    }) as unknown as PaymentProviderPort;
+  const fsSale = (saleId: string, totalCents: number, extra: Partial<SaleCompletedEvent> = {}): SaleCompletedEvent => ({
+    ...SALE, providerName: "fastspring", saleId, totalCents, buyerEmail: `${saleId}@example.com`, ...extra,
+  });
+  const bookedRows = (): [string, number][] =>
+    readFileSync(salesFilePath, "utf8").split(/\r?\n/).filter(Boolean).map((r) => JSON.parse(r)).map((r) => [r.sale_id, r.amount_usd]);
+
+  it("[valid, invalid, valid] → both valid sales booked and delivered; the invalid one is reported as a final 422", async () => {
+    const run = processBillingWebhookUseCase({ headers: {}, body: "" }, [
+      batchAdapter([fsSale("ord_a", 2900), fsSale("ord_b", 3900, { currency: "EUR" }), fsSale("ord_c", 3900)]),
+    ]);
+    await expect(run).rejects.toMatchObject({ name: "WebhookValidationError", httpStatus: 422, message: expect.stringContaining("ord_b") });
+    expect(bookedRows()).toEqual([["ord_a", 29], ["ord_c", 39]]);
+    expect(delivery.deliverSaleForWebhook.mock.calls.map((c) => (c[0] as { saleId: string }).saleId)).toEqual(["ord_a", "ord_c"]);
+  });
+
+  it("one transient failure → the delivery is retryable; the retry books the missing sale and nothing twice", async () => {
+    // ord_b's lock is held by another in-flight delivery on the first attempt only.
+    setnx.mockImplementation(async (key: unknown) => (String(key).includes("ord_b") ? 0 : 1));
+    const events = [fsSale("ord_a", 2900), fsSale("ord_b", 3900), fsSale("ord_c", 1900)];
+    await expect(processBillingWebhookUseCase({ headers: {}, body: "" }, [batchAdapter(events)])).rejects.toMatchObject({ name: "WebhookInFlightError" });
+    expect(bookedRows()).toEqual([["ord_a", 29], ["ord_c", 19]]);
+
+    setnx.mockReset();
+    setnx.mockResolvedValue(1);
+    await expect(processBillingWebhookUseCase({ headers: {}, body: "" }, [batchAdapter(events)])).resolves.toBeUndefined();
+    expect(bookedRows()).toEqual([["ord_a", 29], ["ord_c", 19], ["ord_b", 39]]);
+  });
+
+  it("a retryable failure outranks a terminal one in the same delivery: the provider must retry", async () => {
+    setnx.mockImplementation(async (key: unknown) => (String(key).includes("ord_c") ? 0 : 1));
+    const run = processBillingWebhookUseCase({ headers: {}, body: "" }, [
+      batchAdapter([fsSale("ord_a", 2900, { currency: "EUR" }), fsSale("ord_b", 3900), fsSale("ord_c", 1900)]),
+    ]);
+    await expect(run).rejects.toMatchObject({ name: "WebhookInFlightError" });
+    expect(bookedRows()).toEqual([["ord_b", 39]]);
+  });
+
+  it("an unexpected throw (unknown product) is retryable and does not stop the next sale", async () => {
+    const run = processBillingWebhookUseCase({ headers: {}, body: "" }, [
+      batchAdapter([fsSale("ord_x", 2900, { productId: "no_such_product" }), fsSale("ord_y", 3900)]),
+    ]);
+    await expect(run).rejects.toThrow(/Unknown product_id/);
+    expect(bookedRows()).toEqual([["ord_y", 39]]);
   });
 });

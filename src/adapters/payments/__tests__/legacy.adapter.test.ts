@@ -68,6 +68,23 @@ describe("R03: the legacy wrapper books the provider's verified currency", () =>
     const r = await new LegacyPaymentAdapterWrapper(fungiesProvider).parseAndValidateWebhook(headers, body);
     expect((r as { event: SaleCompletedEvent }).event.currency).toBe("USD");
   });
+
+  it("a provider sale with no currency → refused 400, never booked with a stamped default", async () => {
+    const noCurrency = {
+      name: "fastspring" as const,
+      parseWebhook: () => ({ ok: true as const, sale: { sale_id: "s1", provider: "fastspring" as const, product_id: "p1", amount_usd: 39, ts: "2026-09-28T00:00:00.000Z", email_hash: "h" } }),
+    };
+    const r = await new LegacyPaymentAdapterWrapper(noCurrency).parseAndValidateWebhook({}, "{}");
+    expect(r).toMatchObject({ isValid: false, httpStatus: 400, error: expect.stringContaining("currency") });
+  });
+
+  it("a batch with one currency-less sale → the whole delivery is refused 400, no event forwarded", async () => {
+    const sale = (id: string, currency?: string) => ({ sale: { sale_id: id, provider: "fastspring" as const, product_id: "p1", amount_usd: 39, ts: "2026-09-28T00:00:00.000Z", email_hash: "h", ...(currency ? { currency } : {}) } });
+    const mixed = { name: "fastspring" as const, parseWebhook: () => ({ ok: true as const, batch: [sale("s1", "USD"), sale("s2")] }) };
+    const r = await new LegacyPaymentAdapterWrapper(mixed).parseAndValidateWebhook({}, "{}");
+    expect(r).toMatchObject({ isValid: false, httpStatus: 400 });
+    expect("event" in r).toBe(false);
+  });
 });
 
 describe("R04: Payhip routing and FastSpring multi-event deliveries", () => {
