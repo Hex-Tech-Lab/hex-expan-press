@@ -146,6 +146,34 @@ describe('DatabaseConstraintRule', () => {
     ], 'web/app/api/orders/route.ts')).toHaveLength(1);
   });
 
+  // isExternalInput parameter-only branch: the written value matches no request/body/params name, so only the
+  // "reads a parameter of the enclosing function" clause can make it external. Intent (per the function's own doc
+  // comment): data entering through a parameter is untrusted, so the write must fire.
+  test('flags a write whose value is a bare function parameter with a neutral name', () => {
+    expect(unvalidatedWrites([
+      'export async function save(supabase: any, record: { id: string }) {',
+      '  return supabase.from("orders").insert(record);',
+      '}',
+    ])).toHaveLength(1);
+  });
+
+  test('flags a write whose value is an expression that reads a neutral-named parameter', () => {
+    expect(unvalidatedWrites([
+      'export async function save(supabase: any, record: { id: string }) {',
+      '  return supabase.from("orders").insert({ ...record, source: "api" });',
+      '}',
+    ])).toHaveLength(1);
+  });
+
+  test('does not flag a write whose neutral-named value is a local const, not a parameter', () => {
+    expect(unvalidatedWrites([
+      'export async function save(supabase: any) {',
+      '  const record = { id: "fixed" };',
+      '  return supabase.from("orders").insert(record);',
+      '}',
+    ])).toHaveLength(0);
+  });
+
   test('does not run the TypeScript write check on test files', () => {
     const findings = scan(DatabaseConstraintRule, 'src/billing/orders.test.ts', [
       'export function seed(db: any, input: unknown) {',
