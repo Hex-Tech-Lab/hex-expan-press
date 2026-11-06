@@ -1,0 +1,18 @@
+.claude/hooks/skill-gates.sh
+  h_e6b68dcbbd0983 41
+payments/src/providers/fastspring.ts
+  h_e6b68dcbbd0983 121-123
+payments/test/amount_strict_parse.test.ts
+  h_e6b68dcbbd0983 58-59,120-124
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8a31791093c39c0918c1097a4063095fa187baa1",
+  "prompts": {},
+  "humans": {
+    "h_e6b68dcbbd0983": {
+      "author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
