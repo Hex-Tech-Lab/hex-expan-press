@@ -1,6 +1,6 @@
 import { Node, SyntaxKind } from "ts-morph";
 import type { Scope } from "ts-morph";
-import type { CallExpression, SourceFile, VariableDeclaration } from "ts-morph";
+import type { CallExpression, PropertyAccessExpression, SourceFile, VariableDeclaration } from "ts-morph";
 import type { Finding } from "../domain/Finding";
 import type { Rule, RuleContext } from "../domain/Rule";
 
@@ -142,8 +142,20 @@ function isStorageDownloadBlob(node: Node): boolean {
   const variable = Node.isBindingElement(declaration)
     ? declaration.getFirstAncestorByKind(SyntaxKind.VariableDeclaration)
     : declaration;
-  const initializer = Node.isVariableDeclaration(variable) ? variable.getInitializer()?.getText() ?? "" : "";
-  return /\.storage\b[\s\S]*\.download\(/.test(initializer);
+  let initializer = Node.isVariableDeclaration(variable) ? variable.getInitializer() : undefined;
+  if (Node.isAwaitExpression(initializer)) initializer = initializer.getExpression();
+  // The value must be the result of the download call itself: `<client>.storage.from(...).download(...)`.
+  // A text match over the whole initializer also exempted a fetch().blob() chain that only mentioned both words.
+  if (!Node.isCallExpression(initializer)) return false;
+  const callee = initializer.getExpression();
+  if (!Node.isPropertyAccessExpression(callee) || callee.getName() !== "download") return false;
+  const from = callee.getExpression();
+  if (!Node.isCallExpression(from)) return false;
+  const fromCallee = from.getExpression();
+  return Node.isPropertyAccessExpression(fromCallee)
+    && fromCallee.getName() === "from"
+    && Node.isPropertyAccessExpression(fromCallee.getExpression())
+    && (fromCallee.getExpression() as PropertyAccessExpression).getName() === "storage";
 }
 
 /**

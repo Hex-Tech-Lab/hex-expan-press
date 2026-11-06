@@ -206,6 +206,41 @@ describe("UnboundedBodyReadRule (V10)", () => {
     expect(findings.length).toBe(1);
   });
 
+  // R2: the storage exemption covers only the SDK call `<client>.storage.from(b).download(p)` itself. A fetched
+  // Blob whose initializer merely mentions storage and a download method is a remote body and still fires.
+  test("positive: fetch().blob() whose chain mentions .storage and .download( is not an SDK download", () => {
+    const findings = check(
+      UnboundedBodyReadRule,
+      "scripts/blob-read.ts",
+      `
+      export async function readIt(supabase: any, p: string, tracker: any) {
+        const blob = await fetch(supabase.storage.from("b").getPublicUrl(p).data.publicUrl)
+          .then((r) => r.blob())
+          .finally(() => tracker.download(p));
+        return blob.arrayBuffer();
+      }
+      `,
+    );
+    expect(findings.length).toBe(1);
+  });
+
+  test("accepted limitation: an SDK download read through an alias (res.data) still fires", () => {
+    const findings = check(
+      UnboundedBodyReadRule,
+      "scripts/sync-r2.ts",
+      `
+      export async function copy(supabase: any, p: string) {
+        const res = await supabase.storage.from("b").download(p);
+        if (res.error || !res.data) return null;
+        const data = res.data;
+        return Buffer.from(await data.arrayBuffer());
+      }
+      `,
+    );
+    // data is bound from res.data, not from the download call itself: the rule cannot see through the alias.
+    expect(findings.length).toBe(1);
+  });
+
   test("negative control: hard-coded first-party YouTube fetch", () => {
     const findings = check(
       UnboundedBodyReadRule,
