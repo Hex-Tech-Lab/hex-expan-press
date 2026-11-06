@@ -488,6 +488,15 @@ export const InsecureFallbackRule: IRule = {
   }
 };
 
+/** True when the template is an argument of a `.query(...)` or `.rpc(...)` call, or the template of a `sql` tag. */
+function isQueryCallTemplate(template: Node): boolean {
+  const parent = template.getParent();
+  if (Node.isTaggedTemplateExpression(parent)) return parent.getTag().getText() === "sql";
+  return Node.isCallExpression(parent)
+    && parent.getArguments().includes(template)
+    && /\.(query|rpc)$/.test(parent.getExpression().getText());
+}
+
 export const SqlInjectionRule: IRule = {
   name: "sql-injection-detector",
   check: (source: SourceFile) => {
@@ -499,7 +508,10 @@ export const SqlInjectionRule: IRule = {
       source.forEachDescendant((node) => {
         if (Node.isTemplateExpression(node)) {
           const literalText = node.getText();
-          if (literalText.includes("SELECT") || literalText.includes("INSERT") || literalText.includes("UPDATE") || literalText.includes("DELETE")) {
+          const hasKeyword = /SELECT|INSERT|UPDATE|DELETE/.test(literalText);
+          // A template is SQL only when a query call receives it or its own text opens with a statement keyword.
+          const startsLikeSql = /^\s*(SELECT|INSERT|UPDATE|DELETE)\b/.test(node.getHead().getLiteralText());
+          if (hasKeyword && (startsLikeSql || isQueryCallTemplate(node))) {
             findings.push({
               file: filePath,
               severity: "critical",

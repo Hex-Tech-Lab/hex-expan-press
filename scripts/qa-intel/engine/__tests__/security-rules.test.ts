@@ -433,6 +433,25 @@ describe('SqlInjectionRule', () => {
     `);
     expect(findings).toHaveLength(1);
   });
+
+  // Triage item 1 negative control: a log line that merely mentions UPDATE/INSERT is not a query.
+  test('does not flag a console.log template whose prose mentions UPDATE and INSERT', () => {
+    const findings = scan(SqlInjectionRule, 'scripts/migrate.ts', `
+      export function report(existing: boolean, id: string) {
+        console.log(\`[port] products \${existing ? "UPDATE heritage columns" : "INSERT"}: \${id}\`);
+      }
+    `);
+    expect(findings).toHaveLength(0);
+  });
+
+  test('flags an interpolated template passed to a query call even when SQL is not at the start', () => {
+    const findings = scan(SqlInjectionRule, 'web/lib/users.ts', `
+      export async function find(db: any, id: string) {
+        return db.query(\`  -- lookup \\n SELECT * FROM users WHERE id = \${id}\`);
+      }
+    `);
+    expect(findings).toHaveLength(1);
+  });
 });
 
 describe('WhitelistPathSanitizationRule', () => {
