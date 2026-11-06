@@ -378,7 +378,31 @@ export const HmacMessageFormatRule: IRule = {
 
 /** `str.split(sep)` always returns at least one element, so index 0 of its result cannot be out of range. */
 function isSplitResult(base: Node): boolean {
-  return Node.isCallExpression(base) && /\.split$/.test(base.getExpression().getText());
+  return Node.isCallExpression(base) && /\.(split|exec)$/.test(base.getExpression().getText());
+}
+
+/**
+ * True when the base is one match out of a `matchAll(...)` iteration: the loop variable of
+ * `for (const m of s.matchAll(re))`, or the parameter of a callback over `[...s.matchAll(re)]`. Every such match
+ * carries index 0 (the matched text), so reading it needs no guard.
+ */
+function isMatchAllElement(base: Node): boolean {
+  if (!Node.isIdentifier(base)) return false;
+  const declaration = base.getSymbol()?.getValueDeclaration();
+  if (!declaration) return false;
+  if (Node.isVariableDeclaration(declaration)) {
+    const loop = declaration.getParent()?.getParent();
+    return Node.isForOfStatement(loop) && loop.getExpression().getText().includes('.matchAll(');
+  }
+  if (Node.isParameterDeclaration(declaration)) {
+    const callback = declaration.getParent();
+    const call = callback?.getParent();
+    return Node.isCallExpression(call)
+      && call.getArguments().includes(callback as Node)
+      && /\.(map|forEach|filter|flatMap|some|every)$/.test(call.getExpression().getText())
+      && call.getExpression().getText().includes('.matchAll(');
+  }
+  return false;
 }
 
 /**
@@ -413,7 +437,7 @@ export const UnsafePropertyAccessRule: IRule = {
               if (!tryStatement) {
                 const func = node.getFirstAncestorByKind(SyntaxKind.ArrowFunction)
                   || node.getFirstAncestorByKind(SyntaxKind.FunctionDeclaration);
-                if (func && (func.getText().includes('fetch') || func.getText().includes('extract') || func.getText().includes('parse')) && !isSplitResult(node.getExpression()) && !guardedByEarlierCheck(func, node.getExpression(), node)) {
+                if (func && (func.getText().includes('fetch') || func.getText().includes('extract') || func.getText().includes('parse')) && !isSplitResult(node.getExpression()) && !isMatchAllElement(node.getExpression()) && !guardedByEarlierCheck(func, node.getExpression(), node)) {
                   findings.push({
                     file: filePath,
                     severity: "medium",

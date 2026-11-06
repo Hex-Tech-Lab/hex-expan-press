@@ -94,6 +94,61 @@ describe('UnsafePropertyAccessRule', () => {
     expect(UnsafePropertyAccessRule.check(createTestSource(code))).toHaveLength(0);
   });
 
+  // Triage item 6 negative controls: sites from scripts/book_check.ts.
+  test('does not flag index 0 of a matchAll element, which a match always carries', () => {
+    const code = `
+      export function parseNumbers(text: string) {
+        const out: string[] = [];
+        for (const m of text.matchAll(/\\d+/g)) {
+          out.push(m[0].toLowerCase());
+        }
+        return out;
+      }
+    `;
+    expect(UnsafePropertyAccessRule.check(createTestSource(code))).toHaveLength(0);
+  });
+
+  test('does not flag index 0 of a callback element mapped over matchAll', () => {
+    const code = `
+      export function parseClaim(claim: string) {
+        return [...claim.matchAll(/\\d+/g)].map((m) => parseFloat(m[0]));
+      }
+    `;
+    expect(UnsafePropertyAccessRule.check(createTestSource(code))).toHaveLength(0);
+  });
+
+  test('does not flag index 0 of a direct exec result', () => {
+    const code = `
+      export function parseHead(raw: string) {
+        return /^\\w+/.exec(raw)[0];
+      }
+    `;
+    expect(UnsafePropertyAccessRule.check(createTestSource(code))).toHaveLength(0);
+  });
+
+  test('does not flag an index inside the else-if branch that checks the same array length', () => {
+    const code = `
+      export function parseHits(hits: string[]) {
+        if (hits.length > 1) {
+          return "many";
+        } else if (hits.length === 1) {
+          return hits[0];
+        }
+        return "none";
+      }
+    `;
+    expect(UnsafePropertyAccessRule.check(createTestSource(code))).toHaveLength(0);
+  });
+
+  test('still flags an index into an unguarded array that is not a match or split result', () => {
+    const code = `
+      export function parseRows(rows: string[]) {
+        return rows[0];
+      }
+    `;
+    expect(UnsafePropertyAccessRule.check(createTestSource(code))).toHaveLength(1);
+  });
+
   test('skips test files', () => {
     const code = `export function parseThing(raw: string) { return raw.split(".")[0]; }`;
     expect(UnsafePropertyAccessRule.check(createTestSource(code, 'src/parse-thing.test.ts'))).toHaveLength(0);
