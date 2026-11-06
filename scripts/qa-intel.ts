@@ -13,6 +13,7 @@ import { execFileSync } from "child_process";
 import { resolveDefaultBaseRef, type GitRun } from "./qa-intel/base-ref";
 import { resolveCacheMode } from "./qa-intel/cache-mode";
 import { newFindingsAgainstBaseline } from "./qa-intel/compare";
+import { FULL_MODE_CODE_GLOBS } from "./qa-intel/scan-scope";
 import { createExpanRedisPort } from "./qa-intel/engine/redis-port";
 import { isRedisRestConfigured } from "../src/infrastructure/redis/redis.client";
 const gitRun: GitRun = (args) => execFileSync("git", [...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
@@ -132,7 +133,8 @@ if (mode === "full" || mode === "watch") {
   // the language-gated full rule set (partition: supabase/migrations/*.sql
   // are code files for Rule.languages gating purposes).
   fileList = Array.from(new Set([
-    ...glob.sync("{web,worker}/**/*.{ts,tsx}", { ignore: "**/node_modules/**" }),
+    // R11: full mode walks payments/ and src/ too, not only web/ and worker/. The list lives in scan-scope.ts.
+    ...FULL_MODE_CODE_GLOBS.flatMap((pattern) => glob.sync(pattern, { ignore: "**/node_modules/**" })),
     ...glob.sync("supabase/migrations/*.sql"),
     // R12 round 2: tracked-file enumeration with deliberate text-extension
     // policy (hidden dirs incl. .memory/, never untracked files).
