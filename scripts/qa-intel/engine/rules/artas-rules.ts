@@ -135,6 +135,17 @@ export const UnconsumedStreamLeakRule: Rule = {
   },
 };
 
+/** True when the node is a variable bound from `await <client>.storage.from(...).download(...)`. */
+function isStorageDownloadBlob(node: Node): boolean {
+  if (!Node.isIdentifier(node)) return false;
+  const declaration = node.getSymbol()?.getValueDeclaration();
+  const variable = Node.isBindingElement(declaration)
+    ? declaration.getFirstAncestorByKind(SyntaxKind.VariableDeclaration)
+    : declaration;
+  const initializer = Node.isVariableDeclaration(variable) ? variable.getInitializer()?.getText() ?? "" : "";
+  return /\.storage\b[\s\S]*\.download\(/.test(initializer);
+}
+
 /**
  * V10 — SSRF Exhaustion / unbounded body read (.memory/ARTAS_REGISTRY.md Domain 3).
  * Historical incident: hex-expan ExpanPress buffered a fetched document whole
@@ -157,17 +168,6 @@ export const UnconsumedStreamLeakRule: Rule = {
  * this stays a review-only note); (3) flow analysis is absent — a limit
  * check in a helper is not recognized.
  */
-/** True when the node is a variable bound from `await <client>.storage.from(...).download(...)`. */
-function isStorageDownloadBlob(node: Node): boolean {
-  if (!Node.isIdentifier(node)) return false;
-  const declaration = node.getSymbol()?.getValueDeclaration();
-  const variable = Node.isBindingElement(declaration)
-    ? declaration.getFirstAncestorByKind(SyntaxKind.VariableDeclaration)
-    : declaration;
-  const initializer = Node.isVariableDeclaration(variable) ? variable.getInitializer()?.getText() ?? "" : "";
-  return /\.storage\b[\s\S]*\.download\(/.test(initializer);
-}
-
 export const UnboundedBodyReadRule: Rule = {
   name: "artas-v10-unbounded-body-read",
   scope: "file",
