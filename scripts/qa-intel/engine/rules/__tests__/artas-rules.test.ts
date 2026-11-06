@@ -430,6 +430,58 @@ describe("NonIdempotentRetryRule (V19)", () => {
     expect(findings.length).toBe(0);
   });
 
+  // R1: a retry loop needs no catch clause; a status check and another attempt replay the POST all the same.
+  test("positive: POST retry loop with no catch clause (status check, then another attempt)", () => {
+    const findings = check(
+      NonIdempotentRetryRule,
+      "payments/src/post-retry-status.ts",
+      `
+      export async function post(url: string, body: string) {
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          const res = await fetch(url, { method: "POST", body });
+          if (res.ok) return res;
+          await sleep(100 * attempt);
+        }
+        throw new Error("exhausted");
+      }
+      `,
+    );
+    expect(findings.length).toBe(1);
+  });
+
+  test("positive: while-loop POST retry with no catch clause", () => {
+    const findings = check(
+      NonIdempotentRetryRule,
+      "payments/src/post-retry-while.ts",
+      `
+      export async function post(url: string, body: string) {
+        let res = await fetch(url, { method: "POST", body });
+        while (res.status === 503) {
+          res = await fetch(url, { method: "POST", body });
+        }
+        return res;
+      }
+      `,
+    );
+    expect(findings.length).toBe(1);
+  });
+
+  test("negative control: per-item POST loop over a collection, no retry vocabulary, no catch", () => {
+    const findings = check(
+      NonIdempotentRetryRule,
+      "scripts/post-each.ts",
+      `
+      export async function run(rows: string[]) {
+        for (let i = 0; i < rows.length; i++) {
+          const res = await fetch("/x", { method: "POST", body: rows[i] });
+          if (!res.ok) console.error(res.status);
+        }
+      }
+      `,
+    );
+    expect(findings.length).toBe(0);
+  });
+
   test("positive: retry loop whose fetch carries a POST method literal", () => {
     const findings = check(
       NonIdempotentRetryRule,

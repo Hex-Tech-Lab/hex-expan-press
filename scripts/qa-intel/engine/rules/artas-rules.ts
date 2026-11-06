@@ -303,9 +303,14 @@ export const NonIdempotentRetryRule: Rule = {
       ) {
         return;
       }
-      // A retry loop catches a failure and goes around again; a plain per-item loop is not one.
-      if (node.getDescendantsOfKind(SyntaxKind.CatchClause).length === 0) return;
       if (mutatingFetchCalls(node).length === 0) return;
+      // A loop that may send the same mutating request again is a replay risk, with or without a catch. Retry signals:
+      // a catch clause, retry vocabulary (attempt, retry, tries, backoff), or a while/do loop, whose condition is a
+      // state check rather than a walk over items. A per-item for/for-of/for-in loop with none of these is not a retry.
+      const isConditionLoop = Node.isWhileStatement(node) || Node.isDoStatement(node);
+      const hasCatch = node.getDescendantsOfKind(SyntaxKind.CatchClause).length > 0;
+      const hasRetryVocabulary = /\b\w*(attempt|retr(y|ies)|tries|backoff)\w*\b/i.test(node.getText());
+      if (!isConditionLoop && !hasCatch && !hasRetryVocabulary) return;
 
       const fn = findEnclosingFunction(node);
       if (!fn) return;
