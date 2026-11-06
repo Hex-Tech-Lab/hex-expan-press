@@ -251,6 +251,81 @@ describe("NonIdempotentRetryRule (V19)", () => {
     expect(findings.length).toBe(0);
   });
 
+  // Triage item 2 negative controls: fetch with no method option is GET, and a per-item loop is not a retry loop.
+  test("negative control: retry loop around a fetch with no method option (defaults to GET)", () => {
+    const findings = check(
+      NonIdempotentRetryRule,
+      "scripts/fetch-all.ts",
+      `
+      export async function getWithRetry(url: string) {
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          try {
+            return await fetch(url, { headers: { Authorization: "x" } });
+          } catch {
+            await sleep(100 * attempt);
+          }
+        }
+        throw new Error("exhausted");
+      }
+      `,
+    );
+    expect(findings.length).toBe(0);
+  });
+
+  test("negative control: per-item loop calling a fetch-named helper that takes no request options", () => {
+    const findings = check(
+      NonIdempotentRetryRule,
+      "scripts/fetch-all.ts",
+      `
+      export async function run(ids: string[]) {
+        for (const id of ids) {
+          try {
+            fetchCaptions(id);
+          } catch (e) {
+            console.log(String(e));
+          }
+        }
+      }
+      `,
+    );
+    expect(findings.length).toBe(0);
+  });
+
+  test("negative control: per-item loop with a POST fetch but no try/catch is not a retry loop", () => {
+    const findings = check(
+      NonIdempotentRetryRule,
+      "scripts/post-all.ts",
+      `
+      export async function run(ids: string[]) {
+        for (const id of ids) {
+          await fetch("/x", { method: "POST", body: id });
+        }
+      }
+      `,
+    );
+    expect(findings.length).toBe(0);
+  });
+
+  test("positive: retry loop whose fetch carries a POST method literal", () => {
+    const findings = check(
+      NonIdempotentRetryRule,
+      "scripts/post-retry.ts",
+      `
+      export async function post(url: string, body: string) {
+        for (let attempt = 1; attempt <= 3; attempt++) {
+          try {
+            return await fetch(url, { method: "POST", body });
+          } catch {
+            await sleep(100 * attempt);
+          }
+        }
+        throw new Error("exhausted");
+      }
+      `,
+    );
+    expect(findings.length).toBe(1);
+  });
+
   test("bare 'GET'/'HEAD' string literals without a method comparison do not exempt (V24)", () => {
     const findings = check(
       NonIdempotentRetryRule,

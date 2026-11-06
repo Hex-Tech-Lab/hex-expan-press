@@ -1,6 +1,6 @@
-import { Node } from "ts-morph";
+import { Node, SyntaxKind } from "ts-morph";
 import type { Scope } from "ts-morph";
-import type { SourceFile, VariableDeclaration } from "ts-morph";
+import type { CallExpression, SourceFile, VariableDeclaration } from "ts-morph";
 import type { Finding } from "../domain/Finding";
 import type { Rule, RuleContext } from "../domain/Rule";
 
@@ -256,12 +256,25 @@ export const NonIdempotentRetryRule: Rule = {
 
     const reported = new Set<number>();
 
-    const functionHasFetch = (fn: Node): boolean =>
-      fn.getDescendants().some((d) => {
-        if (!Node.isCallExpression(d)) return false;
-        const callee = d.getExpression();
-        return /fetch/.test(callee.getText());
-      });
+    // fetch defaults to GET, so a call is only a replay risk when its options can carry a non-GET/HEAD method:
+    // a method literal other than GET/HEAD, or options the rule cannot see into (a variable, a spread, a computed method).
+    const mayMutate = (call: CallExpression): boolean => {
+      const init = call.getArguments()[1];
+      if (!init) return false;
+      if (!Node.isObjectLiteralExpression(init)) return true;
+      if (init.getProperties().some((p) => Node.isSpreadAssignment(p))) return true;
+      const method = init.getProperty("method");
+      if (!method) return false;
+      if (!Node.isPropertyAssignment(method)) return true;
+      const value = method.getInitializer();
+      if (!value || !(Node.isStringLiteral(value) || Node.isNoSubstitutionTemplateLiteral(value))) return true;
+      return !/^(GET|HEAD)$/i.test(value.getLiteralText());
+    };
+    const mutatingFetchCalls = (scope: Node): CallExpression[] =>
+      scope
+        .getDescendants()
+        .filter((d): d is CallExpression => Node.isCallExpression(d) && /fetch/.test(d.getExpression().getText()) && mayMutate(d));
+    const functionHasFetch = (fn: Node): boolean => mutatingFetchCalls(fn).length > 0;
 
     source.forEachDescendant((node) => {
       if (
@@ -273,11 +286,9 @@ export const NonIdempotentRetryRule: Rule = {
       ) {
         return;
       }
-      const calls = node.getDescendants().filter((d) => {
-        if (!Node.isCallExpression(d)) return false;
-        return /fetch/.test(d.getExpression().getText());
-      });
-      if (calls.length === 0) return;
+      // A retry loop catches a failure and goes around again; a plain per-item loop is not one.
+      if (node.getDescendantsOfKind(SyntaxKind.CatchClause).length === 0) return;
+      if (mutatingFetchCalls(node).length === 0) return;
 
       const fn = findEnclosingFunction(node);
       if (!fn) return;
