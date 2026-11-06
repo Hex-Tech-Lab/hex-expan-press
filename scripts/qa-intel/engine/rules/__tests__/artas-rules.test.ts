@@ -247,6 +247,69 @@ describe("NonIdempotentRetryRule (V19)", () => {
     expect(findings[0]?.severity).toBe("high");
   });
 
+  test("positive: retry loop whose fetch options spread in unseen options", () => {
+    const findings = check(
+      NonIdempotentRetryRule,
+      "worker/src/lib/retry-spread.ts",
+      `
+      export async function sendWithRetry(url: string, headers: HeadersInit, verb: string, extra: RequestInit) {
+        let attempts = 0;
+        while (attempts < 3) {
+          try {
+            return await fetch(url, { ...extra, headers });
+          } catch (e) {
+            attempts++;
+          }
+        }
+        throw new Error("exhausted");
+      }
+      `,
+    );
+    expect(findings.length).toBe(1);
+  });
+
+  test("positive: retry loop whose fetch options method is a variable (computed at runtime)", () => {
+    const findings = check(
+      NonIdempotentRetryRule,
+      "worker/src/lib/retry-computed.ts",
+      `
+      export async function sendWithRetry(url: string, headers: HeadersInit, verb: string, extra: RequestInit) {
+        let attempts = 0;
+        while (attempts < 3) {
+          try {
+            return await fetch(url, { method: verb, headers });
+          } catch (e) {
+            attempts++;
+          }
+        }
+        throw new Error("exhausted");
+      }
+      `,
+    );
+    expect(findings.length).toBe(1);
+  });
+
+  test("negative control: retry loop whose fetch options pin method to the literal GET", () => {
+    const findings = check(
+      NonIdempotentRetryRule,
+      "worker/src/lib/retry-get.ts",
+      `
+      export async function sendWithRetry(url: string, headers: HeadersInit, verb: string, extra: RequestInit) {
+        let attempts = 0;
+        while (attempts < 3) {
+          try {
+            return await fetch(url, { method: "GET", headers });
+          } catch (e) {
+            attempts++;
+          }
+        }
+        throw new Error("exhausted");
+      }
+      `,
+    );
+    expect(findings.length).toBe(0);
+  });
+
   test("positive: recursive fetch retry", () => {
     const findings = check(
       NonIdempotentRetryRule,

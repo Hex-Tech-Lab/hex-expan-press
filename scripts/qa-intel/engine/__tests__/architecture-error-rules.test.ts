@@ -112,6 +112,18 @@ describe('WorkflowRule', () => {
     expect(ns.filter((f) => f.title === 'Workflow: Missing finally block for I/O')).toHaveLength(1);
   });
 
+  test('flags execSync in a try with no finally block', () => {
+    const findings = check(WorkflowRule, 'scripts/run-sync.ts', [
+      "import { execSync } from 'node:child_process';",
+      'export function run(cmd: string) {',
+      '  try {',
+      '    return execSync(cmd);',
+      '  } catch (e) { console.error(e); }',
+      '}',
+    ].join('\n'));
+    expect(findings.filter((f) => f.title === 'Workflow: Missing finally block for I/O')).toHaveLength(1);
+  });
+
   test('does not flag a fetch whose try has a finally block', () => {
     const findings = check(WorkflowRule, 'web/lib/upstream.ts', [
       'export async function load(url: string, release: () => void) {',
