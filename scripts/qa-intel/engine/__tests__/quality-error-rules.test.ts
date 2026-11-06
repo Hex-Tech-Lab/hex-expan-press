@@ -46,6 +46,68 @@ describe('ErrorObservabilityRule', () => {
     expect(unlogged[0]?.severity).toBe('medium');
   });
 
+  // Triage item 4 negative controls: a rethrow, a stored reason and a documented fallback are handled errors.
+  const unlogged = (code: string[]) =>
+    scan(ErrorObservabilityRule, 'scripts/read.ts', code.join('\n'))
+      .filter((f) => f.title === 'Observability: Catch block without error logging');
+
+  test('does not flag a catch that rethrows the caught error', () => {
+    expect(unlogged([
+      'export function read(run: () => string) {',
+      '  try { return run(); } catch (err) { throw err; }',
+      '}',
+    ])).toHaveLength(0);
+  });
+
+  test('does not flag a catch that rethrows a new error carrying the caught message', () => {
+    expect(unlogged([
+      'export function read(run: () => string, label: string) {',
+      '  try { return run(); } catch (err) {',
+      '    throw new Error(`cannot read ${label}: ${(err as Error).message}`);',
+      '  }',
+      '}',
+    ])).toHaveLength(0);
+  });
+
+  test('does not flag a catch that stores the reason for a later throw', () => {
+    expect(unlogged([
+      'export function read(run: () => string) {',
+      '  let lastErr = "";',
+      '  for (let attempt = 0; attempt < 3; attempt++) {',
+      '    try { return run(); } catch (e) { lastErr = e instanceof Error ? e.message : String(e); }',
+      '  }',
+      '  throw new Error(lastErr);',
+      '}',
+    ])).toHaveLength(0);
+  });
+
+  test('does not flag a return that a comment documents as the deliberate fallback', () => {
+    expect(unlogged([
+      'export function read(run: () => string) {',
+      '  try { return run(); } catch {',
+      '    // missing file is expected on first run; fall back to the default',
+      '    return "";',
+      '  }',
+      '}',
+    ])).toHaveLength(0);
+  });
+
+  test('still flags a catch that throws an unrelated error and drops the cause', () => {
+    expect(unlogged([
+      'export function read(run: () => string) {',
+      '  try { return run(); } catch (err) { throw new Error("failed"); }',
+      '}',
+    ])).toHaveLength(1);
+  });
+
+  test('still flags an uncommented swallowing return', () => {
+    expect(unlogged([
+      'export function read(run: () => string) {',
+      '  try { return run(); } catch { return ""; }',
+      '}',
+    ])).toHaveLength(1);
+  });
+
   test('does not flag a catch that logs through console', () => {
     const findings = scan(ErrorObservabilityRule, 'web/lib/sync.ts', [
       'export async function sync(run: () => Promise<void>) {',

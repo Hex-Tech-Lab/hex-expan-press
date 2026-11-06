@@ -1,5 +1,5 @@
 import { Node, SyntaxKind } from "ts-morph";
-import type { SourceFile } from "ts-morph";
+import type { CatchClause, SourceFile } from "ts-morph";
 import type { Finding, IRule } from "../engine";
 
 export const AsyncWithoutAwaitRule: IRule = {
@@ -264,6 +264,25 @@ export const ImportOrderingRule: IRule = {
   }
 };
 
+/**
+ * True when a catch clause handles the error without logging it: it rethrows the caught error or its message,
+ * keeps the reason in a variable for a later throw, or returns a documented fallback (a comment before the return).
+ */
+function handlesCaughtError(catchClause: CatchClause): boolean {
+  const block = catchClause.getBlock();
+  const nameNode = catchClause.getVariableDeclaration()?.getNameNode();
+  const caught = nameNode && Node.isIdentifier(nameNode) ? nameNode.getText() : undefined;
+  const mentionsCaught = (expr: Node): boolean =>
+    caught !== undefined && expr.getDescendantsOfKind(SyntaxKind.Identifier).concat(Node.isIdentifier(expr) ? [expr] : [])
+      .some((id) => id.getText() === caught);
+
+  if (block.getDescendantsOfKind(SyntaxKind.ThrowStatement).some((t) => mentionsCaught(t.getExpression()))) return true;
+  const storesReason = block.getDescendantsOfKind(SyntaxKind.BinaryExpression).some((b) =>
+    b.getOperatorToken().getKind() === SyntaxKind.EqualsToken && Node.isIdentifier(b.getLeft()) && mentionsCaught(b.getRight()));
+  if (storesReason) return true;
+  return block.getDescendantsOfKind(SyntaxKind.ReturnStatement).some((r) => r.getLeadingCommentRanges().length > 0);
+}
+
 export const ErrorObservabilityRule: IRule = {
   name: "error-observability-enforcer",
   check: (source: SourceFile) => {
@@ -285,7 +304,7 @@ export const ErrorObservabilityRule: IRule = {
               return callee.includes('console.') || callee.includes('Sentry.') || callee.includes('logger.');
             });
 
-            if (!hasObservability && !bodyText.trim().startsWith('//')) {
+            if (!hasObservability && !bodyText.trim().startsWith('//') && !handlesCaughtError(node)) {
               findings.push({
                 file: filePath,
                 severity: "medium",
