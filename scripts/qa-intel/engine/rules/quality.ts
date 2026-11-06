@@ -266,7 +266,7 @@ export const ImportOrderingRule: IRule = {
 
 /**
  * True when a catch clause handles the error without logging it: it rethrows the caught error or its message,
- * keeps the reason in a variable for a later throw, or returns a documented fallback (a comment before the return).
+ * or keeps the reason in a variable for a later throw.
  */
 function handlesCaughtError(catchClause: CatchClause): boolean {
   const block = catchClause.getBlock();
@@ -277,10 +277,9 @@ function handlesCaughtError(catchClause: CatchClause): boolean {
       .some((id) => id.getText() === caught);
 
   if (block.getDescendantsOfKind(SyntaxKind.ThrowStatement).some((t) => mentionsCaught(t.getExpression()))) return true;
-  const storesReason = block.getDescendantsOfKind(SyntaxKind.BinaryExpression).some((b) =>
+  // A comment before a fallback return documents a swallowed error; it does not handle it, so it is not a case here.
+  return block.getDescendantsOfKind(SyntaxKind.BinaryExpression).some((b) =>
     b.getOperatorToken().getKind() === SyntaxKind.EqualsToken && Node.isIdentifier(b.getLeft()) && mentionsCaught(b.getRight()));
-  if (storesReason) return true;
-  return block.getDescendantsOfKind(SyntaxKind.ReturnStatement).some((r) => r.getLeadingCommentRanges().length > 0);
 }
 
 export const ErrorObservabilityRule: IRule = {

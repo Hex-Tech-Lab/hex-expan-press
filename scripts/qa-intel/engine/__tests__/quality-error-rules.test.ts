@@ -46,7 +46,7 @@ describe('ErrorObservabilityRule', () => {
     expect(unlogged[0]?.severity).toBe('medium');
   });
 
-  // Triage item 4 negative controls: a rethrow, a stored reason and a documented fallback are handled errors.
+  // Triage item 4 negative controls: a rethrow and a stored reason are handled errors. A comment is not (R4).
   const unlogged = (code: string[]) =>
     scan(ErrorObservabilityRule, 'scripts/read.ts', code.join('\n'))
       .filter((f) => f.title === 'Observability: Catch block without error logging');
@@ -81,7 +81,8 @@ describe('ErrorObservabilityRule', () => {
     ])).toHaveLength(0);
   });
 
-  test('does not flag a return that a comment documents as the deliberate fallback', () => {
+  // R4: a comment documents a swallowed error; it does not handle it.
+  test('still flags a swallowing return that a comment precedes', () => {
     expect(unlogged([
       'export function read(run: () => string) {',
       '  try { return run(); } catch {',
@@ -89,7 +90,17 @@ describe('ErrorObservabilityRule', () => {
       '    return "";',
       '  }',
       '}',
-    ])).toHaveLength(0);
+    ])).toHaveLength(1);
+  });
+
+  test('still flags a swallowing return with a comment, when the caught error is bound but unused', () => {
+    expect(unlogged([
+      'export function read(run: () => string) {',
+      '  try { return run(); } catch (err) {',
+      '    /* fallback */ return null;',
+      '  }',
+      '}',
+    ])).toHaveLength(1);
   });
 
   test('still flags a catch that throws an unrelated error and drops the cause', () => {
