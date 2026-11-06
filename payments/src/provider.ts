@@ -11,8 +11,13 @@ export interface SaleEvent {
   provider: ProviderName;
   product_id: string;
   amount_usd: number;
+  // ISO 4217, uppercase, already checked against the allowed-currency gate. Optional only for
+  // providers outside the legacy wrapper; the wrapper refuses a sale without it.
+  currency?: string;
   ts: string; // ISO-8601, provider event time when available
   email_hash: string; // sha256 hex of lowercased/trimmed buyer email — never store raw email
+  // Transient, for the receipt and download-link email only. Never persisted; the ledger keeps email_hash.
+  buyer_email?: string;
   // Our own canonical cross-provider attribution ID (added 2026-09-18) — generated client-side
   // (payments/bake_checkout.ts's attribution-capture script), NOT provider-owned. Threaded
   // through whichever custom-data/metadata mechanism each provider supports, extracted back out
@@ -56,6 +61,22 @@ const ATTRIBUTION_ID_RE = /^[A-Za-z0-9_.-]{1,64}(:[A-Za-z0-9_.-]{1,64})?$/;
 
 export function cleanAttributionId(raw: unknown): string | undefined {
   return typeof raw === "string" && ATTRIBUTION_ID_RE.test(raw) ? raw : undefined;
+}
+
+// Optional minus, digits, optional fraction. No sign "+", no exponent, no hex/binary/octal
+// prefix, no thousands separator, no surrounding whitespace.
+const PLAIN_DECIMAL_RE = /^-?\d+(\.\d+)?$/;
+
+/**
+ * A raw provider amount as a finite number, or undefined when it is absent, null, blank,
+ * non-numeric or not a number/string. A string must be a plain decimal: Number() would read
+ * "0x10" as 16 and "1e3" as 1000. Never coerces null or "" to 0 (a $0 sale) and never
+ * yields NaN (which slips past `<`/`!==` amount guards).
+ */
+export function strictAmount(raw: unknown): number | undefined {
+  if (typeof raw === "number") return Number.isFinite(raw) ? raw : undefined;
+  if (typeof raw === "string" && PLAIN_DECIMAL_RE.test(raw)) return Number(raw);
+  return undefined;
 }
 
 export function hashEmail(email: string): string {

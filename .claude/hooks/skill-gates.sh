@@ -36,7 +36,9 @@ if [ -z "$cwd" ] || ! cd "$cwd" 2>/dev/null; then
   exit 0
 fi
 # Honour a leading `cd <dir> &&` so gates are checked in the checkout the command targets.
-lead=$(sed -nE 's/^[[:space:]]*cd[[:space:]]+("([^"]+)"|([^ ;&|]+)).*/\2\3/p' <<<"$cmd")
+lead=$(sed -nE 's/^[[:space:]]*\(?[[:space:]]*cd[[:space:]]+("([^"]+)"|'\''([^'\'']+)'\''|([^ ;&|)]+)).*/\2\3\4/p' <<<"$cmd")
+# env -C <dir> runs the command in <dir>, so it is the same as a leading cd (fail closed like cd).
+[ -z "$lead" ] && lead=$(sed -nE 's/^[[:space:]]*\(?[[:space:]]*((\/usr\/bin\/)?env[[:space:]]+-C)[[:space:]]+("([^"]+)"|'\''([^'\'']+)'\''|([^ ;&|)]+)).*/\4\5\6/p' <<<"$cmd")
 # Expand a leading ~ (the shell would; a literal "~/..." made cd fail and the gate silently allow -- 2026-10-12).
 lead="${lead/#\~/$HOME}"
 if [ -n "$lead" ] && ! cd "$lead" 2>/dev/null; then
@@ -109,7 +111,9 @@ grep -qE 'web/(src/)?lib/services/.*(Combiner|reduce|parser|dedupe|synthes|promp
 # Test suites: added tdd to enforce red-green and negative-control verification
 grep -qE '(__tests__/|\.test\.|\.spec\.)' <<<"$files" && req="$req tdd agent:pr-test-analyzer"
 grep -qE '^(worker/|web/(src/)?app/api/)|ports|adapters' <<<"$files" && req="$req agent:silent-failure-hunter agent:type-design-analyzer"
-grep -qE '^(worker/|web/(src/)?app/api/|web/(src/)?lib/adapters/)' <<<"$files" && grep -qE 'fetch|webhook|auth' <(git diff "$base" HEAD -- worker web/app/api web/src/app/api 2>/dev/null) && req="$req owasp-top-10 race-condition-guard"
+# Diff against $base (working tree, so staged and unstaged edits count), not $base..HEAD. src/adapters and payments/
+# are the money and webhook paths; without them the owasp and race checks were skipped for those changes.
+grep -qE '^(worker/|web/(src/)?app/api/|web/(src/)?lib/adapters/|src/adapters/|payments/)' <<<"$files" && grep -qE 'fetch|webhook|auth' <(git diff "$base" -- worker web/app/api web/src/app/api web/src/lib/adapters src/adapters payments 2>/dev/null) && req="$req owasp-top-10 race-condition-guard"
 grep -qiE 'billing|paddle|middleware|/auth/' <<<"$files" && req="$req owasp-top-10 race-condition-guard database-sentinel"
 grep -qE '^supabase/migrations/|\.sql$' <<<"$files" && req="$req supabase-postgres-best-practices supabase database-sentinel"
 grep -qE '^(scripts/|\.memory/|.*\.config\.|\.[a-z-]*ignore)' <<<"$files" && req="$req agent:comment-analyzer agent:pr-test-analyzer"

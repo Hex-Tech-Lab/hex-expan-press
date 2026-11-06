@@ -6,6 +6,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { mkdirSync, rmSync, readFileSync } from "node:fs";
 import { appendSale, SaleRecord } from "../../../../payments/src/ledger.ts";
 import { processBillingWebhookUseCase } from "../process_billing_webhook.ts";
+import { createHmac, randomBytes } from "node:crypto";
+import { LegacyPaymentAdapterWrapper } from "../../../adapters/payments/legacy.adapter.ts";
+import { fungiesProvider } from "../../../../payments/src/providers/fungies.ts";
+import { fastspringProvider } from "../../../../payments/src/providers/fastspring.ts";
 import type { PaymentProviderPort, SaleCompletedEvent, RefundIssuedEvent } from "../../../../src/domain/payments/payments.port.ts";
 
 // Delivery is stubbed here: the sale-path tests assert the webhook contract, not mail or Dub.
@@ -155,6 +159,12 @@ vi.mock("../../../../payments/src/settings_registry.ts", () => ({
   expandHome: (p: string, home: string) => (home && (p === "~" || p.startsWith("~/")) ? p : p),
   isRegisteredPaymentProvider: (name: unknown) => typeof name === "string",
   paymentProviderSetting: () => undefined,
+  // Used by the real legacy provider parsers in the end-to-end tests (registry fallbacks: USD only).
+  getPath: (obj: unknown, dotted: string | undefined) =>
+    typeof dotted === "string" && dotted !== ""
+      ? dotted.split(".").reduce<unknown>((cur, k) => (cur && typeof cur === "object" ? (cur as Record<string, unknown>)[k] : undefined), obj)
+      : undefined,
+  isAllowedCurrency: (c: string) => String(c).toUpperCase() === "USD",
   isMoneyPath: () => process.env.NODE_ENV === "production" || process.env.VERCEL_ENV !== undefined || !!process.env.AWS_LAMBDA_FUNCTION_NAME,
 }));
 
@@ -460,7 +470,7 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
     expect(revRow.our_split_usd).toBe(19.5);
   });
 
-  // Fungies events carry no buyer email, so no download link can be sent. Delivery would throw on every retry,
+  // A sale event with no buyer email cannot be sent a download link. Delivery would throw on every retry,
   // a 500 loop. A non-Paddle sale without an email is refused with a final 422 instead.
   it("a non-Paddle sale with no buyer email is refused (422) before any write, not retried into a 500 loop", async () => {
     delivery.deliverSaleForWebhook.mockClear();
@@ -1124,6 +1134,43 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
       await appendSale({ ...CB_SALE }, salesFilePath);
     });
 
+    // F3: the batch loop's conflict and throw paths. A conflict is already durable in the inbox, so a
+    // terminal sibling failure still decides the response; a conflict after a failed event still runs.
+    const batch = (events: unknown[]): PaymentProviderPort =>
+      ({
+        providerName: "paddle",
+        canHandleWebhook: () => true,
+        parseAndValidateWebhook: async () => ({ isValid: true, event: events[0], followingEvents: events.slice(1) }),
+        createCheckout: undefined as never,
+      }) as unknown as PaymentProviderPort;
+    const noEmailSale = { ...SALE, providerName: "fungies", saleId: "sale_no_email", buyerEmail: undefined };
+
+    it("batch [conflicting refund, ignored] → the conflict_pending outcome is reported", async () => {
+      race23505();
+      supa.adjLookupResult = conflicts("sale_OTHER");
+      try {
+        const out = await processBillingWebhookUseCase({ headers: {}, body: "" }, [
+          batch([cbRefund("adj_batch_c"), { eventType: "ignored", providerName: "paddle", reason: "test" }]),
+        ]);
+        expectConflictPending(out);
+        expect(supa.conflicts.size).toBe(1);
+      } finally {
+        cleanup23505();
+      }
+    });
+
+    it("batch [no-email sale (422), conflicting refund] → the conflict is still stored, the delivery answers 422", async () => {
+      race23505();
+      supa.adjLookupResult = conflicts("sale_OTHER");
+      try {
+        const run = processBillingWebhookUseCase({ headers: {}, body: "" }, [batch([noEmailSale, cbRefund("adj_batch_t")])]);
+        await expect(run).rejects.toMatchObject({ name: "WebhookValidationError", httpStatus: 422 });
+        expect(supa.conflicts.size).toBe(1);
+      } finally {
+        cleanup23505();
+      }
+    });
+
     it("refund: 23505 + matching conflicting row -> resolves 200", async () => {
       race23505();
       supa.adjLookupResult = conflicts();
@@ -1422,5 +1469,134 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
         cleanup23505();
       }
     });
+  });
+});
+
+// End-to-end through the real legacy wrapper and the real Fungies parser (audit R01): the live
+// Fungies route must book the sale and hand delivery the buyer's email, not refuse it with 422.
+describe("legacy-wrapped Fungies sale end-to-end (audit R01)", () => {
+  const E2E_SECRET = randomBytes(16).toString("hex"); // per run: nothing credential-shaped is committed
+  beforeEach(() => {
+    setnx.mockReset();
+    setnx.mockResolvedValue(1);
+    delivery.deliverSaleForWebhook.mockClear();
+    mkdirSync(salesFileDir, { recursive: true });
+    vi.stubEnv("UPSTASH_REDIS_REST_URL", "https://unit.test.redis.example");
+    vi.stubEnv("UPSTASH_REDIS_REST_TOKEN", "unit-test-token");
+    vi.stubEnv("FUNGIES_WEBHOOK_SECRET", E2E_SECRET);
+  });
+  afterEach(() => {
+    rmSync(salesFileDir, { recursive: true, force: true });
+    vi.unstubAllEnvs();
+  });
+
+  function signedFungiesSale(): { headers: Record<string, string>; body: string } {
+    const body = JSON.stringify({
+      id: "evt_e2e",
+      type: "payment_success",
+      data: {
+        items: [{ customFields: { product_id: "p1", attribution_id: "yt:e2e" } }],
+        payment: { id: "pay_e2e", value: 3900, currency: "USD", currencyDecimals: 2, createdAt: 1759000000000 },
+        user: { email: "buyer@example.com" },
+      },
+    });
+    const sig = createHmac("sha256", E2E_SECRET).update(Buffer.from(body, "utf8")).digest("hex");
+    return { headers: { "x-fngs-signature": `sha256_${sig}` }, body };
+  }
+
+  it("signed Fungies sale → $39 booked with attribution, delivery called with the buyer email", async () => {
+    await processBillingWebhookUseCase(signedFungiesSale(), [new LegacyPaymentAdapterWrapper(fungiesProvider)]);
+    const rows = readFileSync(salesFilePath, "utf8").split(/\r?\n/).filter(Boolean).map((r) => JSON.parse(r));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ sale_id: "pay_e2e", provider: "fungies", amount_usd: 39, currency: "USD", attribution_id: "yt:e2e" });
+    expect(JSON.stringify(rows[0])).not.toContain("buyer@example.com"); // raw email never persisted
+    expect(delivery.deliverSaleForWebhook).toHaveBeenCalledWith({ saleId: "pay_e2e", productAlias: "p1", buyerEmail: "buyer@example.com" });
+  });
+});
+
+// Audit R04: a FastSpring POST may carry several events. Every one must be booked; the wrapper
+// used to forward only the first and answer 200, losing the rest for good.
+describe("multi-event delivery end-to-end (audit R04)", () => {
+  const FS_SECRET = randomBytes(16).toString("hex");
+  beforeEach(() => {
+    setnx.mockReset();
+    setnx.mockResolvedValue(1);
+    delivery.deliverSaleForWebhook.mockClear();
+    mkdirSync(salesFileDir, { recursive: true });
+    vi.stubEnv("UPSTASH_REDIS_REST_URL", "https://unit.test.redis.example");
+    vi.stubEnv("UPSTASH_REDIS_REST_TOKEN", "unit-test-token");
+    vi.stubEnv("FASTSPRING_WEBHOOK_SECRET", FS_SECRET);
+  });
+  afterEach(() => {
+    rmSync(salesFileDir, { recursive: true, force: true });
+    vi.unstubAllEnvs();
+  });
+
+  it("signed FastSpring POST with two orders → both sales booked and both buyers delivered", async () => {
+    const order = (id: string, total: number, email: string) => ({
+      id: `evt_${id}`, type: "order.completed", created: 1759000000000,
+      data: { live: true, id, total, currency: "USD", customer: { email }, items: [{ product: "p1" }] },
+    });
+    const body = JSON.stringify({ events: [order("ord_a", 29, "a@example.com"), order("ord_b", 39, "b@example.com")] });
+    const sig = createHmac("sha256", FS_SECRET).update(Buffer.from(body, "utf8")).digest("base64");
+    await processBillingWebhookUseCase({ headers: { "x-fs-signature": sig }, body }, [new LegacyPaymentAdapterWrapper(fastspringProvider)]);
+    const rows = readFileSync(salesFilePath, "utf8").split(/\r?\n/).filter(Boolean).map((r) => JSON.parse(r));
+    expect(rows.map((r) => [r.sale_id, r.amount_usd])).toEqual([["ord_a", 29], ["ord_b", 39]]);
+    expect(delivery.deliverSaleForWebhook).toHaveBeenCalledTimes(2);
+    expect(delivery.deliverSaleForWebhook).toHaveBeenLastCalledWith({ saleId: "ord_b", productAlias: "p1", buyerEmail: "b@example.com" });
+  });
+
+  // F1: a failed event must not stop its siblings. A terminal (4xx) failure is final for the provider,
+  // so any sale after it would never be booked; a retryable failure makes the whole delivery retry.
+  const batchAdapter = (events: (SaleCompletedEvent | RefundIssuedEvent)[]): PaymentProviderPort =>
+    ({
+      providerName: "fastspring",
+      canHandleWebhook: () => true,
+      parseAndValidateWebhook: async () => ({ isValid: true, event: events[0], followingEvents: events.slice(1) }),
+      createCheckout: undefined as never,
+    }) as unknown as PaymentProviderPort;
+  const fsSale = (saleId: string, totalCents: number, extra: Partial<SaleCompletedEvent> = {}): SaleCompletedEvent => ({
+    ...SALE, providerName: "fastspring", saleId, totalCents, buyerEmail: `${saleId}@example.com`, ...extra,
+  });
+  const bookedRows = (): [string, number][] =>
+    readFileSync(salesFilePath, "utf8").split(/\r?\n/).filter(Boolean).map((r) => JSON.parse(r)).map((r) => [r.sale_id, r.amount_usd]);
+
+  it("[valid, invalid, valid] → both valid sales booked and delivered; the invalid one is reported as a final 422", async () => {
+    const run = processBillingWebhookUseCase({ headers: {}, body: "" }, [
+      batchAdapter([fsSale("ord_a", 2900), fsSale("ord_b", 3900, { currency: "EUR" }), fsSale("ord_c", 3900)]),
+    ]);
+    await expect(run).rejects.toMatchObject({ name: "WebhookValidationError", httpStatus: 422, message: expect.stringContaining("ord_b") });
+    expect(bookedRows()).toEqual([["ord_a", 29], ["ord_c", 39]]);
+    expect(delivery.deliverSaleForWebhook.mock.calls.map((c) => (c[0] as { saleId: string }).saleId)).toEqual(["ord_a", "ord_c"]);
+  });
+
+  it("one transient failure → the delivery is retryable; the retry books the missing sale and nothing twice", async () => {
+    // ord_b's lock is held by another in-flight delivery on the first attempt only.
+    setnx.mockImplementation(async (key: unknown) => (String(key).includes("ord_b") ? 0 : 1));
+    const events = [fsSale("ord_a", 2900), fsSale("ord_b", 3900), fsSale("ord_c", 1900)];
+    await expect(processBillingWebhookUseCase({ headers: {}, body: "" }, [batchAdapter(events)])).rejects.toMatchObject({ name: "WebhookInFlightError" });
+    expect(bookedRows()).toEqual([["ord_a", 29], ["ord_c", 19]]);
+
+    setnx.mockReset();
+    setnx.mockResolvedValue(1);
+    await expect(processBillingWebhookUseCase({ headers: {}, body: "" }, [batchAdapter(events)])).resolves.toBeUndefined();
+    expect(bookedRows()).toEqual([["ord_a", 29], ["ord_c", 19], ["ord_b", 39]]);
+  });
+
+  it("a retryable failure outranks a terminal one in the same delivery: the provider must retry", async () => {
+    setnx.mockImplementation(async (key: unknown) => (String(key).includes("ord_c") ? 0 : 1));
+    const run = processBillingWebhookUseCase({ headers: {}, body: "" }, [
+      batchAdapter([fsSale("ord_a", 2900, { currency: "EUR" }), fsSale("ord_b", 3900), fsSale("ord_c", 1900)]),
+    ]);
+    await expect(run).rejects.toMatchObject({ name: "WebhookInFlightError" });
+    expect(bookedRows()).toEqual([["ord_b", 39]]);
+  });
+
+  it("an unexpected throw (unknown product) is retryable and does not stop the next sale", async () => {
+    const run = processBillingWebhookUseCase({ headers: {}, body: "" }, [
+      batchAdapter([fsSale("ord_x", 2900, { productId: "no_such_product" }), fsSale("ord_y", 3900)]),
+    ]);
+    await expect(run).rejects.toThrow(/Unknown product_id/);
+    expect(bookedRows()).toEqual([["ord_y", 39]]);
   });
 });

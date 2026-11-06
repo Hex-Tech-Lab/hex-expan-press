@@ -6,9 +6,9 @@
  * Knows nothing about Polar, Paddle, or any provider.
  * ADR: ADR-0049, ADR-0050
  */
-import { PaymentProviderPort, SaleCompletedEvent, RefundIssuedEvent, RefundReversedEvent } from "../../domain/payments/payments.port.ts";
+import { PaymentProviderPort, BillingEvent, SaleCompletedEvent, RefundIssuedEvent, RefundReversedEvent } from "../../domain/payments/payments.port.ts";
 import { WebhookValidationError } from "../../domain/webhook/webhook_errors.ts";
-import { appendSale, appendRefund, appendRefundReversal, findSaleAsync, findRefundAsync, findRefundReversalAsync, findByProviderAdjustmentIdAsync, flagRefundForManualReview, recordWebhookConflict, isAdjustmentIdUniqueViolation } from "../../../payments/src/ledger.ts";
+import { appendSale, appendRefund, appendRefundReversal, findSaleAsync, findRefundAsync, findRefundReversalAsync, findByProviderAdjustmentIdAsync, flagRefundForManualReview, recordWebhookConflict, isAdjustmentIdUniqueViolation, OrderSchemaError } from "../../../payments/src/ledger.ts";
 import { computeSplit, usdToCents } from "../../../payments/src/split.ts";
 import { effectiveCreatorSplitPctAsync } from "../../../payments/src/terms.ts";
 import { resolveProductByAlias, withIdempotencyLock, WebhookInFlightError } from "../../../payments/src/webhook_core.ts";
@@ -175,8 +175,47 @@ export async function processBillingWebhookUseCase(
     );
   }
 
-  const { event } = validation;
+  // A delivery may carry several events (FastSpring). Every event runs, even after a sibling fails:
+  // a terminal (4xx) answer stops the provider's redelivery, so an event skipped behind it would be
+  // lost for good. After the loop, the first retryable failure is rethrown (the route answers 5xx/503
+  // and the provider redelivers; events already recorded dedupe by sale id under the lock). With no
+  // retryable failure, the first terminal failure is rethrown (the route quarantines the delivery and
+  // answers 4xx). With no failure, the first conflict_pending outcome is reported.
+  const events = [validation.event, ...(validation.followingEvents ?? [])];
+  let conflict: ConflictPendingOutcome | undefined;
+  let retryable: unknown;
+  let terminal: unknown;
+  for (const [index, event] of events.entries()) {
+    try {
+      const outcome = await processBillingEvent(event); // always runs: never inside ??= (short-circuit)
+      conflict ??= outcome ?? undefined;
+    } catch (err) {
+      if (events.length > 1) {
+        // Error name only: messages can carry buyer data.
+        const saleId = "saleId" in event ? event.saleId : undefined;
+        console.error(`[billing-webhook] event ${index + 1}/${events.length} (${event.eventType} ${saleId ?? "-"}) failed: ${err instanceof Error ? err.name : "unknown"}`);
+      }
+      if (isTerminalFailure(err)) terminal ??= err;
+      else retryable ??= err;
+    }
+  }
+  if (retryable !== undefined) throw retryable;
+  if (terminal !== undefined) throw terminal;
+  return conflict;
+}
 
+/**
+ * True when the route answers this error with a final 4xx (the provider stops redelivering): a
+ * ledger schema violation, or a validation error with no status or a status below 500. Everything
+ * else (5xx hints, the in-flight lock, unexpected throws) is retryable. Mirrors handler.ts.
+ */
+function isTerminalFailure(err: unknown): boolean {
+  if (err instanceof OrderSchemaError) return true;
+  if (!(err instanceof WebhookValidationError)) return false;
+  return err.httpStatus === undefined || err.httpStatus < 500;
+}
+
+async function processBillingEvent(event: BillingEvent): Promise<ConflictPendingOutcome | void> {
   // 3. Ignored events — return silently (controller replies 202)
   if (event.eventType === "ignored") {
     return;

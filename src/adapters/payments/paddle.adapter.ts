@@ -178,9 +178,9 @@ export class PaddleAdapter implements PaymentProviderPort {
 
       const validated = PaddleWebhookSchema.parse(parsedJson);
 
-      // Currency: pass currency_code through without comparing to GLOBAL.defaults.currency.
-      // If currency_code is absent/null, fall back to GLOBAL.defaults.currency or uppercase string.
-      const currency = (validated.data.currency_code ?? GLOBAL.defaults.currency).toUpperCase();
+      // Currency: pass currency_code through; the use case compares it with the product/sale.
+      // Sales and approved adjustments without it are refused below, never booked as a default.
+      const currency = validated.data.currency_code?.toUpperCase();
 
       // Refunds and chargebacks arrive as adjustments (audit F3, 2026-10-02; won disputes ADR-0050).
       // Only an approved adjustment has moved money; pending/rejected ones are ignored.
@@ -193,6 +193,9 @@ export class PaddleAdapter implements PaymentProviderPort {
         }
         if (!validated.data.transaction_id || !validated.data.totals) {
           return { isValid: false, error: "Paddle adjustment missing transaction_id or totals", httpStatus: 400 };
+        }
+        if (!currency) {
+          return { isValid: false, error: "Paddle adjustment missing currency_code", httpStatus: 400 };
         }
         const adjustmentCents = Number(validated.data.totals.total);
         if (!Number.isSafeInteger(adjustmentCents) || adjustmentCents < 0) {
@@ -230,6 +233,10 @@ export class PaddleAdapter implements PaymentProviderPort {
 
       if (validated.event_type !== "transaction.completed") {
         return { isValid: true, event: { eventType: "ignored", providerName: this.providerName, reason: `Non-sale event: ${validated.event_type}` } };
+      }
+
+      if (!currency) {
+        return { isValid: false, error: "Paddle transaction missing currency_code", httpStatus: 400 };
       }
 
       const priceMap = loadPaddlePriceMap();
