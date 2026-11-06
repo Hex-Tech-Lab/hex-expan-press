@@ -176,6 +176,21 @@ describe("UnboundedBodyReadRule (V10)", () => {
     expect(findings.length).toBe(0);
   });
 
+  test("negative control: a Map.size check does not excuse an unbounded res.arrayBuffer in the same function", () => {
+    const findings = check(
+      UnboundedBodyReadRule,
+      "web/lib/services/doc-fetcher.ts",
+      `
+      export async function readDoc(url: string, seen: Map<string, number>) {
+        if (seen.size > 100) throw new Error("too many");
+        const res = await fetch(url);
+        return res.arrayBuffer();
+      }
+      `,
+    );
+    expect(findings.length).toBe(1);
+  });
+
   test("positive: arrayBuffer of a blob that is not an SDK download still fires", () => {
     const findings = check(
       UnboundedBodyReadRule,

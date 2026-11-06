@@ -217,7 +217,9 @@ export const UnboundedBodyReadRule: Rule = {
       // same line / nearby comparison) or a counted reader loop.
       const hasContentLengthCap = /content-length/i.test(fnText) && /[><]=?\s*\d/.test(fnText);
       // A Blob knows its size up front: `blob.size` compared to a number before the read is a byte cap.
-      const hasBlobSizeCap = /\.size\s*[><]=?\s*[\w$]/.test(fnText);
+      // Only the size of the very value being read counts; `map.size` or `arr.size` says nothing about the body.
+      const receiver = expr.getExpression().getText().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const hasBlobSizeCap = new RegExp(`(?<![\\w$.])${receiver}\\.size\\s*[><]=?\\s*[\\w$]`).test(fnText);
       const hasByteCounter = /(byteCount|bytesRead|bytes)\s*[+]=/.test(fnText);
       if (hasContentLengthCap || hasByteCounter || hasBlobSizeCap) return;
       // An SDK storage download is a stored object whose size the owner already controls, not a remote body.
