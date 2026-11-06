@@ -376,9 +376,12 @@ export const HmacMessageFormatRule: IRule = {
   }
 };
 
-/** `str.split(sep)` always returns at least one element, so index 0 of its result cannot be out of range. */
+/**
+ * `str.split(sep)` always returns at least one element, so index 0 of its result cannot be out of range.
+ * `regex.exec(s)` is not in this set: it returns null when nothing matches, so `exec(s)[0]` can throw.
+ */
 function isSplitResult(base: Node): boolean {
-  return Node.isCallExpression(base) && /\.(split|exec)$/.test(base.getExpression().getText());
+  return Node.isCallExpression(base) && /\.split$/.test(base.getExpression().getText());
 }
 
 /**

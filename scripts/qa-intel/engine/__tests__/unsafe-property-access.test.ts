@@ -117,13 +117,13 @@ describe('UnsafePropertyAccessRule', () => {
     expect(UnsafePropertyAccessRule.check(createTestSource(code))).toHaveLength(0);
   });
 
-  test('does not flag index 0 of a direct exec result', () => {
+  test('flags index 0 of a direct exec result, which is null when nothing matches', () => {
     const code = `
       export function parseHead(raw: string) {
         return /^\\w+/.exec(raw)[0];
       }
     `;
-    expect(UnsafePropertyAccessRule.check(createTestSource(code))).toHaveLength(0);
+    expect(UnsafePropertyAccessRule.check(createTestSource(code))).toHaveLength(1);
   });
 
   test('does not flag an index inside the else-if branch that checks the same array length', () => {
