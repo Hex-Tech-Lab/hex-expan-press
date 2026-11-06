@@ -1,0 +1,28 @@
+src/adapters/payments/__tests__/legacy.adapter.test.ts
+  s_6625bc67577472::t_409409372226f5 10-11
+  s_6625bc67577472::t_c361f365323700 72-108
+src/adapters/payments/legacy.adapter.ts
+  s_6625bc67577472::t_7bc9473bebb01d 15-16,18,21-33,44-45,52,73-76,79-86,88-90,92-102,105-109,112-113,116-118,120-125
+src/domain/payments/payments.port.ts
+  s_6625bc67577472::t_b73412cdb002fa 201-203
+src/use_cases/billing/__tests__/process_billing_webhook.test.ts
+  s_6625bc67577472::t_3dba5d7c71b567 12,1479-1511
+src/use_cases/billing/process_billing_webhook.ts
+  s_6625bc67577472::t_9ac47b768960c0 9,178-187,189
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c4bbace8038db4cc3a38646e07b499ba93f09888",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
