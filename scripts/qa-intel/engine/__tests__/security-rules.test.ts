@@ -452,6 +452,51 @@ describe('SqlInjectionRule', () => {
     `);
     expect(findings).toHaveLength(1);
   });
+
+  test('flags an interpolated template under the sql tag even when SQL is not at the start', () => {
+    const findings = scan(SqlInjectionRule, 'web/lib/users.ts', `
+      export function find(sql: any, id: string) {
+        return sql\`-- lookup \n SELECT * FROM users WHERE id = \${id}\`;
+      }
+    `);
+    expect(findings).toHaveLength(1);
+  });
+
+  test('does not flag the same text under a tag other than sql', () => {
+    const findings = scan(SqlInjectionRule, 'web/lib/users.ts', `
+      export function find(html: any, id: string) {
+        return html\`-- lookup \n SELECT * FROM users WHERE id = \${id}\`;
+      }
+    `);
+    expect(findings).toHaveLength(0);
+  });
+
+  test('flags an interpolated template passed directly to an rpc call', () => {
+    const findings = scan(SqlInjectionRule, 'web/lib/users.ts', `
+      export async function find(db: any, id: string) {
+        return db.rpc(\`-- lookup \n SELECT * FROM users WHERE id = \${id}\`);
+      }
+    `);
+    expect(findings).toHaveLength(1);
+  });
+
+  test('does not flag an interpolated template that is not an argument of the rpc call', () => {
+    const findings = scan(SqlInjectionRule, 'web/lib/users.ts', `
+      export async function find(db: any, id: string) {
+        return db.rpc('lookup_user', { note: \`-- lookup \n SELECT * FROM users WHERE id = \${id}\` });
+      }
+    `);
+    expect(findings).toHaveLength(0);
+  });
+
+  test('does not flag a non-query call receiving an interpolated template that does not open with SQL', () => {
+    const findings = scan(SqlInjectionRule, 'web/lib/users.ts', `
+      export function find(logger: any, id: string) {
+        return logger.info(\`-- lookup \n SELECT * FROM users WHERE id = \${id}\`);
+      }
+    `);
+    expect(findings).toHaveLength(0);
+  });
 });
 
 describe('WhitelistPathSanitizationRule', () => {
