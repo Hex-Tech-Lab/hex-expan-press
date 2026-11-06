@@ -9,7 +9,12 @@ import type { Finding, IRule } from "../engine";
 function isExternalInput(arg: Node): boolean {
   if (/\b(req|request|body|params|payload|formData|input)\b/i.test(arg.getText())) return true;
   const identifiers = Node.isIdentifier(arg) ? [arg] : arg.getDescendantsOfKind(SyntaxKind.Identifier);
-  return identifiers.some((id) => Node.isParameterDeclaration(id.getSymbol()?.getValueDeclaration()));
+  return identifiers.some((id) => {
+    // A shorthand property `{ details }` counts as the identifier it names; its own symbol is the property's.
+    const parent = id.getParent();
+    const symbol = Node.isShorthandPropertyAssignment(parent) ? parent.getValueSymbol() : id.getSymbol();
+    return Node.isParameterDeclaration(symbol?.getValueDeclaration());
+  });
 }
 
 export const DatabaseConstraintRule: IRule = {

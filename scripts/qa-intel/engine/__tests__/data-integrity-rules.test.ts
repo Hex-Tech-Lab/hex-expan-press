@@ -111,6 +111,27 @@ describe('DatabaseConstraintRule', () => {
     scan(DatabaseConstraintRule, file, code.join('\n'))
       .filter((f) => f.title === 'Data Integrity: DB operation without validation');
 
+  // R3: shape of web/app/api/billing/webhook/handler.ts:26 (record503Audit). `{ details }` is shorthand for the
+  // parameter `details`, so the write carries caller input.
+  test('flags a write whose object literal passes a parameter through a shorthand property', () => {
+    expect(unvalidatedWrites([
+      'async function record503Audit(details: { provider?: string; sale_id?: string; reason: string }, signal: AbortSignal): Promise<void> {',
+      '  const supabase = createClient(url, key);',
+      '  const { error } = await supabase.from("audit_log").insert({ event: "WEBHOOK_503_RETRYING", details }).abortSignal(signal);',
+      '  if (error) console.error("failed", error.message);',
+      '}',
+    ], 'web/app/api/billing/webhook/handler.ts')).toHaveLength(1);
+  });
+
+  test('does not flag a shorthand property that names a local constant', () => {
+    expect(unvalidatedWrites([
+      'async function audit(signal: AbortSignal): Promise<void> {',
+      '  const details = { reason: "fixed" };',
+      '  await supabase.from("audit_log").insert({ event: "X", details });',
+      '}',
+    ])).toHaveLength(0);
+  });
+
   test('does not flag a write whose values were built locally from a trusted config', () => {
     expect(unvalidatedWrites([
       'export async function port(supabase: any, cfg: { id: string }) {',
