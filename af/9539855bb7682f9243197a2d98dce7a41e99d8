@@ -1,0 +1,21 @@
+scripts/qa-intel/engine/__tests__/quality-error-rules.test.ts
+  s_6625bc67577472::t_59a6c8ce136363 49-110
+scripts/qa-intel/engine/rules/quality.ts
+  s_6625bc67577472::t_4e8ecd9c0f3f63 2,267-285,307
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "af9539855bb7682f9243197a2d98dce7a41e99d8",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}

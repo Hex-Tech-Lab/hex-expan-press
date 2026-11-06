@@ -1,0 +1,21 @@
+scripts/qa-intel/engine/__tests__/architecture-error-rules.test.ts
+  s_6625bc67577472::t_ba99a49a4e68e0 57,59,61,71-114
+scripts/qa-intel/engine/rules/architecture.ts
+  s_6625bc67577472::t_21e133f0af0811 228-241,247-250,256
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4f6a616fa0c0f36ac1c451cec15adbcdcd503640",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}

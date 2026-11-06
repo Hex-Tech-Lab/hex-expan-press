@@ -1,0 +1,21 @@
+scripts/qa-intel/engine/__tests__/unsafe-property-access.test.ts
+  s_6625bc67577472::t_1ef493cd7a6ccb 97-151
+scripts/qa-intel/engine/rules/security.ts
+  s_6625bc67577472::t_22cb45b6edd046 381-405,440
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4028eb5623f5ac27c3b845ebb676a31786f2a0bd",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
