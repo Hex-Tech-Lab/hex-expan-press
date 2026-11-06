@@ -12,6 +12,7 @@ import * as fs from "fs";
 import { execFileSync } from "child_process";
 import { resolveDefaultBaseRef, type GitRun } from "./qa-intel/base-ref";
 import { resolveCacheMode } from "./qa-intel/cache-mode";
+import { newFindingsAgainstBaseline } from "./qa-intel/compare";
 import { createExpanRedisPort } from "./qa-intel/engine/redis-port";
 import { isRedisRestConfigured } from "../src/infrastructure/redis/redis.client";
 const gitRun: GitRun = (args) => execFileSync("git", [...args], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
@@ -360,8 +361,8 @@ console.log(`Runtime scan sources: ${fileList.length} files scanned (${codeFiles
       process.exit(1);
     }
     const baselineFindings: {file:string;title:string}[] = JSON.parse(fs.readFileSync(baselinePath, "utf8"));
-    const baselineSet = new Set(baselineFindings.map(f => `${f.file}:${f.title}`));
-    const newFindings = findings.filter(f => !baselineSet.has(`${f.file}:${f.title}`));
+    // R7: the baseline is a multiset. One accepted entry covers one copy, so a second copy is new.
+    const newFindings = newFindingsAgainstBaseline(findings, baselineFindings);
     if (newFindings.length > 0) {
       console.error("⚠️ qa-intel: New/changed issues found:");
       console.error(JSON.stringify(newFindings, null, 2));
