@@ -15,6 +15,7 @@ const PORT_OWNED_FILES = [
 export default defineConfig({
   test: {
     environment: "node",
+    testTimeout: 30_000, // same value as QA_INTEL_TEST_TIMEOUT_MS in scripts/qa-intel/vitest.setup.ts
     include: ["scripts/qa-intel/__tests__/**/*.test.ts", "scripts/contract-auditor/__tests__/**/*.test.ts"],
     coverage: {
       provider: "v8",
