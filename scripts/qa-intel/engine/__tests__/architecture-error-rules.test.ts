@@ -9,7 +9,7 @@
 import { describe, test, expect } from 'vitest';
 import { Project } from 'ts-morph';
 import type { Rule, RuleContext } from '../domain/Rule';
-import { ErrorTaxonomyRule, WorkflowRule } from '../rules/architecture';
+import { CrossPlatformRule, ErrorTaxonomyRule, WorkflowRule } from '../rules/architecture';
 
 const project = new Project({ useInMemoryFileSystem: true, skipLoadingLibFiles: true });
 
@@ -131,5 +131,50 @@ describe('WorkflowRule', () => {
       '}',
     ].join('\n'));
     expect(findings).toHaveLength(0);
+  });
+});
+
+describe('CrossPlatformRule (LF-only split)', () => {
+  const lfFindings = (code: string) =>
+    check(CrossPlatformRule, 'scripts/lines.ts', code).filter((f) => f.title === 'Cross-Platform: LF-only string splitting');
+
+  test('flags an LF split of text read from disk', () => {
+    const findings = lfFindings([
+      "import fs from 'node:fs';",
+      'export function lines(p: string) {',
+      "  const raw = fs.readFileSync(p, 'utf8');",
+      "  return raw.split('\\n');",
+      '}',
+    ].join('\n'));
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.why).toContain('1 instance(s)');
+  });
+
+  // Triage item 10 negative controls.
+  test('does not flag a split whose first element is trimmed', () => {
+    expect(lfFindings([
+      'export function id(card: string) {',
+      '  return card.split("\\n")[0].trim();',
+      '}',
+    ].join('\n'))).toHaveLength(0);
+  });
+
+  test('does not flag a split whose every line is trimmed by a map', () => {
+    expect(lfFindings([
+      'export function rows(text: string) {',
+      '  return text.split("\\n").map((l) => l.trim());',
+      '}',
+    ].join('\n'))).toHaveLength(0);
+  });
+
+  test('does not flag a split of text the code built itself', () => {
+    expect(lfFindings([
+      'export function reparse(parts: string[]) {',
+      '  const joined = parts.join("\\n");',
+      '  return joined.split("\\n");',
+      '}',
+      'export const inline = ["a", "b"].join("\\n").split("\\n");',
+      'export const literal = "a\\nb".split("\\n");',
+    ].join('\n'))).toHaveLength(0);
   });
 });

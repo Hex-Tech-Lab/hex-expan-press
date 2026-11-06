@@ -1,5 +1,5 @@
 import { Node, SyntaxKind } from "ts-morph";
-import type { SourceFile } from "ts-morph";
+import type { CallExpression, SourceFile } from "ts-morph";
 import type { Finding } from "../domain/Finding";
 import type { Rule, RuleContext } from "../domain/Rule";
 
@@ -84,16 +84,53 @@ export const ErrorTaxonomyRule: Rule = {
   }
 };
 
+/** `x.split("\n")` with a single or double quoted LF separator. */
+function isLfSplit(call: CallExpression): boolean {
+  const callee = call.getExpression();
+  if (!Node.isPropertyAccessExpression(callee) || callee.getName() !== "split") return false;
+  const [separator] = call.getArguments();
+  return separator !== undefined && Node.isStringLiteral(separator) && separator.getLiteralText() === "\n";
+}
+
+/** The split result is trimmed right away: `x.split("\n")[0].trim()` or `x.split("\n").map((l) => l.trim())`. */
+function isTrimmedSplit(call: CallExpression): boolean {
+  const parent = call.getParent();
+  if (Node.isElementAccessExpression(parent)) {
+    const access = parent.getParent();
+    return Node.isPropertyAccessExpression(access) && access.getName() === "trim";
+  }
+  if (!Node.isPropertyAccessExpression(parent) || parent.getName() !== "map") return false;
+  const mapCall = parent.getParent();
+  return Node.isCallExpression(mapCall) && /\.trim\(\)/.test(mapCall.getArguments()[0]?.getText() ?? "");
+}
+
+/** The text being split was built by this file (a literal, or a `.join(...)` result), so its line endings are known. */
+function isSelfProducedText(call: CallExpression): boolean {
+  const callee = call.getExpression();
+  if (!Node.isPropertyAccessExpression(callee)) return false;
+  let receiver: Node | undefined = callee.getExpression();
+  if (Node.isIdentifier(receiver)) {
+    const declaration = receiver.getSymbol()?.getValueDeclaration();
+    receiver = Node.isVariableDeclaration(declaration) ? declaration.getInitializer() : undefined;
+  }
+  if (!receiver) return false;
+  if (Node.isStringLiteral(receiver) || Node.isNoSubstitutionTemplateLiteral(receiver) || Node.isTemplateExpression(receiver)) return true;
+  if (!Node.isCallExpression(receiver)) return false;
+  const producer = receiver.getExpression();
+  return Node.isPropertyAccessExpression(producer) && producer.getName() === "join";
+}
+
 export const CrossPlatformRule: Rule = {
   name: "cross-platform-compatibility",
   check: (ctx: RuleContext) => {
     const source = ctx.ast as SourceFile;
     const findings: Finding[] = [];
     const filePath = normalizePosixPath(source.getFilePath());
-    const text = source.getText();
 
-    const lfSplitMatches = text.match(/\.split\(['"]\\n['"]\)/g);
-    if (lfSplitMatches) {
+    const lfSplitMatches = source
+      .getDescendantsOfKind(SyntaxKind.CallExpression)
+      .filter((call) => isLfSplit(call) && !isTrimmedSplit(call) && !isSelfProducedText(call));
+    if (lfSplitMatches.length > 0) {
       findings.push({
         file: filePath,
         severity: "medium",
