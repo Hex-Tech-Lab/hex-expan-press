@@ -166,7 +166,9 @@ reason_lacks(){ # reason_lacks <name> <substring>: the last deny reason must NOT
 # 22. (a) Both refs present, different commits: origin/main is the base, so qa-intel is not required.
 p0=$pass; f0=$fail
 git -C "$R" update-ref refs/remotes/origin/master "$QA_SHA"
-git -C "$R" rev-parse --verify -q refs/remotes/origin/main >/dev/null && git -C "$R" rev-parse --verify -q refs/remotes/origin/master >/dev/null || { fail=$((fail+1)); echo "FAIL: (a) setup needs both refs"; }
+if ! git -C "$R" rev-parse --verify -q refs/remotes/origin/main >/dev/null || ! git -C "$R" rev-parse --verify -q refs/remotes/origin/master >/dev/null; then
+  fail=$((fail+1)); echo "FAIL: (a) setup needs both refs"
+fi
 start_marker
 expect "(a) main wins over master: PR create without a record" deny "$R" "gh pr create --fill"
 reason_lacks "(a) main wins: qa-intel not required when origin/main lacks the engine" "qa-intel"
