@@ -236,8 +236,9 @@ jobs:
           cd "$OUT"
           python -I -m ruff check --isolated --ignore-noqa --no-cache -- "${FILES[@]}"
 
-  # The self-test runs only on a push to master, where the checkout is already merged. It executes the run blocks of
-  # this workflow, so it must never run on a PR head under pull_request_target: that would run PR-authored shell.
+  # The self-test runs only on a push to the default branch (main or master), where the checkout is already merged.
+  # scripts/lint-ci-selftest.sh extracts and executes this workflow's run blocks against scratch repositories, so it
+  # must never run on a PR head under pull_request_target: that would run PR-authored shell.
   selftest:
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
     runs-on: ubuntu-latest

@@ -8,12 +8,17 @@
  * full adapter with a Zod SSOT schema. Track in ADR-0050.
  *
  * Known limitations of legacy path vs Universal Language:
+ *   - routing: Payhip signs inside the body (a top-level signature property), so it is
+ *     claimed by that property; the others are claimed by their signature header
  *   - buyerEmailHash: legacy providers pass email_hash (already hashed) — we preserve it
  *   - totalCents: legacy uses amount_usd (float) — converted to cents (may have rounding)
+ *   - currency: taken from the provider parse, never defaulted; a sale without one is
+ *     refused 400
  *   - buyerEmail / attributionId: forwarded from the provider parse (attribution label
  *     shape-checked by cleanAttributionId; a bad label is dropped, never rejects the sale)
  *   - batch events (FastSpring multi-event): every action is forwarded — the first as
- *     `event`, the rest as `followingEvents` — and the engine processes each in order
+ *     `event`, the rest as `followingEvents` — and the engine runs each one, even after a
+ *     sibling fails. One action that cannot be translated refuses the whole delivery 400.
  */
 import { PaymentProviderPort, WebhookParseResult, CheckoutResult, BillingEvent } from "../../domain/payments/payments.port.ts";
 import { cleanAttributionId, type CheckoutProvider, type SaleEvent, type RefundEvent } from "../../../payments/src/provider.ts";
@@ -77,7 +82,8 @@ export class LegacyPaymentAdapterWrapper implements PaymentProviderPort {
     }
 
     // Every action of a multi-event delivery is forwarded; dropping any loses it for good (the
-    // provider sees a 2xx). One unusable action fails the whole delivery so the provider retries.
+    // provider sees a 2xx). One unusable action refuses the whole delivery with a final 400, before
+    // any event is booked; the route quarantines it for manual handling.
     const rawPayload: unknown = JSON.parse(body);
     const events: BillingEvent[] = [];
     for (const action of actions) {
