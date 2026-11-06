@@ -453,13 +453,59 @@ describe('SqlInjectionRule', () => {
     expect(findings).toHaveLength(1);
   });
 
-  test('flags an interpolated template under the sql tag even when SQL is not at the start', () => {
+  // R5: the sql tag turns each interpolation into a bound parameter, so a tagged template is parameterized.
+  test('does not flag an interpolated template under the sql tag (the tag parameterizes it)', () => {
     const findings = scan(SqlInjectionRule, 'web/lib/users.ts', `
       export function find(sql: any, id: string) {
         return sql\`-- lookup \n SELECT * FROM users WHERE id = \${id}\`;
       }
     `);
+    expect(findings).toHaveLength(0);
+  });
+
+  test('does not flag a sql-tagged template that opens with SELECT', () => {
+    const findings = scan(SqlInjectionRule, 'web/lib/users.ts', `
+      export function find(sql: any, id: string) {
+        return sql\`SELECT * FROM users WHERE id = \${id}\`;
+      }
+    `);
+    expect(findings).toHaveLength(0);
+  });
+
+  test('flags an interpolated CTE that opens with WITH', () => {
+    const findings = scan(SqlInjectionRule, 'web/lib/users.ts', `
+      export function recent(id: string) {
+        return \`WITH recent AS (SELECT * FROM orders WHERE user_id = \${id}) SELECT count(*) FROM recent\`;
+      }
+    `);
     expect(findings).toHaveLength(1);
+  });
+
+  test('does not flag prose that opens with the word With', () => {
+    const findings = scan(SqlInjectionRule, 'web/lib/users.ts', `
+      export function note(n: number) {
+        return \`With \${n} items, nothing to SELECT\`.length;
+      }
+    `);
+    expect(findings).toHaveLength(0);
+  });
+
+  test('flags an interpolated template passed to an execute call even when SQL is not at the start', () => {
+    const findings = scan(SqlInjectionRule, 'web/lib/users.ts', `
+      export async function drop(db: any, id: string) {
+        return db.execute(\`  -- purge \n DELETE FROM users WHERE id = \${id}\`);
+      }
+    `);
+    expect(findings).toHaveLength(1);
+  });
+
+  test('does not flag a parameterized execute call', () => {
+    const findings = scan(SqlInjectionRule, 'web/lib/users.ts', `
+      export async function drop(db: any, id: string) {
+        return db.execute('DELETE FROM users WHERE id = $1', [id]);
+      }
+    `);
+    expect(findings).toHaveLength(0);
   });
 
   test('does not flag the same text under a tag other than sql', () => {

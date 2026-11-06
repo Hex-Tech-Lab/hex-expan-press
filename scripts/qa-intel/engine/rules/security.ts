@@ -515,13 +515,18 @@ export const InsecureFallbackRule: IRule = {
   }
 };
 
-/** True when the template is an argument of a `.query(...)` or `.rpc(...)` call, or the template of a `sql` tag. */
+/** True when the template is an argument of a `.query(...)`, `.execute(...)` or `.rpc(...)` call. */
 function isQueryCallTemplate(template: Node): boolean {
   const parent = template.getParent();
-  if (Node.isTaggedTemplateExpression(parent)) return parent.getTag().getText() === "sql";
   return Node.isCallExpression(parent)
     && parent.getArguments().includes(template)
-    && /\.(query|rpc)$/.test(parent.getExpression().getText());
+    && /\.(query|execute|rpc)$/.test(parent.getExpression().getText());
+}
+
+/** True when the template is the body of a `sql` tag, which sends each interpolation as a bound parameter. */
+function isSqlTaggedTemplate(template: Node): boolean {
+  const parent = template.getParent();
+  return Node.isTaggedTemplateExpression(parent) && parent.getTag().getText() === "sql";
 }
 
 export const SqlInjectionRule: IRule = {
@@ -536,9 +541,10 @@ export const SqlInjectionRule: IRule = {
         if (Node.isTemplateExpression(node)) {
           const literalText = node.getText();
           const hasKeyword = /SELECT|INSERT|UPDATE|DELETE/.test(literalText);
-          // A template is SQL only when a query call receives it or its own text opens with a statement keyword.
-          const startsLikeSql = /^\s*(SELECT|INSERT|UPDATE|DELETE)\b/.test(node.getHead().getLiteralText());
-          if (hasKeyword && (startsLikeSql || isQueryCallTemplate(node))) {
+          // A template is SQL only when a query call receives it or its own text opens with a statement keyword
+          // (WITH opens a CTE). A sql-tagged template is parameterized by its tag, so it is not string-built SQL.
+          const startsLikeSql = /^\s*(WITH|SELECT|INSERT|UPDATE|DELETE)\b/.test(node.getHead().getLiteralText());
+          if (hasKeyword && !isSqlTaggedTemplate(node) && (startsLikeSql || isQueryCallTemplate(node))) {
             findings.push({
               file: filePath,
               severity: "critical",
