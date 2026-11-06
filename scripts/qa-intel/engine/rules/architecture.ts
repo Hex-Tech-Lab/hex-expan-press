@@ -1,4 +1,4 @@
-import { Node, SyntaxKind } from "ts-morph";
+import { Node, SyntaxKind, VariableDeclarationKind } from "ts-morph";
 import type { CallExpression, SourceFile } from "ts-morph";
 import type { Finding } from "../domain/Finding";
 import type { Rule, RuleContext } from "../domain/Rule";
@@ -104,17 +104,23 @@ function isTrimmedSplit(call: CallExpression): boolean {
   return Node.isCallExpression(mapCall) && /\.trim\(\)/.test(mapCall.getArguments()[0]?.getText() ?? "");
 }
 
-/** The text being split was built by this file (a literal, or a `.join(...)` result), so its line endings are known. */
+/**
+ * The text being split was built by this file (a literal, or a `.join(...)` result), so its line endings are known.
+ * An interpolated template or a `let`/`var` can be reassigned to file text, so only a literal, a
+ * substitution-free template, or a `const` initialised from one of those counts.
+ */
 function isSelfProducedText(call: CallExpression): boolean {
   const callee = call.getExpression();
   if (!Node.isPropertyAccessExpression(callee)) return false;
   let receiver: Node | undefined = callee.getExpression();
   if (Node.isIdentifier(receiver)) {
     const declaration = receiver.getSymbol()?.getValueDeclaration();
-    receiver = Node.isVariableDeclaration(declaration) ? declaration.getInitializer() : undefined;
+    const list = Node.isVariableDeclaration(declaration) ? declaration.getParent() : undefined;
+    const isConst = Node.isVariableDeclarationList(list) && list.getDeclarationKind() === VariableDeclarationKind.Const;
+    receiver = isConst && Node.isVariableDeclaration(declaration) ? declaration.getInitializer() : undefined;
   }
   if (!receiver) return false;
-  if (Node.isStringLiteral(receiver) || Node.isNoSubstitutionTemplateLiteral(receiver) || Node.isTemplateExpression(receiver)) return true;
+  if (Node.isStringLiteral(receiver) || Node.isNoSubstitutionTemplateLiteral(receiver)) return true;
   if (!Node.isCallExpression(receiver)) return false;
   const producer = receiver.getExpression();
   return Node.isPropertyAccessExpression(producer) && producer.getName() === "join";
@@ -273,6 +279,22 @@ export const WorkflowRule: Rule = {
       const namespace = decl.getNamespaceImport() ?? decl.getDefaultImport();
       if (namespace) childProcessNamespaces.add(namespace.getText());
     }
+    // require("child_process") binds the same module: a namespace (`const cp = require(...)`) or a destructured exec.
+    for (const call of source.getDescendantsOfKind(SyntaxKind.CallExpression)) {
+      if (call.getExpression().getText() !== "require") continue;
+      const [spec] = call.getArguments();
+      if (!spec || !Node.isStringLiteral(spec) || !/^(node:)?child_process$/.test(spec.getLiteralValue())) continue;
+      const binding = call.getParent();
+      if (!Node.isVariableDeclaration(binding)) continue;
+      const name = binding.getNameNode();
+      if (Node.isIdentifier(name)) {
+        childProcessNamespaces.add(name.getText());
+      } else if (Node.isObjectBindingPattern(name)) {
+        for (const element of name.getElements()) {
+          if ((element.getPropertyNameNode()?.getText() ?? element.getName()) === "exec") execNames.add(element.getName());
+        }
+      }
+    }
     const isChildProcessExec = (text: string): boolean =>
       execNames.has(text) || [...childProcessNamespaces].some((ns) => text === `${ns}.exec`);
 
@@ -282,7 +304,8 @@ export const WorkflowRule: Rule = {
         const text = expr.getText();
 
         const isNamed = (names: string[]): boolean => names.some(name => text === name || text.endsWith(`.${name}`));
-        const isIOCall = isNamed(["fetch", "writeFile", "exec", "execSync"]);
+        // An aliased or destructured exec (`exec as run`) is matched by its binding name too.
+        const isIOCall = isNamed(["fetch", "writeFile", "exec", "execSync"]) || isChildProcessExec(text);
         // fetch holds no resource a finally block would release, so only the other calls need one.
         const needsFinally = isChildProcessExec(text) || isNamed(["writeFile", "execSync"]);
 

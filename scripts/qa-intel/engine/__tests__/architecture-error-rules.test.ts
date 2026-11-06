@@ -124,6 +124,31 @@ describe('WorkflowRule', () => {
     expect(findings.filter((f) => f.title === 'Workflow: Missing finally block for I/O')).toHaveLength(1);
   });
 
+  // R6: child_process loaded with require() is still child_process.
+  test('flags exec from a child_process namespace loaded with require', () => {
+    const findings = check(WorkflowRule, 'scripts/run-require.ts', [
+      "const cp = require('node:child_process');",
+      'export function run(cmd: string) {',
+      '  try {',
+      '    cp.exec(cmd);',
+      '  } catch (e) { console.error(e); }',
+      '}',
+    ].join('\n'));
+    expect(findings.filter((f) => f.title === 'Workflow: Missing finally block for I/O')).toHaveLength(1);
+  });
+
+  test('flags exec destructured from a require of child_process', () => {
+    const findings = check(WorkflowRule, 'scripts/run-destructure.ts', [
+      "const { exec: run } = require('child_process');",
+      'export function go(cmd: string) {',
+      '  try {',
+      '    run(cmd);',
+      '  } catch (e) { console.error(e); }',
+      '}',
+    ].join('\n'));
+    expect(findings.filter((f) => f.title === 'Workflow: Missing finally block for I/O')).toHaveLength(1);
+  });
+
   test('does not flag a fetch whose try has a finally block', () => {
     const findings = check(WorkflowRule, 'web/lib/upstream.ts', [
       'export async function load(url: string, release: () => void) {',
@@ -188,5 +213,27 @@ describe('CrossPlatformRule (LF-only split)', () => {
       'export const inline = ["a", "b"].join("\\n").split("\\n");',
       'export const literal = "a\\nb".split("\\n");',
     ].join('\n'))).toHaveLength(0);
+  });
+
+  // R6: a template with an interpolation and a reassigned let hold text this file did not build.
+  test('flags an LF split of a template that interpolates text read from disk', () => {
+    expect(lfFindings([
+      "import fs from 'node:fs';",
+      'export function lines(p: string) {',
+      "  const text = `${fs.readFileSync(p, 'utf8')}`;",
+      '  return text.split("\\n");',
+      '}',
+    ].join('\n'))).toHaveLength(1);
+  });
+
+  test('flags an LF split of a let that is reassigned from disk', () => {
+    expect(lfFindings([
+      "import fs from 'node:fs';",
+      'export function lines(p: string) {',
+      '  let text = "";',
+      "  text = fs.readFileSync(p, 'utf8');",
+      '  return text.split("\\n");',
+      '}',
+    ].join('\n'))).toHaveLength(1);
   });
 });
