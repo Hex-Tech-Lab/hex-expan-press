@@ -21,13 +21,40 @@ This project is sometimes worked by more than one agent session at once (e.g. th
 2. **Log every discrete action at tick level** (not just a session summary at the end) by appending one JSON line per action to `docs/agent_ledger.jsonl`: `{"ts": "<exact output of `date -u +%FT%TZ` at append time — never typed or estimated; 91 invented/future timestamps had to be re-timed from git blame on 2026-10-01>", "agent": "<model/tool identity, e.g. 'claude-sonnet-5' or 'agy-antigravity'>", "action": "<short verb phrase>", "files": ["<paths touched>"], "note": "<one line>"}`. Log the action as you take it, not retroactively in a batch at session end — retroactive summaries are exactly what produced the unverifiable/inaccurate claims found in the 2026-09-18 audit (see `docs/creator-lifecycle-and-samples.md` history / session record for that incident).
 3. **Self-report accuracy matters.** A prior handover falsely claimed a `package.json` change that was never actually made — self-reports must be checked against the actual file state, not asserted from memory of intent.
 
+## Research-first rule (added 2026-11-07, founder-directed, from the THOS, binding for all agents)
+
+**Why:** hand-rolled code costs more than an existing library, and unsourced numbers led to wrong defaults. Example: the 300 s webhook tolerance in `payments/src/settings_registry.ts:102` was set without checking the provider. Paddle documents a 5 s response limit (Context7, `/websites/developer_paddle`, 2026-11-07).
+
+**Summary (for the founder):**
+- Hit a conflict or ambiguity? Pause coding immediately.
+- Research first: query the search tools that are connected.
+- Find industry norms: check how top production systems solve it.
+- Find OSS or APIs: check existing libraries before writing custom code.
+- Write one report: save the findings as `.md` and `.html`.
+- Ask with proof: present one researched recommendation in the Comms Protocol format.
+
+**Steps (do them in order; a step is done when its output is written down):**
+1. **Trigger.** Start of every task, and again at any conflict or ambiguity. Stop coding until step 7 is done.
+2. **Library, framework, SDK or vendor API involved? Query Context7 first.** Call `resolve-library-id`, then `query-docs` with the library ID. Record the library ID and the answer. Done when both are recorded. Context7 is required whenever a library or vendor API is in scope, even if you believe you know the answer.
+3. **Protocol or standard involved? Cite it.** Name the RFC number (for example RFC 9110 for HTTP semantics) or the vendor documentation section that defines the behaviour. Done when the citation is written.
+4. **Industry norm: check two or more top production systems.** Name each system and give its documented practice with a URL. Done when two are named, or "No second source found" is written.
+5. **Existing library or API: check the repo, then OSS.** A hand-rolled solution needs a stated reason in the report. Done when the check result is written, even if it is "none exists".
+6. **Every number has a source.** Each timeout, limit, tolerance, lifetime and cap cites step 2, 3 or 4, or a documented decision (ADR or `CLAUDE.md`). If none exists, write "No source found" and label the value as model knowledge, unverified. Done when every number in the recommendation carries one of those three labels.
+7. **Write the report.** Save one `.md` file with the findings, and its `.html` companion (the HTML rule applies). Done when both files exist.
+8. **Ask with proof.** Present one recommendation with its sources, in the Comms Protocol format. Done when the reply names the sources it relies on.
+
+**Tools:** check that a search tool is connected before you rely on it. A tool that failed to connect is not a source. Record any unconnected tool as "not available" in the report.
+
+**Source format:** "Industry/vendor practice: <value> (<source>)." Use it for every recommendation.
+
 ## Search tools (binding for all agents)
 
-From now on, use fzf for quick file search, the graph for codebase structure, and recoll for finding files by content.
+Founder rule: never use `plocate` (it hung the machine twice) and never use `grep` in our own lookups.
 
-- **fzf** for file names: `plocate -i <term> | fzf -f '<term>'` (typo-tolerant, ranked). Use `plocate` first; it is the fast index.
-- **Graph** (`build-graph`, `explore-codebase`, `review-pr`) for code structure, callers, and blast radius.
-- **recoll** for text inside files, scoped to hex-expan: `recollq -c ~/.recoll-hex-expan -t -q "<query>"`. Its index is persistent at `~/.cache/recoll-hex-expan/`. Rebuild with `recollindex -c ~/.recoll-hex-expan` after large changes.
+- **File names:** `git ls-files | fzf -f '<term>'`.
+- **Text inside files:** `rg -n '<pattern>' <path>`, or `recollq -c ~/.recoll-hex-expan -t -q "<query>"` for repo-wide content.
+- **Code structure, callers, blast radius:** the `code-review-graph` CLI (`status`, then rebuild if stale).
+- **A known file's contents:** the Read tool.
 
 ## Commands
 
