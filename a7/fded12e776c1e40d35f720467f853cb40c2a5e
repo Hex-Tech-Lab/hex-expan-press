@@ -1,0 +1,23 @@
+AGENTS.md
+  s_6625bc67577472::t_5c04b1d92c8be6 42-47
+  s_6625bc67577472::t_2655fb3024519c 35,37-38
+  s_6625bc67577472::t_ced6b8855cea22 24-34,36
+  s_6625bc67577472::t_67e81def6bbbb1 39
+  s_6625bc67577472::t_fc5ffc21163776 40-41,48-49,52,54-57
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a7fded12e776c1e40d35f720467f853cb40c2a5e",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
