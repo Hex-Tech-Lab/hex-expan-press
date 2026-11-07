@@ -624,9 +624,9 @@ describe("WAVE Q4 integration: SQL migrations reach SQL rules through the real Q
     };
     const engine = new QualityEngine(
       [SqlSecurityDefinerCallerKeyRule, SqlDropFunctionDefaultArgRule] as Rule[],
-      loader as any,
+      loader as never,
       undefined,
-      fs as any,
+      fs as never,
       { mode, defaultScope: "file", concurrency: 1 }
     );
     return { engine, project };
@@ -690,9 +690,9 @@ describe("ctx.allFiles contract: diff vs full mode + pre-wave severity through t
     };
     return new QualityEngine(
       [SqlSecurityDefinerCallerKeyRule, SqlDropFunctionDefaultArgRule] as Rule[],
-      loader as any,
+      loader as never,
       undefined,
-      fs as any,
+      fs as never,
       { mode, defaultScope: "file", concurrency: 1 }
     );
   }

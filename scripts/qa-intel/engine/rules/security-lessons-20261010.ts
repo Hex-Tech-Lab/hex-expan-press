@@ -83,7 +83,7 @@ export function stripComments(text: string, lang: RuleLanguage): string {
 }
 
 function sourceText(ctx: RuleContext): string {
-  return ctx.ast?.getFullText?.() ?? String(ctx.ast ?? "");
+  return (ctx.ast as { getFullText?: () => string } | undefined)?.getFullText?.() ?? String(ctx.ast ?? "");
 }
 
 const CREATE_FUNCTION = /create\s+(?:or\s+replace\s+)?function/i;

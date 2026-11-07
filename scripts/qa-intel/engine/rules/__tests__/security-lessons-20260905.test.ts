@@ -119,7 +119,7 @@ describe("SecurityFixWithoutTestRule", () => {
       filePath: "web/lib/usecases/GetUserEntitlementsUseCase.ts",
       ast: project.getSourceFileOrThrow("web/lib/usecases/GetUserEntitlementsUseCase.ts"),
       // allFiles intentionally omitted
-    } as any);
+    } as never);
     expect(findings).toHaveLength(1);
     expect(findings[0]!.severity).toBe("low");
     expect(findings[0]!.title).toContain("cannot verify sibling test");

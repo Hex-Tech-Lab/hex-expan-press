@@ -18,7 +18,7 @@ export interface RuleConfig {
 }
 
 export interface PatternMatcher {
-  [key: string]: (opts: any) => RuleExecutor;
+  [key: string]: (opts: unknown) => RuleExecutor;
 }
 
 export type RuleExecutor = (source: SourceFile, filePath: string) => Finding[];

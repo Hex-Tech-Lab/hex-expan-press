@@ -13,7 +13,7 @@ export type RuleLanguage = "ts" | "sql";
 
 export interface RuleContext {
   filePath: string;
-  ast: any; // ts-morph SourceFile, adapted by infra
+  ast: unknown; // ts-morph SourceFile, adapted by infra; rules narrow it at the use site
   graph?: SourceGraph;
   // Every file in the current scan (diff or full), regardless of rule scope.
   // Lets a file-scoped rule ask "is there a sibling test file in this same
@@ -40,4 +40,9 @@ export interface Rule {
   allowSelfAnalysis?: boolean;
   languages?: readonly RuleLanguage[];
   check(ctx: RuleContext): Finding[];
+}
+
+/** Structural view of the engine: only addRule is used by the registration helpers. */
+export interface RuleRegistrar {
+  addRule(rule: unknown): void;
 }

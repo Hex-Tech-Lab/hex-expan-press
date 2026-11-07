@@ -1,3 +1,4 @@
+import type { RuleRegistrar } from "../domain/Rule";
 import { Node, SyntaxKind } from "ts-morph";
 import type { CatchClause, SourceFile } from "ts-morph";
 import type { Finding, IRule } from "../engine";
@@ -46,37 +47,25 @@ export const DeadCodeRule: IRule = {
     const findings: Finding[] = [];
     const filePath = source.getFilePath().replace(/\\/g, "/");
 
-    try {
-      source.forEachDescendant((node) => {
-        try {
-          // Detect unreachable if statements (always false conditions)
-          if (Node.isIfStatement(node)) {
-            try {
-              const condition = node.getExpression();
-              if (condition) {
-                const condText = condition.getText().trim();
-                // Check for obviously false conditions like !optionsSent when it's always true
-                if (condText === 'false' || condText === '!true') {
-                  findings.push({
-                    file: filePath,
-                    severity: "medium",
-                    title: "Code Quality: Unreachable code block",
-                    why: "If condition is always false, the entire block is unreachable dead code.",
-                    fix: "Remove the unreachable if statement and its body."
-                  });
-                }
-              }
-            } catch {
-              // Skip nodes without condition
-            }
+    source.forEachDescendant((node) => {
+      // Detect unreachable if statements (always false conditions)
+      if (Node.isIfStatement(node)) {
+        const condition = node.getExpression();
+        if (condition) {
+          const condText = condition.getText().trim();
+          // Check for obviously false conditions like !optionsSent when it's always true
+          if (condText === 'false' || condText === '!true') {
+            findings.push({
+              file: filePath,
+              severity: "medium",
+              title: "Code Quality: Unreachable code block",
+              why: "If condition is always false, the entire block is unreachable dead code.",
+              fix: "Remove the unreachable if statement and its body."
+            });
           }
-        } catch {
-          // Skip any node processing errors
         }
-      });
-    } catch {
-      // Silently skip if any errors occur
-    }
+      }
+    });
 
     return findings;
   }
@@ -291,55 +280,47 @@ export const ErrorObservabilityRule: IRule = {
     source.forEachDescendant((node) => {
       // Look for catch blocks without logging/Sentry
       if (Node.isCatchClause(node)) {
-        try {
-          const block = node.getBlock();
-          if (block) {
-            const bodyText = block.getText();
+        const block = node.getBlock();
+        if (block) {
+          const bodyText = block.getText();
 
-            // Observability must be a real call. A substring test over the raw body let a comment or a string
-            // such as "Sentry. unavailable" silence the rule on a catch that swallows the error.
-            const hasObservability = block.getDescendantsOfKind(SyntaxKind.CallExpression).some((call) => {
-              const callee = call.getExpression().getText();
-              return callee.includes('console.') || callee.includes('Sentry.') || callee.includes('logger.');
+          // Observability must be a real call. A substring test over the raw body let a comment or a string
+          // such as "Sentry. unavailable" silence the rule on a catch that swallows the error.
+          const hasObservability = block.getDescendantsOfKind(SyntaxKind.CallExpression).some((call) => {
+            const callee = call.getExpression().getText();
+            return callee.includes('console.') || callee.includes('Sentry.') || callee.includes('logger.');
+          });
+
+          if (!hasObservability && !bodyText.trim().startsWith('//') && !handlesCaughtError(node)) {
+            findings.push({
+              file: filePath,
+              severity: "medium",
+              title: "Observability: Catch block without error logging",
+              why: "Error is caught but not logged, making debugging difficult.",
+              fix: "Add error logging: console.error('[context]', error); or Sentry.captureException(error);"
             });
-
-            if (!hasObservability && !bodyText.trim().startsWith('//') && !handlesCaughtError(node)) {
-              findings.push({
-                file: filePath,
-                severity: "medium",
-                title: "Observability: Catch block without error logging",
-                why: "Error is caught but not logged, making debugging difficult.",
-                fix: "Add error logging: console.error('[context]', error); or Sentry.captureException(error);"
-              });
-            }
           }
-        } catch {
-          // Skip if API not available on this node
         }
       }
 
       // Look for try-catch-ignore patterns
       if (Node.isTryStatement(node)) {
-        try {
-          const catchClause = node.getCatchClause();
-          if (catchClause) {
-            const block = catchClause.getBlock();
-            if (block) {
-              const catchBody = block.getText();
-              // Empty catch or just throw
-              if (catchBody.trim() === '{}' || catchBody.trim() === '{ }') {
-                findings.push({
-                  file: filePath,
-                  severity: "high",
-                  title: "Observability: Empty catch block (silent failure)",
-                  why: "Error is swallowed silently with no logging. Production issues will be invisible.",
-                  fix: "Log the error or re-throw: catch (e) { console.error('[context]', e); throw e; }"
-                });
-              }
+        const catchClause = node.getCatchClause();
+        if (catchClause) {
+          const block = catchClause.getBlock();
+          if (block) {
+            const catchBody = block.getText();
+            // Empty catch or just throw
+            if (catchBody.trim() === '{}' || catchBody.trim() === '{ }') {
+              findings.push({
+                file: filePath,
+                severity: "high",
+                title: "Observability: Empty catch block (silent failure)",
+                why: "Error is swallowed silently with no logging. Production issues will be invisible.",
+                fix: "Log the error or re-throw: catch (e) { console.error('[context]', e); throw e; }"
+              });
             }
           }
-        } catch {
-          // Skip if API not available on this node
         }
       }
     });
@@ -504,7 +485,7 @@ export const UnregisteredRuleExportRule: IRule = {
  * @param engine - The QA-Intel engine instance
  */
 export function registerQualityRules(engine: unknown) {
-  const e = engine as any;
+  const e = engine as RuleRegistrar;
   e.addRule(AsyncWithoutAwaitRule);
   e.addRule(DeadCodeRule);
   e.addRule(VariableNamingRule);

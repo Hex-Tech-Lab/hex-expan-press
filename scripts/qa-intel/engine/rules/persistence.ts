@@ -1,4 +1,3 @@
-import { Node, SyntaxKind } from "ts-morph";
 import type { SourceFile } from "ts-morph";
 import type { Finding, IRule } from "../engine";
 

@@ -118,7 +118,7 @@ export class QualityEngine {
     // after the file changed on disk. Reading the cache back waits on a content-keyed cache.
     const ast = await this.loader.load(path);
     try {
-      const astAny = ast as any;
+      const astAny = ast as { getText?: () => string } | undefined;
       if (astAny && typeof astAny.getText === "function") {
         await this.cache?.setAST(path, astAny.getText());
       } else {

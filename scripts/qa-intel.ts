@@ -2,7 +2,8 @@ import { QualityEngine } from "./qa-intel/engine/application/QualityEngine";
 import { TsMorphLoader } from "./qa-intel/engine/infra/TsMorphLoader";
 import { NodeFileSystem } from "./qa-intel/engine/infra/NodeFileSystem";
 import { CacheAdapter } from "./qa-intel/engine/infra/CacheAdapter";
-import { wrapLegacyRule } from "./qa-intel/engine/infra/LegacyRuleAdapter";
+import { wrapLegacyRule, type LegacyIRule } from "./qa-intel/engine/infra/LegacyRuleAdapter";
+import type { Rule } from "./qa-intel/engine/domain/Rule";
 import { createCache } from "./qa-intel/engine/cache";
 import * as legacyRules from "./qa-intel/engine/rules";
 import { listTrackedFiles, selectScannableTextFiles, isSqlMigration } from "./qa-intel/engine/infra/TrackedFileEnumeration";
@@ -95,18 +96,15 @@ Modes:
 }
 
 // Load and wrap legacy rules (IRule format), pass new rules (Rule format) through unchanged
-const rules = Object.values(legacyRules)
-  .filter((r): r is any => r && typeof r === "object" && "check" in r && "name" in r)
-  .map((rule: unknown) => {
-    const r = rule as any;
-    // Check if this is a new Rule format (has scope property or check function references RuleContext)
-    // vs legacy IRule format (check function takes SourceFile directly)
-    if (r.scope !== undefined || (r.check && (r.check.toString().includes('ctx.ast') || r.check.toString().includes('ctx.filePath')))) {
-      // Already in new Rule format
-      return r as any;
-    }
-    // Legacy IRule format, wrap it
-    return wrapLegacyRule(r as any);
+type RuleLike = LegacyIRule & { scope?: unknown };
+const rules: Rule[] = (Object.values(legacyRules) as unknown[])
+  .filter((r): r is RuleLike => typeof r === "object" && r !== null && "check" in r && "name" in r)
+  .map((r) => {
+    // New Rule format (has scope, or its check references RuleContext) vs legacy IRule (check takes a SourceFile).
+    const isNewFormat = r.scope !== undefined
+      || (typeof r.check === "function" && (r.check.toString().includes("ctx.ast") || r.check.toString().includes("ctx.filePath")));
+    // A new-format rule already has the Rule shape at runtime; the cast only records that the check passed.
+    return isNewFormat ? (r as unknown as Rule) : wrapLegacyRule(r);
   });
 
 // Get file list based on mode

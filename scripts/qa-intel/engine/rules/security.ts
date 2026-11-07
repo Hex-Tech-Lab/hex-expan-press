@@ -1,3 +1,4 @@
+import type { RuleRegistrar } from "../domain/Rule";
 import { Node, SyntaxKind } from "ts-morph";
 import type { SourceFile } from "ts-morph";
 import type { Finding, IRule } from "../engine";
@@ -431,29 +432,25 @@ export const UnsafePropertyAccessRule: IRule = {
 
     source.forEachDescendant((node) => {
       if (Node.isElementAccessExpression(node)) {
-        try {
-          const index = node.getArgumentExpression()?.getText();
-          if (index === '0' || index === '1') {
-            const hasOptional = node.getQuestionDotTokenNode() !== undefined;
-            if (!hasOptional) {
-              const tryStatement = node.getFirstAncestorByKind(SyntaxKind.TryStatement);
-              if (!tryStatement) {
-                const func = node.getFirstAncestorByKind(SyntaxKind.ArrowFunction)
-                  || node.getFirstAncestorByKind(SyntaxKind.FunctionDeclaration);
-                if (func && (func.getText().includes('fetch') || func.getText().includes('extract') || func.getText().includes('parse')) && !isSplitResult(node.getExpression()) && !isMatchAllElement(node.getExpression()) && !guardedByEarlierCheck(func, node.getExpression(), node)) {
-                  findings.push({
-                    file: filePath,
-                    severity: "medium",
-                    title: "Access: Array index without null guard in I/O path",
-                    why: "Array[0] access without optional chaining or try/catch. API response may be empty, causing TypeError.",
-                    fix: "Add null guard: const first = arr?.[0]; if (!first) return fallback;"
-                  });
-                }
+        const index = node.getArgumentExpression()?.getText();
+        if (index === '0' || index === '1') {
+          const hasOptional = node.getQuestionDotTokenNode() !== undefined;
+          if (!hasOptional) {
+            const tryStatement = node.getFirstAncestorByKind(SyntaxKind.TryStatement);
+            if (!tryStatement) {
+              const func = node.getFirstAncestorByKind(SyntaxKind.ArrowFunction)
+                || node.getFirstAncestorByKind(SyntaxKind.FunctionDeclaration);
+              if (func && (func.getText().includes('fetch') || func.getText().includes('extract') || func.getText().includes('parse')) && !isSplitResult(node.getExpression()) && !isMatchAllElement(node.getExpression()) && !guardedByEarlierCheck(func, node.getExpression(), node)) {
+                findings.push({
+                  file: filePath,
+                  severity: "medium",
+                  title: "Access: Array index without null guard in I/O path",
+                  why: "Array[0] access without optional chaining or try/catch. API response may be empty, causing TypeError.",
+                  fix: "Add null guard: const first = arr?.[0]; if (!first) return fallback;"
+                });
               }
             }
           }
-        } catch {
-          // skip nodes where API not available
         }
       }
     });
@@ -725,7 +722,7 @@ export const ReservedKeywordRule: IRule = {
  * @param engine - The QA-Intel engine instance
  */
 export function registerSecurityRules(engine: unknown) {
-  const e = engine as any;
+  const e = engine as RuleRegistrar;
   e.addRule(CredentialLeakRule);
   e.addRule(SanitizationRule);
   e.addRule(SecretsExposureRule);

@@ -1,6 +1,5 @@
 import { Node, SyntaxKind } from "ts-morph";
-import type { Scope } from "ts-morph";
-import type { CallExpression, PropertyAccessExpression, SourceFile, VariableDeclaration } from "ts-morph";
+import type { CallExpression, PropertyAccessExpression, SourceFile } from "ts-morph";
 import type { Finding } from "../domain/Finding";
 import type { Rule, RuleContext } from "../domain/Rule";
 
@@ -459,12 +458,8 @@ export const FailOpenUndefinedFilterRule: Rule = {
 
       let maybeNullish = false;
       // Type-checker path (works when ts-morph Project has a real program).
-      try {
-        const t = valueArg.getType();
-        if (t.isNullable()) maybeNullish = true;
-      } catch {
-        // checker unavailable — fall through to syntax fallback
-      }
+      const t = valueArg.getType();
+      if (t.isNullable()) maybeNullish = true;
       if (!maybeNullish && Node.isArrayLiteralExpression(valueArg)) {
         try {
           const el = valueArg.getElements()[0];

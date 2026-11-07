@@ -1,3 +1,4 @@
+import type { RuleRegistrar } from "../domain/Rule";
 import { Node, SyntaxKind } from "ts-morph";
 import type { SourceFile } from "ts-morph";
 import type { Finding, IRule } from "../engine";
@@ -255,7 +256,7 @@ export const TruncationValidationRule: IRule = {
  * @param engine - The QA-Intel engine instance
  */
 export function registerDataIntegrityRules(engine: unknown) {
-  const e = engine as any;
+  const e = engine as RuleRegistrar;
   e.addRule(DatabaseConstraintRule);
   e.addRule(DefaultValueConsistencyRule);
   e.addRule(TruncationValidationRule);

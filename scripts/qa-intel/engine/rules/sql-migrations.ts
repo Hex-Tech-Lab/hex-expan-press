@@ -501,8 +501,7 @@ export const SqlDropFunctionDefaultArgRule: Rule = {
     // statement/name scan (2026-09-25 review gap).
     const text = sanitizeSql((ctx.ast as SourceFile).getText());
     const drop = /\bdrop\s+function\s+(?:if\s+exists\s+)?/gi;
-    let m: RegExpExecArray | null;
-    while ((m = drop.exec(text)) !== null) {
+    while (drop.exec(text) !== null) {
       // Consume the full statement up to the terminating ';' at paren depth 0.
       let depth = 0;
       let end = -1;

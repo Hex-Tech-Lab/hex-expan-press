@@ -220,7 +220,6 @@ function signalExprIsBounded(expr: Node): boolean {
     const first = expr.getArguments()[0];
     if (first && Node.isArrayLiteralExpression(first)) {
       return first.getElements().some((el) => {
-        const elText = el.getText();
         if (/^AbortSignal\.timeout\s*\(/.test(el.getText())) return true;
         const m = /^([\w$.]+)\.signal$/.exec(el.getText());
         return m ? controllerHasBoundedTimeout(m[1], expr) : false;

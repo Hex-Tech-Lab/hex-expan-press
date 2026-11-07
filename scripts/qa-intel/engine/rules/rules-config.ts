@@ -1,3 +1,4 @@
+import type { PatternMatcher, RuleExecutor } from "./rules-engine";
 /**
  * QA-Intel Rule Configuration
  *
@@ -11,7 +12,7 @@ export interface RuleConfig {
   severity: "low" | "medium" | "high" | "critical";
   description: string;
   scope?: "file" | "neighbors" | "graph";
-  check: (matchers: any) => any;
+  check: (matchers: PatternMatcher) => RuleExecutor;
 }
 
 // Architecture Rules: 11 total

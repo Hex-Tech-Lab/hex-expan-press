@@ -1,3 +1,4 @@
+import type { SourceFile } from "ts-morph";
 /**
  * QA-Intel Rule Registry
  *
@@ -6,7 +7,6 @@
  */
 
 import type { Rule, RuleContext } from "../domain/Rule";
-import type { Finding } from "../domain/Finding";
 import { RulesExecutionEngine, type RuleConfig } from "./rules-engine";
 import {
   ALL_RULES_BY_CATEGORY,
@@ -68,7 +68,7 @@ export class RulesRegistry {
       scope: config.scope || "file",
       check: (ctx: RuleContext) => {
         try {
-          const findings = this.engine.execute(config, ctx.ast, ctx.filePath);
+          const findings = this.engine.execute(config, (ctx.ast as SourceFile), ctx.filePath);
           return findings;
         } catch (error) {
           console.error(`Rule "${config.name}" failed:`, error);
