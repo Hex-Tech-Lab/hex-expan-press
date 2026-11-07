@@ -1,0 +1,22 @@
+[
+  {
+    "key": "delivery.link_ttl_days",
+    "value": 7
+  },
+  {
+    "key": "delivery.max_downloads",
+    "value": 5
+  },
+  {
+    "key": "payments.retry_after_seconds",
+    "value": 30
+  },
+  {
+    "key": "payments.webhook_lock_ttl_seconds",
+    "value": 300
+  },
+  {
+    "key": "payments.webhook_tolerance_seconds",
+    "value": 300
+  }
+]

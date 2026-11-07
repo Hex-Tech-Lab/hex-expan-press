@@ -1,0 +1,15 @@
+#!/bin/sh
+# B: local gate, runs before every push on this machine. Not visible to the review bots.
+# It runs the private spec check (YAML, HTML and settings bindings) only when this branch carries the
+# published values file. The private repo is a sibling checkout: ../hex-expan-private/specs, or
+# HEX_EXPAN_PRIVATE_SPECS. If that checkout is missing, the push is refused, so the check cannot be skipped by accident.
+# Skip deliberately with: git push --no-verify
+set -eu
+top=$(git rev-parse --show-toplevel)
+[ -f "$top/payments/src/settings_bindings.json" ] || exit 0
+specs="${HEX_EXPAN_PRIVATE_SPECS:-$(dirname "$top")/hex-expan-private/specs}"
+if [ ! -f "$specs/render_spec.py" ]; then
+  echo "pre-push: private specs not found at $specs. Push refused (set HEX_EXPAN_PRIVATE_SPECS or use --no-verify)." >&2
+  exit 1
+fi
+python3 "$specs/render_spec.py" --check --repo "$top"

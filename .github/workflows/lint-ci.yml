@@ -284,3 +284,28 @@ jobs:
 
       - name: Run the self-test on master
         run: bash scripts/lint-ci-selftest.sh
+
+  # A (settings alignment). Trust model as above: scripts/ comes from the BASE checkout, the PR head is read only,
+  # and the script only reads two files as text. Stdlib Python, so no install step.
+  settings-alignment:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out the base, which holds the trusted script
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Check out the PR head, for reading only
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          path: pr
+          persist-credentials: false
+
+      - name: Check the settings bindings against the registry
+        run: |
+          set -euo pipefail
+          python3 -I scripts/settings_alignment.py \
+            --bindings pr/payments/src/settings_bindings.json \
+            --registry pr/payments/src/settings_registry.ts
