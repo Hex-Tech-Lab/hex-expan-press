@@ -1,0 +1,29 @@
+scripts/qa-intel/__tests__/cache.test.ts
+  s_6625bc67577472::t_27535b8e67b2b6 205-240
+scripts/qa-intel/engine/__tests__/sql-language-and-cache-regressions.test.ts
+  s_6625bc67577472::t_2a118331a2ecc9 1-74
+scripts/qa-intel/engine/cache.ts
+  s_6625bc67577472::t_67f8d0f68e0834 39,65-69,71-92
+scripts/qa-intel/engine/engine.ts
+  s_6625bc67577472::t_abfe2b86f1ecd4 3,11-12
+scripts/qa-intel/engine/infra/LegacyRuleAdapter.ts
+  s_6625bc67577472::t_87a0769a7f7eae 1,9,18-19
+scripts/qa-intel/engine/rules/data-integrity.ts
+  s_6625bc67577472::t_72e3ccb57069cf 23,118
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "64e0e2db9cbfc2b0910d79fe500a3cd0b6689441",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
