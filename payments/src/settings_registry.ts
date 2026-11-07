@@ -65,7 +65,7 @@ export interface GlobalSettings {
     audit_log_page_size: number;
   };
   /** Buyer delivery: download_events links, Dub short links, signed release URLs. */
-  delivery: { bucket: string; link_ttl_days: number; signed_url_seconds: number; short_domain: string };
+  delivery: { bucket: string; link_ttl_days: number; max_downloads: number; signed_url_seconds: number; short_domain: string };
   /** Transactional email (Resend). `from` must be on `sending_domain` (DKIM-verified in Resend). */
   email: {
     from: string;
@@ -121,6 +121,7 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
   delivery: {
     bucket: "release-files",
     link_ttl_days: 7,
+    max_downloads: 5, // C4 spec, D-06: E2C default 5 per link (docs.e2c.store); Payhip FAQ also 5 per file
     // 120: no release-size or bandwidth data in the repo to justify more. The URL is checked when the redirect is
     // followed, and a refund during a download leaves it valid for this long, so 120 bounds that window to two minutes.
     signed_url_seconds: 120,

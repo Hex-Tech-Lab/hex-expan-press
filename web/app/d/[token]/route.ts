@@ -67,6 +67,25 @@ export async function GET(_request: NextRequest, ctx: { params: Promise<{ token:
     return new NextResponse(body, { status: 410 });
   }
 
+  // Download cap (registry delivery.max_downloads). Each served download is one download_completed row, and at
+  // the cap the link stops. A count that cannot be read denies: an unknown count never serves a file.
+  // NOTE: count-then-insert is not atomic, so concurrent clicks can overshoot the cap by a few. Known limit.
+  const { count: used, error: countErr } = await sb
+    .from("download_events")
+    .select("id", { count: "exact", head: true })
+    .eq("token_hash", hash)
+    .eq("event_type", "download_completed");
+  if (countErr) {
+    console.error(`[delivery] download count failed for sale ${link.sale_id as string}: ${countErr.message}`);
+    return new NextResponse("Download unavailable", { status: 500 });
+  }
+  if ((used ?? 0) >= GLOBAL.delivery.max_downloads) {
+    return new NextResponse(
+      `This download limit has been reached. Email ${GLOBAL.email.reply_to} with your order number and we will send a new link.`,
+      { status: 410 },
+    );
+  }
+
   const { data: product, error: prodErr } = await sb
     .from("products")
     .select("release_path")

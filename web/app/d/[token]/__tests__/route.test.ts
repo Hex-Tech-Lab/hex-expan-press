@@ -6,6 +6,7 @@ import { tokenHash } from "../../../../../payments/src/delivery";
 const maybeSingleMock = vi.fn();
 const insertMock = vi.fn();
 const createSignedUrlMock = vi.fn();
+const countMock = vi.fn();
 
 type Row = Record<string, unknown>;
 type QueryResult = { data: Row[] | null; error: { message: string } | null };
@@ -82,6 +83,9 @@ const fromMock = vi.fn((table: string) => {
         eq: vi.fn(() => ({
           eq: vi.fn(() => ({
             maybeSingle: maybeSingleMock,
+            // The download-cap count awaits this same chain: select("id", { count, head }).eq().eq().
+            then: (onfulfilled: (v: unknown) => unknown, onrejected?: (e: unknown) => unknown) =>
+              Promise.resolve(countMock()).then(onfulfilled, onrejected),
           })),
         })),
       })),
@@ -153,6 +157,8 @@ describe("GET /d/[token] (Buyer delivery route)", () => {
     maybeSingleMock.mockReset();
     createSignedUrlMock.mockReset();
     insertMock.mockReset();
+    countMock.mockReset();
+    countMock.mockResolvedValue({ count: 0, error: null });
     // Every sale these tests use has a plain sale row (un-refunded). A test that needs a refund sets its own rows.
     for (const k of Object.keys(tableRows)) delete tableRows[k];
     for (const k of Object.keys(tableError)) delete tableError[k];
@@ -523,6 +529,52 @@ describe("GET /d/[token] (Buyer delivery route)", () => {
         expect(body).not.toContain("under review");
         expect(res.headers.get("location")).toBeNull();
       });
+    });
+  });
+
+  describe("download cap (delivery.max_downloads = 5)", () => {
+    const future = new Date(Date.now() + 86_400_000).toISOString();
+    function queueLink() {
+      maybeSingleMock.mockResolvedValueOnce({ data: { sale_id: "s1", product_id: "p1", expires_at: future }, error: null });
+    }
+
+    it("at the cap: 410 with the support address, no signed URL, no new download logged", async () => {
+      countMock.mockResolvedValueOnce({ count: 5, error: null });
+      queueLink();
+
+      const res = await GET(new NextRequest(`https://expanpress.com/d/${validToken}`), { params: Promise.resolve({ token: validToken }) });
+
+      expect(res.status).toBe(410);
+      const body = await res.text();
+      expect(body).toContain("download limit has been reached");
+      expect(body).toContain("support@expanpress.com");
+      expect(res.headers.get("location")).toBeNull();
+      expect(createSignedUrlMock).not.toHaveBeenCalled();
+      expect(insertMock).not.toHaveBeenCalled();
+    });
+
+    it("below the cap: served (302) and the download is logged", async () => {
+      countMock.mockResolvedValueOnce({ count: 4, error: null });
+      queueLink();
+      maybeSingleMock.mockResolvedValueOnce({ data: { release_path: "books/test.pdf" }, error: null });
+      createSignedUrlMock.mockResolvedValueOnce({ data: { signedUrl: "https://supabase.example/signed/books/test.pdf" }, error: null });
+      insertMock.mockResolvedValueOnce({ error: null });
+
+      const res = await GET(new NextRequest(`https://expanpress.com/d/${validToken}`), { params: Promise.resolve({ token: validToken }) });
+
+      expect(res.status).toBe(302);
+      expect(insertMock).toHaveBeenCalledTimes(1);
+    });
+
+    it("a count that cannot be read denies (500): nothing is served", async () => {
+      countMock.mockResolvedValueOnce({ count: null, error: { message: "boom" } });
+      queueLink();
+
+      const res = await GET(new NextRequest(`https://expanpress.com/d/${validToken}`), { params: Promise.resolve({ token: validToken }) });
+
+      expect(res.status).toBe(500);
+      expect(createSignedUrlMock).not.toHaveBeenCalled();
+      expect(insertMock).not.toHaveBeenCalled();
     });
   });
 });
