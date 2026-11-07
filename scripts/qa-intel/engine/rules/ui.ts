@@ -14,11 +14,11 @@ export const InpAlertBlockerRule: IRule = {
         const expr = node.getExpression().getText();
         if (expr === 'alert') {
           const func = node.getFirstAncestorByKind(SyntaxKind.ArrowFunction)
-            || node.getFirstAncestorByKind(SyntaxKind.FunctionDeclaration)
-            || node.getFirstAncestorByKind(SyntaxKind.FunctionExpression);
+            ?? node.getFirstAncestorByKind(SyntaxKind.FunctionDeclaration)
+            ?? node.getFirstAncestorByKind(SyntaxKind.FunctionExpression);
           if (func) {
             const parent = func.getParent();
-            const isEventHandler = parent && (
+            const isEventHandler = (
               Node.isJsxAttribute(parent) ||
               (Node.isVariableDeclaration(parent) && parent.getName().startsWith('handle'))
             );
@@ -85,7 +85,7 @@ export const OverlayCloseCascadeRule: IRule = {
     const text = source.getText();
 
     if (text.includes('inert=') && text.includes('setOverlayOpen')) {
-      const closeHandlers = text.match(/onClick=\{[^}]*set\w+\(null\)/g) || [];
+      const closeHandlers = text.match(/onClick=\{[^}]*set\w+\(null\)/g) ?? [];
       const transitionWrapped = text.includes('startTransition');
 
       if (closeHandlers.length > 0 && !transitionWrapped) {
@@ -185,7 +185,7 @@ export const StartTransitionWrappingRule: IRule = {
 
     if (!filePath.includes('Dashboard') && !filePath.includes('Container')) return findings;
 
-    const directPasses = text.match(/onSelect=\{set\w+\}/g) || [];
+    const directPasses = text.match(/onSelect=\{set\w+\}/g) ?? [];
     if (directPasses.length > 0 && !text.includes('startTransition')) {
       findings.push({
         file: filePath,
@@ -326,7 +326,7 @@ export const CanvasStaleDataRule: IRule = {
     const text = source.getText();
 
     if ((text.includes('d3.') || text.includes('canvas') || text.includes('ForceGraph')) && text.includes('useEffect')) {
-      const effectBlocks = text.match(/useEffect\(\(\)\s*=>\s*\{[\s\S]*?\},\s*\[[\s\S]*?\]\)/g) || [];
+      const effectBlocks = text.match(/useEffect\(\(\)\s*=>\s*\{[\s\S]*?\},\s*\[[\s\S]*?\]\)/g) ?? [];
       for (const block of effectBlocks) {
         const hasGraphData = block.includes('graphData') || block.includes('nodes') || block.includes('words') || block.includes('data');
         if (!hasGraphData && (block.includes('d3.') || block.includes('canvas'))) {
@@ -364,8 +364,8 @@ export const ZustandWholeStoreInEffectDepsRule: IRule = {
     // state-setting call, permanently stuck at a "loading" status.
     const noSelectorCalls = [...text.matchAll(/const\s+(\w+)\s*=\s*(use\w*Store)\(\s*\)/g)];
     for (const match of noSelectorCalls) {
-      const varName = match[1]!;
-      const storeHookName = match[2]!;
+      const varName = match[1];
+      const storeHookName = match[2];
       // Match the standard `useEffect(() => { ...body... }, [deps])` shape --
       // [\s\S]*? (not [^;]*?) so the scan isn't blocked by semicolons inside
       // the callback body, which real effect bodies always have.

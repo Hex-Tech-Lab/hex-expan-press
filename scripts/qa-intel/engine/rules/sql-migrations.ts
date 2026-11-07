@@ -156,9 +156,9 @@ function sanitizeSql(text: string): string {
   /** Last identifier word already written to `out` (for the `as` lookbehind). */
   const prevWord = (): string => {
     let j = out.length - 1;
-    while (j >= 0 && /\s/.test(out[j]!)) j--;
+    while (j >= 0 && /\s/.test(out[j])) j--;
     let k = j;
-    while (k >= 0 && /[A-Za-z_]/.test(out[k]!)) k--;
+    while (k >= 0 && /[A-Za-z_]/.test(out[k])) k--;
     return out.slice(k + 1, j + 1);
   };
   while (i < text.length) {
@@ -298,7 +298,7 @@ function keyLikeTextParams(params: string): string[] {
   const re = /(\w*(?:key|column|col|path|field|sort|order|table|schema)\w*)\s+text\b/gi;
   const out: string[] = [];
   let m: RegExpExecArray | null;
-  while ((m = re.exec(params)) !== null) out.push(m[1]!);
+  while ((m = re.exec(params)) !== null) out.push(m[1]);
   return out;
 }
 
@@ -355,7 +355,7 @@ function normalizeSqlArg(arg: string): string {
   a = a.replace(/\s+default\s+.*$/i, "");
   a = a.replace(/^(?:in|out|inout|variadic)\s+/i, "");
   const tokens = a.split(" ");
-  if (tokens.length >= 2 && /^[a-z_][\w$]*$/i.test(tokens[0]!)) a = tokens.slice(1).join(" ");
+  if (tokens.length >= 2 && /^[a-z_][\w$]*$/i.test(tokens[0])) a = tokens.slice(1).join(" ");
   return a.toLowerCase();
 }
 
@@ -532,14 +532,16 @@ export const SqlDropFunctionDefaultArgRule: Rule = {
           t.slice(0, open).trim()
         );
         if (!nameMatch) continue;
-        const fnName = nameMatch[1] ?? nameMatch[2];
+        const fnName = (nameMatch[1] as string | undefined) ?? nameMatch[2];
         if (!fnName) continue;
         const args = t.slice(open + 1, close);
         if (!/\bdefault\b/i.test(args)) continue;
-        const defaultArg = splitTopLevelCommas(args)
-          .find((a) => /\bdefault\b/i.test(a))!
-          .trim()
-          .replace(/\s+/g, " ");
+        const defaultHit = splitTopLevelCommas(args).find((a) => /\bdefault\b/i.test(a));
+        if (defaultHit === undefined) {
+          // The test above matched "default" somewhere in args, not in a top-level element. Fail loudly, with a message.
+          throw new Error(`sql-migrations: no top-level DEFAULT argument found in ${fnName}`);
+        }
+        const defaultArg = defaultHit.trim().replace(/\s+/g, " ");
         findings.push({
           file: filePath,
           severity: severityFor(filePath, "high", ctx.allFiles, ctx.scanMode),

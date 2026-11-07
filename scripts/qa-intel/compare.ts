@@ -1,5 +1,8 @@
 /** The part of a finding that `--compare` keys on. */
-export type ComparableFinding = { file: string; title: string };
+export interface ComparableFinding {
+  file: string;
+  title: string;
+}
 
 /**
  * Findings in the scan that the baseline does not account for.

@@ -123,7 +123,7 @@ export const HardcodedTierGrantRule: Rule = {
         // variable declaration (the declarative price→tier mapping shape).
         if (isPlainStringLiteral(init)) {
           const obj = node.getParent();
-          if (obj && Node.isObjectLiteralExpression(obj) && !objectLiteralIsInDynamicContext(obj)) return;
+          if (Node.isObjectLiteralExpression(obj) && !objectLiteralIsInDynamicContext(obj)) return;
         }
         pushFinding(paid);
         return;
@@ -141,7 +141,6 @@ export const HardcodedTierGrantRule: Rule = {
         }
         if (name !== "tier") return;
         const rightNode = node.getRight();
-        if (!rightNode) return;
         const paid = paidTierText(rightNode.getText());
         if (!paid) return;
         pushFinding(paid);
@@ -301,7 +300,6 @@ export const ServiceRoleAnonFallbackRule: Rule = {
       if (op !== "||" && op !== "??") return;
       const left = node.getLeft();
       const right = node.getRight();
-      if (!left || !right) return;
       const serviceRoleSide = isServiceRoleKeyOperand(left) || isServiceRoleKeyOperand(right);
       const anonSide = isAnonKeyOperand(left) || isAnonKeyOperand(right);
       if (!serviceRoleSide || !anonSide) return;

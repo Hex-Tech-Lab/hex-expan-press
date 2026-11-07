@@ -61,7 +61,6 @@ function checkSentryInAbortCatch(source: SourceFile): boolean {
 
     const catchClause = node;
     const catchBlock = catchClause.getBlock();
-    if (!catchBlock) return;
 
     const catchText = catchBlock.getText();
     const calledNames = catchBlock.getDescendantsOfKind(SyntaxKind.CallExpression)

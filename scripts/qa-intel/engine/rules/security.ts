@@ -98,7 +98,7 @@ export const AuthorizationRegexBypassRule: IRule = {
         const text = r.getText();
         const match = /^\/\^(.*)\$\/([a-z]*)$/.exec(text);
         if (!match) return false;
-        const body = match[1] ?? '';
+        const body = match[1];
         return !/[.*+?^${}()|[\]\\]/.test(body);
       };
       const unanchored = regexLiterals.filter((r) => !isExactAnchored(r));
@@ -264,7 +264,7 @@ export const SecretsExposureRule: IRule = {
       // Hardcoded Secret Assignment (Juliet/SARD CWE-259)
       if (Node.isVariableDeclaration(node) || Node.isPropertyDeclaration(node)) {
         const nameNode = node.getNameNode();
-        const name = nameNode ? nameNode.getText() : "";
+        const name = nameNode.getText();
         const sensitivePatterns = ['dbpass', 'password', 'passwd', 'secretkey', 'privatekey'];
         if (sensitivePatterns.some(p => name.toLowerCase().includes(p))) {
           const initializer = node.getInitializer();
@@ -308,8 +308,8 @@ export const AuthSecurityRule: IRule = {
       let postBody = '';
       const functionMatch = text.match(/export\s+(async\s+)?function\s+POST\s*\([^)]*\)\s*\{/);
       const constMatch = !functionMatch ? text.match(/export\s+const\s+POST\s*=\s*(async\s+)?(\([^)]*\)|\w+)\s*=>\s*\{/) : null;
-      const match = functionMatch || constMatch;
-      if (match && match.index !== undefined) {
+      const match = functionMatch ?? constMatch;
+      if (match?.index !== undefined) {
         const bodyStart = match.index + match[0].length;
         // Brace-match: +1 for the opening brace in the match, count depth
         let depth = 1;
@@ -356,9 +356,9 @@ export const HmacMessageFormatRule: IRule = {
     // Both sides must sign identical messages — check for asymmetric fields
     if (filePath.includes('stream-token') || filePath.includes('worker.ts')) {
       const fieldPattern = /\$\{.*?\}:\$\{.*?\}/g;
-      const fields = text.match(fieldPattern) || [];
+      const fields = text.match(fieldPattern) ?? [];
       if (fields.length > 0) {
-        const fieldNames = fields.flatMap(f => f.match(/\$\{(\w+)/g) || []);
+        const fieldNames = fields.flatMap(f => f.match(/\$\{(\w+)/g) ?? []);
         const hasDimensions = fieldNames.some(f => f.includes('dimensions') || f.includes('chunkIndex') || f.includes('totalChunks'));
         const hasBasic = fieldNames.some(f => f.includes('videoId') || f.includes('analysisId'));
 
@@ -382,7 +382,7 @@ export const HmacMessageFormatRule: IRule = {
  * `regex.exec(s)` is not in this set: it returns null when nothing matches, so `exec(s)[0]` can throw.
  */
 function isSplitResult(base: Node): boolean {
-  return Node.isCallExpression(base) && /\.split$/.test(base.getExpression().getText());
+  return Node.isCallExpression(base) && base.getExpression().getText().endsWith(".split");
 }
 
 /**
@@ -395,11 +395,12 @@ function isMatchAllElement(base: Node): boolean {
   const declaration = base.getSymbol()?.getValueDeclaration();
   if (!declaration) return false;
   if (Node.isVariableDeclaration(declaration)) {
-    const loop = declaration.getParent()?.getParent();
+    const declarationList: Node | undefined = declaration.getParent();
+    const loop = declarationList?.getParent();
     return Node.isForOfStatement(loop) && loop.getExpression().getText().includes('.matchAll(');
   }
   if (Node.isParameterDeclaration(declaration)) {
-    const callback = declaration.getParent();
+    const callback: Node | undefined = declaration.getParent();
     const call = callback?.getParent();
     return Node.isCallExpression(call)
       && call.getArguments().includes(callback as Node)
@@ -439,7 +440,7 @@ export const UnsafePropertyAccessRule: IRule = {
             const tryStatement = node.getFirstAncestorByKind(SyntaxKind.TryStatement);
             if (!tryStatement) {
               const func = node.getFirstAncestorByKind(SyntaxKind.ArrowFunction)
-                || node.getFirstAncestorByKind(SyntaxKind.FunctionDeclaration);
+                ?? node.getFirstAncestorByKind(SyntaxKind.FunctionDeclaration);
               if (func && (func.getText().includes('fetch') || func.getText().includes('extract') || func.getText().includes('parse')) && !isSplitResult(node.getExpression()) && !isMatchAllElement(node.getExpression()) && !guardedByEarlierCheck(func, node.getExpression(), node)) {
                 findings.push({
                   file: filePath,
@@ -690,7 +691,6 @@ export const ReservedKeywordRule: IRule = {
       // `as const` assertions -- TypeScript represents both as Identifier
       // nodes with the same text, but neither is a declaration.
       const isDeclarationName =
-        parent !== undefined &&
         (Node.isVariableDeclaration(parent) ||
           Node.isParameterDeclaration(parent) ||
           Node.isBindingElement(parent) ||

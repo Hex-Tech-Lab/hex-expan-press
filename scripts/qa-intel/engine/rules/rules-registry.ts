@@ -43,7 +43,7 @@ export class RulesRegistry {
   }
 
   getRulesByCategory(category: string): RuleConfig[] {
-    return this.rulesByCategory.get(category) || [];
+    return this.rulesByCategory.get(category) ?? [];
   }
 
   getRuleByName(name: string): RuleConfig | undefined {
@@ -65,7 +65,7 @@ export class RulesRegistry {
   toExecutableRule(config: RuleConfig): Rule {
     return {
       name: config.name,
-      scope: config.scope || "file",
+      scope: config.scope ?? "file",
       check: (ctx: RuleContext) => {
         try {
           const findings = this.engine.execute(config, (ctx.ast as SourceFile), ctx.filePath);

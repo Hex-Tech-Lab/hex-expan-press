@@ -17,9 +17,7 @@ export interface RuleConfig {
   check: (matchers: PatternMatcher) => RuleExecutor;
 }
 
-export interface PatternMatcher {
-  [key: string]: (opts: unknown) => RuleExecutor;
-}
+export type PatternMatcher = Record<string, (opts: unknown) => RuleExecutor>;
 
 export type RuleExecutor = (source: SourceFile, filePath: string) => Finding[];
 

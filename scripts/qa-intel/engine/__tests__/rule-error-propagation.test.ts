@@ -9,8 +9,8 @@ function makeEngine(rules: unknown[], files: Record<string, string>) {
   const project = new Project({ useInMemoryFileSystem: true });
   for (const [p, c] of Object.entries(files)) project.createSourceFile(p, c, { overwrite: true });
   const loader = {
-    load: async (p: string) => project.getSourceFile(p)!,
-    loadFromText: async (p: string, t: string) => project.createSourceFile(p, t, { overwrite: true }),
+    load: (p: string) => Promise.resolve().then(() => project.getSourceFileOrThrow(p)),
+    loadFromText: (p: string, t: string) => Promise.resolve(project.createSourceFile(p, t, { overwrite: true })),
     getImports: () => [] as string[],
   };
   const fs = { exists: (p: string) => !!project.getSourceFile(p), resolve: (p: string) => p };
@@ -23,8 +23,8 @@ function makeEngine(rules: unknown[], files: Record<string, string>) {
 
 describe("rule exceptions are recorded, not swallowed", () => {
   test("a throwing rule becomes a rule error and the run still returns other rules' findings", async () => {
-    vi.spyOn(console, "error").mockImplementation(() => {});
-    vi.spyOn(console, "log").mockImplementation(() => {});
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    vi.spyOn(console, "log").mockImplementation(() => undefined);
     const broken = {
       name: "always-throws",
       check: () => {
@@ -52,7 +52,7 @@ describe("rule exceptions are recorded, not swallowed", () => {
   });
 
   test("a clean run records no rule errors", async () => {
-    vi.spyOn(console, "log").mockImplementation(() => {});
+    vi.spyOn(console, "log").mockImplementation(() => undefined);
     const engine = makeEngine([{ name: "quiet", check: () => [] }], { "src/b.ts": "export const b = 2;" });
     await engine.analyze(["src/b.ts"]);
     expect(engine.ruleErrors).toEqual([]);

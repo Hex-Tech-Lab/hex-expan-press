@@ -216,8 +216,8 @@ function signalExprIsBounded(expr: Node): boolean {
   if (text === "undefined" || text === "null") return false;
   if (/^AbortSignal\.timeout\s*\(/.test(text)) return true;
   // AbortSignal.any([...]) — bounded iff at least one element is bounded.
-  if (Node.isCallExpression(expr) && /^AbortSignal\.any/.test(text)) {
-    const first = expr.getArguments()[0];
+  if (Node.isCallExpression(expr) && text.startsWith("AbortSignal.any")) {
+    const first: Node | undefined = expr.getArguments()[0];
     if (first && Node.isArrayLiteralExpression(first)) {
       return first.getElements().some((el) => {
         if (/^AbortSignal\.timeout\s*\(/.test(el.getText())) return true;
@@ -225,7 +225,7 @@ function signalExprIsBounded(expr: Node): boolean {
         return m ? controllerHasBoundedTimeout(m[1], expr) : false;
       });
     }
-    return /^AbortSignal\.timeout/.test(text);
+    return text.startsWith("AbortSignal.timeout");
   }
   // controller.signal — bounded only if the controller is aborted via
   // setTimeout somewhere in the same enclosing function/file scope.
@@ -440,7 +440,7 @@ export const SuccessGuardedPersistenceRule: Rule = {
       const condMatch = /^([\w$.]+)\.length(?:\s*>\s*0)?$/.exec(condText);
       if (!condMatch) return;
       const thenText = node.getThenStatement().getText();
-      const isWriteThrough = /\.update\(/.test(thenText) || /setRedisValue\(/.test(thenText);
+      const isWriteThrough = thenText.includes(".update(") || thenText.includes("setRedisValue(");
       if (!isWriteThrough) return;
 
       findings.push({
