@@ -21,7 +21,7 @@ mkdir -p "$R" && git -C "$R" init -q && git -C "$R" config user.email t@t && git
 git -C "$R" remote add origin https://github.com/Hex-Tech-Lab/hex-expan-press.git
 echo base > "$R/README.md" && git -C "$R" add -A && git -C "$R" commit -qm base
 BASE_SHA=$(git -C "$R" rev-parse HEAD)
-git -C "$R" update-ref refs/remotes/origin/master HEAD
+git -C "$R" update-ref refs/remotes/origin/main HEAD
 git -C "$R" checkout -qb feature
 echo change > "$R/docs.md" && git -C "$R" add -A && git -C "$R" commit -qm change
 git -C "$R" update-ref refs/remotes/origin/feature HEAD
@@ -74,10 +74,10 @@ expect "unpushed HEAD" deny "$R" "gh pr create --fill"
 reason_has "unpushed reason" "not pushed"
 git -C "$R" update-ref refs/remotes/origin/feature HEAD
 # 8. Base ref does not resolve: deny (old code fell back to the literal ref name).
-git -C "$R" update-ref -d refs/remotes/origin/master
+git -C "$R" update-ref -d refs/remotes/origin/main
 expect "unresolvable base" deny "$R" "gh pr create --fill"
 reason_has "unresolvable base reason" "does not resolve"
-git -C "$R" update-ref refs/remotes/origin/master "$BASE_SHA"
+git -C "$R" update-ref refs/remotes/origin/main "$BASE_SHA"
 # 9. Numbered PR whose head is not local HEAD: deny.
 FAKE_GH_HEAD=0000000000000000000000000000000000000000 expect "PR head differs from HEAD" deny "$R" "gh pr merge 5 --squash"
 # 10. gh cannot report the PR head: deny.
@@ -116,12 +116,12 @@ if grep -q '"permissionDecision":"deny"' <<<"$out"; then pass=$((pass+1)); else 
 git -C "$R" checkout -q -b qa-side "$BASE_SHA" && mkdir -p "$R/scripts" && echo "// engine" > "$R/scripts/verify-quality-engine.ts" \
   && git -C "$R" add -A && git -C "$R" commit -qm engine && QA_SHA=$(git -C "$R" rev-parse HEAD)
 git -C "$R" checkout -q feature
-git -C "$R" update-ref refs/remotes/origin/master "$QA_SHA"
+git -C "$R" update-ref refs/remotes/origin/main "$QA_SHA"
 start_marker
 for s in $REQ; do record "$s" PASS; done
 expect "qa-intel required when base has the engine" deny "$R" "gh pr create --fill"
 reason_has "qa-intel listed" "qa-intel"
-git -C "$R" update-ref refs/remotes/origin/master "$BASE_SHA"
+git -C "$R" update-ref refs/remotes/origin/main "$BASE_SHA"
 
 # 19. A required line's verdict must be exactly PASS, N/A, or "waiver:" followed by a reason (second token only).
 for v in "pass" "PASS:" "N/A:" "waiver:" "waiver:nope" "PARTIAL" "FAIL" "pending"; do
@@ -156,6 +156,53 @@ done
 start_marker
 for s in $REQ; do record "$s" PASS; done
 FAKE_GH_HEAD=$(git -C "$R" rev-parse HEAD) expect "merge with full record incl. code-review" allow "$R" "gh pr merge 5 --squash"
+
+# 22-24. Base-branch resolution: origin/main first, then origin/master, and fail closed when neither resolves.
+# origin/master (QA_SHA) carries the qa-intel engine; origin/main (BASE_SHA) does not. The required list differs by base.
+reason_lacks(){ # reason_lacks <name> <substring>: the last deny reason must NOT contain the substring
+  if jq -r '.hookSpecificOutput.permissionDecisionReason // empty' <<<"$LAST" 2>/dev/null | grep -qF -- "$2"; then fail=$((fail+1)); echo "FAIL: $1 (reason has: $2)"
+  else pass=$((pass+1)); fi
+}
+# 22. (a) Both refs present, different commits: origin/main is the base, so qa-intel is not required.
+p0=$pass; f0=$fail
+git -C "$R" update-ref refs/remotes/origin/master "$QA_SHA"
+if ! git -C "$R" rev-parse --verify -q refs/remotes/origin/main >/dev/null || ! git -C "$R" rev-parse --verify -q refs/remotes/origin/master >/dev/null; then
+  fail=$((fail+1)); echo "FAIL: (a) setup needs both refs"
+fi
+start_marker
+expect "(a) main wins over master: PR create without a record" deny "$R" "gh pr create --fill"
+reason_lacks "(a) main wins: qa-intel not required when origin/main lacks the engine" "qa-intel"
+REQ_MAIN=$(reqlist)
+start_marker
+for s in $REQ_MAIN; do record "$s" PASS; done
+expect "(a) main wins: full record for the origin/main list allows" allow "$R" "gh pr create --fill"
+echo "case (a) main wins: $((pass-p0)) passed, $((fail-f0)) failed"
+# 23. (b) Only origin/master present: it is the base, and qa-intel applies because it carries the engine.
+p0=$pass; f0=$fail
+git -C "$R" update-ref -d refs/remotes/origin/main
+git -C "$R" update-ref refs/remotes/origin/master "$QA_SHA"
+start_marker
+expect "(b) only master: PR create without a record" deny "$R" "gh pr create --fill"
+reason_has "(b) only master: qa-intel required" "qa-intel"
+REQ_MASTER=$(reqlist)
+start_marker
+for s in $REQ_MASTER; do [ "$s" = qa-intel ] || record "$s" PASS; done
+expect "(b) only master: qa-intel missing denies" deny "$R" "gh pr create --fill"
+reason_has "(b) only master: qa-intel is the missing record" "Missing: qa-intel"
+record qa-intel PASS
+expect "(b) only master: qa-intel recorded allows" allow "$R" "gh pr create --fill"
+echo "case (b) only master: $((pass-p0)) passed, $((fail-f0)) failed"
+# 24. (c) Neither ref present: the hook fails closed even with a complete record.
+p0=$pass; f0=$fail
+git -C "$R" update-ref -d refs/remotes/origin/master
+git -C "$R" rev-parse --verify -q refs/remotes/origin/main >/dev/null && { fail=$((fail+1)); echo "FAIL: (c) setup expects origin/main absent"; }
+start_marker
+for s in $REQ; do record "$s" PASS; done
+expect "(c) neither base ref: PR create fails closed" deny "$R" "gh pr create --fill"
+reason_has "(c) neither: base does not resolve" "does not resolve"
+git -C "$R" update-ref refs/remotes/origin/main "$BASE_SHA"
+git -C "$R" update-ref -d refs/remotes/origin/master 2>/dev/null || true
+echo "case (c) neither ref: $((pass-p0)) passed, $((fail-f0)) failed"
 
 echo "skill-gates regression: $pass passed, $fail failed"
 [ "$fail" -eq 0 ]

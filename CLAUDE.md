@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A few things worth restating because they are easy to violate accidentally:
 
-- This is a git repo (branch `master`, remote `origin` = `github.com/Hex-Tech-Lab/hex-expan-press`, **public**). Never commit or push without being asked. Strategic/business/legal material and anything under `data/` never goes in git (Rule #0) — check `git check-ignore <path>` before staging anything new. Sessions may also run in `.claude/worktrees/*`; a worktree contains tracked files only, so gitignored `data/` is absent there unless copied in.
+- This is a git repo (branch `main`, remote `origin` = `github.com/Hex-Tech-Lab/hex-expan-press`, **public**). Never commit or push without being asked. Strategic/business/legal material and anything under `data/` never goes in git (Rule #0) — check `git check-ignore <path>` before staging anything new. Sessions may also run in `.claude/worktrees/*`; a worktree contains tracked files only, so gitignored `data/` is absent there unless copied in.
 - Pipeline order is fixed: `harvest` → GLM generates `candidates.json` → `score`. Never reorder or skip.
 - **Supabase is 100% cloud-hosted (remote-only):** Never probe 127.0.0.1:54322; valid `--linked` commands are `supabase migration list --linked`, `supabase db lint --linked`, and `supabase db advisors --linked`, or use `SUPABASE_URL` from `.env`.
 - `.env` holds live API keys — never echo or paste key values back into chat.
