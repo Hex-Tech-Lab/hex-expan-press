@@ -15,17 +15,17 @@ const CANDIDATE_DIRS = [
 
 function readRegistryFile(name: string): Record<string, unknown> | undefined {
   for (const dir of CANDIDATE_DIRS) {
-    const p = path.join(dir, name);
+    const filePath = path.join(dir, name);
     try {
-      if (!existsSync(p)) continue;
-      const parsed: unknown = JSON.parse(readFileSync(p, "utf8"));
+      if (!existsSync(filePath)) continue;
+      const parsed: unknown = JSON.parse(readFileSync(filePath, "utf8"));
       if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
         return parsed as Record<string, unknown>;
       }
     } catch (err) {
       // unreadable/invalid -> try next candidate, else fall back to inline defaults (loudly: a corrupt
       // settings file must never silently become the built-in defaults)
-      console.error(`[settings-registry] ${p} unreadable/invalid JSON — skipped:`, err instanceof Error ? err.message : err);
+      console.error(`[settings-registry] ${name} unreadable/invalid JSON — skipped:`, err instanceof Error ? err.message : err);
     }
   }
   return undefined;
@@ -75,6 +75,17 @@ export interface GlobalSettings {
   };
   portal: { jwt_clock_skew_retry_delay_ms: number };
   consent: { text_version: string };
+  /** Billing mailbox sweep (hourly QStash -> /api/ops/billing-sweep) and its health check. The sweep reads the
+   *  mailbox over IMAP and records messages addressed to billing_address. It never replies, moves or deletes. */
+  billing_sweep: {
+    billing_address: string;
+    mailbox_user: string;
+    imap_host: string;
+    imap_port: number;
+    fetch_chunk_size: number;
+    stale_after_seconds: number;
+    alert_to: string;
+  };
 }
 
 export const DEFAULT_GLOBAL: GlobalSettings = {
@@ -141,6 +152,15 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
   portal: { jwt_clock_skew_retry_delay_ms: 350 },
   admin: { admin_user_ids: [], audit_log_page_size: 50 },
   consent: { text_version: "v1.1" },
+  billing_sweep: {
+    billing_address: "billing@expanpress.com",
+    mailbox_user: "hello@expanpress.com",
+    imap_host: "mail.privateemail.com",
+    imap_port: 993,
+    fetch_chunk_size: 100, // messages fetched per round trip; a batching size, every match is still processed
+    stale_after_seconds: 7200, // two missed hourly runs before the health check alerts
+    alert_to: "ops@expanpress.com", // ops@ is an alias of the hello@ mailbox, so alerts land where the sweep reads
+  },
 };
 
 // Bounds for the admin tunables (feature code must never hard-code them).
@@ -161,29 +181,24 @@ export const PAYMENTS_LIMITS = {
   retry_after_seconds: { min: 1, max: 600 },
 } as const;
 
-function intInRange(v: unknown, min: number, max: number): v is number {
-  return typeof v === "number" && Number.isInteger(v) && v >= min && v <= max;
+function intInRange(value: unknown, min: number, max: number): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value >= min && value <= max;
 }
 
 // Accepts only the exact canonical Paddle host after stripping trailing slashes.
 // Rejects credentials, non-default port, any path/query/fragment — Bearer tokens
 // must never be sent to another host.
-function isCanonicalPaddleApiUrl(v: unknown, expected: string): v is string {
-  if (typeof v !== "string") return false;
-  const s = v.replace(/\/+$/, "");
-  if (s !== expected) return false;
-  try {
-    const u = new URL(s);
-    if (u.username || u.password || u.port || u.search || u.hash) return false;
-    if (u.pathname !== "/" && u.pathname !== "") return false;
-    return true;
-  } catch {
-    return false;
-  }
+function isCanonicalPaddleApiUrl(value: unknown, expected: string): value is string {
+  if (typeof value !== "string") return false;
+  const trimmed = value.replace(/\/+$/, "");
+  if (trimmed !== expected || !URL.canParse(trimmed)) return false;
+  const parsed = new URL(trimmed);
+  if (parsed.username || parsed.password || parsed.port || parsed.search || parsed.hash) return false;
+  return parsed.pathname === "/" || parsed.pathname === "";
 }
 
-function isPaddleJsCdnUrl(v: unknown): v is string {
-  return v === "https://cdn.paddle.com/paddle/v2/paddle.js";
+function isPaddleJsCdnUrl(value: unknown): value is string {
+  return value === "https://cdn.paddle.com/paddle/v2/paddle.js";
 }
 
 // ISO 4217 codes our providers settle. Membership is explicit — shape checks
@@ -195,31 +210,25 @@ export const SUPPORTED_ISO_4217: ReadonlySet<string> = new Set([
   "PHP", "THB", "TWD", "UAH", "RUB",
 ] as const);
 
-function isHttpsUrl(v: unknown): v is string {
-  if (typeof v !== "string" || !v.startsWith("https://")) return false;
-  try {
-    new URL(v);
-    return true;
-  } catch {
-    return false;
-  }
+function isHttpsUrl(value: unknown): value is string {
+  return typeof value === "string" && value.startsWith("https://") && URL.canParse(value);
 }
 
 export function loadPaymentsSection(raw: Record<string, unknown> | undefined): GlobalSettings["payments"] {
-  const d = DEFAULT_GLOBAL.payments;
-  if (!raw) return d;
-  const p = raw as Partial<GlobalSettings["payments"]> & Record<string, unknown>;
-  const paddle = (p.paddle ?? {}) as Partial<GlobalSettings["payments"]["paddle"]>;
+  const defaults = DEFAULT_GLOBAL.payments;
+  if (!raw) return defaults;
+  const payments = raw as Partial<GlobalSettings["payments"]> & Record<string, unknown>;
+  const paddle = (payments.paddle ?? {}) as Partial<GlobalSettings["payments"]["paddle"]>;
   const apiBase = (paddle.api_base ?? {}) as Partial<GlobalSettings["payments"]["paddle"]["api_base"]>;
   const fallbacks: string[] = [];
   // Warn ONLY for keys explicitly present and invalid; omitted keys default silently.
   const num = (key: keyof typeof PAYMENTS_LIMITS): number => {
-    if (!(key in p)) return d[key];
-    const v = p[key];
+    if (!(key in payments)) return defaults[key];
+    const value = payments[key];
     const { min, max } = PAYMENTS_LIMITS[key];
-    if (intInRange(v, min, max)) return v;
+    if (intInRange(value, min, max)) return value;
     fallbacks.push(key);
-    return d[key];
+    return defaults[key];
   };
   const webhookTolerance = num("webhook_tolerance_seconds");
   const webhookLockTtl = num("webhook_lock_ttl_seconds");
@@ -228,27 +237,27 @@ export function loadPaymentsSection(raw: Record<string, unknown> | undefined): G
   // Validate BEFORE the fallback warning below, so an invalid value is reported, not silently defaulted.
   const reviewQueuePageSize = num("review_queue_page_size");
   const retryAfterSeconds = num("retry_after_seconds");
-  const paddleUrl = (v: unknown, expected: string, label: string, validateAndNormalize: (x: unknown) => string | null): string => {
-    const normalized = v === undefined ? null : validateAndNormalize(v);
+  const paddleUrl = (value: unknown, expected: string, label: string, validateAndNormalize: (x: unknown) => string | null): string => {
+    const normalized = value === undefined ? null : validateAndNormalize(value);
     if (normalized !== null) return normalized;
-    if (v !== undefined) fallbacks.push(label);
+    if (value !== undefined) fallbacks.push(label);
     return expected;
   };
   const apiProduction = paddleUrl(
-    apiBase.production, d.paddle.api_base.production, "paddle.api_base.production",
+    apiBase.production, defaults.paddle.api_base.production, "paddle.api_base.production",
     (x) => isCanonicalPaddleApiUrl(x, "https://api.paddle.com") ? (x as string).replace(/\/+$/, "") : null,
   );
   const apiSandbox = paddleUrl(
-    apiBase.sandbox, d.paddle.api_base.sandbox, "paddle.api_base.sandbox",
+    apiBase.sandbox, defaults.paddle.api_base.sandbox, "paddle.api_base.sandbox",
     (x) => isCanonicalPaddleApiUrl(x, "https://sandbox-api.paddle.com") ? (x as string).replace(/\/+$/, "") : null,
   );
-  const jsCdn = paddleUrl(paddle.js_cdn_url, d.paddle.js_cdn_url, "paddle.js_cdn_url", (x) => (isPaddleJsCdnUrl(x) ? (x as string) : null));
-  let currencies = d.allowed_currencies;
-  if (p.allowed_currencies !== undefined) {
-    const list = Array.isArray(p.allowed_currencies)
-      ? p.allowed_currencies.map(String)
+  const jsCdn = paddleUrl(paddle.js_cdn_url, defaults.paddle.js_cdn_url, "paddle.js_cdn_url", (x) => (isPaddleJsCdnUrl(x) ? (x as string) : null));
+  let currencies = defaults.allowed_currencies;
+  if (payments.allowed_currencies !== undefined) {
+    const list = Array.isArray(payments.allowed_currencies)
+      ? payments.allowed_currencies.map(String)
       : null;
-    if (list && list.length > 0 && list.every((c) => SUPPORTED_ISO_4217.has(c))) {
+    if (list && list.length > 0 && list.every((currency) => SUPPORTED_ISO_4217.has(currency))) {
       currencies = list;
     } else {
       fallbacks.push("allowed_currencies");
@@ -274,27 +283,28 @@ function loadGlobal(): GlobalSettings {
     // Production deploys no global.json: env overrides (ADMIN_USER_IDS) must still apply.
     return { ...DEFAULT_GLOBAL, admin: loadAdminSection(undefined) };
   }
-  const g = raw as Partial<GlobalSettings> & Record<string, unknown>;
+  const globalRaw = raw as Partial<GlobalSettings> & Record<string, unknown>;
   return {
     ...DEFAULT_GLOBAL,
-    ...g,
-    paths: { ...DEFAULT_GLOBAL.paths, ...(g.paths ?? {}) },
-    endpoints: { ...DEFAULT_GLOBAL.endpoints, ...(g.endpoints ?? {}) },
-    tool_paths: { ...DEFAULT_GLOBAL.tool_paths, ...(g.tool_paths ?? {}) },
-    server: { ...DEFAULT_GLOBAL.server, ...(g.server ?? {}) },
-    defaults: { ...DEFAULT_GLOBAL.defaults, ...(g.defaults ?? {}) },
-    payments: loadPaymentsSection(g.payments as Record<string, unknown> | undefined),
-    landing: { ...DEFAULT_GLOBAL.landing, ...(g.landing ?? {}) },
-    email: loadEmailSection(g.email as Record<string, unknown> | undefined),
-    portal: { ...DEFAULT_GLOBAL.portal, ...(g.portal ?? {}) },
-    admin: loadAdminSection(g.admin as Record<string, unknown> | undefined),
-    consent: { ...DEFAULT_GLOBAL.consent, ...(g.consent ?? {}) },
+    ...globalRaw,
+    paths: { ...DEFAULT_GLOBAL.paths, ...(globalRaw.paths ?? {}) },
+    endpoints: { ...DEFAULT_GLOBAL.endpoints, ...(globalRaw.endpoints ?? {}) },
+    tool_paths: { ...DEFAULT_GLOBAL.tool_paths, ...(globalRaw.tool_paths ?? {}) },
+    server: { ...DEFAULT_GLOBAL.server, ...(globalRaw.server ?? {}) },
+    defaults: { ...DEFAULT_GLOBAL.defaults, ...(globalRaw.defaults ?? {}) },
+    payments: loadPaymentsSection(globalRaw.payments as Record<string, unknown> | undefined),
+    landing: { ...DEFAULT_GLOBAL.landing, ...(globalRaw.landing ?? {}) },
+    email: loadEmailSection(globalRaw.email as Record<string, unknown> | undefined),
+    portal: { ...DEFAULT_GLOBAL.portal, ...(globalRaw.portal ?? {}) },
+    admin: loadAdminSection(globalRaw.admin as Record<string, unknown> | undefined),
+    consent: { ...DEFAULT_GLOBAL.consent, ...(globalRaw.consent ?? {}) },
+    billing_sweep: loadBillingSweepSection(globalRaw.billing_sweep as Record<string, unknown> | undefined),
   };
 }
 
 export function consentTextVersion(): string {
-  const v = GLOBAL.consent?.text_version;
-  return typeof v === "string" && v.trim().length > 0 ? v.trim() : DEFAULT_GLOBAL.consent.text_version;
+  const value = GLOBAL.consent?.text_version;
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : DEFAULT_GLOBAL.consent.text_version;
 }
 
 export const PORTAL_JWT_SKEW_LIMITS = { min: 250, max: 500 } as const;
@@ -304,14 +314,14 @@ export const PORTAL_JWT_SKEW_LIMITS = { min: 250, max: 500 } as const;
  *  audit_log_page_size clamps into its bounds. Env overrides:
  *  ADMIN_USER_IDS (comma-separated), ADMIN_AUDIT_LOG_PAGE_SIZE. */
 export function loadAdminSection(raw: Record<string, unknown> | undefined): GlobalSettings["admin"] {
-  const d = DEFAULT_GLOBAL.admin;
-  const r = (raw ?? {}) as Partial<GlobalSettings["admin"]> & Record<string, unknown>;
+  const defaults = DEFAULT_GLOBAL.admin;
+  const input = (raw ?? {}) as Partial<GlobalSettings["admin"]> & Record<string, unknown>;
   const fallbacks: string[] = [];
-  let userIds = d.admin_user_ids;
+  let userIds = defaults.admin_user_ids;
   // Env wins over global.json (production deploys no global.json; the env is the operator's override).
   // An empty / commas-only ADMIN_USER_IDS counts as unset, so it can't silently blank a file allowlist.
-  const envIds = process.env.ADMIN_USER_IDS?.split(",").map((s) => s.trim()).filter((s) => s !== "");
-  const rawIds = envIds && envIds.length > 0 ? envIds : r.admin_user_ids;
+  const envIds = process.env.ADMIN_USER_IDS?.split(",").map((entry) => entry.trim()).filter((entry) => entry !== "");
+  const rawIds = envIds && envIds.length > 0 ? envIds : input.admin_user_ids;
   if (rawIds !== undefined) {
     if (
       Array.isArray(rawIds)
@@ -323,8 +333,8 @@ export function loadAdminSection(raw: Record<string, unknown> | undefined): Glob
       fallbacks.push("admin_user_ids");
     }
   }
-  let pageSize = d.audit_log_page_size;
-  const rawSize = process.env.ADMIN_AUDIT_LOG_PAGE_SIZE !== undefined ? Number(process.env.ADMIN_AUDIT_LOG_PAGE_SIZE) : r.audit_log_page_size;
+  let pageSize = defaults.audit_log_page_size;
+  const rawSize = process.env.ADMIN_AUDIT_LOG_PAGE_SIZE !== undefined ? Number(process.env.ADMIN_AUDIT_LOG_PAGE_SIZE) : input.audit_log_page_size;
   if (intInRange(rawSize, ADMIN_LIMITS.audit_log_page_size.min, ADMIN_LIMITS.audit_log_page_size.max)) {
     pageSize = rawSize;
   } else if (rawSize !== undefined) {
@@ -335,9 +345,9 @@ export function loadAdminSection(raw: Record<string, unknown> | undefined): Glob
 }
 
 /** Clamp a raw jwt_clock_skew_retry_delay_ms into [250,500]; non-finite/missing -> 350. */
-export function clampJwtSkewDelay(v: unknown): number {
-  if (typeof v !== "number" || !Number.isFinite(v)) return DEFAULT_GLOBAL.portal.jwt_clock_skew_retry_delay_ms;
-  return Math.min(Math.max(v, PORTAL_JWT_SKEW_LIMITS.min), PORTAL_JWT_SKEW_LIMITS.max);
+export function clampJwtSkewDelay(value: unknown): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return DEFAULT_GLOBAL.portal.jwt_clock_skew_retry_delay_ms;
+  return Math.min(Math.max(value, PORTAL_JWT_SKEW_LIMITS.min), PORTAL_JWT_SKEW_LIMITS.max);
 }
 
 /** Clamped portal.jwt_clock_skew_retry_delay_ms from the loaded registry. */
@@ -350,19 +360,66 @@ export function jwtSkewRetryDelayMs(): number {
 export function loadEmailSection(raw: Record<string, unknown> | undefined): GlobalSettings["email"] {
   const merged = { ...DEFAULT_GLOBAL.email, ...(raw ?? {}) } as GlobalSettings["email"];
   const names = (raw ?? {}).retryable_error_names;
-  if (names !== undefined && !(Array.isArray(names) && names.length > 0 && names.every((n) => typeof n === "string" && n !== "" && n === n.trim()))) {
+  if (names !== undefined && !(Array.isArray(names) && names.length > 0 && names.every((name) => typeof name === "string" && name !== "" && name === name.trim()))) {
     warnFallback("global.json", "invalid email values for retryable_error_names");
     merged.retryable_error_names = DEFAULT_GLOBAL.email.retryable_error_names;
   }
   return merged;
 }
 
+// billing_sweep bounds. Feature code reads the validated values from GLOBAL, never these literals.
+export const BILLING_SWEEP_LIMITS = {
+  fetch_chunk_size: { min: 10, max: 500 },
+  stale_after_seconds: { min: 600, max: 86400 },
+  imap_port: { min: 1, max: 65535 },
+} as const;
+
+const SWEEP_EMAIL_SHAPE = /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/;
+const SWEEP_HOST_SHAPE = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/i;
+
+/** billing_sweep: every value is validated. An invalid value falls back to its default and warns (never silent). */
+export function loadBillingSweepSection(raw: Record<string, unknown> | undefined): GlobalSettings["billing_sweep"] {
+  const defaults = DEFAULT_GLOBAL.billing_sweep;
+  if (raw === undefined) return defaults;
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+    warnFallback("global.json", "billing_sweep must be an object; using defaults");
+    return defaults;
+  }
+  const fallbacks: string[] = [];
+  const text = (key: "billing_address" | "mailbox_user" | "imap_host" | "alert_to", ok: (candidate: string) => boolean): string => {
+    const value = raw[key];
+    if (value === undefined) return defaults[key];
+    if (typeof value === "string" && ok(value)) return value;
+    fallbacks.push(key);
+    return defaults[key];
+  };
+  const int = (key: "imap_port" | "fetch_chunk_size" | "stale_after_seconds"): number => {
+    const value = raw[key];
+    if (value === undefined) return defaults[key];
+    const { min, max } = BILLING_SWEEP_LIMITS[key];
+    if (intInRange(value, min, max)) return value;
+    fallbacks.push(key);
+    return defaults[key];
+  };
+  const section = {
+    billing_address: text("billing_address", (candidate) => SWEEP_EMAIL_SHAPE.test(candidate)),
+    mailbox_user: text("mailbox_user", (candidate) => SWEEP_EMAIL_SHAPE.test(candidate)),
+    imap_host: text("imap_host", (candidate) => SWEEP_HOST_SHAPE.test(candidate)),
+    imap_port: int("imap_port"),
+    fetch_chunk_size: int("fetch_chunk_size"),
+    stale_after_seconds: int("stale_after_seconds"),
+    alert_to: text("alert_to", (candidate) => SWEEP_EMAIL_SHAPE.test(candidate)),
+  };
+  if (fallbacks.length > 0) warnFallback("global.json", `invalid billing_sweep values for ${fallbacks.join(", ")}`);
+  return section;
+}
+
 export const GLOBAL: GlobalSettings = loadGlobal();
 
 /** Expand a leading `~/` (or bare `~`) to $HOME; non-tilde paths pass through. */
-export function expandHome(p: string, home: string): string {
-  if (home && (p === "~" || p.startsWith("~/"))) return path.join(home, p.slice(1));
-  return p;
+export function expandHome(target: string, home: string): string {
+  if (home && (target === "~" || target.startsWith("~/"))) return path.join(home, target.slice(1));
+  return target;
 }
 
 /** True when the process runs on a production-shaped money path: NODE_ENV=production,
@@ -586,7 +643,7 @@ export function allowedCurrencies(): string[] {
 }
 
 export function isAllowedCurrency(currency: string): boolean {
-  return allowedCurrencies().map((c) => c.toUpperCase()).includes(String(currency).toUpperCase());
+  return allowedCurrencies().map((code) => code.toUpperCase()).includes(String(currency).toUpperCase());
 }
 
 /** Resolve a dotted path (e.g. "meta.custom_data.product_id") against a parsed webhook body. */

@@ -1328,5 +1328,13 @@
     "title": "SQL: SECURITY DEFINER function exposes a caller-controlled key/column parameter to untrusted callers",
     "why": "Function submit_consent runs with elevated (SECURITY DEFINER) privileges, its EXECUTE grant reaches untrusted callers (authenticated, service_role), and it accepts caller-controlled key/column/path-shaped text parameter(s) 'p_evidence_path' with no allowlist guard. A caller can steer which field/path the definer writes or reads, turning the RPC into an arbitrary-field overwrite (real incident: PR #322's merge_analysis_payload_key accepted any payload key; fixed only after external review).",
     "fix": "Either (a) drop the caller-controlled parameter(s) entirely, (b) hard-allowlist the permitted values inside the function body (e.g. IF p_evidence_path NOT IN ('allowed_key') THEN RAISE EXCEPTION), and/or (c) REVOKE EXECUTE ... FROM anon, authenticated, public and grant only to service_role."
+  },
+  {
+    "file": "payments/src/settings_registry.ts",
+    "severity": "medium",
+    "title": "Complexity: Monolithic File",
+    "why": "File exceeds 500 lines (665 lines).",
+    "fix": "Decompose into smaller, domain-specific modules.",
+    "reason": "Accepted for now by the founder on 2026-11-07. The registry is one file read at boot, not a hot path. Splitting it touches every importer, so it is a separate change: split per settings section (payments, delivery, email, billing_sweep, admin) behind the same GLOBAL export. Revisit at the next settings change."
   }
 ]
