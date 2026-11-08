@@ -1,0 +1,22 @@
+scripts/__tests__/test_bundle_manifest.py
+  h_e6b68dcbbd0983 1-1847
+scripts/generate_bundle_manifest.py
+  h_e6b68dcbbd0983 1-628
+scripts/live_site_check.py
+  h_e6b68dcbbd0983 20,28-31,33-34,36,38,40-53,86,88,98,101
+scripts/watermark_pdf.py
+  h_e6b68dcbbd0983 5-13,20-21,34,37-64,66-91,93-94,98,102,108,119-213,217-242,245-255,259-275,277,279-302,304,309,311,313,315-319,321-326,328-334,336-359,361-362,365,367-368,374-376,383-397,400
+scripts/bundle_salt.py
+  h_e6b68dcbbd0983 1-26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6cdf48441a06e4c1453afbea4e86f65a07525467",
+  "prompts": {},
+  "humans": {
+    "h_e6b68dcbbd0983": {
+      "author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
