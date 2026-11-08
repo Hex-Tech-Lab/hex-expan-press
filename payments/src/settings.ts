@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { GLOBAL, isRegisteredPaymentProvider } from "./settings_registry.ts";
+import { GLOBAL, isEnabledPaymentProvider } from "./settings_registry.ts";
 import { loadBookIdentity } from "../book_identity.ts";
 
 export interface RailConfig {
@@ -89,8 +89,8 @@ export function parseProduct(raw: unknown, source: string): ProductConfig {
       if (typeof rr.weight !== "number" || !Number.isFinite(rr.weight) || rr.weight <= 0) {
         throw new Error(`settings: ${source} "rails[${i}].weight" must be a finite number > 0 (got ${String(rr.weight)})`);
       }
-      if (!isRegisteredPaymentProvider(rr.provider)) {
-        throw new Error(`settings: ${source} "rails[${i}].provider" "${rr.provider}" is not a registered payment provider in providers.json`);
+      if (!isEnabledPaymentProvider(rr.provider)) {
+        throw new Error(`settings: ${source} "rails[${i}].provider" "${rr.provider}" is not an enabled payment provider in providers.json`);
       }
       if (seen.has(rr.provider)) {
         throw new Error(`settings: ${source} "rails" has duplicate provider "${rr.provider}"`);
