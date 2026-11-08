@@ -1,0 +1,25 @@
+.github/workflows/lint-ci.yml
+  s_6625bc67577472::t_3a98a1d44c49ee 1,10,12-13,16,27,238,241,245,285
+.github/workflows/real-browser-latency.yml
+  s_6625bc67577472::t_a52ec039e35fa6 7-9,119,121
+scripts/latency/workflow-invariants.test.mjs
+  s_6625bc67577472::t_83a6a7295983b2 4,52,122-124
+web/package.json
+  s_6625bc67577472::t_69b145233ee139 14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "16f5182c5628994a1d0f383a8c1296ff31580422",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
