@@ -1,4 +1,5 @@
 .env
+node_modules
 node_modules/
 data/
 *.log
@@ -64,7 +65,8 @@ manuscript/book/build.typ
 docs/history/
 docs/templates/
 manuscript/book/design_rules.json
-scripts/__pycache__/
+__pycache__/
+*.pyc
 
 # photo-search candidates and agent scratch (not book assets)
 typst_prototype/img_v3/_search/

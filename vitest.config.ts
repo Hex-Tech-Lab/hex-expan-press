@@ -14,6 +14,19 @@ export default defineConfig({
       "scripts/**/__tests__/**/*.test.ts",
     ],
     environment: "node",
+    // Raises testTimeout for scripts/qa-intel and scripts/contract-auditor files only (see the file).
+    setupFiles: ["scripts/qa-intel/vitest.setup.ts"],
+    coverage: {
+      // The V8 uncovered-file pass parses every file under the include glob;
+      // calibration/fetch-smellycode.sh is a shell script and aborts the report.
+      exclude: [
+        "**/node_modules/**",
+        "**/*.d.ts",
+        "**/*.test.ts",
+        "**/__tests__/**",
+        "**/*.sh",
+      ],
+    },
   },
   resolve: {
     alias: {
