@@ -76,7 +76,7 @@ vi.mock("../../../../../../payments/src/terms.ts", () => ({
 }));
 
 // Point the registry module at a temp ledger path — tests never touch data/db.
-const salesFileDir = vi.hoisted(() => `/tmp/polar-partial-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+const salesFileDir = vi.hoisted(() => `/tmp/polar-partial-${Date.now()}-${crypto.randomUUID()}`);
 const salesFilePath = vi.hoisted(() => `${salesFileDir}/sales.jsonl`);
 
 vi.mock("../../../../../../payments/src/settings_registry.ts", () => ({

@@ -677,6 +677,8 @@ export function getPath(obj: unknown, dotted: string | undefined): unknown {
   let cur: unknown = obj;
   for (const part of dotted.split(".")) {
     if (cur === null || typeof cur !== "object") return undefined;
+    if (part === "__proto__" || part === "constructor" || part === "prototype") return undefined;
+    if (!Object.prototype.hasOwnProperty.call(cur, part)) return undefined;
     cur = (cur as Record<string, unknown>)[part];
   }
   return cur;

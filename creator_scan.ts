@@ -46,6 +46,7 @@ dotenv.config({ override: true });
 // point the tunables file elsewhere. Nothing below is a literal constant.
 const CONFIG: CreatorScanConfig = loadCreatorScanConfig();
 const TTL_6H = CONFIG.cacheTtlHours * 60 * 60 * 1000;
+const STORE_SIGNAL_RE = new RegExp(CONFIG.storeSignalRegex, "i");
 
 // Deliberately NOT importing from harvest.ts — it runs its own 5-engine harvest at module
 // top-level with no guard, so importing anything from it fires a live harvest as a side effect
@@ -116,7 +117,9 @@ interface CreatorCandidate {
 
 async function postJson<T = unknown>(url: string, headers: Record<string, string>, body: unknown): Promise<T | { error: string }> {
   try {
-    const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify(body) });
+    const targetUrl = new URL(url);
+    if (!["http:", "https:"].includes(targetUrl.protocol)) return { error: `Invalid protocol: ${targetUrl.protocol}` };
+    const res = await fetch(targetUrl.toString(), { method: "POST", headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify(body) });
     if (!res.ok) return { error: `HTTP ${res.status}: ${await res.text()}` };
     return (await res.json()) as T;
   } catch (err) {
@@ -126,7 +129,9 @@ async function postJson<T = unknown>(url: string, headers: Record<string, string
 
 async function getJson<T = unknown>(url: string, headers: Record<string, string> = {}): Promise<T | { error: string }> {
   try {
-    const res = await fetch(url, { headers });
+    const targetUrl = new URL(url);
+    if (!["http:", "https:"].includes(targetUrl.protocol)) return { error: `Invalid protocol: ${targetUrl.protocol}` };
+    const res = await fetch(targetUrl.toString(), { headers });
     if (!res.ok) return { error: `HTTP ${res.status}` };
     return (await res.json()) as T;
   } catch (err) {
@@ -384,7 +389,7 @@ async function fetchInstagramProfileViaHikerApi(handle: string): Promise<Record<
   const bio = u.biography ?? "";
   const linkBlock = `${bio} ${u.external_url ?? ""}`;
   const bioEmails = [...new Set((bio.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g) ?? []).filter((e) => !EMAIL_JUNK.test(e)))];
-  const storeSignal = new RegExp(CONFIG.storeSignalRegex, "i").test(linkBlock);
+  const storeSignal = STORE_SIGNAL_RE.test(linkBlock);
   if (u.is_private) {
     return {
       igHandle: handle, channelTitle: u.full_name ?? handle, country: "unknown",

@@ -9,4 +9,8 @@
  */
 import type { DownloadFetch } from "../../src/adapters/esign/firma.adapter";
 
-export const passthroughDownload: DownloadFetch = (url, init) => fetch(url, init);
+export const passthroughDownload: DownloadFetch = (url, init) => {
+  const parsed = new URL(url);
+  if (!["http:", "https:"].includes(parsed.protocol)) throw new Error(`Invalid protocol: ${parsed.protocol}`);
+  return fetch(parsed.toString(), init);
+};

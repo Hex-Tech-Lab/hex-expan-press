@@ -137,8 +137,12 @@ export class FirmaAdapter implements EsignProviderPort, EsignWebhookPort, EsignE
    * already failed — nothing further to release.
    */
   private async fetchWithRelease(url: string, init?: RequestInit): Promise<Response> {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+      throw new Error(`fetchWithRelease: Disallowed protocol ${parsed.protocol}`);
+    }
     try {
-      return await fetch(url, init);
+      return await fetch(parsed.toString(), init);
     } finally {
       // Body ownership transfers to the caller on success; on failure the
       // socket is released by the runtime when the settled response is GC'd.
