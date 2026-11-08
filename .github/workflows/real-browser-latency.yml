@@ -4,9 +4,9 @@ name: real-browser-latency
 # then sends a signed summary per page to the latency probe.
 # Two jobs: "measure" runs Chrome and holds no secrets; "send" holds PROBE_INGEST_SECRET and runs no Chrome.
 # Scheduled runs fire only from the default branch. A workflow_dispatch from another branch runs measure only:
-# the send job is skipped unless the ref is master (if: below), and the probe-ingest environment also allows
-# only master. These guards live in this file, so a branch that edits the file could remove them. The secret
-# itself is held only in the probe-ingest environment, which allows master only, so a branch cannot read it.
+# the send job is skipped unless the ref is main (if: below), and the probe-ingest environment also allows
+# main and master. These guards live in this file, so a branch that edits the file could remove them. The secret
+# itself is held only in the probe-ingest environment, which allows main and master only, so a branch cannot read it.
 
 on:
   schedule:
@@ -116,9 +116,9 @@ jobs:
 
   send:
     needs: measure
-    # Defense in depth: only master sends. The probe-ingest environment (master-only branch policy)
-    # is the gate for PROBE_INGEST_SECRET, which is held only in that environment (no repository-level copy).
-    if: github.ref == 'refs/heads/master'
+    # Defense in depth: only the default branch sends (scheduled runs fire from main). The probe-ingest environment
+    # (main and master branch policy) is the gate for PROBE_INGEST_SECRET, held only in that environment.
+    if: github.ref == 'refs/heads/main'
     environment: probe-ingest
     runs-on: ubuntu-latest
     timeout-minutes: 10

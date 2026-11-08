@@ -68,6 +68,14 @@ expect "git -C commit is advisory" advisory "$R" "git -C . commit -m x"
 expect "PR create without a gate record" deny "$R" "gh pr create --fill"
 reason_has "required list is shown" "Required skills for this diff"
 REQ=$(reqlist)
+# 6b. A leading cd (quoted path with a space, subshell) or env -C moves the gates to the target checkout (R08).
+mkdir -p "$T/other dir" && ln -s "$R" "$T/other dir/repo" && ln -s "$R" "$T/other2"
+expect "quoted cd with a space is gated in that dir" deny "$T" "cd '$T/other dir/repo' && gh pr create --fill"
+reason_has "quoted cd reaches the target gates" "Required skills for this diff"
+expect "subshell cd is gated in that dir" deny "$T" "(cd $T/other2 && gh pr merge 5)"
+reason_has "subshell cd reaches the target checkout" "PR #5 head is"
+expect "env -C is gated in that dir" deny "$T" "env -C $T/other2 gh pr create --fill"
+reason_has "env -C reaches the target gates" "Required skills for this diff"
 # 7. HEAD not pushed: deny.
 git -C "$R" update-ref -d refs/remotes/origin/feature
 expect "unpushed HEAD" deny "$R" "gh pr create --fill"

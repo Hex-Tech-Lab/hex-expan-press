@@ -12,7 +12,7 @@
 // come from the settings registry (data/settings/providers.json + global.json) with inline
 // fallbacks mirroring the committed registry — standalone runs behave identically.
 import type { CheckoutProvider, ParseResult, ProviderName } from "../provider.ts";
-import { hashEmail, hmacSha256Hex, safeEqualHex } from "../provider.ts";
+import { hashEmail, hmacSha256Hex, safeEqualHex, strictAmount } from "../provider.ts";
 import { getPath, isAllowedCurrency, paymentProviderSetting } from "../settings_registry.ts";
 
 const NAME: ProviderName = "lemonsqueezy";
@@ -49,7 +49,7 @@ export const lemonsqueezyProvider: CheckoutProvider = {
     const metaObj = body?.meta as Record<string, unknown> | undefined;
     const customData = metaObj?.custom_data as Record<string, unknown> | undefined;
     const productId = getPath(body, FM.product_id) ?? customData?.product_id;
-    const totalCents = Number(getPath(body, FM.total_cents) ?? attrs?.total);
+    const totalCents = strictAmount(getPath(body, FM.total_cents) ?? attrs?.total);
     const currency = String(getPath(body, FM.currency) ?? attrs?.currency ?? "").toUpperCase();
     const saleId = String(getPath(body, FM.sale_id) ?? dataObj?.id ?? attrs?.identifier ?? "");
     const createdAt = getPath(body, FM.ts) ?? attrs?.created_at;
@@ -63,8 +63,9 @@ export const lemonsqueezyProvider: CheckoutProvider = {
 
     if (!productId) return { ok: false, status: 400, error: "missing meta.custom_data.product_id (set it in the checkout URL)" };
     if (!saleId) return { ok: false, status: 400, error: "missing sale id" };
-    if (!Number.isFinite(totalCents) || totalCents < 0) return { ok: false, status: 400, error: "invalid total" };
-    if (currency && !isAllowedCurrency(currency)) return { ok: false, status: 400, error: `unsupported currency: ${currency}` };
+    if (totalCents === undefined || totalCents < 0) return { ok: false, status: 400, error: "invalid total" };
+    if (!currency) return { ok: false, status: 400, error: "missing currency" };
+    if (!isAllowedCurrency(currency)) return { ok: false, status: 400, error: `unsupported currency: ${currency}` };
     if (typeof email !== "string" || !email.includes("@")) return { ok: false, status: 400, error: "missing buyer email" };
 
     return {
@@ -73,9 +74,11 @@ export const lemonsqueezyProvider: CheckoutProvider = {
         sale_id: saleId,
         provider: NAME,
         product_id: String(productId),
+        currency,
         amount_usd: Math.round(totalCents) / 100, // UNVERIFIED vs provider docs — confirm cents denomination
         ts: typeof createdAt === "string" ? createdAt : new Date().toISOString(),
         email_hash: hashEmail(email),
+        buyer_email: email,
         ...(attributionId ? { attribution_id: attributionId } : {}),
       },
     };

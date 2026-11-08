@@ -8,14 +8,34 @@
  * full adapter with a Zod SSOT schema. Track in ADR-0050.
  *
  * Known limitations of legacy path vs Universal Language:
+ *   - routing: Payhip signs inside the body (a top-level signature property), so it is
+ *     claimed by that property; the others are claimed by their signature header
  *   - buyerEmailHash: legacy providers pass email_hash (already hashed) — we preserve it
  *   - totalCents: legacy uses amount_usd (float) — converted to cents (may have rounding)
- *   - attributionId: not extracted by legacy adapters (field_map wiring incomplete)
- *   - batch events (FastSpring multi-event): only first action processed; rest dropped
+ *   - currency: taken from the provider parse, never defaulted; a sale without one is
+ *     refused 400
+ *   - buyerEmail / attributionId: forwarded from the provider parse (attribution label
+ *     shape-checked by cleanAttributionId; a bad label is dropped, never rejects the sale)
+ *   - batch events (FastSpring multi-event): every action is forwarded — the first as
+ *     `event`, the rest as `followingEvents` — and the engine runs each one, even after a
+ *     sibling fails. One action that cannot be translated refuses the whole delivery 400.
  */
-import { PaymentProviderPort, WebhookParseResult, CheckoutResult, SaleCompletedEvent, RefundIssuedEvent } from "../../domain/payments/payments.port.ts";
-import type { CheckoutProvider, SaleEvent, RefundEvent } from "../../../payments/src/provider.ts";
+import { PaymentProviderPort, WebhookParseResult, CheckoutResult, BillingEvent } from "../../domain/payments/payments.port.ts";
+import { cleanAttributionId, type CheckoutProvider, type SaleEvent, type RefundEvent } from "../../../payments/src/provider.ts";
 import { getSecret } from "../../../payments/src/webhook_core.ts";
+import { paymentProviderSetting } from "../../../payments/src/settings_registry.ts";
+
+// Payhip signs in the payload (a top-level signature property), never in a header.
+const PAYHIP_SIG_FIELD = String(paymentProviderSetting("payhip")?.signature_field ?? "signature");
+
+function hasBodySignature(body: string): boolean {
+  try {
+    const parsed: unknown = JSON.parse(body);
+    return typeof parsed === "object" && parsed !== null && typeof (parsed as Record<string, unknown>)[PAYHIP_SIG_FIELD] === "string";
+  } catch {
+    return false;
+  }
+}
 
 export class LegacyPaymentAdapterWrapper implements PaymentProviderPort {
   readonly providerName: string;
@@ -26,15 +46,15 @@ export class LegacyPaymentAdapterWrapper implements PaymentProviderPort {
     this.legacyProvider = provider;
   }
 
-  canHandleWebhook(headers: Record<string, string | string[] | undefined>): boolean {
+  canHandleWebhook(headers: Record<string, string | string[] | undefined>, body: string): boolean {
+    if (this.providerName === "payhip") return hasBodySignature(body);
     const knownSignatureHeaders: Record<string, string> = {
       lemonsqueezy: "x-signature",
-      payhip: "signature",
       fastspring: "x-fs-signature",
       fungies: "x-fngs-signature"
     };
     const expectedHeader = knownSignatureHeaders[this.providerName];
-    if (!expectedHeader) return true; // Payhip uses body field for signature
+    if (!expectedHeader) return true;
     return Boolean(headers[expectedHeader] || headers[expectedHeader.toLowerCase()]);
   }
 
@@ -55,51 +75,60 @@ export class LegacyPaymentAdapterWrapper implements PaymentProviderPort {
       return { isValid: false, error: result.error || "Legacy parse failed", httpStatus };
     }
 
-    // Extract first action from batch (FastSpring only)
-    let action: { sale?: SaleEvent; refund?: RefundEvent } | null = null;
-    if ("sale" in result && result.sale) {
-      action = { sale: result.sale };
-    } else if ("refund" in result && result.refund) {
-      action = { refund: result.refund };
-    } else if ("batch" in result && result.batch && result.batch.length > 0) {
-      action = result.batch[0];
-    }
-
-    if (!action) {
+    const actions: ({ sale: SaleEvent } | { refund: RefundEvent })[] =
+      "sale" in result ? [{ sale: result.sale }] : "refund" in result ? [{ refund: result.refund }] : result.batch;
+    if (actions.length === 0) {
       return { isValid: false, error: "Legacy parse returned no usable event" };
     }
 
-    if ("refund" in action && action.refund) {
-      const event: RefundIssuedEvent = {
-        eventType: "refund_issued",
-        providerName: this.providerName,
-        saleId: action.refund.sale_id,
-        occurredAt: action.refund.ts,
-        ...(action.refund.amount_unverifiable === true ? { amountUnverifiable: true } : {}),
-        rawPayload: JSON.parse(body)
-      };
-      return { isValid: true, event };
+    // Every action of a multi-event delivery is forwarded; dropping any loses it for good (the
+    // provider sees a 2xx). One unusable action refuses the whole delivery with a final 400, before
+    // any event is booked; the route quarantines it for manual handling.
+    const rawPayload: unknown = JSON.parse(body);
+    const events: BillingEvent[] = [];
+    for (const action of actions) {
+      const translated = this.translate(action, rawPayload);
+      if ("error" in translated) return { isValid: false, error: translated.error, httpStatus: 400 };
+      events.push(translated.event);
     }
+    const [event, ...followingEvents] = events as [BillingEvent, ...BillingEvent[]];
+    return { isValid: true, event, ...(followingEvents.length > 0 ? { followingEvents } : {}) };
+  }
 
-    if ("sale" in action && action.sale) {
-      const event: SaleCompletedEvent = {
+  private translate(action: { sale: SaleEvent } | { refund: RefundEvent }, rawPayload: unknown): { event: BillingEvent } | { error: string } {
+    if ("refund" in action) {
+      return {
+        event: {
+          eventType: "refund_issued",
+          providerName: this.providerName,
+          saleId: action.refund.sale_id,
+          occurredAt: action.refund.ts,
+          ...(action.refund.amount_unverifiable === true ? { amountUnverifiable: true } : {}),
+          rawPayload,
+        },
+      };
+    }
+    const { sale } = action;
+    // Book only the currency the provider verified; never stamp a default onto an unknown one.
+    if (!sale.currency) return { error: "Legacy sale missing currency" };
+    return {
+      event: {
         eventType: "sale_completed",
         providerName: this.providerName,
-        saleId: action.sale.sale_id,
-        productId: action.sale.product_id,
+        saleId: sale.sale_id,
+        productId: sale.product_id,
         // Legacy adapters return amount_usd (float USD). Convert to cents.
         // TODO: migrate each provider to return integer cents natively.
-        totalCents: Math.round(action.sale.amount_usd * 100),
-        currency: "USD", // Legacy adapters do not expose currency; all are USD-only per isAllowedCurrency gate
-        buyerEmailHash: action.sale.email_hash,
-        occurredAt: action.sale.ts,
-        // attribution_id not extracted by legacy adapters — field_map wiring incomplete
-        rawPayload: JSON.parse(body)
-      };
-      return { isValid: true, event };
-    }
-
-    return { isValid: false, error: "Legacy parse returned unknown structure" };
+        totalCents: Math.round(sale.amount_usd * 100),
+        currency: sale.currency,
+        buyerEmailHash: sale.email_hash,
+        // Delivery needs the address: without it the engine refuses every non-Paddle sale with 422.
+        buyerEmail: sale.buyer_email,
+        attributionId: cleanAttributionId(sale.attribution_id),
+        occurredAt: sale.ts,
+        rawPayload,
+      },
+    };
   }
 
   async createCheckout(): Promise<CheckoutResult> {
