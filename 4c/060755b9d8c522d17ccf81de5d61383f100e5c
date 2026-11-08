@@ -1,0 +1,38 @@
+docs/agent_ledger.jsonl
+  h_e6b68dcbbd0983 911
+src/adapters/esign/esign.factory.ts
+  h_e6b68dcbbd0983 66-70
+web/app/creator/consents/consent-cards.tsx
+  h_e6b68dcbbd0983 94,144,189
+web/app/creator/consents/esign_done/page.tsx
+  h_e6b68dcbbd0983 61
+web/app/creator/consents/page.tsx
+  h_e6b68dcbbd0983 99
+web/app/creator/dashboard/__tests__/actions.test.ts
+  h_e6b68dcbbd0983 417-446
+web/app/creator/dashboard/actions.ts
+  h_e6b68dcbbd0983 130
+web/app/creator/dashboard/dashboard-client.tsx
+  h_e6b68dcbbd0983 157,214,252
+web/app/creator/dashboard/page.tsx
+  h_e6b68dcbbd0983 117
+web/app/creator/layout.tsx
+  h_e6b68dcbbd0983 28
+web/app/creator/review/page.tsx
+  h_e6b68dcbbd0983 136
+web/app/creator/review/review-client.tsx
+  h_e6b68dcbbd0983 324,342
+web/app/creator/signin/signin-client.tsx
+  h_e6b68dcbbd0983 55
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4c060755b9d8c522d17ccf81de5d61383f100e5c",
+  "prompts": {},
+  "humans": {
+    "h_e6b68dcbbd0983": {
+      "author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
