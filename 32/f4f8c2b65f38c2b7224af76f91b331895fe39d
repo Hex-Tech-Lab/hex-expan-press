@@ -1,0 +1,34 @@
+.github/workflows/series_stream_recorder.yml
+  h_e6b68dcbbd0983 1-212
+docs/agent_ledger.jsonl
+  h_e6b68dcbbd0983 915-923
+lib/blob.ts
+  h_e6b68dcbbd0983 1-76
+package.json
+  h_e6b68dcbbd0983 44
+pnpm-lock.yaml
+  h_e6b68dcbbd0983 115-117,2603-2611,6984-6987
+scripts/assemble_live_audio.py
+  h_e6b68dcbbd0983 1-88
+scripts/assemble_live_video.py
+  h_e6b68dcbbd0983 1-102
+scripts/auto_wrapup_day2.sh
+  h_e6b68dcbbd0983 1-77
+scripts/schedule_series_capture.sh
+  h_e6b68dcbbd0983 1-160
+src/adapters/__tests__/blob.test.ts
+  h_e6b68dcbbd0983 1-47
+tech-freeze.json
+  h_e6b68dcbbd0983 6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "32f4f8c2b65f38c2b7224af76f91b331895fe39d",
+  "prompts": {},
+  "humans": {
+    "h_e6b68dcbbd0983": {
+      "author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
