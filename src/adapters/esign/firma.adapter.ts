@@ -138,8 +138,8 @@ export class FirmaAdapter implements EsignProviderPort, EsignWebhookPort, EsignE
    */
   private async fetchWithRelease(url: string, init?: RequestInit): Promise<Response> {
     const parsed = new URL(url);
-    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
-      throw new Error(`fetchWithRelease: Disallowed protocol ${parsed.protocol}`);
+    if (parsed.protocol !== "https:") {
+      throw new Error(`fetchWithRelease: Disallowed protocol ${parsed.protocol} (https required)`);
     }
     try {
       return await fetch(parsed.toString(), init);

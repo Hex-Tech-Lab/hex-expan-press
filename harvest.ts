@@ -43,7 +43,7 @@ const TTL_6H = 6 * 60 * 60 * 1000;
 async function postJson<T = unknown>(url: string, headers: Record<string, string>, body: unknown): Promise<T | { error: string; body?: string }> {
   try {
     const targetUrl = new URL(url);
-    if (!["http:", "https:"].includes(targetUrl.protocol)) return { error: `Invalid protocol: ${targetUrl.protocol}` };
+    if (targetUrl.protocol !== "https:") return { error: `Invalid protocol: ${targetUrl.protocol} (https required)` };
     const res = await fetch(targetUrl.toString(), {
       method: "POST",
       headers: { "Content-Type": "application/json", ...headers },

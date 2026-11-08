@@ -60,8 +60,9 @@ export class ExpanRedisClient {
     }
 
     const parsedUrl = new URL(url);
-    if (parsedUrl.protocol !== "https:" && parsedUrl.protocol !== "http:") {
-      throw new Error(`ExpanRedisClient: Disallowed protocol ${parsedUrl.protocol}`);
+    const isLoopback = parsedUrl.hostname === "localhost" || parsedUrl.hostname === "127.0.0.1";
+    if (parsedUrl.protocol !== "https:" && !(parsedUrl.protocol === "http:" && isLoopback)) {
+      throw new Error(`ExpanRedisClient: Disallowed protocol ${parsedUrl.protocol} (https required)`);
     }
 
     const controller = new AbortController();

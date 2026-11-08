@@ -3,7 +3,6 @@ exclude_paths:
   - "**/__tests__/**"
   - "**/test/**"
   - "**/*.test.*"
-  - "tests/**"
   - "web/public/pdfjs/**"
   - "scripts/**"
   - "docs/reviews/**"
@@ -23,7 +22,6 @@ engines:
       - "**/__tests__/**"
       - "**/test/**"
       - "**/*.test.*"
-      - "tests/**"
       - "scripts/**"
   markdownlint:
     exclude_paths:
