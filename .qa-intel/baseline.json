@@ -36,6 +36,20 @@
   },
   {
     "file": "web/src/lib/natural-code.ts",
+    "severity": "medium",
+    "title": "Code Quality: Unguarded 'Number(x[k])' coercion",
+    "why": "'Number(null)' silently returns 0 and 'Number(undefined)' returns NaN — both pass a naive range check and produce silent wrong behavior instead of a visible error. External data (API responses, DB columns, registry values) should be type-narrowed before coercion. (2026-09-11, mined from PR #268 external review findings: a null highlight offset silently became 0 instead of its intended 2.5s fallback.)",
+    "fix": "Guard first: typeof x[k] === 'number' || typeof x[k] === 'string' ? Number(x[k]) : fallback"
+  },
+  {
+    "file": "web/src/lib/natural-code.ts",
+    "severity": "medium",
+    "title": "Code Quality: Unguarded 'Number(y[k])' coercion",
+    "why": "'Number(null)' silently returns 0 and 'Number(undefined)' returns NaN — both pass a naive range check and produce silent wrong behavior instead of a visible error. External data (API responses, DB columns, registry values) should be type-narrowed before coercion. (2026-09-11, mined from PR #268 external review findings: a null highlight offset silently became 0 instead of its intended 2.5s fallback.)",
+    "fix": "Guard first: typeof y[k] === 'number' || typeof y[k] === 'string' ? Number(y[k]) : fallback"
+  },
+  {
+    "file": "web/src/lib/natural-code.ts",
     "severity": "low",
     "title": "Code Quality: Unclear variable name 'a'",
     "why": "Single-letter variable 'a' outside of loop context is unclear. Makes code harder to understand.",
@@ -49,102 +63,32 @@
     "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'b' → 'question', 'error', etc.)."
   },
   {
-    "file": "web/src/lib/admin.ts",
+    "file": "web/src/lib/jwt-verify.ts",
+    "severity": "medium",
+    "title": "Observability: Catch block without error logging",
+    "why": "Error is caught but not logged, making debugging difficult.",
+    "fix": "Add error logging: console.error('[context]', error); or Sentry.captureException(error);"
+  },
+  {
+    "file": "web/src/lib/consent-chain.ts",
     "severity": "low",
-    "title": "Data Quality: String truncation without ellipsis indicator",
-    "why": "String is truncated but doesn't add '...' to indicate more content. User sees incomplete text.",
-    "fix": "Add ellipsis when truncating: text.slice(0, 50) + (text.length > 50 ? '...' : '')"
+    "title": "Code Quality: Unclear variable name 'v'",
+    "why": "Single-letter variable 'v' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'v' → 'question', 'error', etc.)."
   },
   {
-    "file": "web/src/lib/__tests__/skew-retry-fetch.test.ts",
+    "file": "web/src/lib/attribution.ts",
     "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+    "title": "Observability: Catch block without error logging",
+    "why": "Error is caught but not logged, making debugging difficult.",
+    "fix": "Add error logging: console.error('[context]', error); or Sentry.captureException(error);"
   },
   {
-    "file": "web/src/lib/__tests__/skew-retry-fetch.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
-  },
-  {
-    "file": "web/src/lib/__tests__/skew-retry-fetch.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
-  },
-  {
-    "file": "web/src/lib/__tests__/skew-retry-fetch.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
-  },
-  {
-    "file": "web/src/lib/__tests__/skew-retry-fetch.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
-  },
-  {
-    "file": "web/src/lib/__tests__/skew-retry-fetch.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
-  },
-  {
-    "file": "web/src/lib/__tests__/skew-retry-fetch.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
-  },
-  {
-    "file": "web/src/lib/__tests__/skew-retry-fetch.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
-  },
-  {
-    "file": "web/src/lib/__tests__/skew-retry-fetch.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
-  },
-  {
-    "file": "web/src/lib/__tests__/skew-retry-fetch.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
-  },
-  {
-    "file": "web/src/lib/__tests__/skew-retry-fetch.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
-  },
-  {
-    "file": "web/src/lib/__tests__/skew-retry-fetch.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
-  },
-  {
-    "file": "web/src/lib/__tests__/skew-retry-fetch.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+    "file": "web/src/lib/attribution.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'v'",
+    "why": "Single-letter variable 'v' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'v' → 'question', 'error', etc.)."
   },
   {
     "file": "web/src/lib/__tests__/skew-retry-fetch.test.ts",
@@ -155,122 +99,38 @@
   },
   {
     "file": "web/src/lib/__tests__/primary-product.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
-  },
-  {
-    "file": "web/src/lib/__tests__/primary-product.test.ts",
     "severity": "low",
     "title": "Code Quality: Import ordering violated",
     "why": "Import '../primary-product' (internal) comes after types. Should follow order: framework → thirdparty → internal → types.",
     "fix": "Reorganize imports to follow the correct order groups."
   },
   {
-    "file": "web/src/lib/__tests__/esign-webhook.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+    "file": "web/src/lib/__tests__/launch-gate-sql-parity.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'u'",
+    "why": "Single-letter variable 'u' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'u' → 'question', 'error', etc.)."
   },
   {
-    "file": "web/src/lib/__tests__/esign-webhook.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+    "file": "web/src/lib/__tests__/launch-gate-sql-parity.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'n'",
+    "why": "Single-letter variable 'n' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'n' → 'question', 'error', etc.)."
   },
   {
-    "file": "web/src/lib/__tests__/esign-webhook.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
-  },
-  {
-    "file": "web/src/lib/__tests__/esign-webhook.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
-  },
-  {
-    "file": "web/src/lib/__tests__/esign-webhook.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
-  },
-  {
-    "file": "web/src/lib/__tests__/esign-webhook.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
-  },
-  {
-    "file": "web/src/lib/__tests__/esign-webhook.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
-  },
-  {
-    "file": "web/src/lib/__tests__/esign-webhook.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+    "file": "web/src/lib/__tests__/launch-gate-sql-parity.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'r'",
+    "why": "Single-letter variable 'r' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'r' → 'question', 'error', etc.)."
   },
   {
     "file": "web/src/lib/__tests__/esign-webhook.test.ts",
     "severity": "medium",
     "title": "Complexity: Monolithic File",
-    "why": "File exceeds 500 lines (579 lines).",
+    "why": "File exceeds 500 lines (626 lines).",
     "fix": "Decompose into smaller, domain-specific modules."
-  },
-  {
-    "file": "web/src/lib/__tests__/esign-webhook.test.ts",
-    "severity": "low",
-    "title": "Data Quality: String truncation without ellipsis indicator",
-    "why": "String is truncated but doesn't add '...' to indicate more content. User sees incomplete text.",
-    "fix": "Add ellipsis when truncating: text.slice(0, 50) + (text.length > 50 ? '...' : '')"
-  },
-  {
-    "file": "web/src/lib/__tests__/esign-webhook.test.ts",
-    "severity": "low",
-    "title": "Data Quality: String truncation without ellipsis indicator",
-    "why": "String is truncated but doesn't add '...' to indicate more content. User sees incomplete text.",
-    "fix": "Add ellipsis when truncating: text.slice(0, 50) + (text.length > 50 ? '...' : '')"
-  },
-  {
-    "file": "web/src/lib/__tests__/esign-webhook.test.ts",
-    "severity": "low",
-    "title": "Data Quality: String truncation without ellipsis indicator",
-    "why": "String is truncated but doesn't add '...' to indicate more content. User sees incomplete text.",
-    "fix": "Add ellipsis when truncating: text.slice(0, 50) + (text.length > 50 ? '...' : '')"
-  },
-  {
-    "file": "web/src/lib/__tests__/esign-webhook.test.ts",
-    "severity": "low",
-    "title": "Data Quality: String truncation without ellipsis indicator",
-    "why": "String is truncated but doesn't add '...' to indicate more content. User sees incomplete text.",
-    "fix": "Add ellipsis when truncating: text.slice(0, 50) + (text.length > 50 ? '...' : '')"
-  },
-  {
-    "file": "web/src/lib/__tests__/esign-webhook.test.ts",
-    "severity": "low",
-    "title": "Data Quality: String truncation without ellipsis indicator",
-    "why": "String is truncated but doesn't add '...' to indicate more content. User sees incomplete text.",
-    "fix": "Add ellipsis when truncating: text.slice(0, 50) + (text.length > 50 ? '...' : '')"
-  },
-  {
-    "file": "web/src/lib/__tests__/esign-webhook.test.ts",
-    "severity": "medium",
-    "title": "Workflow: Missing finally block for I/O",
-    "why": "Risky I/O call 'fetch' detected without an explicit finally block.",
-    "fix": "Ensure all I/O operations are wrapped in a try/finally block to guarantee resource cleanup."
   },
   {
     "file": "web/src/lib/__tests__/consent-chain.test.ts",
@@ -280,10 +140,150 @@
     "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'P' → 'question', 'error', etc.)."
   },
   {
+    "file": "web/src/lib/__tests__/client-ip.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'h'",
+    "why": "Single-letter variable 'h' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'h' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/src/lib/__tests__/attribution.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'm'",
+    "why": "Single-letter variable 'm' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'm' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/src/lib/__tests__/attribution.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'p'",
+    "why": "Single-letter variable 'p' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'p' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/src/lib/__tests__/attribution.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'm'",
+    "why": "Single-letter variable 'm' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'm' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/src/lib/__tests__/attribution.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'k'",
+    "why": "Single-letter variable 'k' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'k' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/src/lib/__tests__/attribution.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'm'",
+    "why": "Single-letter variable 'm' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'm' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/src/components/storefront/storefront.tsx",
+    "severity": "medium",
+    "title": "Code Quality: Unguarded 'Number(p.price_usd)' coercion",
+    "why": "'Number(null)' silently returns 0 and 'Number(undefined)' returns NaN — both pass a naive range check and produce silent wrong behavior instead of a visible error. External data (API responses, DB columns, registry values) should be type-narrowed before coercion. (2026-09-11, mined from PR #268 external review findings: a null highlight offset silently became 0 instead of its intended 2.5s fallback.)",
+    "fix": "Guard first: typeof p.price_usd === 'number' || typeof p.price_usd === 'string' ? Number(p.price_usd) : fallback"
+  },
+  {
+    "file": "web/src/components/storefront/storefront.tsx",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'p'",
+    "why": "Single-letter variable 'p' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'p' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/src/components/storefront/storefront.tsx",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'p'",
+    "why": "Single-letter variable 'p' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'p' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/src/components/storefront/storefront.tsx",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'n'",
+    "why": "Single-letter variable 'n' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'n' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/src/components/storefront/storefront.tsx",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'p'",
+    "why": "Single-letter variable 'p' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'p' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/src/components/storefront/storefront.tsx",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'h'",
+    "why": "Single-letter variable 'h' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'h' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/src/components/storefront/storefront.tsx",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'h'",
+    "why": "Single-letter variable 'h' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'h' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/src/components/storefront/storefront.tsx",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'h'",
+    "why": "Single-letter variable 'h' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'h' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/src/components/storefront/storefront.tsx",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'h'",
+    "why": "Single-letter variable 'h' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'h' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/src/components/storefront/storefront.tsx",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'h'",
+    "why": "Single-letter variable 'h' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'h' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/src/components/storefront/buy-link.tsx",
+    "severity": "medium",
+    "title": "Observability: Catch block without error logging",
+    "why": "Error is caught but not logged, making debugging difficult.",
+    "fix": "Add error logging: console.error('[context]', error); or Sentry.captureException(error);"
+  },
+  {
+    "file": "web/src/components/storefront/buy-link.tsx",
+    "severity": "medium",
+    "title": "Observability: Catch block without error logging",
+    "why": "Error is caught but not logged, making debugging difficult.",
+    "fix": "Add error logging: console.error('[context]', error); or Sentry.captureException(error);"
+  },
+  {
+    "file": "web/src/components/storefront/buy-link.tsx",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'e'",
+    "why": "Single-letter variable 'e' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'e' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/src/components/storefront/buy-link.tsx",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'u'",
+    "why": "Single-letter variable 'u' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'u' → 'question', 'error', etc.)."
+  },
+  {
     "file": "web/src/components/landing/landing-page.tsx",
     "severity": "medium",
     "title": "Complexity: Monolithic File",
-    "why": "File exceeds 500 lines (689 lines).",
+    "why": "File exceeds 500 lines (773 lines).",
     "fix": "Decompose into smaller, domain-specific modules."
   },
   {
@@ -296,36 +296,15 @@
   {
     "file": "web/src/components/landing/landing-page.tsx",
     "severity": "low",
-    "title": "Data Quality: String truncation without ellipsis indicator",
-    "why": "String is truncated but doesn't add '...' to indicate more content. User sees incomplete text.",
-    "fix": "Add ellipsis when truncating: text.slice(0, 50) + (text.length > 50 ? '...' : '')"
-  },
-  {
-    "file": "web/src/components/landing/landing-page.tsx",
-    "severity": "low",
-    "title": "Data Quality: String truncation without ellipsis indicator",
-    "why": "String is truncated but doesn't add '...' to indicate more content. User sees incomplete text.",
-    "fix": "Add ellipsis when truncating: text.slice(0, 50) + (text.length > 50 ? '...' : '')"
-  },
-  {
-    "file": "web/src/components/landing/landing-page.tsx",
-    "severity": "low",
-    "title": "Data Quality: String truncation without ellipsis indicator",
-    "why": "String is truncated but doesn't add '...' to indicate more content. User sees incomplete text.",
-    "fix": "Add ellipsis when truncating: text.slice(0, 50) + (text.length > 50 ? '...' : '')"
-  },
-  {
-    "file": "web/src/components/landing/landing-page.tsx",
-    "severity": "low",
-    "title": "Data Quality: String truncation without ellipsis indicator",
-    "why": "String is truncated but doesn't add '...' to indicate more content. User sees incomplete text.",
-    "fix": "Add ellipsis when truncating: text.slice(0, 50) + (text.length > 50 ? '...' : '')"
+    "title": "Code Quality: Unclear variable name 'e'",
+    "why": "Single-letter variable 'e' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'e' → 'question', 'error', etc.)."
   },
   {
     "file": "web/src/components/billing/paddle-checkout-button.tsx",
     "severity": "low",
     "title": "Code Quality: Import ordering violated",
-    "why": "Import '../../lib/paddle-env' (internal) comes after types. Should follow order: framework → thirdparty → internal → types.",
+    "why": "Import '../../lib/attribution' (internal) comes after types. Should follow order: framework → thirdparty → internal → types.",
     "fix": "Reorganize imports to follow the correct order groups."
   },
   {
@@ -337,17 +316,10 @@
   },
   {
     "file": "web/e2e/mock-supabase.ts",
-    "severity": "low",
-    "title": "Data Quality: String truncation without ellipsis indicator",
-    "why": "String is truncated but doesn't add '...' to indicate more content. User sees incomplete text.",
-    "fix": "Add ellipsis when truncating: text.slice(0, 50) + (text.length > 50 ? '...' : '')"
-  },
-  {
-    "file": "web/e2e/mock-supabase.ts",
-    "severity": "low",
-    "title": "Data Quality: String truncation without ellipsis indicator",
-    "why": "String is truncated but doesn't add '...' to indicate more content. User sees incomplete text.",
-    "fix": "Add ellipsis when truncating: text.slice(0, 50) + (text.length > 50 ? '...' : '')"
+    "severity": "medium",
+    "title": "Code Quality: Unguarded 'Number(limit)' coercion",
+    "why": "'Number(null)' silently returns 0 and 'Number(undefined)' returns NaN — both pass a naive range check and produce silent wrong behavior instead of a visible error. External data (API responses, DB columns, registry values) should be type-narrowed before coercion. (2026-09-11, mined from PR #268 external review findings: a null highlight offset silently became 0 instead of its intended 2.5s fallback.)",
+    "fix": "Guard first: typeof limit === 'number' || typeof limit === 'string' ? Number(limit) : fallback"
   },
   {
     "file": "web/e2e/mock-supabase.ts",
@@ -357,39 +329,11 @@
     "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'r' → 'question', 'error', etc.)."
   },
   {
-    "file": "web/e2e/creator_funnel.spec.ts",
-    "severity": "medium",
-    "title": "Workflow: Missing finally block for I/O",
-    "why": "Risky I/O call 'fetch' detected without an explicit finally block.",
-    "fix": "Ensure all I/O operations are wrapped in a try/finally block to guarantee resource cleanup."
-  },
-  {
-    "file": "web/e2e/creator_funnel.spec.ts",
-    "severity": "medium",
-    "title": "Workflow: Missing finally block for I/O",
-    "why": "Risky I/O call 'fetch' detected without an explicit finally block.",
-    "fix": "Ensure all I/O operations are wrapped in a try/finally block to guarantee resource cleanup."
-  },
-  {
     "file": "web/e2e/constants.ts",
     "severity": "high",
     "title": "Auth: localhost fallback in production route",
     "why": "Environment variable missing fallback to localhost can redirect production users to localhost:3000.",
     "fix": "Fail closed (return 500) when APP_URL is missing, or derive origin from request headers."
-  },
-  {
-    "file": "web/e2e/a11y.spec.ts",
-    "severity": "medium",
-    "title": "Cross-Platform: LF-only string splitting",
-    "why": "1 instance(s) of .split('\\n') detected. CRLF line endings (Windows) will not be handled.",
-    "fix": "Replace .split('\\n') with .split(/\\r?\\n/) for cross-platform compatibility."
-  },
-  {
-    "file": "web/e2e/a11y.spec.ts",
-    "severity": "medium",
-    "title": "Workflow: Missing finally block for I/O",
-    "why": "Risky I/O call 'fetch' detected without an explicit finally block.",
-    "fix": "Ensure all I/O operations are wrapped in a try/finally block to guarantee resource cleanup."
   },
   {
     "file": "web/app/page.tsx",
@@ -403,6 +347,13 @@
     "severity": "low",
     "title": "Code Quality: Import ordering violated",
     "why": "Import './globals.css' (internal) comes after types. Should follow order: framework → thirdparty → internal → types.",
+    "fix": "Reorganize imports to follow the correct order groups."
+  },
+  {
+    "file": "web/app/d/[token]/__tests__/route.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Import ordering violated",
+    "why": "Import 'next/server' (framework) comes after thirdparty. Should follow order: framework → thirdparty → internal → types.",
     "fix": "Reorganize imports to follow the correct order groups."
   },
   {
@@ -427,27 +378,6 @@
     "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'h' → 'question', 'error', etc.)."
   },
   {
-    "file": "web/app/creator/signin/__tests__/resolve-origin.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
-  },
-  {
-    "file": "web/app/creator/signin/__tests__/resolve-origin.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
-  },
-  {
-    "file": "web/app/creator/signin/__tests__/resolve-origin.test.ts",
-    "severity": "medium",
-    "title": "Observability: Catch block without error logging",
-    "why": "Error is caught but not logged, making debugging difficult.",
-    "fix": "Add error logging: console.error('[context]', error); or Sentry.captureException(error);"
-  },
-  {
     "file": "web/app/creator/review/review-client.tsx",
     "severity": "high",
     "title": "Canvas: d3/canvas render effect missing data dependency",
@@ -458,7 +388,7 @@
     "file": "web/app/creator/review/review-client.tsx",
     "severity": "medium",
     "title": "Complexity: Monolithic File",
-    "why": "File exceeds 500 lines (515 lines).",
+    "why": "File exceeds 500 lines (567 lines).",
     "fix": "Decompose into smaller, domain-specific modules."
   },
   {
@@ -488,6 +418,13 @@
     "title": "Code Quality: Unclear variable name 'f'",
     "why": "Single-letter variable 'f' outside of loop context is unclear. Makes code harder to understand.",
     "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'f' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/app/creator/review/review-client.tsx",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'k'",
+    "why": "Single-letter variable 'k' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'k' → 'question', 'error', etc.)."
   },
   {
     "file": "web/app/creator/review/review-client.tsx",
@@ -532,102 +469,11 @@
     "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'b' → 'question', 'error', etc.)."
   },
   {
-    "file": "web/app/creator/review/__tests__/stepper-focus.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
-  },
-  {
-    "file": "web/app/creator/review/__tests__/stepper-focus.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
-  },
-  {
-    "file": "web/app/creator/review/__tests__/stepper-focus.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
-  },
-  {
-    "file": "web/app/creator/review/__tests__/stepper-focus.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
-  },
-  {
-    "file": "web/app/creator/review/__tests__/stepper-focus.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
-  },
-  {
-    "file": "web/app/creator/review/__tests__/stepper-focus.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
-  },
-  {
-    "file": "web/app/creator/review/__tests__/stepper-focus.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
-  },
-  {
-    "file": "web/app/creator/review/__tests__/stepper-focus.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
-  },
-  {
-    "file": "web/app/creator/review/__tests__/stepper-focus.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
-  },
-  {
-    "file": "web/app/creator/review/__tests__/stepper-focus.test.ts",
+    "file": "web/app/creator/review/__tests__/test-helpers.ts",
     "severity": "low",
     "title": "Code Quality: Unclear variable name 'm'",
     "why": "Single-letter variable 'm' outside of loop context is unclear. Makes code harder to understand.",
     "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'm' → 'question', 'error', etc.)."
-  },
-  {
-    "file": "web/app/creator/review/__tests__/actions.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
-  },
-  {
-    "file": "web/app/creator/dashboard/__tests__/actions.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
-  },
-  {
-    "file": "web/app/creator/dashboard/__tests__/actions.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
-  },
-  {
-    "file": "web/app/creator/dashboard/__tests__/actions.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
   },
   {
     "file": "web/app/creator/consents/page.tsx",
@@ -645,31 +491,59 @@
   },
   {
     "file": "web/app/creator/consents/__tests__/actions.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
-  },
-  {
-    "file": "web/app/creator/consents/__tests__/actions.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
-  },
-  {
-    "file": "web/app/creator/consents/__tests__/actions.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
-  },
-  {
-    "file": "web/app/creator/consents/__tests__/actions.test.ts",
     "severity": "low",
     "title": "Code Quality: Unclear variable name 'f'",
     "why": "Single-letter variable 'f' outside of loop context is unclear. Makes code harder to understand.",
     "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'f' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/app/checkout/[productId]/page.tsx",
+    "severity": "low",
+    "title": "Code Quality: Import ordering violated",
+    "why": "Import 'next/navigation' (framework) comes after types. Should follow order: framework → thirdparty → internal → types.",
+    "fix": "Reorganize imports to follow the correct order groups."
+  },
+  {
+    "file": "web/app/books/[handle]/page.tsx",
+    "severity": "low",
+    "title": "Code Quality: Import ordering violated",
+    "why": "Import 'next/link' (framework) comes after types. Should follow order: framework → thirdparty → internal → types.",
+    "fix": "Reorganize imports to follow the correct order groups."
+  },
+  {
+    "file": "web/app/books/[handle]/page.tsx",
+    "severity": "low",
+    "title": "Data Quality: String truncation without ellipsis indicator",
+    "why": "String is truncated but doesn't add '...' to indicate more content. User sees incomplete text.",
+    "fix": "Add ellipsis when truncating: text.slice(0, 50) + (text.length > 50 ? '...' : '')"
+  },
+  {
+    "file": "web/app/books/[handle]/page.tsx",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'p'",
+    "why": "Single-letter variable 'p' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'p' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/app/books/[handle]/[product]/page.tsx",
+    "severity": "low",
+    "title": "Code Quality: Import ordering violated",
+    "why": "Import 'next/link' (framework) comes after types. Should follow order: framework → thirdparty → internal → types.",
+    "fix": "Reorganize imports to follow the correct order groups."
+  },
+  {
+    "file": "web/app/books/[handle]/[product]/page.tsx",
+    "severity": "low",
+    "title": "Data Quality: String truncation without ellipsis indicator",
+    "why": "String is truncated but doesn't add '...' to indicate more content. User sees incomplete text.",
+    "fix": "Add ellipsis when truncating: text.slice(0, 50) + (text.length > 50 ? '...' : '')"
+  },
+  {
+    "file": "web/app/books/[handle]/[product]/page.tsx",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'd'",
+    "why": "Single-letter variable 'd' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'd' → 'question', 'error', etc.)."
   },
   {
     "file": "web/app/auth/callback/route.ts",
@@ -677,13 +551,6 @@
     "title": "Code Quality: Import ordering violated",
     "why": "Import '../../../src/lib/supabase-ssr' (internal) comes after types. Should follow order: framework → thirdparty → internal → types.",
     "fix": "Reorganize imports to follow the correct order groups."
-  },
-  {
-    "file": "web/app/auth/callback/__tests__/route.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
   },
   {
     "file": "web/app/auth/callback/__tests__/route.test.ts",
@@ -708,12 +575,33 @@
   },
   {
     "file": "web/app/api/esign/webhook/route.ts",
+    "severity": "medium",
+    "title": "Code Quality: Catch variable 'err' forwarded without normalization",
+    "why": "'err' is caught as 'unknown' and passed to Sentry/console/rethrow without an 'instanceof Error' guard or 'String()' coercion. Non-Error throws (strings, objects) render as '[object Object]' or lose their stack trace. (2026-09-11, mined from PR #268/#234 external review findings.)",
+    "fix": "Normalize before forwarding: const message = err instanceof Error ? err.message : String(err);"
+  },
+  {
+    "file": "web/app/api/esign/webhook/route.ts",
     "severity": "high",
     "title": "Stream: Timeout abort does not settle error state",
     "why": "Abort timeout fires but no error/complete state is set, leaving analysis in limbo.",
     "fix": "Call settleAnalysis('error', ...) or setStreamError() when timeout fires, not just abort()."
   },
   {
+    "file": "web/app/api/esign/webhook/route.ts",
+    "severity": "medium",
+    "title": "Error: .catch(() => {}) swallows promise rejection",
+    "why": "Empty .catch(() => {}) hides failures. User gets no feedback when action fails.",
+    "fix": "Replace with .catch(e => console.error('[context]', e)) or .catch(e => showToast('Error: ' + e.message))"
+  },
+  {
+    "file": "web/app/api/esign/webhook/route.ts",
+    "severity": "medium",
+    "title": "Error: .catch(() => {}) swallows promise rejection",
+    "why": "Empty .catch(() => {}) hides failures. User gets no feedback when action fails.",
+    "fix": "Replace with .catch(e => console.error('[context]', e)) or .catch(e => showToast('Error: ' + e.message))"
+  },
+  {
     "file": "web/app/api/billing/webhook/handler.ts",
     "severity": "high",
     "title": "Data Integrity: DB operation without validation",
@@ -722,10 +610,10 @@
   },
   {
     "file": "web/app/api/billing/webhook/handler.ts",
-    "severity": "high",
-    "title": "Data Integrity: DB operation without validation",
-    "why": "Data is inserted/updated into database without schema validation. Invalid data could corrupt database state.",
-    "fix": "Add schema validation before DB operation: const validated = MySchema.parse(data); db.insert(validated);"
+    "severity": "medium",
+    "title": "Code Quality: Catch variable 'err' forwarded without normalization",
+    "why": "'err' is caught as 'unknown' and passed to Sentry/console/rethrow without an 'instanceof Error' guard or 'String()' coercion. Non-Error throws (strings, objects) render as '[object Object]' or lose their stack trace. (2026-09-11, mined from PR #268/#234 external review findings.)",
+    "fix": "Normalize before forwarding: const message = err instanceof Error ? err.message : String(err);"
   },
   {
     "file": "web/app/api/billing/webhook/handler.ts",
@@ -743,52 +631,24 @@
   },
   {
     "file": "web/app/api/billing/webhook/handler.ts",
+    "severity": "medium",
+    "title": "Error: .catch(() => {}) swallows promise rejection",
+    "why": "Empty .catch(() => {}) hides failures. User gets no feedback when action fails.",
+    "fix": "Replace with .catch(e => console.error('[context]', e)) or .catch(e => showToast('Error: ' + e.message))"
+  },
+  {
+    "file": "web/app/api/billing/webhook/handler.ts",
+    "severity": "medium",
+    "title": "Error: .catch(() => {}) swallows promise rejection",
+    "why": "Empty .catch(() => {}) hides failures. User gets no feedback when action fails.",
+    "fix": "Replace with .catch(e => console.error('[context]', e)) or .catch(e => showToast('Error: ' + e.message))"
+  },
+  {
+    "file": "web/app/api/billing/webhook/handler.ts",
     "severity": "low",
     "title": "Data Quality: String truncation without ellipsis indicator",
     "why": "String is truncated but doesn't add '...' to indicate more content. User sees incomplete text.",
     "fix": "Add ellipsis when truncating: text.slice(0, 50) + (text.length > 50 ? '...' : '')"
-  },
-  {
-    "file": "web/app/api/billing/webhook/__tests__/valid_signature_malformed_ledger.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
-  },
-  {
-    "file": "web/app/api/billing/webhook/__tests__/valid_signature_malformed_ledger.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
-  },
-  {
-    "file": "web/app/api/billing/webhook/__tests__/valid_signature_malformed_ledger.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
-  },
-  {
-    "file": "web/app/api/billing/webhook/__tests__/valid_signature_malformed_ledger.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
-  },
-  {
-    "file": "web/app/api/billing/webhook/__tests__/valid_signature_malformed_ledger.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
-  },
-  {
-    "file": "web/app/api/billing/webhook/__tests__/valid_signature_malformed_ledger.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
   },
   {
     "file": "web/app/api/billing/webhook/__tests__/valid_signature_malformed_ledger.test.ts",
@@ -796,13 +656,6 @@
     "title": "Code Quality: Import ordering violated",
     "why": "Import '../handler' (internal) comes after types. Should follow order: framework → thirdparty → internal → types.",
     "fix": "Reorganize imports to follow the correct order groups."
-  },
-  {
-    "file": "web/app/api/billing/webhook/__tests__/valid_signature_malformed_ledger.test.ts",
-    "severity": "low",
-    "title": "Data Quality: String truncation without ellipsis indicator",
-    "why": "String is truncated but doesn't add '...' to indicate more content. User sees incomplete text.",
-    "fix": "Add ellipsis when truncating: text.slice(0, 50) + (text.length > 50 ? '...' : '')"
   },
   {
     "file": "web/app/api/billing/webhook/__tests__/valid_signature_malformed_ledger.test.ts",
@@ -854,11 +707,32 @@
     "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'h' → 'question', 'error', etc.)."
   },
   {
-    "file": "web/app/api/billing/webhook/__tests__/signature-status.test.ts",
+    "file": "web/app/api/billing/webhook/__tests__/unclaimed-provider.test.ts",
     "severity": "low",
     "title": "Code Quality: Import ordering violated",
-    "why": "Import '../route' (internal) comes after types. Should follow order: framework → thirdparty → internal → types.",
+    "why": "Import '../handler' (internal) comes after types. Should follow order: framework → thirdparty → internal → types.",
     "fix": "Reorganize imports to follow the correct order groups."
+  },
+  {
+    "file": "web/app/api/billing/webhook/__tests__/unclaimed-provider.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'p'",
+    "why": "Single-letter variable 'p' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'p' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/app/api/billing/webhook/__tests__/transient_classification.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Import ordering violated",
+    "why": "Import '../../../../../../src/domain/webhook/webhook_errors' (internal) comes after types. Should follow order: framework → thirdparty → internal → types.",
+    "fix": "Reorganize imports to follow the correct order groups."
+  },
+  {
+    "file": "web/app/api/billing/webhook/__tests__/transient_classification.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'p'",
+    "why": "Single-letter variable 'p' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'p' → 'question', 'error', etc.)."
   },
   {
     "file": "web/app/api/billing/webhook/__tests__/route.test.ts",
@@ -869,41 +743,6 @@
   },
   {
     "file": "web/app/api/billing/webhook/__tests__/retry-after-503.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
-  },
-  {
-    "file": "web/app/api/billing/webhook/__tests__/retry-after-503.test.ts",
-    "severity": "low",
-    "title": "Code Quality: Import ordering violated",
-    "why": "Import '../route' (internal) comes after types. Should follow order: framework → thirdparty → internal → types.",
-    "fix": "Reorganize imports to follow the correct order groups."
-  },
-  {
-    "file": "web/app/api/billing/webhook/__tests__/provider_allowlist.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
-  },
-  {
-    "file": "web/app/api/billing/webhook/__tests__/provider_allowlist.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
-  },
-  {
-    "file": "web/app/api/billing/webhook/__tests__/provider_allowlist.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
-  },
-  {
-    "file": "web/app/api/billing/webhook/__tests__/provider_allowlist.test.ts",
     "severity": "low",
     "title": "Code Quality: Import ordering violated",
     "why": "Import '../route' (internal) comes after types. Should follow order: framework → thirdparty → internal → types.",
@@ -912,9 +751,9 @@
   {
     "file": "web/app/api/billing/webhook/__tests__/provider_allowlist.test.ts",
     "severity": "low",
-    "title": "Data Quality: String truncation without ellipsis indicator",
-    "why": "String is truncated but doesn't add '...' to indicate more content. User sees incomplete text.",
-    "fix": "Add ellipsis when truncating: text.slice(0, 50) + (text.length > 50 ? '...' : '')"
+    "title": "Code Quality: Import ordering violated",
+    "why": "Import '../route' (internal) comes after types. Should follow order: framework → thirdparty → internal → types.",
+    "fix": "Reorganize imports to follow the correct order groups."
   },
   {
     "file": "web/app/api/billing/webhook/__tests__/provider_allowlist.test.ts",
@@ -931,49 +770,14 @@
     "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'p' → 'question', 'error', etc.)."
   },
   {
-    "file": "web/app/api/billing/webhook/__tests__/polar-partial-refund.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
-  },
-  {
-    "file": "web/app/api/billing/webhook/__tests__/polar-partial-refund.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
-  },
-  {
-    "file": "web/app/api/billing/webhook/__tests__/polar-partial-refund.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
-  },
-  {
-    "file": "web/app/api/billing/webhook/__tests__/polar-partial-refund.test.ts",
+    "file": "web/app/api/billing/webhook/__tests__/lock_contention_503.test.ts",
     "severity": "low",
     "title": "Code Quality: Import ordering violated",
-    "why": "Import '../../../../../../payments/src/ledger.ts' (internal) comes after types. Should follow order: framework → thirdparty → internal → types.",
+    "why": "Import '../handler' (internal) comes after types. Should follow order: framework → thirdparty → internal → types.",
     "fix": "Reorganize imports to follow the correct order groups."
   },
   {
-    "file": "web/app/api/billing/webhook/__tests__/polar-partial-refund.test.ts",
-    "severity": "low",
-    "title": "Data Quality: String truncation without ellipsis indicator",
-    "why": "String is truncated but doesn't add '...' to indicate more content. User sees incomplete text.",
-    "fix": "Add ellipsis when truncating: text.slice(0, 50) + (text.length > 50 ? '...' : '')"
-  },
-  {
-    "file": "web/app/api/billing/webhook/__tests__/polar-partial-refund.test.ts",
-    "severity": "low",
-    "title": "Code Quality: Unclear variable name 'a'",
-    "why": "Single-letter variable 'a' outside of loop context is unclear. Makes code harder to understand.",
-    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'a' → 'question', 'error', etc.)."
-  },
-  {
-    "file": "web/app/api/billing/webhook/__tests__/polar-partial-refund.test.ts",
+    "file": "web/app/api/billing/webhook/__tests__/lock_contention_503.test.ts",
     "severity": "low",
     "title": "Code Quality: Unclear variable name 'p'",
     "why": "Single-letter variable 'p' outside of loop context is unclear. Makes code harder to understand.",
@@ -981,38 +785,10 @@
   },
   {
     "file": "web/app/api/billing/webhook/__tests__/in-flight.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
-  },
-  {
-    "file": "web/app/api/billing/webhook/__tests__/in-flight.test.ts",
     "severity": "low",
     "title": "Code Quality: Import ordering violated",
-    "why": "Import '../route' (internal) comes after types. Should follow order: framework → thirdparty → internal → types.",
+    "why": "Import '../../../../../../src/domain/webhook/webhook_errors' (internal) comes after types. Should follow order: framework → thirdparty → internal → types.",
     "fix": "Reorganize imports to follow the correct order groups."
-  },
-  {
-    "file": "web/app/api/billing/webhook/__tests__/fungies-refund-dlq.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
-  },
-  {
-    "file": "web/app/api/billing/webhook/__tests__/fungies-refund-dlq.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
-  },
-  {
-    "file": "web/app/api/billing/webhook/__tests__/fungies-refund-dlq.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
   },
   {
     "file": "web/app/api/billing/webhook/__tests__/fungies-refund-dlq.test.ts",
@@ -1020,20 +796,6 @@
     "title": "Code Quality: Import ordering violated",
     "why": "Import '../../../../../../payments/src/ledger.ts' (internal) comes after types. Should follow order: framework → thirdparty → internal → types.",
     "fix": "Reorganize imports to follow the correct order groups."
-  },
-  {
-    "file": "web/app/api/billing/webhook/__tests__/fungies-refund-dlq.test.ts",
-    "severity": "low",
-    "title": "Data Quality: String truncation without ellipsis indicator",
-    "why": "String is truncated but doesn't add '...' to indicate more content. User sees incomplete text.",
-    "fix": "Add ellipsis when truncating: text.slice(0, 50) + (text.length > 50 ? '...' : '')"
-  },
-  {
-    "file": "web/app/api/billing/webhook/__tests__/fungies-refund-dlq.test.ts",
-    "severity": "low",
-    "title": "Data Quality: String truncation without ellipsis indicator",
-    "why": "String is truncated but doesn't add '...' to indicate more content. User sees incomplete text.",
-    "fix": "Add ellipsis when truncating: text.slice(0, 50) + (text.length > 50 ? '...' : '')"
   },
   {
     "file": "web/app/api/billing/webhook/__tests__/fungies-refund-dlq.test.ts",
@@ -1058,41 +820,6 @@
   },
   {
     "file": "web/app/api/billing/webhook/__tests__/audit-503.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
-  },
-  {
-    "file": "web/app/api/billing/webhook/__tests__/audit-503.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
-  },
-  {
-    "file": "web/app/api/billing/webhook/__tests__/audit-503.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
-  },
-  {
-    "file": "web/app/api/billing/webhook/__tests__/audit-503.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
-  },
-  {
-    "file": "web/app/api/billing/webhook/__tests__/audit-503.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
-  },
-  {
-    "file": "web/app/api/billing/webhook/__tests__/audit-503.test.ts",
     "severity": "low",
     "title": "Code Quality: Import ordering violated",
     "why": "Import '../route' (internal) comes after types. Should follow order: framework → thirdparty → internal → types.",
@@ -1114,6 +841,13 @@
   },
   {
     "file": "web/app/api/billing/checkout/route.ts",
+    "severity": "medium",
+    "title": "Code Quality: Unguarded 'Number(row.weight)' coercion",
+    "why": "'Number(null)' silently returns 0 and 'Number(undefined)' returns NaN — both pass a naive range check and produce silent wrong behavior instead of a visible error. External data (API responses, DB columns, registry values) should be type-narrowed before coercion. (2026-09-11, mined from PR #268 external review findings: a null highlight offset silently became 0 instead of its intended 2.5s fallback.)",
+    "fix": "Guard first: typeof row.weight === 'number' || typeof row.weight === 'string' ? Number(row.weight) : fallback"
+  },
+  {
+    "file": "web/app/api/billing/checkout/route.ts",
     "severity": "low",
     "title": "Code Quality: Unclear variable name 'v'",
     "why": "Single-letter variable 'v' outside of loop context is unclear. Makes code harder to understand.",
@@ -1127,59 +861,17 @@
     "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'u' → 'question', 'error', etc.)."
   },
   {
-    "file": "web/app/api/billing/checkout/__tests__/route.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
-  },
-  {
-    "file": "web/app/api/billing/checkout/__tests__/route.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
-  },
-  {
-    "file": "web/app/api/billing/checkout/__tests__/route.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
-  },
-  {
-    "file": "web/app/api/billing/checkout/__tests__/route.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
-  },
-  {
-    "file": "web/app/api/billing/checkout/__tests__/route.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
-  },
-  {
-    "file": "web/app/api/billing/checkout/__tests__/route.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
-  },
-  {
-    "file": "web/app/api/billing/checkout/__tests__/route.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+    "file": "web/app/api/billing/checkout/route.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'u'",
+    "why": "Single-letter variable 'u' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'u' → 'question', 'error', etc.)."
   },
   {
     "file": "web/app/api/billing/checkout/__tests__/route.test.ts",
     "severity": "medium",
     "title": "Complexity: Monolithic File",
-    "why": "File exceeds 500 lines (601 lines).",
+    "why": "File exceeds 500 lines (904 lines).",
     "fix": "Decompose into smaller, domain-specific modules."
   },
   {
@@ -1190,18 +882,25 @@
     "fix": "Reorganize imports to follow the correct order groups."
   },
   {
-    "file": "web/app/api/admin/audit-log/__tests__/route.test.ts",
-    "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+    "file": "web/app/api/billing/checkout/__tests__/route.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'f'",
+    "why": "Single-letter variable 'f' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'f' → 'question', 'error', etc.)."
   },
   {
-    "file": "web/app/api/admin/audit-log/__tests__/route.test.ts",
+    "file": "web/app/api/billing/checkout/__tests__/route.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'f'",
+    "why": "Single-letter variable 'f' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'f' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/app/api/admin/audit-log/route.ts",
     "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+    "title": "Code Quality: Unguarded 'Number(params.get(\"page\") ?? \"1\")' coercion",
+    "why": "'Number(null)' silently returns 0 and 'Number(undefined)' returns NaN — both pass a naive range check and produce silent wrong behavior instead of a visible error. External data (API responses, DB columns, registry values) should be type-narrowed before coercion. (2026-09-11, mined from PR #268 external review findings: a null highlight offset silently became 0 instead of its intended 2.5s fallback.)",
+    "fix": "Guard first: typeof params.get(\"page\") ?? \"1\" === 'number' || typeof params.get(\"page\") ?? \"1\" === 'string' ? Number(params.get(\"page\") ?? \"1\") : fallback"
   },
   {
     "file": "web/app/api/admin/audit-log/__tests__/route.test.ts",
@@ -1240,6 +939,13 @@
   },
   {
     "file": "web/app/admin/dashboard/page.tsx",
+    "severity": "medium",
+    "title": "Code Quality: Unguarded 'Number(rawPage ?? \"1\")' coercion",
+    "why": "'Number(null)' silently returns 0 and 'Number(undefined)' returns NaN — both pass a naive range check and produce silent wrong behavior instead of a visible error. External data (API responses, DB columns, registry values) should be type-narrowed before coercion. (2026-09-11, mined from PR #268 external review findings: a null highlight offset silently became 0 instead of its intended 2.5s fallback.)",
+    "fix": "Guard first: typeof rawPage ?? \"1\" === 'number' || typeof rawPage ?? \"1\" === 'string' ? Number(rawPage ?? \"1\") : fallback"
+  },
+  {
+    "file": "web/app/admin/dashboard/page.tsx",
     "severity": "low",
     "title": "Code Quality: Unclear variable name 'v'",
     "why": "Single-letter variable 'v' outside of loop context is unclear. Makes code harder to understand.",
@@ -1260,11 +966,46 @@
     "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'p' → 'question', 'error', etc.)."
   },
   {
-    "file": "web/__tests__/audit-proxy-cookie-name.test.ts",
+    "file": "web/__tests__/r2-delivery-fallback.integration.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Import ordering violated",
+    "why": "Import 'next/server' (framework) comes after thirdparty. Should follow order: framework → thirdparty → internal → types.",
+    "fix": "Reorganize imports to follow the correct order groups."
+  },
+  {
+    "file": "web/__tests__/proxy.test.ts",
     "severity": "medium",
-    "title": "Code Quality: Redundant 'async' keyword (no await found)",
-    "why": "Function 'anonymous' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
-    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+    "title": "Complexity: Monolithic File",
+    "why": "File exceeds 500 lines (695 lines).",
+    "fix": "Decompose into smaller, domain-specific modules."
+  },
+  {
+    "file": "web/__tests__/proxy.test.ts",
+    "severity": "low",
+    "title": "Data Quality: String truncation without ellipsis indicator",
+    "why": "String is truncated but doesn't add '...' to indicate more content. User sees incomplete text.",
+    "fix": "Add ellipsis when truncating: text.slice(0, 50) + (text.length > 50 ? '...' : '')"
+  },
+  {
+    "file": "web/__tests__/proxy.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'a'",
+    "why": "Single-letter variable 'a' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'a' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/__tests__/proxy.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'b'",
+    "why": "Single-letter variable 'b' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'b' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "web/__tests__/proxy.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'k'",
+    "why": "Single-letter variable 'k' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'k' → 'question', 'error', etc.)."
   },
   {
     "file": "web/__tests__/audit-proxy-cookie-name.test.ts",
@@ -1279,6 +1020,1742 @@
     "title": "Code Quality: Unclear variable name 'c'",
     "why": "Single-letter variable 'c' outside of loop context is unclear. Makes code harder to understand.",
     "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'c' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/sync_book_identity.ts",
+    "severity": "medium",
+    "title": "Observability: Catch block without error logging",
+    "why": "Error is caught but not logged, making debugging difficult.",
+    "fix": "Add error logging: console.error('[context]', error); or Sentry.captureException(error);"
+  },
+  {
+    "file": "payments/sync_book_identity.ts",
+    "severity": "medium",
+    "title": "Observability: Catch block without error logging",
+    "why": "Error is caught but not logged, making debugging difficult.",
+    "fix": "Add error logging: console.error('[context]', error); or Sentry.captureException(error);"
+  },
+  {
+    "file": "payments/sync_book_identity.ts",
+    "severity": "medium",
+    "title": "Access: Array index without null guard in I/O path",
+    "why": "Array[0] access without optional chaining or try/catch. API response may be empty, causing TypeError.",
+    "fix": "Add null guard: const first = arr?.[0]; if (!first) return fallback;"
+  },
+  {
+    "file": "payments/sync_book_identity.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 't'",
+    "why": "Single-letter variable 't' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 't' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/sync_book_identity.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 't'",
+    "why": "Single-letter variable 't' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 't' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/sync_book_identity.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 't'",
+    "why": "Single-letter variable 't' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 't' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/sync_book_identity.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'm'",
+    "why": "Single-letter variable 'm' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'm' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/sync_book_identity.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 't'",
+    "why": "Single-letter variable 't' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 't' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/sync_book_identity.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 't'",
+    "why": "Single-letter variable 't' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 't' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/book_identity.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'v'",
+    "why": "Single-letter variable 'v' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'v' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/book_identity.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'b'",
+    "why": "Single-letter variable 'b' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'b' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/settings_registry_runtime.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'p'",
+    "why": "Single-letter variable 'p' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'p' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/settings_registry_runtime.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'p'",
+    "why": "Single-letter variable 'p' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'p' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/settings_registry_runtime.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'p'",
+    "why": "Single-letter variable 'p' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'p' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/settings_registry_runtime.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'p'",
+    "why": "Single-letter variable 'p' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'p' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/settings_registry_runtime.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'p'",
+    "why": "Single-letter variable 'p' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'p' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/settings_registry_runtime.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'p'",
+    "why": "Single-letter variable 'p' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'p' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/settings_registry_runtime.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'p'",
+    "why": "Single-letter variable 'p' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'p' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/settings_registry_runtime.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'p'",
+    "why": "Single-letter variable 'p' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'p' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/settings_registry_runtime.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'p'",
+    "why": "Single-letter variable 'p' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'p' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/settings_admin.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'A'",
+    "why": "Single-letter variable 'A' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'A' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/settings_admin.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'B'",
+    "why": "Single-letter variable 'B' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'B' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/provider_router.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'N'",
+    "why": "Single-letter variable 'N' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'N' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/provider_router.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'N'",
+    "why": "Single-letter variable 'N' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'N' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/paddle_attribution.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'r'",
+    "why": "Single-letter variable 'r' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'r' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/paddle_attribution.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'r'",
+    "why": "Single-letter variable 'r' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'r' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/paddle_attribution.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'r'",
+    "why": "Single-letter variable 'r' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'r' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/paddle_attribution.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'r'",
+    "why": "Single-letter variable 'r' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'r' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/paddle_attribution.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'r'",
+    "why": "Single-letter variable 'r' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'r' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/paddle_attribution.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'r'",
+    "why": "Single-letter variable 'r' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'r' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/ledger_orders_schema.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'n'",
+    "why": "Single-letter variable 'n' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'n' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/ledger_orders_schema.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'f'",
+    "why": "Single-letter variable 'f' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'f' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/ledger_orders_schema.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'b'",
+    "why": "Single-letter variable 'b' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'b' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/fungies_refund.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'r'",
+    "why": "Single-letter variable 'r' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'r' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/fungies_refund.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'r'",
+    "why": "Single-letter variable 'r' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'r' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/fungies_refund.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'r'",
+    "why": "Single-letter variable 'r' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'r' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/delivery_db_adapter.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'v'",
+    "why": "Single-letter variable 'v' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'v' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/delivery_db_adapter.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'e'",
+    "why": "Single-letter variable 'e' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'e' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/delivery_db_adapter.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'a'",
+    "why": "Single-letter variable 'a' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'a' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/delivery_db_adapter.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'a'",
+    "why": "Single-letter variable 'a' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'a' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/delivery_db_adapter.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'a'",
+    "why": "Single-letter variable 'a' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'a' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/delivery_db_adapter.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'a'",
+    "why": "Single-letter variable 'a' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'a' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/delivery_db_adapter.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'a'",
+    "why": "Single-letter variable 'a' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'a' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/delivery_db_adapter.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'a'",
+    "why": "Single-letter variable 'a' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'a' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/delivery_db_adapter.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'a'",
+    "why": "Single-letter variable 'a' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'a' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/delivery_db_adapter.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'a'",
+    "why": "Single-letter variable 'a' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'a' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/delivery.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'm'",
+    "why": "Single-letter variable 'm' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'm' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/delivery.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'f'",
+    "why": "Single-letter variable 'f' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'f' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/delivery.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'f'",
+    "why": "Single-letter variable 'f' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'f' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/delivery.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'f'",
+    "why": "Single-letter variable 'f' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'f' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/delivery.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'f'",
+    "why": "Single-letter variable 'f' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'f' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/delivery.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'f'",
+    "why": "Single-letter variable 'f' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'f' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/delivery.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'f'",
+    "why": "Single-letter variable 'f' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'f' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/delivery.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'f'",
+    "why": "Single-letter variable 'f' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'f' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/delivery.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'f'",
+    "why": "Single-letter variable 'f' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'f' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/delivery.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'f'",
+    "why": "Single-letter variable 'f' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'f' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/delivery.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'f'",
+    "why": "Single-letter variable 'f' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'f' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/delivery.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'f'",
+    "why": "Single-letter variable 'f' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'f' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/delivery.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'f'",
+    "why": "Single-letter variable 'f' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'f' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/delivery.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'f'",
+    "why": "Single-letter variable 'f' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'f' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/delivery.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'f'",
+    "why": "Single-letter variable 'f' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'f' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/delivery.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'f'",
+    "why": "Single-letter variable 'f' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'f' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/delivery.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'f'",
+    "why": "Single-letter variable 'f' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'f' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/delivery.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'f'",
+    "why": "Single-letter variable 'f' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'f' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/delivery.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'f'",
+    "why": "Single-letter variable 'f' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'f' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/delivery.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'f'",
+    "why": "Single-letter variable 'f' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'f' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/currency_required.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'r'",
+    "why": "Single-letter variable 'r' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'r' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/currency_required.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'r'",
+    "why": "Single-letter variable 'r' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'r' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/book_identity.test.ts",
+    "severity": "medium",
+    "title": "Complexity: Monolithic File",
+    "why": "File exceeds 500 lines (785 lines).",
+    "fix": "Decompose into smaller, domain-specific modules."
+  },
+  {
+    "file": "payments/test/book_identity.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'p'",
+    "why": "Single-letter variable 'p' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'p' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/book_identity.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 't'",
+    "why": "Single-letter variable 't' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 't' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/book_identity.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 's'",
+    "why": "Single-letter variable 's' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 's' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/book_identity.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 't'",
+    "why": "Single-letter variable 't' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 't' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/audit_bake_c2_hash.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'n'",
+    "why": "Single-letter variable 'n' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'n' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/audit_bake_c2_hash.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 's'",
+    "why": "Single-letter variable 's' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 's' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/audit_bake_c2_hash.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'u'",
+    "why": "Single-letter variable 'u' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'u' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/audit_bake_c2_hash.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'u'",
+    "why": "Single-letter variable 'u' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'u' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/audit_bake_c2_hash.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'f'",
+    "why": "Single-letter variable 'f' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'f' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/amount_strict_parse.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'r'",
+    "why": "Single-letter variable 'r' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'r' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/amount_strict_parse.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'r'",
+    "why": "Single-letter variable 'r' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'r' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/amount_strict_parse.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'r'",
+    "why": "Single-letter variable 'r' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'r' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/test/amount_strict_parse.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'r'",
+    "why": "Single-letter variable 'r' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'r' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/src/webhook_core.ts",
+    "severity": "medium",
+    "title": "Code Quality: Catch variable 'err' forwarded without normalization",
+    "why": "'err' is caught as 'unknown' and passed to Sentry/console/rethrow without an 'instanceof Error' guard or 'String()' coercion. Non-Error throws (strings, objects) render as '[object Object]' or lose their stack trace. (2026-09-11, mined from PR #268/#234 external review findings.)",
+    "fix": "Normalize before forwarding: const message = err instanceof Error ? err.message : String(err);"
+  },
+  {
+    "file": "payments/src/terms.ts",
+    "severity": "medium",
+    "title": "Code Quality: Unguarded 'Number((data as { creator_split_pct: string | number }).creator_split_pct)' coercion",
+    "why": "'Number(null)' silently returns 0 and 'Number(undefined)' returns NaN — both pass a naive range check and produce silent wrong behavior instead of a visible error. External data (API responses, DB columns, registry values) should be type-narrowed before coercion. (2026-09-11, mined from PR #268 external review findings: a null highlight offset silently became 0 instead of its intended 2.5s fallback.)",
+    "fix": "Guard first: typeof (data as { creator_split_pct: string | number }).creator_split_pct === 'number' || typeof (data as { creator_split_pct: string | number }).creator_split_pct === 'string' ? Number((data as { creator_split_pct: string | number }).creator_split_pct) : fallback"
+  },
+  {
+    "file": "payments/src/terms.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'v'",
+    "why": "Single-letter variable 'v' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'v' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/src/terms.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'v'",
+    "why": "Single-letter variable 'v' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'v' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/src/terms.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'e'",
+    "why": "Single-letter variable 'e' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'e' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/src/terms.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'e'",
+    "why": "Single-letter variable 'e' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'e' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/src/settings_registry.ts",
+    "severity": "medium",
+    "title": "Complexity: Monolithic File",
+    "why": "File exceeds 500 lines (594 lines).",
+    "fix": "Decompose into smaller, domain-specific modules."
+  },
+  {
+    "file": "payments/src/settings_registry.ts",
+    "severity": "medium",
+    "title": "Observability: Catch block without error logging",
+    "why": "Error is caught but not logged, making debugging difficult.",
+    "fix": "Add error logging: console.error('[context]', error); or Sentry.captureException(error);"
+  },
+  {
+    "file": "payments/src/settings_registry.ts",
+    "severity": "medium",
+    "title": "Observability: Catch block without error logging",
+    "why": "Error is caught but not logged, making debugging difficult.",
+    "fix": "Add error logging: console.error('[context]', error); or Sentry.captureException(error);"
+  },
+  {
+    "file": "payments/src/settings_registry.ts",
+    "severity": "medium",
+    "title": "Code Quality: Unguarded 'Number(process.env.ADMIN_AUDIT_LOG_PAGE_SIZE)' coercion",
+    "why": "'Number(null)' silently returns 0 and 'Number(undefined)' returns NaN — both pass a naive range check and produce silent wrong behavior instead of a visible error. External data (API responses, DB columns, registry values) should be type-narrowed before coercion. (2026-09-11, mined from PR #268 external review findings: a null highlight offset silently became 0 instead of its intended 2.5s fallback.)",
+    "fix": "Guard first: typeof process.env.ADMIN_AUDIT_LOG_PAGE_SIZE === 'number' || typeof process.env.ADMIN_AUDIT_LOG_PAGE_SIZE === 'string' ? Number(process.env.ADMIN_AUDIT_LOG_PAGE_SIZE) : fallback"
+  },
+  {
+    "file": "payments/src/settings_registry.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'v'",
+    "why": "Single-letter variable 'v' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'v' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/src/settings_registry.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'v'",
+    "why": "Single-letter variable 'v' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'v' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/src/settings_registry.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 's'",
+    "why": "Single-letter variable 's' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 's' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/src/settings_registry.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'u'",
+    "why": "Single-letter variable 'u' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'u' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/src/settings_registry.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'v'",
+    "why": "Single-letter variable 'v' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'v' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/src/settings_registry.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'v'",
+    "why": "Single-letter variable 'v' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'v' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/src/settings_registry.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'd'",
+    "why": "Single-letter variable 'd' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'd' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/src/settings_registry.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'p'",
+    "why": "Single-letter variable 'p' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'p' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/src/settings_registry.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'v'",
+    "why": "Single-letter variable 'v' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'v' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/src/settings_registry.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'v'",
+    "why": "Single-letter variable 'v' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'v' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/src/settings_registry.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'g'",
+    "why": "Single-letter variable 'g' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'g' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/src/settings_registry.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'v'",
+    "why": "Single-letter variable 'v' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'v' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/src/settings_registry.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'd'",
+    "why": "Single-letter variable 'd' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'd' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/src/settings_registry.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'r'",
+    "why": "Single-letter variable 'r' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'r' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/src/settings_registry.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'v'",
+    "why": "Single-letter variable 'v' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'v' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/src/settings_registry.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'p'",
+    "why": "Single-letter variable 'p' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'p' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/src/settings.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'c'",
+    "why": "Single-letter variable 'c' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'c' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/src/settings.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'c'",
+    "why": "Single-letter variable 'c' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'c' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/src/settings.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'v'",
+    "why": "Single-letter variable 'v' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'v' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/src/settings.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'v'",
+    "why": "Single-letter variable 'v' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'v' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/src/settings.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'r'",
+    "why": "Single-letter variable 'r' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'r' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/src/reports.ts",
+    "severity": "medium",
+    "title": "Cross-Platform: LF-only string splitting",
+    "why": "1 instance(s) of .split('\\n') detected. CRLF line endings (Windows) will not be handled.",
+    "fix": "Replace .split('\\n') with .split(/\\r?\\n/) for cross-platform compatibility."
+  },
+  {
+    "file": "payments/src/reports.ts",
+    "severity": "low",
+    "title": "Data Quality: String truncation without ellipsis indicator",
+    "why": "String is truncated but doesn't add '...' to indicate more content. User sees incomplete text.",
+    "fix": "Add ellipsis when truncating: text.slice(0, 50) + (text.length > 50 ? '...' : '')"
+  },
+  {
+    "file": "payments/src/reports.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 't'",
+    "why": "Single-letter variable 't' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 't' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/src/reports.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 't'",
+    "why": "Single-letter variable 't' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 't' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/src/reports.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 's'",
+    "why": "Single-letter variable 's' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 's' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/src/reports.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'v'",
+    "why": "Single-letter variable 'v' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'v' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/src/reports.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'd'",
+    "why": "Single-letter variable 'd' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'd' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/src/reports.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 't'",
+    "why": "Single-letter variable 't' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 't' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/src/reports.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'v'",
+    "why": "Single-letter variable 'v' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'v' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/src/reports.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'a'",
+    "why": "Single-letter variable 'a' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'a' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/src/reports.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'b'",
+    "why": "Single-letter variable 'b' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'b' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/src/reports.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 's'",
+    "why": "Single-letter variable 's' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 's' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/src/reports.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 't'",
+    "why": "Single-letter variable 't' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 't' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/src/provider_router.ts",
+    "severity": "medium",
+    "title": "Code Quality: Redundant 'async' keyword (no await found)",
+    "why": "Function 'nextRail' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
+    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+  },
+  {
+    "file": "payments/src/provider_router.ts",
+    "severity": "medium",
+    "title": "Observability: Catch block without error logging",
+    "why": "Error is caught but not logged, making debugging difficult.",
+    "fix": "Add error logging: console.error('[context]', error); or Sentry.captureException(error);"
+  },
+  {
+    "file": "payments/src/provider.ts",
+    "severity": "low",
+    "title": "Code Quality: Import ordering violated",
+    "why": "Import 'node:crypto' (thirdparty) comes after types. Should follow order: framework → thirdparty → internal → types.",
+    "fix": "Reorganize imports to follow the correct order groups."
+  },
+  {
+    "file": "payments/src/provider.ts",
+    "severity": "medium",
+    "title": "Code Quality: Unguarded 'Number(raw)' coercion",
+    "why": "'Number(null)' silently returns 0 and 'Number(undefined)' returns NaN — both pass a naive range check and produce silent wrong behavior instead of a visible error. External data (API responses, DB columns, registry values) should be type-narrowed before coercion. (2026-09-11, mined from PR #268 external review findings: a null highlight offset silently became 0 instead of its intended 2.5s fallback.)",
+    "fix": "Guard first: typeof raw === 'number' || typeof raw === 'string' ? Number(raw) : fallback"
+  },
+  {
+    "file": "payments/src/provider.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'a'",
+    "why": "Single-letter variable 'a' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'a' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/src/provider.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'b'",
+    "why": "Single-letter variable 'b' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'b' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/src/ledger.ts",
+    "severity": "medium",
+    "title": "Code Quality: Redundant 'async' keyword (no await found)",
+    "why": "Function 'findSaleAsync' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
+    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+  },
+  {
+    "file": "payments/src/ledger.ts",
+    "severity": "medium",
+    "title": "Code Quality: Redundant 'async' keyword (no await found)",
+    "why": "Function 'findByProviderAdjustmentIdAsync' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
+    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+  },
+  {
+    "file": "payments/src/ledger.ts",
+    "severity": "medium",
+    "title": "Code Quality: Redundant 'async' keyword (no await found)",
+    "why": "Function 'findRefundAsync' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
+    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+  },
+  {
+    "file": "payments/src/ledger.ts",
+    "severity": "medium",
+    "title": "Code Quality: Redundant 'async' keyword (no await found)",
+    "why": "Function 'findRefundReversalAsync' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
+    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+  },
+  {
+    "file": "payments/src/ledger.ts",
+    "severity": "medium",
+    "title": "Complexity: Monolithic File",
+    "why": "File exceeds 500 lines (798 lines).",
+    "fix": "Decompose into smaller, domain-specific modules."
+  },
+  {
+    "file": "payments/src/ledger.ts",
+    "severity": "medium",
+    "title": "Code Quality: Unguarded 'Number(data.amount_usd)' coercion",
+    "why": "'Number(null)' silently returns 0 and 'Number(undefined)' returns NaN — both pass a naive range check and produce silent wrong behavior instead of a visible error. External data (API responses, DB columns, registry values) should be type-narrowed before coercion. (2026-09-11, mined from PR #268 external review findings: a null highlight offset silently became 0 instead of its intended 2.5s fallback.)",
+    "fix": "Guard first: typeof data.amount_usd === 'number' || typeof data.amount_usd === 'string' ? Number(data.amount_usd) : fallback"
+  },
+  {
+    "file": "payments/src/ledger.ts",
+    "severity": "medium",
+    "title": "Code Quality: Unguarded 'Number(data.creator_split_pct)' coercion",
+    "why": "'Number(null)' silently returns 0 and 'Number(undefined)' returns NaN — both pass a naive range check and produce silent wrong behavior instead of a visible error. External data (API responses, DB columns, registry values) should be type-narrowed before coercion. (2026-09-11, mined from PR #268 external review findings: a null highlight offset silently became 0 instead of its intended 2.5s fallback.)",
+    "fix": "Guard first: typeof data.creator_split_pct === 'number' || typeof data.creator_split_pct === 'string' ? Number(data.creator_split_pct) : fallback"
+  },
+  {
+    "file": "payments/src/ledger.ts",
+    "severity": "medium",
+    "title": "Code Quality: Unguarded 'Number(data.creator_split_usd)' coercion",
+    "why": "'Number(null)' silently returns 0 and 'Number(undefined)' returns NaN — both pass a naive range check and produce silent wrong behavior instead of a visible error. External data (API responses, DB columns, registry values) should be type-narrowed before coercion. (2026-09-11, mined from PR #268 external review findings: a null highlight offset silently became 0 instead of its intended 2.5s fallback.)",
+    "fix": "Guard first: typeof data.creator_split_usd === 'number' || typeof data.creator_split_usd === 'string' ? Number(data.creator_split_usd) : fallback"
+  },
+  {
+    "file": "payments/src/ledger.ts",
+    "severity": "medium",
+    "title": "Code Quality: Unguarded 'Number(data.our_split_usd)' coercion",
+    "why": "'Number(null)' silently returns 0 and 'Number(undefined)' returns NaN — both pass a naive range check and produce silent wrong behavior instead of a visible error. External data (API responses, DB columns, registry values) should be type-narrowed before coercion. (2026-09-11, mined from PR #268 external review findings: a null highlight offset silently became 0 instead of its intended 2.5s fallback.)",
+    "fix": "Guard first: typeof data.our_split_usd === 'number' || typeof data.our_split_usd === 'string' ? Number(data.our_split_usd) : fallback"
+  },
+  {
+    "file": "payments/src/ledger.ts",
+    "severity": "medium",
+    "title": "Validation: Manual range check duplicates Zod schema",
+    "why": "Zod already enforces .min()/.max() bounds. Manual if-check after schema parse is redundant and can drift.",
+    "fix": "Remove manual range validation after schema.safeParse() — Zod handles it. Keep only post-parse semantic checks."
+  },
+  {
+    "file": "payments/src/ledger.ts",
+    "severity": "critical",
+    "title": "Schema: Refinement on required field may reject valid requests",
+    "why": "z.refine() used without .optional() or .default() on the chained field. If a caller doesn't send this field, the entire request is rejected with 400.",
+    "fix": "Add .optional() or .default() before .refine() if the field isn't guaranteed from all call paths: .refine(...).optional()"
+  },
+  {
+    "file": "payments/src/ledger.ts",
+    "severity": "critical",
+    "title": "Schema: Refinement on required field may reject valid requests",
+    "why": "z.refine() used without .optional() or .default() on the chained field. If a caller doesn't send this field, the entire request is rejected with 400.",
+    "fix": "Add .optional() or .default() before .refine() if the field isn't guaranteed from all call paths: .refine(...).optional()"
+  },
+  {
+    "file": "payments/src/ledger.ts",
+    "severity": "high",
+    "title": "Security: authorization-relevant change with no sibling test in this scan",
+    "why": "File contains an authorization/entitlement marker ('bypass') but no test file matching this file's name was found in its directory (or its __tests__ subdirectory) in the current scan. A removed or changed authorization check with no regression test can be silently reintroduced later.",
+    "fix": "Add or update a test file for ledger.ts (e.g. __tests__/ledger.test.ts) asserting the specific authorization branch this change touches, in the same PR."
+  },
+  {
+    "file": "payments/src/ledger.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'n'",
+    "why": "Single-letter variable 'n' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'n' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/src/ledger.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'e'",
+    "why": "Single-letter variable 'e' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'e' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/src/ledger.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'v'",
+    "why": "Single-letter variable 'v' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'v' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/src/ledger.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'r'",
+    "why": "Single-letter variable 'r' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'r' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/src/launch_gate.ts",
+    "severity": "medium",
+    "title": "Observability: Catch block without error logging",
+    "why": "Error is caught but not logged, making debugging difficult.",
+    "fix": "Add error logging: console.error('[context]', error); or Sentry.captureException(error);"
+  },
+  {
+    "file": "payments/src/launch_gate.ts",
+    "severity": "medium",
+    "title": "Observability: Catch block without error logging",
+    "why": "Error is caught but not logged, making debugging difficult.",
+    "fix": "Add error logging: console.error('[context]', error); or Sentry.captureException(error);"
+  },
+  {
+    "file": "payments/src/launch_gate.ts",
+    "severity": "medium",
+    "title": "Code Quality: Unguarded 'Number(res.headers.get(\"content-range\")?.split(\"/\")[1])' coercion",
+    "why": "'Number(null)' silently returns 0 and 'Number(undefined)' returns NaN — both pass a naive range check and produce silent wrong behavior instead of a visible error. External data (API responses, DB columns, registry values) should be type-narrowed before coercion. (2026-09-11, mined from PR #268 external review findings: a null highlight offset silently became 0 instead of its intended 2.5s fallback.)",
+    "fix": "Guard first: typeof res.headers.get(\"content-range\")?.split(\"/\")[1] === 'number' || typeof res.headers.get(\"content-range\")?.split(\"/\")[1] === 'string' ? Number(res.headers.get(\"content-range\")?.split(\"/\")[1]) : fallback"
+  },
+  {
+    "file": "payments/src/launch_gate.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'e'",
+    "why": "Single-letter variable 'e' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'e' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/src/launch_gate.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'e'",
+    "why": "Single-letter variable 'e' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'e' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/src/email.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'd'",
+    "why": "Single-letter variable 'd' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'd' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/src/email.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'e'",
+    "why": "Single-letter variable 'e' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'e' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/src/delivery.ts",
+    "severity": "medium",
+    "title": "Code Quality: Catch variable 'err' forwarded without normalization",
+    "why": "'err' is caught as 'unknown' and passed to Sentry/console/rethrow without an 'instanceof Error' guard or 'String()' coercion. Non-Error throws (strings, objects) render as '[object Object]' or lose their stack trace. (2026-09-11, mined from PR #268/#234 external review findings.)",
+    "fix": "Normalize before forwarding: const message = err instanceof Error ? err.message : String(err);"
+  },
+  {
+    "file": "payments/src/delivery.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 's'",
+    "why": "Single-letter variable 's' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 's' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/src/delivery.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'u'",
+    "why": "Single-letter variable 'u' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'u' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/src/providers/payhip.ts",
+    "severity": "medium",
+    "title": "Observability: Catch block without error logging",
+    "why": "Error is caught but not logged, making debugging difficult.",
+    "fix": "Add error logging: console.error('[context]', error); or Sentry.captureException(error);"
+  },
+  {
+    "file": "payments/src/providers/payhip.ts",
+    "severity": "low",
+    "title": "Code Quality: Import ordering violated",
+    "why": "Import '../provider.ts' (internal) comes after types. Should follow order: framework → thirdparty → internal → types.",
+    "fix": "Reorganize imports to follow the correct order groups."
+  },
+  {
+    "file": "payments/src/providers/paddle.ts",
+    "severity": "medium",
+    "title": "Observability: Catch block without error logging",
+    "why": "Error is caught but not logged, making debugging difficult.",
+    "fix": "Add error logging: console.error('[context]', error); or Sentry.captureException(error);"
+  },
+  {
+    "file": "payments/src/providers/paddle.ts",
+    "severity": "low",
+    "title": "Code Quality: Import ordering violated",
+    "why": "Import '../provider.ts' (internal) comes after types. Should follow order: framework → thirdparty → internal → types.",
+    "fix": "Reorganize imports to follow the correct order groups."
+  },
+  {
+    "file": "payments/src/providers/paddle.ts",
+    "severity": "medium",
+    "title": "Code Quality: Unguarded 'Number(getPath(body, FM.total_cents) ?? totals?.total)' coercion",
+    "why": "'Number(null)' silently returns 0 and 'Number(undefined)' returns NaN — both pass a naive range check and produce silent wrong behavior instead of a visible error. External data (API responses, DB columns, registry values) should be type-narrowed before coercion. (2026-09-11, mined from PR #268 external review findings: a null highlight offset silently became 0 instead of its intended 2.5s fallback.)",
+    "fix": "Guard first: typeof getPath(body, FM.total_cents) ?? totals?.total === 'number' || typeof getPath(body, FM.total_cents) ?? totals?.total === 'string' ? Number(getPath(body, FM.total_cents) ?? totals?.total) : fallback"
+  },
+  {
+    "file": "payments/src/providers/paddle.ts",
+    "severity": "medium",
+    "title": "Code Quality: Unguarded 'Number(getPath(body, FM.ts_epoch_s) ?? data?.changed_at)' coercion",
+    "why": "'Number(null)' silently returns 0 and 'Number(undefined)' returns NaN — both pass a naive range check and produce silent wrong behavior instead of a visible error. External data (API responses, DB columns, registry values) should be type-narrowed before coercion. (2026-09-11, mined from PR #268 external review findings: a null highlight offset silently became 0 instead of its intended 2.5s fallback.)",
+    "fix": "Guard first: typeof getPath(body, FM.ts_epoch_s) ?? data?.changed_at === 'number' || typeof getPath(body, FM.ts_epoch_s) ?? data?.changed_at === 'string' ? Number(getPath(body, FM.ts_epoch_s) ?? data?.changed_at) : fallback"
+  },
+  {
+    "file": "payments/src/providers/lemonsqueezy.ts",
+    "severity": "medium",
+    "title": "Observability: Catch block without error logging",
+    "why": "Error is caught but not logged, making debugging difficult.",
+    "fix": "Add error logging: console.error('[context]', error); or Sentry.captureException(error);"
+  },
+  {
+    "file": "payments/src/providers/lemonsqueezy.ts",
+    "severity": "low",
+    "title": "Code Quality: Import ordering violated",
+    "why": "Import '../provider.ts' (internal) comes after types. Should follow order: framework → thirdparty → internal → types.",
+    "fix": "Reorganize imports to follow the correct order groups."
+  },
+  {
+    "file": "payments/src/providers/fungies.ts",
+    "severity": "medium",
+    "title": "Observability: Catch block without error logging",
+    "why": "Error is caught but not logged, making debugging difficult.",
+    "fix": "Add error logging: console.error('[context]', error); or Sentry.captureException(error);"
+  },
+  {
+    "file": "payments/src/providers/fungies.ts",
+    "severity": "low",
+    "title": "Code Quality: Import ordering violated",
+    "why": "Import '../provider.ts' (internal) comes after types. Should follow order: framework → thirdparty → internal → types.",
+    "fix": "Reorganize imports to follow the correct order groups."
+  },
+  {
+    "file": "payments/src/providers/fastspring.ts",
+    "severity": "medium",
+    "title": "Observability: Catch block without error logging",
+    "why": "Error is caught but not logged, making debugging difficult.",
+    "fix": "Add error logging: console.error('[context]', error); or Sentry.captureException(error);"
+  },
+  {
+    "file": "payments/src/providers/fastspring.ts",
+    "severity": "medium",
+    "title": "Observability: Catch block without error logging",
+    "why": "Error is caught but not logged, making debugging difficult.",
+    "fix": "Add error logging: console.error('[context]', error); or Sentry.captureException(error);"
+  },
+  {
+    "file": "payments/src/providers/fastspring.ts",
+    "severity": "low",
+    "title": "Code Quality: Import ordering violated",
+    "why": "Import '../provider.ts' (internal) comes after types. Should follow order: framework → thirdparty → internal → types.",
+    "fix": "Reorganize imports to follow the correct order groups."
+  },
+  {
+    "file": "payments/src/providers/fastspring.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'a'",
+    "why": "Single-letter variable 'a' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'a' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "payments/src/providers/fastspring.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'b'",
+    "why": "Single-letter variable 'b' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'b' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "src/use_cases/process_esign_webhook.ts",
+    "severity": "medium",
+    "title": "Code Quality: Catch variable 'err' forwarded without normalization",
+    "why": "'err' is caught as 'unknown' and passed to Sentry/console/rethrow without an 'instanceof Error' guard or 'String()' coercion. Non-Error throws (strings, objects) render as '[object Object]' or lose their stack trace. (2026-09-11, mined from PR #268/#234 external review findings.)",
+    "fix": "Normalize before forwarding: const message = err instanceof Error ? err.message : String(err);"
+  },
+  {
+    "file": "src/use_cases/process_esign_webhook.ts",
+    "severity": "low",
+    "title": "Code Quality: Import ordering violated",
+    "why": "Import 'node:crypto' (thirdparty) comes after internal. Should follow order: framework → thirdparty → internal → types.",
+    "fix": "Reorganize imports to follow the correct order groups."
+  },
+  {
+    "file": "src/use_cases/process_esign_webhook.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'e'",
+    "why": "Single-letter variable 'e' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'e' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "src/use_cases/create_esign_envelope.ts",
+    "severity": "low",
+    "title": "Code Quality: Import ordering violated",
+    "why": "Import '@supabase/supabase-js' (thirdparty) comes after internal. Should follow order: framework → thirdparty → internal → types.",
+    "fix": "Reorganize imports to follow the correct order groups."
+  },
+  {
+    "file": "src/use_cases/create_esign_envelope.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 's'",
+    "why": "Single-letter variable 's' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 's' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "src/use_cases/billing/process_billing_webhook.ts",
+    "severity": "medium",
+    "title": "Complexity: Monolithic File",
+    "why": "File exceeds 500 lines (560 lines).",
+    "fix": "Decompose into smaller, domain-specific modules."
+  },
+  {
+    "file": "src/use_cases/billing/process_billing_webhook.ts",
+    "severity": "medium",
+    "title": "Code Quality: Catch variable 'err' forwarded without normalization",
+    "why": "'err' is caught as 'unknown' and passed to Sentry/console/rethrow without an 'instanceof Error' guard or 'String()' coercion. Non-Error throws (strings, objects) render as '[object Object]' or lose their stack trace. (2026-09-11, mined from PR #268/#234 external review findings.)",
+    "fix": "Normalize before forwarding: const message = err instanceof Error ? err.message : String(err);"
+  },
+  {
+    "file": "src/use_cases/billing/process_billing_webhook.ts",
+    "severity": "medium",
+    "title": "Code Quality: Catch variable 'err' forwarded without normalization",
+    "why": "'err' is caught as 'unknown' and passed to Sentry/console/rethrow without an 'instanceof Error' guard or 'String()' coercion. Non-Error throws (strings, objects) render as '[object Object]' or lose their stack trace. (2026-09-11, mined from PR #268/#234 external review findings.)",
+    "fix": "Normalize before forwarding: const message = err instanceof Error ? err.message : String(err);"
+  },
+  {
+    "file": "src/use_cases/billing/process_billing_webhook.ts",
+    "severity": "medium",
+    "title": "Code Quality: Catch variable 'err' forwarded without normalization",
+    "why": "'err' is caught as 'unknown' and passed to Sentry/console/rethrow without an 'instanceof Error' guard or 'String()' coercion. Non-Error throws (strings, objects) render as '[object Object]' or lose their stack trace. (2026-09-11, mined from PR #268/#234 external review findings.)",
+    "fix": "Normalize before forwarding: const message = err instanceof Error ? err.message : String(err);"
+  },
+  {
+    "file": "src/use_cases/billing/process_billing_webhook.ts",
+    "severity": "medium",
+    "title": "Code Quality: Catch variable 'err' forwarded without normalization",
+    "why": "'err' is caught as 'unknown' and passed to Sentry/console/rethrow without an 'instanceof Error' guard or 'String()' coercion. Non-Error throws (strings, objects) render as '[object Object]' or lose their stack trace. (2026-09-11, mined from PR #268/#234 external review findings.)",
+    "fix": "Normalize before forwarding: const message = err instanceof Error ? err.message : String(err);"
+  },
+  {
+    "file": "src/use_cases/billing/process_billing_webhook.ts",
+    "severity": "medium",
+    "title": "Observability: Catch block without error logging",
+    "why": "Error is caught but not logged, making debugging difficult.",
+    "fix": "Add error logging: console.error('[context]', error); or Sentry.captureException(error);"
+  },
+  {
+    "file": "src/use_cases/billing/__tests__/process_billing_webhook.test.ts",
+    "severity": "medium",
+    "title": "Complexity: Monolithic File",
+    "why": "File exceeds 500 lines (1599 lines).",
+    "fix": "Decompose into smaller, domain-specific modules."
+  },
+  {
+    "file": "src/use_cases/billing/__tests__/process_billing_webhook.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Import ordering violated",
+    "why": "Import 'node:crypto' (thirdparty) comes after internal. Should follow order: framework → thirdparty → internal → types.",
+    "fix": "Reorganize imports to follow the correct order groups."
+  },
+  {
+    "file": "src/use_cases/billing/__tests__/process_billing_webhook.test.ts",
+    "severity": "medium",
+    "title": "Risk: non-null assertion on array index after sort/filter",
+    "why": "rows[1]! asserts a result exists after a .sort()/.filter() transform on 'rows'. A future refactor that changes the filter predicate (e.g. widening it to allow an empty result) will not be caught by the type system and can throw or silently produce 'undefined' at runtime.",
+    "fix": "Replace with an explicit check: const first = rows[0]; if (!first) { /* handle empty case */ }"
+  },
+  {
+    "file": "src/use_cases/billing/__tests__/process_billing_webhook.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'a'",
+    "why": "Single-letter variable 'a' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'a' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "src/use_cases/billing/__tests__/process_billing_webhook.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'd'",
+    "why": "Single-letter variable 'd' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'd' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "src/use_cases/billing/__tests__/process_billing_webhook.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'p'",
+    "why": "Single-letter variable 'p' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'p' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "src/use_cases/billing/__tests__/process_billing_webhook.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'k'",
+    "why": "Single-letter variable 'k' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'k' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "src/use_cases/billing/__tests__/process_billing_webhook.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'c'",
+    "why": "Single-letter variable 'c' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'c' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "src/use_cases/billing/__tests__/process_billing_webhook.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'a'",
+    "why": "Single-letter variable 'a' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'a' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "src/use_cases/billing/__tests__/process_billing_webhook.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'a'",
+    "why": "Single-letter variable 'a' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'a' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "src/use_cases/billing/__tests__/process_billing_webhook.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'e'",
+    "why": "Single-letter variable 'e' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'e' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "src/infrastructure/redis/redis.client.ts",
+    "severity": "medium",
+    "title": "Code Quality: Catch variable 'err' forwarded without normalization",
+    "why": "'err' is caught as 'unknown' and passed to Sentry/console/rethrow without an 'instanceof Error' guard or 'String()' coercion. Non-Error throws (strings, objects) render as '[object Object]' or lose their stack trace. (2026-09-11, mined from PR #268/#234 external review findings.)",
+    "fix": "Normalize before forwarding: const message = err instanceof Error ? err.message : String(err);"
+  },
+  {
+    "file": "src/infrastructure/redis/redis.client.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'k'",
+    "why": "Single-letter variable 'k' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'k' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "src/infrastructure/matrix_router/matrix_router.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'a'",
+    "why": "Single-letter variable 'a' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'a' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "src/infrastructure/matrix_router/matrix_router.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'b'",
+    "why": "Single-letter variable 'b' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'b' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "src/adapters/storage/r2.adapter.ts",
+    "severity": "low",
+    "title": "Code Quality: Import ordering violated",
+    "why": "Import '../../../payments/src/settings_registry' (internal) comes after types. Should follow order: framework → thirdparty → internal → types.",
+    "fix": "Reorganize imports to follow the correct order groups."
+  },
+  {
+    "file": "src/adapters/storage/r2.adapter.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'n'",
+    "why": "Single-letter variable 'n' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'n' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "src/adapters/storage/r2.adapter.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'm'",
+    "why": "Single-letter variable 'm' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'm' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "src/adapters/storage/r2.adapter.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'd'",
+    "why": "Single-letter variable 'd' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'd' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "src/adapters/payments/paddle.adapter.ts",
+    "severity": "medium",
+    "title": "Observability: Catch block without error logging",
+    "why": "Error is caught but not logged, making debugging difficult.",
+    "fix": "Add error logging: console.error('[context]', error); or Sentry.captureException(error);"
+  },
+  {
+    "file": "src/adapters/payments/paddle.adapter.ts",
+    "severity": "medium",
+    "title": "Observability: Catch block without error logging",
+    "why": "Error is caught but not logged, making debugging difficult.",
+    "fix": "Add error logging: console.error('[context]', error); or Sentry.captureException(error);"
+  },
+  {
+    "file": "src/adapters/payments/paddle.adapter.ts",
+    "severity": "low",
+    "title": "Code Quality: Import ordering violated",
+    "why": "Import 'zod' (thirdparty) comes after internal. Should follow order: framework → thirdparty → internal → types.",
+    "fix": "Reorganize imports to follow the correct order groups."
+  },
+  {
+    "file": "src/adapters/payments/paddle.adapter.ts",
+    "severity": "medium",
+    "title": "Code Quality: Unguarded 'Number(ts)' coercion",
+    "why": "'Number(null)' silently returns 0 and 'Number(undefined)' returns NaN — both pass a naive range check and produce silent wrong behavior instead of a visible error. External data (API responses, DB columns, registry values) should be type-narrowed before coercion. (2026-09-11, mined from PR #268 external review findings: a null highlight offset silently became 0 instead of its intended 2.5s fallback.)",
+    "fix": "Guard first: typeof ts === 'number' || typeof ts === 'string' ? Number(ts) : fallback"
+  },
+  {
+    "file": "src/adapters/payments/paddle.adapter.ts",
+    "severity": "medium",
+    "title": "Code Quality: Unguarded 'Number(validated.data.totals.total)' coercion",
+    "why": "'Number(null)' silently returns 0 and 'Number(undefined)' returns NaN — both pass a naive range check and produce silent wrong behavior instead of a visible error. External data (API responses, DB columns, registry values) should be type-narrowed before coercion. (2026-09-11, mined from PR #268 external review findings: a null highlight offset silently became 0 instead of its intended 2.5s fallback.)",
+    "fix": "Guard first: typeof validated.data.totals.total === 'number' || typeof validated.data.totals.total === 'string' ? Number(validated.data.totals.total) : fallback"
+  },
+  {
+    "file": "src/adapters/payments/paddle.adapter.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'e'",
+    "why": "Single-letter variable 'e' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'e' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "src/adapters/payments/legacy.adapter.ts",
+    "severity": "medium",
+    "title": "Observability: Catch block without error logging",
+    "why": "Error is caught but not logged, making debugging difficult.",
+    "fix": "Add error logging: console.error('[context]', error); or Sentry.captureException(error);"
+  },
+  {
+    "file": "src/adapters/payments/__tests__/paddle.adapter.test.ts",
+    "severity": "medium",
+    "title": "Code Quality: Redundant 'async' keyword (no await found)",
+    "why": "Function 'parse' is marked async but contains no await expressions. This may indicate copy-paste or incomplete refactoring.",
+    "fix": "Remove the 'async' keyword or add 'await' expression. If function returns a Promise, return it directly without 'async'."
+  },
+  {
+    "file": "src/adapters/payments/__tests__/paddle.adapter.test.ts",
+    "severity": "medium",
+    "title": "Complexity: Monolithic File",
+    "why": "File exceeds 500 lines (601 lines).",
+    "fix": "Decompose into smaller, domain-specific modules."
+  },
+  {
+    "file": "src/adapters/payments/__tests__/legacy.adapter.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'r'",
+    "why": "Single-letter variable 'r' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'r' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "src/adapters/payments/__tests__/legacy.adapter.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'r'",
+    "why": "Single-letter variable 'r' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'r' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "src/adapters/payments/__tests__/legacy.adapter.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'r'",
+    "why": "Single-letter variable 'r' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'r' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "src/adapters/payments/__tests__/legacy.adapter.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'r'",
+    "why": "Single-letter variable 'r' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'r' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "src/adapters/payments/__tests__/legacy.adapter.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'r'",
+    "why": "Single-letter variable 'r' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'r' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "src/adapters/payments/__tests__/legacy.adapter.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'r'",
+    "why": "Single-letter variable 'r' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'r' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "src/adapters/payments/__tests__/legacy.adapter.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'r'",
+    "why": "Single-letter variable 'r' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'r' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "src/adapters/payments/__tests__/legacy.adapter.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'r'",
+    "why": "Single-letter variable 'r' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'r' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "src/adapters/payments/__tests__/audit-paddle.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'r'",
+    "why": "Single-letter variable 'r' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'r' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "src/adapters/payments/__tests__/audit-paddle.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'r'",
+    "why": "Single-letter variable 'r' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'r' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "src/adapters/payments/__tests__/audit-paddle.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'r'",
+    "why": "Single-letter variable 'r' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'r' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "src/adapters/payments/__tests__/audit-paddle.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'r'",
+    "why": "Single-letter variable 'r' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'r' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "src/adapters/esign/firma.adapter.ts",
+    "severity": "medium",
+    "title": "Complexity: Monolithic File",
+    "why": "File exceeds 500 lines (613 lines).",
+    "fix": "Decompose into smaller, domain-specific modules."
+  },
+  {
+    "file": "src/adapters/esign/firma.adapter.ts",
+    "severity": "medium",
+    "title": "Observability: Catch block without error logging",
+    "why": "Error is caught but not logged, making debugging difficult.",
+    "fix": "Add error logging: console.error('[context]', error); or Sentry.captureException(error);"
+  },
+  {
+    "file": "src/adapters/esign/firma.adapter.ts",
+    "severity": "medium",
+    "title": "Observability: Catch block without error logging",
+    "why": "Error is caught but not logged, making debugging difficult.",
+    "fix": "Add error logging: console.error('[context]', error); or Sentry.captureException(error);"
+  },
+  {
+    "file": "src/adapters/esign/firma.adapter.ts",
+    "severity": "medium",
+    "title": "Code Quality: Unguarded 'Number(contentLength)' coercion",
+    "why": "'Number(null)' silently returns 0 and 'Number(undefined)' returns NaN — both pass a naive range check and produce silent wrong behavior instead of a visible error. External data (API responses, DB columns, registry values) should be type-narrowed before coercion. (2026-09-11, mined from PR #268 external review findings: a null highlight offset silently became 0 instead of its intended 2.5s fallback.)",
+    "fix": "Guard first: typeof contentLength === 'number' || typeof contentLength === 'string' ? Number(contentLength) : fallback"
+  },
+  {
+    "file": "src/adapters/esign/firma.adapter.ts",
+    "severity": "medium",
+    "title": "Stream reader not released in a finally block",
+    "why": "getReader() takes the stream lock. Without a finally that calls releaseLock() or cancel(), an exception or early return leaves the stream locked and its underlying connection open.",
+    "fix": "Wrap the reads in try { ... } finally { reader.releaseLock(); } (or reader.cancel() on the error path)."
+  },
+  {
+    "file": "src/adapters/esign/firma.adapter.ts",
+    "severity": "medium",
+    "title": "Error: .catch(() => {}) swallows promise rejection",
+    "why": "Empty .catch(() => {}) hides failures. User gets no feedback when action fails.",
+    "fix": "Replace with .catch(e => console.error('[context]', e)) or .catch(e => showToast('Error: ' + e.message))"
+  },
+  {
+    "file": "src/adapters/esign/firma.adapter.ts",
+    "severity": "medium",
+    "title": "Error: .catch(() => {}) swallows promise rejection",
+    "why": "Empty .catch(() => {}) hides failures. User gets no feedback when action fails.",
+    "fix": "Replace with .catch(e => console.error('[context]', e)) or .catch(e => showToast('Error: ' + e.message))"
+  },
+  {
+    "file": "src/adapters/esign/firma.adapter.ts",
+    "severity": "medium",
+    "title": "ARTAS V10: response body buffered whole without a byte cap",
+    "why": "res.arrayBuffer() buffers the entire response in memory with no content-length check or counted reader loop — a large/endless body exhausts the runtime (ARTAS_REGISTRY V10; hex-expan ExpanPress arrayBuffer bypass).",
+    "fix": "Check content-length against a cap before reading, or stream with a byte-counted reader loop; never buffer a user-influenced body whole."
+  },
+  {
+    "file": "src/adapters/esign/firma.adapter.ts",
+    "severity": "medium",
+    "title": "ARTAS V10: response body buffered whole without a byte cap",
+    "why": "res.arrayBuffer() buffers the entire response in memory with no content-length check or counted reader loop — a large/endless body exhausts the runtime (ARTAS_REGISTRY V10; hex-expan ExpanPress arrayBuffer bypass).",
+    "fix": "Check content-length against a cap before reading, or stream with a byte-counted reader loop; never buffer a user-influenced body whole."
+  },
+  {
+    "file": "src/adapters/esign/firma.adapter.ts",
+    "severity": "medium",
+    "title": "ARTAS V10: response body buffered whole without a byte cap",
+    "why": "verify.arrayBuffer() buffers the entire response in memory with no content-length check or counted reader loop — a large/endless body exhausts the runtime (ARTAS_REGISTRY V10; hex-expan ExpanPress arrayBuffer bypass).",
+    "fix": "Check content-length against a cap before reading, or stream with a byte-counted reader loop; never buffer a user-influenced body whole."
+  },
+  {
+    "file": "src/adapters/esign/firma.adapter.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'u'",
+    "why": "Single-letter variable 'u' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'u' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "src/adapters/esign/firma.adapter.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'u'",
+    "why": "Single-letter variable 'u' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'u' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "src/adapters/esign/esign.factory.ts",
+    "severity": "medium",
+    "title": "Error: .catch(() => {}) swallows promise rejection",
+    "why": "Empty .catch(() => {}) hides failures. User gets no feedback when action fails.",
+    "fix": "Replace with .catch(e => console.error('[context]', e)) or .catch(e => showToast('Error: ' + e.message))"
+  },
+  {
+    "file": "src/adapters/esign/esign.factory.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'e'",
+    "why": "Single-letter variable 'e' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'e' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "src/adapters/esign/__tests__/firma.adapter.test.ts",
+    "severity": "medium",
+    "title": "Complexity: Monolithic File",
+    "why": "File exceeds 500 lines (783 lines).",
+    "fix": "Decompose into smaller, domain-specific modules."
+  },
+  {
+    "file": "src/adapters/esign/__tests__/firma.adapter.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Import ordering violated",
+    "why": "Import 'undici' (thirdparty) comes after types. Should follow order: framework → thirdparty → internal → types.",
+    "fix": "Reorganize imports to follow the correct order groups."
+  },
+  {
+    "file": "src/adapters/esign/__tests__/firma.adapter.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'h'",
+    "why": "Single-letter variable 'h' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'h' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "src/adapters/esign/__tests__/firma.adapter.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'h'",
+    "why": "Single-letter variable 'h' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'h' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "src/adapters/esign/__tests__/firma.adapter.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'h'",
+    "why": "Single-letter variable 'h' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'h' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "src/adapters/esign/__tests__/firma.adapter.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'h'",
+    "why": "Single-letter variable 'h' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'h' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "src/adapters/esign/__tests__/firma.adapter.test.ts",
+    "severity": "low",
+    "title": "Code Quality: Unclear variable name 'h'",
+    "why": "Single-letter variable 'h' outside of loop context is unclear. Makes code harder to understand.",
+    "fix": "Rename to a descriptive name that explains the variable's purpose (e.g., 'h' → 'question', 'error', etc.)."
+  },
+  {
+    "file": "supabase/migrations/20261009000000_launch_trigger_and_audit.sql",
+    "severity": "high",
+    "title": "Security: advisory-lock gate lacks an isolation-level guard (function public.enforce_launch_gate)",
+    "why": "The function takes pg_advisory_xact_lock but does not check transaction_isolation. Under REPEATABLE READ or SERIALIZABLE the snapshot is taken before the lock wait, so the gate can verify stale consents.",
+    "fix": "At the top of the gated branch, raise when current_setting('transaction_isolation') <> 'read committed', and add a PGlite test that a REPEATABLE READ transaction is refused."
+  },
+  {
+    "file": "supabase/migrations/20261004000900_submit_consent_race_lock.sql",
+    "severity": "high",
+    "title": "Security: advisory-lock gate lacks an isolation-level guard (function public.submit_consent)",
+    "why": "The function takes pg_advisory_xact_lock but does not check transaction_isolation. Under REPEATABLE READ or SERIALIZABLE the snapshot is taken before the lock wait, so the gate can verify stale consents.",
+    "fix": "At the top of the gated branch, raise when current_setting('transaction_isolation') <> 'read committed', and add a PGlite test that a REPEATABLE READ transaction is refused."
   },
   {
     "file": "supabase/migrations/20261004000900_submit_consent_race_lock.sql",
