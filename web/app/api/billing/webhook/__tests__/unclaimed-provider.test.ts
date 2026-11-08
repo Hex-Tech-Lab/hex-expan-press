@@ -26,6 +26,7 @@ vi.mock("../../../../../../payments/src/settings_registry.ts", () => ({
   },
   expandHome: (p: string) => p,
   isRegisteredPaymentProvider: (name: unknown) => typeof name === "string",
+  isEnabledPaymentProvider: (name: unknown) => typeof name === "string",
   paymentProviderSetting: () => undefined,
   isMoneyPath: () => false,
 }));

@@ -372,6 +372,7 @@ const ManualReviewRefundSchema = z.object({
   reason: z.enum([
     "amount_mismatch",
     "amount_unverifiable",
+    "refund_not_settled",
     "currency_mismatch",
     "reversal_without_refund",
     "reversal_amount_mismatch",
