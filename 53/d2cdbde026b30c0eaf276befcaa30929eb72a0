@@ -1,0 +1,30 @@
+creator_scan.ts
+  h_e6b68dcbbd0983 49-59,131,143,402
+docs/agent_ledger.jsonl
+  h_e6b68dcbbd0983 909
+docs/handover/THOS_2026-11-08_pr-landing-complete.html
+  h_e6b68dcbbd0983 58,66-67
+docs/handover/THOS_2026-11-08_pr-landing-complete.md
+  h_e6b68dcbbd0983 69-70
+harvest.ts
+  h_e6b68dcbbd0983 46
+payments/src/settings_registry.ts
+  h_e6b68dcbbd0983 680
+src/adapters/esign/firma.adapter.ts
+  h_e6b68dcbbd0983 141-142
+src/infrastructure/redis/redis.client.ts
+  h_e6b68dcbbd0983 63-65
+trends.ts
+  h_e6b68dcbbd0983 53,65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "53d2cdbde026b30c0eaf276befcaa30929eb72a0",
+  "prompts": {},
+  "humans": {
+    "h_e6b68dcbbd0983": {
+      "author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
