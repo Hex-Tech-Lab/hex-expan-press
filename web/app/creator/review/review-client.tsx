@@ -321,7 +321,7 @@ export default function ReviewClient({ items, saved, pdfUrl, bookTitle }: Review
           className="neu-card rounded-[14px] p-(--space-6)"
         >
           <p className="text-[length:var(--font-size-2xs)] font-bold uppercase tracking-[0.08em] text-[#296E50]">Review complete</p>
-          <h1 className="mt-2 font-serif text-[length:var(--text-heading-1-size)] font-bold text-[#2B2520]">Every answer is saved and logged</h1>
+          <h1 className="mt-2 font-sans text-[length:var(--text-heading-1-size)] font-bold text-[#2B2520]">Every answer is saved and logged</h1>
           <p className="mt-3 text-[length:var(--font-size-base)] text-[#6E5F53]">
             Thank you — your manuscript review is done. Continue to the legal consents to move your book toward release.
           </p>
@@ -339,7 +339,7 @@ export default function ReviewClient({ items, saved, pdfUrl, bookTitle }: Review
   return (
     <div className="mx-auto max-w-[1100px] px-5 pb-16 pt-10">
       <p className="mb-1 text-[length:var(--font-size-xs)] font-semibold uppercase tracking-[0.14em] text-[#B3401E]">Creator Portal</p>
-      <h1 className="font-serif text-[length:var(--text-heading-1-size)] font-bold leading-[1.15] text-[#2B2520]">Manuscript review</h1>
+      <h1 className="font-sans text-[length:var(--text-heading-1-size)] font-bold leading-[1.15] text-[#2B2520]">Manuscript review</h1>
       <p className="mt-1 mb-4 text-[length:var(--font-size-sm)] text-[#6E5F53]">{bookTitle} — confirm quotes and facts, then sign off.</p>
 
       {/* Progress */}

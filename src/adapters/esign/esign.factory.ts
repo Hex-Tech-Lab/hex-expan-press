@@ -63,7 +63,11 @@ class CompositeEsignAdapter implements EsignAdapter {
         }
       }
       
-      throw new Error(`All configured esign providers failed (Primary: ${primaryName}, Fallbacks: ${this.strategy.fallbacks.join(',')})`);
+      const detail = err instanceof Error ? `: ${err.message}` : "";
+      throw new Error(
+        `All configured esign providers failed (Primary: ${primaryName}${detail}, Fallbacks: ${this.strategy.fallbacks.join(",")})`,
+        { cause: err }
+      );
     }
   }
 

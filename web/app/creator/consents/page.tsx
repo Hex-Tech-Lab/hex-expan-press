@@ -96,7 +96,7 @@ export default async function ConsentsPage() {
 function ConsentNotice({ title, body }: { title: string; body: string }) {
   return (
     <div className="mx-auto max-w-[680px] px-5 py-16" role="alert">
-      <h1 className="font-serif text-[length:var(--text-heading-1-size)] font-bold text-[#2B2520]">{title}</h1>
+      <h1 className="font-sans text-[length:var(--text-heading-1-size)] font-bold text-[#2B2520]">{title}</h1>
       <p className="mt-2 text-[length:var(--font-size-base)] text-[#6E5F53]">{body}</p>
       <a
         href="/creator/dashboard"

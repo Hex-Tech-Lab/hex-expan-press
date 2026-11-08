@@ -154,7 +154,7 @@ export default function DashboardClient({
       <m.h1
         initial={{ opacity: 0, y: 28 }}
         animate={{ opacity: 1, y: 0, transition: { duration: 0.5, ease: EASE, delay: 0.06 } }}
-        className="font-serif text-[length:var(--text-heading-1-size)] font-bold leading-[1.15] tracking-[-0.015em] text-[#2B2520]"
+        className="font-sans text-[length:var(--text-heading-1-size)] font-bold leading-[1.15] tracking-[-0.015em] text-[#2B2520]"
       >
         Your creator dashboard
       </m.h1>
@@ -211,7 +211,7 @@ export default function DashboardClient({
       <m.h2
         initial={{ opacity: 0 }}
         animate={{ opacity: 1, transition: { duration: 0.4, ease: EASE, delay: 0.3 } }}
-        className="mb-4 mt-7 font-serif text-[length:var(--text-heading-2-size)] font-bold text-[#2B2520]"
+        className="mb-4 mt-7 font-sans text-[length:var(--text-heading-2-size)] font-bold text-[#2B2520]"
       >
         Required Release Steps
       </m.h2>
@@ -249,7 +249,7 @@ export default function DashboardClient({
                   {step.status}
                 </span>
               </div>
-              <p className="font-serif text-[length:var(--text-heading-3-size)] font-bold text-[#2B2520]">{step.title}</p>
+              <p className="font-sans text-[length:var(--text-heading-3-size)] font-bold text-[#2B2520]">{step.title}</p>
               <p className="mt-1 text-[length:var(--font-size-sm)] leading-relaxed text-[#6E5F53]">{step.desc}</p>
               <p className="mt-2 inline-flex items-center gap-1 text-[length:var(--font-size-sm)] font-semibold text-[#296E50]">
                 {step.cta}

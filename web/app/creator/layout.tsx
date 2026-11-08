@@ -25,7 +25,7 @@ export const metadata: Metadata = {
  */
 export default function CreatorLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className={`${fraunces.className} [--font-serif:var(--font-fraunces)]`} data-creator-portal>
+    <div className={`${fraunces.variable} font-sans [--font-serif:var(--font-fraunces)]`} data-creator-portal>
       <MotionProvider>{children}</MotionProvider>
     </div>
   );

@@ -114,7 +114,7 @@ export default async function DashboardPage({
     }
     return (
       <div className="mx-auto max-w-[680px] px-5 py-12" role="alert">
-          <h1 className="font-serif text-2xl font-bold text-[#2B2520]">We couldn&apos;t load your dashboard.</h1>
+          <h1 className="font-sans text-2xl font-bold text-[#2B2520]">We couldn&apos;t load your dashboard.</h1>
           <p className="mt-2 text-sm text-[#6E5F53]">
             This looks like a temporary problem on our side — your work is safe. Please reload in a moment.
           </p>
