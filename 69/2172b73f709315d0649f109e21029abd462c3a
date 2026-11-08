@@ -1,0 +1,16 @@
+.github/workflows/series_stream_recorder.yml
+  h_e6b68dcbbd0983 67-71,76-79,82-85,88-91,182
+docs/agent_ledger.jsonl
+  h_e6b68dcbbd0983 924
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "692172b73f709315d0649f109e21029abd462c3a",
+  "prompts": {},
+  "humans": {
+    "h_e6b68dcbbd0983": {
+      "author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
