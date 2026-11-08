@@ -1,0 +1,19 @@
+scripts/qa-intel/engine/__tests__/security-rules.test.ts
+  s_c168ad98f5fe56::t_bc73070248715e 455-499
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "25285cf0c3c739b51261b59f5bed7e3d2816803c",
+  "prompts": {},
+  "sessions": {
+    "s_c168ad98f5fe56": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a1c006e0f168181dd",
+        "model": "unknown"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}

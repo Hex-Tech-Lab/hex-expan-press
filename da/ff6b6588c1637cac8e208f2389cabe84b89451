@@ -1,0 +1,21 @@
+scripts/qa-intel/engine/__tests__/architecture-error-rules.test.ts
+  s_c168ad98f5fe56::t_4ab1282aef6c29 115-126
+scripts/qa-intel/engine/rules/__tests__/artas-rules.test.ts
+  s_c168ad98f5fe56::t_9f526fcee9ae85 250-312
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "daff6b6588c1637cac8e208f2389cabe84b89451",
+  "prompts": {},
+  "sessions": {
+    "s_c168ad98f5fe56": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a1c006e0f168181dd",
+        "model": "unknown"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}

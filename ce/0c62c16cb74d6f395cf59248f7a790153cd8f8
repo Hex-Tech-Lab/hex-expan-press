@@ -1,0 +1,51 @@
+scripts/qa-intel/engine/__tests__/rule-error-propagation.test.ts
+  s_6625bc67577472::t_ca7ab557c0acfe 1-61
+scripts/qa-intel.ts
+  s_6625bc67577472::t_152dc65c130345 5-6,99-107
+scripts/qa-intel/engine/application/QualityEngine.ts
+  s_6625bc67577472::t_ea34030e108bea 121
+scripts/qa-intel/engine/domain/Rule.ts
+  s_6625bc67577472::t_5021e0d9b38552 16,44-48
+scripts/qa-intel/engine/engine.ts
+  s_6625bc67577472::t_cb0e5a0c8053ed 1
+scripts/qa-intel/engine/infra/LegacyRuleAdapter.ts
+  s_6625bc67577472::t_1e883c7c8c2d2d 3,9,18
+scripts/qa-intel/engine/rules/__tests__/security-lessons-20260905.test.ts
+  s_6625bc67577472::t_6443cbbdc2cb1e 122
+scripts/qa-intel/engine/rules/__tests__/sql-migrations.test.ts
+  s_6625bc67577472::t_50a1645b562cef 627,629,693,695
+scripts/qa-intel/engine/rules/artas-rules.ts
+  s_6625bc67577472::t_f1a2e36d03bfcd 2,461-462
+scripts/qa-intel/engine/rules/data-integrity.ts
+  s_6625bc67577472::t_67e92cb39aab80 1,259
+scripts/qa-intel/engine/rules/quality.ts
+  s_6625bc67577472::t_f9c033adf8078d 1,50-64,67-68,283-292,294-300,308-321,488
+scripts/qa-intel/engine/rules/rules-config.ts
+  s_6625bc67577472::t_9b56913e40be34 1,15
+scripts/qa-intel/engine/rules/rules-engine.ts
+  s_6625bc67577472::t_307fd88f26d2b1 21
+scripts/qa-intel/engine/rules/rules-registry.ts
+  s_6625bc67577472::t_affd4532a4e0d4 1,71
+scripts/qa-intel/engine/rules/security-lessons-20261010.ts
+  s_6625bc67577472::t_d965e3c07db949 86
+scripts/qa-intel/engine/rules/security.ts
+  s_6625bc67577472::t_733146c0cff9fa 1,435-450,725
+scripts/qa-intel/engine/rules/sql-migrations.ts
+  s_6625bc67577472::t_f292d706c9471c 504
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ce0c62c16cb74d6f395cf59248f7a790153cd8f8",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}

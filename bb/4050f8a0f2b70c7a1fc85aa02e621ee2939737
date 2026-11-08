@@ -1,0 +1,25 @@
+package.json
+  s_6625bc67577472::t_42b1aeb15fe579 18-19
+scripts/qa-intel/engine/rules/__tests__/sql-migrations.test.ts
+  s_6625bc67577472::t_87ea66fbd1bcf2 20
+  s_6625bc67577472::t_5625ac2b77c78d 33
+scripts/qa-intel.ts
+  s_6625bc67577472::t_bbae40bade94a1 177-181
+  s_6625bc67577472::t_afa7fbfa3b2833 122-123
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "bb4050f8a0f2b70c7a1fc85aa02e621ee2939737",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}

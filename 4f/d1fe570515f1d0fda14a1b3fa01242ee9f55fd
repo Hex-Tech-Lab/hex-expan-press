@@ -1,0 +1,31 @@
+package.json
+  s_6625bc67577472::t_f61083e09a3a4d 54-55
+scripts/qa-intel/__tests__/devdep-pins.test.ts
+  s_6625bc67577472::t_fd16e4f37a148e 1-21
+pnpm-lock.yaml
+  s_f5af18a25df9b6::t_2e28f722f7fba0 147,150
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4fd1fe570515f1d0fda14a1b3fa01242ee9f55fd",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    },
+    "s_f5af18a25df9b6": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a8b95d7fffcb42bce",
+        "model": "unknown"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
