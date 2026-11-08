@@ -1,0 +1,26 @@
+docs/agent_ledger.jsonl
+  h_e6b68dcbbd0983 914-915
+scripts/assemble_live_audio.py
+  h_e6b68dcbbd0983 1-75
+src/adapters/esign/__tests__/esign.factory.test.ts
+  h_e6b68dcbbd0983 1-131
+src/adapters/esign/esign.factory.ts
+  h_e6b68dcbbd0983 8
+src/adapters/esign/firma.adapter.ts
+  h_e6b68dcbbd0983 548-550
+transcribe.ts
+  h_e6b68dcbbd0983 6
+web/app/creator/dashboard/actions.ts
+  h_e6b68dcbbd0983 136-140
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5549883032edfbb8a710280c9f59dafc16818bd3",
+  "prompts": {},
+  "humans": {
+    "h_e6b68dcbbd0983": {
+      "author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
