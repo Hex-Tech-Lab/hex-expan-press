@@ -112,6 +112,9 @@ importers:
       '@supabase/supabase-js':
         specifier: 2.117.1
         version: 2.117.1(@opentelemetry/api@1.9.1)
+      '@upstash/blob':
+        specifier: 0.0.13
+        version: 0.0.13(react@19.2.7)
       cheerio:
         specifier: 1.2.0
         version: 1.2.0
@@ -2596,6 +2599,15 @@ packages:
     resolution: {integrity: sha512-nAB74NfSNKknqQ1RrYj6uz8FcXEomu/MATJZxh/x+BArzN2U3JbOYC0APYzUIGhVY3m5hRxA8VPNdPBoG8txlA==}
     cpu: [x64]
     os: [win32]
+
+  '@upstash/blob@0.0.13':
+    resolution: {integrity: sha512-J66/N6xbige/9DSircXXZxoNkMllY4NntNvU/lNuhIQF2xoTMC08miy6vm8MKD0f18Vrs5cVmAJcJ+c2bEv1sA==}
+    engines: {node: '>=20'}
+    peerDependencies:
+      react: '>=18'
+    peerDependenciesMeta:
+      react:
+        optional: true
 
   '@vercel/backends@8.0.0':
     resolution: {integrity: sha512-Vp+W7m2GuxpMNf3Q7+MW+E9TzLeBjyofwuWFWfHgxKt+GfHQ6oebU5GYrZs25ldwBsJpUADCxHE2bpnDL2Ccmg==}
@@ -6968,6 +6980,10 @@ snapshots:
 
   '@unrs/resolver-binding-win32-x64-msvc@1.12.2':
     optional: true
+
+  '@upstash/blob@0.0.13(react@19.2.7)':
+    optionalDependencies:
+      react: 19.2.7
 
   '@vercel/backends@8.0.0(@emnapi/core@1.11.3)(@emnapi/runtime@1.11.3)(@vercel/build-utils@14.10.0)(rollup@4.63.5)(supports-color@7.2.0)':
     dependencies:

@@ -1,0 +1,212 @@
+name: Record Series Live Stream
+
+on:
+  workflow_dispatch:
+    inputs:
+      day:
+        description: 'Day number (1, 2, 3, 4, 5)'
+        required: true
+        default: '3'
+      youtube_url:
+        description: 'YouTube Stream URL'
+        required: true
+        default: 'https://www.youtube.com/watch?v=wfSFaxHuU7Q'
+      transcribe:
+        description: 'Transcribe audio via OpenRouter STT'
+        required: true
+        type: boolean
+        default: true
+  schedule:
+    # Day 3: Mon Nov 9 @ 17:58 UTC (19:58 Cairo - tight 2-min buffer before 20:00)
+    - cron: '58 17 9 11 *'
+    # Day 4: Tue Nov 10 @ 17:58 UTC (19:58 Cairo)
+    - cron: '58 17 10 11 *'
+    # Day 5: Sun Nov 15 @ 17:58 UTC (19:58 Cairo)
+    - cron: '58 17 15 11 *'
+
+permissions:
+  contents: write
+
+jobs:
+  record:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+
+      - name: Setup Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: 'pnpm'
+
+      - name: Install System Dependencies (ffmpeg, yt-dlp, rclone)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg rclone
+          sudo curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
+          sudo chmod a+rx /usr/local/bin/yt-dlp
+
+      - name: Install Project Dependencies
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Resolve Target Day and URL
+        id: target
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_DAY: ${{ github.event.inputs.day }}
+          INPUT_URL: ${{ github.event.inputs.youtube_url }}
+          INPUT_TRANSCRIBE: ${{ github.event.inputs.transcribe }}
+        run: |
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            echo "day=$INPUT_DAY" >> "$GITHUB_OUTPUT"
+            echo "url=$INPUT_URL" >> "$GITHUB_OUTPUT"
+            echo "do_transcribe=$INPUT_TRANSCRIBE" >> "$GITHUB_OUTPUT"
+          else
+            DOM=$(date -u +%d)
+            case "$DOM" in
+              09)
+                echo "day=3" >> "$GITHUB_OUTPUT"
+                echo "url=https://www.youtube.com/watch?v=wfSFaxHuU7Q" >> "$GITHUB_OUTPUT"
+                ;;
+              10)
+                echo "day=4" >> "$GITHUB_OUTPUT"
+                echo "url=https://www.youtube.com/watch?v=6TZs6Ctq8LE" >> "$GITHUB_OUTPUT"
+                ;;
+              15)
+                echo "day=5" >> "$GITHUB_OUTPUT"
+                echo "url=https://www.youtube.com/watch?v=SFZYaN7TEX8" >> "$GITHUB_OUTPUT"
+                ;;
+              *)
+                echo "Unknown schedule date: $DOM"
+                exit 1
+                ;;
+            esac
+            echo "do_transcribe=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Wait for Stream and Record
+        env:
+          DAY: ${{ steps.target.outputs.day }}
+          URL: ${{ steps.target.outputs.url }}
+        run: |
+          OUT_DIR="downloads/ai_income_challenge/day${DAY}"
+          mkdir -p "$OUT_DIR"
+
+          echo "[GH] Polling stream status for Day $DAY ($URL)..."
+          for i in {1..120}; do
+            STATUS=$(yt-dlp --skip-download --print "%(live_status)s" "$URL" 2>/dev/null || echo "not_ready")
+            echo "[GH] Probe $i: $STATUS"
+            if [ "$STATUS" = "is_live" ] || [ "$STATUS" = "was_live" ]; then
+              break
+            fi
+            sleep 30
+          done
+
+          echo "[GH] Recording 1080p stream to $OUT_DIR..."
+          yt-dlp \
+            --no-playlist --live-from-start \
+            -N 8 -f "bestvideo[height<=1080]+bestaudio/best" --merge-output-format mp4 \
+            --socket-timeout 30 --retries 20 --fragment-retries infinite \
+            -o "$OUT_DIR/day${DAY}_1080p.mp4" "$URL"
+
+          echo "[GH] Extracting high-quality MP3 audio..."
+          ffmpeg -y -i "$OUT_DIR/day${DAY}_1080p.mp4" -vn -c:a libmp3lame -q:a 2 "$OUT_DIR/day${DAY}_audio.mp3"
+
+      - name: Transcribe Audio
+        if: steps.target.outputs.do_transcribe == 'true'
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          DAY: ${{ steps.target.outputs.day }}
+        run: |
+          OUT_DIR="downloads/ai_income_challenge/day${DAY}"
+          if [ -n "$OPENROUTER_API_KEY" ] && [ -f "$OUT_DIR/day${DAY}_audio.mp3" ]; then
+            echo "[GH] Transcribing Day $DAY audio via OpenRouter..."
+            pnpm exec tsx transcribe.ts --file="$OUT_DIR/day${DAY}_audio.mp3" --chunk=300
+          else
+            echo "[GH] Skipping transcription."
+          fi
+
+      - name: Upload to Upstash Blob (Tier 2 Buffer)
+        env:
+          UPSTASH_BLOB_TOKEN: ${{ secrets.UPSTASH_BLOB_TOKEN }}
+          DAY: ${{ steps.target.outputs.day }}
+        run: |
+          OUT_DIR="downloads/ai_income_challenge/day${DAY}"
+          if [ -n "$UPSTASH_BLOB_TOKEN" ] && [ -f "$OUT_DIR/day${DAY}_1080p.mp4" ]; then
+            echo "[GH] Uploading to Upstash Blob..."
+            pnpm exec tsx -e "
+              import fs from 'fs';
+              import { uploadMedia, getMediaReadUrl } from './lib/blob.ts';
+              async function run() {
+                const stream = fs.createReadStream('$OUT_DIR/day${DAY}_1080p.mp4');
+                const stat = fs.statSync('$OUT_DIR/day${DAY}_1080p.mp4');
+                console.log('Uploading $OUT_DIR/day${DAY}_1080p.mp4 (' + stat.size + ' bytes)...');
+                const res = await uploadMedia('ai_income_challenge/day${DAY}/day${DAY}_1080p.mp4', stream as any, {
+                  contentType: 'video/mp4',
+                  maxSize: stat.size + 1000
+                });
+                const { url } = await getMediaReadUrl('ai_income_challenge/day${DAY}/day${DAY}_1080p.mp4');
+                console.log('STREAM_URL:' + url);
+              }
+              run().catch(console.error);
+            " || true
+          else
+            echo "[GH] UPSTASH_BLOB_TOKEN not configured; skipping Upstash Blob upload."
+          fi
+
+      - name: Sync to Google Drive (Tier 3 Cold Archive)
+        env:
+          RCLONE_CONFIG_BASE64: ${{ secrets.RCLONE_CONFIG_BASE64 }}
+          DAY: ${{ steps.target.outputs.day }}
+        run: |
+          OUT_DIR="downloads/ai_income_challenge/day${DAY}"
+          if [ -n "$RCLONE_CONFIG_BASE64" ]; then
+            echo "[GH] Configuring rclone..."
+            mkdir -p ~/.config/rclone
+            echo "$RCLONE_CONFIG_BASE64" | base64 -d > ~/.config/rclone/rclone.conf
+            echo "[GH] Uploading full media to Google Drive..."
+            rclone copy "$OUT_DIR" gdrive:AI_Income_Challenge/day${DAY} --progress || true
+          else
+            echo "[GH] RCLONE_CONFIG_BASE64 not configured; skipping Google Drive sync."
+          fi
+
+      - name: Upload Transcript Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ai-income-challenge-day${{ steps.target.outputs.day }}-transcript
+          path: |
+            downloads/ai_income_challenge/day${{ steps.target.outputs.day }}/*.md
+            downloads/ai_income_challenge/day${{ steps.target.outputs.day }}/*.json
+          if-no-files-found: warn
+
+      - name: Create GitHub Release (Audio & Transcript)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DAY: ${{ steps.target.outputs.day }}
+        run: |
+          OUT_DIR="downloads/ai_income_challenge/day${DAY}"
+          TAG="ai-income-challenge-day${DAY}"
+          TITLE="AI Income Challenge - Day ${DAY}"
+          BODY="Automated recording and transcript for Day ${DAY} of the AI Income Challenge series."
+
+          FILES=()
+          [ -f "$OUT_DIR/day${DAY}_audio.mp3" ] && FILES+=("$OUT_DIR/day${DAY}_audio.mp3")
+          for f in "$OUT_DIR"/*.md; do [ -f "$f" ] && FILES+=("$f"); done
+
+          # Only attach MP4 to GitHub Release if under 2.0GB (2,000,000,000 bytes)
+          if [ -f "$OUT_DIR/day${DAY}_1080p.mp4" ]; then
+            FILE_SIZE=$(stat -c%s "$OUT_DIR/day${DAY}_1080p.mp4" 2>/dev/null || stat -f%z "$OUT_DIR/day${DAY}_1080p.mp4" 2>/dev/null || echo 0)
+            if [ "$FILE_SIZE" -lt 2000000000 ]; then
+              FILES+=("$OUT_DIR/day${DAY}_1080p.mp4")
+            else
+              BODY="${BODY}\n\nNote: Video exceeded 2GB GitHub limit ($FILE_SIZE bytes); archived directly to Upstash Blob / Google Drive."
+            fi
+          fi
+
+          gh release create "$TAG" "${FILES[@]}" --title "$TITLE" --notes "$BODY" --clobber || true
