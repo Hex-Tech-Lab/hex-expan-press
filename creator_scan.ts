@@ -58,6 +58,18 @@ function getStoreSignalRe(): RegExp {
   return storeSignalRe;
 }
 
+let emailJunkRe: RegExp | undefined;
+function getEmailJunkRe(): RegExp {
+  if (!emailJunkRe) {
+    try {
+      emailJunkRe = new RegExp(CONFIG.emailJunkRegex, "i");
+    } catch {
+      emailJunkRe = /(png|jpg|jpeg|gif|webp|svg|css|js|example\.)$/i;
+    }
+  }
+  return emailJunkRe;
+}
+
 // Deliberately NOT importing from harvest.ts — it runs its own 5-engine harvest at module
 // top-level with no guard, so importing anything from it fires a live harvest as a side effect
 // (found the hard way, 2026-09-09). Small local duplicate instead; keeps this script's blast
@@ -345,7 +357,7 @@ async function fetchInstagramProfilePublicParse(handle: string): Promise<Record<
     }
     const parts = ogDesc.match(/^([\d,.KM]+)\s*Followers,\s*([\d,.KM]+)\s*Following,\s*([\d,.KM]+)\s*Posts/i);
     const followerCount = parts ? parseFollowerCount(parts[1]) : undefined;
-    const bioEmails = [...new Set((html.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g) ?? []).filter((e) => !EMAIL_JUNK.test(e)))];
+    const bioEmails = [...new Set((html.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g) ?? []).filter((e) => !getEmailJunkRe().test(e)))];
     const storeSignal = /linktr\.ee|linkin\.bio|shop\b|store\b|course\b|"buy now"/i.test(html);
     return {
       igHandle: handle,
@@ -398,7 +410,7 @@ async function fetchInstagramProfileViaHikerApi(handle: string): Promise<Record<
   }
   const bio = u.biography ?? "";
   const linkBlock = `${bio} ${u.external_url ?? ""}`;
-  const bioEmails = [...new Set((bio.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g) ?? []).filter((e) => !EMAIL_JUNK.test(e)))];
+  const bioEmails = [...new Set((bio.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g) ?? []).filter((e) => !getEmailJunkRe().test(e)))];
   const storeSignal = getStoreSignalRe().test(linkBlock);
   if (u.is_private) {
     return {
@@ -501,7 +513,7 @@ async function fetchYoutubeChannelStats(videoId: string): Promise<Record<string,
   if (!item) return null;
   const stats = item.statistics as { subscriberCount?: string; videoCount?: string; hiddenSubscriberCount?: boolean } | undefined;
   const description = (item.snippet as { description?: string } | undefined)?.description ?? "";
-  const descriptionEmails = [...new Set((description.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g) ?? []).filter((e) => !EMAIL_JUNK.test(e)))];
+  const descriptionEmails = [...new Set((description.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g) ?? []).filter((e) => !getEmailJunkRe().test(e)))];
   const videoPublishedAt = videoSnippet?.publishedAt;
   const activityRecent = videoPublishedAt ? Date.now() - new Date(videoPublishedAt).getTime() <= CONFIG.activityWindowDays * 24 * 60 * 60 * 1000 : undefined;
   return {
@@ -709,8 +721,6 @@ async function fetchPageHtml(url: string): Promise<string> {
   return stdout;
 }
 
-const EMAIL_JUNK = new RegExp(CONFIG.emailJunkRegex, "i");
-
 // Stage 3.6: per-creator contact hunt. Niche-level Brave hits are mostly generic how-to
 // articles that never name a specific creator, so group-merging alone can't fill
 // contact_method. For each still-unknown candidate, search the creator's NAME for
@@ -739,7 +749,7 @@ async function huntContacts(candidates: CreatorCandidate[]): Promise<void> {
       for (const url of pages) {
         const html = await cachedFetch(`contact-page:${url}`, TTL_6H, () => fetchPageHtml(url));
         if (!html || html.length < CONFIG.minHtmlChars) continue;
-        const emails = [...new Set((html.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g) ?? []).filter((e) => !EMAIL_JUNK.test(e)))];
+        const emails = [...new Set((html.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g) ?? []).filter((e) => !getEmailJunkRe().test(e)))];
         if (emails.length > 0) {
           c.contact_method = emails.slice(0, CONFIG.maxEmailsPerCreator).join(", ");
           console.log(`==> [hunt] ${c.handle_or_name}: FOUND ${c.contact_method} (via ${url.slice(0, 60)})`);
@@ -778,7 +788,7 @@ async function enrichContacts(candidates: CreatorCandidate[]): Promise<void> {
           console.log(`==> [contact] ${c.handle_or_name}: ${url.slice(0, 60)} returned ${html?.length ?? 0} bytes — skipping`);
           continue;
         }
-        const emails = [...new Set((html.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g) ?? []).filter((e) => !EMAIL_JUNK.test(e)))];
+        const emails = [...new Set((html.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g) ?? []).filter((e) => !getEmailJunkRe().test(e)))];
         if (emails.length > 0) {
           c.contact_method = emails.slice(0, CONFIG.maxEmailsPerCreator).join(", ");
           console.log(`==> [contact] ${c.handle_or_name}: FOUND ${c.contact_method}`);

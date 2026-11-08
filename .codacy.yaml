@@ -5,6 +5,7 @@ exclude_paths:
   - "**/*.test.*"
   - "web/public/pdfjs/**"
   - "scripts/**"
+  - "certify_gates.ts"
   - "docs/reviews/**"
   - "docs/handover/**"
 

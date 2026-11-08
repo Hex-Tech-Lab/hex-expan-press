@@ -115,7 +115,7 @@ function jsonArrayValidator(content: string): string | null {
 async function getJson<T = unknown>(url: string, headers: Record<string, string> = {}): Promise<T | { error: string }> {
   try {
     const targetUrl = new URL(url);
-    if (!["http:", "https:"].includes(targetUrl.protocol)) return { error: `Invalid protocol: ${targetUrl.protocol}` };
+    if (targetUrl.protocol !== "https:") return { error: `Invalid protocol: ${targetUrl.protocol} (https required)` };
     const res = await fetch(targetUrl.toString(), { headers });
     if (!res.ok) return { error: `HTTP ${res.status}` };
     return (await res.json()) as T;
