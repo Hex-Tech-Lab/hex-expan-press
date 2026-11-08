@@ -247,7 +247,7 @@ async function processBillingEvent(event: BillingEvent): Promise<ConflictPending
       // row carrying this adjustment id proves it was handled (also after a won dispute), or, with no
       // adjustment id match, the sale must still be refunded and not yet reversed.
       async () => {
-        if (refundEvent.amountUnverifiable === true) return false; // absent totalCents = full reversal (same as in-lock)
+        if (refundEvent.amountUnverifiable === true || refundEvent.settled === false) return false; // absent totalCents = full reversal (same as in-lock)
         const [sale, refund, reversal] = await Promise.all([
           findSaleAsync(refundEvent.providerName, refundEvent.saleId),
           findRefundAsync(refundEvent.providerName, refundEvent.saleId),
@@ -267,20 +267,24 @@ async function processBillingEvent(event: BillingEvent): Promise<ConflictPending
         return !reversal;
       },
       async () => {
-        if (refundEvent.amountUnverifiable === true) {
+        // An unsettled refund (Polar pending/failed/canceled) is never applied, whatever its amount: it goes to manual review.
+        if (refundEvent.amountUnverifiable === true || refundEvent.settled === false) {
           const sale = await findSaleAsync(refundEvent.providerName, refundEvent.saleId);
           await flagRefundForManualReview({
-            reason: "amount_unverifiable",
+            reason: refundEvent.settled === false ? "refund_not_settled" : "amount_unverifiable",
             provider: refundEvent.providerName,
             sale_id: refundEvent.saleId,
             refund_id: refundEvent.refundId ?? null,
-            refund_cents: null,
+            // An unsettled refund still carries the amount Polar requested: keep it so the queue shows it.
+            refund_cents: refundEvent.settled === false ? (refundEvent.totalCents ?? null) : null,
             sale_cents: sale ? Math.round(sale.amount_usd * 100) : null,
             creator_id: sale?.creator_id ?? null,
             occurred_at: refundEvent.occurredAt,
           });
           throw new WebhookValidationError(
-            `Webhook validation failed: refund amount unverifiable for sale ${refundEvent.saleId} — flagged for manual review`,
+            refundEvent.settled === false
+              ? `Webhook validation failed: refund not settled for sale ${refundEvent.saleId} — flagged for manual review`
+              : `Webhook validation failed: refund amount unverifiable for sale ${refundEvent.saleId} — flagged for manual review`,
           );
         }
         const original = await findSaleAsync(refundEvent.providerName, refundEvent.saleId);

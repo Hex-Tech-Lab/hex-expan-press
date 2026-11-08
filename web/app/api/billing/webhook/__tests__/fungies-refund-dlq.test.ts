@@ -3,7 +3,7 @@
 // MANUAL_REVIEW_REQUIRED_REFUND audit row (reason "amount_unverifiable") and a 400,
 // with NO refund row ever appended to the ledger.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import crypto from "node:crypto";
+import { fungiesSignatureHeader } from "./support/webhook_signer";
 import { mkdirSync, rmSync, readFileSync } from "node:fs";
 import type { NextRequest } from "next/server";
 import { appendSale, SaleRecord } from "../../../../../../payments/src/ledger.ts";
@@ -15,8 +15,7 @@ const HMAC_TEST_KEY = "wave73-fungies-refund-test-key";
 const WEBHOOK_URL = "http://localhost:3000/api/billing/webhook";
 
 function signedHeaders(payload: string) {
-  const sig = crypto.createHmac("sha256", HMAC_TEST_KEY).update(Buffer.from(payload, "utf8")).digest("hex");
-  return { "x-fngs-signature": `sha256_${sig}`, "content-type": "application/json" };
+  return { "x-fngs-signature": fungiesSignatureHeader(HMAC_TEST_KEY, payload), "content-type": "application/json" };
 }
 
 // Supabase is faked: orders lookups miss (so the sale comes from the ledger),
@@ -84,6 +83,7 @@ vi.mock("../../../../../../payments/src/settings_registry.ts", () => ({
   },
   expandHome: (p: string, home: string) => (home && (p === "~" || p.startsWith("~/")) ? p : p),
   isRegisteredPaymentProvider: (name: unknown) => typeof name === "string",
+  isEnabledPaymentProvider: (name: unknown) => typeof name === "string",
   paymentProviderSetting: () => undefined,
   getPath: (obj: unknown, path: unknown) =>
     typeof path === "string"

@@ -27,10 +27,10 @@
 // Provider literals (signature header, sale/refund events, live-gate path, secret-env name,
 // field map, currency gate) come from the settings registry (data/settings/providers.json) with
 // inline fallbacks mirroring the committed registry — standalone runs behave identically.
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac } from "node:crypto";
 import type { IncomingHttpHeaders } from "node:http";
 import type { CheckoutProvider, ParseResult, ProviderName, RefundEvent, SaleEvent } from "../provider.ts";
-import { hashEmail, strictAmount } from "../provider.ts";
+import { hashEmail, safeEqualBytes, strictAmount } from "../provider.ts";
 import { getPath, isAllowedCurrency, paymentProviderSetting } from "../settings_registry.ts";
 
 const NAME = "fastspring" as ProviderName;
@@ -46,11 +46,6 @@ const REFUND_EVENTS: string[] = Array.isArray(CFG?.refund_events) && CFG.refund_
 const LIVE_GATE = String(CFG?.live_gate ?? "data.live");
 const SECRET_ENV = String(CFG?.secret_env ?? "FASTSPRING_WEBHOOK_SECRET");
 const FM = (CFG?.field_map ?? {}) as Record<string, string | undefined>;
-
-function safeEqualBytes(a: Buffer, b: Buffer): boolean {
-  if (a.length === 0 || a.length !== b.length) return false;
-  return timingSafeEqual(a, b);
-}
 
 function signatureValid(secret: string, headers: IncomingHttpHeaders, rawBody: Buffer): boolean {
   const provided = headers[SIG_HEADER];

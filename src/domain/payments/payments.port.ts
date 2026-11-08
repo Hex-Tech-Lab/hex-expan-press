@@ -142,6 +142,9 @@ export interface RefundIssuedEvent {
   totalCents?: AmountCents;
   currency?: CurrencyCode;
   amountUnverifiable?: boolean;
+  // false: the provider reports the refund as not yet settled (Polar pending, failed or canceled). An unsettled
+  // refund is never applied to the ledger; it goes to manual review (MANUAL_REVIEW_REQUIRED_REFUND).
+  settled?: boolean;
 
   occurredAt: IsoTimestamp;
   rawPayload: unknown;

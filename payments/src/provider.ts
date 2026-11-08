@@ -87,10 +87,13 @@ export function hmacSha256Hex(secret: string, body: Buffer): string {
   return createHmac("sha256", secret).update(body).digest("hex");
 }
 
-/** Constant-time compare of two hex digests; safe against length leaks. */
-export function safeEqualHex(expectedHex: string, gotHex: string): boolean {
-  const a = Buffer.from(expectedHex, "hex");
-  const b = Buffer.from(gotHex, "hex");
+/** Constant-time compare of two byte buffers; an empty or length-mismatched pair is false without a timing compare. */
+export function safeEqualBytes(a: Buffer, b: Buffer): boolean {
   if (a.length === 0 || a.length !== b.length) return false;
   return timingSafeEqual(a, b);
+}
+
+/** Constant-time compare of two hex digests; safe against length leaks. */
+export function safeEqualHex(expectedHex: string, gotHex: string): boolean {
+  return safeEqualBytes(Buffer.from(expectedHex, "hex"), Buffer.from(gotHex, "hex"));
 }
