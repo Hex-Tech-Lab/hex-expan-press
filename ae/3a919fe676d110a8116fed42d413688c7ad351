@@ -1,0 +1,50 @@
+.codacy.yaml
+  h_e6b68dcbbd0983 1-34
+creator_scan.ts
+  h_e6b68dcbbd0983 49,120-122,132-134,392
+docs/agent_ledger.jsonl
+  h_e6b68dcbbd0983 908
+harvest.ts
+  h_e6b68dcbbd0983 45-47,117-119
+payments/src/settings_registry.ts
+  h_e6b68dcbbd0983 680-681
+payments/test/book_identity.test.ts
+  h_e6b68dcbbd0983 2,29
+payments/test/fungies_refund.test.ts
+  h_e6b68dcbbd0983 2,21
+scripts/book_qa.py
+  h_e6b68dcbbd0983 291
+scripts/layout_fixers.py
+  h_e6b68dcbbd0983 110
+scripts/visual_regress.py
+  h_e6b68dcbbd0983 51
+src/adapters/esign/firma.adapter.ts
+  h_e6b68dcbbd0983 140-143,145
+src/infrastructure/redis/redis.client.ts
+  h_e6b68dcbbd0983 62-66
+src/use_cases/billing/__tests__/process_billing_webhook.test.ts
+  h_e6b68dcbbd0983 155
+tests/helpers/esign-transport.ts
+  h_e6b68dcbbd0983 12-16
+trends.ts
+  h_e6b68dcbbd0983 52-54,64-66
+web/app/api/billing/webhook/__tests__/fungies-refund-dlq.test.ts
+  h_e6b68dcbbd0983 6,77,110
+web/app/api/billing/webhook/__tests__/polar-partial-refund.test.ts
+  h_e6b68dcbbd0983 79
+web/app/api/billing/webhook/__tests__/provider_allowlist.test.ts
+  h_e6b68dcbbd0983 62
+web/app/api/billing/webhook/__tests__/valid_signature_malformed_ledger.test.ts
+  h_e6b68dcbbd0983 10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ae3a919fe676d110a8116fed42d413688c7ad351",
+  "prompts": {},
+  "humans": {
+    "h_e6b68dcbbd0983": {
+      "author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
