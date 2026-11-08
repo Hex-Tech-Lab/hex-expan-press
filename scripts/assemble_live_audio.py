@@ -3,7 +3,6 @@ import os
 import time
 import glob
 import re
-import sys
 
 FRAG_DIR = os.path.abspath("downloads/live_20261108")
 OUT_FILE = os.path.join(FRAG_DIR, "gadzhi_live_audio_assembled.m4a")
