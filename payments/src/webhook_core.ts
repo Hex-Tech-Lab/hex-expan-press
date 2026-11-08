@@ -1,6 +1,7 @@
-import { isRegisteredPaymentProvider, paymentProviderSetting, isMoneyPath, GLOBAL } from "./settings_registry.ts";
+import { isEnabledPaymentProvider, paymentProviderSetting, isMoneyPath, GLOBAL } from "./settings_registry.ts";
 import { getSupabaseAdmin } from "./supabase_admin.ts";
 import { expanRedis, isRedisRestConfigured } from "../../src/infrastructure/redis/redis.client.ts";
+import { WebhookValidationError } from "../../src/domain/webhook/webhook_errors.ts";
 import type { ProviderName } from "./provider.ts";
 
 // Polar is not routable (PR 102), so it has no fallback secret. Partial because "polar" stays in ProviderName for historical rows.
@@ -45,7 +46,8 @@ export function getSecret(provider: ProviderName): string | undefined {
  * unvalidated alias could misparse the filter (400) or append attacker-chosen
  * conditions. The charset mirrors the checkout route's SAFE_PRODUCT_RE
  * ([A-Za-z0-9_-]); anything else resolves to null (the caller then throws
- * "Unknown product_id" → 500 → provider retries).
+ * "Unknown product_id" → 422, a terminal rejection: the sale is quarantined, not retried). A row that exists but
+ * cannot sell yet throws, so the provider retries.
  *
  * Fail closed: an unconfigured Supabase admin client throws (never returns an
  * empty success) — the provider will redeliver once the DB is reachable.
@@ -60,7 +62,11 @@ export interface ResolvedProduct {
   currency: string;
 }
 
-export async function resolveProductByAlias(alias: string): Promise<ResolvedProduct | null> {
+/**
+ * Resolves a sale's product alias. paddle_product_id is Paddle's own column, so only a Paddle sale may match it.
+ * Any other provider matching it would book a sale that delivery then cannot deliver (the delivery lookup applies the same rule).
+ */
+export async function resolveProductByAlias(alias: string, providerName: string): Promise<ResolvedProduct | null> {
   if (typeof alias !== "string" || !PRODUCT_ALIAS_RE.test(alias)) return null;
   const supabase = await getSupabaseAdmin();
   if (!supabase) {
@@ -69,7 +75,7 @@ export async function resolveProductByAlias(alias: string): Promise<ResolvedProd
   const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(alias);
   const conditions = [
     `store_product_id.eq.${alias}`,
-    `paddle_product_id.eq.${alias}`,
+    ...(providerName === "paddle" ? [`paddle_product_id.eq.${alias}`] : []),
     `polar_product_id_sandbox.eq.${alias}`,
     `polar_product_id_live.eq.${alias}`,
     `composite_slug.eq.${alias}`,
@@ -90,9 +96,12 @@ export async function resolveProductByAlias(alias: string): Promise<ResolvedProd
     provider: string | null;
     creators?: { handle?: string } | null;
   };
-  // Parity with the legacy index: products on unregistered providers never sold.
-  if (!row.store_product_id || !row.creators?.handle || !isRegisteredPaymentProvider(row.provider ?? "")) {
-    return null;
+  // The row exists but cannot sell yet: its provider is not enabled, or it lacks a store id or creator handle.
+  // That is retryable on purpose. A re-enabled provider or a repaired row makes the next delivery succeed, and
+  // the sale stays unrecorded until then. Returning null here would quarantine it permanently (422).
+  if (!row.store_product_id || !row.creators?.handle || !isEnabledPaymentProvider(row.provider ?? "")) {
+    // 503: the handler audits it and sends Retry-After, so each attempt leaves a row and the provider retries.
+    throw new WebhookValidationError(`product '${alias}' exists but cannot sell yet (provider ${row.provider ?? "none"} not enabled, or product incomplete)`, 503);
   }
   return { productId: row.store_product_id, creatorHandle: row.creators.handle, currency: row.currency };
 }
@@ -122,6 +131,15 @@ export class WebhookInFlightError extends Error {
   }
 }
 
+/** Releases the lock. A failure is logged and never replaces the caller's error; the lock TTL clears a lock that stays held. */
+async function releaseLock(lockKey: string): Promise<void> {
+  try {
+    await expanRedis.del(lockKey);
+  } catch (delErr) {
+    console.error(`[webhook] lock release failed (lock=${lockKey}); the TTL will clear it:`, delErr);
+  }
+}
+
 export async function withIdempotencyLock(
   lockKey: string,
   fn: () => Promise<{ status: number; payload: Record<string, unknown> }>,
@@ -144,12 +162,13 @@ export async function withIdempotencyLock(
     // Nothing was actually written (true duplicate, unknown product, terms lookup failure,
     // etc.) — free the slot immediately so a corrected retry isn't blocked for the full TTL.
     if (result.payload.recorded !== true) {
-      await expanRedis.del(lockKey);
+      await releaseLock(lockKey);
     }
     return result;
   } catch (err) {
     console.error(`[webhook] locked fn threw (lock=${lockKey}) — releasing lock:`, err);
-    await expanRedis.del(lockKey);
+    // The caller's error must reach the handler unchanged. A failed release is logged; the lock TTL bounds it.
+    await releaseLock(lockKey);
     throw err;
   }
 }

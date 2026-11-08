@@ -522,14 +522,15 @@ async function processBillingEvent(event: BillingEvent): Promise<ConflictPending
         // failure rethrows (500) so the provider retries.
         const existing = await findSaleAsync(saleEvent.providerName, saleEvent.saleId);
         if (existing) {
-          await deliverSaleForWebhook({ saleId: saleEvent.saleId, productAlias: saleEvent.productId, buyerEmail: saleEvent.buyerEmail });
+          await deliverSaleForWebhook({ provider: saleEvent.providerName, saleId: saleEvent.saleId, productAlias: saleEvent.productId, buyerEmail: saleEvent.buyerEmail });
           return { status: 200, payload: { ok: true, recorded: false, reason: "duplicate", sale_id: saleEvent.saleId } };
         }
 
         // Resolve product from the DATABASE (Sprint 15: commercial state is
         // DB-only — the provider's product alias must map to a products row).
-        const cfg = await resolveProductByAlias(saleEvent.productId);
-        if (!cfg) throw new Error(`Unknown product_id: ${saleEvent.productId}`);
+        const cfg = await resolveProductByAlias(saleEvent.productId, saleEvent.providerName);
+        // Terminal: the alias resolves to no product (no row, or an alias outside the allowed charset). A retry cannot create one; the quarantined event is for an operator.
+        if (!cfg) throw new WebhookValidationError(`Unknown product_id for provider ${saleEvent.providerName}`, 422);
 
         // Never book a foreign-currency total as the product's currency (audit F4).
         if (saleEvent.currency.toUpperCase() !== cfg.currency.toUpperCase()) {
@@ -563,7 +564,7 @@ async function processBillingEvent(event: BillingEvent): Promise<ConflictPending
         });
         // Receipt and download link, after the ledger write. A delivery failure rethrows: the webhook answers 500 and the
         // provider retries, which re-attempts delivery on the duplicate path above.
-        await deliverSaleForWebhook({ saleId: saleEvent.saleId, productAlias: saleEvent.productId, buyerEmail: saleEvent.buyerEmail });
+        await deliverSaleForWebhook({ provider: saleEvent.providerName, saleId: saleEvent.saleId, productAlias: saleEvent.productId, buyerEmail: saleEvent.buyerEmail });
         return { status: 200, payload: { ok: true, recorded: true, sale_id: saleEvent.saleId } };
       },
     );
