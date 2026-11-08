@@ -1,0 +1,20 @@
+.codacy.yaml
+  h_e6b68dcbbd0983 8
+creator_scan.ts
+  h_e6b68dcbbd0983 61-72,360,413,516,752,791
+docs/agent_ledger.jsonl
+  h_e6b68dcbbd0983 910
+harvest.ts
+  h_e6b68dcbbd0983 118
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d58f51ae9b33a14d72e14921833b45250dbbfed7",
+  "prompts": {},
+  "humans": {
+    "h_e6b68dcbbd0983": {
+      "author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
