@@ -1,0 +1,23 @@
+scripts/qa-intel/engine/__tests__/data-integrity-rules.test.ts
+  s_6625bc67577472::t_4f83b9f5ac1455 265-322
+scripts/qa-intel/engine/__tests__/wave9-new-rules.test.ts
+  s_6625bc67577472::t_5a18a34ee0947a 225
+scripts/qa-intel/engine/rules/data-integrity.ts
+  s_6625bc67577472::t_480cdab29492df 155-189,215-220
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1526400c744f10b54f39aa048728f2c4eee244e6",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}

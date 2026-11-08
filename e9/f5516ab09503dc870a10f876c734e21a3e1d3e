@@ -1,0 +1,21 @@
+scripts/qa-intel/engine/__tests__/security-rules.test.ts
+  s_6625bc67577472::t_04690452da2f6f 456-457,463-480,484-510
+scripts/qa-intel/engine/rules/security.ts
+  s_6625bc67577472::t_e3d12a3f6d93d0 518,523-529,544-547
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e9f5516ab09503dc870a10f876c734e21a3e1d3e",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}

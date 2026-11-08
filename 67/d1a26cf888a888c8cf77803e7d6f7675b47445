@@ -1,0 +1,45 @@
+scripts/qa-intel/engine/__tests__/review-regressions-batch2.test.ts
+  s_6625bc67577472::t_d18fc326c6ae84 1-90
+  s_6625bc67577472::t_9b8cd96261ca18 91-125
+scripts/qa-intel/engine/rules/security-lessons-20261010.ts
+  s_6625bc67577472::t_de530c49c23fc1 49-52
+scripts/qa-intel/engine/rules/artas-rules.ts
+  s_6625bc67577472::t_e4c24c7eefe19b 246-252
+  s_6625bc67577472::t_321e825b49efbf 160-202
+package.json
+  s_6625bc67577472::t_90ab3d82a6983a 20-21
+scripts/__tests__/test_commit_guard.py
+  s_6625bc67577472::t_e0fc6193f062fd 13,70-90
+scripts/commit_guard.py
+  s_6625bc67577472::t_b24878a6a4778b 57-61,63-68,70-84,86-87,89
+scripts/qa-intel/engine/application/QualityEngine.ts
+  s_6625bc67577472::t_6dffad4b116af6 117-118
+scripts/qa-intel/engine/domain/Rule.ts
+  s_6625bc67577472::t_6fe2effd8d76fb 3,48
+scripts/qa-intel/engine/infra/TrackedFileEnumeration.ts
+  s_6625bc67577472::t_4b0cf8c1e1a2b4 31
+scripts/qa-intel/engine/rules/__tests__/artas-rules.test.ts
+  s_6625bc67577472::t_be287558b0831c 148-196
+scripts/qa-intel/engine/rules/__tests__/security-lessons-20261010.test.ts
+  s_6625bc67577472::t_51609d4a8bd141 26-46
+scripts/qa-intel/engine/rules/security.ts
+  s_6625bc67577472::t_fe238b594c2818 3,87-90,416-429,462
+scripts/qa-intel/engine/rules/streaming.ts
+  s_6625bc67577472::t_b08ce367649f1d 194
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "67d1a26cf888a888c8cf77803e7d6f7675b47445",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}

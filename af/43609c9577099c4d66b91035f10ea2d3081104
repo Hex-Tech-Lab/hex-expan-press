@@ -1,0 +1,22 @@
+scripts/qa-intel/engine/__tests__/quality-error-rules.test.ts
+  s_6625bc67577472::t_67db84c7dbe105 49
+  s_6625bc67577472::t_07b74d809504dd 84-85,93-103
+scripts/qa-intel/engine/rules/quality.ts
+  s_6625bc67577472::t_ff46adde8ea4c8 269,280-281
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "af43609c9577099c4d66b91035f10ea2d3081104",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}

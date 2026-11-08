@@ -1,0 +1,35 @@
+scripts/qa-intel/compare.ts
+  s_6625bc67577472::t_943eef1bf49d68 2-5
+scripts/qa-intel/engine/__tests__/rule-error-propagation.test.ts
+  s_6625bc67577472::t_dcc18f2fd4db84 12-13,26-27,55
+scripts/qa-intel/engine/rules/reliability-lessons-20260924.ts
+  s_6625bc67577472::t_e85759c44d5e5f 219-220,228,443
+scripts/qa-intel/engine/rules/rules-engine.ts
+  s_6625bc67577472::t_02a51b1d48cde3 20
+scripts/qa-intel/engine/rules/rules-registry.ts
+  s_6625bc67577472::t_d1eb8326544151 46,68
+scripts/qa-intel/engine/rules/security-lessons-20260924.ts
+  s_6625bc67577472::t_b864622be56cb6 126
+scripts/qa-intel/engine/rules/security.ts
+  s_6625bc67577472::t_3075bc121b7c2d 101,267,311-312,359,361,385,398-399,403,443
+scripts/qa-intel/engine/rules/sql-migrations.ts
+  s_6625bc67577472::t_0ca873ce242987 159,161,301,358,535,539-544
+scripts/qa-intel/engine/rules/ui.ts
+  s_6625bc67577472::t_a05d273ff719ec 17-18,21,88,188,329,367-368
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c5f454cee8e91c644ceb12630718bb88a6b08bc5",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}

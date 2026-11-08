@@ -1,0 +1,24 @@
+scripts/qa-intel/engine/rules/architecture.ts
+  s_6625bc67577472::t_d1f14bb4d04b30 282-297,307-308
+  s_6625bc67577472::t_473ed00148deda 1
+  s_6625bc67577472::t_ebbe000c647404 107-111,118-120,123
+scripts/qa-intel/engine/__tests__/architecture-error-rules.test.ts
+  s_6625bc67577472::t_be4e1278e23966 127-151
+  s_6625bc67577472::t_e2caa6245638e3 217-238
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "752c2f39d18b38e6fc1516de192e0da83f62cd7b",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}

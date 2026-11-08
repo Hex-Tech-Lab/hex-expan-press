@@ -1,0 +1,23 @@
+scripts/qa-intel/vitest.setup.ts
+  s_6625bc67577472::t_03686abca9280c 1-12
+vitest.config.ts
+  s_6625bc67577472::t_8028d7e6dcc8f8 17-18
+vitest.qa-intel.config.ts
+  s_6625bc67577472::t_26b383ec745b5f 18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b937f18a8d44a772cd9f01c28026f55fc2449d0b",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}

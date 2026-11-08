@@ -1,0 +1,65 @@
+scripts/contract-auditor/__tests__/review-regressions.test.ts
+  s_6625bc67577472::t_56dcd003ae099a 1-94
+scripts/contract-auditor/__tests__/rules.test.ts
+  s_6625bc67577472::t_abf5f92fa6785e 157-158
+scripts/contract-auditor/rules.ts
+  s_6625bc67577472::t_3ca29497d63201 5,31-34,61-62,64-65,68-70,110-111,114-115,149-152,176-178,218-219,236-255,277-286,328,333-334,336,343
+scripts/qa-intel.ts
+  s_6625bc67577472::t_b7e29bf0b1b553 17,133-135,141-142,147,149,151,354-358
+scripts/qa-intel/__tests__/scan-scope-review.test.ts
+  s_6625bc67577472::t_e688af1bc6365e 1-77
+scripts/qa-intel/engine/__tests__/quality-error-rules.test.ts
+  s_6625bc67577472::t_55e3258d4b3d64 238-239
+scripts/qa-intel/engine/__tests__/review-regressions.test.ts
+  s_6625bc67577472::t_f30aa473756092 1-77
+scripts/qa-intel/engine/__tests__/security-rules.test.ts
+  s_6625bc67577472::t_912f268c002059 49-50
+scripts/qa-intel/engine/__tests__/wave10-new-rules.test.ts
+  s_6625bc67577472::t_beae45f06bfe2b 121,137,142
+scripts/qa-intel/engine/application/QualityEngine.ts
+  s_6625bc67577472::t_d047c6af84a8c3 50,54
+scripts/qa-intel/engine/domain/Rule.ts
+  s_6625bc67577472::t_b56f0be4255f7d 35-36,38
+scripts/qa-intel/engine/engine.ts
+  s_6625bc67577472::t_1a36f52981d582 1-2,4-5
+scripts/qa-intel/engine/infra/LegacyRuleAdapter.ts
+  s_6625bc67577472::t_e78999a5eb6b73 1,7
+scripts/qa-intel/engine/rules/artas-rules.ts
+  s_6625bc67577472::t_b557d1697d02e0 87,190,283,409
+scripts/qa-intel/engine/rules/data-lessons-20260924.ts
+  s_6625bc67577472::t_d6fdac3f859112 69-71,240
+scripts/qa-intel/engine/rules/index.ts
+  s_6625bc67577472::t_575b1bd15a6e41 53
+scripts/qa-intel/engine/rules/quality.ts
+  s_6625bc67577472::t_20331ed6eb3e39 163,441,446-447
+scripts/qa-intel/engine/rules/reliability-lessons-20260924.ts
+  s_6625bc67577472::t_cfe437635e8a64 214-217,221,227-229,233
+scripts/qa-intel/engine/rules/security-lessons-20260905.ts
+  s_6625bc67577472::t_e2b6451215d803 70
+scripts/qa-intel/engine/rules/security-lessons-20260924.ts
+  s_6625bc67577472::t_1efbdbbb3597e7 62,174,289,340
+scripts/qa-intel/engine/rules/security-lessons-20261010.ts
+  s_6625bc67577472::t_1ef22f5499e403 11
+scripts/qa-intel/engine/rules/security.ts
+  s_6625bc67577472::t_c95a79e3cefc6d 11,47,444-445,498
+scripts/qa-intel/engine/rules/sql-migrations.ts
+  s_6625bc67577472::t_7a7dbe6216f73e 67
+scripts/qa-intel/scan-scope.ts
+  s_6625bc67577472::t_43d831a71ffcdd 6-30
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f60f11ac9dde280cf3d4f5f62d2eb663e155d144",
+  "prompts": {},
+  "sessions": {
+    "s_6625bc67577472": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "d9e3d758-e9b9-4cdb-bb9d-00d9ef397297",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
