@@ -1,0 +1,80 @@
+web/app/api/billing/webhook/__tests__/unclaimed-provider.test.ts
+  h_e6b68dcbbd0983 29
+web/app/api/billing/webhook/__tests__/transient_classification.test.ts
+  h_e6b68dcbbd0983 23
+web/app/api/billing/webhook/__tests__/route.test.ts
+  h_e6b68dcbbd0983 1-8,13-17,19,27,30-52,57-90,117-139
+web/app/api/billing/webhook/__tests__/switched_off_manual_review.test.ts
+  h_e6b68dcbbd0983 1-120
+docs/adr/0062-payment-rail-launch-switch.md
+  h_e6b68dcbbd0983 1-48
+web/app/api/billing/webhook/__tests__/verifiers.test.ts
+  h_e6b68dcbbd0983 1-34
+payments/src/settings_registry.ts
+  h_e6b68dcbbd0983 16-23,30-33,35-36,39,42-49,416-420,424,426,443,465,481,505-526,528-529,551-575,577-579,582-586,588-589,591,600-604
+src/domain/payments/payments.port.ts
+  h_e6b68dcbbd0983 145-147
+src/adapters/payments/polar.adapter.ts
+  h_e6b68dcbbd0983 1-193
+web/app/api/billing/checkout/route.ts
+  h_e6b68dcbbd0983 4-5,23,227-238,246
+web/app/api/billing/webhook/__tests__/provider_allowlist.test.ts
+  h_e6b68dcbbd0983 14,25,72,164-194
+payments/test/provider_launch_switch.test.ts
+  h_e6b68dcbbd0983 1-36
+web/app/api/billing/webhook/__tests__/valid_signature_malformed_ledger.test.ts
+  h_e6b68dcbbd0983 50
+web/app/api/billing/webhook/__tests__/lock_contention_503.test.ts
+  h_e6b68dcbbd0983 45
+payments/src/ledger.ts
+  h_e6b68dcbbd0983 375
+payments/test/providers_loader.test.ts
+  h_e6b68dcbbd0983 1-111
+src/use_cases/billing/process_billing_webhook.ts
+  h_e6b68dcbbd0983 250,270-271,274,278-279,285-287
+web/app/api/billing/webhook/verifiers.ts
+  h_e6b68dcbbd0983 1-29
+docs/agent_ledger.jsonl
+  h_e6b68dcbbd0983 896-900
+web/app/api/billing/webhook/route.ts
+  h_e6b68dcbbd0983 2,6
+docs/adr/README.md
+  h_e6b68dcbbd0983 16
+web/app/api/billing/webhook/handler.ts
+  h_e6b68dcbbd0983 89-99,102,129-135,176-212,224-237,240-241,243,246-247,252-254,259-260,264-277,279-280,284-294
+payments/README.md
+  h_e6b68dcbbd0983 28,34
+web/app/api/billing/checkout/__tests__/route.test.ts
+  h_e6b68dcbbd0983 229-240
+web/app/api/billing/webhook/__tests__/fungies-refund-dlq.test.ts
+  h_e6b68dcbbd0983 6,18,86
+web/src/lib/admin.ts
+  h_e6b68dcbbd0983 15-17
+web/app/api/billing/webhook/__tests__/polar-switched-off.test.ts
+  h_e6b68dcbbd0983 1-58
+web/app/api/billing/webhook/__tests__/signature-status.test.ts
+  h_e6b68dcbbd0983 1-63
+payments/src/provider.ts
+  h_e6b68dcbbd0983 90-91,95-99
+payments/src/providers/fastspring.ts
+  h_e6b68dcbbd0983 30,33
+web/app/api/billing/webhook/__tests__/support/webhook_signer.ts
+  h_e6b68dcbbd0983 1-27
+web/app/api/billing/webhook/__tests__/polar-partial-refund.test.ts
+  h_e6b68dcbbd0983 1-164
+src/adapters/payments/__tests__/polar.adapter.test.ts
+  h_e6b68dcbbd0983 1-197
+src/use_cases/billing/__tests__/process_billing_webhook.test.ts
+  h_e6b68dcbbd0983 747-777
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "171c70b78c5b65a6e8ff3bcccfeafa5ed037efc4",
+  "prompts": {},
+  "humans": {
+    "h_e6b68dcbbd0983": {
+      "author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
