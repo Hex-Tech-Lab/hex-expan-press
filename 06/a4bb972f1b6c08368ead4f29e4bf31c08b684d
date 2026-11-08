@@ -1,0 +1,16 @@
+docs/agent_ledger.jsonl
+  h_e6b68dcbbd0983 915-917
+scripts/assemble_live_video.py
+  h_e6b68dcbbd0983 1-57
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "06a4bb972f1b6c08368ead4f29e4bf31c08b684d",
+  "prompts": {},
+  "humans": {
+    "h_e6b68dcbbd0983": {
+      "author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
