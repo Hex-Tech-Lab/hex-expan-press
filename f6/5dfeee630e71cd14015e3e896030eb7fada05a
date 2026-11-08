@@ -1,0 +1,24 @@
+docs/agent_ledger.jsonl
+  h_e6b68dcbbd0983 911,913
+payments/test/settings_registry_runtime.test.ts
+  h_e6b68dcbbd0983 6,196-236
+src/adapters/esign/esign.factory.ts
+  h_e6b68dcbbd0983 54,64,68-76,78-79
+web/app/creator/dashboard/__tests__/actions.test.ts
+  h_e6b68dcbbd0983 438-451
+web/app/creator/dashboard/actions.ts
+  h_e6b68dcbbd0983 130-135
+web/app/creator/review/review-client.tsx
+  h_e6b68dcbbd0983 13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f65dfeee630e71cd14015e3e896030eb7fada05a",
+  "prompts": {},
+  "humans": {
+    "h_e6b68dcbbd0983": {
+      "author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
