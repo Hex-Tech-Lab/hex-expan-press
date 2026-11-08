@@ -64,23 +64,31 @@ jobs:
           INPUT_TRANSCRIBE: ${{ github.event.inputs.transcribe }}
         run: |
           if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
-            echo "day=$INPUT_DAY" >> "$GITHUB_OUTPUT"
-            echo "url=$INPUT_URL" >> "$GITHUB_OUTPUT"
-            echo "do_transcribe=$INPUT_TRANSCRIBE" >> "$GITHUB_OUTPUT"
+            {
+              echo "day=$INPUT_DAY"
+              echo "url=$INPUT_URL"
+              echo "do_transcribe=$INPUT_TRANSCRIBE"
+            } >> "$GITHUB_OUTPUT"
           else
             DOM=$(date -u +%d)
             case "$DOM" in
               09)
-                echo "day=3" >> "$GITHUB_OUTPUT"
-                echo "url=https://www.youtube.com/watch?v=wfSFaxHuU7Q" >> "$GITHUB_OUTPUT"
+                {
+                  echo "day=3"
+                  echo "url=https://www.youtube.com/watch?v=wfSFaxHuU7Q"
+                } >> "$GITHUB_OUTPUT"
                 ;;
               10)
-                echo "day=4" >> "$GITHUB_OUTPUT"
-                echo "url=https://www.youtube.com/watch?v=6TZs6Ctq8LE" >> "$GITHUB_OUTPUT"
+                {
+                  echo "day=4"
+                  echo "url=https://www.youtube.com/watch?v=6TZs6Ctq8LE"
+                } >> "$GITHUB_OUTPUT"
                 ;;
               15)
-                echo "day=5" >> "$GITHUB_OUTPUT"
-                echo "url=https://www.youtube.com/watch?v=SFZYaN7TEX8" >> "$GITHUB_OUTPUT"
+                {
+                  echo "day=5"
+                  echo "url=https://www.youtube.com/watch?v=SFZYaN7TEX8"
+                } >> "$GITHUB_OUTPUT"
                 ;;
               *)
                 echo "Unknown schedule date: $DOM"
@@ -171,7 +179,7 @@ jobs:
             mkdir -p ~/.config/rclone
             echo "$RCLONE_CONFIG_BASE64" | base64 -d > ~/.config/rclone/rclone.conf
             echo "[GH] Uploading full media to Google Drive..."
-            rclone copy "$OUT_DIR" gdrive:AI_Income_Challenge/day${DAY} --progress || true
+            rclone copy "$OUT_DIR" "gdrive:AI_Income_Challenge/day${DAY}" --progress || true
           else
             echo "[GH] RCLONE_CONFIG_BASE64 not configured; skipping Google Drive sync."
           fi
