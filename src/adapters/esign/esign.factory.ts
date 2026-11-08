@@ -5,7 +5,7 @@ import { MatrixRouter } from "../../infrastructure/matrix_router/matrix_router.t
 
 export type EsignAdapter = EsignProviderPort & EsignWebhookPort & EsignEvidencePort;
 
-class CompositeEsignAdapter implements EsignAdapter {
+export class CompositeEsignAdapter implements EsignAdapter {
   /** Adapter whose webhook validation last succeeded — evidence operations
    * for the current delivery dispatch to that same provider. */
   private validated: EsignAdapter | null = null;

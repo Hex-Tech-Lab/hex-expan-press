@@ -133,6 +133,10 @@ export async function startPublisherAgreementAction(): Promise<void> {
           : String(err.cause))
       : "";
     const msg = err instanceof Error ? `${err.message} ${causeStr}` : String(err);
-    redirect(/insufficient credits|402/i.test(msg) ? "/creator/dashboard?error=credits" : "/creator/dashboard?error=esign");
+    const hasStatus402 = (err as unknown as { status?: number })?.status === 402 ||
+      (typeof AggregateError !== "undefined" && err instanceof Error && err.cause instanceof AggregateError &&
+        err.cause.errors.some((e) => (e as unknown as { status?: number })?.status === 402));
+    const isCreditError = hasStatus402 || /\b402\b|insufficient[ _]credits/i.test(msg);
+    redirect(isCreditError ? "/creator/dashboard?error=credits" : "/creator/dashboard?error=esign");
   }
 }
