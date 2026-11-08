@@ -1,0 +1,18 @@
+docs/handover/THOS_2026-11-08_pr-landing-complete.md
+  h_e6b68dcbbd0983 1-81
+docs/handover/THOS_2026-11-08_pr-landing-complete.html
+  h_e6b68dcbbd0983 1-84
+docs/agent_ledger.jsonl
+  h_e6b68dcbbd0983 907
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "09843fad9bad1fec792ec326773fe7c098355910",
+  "prompts": {},
+  "humans": {
+    "h_e6b68dcbbd0983": {
+      "author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
