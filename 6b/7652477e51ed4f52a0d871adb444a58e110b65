@@ -1,0 +1,70 @@
+docs/adr/0063-r2-sync-freshness-contract.md
+  h_e6b68dcbbd0983 1-39
+docs/adr/0064-remove-immutable-cover-cache.md
+  h_e6b68dcbbd0983 1-40
+docs/adr/README.md
+  h_e6b68dcbbd0983 16,18-19
+docs/adr/proposed/generation-allocation.md
+  h_e6b68dcbbd0983 1-126
+docs/agent_ledger.jsonl
+  h_e6b68dcbbd0983 854-868
+payments/src/delivery.ts
+  h_e6b68dcbbd0983 13,55,66-69,98,102,107,122,129,159,165,207,218,222-223,225-229,267,270-272,277-278,282-295,302-305
+payments/src/settings.ts
+  h_e6b68dcbbd0983 4,92-93
+payments/src/webhook_core.ts
+  h_e6b68dcbbd0983 1,4,49-50,65-69,78,99-104,134-142,165,170-171
+payments/test/delivery.test.ts
+  h_e6b68dcbbd0983 32,235-236,248
+payments/test/delivery_block_outcome.test.ts
+  h_e6b68dcbbd0983 7
+payments/test/delivery_db_adapter.test.ts
+  h_e6b68dcbbd0983 27,99,105,113-119,128,140,146,154-160,162-174,180,183,186,190,196
+payments/test/delivery_provider_filter.test.ts
+  h_e6b68dcbbd0983 1-87
+payments/test/delivery_provider_scope.test.ts
+  h_e6b68dcbbd0983 1-49
+payments/test/delivery_retry_trade_off.test.ts
+  h_e6b68dcbbd0983 38-39,50,103,127,151
+payments/test/webhook_alias_provider_scope.test.ts
+  h_e6b68dcbbd0983 1-102
+payments/test/webhook_core_lock.test.ts
+  h_e6b68dcbbd0983 54-67
+scripts/__tests__/sync-supabase-to-r2.test.ts
+  h_e6b68dcbbd0983 10,12-13,30-36,52,97-117,225-236,239,241,244-249,253-282,285,288,290-316,318-325,327-336,338-340,344-360,363-400,402-462,467,471,477,482,486,495,567-654
+scripts/sync-supabase-to-r2.ts
+  h_e6b68dcbbd0983 5-6,22-23,31-38,51-52,55-56,60-62,64-68,76-102,110-111,154,208-211,213,251,253-262,264-281,283-288,290-295,297-299,301-305,307-332,339-340,342-343,346-360,362-390,392,411-413
+src/adapters/storage/__tests__/r2.adapter.test.ts
+  h_e6b68dcbbd0983 184-186,193,214,228,334-337,339-342,345,397-438,512,520
+src/adapters/storage/__tests__/r2.freshness.test.ts
+  h_e6b68dcbbd0983 1-360
+src/adapters/storage/__tests__/r2.put-precondition.test.ts
+  h_e6b68dcbbd0983 1-37
+src/adapters/storage/r2.adapter.ts
+  h_e6b68dcbbd0983 15-19,50-51,53-67,73,75,102-103,122,153,166,194-204,206-208,210,240,245,252-261,280,296-302,321,341-435,447,457,478,487-489,491-503,518-519,532-539,544-586,638,659
+src/use_cases/billing/__tests__/process_billing_webhook.test.ts
+  h_e6b68dcbbd0983 1,132-133,138-141,166,178-197,406-414,1578,1611
+src/use_cases/billing/process_billing_webhook.ts
+  h_e6b68dcbbd0983 525,531-533,567
+supabase/migrations/20261028082156_products_paddle_product_id_unique.sql
+  h_e6b68dcbbd0983 1-9
+web/__tests__/r2-delivery-fallback.integration.test.ts
+  h_e6b68dcbbd0983 9-10,42,58-62,117-119
+web/app/d/[token]/__tests__/route.test.ts
+  h_e6b68dcbbd0983 9-10,42,54-61,217-220
+web/app/d/[token]/route.ts
+  h_e6b68dcbbd0983 60-63
+web/next.config.ts
+  h_e6b68dcbbd0983 48-50
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6b7652477e51ed4f52a0d871adb444a58e110b65",
+  "prompts": {},
+  "humans": {
+    "h_e6b68dcbbd0983": {
+      "author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
