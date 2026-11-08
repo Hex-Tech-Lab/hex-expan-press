@@ -3,6 +3,7 @@
 // MANUAL_REVIEW_REQUIRED_REFUND audit row (reason "amount_unverifiable") and a 400,
 // with NO refund row ever appended to the ledger.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { randomBytes } from "node:crypto";
 import { fungiesSignatureHeader } from "./support/webhook_signer";
 import { mkdirSync, rmSync, readFileSync } from "node:fs";
 import type { NextRequest } from "next/server";
@@ -73,7 +74,7 @@ vi.mock("../../../../../../payments/src/terms.ts", () => ({
 }));
 
 // Point the registry module at a temp ledger path — tests never touch data/db.
-const salesFileDir = vi.hoisted(() => `/tmp/fungies-dlq-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+const salesFileDir = vi.hoisted(() => `/tmp/fungies-dlq-${Date.now()}-${crypto.randomUUID()}`);
 const salesFilePath = vi.hoisted(() => `${salesFileDir}/sales.jsonl`);
 
 vi.mock("../../../../../../payments/src/settings_registry.ts", () => ({
@@ -106,7 +107,7 @@ const BASE_SALE: SaleRecord = {
 
 function refundPayload(saleId: string) {
   return JSON.stringify({
-    id: `evt-fng-${Math.random().toString(36).slice(2)}`,
+    id: `evt-fng-${randomBytes(4).toString("hex")}`,
     type: "payment_refunded",
     data: {
       items: [],

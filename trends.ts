@@ -49,7 +49,9 @@ async function cachedFetch<T>(key: string, ttlMs: number, fetchFn: () => Promise
 
 async function postJson<T = unknown>(url: string, headers: Record<string, string>, body: unknown): Promise<T | { error: string }> {
   try {
-    const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify(body) });
+    const targetUrl = new URL(url);
+    if (targetUrl.protocol !== "https:") return { error: `Invalid protocol: ${targetUrl.protocol} (https required)` };
+    const res = await fetch(targetUrl.toString(), { method: "POST", headers: { "Content-Type": "application/json", ...headers }, body: JSON.stringify(body) });
     if (!res.ok) return { error: `HTTP ${res.status}: ${await res.text()}` };
     return (await res.json()) as T;
   } catch (err) {
@@ -59,7 +61,9 @@ async function postJson<T = unknown>(url: string, headers: Record<string, string
 
 async function getJson<T = unknown>(url: string, headers: Record<string, string> = {}): Promise<T | { error: string }> {
   try {
-    const res = await fetch(url, { headers });
+    const targetUrl = new URL(url);
+    if (targetUrl.protocol !== "https:") return { error: `Invalid protocol: ${targetUrl.protocol} (https required)` };
+    const res = await fetch(targetUrl.toString(), { headers });
     if (!res.ok) return { error: `HTTP ${res.status}` };
     return (await res.json()) as T;
   } catch (err) {

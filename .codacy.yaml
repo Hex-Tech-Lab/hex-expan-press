@@ -1,0 +1,33 @@
+---
+exclude_paths:
+  - "**/__tests__/**"
+  - "**/test/**"
+  - "**/*.test.*"
+  - "web/public/pdfjs/**"
+  - "scripts/**"
+  - "certify_gates.ts"
+  - "docs/reviews/**"
+  - "docs/handover/**"
+
+engines:
+  eslint8:
+    exclude_paths:
+      - "**/__tests__/**"
+      - "**/test/**"
+      - "**/*.test.ts"
+      - "**/*.test.tsx"
+      - "**/*.test.mjs"
+      - "scripts/**"
+  semgrep:
+    exclude_paths:
+      - "**/__tests__/**"
+      - "**/test/**"
+      - "**/*.test.*"
+      - "scripts/**"
+  markdownlint:
+    exclude_paths:
+      - "docs/reviews/**"
+      - "docs/handover/**"
+  stylelint:
+    exclude_paths:
+      - "web/app/creator/astryx-tokens.css"

@@ -42,7 +42,9 @@ const TTL_6H = 6 * 60 * 60 * 1000;
 
 async function postJson<T = unknown>(url: string, headers: Record<string, string>, body: unknown): Promise<T | { error: string; body?: string }> {
   try {
-    const res = await fetch(url, {
+    const targetUrl = new URL(url);
+    if (targetUrl.protocol !== "https:") return { error: `Invalid protocol: ${targetUrl.protocol} (https required)` };
+    const res = await fetch(targetUrl.toString(), {
       method: "POST",
       headers: { "Content-Type": "application/json", ...headers },
       body: JSON.stringify(body),
@@ -112,7 +114,9 @@ function jsonArrayValidator(content: string): string | null {
 
 async function getJson<T = unknown>(url: string, headers: Record<string, string> = {}): Promise<T | { error: string }> {
   try {
-    const res = await fetch(url, { headers });
+    const targetUrl = new URL(url);
+    if (targetUrl.protocol !== "https:") return { error: `Invalid protocol: ${targetUrl.protocol} (https required)` };
+    const res = await fetch(targetUrl.toString(), { headers });
     if (!res.ok) return { error: `HTTP ${res.status}` };
     return (await res.json()) as T;
   } catch (err) {

@@ -59,6 +59,12 @@ export class ExpanRedisClient {
       throw new Error("ExpanRedisClient: Missing UPSTASH_REDIS_REST_URL/TOKEN (or Vercel KV_REST_API_URL/TOKEN)");
     }
 
+    const parsedUrl = new URL(url);
+    const isLoopback = parsedUrl.hostname === "localhost" || parsedUrl.hostname === "127.0.0.1";
+    if (parsedUrl.protocol !== "https:" && !(parsedUrl.protocol === "http:" && isLoopback)) {
+      throw new Error(`ExpanRedisClient: Disallowed protocol ${parsedUrl.protocol} (https required)`);
+    }
+
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), ExpanRedisClient.TIMEOUT_MS);
     let res: Response;

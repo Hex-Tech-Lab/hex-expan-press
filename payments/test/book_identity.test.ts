@@ -1,4 +1,5 @@
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { randomBytes } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -25,7 +26,7 @@ import { resolveTitle } from "../src/settings";
 let tmpDir: string;
 
 const writeBook = (obj: unknown): string => {
-  const p = join(tmpDir, `book_${Math.random().toString(36).slice(2)}.json`);
+  const p = join(tmpDir, `book_${randomBytes(4).toString("hex")}.json`);
   writeFileSync(p, JSON.stringify(obj), "utf8");
   return p;
 };
