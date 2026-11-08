@@ -52,7 +52,7 @@ export default function SignInClient({
   return (
     <div className="mx-auto max-w-[640px] px-5 pb-10 pt-14 font-sans text-[#2B2520]">
       <p className="mb-4 text-[12px] font-semibold uppercase tracking-[0.14em] text-[#B3401E]">Account</p>
-      <h1 className="font-serif text-[34px] font-bold leading-[1.15] tracking-[-0.015em] max-md:text-[27px]">
+      <h1 className="font-sans text-[34px] font-bold leading-[1.15] tracking-[-0.015em] max-md:text-[27px]">
         Sign in
       </h1>
       <p className="mb-7 mt-2.5 text-[16.5px] text-[#6E5F53]">Access your guides and account details.</p>

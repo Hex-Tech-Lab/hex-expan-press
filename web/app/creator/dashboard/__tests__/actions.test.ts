@@ -414,5 +414,49 @@ describe("startPublisherAgreementAction — complete consent prerequisite chain 
     await expect(startPublisherAgreementAction()).rejects.toThrow("NEXT_REDIRECT:/creator/dashboard?error=c2_required");
     expect(createEnvelopeMock).not.toHaveBeenCalled();
   });
+
+  it("redirects to ?error=credits when envelope creation fails due to insufficient credits", async () => {
+    consentsData = [
+      { id: "c1_p1", product_id: "p1", kind: "C1_data_accuracy", decision: "given", signed_at: "2026-10-01T00:00:00Z" },
+      { id: "c2_p1", product_id: "p1", kind: "C2_release_approval", decision: "given", signed_at: "2026-10-01T00:00:00Z" },
+    ];
+    createEnvelopeMock.mockRejectedValueOnce(new Error("All configured esign providers failed: Insufficient credits. Please purchase more credits to send signing requests."));
+
+    await expect(startPublisherAgreementAction()).rejects.toThrow("NEXT_REDIRECT:/creator/dashboard?error=credits");
+  });
+
+  it("redirects to ?error=credits when envelope creation fails with 402 status code", async () => {
+    consentsData = [
+      { id: "c1_p1", product_id: "p1", kind: "C1_data_accuracy", decision: "given", signed_at: "2026-10-01T00:00:00Z" },
+      { id: "c2_p1", product_id: "p1", kind: "C2_release_approval", decision: "given", signed_at: "2026-10-01T00:00:00Z" },
+    ];
+    createEnvelopeMock.mockRejectedValueOnce(new Error("Esign creation failed", { cause: new Error("Firma returned 402") }));
+
+    await expect(startPublisherAgreementAction()).rejects.toThrow("NEXT_REDIRECT:/creator/dashboard?error=credits");
+  });
+
+  it("redirects to ?error=credits when a fallback provider in an AggregateError reports insufficient credits", async () => {
+    consentsData = [
+      { id: "c1_p1", product_id: "p1", kind: "C1_data_accuracy", decision: "given", signed_at: "2026-10-01T00:00:00Z" },
+      { id: "c2_p1", product_id: "p1", kind: "C2_release_approval", decision: "given", signed_at: "2026-10-01T00:00:00Z" },
+    ];
+    const aggregate = new AggregateError(
+      [new Error("Primary network timeout"), new Error("Fallback firma: Insufficient credits")],
+      "All configured esign providers failed"
+    );
+    createEnvelopeMock.mockRejectedValueOnce(new Error("All configured esign providers failed", { cause: aggregate }));
+
+    await expect(startPublisherAgreementAction()).rejects.toThrow("NEXT_REDIRECT:/creator/dashboard?error=credits");
+  });
+
+  it("redirects to ?error=esign when envelope creation fails with a generic error", async () => {
+    consentsData = [
+      { id: "c1_p1", product_id: "p1", kind: "C1_data_accuracy", decision: "given", signed_at: "2026-10-01T00:00:00Z" },
+      { id: "c2_p1", product_id: "p1", kind: "C2_release_approval", decision: "given", signed_at: "2026-10-01T00:00:00Z" },
+    ];
+    createEnvelopeMock.mockRejectedValueOnce(new Error("Connection timeout"));
+
+    await expect(startPublisherAgreementAction()).rejects.toThrow("NEXT_REDIRECT:/creator/dashboard?error=esign");
+  });
 });
 

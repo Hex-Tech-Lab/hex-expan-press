@@ -5,7 +5,7 @@ import { MatrixRouter } from "../../infrastructure/matrix_router/matrix_router.t
 
 export type EsignAdapter = EsignProviderPort & EsignWebhookPort & EsignEvidencePort;
 
-class CompositeEsignAdapter implements EsignAdapter {
+export class CompositeEsignAdapter implements EsignAdapter {
   /** Adapter whose webhook validation last succeeded — evidence operations
    * for the current delivery dispatch to that same provider. */
   private validated: EsignAdapter | null = null;
@@ -51,6 +51,7 @@ class CompositeEsignAdapter implements EsignAdapter {
       await MatrixRouter.markProviderDown("esign", "global_esign", primaryName).catch(() => {});
 
       // Dimension 2: Vertical Cascade / Fallbacks
+      const fallbackErrors: Array<{ provider: string; error: unknown }> = [];
       for (const fallbackName of this.strategy.fallbacks) {
         if (fallbackName === primaryName) continue;
         console.warn(`[CompositeRouter] Cascading to fallback provider: ${fallbackName}`);
@@ -60,10 +61,23 @@ class CompositeEsignAdapter implements EsignAdapter {
           return await fallbackAdapter.createEnvelope(command);
         } catch (fallbackErr) {
           console.error(`[CompositeRouter] Fallback provider ${fallbackName} failed:`, fallbackErr);
+          fallbackErrors.push({ provider: fallbackName, error: fallbackErr });
         }
       }
       
-      throw new Error(`All configured esign providers failed (Primary: ${primaryName}, Fallbacks: ${this.strategy.fallbacks.join(',')})`);
+      const primaryDetail = err instanceof Error ? `: ${err.message}` : "";
+      const fallbackDetails = fallbackErrors.length > 0
+        ? ` | Fallbacks: ${fallbackErrors.map((f) => `${f.provider}: ${f.error instanceof Error ? f.error.message : String(f.error)}`).join("; ")}`
+        : "";
+      const allErrors = [err, ...fallbackErrors.map((f) => f.error)];
+      const combinedCause = typeof AggregateError !== "undefined"
+        ? new AggregateError(allErrors, "All esign providers failed")
+        : err;
+
+      throw new Error(
+        `All configured esign providers failed (Primary: ${primaryName}${primaryDetail}, Fallbacks: ${this.strategy.fallbacks.join(",")}${fallbackDetails})`,
+        { cause: combinedCause }
+      );
     }
   }
 

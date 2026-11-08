@@ -3,7 +3,7 @@
 // pure loader directly — they must NEVER move, rename or delete the real data/settings
 // directory (an earlier version renamed it and left it stranded on 2026-10-01).
 import { describe, expect, it, vi, afterEach } from "vitest";
-import { GLOBAL, loadPaymentsSection, loadEmailSection } from "../src/settings_registry.ts";
+import { GLOBAL, loadPaymentsSection, loadEmailSection, getPath } from "../src/settings_registry.ts";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -191,5 +191,46 @@ describe("email.retryable_error_names padding", () => {
     const defaults = loadEmailSection(undefined).retryable_error_names;
     expect(loadEmailSection({ retryable_error_names: [" rate_limit_exceeded"] }).retryable_error_names).toEqual(defaults);
     vi.restoreAllMocks();
+  });
+});
+
+describe("getPath prototype pollution and inheritance guards", () => {
+  it("resolves nested own properties correctly", () => {
+    const obj = { meta: { custom_data: { product_id: "prod_123" } } };
+    expect(getPath(obj, "meta.custom_data.product_id")).toBe("prod_123");
+    expect(getPath(obj, "meta.custom_data")).toEqual({ product_id: "prod_123" });
+  });
+
+  it("returns undefined for __proto__ path segments", () => {
+    const obj = { a: { b: 1 } };
+    expect(getPath(obj, "__proto__")).toBeUndefined();
+    expect(getPath(obj, "a.__proto__")).toBeUndefined();
+    expect(getPath(obj, "__proto__.polluted")).toBeUndefined();
+  });
+
+  it("returns undefined for inherited prototype properties", () => {
+    const obj = { data: {} };
+    expect(getPath(obj, "toString")).toBeUndefined();
+    expect(getPath(obj, "data.toString")).toBeUndefined();
+    expect(getPath(obj, "valueOf")).toBeUndefined();
+    expect(getPath(obj, "hasOwnProperty")).toBeUndefined();
+
+    const proto = { inheritedKey: "secret" };
+    const child = Object.create(proto);
+    child.ownKey = "visible";
+
+    expect(getPath(child, "ownKey")).toBe("visible");
+    expect(getPath(child, "inheritedKey")).toBeUndefined();
+  });
+
+  it("returns undefined for null, primitives, non-string, or empty paths", () => {
+    expect(getPath(null, "a.b")).toBeUndefined();
+    expect(getPath(undefined, "a.b")).toBeUndefined();
+    expect(getPath(123, "a.b")).toBeUndefined();
+    expect(getPath("string", "length")).toBeUndefined();
+    expect(getPath({ a: 1 }, "")).toBeUndefined();
+    expect(getPath({ a: 1 }, undefined)).toBeUndefined();
+    expect(getPath({ a: 1 }, "nonexistent")).toBeUndefined();
+    expect(getPath({ a: null }, "a.b")).toBeUndefined();
   });
 });

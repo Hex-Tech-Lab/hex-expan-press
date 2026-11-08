@@ -91,7 +91,7 @@ function ConsentFormCard({
           <span className="text-[length:var(--font-size-2xs)] font-bold uppercase tracking-[0.08em] text-[#296E50]">Signed ✓</span>
         )}
       </div>
-      <h2 className="font-serif text-[length:var(--text-heading-3-size)] font-bold text-[#2B2520]">{heading}</h2>
+      <h2 className="font-sans text-[length:var(--text-heading-3-size)] font-bold text-[#2B2520]">{heading}</h2>
       <p className="mt-1.5 text-[length:var(--font-size-base)] leading-relaxed text-[#4A4136]">{legal}</p>
 
       {done ? (
@@ -141,7 +141,7 @@ export default function ConsentCards({ bookTitle, hasC1, hasC2, hasC3 }: Consent
   return (
     <div className="mx-auto max-w-[680px] px-5 pb-16 pt-10">
       <p className="mb-1 text-[length:var(--font-size-xs)] font-semibold uppercase tracking-[0.14em] text-[#B3401E]">Creator Portal</p>
-      <h1 className="font-serif text-[length:var(--text-heading-1-size)] font-bold leading-[1.15] text-[#2B2520]">Final consents</h1>
+      <h1 className="font-sans text-[length:var(--text-heading-1-size)] font-bold leading-[1.15] text-[#2B2520]">Final consents</h1>
       <p className="mt-1 mb-6 text-[length:var(--font-size-base)] text-[#6E5F53]">
         Review and sign the final approvals to publish <b className="font-semibold">{bookTitle}</b>.
       </p>
@@ -186,7 +186,7 @@ export default function ConsentCards({ bookTitle, hasC1, hasC2, hasC3 }: Consent
             aria-label="Revenue split agreement"
           >
             <span className="text-[length:var(--font-size-2xs)] font-bold uppercase tracking-[0.08em] text-[#B3401E]">3. Revenue Split Agreement</span>
-            <h2 className="mt-2 font-serif text-[length:var(--text-heading-3-size)] font-bold text-[#2B2520]">Publisher agreement (C3)</h2>
+            <h2 className="mt-2 font-sans text-[length:var(--text-heading-3-size)] font-bold text-[#2B2520]">Publisher agreement (C3)</h2>
             {hasC3 ? (
               <p className="mt-3 text-[length:var(--font-size-base)] font-medium text-[#296E50]">Agreement executed ✓ — your book is cleared for release.</p>
             ) : (

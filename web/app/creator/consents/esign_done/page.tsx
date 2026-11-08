@@ -58,7 +58,7 @@ export default async function EsignDonePage() {
         <p className="text-[40px] leading-none text-[#2E7D5B]" aria-hidden>
           {recorded ? "✓" : "…"}
         </p>
-        <h1 className="mt-3 font-serif text-[length:var(--text-heading-1-size)] font-bold text-[#2B2520]">
+        <h1 className="mt-3 font-sans text-[length:var(--text-heading-1-size)] font-bold text-[#2B2520]">
           {recorded ? "Revenue-split agreement signed" : "Finalising your signature"}
         </h1>
         <p className="mt-3 text-[length:var(--font-size-base)] text-[#4A4136]">

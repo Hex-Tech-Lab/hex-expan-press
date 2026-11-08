@@ -545,7 +545,9 @@ export class FirmaAdapter implements EsignProviderPort, EsignWebhookPort, EsignE
 
     if (!res.ok) {
       const detail = await res.text();
-      throw new Error(`Firma create-and-send failed (${res.status}): ${truncate(detail, 500)}`);
+      const err = new Error(`Firma create-and-send failed (${res.status}): ${truncate(detail, 500)}`);
+      (err as unknown as { status: number }).status = res.status;
+      throw err;
     }
 
     const data = await res.json();

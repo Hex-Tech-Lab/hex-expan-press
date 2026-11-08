@@ -3,7 +3,7 @@ import { readFileSync, writeFileSync, existsSync, appendFileSync } from "node:fs
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import dotenv from "dotenv";
-import { GLOBAL, expandHome } from "@payments/settings_registry";
+import { GLOBAL, expandHome } from "./payments/src/settings_registry.ts";
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ override: true, path: path.join(ROOT, GLOBAL.paths.env_file) });
