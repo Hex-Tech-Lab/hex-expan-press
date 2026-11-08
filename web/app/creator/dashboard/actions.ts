@@ -127,7 +127,12 @@ export async function startPublisherAgreementAction(): Promise<void> {
     // misreported as an esign failure (caught in Wave 6 review 2026-09-29).
     unstable_rethrow(err); // re-throw Next navigation signals (redirect/notFound) untouched
     console.error("[dashboard] envelope creation failed:", err);
-    const msg = err instanceof Error ? `${err.message} ${err.cause ? String(err.cause) : ""}` : String(err);
+    const causeStr = err instanceof Error && err.cause
+      ? (typeof AggregateError !== "undefined" && err.cause instanceof AggregateError
+          ? err.cause.errors.map((e) => (e instanceof Error ? e.message : String(e))).join(" ")
+          : String(err.cause))
+      : "";
+    const msg = err instanceof Error ? `${err.message} ${causeStr}` : String(err);
     redirect(/insufficient credits|402/i.test(msg) ? "/creator/dashboard?error=credits" : "/creator/dashboard?error=esign");
   }
 }

@@ -10,7 +10,7 @@
  * from /pdfjs (no CDN dependency on the review funnel).
  *
  * Visuals follow the Astryx system: cream canvas (#FAF7F2), charcoal
- * containers (neu-card), peach accents, Fraunces headings.
+ * containers (neu-card), peach accents, sans-serif headings (font-sans).
  */
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
