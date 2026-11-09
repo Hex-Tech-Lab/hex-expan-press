@@ -1,0 +1,37 @@
+docs/handover/PRICE_LOCK_2026-11-09_1847_EET.md
+  s_be01e17a06932d::t_2f7bcb1b003003 1-27
+payments/src/paddle_environment.ts
+  s_be01e17a06932d::t_113760d306499d 1-24
+payments/src/price_parity.ts
+  s_be01e17a06932d::t_044354df8cbce1 13-15,20-22,24,32-33,72-75,97-127,129-137
+payments/test/price_parity.test.ts
+  s_be01e17a06932d::t_9ea0c451ef94fe 1,62-64,76-77,80-81,84-86,89-90,93-94,97-98,101-103,107-108,112,116-161
+src/adapters/payments/paddle.adapter.ts
+  s_be01e17a06932d::t_cb757b288fc3f6 94-95,280
+src/adapters/storage/__tests__/rule.r2.sigv4.test.ts
+  s_be01e17a06932d::t_9c04b0db505e18 2
+src/adapters/storage/r2.adapter.ts
+  s_be01e17a06932d::t_cead56bbce099c 3-6,171,271,336-342,346-347,370-372
+src/adapters/storage/rule.r2.sigv4.ts
+  s_be01e17a06932d::t_c02f14ea32b44e 117,119-120,124-125,160
+web/app/api/billing/checkout/__tests__/route.test.ts
+  s_be01e17a06932d::t_0b171aec4de4eb 30-31,945
+web/app/api/billing/checkout/route.ts
+  s_be01e17a06932d::t_b60e48cc74aa34 8,95,102,104-105,264,320,327
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b391497f842a2a3793fc458fc23c5308257248e8",
+  "prompts": {},
+  "sessions": {
+    "s_be01e17a06932d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6daf8866-5b2a-4ab3-9e3f-0767d29bf2ea",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
