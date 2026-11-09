@@ -204,7 +204,9 @@ async function main() {
   }
 }
 
-main().catch((err) => {
-  console.error("transcriber failed:", err?.message || err);
-  process.exit(1);
-});
+if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
+  main().catch((err) => {
+    console.error("transcriber failed:", err?.message || err);
+    process.exit(1);
+  });
+}
