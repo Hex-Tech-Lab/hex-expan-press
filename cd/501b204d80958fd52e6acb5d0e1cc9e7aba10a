@@ -1,0 +1,16 @@
+docs/handover/NUGGETS_OPERATING_SYSTEM_DAY1_TO_DAY3.html
+  h_e6b68dcbbd0983 1-375
+docs/intel/NUGGETS_OPERATING_SYSTEM_DAY1_TO_DAY3.md
+  h_e6b68dcbbd0983 1-244
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "cd501b204d80958fd52e6acb5d0e1cc9e7aba10a",
+  "prompts": {},
+  "humans": {
+    "h_e6b68dcbbd0983": {
+      "author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
