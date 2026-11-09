@@ -1,0 +1,24 @@
+.github/workflows/series_stream_recorder.yml
+  h_e6b68dcbbd0983 67-73,80-84,122,127,133-137,142,170,172
+docs/agent_ledger.jsonl
+  h_e6b68dcbbd0983 925-926
+lib/blob.ts
+  h_e6b68dcbbd0983 39,50-51
+scripts/audit_remote_series_run.sh
+  h_e6b68dcbbd0983 1-132
+scripts/upload_stream_blob.ts
+  h_e6b68dcbbd0983 1-44
+src/adapters/__tests__/blob.test.ts
+  h_e6b68dcbbd0983 47-85
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "032df2e29c0ee99655fe0c1dc0c7be1113053a15",
+  "prompts": {},
+  "humans": {
+    "h_e6b68dcbbd0983": {
+      "author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
