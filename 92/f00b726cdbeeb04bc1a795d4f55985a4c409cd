@@ -1,0 +1,47 @@
+docs/agent_ledger.jsonl
+  s_be01e17a06932d::t_89ae3ebc97fc00 960
+  s_be01e17a06932d::t_9acfc3751dea94 937
+  s_be01e17a06932d::t_b8e2aba87b626c 946
+  s_be01e17a06932d::t_ee86c9a3d5e886 953
+  s_be01e17a06932d::t_2e0a9768fb881e 934
+  s_be01e17a06932d::t_eda346e9b3fec7 957
+  s_be01e17a06932d::t_753b35b3098796 941
+  s_be01e17a06932d::t_d29e939f553e4b 943
+  s_be01e17a06932d::t_2a3a1a29b68f62 958
+  s_be01e17a06932d::t_1bc3d719522fe5 955
+  s_be01e17a06932d::t_875e58e8c2294b 940
+  s_be01e17a06932d::t_c56643a27bc57c 933
+  s_be01e17a06932d::t_64c548e347995e 944
+  s_be01e17a06932d::t_d4cb90f1d0a530 961
+  s_be01e17a06932d::t_65dce98bd0da9f 932
+  s_be01e17a06932d::t_a4b3212538649b 947
+  s_be01e17a06932d::t_18f784539dc508 962
+  s_be01e17a06932d::t_c068a3fd5b74e0 945
+  s_be01e17a06932d::t_3603b0a787bb53 942
+  s_be01e17a06932d::t_91e7646b856b1b 956
+  s_be01e17a06932d::t_82a67df12f446a 935
+  s_be01e17a06932d::t_840aeef6439314 936
+  s_be01e17a06932d::t_56d108ee4e33fa 938
+  s_be01e17a06932d::t_58dbc3fe813496 939
+  s_be01e17a06932d::t_0e677c8f210aa3 954
+  s_be01e17a06932d::t_cabc8ff7d79122 929-931
+  s_be01e17a06932d::t_7b416cd81000ad 948-952
+  s_be01e17a06932d::t_c72fa47330bef8 959
+  s_be01e17a06932d::t_657f45175e2b30 963
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "92f00b726cdbeeb04bc1a795d4f55985a4c409cd",
+  "prompts": {},
+  "sessions": {
+    "s_be01e17a06932d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6daf8866-5b2a-4ab3-9e3f-0767d29bf2ea",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
