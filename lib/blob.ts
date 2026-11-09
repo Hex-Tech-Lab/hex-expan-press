@@ -36,6 +36,7 @@ export async function uploadMedia(
   data: Request | Blob | ArrayBuffer | Uint8Array | string | ReadableStream,
   options: {
     contentType?: string;
+    size?: number;
     maxSize?: number;
     allowOverwrite?: boolean;
     metadata?: Record<string, string>;
@@ -46,6 +47,8 @@ export async function uploadMedia(
     contentType: options.contentType || "application/octet-stream",
     allowOverwrite: options.allowOverwrite ?? true,
     multipart: "16mb",
+    size: options.size,
+    maxSize: options.maxSize,
     metadata: options.metadata,
   });
 }

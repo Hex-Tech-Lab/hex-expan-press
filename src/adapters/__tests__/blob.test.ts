@@ -44,4 +44,43 @@ describe("Upstash Blob Client Module", () => {
     expect(typeof bucket.get).toBe("function");
     expect(typeof bucket.signedReadUrl).toBe("function");
   });
+
+  it("forwards Web ReadableStream, size, and maxSize to Bucket.put", async () => {
+    const { getBlobBucket, uploadMedia } = await import("../../../lib/blob.ts");
+    const bucket = getBlobBucket();
+
+    interface PutCapture {
+      path: string;
+      data: unknown;
+      opts: { size?: number; maxSize?: number; multipart?: string; contentType?: string };
+    }
+    let putArgs: PutCapture | null = null;
+    (bucket as unknown as { put: (path: string, data: unknown, opts: PutCapture["opts"]) => Promise<{ path: string; size?: number }> }).put = async (path, data, opts) => {
+      putArgs = { path, data, opts };
+      return { path, size: opts.size };
+    };
+
+    const bytes = new Uint8Array([1, 2, 3, 4, 5]);
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(bytes);
+        controller.close();
+      },
+    });
+
+    const res = await uploadMedia("streams/test.mp4", stream, {
+      contentType: "video/mp4",
+      size: bytes.byteLength,
+      maxSize: 1000,
+    });
+
+    expect(putArgs).not.toBeNull();
+    expect(putArgs!.path).toBe("streams/test.mp4");
+    expect(putArgs!.data).toBe(stream);
+    expect(putArgs!.opts.size).toBe(5);
+    expect(putArgs!.opts.maxSize).toBe(1000);
+    expect(putArgs!.opts.multipart).toBe("16mb");
+    expect(putArgs!.opts.contentType).toBe("video/mp4");
+    expect(res).toEqual({ path: "streams/test.mp4", size: 5 });
+  });
 });
