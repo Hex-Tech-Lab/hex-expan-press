@@ -89,7 +89,12 @@ async function processAudio(audioPath: string, outPath: string, dayNum: number) 
 
 async function main() {
   const targetDay = process.argv[2] ? parseInt(process.argv[2], 10) : 1;
-  const audioFile = path.resolve(`downloads/ai_income_challenge/day${targetDay}/day${targetDay}_audio.mp3`);
+  const customFile = process.argv[3];
+  let audioFile = customFile ? path.resolve(customFile) : path.resolve(`downloads/ai_income_challenge/day${targetDay}/day${targetDay}_audio.mp3`);
+  if (!fs.existsSync(audioFile)) {
+    const m4aFile = path.resolve(`downloads/ai_income_challenge/day${targetDay}/current_assembled_day${targetDay}_audio.m4a`);
+    if (fs.existsSync(m4aFile)) audioFile = m4aFile;
+  }
   const outFile = path.resolve(`downloads/ai_income_challenge/day${targetDay}/day${targetDay}_transcript_accurate_1s.md`);
 
   await processAudio(audioFile, outFile, targetDay);
