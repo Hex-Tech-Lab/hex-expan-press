@@ -1,0 +1,19 @@
+transcribe.ts
+  s_be01e17a06932d::t_bce364c68b1ae9 207-212
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6e5ec6ecb5095587e30173915daca0743fe90392",
+  "prompts": {},
+  "sessions": {
+    "s_be01e17a06932d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6daf8866-5b2a-4ab3-9e3f-0767d29bf2ea",
+        "model": "unknown"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
