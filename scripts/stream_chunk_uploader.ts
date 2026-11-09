@@ -61,7 +61,7 @@ async function uploadToBlob(localPath: string, blobKey: string, contentType: str
 
 function syncToDrive(localPath: string, remoteDest: string) {
   try {
-    execFileSync("rclone", ["copy", localPath, remoteDest], { stdio: "ignore" });
+    execFileSync("rclone", ["copy", localPath, remoteDest], { stdio: "ignore", timeout: 30000 });
     console.log(`[uploader] Rclone synced ${path.basename(localPath)} -> ${remoteDest}`);
   } catch (err) {
     // Non-fatal if rclone fails or not configured
