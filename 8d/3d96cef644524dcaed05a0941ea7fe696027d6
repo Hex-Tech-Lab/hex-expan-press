@@ -1,0 +1,94 @@
+scripts/qa-intel/engine/rules/quality.ts
+  s_be01e17a06932d::t_c7edb25402e054 18-22,29
+  s_be01e17a06932d::t_c31a28c4727355 15-17
+  s_be01e17a06932d::t_c03077444253f1 6-14,34-36,38-47
+payments/test/price_parity.test.ts
+  s_be01e17a06932d::t_c2c47aa19ebe69 1-115
+web/app/api/billing/checkout/route.ts
+  s_be01e17a06932d::t_8b6a9ca48187de 155
+  s_be01e17a06932d::t_650b678053aa1a 336-337
+  s_be01e17a06932d::t_c03378d6812f90 343-344
+  s_be01e17a06932d::t_3834cb5f5d23cb 141
+  s_be01e17a06932d::t_52d7e85586ef98 91-125
+  s_be01e17a06932d::t_4695aeb2f3d39a 168-176
+  s_be01e17a06932d::t_ef8c519531acaa 8-10
+web/app/api/billing/webhook/handler.ts
+  s_be01e17a06932d::t_02e02bc97d6bdb 47
+  s_be01e17a06932d::t_c21ad67af83f05 243
+payments/src/price_parity.ts
+  s_be01e17a06932d::t_82f1eaeb390b71 1-93
+payments/src/settings_registry.ts
+  s_be01e17a06932d::t_d9a2e0fb578aa6 48-49,323,329,342
+payments/test/delivery_db_adapter.test.ts
+  s_be01e17a06932d::t_19fab3a3e8cc9e 22-30
+payments/test/delivery_provider_filter.test.ts
+  s_be01e17a06932d::t_3e4b8bf6baa33f 17-18,20,33-34,38
+payments/test/delivery_provider_scope.test.ts
+  s_be01e17a06932d::t_a8c51802095793 31-34,38-41,45-47
+payments/test/providers_loader.test.ts
+  s_be01e17a06932d::t_d1b5539904c9fd 8,12-15,17-19,64-67,72-74,79-80,92-94,99-101,108-109
+scripts/qa-intel/__tests__/artas-ui-review-threads.test.ts
+  s_be01e17a06932d::t_8444d3e3d6f17f 1-276
+scripts/qa-intel/__tests__/async-without-await-scope.test.ts
+  s_be01e17a06932d::t_b15179495d5d1a 1-44
+scripts/qa-intel/engine/__tests__/data-integrity-rules.test.ts
+  s_be01e17a06932d::t_795694f65ccca5 198-228
+scripts/qa-intel/engine/__tests__/persistence-rules.test.ts
+  s_be01e17a06932d::t_cada72d1ecf53b 38-63,66-84
+scripts/qa-intel/engine/__tests__/ts-morph-api.test.ts
+  s_be01e17a06932d::t_346fe2ce3bb174 14-65
+scripts/qa-intel/engine/rules/artas-rules.ts
+  s_be01e17a06932d::t_eccd95842235f6 243-245,255-262,265-266,350-353,356,377-379,406-458,512-518,520-553,591,600
+scripts/qa-intel/engine/rules/data-integrity.ts
+  s_be01e17a06932d::t_761c1e56d4587f 96-98
+scripts/qa-intel/engine/rules/persistence.ts
+  s_be01e17a06932d::t_fefb889e2de6f6 1,5-26,41
+scripts/qa-intel/engine/rules/ui.ts
+  s_be01e17a06932d::t_56a78c8f194473 21,23,330-336
+src/adapters/esign/__tests__/esign.factory.test.ts
+  s_be01e17a06932d::t_e862d30fd92b96 104,106-108
+src/adapters/payments/__tests__/polar.adapter.test.ts
+  s_be01e17a06932d::t_ac8109c9f92653 157-158
+src/adapters/payments/polar.adapter.ts
+  s_be01e17a06932d::t_f9bb04b803ecd8 92,171,175,179-180,182
+src/adapters/storage/__tests__/r2.adapter.test.ts
+  s_be01e17a06932d::t_01089e78e9ccd0 10
+src/adapters/storage/__tests__/r2.freshness.test.ts
+  s_be01e17a06932d::t_f95ed88c1feaae 163,167,169,184
+src/adapters/storage/__tests__/r2_sigv4.test.ts
+  s_be01e17a06932d::t_b4685abdf4809e 1-97
+src/adapters/storage/r2.adapter.ts
+  s_be01e17a06932d::t_c1d740dca9854a 4-11,235,281,444
+src/adapters/storage/r2_sigv4.ts
+  s_be01e17a06932d::t_094e6c7a7030ed 1-162
+src/adapters/storage/supabase_source_etag.ts
+  s_be01e17a06932d::t_90e587c2328b1e 1-65
+web/app/api/billing/checkout/__tests__/route.test.ts
+  s_be01e17a06932d::t_26f0ecc0a9cb5d 23-35,929-948
+web/app/api/billing/webhook/__tests__/polar-partial-refund.test.ts
+  s_be01e17a06932d::t_6f08799f4fdf5f 8,11,59,87
+web/app/api/billing/webhook/__tests__/polar-switched-off.test.ts
+  s_be01e17a06932d::t_50544182b642f8 7
+web/app/api/billing/webhook/__tests__/signature-status.test.ts
+  s_be01e17a06932d::t_c220d4805d93f7 16
+web/app/api/billing/webhook/__tests__/switched_off_manual_review.test.ts
+  s_be01e17a06932d::t_e9080f2f3ccce6 7
+web/app/d/[token]/route.ts
+  s_be01e17a06932d::t_d5a05f519d34d8 61
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8d3d96cef644524dcaed05a0941ea7fe696027d6",
+  "prompts": {},
+  "sessions": {
+    "s_be01e17a06932d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6daf8866-5b2a-4ab3-9e3f-0767d29bf2ea",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
