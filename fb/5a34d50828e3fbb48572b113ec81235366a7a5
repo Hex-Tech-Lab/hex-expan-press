@@ -1,0 +1,16 @@
+scripts/schedule_series_capture.sh
+  h_e6b68dcbbd0983 81,89,93,95-98,100,110-115,119-122,129,131-132
+scripts/upload_day_package.ts
+  h_e6b68dcbbd0983 1-73
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "fb5a34d50828e3fbb48572b113ec81235366a7a5",
+  "prompts": {},
+  "humans": {
+    "h_e6b68dcbbd0983": {
+      "author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
