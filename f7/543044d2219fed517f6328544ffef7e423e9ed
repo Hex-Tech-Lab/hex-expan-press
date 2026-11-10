@@ -1,0 +1,46 @@
+web/src/lib/__tests__/slug_rule.test.ts
+  s_e7e910725e2866::t_f1d7cfa0cec730 37
+  s_e7e910725e2866::t_d02410196363bf 1-36,38-79
+web/src/lib/slug_rule.ts
+  s_e7e910725e2866::t_5bd26341208c39 16
+  s_e7e910725e2866::t_640b42f91f3b04 3-8
+  s_e7e910725e2866::t_2f07dc3a2115c7 1-2,9-15,17-37
+scripts/__tests__/sync-supabase-to-r2.sync.test.ts
+  s_e7e910725e2866::t_789116f6ea150e 1-440
+web/app/api/slug-availability/__tests__/route.test.ts
+  s_e7e910725e2866::t_2f48ce391bfa09 20
+  s_e7e910725e2866::t_a61af285ac3ee2 1-19,21-95
+tsconfig.json
+  s_e7e910725e2866::t_1dbbd686d81acb 13
+scripts/book_qa.ts
+  s_e7e910725e2866::t_e991ab1062cce3 60
+  s_e7e910725e2866::t_2046ca4f63b986 31-32,36,49,61,76,114
+web/app/api/slug-availability/route.ts
+  s_e7e910725e2866::t_09109d058751e7 14-18,26,29
+  s_e7e910725e2866::t_f775e36f043cc0 1-13,19-25,27-28,30-32
+scripts/__tests__/sync-supabase-to-r2.harness.ts
+  s_e7e910725e2866::t_789116f6ea150e 1-77
+scripts/__tests__/sync-supabase-to-r2.test.ts
+  s_e7e910725e2866::t_270b2b41e25eb8 3
+  s_e7e910725e2866::t_789116f6ea150e 2,6
+supabase/migrations/20261110120000_products_platform_slug_unique.sql
+  s_e7e910725e2866::t_3140c476d03558 9-11,13-18
+  s_e7e910725e2866::t_9f81ae75e5b0f2 34-35
+  s_e7e910725e2866::t_26777b0514426f 1-8,12,19-33,36-46
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f7543044d2219fed517f6328544ffef7e423e9ed",
+  "prompts": {},
+  "sessions": {
+    "s_e7e910725e2866": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6438089e-4a0c-4509-a6d3-f733e13fb9e2",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
