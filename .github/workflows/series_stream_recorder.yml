@@ -110,17 +110,32 @@ jobs:
             echo "do_transcribe=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Wait for Stream and Record
+      - name: Configure Rclone for Cloud Sync
+        env:
+          RCLONE_CONFIG_BASE64: ${{ secrets.RCLONE_CONFIG_BASE64 }}
+        run: |
+          if [ -n "$RCLONE_CONFIG_BASE64" ]; then
+            echo "[GH] Configuring rclone..."
+            mkdir -p ~/.config/rclone
+            echo "$RCLONE_CONFIG_BASE64" | base64 -d > ~/.config/rclone/rclone.conf
+            rclone listremotes || true
+          fi
+
+      - name: Stream, Segment, and Upload Rolling Chunks Mid-Flight
         env:
           DAY: ${{ steps.target.outputs.day }}
           URL: ${{ steps.target.outputs.url }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          UPSTASH_BLOB_TOKEN: ${{ secrets.UPSTASH_BLOB_TOKEN }}
         run: |
           OUT_DIR="downloads/ai_income_challenge/day${DAY}"
-          mkdir -p "$OUT_DIR"
+          CHUNKS_DIR="$OUT_DIR/chunks"
+          DONE_FILE="$OUT_DIR/RECORDER_DONE"
+          mkdir -p "$CHUNKS_DIR"
 
           echo "[GH] Polling stream status for Day $DAY ($URL)..."
           LIVE_OK=""
-          for i in {1..120}; do
+          for i in {1..180}; do
             STATUS=$(yt-dlp --skip-download --print "%(live_status)s" "$URL" 2>/dev/null || echo "not_ready")
             echo "[GH] Probe $i: $STATUS"
             if [ "$STATUS" = "is_live" ] || [ "$STATUS" = "was_live" ]; then
@@ -135,58 +150,27 @@ jobs:
             exit 1
           fi
 
-          echo "[GH] Recording 1080p stream to $OUT_DIR..."
+          echo "[GH] Starting rolling chunk uploader daemon in background..."
+          pnpm exec tsx scripts/stream_chunk_uploader.ts \
+            --dir="$CHUNKS_DIR" \
+            --day="$DAY" \
+            --done="$DONE_FILE" \
+            --chunk-seconds=300 &
+          UPLOADER_PID=$!
+
+          echo "[GH] Recording and segmenting live stream from start (1080p, 5-minute segments)..."
           yt-dlp \
             --no-playlist --live-from-start \
-            -N 8 -f "bestvideo[height<=1080]+bestaudio/best" --merge-output-format mp4 \
-            --socket-timeout 30 --retries 20 --fragment-retries 30 \
-            -o "$OUT_DIR/day${DAY}_1080p.mp4" "$URL"
+            -N 8 -f "bestvideo[height<=1080]+bestaudio/best" \
+            --socket-timeout 30 --retries infinite --fragment-retries infinite \
+            -o - "$URL" | \
+          ffmpeg -y -i pipe:0 -c copy -f segment -segment_time 300 -reset_timestamps 1 "$CHUNKS_DIR/chunk_%04d.mp4" || true
 
-          echo "[GH] Extracting high-quality MP3 audio..."
-          ffmpeg -y -i "$OUT_DIR/day${DAY}_1080p.mp4" -vn -c:a libmp3lame -q:a 2 "$OUT_DIR/day${DAY}_audio.mp3"
+          echo "[GH] Live broadcast concluded. Signaling recorder done..."
+          touch "$DONE_FILE"
 
-      - name: Transcribe Audio
-        if: steps.target.outputs.do_transcribe == 'true'
-        env:
-          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-          DAY: ${{ steps.target.outputs.day }}
-        run: |
-          OUT_DIR="downloads/ai_income_challenge/day${DAY}"
-          if [ -n "$OPENROUTER_API_KEY" ] && [ -f "$OUT_DIR/day${DAY}_audio.mp3" ]; then
-            echo "[GH] Transcribing Day $DAY audio via OpenRouter..."
-            pnpm exec tsx transcribe.ts --file="$OUT_DIR/day${DAY}_audio.mp3" --chunk=300
-          else
-            echo "[GH] Skipping transcription."
-          fi
-
-      - name: Upload to Upstash Blob (Tier 2 Buffer)
-        env:
-          UPSTASH_BLOB_TOKEN: ${{ secrets.UPSTASH_BLOB_TOKEN }}
-          DAY: ${{ steps.target.outputs.day }}
-        run: |
-          OUT_DIR="downloads/ai_income_challenge/day${DAY}"
-          if [ -n "$UPSTASH_BLOB_TOKEN" ] && [ -f "$OUT_DIR/day${DAY}_1080p.mp4" ]; then
-            echo "[GH] Uploading to Upstash Blob..."
-            pnpm exec tsx scripts/upload_stream_blob.ts "$OUT_DIR/day${DAY}_1080p.mp4" "ai_income_challenge/day${DAY}/day${DAY}_1080p.mp4"
-          else
-            echo "[GH] UPSTASH_BLOB_TOKEN not configured or video missing; skipping Upstash Blob upload."
-          fi
-
-      - name: Sync to Google Drive (Tier 3 Cold Archive)
-        env:
-          RCLONE_CONFIG_BASE64: ${{ secrets.RCLONE_CONFIG_BASE64 }}
-          DAY: ${{ steps.target.outputs.day }}
-        run: |
-          OUT_DIR="downloads/ai_income_challenge/day${DAY}"
-          if [ -n "$RCLONE_CONFIG_BASE64" ]; then
-            echo "[GH] Configuring rclone..."
-            mkdir -p ~/.config/rclone
-            echo "$RCLONE_CONFIG_BASE64" | base64 -d > ~/.config/rclone/rclone.conf
-            echo "[GH] Uploading full media to Google Drive..."
-            rclone copy "$OUT_DIR" "gdrive:AI_Income_Challenge/day${DAY}" --progress || true
-          else
-            echo "[GH] RCLONE_CONFIG_BASE64 not configured; skipping Google Drive sync."
-          fi
+          echo "[GH] Waiting for chunk uploader daemon to complete final assembly and sync..."
+          wait $UPLOADER_PID
 
       - name: Upload Transcript Artifact
         uses: actions/upload-artifact@v4

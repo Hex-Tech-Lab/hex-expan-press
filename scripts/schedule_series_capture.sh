@@ -78,7 +78,7 @@ echo "[sched] STREAM IS LIVE! Initiating capture at $(date)..." >> "$LOG"
 /home/kellyb_dev/.local/bin/yt-dlp \
   --no-update --js-runtimes node --no-playlist --live-from-start \
   -N 16 -f "140/234/bestaudio" \
-  --socket-timeout 30 --retries 20 --fragment-retries infinite \
+  --socket-timeout 30 --retries 20 --fragment-retries 25 --skip-unavailable-fragments \
   -o "$DIR/day${DAY}_audio.m4a" "$URL" >> "$DIR/audio_rec.log" 2>&1 &
 PID_AUDIO=$!
 
@@ -86,22 +86,18 @@ PID_AUDIO=$!
 /home/kellyb_dev/.local/bin/yt-dlp \
   --no-update --js-runtimes node --no-playlist --live-from-start \
   -N 8 -f "bestvideo[height<=1080]+bestaudio/best" --merge-output-format mp4 \
-  --socket-timeout 30 --retries 20 --fragment-retries infinite \
+  --socket-timeout 30 --retries 20 --fragment-retries 25 --skip-unavailable-fragments \
   -o "$DIR/day${DAY}_1080p.mp4" "$URL" >> "$DIR/video_rec.log" 2>&1 &
 PID_VIDEO=$!
 
-# 5. Launch live transcription
+# 5. Launch live transcription & real-time blob sync
 sleep 15
-PID_TRANS=""
-if [ -f "$DIR/day${DAY}_audio.m4a.part" ]; then
-  /home/kellyb_dev/projects/hex-expan/node_modules/.bin/tsx \
-    /home/kellyb_dev/projects/hex-expan/transcribe.ts \
-    --chunk=300 --watch --file="$DIR/day${DAY}_audio.m4a.part" \
-    >> "$DIR/transcribe.log" 2>&1 &
-  PID_TRANS=$!
-fi
+/home/kellyb_dev/projects/hex-expan/node_modules/.bin/tsx \
+  /home/kellyb_dev/projects/hex-expan/scripts/blob_live_sync_daemon.ts "$DAY" \
+  >> "$DIR/blob_sync.log" 2>&1 &
+PID_BLOB=$!
 
-echo "[sched] All capture processes launched for Day $DAY (video: $PID_VIDEO, audio: $PID_AUDIO, trans: ${PID_TRANS:-none})." >> "$LOG"
+echo "[sched] All capture processes launched for Day $DAY (video: $PID_VIDEO, audio: $PID_AUDIO, blob_sync: $PID_BLOB)." >> "$LOG"
 
 # 6. Monitor completion and execute post-capture packaging
 echo "[sched] Monitoring stream completion..." >> "$LOG"
@@ -111,43 +107,29 @@ wait "$PID_AUDIO" 2>/dev/null || true
 
 echo "[sched] Stream concluded. Starting post-capture packaging at $(date)..." >> "$LOG"
 
-# Extract high-quality MP3 if not already present
-if [ -f "$DIR/day${DAY}_1080p.mp4" ] && [ ! -f "$DIR/day${DAY}_audio.mp3" ]; then
-  echo "[sched] Extracting high-quality MP3 from video..." >> "$LOG"
+# Extract high-quality MP3 from m4a or mp4
+if [ -f "$DIR/day${DAY}_audio.m4a" ] && [ ! -f "$DIR/day${DAY}_audio.mp3" ]; then
+  echo "[sched] Extracting high-quality MP3 from audio m4a..." >> "$LOG"
+  /home/kellyb_dev/.local/bin/ffmpeg -y -i "$DIR/day${DAY}_audio.m4a" -vn -c:a libmp3lame -q:a 2 "$DIR/day${DAY}_audio.mp3" >> "$LOG" 2>&1 || true
+elif [ -f "$DIR/day${DAY}_1080p.mp4" ] && [ ! -f "$DIR/day${DAY}_audio.mp3" ]; then
+  echo "[sched] Extracting high-quality MP3 from video mp4..." >> "$LOG"
   /home/kellyb_dev/.local/bin/ffmpeg -y -i "$DIR/day${DAY}_1080p.mp4" -vn -c:a libmp3lame -q:a 2 "$DIR/day${DAY}_audio.mp3" >> "$LOG" 2>&1 || true
 fi
 
-# Give transcription time to flush final segments
-if [ -n "$PID_TRANS" ]; then
-  sleep 45
-  kill -TERM "$PID_TRANS" 2>/dev/null || true
-fi
+# Run dual transcription (accurate 1s + clean plain text)
+echo "[sched] Generating full 1s accurate and clean transcripts..." >> "$LOG"
+/home/kellyb_dev/projects/hex-expan/node_modules/.bin/tsx \
+  /home/kellyb_dev/projects/hex-expan/scripts/generate_accurate_timestamps.ts "$DAY" >> "$LOG" 2>&1 || true
 
 PART_TRANS="$DIR/transcript_day${DAY}_audio.m4a.part.md"
 if [ -f "$PART_TRANS" ] && [ ! -f "$DIR/day${DAY}_transcript.md" ]; then
   cp "$PART_TRANS" "$DIR/day${DAY}_transcript.md"
 fi
 
-# Upload to Upstash Blob if UPSTASH_BLOB_TOKEN exists in .env
+# Upload complete package to Upstash Blob if token is set
 if [ -f "$ROOT/.env" ] && grep -q "UPSTASH_BLOB_TOKEN" "$ROOT/.env"; then
-  echo "[sched] Uploading to Upstash Blob..." >> "$LOG"
-  $ROOT/node_modules/.bin/tsx -e "
-    import fs from 'fs';
-    import { uploadMedia, getMediaReadUrl } from './lib/blob.ts';
-    async function run() {
-      const file = '$DIR/day${DAY}_1080p.mp4';
-      if (!fs.existsSync(file)) return;
-      const stat = fs.statSync(file);
-      console.log('Uploading ' + file + ' (' + stat.size + ' bytes)...');
-      await uploadMedia('ai_income_challenge/day${DAY}/day${DAY}_1080p.mp4', fs.createReadStream(file) as any, {
-        contentType: 'video/mp4',
-        maxSize: stat.size + 1000
-      });
-      const { url } = await getMediaReadUrl('ai_income_challenge/day${DAY}/day${DAY}_1080p.mp4');
-      console.log('Upstash Blob Stream URL: ' + url);
-    }
-    run().catch(console.error);
-  " >> "$LOG" 2>&1 || true
+  echo "[sched] Uploading day package to Upstash Blob..." >> "$LOG"
+  $ROOT/node_modules/.bin/tsx "$ROOT/scripts/upload_day_package.ts" "$DAY" >> "$LOG" 2>&1 || true
 fi
 
 # Sync to Google Drive via rclone if configured
