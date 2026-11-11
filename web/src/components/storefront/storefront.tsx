@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import "server-only";
 import "./storefront.css";
 import { getSupabaseAdmin } from "../../../../payments/src/supabase_admin";
+import { CREATOR_HANDLE_RE } from "../../lib/creator-handle";
 
 /**
  * Storefront SSR (Sprint 16 — the dynamic handoff).
@@ -54,8 +55,6 @@ export interface HubCreator {
   products: StoreProduct[];
 }
 
-/** The DB-valid handle charset (creators.handle CHECK, portal migration). */
-export const CREATOR_HANDLE_RE = /^[a-z0-9_-]{2,64}$/;
 /** The DB-valid slug charset (products.slug CHECK, portal migration). */
 export const PRODUCT_SLUG_RE = /^[a-z0-9-]{2,80}$/;
 
