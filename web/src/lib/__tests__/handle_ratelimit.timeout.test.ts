@@ -70,6 +70,9 @@ describe("checkHandleRateLimit: Upstash timeout response", () => {
     expect(await checkHandleRateLimit("203.0.113.7")).toEqual({ kind: "unavailable" });
     expect(errSpy).toHaveBeenCalled();
     expect(sentryCalls.length).toBeGreaterThan(0);
+    const tags = (sentryCalls[0][1] as { tags: { ratelimit: string; surface: string } }).tags;
+    expect(tags.ratelimit).toBe("timeout");
+    expect(tags.surface).toBe("handle-availability");
   });
 
   it("still allows a normal under-limit response", async () => {
