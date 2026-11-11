@@ -1,0 +1,19 @@
+web/e2e/constants.ts
+  s_8a889b1c81b73d::t_93dfa73423c6ac 19-21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b2b1dff3a42b32d396509e4237860e463cb4851d",
+  "prompts": {},
+  "sessions": {
+    "s_8a889b1c81b73d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8bfde08b-57a1-41f1-9ef1-ab1e90d8067d",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
