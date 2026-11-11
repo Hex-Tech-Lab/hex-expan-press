@@ -1,0 +1,47 @@
+scripts/qa-intel/engine/rules/__tests__/order-guard.test.ts
+  s_49604354897cc0::t_e6fdd3c2fe0e8a 56-67
+payments/test/redis_transport_guard.test.ts
+  s_49604354897cc0::t_30d11619ae685d 1-27
+payments/src/launch_gate.ts
+  s_49604354897cc0::t_94d4166bf0eb40 43-44
+  s_49604354897cc0::t_960ecd00566899 19
+scripts/qa-intel/engine/rules/order-guard.ts
+  s_49604354897cc0::t_5925b4d14ace8b 13,34-37,73-79
+src/infrastructure/http/bounded_body.ts
+  s_49604354897cc0::t_5925b4d14ace8b 68-72
+docs/agent_ledger.jsonl
+  s_49604354897cc0::t_fbcaf3941d40d2 941
+  s_49604354897cc0::t_3cb8916d0ec922 942
+  s_49604354897cc0::t_80e4969554a6aa 943
+scripts/__tests__/sync-supabase-to-r2.read-bounded-pairwise.test.ts
+  s_49604354897cc0::t_5925b4d14ace8b 85
+src/infrastructure/http/secure_url.ts
+  s_49604354897cc0::t_94d4166bf0eb40 6-9,11-16,18-19
+scripts/__tests__/sync-supabase-to-r2.bounded.test.ts
+  s_49604354897cc0::t_d2a9cc231f69a4 106-107,109-113,115-119
+  s_49604354897cc0::t_94d4166bf0eb40 108,114
+payments/src/ledger.ts
+  s_49604354897cc0::t_5925b4d14ace8b 752
+  s_49604354897cc0::t_ef78bedcc00ecd 7
+payments/src/supabase_admin.ts
+  s_49604354897cc0::t_5925b4d14ace8b 22-23
+  s_49604354897cc0::t_94d4166bf0eb40 29,35-44,47-48
+payments/test/supabase_admin_seam.test.ts
+  s_49604354897cc0::t_547896d74d0299 41-47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "612178e4a7bd1ee9a0002dce9ed63a827745bb55",
+  "prompts": {},
+  "sessions": {
+    "s_49604354897cc0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b1265e7f-9d1a-4d08-82c0-e1018d674786",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
