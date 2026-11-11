@@ -1,0 +1,23 @@
+src/domain/esign/signer_name.ts
+  s_8a889b1c81b73d::t_5d5a8cdd8d9715 7,13-15,20
+src/use_cases/__tests__/create_esign_envelope.test.ts
+  s_8a889b1c81b73d::t_726222379c8994 73,90,95,98-100
+web/app/creator/dashboard/dashboard-client.tsx
+  s_8a889b1c81b73d::t_7bfc8189f28965 59
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "670382e49ba734f01d673b69c4eaeec483e18e32",
+  "prompts": {},
+  "sessions": {
+    "s_8a889b1c81b73d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8bfde08b-57a1-41f1-9ef1-ab1e90d8067d",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
