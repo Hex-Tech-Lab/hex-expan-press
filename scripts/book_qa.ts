@@ -28,12 +28,12 @@ if (!pagesMatch) {
   console.error("Could not parse Pages: from pdfinfo");
   process.exit(2);
 }
-const N = parseInt(pagesMatch[1], 10);
-push("page-count", N > 0, `${N} pages`);
+const pageCount = parseInt(pagesMatch[1], 10);
+push("page-count", pageCount > 0, `${pageCount} pages`);
 
 // 2. Per-page text
 const pageLines: string[][] = [];
-for (let p = 1; p <= N; p++) {
+for (let p = 1; p <= pageCount; p++) {
   const txt = poppler("pdftotext", ["-f", String(p), "-l", String(p), pdf, "-"]);
   pageLines.push(
     txt
@@ -46,7 +46,7 @@ const fullText = pageLines.map((ls) => ls.join("\n")).join("\n");
 
 // 2a. Sparse pages (from page 4 onward, except allowlist)
 const sparse: number[] = [];
-for (let p = 4; p <= N; p++) {
+for (let p = 4; p <= pageCount; p++) {
   if (allow.has(p)) continue;
   if (pageLines[p - 1].length < 7) sparse.push(p);
 }
@@ -57,8 +57,8 @@ push(
 );
 
 // 2b. Header suppression / presence (back cover = last page excluded)
-const headerBad: string[] = [];
-for (let p = 4; p <= N - 1; p++) {
+const headerBad: number[] = [];
+for (let p = 4; p <= pageCount - 1; p++) {
   const lines = pageLines[p - 1];
   const hasHeader = lines.some(
     (l) => l.includes("DUANE ·") || /^\d+ \| /.test(l)
@@ -73,7 +73,7 @@ push(
 
 // 2c. Overlap: word repeated across adjacent lines
 const overlaps: string[] = [];
-for (let p = 1; p <= N; p++) {
+for (let p = 1; p <= pageCount; p++) {
   const ls = pageLines[p - 1];
   for (let i = 0; i < ls.length - 1; i++) {
     const w1 = ls[i].split(/\s+/).pop()!;
@@ -111,7 +111,7 @@ push("part-pages", parts.length === 3, `found: ${parts.join(", ") || "none"}`);
 
 // 2f. Ornament sanity: takeaway-only pages
 const takeawayOnly: number[] = [];
-for (let p = 4; p <= N; p++) {
+for (let p = 4; p <= pageCount; p++) {
   const ls = pageLines[p - 1];
   const hasLabel = ls.some((l) => /THE TAKEAWAY/i.test(l));
   const others = ls.filter((l) => !/THE TAKEAWAY/i.test(l));

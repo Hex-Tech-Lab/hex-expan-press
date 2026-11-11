@@ -10,5 +10,5 @@
     "allowImportingTsExtensions": true,
     "noEmit": true
   },
-  "include": ["src/**/*.ts", "payments/src/**/*.ts", "payments/test/**/*.ts", "web/api/**/*.ts"]
+  "include": ["src/**/*.ts", "payments/src/**/*.ts", "payments/test/**/*.ts", "web/api/**/*.ts", "scripts/**/*.ts", "trends.ts"]
 }
