@@ -1,0 +1,27 @@
+web/app/api/handle-availability/__tests__/route.test.ts
+  s_8a889b1c81b73d::t_0aafd63f498ad5 79-81,100,130-134
+  s_8a889b1c81b73d::t_bdcf58c4e9434b 135-136
+web/app/api/handle-availability/route.ts
+  s_8a889b1c81b73d::t_0aafd63f498ad5 48
+  s_8a889b1c81b73d::t_91e79e0298f0e3 14-16
+supabase/migrations/20261110121805_products_platform_slug_unique.sql
+  s_8a889b1c81b73d::t_ef2671c3875a52 1-47
+supabase/migrations/20261111000200_handle_available_strict.sql
+  s_8a889b1c81b73d::t_ef2671c3875a52 1-14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8234e05d80db392efa7de2931bde433fd8574067",
+  "prompts": {},
+  "sessions": {
+    "s_8a889b1c81b73d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8bfde08b-57a1-41f1-9ef1-ab1e90d8067d",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
