@@ -1,0 +1,11 @@
+# PICT model for the public handle-availability route (web/app/api/handle-availability/route.ts).
+# Parameters follow the code: length bounds CREATOR_HANDLE_MIN..CREATOR_HANDLE_MAX (2..64) in
+# web/src/lib/creator-handle.ts, charset [a-z0-9_-] in the same file.
+# Generate: pict web/src/lib/__tests__/handle_pairwise.model.txt
+# Rows are inlined in web/src/lib/__tests__/handle_pairwise.test.ts.
+
+HandleLength: 1, 2, 3, 63, 64, 65
+Charset: lowercase, digit, underscore, hyphen, uppercase, period, unicode
+PublishableKey: present, absent
+Limiter: allowed, limited, unavailable
+RpcResult: true, false, null, error, truthy_string
