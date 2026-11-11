@@ -1,8 +1,10 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import { fetchSourceObject } from "../sync-supabase-to-r2";
 
-// Pairwise coverage of readBounded's input space. Rows are generated from fixtures/read-bounded.pict:
-//   pict scripts/__tests__/fixtures/read-bounded.pict
+// Pairwise coverage of readBounded's input space. ROWS is the PICT output for fixtures/read-bounded.pict, pasted in once.
+// The pairwise test at the bottom reads that model and fails if any pair of values is missing from ROWS, so a hand edit
+// that drops a pair is caught. To change the model: edit the .pict file, regenerate with pict, and re-paste ROWS.
 // Every pair of values across the three parameters appears in at least one row (25 rows, versus 75 for the full product).
 // The oracle below is written from the readBounded spec, not from the implementation's output.
 
@@ -70,8 +72,9 @@ function expected(row: Row): Expected {
     return { ok: false, error: `declares ${declared} bytes, over the ${CAP}-byte cap` };
   }
   if (row.Body === "none") {
-    if (declared !== undefined && declared > 0) return { ok: false, error: `declared ${declared} bytes but returned no body` };
-    return { ok: true, bytes: 0 };
+    if (declared === 0) return { ok: true, bytes: 0 };
+    if (declared !== undefined) return { ok: false, error: `declared ${declared} bytes but returned no body` };
+    return { ok: false, error: "returned no body" };
   }
   const delivered = deliveredBytes(row);
   if (delivered > CAP) return { ok: false, error: `exceeded the ${CAP}-byte cap while streaming` };
@@ -115,5 +118,34 @@ describe("readBounded pairwise matrix (via fetchSourceObject)", () => {
     } else {
       await expect(call).rejects.toThrow(exp.error);
     }
+  });
+});
+
+// The model file is the source of the pairwise property. Parse its "Name: value, value" lines.
+const MODEL = readFileSync(new URL("./fixtures/read-bounded.pict", import.meta.url), "utf-8");
+const DOMAIN: Record<string, string[]> = Object.fromEntries(
+  MODEL.split(/\r?\n/)
+    .filter((l) => /^[A-Za-z]+:\s/.test(l))
+    .map((l) => {
+      const [name, values] = l.split(":");
+      return [name.trim(), values.split(",").map((v) => v.trim())];
+    }),
+);
+
+describe("ROWS covers every pair of values in the model", () => {
+  it("each pair of values across any two parameters appears in at least one row", () => {
+    const names = Object.keys(DOMAIN);
+    const missing: string[] = [];
+    for (let i = 0; i < names.length; i++) {
+      for (let j = i + 1; j < names.length; j++) {
+        const [a, b] = [names[i] as keyof Row, names[j] as keyof Row];
+        for (const va of DOMAIN[a]) {
+          for (const vb of DOMAIN[b]) {
+            if (!ROWS.some((r) => r[a] === va && r[b] === vb)) missing.push(`${a}=${va} & ${b}=${vb}`);
+          }
+        }
+      }
+    }
+    expect(missing).toEqual([]);
   });
 });

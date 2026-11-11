@@ -9,14 +9,18 @@ import type { Rule, RuleContext } from "../domain/Rule";
  * The sync script sent the Supabase service key over http on its bucket-listing call, because the https guard ran
  * after the listing. Coverage and line-level tests did not catch it: the order of two calls is not a branch.
  *
- * Rule: a call that sends a service credential must have a guard call earlier in the same function body.
+ * Rule: a call that sends a service credential must have a guard call earlier in source order, in the same function
+ * (or in the file, for a module-scope send).
  *   - credential send: createClient(...) with a key or secret argument, or a fetch-like call whose arguments carry
  *     Bearer / apikey / serviceRole / secret.
  *   - guard: a call named assertSecure*, assertHttps* or assertTls*.
  *
- * Limits, stated so nobody trusts a silent pass: the guard must be called in the same function. A guard that runs
- * inside a callee is not seen, so the transport test (scripts/__tests__/sync-supabase-to-r2.bounded.test.ts) stays the
- * ground truth for that shape. Test files are exempt.
+ * Limits, stated so nobody trusts a silent pass:
+ *   - Order is source order, not control flow: a guard inside an if-branch that runs before the send counts.
+ *   - A guard in a callee is not seen. The transport test (scripts/__tests__/sync-supabase-to-r2.bounded.test.ts) is the
+ *     ground truth for that shape.
+ *   - fetch-like callees are the fixed allowlist FETCH_LIKE below. Any other name is not checked.
+ *   - Test files are exempt.
  *
  * Detection is by name. A credential argument must contain "key" or "secret" (or the fetch text must contain
  * Bearer / apikey / serviceRole). A credential held in a variable with another name is not seen, so a pass here
@@ -65,8 +69,9 @@ export const CredentialSendBeforeGuardRule: Rule = {
       const fn = node.getFirstAncestor(
         (a) => Node.isFunctionDeclaration(a) || Node.isMethodDeclaration(a) || Node.isArrowFunction(a) || Node.isFunctionExpression(a),
       );
-      if (!fn) return;
-      const guarded = fn
+      // Scope: the enclosing function, or the whole file for a module-scope send (2026-11-11: this case used to pass silently).
+      const scope: Node = fn ?? sf;
+      const guarded = scope
         .getDescendantsOfKind(SyntaxKind.CallExpression)
         .some((c) => GUARD_NAME.test(calleeName(c)) && c.getStart() < node.getStart());
       if (guarded) return;

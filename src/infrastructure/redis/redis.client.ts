@@ -1,3 +1,6 @@
+import { assertSecureTransport } from "../http/secure_url";
+
+const REDIS_LOOPBACK_HOSTS = ["localhost", "127.0.0.1"] as const;
 
 /**
  * Isolated Upstash Redis client with mandatory key-namespacing.
@@ -60,10 +63,9 @@ export class ExpanRedisClient {
     }
 
     const parsedUrl = new URL(url);
-    const isLoopback = parsedUrl.hostname === "localhost" || parsedUrl.hostname === "127.0.0.1";
-    if (parsedUrl.protocol !== "https:" && !(parsedUrl.protocol === "http:" && isLoopback)) {
-      throw new Error(`ExpanRedisClient: Disallowed protocol ${parsedUrl.protocol} (https required)`);
-    }
+    assertSecureTransport(parsedUrl, REDIS_LOOPBACK_HOSTS, (protocol) =>
+      new Error(`ExpanRedisClient: Disallowed protocol ${protocol} (https required)`),
+    );
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), ExpanRedisClient.TIMEOUT_MS);

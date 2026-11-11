@@ -228,6 +228,8 @@ export async function syncSupabaseToR2(options: SyncOptions = {}): Promise<SyncR
     throw new Error("Missing required Cloudflare R2 environment variables: R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME");
   }
 
+  // The guard above covers supabaseUrl, the address the service key is sent to. A caller-supplied supabaseClient
+  // (tests and injection) brings its own transport and is not checked here.
   const supabase =
     options.supabaseClient ||
     (await createServiceClient(supabaseUrl, supabaseKey, { auth: { persistSession: false } }));

@@ -4,6 +4,7 @@ import { processBillingWebhookUseCase } from "../../../../../src/use_cases/billi
 import { WebhookValidationError } from "../../../../../src/domain/webhook/webhook_errors";
 import { OrderSchemaError } from "../../../../../payments/src/ledger";
 import { GLOBAL } from "../../../../../payments/src/settings_registry";
+import { createServiceClient } from "../../../../../payments/src/supabase_admin";
 
 /**
  * Best-effort audit trail for 503 retry responses (event WEBHOOK_503_RETRYING).
@@ -21,8 +22,7 @@ async function record503Audit(details: { provider?: string; sale_id?: string; re
       console.error(`[billing-webhook] audit skipped: SUPABASE_URL or SUPABASE_SECRET_KEY unset (event=WEBHOOK_503_RETRYING reason=${details.reason})`);
       return;
     }
-    const { createClient } = await import("@supabase/supabase-js");
-    const supabase = createClient(url, key);
+    const supabase = await createServiceClient(url, key);
     const { error } = await supabase.from("audit_log").insert({ event: "WEBHOOK_503_RETRYING", details }).abortSignal(signal);
     if (error) console.error("[billing-webhook] 503 audit insert failed:", error.message);
   } catch (err) {
@@ -240,7 +240,7 @@ async function auditTerminalBounded(
   const timeout = new Promise<boolean>((resolve) => {
     timer = setTimeout(() => { controller.abort(); resolve(false); }, GLOBAL.payments.http_timeout_ms);
   });
-  return Promise.race([writeTerminalAudit(headers, bodyBuffer, reason, controller.signal, event, idempotencyKey), timeout]).finally(() => clearTimeout(timer));
+  return await Promise.race([writeTerminalAudit(headers, bodyBuffer, reason, controller.signal, event, idempotencyKey), timeout]).finally(() => clearTimeout(timer));
 }
 
 /** Writes one terminal audit row. Resolves true only when the row was written. Never throws. */
@@ -259,8 +259,7 @@ async function writeTerminalAudit(
       console.error(`[billing-webhook] audit skipped: SUPABASE_URL or SUPABASE_SECRET_KEY unset (event=${event} reason=${reason})`);
       return false;
     }
-    const { createClient } = await import("@supabase/supabase-js");
-    const supabase = createClient(url, key);
+    const supabase = await createServiceClient(url, key);
     const row = {
       event,
       details: { ...auditContext(headers, bodyBuffer.toString("utf8")), reason, payload_sha256: createHash("sha256").update(bodyBuffer).digest("hex") },

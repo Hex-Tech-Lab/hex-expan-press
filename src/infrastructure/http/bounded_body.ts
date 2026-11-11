@@ -12,6 +12,14 @@ export async function cancelBody(body: ReadableStream<Uint8Array> | null | undef
   await body?.cancel().catch(() => undefined);
 }
 
+/** Parses a Content-Length header value. Anything other than plain digits is refused before it is used as a number. */
+function parseContentLength(raw: string, filePath: string): number {
+  if (!/^\d+$/.test(raw)) {
+    throw new Error(`Supabase object ${filePath} has a non-numeric content-length`);
+  }
+  return Number.parseInt(raw, 10);
+}
+
 /**
  * Reads a response body with a hard byte cap. A declared Content-Length over the cap is refused before any byte is
  * read. Otherwise the stream is counted and cancelled as soon as it passes the cap, so memory stays bounded even when
@@ -19,20 +27,19 @@ export async function cancelBody(body: ReadableStream<Uint8Array> | null | undef
  */
 export async function readBounded(res: Response, filePath: string, maxBytes: number): Promise<Buffer> {
   const declared = res.headers.get("content-length");
-  if (declared !== null && !/^\d+$/.test(declared)) {
-    throw new Error(`Supabase object ${filePath} has a non-numeric content-length`);
-  }
-  const declaredBytes = declared === null ? null : Number(declared);
+  const declaredBytes = declared === null ? null : parseContentLength(declared, filePath);
   if (declaredBytes !== null && declaredBytes > maxBytes) {
     await cancelBody(res.body);
     throw new Error(`Supabase object ${filePath} declares ${declared} bytes, over the ${maxBytes}-byte cap`);
   }
   if (!res.body) {
-    // A declared non-empty length with no body is a truncated or broken response, not an empty object.
-    if (declaredBytes !== null && declaredBytes > 0) {
+    // A missing body is not an empty object. Only a declared length of exactly 0 is accepted as empty. Accepting a
+    // missing body as zero bytes let the sync write an empty object and stamp its ETag, so later runs skipped it.
+    if (declaredBytes === 0) return Buffer.alloc(0);
+    if (declaredBytes !== null) {
       throw new Error(`Supabase object ${filePath} declared ${declared} bytes but returned no body`);
     }
-    return Buffer.alloc(0);
+    throw new Error(`Supabase object ${filePath} returned no body`);
   }
   const reader = res.body.getReader();
   const chunks: Uint8Array[] = [];

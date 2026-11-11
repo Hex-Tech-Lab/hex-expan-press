@@ -97,6 +97,12 @@ describe("fetchSourceObject byte cap", () => {
     }
   });
 
+  it("refuses a 200 with no body and no content-length rather than accepting zero bytes", async () => {
+    // Without this, the sync would write an empty object and stamp its ETag, and later runs would skip it as synced.
+    const fetchImpl = vi.fn(async () => new Response(null, { status: 200 }));
+    await expect(fetchSourceObject(fetchImpl as never, ...args, 10)).rejects.toThrow(/returned no body/);
+  });
+
   it("a failing body cancel does not replace the cap error", async () => {
     const cancel = vi.fn(async () => { throw new Error("cancel failed"); });
     const body = new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(new Uint8Array(4)); }, cancel });

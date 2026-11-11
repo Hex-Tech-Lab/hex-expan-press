@@ -1,5 +1,5 @@
 import "server-only";
-import { createClient } from "@supabase/supabase-js";
+import { createServiceClient } from "../../../payments/src/supabase_admin";
 import { getPortalSession } from "./supabase-server";
 import { GLOBAL } from "../../../payments/src/settings_registry";
 
@@ -45,7 +45,8 @@ export async function listAdminAuditRows(page: number, event?: string): Promise<
   // Fetch one extra row to know whether a next page exists.
   // Unknown/absent event filter = the whole admin queue (never an arbitrary audit_log event).
   const events = ADMIN_AUDIT_EVENTS.filter((e) => e === event);
-  const { data, error } = await createClient(url, key)
+  const supabase = await createServiceClient(url, key);
+  const { data, error } = await supabase
     .from("audit_log")
     .select("id,at,event,details")
     .in("event", events.length > 0 ? events : [...ADMIN_AUDIT_EVENTS])

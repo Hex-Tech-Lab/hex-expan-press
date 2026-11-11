@@ -48,6 +48,11 @@ export async function b(u: string, key: string) { return createClient(u, key); }
     expect(run("src/c.ts", src)).toHaveLength(1);
   });
 
+  test("flags a credential send at module scope, where there is no enclosing function", () => {
+    const src = `const client = createClient(process.env.SUPABASE_URL as string, process.env.SERVICE_KEY as string);`;
+    expect(run("src/f.ts", src)).toHaveLength(1);
+  });
+
   test("a createClient with no key or secret argument is not a credential send", () => {
     const src = `export function make() { return createClient(process.env.URL as string, "anon-public"); }`;
     expect(run("src/d.ts", src)).toHaveLength(0);
