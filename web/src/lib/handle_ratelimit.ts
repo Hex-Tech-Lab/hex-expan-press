@@ -12,6 +12,7 @@ import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 
 import { redisRestEnv } from "../../../src/infrastructure/redis/redis.client";
+import { GLOBAL } from "../../../payments/src/settings_registry";
 
 export const HANDLE_RATE_LIMIT = { requests: 30, windowSeconds: 60 } as const;
 
@@ -29,9 +30,9 @@ function getLimiter(): Ratelimit | null {
   limiter = new Ratelimit({
     redis: new Redis({ url, token }),
     limiter: Ratelimit.slidingWindow(HANDLE_RATE_LIMIT.requests, `${HANDLE_RATE_LIMIT.windowSeconds} s`),
-    // expan: matches the shared Redis client's namespace (src/infrastructure/redis/redis.client.ts). This
-    // limiter builds its own client, so the prefix has to be applied here.
-    prefix: "expan:handle-availability",
+    // Same registry prefix as the shared Redis client (src/infrastructure/redis/redis.client.ts). This limiter
+    // builds its own client, so the prefix has to be applied here.
+    prefix: `${GLOBAL.redis.key_prefix}handle-availability`,
   });
   return limiter;
 }

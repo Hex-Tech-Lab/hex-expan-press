@@ -93,6 +93,8 @@ export interface GlobalSettings {
   };
   portal: { jwt_clock_skew_retry_delay_ms: number };
   consent: { text_version: string };
+  // Namespace prepended to every Redis key the app writes. Read by the shared client and by every limiter that builds its own.
+  redis: { key_prefix: string };
 }
 
 export const DEFAULT_GLOBAL: GlobalSettings = {
@@ -156,6 +158,7 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
   portal: { jwt_clock_skew_retry_delay_ms: 350 },
   admin: { admin_user_ids: [], audit_log_page_size: 50 },
   consent: { text_version: "v1.1" },
+  redis: { key_prefix: "expan:" },
 };
 
 // Bounds for the admin tunables (feature code must never hard-code them).
@@ -304,6 +307,7 @@ function loadGlobal(): GlobalSettings {
     portal: { ...DEFAULT_GLOBAL.portal, ...(g.portal ?? {}) },
     admin: loadAdminSection(g.admin as Record<string, unknown> | undefined),
     consent: { ...DEFAULT_GLOBAL.consent, ...(g.consent ?? {}) },
+    redis: { ...DEFAULT_GLOBAL.redis, ...(g.redis ?? {}) },
   };
 }
 

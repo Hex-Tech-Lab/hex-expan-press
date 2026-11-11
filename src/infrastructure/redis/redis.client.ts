@@ -1,7 +1,9 @@
 
+import { GLOBAL } from "../../../payments/src/settings_registry.ts";
+
 /**
  * Isolated Upstash Redis client with mandatory key-namespacing.
- * GUARANTEE: Prepends "expan:" to every key.
+ * GUARANTEE: Prepends the registry prefix (GLOBAL.redis.key_prefix, default "expan:") to every key.
  * Never performs FLUSHDB or un-namespaced operations.
  * Protects hex-yt-intel (which uses budget:*, ci:*, relations:*).
  */
@@ -25,7 +27,7 @@ export function isRedisRestConfigured(): boolean {
 export class ExpanRedisClient {
   private url?: string;
   private token?: string;
-  private readonly prefix: string = "expan:";
+  private readonly prefix: string = GLOBAL.redis.key_prefix;
   private static readonly TIMEOUT_MS = 3000;
 
   constructor(url?: string, token?: string) {
