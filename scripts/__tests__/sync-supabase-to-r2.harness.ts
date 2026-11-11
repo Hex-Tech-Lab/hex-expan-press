@@ -4,7 +4,7 @@ export interface HarnessOptions {
   files?: Array<{ name: string; id?: string | null; metadata?: Record<string, unknown> }>;
   /** Bytes served by the Supabase object GET. */
   downloadBlob?: Blob | null;
-  /** ETag served with those bytes. Defaults to the listed ETag "src-v1". */
+  /** ETag served with those bytes. Defaults to "src-v1", the ETag the harness serves on the object GET. */
   sourceEtag?: string;
   fetchImpl?: typeof fetch;
 }
