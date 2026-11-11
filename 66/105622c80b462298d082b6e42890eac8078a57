@@ -1,0 +1,26 @@
+web/e2e/global-teardown.ts
+  s_8a889b1c81b73d::t_80ef1af9b352d4 3,5-8,11-13
+web/e2e/constants.ts
+  s_8a889b1c81b73d::t_984320962a1260 19
+  s_8a889b1c81b73d::t_133c380b0844cb 4-7
+web/__tests__/e2e-tls-teardown.test.ts
+  s_8a889b1c81b73d::t_7e3356ac9975de 5,13,24,30-31,35-37,39,46-57,60,68-69,71
+web/playwright.config.ts
+  s_8a889b1c81b73d::t_82cf6fcb6f6abf 6,14-16,18-21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "66105622c80b462298d082b6e42890eac8078a57",
+  "prompts": {},
+  "sessions": {
+    "s_8a889b1c81b73d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8bfde08b-57a1-41f1-9ef1-ab1e90d8067d",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
