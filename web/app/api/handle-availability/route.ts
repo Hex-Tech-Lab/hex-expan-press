@@ -65,7 +65,12 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       return unavailable("query");
     }
     // Strict: only a boolean true means free. Anything else is treated as unavailable, never as free.
-    if (data !== true && data !== false) return unavailable("query");
+    if (data !== true && data !== false) {
+      Sentry.captureException(new Error("handle-availability failure: non-boolean result"), {
+        tags: { surface: "handle-availability", stage: "query" },
+      });
+      return unavailable("query");
+    }
     return NextResponse.json({ available: data, handle: check.handle }, { headers: NO_STORE });
   } catch (err) {
     Sentry.captureException(failureClass(err), { tags: { surface: "handle-availability", stage: "query" } });

@@ -157,6 +157,8 @@ describe("GET /api/handle-availability: fails closed", () => {
     clientState.rpcThrows = true;
     const res = await GET(req("?handle=kelly"));
     expect(res.status).toBe(503);
+    expect(sentry.calls.length).toBe(1);
+    expect(sentryText()).toMatch(/handle-availability failure: Error/);
     expect(sentryText()).not.toMatch(/socket hang up/);
   });
 });
@@ -177,6 +179,8 @@ describe("GET /api/handle-availability: config and contract", () => {
     const res = await GET(req("?handle=kelly"));
     expect(res.status).toBe(503);
     expect(await res.json()).toEqual({ error: "Handle check unavailable" });
+    expect(sentry.calls.length).toBe(1);
+    expect(sentryText()).toMatch(/non-boolean result/);
   });
 
   it("passes the forwarded client IP to the rate limiter, not a constant key", async () => {
