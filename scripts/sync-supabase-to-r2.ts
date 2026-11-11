@@ -75,6 +75,18 @@ export const parsePrefix = parsePrefixArg;
 export const parseCliPrefix = parsePrefixArg;
 
 /**
+ * Refuses any Supabase URL that is not https; loopback http (localhost, 127.0.0.1, [::1]) is allowed for local development. The service key is a
+ * Bearer credential, so this must run before any request that carries it, including the bucket listing.
+ */
+export function assertSecureSupabaseUrl(supabaseUrl: string): void {
+  const parsed = new URL(supabaseUrl);
+  const loopback = parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1" || parsed.hostname === "[::1]";
+  if (parsed.protocol !== "https:" && !(parsed.protocol === "http:" && loopback)) {
+    throw new Error(`SUPABASE_URL must be https (got ${parsed.protocol}//${parsed.hostname}); the service key is sent as a Bearer token`);
+  }
+}
+
+/**
  * Downloads one object with a single GET. The bytes and the ETag header come from the same response, so the
  * ETag describes exactly these bytes. Throws on a non-2xx status. A network error propagates to the caller.
  */
@@ -86,12 +98,7 @@ export async function fetchSourceObject(
   filePath: string,
   maxBytes: number = GLOBAL.payments.sync_max_object_bytes,
 ): Promise<{ bytes: Buffer; etag: string | undefined }> {
-  // The service key is sent as a Bearer token. Refuse anything but https, except loopback for local development.
-  const parsed = new URL(supabaseUrl);
-  const loopback = parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1" || parsed.hostname === "[::1]";
-  if (parsed.protocol !== "https:" && !(parsed.protocol === "http:" && loopback)) {
-    throw new Error(`SUPABASE_URL must be https (got ${parsed.protocol}//${parsed.hostname}); the service key is sent as a Bearer token`);
-  }
+  assertSecureSupabaseUrl(supabaseUrl);
   const encodedPath = filePath.split("/").map(encodeURIComponent).join("/");
   const url = `${supabaseUrl.replace(/\/+$/, "")}/storage/v1/object/${encodeURIComponent(bucket)}/${encodedPath}`;
   // Bounded: a stalled GET aborts (the signal also covers reading the body) and the file is recorded as failed.
@@ -113,10 +120,13 @@ export async function fetchSourceObject(
 /**
  * Reads a response body with a hard byte cap. A declared Content-Length over the cap is refused before any
  * byte is read. Otherwise the stream is counted and cancelled as soon as it passes the cap, so memory is bounded
- * even when the server lies about its length.
+ * even when the server lies about its length. An identity-encoded body whose length differs from its declared length is refused.
  */
 async function readBounded(res: Response, filePath: string, maxBytes: number): Promise<Buffer> {
   const declared = res.headers.get("content-length");
+  if (declared !== null && !/^\d+$/.test(declared)) {
+    throw new Error(`Supabase object ${filePath} has a non-numeric content-length`);
+  }
   if (declared !== null && Number(declared) > maxBytes) {
     await res.body?.cancel();
     throw new Error(`Supabase object ${filePath} declares ${declared} bytes, over the ${maxBytes}-byte cap`);
@@ -145,6 +155,12 @@ async function readBounded(res: Response, filePath: string, maxBytes: number): P
   } finally {
     // Always release the lock so an error or early return never leaves the stream locked and the connection open.
     reader.releaseLock();
+  }
+  // Identity-encoded bodies must match the declared length. A content-encoded body (gzip, br, ...) declares its
+  // compressed size, so the comparison would be wrong there and is skipped.
+  const encoding = res.headers.get("content-encoding");
+  if (declared !== null && (encoding ?? "identity").toLowerCase() === "identity" && total !== Number(declared)) {
+    throw new Error(`Supabase object ${filePath} declared ${declared} bytes but delivered ${total}`);
   }
   return Buffer.concat(chunks, total);
 }
@@ -264,6 +280,9 @@ export async function syncSupabaseToR2(options: SyncOptions = {}): Promise<SyncR
   if (!supabaseUrl || !supabaseKey) {
     throw new Error("Missing required Supabase environment variables: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY or SUPABASE_SECRET_KEY");
   }
+
+  // Refuse a non-https Supabase URL before any call that carries the service key, including the listing.
+  assertSecureSupabaseUrl(supabaseUrl);
 
   if (!r2AccountId || !r2AccessKeyId || !r2SecretAccessKey || !r2BucketName) {
     throw new Error("Missing required Cloudflare R2 environment variables: R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET_NAME");
@@ -456,6 +475,17 @@ export async function syncSupabaseToR2(options: SyncOptions = {}): Promise<SyncR
 }
 
 /**
+ * True only when argv1 is this file. A substring test would also match lookalike names. tsx reports argv[1] without
+ * the .ts extension when the script is named without it, so that form is accepted too (HEAD's substring test ran it).
+ */
+export function isDirectRun(argv1: string | undefined): boolean {
+  if (!argv1) return false;
+  const self = path.resolve(fileURLToPath(import.meta.url));
+  const invoked = path.resolve(argv1);
+  return invoked === self || invoked === self.replace(/\.ts$/, "");
+}
+
+/**
  * Loads the repo-root .env for direct CLI runs only. Importing this module must not read live keys.
  * override: true per AGENTS.md: without it a stale shell variable (e.g. R2_ACCOUNT_ID) silently beats .env,
  * and an upload could target the wrong R2 account. The path is anchored to this file, not the working directory.
@@ -466,7 +496,7 @@ export function loadEnvForCli(): void {
 }
 
 // Direct execution via CLI (e.g. `pnpm dlx tsx scripts/sync-supabase-to-r2.ts` or `tsx scripts/sync-supabase-to-r2.ts`)
-if (process.argv[1] && process.argv[1].includes("sync-supabase-to-r2")) {
+if (isDirectRun(process.argv[1])) {
   loadEnvForCli();
   // parsePrefixArg runs inside the promise chain so a malformed --prefix reaches the .catch handler.
   Promise.resolve()

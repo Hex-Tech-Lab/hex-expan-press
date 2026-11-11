@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { fetchSourceObject } from "../sync-supabase-to-r2";
+import { fetchSourceObject, isDirectRun, syncSupabaseToR2 } from "../sync-supabase-to-r2";
+import { fileURLToPath } from "node:url";
 import { GLOBAL, PAYMENTS_LIMITS } from "../../payments/src/settings_registry";
 
 // Streams the given chunks as a response body with no Content-Length, so only the streaming counter can stop it.
@@ -49,6 +50,72 @@ describe("fetchSourceObject byte cap", () => {
   it("refuses a 2xx response that declares bytes but has no body", async () => {
     const fetchImpl = vi.fn(async () => new Response(null, { status: 200, headers: { "content-length": "5" } }));
     await expect(fetchSourceObject(fetchImpl as never, ...args, 10)).rejects.toThrow(/declared 5 bytes but returned no body/);
+  });
+
+  it("cancels the body of a non-2xx response before throwing", async () => {
+    const cancel = vi.fn();
+    const body = new ReadableStream<Uint8Array>({ start(c) { c.enqueue(new Uint8Array([1])); }, cancel });
+    const fetchImpl = vi.fn(async () => new Response(body, { status: 500 }));
+    await expect(fetchSourceObject(fetchImpl as never, ...args, 10)).rejects.toThrow(/HTTP 500/);
+    expect(cancel).toHaveBeenCalled();
+  });
+
+  it("refuses a body shorter than its identity-encoded declared length", async () => {
+    const fetchImpl = vi.fn(async () => streamedResponse([new Uint8Array(2)], { "content-length": "5" }));
+    await expect(fetchSourceObject(fetchImpl as never, ...args, 10)).rejects.toThrow(/declared 5 bytes but delivered 2/);
+  });
+
+  it("does not compare lengths for a gzip-encoded body", async () => {
+    const fetchImpl = vi.fn(async () => streamedResponse([new Uint8Array(2)], { "content-length": "5", "content-encoding": "gzip" }));
+    const out = await fetchSourceObject(fetchImpl as never, ...args, 10);
+    expect(out.bytes.byteLength).toBe(2);
+  });
+
+  it("refuses a mismatched identity body whose content-encoding is upper-case", async () => {
+    const fetchImpl = vi.fn(async () => streamedResponse([new Uint8Array(2)], { "content-length": "5", "content-encoding": "IDENTITY" }));
+    await expect(fetchSourceObject(fetchImpl as never, ...args, 10)).rejects.toThrow(/declared 5 bytes but delivered 2/);
+  });
+
+  it("refuses a non-numeric content-length", async () => {
+    const fetchImpl = vi.fn(async () => streamedResponse([new Uint8Array(1)], { "content-length": "5x" }));
+    await expect(fetchSourceObject(fetchImpl as never, ...args, 10)).rejects.toThrow(/non-numeric content-length/);
+  });
+
+  it("syncSupabaseToR2 refuses an http URL before any call that carries the key", async () => {
+    const sourceFetchImpl = vi.fn();
+    await expect(
+      syncSupabaseToR2({ supabaseUrl: "http://remote-probe.example.test", supabaseServiceRoleKey: "k", sourceFetchImpl: sourceFetchImpl as never }),
+    ).rejects.toThrow(/must be https/);
+    expect(sourceFetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("syncSupabaseToR2 refuses an http URL before the bucket listing runs", async () => {
+    const from = vi.fn();
+    await expect(
+      syncSupabaseToR2({
+        supabaseUrl: "http://remote-probe.example.test",
+        supabaseServiceRoleKey: "k",
+        supabaseClient: { storage: { from } } as never,
+        r2AccountId: "a",
+        r2AccessKeyId: "b",
+        r2SecretAccessKey: "c",
+        r2BucketName: "d",
+      }),
+    ).rejects.toThrow(/must be https/);
+    expect(from).not.toHaveBeenCalled();
+  });
+
+  it("isDirectRun is true only for this file, not for a lookalike name", () => {
+    const self = fileURLToPath(new URL("../sync-supabase-to-r2.ts", import.meta.url));
+    expect(isDirectRun(self)).toBe(true);
+    expect(isDirectRun("/work/sync-supabase-to-r2-evil.ts")).toBe(false);
+    expect(isDirectRun(undefined)).toBe(false);
+  });
+
+  it("isDirectRun accepts the extensionless argv[1] that tsx reports", () => {
+    const self = fileURLToPath(new URL("../sync-supabase-to-r2.ts", import.meta.url));
+    expect(isDirectRun(self.replace(/\.ts$/, ""))).toBe(true);
+    expect(isDirectRun(self.replace(/sync-supabase-to-r2\.ts$/, "sync-supabase-to-r2-evil"))).toBe(false);
   });
 
   it("keeps the registry default inside its declared bounds", () => {
