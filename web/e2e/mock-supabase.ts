@@ -10,6 +10,9 @@
  * empty. GET /__calls lists recorded RPC calls; POST /__reset clears state.
  */
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { createServer as createHttpsServer } from "node:https";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { E2E } from "./constants";
 
 type Row = Record<string, unknown>;
@@ -124,7 +127,7 @@ function rpc(fn: string, args: Row): { status: number; body: unknown } {
   return { status: 404, body: { message: `unknown rpc ${fn}` } };
 }
 
-const server = createServer(async (req, res) => {
+const handle = async (req: IncomingMessage, res: ServerResponse) => {
   const url = new URL(req.url ?? "/", "http://mock");
   const path = url.pathname;
   try {
@@ -187,8 +190,15 @@ const server = createServer(async (req, res) => {
   } catch (err) {
     send(res, 500, { message: err instanceof Error ? err.message : String(err) });
   }
-});
+};
 
-server.listen(E2E.mockPort, "127.0.0.1", () => {
+// Same handler on two listeners: plain HTTP for Supabase, HTTPS for Firma.
+createServer(handle).listen(E2E.mockPort, "127.0.0.1", () => {
   console.log(`[mock-supabase] listening on ${E2E.mockPort}`);
+});
+createHttpsServer(
+  { key: readFileSync(path.join(E2E.tlsDir, "key.pem")), cert: readFileSync(path.join(E2E.tlsDir, "cert.pem")) },
+  handle,
+).listen(E2E.firmaTlsPort, "127.0.0.1", () => {
+  console.log(`[mock-supabase] firma https listening on ${E2E.firmaTlsPort}`);
 });

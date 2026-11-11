@@ -6,14 +6,14 @@
  * Browser-side external hops (the Firma signing page) use page.route().
  */
 import { test, expect } from "@playwright/test";
-import { E2E, MOCK_URL } from "./constants";
+import { E2E, MOCK_HTTP_URL } from "./constants";
 
 async function rpcCalls(): Promise<{ fn: string; args: Record<string, unknown> }[]> {
-  return (await fetch(`${MOCK_URL}/__calls`)).json();
+  return (await fetch(`${MOCK_HTTP_URL}/__calls`)).json();
 }
 
 test.beforeEach(async () => {
-  await fetch(`${MOCK_URL}/__reset`, { method: "POST" });
+  await fetch(`${MOCK_HTTP_URL}/__reset`, { method: "POST" });
 });
 
 test("creator funnel: sign in → review → consents → e-sign → gated buyer page", async ({ page }) => {

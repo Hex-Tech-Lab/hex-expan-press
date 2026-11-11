@@ -4,7 +4,7 @@
  */
 import { test, expect, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
-import { E2E, MOCK_URL } from "./constants";
+import { E2E, MOCK_HTTP_URL } from "./constants";
 
 /** Entrance animations animate opacity, which axe reads as low contrast mid-flight. */
 const SETTLE_MS = 1200;
@@ -32,7 +32,7 @@ test.describe(`${viewport.width}px`, () => {
 test.use({ viewport });
 
 test.beforeEach(async () => {
-  await fetch(`${MOCK_URL}/__reset`, { method: "POST" });
+  await fetch(`${MOCK_HTTP_URL}/__reset`, { method: "POST" });
 });
 
 test("public pages have no WCAG AA violations", async ({ page }) => {
