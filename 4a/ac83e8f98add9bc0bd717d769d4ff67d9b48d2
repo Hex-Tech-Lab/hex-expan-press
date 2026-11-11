@@ -1,0 +1,54 @@
+web/app/api/handle-availability/route.ts
+  s_8a889b1c81b73d::t_43333e0df14b11 5
+  s_8a889b1c81b73d::t_3bc4266700efc1 34
+  s_8a889b1c81b73d::t_897e0607ce4436 2-4,6-33,35-71
+  s_8a889b1c81b73d::t_7939502fcce6e1 1
+web/src/lib/__tests__/handle_rule.test.ts
+  s_8a889b1c81b73d::t_12e506ec9291cf 1-40
+web/src/components/storefront/storefront.tsx
+  s_8a889b1c81b73d::t_e47c9408d5d563 6
+supabase/migrations/20261111000100_handle_available.sql
+  s_8a889b1c81b73d::t_57b859b101cdd2 1-18
+web/app/api/handle-availability/__tests__/route.test.ts
+  s_8a889b1c81b73d::t_f2f855b52c79da 1-170
+web/src/lib/creator-handle.ts
+  s_8a889b1c81b73d::t_e47c9408d5d563 1-5
+web/package.json
+  s_8a889b1c81b73d::t_fcbf75a64e40a4 27-28
+pnpm-lock.yaml
+  s_8a889b1c81b73d::t_bcde9194c957e3 194-199,2618-2629,5011-5013,7009-7021,10031-10032
+web/src/lib/handle_rule.ts
+  s_8a889b1c81b73d::t_e47c9408d5d563 1,3,5,14
+  s_8a889b1c81b73d::t_9db6784d5cec05 2,4,6-13,15-18
+supabase/migrations/20261111000000_revert_product_slug_platform_unique.sql
+  s_8a889b1c81b73d::t_7c1aa540f6bc71 1-4,8-9,12,16-25,28-33
+  s_8a889b1c81b73d::t_f778c7ff296688 5-7,10-11,13-15
+  s_8a889b1c81b73d::t_9fa69be357ed95 26-27
+web/src/lib/__tests__/handle_ratelimit.timeout.test.ts
+  s_8a889b1c81b73d::t_bbb0fe33aa538c 51,66,70,76,81,86,91,97,113,116,122,128,135
+  s_8a889b1c81b73d::t_fcd7f33f3eb832 1-50,52-65,67-69,71-75,77-80,82-85,87-90,92-96,98-112,114-115,117-121,123-127,129-134,136-138
+web/src/lib/__tests__/handle_ratelimit.test.ts
+  s_8a889b1c81b73d::t_bbb0fe33aa538c 3,9,16,25,31
+  s_8a889b1c81b73d::t_fcd7f33f3eb832 1-2,4-8,10-15,17-24,26-30,32-33
+web/src/lib/handle_ratelimit.ts
+  s_8a889b1c81b73d::t_bbb0fe33aa538c 16,31
+  s_8a889b1c81b73d::t_fcd7f33f3eb832 1-15,17,19-30,32-46,49-52,54-78
+  s_8a889b1c81b73d::t_397683d261eac8 18,53
+  s_8a889b1c81b73d::t_14c8d1a844aafa 47-48
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4aac83e8f98add9bc0bd717d769d4ff67d9b48d2",
+  "prompts": {},
+  "sessions": {
+    "s_8a889b1c81b73d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8bfde08b-57a1-41f1-9ef1-ab1e90d8067d",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": null
+    }
+  }
+}
