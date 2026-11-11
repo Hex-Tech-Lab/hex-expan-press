@@ -113,6 +113,13 @@ const PUBLISHABLE_KEY = "pub-key-for-tests";
 const SECRET_KEY = "secret-key-must-not-be-used";
 const RPC_ERROR_MESSAGE = "relation handle_probe_internal does not exist";
 
+// The matrix stores lengths as strings. Only a digit string is accepted; anything else throws.
+function lengthOf(value: string): number {
+  const parsed = typeof value === "string" && /^\d+$/.test(value) ? Number(value) : Number.NaN;
+  if (!Number.isInteger(parsed)) throw new Error(`non-numeric length: ${String(value)}`);
+  return parsed;
+}
+
 function handleFor(length: number, charset: string): string {
   const ch = CHARS[charset];
   if (ch === undefined) throw new Error(`unmapped charset: ${charset}`);
@@ -207,7 +214,7 @@ afterEach(() => {
 describe("GET /api/handle-availability: pairwise matrix (PICT all-pairs)", () => {
   it("the inlined matrix covers every value pair of every two columns", () => {
     const columns = 5;
-    const values: string[][] = Array.from({ length: columns }, (_, c) => [...new Set(PAIRWISE_ROWS.map((r) => r[c]))]);
+    const values: string[][] = Array.from({ length: columns }, (_, column) => [...new Set(PAIRWISE_ROWS.map((r) => r[column]))]);
     for (let a = 0; a < columns; a++) {
       for (let b = a + 1; b < columns; b++) {
         for (const va of values[a]) {
@@ -224,7 +231,7 @@ describe("GET /api/handle-availability: pairwise matrix (PICT all-pairs)", () =>
     async (length, charset, key, limiterValue, rpc) => {
       const row: Row = [length, charset, key, limiterValue, rpc];
       setRow(row);
-      const handle = handleFor(Number(length), charset);
+      const handle = handleFor(lengthOf(length), charset);
       const url = new URL("http://localhost/api/handle-availability");
       url.searchParams.set("handle", handle);
 
@@ -262,7 +269,7 @@ describe("GET /api/handle-availability: pairwise matrix (PICT all-pairs)", () =>
       expect(text).not.toContain(RPC_ERROR_MESSAGE);
 
       // Route validator and the constant-based rule must agree for this handle.
-      expect(validateHandle(handle).ok).toBe(modelSaysValid(Number(length), charset));
+      expect(validateHandle(handle).ok).toBe(modelSaysValid(lengthOf(length), charset));
     },
   );
 });
