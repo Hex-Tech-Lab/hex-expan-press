@@ -1,0 +1,24 @@
+web/playwright.config.ts
+  s_8a889b1c81b73d::t_40bff72b852d70 2-3,8-16,20-28
+  s_8a889b1c81b73d::t_9565a857cc54a0 65
+web/e2e/constants.ts
+  s_8a889b1c81b73d::t_585bbf5f4cae16 9-15
+web/e2e/global-teardown.ts
+  s_8a889b1c81b73d::t_adebee40d2db42 1-11
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9fc84ab9e82f4321ae56664d980696a966b35305",
+  "prompts": {},
+  "sessions": {
+    "s_8a889b1c81b73d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8bfde08b-57a1-41f1-9ef1-ab1e90d8067d",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
