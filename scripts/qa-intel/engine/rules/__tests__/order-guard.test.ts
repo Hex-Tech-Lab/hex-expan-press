@@ -53,6 +53,18 @@ export async function b(u: string, key: string) { return createClient(u, key); }
     expect(run("src/f.ts", src)).toHaveLength(1);
   });
 
+  test("a guard inside an unrelated sibling function does not cover a module-scope send", () => {
+    const src = `function unrelated(u: string) { assertSecureSupabaseUrl(u); }
+const client = createClient(process.env.SUPABASE_URL as string, process.env.SERVICE_KEY as string);`;
+    expect(run("src/g.ts", src)).toHaveLength(1);
+  });
+
+  test("a guard at module scope before a module-scope send covers it", () => {
+    const src = `assertSecureSupabaseUrl(process.env.SUPABASE_URL as string);
+const client = createClient(process.env.SUPABASE_URL as string, process.env.SERVICE_KEY as string);`;
+    expect(run("src/h.ts", src)).toHaveLength(0);
+  });
+
   test("a createClient with no key or secret argument is not a credential send", () => {
     const src = `export function make() { return createClient(process.env.URL as string, "anon-public"); }`;
     expect(run("src/d.ts", src)).toHaveLength(0);

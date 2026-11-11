@@ -4,7 +4,7 @@ import { dirname, join, basename } from "node:path";
 import { createHash } from "node:crypto";
 import { z } from "zod";
 import { GLOBAL, isMoneyPath } from "./settings_registry.ts";
-import { getSupabaseAdmin } from "./supabase_admin.ts";
+import { assertSecureSupabaseUrl, getSupabaseAdmin } from "./supabase_admin.ts";
 
 export type LedgerEventType = "sale" | "refund" | "refund_reversal";
 
@@ -749,6 +749,7 @@ export async function listManualReviewRefunds(opts?: {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SECRET_KEY;
   if (!url || !key) return [];
+  assertSecureSupabaseUrl(url);
   const base = url.replace(/\/+$/, "");
   const endpoint = `${base}/rest/v1/audit_log?select=id,created_at:at,event,details&event=eq.MANUAL_REVIEW_REQUIRED_REFUND&order=at.desc,id.desc&limit=${encodeURIComponent(String(limit))}`;
   const res = await fetchImpl(endpoint, {

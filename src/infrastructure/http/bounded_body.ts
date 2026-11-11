@@ -65,5 +65,10 @@ export async function readBounded(res: Response, filePath: string, maxBytes: num
   if (declaredBytes !== null && (encoding ?? "identity").toLowerCase() === "identity" && total !== declaredBytes) {
     throw new Error(`Supabase object ${filePath} declared ${declared} bytes but delivered ${total}`);
   }
+  // An empty stream is a missing object unless the server declared length 0. Accepting it wrote an empty object and
+  // stamped its ETag, so later runs skipped it. A zero-byte object that really exists declares Content-Length: 0.
+  if (total === 0 && declaredBytes !== 0) {
+    throw new Error(`Supabase object ${filePath} returned an empty body`);
+  }
   return Buffer.concat(chunks);
 }

@@ -10,7 +10,7 @@ import type { Rule, RuleContext } from "../domain/Rule";
  * after the listing. Coverage and line-level tests did not catch it: the order of two calls is not a branch.
  *
  * Rule: a call that sends a service credential must have a guard call earlier in source order, in the same function
- * (or in the file, for a module-scope send).
+ * (or at module scope, for a module-scope send).
  *   - credential send: createClient(...) with a key or secret argument, or a fetch-like call whose arguments carry
  *     Bearer / apikey / serviceRole / secret.
  *   - guard: a call named assertSecure*, assertHttps* or assertTls*.
@@ -30,6 +30,10 @@ import type { Rule, RuleContext } from "../domain/Rule";
 const GUARD_NAME = /^assert(Secure|Https|Tls)/i;
 const FETCH_LIKE = /^(fetch|fetchImpl|sourceFetchImpl|sourceFetch|globalFetch)$/;
 const CREDENTIAL_TEXT = /Bearer|apikey|serviceRole|service_role|secret/i;
+
+function isFunctionLike(a: Node): boolean {
+  return Node.isFunctionDeclaration(a) || Node.isMethodDeclaration(a) || Node.isArrowFunction(a) || Node.isFunctionExpression(a);
+}
 
 function isTestFile(filePath: string): boolean {
   return /\.(test|spec)\.[jt]sx?$/.test(filePath) || filePath.includes("__tests__/");
@@ -66,14 +70,13 @@ export const CredentialSendBeforeGuardRule: Rule = {
         (name === "createClient" && /key|secret/i.test(args)) ||
         (FETCH_LIKE.test(name) && CREDENTIAL_TEXT.test(args));
       if (!sendsCredential) return;
-      const fn = node.getFirstAncestor(
-        (a) => Node.isFunctionDeclaration(a) || Node.isMethodDeclaration(a) || Node.isArrowFunction(a) || Node.isFunctionExpression(a),
-      );
-      // Scope: the enclosing function, or the whole file for a module-scope send (2026-11-11: this case used to pass silently).
-      const scope: Node = fn ?? sf;
-      const guarded = scope
-        .getDescendantsOfKind(SyntaxKind.CallExpression)
-        .some((c) => GUARD_NAME.test(calleeName(c)) && c.getStart() < node.getStart());
+      const fn = node.getFirstAncestor(isFunctionLike);
+      // A send inside a function is covered by guards in that function. A module-scope send is covered only by a guard
+      // at module scope: a guard inside an unrelated function does not guard it.
+      const candidates = fn
+        ? fn.getDescendantsOfKind(SyntaxKind.CallExpression)
+        : sf.getDescendantsOfKind(SyntaxKind.CallExpression).filter((c) => !c.getFirstAncestor(isFunctionLike));
+      const guarded = candidates.some((c) => GUARD_NAME.test(calleeName(c)) && c.getStart() < node.getStart());
       if (guarded) return;
       findings.push({
         file: filePath,

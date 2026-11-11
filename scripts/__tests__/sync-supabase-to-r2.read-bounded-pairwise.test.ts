@@ -82,6 +82,7 @@ function expected(row: Row): Expected {
   if (declared !== undefined && identity && delivered !== declared) {
     return { ok: false, error: `declared ${declared} bytes but delivered ${delivered}` };
   }
+  if (delivered === 0 && declared !== 0) return { ok: false, error: "returned an empty body" };
   return { ok: true, bytes: delivered };
 }
 

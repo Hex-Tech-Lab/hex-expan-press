@@ -38,6 +38,13 @@ describe("Supabase service seam: transport guard", () => {
     expect(createClient).toHaveBeenCalledTimes(3);
   });
 
+  it("refuses lookalike hosts that only resemble loopback", async () => {
+    for (const url of ["http://localhost.attacker.example:54321", "http://127.0.0.2:54321", "http://0.0.0.0:54321"]) {
+      await expect(createServiceClient(url, "k"), url).rejects.toThrow(/must be https/);
+    }
+    expect(createClient).not.toHaveBeenCalled();
+  });
+
   it("returns null and builds nothing when the env is unset", async () => {
     vi.stubEnv("SUPABASE_URL", "");
     expect(await getSupabaseAdmin()).toBeNull();

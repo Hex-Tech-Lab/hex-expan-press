@@ -103,6 +103,20 @@ describe("fetchSourceObject byte cap", () => {
     await expect(fetchSourceObject(fetchImpl as never, ...args, 10)).rejects.toThrow(/returned no body/);
   });
 
+  it("refuses a present stream that closes at zero bytes with no content-length", async () => {
+    // A present but empty stream is the same hazard as a missing body: an empty object would be written and stamped.
+    const body = new ReadableStream<Uint8Array>({ start(controller) { controller.close(); } });
+    const fetchImpl = vi.fn(async () => new Response(body, { status: 200 }));
+    await expect(fetchSourceObject(fetchImpl as never, ...args, 10)).rejects.toThrow(/returned an empty body/);
+  });
+
+  it("accepts an empty object that declares content-length 0", async () => {
+    const body = new ReadableStream<Uint8Array>({ start(controller) { controller.close(); } });
+    const fetchImpl = vi.fn(async () => new Response(body, { status: 200, headers: { "content-length": "0" } }));
+    const out = await fetchSourceObject(fetchImpl as never, ...args, 10);
+    expect(out.bytes.byteLength).toBe(0);
+  });
+
   it("a failing body cancel does not replace the cap error", async () => {
     const cancel = vi.fn(async () => { throw new Error("cancel failed"); });
     const body = new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(new Uint8Array(4)); }, cancel });

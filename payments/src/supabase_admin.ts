@@ -19,28 +19,33 @@
  * Routed through this seam (2026-11-11): the billing webhook audit and quarantine clients, and the admin audit read.
  * Still building a raw service-key client outside it (inventory, open debt): src/adapters/database/supabase.adapter.ts,
  * src/use_cases/create_esign_envelope.ts, web/app/api/esign/webhook/route.ts. Each needs its own review before it moves.
+ * Raw fetch reads that carry the key but refuse plaintext first (assertSecureSupabaseUrl): payments/src/ledger.ts
+ * (listManualReviewRefunds) and payments/src/launch_gate.ts (consent read).
  *
  * The dynamic import stays INSIDE this helper so `vi.mock("@supabase/supabase-js")`
  * in tests keeps intercepting client construction.
  */
 
-import { assertSecureTransport } from "../../src/infrastructure/http/secure_url";
+import { transportRefusal } from "../../src/infrastructure/http/secure_url";
 
 type SupabaseClient = import("@supabase/supabase-js").SupabaseClient;
 
 const SUPABASE_LOOPBACK_HOSTS = ["localhost", "127.0.0.1", "[::1]"] as const;
 
+/** The refusal message for a SUPABASE_URL that must not carry the key, or undefined when it may. */
+export function secureSupabaseUrlProblem(supabaseUrl: string): string | undefined {
+  if (!URL.canParse(supabaseUrl)) return "SUPABASE_URL is not a valid URL";
+  const parsed = new URL(supabaseUrl);
+  const refused = transportRefusal(parsed, SUPABASE_LOOPBACK_HOSTS);
+  return refused === undefined
+    ? undefined
+    : `SUPABASE_URL must be https (got ${refused}//${parsed.hostname}); the service key is sent as a Bearer token`;
+}
+
 /** Throws unless the URL is https, or http to loopback. Call before any request or client that carries the service key. */
 export function assertSecureSupabaseUrl(supabaseUrl: string): void {
-  let parsed: URL;
-  try {
-    parsed = new URL(supabaseUrl);
-  } catch (err) {
-    throw new Error("SUPABASE_URL is not a valid URL", { cause: err });
-  }
-  assertSecureTransport(parsed, SUPABASE_LOOPBACK_HOSTS, (protocol) =>
-    new Error(`SUPABASE_URL must be https (got ${protocol}//${parsed.hostname}); the service key is sent as a Bearer token`),
-  );
+  const problem = secureSupabaseUrlProblem(supabaseUrl);
+  if (problem !== undefined) throw new Error(problem);
 }
 
 /** Builds a service-role client for an explicit URL and key, after the transport guard. */

@@ -16,6 +16,7 @@
  */
 
 import { normalizeSha256, strictActiveConsentKinds, strictChainHead, type ConsentChainRow } from "../../web/src/lib/consent-chain.ts";
+import { secureSupabaseUrlProblem } from "./supabase_admin.ts";
 
 export type ConsentKind = "C1_data_accuracy" | "C2_release_approval" | "C3_revenue_split";
 const CONSENT_KINDS: ConsentKind[] = ["C1_data_accuracy", "C2_release_approval", "C3_revenue_split"];
@@ -39,6 +40,8 @@ export const assertLaunchConsents = async (
   if (!base || !key) {
     blocked("missing consent(s): SUPABASE_URL/SUPABASE_SECRET_KEY not configured");
   }
+  const urlProblem = secureSupabaseUrlProblem(base!);
+  if (urlProblem !== undefined) blocked(`unsafe SUPABASE_URL: ${urlProblem}`);
   const doFetch = fetchImpl ?? fetch;
   const getJson = async <T>(url: string, label: string, requireComplete = false): Promise<T> => {
     let res: Response;
