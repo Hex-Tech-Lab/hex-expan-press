@@ -1,0 +1,26 @@
+supabase/migrations/20261111110141_handle_available_hardened.sql
+  s_49604354897cc0::t_a0b56d85e2ae1d 2-5
+src/infrastructure/redis/redis.client.ts
+  s_49604354897cc0::t_ed0a06b8ff31d4 45-46,48-49
+payments/src/settings_registry.ts
+  s_49604354897cc0::t_64ee8525d71e43 321-330
+  s_49604354897cc0::t_fd2403374ed973 310
+payments/test/redis_key_prefix.test.ts
+  s_49604354897cc0::t_737abc2b6389a0 1-21
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "dd80683a272a4ee8eb628e3660ba6e3f6609979f",
+  "prompts": {},
+  "sessions": {
+    "s_49604354897cc0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b1265e7f-9d1a-4d08-82c0-e1018d674786",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
