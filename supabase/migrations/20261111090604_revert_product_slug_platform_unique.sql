@@ -3,7 +3,7 @@
 -- platform-wide identifier (creators.handle), so the product slug does not need a platform-wide key.
 --
 -- Order matters: the platform-wide key must be dropped before the test copy is renamed back, or the
--- rename collides with Duane's retirearly500k. (A first attempt at the other order failed and changed nothing.)
+-- rename collides with an existing creator's retirearly500k. (A first attempt at the other order failed and changed nothing.)
 --
 -- Restores:
 --   * drops products_slug_key (UNIQUE (slug), platform-wide)

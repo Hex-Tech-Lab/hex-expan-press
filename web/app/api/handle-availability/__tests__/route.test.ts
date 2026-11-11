@@ -23,8 +23,9 @@ vi.mock("@supabase/supabase-js", () => ({
 }));
 
 const limiter = vi.hoisted(() => ({
+  ips: [] as string[],
   decide: async (ip: string): Promise<unknown> => {
-    void ip;
+    limiter.ips.push(ip);
     return { kind: "allowed" };
   },
 }));
@@ -63,7 +64,11 @@ beforeEach(() => {
   vi.stubEnv("SUPABASE_URL", "https://project.example.test");
   vi.stubEnv("SUPABASE_PUBLISHABLE_KEY", "pub-key-for-tests");
   vi.stubEnv("SUPABASE_SECRET_KEY", "secret-key-must-not-be-used");
-  limiter.decide = async () => ({ kind: "allowed" });
+  limiter.ips = [];
+  limiter.decide = async (ip: string) => {
+    limiter.ips.push(ip);
+    return { kind: "allowed" };
+  };
 });
 
 describe("GET /api/handle-availability: input", () => {
@@ -150,8 +155,45 @@ describe("GET /api/handle-availability: fails closed", () => {
 
   it("503 when the thrown error is a socket hang-up, without its message in Sentry", async () => {
     clientState.rpcThrows = true;
-    await GET(req("?handle=kelly"));
+    const res = await GET(req("?handle=kelly"));
+    expect(res.status).toBe(503);
     expect(sentryText()).not.toMatch(/socket hang up/);
+  });
+});
+
+describe("GET /api/handle-availability: config and contract", () => {
+  it("503 with the publishable key unset: no client is built, the secret key is never used, Sentry tags config", async () => {
+    vi.stubEnv("SUPABASE_PUBLISHABLE_KEY", "");
+    const res = await GET(req("?handle=kelly"));
+    expect(res.status).toBe(503);
+    expect(await res.json()).toEqual({ error: "Handle check unavailable" });
+    expect(clientState.calls).toEqual([]);
+    expect(sentry.calls.length).toBe(1);
+    expect((sentry.calls[0][1] as { tags: { stage: string } }).tags.stage).toBe("config");
+  });
+
+  it.each([["true"], [1], [{}]])("503 for a non-boolean check result (%j), never available", async (value) => {
+    clientState.rpcResult = { data: value, error: null };
+    const res = await GET(req("?handle=kelly"));
+    expect(res.status).toBe(503);
+    expect(await res.json()).toEqual({ error: "Handle check unavailable" });
+  });
+
+  it("passes the forwarded client IP to the rate limiter, not a constant key", async () => {
+    const forwarded = new NextRequest("http://localhost/api/handle-availability?handle=kelly", {
+      headers: { "x-real-ip": "203.0.113.7" },
+    });
+    await GET(forwarded);
+    expect(limiter.ips).toEqual(["203.0.113.7"]);
+  });
+
+  it("429 and 503 responses carry Cache-Control no-store", async () => {
+    limiter.decide = async () => ({ kind: "limited", retryAfterSeconds: 3 });
+    const limited = await GET(req("?handle=kelly"));
+    expect(limited.headers.get("Cache-Control")).toBe("no-store");
+    limiter.decide = async () => ({ kind: "unavailable" });
+    const down = await GET(req("?handle=kelly"));
+    expect(down.headers.get("Cache-Control")).toBe("no-store");
   });
 });
 

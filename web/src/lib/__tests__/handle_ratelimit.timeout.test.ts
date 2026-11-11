@@ -69,6 +69,7 @@ describe("checkHandleRateLimit: Upstash timeout response", () => {
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     expect(await checkHandleRateLimit("203.0.113.7")).toEqual({ kind: "unavailable" });
     expect(errSpy).toHaveBeenCalled();
+    expect(sentryCalls.length).toBeGreaterThan(0);
   });
 
   it("still allows a normal under-limit response", async () => {

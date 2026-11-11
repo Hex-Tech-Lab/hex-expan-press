@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
@@ -26,15 +26,18 @@ describe("validateHandle", () => {
 });
 
 describe("parity with the database rule", () => {
-  // Read the creator-portal migration and take the pattern from the real creators.handle CHECK.
-  const migration = fileURLToPath(
-    new URL("../../../../supabase/migrations/20260926000000_creator_portal.sql", import.meta.url),
-  );
-  const sql = readFileSync(migration, "utf8");
+  // Take the pattern from the latest migration that declares the creators.handle CHECK, so a later
+  // migration that changes the rule is caught here rather than hidden by the creation migration.
+  const migrationsDir = fileURLToPath(new URL("../../../../supabase/migrations/", import.meta.url));
+  const declaration = /handle\s+text\s+not null unique check \(handle ~ '([^']+)'\)/i;
 
-  it("HANDLE_RE is exactly the creators.handle CHECK pattern", () => {
-    const match = /handle\s+text\s+not null unique check \(handle ~ '([^']+)'\)/i.exec(sql);
-    expect(match, "creators.handle CHECK not found").not.toBeNull();
-    expect(match?.[1]).toBe(HANDLE_RE.source);
+  it("HANDLE_RE is exactly the latest creators.handle CHECK pattern", () => {
+    let latest: string | undefined;
+    for (const file of readdirSync(migrationsDir).filter((f) => f.endsWith(".sql")).sort()) {
+      const match = declaration.exec(readFileSync(migrationsDir + file, "utf8"));
+      if (match) latest = match[1];
+    }
+    expect(latest, "creators.handle CHECK not found").toBeDefined();
+    expect(latest).toBe(HANDLE_RE.source);
   });
 });
