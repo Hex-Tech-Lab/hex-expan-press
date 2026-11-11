@@ -76,12 +76,13 @@ export const parseCliPrefix = parsePrefixArg;
  * Downloads one object with a single GET. The bytes and the ETag header come from the same response, so the
  * ETag describes exactly these bytes. Throws on a non-2xx status. A network error propagates to the caller.
  */
-async function fetchSourceObject(
+export async function fetchSourceObject(
   fetchImpl: typeof fetch,
   supabaseUrl: string,
   supabaseKey: string,
   bucket: string,
   filePath: string,
+  maxBytes: number = GLOBAL.payments.sync_max_object_bytes,
 ): Promise<{ bytes: Buffer; etag: string | undefined }> {
   const encodedPath = filePath.split("/").map(encodeURIComponent).join("/");
   const url = `${supabaseUrl.replace(/\/+$/, "")}/storage/v1/object/${encodeURIComponent(bucket)}/${encodedPath}`;
@@ -96,7 +97,40 @@ async function fetchSourceObject(
     throw new Error(`Supabase download of ${filePath} returned HTTP ${res.status}`);
   }
   const etag = res.headers.get("etag") ?? undefined;
-  return { bytes: Buffer.from(await res.arrayBuffer()), etag };
+  return { bytes: await readBounded(res, filePath, maxBytes), etag };
+}
+
+/**
+ * Reads a response body with a hard byte cap. A declared Content-Length over the cap is refused before any
+ * byte is read. Otherwise the stream is counted and cancelled as soon as it passes the cap, so memory is bounded
+ * even when the server lies about its length.
+ */
+async function readBounded(res: Response, filePath: string, maxBytes: number): Promise<Buffer> {
+  const declared = res.headers.get("content-length");
+  if (declared !== null && Number(declared) > maxBytes) {
+    await res.body?.cancel();
+    throw new Error(`Supabase object ${filePath} declares ${declared} bytes, over the ${maxBytes}-byte cap`);
+  }
+  if (!res.body) return Buffer.alloc(0);
+  const reader = res.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel();
+        throw new Error(`Supabase object ${filePath} exceeded the ${maxBytes}-byte cap while streaming`);
+      }
+      chunks.push(value);
+    }
+  } finally {
+    // Always release the lock so an error or early return never leaves the stream locked and the connection open.
+    reader.releaseLock();
+  }
+  return Buffer.concat(chunks, total);
 }
 
 /**
@@ -408,7 +442,9 @@ export async function syncSupabaseToR2(options: SyncOptions = {}): Promise<SyncR
 // Direct execution via CLI (e.g. `pnpm dlx tsx scripts/sync-supabase-to-r2.ts` or `tsx scripts/sync-supabase-to-r2.ts`)
 if (process.argv[1] && process.argv[1].includes("sync-supabase-to-r2")) {
   // Load .env only for direct execution. Importing this module (tests, other scripts) must not read live keys.
-  dotenv.config();
+  // override: true per AGENTS.md. Without it a stale shell variable (e.g. R2_ACCOUNT_ID) silently beats .env,
+  // and an upload could target the wrong R2 account.
+  dotenv.config({ override: true });
   // parsePrefixArg runs inside the promise chain so a malformed --prefix reaches the .catch handler.
   Promise.resolve()
     .then(() => syncSupabaseToR2({ prefix: parsePrefixArg(process.argv) }))

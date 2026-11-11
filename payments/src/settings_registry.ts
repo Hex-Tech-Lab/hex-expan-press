@@ -69,6 +69,7 @@ export interface GlobalSettings {
     webhook_lock_ttl_seconds: number;
     http_timeout_ms: number; // webhook-internal call budget: Paddle customer-email lookup AND the 503 audit insert (must stay short)
     sync_http_timeout_ms: number; // operator CLI (sync_book_identity) calls to Supabase/Paddle
+    sync_max_object_bytes: number; // operator CLI (sync_supabase_to_r2): max bytes read per Supabase object (bounds memory)
     review_queue_page_size: number; // listManualReviewRefunds default page/limit
     /** Retry-After seconds sent on 503 webhook responses (in-flight AND generic 503 paths). */
     retry_after_seconds: number;
@@ -121,6 +122,7 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     webhook_lock_ttl_seconds: 300,
     http_timeout_ms: 5000,
     sync_http_timeout_ms: 30000,
+    sync_max_object_bytes: 104857600,
     review_queue_page_size: 200,
     retry_after_seconds: 30,
     paddle: {
@@ -172,6 +174,7 @@ export const PAYMENTS_LIMITS = {
   webhook_lock_ttl_seconds: { min: 60, max: 3600 },
   http_timeout_ms: { min: 1000, max: 30000 },
   sync_http_timeout_ms: { min: 1000, max: 120000 },
+  sync_max_object_bytes: { min: 1048576, max: 1073741824 },
   review_queue_page_size: { min: 1, max: 1000 },
   retry_after_seconds: { min: 1, max: 600 },
 } as const;
@@ -240,6 +243,7 @@ export function loadPaymentsSection(raw: Record<string, unknown> | undefined): G
   const webhookLockTtl = num("webhook_lock_ttl_seconds");
   const httpTimeout = num("http_timeout_ms");
   const syncHttpTimeout = num("sync_http_timeout_ms");
+  const syncMaxObjectBytes = num("sync_max_object_bytes");
   // Validate BEFORE the fallback warning below, so an invalid value is reported, not silently defaulted.
   const reviewQueuePageSize = num("review_queue_page_size");
   const retryAfterSeconds = num("retry_after_seconds");
@@ -276,6 +280,7 @@ export function loadPaymentsSection(raw: Record<string, unknown> | undefined): G
     webhook_lock_ttl_seconds: webhookLockTtl,
     http_timeout_ms: httpTimeout,
     sync_http_timeout_ms: syncHttpTimeout,
+    sync_max_object_bytes: syncMaxObjectBytes,
     review_queue_page_size: reviewQueuePageSize,
     retry_after_seconds: retryAfterSeconds,
     paddle: { api_base: { production: apiProduction, sandbox: apiSandbox }, js_cdn_url: jsCdn },
