@@ -27,7 +27,6 @@ export function isRedisRestConfigured(): boolean {
 export class ExpanRedisClient {
   private url?: string;
   private token?: string;
-  private readonly prefix: string = GLOBAL.redis.key_prefix;
   private static readonly TIMEOUT_MS = 3000;
 
   constructor(url?: string, token?: string) {
@@ -43,8 +42,11 @@ export class ExpanRedisClient {
     return this.token ?? redisRestEnv().token;
   }
 
+  // Read per call, not at construction: the shared client is built at import time, and a settings module that is
+  // partially mocked or not yet loaded must not throw before any key is used.
   private key(k: string): string {
-    return k.startsWith(this.prefix) ? k : `${this.prefix}${k}`;
+    const prefix = GLOBAL.redis.key_prefix;
+    return k.startsWith(prefix) ? k : `${prefix}${k}`;
   }
 
   private async command<T = unknown>(...args: (string | number)[]): Promise<T> {

@@ -307,7 +307,7 @@ function loadGlobal(): GlobalSettings {
     portal: { ...DEFAULT_GLOBAL.portal, ...(g.portal ?? {}) },
     admin: loadAdminSection(g.admin as Record<string, unknown> | undefined),
     consent: { ...DEFAULT_GLOBAL.consent, ...(g.consent ?? {}) },
-    redis: { ...DEFAULT_GLOBAL.redis, ...(g.redis ?? {}) },
+    redis: loadRedisSection(g.redis as Record<string, unknown> | undefined),
   };
 }
 
@@ -317,6 +317,16 @@ export function consentTextVersion(): string {
 }
 
 export const PORTAL_JWT_SKEW_LIMITS = { min: 250, max: 500 } as const;
+
+/** redis section: the key prefix namespaces every Redis key, so it must be a non-empty string ending in ":".
+ *  An empty or unnamespaced value would write keys that other tenants of the same database can read. Fails closed. */
+export function loadRedisSection(raw: Record<string, unknown> | undefined): GlobalSettings["redis"] {
+  const prefix = raw?.key_prefix ?? DEFAULT_GLOBAL.redis.key_prefix;
+  if (typeof prefix !== "string" || prefix.length < 2 || !prefix.endsWith(":")) {
+    throw new Error(`global.redis.key_prefix must be a non-empty string ending in ":" (got ${JSON.stringify(prefix)})`);
+  }
+  return { key_prefix: prefix };
+}
 
 /** admin section: shallow merge + validation. admin_user_ids must be an array of
  *  non-empty UUID-ish strings (shape-checked: hex/dash), bounded by ADMIN_LIMITS;

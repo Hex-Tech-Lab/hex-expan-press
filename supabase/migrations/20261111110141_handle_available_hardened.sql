@@ -1,7 +1,8 @@
 -- Hardens public.handle_available (approved 2026-11-11). Intentional SECURITY DEFINER boolean check, so it stays
--- definer; search_path is pinned empty and every name is schema-qualified, closing the search-path hijack class
--- that the Supabase lint 0028/0029 asks to be acknowledged or fixed. Body logic unchanged. create or replace keeps
--- the existing grants (anon, authenticated) and the revoke from public.
+-- definer; search_path is pinned empty and every name is schema-qualified, which closes the search-path hijack class.
+-- This does NOT address Supabase lint 0028/0029: those flag anon and authenticated EXECUTE on a SECURITY DEFINER
+-- function, and the grants below are unchanged. Those lints stay open until the founder decides the exposure.
+-- Body logic unchanged. create or replace keeps the existing grants (anon, authenticated) and the revoke from public.
 create or replace function public.handle_available(p_handle text)
 returns boolean
 language sql
