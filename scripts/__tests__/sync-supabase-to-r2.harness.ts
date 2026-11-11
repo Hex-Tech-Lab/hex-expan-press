@@ -75,6 +75,7 @@ export function resetSyncTestEnv(): void {
   delete process.env.SUPABASE_STORAGE_BUCKET;
   delete process.env.R2_ENDPOINT;
   delete process.env.R2_REGION;
+  delete process.env.R2_ALLOW_INSECURE_HTTP;
   for (const [k, v] of Object.entries(dummyR2Env)) {
     vi.stubEnv(k, v);
   }

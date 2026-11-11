@@ -1,5 +1,4 @@
 import dotenv from "dotenv";
-dotenv.config();
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { putR2ObjectIf, statR2Object, type StatR2ObjectResult } from "../src/adapters/storage/r2.adapter";
@@ -408,6 +407,8 @@ export async function syncSupabaseToR2(options: SyncOptions = {}): Promise<SyncR
 
 // Direct execution via CLI (e.g. `pnpm dlx tsx scripts/sync-supabase-to-r2.ts` or `tsx scripts/sync-supabase-to-r2.ts`)
 if (process.argv[1] && process.argv[1].includes("sync-supabase-to-r2")) {
+  // Load .env only for direct execution. Importing this module (tests, other scripts) must not read live keys.
+  dotenv.config();
   // parsePrefixArg runs inside the promise chain so a malformed --prefix reaches the .catch handler.
   Promise.resolve()
     .then(() => syncSupabaseToR2({ prefix: parsePrefixArg(process.argv) }))
