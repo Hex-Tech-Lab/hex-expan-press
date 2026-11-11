@@ -1,0 +1,31 @@
+src/adapters/database/supabase.adapter.ts
+  s_49604354897cc0::t_3440ca177bc300 15-17,19
+  s_49604354897cc0::t_0721fe0a75a238 71
+  s_49604354897cc0::t_5e0639a5103849 1-2
+  s_49604354897cc0::t_996311edf3f205 25
+  s_49604354897cc0::t_b46841e4928e6a 61
+src/adapters/database/__tests__/supabase-adapter.test.ts
+  s_49604354897cc0::t_88979aff367c43 33-34
+web/app/api/esign/webhook/route.ts
+  s_49604354897cc0::t_5be16b9a57f0e1 24
+  s_49604354897cc0::t_87fc98ce5a9c55 8
+src/use_cases/create_esign_envelope.ts
+  s_49604354897cc0::t_2b75864c8cef70 3
+  s_49604354897cc0::t_b690dfb9f51b95 38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1691c13ddeb1e065db7e45498e3b182aaf68959b",
+  "prompts": {},
+  "sessions": {
+    "s_49604354897cc0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b1265e7f-9d1a-4d08-82c0-e1018d674786",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
