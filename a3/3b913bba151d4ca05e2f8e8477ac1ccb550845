@@ -1,0 +1,54 @@
+scripts/__tests__/sync-supabase-to-r2.bounded.test.ts
+  s_49604354897cc0::t_b411528f974eea 100-105
+src/infrastructure/http/bounded_body.ts
+  s_49604354897cc0::t_2ce466fd3085d2 15-22,30,36-39,42
+web/src/lib/admin.ts
+  s_49604354897cc0::t_7bc55e912ce974 2,48-49
+src/infrastructure/redis/redis.client.ts
+  s_49604354897cc0::t_7bc55e912ce974 3
+  s_49604354897cc0::t_cf6744b414fe88 1,66-68
+  s_49604354897cc0::t_aaff30380036d1 2
+payments/src/supabase_admin.ts
+  s_49604354897cc0::t_cf6744b414fe88 27,41-43
+  s_49604354897cc0::t_7bc55e912ce974 19-22,28,31
+  s_49604354897cc0::t_83616a410e62f2 32
+payments/test/supabase_admin_seam.test.ts
+  s_49604354897cc0::t_413586cf76cb0e 1-50
+scripts/sync-supabase-to-r2.ts
+  s_49604354897cc0::t_e0c0551ccb14b1 231-232
+scripts/qa-intel/engine/rules/__tests__/order-guard.test.ts
+  s_49604354897cc0::t_c3dca934f2668e 51-55
+scripts/__tests__/sync-supabase-to-r2.read-bounded-pairwise.test.ts
+  s_49604354897cc0::t_2ce466fd3085d2 1,5-7,75-77,123-126,128-149
+  s_49604354897cc0::t_cf6744b414fe88 127
+  s_49604354897cc0::t_b2c93eadae6a22 150-151
+src/infrastructure/http/secure_url.ts
+  s_49604354897cc0::t_cf6744b414fe88 5-7,9-12
+  s_49604354897cc0::t_7bc55e912ce974 1-4,8,13
+docs/agent_ledger.jsonl
+  s_49604354897cc0::t_2a76d92a0dbc9f 937
+  s_49604354897cc0::t_d45849d2202014 939
+  s_49604354897cc0::t_e8b937badcfb6f 938
+  s_49604354897cc0::t_48caf88b11b57b 940
+scripts/qa-intel/engine/rules/order-guard.ts
+  s_49604354897cc0::t_2ce466fd3085d2 12-13,18-23,72-74
+web/app/api/billing/webhook/handler.ts
+  s_49604354897cc0::t_cf6744b414fe88 243
+  s_49604354897cc0::t_7bc55e912ce974 7,25,262
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a33b913bba151d4ca05e2f8e8477ac1ccb550845",
+  "prompts": {},
+  "sessions": {
+    "s_49604354897cc0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b1265e7f-9d1a-4d08-82c0-e1018d674786",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
