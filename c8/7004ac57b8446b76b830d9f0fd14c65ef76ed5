@@ -1,0 +1,47 @@
+scripts/sync-supabase-to-r2.ts
+  s_49604354897cc0::t_9a277c100490a1 7-8
+  s_49604354897cc0::t_7fe8c8613cab3a 9
+  s_49604354897cc0::t_f8fdb71705c2f9 6,233
+docs/agent_ledger.jsonl
+  s_49604354897cc0::t_62fec82bcd1386 933
+  s_49604354897cc0::t_c077a68b34e3d8 932
+  s_49604354897cc0::t_8acfbb307774ef 934
+  s_49604354897cc0::t_884f5420c88a24 935-936
+scripts/qa-intel/engine/rules/__tests__/order-guard.test.ts
+  s_49604354897cc0::t_57851b1b81d3a3 1-46,48-60
+  s_49604354897cc0::t_9bec8faefb52ba 47
+scripts/qa-intel/engine/rules/index.ts
+  s_49604354897cc0::t_f8fdb71705c2f9 60
+scripts/__tests__/fixtures/read-bounded.pict
+  s_49604354897cc0::t_f8fdb71705c2f9 1
+src/infrastructure/http/bounded_body.ts
+  s_49604354897cc0::t_0406cb55b974ac 1-62
+payments/src/supabase_admin.ts
+  s_49604354897cc0::t_9a277c100490a1 30-31,54-55
+  s_49604354897cc0::t_d037839ae0d579 13-18,25-29,32-49
+scripts/qa-intel/engine/rules/order-guard.ts
+  s_49604354897cc0::t_5e6e4c8e47903c 20-23
+  s_49604354897cc0::t_ce7f38187ed887 1-19,24-83
+scripts/__tests__/sync-supabase-to-r2.read-bounded-pairwise.test.ts
+  s_49604354897cc0::t_f8fdb71705c2f9 42-49,57,68,87
+web/app/api/admin/audit-log/__tests__/route.test.ts
+  s_49604354897cc0::t_f8fdb71705c2f9 37
+web/app/api/billing/webhook/__tests__/audit-503.test.ts
+  s_49604354897cc0::t_f8fdb71705c2f9 42
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c87004ac57b8446b76b830d9f0fd14c65ef76ed5",
+  "prompts": {},
+  "sessions": {
+    "s_49604354897cc0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b1265e7f-9d1a-4d08-82c0-e1018d674786",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
