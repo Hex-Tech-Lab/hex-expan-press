@@ -1,0 +1,23 @@
+web/e2e/mock-supabase.ts
+  s_8a889b1c81b73d::t_edb35f47b47474 195-197
+web/__tests__/e2e-tls-teardown.test.ts
+  s_8a889b1c81b73d::t_26716c31cc5412 1-73
+web/e2e/constants.ts
+  s_8a889b1c81b73d::t_c7ab7040b17ac1 7-8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8b298c194e3a9fb3069fe12214b576dca1813326",
+  "prompts": {},
+  "sessions": {
+    "s_8a889b1c81b73d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8bfde08b-57a1-41f1-9ef1-ab1e90d8067d",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
