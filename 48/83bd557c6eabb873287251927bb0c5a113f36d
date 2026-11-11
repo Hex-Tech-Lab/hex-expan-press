@@ -1,0 +1,35 @@
+web/__tests__/e2e-constants.test.ts
+  s_8a889b1c81b73d::t_e4c931c4f8523e 1-19
+web/playwright.config.ts
+  s_8a889b1c81b73d::t_35abe5c9566b9b 7
+  s_8a889b1c81b73d::t_4d0d726fc48cfa 28
+  s_8a889b1c81b73d::t_8c3815027291f2 51
+web/e2e/constants.ts
+  s_8a889b1c81b73d::t_2d59d981f27a4d 44-45
+  s_8a889b1c81b73d::t_64aea0989177f2 14-15,18-20,22-24
+  s_8a889b1c81b73d::t_abffa1c5a51ee3 36-37
+web/__tests__/e2e-tls-dir.test.ts
+  s_8a889b1c81b73d::t_b621aeb13e9a9f 2-3
+  s_8a889b1c81b73d::t_93157c4fbe6a2a 69-104
+web/e2e/mock-supabase.ts
+  s_8a889b1c81b73d::t_ad5c28daa9d163 196-198
+  s_8a889b1c81b73d::t_7537ebd935c141 3
+web/e2e/tls-dir.ts
+  s_8a889b1c81b73d::t_1818adcc083a4f 33-49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4883bd557c6eabb873287251927bb0c5a113f36d",
+  "prompts": {},
+  "sessions": {
+    "s_8a889b1c81b73d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8bfde08b-57a1-41f1-9ef1-ab1e90d8067d",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
