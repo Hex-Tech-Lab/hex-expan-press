@@ -76,7 +76,9 @@ describe("GET /api/handle-availability: input", () => {
     const res = await GET(req(query));
     expect(res.status).toBe(400);
     expect(res.headers.get("Cache-Control")).toBe("no-store");
-    expect((await res.json()).available).toBe(false);
+    const body = await res.json();
+    expect(body).not.toHaveProperty("available");
+    expect(typeof body.error).toBe("string");
     expect(clientState.rpcArgs).toEqual([]);
   });
 });
@@ -95,7 +97,7 @@ describe("GET /api/handle-availability: answers", () => {
     const res = await GET(req("?handle=kelly"));
     const body = await res.json();
     expect(body).toEqual({ available: false, handle: "kelly" });
-    expect(JSON.stringify(body)).not.toMatch(/creator|display|id/i);
+    expect(Object.keys(body).sort()).toEqual(["available", "handle"]);
   });
 
   it("sends Cache-Control: no-store", async () => {
@@ -123,6 +125,13 @@ describe("GET /api/handle-availability: fails closed", () => {
     const text = await res.text();
     expect(JSON.parse(text)).toEqual({ error: "Handle check unavailable" });
     expect(text).not.toMatch(/secret_internal_name/);
+  });
+
+  it("503 when the check returns neither true nor false (never treated as free)", async () => {
+    clientState.rpcResult = { data: null, error: null };
+    const res = await GET(req("?handle=kelly"));
+    expect(res.status).toBe(503);
+    expect(await res.json()).toEqual({ error: "Handle check unavailable" });
   });
 
   it("503 when the call throws", async () => {

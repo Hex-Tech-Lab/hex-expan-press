@@ -11,6 +11,9 @@ import { validateHandle } from "../../../src/lib/handle_rule";
 // The secret key is never used on a public route. creators are not readable anonymously, so the check
 // runs inside the function, which is the standard Supabase pattern for this.
 // Advisory only: creators.handle is unique in the database, which is the authority.
+// Known limit: the publishable key can call public.handle_available directly, which skips this route's rate
+// limit. Accepted because creator handles are public URLs (/books/{handle}) and the function returns one bit.
+// Revisit if handle enumeration becomes a concern (for example, throttle inside the database).
 
 const NO_STORE = { "Cache-Control": "no-store" };
 
@@ -42,7 +45,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   const check = validateHandle(request.nextUrl.searchParams.get("handle") ?? "");
   if (!check.ok) {
-    return NextResponse.json({ available: false, reason: check.reason }, { status: 400, headers: NO_STORE });
+    return NextResponse.json({ error: check.reason }, { status: 400, headers: NO_STORE });
   }
 
   const url = process.env.SUPABASE_URL ?? "";
