@@ -1,0 +1,28 @@
+web/e2e/constants.ts
+  s_8a889b1c81b73d::t_ff23fc31c685d8 7-10,14-15
+  s_8a889b1c81b73d::t_4328faab2922d0 40,42
+web/e2e/mock-supabase.ts
+  s_8a889b1c81b73d::t_2e34465e9453b4 198
+  s_8a889b1c81b73d::t_76df06f3dd5646 204
+web/playwright.config.ts
+  s_8a889b1c81b73d::t_8e041033b3fa79 6
+  s_8a889b1c81b73d::t_27ffca9c241faa 35-36
+  s_8a889b1c81b73d::t_b536d77823d4e9 51
+  s_8a889b1c81b73d::t_93fa9084297e4c 28-29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "fbde2d76a7f2dc21acf25d059b5f15234a63d69b",
+  "prompts": {},
+  "sessions": {
+    "s_8a889b1c81b73d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8bfde08b-57a1-41f1-9ef1-ab1e90d8067d",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
