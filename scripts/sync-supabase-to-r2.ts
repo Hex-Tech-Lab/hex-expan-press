@@ -1,4 +1,6 @@
 import dotenv from "dotenv";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { putR2ObjectIf, statR2Object, type StatR2ObjectResult } from "../src/adapters/storage/r2.adapter";
@@ -84,6 +86,12 @@ export async function fetchSourceObject(
   filePath: string,
   maxBytes: number = GLOBAL.payments.sync_max_object_bytes,
 ): Promise<{ bytes: Buffer; etag: string | undefined }> {
+  // The service key is sent as a Bearer token. Refuse anything but https, except loopback for local development.
+  const parsed = new URL(supabaseUrl);
+  const loopback = parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1" || parsed.hostname === "[::1]";
+  if (parsed.protocol !== "https:" && !(parsed.protocol === "http:" && loopback)) {
+    throw new Error(`SUPABASE_URL must be https (got ${parsed.protocol}//${parsed.hostname}); the service key is sent as a Bearer token`);
+  }
   const encodedPath = filePath.split("/").map(encodeURIComponent).join("/");
   const url = `${supabaseUrl.replace(/\/+$/, "")}/storage/v1/object/${encodeURIComponent(bucket)}/${encodedPath}`;
   // Bounded: a stalled GET aborts (the signal also covers reading the body) and the file is recorded as failed.
@@ -94,6 +102,8 @@ export async function fetchSourceObject(
     signal: AbortSignal.timeout(GLOBAL.payments.sync_http_timeout_ms),
   });
   if (!res.ok) {
+    // Release the socket now rather than leaving the unread body to garbage collection.
+    await res.body?.cancel();
     throw new Error(`Supabase download of ${filePath} returned HTTP ${res.status}`);
   }
   const etag = res.headers.get("etag") ?? undefined;
@@ -111,7 +121,13 @@ async function readBounded(res: Response, filePath: string, maxBytes: number): P
     await res.body?.cancel();
     throw new Error(`Supabase object ${filePath} declares ${declared} bytes, over the ${maxBytes}-byte cap`);
   }
-  if (!res.body) return Buffer.alloc(0);
+  if (!res.body) {
+    // A declared non-empty length with no body is a truncated or broken response, not an empty object.
+    if (declared !== null && Number(declared) > 0) {
+      throw new Error(`Supabase object ${filePath} declared ${declared} bytes but returned no body`);
+    }
+    return Buffer.alloc(0);
+  }
   const reader = res.body.getReader();
   const chunks: Uint8Array[] = [];
   let total = 0;
@@ -439,12 +455,19 @@ export async function syncSupabaseToR2(options: SyncOptions = {}): Promise<SyncR
   return summary;
 }
 
+/**
+ * Loads the repo-root .env for direct CLI runs only. Importing this module must not read live keys.
+ * override: true per AGENTS.md: without it a stale shell variable (e.g. R2_ACCOUNT_ID) silently beats .env,
+ * and an upload could target the wrong R2 account. The path is anchored to this file, not the working directory.
+ */
+export function loadEnvForCli(): void {
+  const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+  dotenv.config({ override: true, path: path.join(repoRoot, ".env") });
+}
+
 // Direct execution via CLI (e.g. `pnpm dlx tsx scripts/sync-supabase-to-r2.ts` or `tsx scripts/sync-supabase-to-r2.ts`)
 if (process.argv[1] && process.argv[1].includes("sync-supabase-to-r2")) {
-  // Load .env only for direct execution. Importing this module (tests, other scripts) must not read live keys.
-  // override: true per AGENTS.md. Without it a stale shell variable (e.g. R2_ACCOUNT_ID) silently beats .env,
-  // and an upload could target the wrong R2 account.
-  dotenv.config({ override: true });
+  loadEnvForCli();
   // parsePrefixArg runs inside the promise chain so a malformed --prefix reaches the .catch handler.
   Promise.resolve()
     .then(() => syncSupabaseToR2({ prefix: parsePrefixArg(process.argv) }))

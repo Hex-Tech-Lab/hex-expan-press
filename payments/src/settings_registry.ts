@@ -69,7 +69,7 @@ export interface GlobalSettings {
     webhook_lock_ttl_seconds: number;
     http_timeout_ms: number; // webhook-internal call budget: Paddle customer-email lookup AND the 503 audit insert (must stay short)
     sync_http_timeout_ms: number; // operator CLI (sync_book_identity) calls to Supabase/Paddle
-    sync_max_object_bytes: number; // operator CLI (sync_supabase_to_r2): max bytes read per Supabase object (bounds memory)
+    sync_max_object_bytes: number; // operator CLI (sync-supabase-to-r2.ts): max bytes read per Supabase object (bounds memory)
     review_queue_page_size: number; // listManualReviewRefunds default page/limit
     /** Retry-After seconds sent on 503 webhook responses (in-flight AND generic 503 paths). */
     retry_after_seconds: number;
