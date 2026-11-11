@@ -1,0 +1,19 @@
+web/src/lib/__tests__/handle_pairwise.test.ts
+  s_8a889b1c81b73d::t_5a01720134f007 116-122,217,234,272
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c34199acd8f4e13a42a9e4243e35f50dfa943dc1",
+  "prompts": {},
+  "sessions": {
+    "s_8a889b1c81b73d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8bfde08b-57a1-41f1-9ef1-ab1e90d8067d",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
