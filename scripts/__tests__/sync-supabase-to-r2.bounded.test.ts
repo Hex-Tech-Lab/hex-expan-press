@@ -1,6 +1,6 @@
+import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 import { fetchSourceObject, isDirectRun, syncSupabaseToR2 } from "../sync-supabase-to-r2";
-import { fileURLToPath } from "node:url";
 import { GLOBAL, PAYMENTS_LIMITS } from "../../payments/src/settings_registry";
 
 // Streams the given chunks as a response body with no Content-Length, so only the streaming counter can stop it.
@@ -54,7 +54,7 @@ describe("fetchSourceObject byte cap", () => {
 
   it("cancels the body of a non-2xx response before throwing", async () => {
     const cancel = vi.fn();
-    const body = new ReadableStream<Uint8Array>({ start(c) { c.enqueue(new Uint8Array([1])); }, cancel });
+    const body = new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(new Uint8Array([1])); }, cancel });
     const fetchImpl = vi.fn(async () => new Response(body, { status: 500 }));
     await expect(fetchSourceObject(fetchImpl as never, ...args, 10)).rejects.toThrow(/HTTP 500/);
     expect(cancel).toHaveBeenCalled();
@@ -99,7 +99,7 @@ describe("fetchSourceObject byte cap", () => {
 
   it("a failing body cancel does not replace the cap error", async () => {
     const cancel = vi.fn(async () => { throw new Error("cancel failed"); });
-    const body = new ReadableStream<Uint8Array>({ start(c) { c.enqueue(new Uint8Array(4)); }, cancel });
+    const body = new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(new Uint8Array(4)); }, cancel });
     const fetchImpl = vi.fn(async () => new Response(body, { status: 200, headers: { "content-length": "999" } }));
     await expect(fetchSourceObject(fetchImpl as never, ...args, 10)).rejects.toThrow(/declares 999 bytes, over the 10-byte cap/);
   });
@@ -112,7 +112,7 @@ describe("fetchSourceObject byte cap", () => {
     // With only two, the stream closes before the check and cancel is a no-op.
     const chunks = [new Uint8Array(6), new Uint8Array(6), new Uint8Array(6)];
     const body = new ReadableStream<Uint8Array>({
-      pull(c) { if (i < chunks.length) c.enqueue(chunks[i++]); else c.close(); },
+      pull(controller) { if (i < chunks.length) controller.enqueue(chunks[i++]); else controller.close(); },
       cancel,
     });
     const fetchImpl = vi.fn(async () => new Response(body, { status: 200 }));
@@ -122,7 +122,7 @@ describe("fetchSourceObject byte cap", () => {
 
   it("a failing body cancel does not replace the HTTP status error", async () => {
     const cancel = vi.fn(async () => { throw new Error("cancel failed"); });
-    const body = new ReadableStream<Uint8Array>({ start(c) { c.enqueue(new Uint8Array([1])); }, cancel });
+    const body = new ReadableStream<Uint8Array>({ start(controller) { controller.enqueue(new Uint8Array([1])); }, cancel });
     const fetchImpl = vi.fn(async () => new Response(body, { status: 503 }));
     await expect(fetchSourceObject(fetchImpl as never, ...args, 10)).rejects.toThrow(/returned HTTP 503/);
   });
@@ -158,10 +158,10 @@ describe("fetchSourceObject byte cap", () => {
 
   it("keeps the registry default inside its declared bounds", () => {
     const { min, max } = PAYMENTS_LIMITS.sync_max_object_bytes;
-    const v = GLOBAL.payments.sync_max_object_bytes;
-    expect(typeof v).toBe("number");
-    expect(v).toBeGreaterThanOrEqual(min);
-    expect(v).toBeLessThanOrEqual(max);
+    const setting = GLOBAL.payments.sync_max_object_bytes;
+    expect(typeof setting).toBe("number");
+    expect(setting).toBeGreaterThanOrEqual(min);
+    expect(setting).toBeLessThanOrEqual(max);
   });
 
   it("applies the registry default when no cap is passed", async () => {

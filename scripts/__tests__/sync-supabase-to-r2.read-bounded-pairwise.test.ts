@@ -39,6 +39,7 @@ const ROWS: Row[] = [
   { Declared: "n7", Encoding: "absent", Body: "none" },
 ];
 
+// Header text sent for each Declared value.
 const DECLARED_HEADER: Record<string, string | undefined> = {
   absent: undefined,
   n7: "7",
@@ -47,12 +48,21 @@ const DECLARED_HEADER: Record<string, string | undefined> = {
   nonnumeric: "5x",
 };
 
+// Numeric size each Declared value stands for. nonnumeric has no size: it is refused before any length is compared.
+const DECLARED_BYTES: Record<string, number | undefined> = {
+  absent: undefined,
+  n7: 7,
+  n10: 10,
+  n11: 11,
+  nonnumeric: undefined,
+};
+
 type Expected = { ok: true; bytes: number } | { ok: false; error: string };
 
 // Bytes the server actually sends for a non-null body. Shared by the oracle and the response builder, so an
 // expected error still gets a body of the right size.
 function deliveredBytes(row: Row): number {
-  const declared = row.Declared === "absent" ? undefined : Number(DECLARED_HEADER[row.Declared]);
+  const declared = DECLARED_BYTES[row.Declared];
   if (row.Body === "empty") return 0;
   if (row.Body === "short") return declared !== undefined ? Math.max(declared - 1, 0) : 3;
   if (row.Body === "exact") return declared ?? 4;
@@ -63,7 +73,7 @@ function deliveredBytes(row: Row): number {
 // then the identity length match. A content-encoded body skips the length match.
 function expected(row: Row): Expected {
   if (row.Declared === "nonnumeric") return { ok: false, error: "non-numeric content-length" };
-  const declared = row.Declared === "absent" ? undefined : Number(DECLARED_HEADER[row.Declared]);
+  const declared = DECLARED_BYTES[row.Declared];
   if (declared !== undefined && declared > CAP) {
     return { ok: false, error: `declares ${declared} bytes, over the ${CAP}-byte cap` };
   }

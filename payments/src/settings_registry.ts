@@ -45,8 +45,8 @@ function readRegistryResult(name: string): RegistryRead {
 }
 
 function readRegistryFile(name: string): Record<string, unknown> | undefined {
-  const r = readRegistryResult(name);
-  return r.kind === "ok" ? r.data : undefined;
+  const result = readRegistryResult(name);
+  return result.kind === "ok" ? result.data : undefined;
 }
 
 function warnFallback(file: string, why: string): void {
