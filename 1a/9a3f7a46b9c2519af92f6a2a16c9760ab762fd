@@ -1,0 +1,24 @@
+web/app/api/handle-availability/route.ts
+  s_8a889b1c81b73d::t_4e563f6e1e7e5e 68-73
+web/src/lib/creator-handle.ts
+  s_8a889b1c81b73d::t_d89a8e4d12b59b 5
+web/app/api/handle-availability/__tests__/route.test.ts
+  s_8a889b1c81b73d::t_ee346ce5489cb4 160-161
+  s_8a889b1c81b73d::t_f3ad32749f7ffb 182-183
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1a9a3f7a46b9c2519af92f6a2a16c9760ab762fd",
+  "prompts": {},
+  "sessions": {
+    "s_8a889b1c81b73d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8bfde08b-57a1-41f1-9ef1-ab1e90d8067d",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
