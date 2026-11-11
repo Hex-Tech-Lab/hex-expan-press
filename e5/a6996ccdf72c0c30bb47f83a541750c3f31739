@@ -1,0 +1,20 @@
+.github/workflows/series_stream_recorder.yml
+  s_8a889b1c81b73d::t_276af7e93fd6fe 24,113,118-124,128,143
+  s_8a889b1c81b73d::t_83e78985c46578 176-177,191,193-194
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e5a6996ccdf72c0c30bb47f83a541750c3f31739",
+  "prompts": {},
+  "sessions": {
+    "s_8a889b1c81b73d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8bfde08b-57a1-41f1-9ef1-ab1e90d8067d",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
