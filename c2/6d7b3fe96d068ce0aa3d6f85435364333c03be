@@ -1,0 +1,28 @@
+scripts/sync-body-reader.ts
+  s_49604354897cc0::t_294d68df9d1af1 1-60
+payments/src/settings_registry.ts
+  s_49604354897cc0::t_c24a6f42ed89b5 48-49
+scripts/__tests__/sync-supabase-to-r2.bounded.test.ts
+  s_49604354897cc0::t_c24a6f42ed89b5 1,57,102,115,125,161,163-164
+  s_49604354897cc0::t_b0dd5f6f4229d3 162
+scripts/__tests__/sync-supabase-to-r2.read-bounded-pairwise.test.ts
+  s_49604354897cc0::t_b00d6fcf1067ea 42,51-59,65,76
+scripts/sync-supabase-to-r2.ts
+  s_49604354897cc0::t_294d68df9d1af1 8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c26d7b3fe96d068ce0aa3d6f85435364333c03be",
+  "prompts": {},
+  "sessions": {
+    "s_49604354897cc0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b1265e7f-9d1a-4d08-82c0-e1018d674786",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
