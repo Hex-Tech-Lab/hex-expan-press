@@ -1,0 +1,5 @@
+# Pairwise model for readBounded (scripts/sync-supabase-to-r2.ts). Cap is fixed at 10 bytes in the test.
+# Regenerate: pict scripts/__tests__/fixtures/read-bounded.pict
+Declared: absent, n7, n10, n11, nonnumeric
+Encoding: absent, identity, gzip
+Body: none, empty, short, exact, over

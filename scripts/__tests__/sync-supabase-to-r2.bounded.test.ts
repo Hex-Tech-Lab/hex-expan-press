@@ -81,12 +81,50 @@ describe("fetchSourceObject byte cap", () => {
     await expect(fetchSourceObject(fetchImpl as never, ...args, 10)).rejects.toThrow(/non-numeric content-length/);
   });
 
-  it("syncSupabaseToR2 refuses an http URL before any call that carries the key", async () => {
+  it("syncSupabaseToR2 sends no network request before refusing an http URL", async () => {
+    // The real client path: the bucket listing goes through the global fetch, so any request made before the guard
+    // is seen here, whichever helper made it.
     const sourceFetchImpl = vi.fn();
-    await expect(
-      syncSupabaseToR2({ supabaseUrl: "http://remote-probe.example.test", supabaseServiceRoleKey: "k", sourceFetchImpl: sourceFetchImpl as never }),
-    ).rejects.toThrow(/must be https/);
-    expect(sourceFetchImpl).not.toHaveBeenCalled();
+    const globalFetch = vi.spyOn(globalThis, "fetch");
+    try {
+      await expect(
+        syncSupabaseToR2({ supabaseUrl: "http://remote-probe.example.test", supabaseServiceRoleKey: "k", sourceFetchImpl: sourceFetchImpl as never }),
+      ).rejects.toThrow(/must be https/);
+      expect(sourceFetchImpl).not.toHaveBeenCalled();
+      expect(globalFetch).not.toHaveBeenCalled();
+    } finally {
+      globalFetch.mockRestore();
+    }
+  });
+
+  it("a failing body cancel does not replace the cap error", async () => {
+    const cancel = vi.fn(async () => { throw new Error("cancel failed"); });
+    const body = new ReadableStream<Uint8Array>({ start(c) { c.enqueue(new Uint8Array(4)); }, cancel });
+    const fetchImpl = vi.fn(async () => new Response(body, { status: 200, headers: { "content-length": "999" } }));
+    await expect(fetchSourceObject(fetchImpl as never, ...args, 10)).rejects.toThrow(/declares 999 bytes, over the 10-byte cap/);
+  });
+
+  it("a failing cancel does not replace the cap error when the stream overruns while streaming", async () => {
+    // No Content-Length, so only the streamed counter can stop it, and the cancel happens on the reader path.
+    const cancel = vi.fn(async () => { throw new Error("cancel failed"); });
+    let i = 0;
+    // Three chunks: the overrun is seen on the second, so the stream is still open and cancel reaches the source.
+    // With only two, the stream closes before the check and cancel is a no-op.
+    const chunks = [new Uint8Array(6), new Uint8Array(6), new Uint8Array(6)];
+    const body = new ReadableStream<Uint8Array>({
+      pull(c) { if (i < chunks.length) c.enqueue(chunks[i++]); else c.close(); },
+      cancel,
+    });
+    const fetchImpl = vi.fn(async () => new Response(body, { status: 200 }));
+    await expect(fetchSourceObject(fetchImpl as never, ...args, 10)).rejects.toThrow(/exceeded the 10-byte cap while streaming/);
+    expect(cancel).toHaveBeenCalled();
+  });
+
+  it("a failing body cancel does not replace the HTTP status error", async () => {
+    const cancel = vi.fn(async () => { throw new Error("cancel failed"); });
+    const body = new ReadableStream<Uint8Array>({ start(c) { c.enqueue(new Uint8Array([1])); }, cancel });
+    const fetchImpl = vi.fn(async () => new Response(body, { status: 503 }));
+    await expect(fetchSourceObject(fetchImpl as never, ...args, 10)).rejects.toThrow(/returned HTTP 503/);
   });
 
   it("syncSupabaseToR2 refuses an http URL before the bucket listing runs", async () => {

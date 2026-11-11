@@ -110,11 +110,19 @@ export async function fetchSourceObject(
   });
   if (!res.ok) {
     // Release the socket now rather than leaving the unread body to garbage collection.
-    await res.body?.cancel();
+    await cancelBody(res.body);
     throw new Error(`Supabase download of ${filePath} returned HTTP ${res.status}`);
   }
   const etag = res.headers.get("etag") ?? undefined;
   return { bytes: await readBounded(res, filePath, maxBytes), etag };
+}
+
+/**
+ * Best-effort release of a body that will not be read. A failing cancel must not replace the error the caller is
+ * about to throw, so its rejection is ignored here.
+ */
+async function cancelBody(body: ReadableStream<Uint8Array> | null | undefined): Promise<void> {
+  await body?.cancel().catch(() => undefined);
 }
 
 /**
@@ -128,7 +136,7 @@ async function readBounded(res: Response, filePath: string, maxBytes: number): P
     throw new Error(`Supabase object ${filePath} has a non-numeric content-length`);
   }
   if (declared !== null && Number(declared) > maxBytes) {
-    await res.body?.cancel();
+    await cancelBody(res.body);
     throw new Error(`Supabase object ${filePath} declares ${declared} bytes, over the ${maxBytes}-byte cap`);
   }
   if (!res.body) {
@@ -147,7 +155,7 @@ async function readBounded(res: Response, filePath: string, maxBytes: number): P
       if (done) break;
       total += value.byteLength;
       if (total > maxBytes) {
-        await reader.cancel();
+        await reader.cancel().catch(() => undefined);
         throw new Error(`Supabase object ${filePath} exceeded the ${maxBytes}-byte cap while streaming`);
       }
       chunks.push(value);
