@@ -34,7 +34,7 @@ const row = (id: number) => ({ id, at: "2026-10-03T00:00:00Z", event: "MANUAL_RE
 beforeEach(() => {
   h.user = null; h.allowlist = []; h.range = [];
   h.result = { data: [], error: null };
-  vi.stubEnv("SUPABASE_URL", "http://supabase.test");
+  vi.stubEnv("SUPABASE_URL", "https://supabase.test");
   vi.stubEnv("SUPABASE_SECRET_KEY", "test");
 });
 

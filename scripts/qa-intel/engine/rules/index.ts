@@ -57,6 +57,7 @@ export { JsonbReadModifyWriteRule, UntrustedLogInterpolationRule, ConflictMarker
 export { SqlSecurityDefinerCallerKeyRule, SqlDropFunctionDefaultArgRule } from "./sql-migrations";
 export { HardcodedTierGrantRule, UntrustedTierFallbackRule, ServiceRoleAnonFallbackRule, RuntimeTierTrustRule } from "./security-lessons-20260924";
 export { AdvisoryLockIsolationGuardRule, IpHeaderSinkRule, LaunchPathIsolationLiteralRule } from "./security-lessons-20261010";
+export { CredentialSendBeforeGuardRule } from "./order-guard";
 export { SilentDefaultOnExternalResponseRule, ServerFetchWithoutTimeoutRule, ErrorPathAsymmetryRule, SuccessGuardedPersistenceRule } from "./reliability-lessons-20260924";
 export { UnconsumedStreamLeakRule, UnboundedBodyReadRule, NonIdempotentRetryRule, FailOpenUndefinedFilterRule } from "./artas-rules";
 export { StreamReaderWithoutFinallyRule, UnregisteredSettingsKeyRule } from "./lessons-20261009";

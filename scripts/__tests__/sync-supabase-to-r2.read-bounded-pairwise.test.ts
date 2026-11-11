@@ -39,22 +39,14 @@ const ROWS: Row[] = [
   { Declared: "n7", Encoding: "absent", Body: "none" },
 ];
 
-// Header text sent for each Declared value.
-const DECLARED_HEADER: Record<string, string | undefined> = {
-  absent: undefined,
-  n7: "7",
-  n10: "10",
-  n11: "11",
-  nonnumeric: "5x",
-};
-
-// Numeric size each Declared value stands for. nonnumeric has no size: it is refused before any length is compared.
-const DECLARED_BYTES: Record<string, number | undefined> = {
-  absent: undefined,
-  n7: 7,
-  n10: 10,
-  n11: 11,
-  nonnumeric: undefined,
+// Per Declared value: the Content-Length header text sent, and the byte count it stands for. nonnumeric has a header
+// but no size: it is refused before any length is compared.
+const DECLARED: Record<string, { header?: string; bytes?: number }> = {
+  absent: {},
+  n7: { header: "7", bytes: 7 },
+  n10: { header: "10", bytes: 10 },
+  n11: { header: "11", bytes: 11 },
+  nonnumeric: { header: "5x" },
 };
 
 type Expected = { ok: true; bytes: number } | { ok: false; error: string };
@@ -62,7 +54,7 @@ type Expected = { ok: true; bytes: number } | { ok: false; error: string };
 // Bytes the server actually sends for a non-null body. Shared by the oracle and the response builder, so an
 // expected error still gets a body of the right size.
 function deliveredBytes(row: Row): number {
-  const declared = DECLARED_BYTES[row.Declared];
+  const declared = DECLARED[row.Declared]?.bytes;
   if (row.Body === "empty") return 0;
   if (row.Body === "short") return declared !== undefined ? Math.max(declared - 1, 0) : 3;
   if (row.Body === "exact") return declared ?? 4;
@@ -73,7 +65,7 @@ function deliveredBytes(row: Row): number {
 // then the identity length match. A content-encoded body skips the length match.
 function expected(row: Row): Expected {
   if (row.Declared === "nonnumeric") return { ok: false, error: "non-numeric content-length" };
-  const declared = DECLARED_BYTES[row.Declared];
+  const declared = DECLARED[row.Declared]?.bytes;
   if (declared !== undefined && declared > CAP) {
     return { ok: false, error: `declares ${declared} bytes, over the ${CAP}-byte cap` };
   }
@@ -92,7 +84,7 @@ function expected(row: Row): Expected {
 
 function responseFor(row: Row): Response {
   const headers: Record<string, string> = {};
-  const declared = DECLARED_HEADER[row.Declared];
+  const declared = DECLARED[row.Declared]?.header;
   if (declared !== undefined) headers["content-length"] = declared;
   if (row.Encoding !== "absent") headers["content-encoding"] = row.Encoding;
   if (row.Body === "none") return new Response(null, { status: 200, headers });

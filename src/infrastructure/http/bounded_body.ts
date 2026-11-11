@@ -1,6 +1,7 @@
 /**
- * Bounded body reader for Supabase object downloads. Split out of sync-supabase-to-r2.ts to keep that file under
- * the 500-line complexity gate. Nothing here sends a request; it only reads a Response it was given.
+ * Bounded body reader for downloads from a service endpoint. It reads only the Response it is given and sends nothing.
+ * Lives in src/infrastructure so the operator scripts (scripts/sync-supabase-to-r2.ts) share one reader.
+ * Adoption by the webhook routes and the Firma adapter is deferred: both are sealed or have a different failure policy.
  */
 
 /**
@@ -12,22 +13,23 @@ export async function cancelBody(body: ReadableStream<Uint8Array> | null | undef
 }
 
 /**
- * Reads a response body with a hard byte cap. A declared Content-Length over the cap is refused before any
- * byte is read. Otherwise the stream is counted and cancelled as soon as it passes the cap, so memory is bounded
- * even when the server lies about its length. An identity-encoded body whose length differs from its declared length is refused.
+ * Reads a response body with a hard byte cap. A declared Content-Length over the cap is refused before any byte is
+ * read. Otherwise the stream is counted and cancelled as soon as it passes the cap, so memory stays bounded even when
+ * the server lies about its length. An identity-encoded body whose length differs from its declared length is refused.
  */
 export async function readBounded(res: Response, filePath: string, maxBytes: number): Promise<Buffer> {
   const declared = res.headers.get("content-length");
   if (declared !== null && !/^\d+$/.test(declared)) {
     throw new Error(`Supabase object ${filePath} has a non-numeric content-length`);
   }
-  if (declared !== null && Number(declared) > maxBytes) {
+  const declaredBytes = declared === null ? null : Number(declared);
+  if (declaredBytes !== null && declaredBytes > maxBytes) {
     await cancelBody(res.body);
     throw new Error(`Supabase object ${filePath} declares ${declared} bytes, over the ${maxBytes}-byte cap`);
   }
   if (!res.body) {
     // A declared non-empty length with no body is a truncated or broken response, not an empty object.
-    if (declared !== null && Number(declared) > 0) {
+    if (declaredBytes !== null && declaredBytes > 0) {
       throw new Error(`Supabase object ${filePath} declared ${declared} bytes but returned no body`);
     }
     return Buffer.alloc(0);
@@ -47,14 +49,14 @@ export async function readBounded(res: Response, filePath: string, maxBytes: num
       chunks.push(value);
     }
   } finally {
-    // Always release the lock so an error or early return never leaves the stream locked and the connection open.
+    // Always release the lock so an error or early return never leaves the stream locked.
     reader.releaseLock();
   }
   // Identity-encoded bodies must match the declared length. A content-encoded body (gzip, br, ...) declares its
   // compressed size, so the comparison would be wrong there and is skipped.
   const encoding = res.headers.get("content-encoding");
-  if (declared !== null && (encoding ?? "identity").toLowerCase() === "identity" && total !== Number(declared)) {
+  if (declaredBytes !== null && (encoding ?? "identity").toLowerCase() === "identity" && total !== declaredBytes) {
     throw new Error(`Supabase object ${filePath} declared ${declared} bytes but delivered ${total}`);
   }
-  return Buffer.concat(chunks, total);
+  return Buffer.concat(chunks);
 }

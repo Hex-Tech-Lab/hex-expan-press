@@ -39,7 +39,7 @@ beforeEach(() => {
   h.inserts = [];
   h.signals = [];
   h.insert = async (row) => { h.inserts.push(row); return { error: null }; };
-  vi.stubEnv("SUPABASE_URL", "http://supabase.test");
+  vi.stubEnv("SUPABASE_URL", "https://supabase.test");
   vi.stubEnv("SUPABASE_SECRET_KEY", "test");
 });
 

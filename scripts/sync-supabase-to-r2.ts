@@ -2,10 +2,11 @@ import dotenv from "dotenv";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { putR2ObjectIf, statR2Object, type StatR2ObjectResult } from "../src/adapters/storage/r2.adapter";
 import { GLOBAL } from "../payments/src/settings_registry.ts";
-import { cancelBody, readBounded } from "./sync-body-reader";
+import { assertSecureSupabaseUrl, createServiceClient } from "../payments/src/supabase_admin";
+import { putR2ObjectIf, statR2Object, type StatR2ObjectResult } from "../src/adapters/storage/r2.adapter";
+import { cancelBody, readBounded } from "../src/infrastructure/http/bounded_body";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 export interface SyncOptions {
   supabaseUrl?: string;
@@ -71,20 +72,6 @@ export function parsePrefixArg(argv: string[] = process.argv): string | undefine
     }
   }
   return undefined;
-}
-export const parsePrefix = parsePrefixArg;
-export const parseCliPrefix = parsePrefixArg;
-
-/**
- * Refuses any Supabase URL that is not https; loopback http (localhost, 127.0.0.1, [::1]) is allowed for local development. The service key is a
- * Bearer credential, so this must run before any request that carries it, including the bucket listing.
- */
-export function assertSecureSupabaseUrl(supabaseUrl: string): void {
-  const parsed = new URL(supabaseUrl);
-  const loopback = parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1" || parsed.hostname === "[::1]";
-  if (parsed.protocol !== "https:" && !(parsed.protocol === "http:" && loopback)) {
-    throw new Error(`SUPABASE_URL must be https (got ${parsed.protocol}//${parsed.hostname}); the service key is sent as a Bearer token`);
-  }
 }
 
 /**
@@ -243,9 +230,7 @@ export async function syncSupabaseToR2(options: SyncOptions = {}): Promise<SyncR
 
   const supabase =
     options.supabaseClient ||
-    createClient(supabaseUrl, supabaseKey, {
-      auth: { persistSession: false },
-    });
+    (await createServiceClient(supabaseUrl, supabaseKey, { auth: { persistSession: false } }));
 
   logger.log(`\n======================================================`);
   logger.log(`🚀 Supabase Storage -> Cloudflare R2 Synchronization`);
