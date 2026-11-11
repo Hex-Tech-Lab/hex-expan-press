@@ -1,0 +1,33 @@
+scripts/__tests__/sync-supabase-to-r2.read-bounded-pairwise.test.ts
+  s_49604354897cc0::t_a9a0b84df0d4f7 52-61
+  s_49604354897cc0::t_304c384c066eba 74
+  s_49604354897cc0::t_8e467de414947e 1-51,62-73,75-88,90-117
+  s_49604354897cc0::t_126bc82e6617cc 89
+scripts/__tests__/fixtures/read-bounded.pict
+  s_49604354897cc0::t_52d613bf1f2bcd 1-5
+scripts/sync-supabase-to-r2.ts
+  s_49604354897cc0::t_1e4e50b0ce1706 158
+  s_49604354897cc0::t_0bd49fac9594ed 113,120-125
+  s_49604354897cc0::t_063e8deb0f5416 139
+  s_49604354897cc0::t_801187dac02a77 126-127
+scripts/__tests__/sync-supabase-to-r2.bounded.test.ts
+  s_49604354897cc0::t_00f30fab23c5a5 111-113
+  s_49604354897cc0::t_c61fcc57ea1775 107-110,114-122
+  s_49604354897cc0::t_488c5b8d925517 84-86,88-106,123-127
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2f2e8390faff29b6d6ad93c35e722fba2c844829",
+  "prompts": {},
+  "sessions": {
+    "s_49604354897cc0": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "b1265e7f-9d1a-4d08-82c0-e1018d674786",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
