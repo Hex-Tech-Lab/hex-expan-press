@@ -71,6 +71,10 @@ export function resetSyncTestEnv(): void {
   delete process.env.CLOUDFLARE_R2_SECRET_ACCESS_KEY;
   delete process.env.CLOUDFLARE_R2_BUCKET;
   delete process.env.CLOUDFLARE_R2_BUCKET_NAME;
+  // Host-only vars the source reads: clear them so the suite never depends on the developer's shell.
+  delete process.env.SUPABASE_STORAGE_BUCKET;
+  delete process.env.R2_ENDPOINT;
+  delete process.env.R2_REGION;
   for (const [k, v] of Object.entries(dummyR2Env)) {
     vi.stubEnv(k, v);
   }
