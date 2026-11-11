@@ -1,0 +1,32 @@
+supabase/migrations/20261111090604_revert_product_slug_platform_unique.sql
+  s_8a889b1c81b73d::t_aec65c0ad22847 6
+supabase/migrations/20261111094835_handle_available_strict.sql
+  s_8a889b1c81b73d::t_1ba8cf763f65f6 2
+web/app/api/handle-availability/__tests__/route.test.ts
+  s_8a889b1c81b73d::t_f41e68b395dbd9 67
+  s_8a889b1c81b73d::t_1518d401dc71fe 26,28
+  s_8a889b1c81b73d::t_6e6bc60ea87c32 158-159,164-197
+  s_8a889b1c81b73d::t_c1549bd4f062c6 68-71
+  s_8a889b1c81b73d::t_aae64aa0b1058e 198-199
+web/src/lib/__tests__/handle_rule.test.ts
+  s_8a889b1c81b73d::t_a2f00c9cacf354 1
+  s_8a889b1c81b73d::t_dae9ad8892febe 29-32,34-41
+web/src/lib/__tests__/handle_ratelimit.timeout.test.ts
+  s_8a889b1c81b73d::t_986b000089493f 72
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "dc913efabacad6a6f242ea73b049dc768cc5a44b",
+  "prompts": {},
+  "sessions": {
+    "s_8a889b1c81b73d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "8bfde08b-57a1-41f1-9ef1-ab1e90d8067d",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
