@@ -1,0 +1,24 @@
+scripts/__tests__/import-time-dotenv.test.ts
+  s_cca22ab4c018aa::t_953c010849136c 37
+  s_cca22ab4c018aa::t_dd018701e0bf97 1-36,38-67
+scripts/sync-supabase-to-r2.ts
+  s_cca22ab4c018aa::t_b09e7021e1e77e 410-411
+scripts/lint/import-time-dotenv.ts
+  s_cca22ab4c018aa::t_f34ce79c10bc2b 1-50
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5ee9f4c2bf23256796777227a0786d8e49a1be48",
+  "prompts": {},
+  "sessions": {
+    "s_cca22ab4c018aa": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6c443dec-743c-4659-936e-3e1442e46dd1",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
