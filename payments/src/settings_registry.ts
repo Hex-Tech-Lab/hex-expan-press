@@ -82,7 +82,7 @@ export interface GlobalSettings {
   /** Buyer-facing storefront links. `b2c_landing_url` is the logo target on the thank-you page. */
   storefront: { b2c_landing_url: string };
   /** Creator handle policy (web/src/lib/handle-policy.ts). Set once at account creation; immutable after. */
-  handles: { min_length: number; max_length: number; reserved: string[] };
+  handles: { min_length: number; max_length: number; reserved: string[]; profanity_whitelist: string[] };
   landing: { fallbacks: { title: string; creator: string }; disclaimers: string[] };
   /** Admin API allowlist + pagination (admin audit-log route). */
   admin: {
@@ -148,6 +148,10 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     reserved: [
       "admin", "root", "support", "expanpress", "api", "books", "creator", "creators", "login", "signin",
       "signup", "thanks", "help", "legal", "privacy", "terms", "www", "official", "staff", "system",
+    ],
+    // Ordinary words that contain a blacklisted substring. Merged with the obscenity preset's own whitelist.
+    profanity_whitelist: [
+      "classic", "assess", "assessment", "assist", "assistant", "assume", "bass", "class", "glass", "grass", "pass", "passage",
     ],
   },
   landing: {
