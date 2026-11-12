@@ -1,0 +1,65 @@
+scripts/ops/verify-db-backup.sh
+  s_cca22ab4c018aa::t_e69042c7b67acd 31
+  s_cca22ab4c018aa::t_840e47da7a9338 30
+  s_cca22ab4c018aa::t_507500d2d111d3 80-82
+  s_cca22ab4c018aa::t_e2c1ae003078ed 72
+  s_cca22ab4c018aa::t_b5628f251efe29 1,4,7-8,12-23,28-29,33-34,36,39-51,53-61,64-68,70,74-78,83,88-92,95-102,104,106
+  s_cca22ab4c018aa::t_4ef4ea0f7aa63b 35,37-38
+  s_cca22ab4c018aa::t_b8556887dae409 84-87,93-94
+  s_cca22ab4c018aa::t_c30e14b54b9877 62-63
+  s_cca22ab4c018aa::t_0a4d72209e7b49 2-3,5-6,9-11,24-27,32,52,69,71,73,79,103,105
+scripts/ops/nightly-db-backup.sh
+  s_cca22ab4c018aa::t_c693461f535623 31
+  s_cca22ab4c018aa::t_ba62d0b94ae956 32
+  s_cca22ab4c018aa::t_830004bc1fe40f 4-5,8-11,20-22,33-34,42,45,49,55-58
+  s_cca22ab4c018aa::t_6da8531980c197 43
+  s_cca22ab4c018aa::t_7a53bf7be6742e 61
+  s_cca22ab4c018aa::t_6320c4a0c46518 51-53
+  s_cca22ab4c018aa::t_5637a1f7ccfb66 50
+web/src/lib/__tests__/handle-policy.test.ts
+  s_cca22ab4c018aa::t_f54d32bd89a8a3 4-7,10-14,18,22-23,32,41-42
+  s_cca22ab4c018aa::t_af215fc1e02025 15
+web/src/lib/handle-policy.ts
+  s_cca22ab4c018aa::t_9f4995d6200db7 1-3,10,25,31
+  s_cca22ab4c018aa::t_25c39ecfd1b5bf 32-33
+  s_cca22ab4c018aa::t_67efd18b9739ae 11,13,17
+supabase/test-data/test_replica_creator.sql
+  s_cca22ab4c018aa::t_d1b28284a5f404 10-11
+  s_cca22ab4c018aa::t_30dce3d914e8bf 16
+  s_cca22ab4c018aa::t_77ccc275d1e61e 42-43
+  s_cca22ab4c018aa::t_67efb2c8e30532 50
+  s_cca22ab4c018aa::t_5f58539bb75e90 2-4,6-9,12-15,17-27,29-32,34,36,39-41,45-49,53-55,57-58
+  s_cca22ab4c018aa::t_2cc240c39d730d 56
+  s_cca22ab4c018aa::t_305707dead8c22 38
+  s_cca22ab4c018aa::t_2934477db477ff 44
+  s_cca22ab4c018aa::t_25ed367c7385b3 1
+  s_cca22ab4c018aa::t_4237b9dfcc7c71 5
+  s_cca22ab4c018aa::t_0b6c243ee2c802 33
+  s_cca22ab4c018aa::t_6032b96f39cbdb 35
+  s_cca22ab4c018aa::t_fe5c7f64d887e6 37
+  s_cca22ab4c018aa::t_7deef1a671819d 28,51-52
+scripts/ops/backup-common.sh
+  s_cca22ab4c018aa::t_39e9f2953930c2 1-8,10,12-27,45-65
+  s_cca22ab4c018aa::t_f70a321fd13a05 9
+  s_cca22ab4c018aa::t_1839bf0394362d 28-44
+  s_cca22ab4c018aa::t_625f599c69f76e 11
+payments/src/settings_registry.ts
+  s_cca22ab4c018aa::t_345b1d215fd380 152-155
+  s_cca22ab4c018aa::t_d18eefbede1aa8 85
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "64298e1d89a4303ef9708cd0c258c2bc3e6cfe41",
+  "prompts": {},
+  "sessions": {
+    "s_cca22ab4c018aa": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6c443dec-743c-4659-936e-3e1442e46dd1",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
