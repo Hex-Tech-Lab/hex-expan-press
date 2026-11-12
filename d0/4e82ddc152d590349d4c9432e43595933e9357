@@ -1,0 +1,19 @@
+supabase/migrations/20261112151200_revoke_handle_available_anon.sql
+  s_cca22ab4c018aa::t_d7e0a3e23cb6d2 1-6
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d04e82ddc152d590349d4c9432e43595933e9357",
+  "prompts": {},
+  "sessions": {
+    "s_cca22ab4c018aa": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6c443dec-743c-4659-936e-3e1442e46dd1",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
