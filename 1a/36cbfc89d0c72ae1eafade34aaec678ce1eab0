@@ -1,0 +1,21 @@
+scripts/ops/nightly-db-backup.sh
+  s_cca22ab4c018aa::t_5f74c90cbb4b94 25-27
+  s_cca22ab4c018aa::t_6d2ae29f642b94 1-24,28-48,50-63
+  s_cca22ab4c018aa::t_b04928b3c99712 49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1a36cbfc89d0c72ae1eafade34aaec678ce1eab0",
+  "prompts": {},
+  "sessions": {
+    "s_cca22ab4c018aa": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6c443dec-743c-4659-936e-3e1442e46dd1",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
