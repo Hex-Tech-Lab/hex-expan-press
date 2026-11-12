@@ -73,7 +73,16 @@ export interface GlobalSettings {
     /** Retry-After seconds sent on 503 webhook responses (in-flight AND generic 503 paths). */
     retry_after_seconds: number;
     paddle: { api_base: { production: string; sandbox: string }; js_cdn_url: string };
+    /** Creem TEST mode is accepted only when this is true AND SUPABASE_URL contains creem_test_database_ref.
+     *  Production has no global.json, so this stays false there. Test-only; see creem.adapter.ts. */
+    creem_accept_test_mode: boolean;
+    /** Project ref of the separate test database (branch) that test-mode Creem events may write to. Empty = refuse. */
+    creem_test_database_ref: string;
   };
+  /** Buyer-facing storefront links. `b2c_landing_url` is the logo target on the thank-you page. */
+  storefront: { b2c_landing_url: string };
+  /** Creator handle policy (web/src/lib/handle-policy.ts). Set once at account creation; immutable after. */
+  handles: { min_length: number; max_length: number; reserved: string[] };
   landing: { fallbacks: { title: string; creator: string }; disclaimers: string[] };
   /** Admin API allowlist + pagination (admin audit-log route). */
   admin: {
@@ -123,10 +132,23 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     sync_http_timeout_ms: 30000,
     review_queue_page_size: 200,
     retry_after_seconds: 30,
+    creem_accept_test_mode: false,
+    creem_test_database_ref: "",
     paddle: {
       api_base: { production: "https://api.paddle.com", sandbox: "https://sandbox-api.paddle.com" },
       js_cdn_url: "https://cdn.paddle.com/paddle/v2/paddle.js",
     },
+  },
+  // Logo target on the thank-you page. "/" until the B2C landing ships; then set its path here (no code change).
+  storefront: { b2c_landing_url: "/" },
+  // Our handle rules, not a platform's (Instagram allows 1-30, Facebook requires 5). Reserved words are never assignable.
+  handles: {
+    min_length: 3,
+    max_length: 30,
+    reserved: [
+      "admin", "root", "support", "expanpress", "api", "books", "creator", "creators", "login", "signin",
+      "signup", "thanks", "help", "legal", "privacy", "terms", "www", "official", "staff", "system",
+    ],
   },
   landing: {
     fallbacks: { title: "Product", creator: "the creator" },
@@ -279,6 +301,8 @@ export function loadPaymentsSection(raw: Record<string, unknown> | undefined): G
     review_queue_page_size: reviewQueuePageSize,
     retry_after_seconds: retryAfterSeconds,
     paddle: { api_base: { production: apiProduction, sandbox: apiSandbox }, js_cdn_url: jsCdn },
+    creem_accept_test_mode: p.creem_accept_test_mode === true,
+    creem_test_database_ref: typeof p.creem_test_database_ref === "string" ? p.creem_test_database_ref.trim() : "",
   };
 }
 
@@ -300,6 +324,8 @@ function loadGlobal(): GlobalSettings {
     defaults: { ...DEFAULT_GLOBAL.defaults, ...(g.defaults ?? {}) },
     payments: loadPaymentsSection(g.payments as Record<string, unknown> | undefined),
     landing: { ...DEFAULT_GLOBAL.landing, ...(g.landing ?? {}) },
+    storefront: { ...DEFAULT_GLOBAL.storefront, ...(g.storefront ?? {}) },
+    handles: { ...DEFAULT_GLOBAL.handles, ...(g.handles ?? {}) },
     email: loadEmailSection(g.email as Record<string, unknown> | undefined),
     portal: { ...DEFAULT_GLOBAL.portal, ...(g.portal ?? {}) },
     admin: loadAdminSection(g.admin as Record<string, unknown> | undefined),
