@@ -95,6 +95,12 @@ async function fetchSourceObject(
   if (!res.ok) {
     throw new Error(`Supabase download of ${filePath} returned HTTP ${res.status}`);
   }
+  // Cap before buffering: refuse an object with no Content-Length or one above sync_max_object_bytes.
+  const lengthHeader = res.headers.get("content-length");
+  const declared = lengthHeader !== null && /^\d+$/.test(lengthHeader) ? Number(lengthHeader) : NaN;
+  if (!Number.isSafeInteger(declared) || declared < 0 || declared > GLOBAL.payments.sync_max_object_bytes) {
+    throw new Error(`Supabase object ${filePath} has no usable Content-Length or exceeds sync_max_object_bytes`);
+  }
   const etag = res.headers.get("etag") ?? undefined;
   return { bytes: Buffer.from(await res.arrayBuffer()), etag };
 }

@@ -2,6 +2,7 @@ import type { RuleRegistrar } from "../domain/Rule";
 import { Node, SyntaxKind } from "ts-morph";
 import type { CatchClause, SourceFile } from "ts-morph";
 import type { Finding, IRule } from "../engine";
+import { ImportSideEffectsRule } from "./import-side-effects";
 
 export const AsyncWithoutAwaitRule: IRule = {
   name: "async-without-await-detector",
@@ -492,6 +493,7 @@ export function registerQualityRules(engine: unknown) {
   e.addRule(VariableNamingRule);
   e.addRule(TimeoutCleanupRule);
   e.addRule(ImportOrderingRule);
+  e.addRule(ImportSideEffectsRule);
   e.addRule(ErrorObservabilityRule);
   e.addRule(ErrorNormalizationRule);
   e.addRule(NumberCoercionGuardRule);

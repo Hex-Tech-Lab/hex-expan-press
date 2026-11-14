@@ -18,8 +18,8 @@ type Row = Record<string, string>;
 function parseDomains(text: string): Record<string, string[]> {
   const domains: Record<string, string[]> = {};
   for (const line of text.split(/\r?\n/)) {
-    const m = /^([a-z_]+):\s*(.+)$/.exec(line.trim());
-    if (m) domains[m[1]] = m[2].split(",").map((v) => v.trim());
+    const match = /^([a-z_]+):\s*(.+)$/.exec(line.trim());
+    if (match) domains[match[1]] = match[2].split(",").map((v) => v.trim());
   }
   return domains;
 }
@@ -46,14 +46,14 @@ function runPict(): Row[] {
   }
   return lines.map((line) => {
     const cells = line.split("\t");
-    return Object.fromEntries(names.map((n, i) => [n, cells[i]]));
+    return Object.fromEntries(names.map((name, i) => [name, cells[i]]));
   });
 }
 
 /** Camel mode upper-cases the first letter of each segment. checkHandle lowercases, so the result must not change. */
-function applyCase(s: string, mode: string): string {
-  if (mode === "lower") return s;
-  return s
+function applyCase(word: string, mode: string): string {
+  if (mode === "lower") return word;
+  return word
     .split(HANDLE_SEPARATOR)
     .map((seg) => seg.charAt(0).toUpperCase() + seg.slice(1))
     .join(HANDLE_SEPARATOR);
@@ -63,7 +63,8 @@ function applyCase(s: string, mode: string): string {
 function buildHandle(row: Row): string {
   if (row.reserved === "yes") return applyCase(RESERVED_WORD, row.case);
   const length = LENGTH_BY_BAND[row.length_band];
-  const seps = row.separator_position === "none" ? 0 : Number(row.separator_count);
+  if (!/^\d+$/.test(row.separator_count)) throw new Error(`non-integer separator_count: ${row.separator_count}`);
+  const seps = row.separator_position === "none" ? 0 : Number.parseInt(row.separator_count, 10);
   const letterCount = length - seps;
   const letters = Array.from({ length: letterCount }, () => "a");
   letters[0] = row.first_char;
@@ -105,13 +106,13 @@ function expectedOk(row: Row): boolean {
 }
 
 /** Pairs ruled out by the model's constraint (position "none" with a separator count above 0). */
-function isInfeasiblePair(p: string, vp: string, q: string, vq: string): boolean {
-  const pair = { [p]: vp, [q]: vq };
+function isInfeasiblePair(paramA: string, vp: string, paramB: string, vq: string): boolean {
+  const pair = { [paramA]: vp, [paramB]: vq };
   return pair.separator_position === "none" && pair.separator_count !== undefined && pair.separator_count !== "0";
 }
 
 function describeRow(row: Row): string {
-  return PARAMS.map((p) => `${p}=${row[p]}`).join(" ");
+  return PARAMS.map((paramA) => `${paramA}=${row[paramA]}`).join(" ");
 }
 
 const pictMissing = !existsSync(PICT_BIN);
@@ -151,12 +152,12 @@ describe.skipIf(pictMissing)("creator handle policy: PICT pairwise", () => {
     const missing: string[] = [];
     for (let i = 0; i < PARAMS.length; i++) {
       for (let j = i + 1; j < PARAMS.length; j++) {
-        const p = PARAMS[i];
-        const q = PARAMS[j];
-        for (const vp of DOMAINS[p]) {
-          for (const vq of DOMAINS[q]) {
-            if (isInfeasiblePair(p, vp, q, vq)) continue;
-            if (!rows.some((r) => r[p] === vp && r[q] === vq)) missing.push(`${p}=${vp} & ${q}=${vq}`);
+        const paramA = PARAMS[i];
+        const paramB = PARAMS[j];
+        for (const vp of DOMAINS[paramA]) {
+          for (const vq of DOMAINS[paramB]) {
+            if (isInfeasiblePair(paramA, vp, paramB, vq)) continue;
+            if (!rows.some((r) => r[paramA] === vp && r[paramB] === vq)) missing.push(`${paramA}=${vp} & ${paramB}=${vq}`);
           }
         }
       }

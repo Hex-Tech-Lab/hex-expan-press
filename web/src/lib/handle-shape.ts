@@ -8,7 +8,7 @@ export const HANDLE_MIN = GLOBAL.handles.min_length;
 export const HANDLE_MAX = GLOBAL.handles.max_length;
 export const HANDLE_SEPARATOR = GLOBAL.handles.separator;
 
-const escapeRegExp = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const escapeRegExp = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const SEGMENT = "[a-z0-9]+";
 const SEP = escapeRegExp(HANDLE_SEPARATOR);
 

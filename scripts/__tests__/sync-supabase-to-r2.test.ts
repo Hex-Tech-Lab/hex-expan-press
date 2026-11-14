@@ -4,6 +4,7 @@ import {
   syncSupabaseToR2,
   parsePrefixArg,
 } from "../sync-supabase-to-r2";
+import { GLOBAL } from "../../payments/src/settings_registry";
 
 interface HarnessOptions {
   files?: Array<{ name: string; id?: string | null; metadata?: Record<string, unknown> }>;
@@ -11,15 +12,17 @@ interface HarnessOptions {
   downloadBlob?: Blob | null;
   /** ETag served with those bytes. Defaults to the listed ETag "src-v1". */
   sourceEtag?: string;
+  /** Content-Length served with the bytes. Default: the blob's real size. null omits the header. */
+  contentLength?: string | null;
   fetchImpl?: typeof fetch;
 }
 
 function makeSyncTestHarness(opts: HarnessOptions = {}) {
   const logs: string[] = [];
   const testLogger = {
-    log: (m: string) => logs.push(m),
-    warn: (m: string) => logs.push(m),
-    error: (m: string) => logs.push(m),
+    log: (message: string) => logs.push(message),
+    warn: (message: string) => logs.push(message),
+    error: (message: string) => logs.push(message),
   };
 
   const listMock = vi.fn().mockResolvedValue({
@@ -28,12 +31,12 @@ function makeSyncTestHarness(opts: HarnessOptions = {}) {
   });
 
   // The Supabase object GET: bytes and ETag come from one response, as in production.
-  const sourceFetch = vi.fn(async (_url: string) =>
-    new Response(opts.downloadBlob ?? null, {
-      status: 200,
-      headers: { etag: opts.sourceEtag ?? '"src-v1"' },
-    }),
-  );
+  const sourceFetch = vi.fn(async (_url: string) => {
+    const declared = opts.contentLength === undefined ? String(opts.downloadBlob?.size ?? 0) : opts.contentLength;
+    const headers: Record<string, string> = { etag: opts.sourceEtag ?? '"src-v1"' };
+    if (declared !== null) headers["content-length"] = declared;
+    return new Response(opts.downloadBlob ?? null, { status: 200, headers });
+  });
 
   const fakeClient = {
     storage: {
@@ -332,6 +335,38 @@ describe("sync-supabase-to-r2", () => {
       ]);
     });
 
+    it("refuses an object with no Content-Length before buffering it", async () => {
+      const fetchImpl = vi.fn().mockResolvedValueOnce(r2Head(404));
+      const harness = makeSyncTestHarness({
+        files: [syncFile("book.pdf")],
+        downloadBlob: new Blob(["bytes"]),
+        contentLength: null,
+        fetchImpl: fetchImpl as never,
+      });
+
+      const result = await runSync(harness);
+
+      expect(result).toMatchObject({ uploaded: 0, failed: 1 });
+      expect(result.errors[0]?.error).toContain("no usable Content-Length");
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
+    });
+
+    it("refuses an object above sync_max_object_bytes, reading the limit from the registry", async () => {
+      const fetchImpl = vi.fn().mockResolvedValueOnce(r2Head(404));
+      const harness = makeSyncTestHarness({
+        files: [syncFile("book.pdf")],
+        downloadBlob: new Blob(["bytes"]),
+        contentLength: String(GLOBAL.payments.sync_max_object_bytes + 1),
+        fetchImpl: fetchImpl as never,
+      });
+
+      const result = await runSync(harness);
+
+      expect(result).toMatchObject({ uploaded: 0, failed: 1 });
+      expect(result.errors[0]?.error).toContain("exceeds sync_max_object_bytes");
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
+    });
+
     it("refuses to write bytes when the download carries no ETag", async () => {
       const fetchImpl = vi.fn().mockResolvedValueOnce(r2Head(404));
       const harness = makeSyncTestHarness({
@@ -591,7 +626,7 @@ describe("sync-supabase-to-r2", () => {
       });
       harness.sourceFetch.mockImplementation(async (url: string) => {
         if (url.endsWith("/bad.pdf")) throw new Error("socket reset");
-        return new Response(new Blob(["bytes"]), { status: 200, headers: { etag: SRC_ETAG } });
+        return new Response(new Blob(["bytes"]), { status: 200, headers: { etag: SRC_ETAG, "content-length": "5" } });
       });
 
       const result = await runSync(harness);
