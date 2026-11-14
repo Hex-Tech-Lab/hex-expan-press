@@ -1,0 +1,61 @@
+payments/src/settings_registry.ts
+  s_29893055f88353::t_888bc05b120142 77-80,135-151,324-325
+pnpm-lock.yaml
+  s_29893055f88353::t_2eeecf591a9988 200-202,4352-4355,9153-9154
+scripts/__tests__/import-time-dotenv.test.ts
+  s_29893055f88353::t_07fe6012265520 1-67
+scripts/lint/import-time-dotenv.ts
+  s_29893055f88353::t_3bed8fd5c2efc7 1-50
+scripts/ops/backup-common.sh
+  s_29893055f88353::t_2d38c13bcfefc2 1-65
+scripts/ops/nightly-db-backup.sh
+  s_29893055f88353::t_f871e3fb8c4098 1-63
+scripts/ops/verify-db-backup.sh
+  s_29893055f88353::t_921a78bf885f3f 1-106
+scripts/qa-intel/engine/__tests__/import-side-effects.test.ts
+  s_29893055f88353::t_383b9c32b5d5cb 1-76
+scripts/qa-intel/engine/rules/import-side-effects.ts
+  s_29893055f88353::t_63885e09a7ddfc 1-59
+scripts/qa-intel/engine/rules/index.ts
+  s_29893055f88353::t_561cde2dcb4601 54
+scripts/sync-supabase-to-r2.ts
+  s_29893055f88353::t_b954369c0f7616 410-411
+supabase/migrations/20261112151200_revoke_handle_available_anon.sql
+  s_29893055f88353::t_226592084a693a 1-6
+supabase/migrations/20261113000000_handle_shape.sql
+  s_29893055f88353::t_b8e95362665938 1-7
+supabase/test-data/test_replica_creator.sql
+  s_29893055f88353::t_ead2680a171a95 1-58
+web/package.json
+  s_29893055f88353::t_f410a447d3b1cc 29
+web/src/components/storefront/storefront.tsx
+  s_29893055f88353::t_b8896579fcaaec 93,120
+web/src/lib/__tests__/handle-policy.test.ts
+  s_29893055f88353::t_b8814ef0ed7447 1-52
+web/src/lib/__tests__/handle-shape.test.ts
+  s_29893055f88353::t_a4a68a5d2dab7e 1-25
+web/src/lib/__tests__/handle_pairwise.model.txt
+  s_29893055f88353::t_4fd3231551e6bd 1-16
+web/src/lib/__tests__/handle_pairwise.test.ts
+  s_29893055f88353::t_0e55c11349d5f2 1-177
+web/src/lib/handle-policy.ts
+  s_29893055f88353::t_4103428fc9f95c 1-32
+web/src/lib/handle-shape.ts
+  s_29893055f88353::t_7fe2dec89d00f7 1-16
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c2124887f2e859946b1d1e04b7b80de1eb1490c1",
+  "prompts": {},
+  "sessions": {
+    "s_29893055f88353": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1c444932-1da1-4ad5-9e8b-395eb468f52a",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
