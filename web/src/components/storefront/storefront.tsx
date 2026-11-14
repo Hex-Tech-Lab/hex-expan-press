@@ -54,8 +54,6 @@ export interface HubCreator {
   products: StoreProduct[];
 }
 
-/** The DB-valid handle charset (creators.handle CHECK, portal migration). */
-export const CREATOR_HANDLE_RE = /^[a-z0-9_-]{2,64}$/;
 /** The DB-valid slug charset (products.slug CHECK, portal migration). */
 export const PRODUCT_SLUG_RE = /^[a-z0-9-]{2,80}$/;
 
@@ -92,7 +90,7 @@ async function fetchSiteOrigin(supabase: NonNullable<Awaited<ReturnType<typeof g
 
 // cache(): generateMetadata and the page share one query set per request.
 export const fetchCreatorHub = cache(async function fetchCreatorHub(handle: string): Promise<{ creator: HubCreator; origin: string } | null> {
-  if (!CREATOR_HANDLE_RE.test(handle)) return null;
+  if (!handle) return null;
   const supabase = await getSupabaseAdmin();
   if (!supabase) {
     throw new Error("storefront: Supabase admin client unavailable — hub cannot render (fail closed)");
@@ -119,7 +117,7 @@ export const fetchStoreProduct = cache(async function fetchStoreProduct(
   handle: string,
   productSlug: string,
 ): Promise<{ creator: HubCreator; product: StoreProduct; origin: string } | null> {
-  if (!CREATOR_HANDLE_RE.test(handle) || !PRODUCT_SLUG_RE.test(productSlug)) return null;
+  if (!handle || !PRODUCT_SLUG_RE.test(productSlug)) return null;
   const supabase = await getSupabaseAdmin();
   if (!supabase) {
     throw new Error("storefront: Supabase admin client unavailable — product page cannot render (fail closed)");

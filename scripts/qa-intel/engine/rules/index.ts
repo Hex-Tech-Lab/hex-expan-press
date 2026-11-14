@@ -51,6 +51,7 @@ export { StreamResilienceRule, BundleContradictionRule, TranscriptGuardRule, Str
 export { PersistResilienceRule, PersistAbortScopeRule, RetryFlagInterferenceRule, QuorumTimeoutCompletionRule, StaleStateResetRule } from "./persistence";
 export { InpAlertBlockerRule, CanvasHoverReRenderRule, OverlayCloseCascadeRule, ValidationOnChangeRule, UnhandledClipboardPromiseRule, StartTransitionWrappingRule, ToastAccessibilityRule, SwallowedErrorRule, SyncImportBeforeRedirectRule, CanvasStaleDataRule, ZustandWholeStoreInEffectDepsRule } from "./ui";
 export { AsyncWithoutAwaitRule, DeadCodeRule, VariableNamingRule, TimeoutCleanupRule, ImportOrderingRule, ErrorObservabilityRule, ErrorNormalizationRule, NumberCoercionGuardRule, UnregisteredRuleExportRule } from "./quality";
+export { ImportSideEffectsRule } from "./import-side-effects";
 export { DatabaseConstraintRule, DefaultValueConsistencyRule, TruncationValidationRule } from "./data-integrity";
 export { SecurityFixWithoutTestRule, NonNullAfterArraySortFilterRule } from "./security-lessons-20260905";
 export { JsonbReadModifyWriteRule, UntrustedLogInterpolationRule, ConflictMarkerRule } from "./data-lessons-20260924";

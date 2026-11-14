@@ -74,6 +74,10 @@ export interface GlobalSettings {
     retry_after_seconds: number;
     paddle: { api_base: { production: string; sandbox: string }; js_cdn_url: string };
   };
+  /** Buyer-facing storefront links. `b2c_landing_url` is the logo target on the thank-you page. */
+  storefront: { b2c_landing_url: string };
+  /** Creator handle policy (web/src/lib/handle-policy.ts). Set once at account creation; immutable after. */
+  handles: { min_length: number; max_length: number; separator: string; reserved: string[]; profanity_whitelist: string[] };
   landing: { fallbacks: { title: string; creator: string }; disclaimers: string[] };
   /** Admin API allowlist + pagination (admin audit-log route). */
   admin: {
@@ -127,6 +131,23 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
       api_base: { production: "https://api.paddle.com", sandbox: "https://sandbox-api.paddle.com" },
       js_cdn_url: "https://cdn.paddle.com/paddle/v2/paddle.js",
     },
+  },
+  // Logo target on the thank-you page. "/" until the B2C landing ships; then set its path here (no code change).
+  storefront: { b2c_landing_url: "/" },
+  // Our handle rules, not a platform's (Instagram allows 1-30, Facebook requires 5). Reserved words are never assignable.
+  handles: {
+    min_length: 3,
+    max_length: 30,
+    // The only separator. Letters and digits between single separators; no leading, trailing or doubled separator.
+    separator: "_",
+    reserved: [
+      "admin", "root", "support", "expanpress", "api", "books", "creator", "creators", "login", "signin",
+      "signup", "thanks", "help", "legal", "privacy", "terms", "www", "official", "staff", "system",
+    ],
+    // Ordinary words that contain a blacklisted substring. Merged with the obscenity preset's own whitelist.
+    profanity_whitelist: [
+      "classic", "assess", "assessment", "assist", "assistant", "assume", "bass", "class", "glass", "grass", "pass", "passage",
+    ],
   },
   landing: {
     fallbacks: { title: "Product", creator: "the creator" },
@@ -300,6 +321,8 @@ function loadGlobal(): GlobalSettings {
     defaults: { ...DEFAULT_GLOBAL.defaults, ...(g.defaults ?? {}) },
     payments: loadPaymentsSection(g.payments as Record<string, unknown> | undefined),
     landing: { ...DEFAULT_GLOBAL.landing, ...(g.landing ?? {}) },
+    storefront: { ...DEFAULT_GLOBAL.storefront, ...(g.storefront ?? {}) },
+    handles: { ...DEFAULT_GLOBAL.handles, ...(g.handles ?? {}) },
     email: loadEmailSection(g.email as Record<string, unknown> | undefined),
     portal: { ...DEFAULT_GLOBAL.portal, ...(g.portal ?? {}) },
     admin: loadAdminSection(g.admin as Record<string, unknown> | undefined),
