@@ -1,0 +1,23 @@
+.qa-intel/baseline.json
+  s_29893055f88353::t_9d65389c151292 2808-2821,2823
+scripts/__tests__/sync-supabase-to-r2.test.ts
+  s_29893055f88353::t_7e0f837109e4b4 338-357
+scripts/ops/verify-db-backup.sh
+  s_29893055f88353::t_5aa41841b36614 8-9,19,71
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8a7959aae60a47f666a0c91c4e0731b943541876",
+  "prompts": {},
+  "sessions": {
+    "s_29893055f88353": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1c444932-1da1-4ad5-9e8b-395eb468f52a",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
