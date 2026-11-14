@@ -1,0 +1,21 @@
+supabase/migrations/20261112151200_revoke_handle_available_anon.sql
+  s_29893055f88353::t_e5110644ee7923 2,7-13
+supabase/migrations/20261114120000_handle_available_revoke_public.sql
+  s_29893055f88353::t_9710f21f55cd3d 5-13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "02e01cf3e2c972f792eb51361fc459c93731cf33",
+  "prompts": {},
+  "sessions": {
+    "s_29893055f88353": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1c444932-1da1-4ad5-9e8b-395eb468f52a",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
