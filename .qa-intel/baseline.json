@@ -2805,5 +2805,19 @@
     "title": "SQL: SECURITY DEFINER function exposes a caller-controlled key/column parameter to untrusted callers",
     "why": "Function submit_consent runs with elevated (SECURITY DEFINER) privileges, its EXECUTE grant reaches untrusted callers (authenticated, service_role), and it accepts caller-controlled key/column/path-shaped text parameter(s) 'p_evidence_path' with no allowlist guard. A caller can steer which field/path the definer writes or reads, turning the RPC into an arbitrary-field overwrite (real incident: PR #322's merge_analysis_payload_key accepted any payload key; fixed only after external review).",
     "fix": "Either (a) drop the caller-controlled parameter(s) entirely, (b) hard-allowlist the permitted values inside the function body (e.g. IF p_evidence_path NOT IN ('allowed_key') THEN RAISE EXCEPTION), and/or (c) REVOKE EXECUTE ... FROM anon, authenticated, public and grant only to service_role."
+  },
+  {
+    "file": "scripts/sync-supabase-to-r2.ts",
+    "severity": "high",
+    "title": "ARTAS V19: fetch inside a retry loop without a GET/HEAD method gate",
+    "why": "WAIVED 2026-11-14 (founder delegated decision). The download loop has no retry: fetchSourceObject always sends method GET (read-only sync), so the V19 hazard (replaying a mutating request) cannot occur. The rule cannot see callee gates (its documented limitation 1). Pinned by the test 'downloads only with method GET' in scripts/__tests__/sync-supabase-to-r2.test.ts. A second V19 in this file is still flagged (one accepted copy per file and title).",
+    "fix": "Re-review if a retry or a non-GET method is ever added to this file; the pinning test must then be updated deliberately."
+  },
+  {
+    "file": "scripts/__tests__/sync-supabase-to-r2.test.ts",
+    "severity": "medium",
+    "title": "Complexity: Monolithic File",
+    "why": "WAIVED 2026-11-14 (founder delegated decision). Test-only file; splitting it adds churn with no runtime effect in the launch PR. Tracked as debt: split in a dedicated PR.",
+    "fix": "Split by describe block into separate test files in a dedicated PR; then remove this entry."
   }
 ]

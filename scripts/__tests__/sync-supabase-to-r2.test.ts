@@ -335,6 +335,26 @@ describe("sync-supabase-to-r2", () => {
       ]);
     });
 
+    it("downloads only with method GET, the premise of the V19 waiver (read-only sync)", async () => {
+      const fetchImpl = vi
+        .fn()
+        .mockResolvedValueOnce(r2Head(404))
+        .mockResolvedValueOnce(new Response(null, { status: 200 }))
+        .mockResolvedValueOnce(r2Head(200, { etag: '"r2-1"', [SOURCE_HDR]: SRC_ETAG }));
+      const harness = makeSyncTestHarness({
+        files: [syncFile("book.pdf")],
+        downloadBlob: new Blob(["bytes"]),
+        fetchImpl: fetchImpl as never,
+      });
+
+      await runSync(harness);
+
+      expect(harness.sourceFetch).toHaveBeenCalled();
+      for (const [, init] of harness.sourceFetch.mock.calls) {
+        expect(init).toMatchObject({ method: "GET" });
+      }
+    });
+
     it("refuses an object with no Content-Length before buffering it", async () => {
       const fetchImpl = vi.fn().mockResolvedValueOnce(r2Head(404));
       const harness = makeSyncTestHarness({

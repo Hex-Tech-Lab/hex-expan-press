@@ -5,6 +5,8 @@
 #   2. every table in the backup scope: row count AND an order-independent content hash (md5 over sorted row text)
 # Exit 0 only if every check matches. Settings come from backup-common.sh, the same file the backup uses.
 set -euo pipefail
+# Files this script creates are readable by the owner only (the decrypted dump is plaintext while it exists).
+umask 077
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=backup-common.sh
@@ -14,6 +16,7 @@ WORK="$(mktemp -d)"
 DATA="${WORK}/pgdata"
 cleanup() {
   "${PG_BIN}/pg_ctl" -D "$DATA" -m fast stop >/dev/null 2>&1 || true
+  rm -f "${WORK}/restore.dump"   # plaintext dump: removed on every exit path, including failures
   rm -rf "$WORK"
 }
 trap cleanup EXIT
@@ -65,6 +68,7 @@ if ! "${PG_BIN}/pg_restore" "${SCRATCH[@]}" -d restored --clean --if-exists --no
   fail "pg_restore reported errors"
 fi
 echo "ok: restored into scratch server with no errors"
+rm -f "${WORK}/restore.dump"   # the plaintext dump is no longer needed once restored
 
 # 5. Schema hash, source vs restored. Same scope flags as the backup.
 schema_hash() { rg -v '^(--|\\(un)?restrict)' | sha256sum | cut -d' ' -f1; }
