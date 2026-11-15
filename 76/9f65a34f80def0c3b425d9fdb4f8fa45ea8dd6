@@ -1,0 +1,80 @@
+web/public/books/legal/refund-policy.html
+  s_29893055f88353::t_9e4f9fb1550d1f 1-28,30-57,59-66
+  s_29893055f88353::t_4c759f4c7fbfdb 29,58
+web/__tests__/proxy.test.ts
+  s_29893055f88353::t_8c808d9a04a23b 599-604,611,750
+  s_29893055f88353::t_cf4115eef4c924 594,605-610,740,749
+  s_29893055f88353::t_f41e4d35937b0b 612,711-739,741-748,751
+web/__tests__/b2c-confinement.test.ts
+  s_29893055f88353::t_0745d36b76052e 1-51,67-89
+  s_29893055f88353::t_8c808d9a04a23b 52-66
+docs/ops/YOUTUBE_TRANSCRIPT_ROUTING.md
+  s_29893055f88353::t_1269a57f93b742 1-40
+web/public/books/legal/privacy.html
+  s_29893055f88353::t_9e4f9fb1550d1f 1-26,28-80,82-89
+  s_29893055f88353::t_4c759f4c7fbfdb 27,81
+web/public/books/legal/terms.html
+  s_29893055f88353::t_be863f8e1acd30 49
+  s_29893055f88353::t_4c759f4c7fbfdb 27,76
+  s_29893055f88353::t_9e4f9fb1550d1f 1-26,28-48,50-75,77-84
+web/app/error.tsx
+  s_29893055f88353::t_de511ae0d6814a 4,17-18,41
+  s_29893055f88353::t_4c759f4c7fbfdb 19-23
+web/__tests__/refund-copy.test.ts
+  s_29893055f88353::t_cf4115eef4c924 19-31
+web/public/books/legal/providers.html
+  s_29893055f88353::t_4c759f4c7fbfdb 31,66
+  s_29893055f88353::t_9e4f9fb1550d1f 1-30,32-65,67-74
+web/src/components/storefront/storefront.tsx
+  s_29893055f88353::t_514603b53bc301 6
+  s_29893055f88353::t_a5e1daedc4b326 117-134
+  s_29893055f88353::t_954a4145d7736b 228,230,232
+  s_29893055f88353::t_0769e3037cb835 58
+  s_29893055f88353::t_bc7ffe79b2cd3e 59,168
+  s_cca22ab4c018aa::t_c0c72416deba5f 94
+  s_29893055f88353::t_b66cc9e2351d0c 139
+docs/handover/B2B_B2C_COMPARISON.html
+  s_29893055f88353::t_62d1b37f6fa4d3 1-105,108,110-192,194-197,199-390
+  s_29893055f88353::t_d72cc6a8ef25de 193
+  s_29893055f88353::t_bf8c0a09fc0575 106-107
+  s_29893055f88353::t_267b21323e71b2 198
+  s_29893055f88353::t_15e14a3fa1bf9a 109
+web/app/books/page.tsx
+  s_29893055f88353::t_427e7cee277cfd 1-70
+payments/src/settings_registry.ts
+  s_cca22ab4c018aa::t_ac4f975f0b2402 85
+  s_29893055f88353::t_fc1b1c8a1023cf 162-163
+  s_29893055f88353::t_ab5cbb4d2b63b8 144-146
+  s_29893055f88353::t_16ff553d5c8275 86,340
+  s_cca22ab4c018aa::t_a431e460d63abf 151-152
+  s_29893055f88353::t_c2fd2b266b93f9 87
+web/proxy.ts
+  s_29893055f88353::t_8d2a15be18e1ee 30-38
+  s_29893055f88353::t_8d6d3b9199de64 25-26,65
+web/__tests__/delivery-copy.test.ts
+  s_29893055f88353::t_cf4115eef4c924 13,26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "769f65a34f80def0c3b425d9fdb4f8fa45ea8dd6",
+  "prompts": {},
+  "sessions": {
+    "s_29893055f88353": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1c444932-1da1-4ad5-9e8b-395eb468f52a",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    },
+    "s_cca22ab4c018aa": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6c443dec-743c-4659-936e-3e1442e46dd1",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
