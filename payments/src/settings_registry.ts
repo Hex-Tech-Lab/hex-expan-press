@@ -82,7 +82,9 @@ export interface GlobalSettings {
   /** Buyer-facing storefront links. `b2c_landing_url` is the logo target on the thank-you page. */
   storefront: { b2c_landing_url: string };
   /** Creator handle policy (web/src/lib/handle-policy.ts). Set once at account creation; immutable after. */
-  handles: { min_length: number; max_length: number; reserved: string[]; profanity_whitelist: string[] };
+  handles: { min_length: number; max_length: number; separator: string; reserved: string[]; profanity_whitelist: string[] };
+  /** Product slug rule (ADR 0065): same shape as handles. Unique per creator, not platform-wide. */
+product_slug: { min_length: number; max_length: number; separator: string };
   landing: { fallbacks: { title: string; creator: string }; disclaimers: string[] };
   /** Admin API allowlist + pagination (admin audit-log route). */
   admin: {
@@ -139,12 +141,15 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
       js_cdn_url: "https://cdn.paddle.com/paddle/v2/paddle.js",
     },
   },
-  // Logo target on the thank-you page. "/" until the B2C landing ships; then set its path here (no code change).
-  storefront: { b2c_landing_url: "/" },
+  // Home target for every buyer-side logo and home link (thank-you page, checkout). Absolute, so a buyer on
+  // pay.expanpress.com also lands on the B2C landing, never on the B2B root. The B2C landing is /books on the main site.
+  storefront: { b2c_landing_url: "https://expanpress.com/books" },
   // Our handle rules, not a platform's (Instagram allows 1-30, Facebook requires 5). Reserved words are never assignable.
   handles: {
     min_length: 3,
     max_length: 30,
+    // The only separator. Letters and digits between single separators; no leading, trailing or doubled separator.
+    separator: "_",
     reserved: [
       "admin", "root", "support", "expanpress", "api", "books", "creator", "creators", "login", "signin",
       "signup", "thanks", "help", "legal", "privacy", "terms", "www", "official", "staff", "system",
@@ -154,6 +159,8 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
       "classic", "assess", "assessment", "assist", "assistant", "assume", "bass", "class", "glass", "grass", "pass", "passage",
     ],
   },
+  // Product slug rule (ADR 0065). Same shape as handles. Creator-scoped uniqueness (products_creator_id_slug_key).
+  product_slug: { min_length: 3, max_length: 30, separator: "_" },
   landing: {
     fallbacks: { title: "Product", creator: "the creator" },
     disclaimers: [
@@ -330,6 +337,7 @@ function loadGlobal(): GlobalSettings {
     landing: { ...DEFAULT_GLOBAL.landing, ...(g.landing ?? {}) },
     storefront: { ...DEFAULT_GLOBAL.storefront, ...(g.storefront ?? {}) },
     handles: { ...DEFAULT_GLOBAL.handles, ...(g.handles ?? {}) },
+    product_slug: { ...DEFAULT_GLOBAL.product_slug, ...(g.product_slug ?? {}) },
     email: loadEmailSection(g.email as Record<string, unknown> | undefined),
     portal: { ...DEFAULT_GLOBAL.portal, ...(g.portal ?? {}) },
     admin: loadAdminSection(g.admin as Record<string, unknown> | undefined),

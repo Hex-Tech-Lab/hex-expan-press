@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 import * as Sentry from "@sentry/nextjs";
 
@@ -13,6 +14,13 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
   useEffect(() => {
     Sentry.captureException(error);
   }, [error]);
+  // A buyer on the B2C side (/books) recovers into B2C, never into the B2B root (B2C/B2B confinement).
+  const pathname = usePathname();
+  // Pay host (/checkout) cannot serve /books, so its recovery link is the absolute B2C landing. Value must equal
+  // settings storefront.b2c_landing_url (checked by __tests__/b2c-confinement.test.ts). Not imported from the
+  // registry here: this is a client component and the registry reads process.env.
+  const B2C_HOME = "https://expanpress.com/books";
+  const home = pathname?.startsWith("/books") ? "/books" : pathname?.startsWith("/checkout") ? B2C_HOME : "/";
   return (
     <div className="min-h-screen bg-canvas text-charcoal flex flex-col items-center justify-center gap-5 p-8 font-sans">
       <div className="w-12 h-12 rounded-2xl bg-white border border-peach/50 shadow-[0_2px_14px_rgba(255,158,128,0.45)] flex items-center justify-center font-bold">
@@ -30,7 +38,7 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
         >
           Try again
         </button>
-        <Link href="/" className="px-5 h-11 rounded-full glass-card text-sm font-semibold text-gray-800 hover:text-black transition-colors">
+        <Link href={home} className="px-5 h-11 rounded-full glass-card text-sm font-semibold text-gray-800 hover:text-black transition-colors">
           Back home
         </Link>
       </div>

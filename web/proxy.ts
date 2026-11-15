@@ -22,10 +22,20 @@ import { createServerClient } from "@supabase/ssr";
  */
 const PAY_HOST = "pay.expanpress.com";
 const MAIN_HOST = "expanpress.com";
+// www is the B2B host (founder, 2026-11-15). It must not serve checkout either: ADR 0061 makes pay the only checkout origin.
+const WWW_HOST = "www.expanpress.com";
 const PAY_ORIGIN = "https://pay.expanpress.com";
 const PAY_ALLOWED_PREFIXES = ["/checkout/", "/api/billing/checkout/", "/_next/", "/assets/"];
 const PAY_ALLOWED_EXACT_API = ["/api/billing/checkout"];
-const PAY_ALLOWED_EXACT = ["/terms.html", "/privacy.html", "/refund-policy.html", "/legal/providers.html", "/favicon.ico"];
+// Buyer legal set only (B2C). The creator (B2B) set at /terms.html, /privacy.html, /refund-policy.html and
+// /legal/providers.html governs the creator relationship and is NOT served on pay.
+const PAY_ALLOWED_EXACT = [
+  "/books/legal/terms.html",
+  "/books/legal/privacy.html",
+  "/books/legal/refund-policy.html",
+  "/books/legal/providers.html",
+  "/favicon.ico",
+];
 
 // The checkout API, bounded to the exact route or its sub-paths. Used on BOTH hosts so a main-host
 // forward and the pay-host allowlist agree: a looser main-host match (startsWith) forwarded
@@ -52,7 +62,7 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
     if (!allowed) return new NextResponse(null, { status: 404 });
     return NextResponse.next({ request });
   }
-  if (host === MAIN_HOST && (path.startsWith("/checkout/") || isPayCheckoutApi(path))) {
+  if ((host === MAIN_HOST || host === WWW_HOST) && (path.startsWith("/checkout/") || isPayCheckoutApi(path))) {
     return NextResponse.redirect(new URL(path + url.search, PAY_ORIGIN), 307);
   }
   // Session refresh is needed only on creator-portal routes and the auth callback.

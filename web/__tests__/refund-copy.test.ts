@@ -16,3 +16,16 @@ describe("refund copy matches code", () => {
     expect(read("public/refund-policy.html")).toMatch(/refunds? (are|is) decided by Paddle\.com/i);
   });
 });
+
+describe("buyer refund copy (B2C set)", () => {
+  it("does not promise that download access is revoked on refund", () => {
+    expect(read("public/books/legal/refund-policy.html")).not.toMatch(REVOCATION_CLAIM);
+    expect(read("public/books/legal/terms.html")).not.toMatch(REVOCATION_CLAIM);
+  });
+
+  it("names the Merchant of Record on the receipt as the party that decides refunds, not a provider as seller", () => {
+    const html = read("public/books/legal/refund-policy.html");
+    expect(html).toMatch(/Merchant of Record named on your receipt/i);
+    expect(html).not.toMatch(/Paddle\.com/i);
+  });
+});
