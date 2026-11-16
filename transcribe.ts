@@ -14,7 +14,7 @@ const HOME = process.env.HOME ?? "";
 // (missing/unreadable settings) behave identically. ENV/CLI overrides keep precedence:
 // WHISPER_MODEL env > registry stt.model; --chunk= CLI > registry chunk_seconds.
 const DEFAULT_TRANSCRIBE = {
-  stt: { model: "openai/whisper-large-v3-turbo", fallback: "openai/whisper-large-v3-turbo", audio_format: "mp3", response_format: "verbose_json" },
+  stt: { model: "openai/gpt-4o-transcribe", fallback: "openai/whisper-large-v3-turbo", audio_format: "mp3", response_format: "verbose_json" },
   chunk_seconds: 600,
   live_margin_seconds: 90,
   final_tail_min_s: 5,
@@ -124,7 +124,7 @@ async function sttRequest(file: string, model: string): Promise<{ text: string; 
   return { text: j.text ?? "", segments: j.segments };
 }
 
-export async function transcribeFile(file: string): Promise<{ text: string; segments?: { start: number; end: number; text: string }[] }> {
+async function transcribeFile(file: string): Promise<{ text: string; segments?: { start: number; end: number; text: string }[] }> {
   try {
     return await sttRequest(file, MODEL);
   } catch (err) {
@@ -134,11 +134,10 @@ export async function transcribeFile(file: string): Promise<{ text: string; segm
   }
 }
 
-export const ts = (sec: number): string => {
+const ts = (sec: number): string => {
   const h = String(Math.floor(sec / 3600)).padStart(2, "0");
   const m = String(Math.floor((sec % 3600) / 60)).padStart(2, "0");
-  const s = String(Math.floor(sec % 60)).padStart(2, "0");
-  return `${h}:${m}:${s}`;
+  return `${h}:${m}`;
 };
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -204,9 +203,7 @@ async function main() {
   }
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
-  main().catch((err) => {
-    console.error("transcriber failed:", err?.message || err);
-    process.exit(1);
-  });
-}
+main().catch((err) => {
+  console.error("transcriber failed:", err?.message || err);
+  process.exit(1);
+});
