@@ -1,0 +1,29 @@
+payments/src/settings_registry.ts
+  s_29893055f88353::t_23c7584e6af44d 80-81
+payments/src/webhook_core.ts
+  s_29893055f88353::t_80e7196e20cc3a 29-35
+web/app/api/billing/checkout/__tests__/route.test.ts
+  s_29893055f88353::t_8170d31b787cd8 1144-1155
+web/app/api/billing/checkout/route.ts
+  s_29893055f88353::t_2560dcc05af4da 155,165,321
+web/app/creator/consents/esign_done/page.tsx
+  s_29893055f88353::t_dd24182dac7470 57
+web/app/creator/review/review-client.tsx
+  s_29893055f88353::t_f324c3229fbcce 319-320,351,359-360,437,446,474-475
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "43b574a11c511d3720cd5c2a4cfbe502d2b5714b",
+  "prompts": {},
+  "sessions": {
+    "s_29893055f88353": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1c444932-1da1-4ad5-9e8b-395eb468f52a",
+        "model": "unknown"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
