@@ -69,3 +69,43 @@ describe("fungies payment_refunded (translator-only — emits amount_unverifiabl
     }
   });
 });
+
+describe("fungies provider_mode (F-09)", () => {
+  function saleBody(testMode?: unknown): Record<string, unknown> {
+    return {
+      id: "evt_mode_1",
+      type: "payment_success",
+      ...(testMode !== undefined ? { testMode } : {}),
+      data: {
+        items: [{ customFields: { product_id: "p1" } }],
+        payment: { id: "pay_mode_1", value: 3900, currency: "USD", currencyDecimals: 2, createdAt: 1759000000000 },
+        user: { email: "buyer@example.com" },
+      },
+    };
+  }
+
+  it("explicit testMode=false sets provider_mode to 'live'", () => {
+    const r = parse(saleBody(false));
+    expect(r.ok).toBe(true);
+    if (!r.ok || !("sale" in r)) throw new Error("expected sale");
+    expect(r.sale.provider_mode).toBe("live");
+  });
+
+  it.each([undefined, null, "false", 0])("missing or non-boolean testMode (%j) leaves provider_mode unset", (testModeVal) => {
+    const body = saleBody();
+    if (testModeVal !== undefined) body.testMode = testModeVal;
+    const r = parse(body);
+    expect(r.ok).toBe(true);
+    if (!r.ok || !("sale" in r)) throw new Error("expected sale");
+    expect(r.sale.provider_mode).toBeUndefined();
+    expect(r.sale.provider_mode).not.toBe("live");
+    expect("provider_mode" in r.sale).toBe(false);
+  });
+
+  it("testMode=true is refused 202 and never emits a live sale", () => {
+    const r = parse(saleBody(true));
+    expect(r.ok).toBe(false);
+    if (r.ok) throw new Error("expected refusal");
+    expect(r.status).toBe(202);
+  });
+});

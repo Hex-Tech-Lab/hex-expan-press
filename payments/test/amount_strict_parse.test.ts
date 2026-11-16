@@ -184,3 +184,34 @@ describe("fastspring, fungies, lemonsqueezy sales: null or blank totals never bo
     expect(saleAmount(lemonsqueezy(lsSale(3900)))).toBe(39);
   });
 });
+
+describe("fastspring provider_mode (F-09)", () => {
+  it("explicit data.live=true sets provider_mode to 'live'", () => {
+    const r = fastspring([FS_ORDER]);
+    expect(r.ok).toBe(true);
+    if (!r.ok || !("sale" in r)) throw new Error("expected sale");
+    expect(r.sale.provider_mode).toBe("live");
+  });
+
+  it.each([undefined, null, "true", 1])("missing or non-boolean data.live (%j) leaves provider_mode unset", (liveVal) => {
+    const data: Record<string, unknown> = { ...FS_ORDER.data };
+    if (liveVal === undefined) {
+      delete data.live;
+    } else {
+      data.live = liveVal;
+    }
+    const r = fastspring([{ ...FS_ORDER, data }]);
+    expect(r.ok).toBe(true);
+    if (!r.ok || !("sale" in r)) throw new Error("expected sale");
+    expect(r.sale.provider_mode).toBeUndefined();
+    expect(r.sale.provider_mode).not.toBe("live");
+    expect("provider_mode" in r.sale).toBe(false);
+  });
+
+  it("data.live=false is refused 202 and never emits a live sale", () => {
+    const r = fastspring([{ ...FS_ORDER, data: { ...FS_ORDER.data, live: false } }]);
+    expect(r.ok).toBe(false);
+    if (r.ok) throw new Error("expected refusal");
+    expect(r.status).toBe(202);
+  });
+});

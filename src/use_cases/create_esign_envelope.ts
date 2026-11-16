@@ -35,13 +35,14 @@ export async function createEsignEnvelopeUseCase(
   const settings = await settingsRegistry.getPortalSettings();
 
   // 2. Resolve the creator's legal name (server-side, service role)
+  const supabase = await getSupabaseAdmin();
+  // Null means SUPABASE_URL/SUPABASE_SECRET_KEY are unset; fail closed so we never send a
+  // legal revenue-split envelope with the creator's raw email as the legal name.
+  if (!supabase) throw new Error("service-role Supabase client unconfigured");
+
   let typedName: string | null = null;
   let metaName: string | null = null;
   try {
-    const supabase = await getSupabaseAdmin();
-    // Null means SUPABASE_URL/SUPABASE_SECRET_KEY are unset. Throwing here routes it into the
-    // best-effort catch below, so the signer falls back to email instead of the flow aborting.
-    if (!supabase) throw new Error("service-role Supabase client unconfigured");
     const { data: consents, error: consentErr } = await supabase
       .from("consents")
       .select("typed_name")
