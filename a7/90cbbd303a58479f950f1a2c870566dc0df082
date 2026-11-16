@@ -1,0 +1,41 @@
+web/app/api/billing/checkout/__tests__/billing_consent_checkout.pairwise.test.ts
+  s_29893055f88353::t_bfcabc8cc8dd45 1-397
+web/app/api/billing/checkout/route.ts
+  s_29893055f88353::t_8612c27f0c6c3b 333-335,340-342
+web/app/books/[handle]/[product]/page.tsx
+  s_29893055f88353::t_fd9fb6d7b22fb1 62,126-127
+web/app/books/[handle]/page.tsx
+  s_29893055f88353::t_1a64736b38e260 61,66,69,143-144
+web/app/books/[handle]/thanks/page.tsx
+  s_29893055f88353::t_951c1dce129866 46,74-75
+web/app/books/page.tsx
+  s_29893055f88353::t_87cb00e87990e4 40-42,44-68
+web/app/checkout/[productId]/page.tsx
+  s_29893055f88353::t_c6317c2e0530f9 19-20,59,90
+web/public/assets/backlink.js
+  s_29893055f88353::t_d7420e48d74ae1 17
+web/public/legal/providers.html
+  s_29893055f88353::t_cb1de00af879b5 15,27-28,33,43,60,76,85
+web/public/privacy.html
+  s_29893055f88353::t_0febf9e327ed98 14,24-25,30,60,79
+web/public/refund-policy.html
+  s_29893055f88353::t_23bc803ae13f94 14,24-25,30,53
+web/public/terms.html
+  s_29893055f88353::t_2914dc0099c7fc 14,24-25,30,71
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a790cbbd303a58479f950f1a2c870566dc0df082",
+  "prompts": {},
+  "sessions": {
+    "s_29893055f88353": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1c444932-1da1-4ad5-9e8b-395eb468f52a",
+        "model": "unknown"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
