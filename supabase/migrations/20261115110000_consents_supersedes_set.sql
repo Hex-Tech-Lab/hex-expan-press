@@ -271,7 +271,7 @@ begin
   -- clock_timestamp(), not the column default now(): now() is transaction-start
   -- time, so a transaction that waited on the advisory lock would otherwise carry
   -- a signed_at OLDER than the head it supersedes — breaking the signed_at-desc
-  -- head ordering the bake lookup and this RPC both rely on.
+  -- head ordering the launch gate (payments/src/launch_gate.ts) and this RPC both rely on.
   insert into public.consents (
     kind, product_id, creator_id, decision, text_version,
     document_sha256, typed_name, signed_at, signed_by, auth_provider, ip, user_agent,

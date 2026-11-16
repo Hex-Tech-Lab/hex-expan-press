@@ -75,6 +75,15 @@ interface ReadPortalSession extends PortalSession {
   accessToken: string;
 }
 
+function safeErrorName(err: unknown): string {
+  if (err instanceof Error && err.name) return err.name.replace(/[\r\n]+/g, " ").trim() || "Error";
+  if (err !== null && typeof err === "object" && "name" in err && typeof (err as { name?: unknown }).name === "string") {
+    const name = (err as { name: string }).name.replace(/[\r\n]+/g, " ").trim();
+    if (name) return name;
+  }
+  return "UnknownError";
+}
+
 /**
  * Read the ssr cookie session. The user is hydrated from the local JWT when it is
  * valid for more than 60s (no network); otherwise validated online. NOT revocation-
@@ -110,10 +119,8 @@ async function readPortalSession(): Promise<ReadPortalSession | null> {
       if (user) return { user, supabase: clientWithJwt(session.access_token), accessToken: session.access_token };
     }
   } catch (err) {
-    // Malformed/chunked ssr cookies — fail closed (null).
-    if (process.env.NODE_ENV !== "production") {
-      console.warn("[supabase-server] ssr session read failed", err);
-    }
+    // Malformed/chunked ssr cookies — fail closed (null). Log error name only (never tokens/cookies/message).
+    console.error(`[supabase-server] ssr session read failed: ${safeErrorName(err)}`);
   }
 
   return null;

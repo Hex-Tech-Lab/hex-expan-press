@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { MatrixRouter } from "../../../../../src/infrastructure/matrix_router/matrix_router";
 import { getSupabaseAdmin } from "../../../../../payments/src/supabase_admin";
-import { isEnabledPaymentProvider } from "../../../../../payments/src/settings_registry";
+import { GLOBAL, isEnabledPaymentProvider } from "../../../../../payments/src/settings_registry";
 import { verifiedProviderNames } from "../webhook/verifiers";
 import { attributionRef } from "../../../../src/lib/attribution";
 import { normalizeSha256, strictActiveConsentKinds, strictChainHead } from "../../../../src/lib/consent-chain";
@@ -28,8 +28,8 @@ interface CheckoutRail {
  * passes one validation policy — raw value must be a string (non-string
  * fails closed), then trimmed: non-empty, https, and sandbox hosts
  * (hostname label match) only in explicitly recognised non-production
- * environments — and any violation fails closed with 500 "Checkout is not
- * configured".
+ * environments when GLOBAL.payments.sandbox_checkout_enabled is true — and any
+ * violation fails closed with 500 "Checkout is not configured".
  */
 function jsonError(status: number, error: string, code?: string): NextResponse {
   return NextResponse.json({ ok: false, error, code }, { status });
@@ -93,12 +93,19 @@ async function lookupProduct(supabase: SupabaseAdmin, product: string): Promise<
   return productNotFound(product);
 }
 
-function sandboxAllowed(): boolean {
+function isNonProductionRuntime(): boolean {
   // Sandbox links only on explicitly recognised non-production runtimes; anything else (absent/unknown signals) fails closed.
   const v = process.env.VERCEL_ENV;
   if (v === "preview" || v === "development") return true;
   if (v) return false;
   return process.env.NODE_ENV === "development" || process.env.NODE_ENV === "test";
+}
+
+function sandboxAllowed(): boolean {
+  // OWASP A04: preview/dev runtimes can share the production product_rails table, so sandbox
+  // acceptance requires an explicit registry opt-in (default OFF) and is always false in production.
+  if (!isNonProductionRuntime()) return false;
+  return GLOBAL.payments?.sandbox_checkout_enabled === true;
 }
 
 // Attribution: only providers whose webhook reads reference_id back from the
@@ -124,7 +131,7 @@ function checkoutUrlProblem(raw: unknown): string | null {
   }
   if (u.protocol !== "https:") return "not https";
   const labels = u.hostname.toLowerCase().split(/[.-]/);
-  if (labels.includes("sandbox")) return sandboxAllowed() ? null : "sandbox host in production";
+  if (labels.includes("sandbox")) return sandboxAllowed() ? null : "sandbox host not allowed";
   return null;
 }
 
@@ -157,8 +164,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const resolvedProduct = lookup.product;
 
     // Launch state (Sprint 17): only a product the launch trigger let through
-    // to 'live' may sell. 'sandbox' is honoured on non-production runtimes
-    // only; 'gated', 'paddle', null or anything else fails closed.
+    // to 'live' may sell. 'sandbox' is honoured only outside production when
+    // sandbox_checkout_enabled is true; 'gated', 'paddle', null or anything else fails closed.
     const mode = resolvedProduct.checkout_mode;
     if (mode !== "live" && !(mode === "sandbox" && sandboxAllowed())) {
       console.error(`[billing/checkout] product '${product}' is not launched (checkout_mode=${mode ?? "null"})`);

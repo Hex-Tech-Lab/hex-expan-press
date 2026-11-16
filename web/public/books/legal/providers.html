@@ -28,6 +28,7 @@
 </head>
 <body>
 <div class="wrap">
+  <main>
   <a class="back" href="https://expanpress.com/books" data-backlink>&larr; Back to ExpanPress</a>
   <p class="kicker">Legal</p>
   <h1>Service providers</h1>
@@ -39,7 +40,7 @@
   <h2>Merchant of Record</h2>
   <p>The Merchant of Record that processed your order is named on your receipt. It is the seller of record for that order. It takes payment, handles tax and refunds, and processes your order data under its own privacy policy. <span class="todo">[each Merchant of Record is added to this table before it takes its first order. No Merchant of Record is live at this draft date.]</span></p>
   <table>
-    <thead><tr><th>Provider</th><th>Role</th><th>Data processed</th></tr></thead>
+    <thead><tr><th scope="col">Provider</th><th scope="col">Role</th><th scope="col">Data processed</th></tr></thead>
     <tbody>
       <tr>
         <td class="name">Paddle.com</td>
@@ -51,7 +52,7 @@
 
   <h2>Service providers</h2>
   <table>
-    <thead><tr><th>Provider</th><th>Role</th><th>Data processed</th></tr></thead>
+    <thead><tr><th scope="col">Provider</th><th scope="col">Role</th><th scope="col">Data processed</th></tr></thead>
     <tbody>
       <tr><td class="name">Supabase</td><td>Database for order and download records and support messages</td><td>Email address, order and download records, support messages</td></tr>
       <tr><td class="name">Resend</td><td>Transactional email: sends your download link after a purchase</td><td>Buyer email address, product title, download link and reply-to address</td></tr>
@@ -61,6 +62,7 @@
       <tr><td class="name">Upstash</td><td>Short-lived payment locks and routing settings</td><td>Transaction reference IDs and routing settings only. No names or email addresses.</td></tr>
     </tbody>
   </table>
+  </main>
 
   <footer>
     <a href="https://expanpress.com/books">Books</a>

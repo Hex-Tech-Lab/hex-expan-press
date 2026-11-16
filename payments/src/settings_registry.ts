@@ -78,6 +78,9 @@ export interface GlobalSettings {
     creem_accept_test_mode: boolean;
     /** Project ref of the separate test database (branch) that test-mode Creem events may write to. Empty = refuse. */
     creem_test_database_ref: string;
+    /** Explicit opt-in for sandbox checkout acceptance (sandbox checkout_mode and sandbox.* rail hosts)
+     *  on non-production runtimes. Default false (fail closed); production always refuses regardless. */
+    sandbox_checkout_enabled: boolean;
   };
   /** Buyer-facing storefront links. `b2c_landing_url` is the logo target on the thank-you page. */
   storefront: { b2c_landing_url: string };
@@ -136,6 +139,7 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     retry_after_seconds: 30,
     creem_accept_test_mode: false,
     creem_test_database_ref: "",
+    sandbox_checkout_enabled: false,
     paddle: {
       api_base: { production: "https://api.paddle.com", sandbox: "https://sandbox-api.paddle.com" },
       js_cdn_url: "https://cdn.paddle.com/paddle/v2/paddle.js",
@@ -318,6 +322,14 @@ export function loadPaymentsSection(raw: Record<string, unknown> | undefined): G
       fallbacks.push("allowed_currencies");
     }
   }
+  let sandboxCheckoutEnabled = d.sandbox_checkout_enabled;
+  if ("sandbox_checkout_enabled" in p) {
+    if (typeof p.sandbox_checkout_enabled === "boolean") {
+      sandboxCheckoutEnabled = p.sandbox_checkout_enabled;
+    } else {
+      fallbacks.push("sandbox_checkout_enabled");
+    }
+  }
   if (fallbacks.length > 0) warnFallback("global.json", `invalid payments values for ${fallbacks.join(", ")}`);
   return {
     allowed_currencies: currencies,
@@ -330,6 +342,7 @@ export function loadPaymentsSection(raw: Record<string, unknown> | undefined): G
     paddle: { api_base: { production: apiProduction, sandbox: apiSandbox }, js_cdn_url: jsCdn },
     creem_accept_test_mode: p.creem_accept_test_mode === true,
     creem_test_database_ref: typeof p.creem_test_database_ref === "string" ? p.creem_test_database_ref.trim() : "",
+    sandbox_checkout_enabled: sandboxCheckoutEnabled,
   };
 }
 
@@ -338,7 +351,7 @@ function loadGlobal(): GlobalSettings {
   if (!raw) {
     warnFallback("global.json", "missing/unreadable");
     // Production deploys no global.json: env overrides (ADMIN_USER_IDS) must still apply.
-    return { ...DEFAULT_GLOBAL, admin: loadAdminSection(undefined) };
+    return { ...DEFAULT_GLOBAL, payments: loadPaymentsSection(undefined), admin: loadAdminSection(undefined) };
   }
   const g = raw as Partial<GlobalSettings> & Record<string, unknown>;
   return {

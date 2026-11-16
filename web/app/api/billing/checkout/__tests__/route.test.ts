@@ -4,10 +4,33 @@ import { GET } from "../route";
 import { MatrixRouter } from "../../../../../../src/infrastructure/matrix_router/matrix_router";
 import { portRails } from "../../../../../../scripts/lib/heritage-rails";
 import { MatrixRouterUnavailableError } from "../../../../../../src/infrastructure/matrix_router/matrix_router_errors";
+import { DEFAULT_GLOBAL, GLOBAL, loadPaymentsSection } from "../../../../../../payments/src/settings_registry";
 
 const adminModule = vi.hoisted(() => ({
   mockAdminClient: null as unknown,
 }));
+
+const registryOverride = vi.hoisted(() => ({
+  sandboxCheckoutEnabled: undefined as boolean | undefined,
+}));
+
+vi.mock("../../../../../../payments/src/settings_registry", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../../../../../payments/src/settings_registry")>();
+  return {
+    ...actual,
+    GLOBAL: new Proxy(actual.GLOBAL, {
+      get(target, prop, receiver) {
+        if (prop === "payments" && registryOverride.sandboxCheckoutEnabled !== undefined) {
+          return {
+            ...target.payments,
+            sandbox_checkout_enabled: registryOverride.sandboxCheckoutEnabled,
+          };
+        }
+        return Reflect.get(target, prop, receiver);
+      },
+    }),
+  };
+});
 
 
 vi.mock("../../../../../../payments/src/supabase_admin", () => ({
@@ -128,6 +151,7 @@ function request(): NextRequest {
 // to pass sets its own mock (the rail describes do so in their beforeEach).
 beforeEach(() => {
   adminModule.mockAdminClient = null;
+  registryOverride.sandboxCheckoutEnabled = undefined;
 });
 
 describe("billing/checkout DB rail in production, fail-closed without rails", () => {
@@ -266,6 +290,7 @@ describe("billing/checkout wave85 sandbox + raw-URL fail-closed", () => {
 
   afterEach(() => {
     vi.unstubAllEnvs();
+    registryOverride.sandboxCheckoutEnabled = undefined;
     // A queued mockRejectedValueOnce can survive an early-500 test (router
     // never reached) — reset so later tests keep the default resolution.
     vi.mocked(MatrixRouter.getNextProvider).mockReset();
@@ -288,9 +313,19 @@ describe("billing/checkout wave85 sandbox + raw-URL fail-closed", () => {
     expect(res.headers.get("location")).toBeNull();
   });
 
-  it("VERCEL_ENV unset + NODE_ENV=test serves an explicitly configured sandbox override (302)", async () => {
+  it("VERCEL_ENV unset + NODE_ENV=test refuses a sandbox rail when sandbox_checkout_enabled is default false (500)", async () => {
     vi.stubEnv("VERCEL_ENV", undefined as unknown as string);
     vi.stubEnv("NODE_ENV", "test");
+    setLiveRail("https://sandbox-api.polar.sh/v1/checkout-links/x/redirect");
+    const res = await GET(request());
+    expect(res.status).toBe(500);
+    expect(res.headers.get("location")).toBeNull();
+  });
+
+  it("VERCEL_ENV unset + NODE_ENV=test serves a sandbox rail when sandbox_checkout_enabled is true (302)", async () => {
+    vi.stubEnv("VERCEL_ENV", undefined as unknown as string);
+    vi.stubEnv("NODE_ENV", "test");
+    registryOverride.sandboxCheckoutEnabled = true;
     setLiveRail("https://sandbox-api.polar.sh/v1/checkout-links/x/redirect");
     const res = await GET(request());
     expect(res.status).toBe(302);
@@ -880,6 +915,7 @@ describe("billing/checkout consent read is narrowed to the gate kinds", () => {
 describe("billing/checkout launch state + complete consent history (Sprint 17)", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
+    registryOverride.sandboxCheckoutEnabled = undefined;
   });
 
   const withMode = (mode: unknown) =>
@@ -893,16 +929,88 @@ describe("billing/checkout launch state + complete consent history (Sprint 17)",
     expect(await res.json()).toMatchObject({ error: expect.stringContaining("not launched") });
   });
 
-  it("honours checkout_mode=sandbox on a preview runtime", async () => {
-    vi.stubEnv("VERCEL_ENV", "preview");
-    adminModule.mockAdminClient = withMode("sandbox");
-    expect((await GET(request())).status).toBe(302);
+  it("settings registry defaults sandbox_checkout_enabled to false and fails closed on invalid values", () => {
+    const warn = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      expect(DEFAULT_GLOBAL.payments.sandbox_checkout_enabled).toBe(false);
+      expect(GLOBAL.payments.sandbox_checkout_enabled).toBe(false);
+      expect(loadPaymentsSection(undefined).sandbox_checkout_enabled).toBe(false);
+      expect(loadPaymentsSection({}).sandbox_checkout_enabled).toBe(false);
+      expect(loadPaymentsSection({ sandbox_checkout_enabled: "true" }).sandbox_checkout_enabled).toBe(false);
+      expect(loadPaymentsSection({ sandbox_checkout_enabled: 1 }).sandbox_checkout_enabled).toBe(false);
+      expect(warn).toHaveBeenCalled();
+      expect(loadPaymentsSection({ sandbox_checkout_enabled: true }).sandbox_checkout_enabled).toBe(true);
+    } finally {
+      warn.mockRestore();
+    }
   });
 
-  it("rejects checkout_mode=sandbox in production", async () => {
+  it("refuses checkout_mode=sandbox on VERCEL_ENV=preview when setting is default false (OWASP A04)", async () => {
+    vi.stubEnv("VERCEL_ENV", "preview");
+    adminModule.mockAdminClient = withMode("sandbox");
+    const res = await GET(request());
+    expect(res.status).toBe(403);
+    expect(res.headers.get("location")).toBeNull();
+  });
+
+  it("refuses checkout_mode=sandbox and sandbox rail host on VERCEL_ENV=preview when setting is explicitly false", async () => {
+    vi.stubEnv("VERCEL_ENV", "preview");
+    registryOverride.sandboxCheckoutEnabled = false;
+    adminModule.mockAdminClient = withMode("sandbox");
+    const modeRes = await GET(request());
+    expect(modeRes.status).toBe(403);
+    expect(modeRes.headers.get("location")).toBeNull();
+
+    setLiveRail("https://sandbox-api.polar.sh/v1/checkout-links/x/redirect");
+    const urlRes = await GET(request());
+    expect(urlRes.status).toBe(500);
+    expect(urlRes.headers.get("location")).toBeNull();
+  });
+
+  it("accepts checkout_mode=sandbox and sandbox rail host on VERCEL_ENV=preview when setting is true (even when NODE_ENV=production)", async () => {
+    vi.stubEnv("VERCEL_ENV", "preview");
+    vi.stubEnv("NODE_ENV", "production");
+    registryOverride.sandboxCheckoutEnabled = true;
+    adminModule.mockAdminClient = withMode("sandbox");
+    const modeRes = await GET(request());
+    expect(modeRes.status).toBe(302);
+    expect(modeRes.headers.get("location")).toBe("https://buy.paddle.com/live-rail");
+
+    adminModule.mockAdminClient = gateAdminClient(
+      { data: { id: PID, creator_id: OWNER_ID, release_sha256: RELEASE_SHA, checkout_mode: "sandbox" }, error: null },
+      undefined,
+      { data: [{ provider: "paddle", weight: 100, checkout_url: "https://sandbox-api.polar.sh/v1/checkout-links/x/redirect", active: true }], error: null },
+    );
+    const urlRes = await GET(request());
+    expect(urlRes.status).toBe(302);
+    expect(urlRes.headers.get("location")).toBe("https://sandbox-api.polar.sh/v1/checkout-links/x/redirect");
+  });
+
+  it("rejects checkout_mode=sandbox and sandbox rail host in production even when setting is true", async () => {
+    registryOverride.sandboxCheckoutEnabled = true;
+
     vi.stubEnv("VERCEL_ENV", "production");
     adminModule.mockAdminClient = withMode("sandbox");
-    expect((await GET(request())).status).toBe(403);
+    const vercelProdModeRes = await GET(request());
+    expect(vercelProdModeRes.status).toBe(403);
+    expect(vercelProdModeRes.headers.get("location")).toBeNull();
+
+    setLiveRail("https://sandbox-api.polar.sh/v1/checkout-links/x/redirect");
+    const vercelProdUrlRes = await GET(request());
+    expect(vercelProdUrlRes.status).toBe(500);
+    expect(vercelProdUrlRes.headers.get("location")).toBeNull();
+
+    vi.stubEnv("VERCEL_ENV", undefined as unknown as string);
+    vi.stubEnv("NODE_ENV", "production");
+    adminModule.mockAdminClient = withMode("sandbox");
+    const nodeProdModeRes = await GET(request());
+    expect(nodeProdModeRes.status).toBe(403);
+    expect(nodeProdModeRes.headers.get("location")).toBeNull();
+
+    setLiveRail("https://sandbox-api.polar.sh/v1/checkout-links/x/redirect");
+    const nodeProdUrlRes = await GET(request());
+    expect(nodeProdUrlRes.status).toBe(500);
+    expect(nodeProdUrlRes.headers.get("location")).toBeNull();
   });
 
   it.each([

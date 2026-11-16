@@ -10,14 +10,20 @@ const fake = vi.hoisted(() => ({
   configured: true,
   store: new Map<string, string>(),
   setKeys: [] as string[],
+  getFail: false,
+  setFail: false,
   incrFail: false,
 }));
 
 vi.mock("../../redis/redis.client.ts", () => ({
   isRedisRestConfigured: () => fake.configured,
   expanRedis: {
-    get: vi.fn(async (key: string) => fake.store.get(key) ?? null),
+    get: vi.fn(async (key: string) => {
+      if (fake.getFail) throw new TypeError("redis get failed with token=secret-redis-cred");
+      return fake.store.get(key) ?? null;
+    }),
     set: vi.fn(async (key: string, value: string | number) => {
+      if (fake.setFail) throw new RangeError("redis set failed with token=secret-redis-cred");
       fake.setKeys.push(key);
       fake.store.set(key, String(value));
       return "OK";
@@ -43,6 +49,8 @@ beforeEach(() => {
   fake.configured = true;
   fake.store.clear();
   fake.setKeys.length = 0;
+  fake.getFail = false;
+  fake.setFail = false;
   fake.incrFail = false;
   vi.clearAllMocks();
 });
@@ -119,7 +127,11 @@ describe("MatrixRouter round-robin counter is atomic", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
       await expect(MatrixRouter.getNextProvider(NS, CTX, routes3to1)).resolves.toBe("paddle");
-      expect(warn).toHaveBeenCalled();
+      expect(warn).toHaveBeenCalledTimes(1);
+      const logged = String(warn.mock.calls[0]?.[0] ?? "");
+      expect(logged).toContain("Error");
+      expect(logged).toContain("degraded");
+      expect(logged).not.toContain("upstash unreachable");
     } finally {
       warn.mockRestore();
     }
@@ -131,5 +143,73 @@ describe("MatrixRouter round-robin counter is atomic", () => {
     for (let i = 0; i < 4; i++) picks.push(await MatrixRouter.getNextProvider(NS, CTX, routes3to1));
     expect(picks).toEqual(["paddle", "paddle", "paddle", "paddle"]);
     expect(vi.mocked(expanRedis.incr)).not.toHaveBeenCalled();
+  });
+});
+
+describe("MatrixRouter Redis failure handling (fail closed on read, degraded on write)", () => {
+  it("does not bypass an open circuit breaker when Redis read fails (rejects with MatrixRouterUnavailableError)", async () => {
+    await MatrixRouter.markProviderDown(NS, CTX, "paddle");
+    fake.getFail = true;
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      await expect(MatrixRouter.getNextProvider(NS, CTX, routes3to1)).rejects.toBeInstanceOf(
+        MatrixRouterUnavailableError,
+      );
+      expect(warn).toHaveBeenCalledTimes(1);
+      const logged = String(warn.mock.calls[0]?.[0] ?? "");
+      expect(logged).toContain("TypeError");
+      expect(logged).toContain("degraded");
+      expect(logged).not.toContain("secret-redis-cred");
+      expect(logged).not.toContain("redis get failed");
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("rejects single-rail routing with MatrixRouterUnavailableError on malformed Redis breaker JSON", async () => {
+    fake.store.set(`matrix:${NS}:${CTX}`, "{not-valid-json");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      await expect(
+        MatrixRouter.getNextProvider(NS, CTX, [{ provider: "paddle", weight: 1 }]),
+      ).rejects.toBeInstanceOf(MatrixRouterUnavailableError);
+      expect(warn).toHaveBeenCalledTimes(1);
+      const logged = String(warn.mock.calls[0]?.[0] ?? "");
+      expect(logged).toContain("SyntaxError");
+      expect(logged).toContain("degraded");
+      expect(logged).not.toContain("{not-valid-json");
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("reports degraded without overwriting breaker state when markProviderDown hits a Redis read failure", async () => {
+    fake.getFail = true;
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const res = await MatrixRouter.markProviderDown(NS, CTX, "paddle");
+      expect(res).toEqual({ degraded: true });
+      expect(vi.mocked(expanRedis.set)).not.toHaveBeenCalled();
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(String(warn.mock.calls[0]?.[0] ?? "")).toContain("TypeError");
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("logs error name only and returns degraded when markProviderDown hits a Redis save failure", async () => {
+    fake.setFail = true;
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const res = await MatrixRouter.markProviderDown(NS, CTX, "paddle");
+      expect(res).toEqual({ degraded: true });
+      expect(warn).toHaveBeenCalledTimes(1);
+      const logged = String(warn.mock.calls[0]?.[0] ?? "");
+      expect(logged).toContain("RangeError");
+      expect(logged).toContain("degraded");
+      expect(logged).not.toContain("secret-redis-cred");
+    } finally {
+      warn.mockRestore();
+    }
   });
 });
