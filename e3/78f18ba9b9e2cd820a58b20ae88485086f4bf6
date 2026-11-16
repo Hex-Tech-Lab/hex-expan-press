@@ -1,0 +1,43 @@
+docs/adr/0065-identifier-rules.md
+  s_29893055f88353::t_48ea503507454e 45
+payments/src/settings_registry.ts
+  s_29893055f88353::t_2c545778ad21e0 81-83,142,325-332,345,354
+src/infrastructure/matrix_router/__tests__/matrix_router.test.ts
+  s_29893055f88353::t_87997b1888c980 13-14,21-24,26,52-53,130-134,148-215
+src/infrastructure/matrix_router/matrix_router.ts
+  s_29893055f88353::t_1ff906cc8df8a4 15-28,33-41,54-55,58-59,61-62,66-67,70,73-74,82-83,86,88-89,127-130,136-137,140,142-145,148
+supabase/migrations/20261115110000_consents_supersedes_set.sql
+  s_29893055f88353::t_0ad2c0c4887cb0 274
+web/app/api/billing/checkout/__tests__/route.test.ts
+  s_29893055f88353::t_7347a7a8ac5d5c 7,13-34,154,293,316,321-330,918,932-956,958,960-967,970-991,994-1013
+web/app/api/billing/checkout/route.ts
+  s_29893055f88353::t_2c147517f9dcea 4,31-32,96,104-110,134,167-168
+web/public/books/legal/privacy.html
+  s_29893055f88353::t_77e38281cab0df 27,80
+web/public/books/legal/providers.html
+  s_29893055f88353::t_b597db56401096 31,43,55,65
+web/public/books/legal/refund-policy.html
+  s_29893055f88353::t_18874cb494f024 29,57
+web/public/books/legal/terms.html
+  s_29893055f88353::t_64bcd0698656ba 27,75
+web/src/lib/__tests__/supabase-server.test.ts
+  s_29893055f88353::t_6d9d62e43284ed 412-451
+web/src/lib/supabase-server.ts
+  s_29893055f88353::t_0dd158d7469199 78-86,122-123
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e378f18ba9b9e2cd820a58b20ae88485086f4bf6",
+  "prompts": {},
+  "sessions": {
+    "s_29893055f88353": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1c444932-1da1-4ad5-9e8b-395eb468f52a",
+        "model": "unknown"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
