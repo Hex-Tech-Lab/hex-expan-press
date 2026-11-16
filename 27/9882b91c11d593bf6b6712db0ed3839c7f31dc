@@ -1,0 +1,53 @@
+scripts/qa-intel/engine/__tests__/architecture-error-rules.test.ts
+  s_29893055f88353::t_02616fdccd6524 12,115,124,239-263
+scripts/qa-intel/engine/__tests__/data-integrity-rules.test.ts
+  s_29893055f88353::t_a628af8affcdcb 392-404
+scripts/qa-intel/engine/__tests__/quality-error-rules.test.ts
+  s_29893055f88353::t_dc3722130ae23e 164-171,285-294
+scripts/qa-intel/engine/__tests__/ui-error-rules.test.ts
+  s_29893055f88353::t_ec207bc7d63374 112-138
+scripts/qa-intel/engine/__tests__/unsafe-property-access.test.ts
+  s_29893055f88353::t_558065ea7bf99b 156-175
+scripts/qa-intel/engine/__tests__/wave10-new-rules.test.ts
+  s_29893055f88353::t_8604565b132f22 73-93
+scripts/qa-intel/engine/__tests__/wave9-new-rules.test.ts
+  s_29893055f88353::t_f0ea68a362d989 10,176-195,323-337
+scripts/qa-intel/engine/rules/__tests__/artas-rules.test.ts
+  s_29893055f88353::t_b3f980f05417e5 632-650
+scripts/qa-intel/engine/rules/__tests__/security-lessons-20260905.test.ts
+  s_29893055f88353::t_c79435094acd56 112-136
+scripts/qa-intel/engine/rules/__tests__/sql-migrations.test.ts
+  s_29893055f88353::t_8013b3c1d04471 329-357
+scripts/qa-intel/engine/rules/architecture.ts
+  s_29893055f88353::t_052389da13a1ba 45-47,132-158,165-167,171,342-343
+scripts/qa-intel/engine/rules/artas-rules.ts
+  s_29893055f88353::t_003ec7b7957cc6 347-349,351,354
+scripts/qa-intel/engine/rules/data-integrity.ts
+  s_29893055f88353::t_fa8aaae154ce0a 228-230,238-242
+scripts/qa-intel/engine/rules/quality.ts
+  s_29893055f88353::t_ea14de66d76dbc 6-9,83,87-89,94,99-120,124-148,223,225-226,229-230,233-236,241-242,244,254,260-261,265,271-301,307,315-322,331-338,353,357,407-408,410,412,434,446,448-473
+scripts/qa-intel/engine/rules/security-lessons-20260905.ts
+  s_29893055f88353::t_4c13f49357b69b 1,6-39,106
+scripts/qa-intel/engine/rules/security.ts
+  s_29893055f88353::t_40ce1fc98de627 431-433,438,441-458
+scripts/qa-intel/engine/rules/sql-migrations.ts
+  s_29893055f88353::t_e85420381ed09d 442-465,483-485
+scripts/qa-intel/engine/rules/ui.ts
+  s_29893055f88353::t_af8e146ed9a2f5 254-260,274-277,279
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "279882b91c11d593bf6b6712db0ed3839c7f31dc",
+  "prompts": {},
+  "sessions": {
+    "s_29893055f88353": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1c444932-1da1-4ad5-9e8b-395eb468f52a",
+        "model": "unknown"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
