@@ -29,19 +29,8 @@ export async function skipRail(productId: string, provider: string, rails: RailW
   await MatrixRouter.markProviderDown("payments", productId, provider, durationMs);
 }
 
-// Used primarily by tests
-export async function railCounter(productId: string): Promise<number> {
-  const raw = await expanRedis.get<string>(`matrix:payments:${productId}`);
-  if (!raw) return 0;
-  try {
-    const parsed = JSON.parse(raw);
-    return typeof parsed.counter === "number" ? parsed.counter : 0;
-  } catch {
-    return 0;
-  }
-}
-
 export async function resetRails(): Promise<void> {
   const ids = ["t_ratio_2", "t_ratio_3", "t_skip", "t_all_down"];
-  await Promise.all(ids.map((id) => expanRedis.del(`matrix:payments:${id}`)));
+  const keys = ids.flatMap((id) => [`matrix:payments:${id}`, `matrix:payments:${id}:counter`]);
+  await Promise.all(keys.map((key) => expanRedis.del(key)));
 }

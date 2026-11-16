@@ -23,7 +23,7 @@ values (
 );
 
 insert into products (
-  id, creator_id, slug, title, description, composite_slug, site_slug,
+  id, creator_id, slug, title, description,
   price_usd, currency, provider, checkout_mode, store_product_id,
   disclaimers, inside, working_note, created_at
 )
@@ -32,10 +32,7 @@ select
   c.id,
   'testreplicaplaybook',
   'TEST - Replica Playbook (not for sale)',
-  -- (slug and site_slug follow the documented namespaces: site_slug is <handle>/<product_slug>)
   'TEST PRODUCT. A placeholder used to check checkout and the thank-you page. It is not a real publication.',
-  'test_replica-testreplicaplaybook',
-  'test_replica/testreplicaplaybook',
   19.00,
   'USD',
   'creem',

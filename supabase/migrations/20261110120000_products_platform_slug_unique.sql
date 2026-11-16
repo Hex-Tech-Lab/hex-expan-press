@@ -22,14 +22,24 @@ do $$
 declare
   n int;
 begin
-  update public.products
-     set slug = 'testretirearly500k'
-   where creator_id = '4dfac811-94b5-42f1-a536-be28a9f76aba'
-     and slug = 'retirearly500k'
-     and site_slug is null;
-  get diagnostics n = row_count;
-  if n > 1 then
-    raise exception 'slug rename: expected at most 1 test copy row, got %', n;
+  if exists (
+    select 1
+      from information_schema.columns
+     where table_schema = 'public'
+       and table_name = 'products'
+       and column_name = 'site_slug'
+  ) then
+    execute '
+      update public.products
+         set slug = ''testretirearly500k''
+       where creator_id = ''4dfac811-94b5-42f1-a536-be28a9f76aba''
+         and slug = ''retirearly500k''
+         and site_slug is null
+    ';
+    get diagnostics n = row_count;
+    if n > 1 then
+      raise exception 'slug rename: expected at most 1 test copy row, got %', n;
+    end if;
   end if;
 end
 $$;
@@ -39,5 +49,19 @@ alter table public.products
   add constraint products_slug_check check (slug ~ '^[a-z0-9]{5,30}$') not valid;
 
 -- Platform-wide uniqueness. The per-creator key stays in place; this one is strictly stronger.
-alter table public.products
-  add constraint products_slug_key unique (slug);
+do $$
+begin
+  if not exists (
+    select 1
+      from pg_constraint c
+      join pg_class t on t.oid = c.conrelid
+      join pg_namespace n on n.oid = t.relnamespace
+     where n.nspname = 'public'
+       and t.relname = 'products'
+       and c.conname = 'products_slug_key'
+  ) and to_regclass('public.products_slug_key') is null then
+    alter table public.products
+      add constraint products_slug_key unique (slug);
+  end if;
+end
+$$;
