@@ -1,0 +1,25 @@
+scripts/__tests__/backup-common-pg-url.test.ts
+  s_29893055f88353::t_15d4bb481a25e2 1-76
+scripts/ops/backup-common.sh
+  s_29893055f88353::t_095ccd79af463e 1-91
+scripts/ops/nightly-db-backup.sh
+  s_29893055f88353::t_74db19060807fc 1-63
+scripts/ops/verify-db-backup.sh
+  s_29893055f88353::t_dbd70702bb0afe 1-106
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "cbc173ff1fe13ad0046a8b2fc19378a1288c1cdb",
+  "prompts": {},
+  "sessions": {
+    "s_29893055f88353": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1c444932-1da1-4ad5-9e8b-395eb468f52a",
+        "model": "unknown"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
