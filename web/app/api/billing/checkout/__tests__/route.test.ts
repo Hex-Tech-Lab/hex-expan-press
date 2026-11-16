@@ -1029,6 +1029,30 @@ describe("billing/checkout launch state + complete consent history (Sprint 17)",
     expect(res.status).toBe(500);
     expect(res.headers.get("location")).toBeNull();
   });
+
+  it.each([
+    ["count exceeds rows", 5000],
+    ["count is less than rows", 1],
+  ])("fails closed with 500 and logs incomplete consent history when %s", async (_label, count) => {
+    vi.stubEnv("VERCEL_ENV", "preview");
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const client = gateAdminClient();
+      adminModule.mockAdminClient = {
+        from: (table: string) =>
+          table === "consents"
+            ? { select: () => ({ eq: () => ({ in: async () => ({ data: givenConsents(), error: null, count }) }) }) }
+            : client.from(table),
+      };
+      const res = await GET(request());
+      expect(res.status).toBe(500);
+      expect(res.headers.get("location")).toBeNull();
+      expect(await res.json()).toEqual({ ok: false, error: "Checkout consent verification failed" });
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("incomplete consent history"));
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
 });
 
 describe("billing/checkout attribution forwarding (Sprint 17 P3)", () => {

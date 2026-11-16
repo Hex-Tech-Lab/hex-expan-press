@@ -328,7 +328,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     console.error(`checkout: MatrixRouter failed, falling back to default rail: ${(err as Error).message}`);
     const fallback = [...rails].sort((lhs, rhs) => rhs.weight - lhs.weight).find((r) => typeof r.checkout_url === "string" && r.checkout_url !== "");
     if (!fallback) {
-      return jsonError(503, `Router unavailable and no fallback rail configured: ${(err as Error).message}`);
+      console.error(`[billing/checkout] Router unavailable and no fallback rail configured for '${product}': ${(err as Error).message}`);
+      return jsonError(503, "Checkout is temporarily unavailable");
     }
     const res = NextResponse.redirect(withReference(fallback.checkout_url as string, fallback.provider, attributionRef((p) => request.nextUrl.searchParams.get(p))), 302);
     res.headers.set("Cache-Control", "no-store");
