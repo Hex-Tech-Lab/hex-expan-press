@@ -1,0 +1,23 @@
+docs/10X_HOSTILE_ADVERSARIAL_AUDIT.md
+  s_29893055f88353::t_25c0c24b79402d 1-93
+docs/sprint10-directive-2026-10-03.md
+  s_29893055f88353::t_56da7a8d56c70a 1-38
+fix-plocate.sh
+  s_29893055f88353::t_d5e4901de0535a 1-29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "422b94a17da30891c16f09662263f0e8f4670293",
+  "prompts": {},
+  "sessions": {
+    "s_29893055f88353": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1c444932-1da1-4ad5-9e8b-395eb468f52a",
+        "model": "unknown"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
