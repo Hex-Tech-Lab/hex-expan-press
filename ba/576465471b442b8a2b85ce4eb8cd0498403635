@@ -1,0 +1,47 @@
+payments/src/provider.ts
+  s_29893055f88353::t_aafe58700270e7 6,33
+payments/test/delivery.test.ts
+  s_29893055f88353::t_ffeb99be011af5 4,343-371
+payments/test/ledger.test.ts
+  s_29893055f88353::t_38837c7d119b58 303-312
+payments/test/webhook_core_lock.test.ts
+  s_29893055f88353::t_b15cc5cf81b388 136-147
+src/adapters/payments/__tests__/creem.adapter.test.ts
+  s_29893055f88353::t_a4dec0712ae500 159-184
+src/adapters/payments/creem.adapter.ts
+  s_29893055f88353::t_ced93a0535c196 4-5
+web/app/api/billing/checkout/__tests__/route.unavailable.test.ts
+  s_29893055f88353::t_2856bb47823df3 1-143
+web/app/api/billing/checkout/route.ts
+  s_29893055f88353::t_ed6a504a12649e 26-29
+web/app/creator/consents/esign_done/page.tsx
+  s_29893055f88353::t_fd3ece90e1a5e0 2,38-43,46,49-53
+web/app/creator/consents/page.tsx
+  s_29893055f88353::t_291e94630a75c6 3,38-41,52-53
+web/app/creator/dashboard/__tests__/actions.test.ts
+  s_29893055f88353::t_58a792ab503b7c 19,26-30,47-50,129,131,172-188,191-204
+web/app/creator/dashboard/actions.ts
+  s_29893055f88353::t_80c8941f626193 4,52,57-61,70-71
+web/app/creator/dashboard/page.tsx
+  s_29893055f88353::t_3b83188a30a5d1 23-26,47
+web/src/lib/consent-chain.ts
+  s_29893055f88353::t_e9c1cfaf625385 4-9,11-12,57-66
+web/src/lib/handle-shape.ts
+  s_29893055f88353::t_7caeec15aaa291 2
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ba576465471b442b8a2b85ce4eb8cd0498403635",
+  "prompts": {},
+  "sessions": {
+    "s_29893055f88353": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1c444932-1da1-4ad5-9e8b-395eb468f52a",
+        "model": "unknown"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
