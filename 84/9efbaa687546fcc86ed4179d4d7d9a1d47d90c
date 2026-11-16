@@ -1,0 +1,35 @@
+docs/handover/NUGGETS_OPERATING_SYSTEM_DAY1_TO_DAY3.html
+  s_29893055f88353::t_99942f8ad68e46 1-375
+docs/intel/GOLDEN_NUGGET_METHOD.html
+  s_29893055f88353::t_75696ed5f4e62a 1-258
+docs/intel/GOLDEN_NUGGET_METHOD.md
+  s_29893055f88353::t_a655f46bdca9e1 1-67
+docs/intel/NUGGETS_OPERATING_SYSTEM_DAY1_TO_DAY3.html
+  s_29893055f88353::t_ee23c1b5285492 1-829
+docs/intel/NUGGETS_OPERATING_SYSTEM_DAY1_TO_DAY3.md
+  s_29893055f88353::t_314fd4975be789 1-288
+scripts/book_qa.ts
+  s_29893055f88353::t_4f96abaa1b22b1 60
+scripts/fetch_duane_transcripts.ts
+  s_29893055f88353::t_6c5fdaa6c599b7 38-43,45-47,211-214,227,274
+scripts/generate_accurate_timestamps.ts
+  s_29893055f88353::t_d7a0034610d06e 1-126
+trends.ts
+  s_29893055f88353::t_e9d396d0281527 67-70,104
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "849efbaa687546fcc86ed4179d4d7d9a1d47d90c",
+  "prompts": {},
+  "sessions": {
+    "s_29893055f88353": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1c444932-1da1-4ad5-9e8b-395eb468f52a",
+        "model": "unknown"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
