@@ -1,0 +1,37 @@
+.github/workflows/series_stream_recorder.yml
+  s_29893055f88353::t_375dd4031ad339 27-28,30,36-37,56-67,127-138,142-143,146-148,152,167-175,178-181,183-184,186-187
+docs/ops/YOUTUBE_TRANSCRIPT_ROUTING.md
+  s_29893055f88353::t_3db1d4c737dcba 1-40
+scripts/audit_remote_series_run.sh
+  s_29893055f88353::t_6eaaa46c3cbb5c 58,60,72,76-84,94,97,99,104,108-117
+scripts/auto_wrapup_day2.sh
+  s_29893055f88353::t_72d34e0dd1c6ba 22
+scripts/blob_live_sync_daemon.ts
+  s_29893055f88353::t_4536188d824881 1-124
+scripts/day5_chain_watch.sh
+  s_29893055f88353::t_b865b6eace0d73 1-37
+scripts/schedule_custom_capture.sh
+  s_29893055f88353::t_4da989e78da213 1-170
+scripts/schedule_series_capture.sh
+  s_29893055f88353::t_e546a134517334 61,78,81,85-86,88-89,93,95-119,121-129,131-134,140-145,149-152,159,161-162,165,167-175
+scripts/stream_chunk_uploader.ts
+  s_29893055f88353::t_83e0222870a155 1-230
+transcribe.ts
+  s_29893055f88353::t_f8ffd40e57e826 17,127,137,140-141,207-212
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b5ed594619ed865e5d1aca083e0525711519374a",
+  "prompts": {},
+  "sessions": {
+    "s_29893055f88353": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1c444932-1da1-4ad5-9e8b-395eb468f52a",
+        "model": "unknown"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
