@@ -1,0 +1,37 @@
+docs/ops/ebook-asset-workflow.html
+  s_29893055f88353::t_da28deb64d9421 1-328
+docs/ops/ebook-asset-workflow.md
+  s_29893055f88353::t_37ffa27396dbcd 1-42
+docs/ops/image-hallucination-classification.html
+  s_29893055f88353::t_0ddbd567f7e9b7 1-377
+docs/ops/image-hallucination-classification.md
+  s_29893055f88353::t_0d54607cd29fac 1-84
+docs/ops/recraft-raster-vs-vector-trial.html
+  s_29893055f88353::t_c1b3536154e489 1-473
+docs/ops/recraft-raster-vs-vector-trial.md
+  s_29893055f88353::t_d7d3a3c4383dc7 1-90
+scripts/higgsfield/asset.ts
+  s_29893055f88353::t_785f1ee539d375 1-43
+scripts/higgsfield/ideogram-cover.ts
+  s_29893055f88353::t_41d4fa27128906 1-51
+scripts/higgsfield/ideogram-test.ts
+  s_29893055f88353::t_1f63cb599b66d8 1-50
+scripts/openrouter/image.py
+  s_29893055f88353::t_fff9e90415a7c8 1-78
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8d32cce024c1e748b9925cef93c7b9c776a2a724",
+  "prompts": {},
+  "sessions": {
+    "s_29893055f88353": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1c444932-1da1-4ad5-9e8b-395eb468f52a",
+        "model": "unknown"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
