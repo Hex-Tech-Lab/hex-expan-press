@@ -1,0 +1,17 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b6cb879df6971c03ac343fb44963272ed9ebbbd5",
+  "prompts": {},
+  "sessions": {
+    "s_cca22ab4c018aa": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6c443dec-743c-4659-936e-3e1442e46dd1",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
