@@ -330,12 +330,16 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     if (!fallback) {
       return jsonError(503, `Router unavailable and no fallback rail configured: ${(err as Error).message}`);
     }
-    return NextResponse.redirect(withReference(fallback.checkout_url as string, fallback.provider, attributionRef((p) => request.nextUrl.searchParams.get(p))), 302);
+    const res = NextResponse.redirect(withReference(fallback.checkout_url as string, fallback.provider, attributionRef((p) => request.nextUrl.searchParams.get(p))), 302);
+    res.headers.set("Cache-Control", "no-store");
+    return res;
   }
 
   const rail = rails.find((r) => r.provider === providerName);
   if (!rail?.checkout_url) return jsonError(503, `Selected rail '${providerName}' has no checkout_url`);
-  return NextResponse.redirect(withReference(rail.checkout_url, rail.provider, attributionRef((p) => request.nextUrl.searchParams.get(p))), 302);
+  const res = NextResponse.redirect(withReference(rail.checkout_url, rail.provider, attributionRef((p) => request.nextUrl.searchParams.get(p))), 302);
+  res.headers.set("Cache-Control", "no-store");
+  return res;
 }
 
 export async function HEAD(request: NextRequest): Promise<NextResponse> {

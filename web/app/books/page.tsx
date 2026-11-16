@@ -37,33 +37,35 @@ export default async function B2cLandingPage() {
           </Link>
         </header>
 
-        <p className="kicker">Books by creators</p>
-        <h1>Find a book from a creator</h1>
+        <main>
+          <p className="kicker">Books by creators</p>
+          <h1>Find a book from a creator</h1>
 
-        {creators.length === 0 ? (
-          <p>No books are on sale yet. Please check back soon.</p>
-        ) : (
-          <div className="products">
-            {creators.map((c) => (
-              <section key={c.handle} className="card">
-                <h2>
-                  <Link href={`/books/${c.handle}`}>{c.display_name}</Link>
-                </h2>
-                <ul>
-                  {c.products.map((p) => {
-                    const price = priceOf(p);
-                    return (
-                      <li key={p.id}>
-                        <Link href={`/books/${c.handle}/${productSlugOf(p)}`}>{p.title ?? productSlugOf(p)}</Link>
-                        {price !== null ? ` · $${price.toFixed(2)}` : ""}
-                      </li>
-                    );
-                  })}
-                </ul>
-              </section>
-            ))}
-          </div>
-        )}
+          {creators.length === 0 ? (
+            <p>No books are on sale yet. Please check back soon.</p>
+          ) : (
+            <div className="products">
+              {creators.map((c) => (
+                <section key={c.handle} className="card">
+                  <h2>
+                    <Link href={`/books/${c.handle}`}>{c.display_name}</Link>
+                  </h2>
+                  <ul>
+                    {c.products.map((p) => {
+                      const price = priceOf(p);
+                      return (
+                        <li key={p.id}>
+                          <Link href={`/books/${c.handle}/${productSlugOf(p)}`}>{p.title ?? productSlugOf(p)}</Link>
+                          {price !== null ? ` · $${price.toFixed(2)}` : ""}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </section>
+              ))}
+            </div>
+          )}
+        </main>
       </div>
       <StorefrontFooter />
     </div>

@@ -59,6 +59,7 @@ export default async function StoreProductPage({
   return (
     <div className="sf-root">
       <div className="wrap">
+        <main>
         <p className="kicker">Digital PDF &middot; Download link by email</p>
         <Link href={`/books/${creator.handle}`} className="backlink">
           &larr; Back to {creator.display_name}&rsquo;s page
@@ -121,6 +122,8 @@ export default async function StoreProductPage({
             ))}
           </div>
         )}
+
+        </main>
 
         <StorefrontFooter />
       </div>

@@ -14,7 +14,7 @@
   if (target) {
     links.forEach(function (a) {
       a.setAttribute('href', target);
-      a.textContent = '\u2190 Back';
+      a.textContent = '\u2190 Back to the books';
     });
   }
 })();

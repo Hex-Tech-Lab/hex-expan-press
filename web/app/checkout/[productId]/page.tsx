@@ -16,9 +16,9 @@ import { ATTRIBUTION_KEYS } from "../../../src/lib/attribution";
  * they approve. It names the product, the price and the merchant of record, and
  * it links to the legal pages. The Buy button goes to the existing checkout
  * route, which enforces consent and picks the rail. Attribution parameters are
- * forwarded so the route can record them.
+ * forwarded so the route can record them (awaiting searchParams makes the route
+ * dynamic per request).
  */
-export const revalidate = 60;
 
 export async function generateMetadata({
   params,
@@ -56,6 +56,7 @@ export default async function CheckoutPage({
   return (
     <div className="sf-root">
       <div className="wrap">
+        <main>
         <p className="kicker">Secure checkout &middot; ExpanPress</p>
         <h1>{p.title ?? p.slug}</h1>
         <p className="byline">
@@ -86,6 +87,7 @@ export default async function CheckoutPage({
           </p>
         )}
         <p className="assurance">A download link is emailed after purchase</p>
+        </main>
 
         <StorefrontFooter />
       </div>

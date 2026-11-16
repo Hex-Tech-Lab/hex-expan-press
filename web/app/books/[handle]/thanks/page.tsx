@@ -43,6 +43,7 @@ export default async function ThankYouPage({ params }: { params: Promise<{ handl
           </nav>
         </header>
 
+        <main>
         <p className="kicker">Purchase complete</p>
         <h1>Thank you for your purchase</h1>
         <p>Your download link is sent to the email you used at checkout.</p>
@@ -69,6 +70,8 @@ export default async function ThankYouPage({ params }: { params: Promise<{ handl
             })}
           </div>
         </div>
+
+        </main>
 
         <StorefrontFooter />
       </div>
