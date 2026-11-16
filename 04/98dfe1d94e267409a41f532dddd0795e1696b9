@@ -1,0 +1,21 @@
+supabase/migrations/20261115100000_drop_derived_product_identifiers.sql
+  s_29893055f88353::t_3efc91eaf1b96d 8-21,23-27
+supabase/migrations/20261115110000_consents_supersedes_set.sql
+  s_29893055f88353::t_d2aa077510a19d 39,62,73,112,140,243,247-254
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0498dfe1d94e267409a41f532dddd0795e1696b9",
+  "prompts": {},
+  "sessions": {
+    "s_29893055f88353": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1c444932-1da1-4ad5-9e8b-395eb468f52a",
+        "model": "unknown"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
