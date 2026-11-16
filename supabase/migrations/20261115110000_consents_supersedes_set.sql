@@ -36,7 +36,7 @@ create or replace function public.strict_active_consent_kinds(p_creator_id uuid,
 returns setof text
 language sql
 stable
-set search_path = public, pg_temp
+set search_path = ''
 as $$
   with chain as (
     select c.id, c.kind::text as kind, c.decision, c.product_id, c.supersedes, c.supersedes_ids
@@ -59,6 +59,7 @@ as $$
   group by kind
   having count(*) = 1 and bool_and(decision = 'given');
 $$;
+revoke all on function public.strict_active_consent_kinds(uuid, uuid) from public, anon, authenticated;
 
 -- ---------------------------------------------------------------------------
 -- Launch gate: the C2 hash check finds the C2 head with the same set-aware
@@ -69,7 +70,7 @@ returns text
 language plpgsql
 volatile -- each statement takes a fresh snapshot, so rows committed while the
          -- caller waited on the consent locks are seen
-set search_path = public, pg_temp
+set search_path = ''
 as $$
 declare
   v_release text := lower(btrim(coalesce(p_release_sha256, '')));
@@ -108,6 +109,7 @@ begin
   return null;
 end;
 $$;
+revoke all on function public.launch_block_reason(uuid, uuid, text) from public, anon, authenticated;
 
 -- ---------------------------------------------------------------------------
 -- submit_consent: same signature, grants, checks and advisory lock as
@@ -135,7 +137,7 @@ set search_path = ''
 as $$
 declare
   caller      uuid := (select auth.uid());
-  is_service  boolean := (auth.role() = 'service_role' or current_user = 'service_role');
+  is_service  boolean := (coalesce((select auth.role()) = 'service_role', false) or current_user = 'service_role');
   v_creator   uuid;
   v_consent   uuid;
   v_supersedes uuid;
@@ -238,8 +240,16 @@ begin
     end if;
   end if;
 
-  if length(trim(p_typed_name)) < 2 then
+  if p_typed_name is null or length(trim(p_typed_name)) < 2 then
     raise exception 'typed name must be at least 2 characters';
+  end if;
+
+  -- MVCC guard (same pattern as enforce_launch_gate, 20261011000000): under
+  -- REPEATABLE READ or SERIALIZABLE the snapshot predates the advisory lock,
+  -- so a concurrent submit committed while waiting would be invisible and fork.
+  if current_setting('transaction_isolation') <> 'read committed' then
+    raise exception 'submit_consent requires READ COMMITTED; retry for product %', p_product_id
+      using errcode = 'serialization_failure';
   end if;
 
   -- F6 (sprint10): serialize concurrent submits for the same (product, kind) so two
