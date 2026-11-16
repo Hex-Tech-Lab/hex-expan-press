@@ -1,0 +1,468 @@
+package.json
+  s_cca22ab4c018aa::t_418fe3aef9e310 46
+web/app/creator/consents/__tests__/actions.test.ts
+  s_29893055f88353::t_0544aad623bdbe 19,64-65
+src/use_cases/process_esign_webhook.ts
+  s_29893055f88353::t_46539959406bb6 6
+  s_29893055f88353::t_18d5900e8a987e 56-65
+web/public/legal/providers.html
+  s_cca22ab4c018aa::t_c76dc4dca99775 2,12,18,33,37,39,43-44,47-49,56,58-65,70,72,74-78,85
+  s_29893055f88353::t_a5833ad2eae93e 83
+web/src/lib/__tests__/handle-policy.test.ts
+  s_cca22ab4c018aa::t_6e4e13fadae1a2 2-3
+web/app/books/[handle]/page.tsx
+  s_29893055f88353::t_5042b7115239fb 114
+web/__tests__/r2-delivery-fallback.integration.test.ts
+  s_29893055f88353::t_fa848ad9254127 3,51,104
+web/src/lib/__tests__/launch-gate-sql-parity.test.ts
+  s_29893055f88353::t_531836098b451d 77-82
+  s_29893055f88353::t_56c07067db6b0f 12-18
+  s_29893055f88353::t_e5426809b5cc6e 102-103
+  s_29893055f88353::t_6e982f2a13fd31 49
+web/public/books/legal/refund-policy.html
+  s_29893055f88353::t_1d55f021bce59c 33
+  s_29893055f88353::t_c6998e2b0dac90 52,55
+  s_29893055f88353::t_5ba19755985b71 2
+  s_29893055f88353::t_baeca4d2757f34 32
+  s_29893055f88353::t_b9606603992af5 39
+  s_29893055f88353::t_ec866551eddbda 48-49
+web/app/creator/dashboard/actions.ts
+  s_29893055f88353::t_24886363dc345f 5,8-9,34-43,46,48-55,60-63,67-69,73
+web/src/lib/identifier-rule.ts
+  s_29893055f88353::t_7032db433f2070 1,3-18
+  s_29893055f88353::t_b6fd81541c8b21 2
+payments/test/delivery.test.ts
+  s_29893055f88353::t_fa848ad9254127 58
+web/public/terms.html
+  s_cca22ab4c018aa::t_cdad9a74f1fcbd 33
+  s_cca22ab4c018aa::t_6b50b37798603f 2
+  s_cca22ab4c018aa::t_17a0b7baaafc46 7,11,20,29-30,35-36,39,42,44-45,48,50-51,53-54,56-57,59-60,62-65,69-71
+web/app/creator/signin/__tests__/resolve-origin.test.ts
+  s_29893055f88353::t_4e84e96f0e5da1 91-161
+supabase/migrations/20261113000000_handle_shape.sql
+  s_cca22ab4c018aa::t_999cd7b66fcf80 1-7
+web/app/creator/dashboard/page.tsx
+  s_29893055f88353::t_491ccb21edc247 63-66,71-73,81,83-84,138-140
+  s_29893055f88353::t_8719e40d634efb 5-6
+web/src/lib/__tests__/esign-webhook.test.ts
+  s_29893055f88353::t_38f18ca6e846f6 323
+  s_29893055f88353::t_1120c6715bcc46 617
+  s_29893055f88353::t_3ab4b5d345f840 509-548
+  s_29893055f88353::t_fd896f50a0d865 186
+  s_29893055f88353::t_c8dddd5a92ec47 334
+  s_29893055f88353::t_b765ddf42968ce 159
+  s_29893055f88353::t_195704171ecebf 290
+  s_29893055f88353::t_51e802d5ef2e33 311
+  s_29893055f88353::t_e29dc060a6f495 235
+  s_29893055f88353::t_e92d17501a4871 382
+  s_29893055f88353::t_c5dcdd23d12cee 301
+  s_29893055f88353::t_c79091f29bfd47 57-58
+  s_29893055f88353::t_ee473d91ac9824 265
+web/app/creator/consents/__tests__/revoked-session.test.ts
+  s_29893055f88353::t_197fb95b1fded3 1-60,63-64,66-88,90-94
+  s_29893055f88353::t_242367457a1245 61-62,65,89
+payments/test/webhook_core_lock.test.ts
+  s_29893055f88353::t_d02d67d3267f4a 3,15-21,25,39,43,47-58,61,64,68,71,77,84
+  s_29893055f88353::t_a00e0a7e5ee29c 40
+  s_29893055f88353::t_7097663e98ef44 65
+  s_29893055f88353::t_95f5f38ec01e18 72
+  s_29893055f88353::t_49f9a54b86b8ec 6
+web/src/lib/handle-policy.ts
+  s_29893055f88353::t_01ce75d81ad0e9 29
+  s_cca22ab4c018aa::t_64b76e86001b4e 1-4
+  s_29893055f88353::t_23b4611e8aa3a3 7
+  s_29893055f88353::t_93bb9ffe02bc5f 26
+src/adapters/payments/__tests__/creem.adapter.test.ts
+  s_29893055f88353::t_4fae73331f3464 113-124
+  s_cca22ab4c018aa::t_3c007eabfc80b3 1-91,94,96,137-162
+  s_cca22ab4c018aa::t_47c1ec0f6e90cb 92-93,95,97-112,125-136
+web/public/privacy.html
+  s_cca22ab4c018aa::t_97239bb6cfb9c6 33
+  s_cca22ab4c018aa::t_62c355bde50310 2
+  s_cca22ab4c018aa::t_5e65559e124b74 11,20,30,32,35-38,40-41,43,46,48-52,55-56,58-59,61-62,64-65,67-68,70,73-74,77-79
+payments/src/provider.ts
+  s_29893055f88353::t_5001ea79e67663 30-32
+src/adapters/esign/firma.adapter.ts
+  s_29893055f88353::t_81f578b8812b39 571-573,575
+web/app/checkout/[productId]/__tests__/page.test.ts
+  s_29893055f88353::t_246db0eebea8b3 45
+web/src/lib/consent-chain.ts
+  s_29893055f88353::t_758837cfa30a7d 26
+  s_29893055f88353::t_639ae8ff4b273e 10-12
+  s_29893055f88353::t_077725bcfd6523 28-32,37-48
+  s_29893055f88353::t_7c20af7af0a1b2 22
+  s_29893055f88353::t_35a9f4315d5f33 58-62
+  s_29893055f88353::t_715dbeeb0e83f4 21,23
+  s_29893055f88353::t_f7255c4406ff79 94-129
+web/__tests__/next-config-redirects.test.ts
+  s_29893055f88353::t_9123b0ffa7eccb 1-23
+web/app/creator/review/page.tsx
+  s_29893055f88353::t_bc7ffe79b2cd3e 4,65-67,69,77-84,122
+src/adapters/esign/__tests__/firma.adapter.test.ts
+  s_29893055f88353::t_c3c269a13aaa49 51-52
+  s_29893055f88353::t_79ea302d360665 71-72
+src/infrastructure/matrix_router/matrix_router_errors.ts
+  s_29893055f88353::t_e7afc30780a9ef 1-17
+web/app/api/billing/checkout/route.ts
+  s_29893055f88353::t_58955dde1b16f7 155-157
+  s_29893055f88353::t_9f428261f90352 143-146
+  s_29893055f88353::t_bc7ffe79b2cd3e 8,137
+  s_29893055f88353::t_9d1b6f190ec5f7 9
+  s_29893055f88353::t_dba68c4f96a96e 315-320
+  s_29893055f88353::t_f51b9948294169 181
+  s_29893055f88353::t_5e143daa16ff74 34-42,44-93
+  s_29893055f88353::t_0ab47371d2c013 43
+  s_29893055f88353::t_28b1a0eeb28a69 177-178,182-183
+scripts/__tests__/backup-common-pg-url.test.ts
+  s_29893055f88353::t_621a099701d055 1-26,28-76
+  s_29893055f88353::t_c7ec14aeb1a535 27
+web/public/assets/backlink.js
+  s_29893055f88353::t_459e4a7f9b8a10 9-11
+payments/src/providers/fastspring.ts
+  s_29893055f88353::t_6ab44aea8a223a 160-161
+web/app/api/billing/checkout/__tests__/route.test.ts
+  s_29893055f88353::t_e0d86aba59863d 525
+  s_29893055f88353::t_54f0120d31e61c 27-28
+  s_29893055f88353::t_38f3f63804f567 6,570-638,800,992-1011
+  s_29893055f88353::t_313dda02196763 24-25
+  s_29893055f88353::t_db847a70d371ea 663
+  s_29893055f88353::t_3a3b1eeef01589 416
+  s_29893055f88353::t_00ccf1608a25b9 517,521
+  s_29893055f88353::t_1fcf11cd32d2ba 556-557,561-562,566
+  s_29893055f88353::t_08ab4b802db341 870-879,1012
+  s_29893055f88353::t_d13521251feaf9 66-67,69-78
+  s_29893055f88353::t_a710dd7170c2d6 742
+  s_29893055f88353::t_186ecbf02b4913 526-537,539,542-554
+  s_29893055f88353::t_9f5f8877c41c82 917
+  s_29893055f88353::t_64d1bb89290398 48-56,58
+  s_29893055f88353::t_7df8c684a2f01f 639
+web/app/books/page.tsx
+  s_29893055f88353::t_22367b5aec84dc 16-17,19
+web/src/lib/__tests__/handle_pairwise.test.ts
+  s_29893055f88353::t_e2ade0a557d6ce 1-9,11-61,67-79,86-103,108-118,120-121,124-182,184,190-193
+  s_29893055f88353::t_8f82037f93502f 183,185-189
+  s_29893055f88353::t_9d22eae317d6d2 10
+  s_29893055f88353::t_acf8ffe84d8a6d 104-107,119,122-123
+  s_29893055f88353::t_85f2f09887f1bb 62-66,80-85
+payments/src/webhook_core.ts
+  s_29893055f88353::t_9599abe123c160 61-62
+  s_29893055f88353::t_7542e1830fc972 28-33,38-39
+  s_29893055f88353::t_5c431afa877a3b 85,97,100-103,111
+  s_29893055f88353::t_b2d173566e29e8 87
+  s_29893055f88353::t_035bb29de34797 109
+  s_29893055f88353::t_0b2a700c82066f 139-144,146
+  s_29893055f88353::t_55bbb9ba6c7d65 107
+  s_29893055f88353::t_f56061e7ac5af4 1
+  s_29893055f88353::t_0bb6c9aa9e9a63 166-168,176,182
+web/app/api/billing/webhook/verifiers.ts
+  s_cca22ab4c018aa::t_354cd439b5f178 3
+  s_cca22ab4c018aa::t_bd4fb4488e9a45 13
+web/app/api/billing/webhook/handler.ts
+  s_29893055f88353::t_51cc3bcb2b97a6 200-202,208-209,214-216
+  s_29893055f88353::t_c6c971ac9b9d00 313
+  s_963216149b387b::t_2c69dd747d938f 237
+web/src/lib/__tests__/admin-gate-revoked.test.ts
+  s_29893055f88353::t_8e16a44c9dcfb0 10,12-13
+  s_29893055f88353::t_752f4eaf2e84d9 36
+  s_29893055f88353::t_cfb7fabd5b4307 1-9,11,14-35,37-74
+web/__tests__/providers-page.test.ts
+  s_29893055f88353::t_82f3131cb05e27 23-24,27-28
+src/use_cases/billing/process_billing_webhook.ts
+  s_29893055f88353::t_47a060299d6cb6 44-54
+  s_29893055f88353::t_5b947bec895d2e 551-563
+  s_29893055f88353::t_0129a26d23f7de 519-521,523,525
+  s_29893055f88353::t_326554b51ad3bf 15
+  s_29893055f88353::t_e9e4f86097ac28 524
+src/domain/payments/payments.port.ts
+  s_29893055f88353::t_d8eb749a179633 92-96,110-115
+  s_29893055f88353::t_4c9ab564369304 91
+payments/test/provider_router.test.ts
+  s_29893055f88353::t_a99c2566997b01 9,20-24
+  s_29893055f88353::t_6ddb80543ee578 43-46
+web/app/books/[handle]/[product]/page.tsx
+  s_29893055f88353::t_5042b7115239fb 34,66
+supabase/migrations/20261115100000_drop_derived_product_identifiers.sql
+  s_29893055f88353::t_a4236bd16c199b 1-13
+web/next.config.ts
+  s_29893055f88353::t_c7fd9b52891c51 5-7
+  s_29893055f88353::t_d2d781b11beace 45-47,49,51-52,54
+  s_29893055f88353::t_f87082f58cf4e9 53
+web/public/books/legal/providers.html
+  s_29893055f88353::t_7c3b745095bccd 45
+  s_29893055f88353::t_baeca4d2757f34 34
+  s_29893055f88353::t_a5d6c32a805a7d 35
+  s_29893055f88353::t_0918095e7ac157 2
+src/infrastructure/matrix_router/matrix_router.ts
+  s_29893055f88353::t_8b1ebf236cc0f8 3,5-9,12,18,27-30,48,53-67,78,95-98,102-103,106-107,109,114
+  s_29893055f88353::t_9536b5d0128ff5 105
+src/adapters/esign/esign.factory.ts
+  s_29893055f88353::t_09a19b995aa145 39-40
+  s_29893055f88353::t_458ab6cdf900f8 5
+web/__tests__/storefront.test.ts
+  s_29893055f88353::t_5963b1d10e81f3 8-10
+  s_29893055f88353::t_c8448bfcfb33f2 67-84
+  s_29893055f88353::t_be3f36cb8fa8ff 65-66
+web/app/checkout/[productId]/page.tsx
+  s_29893055f88353::t_5042b7115239fb 31,60
+web/app/api/admin/audit-log/__tests__/route.test.ts
+  s_29893055f88353::t_0544aad623bdbe 15
+web/app/creator/review/review-client.tsx
+  s_29893055f88353::t_bc7ffe79b2cd3e 144
+web/app/api/billing/webhook/__tests__/creem-switched-off.test.ts
+  s_29893055f88353::t_2269f5348aa625 1-92
+supabase/migrations/20261115110000_consents_supersedes_set.sql
+  s_29893055f88353::t_2f24d482f1d23f 1-304
+src/adapters/payments/legacy.adapter.ts
+  s_29893055f88353::t_d86bcc4d2a5339 129-130
+web/src/lib/__tests__/consent-chain-set-supersession.test.ts
+  s_29893055f88353::t_3ca0f454e115d0 107
+  s_29893055f88353::t_5c8b67d9a88516 10,15
+  s_29893055f88353::t_6384d47f36020b 1-9,11-14,16-106,108-125
+web/app/creator/signin/actions.ts
+  s_29893055f88353::t_30acf5ac3241c1 6
+  s_29893055f88353::t_b3900aaee131fa 32-36,38-40,48,55-64
+web/app/creator/consents/actions.ts
+  s_29893055f88353::t_455af9465181e3 6,29-30
+src/use_cases/billing/__tests__/process_billing_webhook.test.ts
+  s_29893055f88353::t_760be2cf33f734 347
+  s_29893055f88353::t_d77cd2f712fabf 145-151
+  s_29893055f88353::t_035635cf57a470 408
+  s_29893055f88353::t_aefb283e984c8b 17-21,34
+  s_29893055f88353::t_43edd31d9aa8ad 1573
+  s_29893055f88353::t_b1f880e62aa358 1680-1785
+web/src/lib/__tests__/handle_pairwise.model.txt
+  s_29893055f88353::t_80b71d3a6783bb 1-7,9-13,15
+  s_29893055f88353::t_12b382b072b12a 14
+  s_29893055f88353::t_b99cdbdac99e28 17-18
+  s_29893055f88353::t_6d6fe682ffe2ef 16
+  s_29893055f88353::t_fab96087288275 8
+supabase/migrations/20261110120000_products_platform_slug_unique.sql
+  s_e7e910725e2866::t_bff86ec34e5dcf 1,7-10,12-14,16-19,26,39
+  s_29893055f88353::t_9100a421284e40 31-32
+  s_e7e910725e2866::t_bcbf1f72f0338a 2-6,11,15,20-25,27-30,33-38,40-43
+src/adapters/payments/paddle.adapter.ts
+  s_29893055f88353::t_453e603957719e 334-336
+src/infrastructure/redis/redis.client.ts
+  s_29893055f88353::t_99099ea781bdf5 137-141
+  s_29893055f88353::t_74ca3fd3fe587d 125-133
+web/src/components/storefront/storefront.tsx
+  s_29893055f88353::t_7eb7067d104233 58
+  s_29893055f88353::t_658b71bc2bffcb 59-60
+  s_29893055f88353::t_4a56a316510ec6 98,122,143,171
+supabase/migrations/20261114130000_products_slug_agreed_rule.sql
+  s_29893055f88353::t_040f2575ac8541 1-2,13-16
+  s_29893055f88353::t_1772da0702d380 11-12
+  s_29893055f88353::t_b911bc9538f9ad 8-10
+  s_29893055f88353::t_1d99a3a3ee4395 3-7
+supabase/migrations/20261112151200_revoke_handle_available_anon.sql
+  s_29893055f88353::t_f6a4a30b093b62 1-6
+web/app/api/esign/webhook/route.ts
+  s_29893055f88353::t_b70512d23ab4d6 109-115
+src/adapters/payments/__tests__/creem.provider_mode.test.ts
+  s_29893055f88353::t_7405e130c24177 1-78
+web/public/refund-policy.html
+  s_cca22ab4c018aa::t_c48e962f92bde6 11,30,35-36,38-39,42,44-45,51-53
+  s_cca22ab4c018aa::t_d5652280acd5df 2
+  s_cca22ab4c018aa::t_ee16cdd75750f6 32
+web/public/books/legal/privacy.html
+  s_29893055f88353::t_1bb455644959fc 34
+  s_29893055f88353::t_bee2c3a2212f5f 72
+  s_29893055f88353::t_baeca4d2757f34 30
+  s_29893055f88353::t_c33941f52c5db0 63
+  s_29893055f88353::t_96bac8d3181da4 2
+  s_29893055f88353::t_2ec2642db421bd 31
+  s_29893055f88353::t_0b9a2a9eb6a66a 66
+web/app/creator/review/__tests__/actions.test.ts
+  s_29893055f88353::t_0caeea4848516c 46-68
+  s_29893055f88353::t_698fd2297f9a0f 9-14
+  s_29893055f88353::t_1ed7d56d76e800 8,19-26
+  s_29893055f88353::t_0544aad623bdbe 17,72-73
+web/public/books/legal/terms.html
+  s_29893055f88353::t_bb43a74c66a505 67
+  s_29893055f88353::t_6836454934ba37 31
+  s_29893055f88353::t_1ded36439bd76d 49
+  s_29893055f88353::t_a3059201880ad5 2
+  s_29893055f88353::t_f4b09d521c546c 55
+  s_29893055f88353::t_414628a60a6e77 73
+src/use_cases/__tests__/audit-esign-replay.test.ts
+  s_29893055f88353::t_3b29858bd3526a 20
+payments/test/webhook_resolve_provider_mode.test.ts
+  s_29893055f88353::t_6d7f0da405f41a 9-13,15-16,18,21,28-39,51,67-87
+  s_29893055f88353::t_84a2263a8431e0 1-8,14,17,19-20,22-27,40-50,52-66,88-108
+web/src/lib/__tests__/primary-product.test.ts
+  s_29893055f88353::t_b89a40b23075d1 125-129
+  s_29893055f88353::t_61610736545785 196,198-199,204-205
+  s_29893055f88353::t_7bcd059d51f752 18-19
+web/src/lib/zod-rules.ts
+  s_29893055f88353::t_c8e60427a0ffd9 11-17
+  s_29893055f88353::t_bc7ffe79b2cd3e 1-5,7-9
+  s_29893055f88353::t_3e490774f33511 6,10
+web/src/lib/supabase-server.ts
+  s_29893055f88353::t_ec1a414597e1ca 74-77,79-81,83,110,122-145
+  s_29893055f88353::t_245798c048f637 146
+web/src/lib/admin.ts
+  s_29893055f88353::t_455af9465181e3 3,28,30
+web/app/books/d/[token]/route.ts
+  s_29893055f88353::t_e1aa05b580776a 2-5
+  s_29893055f88353::t_fa848ad9254127 1,6-82
+web/app/creator/consents/page.tsx
+  s_29893055f88353::t_3e92c9a311704c 5-6,17-21,30-34,45-46,54-55,60-62
+web/src/lib/__tests__/review-anchor.test.ts
+  s_29893055f88353::t_bc7ffe79b2cd3e 1-18
+scripts/migrate-heritage-json.ts
+  s_29893055f88353::t_32d278dd8ddbb7 59
+web/app/books/d/[token]/__tests__/route.test.ts
+  s_29893055f88353::t_2c207218c159e0 47
+  s_29893055f88353::t_fa848ad9254127 1-3,5-46,48-270
+  s_29893055f88353::t_e1aa05b580776a 4
+web/src/lib/__tests__/supabase-server.test.ts
+  s_29893055f88353::t_2e1400b8591c3a 413-466
+payments/src/delivery.ts
+  s_29893055f88353::t_fa848ad9254127 4,6,134
+  s_29893055f88353::t_ed6764d0110b84 188-196
+scripts/ops/backup-common.sh
+  s_29893055f88353::t_1db81fc9fd87be 30-33,35-64
+payments/src/settings_registry.ts
+  s_29893055f88353::t_0dd83375eab36c 191-199
+  s_29893055f88353::t_b0767d885f071b 369-382
+  s_29893055f88353::t_34550dcff68ff3 106
+  s_29893055f88353::t_6ec8b12a6b11f5 208-215
+src/use_cases/create_esign_envelope.ts
+  s_29893055f88353::t_d213c4a2ac853b 41-44
+  s_29893055f88353::t_97dec5c7109370 3
+web/app/api/billing/webhook/__tests__/valid_signature_malformed_ledger.test.ts
+  s_29893055f88353::t_981cc8150add77 41
+  s_29893055f88353::t_ef9a3f5fc09733 34
+  s_29893055f88353::t_7a76698a76ddc6 71
+src/infrastructure/matrix_router/__tests__/matrix_router.test.ts
+  s_29893055f88353::t_551df15d817664 120-125
+  s_29893055f88353::t_5c1973174d9158 1
+  s_29893055f88353::t_62186b67ce9d34 130
+  s_29893055f88353::t_3843b7a25ddeb3 69
+  s_29893055f88353::t_6e994b87078171 5
+  s_29893055f88353::t_3a825a5e5d91c8 2-4,6-68,70-97,99-119,126-129,131-135
+  s_29893055f88353::t_e48869208141e3 98
+web/src/lib/review-anchor.ts
+  s_29893055f88353::t_bc7ffe79b2cd3e 1-13
+web/__tests__/proxy.test.ts
+  s_29893055f88353::t_fa848ad9254127 733
+web/src/lib/handle-shape.ts
+  s_cca22ab4c018aa::t_af0275ee2750ca 2
+  s_29893055f88353::t_7032db433f2070 1,5,11
+  s_cca22ab4c018aa::t_377d87a9954e10 3-4,6-10
+payments/src/providers/fungies.ts
+  s_29893055f88353::t_cea3ad1292be4e 174-175
+docs/adr/0065-identifier-rules.md
+  s_29893055f88353::t_37be70206d1129 36,42-43,45-46
+  s_29893055f88353::t_88d1741f1c3582 14,37-41
+  s_29893055f88353::t_9ff1ef284cb7ce 16,27
+  s_29893055f88353::t_b911bc9538f9ad 1-13,15,17-25,28-35
+  s_29893055f88353::t_bc2e6dea429a4f 26
+  s_29893055f88353::t_a1df1a4e85069f 44
+web/app/creator/dashboard/__tests__/actions.test.ts
+  s_29893055f88353::t_4ed7ba43cb8169 236-238,241
+  s_29893055f88353::t_e5285ca4945c94 3-4,9,14,19-23,32,36-42,53-75,86-115,122-129,132-151,157-164,169-170,175-176,181-182,188-190,192,196-202,204-206,208-209,212,214-216,218-219,224-227,229,231,239-240,247-248,252-254,260,262,270-271,275-276,282,287,294,301,312
+web/app/creator/review/actions.ts
+  s_29893055f88353::t_6483eb83b29c21 5
+  s_29893055f88353::t_da1eddfc036840 29-43
+  s_29893055f88353::t_455af9465181e3 4,22-23
+web/src/lib/creator-consents.ts
+  s_29893055f88353::t_bedad2b4161078 1-8,10-11,17-22,26-29,31,33-35,37,42-44,46-49,51
+  s_29893055f88353::t_4b2253f17c8f5c 9,12-16,32,45,50
+  s_29893055f88353::t_b3969283a26d01 38
+  s_29893055f88353::t_f2c1d690557402 23-25,30,36,39-41
+web/src/lib/__tests__/handle-shape.test.ts
+  s_cca22ab4c018aa::t_8c4e2a248410dc 1,3-10,12-23,25
+  s_29893055f88353::t_9d22eae317d6d2 2,11,24
+payments/DEPLOY-NOTES.md
+  s_29893055f88353::t_c65e9b618a8305 22-23,36
+vitest.config.ts
+  s_29893055f88353::t_ed56aad61092bb 13
+payments/src/launch_gate.ts
+  s_29893055f88353::t_d5b7bc0e121fe2 85
+web/src/lib/__tests__/portal-consent-state.test.ts
+  s_29893055f88353::t_17939a1a55e038 1-108
+  s_29893055f88353::t_765420e714506d 109-138
+src/adapters/payments/creem.adapter.ts
+  s_29893055f88353::t_35fadb04107e4b 23-28
+  s_cca22ab4c018aa::t_79a54f3625db4d 60-68
+  s_cca22ab4c018aa::t_620a18e508cc7d 1,6-8,30,41-42,44-45,58-59,69-78,80-81,83-93,96,99,101-102,105,113,115-117,121-123,134-142
+  s_cca22ab4c018aa::t_2be9b099501c5b 107,109-112
+  s_cca22ab4c018aa::t_4f2387f9234021 2-5,31-40,43,79,82,94-95,97-98,100,103-104,106,108,114,124-129,131,133
+  s_cca22ab4c018aa::t_c86177e635e22c 9,11-22,29
+  s_29893055f88353::t_84623973ac4541 46-57
+  s_cca22ab4c018aa::t_67311b666ece48 130
+  s_29893055f88353::t_af29dc36c7499e 132
+  s_29893055f88353::t_eaa45f8421ce14 10
+  s_cca22ab4c018aa::t_86ded6a678faee 118-120
+src/use_cases/__tests__/process_esign_webhook.test.ts
+  s_29893055f88353::t_1ad19876b8bc13 133-137
+  s_29893055f88353::t_7ad10244aef275 251
+  s_29893055f88353::t_cfb64642b0df55 226
+  s_29893055f88353::t_a8becce36d3789 41
+  s_29893055f88353::t_2e043e20bb18b8 15-16
+  s_29893055f88353::t_c9e6aa24d500da 62-100
+  s_29893055f88353::t_c46f50eb7b4352 141
+web/src/lib/__tests__/identifier-rule.test.ts
+  s_29893055f88353::t_24c6dc599b8828 1-4
+  s_29893055f88353::t_9a02473d8c95ff 5-31
+web/app/books/[handle]/thanks/page.tsx
+  s_29893055f88353::t_5042b7115239fb 59
+  s_cca22ab4c018aa::t_a03e26c7213c5a 1-58,60-77
+docs/adr/0061-payment-domain-pay-subdomain.md
+  s_29893055f88353::t_c3989006e94eb4 17
+  s_29893055f88353::t_9ff1ef284cb7ce 34
+web/src/lib/__tests__/consents-submit-supersedes-set.sql.test.ts
+  s_29893055f88353::t_55028f7162997a 1-177
+web/app/creator/consents/esign_done/page.tsx
+  s_29893055f88353::t_b6e0476b984382 33,35,37-38,43-44
+  s_29893055f88353::t_3521ead733282d 39-42
+  s_29893055f88353::t_bfc77d9df21d87 4-5
+web/__tests__/proxy-pay-host-confinement.test.ts
+  s_29893055f88353::t_9b0e560059a7c9 1-43
+src/adapters/payments/__tests__/creem.gate.pairwise.test.ts
+  s_29893055f88353::t_4a88877045c678 5-8
+  s_29893055f88353::t_13e3bad28f37f4 93-94
+  s_cca22ab4c018aa::t_d62947318b9b2e 96-105
+  s_cca22ab4c018aa::t_4db91528acdaca 1-4,9-92,95,106-119
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9dfcc5e627a3b263295bb0dfbf294b413a9aef88",
+  "prompts": {},
+  "sessions": {
+    "s_29893055f88353": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1c444932-1da1-4ad5-9e8b-395eb468f52a",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    },
+    "s_963216149b387b": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a9e06b14420920a89",
+        "model": "unknown"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    },
+    "s_cca22ab4c018aa": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6c443dec-743c-4659-936e-3e1442e46dd1",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    },
+    "s_e7e910725e2866": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6438089e-4a0c-4509-a6d3-f733e13fb9e2",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
