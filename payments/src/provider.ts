@@ -3,6 +3,7 @@
 // our only job on a webhook is: verify -> parse -> append sale record.
 import type { IncomingHttpHeaders } from "node:http";
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
+import type { ProviderMode } from "../../src/domain/payments/payments.port.ts";
 
 export type ProviderName = "lemonsqueezy" | "payhip" | "paddle" | "polar" | "fungies" | "fastspring";
 
@@ -29,7 +30,7 @@ export interface SaleEvent {
   attribution_id?: string;
   // The provider's own live/test flag, read from an authenticated field. Absent when the parser found none:
   // the sale is then refused (fail closed) before it is recorded. Set only from a verified field, never a default.
-  provider_mode?: "live" | "sandbox";
+  provider_mode?: ProviderMode;
 }
 
 export interface RefundEvent {

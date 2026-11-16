@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import * as Sentry from "@sentry/nextjs";
 import { getPortalSession } from "../../../src/lib/supabase-server";
 import { resolvePrimaryProduct } from "../../../src/lib/primary-product";
 import { portalConsentState } from "../../../src/lib/consent-chain";
@@ -34,6 +35,10 @@ export default async function ConsentsPage() {
   );
   const product = productRes.product;
   if (productRes.error || !product) {
+    if (productRes.error) {
+      console.error("[consents] products query failed:", productRes.error.message);
+      Sentry.captureException(productRes.error, { tags: { surface: "consents", query: "products" } });
+    }
     return (
       <ConsentNotice
         title="We couldn't load your consents."
@@ -44,6 +49,8 @@ export default async function ConsentsPage() {
 
   const { rows, error: consentsError } = await loadCreatorConsentRows(supabase, product.creator_id);
   if (consentsError) {
+    console.error("[consents] consents query failed:", consentsError.message);
+    Sentry.captureException(consentsError, { tags: { surface: "consents", query: "consents" } });
     return (
       <ConsentNotice
         title="We couldn't load your consent states."

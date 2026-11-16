@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { deliverSale, deliverSaleForWebhook, createDubShortLink, tokenHash, newToken, TOKEN_RE, StaleFenceError, type DeliveryDeps } from "../src/delivery";
+import { GLOBAL } from "../src/settings_registry";
 import { EmailSendError } from "../src/email";
 
 // A definite rejection: the provider refused the request, so no email was accepted.
@@ -336,6 +337,35 @@ describe("deliverSaleForWebhook fails closed (non-2xx, retryable)", () => {
   it("rejects when the product has no release file, so the provider retries", async () => {
     const f = fakes({ product: { ...PRODUCT, releasePath: null } });
     await expect(deliverSaleForWebhook(sale, f.deps)).rejects.toThrow(/no release file/i);
+    expect(f.sendEmail).not.toHaveBeenCalled();
+  });
+});
+
+describe("deliverSale fence and send_kind validation", () => {
+  it.each([-1, 1.5, Number.NaN, Number.MAX_SAFE_INTEGER + 1, "1" as unknown as number])(
+    "rejects invalid fence token (%p) with TypeError before claiming or sending",
+    async (badFence) => {
+      const f = fakes();
+      const err = await deliverSale({ ...sale, fence: badFence }, f.deps).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(TypeError);
+      expect((err as Error).message).toContain("fence token must be a non-negative safe integer");
+      expect(f.deps.db.claimDeliverySend).not.toHaveBeenCalled();
+      expect(f.sendEmail).not.toHaveBeenCalled();
+    },
+  );
+
+  it("throws when send_kind is blank or missing from settings registry", async () => {
+    const f = fakes();
+    await expect(deliverSale({ ...sale, sendKind: "  " }, f.deps)).rejects.toThrow("delivery.send_kind is missing");
+
+    const prevSendKind = GLOBAL.delivery.send_kind;
+    GLOBAL.delivery.send_kind = "";
+    try {
+      await expect(deliverSale(sale, f.deps)).rejects.toThrow("delivery.send_kind is missing");
+    } finally {
+      GLOBAL.delivery.send_kind = prevSendKind;
+    }
+    expect(f.deps.db.claimDeliverySend).not.toHaveBeenCalled();
     expect(f.sendEmail).not.toHaveBeenCalled();
   });
 });

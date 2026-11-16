@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect, unstable_rethrow } from "next/navigation";
+import * as Sentry from "@sentry/nextjs";
 import { createSsrClient } from "../../../src/lib/supabase-ssr";
 import { clearPortalCookies, getVerifiedPortalSession } from "../../../src/lib/supabase-server";
 import { EnvSettingsAdapter } from "../../../../src/adapters/settings/env_settings.adapter";
@@ -48,11 +49,16 @@ export async function startPublisherAgreementAction(): Promise<void> {
   const { supabase, user } = session;
 
   // Every portal status surface reads the PRIMARY product, so the C3 envelope may only be created for it.
-  const { product: primary } = await resolvePrimaryProduct<{
+  const { product: primary, error: productError } = await resolvePrimaryProduct<{
     id: string;
     creator_id: string | null;
     release_sha256: string | null;
   }>(supabase, "id, creator_id, release_sha256");
+  if (productError) {
+    console.error("[dashboard] products query failed:", productError.message);
+    Sentry.captureException(productError, { tags: { surface: "dashboard", query: "products" } });
+    redirect("/creator/dashboard?error=c2_required");
+  }
   if (!primary || !primary.id) {
     redirect("/creator/dashboard?error=c2_required");
   }
@@ -61,6 +67,8 @@ export async function startPublisherAgreementAction(): Promise<void> {
   // A read error or a truncated history (safety cap) fails closed.
   const { rows, error: consentsError } = await loadCreatorConsentRows(supabase, primary.creator_id);
   if (consentsError) {
+    console.error("[dashboard] consents query failed:", consentsError.message);
+    Sentry.captureException(consentsError, { tags: { surface: "dashboard", query: "consents" } });
     redirect("/creator/dashboard?error=c2_required");
   }
 

@@ -1,14 +1,15 @@
 /**
  * Consent-chain head resolution for the portal (sprint 12 B2, AGY audit P1).
  *
- * Mirrors the SSOT semantics of `startPublisherAgreementAction`
- * (web/app/creator/dashboard/actions.ts) and `assertLaunchConsents`
- * (payments/bake_checkout.ts): a consent is ACTIVE only when it is the HEAD
- * of its supersession chain AND its decision is "given". Superseded rows —
- * including rows superseded by a later refusal — must never read as signed.
+ * Shared SSOT semantics for `/api/billing/checkout` (web/app/api/billing/checkout/route.ts),
+ * `assertLaunchConsents` (payments/src/launch_gate.ts), and `portalConsentState`
+ * (used by `startPublisherAgreementAction` in web/app/creator/dashboard/actions.ts,
+ * the dashboard, and the consent pages): a consent is ACTIVE only when it is the
+ * sole HEAD of its supersession chain AND its decision is "given". Superseded
+ * rows — including rows superseded by a later refusal — must never read as signed.
  *
- * NOTE: `strictActiveConsentKinds` (below) is the only active-kind resolver.
- * It enforces the single-head rule, so a fork fails closed on display and gate
+ * NOTE: `strictActiveConsentKinds` and `strictChainHead` (below) enforce the
+ * single-head rule (`length === 1`), so a fork fails closed on display and gate
  * surfaces alike.
  */
 
@@ -53,13 +54,16 @@ export function supersededConsentIds(consents: ConsentChainRow[]): Set<string> {
 
 /**
  * STRICT gate semantics for money-path enforcement (CR round-2 on PR #85):
- * a kind passes ONLY when it has EXACTLY ONE chain head and that head's
- * decision is "given". A concurrent pre-lock race can leave two heads for one
- * kind (one given, one refused). Counting the kind active off the given head
- * alone would authorize a payment, so any ambiguity fails closed (the F6 race
- * lock prevents NEW forks but does not repair existing ones).
- * `startPublisherAgreementAction` already enforces the same single-head rule
- * via its length!==1 checks. This is the only active-kind resolver.
+ * a kind passes ONLY when it has EXACTLY ONE chain head (`kindHeads.length === 1`)
+ * and that head's decision is "given". A concurrent pre-lock race can leave two
+ * heads for one kind (one given, one refused). Counting the kind active off the
+ * given head alone would authorize a payment, so any ambiguity fails closed (the
+ * F6 race lock prevents NEW forks but does not repair existing ones).
+ * Enforced here in `strictActiveConsentKinds` and `strictChainHead` (and in SQL by
+ * `strict_active_consent_kinds` in supabase/migrations/20261009000000_launch_trigger_and_audit.sql);
+ * `startPublisherAgreementAction`, `/api/billing/checkout`, and `assertLaunchConsents`
+ * all enforce it through these helpers (or `portalConsentState`). This is the only
+ * active-kind resolver.
  */
 export function strictActiveConsentKinds(consents: ConsentChainRow[], productId?: string): Set<string> {
   const supersededIds = supersededConsentIds(consents);

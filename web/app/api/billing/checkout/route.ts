@@ -23,10 +23,10 @@ interface CheckoutRail {
  * table, not from repo JSON files). GET/HEAD only: resolves the product's
  * rail config from the Supabase product_rails table (no routable rail: 404;
  * a rail whose provider is switched off is not routed), and 302-redirects to the
- * weighted-selected provider checkout URL via MatrixRouter, falling back to
- * the highest-weight rail if the router fails. Every source's checkout_url
- * passes one validation policy — raw value must be a string (non-string
- * fails closed), then trimmed: non-empty, https, and sandbox hosts
+ * weighted-selected provider checkout URL via MatrixRouter (MatrixRouterUnavailableError
+ * returns 503 and fails closed; the highest-weight fallback is only a rail-level
+ * fallback for other router failures). Every source's checkout_url passes one
+ * validation policy — raw value must be a string (non-string fails closed), then trimmed: non-empty, https, and sandbox hosts
  * (hostname label match) only in explicitly recognised non-production
  * environments when GLOBAL.payments.sandbox_checkout_enabled is true — and any
  * violation fails closed with 500 "Checkout is not configured".

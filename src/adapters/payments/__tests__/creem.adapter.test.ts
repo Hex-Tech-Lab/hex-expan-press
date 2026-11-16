@@ -156,6 +156,32 @@ describe("CreemAdapter", () => {
     expect(r).toMatchObject({ isValid: false, httpStatus: 400 });
   });
 
+  it("returns 400 when a validly signed body is not valid JSON (SyntaxError branch)", async () => {
+    const body = "{not-valid-json";
+    const r = await adapter.parseAndValidateWebhook(headersFor(body), body);
+    expect(r).toMatchObject({
+      isValid: false,
+      httpStatus: 400,
+      error: "Schema validation failed: body is not valid JSON",
+    });
+  });
+
+  it.each([
+    ["string", "2026-11-16T00:00:00Z"],
+    ["missing", undefined],
+  ])("returns 400 when createdAt is not a number (%s)", async (_label, createdAt) => {
+    const parsed = JSON.parse(checkoutCompleted()) as Record<string, unknown>;
+    if (createdAt === undefined) delete parsed.created_at;
+    else parsed.created_at = createdAt;
+    const body = JSON.stringify(parsed);
+    const r = await adapter.parseAndValidateWebhook(headersFor(body), body);
+    expect(r).toMatchObject({
+      isValid: false,
+      httpStatus: 400,
+      error: "Creem delivery has no event time",
+    });
+  });
+
   it("refuses to create checkouts on the buy path (product_rails serves static links)", async () => {
     await expect(adapter.createCheckout({ productId: "p", userId: "u", buyerEmail: "a@b.co", successUrl: "https://x.y" })).rejects.toThrow();
   });

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import * as Sentry from "@sentry/nextjs";
 import { getPortalSession } from "../../../../src/lib/supabase-server";
 import { resolvePrimaryProduct } from "../../../../src/lib/primary-product";
 import { portalConsentState } from "../../../../src/lib/consent-chain";
@@ -34,13 +35,22 @@ async function hasRecordedC3(): Promise<boolean> {
       session.supabase,
       "id, creator_id, release_sha256",
     );
-    if (productError || !product) return false;
+    if (productError) {
+      console.error("[esign_done] products query failed:", productError.message);
+      Sentry.captureException(productError, { tags: { surface: "esign_done", query: "products" } });
+      return false;
+    }
+    if (!product) return false;
     // Same strict chain rule as checkout: a C3 superseded by a later refusal (even one on
     // another product) is not a recorded agreement. Only the C3 chain is read; the rule is per kind.
-    const { rows, error } = await loadCreatorConsentRows(session.supabase, product.creator_id, {
+    const { rows, error: consentsError } = await loadCreatorConsentRows(session.supabase, product.creator_id, {
       kinds: ["C3_revenue_split"],
     });
-    if (error) return false;
+    if (consentsError) {
+      console.error("[esign_done] consents query failed:", consentsError.message);
+      Sentry.captureException(consentsError, { tags: { surface: "esign_done", query: "consents" } });
+      return false;
+    }
     return portalConsentState(rows, product.id, product.release_sha256).hasC3;
   } catch (err) {
     console.error("[esign_done] C3 status check failed:", err);

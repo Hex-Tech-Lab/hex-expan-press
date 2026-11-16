@@ -300,4 +300,14 @@ describe("payments/src/ledger", () => {
       vi.doUnmock("@supabase/supabase-js");
     }
   });
+
+  it.each([-1, 1.5, Number.NaN, Number.MAX_SAFE_INTEGER + 1, "1" as unknown as number])(
+    "rejects invalid fence token (%p) before any durable or local write",
+    async (badFence) => {
+      const err = await appendSale(baseSale, salesFile, badFence).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(TypeError);
+      expect((err as Error).message).toContain("fence token must be a non-negative safe integer");
+      expect(findSale(baseSale.provider, baseSale.sale_id, salesFile)).toBeNull();
+    },
+  );
 });

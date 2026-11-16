@@ -16,11 +16,17 @@ interface ConsentTestRow {
 
 let consentsData: ConsentTestRow[] = [];
 let consentsError: { message: string } | null = null;
+let productError: { message: string } | null = null;
 let productRow: { id: string; creator_id: string | null; release_sha256: string | null } = {
   id: "p1",
   creator_id: "cr1",
   release_sha256: RELEASE_SHA,
 };
+
+const sentryCaptureMock = vi.hoisted(() => vi.fn());
+vi.mock("@sentry/nextjs", () => ({
+  captureException: sentryCaptureMock,
+}));
 
 const createEnvelopeMock = vi.fn().mockResolvedValue({ signUrl: "https://firma.im/sign/envelope_123" });
 
@@ -38,7 +44,10 @@ vi.mock("../../../../src/lib/supabase-server", () => ({
           return {
             select: () => ({
               order: () => ({
-                limit: async () => ({ data: [productRow] }),
+                limit: async () => ({
+                  data: productError ? null : [productRow],
+                  error: productError,
+                }),
               }),
             }),
           };
@@ -117,7 +126,9 @@ function c2(id: string, extra: Partial<ConsentTestRow> = {}): ConsentTestRow {
 describe("startPublisherAgreementAction — complete consent prerequisite chain (P1)", () => {
   beforeEach(() => {
     createEnvelopeMock.mockClear();
+    sentryCaptureMock.mockClear();
     consentsError = null;
+    productError = null;
     consentsData = [];
     productRow = { id: "p1", creator_id: "cr1", release_sha256: RELEASE_SHA };
   });
@@ -158,11 +169,39 @@ describe("startPublisherAgreementAction — complete consent prerequisite chain 
     expect(createEnvelopeMock).not.toHaveBeenCalled();
   });
 
-  it("fails closed when the consents read errors", async () => {
+  it("fails closed and logs/captures when the primary product read errors", async () => {
+    productError = { message: "products timeout" };
+    consentsData = [c1("c1_1"), c2("c2_1")];
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      await expect(startPublisherAgreementAction()).rejects.toThrow(C2_REQUIRED);
+      expect(createEnvelopeMock).not.toHaveBeenCalled();
+      expect(consoleSpy).toHaveBeenCalledWith("[dashboard] products query failed:", "products timeout");
+      expect(sentryCaptureMock).toHaveBeenCalledWith(productError, {
+        tags: { surface: "dashboard", query: "products" },
+      });
+    } finally {
+      consoleSpy.mockRestore();
+    }
+  });
+
+  it("fails closed when the consents read errors and logs/captures the error", async () => {
     consentsError = { message: "permission denied for table consents" };
     consentsData = [c1("c1_1"), c2("c2_1")];
-    await expect(startPublisherAgreementAction()).rejects.toThrow(C2_REQUIRED);
-    expect(createEnvelopeMock).not.toHaveBeenCalled();
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      await expect(startPublisherAgreementAction()).rejects.toThrow(C2_REQUIRED);
+      expect(createEnvelopeMock).not.toHaveBeenCalled();
+      expect(consoleSpy).toHaveBeenCalledWith(
+        "[dashboard] consents query failed:",
+        "permission denied for table consents",
+      );
+      expect(sentryCaptureMock).toHaveBeenCalledWith(consentsError, {
+        tags: { surface: "dashboard", query: "consents" },
+      });
+    } finally {
+      consoleSpy.mockRestore();
+    }
   });
 
   it("fails closed when C2 is given but C1 is missing (chain bypass attempt)", async () => {

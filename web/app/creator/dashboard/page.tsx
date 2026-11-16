@@ -20,8 +20,10 @@ export const metadata: Metadata = {
  * (written server-side by /auth/callback and the signin Server Actions).
  * The legacy AuthBridge localStorage->JWT-cookie path is retired — no
  * JS-readable token exists anymore. No valid cookie -> server-side redirect
- * to /creator/signin. No dashboard data is ever rendered without a
- * validated session (getUser validates against the auth server).
+ * to /creator/signin. No dashboard data is ever rendered without a verified
+ * session: getPortalSession() verifies the JWT locally when valid for >60s
+ * (no network round-trip; not revocation-safe) and otherwise validates online
+ * via auth.getUser().
  */
 
 /** Journey state mapping (Wave 4 mandate, founder contract): the tracker
@@ -42,7 +44,7 @@ export default async function DashboardPage({
 }: {
   searchParams: Promise<{ error?: string }>;
 }) {
-  // Single auth path: ssr-format HttpOnly cookie -> server-validated session.
+  // Single auth path: ssr-format HttpOnly cookie -> locally verified JWT (>60s TTL) or auth.getUser() fallback.
   const session = await getPortalSession();
   if (!session) {
     redirect("/creator/signin");

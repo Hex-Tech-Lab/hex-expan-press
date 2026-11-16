@@ -133,4 +133,16 @@ describe("withIdempotencyLock", () => {
     expect(fn).not.toHaveBeenCalled();
     expect(redis.compareAndDel).not.toHaveBeenCalled();
   });
+
+  it.each([0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1, "1", null])(
+    "throws and releases the lock when Redis INCR returns an invalid fencing token (%p)",
+    async (badFence) => {
+      redis.setnx.mockResolvedValue(1);
+      redis.incr.mockResolvedValueOnce(badFence as never);
+      const fn = vi.fn(async () => ({ status: 200, payload: { recorded: true } }));
+      await expect(withIdempotencyLock("lock:sale:polar:f3", fn)).rejects.toThrow("invalid fencing token from Redis INCR");
+      expect(fn).not.toHaveBeenCalled();
+      expect(redis.compareAndDel).toHaveBeenCalledWith("lock:sale:polar:f3", acquiredToken());
+    },
+  );
 });

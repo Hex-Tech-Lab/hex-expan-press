@@ -1,8 +1,8 @@
 // Creem adapter (ADR 0061 rail behind pay.expanpress.com). Verification and parsing use Creem's official SDK
 // (`creem/webhooks`), not hand-written signature code. The SDK returns { type, data, raw, id, createdAt }:
 // `type` is the event name, `data` is the event object, `raw` is the original JSON body.
-// Test-mode deliveries are refused (port rule), so a Creem test-mode smoke test cannot complete the webhook path
-// until that rule is decided with the founder.
+// Test-mode deliveries (mode === "test") are refused (400) unless `creemTestModeAllowed` passes (`accept` enabled
+// AND `SUPABASE_URL` hostname equals `${databaseRef}.supabase.co`), in which case `creemProviderMode` maps "test" to "sandbox".
 import { z } from "zod";
 import { constructWebhookEvent, WebhookVerificationError } from "creem/webhooks";
 import { cleanAttributionId, hashEmail } from "../../../payments/src/provider.ts";
