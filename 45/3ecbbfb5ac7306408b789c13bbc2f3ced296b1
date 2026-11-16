@@ -1,0 +1,41 @@
+GEMINI.md
+  s_29893055f88353::t_b6826c63b224de 1-30
+docs/agent_ledger.PROTOCOL.md
+  s_29893055f88353::t_8a638e938659a0 1-43
+docs/intel/CC_CANDIDATE_INSTRUCTION_SET_2026-11-16.html
+  s_29893055f88353::t_ff91e7f88935e6 1-388
+docs/intel/CC_CANDIDATE_INSTRUCTION_SET_2026-11-16.md
+  s_29893055f88353::t_4c6d4d9367cf26 1-80
+docs/intel/CC_CHANGELOG_BRIEF_2026-11-16.html
+  s_29893055f88353::t_6b4d89c30c342f 1-666
+docs/intel/CC_CHANGELOG_BRIEF_2026-11-16.md
+  s_29893055f88353::t_d85b71ff076973 1-136
+docs/ops/AGENT_CONCURRENCY.json
+  s_29893055f88353::t_4661f7e04d8f9d 1-25
+scripts/agent_capacity.sh
+  s_29893055f88353::t_9968827d950d28 1-21
+scripts/agent_slots.sh
+  s_29893055f88353::t_6606278b7aaf36 1-15
+scripts/skill-select/patch_skill_gate_level.py
+  s_29893055f88353::t_daf2d00d6c74d2 1-50
+scripts/skill-select/select.py
+  s_29893055f88353::t_f7cc222c240079 1-527
+scripts/skill-select/test_select.py
+  s_29893055f88353::t_0998a9587d058a 1-354
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "453ecbbfb5ac7306408b789c13bbc2f3ced296b1",
+  "prompts": {},
+  "sessions": {
+    "s_29893055f88353": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1c444932-1da1-4ad5-9e8b-395eb468f52a",
+        "model": "unknown"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
