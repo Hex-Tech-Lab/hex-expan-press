@@ -1,0 +1,52 @@
+scripts/auto_wrapup_day2.sh
+  s_29893055f88353::t_2a94ee192c2265 22
+scripts/fetch_duane_transcripts.ts
+  s_29893055f88353::t_fe39de2949bbb2 38-43,45-47
+  s_29893055f88353::t_074610f2d100fe 274
+  s_29893055f88353::t_813cb77c20e854 211-214,227
+scripts/schedule_series_capture.sh
+  s_29893055f88353::t_2a94ee192c2265 61,78,85-86,88,102-134,165,167-175
+scripts/book_qa.ts
+  s_e7e910725e2866::t_bad9107fd4da13 60
+.github/workflows/series_stream_recorder.yml
+  s_29893055f88353::t_59090f4bb4ed34 27-28,30,36-37
+  s_29893055f88353::t_96727e4b235ce8 56-67
+scripts/__tests__/sync-supabase-to-r2.test.ts
+  s_e7e910725e2866::t_29a9fffd830b07 31
+scripts/audit_remote_series_run.sh
+  s_29893055f88353::t_2a0ee1e8e8dede 58,60,72,76-84,94,97,99,104,108-117
+scripts/blob_live_sync_daemon.ts
+  s_29893055f88353::t_80dbd8bc462125 8-23,32-34,40-42,61,79,94
+scripts/generate_accurate_timestamps.ts
+  s_29893055f88353::t_07d85ce033572b 9,22-24,26,29-32,35,66-68,70,73-76,78-79,82-88,90-91,107,113-114,116,120
+scripts/sync-supabase-to-r2.ts
+  s_29893055f88353::t_d248232a73af2e 95,97,100-105,107-131
+scripts/upload_day_package.ts
+  s_29893055f88353::t_ec70a03cd8741e 10-21,53-67,69-76,78-81,85
+trends.ts
+  s_29893055f88353::t_5751e94344c80e 67-70,104
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1bcf22edab022a0a1f8582c38b6c684105fc7cca",
+  "prompts": {},
+  "sessions": {
+    "s_29893055f88353": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1c444932-1da1-4ad5-9e8b-395eb468f52a",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    },
+    "s_e7e910725e2866": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6438089e-4a0c-4509-a6d3-f733e13fb9e2",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
