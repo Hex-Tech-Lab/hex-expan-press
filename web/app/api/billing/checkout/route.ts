@@ -337,7 +337,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   }
 
   const rail = rails.find((r) => r.provider === providerName);
-  if (!rail?.checkout_url) return jsonError(503, `Selected rail '${providerName}' has no checkout_url`);
+  if (!rail?.checkout_url) {
+    console.error(`[billing/checkout] selected rail '${providerName}' has no checkout_url`);
+    return jsonError(503, "Checkout is temporarily unavailable");
+  }
   const res = NextResponse.redirect(withReference(rail.checkout_url, rail.provider, attributionRef((p) => request.nextUrl.searchParams.get(p))), 302);
   res.headers.set("Cache-Control", "no-store");
   return res;
