@@ -139,6 +139,11 @@ export class ExpanRedisClient {
   async incr(key: string): Promise<number> {
     return this.command<number>("INCR", this.key(key));
   }
+
+  /** Set TTL in seconds on an existing key (Redis EXPIRE). */
+  async expire(key: string, exSeconds: number): Promise<number> {
+    return this.command<number>("EXPIRE", this.key(key), exSeconds);
+  }
 }
 
 export const expanRedis = new ExpanRedisClient();

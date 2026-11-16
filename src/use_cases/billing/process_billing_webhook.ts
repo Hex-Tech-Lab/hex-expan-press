@@ -16,7 +16,14 @@ import { deliverSaleForWebhook, saleDeliveryConfirmed } from "../../../payments/
 import { GLOBAL } from "../../../payments/src/settings_registry.ts";
 
 type LockedResult = { status: number; payload: Record<string, unknown> };
-type LockedFn = () => Promise<LockedResult>;
+type LockedFn = (fenceToken?: number) => Promise<LockedResult>;
+
+function requireLockPrefix(value: unknown, name: string): string {
+  if (typeof value !== "string" || value.trim() === "") {
+    throw new Error(`billing-webhook: missing payments.${name} in settings registry`);
+  }
+  return value;
+}
 
 /**
  * A mismatching adjustment-id collision stored in the reconciliation inbox (public.webhook_conflicts).
@@ -250,8 +257,9 @@ async function processBillingEvent(event: BillingEvent): Promise<ConflictPending
   //    and rejected with a validation failure (400) for manual review.
   if (event.eventType === "refund_issued") {
     const refundEvent = event as RefundIssuedEvent;
+    const refundLockPrefix = requireLockPrefix(GLOBAL.payments.webhook_lock_refund_prefix, "webhook_lock_refund_prefix");
     const refundResult = await underLockOrConfirmed(
-      `lock:refund:${refundEvent.providerName}:${refundEvent.saleId}`,
+      `${refundLockPrefix}${refundEvent.providerName}:${refundEvent.saleId}`,
       // Confirm a contended refund only when THIS delivery would itself pass the in-lock checks
       // (verifiable amount equal to the sale, same currency), in the same order as in-lock: a
       // partial/over/foreign-currency refund retries and gets flagged inside. Then either the refund
@@ -277,7 +285,7 @@ async function processBillingEvent(event: BillingEvent): Promise<ConflictPending
         }
         return !reversal;
       },
-      async () => {
+      async (fenceToken) => {
         // An unsettled refund (Polar pending/failed/canceled) is never applied, whatever its amount: it goes to manual review.
         if (refundEvent.amountUnverifiable === true || refundEvent.settled === false) {
           const sale = await findSaleAsync(refundEvent.providerName, refundEvent.saleId);
@@ -380,7 +388,7 @@ async function processBillingEvent(event: BillingEvent): Promise<ConflictPending
             sale_id: refundEvent.saleId,
             ts: refundEvent.occurredAt,
             provider_adjustment_id: refundEvent.providerAdjustmentId
-          });
+          }, undefined, fenceToken);
         } catch (err) {
           // A 23505 on orders_provider_adjustment_id_uniq means the same adjustment was
           // persisted by a concurrent delivery — a replay ONLY if the conflicting row
@@ -405,10 +413,11 @@ async function processBillingEvent(event: BillingEvent): Promise<ConflictPending
   // 4b. Refund reversed (won chargeback / dispute reversal)
   if (event.eventType === "refund_reversed") {
     const revEvent = event as RefundReversedEvent;
+    const refundLockPrefix = requireLockPrefix(GLOBAL.payments.webhook_lock_refund_prefix, "webhook_lock_refund_prefix");
     const reversalResult = await underLockOrConfirmed(
-      `lock:refund:${revEvent.providerName}:${revEvent.saleId}`,
+      `${refundLockPrefix}${revEvent.providerName}:${revEvent.saleId}`,
       async () => (await findRefundReversalAsync(revEvent.providerName, revEvent.saleId)) !== null,
-      async () => {
+      async (fenceToken) => {
         const sale = await findSaleAsync(revEvent.providerName, revEvent.saleId);
         const refund = await findRefundAsync(revEvent.providerName, revEvent.saleId);
 
@@ -485,7 +494,7 @@ async function processBillingEvent(event: BillingEvent): Promise<ConflictPending
             sale_id: revEvent.saleId,
             ts: revEvent.occurredAt,
             provider_adjustment_id: revEvent.providerAdjustmentId
-          });
+          }, undefined, fenceToken);
         } catch (err) {
           // Same rule as refunds: a violation of orders_provider_adjustment_id_uniq is a
           // replay only when the conflicting row matches this event; otherwise flag + 503.
@@ -509,6 +518,7 @@ async function processBillingEvent(event: BillingEvent): Promise<ConflictPending
   // 5. Sale completed
   if (event.eventType === "sale_completed") {
     const saleEvent = event as SaleCompletedEvent;
+    const saleLockPrefix = requireLockPrefix(GLOBAL.payments.webhook_lock_sale_prefix, "webhook_lock_sale_prefix");
 
     // 5a. Distributed idempotency lock: concurrent/duplicate deliveries for the same sale
     // take the lock. Already-recorded sale → the lock holder re-attempts delivery under the lock
@@ -519,11 +529,11 @@ async function processBillingEvent(event: BillingEvent): Promise<ConflictPending
     // A contended lock is acknowledged only when the sale is recorded AND its receipt is confirmed sent. A recorded
     // sale alone is not enough: the holder may still fail the send, and a 200 would stop the provider's retries.
     await underLockOrConfirmed(
-      `lock:sale:${saleEvent.providerName}:${saleEvent.saleId}`,
+      `${saleLockPrefix}${saleEvent.providerName}:${saleEvent.saleId}`,
       async () =>
         Boolean(await findSaleAsync(saleEvent.providerName, saleEvent.saleId)) &&
         (await saleDeliveryConfirmed(saleEvent.providerName, saleEvent.saleId)),
-      async () => {
+      async (fenceToken) => {
         // Fail closed for a non-Paddle sale without a buyer email: no download link can be sent, and a retry cannot
         // change that. Delivery would throw on every retry (a 500 loop), so the sale is refused with a final 422.
         if (saleEvent.providerName !== "paddle" && !saleEvent.buyerEmail) {
@@ -538,7 +548,13 @@ async function processBillingEvent(event: BillingEvent): Promise<ConflictPending
         // failure rethrows (500) so the provider retries.
         const existing = await findSaleAsync(saleEvent.providerName, saleEvent.saleId);
         if (existing) {
-          await deliverSaleForWebhook({ provider: saleEvent.providerName, saleId: saleEvent.saleId, productAlias: saleEvent.productId, buyerEmail: saleEvent.buyerEmail });
+          await deliverSaleForWebhook({
+            provider: saleEvent.providerName,
+            saleId: saleEvent.saleId,
+            productAlias: saleEvent.productId,
+            buyerEmail: saleEvent.buyerEmail,
+            ...(fenceToken !== undefined ? { fence: fenceToken } : {}),
+          });
           return { status: 200, payload: { ok: true, recorded: false, reason: "duplicate", sale_id: saleEvent.saleId } };
         }
 
@@ -590,10 +606,16 @@ async function processBillingEvent(event: BillingEvent): Promise<ConflictPending
           our_split_usd: split.our_split_usd,
           currency: cfg.currency,
           ...(saleEvent.attributionId ? { attribution_id: saleEvent.attributionId } : {})
-        });
+        }, undefined, fenceToken);
         // Receipt and download link, after the ledger write. A delivery failure rethrows: the webhook answers 500 and the
         // provider retries, which re-attempts delivery on the duplicate path above.
-        await deliverSaleForWebhook({ provider: saleEvent.providerName, saleId: saleEvent.saleId, productAlias: saleEvent.productId, buyerEmail: saleEvent.buyerEmail });
+        await deliverSaleForWebhook({
+          provider: saleEvent.providerName,
+          saleId: saleEvent.saleId,
+          productAlias: saleEvent.productId,
+          buyerEmail: saleEvent.buyerEmail,
+          ...(fenceToken !== undefined ? { fence: fenceToken } : {}),
+        });
         return { status: 200, payload: { ok: true, recorded: true, sale_id: saleEvent.saleId } };
       },
     );

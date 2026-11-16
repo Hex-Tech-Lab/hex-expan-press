@@ -3,7 +3,13 @@
 // Release is owner-checked: the lock stores a random per-call token, and only that token may release it.
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
-const redis = vi.hoisted(() => ({ setnx: vi.fn(), compareAndDel: vi.fn() }));
+const redis = vi.hoisted(() => ({
+  setnx: vi.fn(),
+  compareAndDel: vi.fn(),
+  incr: vi.fn(),
+  expire: vi.fn(),
+  get: vi.fn(),
+}));
 vi.mock("../../src/infrastructure/redis/redis.client.ts", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../src/infrastructure/redis/redis.client.ts")>()),
   expanRedis: redis,
@@ -21,8 +27,12 @@ function acquiredToken(): string {
 
 describe("withIdempotencyLock", () => {
   beforeEach(() => {
+    let seq = 0;
     redis.setnx.mockReset();
     redis.compareAndDel.mockReset().mockResolvedValue(1);
+    redis.incr.mockReset().mockImplementation(async () => ++seq);
+    redis.expire.mockReset().mockResolvedValue(1);
+    redis.get.mockReset().mockResolvedValue(undefined);
     vi.stubEnv("UPSTASH_REDIS_REST_URL", "https://unit.test.redis.example");
     vi.stubEnv("UPSTASH_REDIS_REST_TOKEN", "unit-test-token");
     vi.stubEnv("VERCEL_ENV", "");
@@ -95,5 +105,32 @@ describe("withIdempotencyLock", () => {
     const fn = vi.fn(async () => ({ status: 200, payload: {} }));
     await expect(withIdempotencyLock("lock:sale:polar:s5", fn)).rejects.toThrow(/Redis is not configured in a money-path runtime/);
     expect(fn).not.toHaveBeenCalled();
+  });
+
+  it("increments the registry companion fence key and passes strictly increasing tokens to fn", async () => {
+    redis.setnx.mockResolvedValue(1);
+    const seen: Array<number | undefined> = [];
+    await withIdempotencyLock("lock:sale:polar:f1", async (fence) => {
+      seen.push(fence);
+      return { status: 200, payload: { recorded: false } };
+    });
+    await withIdempotencyLock("lock:sale:polar:f1", async (fence) => {
+      seen.push(fence);
+      return { status: 200, payload: { recorded: true } };
+    });
+    const expectedFenceKey = `lock:sale:polar:f1${GLOBAL.payments.webhook_lock_fence_suffix}`;
+    expect(redis.incr).toHaveBeenNthCalledWith(1, expectedFenceKey);
+    expect(redis.incr).toHaveBeenNthCalledWith(2, expectedFenceKey);
+    expect(redis.expire).toHaveBeenCalledWith(expectedFenceKey, GLOBAL.payments.webhook_lock_fence_ttl_seconds);
+    expect(seen).toEqual([1, 2]);
+  });
+
+  it("rejects as in-flight without invoking fn when lock ownership was lost between setnx and incr", async () => {
+    redis.setnx.mockResolvedValue(1);
+    redis.get.mockResolvedValueOnce("another-owner-uuid");
+    const fn = vi.fn(async () => ({ status: 200, payload: { recorded: true } }));
+    await expect(withIdempotencyLock("lock:sale:polar:f2", fn)).rejects.toBeInstanceOf(WebhookInFlightError);
+    expect(fn).not.toHaveBeenCalled();
+    expect(redis.compareAndDel).not.toHaveBeenCalled();
   });
 });

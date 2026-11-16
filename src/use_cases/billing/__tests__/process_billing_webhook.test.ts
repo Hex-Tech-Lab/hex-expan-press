@@ -55,12 +55,16 @@ function adapter(event: SaleCompletedEvent | RefundIssuedEvent): PaymentProvider
 // Mock the distributed lock: the first acquire wins; later acquires see the
 // held lock (SETNX semantics) — mirrors expanRedis under concurrency.
 const setnx = vi.fn<(...args: unknown[]) => Promise<number>>();
+let mockFenceSeq = 0;
 
 vi.mock("../../../../src/infrastructure/redis/redis.client.ts", async (importOriginal) => ({
   // keep the real env helpers (redisRestEnv / isRedisRestConfigured) — only the client is faked
   ...(await importOriginal<typeof import("../../../../src/infrastructure/redis/redis.client.ts")>()),
   expanRedis: {
     setnx: (...a: unknown[]) => setnx(...a),
+    incr: vi.fn(async () => ++mockFenceSeq),
+    expire: vi.fn(async () => 1),
+    compareAndDel: vi.fn(async () => 1),
     del: vi.fn(() => Promise.resolve(1)),
   },
 }));
@@ -126,7 +130,18 @@ vi.mock("@supabase/supabase-js", () => ({
         if (supa.adjLookupResult === null) return supa.lookupResult;
         return "provider_adjustment_id" in filters ? supa.adjLookupResult : { data: null, error: null };
       };
-      return { select: () => ({ eq }), upsert: async () => ({ error: supa.upsertError }), insert: async (row: Record<string, unknown>) => insertAudit(row) };
+      const makeUpdateChain = () => ({
+        eq: () => makeUpdateChain(),
+        lte: () => makeUpdateChain(),
+        select: async () => ({ data: [] as unknown[], error: null as unknown }),
+      });
+      return {
+        select: () => ({ eq }),
+        upsert: async () => ({ error: supa.upsertError }),
+        update: () => makeUpdateChain(),
+        insert: async (row: Record<string, unknown>) =>
+          table === "orders" ? { error: supa.upsertError } : insertAudit(row),
+      };
     },
   }),
 }));
@@ -170,7 +185,23 @@ vi.mock("../../../../payments/src/settings_registry.ts", () => ({
   GLOBAL: {
     paths: { sales_ledger: salesFilePath },
     defaults: { currency: "USD" },
-    payments: { webhook_tolerance_seconds: 300, webhook_lock_ttl_seconds: 300, http_timeout_ms: 5000, sync_http_timeout_ms: 30000 },
+    payments: {
+      webhook_tolerance_seconds: 300,
+      webhook_lock_ttl_seconds: 300,
+      webhook_lock_fence_ttl_seconds: 604800,
+      webhook_lock_sale_prefix: "lock:sale:",
+      webhook_lock_refund_prefix: "lock:refund:",
+      webhook_lock_fence_suffix: ":fence",
+      http_timeout_ms: 5000,
+      sync_http_timeout_ms: 30000,
+    },
+    delivery: {
+      bucket: "release-files",
+      link_ttl_days: 7,
+      signed_url_seconds: 300,
+      short_domain: "go.expanpress.com",
+      send_kind: "buyer_receipt",
+    },
   },
   expandHome: (p: string, home: string) => (home && (p === "~" || p.startsWith("~/")) ? p : p),
   isRegisteredPaymentProvider: (name: unknown) => typeof name === "string",
@@ -208,6 +239,7 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
 
   beforeEach(() => {
     setnx.mockReset();
+    mockFenceSeq = 0;
     supa.lookupResult = { data: null, error: null };
     supa.adjLookupResult = null;
     supa.auditInserts = [];
@@ -414,7 +446,7 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
     delivery.deliverSaleForWebhook.mockClear();
     await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(SALE)]);
     expect(delivery.deliverSaleForWebhook).toHaveBeenCalledTimes(1);
-    expect(delivery.deliverSaleForWebhook).toHaveBeenCalledWith({ provider: "polar", saleId: "sale_dup_1", productAlias: "p1", buyerEmail: "buyer@example.com" });
+    expect(delivery.deliverSaleForWebhook).toHaveBeenCalledWith({ provider: "polar", saleId: "sale_dup_1", productAlias: "p1", buyerEmail: "buyer@example.com", fence: expect.any(Number) });
   });
 
   it("a newly recorded sale delivers under the provider that issued it, not a shared default", async () => {
@@ -1554,6 +1586,7 @@ describe("legacy-wrapped Fungies sale end-to-end (audit R01)", () => {
   const E2E_SECRET = randomBytes(16).toString("hex"); // per run: nothing credential-shaped is committed
   beforeEach(() => {
     setnx.mockReset();
+    mockFenceSeq = 0;
     setnx.mockResolvedValue(1);
     delivery.deliverSaleForWebhook.mockClear();
     mkdirSync(salesFileDir, { recursive: true });
@@ -1587,7 +1620,7 @@ describe("legacy-wrapped Fungies sale end-to-end (audit R01)", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ sale_id: "pay_e2e", provider: "fungies", amount_usd: 39, currency: "USD", attribution_id: "yt:e2e" });
     expect(JSON.stringify(rows[0])).not.toContain("buyer@example.com"); // raw email never persisted
-    expect(delivery.deliverSaleForWebhook).toHaveBeenCalledWith({ saleId: "pay_e2e", productAlias: "p1", buyerEmail: "buyer@example.com", provider: "fungies" });
+    expect(delivery.deliverSaleForWebhook).toHaveBeenCalledWith({ saleId: "pay_e2e", productAlias: "p1", buyerEmail: "buyer@example.com", provider: "fungies", fence: expect.any(Number) });
   });
 });
 
@@ -1597,6 +1630,7 @@ describe("multi-event delivery end-to-end (audit R04)", () => {
   const FS_SECRET = randomBytes(16).toString("hex");
   beforeEach(() => {
     setnx.mockReset();
+    mockFenceSeq = 0;
     setnx.mockResolvedValue(1);
     delivery.deliverSaleForWebhook.mockClear();
     mkdirSync(salesFileDir, { recursive: true });
@@ -1620,7 +1654,7 @@ describe("multi-event delivery end-to-end (audit R04)", () => {
     const rows = readFileSync(salesFilePath, "utf8").split(/\r?\n/).filter(Boolean).map((r) => JSON.parse(r));
     expect(rows.map((r) => [r.sale_id, r.amount_usd])).toEqual([["ord_a", 29], ["ord_b", 39]]);
     expect(delivery.deliverSaleForWebhook).toHaveBeenCalledTimes(2);
-    expect(delivery.deliverSaleForWebhook).toHaveBeenLastCalledWith({ saleId: "ord_b", productAlias: "p1", buyerEmail: "b@example.com", provider: "fastspring" });
+    expect(delivery.deliverSaleForWebhook).toHaveBeenLastCalledWith({ saleId: "ord_b", productAlias: "p1", buyerEmail: "b@example.com", provider: "fastspring", fence: expect.any(Number) });
   });
 
   // F1: a failed event must not stop its siblings. A terminal (4xx) failure is final for the provider,

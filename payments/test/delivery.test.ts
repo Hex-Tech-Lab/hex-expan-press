@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { deliverSale, deliverSaleForWebhook, createDubShortLink, tokenHash, newToken, TOKEN_RE, type DeliveryDeps } from "../src/delivery";
+import { deliverSale, deliverSaleForWebhook, createDubShortLink, tokenHash, newToken, TOKEN_RE, StaleFenceError, type DeliveryDeps } from "../src/delivery";
 import { EmailSendError } from "../src/email";
 
 // A definite rejection: the provider refused the request, so no email was accepted.
@@ -16,6 +16,8 @@ function fakes(over: Partial<DeliveryDeps> & { product?: unknown; inserted?: boo
   const releaseLinkIssued = vi.fn(async () => undefined);
   const sendEmail = vi.fn(async () => ({ id: "e1" }));
   const createShortLink = vi.fn(async (u: string) => `https://go.expanpress.com/abc?to=${encodeURIComponent(u)}`);
+  const sendClaims = new Map<string, { state: "claimed" | "sent"; fence: number }>();
+  const keyOf = (provider: string, saleId: string, sendKind: string) => `${provider}:${saleId}:${sendKind}`;
   const deps: DeliveryDeps = {
     db: {
       productForAlias: vi.fn(async () => (over.product === undefined ? PRODUCT : (over.product as typeof PRODUCT | null))),
@@ -23,11 +25,48 @@ function fakes(over: Partial<DeliveryDeps> & { product?: unknown; inserted?: boo
       releaseLinkIssued,
       deliveryConfirmed: vi.fn(async () => over.confirmed ?? false),
       confirmDelivery: vi.fn(async () => undefined),
+      claimDeliverySend: vi.fn(async ({ provider, saleId, sendKind, fence }) => {
+        const k = keyOf(provider, saleId, sendKind);
+        const f = fence ?? 0;
+        const existing = sendClaims.get(k);
+        if (!existing) {
+          sendClaims.set(k, { state: "claimed", fence: f });
+          return { outcome: "claimed" as const, fence: f };
+        }
+        if (existing.fence > f) throw new StaleFenceError("delivery_sends", k, f, existing.fence);
+        existing.fence = f;
+        return { outcome: existing.state === "sent" ? ("already_sent" as const) : ("already_claimed" as const), fence: f };
+      }),
+      assertSendFence: vi.fn(async ({ provider, saleId, sendKind, fence }) => {
+        const k = keyOf(provider, saleId, sendKind);
+        const existing = sendClaims.get(k);
+        if (!existing || existing.state !== "claimed" || existing.fence > fence) {
+          throw new StaleFenceError("delivery_sends", k, fence, existing?.fence);
+        }
+        existing.fence = fence;
+      }),
+      markDeliverySent: vi.fn(async ({ provider, saleId, sendKind, fence }) => {
+        const k = keyOf(provider, saleId, sendKind);
+        const existing = sendClaims.get(k);
+        const f = fence ?? existing?.fence ?? 0;
+        if (!existing || (fence !== undefined && existing.fence > fence)) {
+          throw new StaleFenceError("delivery_sends", k, f, existing?.fence);
+        }
+        existing.state = "sent";
+        existing.fence = f;
+      }),
+      releaseDeliverySend: vi.fn(async ({ provider, saleId, sendKind, fence }) => {
+        const k = keyOf(provider, saleId, sendKind);
+        const existing = sendClaims.get(k);
+        if (existing?.state === "claimed" && (fence === undefined || existing.fence <= fence)) {
+          sendClaims.delete(k);
+        }
+      }),
     },
     sendEmail, createShortLink, origin: "https://expanpress.com", replyTo: "support@expanpress.com",
     now: () => NOW, newToken: () => "T".repeat(43),
   };
-  return { deps, recordLinkIssued, releaseLinkIssued, sendEmail, createShortLink };
+  return { deps, recordLinkIssued, releaseLinkIssued, sendEmail, createShortLink, sendClaims };
 }
 const sale = { provider: "paddle", saleId: "s-1", productAlias: "alias-1", buyerEmail: "buyer@example.com" };
 

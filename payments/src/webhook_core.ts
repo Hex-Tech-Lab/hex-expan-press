@@ -115,10 +115,24 @@ export async function resolveProductByAlias(alias: string, providerName: string)
 // read-then-append over a JSONL file — a TOCTOU race window under concurrent deliveries
 // (payment providers retry aggressively; serverless invocations run concurrently). Two
 // deliveries for the same sale_id could both pass the file-based duplicate check before
-// either has appended, producing a double creator payout. Upstash SETNX closes that window
-// with an atomic distributed lock. Redis is optional infra (local/test runs without it) —
-// when unconfigured, behavior is unchanged (file-based check only, as before).
-const WEBHOOK_LOCK_TTL_SECONDS = GLOBAL.payments.webhook_lock_ttl_seconds; // bounds a stuck lock if a process dies mid-write (settings registry)
+// either has appended, producing a double creator payout. Upstash SETNX + a monotonic
+// companion INCR fencing token close that window and reject stale lock holders after TTL expiry.
+function lockSettings(): { ttlSeconds: number; fenceSuffix: string; fenceTtlSeconds: number } {
+  const p = GLOBAL.payments;
+  const ttlSeconds = p.webhook_lock_ttl_seconds;
+  const fenceSuffix = p.webhook_lock_fence_suffix;
+  const fenceTtlSeconds = p.webhook_lock_fence_ttl_seconds;
+  if (!Number.isSafeInteger(ttlSeconds) || ttlSeconds <= 0) {
+    throw new Error("webhook idempotency lock: invalid payments.webhook_lock_ttl_seconds in settings registry");
+  }
+  if (typeof fenceSuffix !== "string" || fenceSuffix.trim() === "") {
+    throw new Error("webhook idempotency lock: missing payments.webhook_lock_fence_suffix in settings registry");
+  }
+  if (!Number.isSafeInteger(fenceTtlSeconds) || fenceTtlSeconds <= 0) {
+    throw new Error("webhook idempotency lock: invalid payments.webhook_lock_fence_ttl_seconds in settings registry");
+  }
+  return { ttlSeconds, fenceSuffix, fenceTtlSeconds };
+}
 
 function isRedisConfigured(): boolean {
   return isRedisRestConfigured();
@@ -151,7 +165,7 @@ async function releaseLock(lockKey: string, token: string): Promise<void> {
 
 export async function withIdempotencyLock(
   lockKey: string,
-  fn: () => Promise<{ status: number; payload: Record<string, unknown> }>,
+  fn: (fenceToken?: number) => Promise<{ status: number; payload: Record<string, unknown> }>,
 ): Promise<{ status: number; payload: Record<string, unknown> }> {
   if (!isRedisConfigured()) {
     // Production must never process money without the distributed lock: an
@@ -160,16 +174,40 @@ export async function withIdempotencyLock(
     if (isMoneyPath()) {
       throw new Error("webhook idempotency lock unavailable: Redis is not configured in a money-path runtime (production/previews/Lambda) (set UPSTASH_REDIS_REST_* or KV_REST_API_*)");
     }
-    return fn();
+    return fn(undefined);
   }
 
+  const { ttlSeconds, fenceSuffix, fenceTtlSeconds } = lockSettings();
   // The stored value is this call's random owner token, so release can prove ownership (see releaseLock).
   const token = randomUUID();
-  const acquired = await expanRedis.setnx(lockKey, token, WEBHOOK_LOCK_TTL_SECONDS);
+  const acquired = await expanRedis.setnx(lockKey, token, ttlSeconds);
   if (!acquired) throw new WebhookInFlightError(lockKey);
 
+  let stillOwned = true;
   try {
-    const result = await fn();
+    const fenceKey = `${lockKey}${fenceSuffix}`;
+    const fenceToken = await expanRedis.incr(fenceKey);
+    if (typeof fenceToken !== "number" || !Number.isSafeInteger(fenceToken) || fenceToken < 1) {
+      throw new Error(`webhook idempotency lock: invalid fencing token from Redis INCR on ${fenceKey}`);
+    }
+    if (typeof expanRedis.expire === "function") {
+      try {
+        await expanRedis.expire(fenceKey, fenceTtlSeconds);
+      } catch (expErr) {
+        console.warn(`[webhook] fence TTL refresh failed (key=${fenceKey}):`, expErr);
+      }
+    }
+    // Verify we still hold the lock after INCR so a process that stalled between SETNX and INCR
+    // past lock TTL cannot carry a larger fence token than the worker that superseded it.
+    if (typeof expanRedis.get === "function") {
+      const owner = await expanRedis.get(lockKey);
+      if (owner !== undefined && owner !== token) {
+        stillOwned = false;
+        throw new WebhookInFlightError(lockKey);
+      }
+    }
+
+    const result = await fn(fenceToken);
     // Nothing was actually written (true duplicate, unknown product, terms lookup failure,
     // etc.) — free the slot immediately so a corrected retry isn't blocked for the full TTL.
     if (result.payload.recorded !== true) {
@@ -179,7 +217,9 @@ export async function withIdempotencyLock(
   } catch (err) {
     console.error(`[webhook] locked fn threw (lock=${lockKey}) — releasing lock:`, err);
     // The caller's error must reach the handler unchanged. A failed release is logged; the lock TTL bounds it.
-    await releaseLock(lockKey, token);
+    if (stillOwned) {
+      await releaseLock(lockKey, token);
+    }
     throw err;
   }
 }

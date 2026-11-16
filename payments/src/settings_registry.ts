@@ -67,6 +67,10 @@ export interface GlobalSettings {
     allowed_currencies: string[];
     webhook_tolerance_seconds: number;
     webhook_lock_ttl_seconds: number;
+    webhook_lock_fence_ttl_seconds: number;
+    webhook_lock_sale_prefix: string;
+    webhook_lock_refund_prefix: string;
+    webhook_lock_fence_suffix: string;
     http_timeout_ms: number; // webhook-internal call budget: Paddle customer-email lookup AND the 503 audit insert (must stay short)
     sync_http_timeout_ms: number; // operator CLI (sync_book_identity) calls to Supabase/Paddle
     review_queue_page_size: number; // listManualReviewRefunds default page/limit
@@ -96,8 +100,8 @@ product_slug: { min_length: number; max_length: number; separator: string };
     /** Default page size for admin audit-log listing. */
     audit_log_page_size: number;
   };
-  /** Buyer delivery: download_events links, Dub short links, signed release URLs. */
-  delivery: { bucket: string; link_ttl_days: number; signed_url_seconds: number; short_domain: string };
+  /** Buyer delivery: download_events links, Dub short links, signed release URLs, delivery_sends kind. */
+  delivery: { bucket: string; link_ttl_days: number; signed_url_seconds: number; short_domain: string; send_kind: string };
   /** Transactional email (Resend). `from` must be on `sending_domain` (DKIM-verified in Resend). */
   email: {
     from: string;
@@ -133,6 +137,11 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     allowed_currencies: ["USD"],
     webhook_tolerance_seconds: 300,
     webhook_lock_ttl_seconds: 300,
+    // Lock/fence defaults live in DEFAULT_GLOBAL because data/ is gitignored and absent in production.
+    webhook_lock_fence_ttl_seconds: 604800,
+    webhook_lock_sale_prefix: "lock:sale:",
+    webhook_lock_refund_prefix: "lock:refund:",
+    webhook_lock_fence_suffix: ":fence",
     http_timeout_ms: 5000,
     sync_http_timeout_ms: 30000,
     review_queue_page_size: 200,
@@ -172,12 +181,14 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
       "Educational content only — nothing in this document is financial advice. Do your own research.",
     ],
   },
-  // Buyer delivery (download_events). The bucket holds release files only, never review copies.
+  // Buyer delivery (download_events, delivery_sends). The bucket holds release files only, never review copies.
   delivery: {
     bucket: "release-files",
     link_ttl_days: 7,
     signed_url_seconds: 300,
     short_domain: "go.expanpress.com",
+    // Default send_kind lives in DEFAULT_GLOBAL because data/ is gitignored and absent in production.
+    send_kind: "buyer_receipt",
   },
   email: {
     from: "ExpanPress <support@esign.expanpress.com>",
@@ -223,6 +234,7 @@ export const AUTH_REDIRECT_HOSTS = {
 export const PAYMENTS_LIMITS = {
   webhook_tolerance_seconds: { min: 60, max: 900 },
   webhook_lock_ttl_seconds: { min: 60, max: 3600 },
+  webhook_lock_fence_ttl_seconds: { min: 300, max: 2592000 },
   http_timeout_ms: { min: 1000, max: 30000 },
   sync_http_timeout_ms: { min: 1000, max: 120000 },
   review_queue_page_size: { min: 1, max: 1000 },
@@ -291,6 +303,17 @@ export function loadPaymentsSection(raw: Record<string, unknown> | undefined): G
   };
   const webhookTolerance = num("webhook_tolerance_seconds");
   const webhookLockTtl = num("webhook_lock_ttl_seconds");
+  const webhookLockFenceTtl = num("webhook_lock_fence_ttl_seconds");
+  const keyToken = (key: "webhook_lock_sale_prefix" | "webhook_lock_refund_prefix" | "webhook_lock_fence_suffix"): string => {
+    if (!(key in p)) return d[key];
+    const v = p[key];
+    if (typeof v === "string" && v.length > 0 && !/\s/.test(v)) return v;
+    fallbacks.push(key);
+    return d[key];
+  };
+  const webhookLockSalePrefix = keyToken("webhook_lock_sale_prefix");
+  const webhookLockRefundPrefix = keyToken("webhook_lock_refund_prefix");
+  const webhookLockFenceSuffix = keyToken("webhook_lock_fence_suffix");
   const httpTimeout = num("http_timeout_ms");
   const syncHttpTimeout = num("sync_http_timeout_ms");
   // Validate BEFORE the fallback warning below, so an invalid value is reported, not silently defaulted.
@@ -335,6 +358,10 @@ export function loadPaymentsSection(raw: Record<string, unknown> | undefined): G
     allowed_currencies: currencies,
     webhook_tolerance_seconds: webhookTolerance,
     webhook_lock_ttl_seconds: webhookLockTtl,
+    webhook_lock_fence_ttl_seconds: webhookLockFenceTtl,
+    webhook_lock_sale_prefix: webhookLockSalePrefix,
+    webhook_lock_refund_prefix: webhookLockRefundPrefix,
+    webhook_lock_fence_suffix: webhookLockFenceSuffix,
     http_timeout_ms: httpTimeout,
     sync_http_timeout_ms: syncHttpTimeout,
     review_queue_page_size: reviewQueuePageSize,
@@ -363,6 +390,7 @@ function loadGlobal(): GlobalSettings {
     server: { ...DEFAULT_GLOBAL.server, ...(g.server ?? {}) },
     defaults: { ...DEFAULT_GLOBAL.defaults, ...(g.defaults ?? {}) },
     payments: loadPaymentsSection(g.payments as Record<string, unknown> | undefined),
+    delivery: loadDeliverySection(g.delivery as Record<string, unknown> | undefined),
     landing: { ...DEFAULT_GLOBAL.landing, ...(g.landing ?? {}) },
     storefront: { ...DEFAULT_GLOBAL.storefront, ...(g.storefront ?? {}) },
     handles: { ...DEFAULT_GLOBAL.handles, ...(g.handles ?? {}) },
@@ -439,6 +467,36 @@ export function clampJwtSkewDelay(v: unknown): number {
 /** Clamped portal.jwt_clock_skew_retry_delay_ms from the loaded registry. */
 export function jwtSkewRetryDelayMs(): number {
   return clampJwtSkewDelay(GLOBAL.portal?.jwt_clock_skew_retry_delay_ms);
+}
+
+export function loadDeliverySection(raw: Record<string, unknown> | undefined): GlobalSettings["delivery"] {
+  const defaults = DEFAULT_GLOBAL.delivery;
+  if (!raw) return defaults;
+  const record = raw as Partial<GlobalSettings["delivery"]> & Record<string, unknown>;
+  const fallbacks: string[] = [];
+  const str = (key: "bucket" | "short_domain" | "send_kind"): string => {
+    if (!(key in record)) return defaults[key];
+    const candidate = record[key];
+    if (typeof candidate === "string" && candidate.trim() !== "" && candidate === candidate.trim()) return candidate;
+    fallbacks.push(key);
+    return defaults[key];
+  };
+  const posInt = (key: "link_ttl_days" | "signed_url_seconds", min: number, max: number): number => {
+    if (!(key in record)) return defaults[key];
+    const candidate = record[key];
+    if (intInRange(candidate, min, max)) return candidate;
+    fallbacks.push(key);
+    return defaults[key];
+  };
+  const out = {
+    bucket: str("bucket"),
+    link_ttl_days: posInt("link_ttl_days", 1, 365),
+    signed_url_seconds: posInt("signed_url_seconds", 30, 3600),
+    short_domain: str("short_domain"),
+    send_kind: str("send_kind"),
+  };
+  if (fallbacks.length > 0) warnFallback("global.json", `invalid delivery values for ${fallbacks.join(", ")}`);
+  return out;
 }
 
 /** email: shallow merge, but retryable_error_names must be a non-empty string[] (a string would make

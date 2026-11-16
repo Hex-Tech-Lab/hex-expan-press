@@ -57,6 +57,8 @@ vi.mock("../../../../../../src/infrastructure/redis/redis.client.ts", async (imp
   ...(await importOriginal<typeof import("../../../../../../src/infrastructure/redis/redis.client.ts")>()),
   expanRedis: {
     setnx: (...a: unknown[]) => setnx(...a),
+    incr: vi.fn(async () => 1),
+    compareAndDel: vi.fn(async () => 1),
     del: vi.fn(() => Promise.resolve(1)),
   },
 }));
@@ -82,7 +84,16 @@ const salesFilePath = vi.hoisted(() => `${salesFileDir}/sales.jsonl`);
 vi.mock("../../../../../../payments/src/settings_registry.ts", () => ({
   GLOBAL: {
     paths: { sales_ledger: salesFilePath },
-    payments: { webhook_tolerance_seconds: 300, webhook_lock_ttl_seconds: 300, http_timeout_ms: 5000, sync_http_timeout_ms: 30000 },
+    payments: {
+      webhook_tolerance_seconds: 300,
+      webhook_lock_ttl_seconds: 300,
+      webhook_lock_fence_ttl_seconds: 604800,
+      webhook_lock_sale_prefix: "lock:sale:",
+      webhook_lock_refund_prefix: "lock:refund:",
+      webhook_lock_fence_suffix: ":fence",
+      http_timeout_ms: 5000,
+      sync_http_timeout_ms: 30000,
+    },
   },
   expandHome: (p: string, home: string) => (home && (p === "~" || p.startsWith("~/")) ? p : p),
   isRegisteredPaymentProvider: (name: unknown) => typeof name === "string",

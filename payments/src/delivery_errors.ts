@@ -18,3 +18,25 @@ export class DeliveryBlockedError extends Error {
     this.httpStatus = reason === "no_email" ? 422 : 503;
   }
 }
+
+/**
+ * Thrown when a conditional DB write detects that a newer lock holder already advanced the fencing token.
+ * Never applied; surfaces as retryable 503 so the provider retries cleanly (or reconciles on retry).
+ */
+export class StaleFenceError extends Error {
+  readonly httpStatus = 503;
+
+  constructor(
+    readonly resource: string,
+    readonly key: string,
+    readonly attemptedFence: number,
+    readonly storedFence?: number,
+  ) {
+    super(
+      storedFence !== undefined
+        ? `stale fence on ${resource} (${key}): attempted ${attemptedFence}, stored ${storedFence}`
+        : `stale fence on ${resource} (${key}): attempted ${attemptedFence}`,
+    );
+    this.name = "StaleFenceError";
+  }
+}

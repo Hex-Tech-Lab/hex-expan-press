@@ -16,10 +16,19 @@
 
 type SupabaseClient = import("@supabase/supabase-js").SupabaseClient;
 
+// Coalesce simultaneous dynamic imports on the same tick without caching across sequential calls
+// (preserves per-test vi.doMock("@supabase/supabase-js") overrides while avoiding concurrent SSR loader deadlocks).
+let inflightSupabaseImport: Promise<typeof import("@supabase/supabase-js")> | null = null;
+
 export async function getSupabaseAdmin(): Promise<SupabaseClient | null> {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SECRET_KEY;
   if (!url || !key) return null;
-  const { createClient } = await import("@supabase/supabase-js");
+  if (!inflightSupabaseImport) {
+    inflightSupabaseImport = import("@supabase/supabase-js").finally(() => {
+      inflightSupabaseImport = null;
+    });
+  }
+  const { createClient } = await inflightSupabaseImport;
   return createClient(url, key);
 }

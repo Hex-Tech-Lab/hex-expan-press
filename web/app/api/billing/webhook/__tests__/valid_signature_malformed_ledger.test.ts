@@ -11,22 +11,31 @@ const ledgerDir = vi.hoisted(() => `/tmp/d6-ledger-${Date.now()}-${crypto.random
 
 vi.mock("@supabase/supabase-js", () => ({
   createClient: () => ({
-    from: (table: string) => ({
-      upsert: async (row: unknown) => { db.upserts.push(row); return { error: null }; },
-      insert: (row: unknown) => {
-        const r = row as { event?: string; details?: Record<string, unknown> };
-        if (table === "audit_log" && r.event === "WEBHOOK_TERMINAL_REJECT") db.terminalRejects.push(r);
-        db.audits.push({ table, row });
-        const insertResult = Promise.resolve({ error: null });
-        return Object.assign(insertResult, { abortSignal: () => insertResult });
-      },
-      select: () => ({ eq: function eq() { return { eq, in: eq, maybeSingle: async () => ({ data: null, error: null }) }; } }),
-    }),
+    from: (table: string) => {
+      const makeUpdate = () => ({
+        eq: () => makeUpdate(),
+        lte: () => makeUpdate(),
+        select: async () => ({ data: [] as unknown[], error: null }),
+      });
+      return {
+        upsert: async (row: unknown) => { db.upserts.push(row); return { error: null }; },
+        update: () => makeUpdate(),
+        insert: (row: unknown) => {
+          const r = row as { event?: string; details?: Record<string, unknown> };
+          if (table === "orders") db.upserts.push(row);
+          if (table === "audit_log" && r.event === "WEBHOOK_TERMINAL_REJECT") db.terminalRejects.push(r);
+          db.audits.push({ table, row });
+          const insertResult = Promise.resolve({ error: null });
+          return Object.assign(insertResult, { abortSignal: () => insertResult });
+        },
+        select: () => ({ eq: function eq() { return { eq, in: eq, maybeSingle: async () => ({ data: null, error: null }) }; } }),
+      };
+    },
   }),
 }));
 vi.mock("../../../../../../src/infrastructure/redis/redis.client.ts", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../../../../../src/infrastructure/redis/redis.client.ts")>()),
-  expanRedis: { setnx: async () => 1, del: async () => 1 },
+  expanRedis: { setnx: async () => 1, incr: async () => 1, compareAndDel: async () => 1, del: async () => 1 },
 }));
 vi.mock("../../../../../../payments/src/webhook_core.ts", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../../../../../payments/src/webhook_core.ts")>()),
@@ -43,7 +52,17 @@ vi.mock("../../../../../../payments/src/settings_registry.ts", () => ({
   GLOBAL: {
     paths: { sales_ledger: `${ledgerDir}/sales.jsonl` },
     defaults: { currency: "USD" },
-    payments: { webhook_tolerance_seconds: 300, webhook_lock_ttl_seconds: 300, http_timeout_ms: 5000, sync_http_timeout_ms: 30000, retry_after_seconds: 30 },
+    payments: {
+      webhook_tolerance_seconds: 300,
+      webhook_lock_ttl_seconds: 300,
+      webhook_lock_fence_ttl_seconds: 604800,
+      webhook_lock_sale_prefix: "lock:sale:",
+      webhook_lock_refund_prefix: "lock:refund:",
+      webhook_lock_fence_suffix: ":fence",
+      http_timeout_ms: 5000,
+      sync_http_timeout_ms: 30000,
+      retry_after_seconds: 30,
+    },
   },
   expandHome: (p: string) => p,
   isRegisteredPaymentProvider: (name: unknown) => typeof name === "string",

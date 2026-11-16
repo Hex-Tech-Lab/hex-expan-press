@@ -12,6 +12,7 @@ function fakeClient() {
       if (table !== "products") throw new Error(`unexpected table ${table}`);
       const chain = {
         select: () => chain,
+        eq: () => chain,
         or: (filter: string) => {
           seen.push(filter);
           return chain;
@@ -43,7 +44,7 @@ describe("resolveProductByAlias: a row that exists but cannot sell is retryable 
   ])("%s on an existing row throws a 503, never returns null", async (_label, incomplete) => {
     vi.mocked(getSupabaseAdmin).mockResolvedValue({
       from: () => {
-        const chain = { select: () => chain, or: () => chain, maybeSingle: async () => ({ data: incomplete, error: null }) };
+        const chain = { select: () => chain, or: () => chain, eq: () => chain, maybeSingle: async () => ({ data: incomplete, error: null }) };
         return chain;
       },
     } as unknown as Awaited<ReturnType<typeof getSupabaseAdmin>>);
@@ -56,7 +57,7 @@ describe("resolveProductByAlias: a row that exists but cannot sell is retryable 
     const unregistered = { ...row, provider: "polar" };
     vi.mocked(getSupabaseAdmin).mockResolvedValue({
       from: () => {
-        const chain = { select: () => chain, or: () => chain, maybeSingle: async () => ({ data: unregistered, error: null }) };
+        const chain = { select: () => chain, or: () => chain, eq: () => chain, maybeSingle: async () => ({ data: unregistered, error: null }) };
         return chain;
       },
     } as unknown as Awaited<ReturnType<typeof getSupabaseAdmin>>);
@@ -91,6 +92,7 @@ describe("resolveProductByAlias: paddle_product_id is matched only for Paddle sa
             seen.push(filter);
             return chain;
           },
+          eq: () => chain,
           maybeSingle: async () => ({ data: lastFilter.includes("paddle_product_id") ? row : null, error: null }),
         };
         return chain;
