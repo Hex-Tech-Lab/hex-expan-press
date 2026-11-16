@@ -103,7 +103,7 @@ product_slug: { min_length: number; max_length: number; separator: string };
     retryable_error_names: string[];
   };
   portal: { jwt_clock_skew_retry_delay_ms: number };
-  consent: { text_version: string };
+  consent: { text_version: string; evidence_path: { user_id_pattern: string; envelope_id_pattern: string } };
 }
 
 export const DEFAULT_GLOBAL: GlobalSettings = {
@@ -188,13 +188,29 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
   },
   portal: { jwt_clock_skew_retry_delay_ms: 350 },
   admin: { admin_user_ids: [], audit_log_page_size: 50 },
-  consent: { text_version: "v1.1" },
+  consent: {
+    text_version: "v1.1",
+    // Object-path rules for consent evidence (`<userId>/<envelopeId>.pdf`). Enforced before any upload.
+    // Mirrors the DB CHECK on consents.evidence_path (lowercase UUID directory, bounded envelope name).
+    evidence_path: {
+      user_id_pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      envelope_id_pattern: "^[A-Za-z0-9_-]{1,128}$",
+    },
+  },
 };
 
 // Bounds for the admin tunables (feature code must never hard-code them).
 export const ADMIN_LIMITS = {
   audit_log_page_size: { min: 1, max: 500 },
   admin_user_ids: { max: 100 }, // sanity cap on allowlist size
+} as const;
+
+// Sign-in redirect hosts outside production (Argon F-11). The request host is trusted only when it
+// is this project's own Vercel deployment (production alias, git-branch alias, or per-deployment
+// host) or localhost. Production uses the canonical allowlist in web/app/creator/signin/actions.ts.
+export const AUTH_REDIRECT_HOSTS = {
+  preview_host_pattern: /^hex-expan-press(?:-git-[a-z0-9-]+|-[a-z0-9]+)?-techhypexps-projects\.vercel\.app$/,
+  local_host_pattern: /^localhost(?::\d{1,5})?$/,
 } as const;
 
 // Named bounds for the payments tunables (lives in the registry module by design —
@@ -348,6 +364,20 @@ function loadGlobal(): GlobalSettings {
 export function consentTextVersion(): string {
   const v = GLOBAL.consent?.text_version;
   return typeof v === "string" && v.trim().length > 0 ? v.trim() : DEFAULT_GLOBAL.consent.text_version;
+}
+
+/**
+ * Compiled consent-evidence path rules. A missing or empty override falls back to the default; an override
+ * that is not a valid regex throws, which fails closed (the caller refuses before any upload).
+ */
+export function consentEvidencePathRules(): { userId: RegExp; envelopeId: RegExp } {
+  const configured = GLOBAL.consent?.evidence_path;
+  const defaults = DEFAULT_GLOBAL.consent.evidence_path;
+  const pick = (value: unknown, fallback: string): string => (typeof value === "string" && value.length > 0 ? value : fallback);
+  return {
+    userId: new RegExp(pick(configured?.user_id_pattern, defaults.user_id_pattern)),
+    envelopeId: new RegExp(pick(configured?.envelope_id_pattern, defaults.envelope_id_pattern)),
+  };
 }
 
 export const PORTAL_JWT_SKEW_LIMITS = { min: 250, max: 500 } as const;

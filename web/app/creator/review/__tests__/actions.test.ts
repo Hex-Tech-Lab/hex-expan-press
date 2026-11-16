@@ -5,11 +5,25 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const rpcMock = vi.fn();
+// The action reads the item's anchor before the RPC. Default: an anchored item on page 3.
+const itemMock = vi.fn(
+  async (): Promise<{ data: { anchor: unknown } | null; error: { message: string } | null }> => ({
+    data: { anchor: { page: 3 } },
+    error: null,
+  }),
+);
 
 vi.mock("../../../../src/lib/supabase-server", () => ({
-  getPortalSession: vi.fn(async () => ({
+  getVerifiedPortalSession: vi.fn(async () => ({
     user: { id: "u1", email: "a@b.c" },
-    supabase: { rpc: rpcMock },
+    supabase: {
+      rpc: rpcMock,
+      from: () => ({
+        select: () => ({
+          eq: () => ({ maybeSingle: () => itemMock() }),
+        }),
+      }),
+    },
   })),
 }));
 
@@ -29,11 +43,34 @@ describe("submitReviewAnswerAction (Wave 6.1)", () => {
   beforeEach(() => {
     rpcMock.mockReset();
     rpcMock.mockResolvedValue({ error: null });
+    itemMock.mockReset();
+    itemMock.mockResolvedValue({ data: { anchor: { page: 3 } }, error: null });
+  });
+
+  it("refuses an unanchored item without calling the RPC, so it cannot be answered by id", async () => {
+    itemMock.mockResolvedValueOnce({ data: { anchor: null }, error: null });
+    const res = await submitReviewAnswerAction("item-1", "A", null);
+    expect(res.ok).toBe(false);
+    expect(rpcMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses an item whose anchor has no page (touchpoints without a page)", async () => {
+    itemMock.mockResolvedValueOnce({ data: { anchor: { touchpoints: [{}] } }, error: null });
+    const res = await submitReviewAnswerAction("item-1", "A", null);
+    expect(res.ok).toBe(false);
+    expect(rpcMock).not.toHaveBeenCalled();
+  });
+
+  it("refuses an item that does not exist or is not visible to the caller", async () => {
+    itemMock.mockResolvedValueOnce({ data: null, error: null });
+    const res = await submitReviewAnswerAction("item-missing", "A", null);
+    expect(res.ok).toBe(false);
+    expect(rpcMock).not.toHaveBeenCalled();
   });
 
   it("fails closed with a session-expired error when there is no session (no redirect — the client stepper shows it)", async () => {
-    const { getPortalSession } = await import("../../../../src/lib/supabase-server");
-    (getPortalSession as ReturnType<typeof vi.fn>).mockResolvedValueOnce(null);
+    const { getVerifiedPortalSession } = await import("../../../../src/lib/supabase-server");
+    (getVerifiedPortalSession as ReturnType<typeof vi.fn>).mockResolvedValueOnce(null);
     const res = await submitReviewAnswerAction("item-1", "A", null);
     expect(res.ok).toBe(false);
     expect(res.error).toMatch(/session expired/i);

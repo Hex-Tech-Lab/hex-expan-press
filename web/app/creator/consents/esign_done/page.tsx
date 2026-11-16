@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { getPortalSession } from "../../../../src/lib/supabase-server";
 import { resolvePrimaryProduct } from "../../../../src/lib/primary-product";
+import { portalConsentState } from "../../../../src/lib/consent-chain";
+import { loadCreatorConsentRows } from "../../../../src/lib/creator-consents";
 
 /**
  * Post-signing return page (Wave 6.1, RSC): Firma redirects the creator
@@ -28,22 +30,18 @@ async function hasRecordedC3(): Promise<boolean> {
   try {
     const session = await getPortalSession();
     if (!session) return false;
-    const { product, error: productError } = await resolvePrimaryProduct<{ id: string }>(
+    const { product, error: productError } = await resolvePrimaryProduct<{ id: string; creator_id: string | null; release_sha256: string | null }>(
       session.supabase,
-      "id",
+      "id, creator_id, release_sha256",
     );
-    const productId = product?.id;
-    if (productError || !productId) return false;
-    const { data } = await session.supabase
-      .from("consents")
-      .select("kind")
-      .eq("product_id", productId)
-      .eq("kind", "C3_revenue_split")
-      .eq("decision", "given")
-      .order("signed_at", { ascending: false })
-      .order("id", { ascending: false })
-      .limit(1);
-    return (data?.length ?? 0) > 0;
+    if (productError || !product) return false;
+    // Same strict chain rule as checkout: a C3 superseded by a later refusal (even one on
+    // another product) is not a recorded agreement. Only the C3 chain is read; the rule is per kind.
+    const { rows, error } = await loadCreatorConsentRows(session.supabase, product.creator_id, {
+      kinds: ["C3_revenue_split"],
+    });
+    if (error) return false;
+    return portalConsentState(rows, product.id, product.release_sha256).hasC3;
   } catch (err) {
     console.error("[esign_done] C3 status check failed:", err);
     return false;

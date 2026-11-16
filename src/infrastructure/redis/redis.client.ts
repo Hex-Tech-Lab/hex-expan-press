@@ -122,8 +122,22 @@ export class ExpanRedisClient {
     return this.command<number>("DEL", this.key(key));
   }
 
+  /**
+   * Owner-checked release: deletes the key only while it still holds `expected`. One Lua script, so the read and the
+   * delete are atomic (Upstash REST runs EVAL). A key that expired and was re-acquired by another owner is left alone.
+   */
+  async compareAndDel(key: string, expected: string): Promise<number> {
+    const script = 'if redis.call("GET", KEYS[1]) == ARGV[1] then return redis.call("DEL", KEYS[1]) else return 0 end';
+    return this.command<number>("EVAL", script, 1, this.key(key), expected);
+  }
+
   async exists(key: string): Promise<number> {
     return this.command<number>("EXISTS", this.key(key));
+  }
+
+  /** Atomic increment (Redis INCR). Returns the value after the increment. */
+  async incr(key: string): Promise<number> {
+    return this.command<number>("INCR", this.key(key));
   }
 }
 

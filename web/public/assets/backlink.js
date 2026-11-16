@@ -6,7 +6,9 @@
   if (ref) {
     try {
       var u = new URL(ref);
-      if (u.origin === location.origin && u.href !== location.href) target = u.href;
+      // Buyer pages (/books/*) only. Any other same-origin referrer would link a buyer into the B2B site.
+      var inBooks = u.pathname === '/books' || u.pathname.indexOf('/books/') === 0;
+      if (u.origin === location.origin && inBooks && u.href !== location.href) target = u.href;
     } catch (e) {}
   }
   if (target) {

@@ -1,0 +1,18 @@
+# PICT model for the creator handle policy (web/src/lib/handle-policy.ts, handle-shape.ts).
+# Run: pict handle_pairwise.model.txt   (consumed by handle_pairwise.test.ts)
+# Length values are symbolic bands; the test maps them to HANDLE_MIN / mid / HANDLE_MAX / HANDLE_MAX + 1.
+
+first_char: a, z, 0, 9
+last_char: a, z, 0, 9
+separator_count: 0, 1, 2
+separator_position: start, middle, end, double, none
+length_band: min, mid, max, over_max
+reserved: yes, no
+case: lower, camel
+
+# No separator position without separators.
+IF [separator_position] = "none" THEN [separator_count] = 0;
+# Two separators in the middle need at least three letters, so they cannot fit the minimum length.
+IF [separator_count] = 2 AND [separator_position] = "middle" THEN [length_band] <> "min";
+# "double" is a doubled separator ("__") in the middle, so it always has exactly two separators.
+IF [separator_position] = "double" THEN [separator_count] = 2;

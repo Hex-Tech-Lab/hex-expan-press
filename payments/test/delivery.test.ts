@@ -55,7 +55,7 @@ describe("deliverSale", () => {
     expect(JSON.stringify(row)).not.toContain("T".repeat(43));
     expect(row.expiresAt.getTime() - NOW.getTime()).toBe(7 * 24 * 60 * 60 * 1000);
     expect(row.productId).toBe(PRODUCT.id);
-    expect(f.createShortLink).toHaveBeenCalledWith(`https://expanpress.com/d/${"T".repeat(43)}`);
+    expect(f.createShortLink).toHaveBeenCalledWith(`https://expanpress.com/books/d/${"T".repeat(43)}`);
     const mail = arg<{ to: string; text: string; subject: string }>(f.sendEmail);
     expect(mail.to).toBe("buyer@example.com");
     expect(mail.text).toContain("https://go.expanpress.com/abc");

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { NextRequest } from "next/server";
-import { GET } from "../app/d/[token]/route";
+import { GET } from "../app/books/d/[token]/route";
 import { tokenHash } from "../../payments/src/delivery";
 
 const maybeSingleMock = vi.fn();
@@ -48,7 +48,7 @@ vi.mock("../../payments/src/supabase_admin", () => ({
   getSupabaseAdmin: vi.fn(async () => fakeSbAdmin),
 }));
 
-describe("Automated Integration Test: R2 Object Delivery & Fallback Behavior (/d/[token])", () => {
+describe("Automated Integration Test: R2 Object Delivery & Fallback Behavior (/books/d/[token])", () => {
   const validToken = "B".repeat(43);
   const futureExpiry = new Date(Date.now() + 3600 * 1000).toISOString();
 
@@ -101,7 +101,7 @@ describe("Automated Integration Test: R2 Object Delivery & Fallback Behavior (/d
   }
 
   async function expectRedirectTo(token: string, expectedUrlPrefix: string) {
-    const req = new NextRequest(`https://expanpress.com/d/${token}`);
+    const req = new NextRequest(`https://expanpress.com/books/d/${token}`);
     const res = await GET(req, { params: Promise.resolve({ token }) });
 
     expect(res.status).toBe(302);

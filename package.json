@@ -43,6 +43,7 @@
     "@supabase/supabase-js": "2.117.1",
     "@upstash/blob": "0.0.13",
     "cheerio": "1.2.0",
+    "creem": "1.13.0",
     "dotenv": "17.4.2",
     "resend": "6.28.1",
     "undici": "8.11.2",

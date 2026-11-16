@@ -730,7 +730,7 @@ describe("B2C/B2B routing matrix: host x path", () => {
     ["/legal/providers.html", { pay: "404", main: "pass", www: "pass" }],
     ["/checkout/abc", { pay: "pass", main: "redirect", www: "redirect" }],
     ["/api/billing/checkout", { pay: "pass", main: "redirect", www: "redirect" }],
-    ["/d/tok", { pay: "404", main: "pass", www: "pass" }],
+    ["/books/d/tok", { pay: "404", main: "pass", www: "pass" }],
     ["/creator/signin", { pay: "404", main: "pass", www: "pass" }],
     ["/", { pay: "404", main: "pass", www: "pass" }],
   ];

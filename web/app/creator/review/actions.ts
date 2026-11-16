@@ -1,7 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getPortalSession } from "../../../src/lib/supabase-server";
+import { getVerifiedPortalSession } from "../../../src/lib/supabase-server";
+import { anchorPageOf } from "../../../src/lib/review-anchor";
 
 export interface SubmitAnswerResult {
   ok: boolean;
@@ -18,11 +19,27 @@ export async function submitReviewAnswerAction(
   choice: string | null,
   freeText: string | null,
 ): Promise<SubmitAnswerResult> {
-  const session = await getPortalSession();
+  // Writes are gated on a server-verified session (revocation-safe).
+  const session = await getVerifiedPortalSession();
   if (!session) return { ok: false, error: "Your session expired — reload the page to sign in again." };
   const trimmedChoice = choice?.trim() || null;
   const trimmedText = freeText?.trim() || null;
   if (!trimmedChoice && !trimmedText) return { ok: false, error: "Choose an option or write the correct fact first." };
+
+  // The review page serves only anchored questions, but submit_review_answer checks only that the item exists
+  // and belongs to the caller. Refuse an unanchored item here, so it cannot be answered by id.
+  const { data: item, error: itemError } = await session.supabase
+    .from("review_items")
+    .select("anchor")
+    .eq("id", itemId)
+    .maybeSingle();
+  if (itemError) {
+    console.error("[review] review_items anchor read failed:", itemError.message);
+    return { ok: false, error: "Could not save your answer — please try again." };
+  }
+  if (!item || anchorPageOf(item.anchor) === null) {
+    return { ok: false, error: "This question is not available to answer." };
+  }
 
   const { error } = await session.supabase.rpc("submit_review_answer", {
     item_id: itemId,

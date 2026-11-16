@@ -27,15 +27,41 @@ RETENTION_FLOOR_DAYS=1
 
 # Connection details go into libpq environment variables, never onto a command line: argv is visible to every local
 # user through `ps`, which would expose the database password. Call AFTER PG_URL is loaded.
+# PG_URL is parsed by python3 (standard library only, isolated mode). It reaches python on stdin and the fields come
+# back on stdout, so the password is never in argv. User, password and database are percent-decoded (RFC 3986), so
+# %40 is "@", %23 is "#" and %2F is "/". Fields are joined with the unit separator (0x1F), which is not whitespace, so
+# an empty field is kept. Control characters are rejected because they cannot be carried safely in this format.
 load_pg_env() {
-  local rest="${PG_URL#postgresql://}"
-  local userpass="${rest%%@*}" hostdb="${rest#*@}"
-  local hostport="${hostdb%%/*}" dbq="${hostdb#*/}"
-  PGUSER="${userpass%%:*}"
-  PGPASSWORD="${userpass#*:}"
-  PGHOST="${hostport%%:*}"
-  PGPORT="${hostport#*:}"
-  PGDATABASE="${dbq%%\?*}"
+  local parsed user pass host port db
+  parsed="$(printf '%s' "$PG_URL" | python3 -I -c '
+import sys
+from urllib.parse import unquote, urlsplit
+
+try:
+    parts = urlsplit(sys.stdin.read().strip())
+    if parts.scheme not in ("postgres", "postgresql") or parts.fragment:
+        raise ValueError("unsupported URL")
+    fields = [
+        unquote(parts.username or "", errors="strict"),
+        unquote(parts.password or "", errors="strict"),
+        parts.hostname or "",
+        "" if parts.port is None else str(parts.port),
+        unquote(parts.path.lstrip("/"), errors="strict"),
+    ]
+    if any(ch < " " or ch == "\x7f" for field in fields for ch in field):
+        raise ValueError("control character")
+except Exception:
+    sys.stderr.write("FAIL: PG_URL could not be parsed (check the scheme, the port and percent-encoding)\n")
+    sys.exit(2)
+sys.stdout.write("\x1f".join(fields) + "\n")
+')" || return 1
+  IFS=$'\x1f' read -r user pass host port db <<< "$parsed"
+  PGUSER="$user"
+  PGPASSWORD="$pass"
+  PGHOST="$host"
+  # A portless PG_URL means the PostgreSQL default, 5432.
+  PGPORT="${port:-5432}"
+  PGDATABASE="$db"
   PGSSLMODE=require
   PGCONNECT_TIMEOUT=30
   PGOPTIONS="-c statement_timeout=600000"

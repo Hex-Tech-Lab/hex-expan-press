@@ -14,7 +14,11 @@ import { fastspringProvider } from "../../../../payments/src/providers/fastsprin
 import type { PaymentProviderPort, SaleCompletedEvent, RefundIssuedEvent } from "../../../../src/domain/payments/payments.port.ts";
 
 // Delivery is stubbed here: the sale-path tests assert the webhook contract, not mail or Dub.
-const delivery = vi.hoisted(() => ({ deliverSaleForWebhook: vi.fn(async (_input: unknown) => undefined) }));
+// saleDeliveryConfirmed defaults to "not confirmed": a contended, recorded sale is acknowledged only when a test sets it true.
+const delivery = vi.hoisted(() => ({
+  deliverSaleForWebhook: vi.fn(async (_input: unknown) => undefined),
+  saleDeliveryConfirmed: vi.fn(async (_provider: unknown, _saleId: unknown) => false),
+}));
 vi.mock("../../../../payments/src/delivery.ts", () => delivery);
 
 const SALE: SaleCompletedEvent = {
@@ -27,6 +31,7 @@ const SALE: SaleCompletedEvent = {
   buyerEmailHash: "0xabc",
   buyerEmail: "buyer@example.com",
   occurredAt: "2026-09-28T00:00:00.000Z",
+  providerMode: "live",
   rawPayload: null,
 };
 
@@ -137,7 +142,13 @@ vi.mock("../../../../payments/src/webhook_core.ts", async (importOriginal) => {
     ...orig,
     resolveProductByAlias: (alias: string, provider: string) => {
       resolveCalls.push([alias, provider]);
-      return alias === "p1" ? Promise.resolve({ productId: "p1", creatorHandle: "c1", currency: "USD" }) : Promise.resolve(null);
+      // One product per checkout_mode, so the mode gate can be exercised: live, sandbox and gated.
+      const products: Record<string, { productId: string; creatorHandle: string; currency: string; checkoutMode: string }> = {
+        p1: { productId: "p1", creatorHandle: "c1", currency: "USD", checkoutMode: "live" },
+        p_sandbox: { productId: "p_sandbox", creatorHandle: "c1", currency: "USD", checkoutMode: "sandbox" },
+        p_gated: { productId: "p_gated", creatorHandle: "c1", currency: "USD", checkoutMode: "gated" },
+      };
+      return Promise.resolve(products[alias] ?? null);
     },
   };
 });
@@ -333,7 +344,7 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
     vi.stubEnv("KV_REST_API_TOKEN", "kv-token");
     setnx.mockResolvedValue(1);
     await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(SALE)]);
-    expect(setnx).toHaveBeenCalledWith("lock:sale:polar:sale_dup_1", "1", expect.anything());
+    expect(setnx).toHaveBeenCalledWith("lock:sale:polar:sale_dup_1", expect.any(String), expect.anything());
   });
 
   it("production with no Redis configured → fails closed (throws), never processes unlocked", async () => {
@@ -394,7 +405,7 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
     await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(SALE)]);
     const rows = readFileSync(salesFilePath, "utf8").split(/\r?\n/).filter(Boolean);
     expect(rows).toHaveLength(1); // only the pre-existing record
-    expect(setnx).toHaveBeenCalledWith("lock:sale:polar:sale_dup_1", "1", expect.anything());
+    expect(setnx).toHaveBeenCalledWith("lock:sale:polar:sale_dup_1", expect.any(String), expect.anything());
   });
 
   it("a retry for a recorded sale re-attempts delivery (a prior attempt may have failed after the ledger write)", async () => {
@@ -1559,6 +1570,7 @@ describe("legacy-wrapped Fungies sale end-to-end (audit R01)", () => {
     const body = JSON.stringify({
       id: "evt_e2e",
       type: "payment_success",
+      testMode: false,
       data: {
         items: [{ customFields: { product_id: "p1", attribution_id: "yt:e2e" } }],
         payment: { id: "pay_e2e", value: 3900, currency: "USD", currencyDecimals: 2, createdAt: 1759000000000 },
@@ -1663,5 +1675,111 @@ describe("multi-event delivery end-to-end (audit R04)", () => {
     ]);
     await expect(run).rejects.toThrow(/Unknown product_id/);
     expect(bookedRows()).toEqual([["ord_y", 39]]);
+  });
+});
+
+// F-09: the provider's mode must equal the product's checkout_mode. F-14: a contended lock is acknowledged only when the
+// sale is recorded AND its receipt is confirmed sent.
+describe("sale mode gate (F-09) and contended-lock confirmation (F-14)", () => {
+  const booked = (): string[] => {
+    try {
+      return readFileSync(salesFilePath, "utf8")
+        .split(/\r?\n/)
+        .filter(Boolean)
+        .map((line) => (JSON.parse(line) as { sale_id: string }).sale_id);
+    } catch {
+      return []; // no ledger file: nothing booked
+    }
+  };
+  const RECORD: SaleRecord = {
+    ts: "2026-09-27T00:00:00.000Z",
+    sale_id: "sale_recorded_1",
+    provider: "polar",
+    product_id: "p1",
+    amount_usd: 39,
+    creator_id: "c1",
+    creator_split_pct: 50,
+    creator_split_usd: 19.5,
+    our_split_usd: 19.5,
+    currency: "USD",
+  };
+
+  beforeEach(() => {
+    setnx.mockReset().mockResolvedValue(1);
+    delivery.deliverSaleForWebhook.mockClear();
+    delivery.saleDeliveryConfirmed.mockReset().mockResolvedValue(false);
+    mkdirSync(salesFileDir, { recursive: true });
+    vi.stubEnv("UPSTASH_REDIS_REST_URL", "https://unit.test.redis.example");
+    vi.stubEnv("UPSTASH_REDIS_REST_TOKEN", "unit-test-token");
+  });
+  afterEach(() => {
+    rmSync(salesFileDir, { recursive: true, force: true });
+    vi.unstubAllEnvs();
+  });
+
+  const run = (event: SaleCompletedEvent) => processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(event)]);
+  async function refusal(event: SaleCompletedEvent): Promise<WebhookValidationError> {
+    const err = await run(event).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(WebhookValidationError);
+    return err as WebhookValidationError;
+  }
+
+  it("a live sale on a live product is booked and delivered", async () => {
+    await run({ ...SALE, saleId: "sale_mode_ok", providerMode: "live" });
+    expect(booked()).toEqual(["sale_mode_ok"]);
+    expect(delivery.deliverSaleForWebhook).toHaveBeenCalledTimes(1);
+  });
+
+  it("a sandbox sale on a sandbox product is booked (the mode matches)", async () => {
+    await run({ ...SALE, saleId: "sale_sbx_ok", productId: "p_sandbox", providerMode: "sandbox" });
+    expect(booked()).toEqual(["sale_sbx_ok"]);
+  });
+
+  it("a sandbox (test-mode) event on a live product is refused: 422 SALE_MODE_MISMATCH, no row, no link", async () => {
+    const err = await refusal({ ...SALE, saleId: "sale_test_on_live", providerMode: "sandbox" });
+    expect(err.httpStatus).toBe(422);
+    expect(err.name).toBe("SALE_MODE_MISMATCH");
+    expect(booked()).toEqual([]);
+    expect(delivery.deliverSaleForWebhook).not.toHaveBeenCalled();
+  });
+
+  it("a live event on a sandbox product is refused: 422 SALE_MODE_MISMATCH, no row, no link", async () => {
+    const err = await refusal({ ...SALE, saleId: "sale_live_on_sbx", productId: "p_sandbox", providerMode: "live" });
+    expect(err.name).toBe("SALE_MODE_MISMATCH");
+    expect(booked()).toEqual([]);
+    expect(delivery.deliverSaleForWebhook).not.toHaveBeenCalled();
+  });
+
+  it("a live event on a gated product (not open for sale) is refused: 422 SALE_MODE_MISMATCH", async () => {
+    const err = await refusal({ ...SALE, saleId: "sale_gated", productId: "p_gated", providerMode: "live" });
+    expect(err.name).toBe("SALE_MODE_MISMATCH");
+    expect(booked()).toEqual([]);
+    expect(delivery.deliverSaleForWebhook).not.toHaveBeenCalled();
+  });
+
+  it("an event with no provider mode is refused (fail closed): 422 SALE_MODE_UNKNOWN, no row, no link", async () => {
+    const err = await refusal({ ...SALE, saleId: "sale_no_mode", providerMode: undefined });
+    expect(err.httpStatus).toBe(422);
+    expect(err.name).toBe("SALE_MODE_UNKNOWN");
+    expect(booked()).toEqual([]);
+    expect(delivery.deliverSaleForWebhook).not.toHaveBeenCalled();
+  });
+
+  it("a contended lock on a sale that is recorded AND confirmed sent is acknowledged, with no second write or send", async () => {
+    await appendSale({ ...RECORD, sale_id: "sale_contended_ok" }, salesFilePath);
+    setnx.mockResolvedValue(0); // another delivery holds the lock
+    delivery.saleDeliveryConfirmed.mockResolvedValue(true);
+    await expect(run({ ...SALE, saleId: "sale_contended_ok", providerMode: "live" })).resolves.toBeUndefined();
+    expect(booked()).toEqual(["sale_contended_ok"]);
+    expect(delivery.deliverSaleForWebhook).not.toHaveBeenCalled();
+  });
+
+  it("a contended lock with a confirmed receipt but NO recorded sale is still in-flight (never acknowledged)", async () => {
+    setnx.mockResolvedValue(0);
+    delivery.saleDeliveryConfirmed.mockResolvedValue(true);
+    await expect(run({ ...SALE, saleId: "sale_contended_unrecorded", providerMode: "live" })).rejects.toMatchObject({
+      name: "WebhookInFlightError",
+    });
+    expect(booked()).toEqual([]);
   });
 });

@@ -111,7 +111,7 @@ export default async function CreatorHubPage({ params }: { params: Promise<{ han
                 >
                   <div className="cover">
                     <p className="cover-kicker">Digital PDF</p>
-                    <p className="cover-title">{p.title ?? p.composite_slug}</p>
+                    <p className="cover-title">{p.title ?? p.slug}</p>
                   </div>
                   <div className="card-body">
                     <p className="card-price">

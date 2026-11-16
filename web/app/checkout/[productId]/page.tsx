@@ -28,7 +28,7 @@ export async function generateMetadata({
   const { productId } = await params;
   const found = await fetchCheckoutProduct(productId);
   if (!found) return { title: "Checkout · ExpanPress", robots: NOINDEX };
-  const title = `Checkout: ${found.product.title ?? found.product.composite_slug} · ExpanPress`;
+  const title = `Checkout: ${found.product.title ?? found.product.slug} · ExpanPress`;
   return { title, robots: NOINDEX };
 }
 
@@ -57,7 +57,7 @@ export default async function CheckoutPage({
     <div className="sf-root">
       <div className="wrap">
         <p className="kicker">Secure checkout &middot; ExpanPress</p>
-        <h1>{p.title ?? p.composite_slug}</h1>
+        <h1>{p.title ?? p.slug}</h1>
         <p className="byline">
           A creator-collaboration publication &middot; with <b>{creator.display_name}</b>
         </p>

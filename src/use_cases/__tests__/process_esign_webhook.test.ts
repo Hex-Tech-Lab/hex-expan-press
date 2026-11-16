@@ -12,6 +12,8 @@ import { createHash } from "node:crypto";
 import { WebhookValidationError } from "../../domain/webhook/webhook_errors.ts";
 import type { WebhookEvent, WebhookValidationResult } from "../../domain/esign/esign.port.ts";
 
+// A lowercase UUID: the Storage path rule (consent evidence) requires one as the first segment.
+const USER_UUID = "57596c19-c550-4bde-b17a-e87b86d005c5";
 const AGREEMENT_PDF_BYTES = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31]); // "%PDF-1"
 // The webhook's document_sha256 is Firma's attestation of the signed document;
 // the use case cross-checks it against the fetched bytes (sprint 12), so the
@@ -36,7 +38,7 @@ function completedEvent(overrides: Partial<WebhookEvent> = {}): WebhookEvent {
   return {
     eventType: "envelope.completed",
     envelopeId: "env_f125",
-    metadata: { productId: "prod_1", userId: "user_9" },
+    metadata: { productId: "prod_1", userId: USER_UUID },
     documentHash: VALID_HASH,
     ...overrides,
   };
@@ -56,6 +58,45 @@ function makeDatabase() {
 
 const settings = { getPortalSettings: () => Promise.resolve({ esign: {} }) };
 const request = { body: "{}", headers: {}, ip: "203.0.113.7", userAgent: "firma-webhook/1.0" };
+
+describe("processEsignWebhookUseCase — path gate (F-07): refused before any path is built or uploaded", () => {
+  beforeEach(() => {
+    firmaMock.parseResult = null;
+    firmaMock.fetchCompletedDocument.mockReset();
+    firmaMock.uploadConsentEvidence.mockReset();
+  });
+
+  async function expectRefusedBeforeAnySideEffect(event: WebhookEvent): Promise<void> {
+    firmaMock.parseResult = validParseResult(event);
+    const database = makeDatabase();
+    const { processEsignWebhookUseCase } = await import("../process_esign_webhook.ts");
+    const err = await processEsignWebhookUseCase(request, settings as never, database as never).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(WebhookValidationError);
+    expect((err as WebhookValidationError).httpStatus).toBe(400);
+    expect(firmaMock.fetchCompletedDocument).not.toHaveBeenCalled();
+    expect(firmaMock.uploadConsentEvidence).not.toHaveBeenCalled();
+    expect(database.hasConsentFor).not.toHaveBeenCalled();
+    expect(database.submitConsent).not.toHaveBeenCalled();
+  }
+
+  it.each([
+    ["a path-traversal envelopeId", "../other-user/evil"],
+    ["an envelopeId containing a slash", "env/evil"],
+    ["an envelopeId containing a dot", "env.1"],
+    ["an empty envelopeId", ""],
+    ["an envelopeId over 128 characters", "e".repeat(129)],
+  ])("refuses %s before fetch, upload or insert", async (_label, envelopeId) => {
+    await expectRefusedBeforeAnySideEffect(completedEvent({ envelopeId }));
+  });
+
+  it.each([
+    ["a non-UUID userId", "user_9"],
+    ["an uppercase UUID (the DB CHECK accepts lowercase only)", "57596C19-C550-4BDE-B17A-E87B86D005C5"],
+    ["a traversal userId", "../57596c19-c550-4bde-b17a-e87b86d005c5"],
+  ])("refuses %s before fetch, upload or insert", async (_label, userId) => {
+    await expectRefusedBeforeAnySideEffect(completedEvent({ metadata: { productId: "prod_1", userId } }));
+  });
+});
 
 describe("processEsignWebhookUseCase — evidence-before-insert (F1)", () => {
   beforeEach(() => {
@@ -89,11 +130,15 @@ describe("processEsignWebhookUseCase — evidence-before-insert (F1)", () => {
     const { processEsignWebhookUseCase } = await import("../process_esign_webhook.ts");
     await processEsignWebhookUseCase(request, settings as never, database as never);
 
-    expect(callOrder).toEqual(["fetch:env_f125", "upload:user_9/env_f125.pdf", "insert:user_9/env_f125.pdf"]);
+    expect(callOrder).toEqual([
+      "fetch:env_f125",
+      `upload:${USER_UUID}/env_f125.pdf`,
+      `insert:${USER_UUID}/env_f125.pdf`,
+    ]);
     expect(uploadedBytes).toBe(AGREEMENT_PDF_BYTES);
     expect(database.submitConsent).toHaveBeenCalledTimes(1);
     expect(database.submitConsent.mock.calls[0][0]).toMatchObject({
-      evidencePath: "user_9/env_f125.pdf",
+      evidencePath: `${USER_UUID}/env_f125.pdf`,
       documentSha256: VALID_HASH,
       externalRef: "env_f125",
     });
@@ -178,7 +223,7 @@ describe("processEsignWebhookUseCase — replay pre-check (P2, PR #78)", () => {
 
   it("on hasConsentFor=true: skips fetch/upload/insert, still runs flagLegacyProvenance, resolves 200", async () => {
     firmaMock.parseResult = validParseResult(
-      completedEvent({ metadata: { productId: "prod_1", userId: "user_9", textVersion: "garbage" } }),
+      completedEvent({ metadata: { productId: "prod_1", userId: USER_UUID, textVersion: "garbage" } }),
     );
     const database = {
       hasConsentFor: vi.fn<(kind: string, externalRef: string) => Promise<boolean>>((_kind, ref) =>
@@ -203,7 +248,7 @@ describe("processEsignWebhookUseCase — replay pre-check (P2, PR #78)", () => {
 
   it("on hasConsentFor=true with a valid snapshot: no flag write (at-least-once flag is idempotent-in-spirit)", async () => {
     firmaMock.parseResult = validParseResult(
-      completedEvent({ metadata: { productId: "prod_1", userId: "user_9", textVersion: "v1.0" } }),
+      completedEvent({ metadata: { productId: "prod_1", userId: USER_UUID, textVersion: "v1.0" } }),
     );
     const database = {
       hasConsentFor: vi.fn(() => Promise.resolve(true)),

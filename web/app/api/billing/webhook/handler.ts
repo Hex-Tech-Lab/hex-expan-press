@@ -197,17 +197,23 @@ async function refuseSwitchedOffDelivery(
   );
   if (!outcome.ok) return unavailable();
   const result = outcome.r;
+  // The answer the adapter gives a verified, refused delivery: 400 for a malformed one, 422 for a validly signed money event
+  // it does not map (Creem refund/dispute). Both are audited before the answer goes out, so the answer never drops the row.
+  let refusalStatus: 400 | 422 = 400;
   if (!result.isValid) {
     if (result.httpStatus !== undefined && result.httpStatus >= 500) {
       console.error(`[billing-webhook] switched-off rail ${rail.providerName} verifier server fault (httpStatus=${result.httpStatus}) — retrying, nothing recorded`);
       return unavailable();
     }
-    if (result.httpStatus !== 400) return NextResponse.json({ ok: false, error: "Bad Request" }, { status: 400 });
+    if (result.httpStatus === 422) refusalStatus = 422;
+    else if (result.httpStatus !== 400) return NextResponse.json({ ok: false, error: "Bad Request" }, { status: 400 });
   }
   const payloadSha256 = createHash("sha256").update(bodyBuffer).digest("hex");
   const recorded = await auditTerminalBounded(headers, bodyBuffer, "provider_switched_off", "WEBHOOK_PROVIDER_SWITCHED_OFF", `WEBHOOK_PROVIDER_SWITCHED_OFF:${rail.providerName}:${payloadSha256}`);
   if (!recorded) return unavailable();
-  return NextResponse.json({ ok: false, error: "Bad Request" }, { status: 400 });
+  return refusalStatus === 422
+    ? NextResponse.json({ ok: false, error: "Unprocessable Entity" }, { status: 422 })
+    : NextResponse.json({ ok: false, error: "Bad Request" }, { status: 400 });
 }
 
 /** Terminal-reject quarantine: the provider stops retrying on this response, so the
@@ -228,7 +234,7 @@ async function quarantineTerminalEvent(
 /** Same bounded write as the quarantine, but reports whether the audit row was actually written. A switched-off
  *  delivery whose row is not written is the only durable trace of a real sale, so the caller must not tell the
  *  provider to stop retrying. A timeout or a write failure returns false. */
-async function auditTerminalBounded(
+function auditTerminalBounded(
   headers: Record<string, string | string[] | undefined>,
   bodyBuffer: Buffer,
   reason: string,
@@ -304,6 +310,7 @@ function auditContext(headers: Record<string, string | string[] | undefined>, bo
     headers["paddle-signature"] !== undefined ? "paddle"
     : headers["webhook-signature"] !== undefined ? "polar"
     : headers["x-fngs-signature"] !== undefined ? "fungies"
+    : headers["creem-signature"] !== undefined ? "creem"
     : undefined;
   try {
     const parsed = JSON.parse(body) as { data?: { id?: unknown; transaction_id?: unknown } };

@@ -171,6 +171,8 @@ export const fungiesProvider: CheckoutProvider = {
         email_hash: hashEmail(email),
         buyer_email: email,
         ...(attributionId ? { attribution_id: attributionId } : {}),
+        // Only an explicit testMode:false is a live sale. testMode:true was refused above; an absent flag stays unset (refused).
+        ...(body?.testMode === false ? { provider_mode: "live" as const } : {}),
       },
     };
   },

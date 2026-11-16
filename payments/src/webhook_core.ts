@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { isEnabledPaymentProvider, paymentProviderSetting, isMoneyPath, GLOBAL } from "./settings_registry.ts";
 import { getSupabaseAdmin } from "./supabase_admin.ts";
 import { expanRedis, isRedisRestConfigured } from "../../src/infrastructure/redis/redis.client.ts";
@@ -24,21 +25,18 @@ export function getSecret(provider: ProviderName): string | undefined {
  * loadProductIndex scan over payments/config.*.json; the DB is the single
  * source of truth for commercial state).
  *
- * Alias arms mirror the legacy index keys: store product id, paddle product
- * id, polar sandbox/live ids, composite slug, and the row uuid (id arm only
- * when the alias IS a uuid — a non-uuid value in an id.eq arm makes PostgREST
- * reject the whole filter, the same cast trap fixed in the checkout route on
- * PR #85).
+ * Alias arms: store product id (store_product_id), paddle product id (Paddle
+ * sales only), polar sandbox/live ids, and the row uuid (id arm only when the
+ * alias IS a uuid — a non-uuid value in an id.eq arm makes PostgREST reject
+ * the whole filter, the same cast trap fixed in the checkout route on PR #85).
+ * No derived identifier is an arm: a provider product reference resolves
+ * through store_product_id or the product UUID only.
  *
  * The bare portal slug (products.slug) is deliberately NOT an arm: it is
  * unique only per creator (unique (creator_id, slug) in the portal
  * migration), so a bare slug can match several creators' products and
- * .maybeSingle() would 500-loop a valid provider delivery. The nested
- * site_slug (<handle>/<product_slug>) is not an arm either: it can never
- * match a provider-id charset (it contains '/'), provider payloads never
- * carry site slugs, and the checkout route — the slug-resolving surface —
- * rejects '/' in its product parameter too. Provider payloads carry provider
- * ids (store/paddle/polar ids), never URL slugs.
+ * .maybeSingle() would 500-loop a valid provider delivery. Provider payloads
+ * carry provider ids (store/paddle/polar ids), never URL slugs.
  *
  * Injection guard: the alias arrives from provider webhook payloads. The
  * PostgREST .or() grammar treats commas/parens as syntax, and '.'/':' are
@@ -60,6 +58,8 @@ export interface ResolvedProduct {
   /** Creator handle (creators.handle) — the ledger's creator_id namespace. */
   creatorHandle: string;
   currency: string;
+  /** products.checkout_mode ('live' | 'sandbox' | 'gated' | 'paddle' | null). Only 'live' and 'sandbox' can match a sale's mode. */
+  checkoutMode: string | null;
 }
 
 /**
@@ -78,13 +78,13 @@ export async function resolveProductByAlias(alias: string, providerName: string)
     ...(providerName === "paddle" ? [`paddle_product_id.eq.${alias}`] : []),
     `polar_product_id_sandbox.eq.${alias}`,
     `polar_product_id_live.eq.${alias}`,
-    `composite_slug.eq.${alias}`,
     ...(isUuid ? [`id.eq.${alias}`] : []),
   ];
   const { data, error } = await supabase
     .from("products")
-    .select("store_product_id, currency, provider, creators(handle)")
+    .select("store_product_id, currency, provider, checkout_mode, creators(handle)")
     .or(conditions.join(","))
+    .eq("provider", providerName)
     .maybeSingle();
   if (error) {
     throw new Error(`webhook: product lookup failed for '${alias}': ${error.message}`);
@@ -94,16 +94,21 @@ export async function resolveProductByAlias(alias: string, providerName: string)
     store_product_id: string | null;
     currency: string;
     provider: string | null;
+    checkout_mode: string | null;
     creators?: { handle?: string } | null;
   };
+  // F-18: the product must belong to the provider that sent the sale. Another provider's product row is no match, so
+  // the caller answers its terminal "unknown product" (422). Checked before the retryable branch below: a foreign row
+  // must never loop on 503.
+  if (row.provider !== providerName) return null;
   // The row exists but cannot sell yet: its provider is not enabled, or it lacks a store id or creator handle.
   // That is retryable on purpose. A re-enabled provider or a repaired row makes the next delivery succeed, and
   // the sale stays unrecorded until then. Returning null here would quarantine it permanently (422).
-  if (!row.store_product_id || !row.creators?.handle || !isEnabledPaymentProvider(row.provider ?? "")) {
+  if (!row.store_product_id || !row.creators?.handle || !isEnabledPaymentProvider(providerName)) {
     // 503: the handler audits it and sends Retry-After, so each attempt leaves a row and the provider retries.
-    throw new WebhookValidationError(`product '${alias}' exists but cannot sell yet (provider ${row.provider ?? "none"} not enabled, or product incomplete)`, 503);
+    throw new WebhookValidationError(`product '${alias}' exists but cannot sell yet (provider ${providerName} not enabled, or product incomplete)`, 503);
   }
-  return { productId: row.store_product_id, creatorHandle: row.creators.handle, currency: row.currency };
+  return { productId: row.store_product_id, creatorHandle: row.creators.handle, currency: row.currency, checkoutMode: row.checkout_mode };
 }
 
 // Webhook idempotency lock: findSale/appendSale (and the refund equivalent) are a plain
@@ -131,10 +136,14 @@ export class WebhookInFlightError extends Error {
   }
 }
 
-/** Releases the lock. A failure is logged and never replaces the caller's error; the lock TTL clears a lock that stays held. */
-async function releaseLock(lockKey: string): Promise<void> {
+/**
+ * Releases the lock only if this call still owns it (compare-and-delete on the random token stored at acquire). An
+ * unowned DEL could remove a lock that expired and was re-acquired by another delivery. A failure is logged and never
+ * replaces the caller's error; the lock TTL clears a lock that stays held.
+ */
+async function releaseLock(lockKey: string, token: string): Promise<void> {
   try {
-    await expanRedis.del(lockKey);
+    await expanRedis.compareAndDel(lockKey, token);
   } catch (delErr) {
     console.error(`[webhook] lock release failed (lock=${lockKey}); the TTL will clear it:`, delErr);
   }
@@ -154,7 +163,9 @@ export async function withIdempotencyLock(
     return fn();
   }
 
-  const acquired = await expanRedis.setnx(lockKey, "1", WEBHOOK_LOCK_TTL_SECONDS);
+  // The stored value is this call's random owner token, so release can prove ownership (see releaseLock).
+  const token = randomUUID();
+  const acquired = await expanRedis.setnx(lockKey, token, WEBHOOK_LOCK_TTL_SECONDS);
   if (!acquired) throw new WebhookInFlightError(lockKey);
 
   try {
@@ -162,13 +173,13 @@ export async function withIdempotencyLock(
     // Nothing was actually written (true duplicate, unknown product, terms lookup failure,
     // etc.) — free the slot immediately so a corrected retry isn't blocked for the full TTL.
     if (result.payload.recorded !== true) {
-      await releaseLock(lockKey);
+      await releaseLock(lockKey, token);
     }
     return result;
   } catch (err) {
     console.error(`[webhook] locked fn threw (lock=${lockKey}) — releasing lock:`, err);
     // The caller's error must reach the handler unchanged. A failed release is logged; the lock TTL bounds it.
-    await releaseLock(lockKey);
+    await releaseLock(lockKey, token);
     throw err;
   }
 }

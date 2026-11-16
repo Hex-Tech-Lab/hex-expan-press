@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { NextRequest } from "next/server";
 import { GET } from "../route";
-import { tokenHash } from "../../../../../payments/src/delivery";
+import { tokenHash } from "../../../../../../payments/src/delivery";
 
 const maybeSingleMock = vi.fn();
 const insertMock = vi.fn();
@@ -44,11 +44,11 @@ const fakeSbAdmin = {
   },
 };
 
-vi.mock("../../../../../payments/src/supabase_admin", () => ({
+vi.mock("../../../../../../payments/src/supabase_admin", () => ({
   getSupabaseAdmin: vi.fn(async () => fakeSbAdmin),
 }));
 
-describe("GET /d/[token] (Buyer delivery route)", () => {
+describe("GET /books/d/[token] (Buyer delivery route)", () => {
   const validToken = "A".repeat(43);
 
   beforeEach(() => {
@@ -71,7 +71,7 @@ describe("GET /d/[token] (Buyer delivery route)", () => {
   }
 
   async function expectRedirectTo(token: string, expectedUrlSubstring: string) {
-    const req = new NextRequest(`https://expanpress.com/d/${token}`);
+    const req = new NextRequest(`https://expanpress.com/books/d/${token}`);
     const res = await GET(req, { params: Promise.resolve({ token }) });
 
     expect(res.status).toBe(302);
@@ -92,14 +92,14 @@ describe("GET /d/[token] (Buyer delivery route)", () => {
   });
 
   it("returns 404 for invalid token format", async () => {
-    const req = new NextRequest("https://expanpress.com/d/short");
+    const req = new NextRequest("https://expanpress.com/books/d/short");
     const res = await GET(req, { params: Promise.resolve({ token: "short" }) });
     expect(res.status).toBe(404);
   });
 
   it("returns 404 when download link row is missing", async () => {
     maybeSingleMock.mockResolvedValueOnce({ data: null, error: null });
-    const req = new NextRequest(`https://expanpress.com/d/${validToken}`);
+    const req = new NextRequest(`https://expanpress.com/books/d/${validToken}`);
     const res = await GET(req, { params: Promise.resolve({ token: validToken }) });
     expect(res.status).toBe(404);
   });
@@ -109,7 +109,7 @@ describe("GET /d/[token] (Buyer delivery route)", () => {
       data: { sale_id: "s1", product_id: "p1", expires_at: null },
       error: null,
     });
-    const req = new NextRequest(`https://expanpress.com/d/${validToken}`);
+    const req = new NextRequest(`https://expanpress.com/books/d/${validToken}`);
     const res = await GET(req, { params: Promise.resolve({ token: validToken }) });
 
     expect(res.status).toBe(500);
@@ -123,7 +123,7 @@ describe("GET /d/[token] (Buyer delivery route)", () => {
       data: { sale_id: "s1", product_id: "p1", expires_at: past },
       error: null,
     });
-    const req = new NextRequest(`https://expanpress.com/d/${validToken}`);
+    const req = new NextRequest(`https://expanpress.com/books/d/${validToken}`);
     const res = await GET(req, { params: Promise.resolve({ token: validToken }) });
     expect(res.status).toBe(410);
     expect(await res.text()).toContain("expired");
@@ -145,7 +145,7 @@ describe("GET /d/[token] (Buyer delivery route)", () => {
     });
     insertMock.mockResolvedValueOnce({ error: { message: "insert failed" } });
 
-    const req = new NextRequest(`https://expanpress.com/d/${validToken}`);
+    const req = new NextRequest(`https://expanpress.com/books/d/${validToken}`);
     const res = await GET(req, { params: Promise.resolve({ token: validToken }) });
 
     expect(res.status).toBe(500);
@@ -167,7 +167,7 @@ describe("GET /d/[token] (Buyer delivery route)", () => {
       error: { message: "storage signing failed" },
     });
 
-    const req = new NextRequest(`https://expanpress.com/d/${validToken}`);
+    const req = new NextRequest(`https://expanpress.com/books/d/${validToken}`);
     const res = await GET(req, { params: Promise.resolve({ token: validToken }) });
 
     expect(res.status).toBe(500);

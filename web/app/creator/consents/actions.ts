@@ -3,7 +3,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { getPortalSession } from "../../../src/lib/supabase-server";
+import { getVerifiedPortalSession } from "../../../src/lib/supabase-server";
 import { resolvePrimaryProduct } from "../../../src/lib/primary-product";
 import { clientIp } from "../../../src/lib/client-ip";
 import { consentTextVersion } from "../../../../payments/src/settings_registry.ts";
@@ -26,7 +26,8 @@ const ZEROS_HASH = "000000000000000000000000000000000000000000000000000000000000
  * JS, which is both spoofable and now unnecessary).
  */
 export async function signConsentAction(_prev: ConsentFormState, formData: FormData): Promise<ConsentFormState> {
-  const session = await getPortalSession();
+  // Writes are gated on a server-verified session (revocation-safe), not the local JWT hydrate.
+  const session = await getVerifiedPortalSession();
   if (!session) redirect("/creator/signin");
 
   const rawKind = String(formData.get("kind") ?? "");

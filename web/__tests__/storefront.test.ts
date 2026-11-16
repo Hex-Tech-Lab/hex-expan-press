@@ -5,7 +5,9 @@ vi.mock("../src/components/storefront/storefront.css", () => ({}));
 const supa = vi.hoisted(() => ({ client: null as null | { from: (table: string) => unknown } }));
 vi.mock("../../payments/src/supabase_admin", () => ({ getSupabaseAdmin: vi.fn(async () => supa.client) }));
 
-const { NOINDEX, fetchCreatorHub, insideItems, storefrontRobots } = await import("../src/components/storefront/storefront");
+const { NOINDEX, fetchCreatorHub, fetchStoreProduct, insideItems, productSlugOf, storefrontRobots } = await import(
+  "../src/components/storefront/storefront"
+);
 
 /** A Supabase stand-in answering the hub's two reads: the creator (with products) and system_config. */
 function hubClient(creator: unknown) {
@@ -24,8 +26,6 @@ function hubClient(creator: unknown) {
 const product = (id: string, checkout_mode: string) => ({
   id,
   store_product_id: `sp-${id}`,
-  composite_slug: `duane/${id}`,
-  site_slug: `duane/${id}`,
   slug: id,
   title: `Title ${id}`,
   price_usd: "39",
@@ -59,6 +59,26 @@ describe("fetchCreatorHub lists only published (live) products", () => {
     supa.client = hubClient({ handle: "hublive", display_name: "Duane", platform_handles: null, bio: null, photo: null, products: [product("live", "live")] });
     const liveHub = await fetchCreatorHub("hublive");
     expect(storefrontRobots(liveHub!.creator.products)).toBeUndefined();
+  });
+});
+
+describe("product slug comes from products.slug only (F-01)", () => {
+  it("resolves a product by its creator handle and products.slug", async () => {
+    const hyphenated = {
+      ...product("500k_playbook", "live"),
+      slug: "500k_playbook",
+    };
+    expect(productSlugOf(hyphenated)).toBe("500k_playbook");
+    supa.client = hubClient({
+      handle: "retirearly500k",
+      display_name: "Duane",
+      platform_handles: null,
+      bio: null,
+      photo: null,
+      products: [hyphenated],
+    });
+    const found = await fetchStoreProduct("retirearly500k", "500k_playbook");
+    expect(found?.product.id).toBe("500k_playbook");
   });
 });
 

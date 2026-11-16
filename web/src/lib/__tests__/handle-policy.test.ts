@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
-import { checkHandle, HANDLE_MAX, HANDLE_MIN } from "../handle-policy";
+import { checkHandle } from "../handle-policy";
+import { HANDLE_MAX, HANDLE_MIN } from "../handle-shape";
 
 describe("checkHandle: format (Instagram-style)", () => {
   it("accepts letters, digits and underscores, and lowercases the result", () => {

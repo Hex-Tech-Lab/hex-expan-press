@@ -1,5 +1,6 @@
 import { PolarAdapter } from "../../../../../src/adapters/payments/polar.adapter";
 import { PaddleAdapter } from "../../../../../src/adapters/payments/paddle.adapter";
+import { CreemAdapter } from "../../../../../src/adapters/payments/creem.adapter";
 import { LegacyPaymentAdapterWrapper } from "../../../../../src/adapters/payments/legacy.adapter";
 import { fungiesProvider } from "../../../../../payments/src/providers/fungies";
 import { isEnabledPaymentProvider } from "../../../../../payments/src/settings_registry";
@@ -9,7 +10,7 @@ import { isEnabledPaymentProvider } from "../../../../../payments/src/settings_r
 // only to recognise a signed delivery for manual-review recording (switchedOffVerifiers). It never processes a sale.
 /** Every provider with a verifier here, switched on or not. */
 export function allVerifiers() {
-  return [new PolarAdapter(), new PaddleAdapter(), new LegacyPaymentAdapterWrapper(fungiesProvider)];
+  return [new PolarAdapter(), new PaddleAdapter(), new CreemAdapter(), new LegacyPaymentAdapterWrapper(fungiesProvider)];
 }
 
 /** The verifiers offered a request: only those whose provider is switched on. */

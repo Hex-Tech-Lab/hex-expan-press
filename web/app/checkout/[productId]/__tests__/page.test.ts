@@ -42,7 +42,7 @@ function product(over: Record<string, unknown> = {}) {
     product: {
       id: "p1",
       title: "Book",
-      composite_slug: "book",
+      slug: "book",
       description: null,
       currency: "USD",
       checkout_mode: "live",

@@ -12,7 +12,7 @@ import { appendSale, appendRefund, appendRefundReversal, findSaleAsync, findRefu
 import { computeSplit, usdToCents } from "../../../payments/src/split.ts";
 import { effectiveCreatorSplitPctAsync } from "../../../payments/src/terms.ts";
 import { resolveProductByAlias, withIdempotencyLock, WebhookInFlightError } from "../../../payments/src/webhook_core.ts";
-import { deliverSaleForWebhook } from "../../../payments/src/delivery.ts";
+import { deliverSaleForWebhook, saleDeliveryConfirmed } from "../../../payments/src/delivery.ts";
 import { GLOBAL } from "../../../payments/src/settings_registry.ts";
 
 type LockedResult = { status: number; payload: Record<string, unknown> };
@@ -41,6 +41,17 @@ function asConflictPending(result: LockedResult | undefined): ConflictPendingOut
  * answered 202 conflict_pending. A write failure must never soften into a 200
  * or a 202: it surfaces as a retryable 503 so the provider redelivers.
  */
+/**
+ * Terminal 422 for a sale the mode gate refuses. The error name is the quarantine reason (the route records err.name in
+ * WEBHOOK_TERMINAL_REJECT), so an operator can tell a mode mismatch from an unknown product. The message is not
+ * persisted: it can carry buyer data.
+ */
+function saleRefused(reason: "SALE_MODE_MISMATCH" | "SALE_MODE_UNKNOWN", message: string): WebhookValidationError {
+  const err = new WebhookValidationError(`Webhook validation failed: ${message}`, 422);
+  err.name = reason;
+  return err;
+}
+
 /** Retryable 503 with a distinct error name, so the route's WEBHOOK_503_RETRYING audit (err.name) tells the collision failure modes apart. */
 function collisionRetryable(name: string, message: string): Error {
   const err = new Error(`Webhook retryable: ${message}`);
@@ -505,8 +516,13 @@ async function processBillingEvent(event: BillingEvent): Promise<ConflictPending
     // A recorded sale is never acknowledged from outside the lock: the holder may still be delivering it,
     // or may have failed. Only a retry that takes the lock can confirm delivery.
     // withIdempotencyLock also frees the slot when nothing was written (payload.recorded !== true).
-    await withIdempotencyLock(
+    // A contended lock is acknowledged only when the sale is recorded AND its receipt is confirmed sent. A recorded
+    // sale alone is not enough: the holder may still fail the send, and a 200 would stop the provider's retries.
+    await underLockOrConfirmed(
       `lock:sale:${saleEvent.providerName}:${saleEvent.saleId}`,
+      async () =>
+        Boolean(await findSaleAsync(saleEvent.providerName, saleEvent.saleId)) &&
+        (await saleDeliveryConfirmed(saleEvent.providerName, saleEvent.saleId)),
       async () => {
         // Fail closed for a non-Paddle sale without a buyer email: no download link can be sent, and a retry cannot
         // change that. Delivery would throw on every retry (a 500 loop), so the sale is refused with a final 422.
@@ -531,6 +547,19 @@ async function processBillingEvent(event: BillingEvent): Promise<ConflictPending
         const cfg = await resolveProductByAlias(saleEvent.productId, saleEvent.providerName);
         // Terminal: the alias resolves to no product (no row, or an alias outside the allowed charset). A retry cannot create one; the quarantined event is for an operator.
         if (!cfg) throw new WebhookValidationError(`Unknown product_id for provider ${saleEvent.providerName}`, 422);
+
+        // F-09 mode gate: a sale is booked only when the provider's mode equals the product's checkout_mode. Live money
+        // never lands on a sandbox or gated product, and a test event never books a live product. Refused before any
+        // write, so no ledger row exists and no link is minted (delivery runs only after appendSale).
+        if (saleEvent.providerMode === undefined) {
+          throw saleRefused("SALE_MODE_UNKNOWN", `sale ${saleEvent.saleId} from ${saleEvent.providerName} carries no provider mode; refused`);
+        }
+        if (cfg.checkoutMode !== saleEvent.providerMode) {
+          throw saleRefused(
+            "SALE_MODE_MISMATCH",
+            `sale ${saleEvent.saleId} from ${saleEvent.providerName} mode ${saleEvent.providerMode} != product checkout_mode ${cfg.checkoutMode ?? "null"}; refused`,
+          );
+        }
 
         // Never book a foreign-currency total as the product's currency (audit F4).
         if (saleEvent.currency.toUpperCase() !== cfg.currency.toUpperCase()) {

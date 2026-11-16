@@ -3,6 +3,7 @@
 import { headers } from "next/headers";
 import { redirect, unstable_rethrow } from "next/navigation";
 import { createSsrClient } from "../../../src/lib/supabase-ssr";
+import { AUTH_REDIRECT_HOSTS } from "../../../../payments/src/settings_registry";
 
 /**
  * Sign-in Server Actions (Wave 5): authentication lives entirely server-side.
@@ -28,26 +29,39 @@ function allowedProdHosts(): Set<string> {
   ]);
 }
 
+/** First value of a comma-separated proxy header, trimmed and lowercased ("" when absent). */
+function firstHeaderValue(raw: string | null): string {
+  return (raw ?? "").split(",")[0].trim().toLowerCase();
+}
+
 async function resolveOrigin(): Promise<string> {
+  const h = await headers();
+  const host = firstHeaderValue(h.get("x-forwarded-host") ?? h.get("host"));
+
   if (process.env.VERCEL_ENV === "production") {
     // Production: use the request host only when allow-listed; otherwise pin the
     // canonical origin (the OAuth provider allow-list and every deployed asset
     // expect one domain there). Always https.
-    const h = await headers();
-    const host = (h.get("x-forwarded-host") ?? h.get("host") ?? "").split(",")[0].trim().toLowerCase();
     if (host && allowedProdHosts().has(host)) return `https://${host}`;
     return process.env.NEXT_PUBLIC_SITE_ORIGIN ?? "https://expanpress.com";
   }
+
   // Previews/local: bind the OAuth round-trip to the EXACT host the user is
   // on (request-scoped, not env-scoped). The PKCE verifier cookie is
   // host-scoped — a redirectTo on any other domain alias (pinned env origin,
   // bare VERCEL_URL vs the open deployment alias) makes Google return to a
   // host where that cookie does not exist, and the exchange fails as
   // "Sign-in link expired or already used" (P0 2026-09-29, founder report).
-  const h = await headers();
-  const host = h.get("x-forwarded-host") ?? h.get("host");
-  const proto = h.get("x-forwarded-proto") ?? "https";
-  if (host) return `${proto}://${host}`;
+  // The host is taken only when it is this project's own preview deployment or
+  // localhost (AUTH_REDIRECT_HOSTS in the settings registry); a spoofed or
+  // comma-chained header never becomes the redirect origin.
+  const isLocal = AUTH_REDIRECT_HOSTS.local_host_pattern.test(host);
+  if (isLocal || AUTH_REDIRECT_HOSTS.preview_host_pattern.test(host)) {
+    // Vercel previews are always https. Local dev is http unless the proxy says https.
+    const proto = firstHeaderValue(h.get("x-forwarded-proto"));
+    const scheme = isLocal && proto !== "https" ? "http" : "https";
+    return `${scheme}://${host}`;
+  }
   if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
   return "http://localhost:3000";
 }

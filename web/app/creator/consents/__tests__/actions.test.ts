@@ -16,7 +16,7 @@ const productSelect = {
 };
 
 vi.mock("../../../../src/lib/supabase-server", () => ({
-  getPortalSession: vi.fn(async () => ({
+  getVerifiedPortalSession: vi.fn(async () => ({
     user: { id: "u1", email: "a@b.c", app_metadata: { provider: "google" } },
     supabase: { from: () => productSelect, rpc: rpcMock },
   })),
@@ -61,8 +61,8 @@ describe("signConsentAction (Wave 6.1)", () => {
   });
 
   it("fails closed to the signin redirect when there is no session", async () => {
-    const { getPortalSession } = await import("../../../../src/lib/supabase-server");
-    (getPortalSession as ReturnType<typeof vi.fn>).mockResolvedValueOnce(null);
+    const { getVerifiedPortalSession } = await import("../../../../src/lib/supabase-server");
+    (getVerifiedPortalSession as ReturnType<typeof vi.fn>).mockResolvedValueOnce(null);
     await expect(signConsentAction({}, fd("C1_data_accuracy", "Jane Example"))).rejects.toThrow(
       "NEXT_REDIRECT:/creator/signin",
     );

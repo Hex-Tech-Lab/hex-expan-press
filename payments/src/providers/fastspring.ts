@@ -157,6 +157,8 @@ export const fastspringProvider: CheckoutProvider = {
           ts,
           email_hash: hashEmail(email),
           buyer_email: email,
+          // Only an explicit live:true is a live sale; live=false was refused above, and a missing flag stays unset (refused).
+          ...(liveFlag === true ? { provider_mode: "live" as const } : {}),
         },
       });
     }

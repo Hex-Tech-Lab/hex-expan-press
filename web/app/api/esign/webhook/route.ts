@@ -106,7 +106,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // traffic force service-role audit_log inserts per request (external
     // review PR #78). Bounded like the billing handler's 503 audit: a stalled
     // Supabase must not delay the already-computed terminal response.
-    if (status < 500 && status !== 401) {
+    // A 5xx is a server fault (including a missing FIRMA_WEBHOOK_SECRET): it is
+    // retryable, so it is logged as a server fault and never written as a
+    // terminal reject. The same mapping as the billing webhook's 5xx path.
+    if (status >= 500) {
+      console.error(`[esign-webhook] server fault (status ${status}): retryable, not recorded as a terminal reject`);
+    }
+    if (status >= 400 && status < 500 && status !== 401) {
       const controller = new AbortController();
       let timer: ReturnType<typeof setTimeout> | undefined;
       const timeout = new Promise<void>((resolve) => {

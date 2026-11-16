@@ -15,6 +15,8 @@ vi.mock("../../../../src/use_cases/create_esign_envelope", () => ({
 let currentPortalSession: { user: { id: string; email: string }; supabase: SupabaseClient } | null = null;
 vi.mock("../supabase-server", () => ({
   getPortalSession: vi.fn(async () => currentPortalSession),
+  // startPublisherAgreementAction reads the session through the verified helper (revoked sessions refused).
+  getVerifiedPortalSession: vi.fn(async () => currentPortalSession),
   clearPortalCookies: vi.fn(),
 }));
 
@@ -120,7 +122,11 @@ describe("C3 binding (startPublisherAgreementAction)", () => {
     const selectMock = vi.fn().mockReturnValue({ in: inMock, eq: eqMock });
     const productsChain = {
       order: vi.fn().mockReturnThis(),
-      limit: vi.fn().mockResolvedValue({ data: primaryProductId ? [{ id: primaryProductId }] : [], error: null }),
+      // The primary product carries its owner and release hash (C2 must approve it).
+      limit: vi.fn().mockResolvedValue({
+        data: primaryProductId ? [{ id: primaryProductId, creator_id: "creator-1", release_sha256: "a".repeat(64) }] : [],
+        error: null,
+      }),
     };
     const fromMock = vi.fn().mockImplementation((table: string) => {
       if (table === "consents") return { select: selectMock };
@@ -187,16 +193,16 @@ describe("C3 binding (startPublisherAgreementAction)", () => {
   });
 
   it("picks the C2 head product and creates envelope when head decision is given", async () => {
-    const { selectMock, inMock } = setupSupabaseConsents([
+    const { selectMock } = setupSupabaseConsents([
       { id: "c1_data", product_id: "prod-new", kind: "C1_data_accuracy", decision: "given", signed_at: "2026-01-01", supersedes: null },
-      { id: "c1", product_id: "prod-old", kind: "C2_release_approval", decision: "given", signed_at: "2026-01-01", supersedes: null },
-      { id: "c2", product_id: "prod-new", kind: "C2_release_approval", decision: "given", signed_at: "2026-01-02", supersedes: "c1" },
+      { id: "c1", product_id: "prod-old", kind: "C2_release_approval", decision: "given", signed_at: "2026-01-01", supersedes: null, document_sha256: "a".repeat(64) },
+      { id: "c2", product_id: "prod-new", kind: "C2_release_approval", decision: "given", signed_at: "2026-01-02", supersedes: "c1", document_sha256: "a".repeat(64) },
     ]);
 
     await expect(startPublisherAgreementAction()).rejects.toThrow("NEXT_REDIRECT:https://firma.example/sign/abc");
 
-    expect(selectMock).toHaveBeenCalledWith("product_id, kind, decision, signed_at, id, supersedes");
-    expect(inMock).toHaveBeenCalledWith("kind", ["C1_data_accuracy", "C2_release_approval"]);
+    // Creator-wide loader (loadCreatorConsentRows): the complete chain, with the set-supersession column.
+    expect(selectMock).toHaveBeenCalledWith("id, kind, decision, product_id, supersedes, supersedes_ids, document_sha256");
     expect(mockCreateEsignEnvelopeUseCase).toHaveBeenCalledWith(
       expect.objectContaining({
         productId: "prod-new",

@@ -20,12 +20,12 @@ describe("providers page service-provider table", () => {
     expect(row?.[2]).toMatch(/download link/i);
   });
 
-  it("lists Cloudflare (Cloudflare R2 / CDN) under service providers", () => {
-    const at = names.indexOf("Cloudflare (Cloudflare R2 / CDN)");
+  it("lists Cloudflare (R2 and CDN) under service providers", () => {
+    const at = names.indexOf("Cloudflare (R2 and CDN)");
     expect(at).toBeGreaterThan(-1);
     expect(at).toBeGreaterThan(names.indexOf("Vercel"));
-    const row = html.match(/<td class="name">Cloudflare \(Cloudflare R2 \/ CDN\)<\/td>\s*<td>([^<]*)<\/td>\s*<td>([^<]*)<\/td>/);
-    expect(row?.[1]).toMatch(/Cloudflare R2/i);
+    const row = html.match(/<td class="name">Cloudflare \(R2 and CDN\)<\/td>\s*<td>([^<]*)<\/td>\s*<td>([^<]*)<\/td>/);
+    expect(row?.[1]).toMatch(/storage/i);
     expect(row?.[2]).toMatch(/download bandwidth/i);
   });
 });

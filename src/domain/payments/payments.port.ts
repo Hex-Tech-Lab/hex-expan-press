@@ -89,6 +89,12 @@ export type AttributionId = string;
 export type BillingEventType = 'sale_completed' | 'refund_issued' | 'refund_reversed' | 'chargeback_opened' | 'ignored';
 
 /**
+ * The environment a provider event was made in. 'live' = real money; 'sandbox' = provider test mode.
+ * Matches products.checkout_mode values 'live' and 'sandbox' one for one (migration checkout_mode check).
+ */
+export type ProviderMode = 'live' | 'sandbox';
+
+/**
  * A confirmed, paid sale. Emitted once per transaction.
  * Adapter MUST verify the provider's signature before emitting this.
  * Adapter MUST reject test-mode/sandbox events (providers: Fungies testMode, FastSpring live=false).
@@ -101,6 +107,12 @@ export interface SaleCompletedEvent {
   saleId: string;                // Provider's own transaction ID (used for idempotency checks)
   productId: string;             // Our own product identifier (e.g. "retirearly500k-500k-playbook")
   attributionId?: AttributionId;
+  /**
+   * The mode the provider reports for this sale. The use case refuses a sale whose mode does not equal the
+   * product's checkout_mode. ABSENT means the adapter could not establish a mode, and the sale is refused
+   * (fail closed). Only set this from a field the verifier has authenticated, never from a default.
+   */
+  providerMode?: ProviderMode;
 
   // --- Money (all provider-specific formats normalized at adapter boundary) ---
   totalCents: AmountCents;       // Always integer cents. MOR handles tax/VAT; this is the gross charge.

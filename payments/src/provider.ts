@@ -27,6 +27,9 @@ export interface SaleEvent {
   // data/intel/canonical_attribution_id_2026-09-18.md). Optional: absent on providers where no
   // passthrough mechanism is wired yet, or on direct/organic sales with no captured source.
   attribution_id?: string;
+  // The provider's own live/test flag, read from an authenticated field. Absent when the parser found none:
+  // the sale is then refused (fail closed) before it is recorded. Set only from a verified field, never a default.
+  provider_mode?: "live" | "sandbox";
 }
 
 export interface RefundEvent {

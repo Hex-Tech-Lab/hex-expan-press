@@ -9,8 +9,13 @@ import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { strictActiveConsentKinds } from "../consent-chain";
 
 const migration = (name: string) => readFileSync(join(__dirname, "../../../../supabase/migrations", name), "utf8");
-// Applied in order: 20261011 replaces the trigger with the live-change re-check.
-const MIGRATIONS = ["20261009000000_launch_trigger_and_audit.sql", "20261011000000_launch_gate_rechecks_live_changes.sql"].map(migration);
+// Applied in order: 20261011 replaces the trigger with the live-change re-check;
+// 20261115110000 adds set supersession (supersedes_ids) to both SQL readers.
+const MIGRATIONS = [
+  "20261009000000_launch_trigger_and_audit.sql",
+  "20261011000000_launch_gate_rechecks_live_changes.sql",
+  "20261115110000_consents_supersedes_set.sql",
+].map(migration);
 
 // Minimal stand-ins for the tables/types the migration depends on.
 const SCHEMA = `
@@ -41,6 +46,7 @@ interface Row {
   product_id: string;
   creator_id?: string;
   supersedes: string | null;
+  supersedes_ids?: string[];
   document_sha256?: string | null;
 }
 const r = (id: number, kind: string, decision: string, product = P1, supersedes: number | null = null, extra: Partial<Row> = {}): Row => ({
@@ -68,6 +74,12 @@ const FIXTURES: Record<string, Row[]> = {
   "dangling supersedes pointer": [...allGiven().filter((x) => x.kind !== KINDS[1]), r(2, KINDS[1], "given", P1, 777)],
   "other product only": [r(1, KINDS[0], "given", P2), r(2, KINDS[1], "given", P2), r(3, KINDS[2], "given", P2)],
   "other creator's rows are not in scope": [...allGiven(), r(4, KINDS[1], "refused", P1, 2, { creator_id: OTHER_CREATOR })],
+  // Set supersession (supersedes_ids): one given successor retires a whole C1 fork.
+  "C1 fork retired by set": [r(1, KINDS[0], "given"), r(4, KINDS[0], "refused"), r(5, KINDS[0], "given", P1, 4, { supersedes_ids: [u(1), u(4)] }), r(2, KINDS[1], "given"), r(3, KINDS[2], "given")],
+  // Set naming only one head: the other head stays visible, so C1 is not active.
+  "C1 fork, set names one head": [r(1, KINDS[0], "given"), r(4, KINDS[0], "refused"), r(5, KINDS[0], "given", P1, 1, { supersedes_ids: [u(1)] }), r(2, KINDS[1], "given"), r(3, KINDS[2], "given")],
+  // Set-retired C2 fork: the successor's hash is the one the launch gate compares.
+  "C2 fork retired by set (given)": [r(1, KINDS[0], "given"), r(2, KINDS[1], "given"), r(4, KINDS[1], "refused"), r(3, KINDS[2], "given"), r(5, KINDS[1], "given", P1, 4, { supersedes_ids: [u(2), u(4)] })],
 };
 
 let db: PGlite;
@@ -87,8 +99,8 @@ async function load(rows: Row[], release: string | null = SHA, mode = "gated") {
   }
   for (const x of rows) {
     await db.query(
-      "insert into public.consents (id, kind, product_id, creator_id, decision, document_sha256, supersedes) values ($1, $2, $3, $4, $5, $6, $7)",
-      [x.id, x.kind, x.product_id, x.creator_id ?? CREATOR, x.decision, x.document_sha256 ?? null, x.supersedes],
+      "insert into public.consents (id, kind, product_id, creator_id, decision, document_sha256, supersedes, supersedes_ids) values ($1, $2, $3, $4, $5, $6, $7, $8::uuid[])",
+      [x.id, x.kind, x.product_id, x.creator_id ?? CREATOR, x.decision, x.document_sha256 ?? null, x.supersedes, x.supersedes_ids ?? []],
     );
   }
 }

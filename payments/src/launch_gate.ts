@@ -82,7 +82,7 @@ export const assertLaunchConsents = async (
 
   const rows = await getJson<ConsentRow[]>(
     `${base}/rest/v1/consents?creator_id=eq.${encodeURIComponent(ownerId!)}` +
-      `&select=id,kind,decision,product_id,signed_at,supersedes,document_sha256` +
+      `&select=id,kind,decision,product_id,signed_at,supersedes,supersedes_ids,document_sha256` +
       `&order=signed_at.desc,id.desc`,
     "consent",
     true,

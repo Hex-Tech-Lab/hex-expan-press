@@ -1,9 +1,9 @@
 /**
  * Buyer delivery (launch blocker, item 3). After a sale is recorded:
  *   1. mint a random download token; store only its sha256 (download_events, once per sale)
- *   2. wrap {origin}/d/{token} in a Dub short link (go.expanpress.com)
+ *   2. wrap {origin}/books/d/{token} in a Dub short link (go.expanpress.com)
  *   3. email the buyer the link via Resend
- * GET /d/{token} then validates the hash and expiry, logs download_completed, and 302s to a
+ * GET /books/d/{token} then validates the hash and expiry, logs download_completed, and 302s to a
  * 300-second signed URL for the release file. Only the server-side log makes the served-download
  * claim; it records that a signed URL was issued, not that the browser finished the transfer.
  *
@@ -131,7 +131,7 @@ export async function deliverSale(
   }
 
   try {
-    const link = await deps.createShortLink(`${deps.origin}/d/${token}`);
+    const link = await deps.createShortLink(`${deps.origin}/books/d/${token}`);
     const days = GLOBAL.delivery.link_ttl_days;
     const title = product.title;
     const deadlineMs = deps.timeoutMs ?? GLOBAL.payments.http_timeout_ms;
@@ -183,6 +183,15 @@ export async function createDubShortLink(targetUrl: string, fetchImpl: typeof fe
     throw new Error("Dub link create returned no shortLink");
   }
   return body.shortLink;
+}
+
+/**
+ * True once the buyer's receipt for this provider's sale is confirmed sent (DELIVERY_LINK_SENT). The webhook lock uses
+ * this to decide whether a contended, already-recorded sale can be acknowledged: a recorded sale alone is not delivered.
+ * A lookup failure throws, so the caller answers retryable.
+ */
+export async function saleDeliveryConfirmed(provider: string, saleId: string): Promise<boolean> {
+  return supabaseDeliveryDb().deliveryConfirmed(provider, saleId);
 }
 
 /** Production wiring: Supabase for persistence, Resend for mail, Dub for the short link. */

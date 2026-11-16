@@ -2,7 +2,8 @@ import { redirect } from "next/navigation";
 import * as Sentry from "@sentry/nextjs";
 import { getPortalSession } from "../../../src/lib/supabase-server";
 import { resolvePrimaryProduct } from "../../../src/lib/primary-product";
-import { activeConsentKinds } from "../../../src/lib/consent-chain";
+import { portalConsentState } from "../../../src/lib/consent-chain";
+import { loadCreatorConsentRows } from "../../../src/lib/creator-consents";
 import DashboardClient from "./dashboard-client";
 import { reviewProgress } from "./progress";
 import type { Metadata } from "next";
@@ -59,13 +60,17 @@ export default async function DashboardPage({
   // Profile and primary product resolved first
   const [profileRes, productRes] = await Promise.all([
     supabase.from("profiles").select("full_name, email").eq("user_id", user.id).maybeSingle(),
-    resolvePrimaryProduct<{ id: string }>(supabase, "id"),
+    resolvePrimaryProduct<{ id: string; creator_id: string | null; release_sha256: string | null }>(
+      supabase,
+      "id, creator_id, release_sha256",
+    ),
   ]);
 
   const product = productRes.product;
 
-  // Review items and consents scoped strictly to the primary product
-  const [itemsRes, consentsRes] = product
+  // Review items scoped to the primary product; consents are read creator-wide so supersession
+  // resolves the same way checkout resolves it (see portalConsentState).
+  const [itemsRes, consentsLoad] = product
     ? await Promise.all([
         supabase
           .from("review_items")
@@ -73,15 +78,10 @@ export default async function DashboardPage({
           .eq("product_id", product.id)
           .order("code", { ascending: true })
           .limit(500),
-        // Chain-head resolution needs ALL decisions + supersedes pointers
-        supabase
-          .from("consents")
-          .select("id, kind, decision, product_id, supersedes")
-          .eq("product_id", product.id)
-          .order("signed_at", { ascending: false })
-          .limit(500),
+        loadCreatorConsentRows(supabase, product.creator_id),
       ])
-    : [{ data: [], error: null }, { data: [], error: null }];
+    : [{ data: [], error: null }, { rows: [], error: null }];
+  const consentsRes = { data: consentsLoad.rows, error: consentsLoad.error };
 
   const itemIds = (itemsRes.data ?? []).map((it) => it.id);
   const answersRes =
@@ -135,11 +135,9 @@ export default async function DashboardPage({
   const { answered, total } = reviewProgress(itemIds, (answersRes.data ?? []).map((a) => a.item_id));
   // NOTE: DB enum kind is C2_release_approval (the legacy HTML checked a
   // non-existent "C2_marketing_release" — step 2 could never complete there).
-  // Same product binding as the consents page and esign_done: only the primary product's consents count.
-  const active = activeConsentKinds(consentsRes.data ?? [], product?.id);
-  const hasC1 = active.has("C1_data_accuracy");
-  const hasC2 = active.has("C2_release_approval");
-  const hasC3 = active.has("C3_revenue_split");
+  // Same rule and product binding as the consents page, esign_done and checkout.
+  const state = portalConsentState(consentsRes.data ?? [], product?.id ?? "", product?.release_sha256);
+  const { hasC1, hasC2, hasC3 } = state;
 
   const journeyActive = computeJourneyStep({ hasC1, hasC2, hasC3 });
 

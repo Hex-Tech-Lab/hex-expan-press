@@ -30,8 +30,6 @@ import { guidSchema, productSlugSchema } from "../../lib/zod-rules";
 export interface StoreProduct {
   id: string;
   store_product_id: string | null;
-  composite_slug: string | null;
-  site_slug: string | null;
   slug: string | null;
   title: string | null;
   /** PostgREST returns numeric columns as strings — always coerce. */
@@ -56,13 +54,11 @@ export interface HubCreator {
 }
 
 /** Product slug shape comes from the settings registry (product_slug section, ADR 0065). Same rule as the DB CHECK. */
-export { productSlugSchema } from "../../lib/zod-rules";
 
-/** product_slug comes from site_slug's second segment ("handle/product_slug"),
- * falling back to the portal slug — same derivation the baker used. */
+/** The product slug in storefront URLs is products.slug, the agreed rule (ADR 0065, DB CHECK).
+ * A product is identified by its creator handle and products.slug only; no stored derived
+ * identifier is read. Every product link and the product lookup go through this one function. */
 export function productSlugOf(p: StoreProduct): string {
-  const siteSlug = typeof p.site_slug === "string" ? p.site_slug : "";
-  if (siteSlug.includes("/")) return siteSlug.split("/")[1] ?? "";
   return p.slug ?? "";
 }
 
@@ -99,7 +95,7 @@ export const fetchCreatorHub = cache(async function fetchCreatorHub(handle: stri
   const { data, error } = await supabase
     .from("creators")
     .select(
-      "handle, display_name, platform_handles, bio, photo, products(id, store_product_id, composite_slug, site_slug, slug, title, price_usd, currency, working_note, description, disclaimers, checkout_mode, inside)",
+      "handle, display_name, platform_handles, bio, photo, products(id, store_product_id, slug, title, price_usd, currency, working_note, description, disclaimers, checkout_mode, inside)",
     )
     .eq("handle", handle)
     .maybeSingle();
@@ -123,7 +119,7 @@ export const fetchB2cLanding = cache(async function fetchB2cLanding(): Promise<H
   const { data, error } = await supabase
     .from("creators")
     .select(
-      "handle, display_name, platform_handles, bio, photo, products(id, store_product_id, composite_slug, site_slug, slug, title, price_usd, currency, working_note, description, disclaimers, checkout_mode, inside)",
+      "handle, display_name, platform_handles, bio, photo, products(id, store_product_id, slug, title, price_usd, currency, working_note, description, disclaimers, checkout_mode, inside)",
     );
   if (error) throw new Error(`storefront: B2C landing query failed: ${error.message}`);
   const rows = (data ?? []) as HubCreator[];
@@ -144,7 +140,7 @@ export const fetchStoreProduct = cache(async function fetchStoreProduct(
   const { data, error } = await supabase
     .from("creators")
     .select(
-      "handle, display_name, platform_handles, bio, photo, products(id, store_product_id, composite_slug, site_slug, slug, title, price_usd, currency, working_note, description, disclaimers, checkout_mode, inside)",
+      "handle, display_name, platform_handles, bio, photo, products(id, store_product_id, slug, title, price_usd, currency, working_note, description, disclaimers, checkout_mode, inside)",
     )
     .eq("handle", handle)
     .maybeSingle();
@@ -172,7 +168,7 @@ export const fetchCheckoutProduct = cache(async function fetchCheckoutProduct(
   }
   const { data, error } = await supabase
     .from("products")
-    .select("id, store_product_id, composite_slug, site_slug, slug, title, price_usd, currency, working_note, description, disclaimers, checkout_mode, inside, creators(handle, display_name)")
+    .select("id, store_product_id, slug, title, price_usd, currency, working_note, description, disclaimers, checkout_mode, inside, creators(handle, display_name)")
     .eq("id", productId)
     .maybeSingle();
   if (error) throw new Error(`storefront: checkout product query failed for '${productId}': ${error.message}`);

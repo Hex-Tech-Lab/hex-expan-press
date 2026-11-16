@@ -1,6 +1,6 @@
 import { SettingsRegistryPort } from "../domain/settings/settings.port.ts";
 import { createEsignAdapter } from "../adapters/esign/esign.factory.ts";
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseAdmin } from "../../payments/src/supabase_admin.ts";
 import { consentTextVersion } from "../../payments/src/settings_registry.ts";
 
 interface CreateEsignEnvelopeRequest {
@@ -35,10 +35,13 @@ export async function createEsignEnvelopeUseCase(
   const settings = await settingsRegistry.getPortalSettings();
 
   // 2. Resolve the creator's legal name (server-side, service role)
-  const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SECRET_KEY!);
   let typedName: string | null = null;
   let metaName: string | null = null;
   try {
+    const supabase = await getSupabaseAdmin();
+    // Null means SUPABASE_URL/SUPABASE_SECRET_KEY are unset. Throwing here routes it into the
+    // best-effort catch below, so the signer falls back to email instead of the flow aborting.
+    if (!supabase) throw new Error("service-role Supabase client unconfigured");
     const { data: consents, error: consentErr } = await supabase
       .from("consents")
       .select("typed_name")

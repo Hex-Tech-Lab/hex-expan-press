@@ -2,10 +2,11 @@
 
 import { redirect, unstable_rethrow } from "next/navigation";
 import { createSsrClient } from "../../../src/lib/supabase-ssr";
-import { clearPortalCookies, getPortalSession } from "../../../src/lib/supabase-server";
+import { clearPortalCookies, getVerifiedPortalSession } from "../../../src/lib/supabase-server";
 import { EnvSettingsAdapter } from "../../../../src/adapters/settings/env_settings.adapter";
 import { resolvePrimaryProduct } from "../../../src/lib/primary-product";
-import { supersededConsentIds } from "../../../src/lib/consent-chain";
+import { portalConsentState } from "../../../src/lib/consent-chain";
+import { loadCreatorConsentRows } from "../../../src/lib/creator-consents";
 import { createEsignEnvelopeUseCase } from "../../../../src/use_cases/create_esign_envelope";
 
 /**
@@ -30,90 +31,46 @@ export async function signOutAction(): Promise<void> {
 
 /**
  * Step 3 (Wave 6): creates the Firma publisher-agreement envelope for the
- * signed-in creator's product and redirects to the signing flow. Auth is
- * the HttpOnly ssr session (fail-closed), the product is resolved through
- * RLS (products_read via my_creator_ids), and Firma errors surface as
- * dashboard error params — never as raw exceptions.
+ * signed-in creator's primary product and redirects to the signing flow.
+ *
+ * Gate: the session is verified against the auth server with the explicit
+ * access token (getVerifiedPortalSession), so a revoked session is refused.
+ * The C3 envelope is created only when the creator-wide strict chain shows C1
+ * and C2 both signed on the primary product, using the same rule as the
+ * dashboard and the checkout gate (portalConsentState): one strict head per
+ * kind, supersession resolved across the creator's complete history, and C2
+ * approving the product's CURRENT release hash. Firma errors surface as
+ * dashboard error params, never as raw exceptions.
  */
 export async function startPublisherAgreementAction(): Promise<void> {
-  const session = await getPortalSession();
+  const session = await getVerifiedPortalSession();
   if (!session) redirect("/creator/signin");
-  const { supabase } = session;
+  const { supabase, user } = session;
 
-  // Online auth verification: ensure revoked session cannot trigger e-sign dispatch
-  const { data: userData, error: userError } = await supabase.auth.getUser();
-  if (userError || !userData?.user) {
-    redirect("/creator/signin");
-  }
-  const user = userData.user;
-
-  // Every portal status surface (dashboard, consents page, esign_done) reads the PRIMARY product,
-  // so the C3 envelope may only be created for it — resolve it first to scope all consent checks.
-  const { product: primary } = await resolvePrimaryProduct<{ id: string }>(supabase, "id");
+  // Every portal status surface reads the PRIMARY product, so the C3 envelope may only be created for it.
+  const { product: primary } = await resolvePrimaryProduct<{
+    id: string;
+    creator_id: string | null;
+    release_sha256: string | null;
+  }>(supabase, "id, creator_id, release_sha256");
   if (!primary || !primary.id) {
     redirect("/creator/dashboard?error=c2_required");
   }
+
+  // Creator-wide read: a successor on any product of this creator can supersede a row here.
+  // A read error or a truncated history (safety cap) fails closed.
+  const { rows, error: consentsError } = await loadCreatorConsentRows(supabase, primary.creator_id);
+  if (consentsError) {
+    redirect("/creator/dashboard?error=c2_required");
+  }
+
+  // C1 and C2 must each be the single strict head of their kind, given, and (C2) bound to the current release.
+  const state = portalConsentState(rows, primary.id, primary.release_sha256);
+  if (!state.hasC1 || !state.hasC2) {
+    redirect("/creator/dashboard?error=c2_required");
+  }
+
   const productId = primary.id;
-
-  // Prerequisite chain verification (sprint 14 ARTAS Track A2):
-  // C3 publisher agreement requires the ENTIRE prerequisite chain (both C1 AND C2)
-  // to be actively given on the creator's primary product.
-  // DEF-005: consents has no created_at; order by signed_at desc, id desc.
-  // Bounded pagination helper fetches pages of 500 up to safety cap of 5,000 rows.
-  type ConsentRow = { product_id: string; kind: string; decision: string; signed_at: string; id: string; supersedes: string | null };
-  const PAGE_SIZE = 500;
-  const SAFETY_CAP = 5000;
-  const consents: ConsentRow[] = [];
-  let offset = 0;
-  let consentsError: unknown = null;
-
-  while (offset < SAFETY_CAP) {
-    const { data, error } = (await supabase
-      .from("consents")
-      .select("product_id, kind, decision, signed_at, id, supersedes")
-      .eq("product_id", productId)
-      .in("kind", ["C1_data_accuracy", "C2_release_approval"])
-      .order("signed_at", { ascending: false })
-      .order("id", { ascending: false })
-      .range(offset, offset + PAGE_SIZE - 1)) as { data: ConsentRow[] | null; error: unknown };
-
-    if (error || !data) {
-      consentsError = error ?? new Error("Missing consent data");
-      break;
-    }
-
-    consents.push(...data);
-    if (data.length < PAGE_SIZE) {
-      break;
-    }
-    offset += PAGE_SIZE;
-  }
-
-  if (consentsError || consents.length === 0 || consents.length >= SAFETY_CAP) {
-    redirect("/creator/dashboard?error=c2_required");
-  }
-
-  // Resolve active chain heads per kind — supersession comes from the SHARED
-  // resolver (consent-chain.ts) so a malformed cross-kind pointer (e.g. a C2
-  // row pointing at a C1 row) can never invalidate a valid head here, exactly
-  // matching what activeConsentKinds (checkout gate / consents page) sees.
-  const supersededIds = supersededConsentIds(consents);
-
-  const c1Heads = consents.filter((c) => c.kind === "C1_data_accuracy" && !supersededIds.has(c.id));
-  const c2Heads = consents.filter((c) => c.kind === "C2_release_approval" && !supersededIds.has(c.id));
-
-  if (c1Heads.length !== 1 || c2Heads.length !== 1) {
-    redirect("/creator/dashboard?error=c2_required");
-  }
-
-  const c1Head = c1Heads[0];
-  const c2Head = c2Heads[0];
-
-  if (c1Head.decision !== "given" || c1Head.product_id !== productId || c2Head.decision !== "given" || c2Head.product_id !== productId) {
-    redirect("/creator/dashboard?error=c2_required");
-  }
-
-
   const siteOrigin = process.env.NEXT_PUBLIC_SITE_ORIGIN ?? "https://expanpress.com";
   try {
     const result = await createEsignEnvelopeUseCase(

@@ -2,6 +2,9 @@ import { withSentryConfig } from "@sentry/nextjs/config";
 import { join } from "node:path";
 import type { NextConfig } from "next";
 
+// Same pay host as proxy.ts (ADR 0061). Kept in sync by the redirect test.
+const PAY_HOST = "pay.expanpress.com";
+
 // Legacy-URL preservation during the phased static->Next migration.
 // Directory-style URLs (trailing slash, no filename) were rewritten to static
 // HTML in public/. Exact-filename URLs (privacy.html, assets) are served by
@@ -39,10 +42,16 @@ const nextConfig: NextConfig = {
   },
   eslint: { ignoreDuringBuilds: false },
   // ADR 0061: creator storefronts moved from /c/ to /books/. Old links keep working through 301s.
+  // Redirects run before proxy.ts, so each one excludes the pay host (missing host condition).
+  // On pay.expanpress.com these paths must reach proxy.ts and return its hard 404, not a 301.
+  // Every other host (apex and www) keeps the legacy redirect.
   async redirects() {
+    const notPayHost = [{ type: "host" as const, value: PAY_HOST }];
     return [
-      { source: "/c/:handle", destination: "/books/:handle", statusCode: 301 },
-      { source: "/c/:handle/:product", destination: "/books/:handle/:product", statusCode: 301 },
+      { source: "/c/:handle", destination: "/books/:handle", statusCode: 301, missing: notPayHost },
+      { source: "/c/:handle/:product", destination: "/books/:handle/:product", statusCode: 301, missing: notPayHost },
+      // Buyer download route moved under /books (B2C confinement). Any /d/{token} link already sent keeps working.
+      { source: "/d/:token", destination: "/books/d/:token", statusCode: 301, missing: notPayHost },
     ];
   },
   // Static assets only. The former immutable /covers rule was removed: no cover is

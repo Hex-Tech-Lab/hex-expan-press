@@ -10,6 +10,7 @@ export default defineConfig({
       "web/app/**/__tests__/**/*.test.ts",
       "src/adapters/**/__tests__/**/*.test.ts",
       "src/use_cases/**/__tests__/**/*.test.ts",
+      "src/infrastructure/**/__tests__/**/*.test.ts",
       "web/__tests__/**/*.test.ts",
       "scripts/**/__tests__/**/*.test.ts",
     ],

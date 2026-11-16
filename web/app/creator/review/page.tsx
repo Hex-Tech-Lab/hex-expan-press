@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { naturalCode } from "../../../src/lib/natural-code";
+import { anchorPageOf } from "../../../src/lib/review-anchor";
 import { getPortalSession } from "../../../src/lib/supabase-server";
 import { resolvePrimaryProduct } from "../../../src/lib/primary-product";
 import ReviewClient from "./review-client";
@@ -61,13 +62,23 @@ export default async function ReviewPage() {
     .order("code", { ascending: true })
     .limit(500);
 
-  const allItems = (itemsRes.data ?? []).sort((a, b) => naturalCode(a.code, b.code));
+  const sortedItems = (itemsRes.data ?? []).sort((a, b) => naturalCode(a.code, b.code));
+  // Gate: a question with no page anchor used to highlight page 1. Serve only anchored questions.
+  const allItems = sortedItems.filter((it) => anchorPageOf(it.anchor) !== null);
 
-  if (itemsRes.error || allItems.length === 0) {
+  if (itemsRes.error || sortedItems.length === 0) {
     return (
       <ReviewNotice
         title={itemsRes.error ? "We couldn't load your review items." : "No review items yet."}
         body="Please reload in a moment, or contact support@expanpress.com if this persists."
+      />
+    );
+  }
+  if (allItems.length === 0) {
+    return (
+      <ReviewNotice
+        title="Your review questions are being checked."
+        body="Each question is shown only once it points to its page in your book. Nothing is missing from your work."
       />
     );
   }
@@ -108,8 +119,7 @@ export default async function ReviewPage() {
   }
 
   const items: ReviewItemView[] = allItems.map((it) => {
-    const anchor = (it.anchor ?? null) as { page?: number; touchpoints?: { page?: number }[] } | null;
-    const anchorPage = anchor?.touchpoints?.[0]?.page ?? anchor?.page ?? null;
+    const anchorPage = anchorPageOf(it.anchor);
     return {
       id: it.id,
       code: it.code,

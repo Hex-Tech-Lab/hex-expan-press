@@ -13,9 +13,10 @@ import { GLOBAL } from "../../../payments/src/settings_registry";
  * B2C landing (/books). Every buyer-side logo and home link resolves here
  * (settings: storefront.b2c_landing_url). It lists only creators with a live
  * product, so a buyer who presses home stays in the B2C side and never reaches
- * the B2B root. The page is SSR with a 60s revalidate, like the creator hub.
+ * the B2B root. The page renders per request: the storefront fails closed when
+ * the database is unavailable, and a build-time prerender would fail the build.
  */
-export const revalidate = 60;
+export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: "Books by creators · ExpanPress",

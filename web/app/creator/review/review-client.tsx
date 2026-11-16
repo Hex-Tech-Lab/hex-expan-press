@@ -141,7 +141,7 @@ export default function ReviewClient({ items, saved, pdfUrl, bookTitle }: Review
         setViewerReady(true);
         const start = items.findIndex((it) => !answers[it.id]);
         const anchor = items[start === -1 ? 0 : start]?.anchorPage;
-        setPage(anchor && anchor >= 1 && anchor <= doc.numPages ? anchor : 1);
+        if (anchor && anchor >= 1 && anchor <= doc.numPages) setPage(anchor);
       } catch (err) {
         if (!disposed) setViewerError(`Could not load the book (${err instanceof Error ? err.message : "unknown error"}). You can still answer from the questions shown.`);
       }
