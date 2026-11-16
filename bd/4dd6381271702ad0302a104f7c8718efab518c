@@ -1,0 +1,25 @@
+docs/testing/pairwise/billing_consent_checkout.coverage.html
+  s_29893055f88353::t_3a1f56c6a9fe62 1-37
+docs/testing/pairwise/billing_consent_checkout.coverage.md
+  s_29893055f88353::t_716dd192431ca0 1-48
+docs/testing/pairwise/billing_consent_checkout.model.txt
+  s_29893055f88353::t_a11592dcddfa33 1-19
+docs/testing/pairwise/billing_consent_checkout.rows.tsv
+  s_29893055f88353::t_0abc27c6b5c638 1-35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "bd4dd6381271702ad0302a104f7c8718efab518c",
+  "prompts": {},
+  "sessions": {
+    "s_29893055f88353": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1c444932-1da1-4ad5-9e8b-395eb468f52a",
+        "model": "unknown"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
