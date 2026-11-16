@@ -1,0 +1,25 @@
+.github/workflows/series_stream_recorder.yml
+  s_29893055f88353::t_1b4fdfde0b9906 113,119,123,138,141-146,148-160,162-189
+scripts/schedule_series_capture.sh
+  s_29893055f88353::t_96180cfff30ca1 81,89,93,95-102,104,114-116,120-124,131,133-150
+scripts/sync-supabase-to-r2.ts
+  s_29893055f88353::t_22e7074a21eb79 2
+transcribe.ts
+  s_29893055f88353::t_bbec2e6611778b 17,127,137,140,206-209
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b2a41fb25143e405d19fe5cfb3237b936aaa34a7",
+  "prompts": {},
+  "sessions": {
+    "s_29893055f88353": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1c444932-1da1-4ad5-9e8b-395eb468f52a",
+        "model": "unknown"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
