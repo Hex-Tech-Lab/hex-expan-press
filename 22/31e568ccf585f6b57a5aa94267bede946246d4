@@ -1,0 +1,27 @@
+scripts/__tests__/import-time-dotenv.test.ts
+  s_29893055f88353::t_3619593dd2d9a9 1-67
+scripts/__tests__/sync-supabase-to-r2.test.ts
+  s_29893055f88353::t_9d9c78eeda5606 31
+scripts/lint/import-time-dotenv.ts
+  s_29893055f88353::t_e7f46e2c7014f7 1-50
+scripts/sync-supabase-to-r2.ts
+  s_29893055f88353::t_a18fcfd29dee5f 95,97,100-105,107-131,442-443
+scripts/upload_day_package.ts
+  s_29893055f88353::t_6741585b99f180 1-91
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2231e568ccf585f6b57a5aa94267bede946246d4",
+  "prompts": {},
+  "sessions": {
+    "s_29893055f88353": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1c444932-1da1-4ad5-9e8b-395eb468f52a",
+        "model": "unknown"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
