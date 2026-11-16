@@ -439,6 +439,30 @@ function hasKeyAllowlistGuard(body: string, keyParam: string): boolean {
   return guard.test(body) || anyGuard.test(body);
 }
 
+/**
+ * True when a parameter is copied once into a local `v_*` variable and unconditionally cleared to `null`
+ * for non-service callers (`if not is_service then ... v_x := null; end if;`), so untrusted callers
+ * cannot supply or steer the value.
+ */
+function isClearedForUntrustedCallers(body: string, keyParam: string): boolean {
+  const bodyStart = body.search(/\bas\s+\$\$/i);
+  if (bodyStart === -1) return false;
+  const execBody = body.slice(bodyStart);
+  const esc = keyParam.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const aliasMatch = new RegExp(`\\b([a-z_][\\w$]*)\\s+(?:text\\s+)?\\:=\\s*${esc}\\b`, "i").exec(execBody);
+  if (!aliasMatch) return false;
+  const alias = aliasMatch[1];
+  const paramUses = execBody.match(new RegExp(`\\b${esc}\\b`, "gi")) ?? [];
+  if (paramUses.length !== 1) return false;
+  const escAlias = alias.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const nonServiceGuard = /if\s+not\s+(?:is_service|\(?\s*auth\.role\(\)\s*=\s*''?\s*\)?)\s+then([\s\S]*?)end\s+if\s*;/gi;
+  let m: RegExpExecArray | null;
+  while ((m = nonServiceGuard.exec(execBody)) !== null) {
+    if (new RegExp(`\\b${escAlias}\\s*:=\\s*null\\s*;`, "i").test(m[1])) return true;
+  }
+  return false;
+}
+
 export const SqlSecurityDefinerCallerKeyRule: Rule = {
   name: "sql-security-definer-caller-key-param",
   scope: "file",
@@ -456,7 +480,9 @@ export const SqlSecurityDefinerCallerKeyRule: Rule = {
       if (!/\bsecurity\s+definer\b/i.test(block.body)) continue;
       const keyParams = keyLikeTextParams(block.params);
       if (keyParams.length === 0) continue;
-      const unguarded = keyParams.filter((p) => !hasKeyAllowlistGuard(block.body, p));
+      const unguarded = keyParams.filter(
+        (p) => !hasKeyAllowlistGuard(block.body, p) && !isClearedForUntrustedCallers(block.body, p)
+      );
       if (unguarded.length === 0) continue;
       const posture = grantPostureFor(text, block.name, normalizeSqlSignature(block.params));
       if (!isExposed(posture)) continue;

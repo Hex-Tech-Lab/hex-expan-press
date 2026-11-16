@@ -1,7 +1,41 @@
-import { Node, SyntaxKind } from "ts-morph";
+import { Node, SyntaxKind, ts } from "ts-morph";
 import type { SourceFile } from "ts-morph";
 import type { Finding } from "../domain/Finding";
 import type { Rule, RuleContext } from "../domain/Rule";
+
+/** Strip TS/JS line and block comments using the compiler's comment-range trivia so strings and templates stay intact. */
+function stripTsComments(source: SourceFile): string {
+  const full = source.getFullText();
+  const ranges: Array<[number, number]> = [];
+  const seen = new Set<string>();
+  const collect = (pos: number, isTrailing: boolean, end: number) => {
+    const list = isTrailing ? ts.getTrailingCommentRanges(full, end) : ts.getLeadingCommentRanges(full, pos);
+    if (!list) return;
+    for (const r of list) {
+      const key = `${r.pos}:${r.end}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        ranges.push([r.pos, r.end]);
+      }
+    }
+  };
+  const visit = (n: ts.Node) => {
+    collect(n.getFullStart(), false, 0);
+    collect(0, true, n.getEnd());
+    for (const child of n.getChildren(source.compilerNode)) visit(child);
+  };
+  visit(source.compilerNode);
+  if (ranges.length === 0) return full;
+  ranges.sort((a, b) => a[0] - b[0]);
+  let out = "";
+  let cursor = 0;
+  for (const [start, end] of ranges) {
+    if (start < cursor) continue;
+    out += full.slice(cursor, start) + " ";
+    cursor = end;
+  }
+  return out + full.slice(cursor);
+}
 
 function normalizePosixPath(p: string): string {
   return p.replace(/\\/g, "/").replace(/\/+/g, "/");
@@ -69,7 +103,7 @@ export const SecurityFixWithoutTestRule: Rule = {
     if (isTestFile(filePath)) return findings;
     if (filePath.includes("/qa-intel/") || filePath.includes("scripts/qa-intel.ts")) return findings;
 
-    const text = source.getText();
+    const text = stripTsComments(source);
     // Exact-substring markers (real API/identifier names -- case matters,
     // e.g. `auth.uid()` vs prose mentioning "the current UID").
     const EXACT_MARKERS = [

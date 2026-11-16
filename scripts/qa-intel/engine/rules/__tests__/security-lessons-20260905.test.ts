@@ -109,6 +109,31 @@ describe("SecurityFixWithoutTestRule", () => {
     expect(findings).toHaveLength(0);
   });
 
+  test("does not flag a file whose only marker mention is inside a comment", () => {
+    const project = new Project({ useInMemoryFileSystem: true });
+    project.createSourceFile(
+      "web/lib/trends.ts",
+      `// direct OR calls bypass the CLI relace pin
+      export function fetchTrends() { return []; }`,
+    );
+    const findings = SecurityFixWithoutTestRule.check(
+      makeCtx(project, "web/lib/trends.ts", ["web/lib/trends.ts"]),
+    );
+    expect(findings).toHaveLength(0);
+  });
+
+  test("still flags when 'bypass' appears in executable code with no sibling test", () => {
+    const project = new Project({ useInMemoryFileSystem: true });
+    project.createSourceFile(
+      "web/lib/gate.ts",
+      `export function allowBypass(role: string) { return role === "admin"; }`,
+    );
+    const findings = SecurityFixWithoutTestRule.check(
+      makeCtx(project, "web/lib/gate.ts", ["web/lib/gate.ts"]),
+    );
+    expect(findings).toHaveLength(1);
+  });
+
   test("emits a low-severity diagnostic (not a silent pass) when allFiles is unavailable", () => {
     const project = new Project({ useInMemoryFileSystem: true });
     project.createSourceFile(

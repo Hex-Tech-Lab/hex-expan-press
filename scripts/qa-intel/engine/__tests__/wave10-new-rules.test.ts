@@ -70,6 +70,27 @@ describe('WAVE 10: ErrorNormalizationRule', () => {
     const findings = ErrorNormalizationRule.check(createTestSource(code));
     expect(findings.some(finding => finding.title.includes("'err'"))).toBe(true);
   });
+
+  test('does not flag custom Error subclasses in instanceof guards or (err as Error).message', () => {
+    const customErr = `
+      try {
+        doThing();
+      } catch (e) {
+        if (e instanceof MatrixRouterUnavailableError) throw e;
+      }
+    `;
+    expect(ErrorNormalizationRule.check(createTestSource(customErr))).toHaveLength(0);
+
+    const castMsg = `
+      try {
+        doThing();
+      } catch (err) {
+        if (!fallback) throw err;
+        console.error((err as Error).message);
+      }
+    `;
+    expect(ErrorNormalizationRule.check(createTestSource(castMsg))).toHaveLength(0);
+  });
 });
 
 describe('WAVE 10: NumberCoercionGuardRule', () => {

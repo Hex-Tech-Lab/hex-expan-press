@@ -153,4 +153,24 @@ describe('UnsafePropertyAccessRule', () => {
     const code = `export function parseThing(raw: string) { return raw.split(".")[0]; }`;
     expect(UnsafePropertyAccessRule.check(createTestSource(code, 'src/parse-thing.test.ts'))).toHaveLength(0);
   });
+
+  test('does not flag an index guarded inside a ternary or && expression', () => {
+    const code = `
+      export function parseAnchor(a: { touchpoints?: unknown }) {
+        const first = Array.isArray(a.touchpoints) ? (a.touchpoints[0] as { page?: unknown } | undefined) : undefined;
+        const second = Array.isArray(a.touchpoints) && a.touchpoints[1];
+        return first?.page ?? second ?? null;
+      }
+    `;
+    expect(UnsafePropertyAccessRule.check(createTestSource(code))).toHaveLength(0);
+  });
+
+  test('still flags an index inside a ternary whose condition checks an unrelated value', () => {
+    const code = `
+      export function parseRows(enabled: boolean, rows: string[]) {
+        return enabled ? rows[0] : null;
+      }
+    `;
+    expect(UnsafePropertyAccessRule.check(createTestSource(code))).toHaveLength(1);
+  });
 });

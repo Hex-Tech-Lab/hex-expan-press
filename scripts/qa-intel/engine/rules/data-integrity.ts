@@ -225,6 +225,9 @@ export const TruncationValidationRule: IRule = {
           // fixed-width date (`toISOString().slice(0, 10)`) is a format, not lossy truncation.
           if (node.getArguments().length < 2) return;
           if (Node.isPropertyAccessExpression(callee) && /\.toISOString\(\)$/.test(callee.getExpression().getText())) return;
+          // Hash/UUID prefixes (`randomUUID().slice(0, 8)`, `.digest("hex").slice(0, 16)`) are fixed-width IDs, not truncated display text.
+          const receiverText = Node.isPropertyAccessExpression(callee) ? callee.getExpression().getText() : '';
+          if (/\b(randomUUID|createHash|digest)\s*\(/.test(receiverText)) return;
           // Lossy only if the result is kept: stored, written to a row, or returned to a caller or response.
           if (!reachesSink(node)) return;
           const endArg = node.getArguments()[1];
@@ -232,6 +235,11 @@ export const TruncationValidationRule: IRule = {
             Node.isPrefixUnaryExpression(endArg) && endArg.getOperatorToken() === SyntaxKind.MinusToken
           );
           if (isNegativeEnd) return;
+          // Dynamic end bounds (`proxyUrl.slice(0, proto + 2)`, `content.slice(start, end + 1)`) extract structural delimiters, not display truncation.
+          if (endArg && !Node.isNumericLiteral(endArg)) return;
+          // Diagnostic error-message caps inside template literals (e.g. `(${lastError.slice(0, 120)})`) are bounded log/reason details, not truncated UI prose.
+          const inTemplate = node.getFirstAncestorByKind(SyntaxKind.TemplateExpression);
+          if (inTemplate && /err(?:or)?$/i.test(receiverText)) return;
 
           // Check if this is truncating without indicating truncation (no ellipsis)
           const parent = node.getParent();

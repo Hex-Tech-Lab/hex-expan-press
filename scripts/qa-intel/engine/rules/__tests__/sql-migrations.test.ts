@@ -326,6 +326,35 @@ describe("WAVE Q4: SqlSecurityDefinerCallerKeyRule (R4)", () => {
     );
     expect(findings).toHaveLength(0);
   });
+
+  test("does not fire when a key/path param is copied and unconditionally cleared to null for non-service callers", () => {
+    const clearedSql = `
+      create or replace function public.submit_consent_test(
+        p_evidence_path text default null
+      )
+      returns uuid
+      language plpgsql
+      security definer
+      set search_path = ''
+      as $$
+      declare
+        is_service boolean := coalesce((select auth.role()) = 'service_role', false);
+        v_evidence_path text := p_evidence_path;
+      begin
+        if not is_service then
+          v_evidence_path := null;
+        end if;
+        insert into public.consents (evidence_path) values (v_evidence_path);
+        return gen_random_uuid();
+      end $$;
+      revoke all on function public.submit_consent_test(text) from public, anon;
+      grant execute on function public.submit_consent_test(text) to authenticated, service_role;
+    `;
+    expect(checkSql(SqlSecurityDefinerCallerKeyRule, clearedSql)).toHaveLength(0);
+
+    const unclearedSql = clearedSql.replace("v_evidence_path := null;", "-- not cleared");
+    expect(checkSql(SqlSecurityDefinerCallerKeyRule, unclearedSql)).toHaveLength(1);
+  });
 });
 
 // PR #347 round 2: sanitizeSql() must handle dollar-quoted bodies, E'...'

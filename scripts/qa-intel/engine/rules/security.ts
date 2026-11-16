@@ -428,16 +428,34 @@ function isSplitOrMatchAllExempt(node: ElementAccessExpression, index: string | 
 }
 
 /**
- * True when an if-statement earlier in the same function tests the array this access reads from, such as
- * `if (parts.length !== 3) return null;` before `parts[0]`. An access inside that if's own branch also counts.
+ * True when an if-statement earlier in the same function, or an enclosing ternary / `&&` guard,
+ * tests the array this access reads from, such as `if (parts.length !== 3) return null;` before `parts[0]`
+ * or `Array.isArray(a.touchpoints) ? a.touchpoints[0] : undefined`.
  */
 function guardedByEarlierCheck(func: Node, base: Node, access: Node): boolean {
   const name = base.getText().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const reference = new RegExp(`(?<![\\w$])${name}(?![\\w$])`);
-  return func.getDescendantsOfKind(SyntaxKind.IfStatement).some((ifStatement) => {
+  if (func.getDescendantsOfKind(SyntaxKind.IfStatement).some((ifStatement) => {
     const condition = ifStatement.getExpression();
     return condition.getEnd() <= access.getStart() && reference.test(condition.getText());
-  });
+  })) {
+    return true;
+  }
+  for (let cur = access.getParent(); cur && cur !== func; cur = cur.getParent()) {
+    if (Node.isConditionalExpression(cur)) {
+      const whenTrue = cur.getWhenTrue();
+      if (whenTrue.getStart() <= access.getStart() && access.getEnd() <= whenTrue.getEnd() && reference.test(cur.getCondition().getText())) {
+        return true;
+      }
+    }
+    if (Node.isBinaryExpression(cur) && cur.getOperatorToken().getKind() === SyntaxKind.AmpersandAmpersandToken) {
+      const right = cur.getRight();
+      if (right.getStart() <= access.getStart() && access.getEnd() <= right.getEnd() && reference.test(cur.getLeft().getText())) {
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 export const UnsafePropertyAccessRule: IRule = {

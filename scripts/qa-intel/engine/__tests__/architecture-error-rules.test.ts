@@ -9,7 +9,7 @@
 import { describe, test, expect } from 'vitest';
 import { Project } from 'ts-morph';
 import type { Rule, RuleContext } from '../domain/Rule';
-import { CrossPlatformRule, ErrorTaxonomyRule, WorkflowRule } from '../rules/architecture';
+import { ComplexityRule, CrossPlatformRule, ErrorTaxonomyRule, WorkflowRule } from '../rules/architecture';
 
 const project = new Project({ useInMemoryFileSystem: true, skipLoadingLibFiles: true });
 
@@ -112,7 +112,7 @@ describe('WorkflowRule', () => {
     expect(ns.filter((f) => f.title === 'Workflow: Missing finally block for I/O')).toHaveLength(1);
   });
 
-  test('flags execSync in a try with no finally block', () => {
+  test('does not flag synchronous execSync in a try with no finally block (holds no open handle)', () => {
     const findings = check(WorkflowRule, 'scripts/run-sync.ts', [
       "import { execSync } from 'node:child_process';",
       'export function run(cmd: string) {',
@@ -121,7 +121,7 @@ describe('WorkflowRule', () => {
       '  } catch (e) { console.error(e); }',
       '}',
     ].join('\n'));
-    expect(findings.filter((f) => f.title === 'Workflow: Missing finally block for I/O')).toHaveLength(1);
+    expect(findings.filter((f) => f.title === 'Workflow: Missing finally block for I/O')).toHaveLength(0);
   });
 
   // R6: child_process loaded with require() is still child_process.
@@ -235,5 +235,30 @@ describe('CrossPlatformRule (LF-only split)', () => {
       '  return text.split("\\n");',
       '}',
     ].join('\n'))).toHaveLength(1);
+  });
+
+  test('skips test files, error.message/stderr line splits, and NDJSON JSON.parse splits', () => {
+    const testFile = check(CrossPlatformRule, 'scripts/__tests__/bash.test.ts', [
+      'export function parse(out: string) { return out.split("\\n"); }',
+    ].join('\n'));
+    expect(testFile).toHaveLength(0);
+
+    expect(lfFindings([
+      'export function errLine(e: unknown, stderr: string) {',
+      '  return stderr.split("\\n").pop() ?? (e instanceof Error ? e.message.split("\\n")[0] : "");',
+      '}',
+      'export function readNdjson(raw: string) {',
+      '  const lines = raw.trim().split("\\n").filter(Boolean);',
+      '  return lines.map((l) => JSON.parse(l));',
+      '}',
+    ].join('\n'))).toHaveLength(0);
+  });
+});
+
+describe('ComplexityRule', () => {
+  test('flags a >500-line production file and skips a >500-line test file', () => {
+    const longCode = Array.from({ length: 505 }, (_, i) => `export const v${i} = ${i};`).join('\n');
+    expect(check(ComplexityRule, 'scripts/big.ts', longCode)).toHaveLength(1);
+    expect(check(ComplexityRule, 'scripts/__tests__/big.test.ts', longCode)).toHaveLength(0);
   });
 });
