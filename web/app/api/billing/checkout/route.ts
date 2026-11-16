@@ -152,6 +152,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   // product lookup error returns 500; an unresolved product returns 404; a bare
   // slug is refused with 409 or 400 (see lookupProduct).
   let dbRails: CheckoutRail[] = [];
+  let resolvedProduct: ProductRow;
   try {
     const supabase = await getSupabaseAdmin();
     if (!supabase) {
@@ -161,7 +162,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
     const lookup = await lookupProduct(supabase, product);
     if ("response" in lookup) return lookup.response;
-    const resolvedProduct = lookup.product;
+    resolvedProduct = lookup.product;
 
     // Launch state (Sprint 17): only a product the launch trigger let through
     // to 'live' may sell. 'sandbox' is honoured only outside production when
@@ -317,7 +318,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   let providerName: string;
   try {
-    providerName = await MatrixRouter.getNextProvider("payments", product, rails);
+    providerName = await MatrixRouter.getNextProvider("payments", resolvedProduct.id, rails);
   } catch (err) {
     // Every rail is marked down by the circuit breaker: answer unavailable. Falling back to the highest-weight rail
     // here would route a buyer to a rail the breaker has taken out (Argon F-16).

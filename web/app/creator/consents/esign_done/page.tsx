@@ -54,6 +54,7 @@ async function hasRecordedC3(): Promise<boolean> {
     return portalConsentState(rows, product.id, product.release_sha256).hasC3;
   } catch (err) {
     console.error("[esign_done] C3 status check failed:", err);
+    Sentry.captureException(err, { tags: { surface: "esign_done", query: "c3" } });
     return false;
   }
 }

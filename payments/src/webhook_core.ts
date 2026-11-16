@@ -26,11 +26,13 @@ export function getSecret(provider: ProviderName): string | undefined {
  * source of truth for commercial state).
  *
  * Alias arms: store product id (store_product_id), paddle product id (Paddle
- * sales only), polar sandbox/live ids, and the row uuid (id arm only when the
- * alias IS a uuid — a non-uuid value in an id.eq arm makes PostgREST reject
- * the whole filter, the same cast trap fixed in the checkout route on PR #85).
- * No derived identifier is an arm: a provider product reference resolves
- * through store_product_id or the product UUID only.
+ * sales only), polar sandbox/live ids (polar_product_id_sandbox,
+ * polar_product_id_live), and the row uuid (id arm only when the alias IS a
+ * uuid — a non-uuid value in an id.eq arm makes PostgREST reject the whole
+ * filter, the same cast trap fixed in the checkout route on PR #85), all scoped
+ * to provider = providerName. No derived identifier is an arm: a provider
+ * product reference resolves only through those stored product-id columns or
+ * the product UUID.
  *
  * The bare portal slug (products.slug) is deliberately NOT an arm: it is
  * unique only per creator (unique (creator_id, slug) in the portal

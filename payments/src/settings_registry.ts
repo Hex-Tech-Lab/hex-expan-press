@@ -77,7 +77,8 @@ export interface GlobalSettings {
     /** Retry-After seconds sent on 503 webhook responses (in-flight AND generic 503 paths). */
     retry_after_seconds: number;
     paddle: { api_base: { production: string; sandbox: string }; js_cdn_url: string };
-    /** Creem TEST mode is accepted only when this is true AND SUPABASE_URL contains creem_test_database_ref.
+    /** Creem TEST mode is accepted only when this is true, creem_test_database_ref is non-empty,
+     *  AND new URL(SUPABASE_URL).hostname equals `${creem_test_database_ref}.supabase.co`.
      *  Production has no global.json, so this stays false there. Test-only; see creem.adapter.ts. */
     creem_accept_test_mode: boolean;
     /** Project ref of the separate test database (branch) that test-mode Creem events may write to. Empty = refuse. */

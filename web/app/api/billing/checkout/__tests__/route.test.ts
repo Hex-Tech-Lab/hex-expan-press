@@ -1141,4 +1141,16 @@ describe("billing/checkout matrix router: every rail marked down (Argon F-16)", 
     expect(await res.json()).toMatchObject({ ok: false, code: "rails_unavailable" });
     expect(res.headers.get("location")).toBeNull();
   });
+
+  it("keys MatrixRouter by resolvedProduct.id for both <uuid> and <handle>/<slug>", async () => {
+    vi.mocked(MatrixRouter.getNextProvider).mockClear();
+
+    const uuidRes = await GET(new NextRequest(`http://localhost:3000/api/billing/checkout?product=${PID}`));
+    expect(uuidRes.status).toBe(302);
+
+    const handleRes = await GET(new NextRequest("http://localhost:3000/api/billing/checkout?product=retirearly500k%2F500k_playbook"));
+    expect(handleRes.status).toBe(302);
+
+    expect(vi.mocked(MatrixRouter.getNextProvider).mock.calls.map((c) => c[1])).toEqual([PID, PID]);
+  });
 });
