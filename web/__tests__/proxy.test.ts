@@ -591,9 +591,23 @@ describe("proxy host boundary (ADR 0061)", () => {
     const { proxy } = await import("../proxy");
     const res = await proxy(hostRequest("https://pay.expanpress.com/checkout/57596c19-c550-4bde-b17a-e87b86d005c5") as never);
     expect(res.headers.get("location")).toBeNull();
-    const legal = await proxy(hostRequest("https://pay.expanpress.com/terms.html") as never);
+    const legal = await proxy(hostRequest("https://pay.expanpress.com/books/legal/terms.html") as never);
     expect(legal.headers.get("location")).toBeNull();
     expect(getUserMock).not.toHaveBeenCalled();
+  });
+
+  it("pay host refuses /books, so buyer links to the B2C landing must be absolute to expanpress.com", async () => {
+    const { proxy } = await import("../proxy");
+    const res = await proxy(hostRequest("https://pay.expanpress.com/books") as never);
+    expect(res.status).toBe(404);
+  });
+
+  it("pay host refuses the creator (B2B) legal paths: buyers only see the buyer set", async () => {
+    const { proxy } = await import("../proxy");
+    for (const path of ["/terms.html", "/privacy.html", "/refund-policy.html", "/legal/providers.html"]) {
+      const res = await proxy(hostRequest(`https://pay.expanpress.com${path}`) as never);
+      expect(res.status, path).toBe(404);
+    }
   });
 
   it("pay host rewrites robots.txt to the disallow-all file", async () => {
@@ -692,5 +706,46 @@ describe("proxy E2E host probe is test-only", () => {
     const req = { cookies: { getAll: () => [], set: cookiesSetSpy }, url: "https://expanpress.com/__e2e/proxy-host", headers: new Headers() };
     const res = await proxy(req as never);
     expect(res.headers.get("content-type") ?? "").not.toContain("application/json");
+  });
+});
+
+// B2C/B2B routing matrix (founder, 2026-11-15). Host x path, enumerated in full: with two inputs a pairwise
+// set is the full product, so every pair is covered. Each row is the expected outcome for that host and path.
+describe("B2C/B2B routing matrix: host x path", () => {
+  const PAY = "https://pay.expanpress.com";
+  const MAIN = "https://expanpress.com";
+  const WWW = "https://www.expanpress.com";
+  const hosts = [PAY, MAIN, WWW];
+  // path -> expected outcome on pay / main / www
+  const paths: Array<[string, { pay: "pass" | "404" | "rewrite"; main: "pass" | "redirect"; www: "pass" | "redirect" }]> = [
+    ["/books", { pay: "404", main: "pass", www: "pass" }],
+    ["/books/legal/terms.html", { pay: "pass", main: "pass", www: "pass" }],
+    ["/books/legal/privacy.html", { pay: "pass", main: "pass", www: "pass" }],
+    ["/books/legal/refund-policy.html", { pay: "pass", main: "pass", www: "pass" }],
+    ["/books/legal/providers.html", { pay: "pass", main: "pass", www: "pass" }],
+    ["/books/creator-x/book-x", { pay: "404", main: "pass", www: "pass" }],
+    ["/terms.html", { pay: "404", main: "pass", www: "pass" }],
+    ["/privacy.html", { pay: "404", main: "pass", www: "pass" }],
+    ["/refund-policy.html", { pay: "404", main: "pass", www: "pass" }],
+    ["/legal/providers.html", { pay: "404", main: "pass", www: "pass" }],
+    ["/checkout/abc", { pay: "pass", main: "redirect", www: "redirect" }],
+    ["/api/billing/checkout", { pay: "pass", main: "redirect", www: "redirect" }],
+    ["/books/d/tok", { pay: "404", main: "pass", www: "pass" }],
+    ["/creator/signin", { pay: "404", main: "pass", www: "pass" }],
+    ["/", { pay: "404", main: "pass", www: "pass" }],
+  ];
+  const req = (url: string) => ({ cookies: { getAll: () => [], set: () => {} }, url, headers: new Headers() });
+
+  it.each(paths.flatMap(([p, exp]) => hosts.map((h) => [h, p, exp] as const)))("%s%s", async (host, path, exp) => {
+    const { proxy } = await import("../proxy");
+    const res = await proxy(req(`${host}${path}`) as never);
+    const key = host === PAY ? "pay" : host === MAIN ? "main" : "www";
+    const want = exp[key];
+    if (want === "404") expect(res.status, `${host}${path}`).toBe(404);
+    if (want === "pass") expect(res.status, `${host}${path}`).toBe(200);
+    if (want === "redirect") {
+      expect(res.status, `${host}${path}`).toBe(307);
+      expect(res.headers.get("location")).toMatch(/^https:\/\/pay\.expanpress\.com\//);
+    }
   });
 });

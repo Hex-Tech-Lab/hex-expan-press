@@ -1,4 +1,5 @@
 <!doctype html>
+<!-- DRAFT for review. Guarded by web/__tests__/refund-copy.test.ts (no revocation claims; refunds decided by Paddle). -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -7,54 +8,54 @@
 <style>
   :root { color-scheme: light; }
   * { box-sizing: border-box; margin: 0; }
-  body {
-    font-family: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-    background: #FAF5EE; color: #2B2520; line-height: 1.65; padding: 48px 20px 40px;
-  }
+  body { font-family: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #FAF5EE; color: #2B2520; line-height: 1.65; padding: 48px 20px 40px; }
   .wrap { max-width: 720px; margin: 0 auto; }
   .back { font-size: 13px; margin-bottom: 26px; display: inline-block; color: #2E7D5B; text-decoration: none; }
-  .back:hover { text-decoration: underline; }
+  .back:hover, .back:focus-visible { text-decoration: underline; }
   .kicker { font-size: 12px; letter-spacing: .14em; text-transform: uppercase; color: #E8622C; font-weight: 600; margin-bottom: 12px; }
   h1 { font-family: "Fraunces", Georgia, "Times New Roman", serif; font-size: 30px; font-weight: 700; letter-spacing: -.015em; margin-bottom: 8px; }
   .updated { font-size: 13px; color: #6E5F53; margin-bottom: 28px; }
   h2 { font-family: "Fraunces", Georgia, "Times New Roman", serif; font-size: 19px; font-weight: 700; margin: 26px 0 10px; }
   p, li { font-size: 14.5px; color: #2B2520; margin-bottom: 10px; }
-  ul { padding-left: 22px; }
   .keybox { background: #FFFDF9; border: 1px solid #EADFD1; border-radius: 12px; padding: 18px 20px; margin-bottom: 8px; }
   .keybox b { color: #2E7D5B; }
   footer { border-top: 1px solid #EADFD1; margin-top: 36px; padding-top: 18px; font-size: 13px; color: #6E5F53; display: flex; flex-wrap: wrap; gap: 8px 22px; }
   footer a { color: #2E7D5B; text-decoration: none; }
+  footer a:hover, footer a:focus-visible { text-decoration: underline; }
+  a:focus-visible { outline: 3px solid #B3401E; outline-offset: 3px; }
 </style>
 </head>
 <body>
 <div class="wrap">
+  <main>
   <a class="back" href="/" data-backlink>&larr; Back to ExpanPress</a>
   <p class="kicker">Legal</p>
   <h1>Refund Policy</h1>
-  <p class="updated">Last updated: 15 October 2026</p>
+  <p class="updated">Last updated: 13 November 2026</p>
   <div class="keybox">
-    <p><b>In short:</b> refunds are decided by Paddle.com, our Merchant of Record, under its buyer terms. Email us and we will pass your request to Paddle.</p>
+    <p><b>In short:</b> refunds are decided by Paddle.com, the payment provider that is seller of record for your order, under its buyer terms. Email us and we will pass your request to Paddle.</p>
   </div>
 
-  <h2>1. Refund window</h2>
-  <p>Refunds for digital Products are decided by Paddle.com, which acts as Merchant of Record for your order, under Paddle's buyer terms. Those terms set the refund conditions that apply to your purchase. Your mandatory consumer rights in your country are not affected.</p>
+  <h2>1. How refunds are decided</h2>
+  <p>Refunds for digital books are decided by Paddle.com, which acts as Merchant of Record for your order, under Paddle's buyer terms. Those terms set the refund conditions that apply to your purchase. Your mandatory consumer rights where you live are not affected.</p>
 
-  <h2>2. Not as described</h2>
-  <p>If a Product is materially different from its description, contact us with your order reference. We will look into it and pass the request to Paddle.com, which decides refunds for orders it processes.</p>
+  <h2>2. Book not as described</h2>
+  <p>If a book is materially different from its description, contact us with your order reference. We will look into it and pass the request to Paddle.com, which decides refunds for orders it processes.</p>
 
   <h2>3. Other requests</h2>
-  <p>Refund eligibility outside Paddle's conditions is decided by Paddle.com, except where applicable consumer law gives you rights that cannot be limited.</p>
+  <p>Refund requests outside Paddle's conditions are decided by Paddle.com, except where consumer law gives you rights that cannot be limited.</p>
 
-  <h2>4. How to request</h2>
-  <p>Email <b>support@expanpress.com</b> with your order reference and the email used at checkout, or reply to your receipt email. We pass refund requests to the reseller that processed your order, currently Paddle.com, which handles returns for orders it processes. Refunds are issued by that reseller, our Merchant of Record, to your original payment method. Timing depends on Paddle.com and your bank.</p>
+  <h2>4. How to ask for a refund</h2>
+  <p>Email <b>support@expanpress.com</b> with your order reference and the email address you used at checkout, or reply to your receipt email. We pass refund requests to the payment provider that processed your order, currently Paddle.com. Refunds are paid by that provider, as seller of record, to your original payment method. The time a refund takes depends on Paddle.com and your bank.</p>
 
   <h2>5. Contact</h2>
   <p><b>support@expanpress.com</b></p>
+  </main>
 
   <footer>
-    <a href="/">Product page</a>
-    <a href="privacy.html">Privacy Notice</a>
-    <a href="terms.html">Terms of Service</a>
+    <a href="/">Books</a>
+    <a href="/terms.html">Terms of Sale</a>
+    <a href="/privacy.html">Privacy Notice</a>
   </footer>
 </div>
 <script src="/assets/backlink.js"></script>

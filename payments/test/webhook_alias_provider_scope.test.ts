@@ -12,6 +12,7 @@ function fakeClient() {
       if (table !== "products") throw new Error(`unexpected table ${table}`);
       const chain = {
         select: () => chain,
+        eq: () => chain,
         or: (filter: string) => {
           seen.push(filter);
           return chain;
@@ -43,7 +44,7 @@ describe("resolveProductByAlias: a row that exists but cannot sell is retryable 
   ])("%s on an existing row throws a 503, never returns null", async (_label, incomplete) => {
     vi.mocked(getSupabaseAdmin).mockResolvedValue({
       from: () => {
-        const chain = { select: () => chain, or: () => chain, maybeSingle: async () => ({ data: incomplete, error: null }) };
+        const chain = { select: () => chain, or: () => chain, eq: () => chain, maybeSingle: async () => ({ data: incomplete, error: null }) };
         return chain;
       },
     } as unknown as Awaited<ReturnType<typeof getSupabaseAdmin>>);
@@ -56,7 +57,7 @@ describe("resolveProductByAlias: a row that exists but cannot sell is retryable 
     const unregistered = { ...row, provider: "polar" };
     vi.mocked(getSupabaseAdmin).mockResolvedValue({
       from: () => {
-        const chain = { select: () => chain, or: () => chain, maybeSingle: async () => ({ data: unregistered, error: null }) };
+        const chain = { select: () => chain, or: () => chain, eq: () => chain, maybeSingle: async () => ({ data: unregistered, error: null }) };
         return chain;
       },
     } as unknown as Awaited<ReturnType<typeof getSupabaseAdmin>>);
@@ -91,6 +92,7 @@ describe("resolveProductByAlias: paddle_product_id is matched only for Paddle sa
             seen.push(filter);
             return chain;
           },
+          eq: () => chain,
           maybeSingle: async () => ({ data: lastFilter.includes("paddle_product_id") ? row : null, error: null }),
         };
         return chain;
@@ -98,5 +100,46 @@ describe("resolveProductByAlias: paddle_product_id is matched only for Paddle sa
     };
     vi.mocked(getSupabaseAdmin).mockResolvedValue(db as unknown as Awaited<ReturnType<typeof getSupabaseAdmin>>);
     expect(await resolveProductByAlias(ALIAS, "polar")).toBeNull();
+  });
+});
+
+describe("resolveProductByAlias: input validation, UUID arm, and DB errors", () => {
+  it("returns null without querying DB when alias is non-string or fails PRODUCT_ALIAS_RE", async () => {
+    vi.mocked(getSupabaseAdmin).mockClear();
+    expect(await resolveProductByAlias(null as unknown as string, "paddle")).toBeNull();
+    expect(await resolveProductByAlias("bad.alias,or", "paddle")).toBeNull();
+    expect(await resolveProductByAlias("", "paddle")).toBeNull();
+    expect(getSupabaseAdmin).not.toHaveBeenCalled();
+  });
+
+  it("throws fail-closed when Supabase admin client is unavailable", async () => {
+    vi.mocked(getSupabaseAdmin).mockResolvedValueOnce(null);
+    await expect(resolveProductByAlias(ALIAS, "paddle")).rejects.toThrow(
+      "Supabase admin client unavailable — product resolution cannot run (fail closed)",
+    );
+  });
+
+  it("includes the id.eq.<uuid> arm when alias is a valid UUID", async () => {
+    const uuid = "123e4567-e89b-12d3-a456-426614174000";
+    const resolved = await resolveProductByAlias(uuid, "paddle");
+    expect(seen[0]).toContain(`id.eq.${uuid}`);
+    expect(resolved?.productId).toBe("duane_retirement_playbook_v1");
+  });
+
+  it("throws when the Supabase product lookup returns an error", async () => {
+    vi.mocked(getSupabaseAdmin).mockResolvedValueOnce({
+      from: () => {
+        const chain = {
+          select: () => chain,
+          or: () => chain,
+          eq: () => chain,
+          maybeSingle: async () => ({ data: null, error: { message: "db timeout" } }),
+        };
+        return chain;
+      },
+    } as unknown as Awaited<ReturnType<typeof getSupabaseAdmin>>);
+    await expect(resolveProductByAlias(ALIAS, "paddle")).rejects.toThrow(
+      `webhook: product lookup failed for '${ALIAS}': db timeout`,
+    );
   });
 });

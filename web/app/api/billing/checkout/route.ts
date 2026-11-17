@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { MatrixRouter } from "../../../../../src/infrastructure/matrix_router/matrix_router";
 import { getSupabaseAdmin } from "../../../../../payments/src/supabase_admin";
-import { isEnabledPaymentProvider } from "../../../../../payments/src/settings_registry";
+import { GLOBAL, isEnabledPaymentProvider } from "../../../../../payments/src/settings_registry";
 import { verifiedProviderNames } from "../webhook/verifiers";
 import { attributionRef } from "../../../../src/lib/attribution";
 import { normalizeSha256, strictActiveConsentKinds, strictChainHead } from "../../../../src/lib/consent-chain";
+import { guidSchema, productRefSchema } from "../../../../src/lib/zod-rules";
+import { MatrixRouterUnavailableError } from "../../../../../src/infrastructure/matrix_router/matrix_router_errors";
 
 
 export const runtime = "nodejs";
@@ -12,7 +14,7 @@ export const runtime = "nodejs";
 interface CheckoutRail {
   provider: string;
   weight: number;
-  checkout_url?: string;
+  checkout_url: string;
 }
 
 /**
@@ -21,24 +23,89 @@ interface CheckoutRail {
  * table, not from repo JSON files). GET/HEAD only: resolves the product's
  * rail config from the Supabase product_rails table (no routable rail: 404;
  * a rail whose provider is switched off is not routed), and 302-redirects to the
- * weighted-selected provider checkout URL via MatrixRouter, falling back to
- * the highest-weight rail if the router fails. Every source's checkout_url
- * passes one validation policy — raw value must be a string (non-string
- * fails closed), then trimmed: non-empty, https, and sandbox hosts
+ * weighted-selected provider checkout URL via MatrixRouter (MatrixRouterUnavailableError
+ * returns 503 and fails closed; the highest-weight fallback is only a rail-level
+ * fallback for other router failures). Every source's checkout_url passes one
+ * validation policy — raw value must be a string (non-string fails closed), then trimmed: non-empty, https, and sandbox hosts
  * (hostname label match) only in explicitly recognised non-production
- * environments — and any violation fails closed with 500 "Checkout is not
- * configured".
+ * environments when GLOBAL.payments.sandbox_checkout_enabled is true — and any
+ * violation fails closed with 500 "Checkout is not configured".
  */
-function jsonError(status: number, error: string): NextResponse {
-  return NextResponse.json({ ok: false, error }, { status });
+function jsonError(status: number, error: string, code?: string): NextResponse {
+  return NextResponse.json({ ok: false, error, code }, { status });
 }
 
-function sandboxAllowed(): boolean {
+type SupabaseAdmin = NonNullable<Awaited<ReturnType<typeof getSupabaseAdmin>>>;
+type ProductRow = { id: string; creator_id: string | null; release_sha256?: string | null; checkout_mode?: string | null };
+type ProductLookup = { product: ProductRow } | { response: NextResponse };
+
+const PRODUCT_COLUMNS = "id, creator_id, release_sha256, checkout_mode";
+const GATE_CONSENT_KINDS = ["C1_data_accuracy", "C2_release_approval", "C3_revenue_split"] as const;
+const CONSENT_VERIFICATION_FAILED = "Checkout consent verification failed";
+
+function lookupFailed(product: string, message: string): ProductLookup {
+  console.warn(`[billing/checkout] product lookup warning for '${product}': ${message}`);
+  return { response: jsonError(500, CONSENT_VERIFICATION_FAILED) };
+}
+
+function productNotFound(product: string): ProductLookup {
+  console.error(`[billing/checkout] product '${product}' not found — failing closed`);
+  return { response: jsonError(404, "Product not found", "product_not_found") };
+}
+
+/**
+ * Resolves a product reference. ADR 0065: a product is identified by its creator's handle plus its product slug, and a
+ * slug is unique per creator only.
+ * - Product id (guid): resolves directly. The checkout page sends this form.
+ * - Handle form `<handle>/<product_slug>`: resolves through the creator, so two creators may share a slug.
+ * - Bare slug: never resolved, because the route must not guess which creator's product it means. Two or more
+ *   matches answer 409 product_slug_ambiguous; one match answers 400 product_ref_requires_handle; none answers 404.
+ */
+async function lookupProduct(supabase: SupabaseAdmin, product: string): Promise<ProductLookup> {
+  if (guidSchema.safeParse(product).success) {
+    const { data, error } = await supabase.from("products").select(PRODUCT_COLUMNS).eq("id", product).maybeSingle();
+    if (error) return lookupFailed(product, error.message);
+    return data ? { product: data as ProductRow } : productNotFound(product);
+  }
+
+  if (product.includes("/")) {
+    const [handle, slug] = product.split("/");
+    const { data, error } = await supabase
+      .from("products")
+      .select(`${PRODUCT_COLUMNS}, creators!inner(handle)`)
+      .eq("slug", slug)
+      .eq("creators.handle", handle)
+      .maybeSingle();
+    if (error) return lookupFailed(product, error.message);
+    return data ? { product: data as ProductRow } : productNotFound(product);
+  }
+
+  const { data: matches, error } = await supabase.from("products").select("id").eq("slug", product).limit(2);
+  if (error) return lookupFailed(product, error.message);
+  const count = (matches ?? []).length;
+  if (count > 1) {
+    console.error(`[billing/checkout] bare slug '${product}' matches ${count} creators' products — refusing to guess`);
+    return { response: jsonError(409, "Product slug is shared by more than one creator. Use <handle>/<product_slug>.", "product_slug_ambiguous") };
+  }
+  if (count === 1) {
+    return { response: jsonError(400, "A product slug alone does not identify a product. Use <handle>/<product_slug> or the product id.", "product_ref_requires_handle") };
+  }
+  return productNotFound(product);
+}
+
+function isNonProductionRuntime(): boolean {
   // Sandbox links only on explicitly recognised non-production runtimes; anything else (absent/unknown signals) fails closed.
   const v = process.env.VERCEL_ENV;
   if (v === "preview" || v === "development") return true;
   if (v) return false;
   return process.env.NODE_ENV === "development" || process.env.NODE_ENV === "test";
+}
+
+function sandboxAllowed(): boolean {
+  // OWASP A04: preview/dev runtimes can share the production product_rails table, so sandbox
+  // acceptance requires an explicit registry opt-in (default OFF) and is always false in production.
+  if (!isNonProductionRuntime()) return false;
+  return GLOBAL.payments?.sandbox_checkout_enabled === true;
 }
 
 // Attribution: only providers whose webhook reads reference_id back from the
@@ -64,42 +131,28 @@ function checkoutUrlProblem(raw: unknown): string | null {
   }
   if (u.protocol !== "https:") return "not https";
   const labels = u.hostname.toLowerCase().split(/[.-]/);
-  if (labels.includes("sandbox")) return sandboxAllowed() ? null : "sandbox host in production";
+  if (labels.includes("sandbox")) return sandboxAllowed() ? null : "sandbox host not allowed";
   return null;
 }
 
-const SAFE_PRODUCT_RE = /^[a-zA-Z0-9_-]{2,80}$/;
-
-// products.id is UUID-typed; a slug arm that isn't a UUID would make PostgREST
-// reject the whole .or() filter (slug→uuid cast error), so the id arm is only
-// added when the parameter actually IS a UUID.
-const UUID_RE = /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i;
-
-// Live external links that predate the products table (duane_* carries
-// underscores, which the slug CHECK `^[a-z0-9-]{2,80}$` forbids). Each is
-// rewritten to its canonical product id BEFORE the DB lookup, so it resolves
-// through the standard path and the SAME consent gate.
-const LAUNCH_PRODUCT_ID = "57596c19-c550-4bde-b17a-e87b86d005c5";
-const LEGACY_SLUG_MAP: Record<string, string> = {
-  duane_retirement_playbook_v1: LAUNCH_PRODUCT_ID,
-  "retirearly500k-500k-playbook": LAUNCH_PRODUCT_ID,
-};
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const product = request.nextUrl.searchParams.get("product") ?? "";
   if (!product) return jsonError(400, "Missing product parameter in URL");
 
   // Sanitize product parameter to prevent Path Traversal / LFI (sprint 14 ARTAS Track A3)
-  if (!SAFE_PRODUCT_RE.test(product) || product.includes("..") || product.includes("/") || product.includes("\\")) {
+  if (!productRefSchema.safeParse(product).success) {
     return jsonError(400, "Invalid product parameter in URL");
   }
 
   // Active Consent Gate (sprint 14 ARTAS Track A1, CR-remediated fail-closed):
   // Checkout URL generation requires active C1, C2, and C3 consents for the
-  // product. EVERY resolution failure is terminal — an unconfigured admin
-  // client, a product lookup error, or an unresolved product all return 500
-  // instead of skipping verification (ADR-0060: fail closed, never fail open).
+  // product. Every resolution failure is terminal and never skips verification
+  // (ADR-0060: fail closed, never fail open): an unconfigured admin client or a
+  // product lookup error returns 500; an unresolved product returns 404; a bare
+  // slug is refused with 409 or 400 (see lookupProduct).
   let dbRails: CheckoutRail[] = [];
+  let resolvedProduct: ProductRow;
   try {
     const supabase = await getSupabaseAdmin();
     if (!supabase) {
@@ -107,30 +160,13 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       return jsonError(500, "Checkout consent verification failed");
     }
 
-    // Own-property check: a bare index would return inherited prototype members
-    // (?product=constructor → Object) instead of treating the param as a slug.
-    const lookupKey = Object.hasOwn(LEGACY_SLUG_MAP, product) ? LEGACY_SLUG_MAP[product] : product;
-    const productFilter = UUID_RE.test(lookupKey) ? `slug.eq.${lookupKey},id.eq.${lookupKey}` : `slug.eq.${lookupKey}`;
-    const { data: dbProduct, error: prodErr } = await supabase
-      .from("products")
-      .select("id, creator_id, release_sha256, checkout_mode")
-      .or(productFilter)
-      .maybeSingle();
-
-    if (prodErr) {
-      console.warn(`[billing/checkout] product lookup warning for '${product}': ${prodErr.message}`);
-      return jsonError(500, "Checkout consent verification failed");
-    }
-
-    if (!dbProduct) {
-      console.error(`[billing/checkout] product '${product}' did not resolve to a consent-verifiable product — failing closed`);
-      return jsonError(500, "Checkout consent verification failed");
-    }
-    const resolvedProduct = dbProduct as { id: string; creator_id: string | null; release_sha256?: string | null; checkout_mode?: string | null };
+    const lookup = await lookupProduct(supabase, product);
+    if ("response" in lookup) return lookup.response;
+    resolvedProduct = lookup.product;
 
     // Launch state (Sprint 17): only a product the launch trigger let through
-    // to 'live' may sell. 'sandbox' is honoured on non-production runtimes
-    // only; 'gated', 'paddle', null or anything else fails closed.
+    // to 'live' may sell. 'sandbox' is honoured only outside production when
+    // sandbox_checkout_enabled is true; 'gated', 'paddle', null or anything else fails closed.
     const mode = resolvedProduct.checkout_mode;
     if (mode !== "live" && !(mode === "sandbox" && sandboxAllowed())) {
       console.error(`[billing/checkout] product '${product}' is not launched (checkout_mode=${mode ?? "null"})`);
@@ -146,10 +182,13 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       return jsonError(500, "Checkout consent verification failed");
     }
 
+    // Only the three gate kinds decide checkout. Supersession is same-kind only, so narrowing the read to these
+    // kinds leaves each kind's chain unchanged. The count below is taken on the same filtered query.
     const { data: consentRows, error: consentErr, count: consentCount } = await supabase
       .from("consents")
-      .select("id, kind, decision, product_id, supersedes, document_sha256", { count: "exact" })
-      .eq("creator_id", ownerId);
+      .select("id, kind, decision, product_id, supersedes, supersedes_ids, document_sha256", { count: "exact" })
+      .eq("creator_id", ownerId)
+      .in("kind", GATE_CONSENT_KINDS);
 
     if (consentErr) {
       console.error(`[billing/checkout] failed to query consents for '${product}': ${consentErr.message}`);
@@ -162,7 +201,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       return jsonError(500, "Checkout consent verification failed");
     }
 
-    const active = strictActiveConsentKinds(consentRows ?? [], resolvedProduct.id);
+    // One nullish fallback for both readers below; a null list has no active kinds, so it returns at the gate.
+    const rows = consentRows ?? [];
+    const active = strictActiveConsentKinds(rows, resolvedProduct.id);
     const hasC1 = active.has("C1_data_accuracy");
     const hasC2 = active.has("C2_release_approval");
     const hasC3 = active.has("C3_revenue_split");
@@ -176,7 +217,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     // product's CURRENT release PDF. A missing/invalid hash on either side or a
     // mismatch fails closed — the same check the launch trigger enforces.
     const releaseSha = normalizeSha256(resolvedProduct.release_sha256);
-    const c2Head = strictChainHead(consentRows ?? [], resolvedProduct.id, "C2_release_approval");
+    const c2Head = strictChainHead(rows, resolvedProduct.id, "C2_release_approval");
     const approvedSha = normalizeSha256(c2Head?.document_sha256);
     if (!releaseSha || !approvedSha || approvedSha !== releaseSha) {
       console.error(`[billing/checkout] release hash mismatch for '${product}': release=${releaseSha ?? "invalid"} approved=${approvedSha ?? "invalid"}`);
@@ -219,28 +260,34 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     // Active rails must carry a non-empty provider and a string checkout_url, checked on the raw value.
     // A null or non-string URL on a live rail fails closed here, not via a stringified "null".
     const activeRaw = allRails.filter((r) => r.active);
-    if (activeRaw.some((r) => typeof r.provider !== "string" || r.provider === "" || typeof r.checkout_url !== "string")) {
-      console.error(`[billing/checkout] product '${product}' has an active rail with a missing provider or non-string checkout_url — failing closed`);
-      return jsonError(500, "Checkout is not configured");
+    const activeValid: CheckoutRail[] = [];
+    for (const r of activeRaw) {
+      if (
+        typeof r.provider !== "string" ||
+        r.provider === "" ||
+        typeof r.checkout_url !== "string" ||
+        !Number.isFinite(r.weight) ||
+        r.weight < 0
+      ) {
+        console.error(`[billing/checkout] product '${product}' has an active rail with a missing provider or non-string checkout_url — failing closed`);
+        return jsonError(500, "Checkout is not configured");
+      }
+      activeValid.push({
+        provider: r.provider,
+        weight: r.weight,
+        checkout_url: r.checkout_url,
+      });
     }
-    // Runtime-checked above; the cast only drops the `active` flag from the shape.
     // A rail can take a buyer only if its provider is switched on AND has a verifier (a rail that cannot be verified
     // would refuse its own webhooks). The launch switch decides the first condition: an active row for a switched-off provider
     // is dropped here, so a product whose only active rows are switched off fails closed through the
     // disable guard below.
     const verified = verifiedProviderNames();
-    dbRails = activeRaw
-      .filter((r) => typeof r.provider === "string" && isEnabledPaymentProvider(r.provider) && verified.has(r.provider))
-      .map((r) => {
-        const rail: Record<string, unknown> = { ...r };
-        delete rail.active; // the active flag is not part of a checkout rail
-        return rail as unknown as CheckoutRail;
-      });
-    // The disable guard counts only WELL-FORMED rows (real product_rails rows
-    // are objects). A malformed row is a data-integrity failure: an active one
-    // is rejected with 500 by the active-rail check above, and it must never be
-    // misreported as an operator disable.
-    const configuredRowCount = (railRows ?? []).filter((r) => r !== null && typeof r === "object").length;
+    dbRails = activeValid.filter((r) => isEnabledPaymentProvider(r.provider) && verified.has(r.provider));
+    // Null/non-object rows and active rows with a missing provider or non-string
+    // checkout_url have already failed closed (500) above, so every row counted
+    // here is a configured rail row (inactive, or active for a disabled/unverified provider).
+    const configuredRowCount = (railRows ?? []).length;
 
     if (configuredRowCount > 0 && dbRails.length === 0) {
       console.error(`[billing/checkout] product '${product}' has ${configuredRowCount} configured rail(s) but none usable (not active, or provider switched off) — refusing checkout`);
@@ -258,18 +305,12 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const rails: CheckoutRail[] = dbRails;
 
 
-  // Fail closed on non-string RAW checkout_url values (missing/null/number
-  // from a malformed rails file) BEFORE any trimming — no silent rail skips.
-  for (const rail of rails) {
-    if (!rail || typeof rail !== "object" || typeof rail.checkout_url !== "string") {
-      console.error(`[billing/checkout] rejected checkout_url for '${product}' (${rail?.provider ?? "unknown"}): missing or not a string`);
-      return jsonError(500, "Checkout is not configured");
-    }
-  }
+  // Raw checkout_url types are enforced once, on the active rows above (non-string fails closed there),
+  // so every rail reaching this point is an object with a string checkout_url.
 
   // One URL policy for every source: validate before routing, redirect trimmed.
   for (const rail of rails) {
-    rail.checkout_url = (rail.checkout_url as string).trim();
+    rail.checkout_url = rail.checkout_url.trim();
     const problem = checkoutUrlProblem(rail.checkout_url);
     if (problem) {
       console.error(`[billing/checkout] rejected checkout_url for '${product}' (${rail.provider}): ${problem}`);
@@ -279,19 +320,30 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   let providerName: string;
   try {
-    providerName = await MatrixRouter.getNextProvider("payments", product, rails);
+    providerName = await MatrixRouter.getNextProvider("payments", resolvedProduct.id, rails);
   } catch (err) {
-    console.error(`checkout: MatrixRouter failed, falling back to default rail: ${(err as Error).message}`);
-    const fallback = [...rails].sort((lhs, rhs) => rhs.weight - lhs.weight).find((r) => typeof r.checkout_url === "string" && r.checkout_url !== "");
-    if (!fallback) {
-      return jsonError(503, `Router unavailable and no fallback rail configured: ${(err as Error).message}`);
+    // Every rail is marked down by the circuit breaker: answer unavailable. Falling back to the highest-weight rail
+    // here would route a buyer to a rail the breaker has taken out (Argon F-16).
+    if (err instanceof MatrixRouterUnavailableError) {
+      console.error(`[billing/checkout] every rail is marked down for '${product}' — answering 503`);
+      return jsonError(503, "Checkout is temporarily unavailable. No payment rail is accepting orders.", "rails_unavailable");
     }
-    return NextResponse.redirect(withReference(fallback.checkout_url as string, fallback.provider, attributionRef((p) => request.nextUrl.searchParams.get(p))), 302);
+    console.error(`checkout: MatrixRouter failed, falling back to default rail: ${(err as Error).message}`);
+    // rails is non-empty (checked above) and every URL is validated non-empty (checkoutUrlProblem), so a fallback always exists.
+    const fallback = [...rails].sort((lhs, rhs) => rhs.weight - lhs.weight)[0];
+    const res = NextResponse.redirect(withReference(fallback.checkout_url, fallback.provider, attributionRef((p) => request.nextUrl.searchParams.get(p))), 302);
+    res.headers.set("Cache-Control", "no-store");
+    return res;
   }
 
   const rail = rails.find((r) => r.provider === providerName);
-  if (!rail?.checkout_url) return jsonError(503, `Selected rail '${providerName}' has no checkout_url`);
-  return NextResponse.redirect(withReference(rail.checkout_url, rail.provider, attributionRef((p) => request.nextUrl.searchParams.get(p))), 302);
+  if (!rail?.checkout_url) {
+    console.error(`[billing/checkout] selected rail '${providerName}' has no checkout_url`);
+    return jsonError(503, "Checkout is temporarily unavailable");
+  }
+  const res = NextResponse.redirect(withReference(rail.checkout_url, rail.provider, attributionRef((p) => request.nextUrl.searchParams.get(p))), 302);
+  res.headers.set("Cache-Control", "no-store");
+  return res;
 }
 
 export async function HEAD(request: NextRequest): Promise<NextResponse> {

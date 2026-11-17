@@ -389,4 +389,17 @@ describe('TruncationValidationRule', () => {
     ].join('\n'));
     expect(findings).toHaveLength(0);
   });
+
+  test('does not flag UUID/hash prefixes, dynamic delimiter slices, or error-detail caps in template strings', () => {
+    const findings = scan(TruncationValidationRule, 'web/lib/ids.ts', [
+      'export function makeIds(s: string, proxyUrl: string, proto: number, lastError: string) {',
+      '  const errorId = globalThis.crypto.randomUUID().slice(0, 8);',
+      '  const digest = createHash("sha256").update(s).digest("hex").slice(0, 16);',
+      '  const masked = `${proxyUrl.slice(0, proto + 2)}***`;',
+      '  const reason = `failed (${lastError.slice(0, 120)})`;',
+      '  return { errorId, digest, masked, reason };',
+      '}',
+    ].join('\n'));
+    expect(findings).toHaveLength(0);
+  });
 });

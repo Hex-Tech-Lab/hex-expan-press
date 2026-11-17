@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSupabaseAdmin } from "../../../../payments/src/supabase_admin";
-import { GLOBAL } from "../../../../payments/src/settings_registry";
-import { TOKEN_RE, tokenHash } from "../../../../payments/src/delivery";
-import { getDeliveryStorageAdapter } from "../../../../src/adapters/storage/r2.adapter";
+import { getSupabaseAdmin } from "../../../../../payments/src/supabase_admin";
+import { GLOBAL } from "../../../../../payments/src/settings_registry";
+import { TOKEN_RE, tokenHash } from "../../../../../payments/src/delivery";
+import { getDeliveryStorageAdapter } from "../../../../../src/adapters/storage/r2.adapter";
 
 export const runtime = "nodejs";
 
 /**
- * GET /d/{token} (buyer delivery, ADR 0061 origin expanpress.com). Validates the hash and expiry of an
+ * GET /books/d/{token} (buyer delivery, ADR 0061 origin expanpress.com). Validates the hash and expiry of an
  * issued link, logs download_completed, and 302s to a short-lived signed URL for the release file.
  * Fail closed: the redirect happens only after the server-side log row is written, so an unlogged
  * download is never served. The token is never logged.

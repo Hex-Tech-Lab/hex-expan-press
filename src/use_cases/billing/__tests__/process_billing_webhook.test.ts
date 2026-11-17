@@ -14,7 +14,11 @@ import { fastspringProvider } from "../../../../payments/src/providers/fastsprin
 import type { PaymentProviderPort, SaleCompletedEvent, RefundIssuedEvent } from "../../../../src/domain/payments/payments.port.ts";
 
 // Delivery is stubbed here: the sale-path tests assert the webhook contract, not mail or Dub.
-const delivery = vi.hoisted(() => ({ deliverSaleForWebhook: vi.fn(async (_input: unknown) => undefined) }));
+// saleDeliveryConfirmed defaults to "not confirmed": a contended, recorded sale is acknowledged only when a test sets it true.
+const delivery = vi.hoisted(() => ({
+  deliverSaleForWebhook: vi.fn(async (_input: unknown) => undefined),
+  saleDeliveryConfirmed: vi.fn(async (_provider: unknown, _saleId: unknown) => false),
+}));
 vi.mock("../../../../payments/src/delivery.ts", () => delivery);
 
 const SALE: SaleCompletedEvent = {
@@ -27,6 +31,7 @@ const SALE: SaleCompletedEvent = {
   buyerEmailHash: "0xabc",
   buyerEmail: "buyer@example.com",
   occurredAt: "2026-09-28T00:00:00.000Z",
+  providerMode: "live",
   rawPayload: null,
 };
 
@@ -50,12 +55,16 @@ function adapter(event: SaleCompletedEvent | RefundIssuedEvent): PaymentProvider
 // Mock the distributed lock: the first acquire wins; later acquires see the
 // held lock (SETNX semantics) — mirrors expanRedis under concurrency.
 const setnx = vi.fn<(...args: unknown[]) => Promise<number>>();
+let mockFenceSeq = 0;
 
 vi.mock("../../../../src/infrastructure/redis/redis.client.ts", async (importOriginal) => ({
   // keep the real env helpers (redisRestEnv / isRedisRestConfigured) — only the client is faked
   ...(await importOriginal<typeof import("../../../../src/infrastructure/redis/redis.client.ts")>()),
   expanRedis: {
     setnx: (...a: unknown[]) => setnx(...a),
+    incr: vi.fn(async () => ++mockFenceSeq),
+    expire: vi.fn(async () => 1),
+    compareAndDel: vi.fn(async () => 1),
     del: vi.fn(() => Promise.resolve(1)),
   },
 }));
@@ -121,7 +130,18 @@ vi.mock("@supabase/supabase-js", () => ({
         if (supa.adjLookupResult === null) return supa.lookupResult;
         return "provider_adjustment_id" in filters ? supa.adjLookupResult : { data: null, error: null };
       };
-      return { select: () => ({ eq }), upsert: async () => ({ error: supa.upsertError }), insert: async (row: Record<string, unknown>) => insertAudit(row) };
+      const makeUpdateChain = () => ({
+        eq: () => makeUpdateChain(),
+        lte: () => makeUpdateChain(),
+        select: async () => ({ data: [] as unknown[], error: null as unknown }),
+      });
+      return {
+        select: () => ({ eq }),
+        upsert: async () => ({ error: supa.upsertError }),
+        update: () => makeUpdateChain(),
+        insert: async (row: Record<string, unknown>) =>
+          table === "orders" ? { error: supa.upsertError } : insertAudit(row),
+      };
     },
   }),
 }));
@@ -137,7 +157,13 @@ vi.mock("../../../../payments/src/webhook_core.ts", async (importOriginal) => {
     ...orig,
     resolveProductByAlias: (alias: string, provider: string) => {
       resolveCalls.push([alias, provider]);
-      return alias === "p1" ? Promise.resolve({ productId: "p1", creatorHandle: "c1", currency: "USD" }) : Promise.resolve(null);
+      // One product per checkout_mode, so the mode gate can be exercised: live, sandbox and gated.
+      const products: Record<string, { productId: string; creatorHandle: string; currency: string; checkoutMode: string }> = {
+        p1: { productId: "p1", creatorHandle: "c1", currency: "USD", checkoutMode: "live" },
+        p_sandbox: { productId: "p_sandbox", creatorHandle: "c1", currency: "USD", checkoutMode: "sandbox" },
+        p_gated: { productId: "p_gated", creatorHandle: "c1", currency: "USD", checkoutMode: "gated" },
+      };
+      return Promise.resolve(products[alias] ?? null);
     },
   };
 });
@@ -159,7 +185,23 @@ vi.mock("../../../../payments/src/settings_registry.ts", () => ({
   GLOBAL: {
     paths: { sales_ledger: salesFilePath },
     defaults: { currency: "USD" },
-    payments: { webhook_tolerance_seconds: 300, webhook_lock_ttl_seconds: 300, http_timeout_ms: 5000, sync_http_timeout_ms: 30000 },
+    payments: {
+      webhook_tolerance_seconds: 300,
+      webhook_lock_ttl_seconds: 300,
+      webhook_lock_fence_ttl_seconds: 604800,
+      webhook_lock_sale_prefix: "lock:sale:",
+      webhook_lock_refund_prefix: "lock:refund:",
+      webhook_lock_fence_suffix: ":fence",
+      http_timeout_ms: 5000,
+      sync_http_timeout_ms: 30000,
+    },
+    delivery: {
+      bucket: "release-files",
+      link_ttl_days: 7,
+      signed_url_seconds: 300,
+      short_domain: "go.expanpress.com",
+      send_kind: "buyer_receipt",
+    },
   },
   expandHome: (p: string, home: string) => (home && (p === "~" || p.startsWith("~/")) ? p : p),
   isRegisteredPaymentProvider: (name: unknown) => typeof name === "string",
@@ -197,6 +239,7 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
 
   beforeEach(() => {
     setnx.mockReset();
+    mockFenceSeq = 0;
     supa.lookupResult = { data: null, error: null };
     supa.adjLookupResult = null;
     supa.auditInserts = [];
@@ -333,7 +376,7 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
     vi.stubEnv("KV_REST_API_TOKEN", "kv-token");
     setnx.mockResolvedValue(1);
     await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(SALE)]);
-    expect(setnx).toHaveBeenCalledWith("lock:sale:polar:sale_dup_1", "1", expect.anything());
+    expect(setnx).toHaveBeenCalledWith("lock:sale:polar:sale_dup_1", expect.any(String), expect.anything());
   });
 
   it("production with no Redis configured → fails closed (throws), never processes unlocked", async () => {
@@ -394,7 +437,7 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
     await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(SALE)]);
     const rows = readFileSync(salesFilePath, "utf8").split(/\r?\n/).filter(Boolean);
     expect(rows).toHaveLength(1); // only the pre-existing record
-    expect(setnx).toHaveBeenCalledWith("lock:sale:polar:sale_dup_1", "1", expect.anything());
+    expect(setnx).toHaveBeenCalledWith("lock:sale:polar:sale_dup_1", expect.any(String), expect.anything());
   });
 
   it("a retry for a recorded sale re-attempts delivery (a prior attempt may have failed after the ledger write)", async () => {
@@ -403,7 +446,7 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
     delivery.deliverSaleForWebhook.mockClear();
     await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(SALE)]);
     expect(delivery.deliverSaleForWebhook).toHaveBeenCalledTimes(1);
-    expect(delivery.deliverSaleForWebhook).toHaveBeenCalledWith({ provider: "polar", saleId: "sale_dup_1", productAlias: "p1", buyerEmail: "buyer@example.com" });
+    expect(delivery.deliverSaleForWebhook).toHaveBeenCalledWith({ provider: "polar", saleId: "sale_dup_1", productAlias: "p1", buyerEmail: "buyer@example.com", fence: expect.any(Number) });
   });
 
   it("a newly recorded sale delivers under the provider that issued it, not a shared default", async () => {
@@ -1543,6 +1586,7 @@ describe("legacy-wrapped Fungies sale end-to-end (audit R01)", () => {
   const E2E_SECRET = randomBytes(16).toString("hex"); // per run: nothing credential-shaped is committed
   beforeEach(() => {
     setnx.mockReset();
+    mockFenceSeq = 0;
     setnx.mockResolvedValue(1);
     delivery.deliverSaleForWebhook.mockClear();
     mkdirSync(salesFileDir, { recursive: true });
@@ -1559,6 +1603,7 @@ describe("legacy-wrapped Fungies sale end-to-end (audit R01)", () => {
     const body = JSON.stringify({
       id: "evt_e2e",
       type: "payment_success",
+      testMode: false,
       data: {
         items: [{ customFields: { product_id: "p1", attribution_id: "yt:e2e" } }],
         payment: { id: "pay_e2e", value: 3900, currency: "USD", currencyDecimals: 2, createdAt: 1759000000000 },
@@ -1575,7 +1620,7 @@ describe("legacy-wrapped Fungies sale end-to-end (audit R01)", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({ sale_id: "pay_e2e", provider: "fungies", amount_usd: 39, currency: "USD", attribution_id: "yt:e2e" });
     expect(JSON.stringify(rows[0])).not.toContain("buyer@example.com"); // raw email never persisted
-    expect(delivery.deliverSaleForWebhook).toHaveBeenCalledWith({ saleId: "pay_e2e", productAlias: "p1", buyerEmail: "buyer@example.com", provider: "fungies" });
+    expect(delivery.deliverSaleForWebhook).toHaveBeenCalledWith({ saleId: "pay_e2e", productAlias: "p1", buyerEmail: "buyer@example.com", provider: "fungies", fence: expect.any(Number) });
   });
 });
 
@@ -1585,6 +1630,7 @@ describe("multi-event delivery end-to-end (audit R04)", () => {
   const FS_SECRET = randomBytes(16).toString("hex");
   beforeEach(() => {
     setnx.mockReset();
+    mockFenceSeq = 0;
     setnx.mockResolvedValue(1);
     delivery.deliverSaleForWebhook.mockClear();
     mkdirSync(salesFileDir, { recursive: true });
@@ -1608,7 +1654,7 @@ describe("multi-event delivery end-to-end (audit R04)", () => {
     const rows = readFileSync(salesFilePath, "utf8").split(/\r?\n/).filter(Boolean).map((r) => JSON.parse(r));
     expect(rows.map((r) => [r.sale_id, r.amount_usd])).toEqual([["ord_a", 29], ["ord_b", 39]]);
     expect(delivery.deliverSaleForWebhook).toHaveBeenCalledTimes(2);
-    expect(delivery.deliverSaleForWebhook).toHaveBeenLastCalledWith({ saleId: "ord_b", productAlias: "p1", buyerEmail: "b@example.com", provider: "fastspring" });
+    expect(delivery.deliverSaleForWebhook).toHaveBeenLastCalledWith({ saleId: "ord_b", productAlias: "p1", buyerEmail: "b@example.com", provider: "fastspring", fence: expect.any(Number) });
   });
 
   // F1: a failed event must not stop its siblings. A terminal (4xx) failure is final for the provider,
@@ -1663,5 +1709,111 @@ describe("multi-event delivery end-to-end (audit R04)", () => {
     ]);
     await expect(run).rejects.toThrow(/Unknown product_id/);
     expect(bookedRows()).toEqual([["ord_y", 39]]);
+  });
+});
+
+// F-09: the provider's mode must equal the product's checkout_mode. F-14: a contended lock is acknowledged only when the
+// sale is recorded AND its receipt is confirmed sent.
+describe("sale mode gate (F-09) and contended-lock confirmation (F-14)", () => {
+  const booked = (): string[] => {
+    try {
+      return readFileSync(salesFilePath, "utf8")
+        .split(/\r?\n/)
+        .filter(Boolean)
+        .map((line) => (JSON.parse(line) as { sale_id: string }).sale_id);
+    } catch {
+      return []; // no ledger file: nothing booked
+    }
+  };
+  const RECORD: SaleRecord = {
+    ts: "2026-09-27T00:00:00.000Z",
+    sale_id: "sale_recorded_1",
+    provider: "polar",
+    product_id: "p1",
+    amount_usd: 39,
+    creator_id: "c1",
+    creator_split_pct: 50,
+    creator_split_usd: 19.5,
+    our_split_usd: 19.5,
+    currency: "USD",
+  };
+
+  beforeEach(() => {
+    setnx.mockReset().mockResolvedValue(1);
+    delivery.deliverSaleForWebhook.mockClear();
+    delivery.saleDeliveryConfirmed.mockReset().mockResolvedValue(false);
+    mkdirSync(salesFileDir, { recursive: true });
+    vi.stubEnv("UPSTASH_REDIS_REST_URL", "https://unit.test.redis.example");
+    vi.stubEnv("UPSTASH_REDIS_REST_TOKEN", "unit-test-token");
+  });
+  afterEach(() => {
+    rmSync(salesFileDir, { recursive: true, force: true });
+    vi.unstubAllEnvs();
+  });
+
+  const run = (event: SaleCompletedEvent) => processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(event)]);
+  async function refusal(event: SaleCompletedEvent): Promise<WebhookValidationError> {
+    const err = await run(event).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(WebhookValidationError);
+    return err as WebhookValidationError;
+  }
+
+  it("a live sale on a live product is booked and delivered", async () => {
+    await run({ ...SALE, saleId: "sale_mode_ok", providerMode: "live" });
+    expect(booked()).toEqual(["sale_mode_ok"]);
+    expect(delivery.deliverSaleForWebhook).toHaveBeenCalledTimes(1);
+  });
+
+  it("a sandbox sale on a sandbox product is booked (the mode matches)", async () => {
+    await run({ ...SALE, saleId: "sale_sbx_ok", productId: "p_sandbox", providerMode: "sandbox" });
+    expect(booked()).toEqual(["sale_sbx_ok"]);
+  });
+
+  it("a sandbox (test-mode) event on a live product is refused: 422 SALE_MODE_MISMATCH, no row, no link", async () => {
+    const err = await refusal({ ...SALE, saleId: "sale_test_on_live", providerMode: "sandbox" });
+    expect(err.httpStatus).toBe(422);
+    expect(err.name).toBe("SALE_MODE_MISMATCH");
+    expect(booked()).toEqual([]);
+    expect(delivery.deliverSaleForWebhook).not.toHaveBeenCalled();
+  });
+
+  it("a live event on a sandbox product is refused: 422 SALE_MODE_MISMATCH, no row, no link", async () => {
+    const err = await refusal({ ...SALE, saleId: "sale_live_on_sbx", productId: "p_sandbox", providerMode: "live" });
+    expect(err.name).toBe("SALE_MODE_MISMATCH");
+    expect(booked()).toEqual([]);
+    expect(delivery.deliverSaleForWebhook).not.toHaveBeenCalled();
+  });
+
+  it("a live event on a gated product (not open for sale) is refused: 422 SALE_MODE_MISMATCH", async () => {
+    const err = await refusal({ ...SALE, saleId: "sale_gated", productId: "p_gated", providerMode: "live" });
+    expect(err.name).toBe("SALE_MODE_MISMATCH");
+    expect(booked()).toEqual([]);
+    expect(delivery.deliverSaleForWebhook).not.toHaveBeenCalled();
+  });
+
+  it("an event with no provider mode is refused (fail closed): 422 SALE_MODE_UNKNOWN, no row, no link", async () => {
+    const err = await refusal({ ...SALE, saleId: "sale_no_mode", providerMode: undefined });
+    expect(err.httpStatus).toBe(422);
+    expect(err.name).toBe("SALE_MODE_UNKNOWN");
+    expect(booked()).toEqual([]);
+    expect(delivery.deliverSaleForWebhook).not.toHaveBeenCalled();
+  });
+
+  it("a contended lock on a sale that is recorded AND confirmed sent is acknowledged, with no second write or send", async () => {
+    await appendSale({ ...RECORD, sale_id: "sale_contended_ok" }, salesFilePath);
+    setnx.mockResolvedValue(0); // another delivery holds the lock
+    delivery.saleDeliveryConfirmed.mockResolvedValue(true);
+    await expect(run({ ...SALE, saleId: "sale_contended_ok", providerMode: "live" })).resolves.toBeUndefined();
+    expect(booked()).toEqual(["sale_contended_ok"]);
+    expect(delivery.deliverSaleForWebhook).not.toHaveBeenCalled();
+  });
+
+  it("a contended lock with a confirmed receipt but NO recorded sale is still in-flight (never acknowledged)", async () => {
+    setnx.mockResolvedValue(0);
+    delivery.saleDeliveryConfirmed.mockResolvedValue(true);
+    await expect(run({ ...SALE, saleId: "sale_contended_unrecorded", providerMode: "live" })).rejects.toMatchObject({
+      name: "WebhookInFlightError",
+    });
+    expect(booked()).toEqual([]);
   });
 });

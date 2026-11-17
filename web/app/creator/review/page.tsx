@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { naturalCode } from "../../../src/lib/natural-code";
+import { anchorPageOf } from "../../../src/lib/review-anchor";
 import { getPortalSession } from "../../../src/lib/supabase-server";
 import { resolvePrimaryProduct } from "../../../src/lib/primary-product";
 import ReviewClient from "./review-client";
@@ -61,9 +62,11 @@ export default async function ReviewPage() {
     .order("code", { ascending: true })
     .limit(500);
 
-  const allItems = (itemsRes.data ?? []).sort((a, b) => naturalCode(a.code, b.code));
+  const sortedItems = (itemsRes.data ?? []).sort((a, b) => naturalCode(a.code, b.code));
+  // Gate: a question with no page anchor used to highlight page 1. Serve only anchored questions.
+  const allItems = sortedItems.filter((it) => anchorPageOf(it.anchor) !== null);
 
-  if (itemsRes.error || allItems.length === 0) {
+  if (itemsRes.error || sortedItems.length === 0) {
     return (
       <ReviewNotice
         title={itemsRes.error ? "We couldn't load your review items." : "No review items yet."}
@@ -71,14 +74,35 @@ export default async function ReviewPage() {
       />
     );
   }
+  if (allItems.length === 0) {
+    return (
+      <ReviewNotice
+        title="Your review questions are being checked."
+        body="Each question is shown only once it points to its page in your book. Nothing is missing from your work."
+      />
+    );
+  }
 
   const itemIds = allItems.map((it) => it.id);
-  const answersRes = await supabase
-    .from("review_answers")
-    .select("item_id, choice, free_text, answered_at")
-    .in("item_id", itemIds)
-    .order("answered_at", { ascending: false })
-    .limit(500);
+  const [answersRes, pdfUrl] = await Promise.all([
+    supabase
+      .from("review_answers")
+      .select("item_id, choice, free_text, answered_at")
+      .in("item_id", itemIds)
+      .order("answered_at", { ascending: false })
+      .limit(500),
+    // Short-lived signed URL for the private review PDF (server-side, RLS).
+    (async (): Promise<string | null> => {
+      if (!product.release_path) return null;
+      try {
+        const { data } = await supabase.storage.from("review-pdfs").createSignedUrl(product.release_path, 3600);
+        return data?.signedUrl ?? null;
+      } catch (err) {
+        console.error("[review] signed URL creation failed:", err);
+        return null;
+      }
+    })(),
+  ]);
 
   // A failed answers read must not look like "nothing answered yet".
   if (answersRes.error) {
@@ -96,20 +120,8 @@ export default async function ReviewPage() {
     if (!saved.has(a.item_id)) saved.set(a.item_id, { choice: a.choice, freeText: a.free_text });
   }
 
-  // Short-lived signed URL for the private review PDF (server-side, RLS).
-  let pdfUrl: string | null = null;
-  if (product.release_path) {
-    try {
-      const { data } = await supabase.storage.from("review-pdfs").createSignedUrl(product.release_path, 3600);
-      pdfUrl = data?.signedUrl ?? null;
-    } catch (err) {
-      console.error("[review] signed URL creation failed:", err);
-    }
-  }
-
   const items: ReviewItemView[] = allItems.map((it) => {
-    const anchor = (it.anchor ?? null) as { page?: number; touchpoints?: { page?: number }[] } | null;
-    const anchorPage = anchor?.touchpoints?.[0]?.page ?? anchor?.page ?? null;
+    const anchorPage = anchorPageOf(it.anchor);
     return {
       id: it.id,
       code: it.code,

@@ -1,16 +1,19 @@
 // Zod gate before orders.upsert (Sprint 11): invalid rows never reach Supabase.
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-const db = vi.hoisted(() => ({ upserts: [] as Array<{ row: Record<string, unknown>; opts: unknown }> }));
+const db = vi.hoisted(() => ({
+  upserts: [] as Array<{ row: Record<string, unknown>; opts: unknown }>,
+  onUpsert: null as ((row: Record<string, unknown>, opts: unknown) => { error: { code?: string; message: string } | null }) | null,
+}));
 vi.mock("@supabase/supabase-js", () => ({
   createClient: () => ({
     from: () => ({
       upsert: async (row: Record<string, unknown>, opts: unknown) => {
         db.upserts.push({ row, opts });
-        return { error: null };
+        return db.onUpsert ? db.onUpsert(row, opts) : { error: null };
       },
     }),
   }),
@@ -36,6 +39,7 @@ describe("orders upsert Zod boundary", () => {
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), "orders-zod-"));
     db.upserts = [];
+    db.onUpsert = null;
     vi.stubEnv("SUPABASE_URL", "https://unit.test.supabase.co");
     vi.stubEnv("SUPABASE_SECRET_KEY", "unit-test-key");
   });
@@ -137,5 +141,39 @@ describe("orders upsert Zod boundary", () => {
     const rest: Record<string, unknown> = { ...sale, event_type: "sale", email_hash: null, attribution_id: null, provider_adjustment_id: null, occurred_at: sale.ts };
     delete rest.ts;
     expect(OrderUpsertSchema.safeParse({ ...rest, amount_cents: 3900 }).success).toBe(false);
+  });
+
+  it("migration pins unique (provider, sale_id, event_type) on public.orders matching upsert conflict target (never dropped)", () => {
+    const migrationsDir = join(import.meta.dirname, "..", "..", "supabase", "migrations");
+    const files = readdirSync(migrationsDir).filter((f) => f.endsWith(".sql")).sort();
+    const ledgerSql = readFileSync(join(migrationsDir, "20260927000200_orders_ledger.sql"), "utf8");
+    expect(ledgerSql).toMatch(/unique\s*\(\s*provider\s*,\s*sale_id\s*,\s*event_type\s*\)/i);
+    for (const f of files) {
+      const sql = readFileSync(join(migrationsDir, f), "utf8");
+      expect(sql).not.toMatch(/drop\s+(?:constraint|index)\b[\s\S]*orders_provider_sale_id_event_type/i);
+    }
+  });
+
+  it("duplicate sale write (e.g. TTL race) cannot double-record in orders and fails closed on 23505 without writing locally", async () => {
+    const rowsByKey = new Map<string, Record<string, unknown>>();
+    db.onUpsert = (row, opts) => {
+      expect(opts).toEqual({ onConflict: "provider,sale_id,event_type" });
+      const key = `${String(row.provider)}|${String(row.sale_id)}|${String(row.event_type)}`;
+      rowsByKey.set(key, row); // Postgres ON CONFLICT (provider, sale_id, event_type) keeps at most one row
+      return { error: null };
+    };
+    const file = join(dir, "sales.jsonl");
+    await appendSale(sale, file);
+    await appendSale(sale, file);
+    expect(rowsByKey.size).toBe(1);
+
+    // If a DB insert/constraint raises 23505 on orders_provider_sale_id_event_type_key, the error code is preserved and no local row is written.
+    const file2 = join(dir, "sales_23505.jsonl");
+    db.onUpsert = () => ({
+      error: { code: "23505", message: 'duplicate key value violates unique constraint "orders_provider_sale_id_event_type_key"' },
+    });
+    const err = await appendSale(sale, file2).catch((e: unknown) => e);
+    expect(err).toMatchObject({ code: "23505" });
+    expect(existsSync(file2)).toBe(false);
   });
 });

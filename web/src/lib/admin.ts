@@ -1,6 +1,6 @@
 import "server-only";
 import { createClient } from "@supabase/supabase-js";
-import { getPortalSession } from "./supabase-server";
+import { getVerifiedPortalSession } from "./supabase-server";
 import { GLOBAL } from "../../../payments/src/settings_registry";
 
 /**
@@ -25,8 +25,9 @@ export interface AdminAuditRow {
 
 export type AdminAccess = { status: "ok"; userId: string } | { status: "unauthenticated" } | { status: "forbidden" };
 
+/** Admin access is granted only on a server-verified session (revocation-safe). */
 export async function resolveAdminAccess(): Promise<AdminAccess> {
-  const session = await getPortalSession();
+  const session = await getVerifiedPortalSession();
   if (!session) return { status: "unauthenticated" };
   const allowlist = GLOBAL.admin.admin_user_ids;
   if (allowlist.length === 0 || !allowlist.includes(session.user.id.toLowerCase())) return { status: "forbidden" };

@@ -2,6 +2,7 @@ import { EsignEvidencePort, EsignProviderPort, EsignWebhookPort, CreateEnvelopeC
 import { FirmaAdapter } from "./firma.adapter.ts";
 import { EsignSettings, ProviderStrategy } from "../../domain/settings/settings.port.ts";
 import { MatrixRouter } from "../../infrastructure/matrix_router/matrix_router.ts";
+import { MatrixRouterUnavailableError } from "../../infrastructure/matrix_router/matrix_router_errors.ts";
 
 export type EsignAdapter = EsignProviderPort & EsignWebhookPort & EsignEvidencePort;
 
@@ -35,6 +36,8 @@ export class CompositeEsignAdapter implements EsignAdapter {
     try {
        primaryName = await MatrixRouter.getNextProvider("esign", "global_esign", this.strategy.distribution);
     } catch (e) {
+       // Every e-sign rail is marked down: fail loud. Falling back to the first rail would bypass the breaker.
+       if (e instanceof MatrixRouterUnavailableError) throw e;
        console.warn("MatrixRouter failed, falling back to basic resolution:", e);
        primaryName = this.strategy.distribution[0].provider;
     }

@@ -54,6 +54,8 @@ const AGREEMENT_PDF_BYTES = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31])
 // the evidence flow hashes the fetched bytes and cross-checks (sprint 12), so
 // the fixture hash MUST equal the hash of the bytes the fetch mock returns.
 const DOCUMENT_HASH = crypto.createHash("sha256").update(AGREEMENT_PDF_BYTES).digest("hex");
+// Lowercase UUID: the consent evidence path rule requires one as the first segment (F-07).
+const USER_UUID = "57596c19-c550-4bde-b17a-e87b86d005c5";
 
 function signedBody(payload: unknown, secret = SECRET): { body: string; headers: Record<string, string> } {
   const body = JSON.stringify(payload);
@@ -154,7 +156,7 @@ describe("esign webhook (Firma HMAC contract)", () => {
       }),
     };
 
-    const { body, headers } = signedBody(completedPayload({ productId: "p1", userId: "u1" }), "attacker-secret");
+    const { body, headers } = signedBody(completedPayload({ productId: "p1", userId: USER_UUID }), "attacker-secret");
     const request = { body, headers, ip: "10.0.0.1", userAgent: "firma-webhook" };
 
     await expect(processEsignWebhookUseCase(request, settings, { submitConsent, flagConsentForManualReview: vi.fn(), hasConsentFor: vi.fn().mockResolvedValue(false) })).rejects.toSatisfy((e: unknown) => {
@@ -181,7 +183,7 @@ describe("esign webhook (Firma HMAC contract)", () => {
       }),
     };
 
-    const body = JSON.stringify(completedPayload({ productId: "p1", userId: "u1" }));
+    const body = JSON.stringify(completedPayload({ productId: "p1", userId: USER_UUID }));
     const request = { body, headers: { "content-type": "application/json" }, ip: "10.0.0.1", userAgent: "" };
 
     await expect(processEsignWebhookUseCase(request, settings, { submitConsent, flagConsentForManualReview: vi.fn(), hasConsentFor: vi.fn().mockResolvedValue(false) })).rejects.toThrow("validation failed");
@@ -230,7 +232,7 @@ describe("esign webhook (Firma HMAC contract)", () => {
     // requires. Terminal typed 400: Firma stops retrying, nothing is written.
     const { body, headers } = signedBody({
       type: "signing_request.completed",
-      data: { signing_request: { id: "env_no_hash", metadata: { productId: "p1", userId: "u1" } } },
+      data: { signing_request: { id: "env_no_hash", metadata: { productId: "p1", userId: USER_UUID } } },
     });
     const request = { body, headers, ip: "10.0.0.1", userAgent: "firma-webhook" };
 
@@ -260,7 +262,7 @@ describe("esign webhook (Firma HMAC contract)", () => {
     const hex = crypto.createHash("sha256").update("array-hash-case").digest("hex");
     const { body, headers } = signedBody({
       type: "signing_request.completed",
-      data: { signing_request: { id: "env_array_hash", metadata: { productId: "p1", userId: "u1" }, document_sha256: [hex] } },
+      data: { signing_request: { id: "env_array_hash", metadata: { productId: "p1", userId: USER_UUID }, document_sha256: [hex] } },
     });
     const request = { body, headers, ip: "10.0.0.1", userAgent: "firma-webhook" };
 
@@ -285,7 +287,7 @@ describe("esign webhook (Firma HMAC contract)", () => {
       }),
     };
 
-    const { body, headers } = signedBody(completedPayload({ productId: "prod_42", userId: "user_7" }));
+    const { body, headers } = signedBody(completedPayload({ productId: "prod_42", userId: USER_UUID }));
     const request = { body, headers, ip: "203.0.113.9", userAgent: "firma-webhook/1.0" };
 
     const flagConsentForManualReview = vi.fn().mockResolvedValue(undefined);
@@ -296,7 +298,7 @@ describe("esign webhook (Firma HMAC contract)", () => {
     expect(flagConsentForManualReview).toHaveBeenCalledWith(expect.objectContaining({ reason: "legacy_text_version", envelope_id: "env_123", snapshot: "missing" }));
     expect(submitConsent).toHaveBeenCalledWith({
       productId: "prod_42",
-      userId: "user_7",
+      userId: USER_UUID,
       kind: "C3_revenue_split",
       decision: "given",
       textVersion: "legacy/unknown",
@@ -306,7 +308,7 @@ describe("esign webhook (Firma HMAC contract)", () => {
       userAgent: "firma-webhook/1.0",
       authProvider: "firma",
       externalRef: "env_123",
-      evidencePath: "user_7/env_123.pdf",
+      evidencePath: `${USER_UUID}/env_123.pdf`,
     });
     // Evidence-before-insert (F1): the signed PDF was fetched from Firma (2
     // live-verified steps: resource JSON → signed URL), uploaded to the
@@ -318,7 +320,7 @@ describe("esign webhook (Firma HMAC contract)", () => {
     const [signedUrl] = fetchMock.mock.calls[1] as unknown as [string];
     expect(signedUrl).toContain("/object/sign/");
     const [putUrl, putInit] = fetchMock.mock.calls[2] as unknown as [string, RequestInit];
-    expect(putUrl).toBe("https://unit.test.supabase.co/storage/v1/object/consents/user_7/env_123.pdf");
+    expect(putUrl).toBe(`https://unit.test.supabase.co/storage/v1/object/consents/${USER_UUID}/env_123.pdf`);
     expect(putInit.method).toBe("PUT");
     expect(putInit.headers).toMatchObject({
       "Content-Type": "application/pdf",
@@ -329,7 +331,7 @@ describe("esign webhook (Firma HMAC contract)", () => {
     const uploadedBytes = new Uint8Array(putInit.body as Uint8Array);
     expect(uploadedBytes).toEqual(AGREEMENT_PDF_BYTES);
     const [verifyUrl] = fetchMock.mock.calls[3] as unknown as [string];
-    expect(verifyUrl).toBe("https://unit.test.supabase.co/storage/v1/object/consents/user_7/env_123.pdf");
+    expect(verifyUrl).toBe(`https://unit.test.supabase.co/storage/v1/object/consents/${USER_UUID}/env_123.pdf`);
   });
 
   it("emits a command that satisfies the submit_consent RPC contract (real Firma-shaped ids)", async () => {
@@ -377,7 +379,7 @@ describe("esign webhook (Firma HMAC contract)", () => {
         payments: { checkoutStrategy: { mode: "2d", distribution: [{ provider: "polar", weight: 100 }], fallbacks: [] } },
       }),
     };
-    const { body, headers } = signedBody(completedPayload({ productId: "prod_42", userId: "user_7", textVersion: "garbage" }));
+    const { body, headers } = signedBody(completedPayload({ productId: "prod_42", userId: USER_UUID, textVersion: "garbage" }));
     const request = { body, headers, ip: "203.0.113.9", userAgent: "firma-webhook/1.0" };
     const flagConsentForManualReview = vi.fn().mockResolvedValue(undefined);
     vi.stubGlobal("fetch", evidenceFetchMock());
@@ -504,6 +506,46 @@ describe("esign webhook route — terminal-reject quarantine (compiled sweep)", 
     expect(inserts).toHaveLength(0); // unauthenticated senders must not force service-role audit writes
   });
 
+  it("a missing FIRMA_WEBHOOK_SECRET is a server fault: 500 (retryable), logged as one, no terminal reject row", async () => {
+    vi.resetModules();
+    // Run the real use case and Firma adapter: undo the use-case mock that earlier tests in this block registered.
+    vi.doUnmock("../../../../src/use_cases/process_esign_webhook");
+    const inserts: Array<{ event?: string }> = [];
+    vi.doMock("@supabase/supabase-js", () => ({
+      createClient: () => ({
+        from: (table: string) => ({
+          insert: (row: unknown) => {
+            if (table === "audit_log") inserts.push(row as { event?: string });
+            const insertResult = Promise.resolve({ error: null });
+            return Object.assign(insertResult, { abortSignal: () => insertResult });
+          },
+        }),
+      }),
+    }));
+    vi.stubEnv("SUPABASE_URL", "https://unit.test.supabase.co");
+    vi.stubEnv("SUPABASE_SECRET_KEY", "unit-test-key");
+    vi.stubEnv("FIRMA_WEBHOOK_SECRET", "");
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const { POST } = await import("../../../app/api/esign/webhook/route");
+      const payload = JSON.stringify({ type: "signing_request.completed", data: { signing_request: { id: "env_cfg" } } });
+      const req = new Request("https://expanpress.com/api/esign/webhook", {
+        method: "POST",
+        body: payload,
+        headers: { "x-firma-signature": "0".repeat(64) },
+      });
+      const res = await POST(req as never);
+      // The 500 comes from the missing-secret branch, not from an unrelated exception.
+      const causes = errorSpy.mock.calls.flat().filter((a): a is Error => a instanceof Error);
+      expect(causes.some((e) => e.message.includes("FIRMA_WEBHOOK_SECRET not configured"))).toBe(true);
+      expect(res.status).toBe(500);
+      expect(inserts).toHaveLength(0); // a retryable fault is not a terminal reject
+      expect(errorSpy.mock.calls.some((c) => String(c[0]).includes("server fault (status 500)"))).toBe(true);
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
+
   it("takes the audit IP from x-real-ip ahead of a spoofed x-forwarded-for", async () => {
     vi.resetModules();
     const processSpy = vi.fn(async () => undefined);
@@ -572,7 +614,7 @@ describe("FirmaAdapter.fetchCompletedDocument — live-shape contract", () => {
     expect((fetchMock.mock.calls[1][1] as RequestInit | undefined)?.headers).toBeUndefined();
   });
 
-  it("prefers final_document_download_url when populated, falls back to document_url", async () => {
+  it("fetches final_document_download_url when it is populated (the unsigned document_url is not asserted here)", async () => {
     const fetchMock = vi.fn((input: unknown, _init?: RequestInit) => {
       const url = String(input);
       if (/\/signing-requests\/[^/]+$/.test(url)) {

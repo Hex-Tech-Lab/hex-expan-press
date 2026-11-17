@@ -3,6 +3,7 @@ import { createEsignAdapter } from "../adapters/esign/esign.factory.ts";
 import { ConsentDatabasePort } from "../domain/governance/consent.port.ts";
 import { WebhookValidationError } from "../domain/webhook/webhook_errors.ts";
 import { createHash } from "node:crypto";
+import { consentEvidencePathRules } from "../../payments/src/settings_registry.ts";
 
 /** text_version recorded when the envelope carries no valid snapshot of the wording the signer saw. */
 export const LEGACY_TEXT_VERSION = "legacy/unknown";
@@ -51,6 +52,16 @@ export async function processEsignWebhookUseCase(
       throw new WebhookValidationError(`Webhook validation failed: completed envelope ${event.envelopeId} is missing productId/userId metadata`);
     }
     const envelopeId = event.envelopeId;
+
+    // Path gate (F-07): userId and envelopeId become the Storage object path `<userId>/<envelopeId>.pdf`, and the
+    // upload runs with service_role and x-upsert. Refuse any value that cannot name an evidence object BEFORE a
+    // path is built or anything is uploaded. Rules come from the settings registry; the DB CHECK is the backstop.
+    const evidenceRules = consentEvidencePathRules();
+    if (!evidenceRules.userId.test(userId) || typeof envelopeId !== "string" || !evidenceRules.envelopeId.test(envelopeId)) {
+      throw new WebhookValidationError(
+        `Webhook validation failed: completed envelope ${typeof envelopeId === "string" ? envelopeId.slice(0, 64) : "(non-string id)"} has a userId or envelopeId that cannot name an evidence object`
+      );
+    }
 
     // Hash gate (sprint-10 audit F3): an empty or non-64-hex document_sha256
     // violates consents_document_sha256_check. Previously the DB rejection was

@@ -49,13 +49,14 @@ export interface DashboardClientProps {
   hasC3: boolean;
   journeyActive: number;
   /** Dashboard ?error= param from a failed Step 3 Server Action redirect. */
-  actionError?: "credits" | "esign" | "no_product";
+  actionError?: "credits" | "esign" | "no_product" | "load_failed";
 }
 
 const ACTION_ERROR_COPY: Record<NonNullable<DashboardClientProps["actionError"]>, string> = {
   credits: "The signing service is awaiting credit activation — please try again shortly.",
   esign: "Something went wrong starting your agreement — please try again.",
   no_product: "No product is linked to your account yet — contact support@expanpress.com.",
+  load_failed: "We could not load your agreement status. Please reload. If it keeps happening, contact support.",
 };
 
 const JOURNEY_LABELS = ["Bio & Content", "Legal & Assets", "Revenue & Publish"];

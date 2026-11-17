@@ -71,11 +71,25 @@ export function hydrateUserFromLocalJwt(token: string): User | null {
   } as User;
 }
 
+interface ReadPortalSession extends PortalSession {
+  accessToken: string;
+}
+
+function safeErrorName(err: unknown): string {
+  if (err instanceof Error && err.name) return err.name.replace(/[\r\n]+/g, " ").trim() || "Error";
+  if (err !== null && typeof err === "object" && "name" in err && typeof (err as { name?: unknown }).name === "string") {
+    const name = (err as { name: string }).name.replace(/[\r\n]+/g, " ").trim();
+    if (name) return name;
+  }
+  return "UnknownError";
+}
+
 /**
- * Resolve the portal session from the ssr HttpOnly cookie. Returns null when
- * unauthenticated — callers redirect to /creator/signin (server-side).
+ * Read the ssr cookie session. The user is hydrated from the local JWT when it is
+ * valid for more than 60s (no network); otherwise validated online. NOT revocation-
+ * safe: a session revoked server-side stays readable until its token expires.
  */
-export async function getPortalSession(): Promise<PortalSession | null> {
+async function readPortalSession(): Promise<ReadPortalSession | null> {
   const cookieStore = await cookies();
 
   const hasSsrCookie = cookieStore.getAll().some((c) => c.name.startsWith(SSR_COOKIE));
@@ -102,16 +116,39 @@ export async function getPortalSession(): Promise<PortalSession | null> {
       if (!user) {
         user = await validateJwt(session.access_token);
       }
-      if (user) return { user, supabase: clientWithJwt(session.access_token) };
+      if (user) return { user, supabase: clientWithJwt(session.access_token), accessToken: session.access_token };
     }
   } catch (err) {
-    // Malformed/chunked ssr cookies — fail closed (null).
-    if (process.env.NODE_ENV !== "production") {
-      console.warn("[supabase-server] ssr session read failed", err);
-    }
+    // Malformed/chunked ssr cookies — fail closed (null). Log error name only (never tokens/cookies/message).
+    console.error(`[supabase-server] ssr session read failed: ${safeErrorName(err)}`);
   }
 
   return null;
+}
+
+/**
+ * Read-only portal session (dashboard, review and consent pages). Local JWT
+ * hydration is allowed here; see getVerifiedPortalSession for anything that writes
+ * or grants access. Returns null when unauthenticated — callers redirect to /creator/signin.
+ */
+export async function getPortalSession(): Promise<PortalSession | null> {
+  const session = await readPortalSession();
+  return session ? { user: session.user, supabase: session.supabase } : null;
+}
+
+/**
+ * Revocation-safe portal session for mutations (consent signing, review answers)
+ * and admin access. The session is verified against the auth server on every
+ * call (auth.getUser with the explicit access token), so a session revoked
+ * server-side is refused immediately instead of for up to the JWT lifetime.
+ * Returns null when the cookie is absent, malformed, or rejected by the auth server.
+ */
+export async function getVerifiedPortalSession(): Promise<PortalSession | null> {
+  const session = await readPortalSession();
+  if (!session) return null;
+  const user = await validateJwt(session.accessToken);
+  if (!user) return null;
+  return { user, supabase: session.supabase };
 }
 
 /** Sign-out: clear every portal auth cookie (Server Action context). */

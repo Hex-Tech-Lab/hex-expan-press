@@ -409,4 +409,98 @@ describe("getPortalSession (Wave 5 ssr-only authorization branches)", () => {
     expect(cookieStore.has("sb-portal-auth.1")).toBe(false);
     expect(cookieStore.has("unrelated-cookie")).toBe(true);
   });
+
+  it("logs error name only (even in production) and returns null when session read throws", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    setCookie("sb-portal-auth", "corrupt-cookie-secret-val");
+    const err = new SyntaxError("Unexpected token in cookie sb-portal-auth=secret-jwt-token");
+    getSessionMock.mockRejectedValueOnce(err);
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const { getPortalSession } = await import("../supabase-server");
+      const result = await getPortalSession();
+      expect(result).toBeNull();
+      expect(errorSpy).toHaveBeenCalledTimes(1);
+      const logged = String(errorSpy.mock.calls[0]?.[0] ?? "");
+      expect(logged).toContain("SyntaxError");
+      expect(logged).not.toContain("\n");
+      expect(logged).not.toContain("secret-jwt-token");
+      expect(logged).not.toContain("Unexpected token");
+      expect(logged).not.toContain("corrupt-cookie-secret-val");
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
+
+  it("logs UnknownError and returns null when session read throws a raw string", async () => {
+    vi.stubEnv("NODE_ENV", "production");
+    setCookie("sb-portal-auth", "corrupt-cookie");
+    getSessionMock.mockRejectedValueOnce("bearer-secret-token-body");
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const { getPortalSession } = await import("../supabase-server");
+      const result = await getPortalSession();
+      expect(result).toBeNull();
+      expect(errorSpy).toHaveBeenCalledTimes(1);
+      const logged = String(errorSpy.mock.calls[0]?.[0] ?? "");
+      expect(logged).toContain("UnknownError");
+      expect(logged).not.toContain("bearer-secret-token-body");
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
+});
+
+// Argon F-08: the read-only session may hydrate from a locally valid JWT, but mutations and
+// admin access must verify the session with the auth server, so a revoked session is refused.
+describe("getVerifiedPortalSession (Argon F-08 revocation-safe)", () => {
+  beforeEach(() => {
+    cookieStore.clear();
+    getUserMock.mockReset();
+    getSessionMock.mockReset();
+    createClientMock.mockClear();
+    createServerClientMock.mockClear();
+    vi.stubEnv("SUPABASE_JWT_SECRET", MOCK_HMAC_KEY);
+    vi.stubEnv("NODE_ENV", "test");
+  });
+
+  function locallyValidSession(): string {
+    const futureExpiry = Math.floor(Date.now() / 1000) + 3600;
+    const accessToken = makeTestJwt({ sub: TEST_SUB_UUID, aud: "authenticated", exp: futureExpiry, email: "rev@expanpress.com" });
+    setCookie("sb-portal-auth", "revocable-session");
+    getSessionMock.mockResolvedValue({ data: { session: { access_token: accessToken, expires_at: futureExpiry } } });
+    return accessToken;
+  }
+
+  it("refuses a locally valid JWT that the auth server rejects (revoked session)", async () => {
+    const accessToken = locallyValidSession();
+    getUserMock.mockResolvedValue({ data: { user: null }, error: { message: "invalid JWT: session revoked" } });
+    const { getVerifiedPortalSession } = await import("../supabase-server");
+    expect(await getVerifiedPortalSession()).toBeNull();
+    expect(getUserMock).toHaveBeenCalledWith(accessToken);
+  });
+
+  it("the read-only session still hydrates the same revoked token locally (no network)", async () => {
+    locallyValidSession();
+    getUserMock.mockResolvedValue({ data: { user: null }, error: { message: "invalid JWT: session revoked" } });
+    const { getPortalSession } = await import("../supabase-server");
+    const session = await getPortalSession();
+    expect(session?.user.id).toBe(TEST_SUB_UUID);
+    expect(getUserMock).not.toHaveBeenCalled();
+  });
+
+  it("returns the server-confirmed user when the auth server accepts the session", async () => {
+    const accessToken = locallyValidSession();
+    getUserMock.mockResolvedValue({ data: { user: { id: "server-user", email: "ok@expanpress.com" } }, error: null });
+    const { getVerifiedPortalSession } = await import("../supabase-server");
+    const session = await getVerifiedPortalSession();
+    expect(session?.user.id).toBe("server-user");
+    expect(getUserMock).toHaveBeenCalledWith(accessToken);
+  });
+
+  it("returns null without any network call when there is no ssr cookie", async () => {
+    const { getVerifiedPortalSession } = await import("../supabase-server");
+    expect(await getVerifiedPortalSession()).toBeNull();
+    expect(getUserMock).not.toHaveBeenCalled();
+  });
 });

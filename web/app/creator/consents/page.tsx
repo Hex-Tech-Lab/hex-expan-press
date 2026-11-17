@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import * as Sentry from "@sentry/nextjs";
 import { getPortalSession } from "../../../src/lib/supabase-server";
 import { resolvePrimaryProduct } from "../../../src/lib/primary-product";
-import { activeConsentKinds } from "../../../src/lib/consent-chain";
+import { portalConsentState } from "../../../src/lib/consent-chain";
+import { loadCreatorConsentRows } from "../../../src/lib/creator-consents";
+import { toError } from "../../../src/lib/error-reporting";
 import ConsentCards from "./consent-cards";
 
 export const metadata: Metadata = {
@@ -13,8 +16,11 @@ export const metadata: Metadata = {
 /**
  * Legal consents (Wave 6.1, RSC — replaces the orphaned legacy static page).
  * Session = ssr HttpOnly cookie, fail-closed server redirect. Reads run
- * under the caller's RLS identity: their product and their given consents
- * (C1 data accuracy, C2 release approval; C3 lands via the Firma webhook).
+ * under the caller's RLS identity. What is shown as signed follows the same
+ * rule as /api/billing/checkout (strict chain head, creator-wide supersession,
+ * C2 bound to the product's current release hash), so a button that checkout
+ * would refuse is never offered as "done" and a button is offered whenever
+ * the release needs signing again.
  */
 export default async function ConsentsPage() {
   const session = await getPortalSession();
@@ -23,11 +29,17 @@ export default async function ConsentsPage() {
   }
   const { supabase } = session;
 
-  // Product first, then ITS consents: a creator with several products must never
-  // see one book's consent as another's (same product resolution as the action).
-  const productRes = await resolvePrimaryProduct<{ id: string; title: string }>(supabase, "id, title");
+  // Product first (its owner scopes the consent chain), then the owner's complete chain.
+  const productRes = await resolvePrimaryProduct<{ id: string; title: string; creator_id: string | null; release_sha256: string | null }>(
+    supabase,
+    "id, title, creator_id, release_sha256",
+  );
   const product = productRes.product;
   if (productRes.error || !product) {
+    if (productRes.error) {
+      console.error("[consents] products query failed:", productRes.error.message);
+      Sentry.captureException(toError(productRes.error), { tags: { surface: "consents", query: "products" } });
+    }
     return (
       <ConsentNotice
         title="We couldn't load your consents."
@@ -36,44 +48,10 @@ export default async function ConsentsPage() {
     );
   }
 
-  // Chain-head resolution (sprint 12 B2, AGY audit P1, sprint 14 Track C1):
-  // fetch decisions for the creator scoped strictly to this product with deterministic order and bound.
-  // DEF-005: replace single-page .limit(500) lockout with bounded pagination up to 5,000 rows.
-  type ConsentPageRow = {
-    id: string;
-    kind: string;
-    decision: string;
-    product_id?: string | null;
-    supersedes?: string | null;
-  };
-  const PAGE_SIZE = 500;
-  const SAFETY_CAP = 5000;
-  const allConsents: ConsentPageRow[] = [];
-  let offset = 0;
-  let consentsError: unknown = null;
-
-  while (offset < SAFETY_CAP) {
-    const { data, error } = (await supabase
-      .from("consents")
-      .select("id, kind, decision, product_id, supersedes")
-      .eq("product_id", product.id)
-      .order("signed_at", { ascending: false })
-      .order("id", { ascending: false })
-      .range(offset, offset + PAGE_SIZE - 1)) as { data: ConsentPageRow[] | null; error: unknown };
-
-    if (error || !data) {
-      consentsError = error ?? new Error("Missing consent data");
-      break;
-    }
-
-    allConsents.push(...data);
-    if (data.length < PAGE_SIZE) {
-      break;
-    }
-    offset += PAGE_SIZE;
-  }
-
-  if (consentsError || allConsents.length >= SAFETY_CAP) {
+  const { rows, error: consentsError } = await loadCreatorConsentRows(supabase, product.creator_id);
+  if (consentsError) {
+    console.error("[consents] consents query failed:", consentsError.message);
+    Sentry.captureException(toError(consentsError), { tags: { surface: "consents", query: "consents" } });
     return (
       <ConsentNotice
         title="We couldn't load your consent states."
@@ -81,14 +59,15 @@ export default async function ConsentsPage() {
       />
     );
   }
-  const active = activeConsentKinds(allConsents, product.id);
+
+  const state = portalConsentState(rows, product.id, product.release_sha256);
 
   return (
     <ConsentCards
       bookTitle={product.title}
-      hasC1={active.has("C1_data_accuracy")}
-      hasC2={active.has("C2_release_approval")}
-      hasC3={active.has("C3_revenue_split")}
+      hasC1={state.hasC1}
+      hasC2={state.hasC2}
+      hasC3={state.hasC3}
     />
   );
 }

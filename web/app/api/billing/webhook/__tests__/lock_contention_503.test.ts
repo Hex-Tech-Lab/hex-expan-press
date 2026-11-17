@@ -23,7 +23,7 @@ vi.mock("@supabase/supabase-js", () => ({
 }));
 vi.mock("../../../../../../src/infrastructure/redis/redis.client.ts", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../../../../../src/infrastructure/redis/redis.client.ts")>()),
-  expanRedis: { setnx: async () => 0, del: async () => 1 }, // the lock is already held
+  expanRedis: { setnx: async () => 0, incr: async () => 1, compareAndDel: async () => 1, del: async () => 1 }, // the lock is already held
 }));
 vi.mock("../../../../../../payments/src/webhook_core.ts", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../../../../../payments/src/webhook_core.ts")>()),
@@ -38,7 +38,17 @@ vi.mock("../../../../../../payments/src/settings_registry.ts", () => ({
   GLOBAL: {
     paths: { sales_ledger: `${ledgerDir}/sales.jsonl` },
     defaults: { currency: "USD" },
-    payments: { webhook_tolerance_seconds: 300, webhook_lock_ttl_seconds: 300, http_timeout_ms: 5000, sync_http_timeout_ms: 30000, retry_after_seconds: 30 },
+    payments: {
+      webhook_tolerance_seconds: 300,
+      webhook_lock_ttl_seconds: 300,
+      webhook_lock_fence_ttl_seconds: 604800,
+      webhook_lock_sale_prefix: "lock:sale:",
+      webhook_lock_refund_prefix: "lock:refund:",
+      webhook_lock_fence_suffix: ":fence",
+      http_timeout_ms: 5000,
+      sync_http_timeout_ms: 30000,
+      retry_after_seconds: 30,
+    },
   },
   expandHome: (p: string) => p,
   isRegisteredPaymentProvider: (name: unknown) => typeof name === "string",

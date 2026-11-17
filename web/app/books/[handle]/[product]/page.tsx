@@ -31,7 +31,7 @@ export async function generateMetadata({
   const result = await fetchStoreProduct(handle, product);
   if (!result) return { title: "Publication · ExpanPress", robots: NOINDEX };
   const { creator, product: p, origin } = result;
-  const title = `${p.title ?? p.composite_slug} · ${creator.display_name} · ExpanPress`;
+  const title = `${p.title ?? p.slug} · ${creator.display_name} · ExpanPress`;
   const description = (p.description ?? `A publication by ${creator.display_name} on ExpanPress.`).slice(0, 155);
   const canonical = `${origin}/books/${creator.handle}/${product}`;
   return {
@@ -59,11 +59,12 @@ export default async function StoreProductPage({
   return (
     <div className="sf-root">
       <div className="wrap">
+        <main>
         <p className="kicker">Digital PDF &middot; Download link by email</p>
         <Link href={`/books/${creator.handle}`} className="backlink">
           &larr; Back to {creator.display_name}&rsquo;s page
         </Link>
-        <h1>{p.title ?? p.composite_slug}</h1>
+        <h1>{p.title ?? p.slug}</h1>
         <p className="byline">
           A creator-collaboration publication &middot; with <b>{creator.display_name}</b>
         </p>
@@ -122,7 +123,9 @@ export default async function StoreProductPage({
           </div>
         )}
 
-        <StorefrontFooter />
+        </main>
+
+        <StorefrontFooter showBuyerLegal={p.checkout_mode === "live"} />
       </div>
     </div>
   );

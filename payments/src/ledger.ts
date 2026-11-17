@@ -5,6 +5,9 @@ import { createHash } from "node:crypto";
 import { z } from "zod";
 import { GLOBAL, isMoneyPath } from "./settings_registry.ts";
 import { getSupabaseAdmin } from "./supabase_admin.ts";
+import { StaleFenceError } from "./delivery_errors.ts";
+
+export { StaleFenceError };
 
 export type LedgerEventType = "sale" | "refund" | "refund_reversal";
 
@@ -119,8 +122,12 @@ export class OrderSchemaError extends Error {
   }
 }
 
-/** Dual-write an order record to Supabase public.orders for permanent serverless persistence. */
-async function persistToSupabaseOrder(record: SaleRecord): Promise<void> {
+/** Dual-write an order record to Supabase public.orders for permanent serverless persistence.
+ *  When a fencing token is supplied, enforces stored fence <= new fence via conditional update. */
+async function persistToSupabaseOrder(record: SaleRecord, fence?: number): Promise<void> {
+  if (fence !== undefined && (typeof fence !== "number" || !Number.isSafeInteger(fence) || fence < 0)) {
+    throw new TypeError("ledger: fence token must be a non-negative safe integer");
+  }
   // Client construction stays inside the dual-write error boundary (Cubic P3,
   // PR #80 fix-forward): an import/createClient failure is logged and wrapped
   // exactly like any other dual-write failure. The null-guard (unconfigured
@@ -162,13 +169,69 @@ async function persistToSupabaseOrder(record: SaleRecord): Promise<void> {
     if (!parsed.success) {
       throw new OrderSchemaError(`ledger: orders row failed schema validation: ${parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")}`);
     }
-    const { error } = await supabase.from("orders").upsert(parsed.data, { onConflict: "provider,sale_id,event_type" });
-    if (error) {
-      // Keep the Postgres code: callers tell a replay (23505 on the adjustment-id index) from a real failure.
-      throw Object.assign(new Error(`ledger: Supabase orders upsert failed: ${error.message}`), { code: error.code });
+    if (fence === undefined) {
+      const { error } = await supabase.from("orders").upsert(parsed.data, { onConflict: "provider,sale_id,event_type" });
+      if (error) {
+        // Keep the Postgres code: callers tell a replay (23505 on the adjustment-id index) from a real failure.
+        throw Object.assign(new Error(`ledger: Supabase orders upsert failed: ${error.message}`), { code: error.code });
+      }
+      return;
     }
+
+    const rowWithFence = { ...parsed.data, fence };
+    const keyLabel = `${parsed.data.provider}:${parsed.data.sale_id}:${parsed.data.event_type}`;
+    const runConditionalUpdate = async (): Promise<boolean> => {
+      const { data, error } = await supabase
+        .from("orders")
+        .update(rowWithFence)
+        .eq("provider", parsed.data.provider)
+        .eq("sale_id", parsed.data.sale_id)
+        .eq("event_type", parsed.data.event_type)
+        .lte("fence", fence)
+        .select("sale_id");
+      if (error) {
+        if (error.code === "40001") {
+          throw new StaleFenceError("orders", keyLabel, fence);
+        }
+        throw Object.assign(new Error(`ledger: Supabase orders upsert failed: ${error.message}`), { code: error.code });
+      }
+      return Array.isArray(data) && data.length > 0;
+    };
+
+    if (await runConditionalUpdate()) return;
+
+    const { error: insertErr } = await supabase.from("orders").insert(rowWithFence);
+    if (!insertErr) return;
+
+    if (insertErr.code !== "23505" || isAdjustmentIdUniqueViolation(insertErr)) {
+      throw Object.assign(new Error(`ledger: Supabase orders upsert failed: ${insertErr.message}`), { code: insertErr.code });
+    }
+
+    if (await runConditionalUpdate()) return;
+
+    const { data: stored, error: checkErr } = await supabase
+      .from("orders")
+      .select("fence")
+      .eq("provider", parsed.data.provider)
+      .eq("sale_id", parsed.data.sale_id)
+      .eq("event_type", parsed.data.event_type)
+      .maybeSingle();
+    if (checkErr) {
+      throw Object.assign(new Error(`ledger: Supabase orders upsert failed: ${checkErr.message}`), { code: checkErr.code });
+    }
+    const storedFence = stored && typeof (stored as { fence?: unknown }).fence !== "undefined"
+      ? Number((stored as { fence: number | string }).fence)
+      : undefined;
+    if (storedFence !== undefined && Number.isFinite(storedFence) && storedFence > fence) {
+      throw new StaleFenceError("orders", keyLabel, fence, storedFence);
+    }
+    throw Object.assign(new Error(`ledger: Supabase orders upsert failed: ${insertErr.message}`), { code: insertErr.code });
   } catch (err) {
-    if (err instanceof OrderSchemaError || (err instanceof Error && err.message.startsWith("ledger: Supabase orders upsert failed"))) throw err;
+    if (
+      err instanceof OrderSchemaError ||
+      err instanceof StaleFenceError ||
+      (err instanceof Error && err.message.startsWith("ledger: Supabase orders upsert failed"))
+    ) throw err;
     console.error("ledger: Supabase dual-write exception:", err);
     throw new Error(`ledger: Supabase dual-write failed: ${(err as Error).message}`, { cause: err });
   }
@@ -187,8 +250,10 @@ interface OrdersRow {
 
 /** Map a public.orders row to a SaleRecord. */
 function rowToSaleRecord(data: OrdersRow): SaleRecord {
+  const rawTs = data.occurred_at || data.created_at;
+  const ts = (rawTs as unknown) instanceof Date ? (rawTs as unknown as Date).toISOString() : String(rawTs);
   return {
-    ts: (data.occurred_at || data.created_at) as string,
+    ts,
     sale_id: data.sale_id,
     provider: data.provider,
     product_id: data.product_id,
@@ -225,7 +290,7 @@ export function findSale(provider: string, saleId: string, salesFile: string = S
         return o as unknown as SaleRecord;
       }
     } catch (parseErr) {
-      console.error("ledger: malformed ledger line skipped:", parseErr instanceof Error ? parseErr.message : parseErr);
+      logMalformedLedgerLine(parseErr);
       continue; // malformed line — tolerated by contract
     }
   }
@@ -278,6 +343,14 @@ export async function findSaleAsync(provider: string, saleId: string, salesFile:
  *  replay; anything else is a real failure and is never swallowed. */
 export const ORDERS_ADJUSTMENT_UNIQ_INDEX = "orders_provider_adjustment_id_uniq";
 
+/**
+ * Logs a non-fatal warning when a ledger line fails to parse or cannot be read as an object;
+ * callers skip the malformed line rather than aborting the scan.
+ */
+function logMalformedLedgerLine(parseErr: unknown): void {
+  console.error("ledger: malformed ledger line skipped:", parseErr instanceof Error ? parseErr.message : String(parseErr));
+}
+
 export function isAdjustmentIdUniqueViolation(err: unknown): boolean {
   const e = err as { code?: unknown; constraint?: unknown; message?: unknown } | null;
   if (!e || typeof e !== "object") return false;
@@ -309,7 +382,7 @@ function findByProviderAdjustmentId(provider: string, providerAdjustmentId: stri
         return o as unknown as SaleRecord;
       }
     } catch (parseErr) {
-      console.error("ledger: malformed ledger line skipped:", parseErr instanceof Error ? parseErr.message : parseErr);
+      logMalformedLedgerLine(parseErr);
       continue; // malformed line — tolerated by contract
     }
   }
@@ -347,7 +420,7 @@ export function findRefund(provider: string, saleId: string, salesFile: string =
       const o = JSON.parse(trimmed) as Record<string, unknown>;
       if (o.event_type === "refund" && o.provider === provider && o.sale_id === saleId) return o as unknown as SaleRecord;
     } catch (parseErr) {
-      console.error("ledger: malformed ledger line skipped:", parseErr instanceof Error ? parseErr.message : parseErr);
+      logMalformedLedgerLine(parseErr);
       continue; // malformed line — tolerated by contract
     }
   }
@@ -516,7 +589,7 @@ export function findRefundReversal(provider: string, saleId: string, salesFile: 
       const o = JSON.parse(trimmed) as Record<string, unknown>;
       if (o.event_type === "refund_reversal" && o.provider === provider && o.sale_id === saleId) return o as unknown as SaleRecord;
     } catch (parseErr) {
-      console.error("ledger: malformed ledger line skipped:", parseErr instanceof Error ? parseErr.message : parseErr);
+      logMalformedLedgerLine(parseErr);
       continue;
     }
   }
@@ -548,7 +621,7 @@ async function appendRecord(record: SaleRecord, salesFile: string): Promise<void
   }
 }
 
-export async function appendSale(sale: SaleRecord, salesFile: string = SALES_FILE): Promise<SaleRecord> {
+export async function appendSale(sale: SaleRecord, salesFile: string = SALES_FILE, fence?: number): Promise<SaleRecord> {
   assertSale(sale);
   const record: SaleRecord = {
     ts: sale.ts,
@@ -566,7 +639,7 @@ export async function appendSale(sale: SaleRecord, salesFile: string = SALES_FIL
   if (typeof sale.attribution_id === "string" && sale.attribution_id !== "") record.attribution_id = sale.attribution_id;
   // Durable store FIRST: if Supabase fails the route 500s and the provider retries;
   // writing the local file first would make that retry look like a duplicate.
-  await persistToSupabaseOrder(record);
+  await persistToSupabaseOrder(record, fence);
   await appendRecord(record, salesFile);
   return record;
 }
@@ -590,7 +663,7 @@ export function findSalesByAttribution(attributionId: string, salesFile: string 
       const o = JSON.parse(trimmed) as Record<string, unknown>;
       if (o.attribution_id === attributionId) out.push(o as unknown as SaleRecord);
     } catch (parseErr) {
-      console.error("ledger: malformed ledger line skipped:", parseErr instanceof Error ? parseErr.message : parseErr);
+      logMalformedLedgerLine(parseErr);
       continue; // malformed line — tolerated by contract
     }
   }
@@ -611,7 +684,7 @@ export interface RefundSpec {
  *  (semantically the refunded amount), creator/our splits are stored NEGATED so reports
  *  subtract them from income by plain summation. Refuses loudly when no recorded sale
  *  matches, or when a refund for the same sale was already recorded (idempotency guard). */
-export async function appendRefund(refund: RefundSpec, salesFile: string = SALES_FILE): Promise<SaleRecord> {
+export async function appendRefund(refund: RefundSpec, salesFile: string = SALES_FILE, fence?: number): Promise<SaleRecord> {
   if (typeof refund !== "object" || refund === null) {
     throw new TypeError("ledger: refund must be an object {provider, sale_id, ts?}");
   }
@@ -625,16 +698,16 @@ export async function appendRefund(refund: RefundSpec, salesFile: string = SALES
   if (typeof ts !== "string" || Number.isNaN(Date.parse(ts))) {
     throw new TypeError('ledger: refund "ts" must be a parseable timestamp (UTC ISO string)');
   }
-  let original = findSale(refund.provider, refund.sale_id, salesFile);
-  if (!original) {
-    original = await findSaleAsync(refund.provider, refund.sale_id, salesFile);
-  }
+  // The Async helpers read the local file first and fall back to Supabase, so one call is the whole lookup.
+  const original = await findSaleAsync(refund.provider, refund.sale_id, salesFile);
   if (!original || original.event_type === "refund") {
     throw new Error(`ledger: refund refused — no recorded sale for provider=${refund.provider} sale_id=${refund.sale_id} (refunds must reference a recorded sale)`);
   }
-  const already = findRefund(refund.provider, refund.sale_id, salesFile)
-    ?? await findRefundAsync(refund.provider, refund.sale_id, salesFile);
+  const already = await findRefundAsync(refund.provider, refund.sale_id, salesFile);
   if (already) {
+    if (fence !== undefined) {
+      await persistToSupabaseOrder(already, fence);
+    }
     return already; // duplicate refund → resolve with the existing record (no throw, no duplicate write)
   }
   const record: SaleRecord = {
@@ -655,7 +728,7 @@ export async function appendRefund(refund: RefundSpec, salesFile: string = SALES
   if (typeof refund.provider_adjustment_id === "string" && refund.provider_adjustment_id !== "") record.provider_adjustment_id = refund.provider_adjustment_id;
   // Durable store FIRST: if Supabase fails the route 500s and the provider retries;
   // writing the local file first would make that retry look like a duplicate.
-  await persistToSupabaseOrder(record);
+  await persistToSupabaseOrder(record, fence);
   await appendRecord(record, salesFile);
   return record;
 }
@@ -664,7 +737,7 @@ export async function appendRefund(refund: RefundSpec, salesFile: string = SALES
  *  Restores the sale: amount_usd stays POSITIVE, creator/our splits are POSITIVE again.
  *  Record a reversal only if a refund exists for that sale_id/provider and no reversal exists yet.
  *  Duplicate reversal is a no-op (resolves with existing record). If no refund exists, throws error. */
-export async function appendRefundReversal(spec: RefundSpec, salesFile: string = SALES_FILE): Promise<SaleRecord> {
+export async function appendRefundReversal(spec: RefundSpec, salesFile: string = SALES_FILE, fence?: number): Promise<SaleRecord> {
   if (typeof spec !== "object" || spec === null) {
     throw new TypeError("ledger: refund reversal must be an object {provider, sale_id, ts?}");
   }
@@ -678,25 +751,24 @@ export async function appendRefundReversal(spec: RefundSpec, salesFile: string =
   if (typeof ts !== "string" || Number.isNaN(Date.parse(ts))) {
     throw new TypeError('ledger: refund reversal "ts" must be a parseable timestamp (UTC ISO string)');
   }
-  let original = findSale(spec.provider, spec.sale_id, salesFile);
-  if (!original) {
-    original = await findSaleAsync(spec.provider, spec.sale_id, salesFile);
-  }
+  // The Async helpers read the local file first and fall back to Supabase, so one call is the whole lookup.
+  const original = await findSaleAsync(spec.provider, spec.sale_id, salesFile);
   if (!original || original.event_type === "refund" || original.event_type === "refund_reversal") {
     throw new Error(`ledger: refund reversal refused — no recorded sale for provider=${spec.provider} sale_id=${spec.sale_id}`);
   }
 
   // Must have an existing refund
-  const existingRefund = findRefund(spec.provider, spec.sale_id, salesFile)
-    ?? await findRefundAsync(spec.provider, spec.sale_id, salesFile);
+  const existingRefund = await findRefundAsync(spec.provider, spec.sale_id, salesFile);
   if (!existingRefund) {
     throw new Error(`ledger: refund reversal refused — no recorded refund for provider=${spec.provider} sale_id=${spec.sale_id} (reversals require an existing refund)`);
   }
 
   // Idempotency: if reversal already recorded, return it
-  const alreadyReversal = findRefundReversal(spec.provider, spec.sale_id, salesFile)
-    ?? await findRefundReversalAsync(spec.provider, spec.sale_id, salesFile);
+  const alreadyReversal = await findRefundReversalAsync(spec.provider, spec.sale_id, salesFile);
   if (alreadyReversal) {
+    if (fence !== undefined) {
+      await persistToSupabaseOrder(alreadyReversal, fence);
+    }
     return alreadyReversal;
   }
 
@@ -717,7 +789,7 @@ export async function appendRefundReversal(spec: RefundSpec, salesFile: string =
   if (typeof original.attribution_id === "string" && original.attribution_id !== "") record.attribution_id = original.attribution_id;
   if (typeof spec.provider_adjustment_id === "string" && spec.provider_adjustment_id !== "") record.provider_adjustment_id = spec.provider_adjustment_id;
 
-  await persistToSupabaseOrder(record);
+  await persistToSupabaseOrder(record, fence);
   await appendRecord(record, salesFile);
   return record;
 }

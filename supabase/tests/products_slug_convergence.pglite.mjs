@@ -1,0 +1,26 @@
+import { createRequire } from "node:module"; const require = createRequire(new URL("../../package.json", import.meta.url)); const { PGlite } = require("@electric-sql/pglite");
+import fs from "node:fs"; // run: node supabase/tests/products_slug_convergence.pglite.mjs;
+const sql = fs.readFileSync(new URL("../migrations/20261117110000_products_slug_convergence.sql", import.meta.url), "utf8");
+const db = new PGlite();
+await db.exec(`create table public.products (id serial primary key, slug text not null);
+  alter table public.products add constraint products_slug_key unique (slug);
+  alter table public.products add constraint products_slug_check check (slug ~ '^[a-z0-9]{5,30}$') not valid;
+  insert into public.products (slug) values ('abcde');`);
+const state = async (label) => {
+  const r = await db.query(`select conname, convalidated, pg_get_constraintdef(oid) d from pg_constraint where conrelid='public.products'::regclass and conname in ('products_slug_key','products_slug_check') order by conname`);
+  console.log(label, JSON.stringify(r.rows.map(x => [x.conname, x.convalidated])));
+  return r.rows;
+};
+await state("before:");
+await db.exec(sql);
+const after1 = await state("after run 1:");
+await db.exec(sql);
+const after2 = await state("after run 2:");
+const same = JSON.stringify(after1) === JSON.stringify(after2);
+const hasKey = after2.some(r => r.conname === "products_slug_key");
+const check = after2.find(r => r.conname === "products_slug_check");
+const rejectsHyphen = await db.query(`insert into public.products (slug) values ('bad-slug')`).then(()=>false, ()=>true);
+const rejectsShort = await db.query(`insert into public.products (slug) values ('ab')`).then(()=>false, ()=>true);
+const acceptsOk = await db.query(`insert into public.products (slug) values ('test_book_1')`).then(()=>true, ()=>false);
+console.log({ idempotent: same, platformUniqueGone: !hasKey, checkValidated: check?.convalidated, rejectsHyphen, rejectsShort, acceptsOk });
+await db.close();

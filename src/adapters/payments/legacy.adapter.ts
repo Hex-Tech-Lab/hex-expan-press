@@ -126,6 +126,8 @@ export class LegacyPaymentAdapterWrapper implements PaymentProviderPort {
         buyerEmail: sale.buyer_email,
         attributionId: cleanAttributionId(sale.attribution_id),
         occurredAt: sale.ts,
+        // Passed through unchanged: undefined means the parser found no mode field, and the use case refuses that sale.
+        ...(sale.provider_mode !== undefined ? { providerMode: sale.provider_mode } : {}),
         rawPayload,
       },
     };

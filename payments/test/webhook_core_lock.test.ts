@@ -1,20 +1,39 @@
 // Idempotency-lock contract (Sprint 11): a held lock is never a success. withIdempotencyLock
 // throws WebhookInFlightError (the route maps it to 503 + Retry-After); fn never runs.
+// Release is owner-checked: the lock stores a random per-call token, and only that token may release it.
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 
-const redis = vi.hoisted(() => ({ setnx: vi.fn(), del: vi.fn() }));
+const redis = vi.hoisted(() => ({
+  setnx: vi.fn(),
+  compareAndDel: vi.fn(),
+  incr: vi.fn(),
+  expire: vi.fn(),
+  get: vi.fn(),
+}));
 vi.mock("../../src/infrastructure/redis/redis.client.ts", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../src/infrastructure/redis/redis.client.ts")>()),
   expanRedis: redis,
 }));
 
-import { withIdempotencyLock, WebhookInFlightError } from "../src/webhook_core.ts";
+import { withIdempotencyLock, WebhookInFlightError, getSecret } from "../src/webhook_core.ts";
+import type { ProviderName } from "../src/provider.ts";
 import { GLOBAL } from "../src/settings_registry.ts";
+
+/** The token this call stored on acquire (the second argument of setnx). */
+function acquiredToken(): string {
+  const call = redis.setnx.mock.calls[0];
+  if (!call) throw new Error("setnx was not called");
+  return String(call[1]);
+}
 
 describe("withIdempotencyLock", () => {
   beforeEach(() => {
+    let seq = 0;
     redis.setnx.mockReset();
-    redis.del.mockReset().mockResolvedValue(1);
+    redis.compareAndDel.mockReset().mockResolvedValue(1);
+    redis.incr.mockReset().mockImplementation(async () => ++seq);
+    redis.expire.mockReset().mockResolvedValue(1);
+    redis.get.mockReset().mockResolvedValue(undefined);
     vi.stubEnv("UPSTASH_REDIS_REST_URL", "https://unit.test.redis.example");
     vi.stubEnv("UPSTASH_REDIS_REST_TOKEN", "unit-test-token");
     vi.stubEnv("VERCEL_ENV", "");
@@ -28,39 +47,52 @@ describe("withIdempotencyLock", () => {
     expect(err).toBeInstanceOf(WebhookInFlightError);
     expect((err as WebhookInFlightError).lockKey).toBe("lock:sale:polar:s1");
     expect(fn).not.toHaveBeenCalled();
-    expect(redis.del).not.toHaveBeenCalled(); // the holder's lock is never released by a contender
+    expect(redis.compareAndDel).not.toHaveBeenCalled(); // the holder's lock is never released by a contender
+    expect(redis.compareAndDel).not.toHaveBeenCalledWith("lock:sale:polar:s1", acquiredToken()); // the contender never releases with its own token
   });
 
-  it("acquires with the registry TTL, keeps the lock after a recorded write", async () => {
+  it("acquires with the registry TTL and a random owner token, keeps the lock after a recorded write", async () => {
     redis.setnx.mockResolvedValue(1);
     const res = await withIdempotencyLock("lock:sale:polar:s2", async () => ({ status: 200, payload: { recorded: true } }));
     expect(res.status).toBe(200);
-    expect(redis.setnx).toHaveBeenCalledWith("lock:sale:polar:s2", "1", GLOBAL.payments.webhook_lock_ttl_seconds);
-    expect(redis.del).not.toHaveBeenCalled();
+    expect(redis.setnx).toHaveBeenCalledWith("lock:sale:polar:s2", expect.any(String), GLOBAL.payments.webhook_lock_ttl_seconds);
+    expect(acquiredToken()).toMatch(/^[0-9a-f-]{36}$/); // a UUID, so two deliveries never share a token
+    expect(redis.compareAndDel).not.toHaveBeenCalled();
   });
 
-  it("releases the lock when nothing was written, so a corrected retry is not blocked", async () => {
+  it("each acquire gets its own token", async () => {
+    redis.setnx.mockResolvedValue(1);
+    await withIdempotencyLock("lock:sale:polar:t1", async () => ({ status: 200, payload: { recorded: false } }));
+    const first = acquiredToken();
+    redis.setnx.mockClear();
+    await withIdempotencyLock("lock:sale:polar:t1", async () => ({ status: 200, payload: { recorded: false } }));
+    expect(acquiredToken()).not.toBe(first);
+  });
+
+  it("releases the lock only with its own token when nothing was written, so a corrected retry is not blocked", async () => {
     redis.setnx.mockResolvedValue(1);
     await withIdempotencyLock("lock:sale:polar:s3", async () => ({ status: 200, payload: { recorded: false, reason: "duplicate" } }));
-    expect(redis.del).toHaveBeenCalledWith("lock:sale:polar:s3");
+    expect(redis.compareAndDel).toHaveBeenCalledWith("lock:sale:polar:s3", acquiredToken());
+    expect(redis.compareAndDel).toHaveBeenCalledTimes(1); // exactly one owner-checked release
   });
 
-  it("releases the lock and rethrows when fn throws", async () => {
+  it("releases with its own token and rethrows when fn throws", async () => {
     redis.setnx.mockResolvedValue(1);
     await expect(withIdempotencyLock("lock:sale:polar:s4", async () => { throw new Error("boom"); })).rejects.toThrow("boom");
-    expect(redis.del).toHaveBeenCalledWith("lock:sale:polar:s4");
+    expect(redis.compareAndDel).toHaveBeenCalledWith("lock:sale:polar:s4", acquiredToken());
+    expect(redis.compareAndDel).toHaveBeenCalledTimes(1); // exactly one owner-checked release
   });
 
   it("a failed lock release does not replace the caller's error", async () => {
     redis.setnx.mockResolvedValue(1);
-    redis.del.mockRejectedValue(new Error("redis down"));
+    redis.compareAndDel.mockRejectedValue(new Error("redis down"));
     const err = await withIdempotencyLock("lock:sale:polar:s6", async () => { throw new Error("boom"); }).catch((e: unknown) => e);
     expect((err as Error).message).toBe("boom");
   });
 
   it("a failed lock release after a non-recorded result does not turn success into an error", async () => {
     redis.setnx.mockResolvedValue(1);
-    redis.del.mockRejectedValue(new Error("redis down"));
+    redis.compareAndDel.mockRejectedValue(new Error("redis down"));
     const res = await withIdempotencyLock("lock:sale:polar:s7", async () => ({ status: 200, payload: { recorded: false, reason: "duplicate" } }));
     expect(res).toMatchObject({ status: 200 });
   });
@@ -74,5 +106,106 @@ describe("withIdempotencyLock", () => {
     const fn = vi.fn(async () => ({ status: 200, payload: {} }));
     await expect(withIdempotencyLock("lock:sale:polar:s5", fn)).rejects.toThrow(/Redis is not configured in a money-path runtime/);
     expect(fn).not.toHaveBeenCalled();
+  });
+
+  it("increments the registry companion fence key and passes strictly increasing tokens to fn", async () => {
+    redis.setnx.mockResolvedValue(1);
+    const seen: Array<number | undefined> = [];
+    await withIdempotencyLock("lock:sale:polar:f1", async (fence) => {
+      seen.push(fence);
+      return { status: 200, payload: { recorded: false } };
+    });
+    await withIdempotencyLock("lock:sale:polar:f1", async (fence) => {
+      seen.push(fence);
+      return { status: 200, payload: { recorded: true } };
+    });
+    const expectedFenceKey = `lock:sale:polar:f1${GLOBAL.payments.webhook_lock_fence_suffix}`;
+    expect(redis.incr).toHaveBeenNthCalledWith(1, expectedFenceKey);
+    expect(redis.incr).toHaveBeenNthCalledWith(2, expectedFenceKey);
+    expect(redis.expire).not.toHaveBeenCalled();
+    expect(seen).toEqual([1, 2]);
+  });
+
+  it("never sets a TTL on the fence key and returns a larger token on a second INCR", async () => {
+    redis.setnx.mockResolvedValue(1);
+    const tokens: number[] = [];
+    await withIdempotencyLock("lock:sale:polar:f_nottl", async (fence) => {
+      tokens.push(fence!);
+      return { status: 200, payload: { recorded: false } };
+    });
+    await withIdempotencyLock("lock:sale:polar:f_nottl", async (fence) => {
+      tokens.push(fence!);
+      return { status: 200, payload: { recorded: true } };
+    });
+    const expectedFenceKey = `lock:sale:polar:f_nottl${GLOBAL.payments.webhook_lock_fence_suffix}`;
+    expect(redis.expire).not.toHaveBeenCalled();
+    expect(redis.setnx).toHaveBeenCalledTimes(2);
+    for (const call of redis.setnx.mock.calls) {
+      expect(call[0]).not.toBe(expectedFenceKey);
+    }
+    expect(redis.incr).toHaveBeenCalledTimes(2);
+    expect(tokens[1]).toBeGreaterThan(tokens[0]);
+  });
+
+  it("rejects as in-flight without invoking fn when lock ownership was lost between setnx and incr", async () => {
+    redis.setnx.mockResolvedValue(1);
+    redis.get.mockResolvedValueOnce("another-owner-uuid");
+    const fn = vi.fn(async () => ({ status: 200, payload: { recorded: true } }));
+    await expect(withIdempotencyLock("lock:sale:polar:f2", fn)).rejects.toBeInstanceOf(WebhookInFlightError);
+    expect(fn).not.toHaveBeenCalled();
+    expect(redis.compareAndDel).not.toHaveBeenCalled();
+  });
+
+  it.each([0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1, "1", null])(
+    "throws and releases the lock when Redis INCR returns an invalid fencing token (%p)",
+    async (badFence) => {
+      redis.setnx.mockResolvedValue(1);
+      redis.incr.mockResolvedValueOnce(badFence as never);
+      const fn = vi.fn(async () => ({ status: 200, payload: { recorded: true } }));
+      await expect(withIdempotencyLock("lock:sale:polar:f3", fn)).rejects.toThrow("invalid fencing token from Redis INCR");
+      expect(fn).not.toHaveBeenCalled();
+      expect(redis.compareAndDel).toHaveBeenCalledWith("lock:sale:polar:f3", acquiredToken());
+    },
+  );
+
+  it("throws when payments.webhook_lock_ttl_seconds in GLOBAL is invalid", async () => {
+    const origTtl = GLOBAL.payments.webhook_lock_ttl_seconds;
+    GLOBAL.payments.webhook_lock_ttl_seconds = 0;
+    try {
+      const fn = vi.fn(async () => ({ status: 200, payload: { recorded: true } }));
+      await expect(withIdempotencyLock("lock:sale:paddle:bad-ttl", fn)).rejects.toThrow(
+        "invalid payments.webhook_lock_ttl_seconds in settings registry",
+      );
+      expect(fn).not.toHaveBeenCalled();
+    } finally {
+      GLOBAL.payments.webhook_lock_ttl_seconds = origTtl;
+    }
+  });
+
+  it("throws when payments.webhook_lock_fence_suffix in GLOBAL is empty or blank", async () => {
+    const origSuffix = GLOBAL.payments.webhook_lock_fence_suffix;
+    GLOBAL.payments.webhook_lock_fence_suffix = "   ";
+    try {
+      const fn = vi.fn(async () => ({ status: 200, payload: { recorded: true } }));
+      await expect(withIdempotencyLock("lock:sale:paddle:bad-suffix", fn)).rejects.toThrow(
+        "missing payments.webhook_lock_fence_suffix in settings registry",
+      );
+      expect(fn).not.toHaveBeenCalled();
+    } finally {
+      GLOBAL.payments.webhook_lock_fence_suffix = origSuffix;
+    }
+  });
+});
+
+describe("getSecret", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("returns undefined for an unregistered provider with no fallback secret env", () => {
+    expect(getSecret("unregistered_provider" as ProviderName)).toBeUndefined();
+  });
+
+  it("reads the configured webhook secret from process.env for a known provider", () => {
+    vi.stubEnv("PADDLE_WEBHOOK_SECRET", "pdl_sec_test");
+    expect(getSecret("paddle")).toBe("pdl_sec_test");
   });
 });

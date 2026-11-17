@@ -251,7 +251,13 @@ export const SwallowedErrorRule: IRule = {
         // against an all-comment pattern could never match and deliberately documented catches were flagged.
         const innerText = block.getText().replace(/^\{/, '').replace(/\}$/, '').trim();
         const hasOnlyComments = statements.length === 0 && innerText.length > 0 && (/^\/\*[\s\S]*\*\/$/.test(innerText) || isAllLineComments(innerText));
-        if (statements.length === 0 && !hasOnlyComments) {
+        // Best-effort single-call filesystem cleanup (e.g. `try { fs.rmdirSync(tempDir); } catch {}`) intentionally ignores ENOENT/ENOTEMPTY.
+        const tryStmt = node.getParent();
+        const tryStatements = Node.isTryStatement(tryStmt) ? tryStmt.getTryBlock().getStatements() : [];
+        const isBestEffortCleanup = !node.getVariableDeclaration()
+          && tryStatements.length === 1
+          && /\b(rmdirSync|unlinkSync|rmSync|closeSync)\s*\(/.test(tryStatements[0].getText());
+        if (statements.length === 0 && !hasOnlyComments && !isBestEffortCleanup) {
           findings.push({
             file: filePath,
             severity: "high",
@@ -265,8 +271,12 @@ export const SwallowedErrorRule: IRule = {
       if (Node.isCallExpression(node)) {
         const expr = node.getExpression();
         if (Node.isPropertyAccessExpression(expr) && expr.getName() === 'catch') {
+          const receiver = expr.getExpression();
+          const recvCallee = Node.isCallExpression(receiver) ? receiver.getExpression() : undefined;
+          const isResponseBodyDrain = Node.isPropertyAccessExpression(recvCallee)
+            && ['text', 'json', 'arrayBuffer', 'blob', 'cancel'].includes(recvCallee.getName());
           const arg = node.getArguments()[0];
-          if (Node.isArrowFunction(arg) || Node.isFunctionExpression(arg)) {
+          if (!isResponseBodyDrain && (Node.isArrowFunction(arg) || Node.isFunctionExpression(arg))) {
             const body = arg.getBody();
             const isBlock = Node.isBlock(body);
             if (isBlock && body.getStatements().length === 0) {

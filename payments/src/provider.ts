@@ -3,6 +3,7 @@
 // our only job on a webhook is: verify -> parse -> append sale record.
 import type { IncomingHttpHeaders } from "node:http";
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
+import type { ProviderMode } from "../../src/domain/payments/payments.port.ts";
 
 export type ProviderName = "lemonsqueezy" | "payhip" | "paddle" | "polar" | "fungies" | "fastspring";
 
@@ -27,6 +28,9 @@ export interface SaleEvent {
   // data/intel/canonical_attribution_id_2026-09-18.md). Optional: absent on providers where no
   // passthrough mechanism is wired yet, or on direct/organic sales with no captured source.
   attribution_id?: string;
+  // The provider's own live/test flag, read from an authenticated field. Absent when the parser found none:
+  // the sale is then refused (fail closed) before it is recorded. Set only from a verified field, never a default.
+  provider_mode?: ProviderMode;
 }
 
 export interface RefundEvent {

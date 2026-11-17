@@ -1,7 +1,9 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { CompositeEsignAdapter, type EsignAdapter } from "../esign.factory.ts";
 import type { CreateEnvelopeCommand } from "../../../domain/esign/esign.port.ts";
 import type { ProviderStrategy } from "../../../domain/settings/settings.port.ts";
+import { MatrixRouter } from "../../../infrastructure/matrix_router/matrix_router.ts";
+import { MatrixRouterUnavailableError } from "../../../infrastructure/matrix_router/matrix_router_errors.ts";
 
 function createMockAdapter(name: string, overrides: Partial<EsignAdapter> = {}): EsignAdapter {
   return {
@@ -17,6 +19,10 @@ function createMockAdapter(name: string, overrides: Partial<EsignAdapter> = {}):
 }
 
 describe("CompositeEsignAdapter", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   const dummyCommand: CreateEnvelopeCommand = {
     agreementPath: "agreements/prod_test.pdf",
     signers: [{ name: "Alex Creator", email: "alex@example.com" }],
@@ -127,5 +133,29 @@ describe("CompositeEsignAdapter", () => {
     expect(() => composite.uploadConsentEvidence("path/doc.pdf", new Uint8Array())).toThrowError(
       "No e-sign provider validated this webhook — evidence operations are unavailable"
     );
+  });
+
+  it("rethrows MatrixRouterUnavailableError (fail closed) and does NOT fall back to distribution[0]", async () => {
+    vi.spyOn(MatrixRouter, "getNextProvider").mockRejectedValueOnce(
+      new MatrixRouterUnavailableError("esign", "global_esign")
+    );
+    const primary = createMockAdapter("firma");
+    const fallback = createMockAdapter("docusign");
+    const adapterMap = new Map<string, EsignAdapter>([
+      ["firma", primary],
+      ["docusign", fallback],
+    ]);
+    const strategy: ProviderStrategy = {
+      mode: "2d",
+      distribution: [{ provider: "firma", weight: 100 }],
+      fallbacks: ["docusign"],
+    };
+
+    const composite = new CompositeEsignAdapter(strategy, adapterMap);
+    const err = await composite.createEnvelope(dummyCommand).catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(MatrixRouterUnavailableError);
+    expect(primary.createEnvelope).not.toHaveBeenCalled();
+    expect(fallback.createEnvelope).not.toHaveBeenCalled();
   });
 });

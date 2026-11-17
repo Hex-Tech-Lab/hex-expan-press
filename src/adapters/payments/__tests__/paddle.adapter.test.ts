@@ -318,6 +318,22 @@ describe("PaddleAdapter server environment & price map hardening", () => {
     expect((res as { httpStatus?: number }).httpStatus).toBe(500);
     expect((res as { error?: string }).error).toBe("PADDLE_ENVIRONMENT missing, unknown, or sandbox in production");
   });
+
+  it('sets providerMode to "live" when serverEnv is production and "sandbox" otherwise', async () => {
+    const body = validBody();
+
+    vi.stubEnv("PADDLE_ENVIRONMENT", "production");
+    vi.stubEnv("VERCEL_ENV", "production");
+    const liveRes = await parse(body, freshSig(body));
+    expect(liveRes.isValid).toBe(true);
+    expect((liveRes as { event: SaleCompletedEvent }).event.providerMode).toBe("live");
+
+    vi.stubEnv("PADDLE_ENVIRONMENT", "sandbox");
+    vi.stubEnv("VERCEL_ENV", "preview");
+    const sandboxRes = await parse(body, freshSig(body));
+    expect(sandboxRes.isValid).toBe(true);
+    expect((sandboxRes as { event: SaleCompletedEvent }).event.providerMode).toBe("sandbox");
+  });
 });
 
 describe("PaddleAdapter buyer-email fallback (customer lookup)", () => {

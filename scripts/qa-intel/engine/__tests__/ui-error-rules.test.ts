@@ -109,4 +109,31 @@ describe('SwallowedErrorRule', () => {
     ].join('\n'));
     expect(findings).toHaveLength(0);
   });
+
+  test('does not flag best-effort single-call filesystem cleanup in an empty catch', () => {
+    const findings = scan(SwallowedErrorRule, 'scripts/cleanup.ts', [
+      'export function cleanup(tempDir: string) {',
+      '  try { fs.rmdirSync(tempDir); } catch {}',
+      '}',
+    ].join('\n'));
+    expect(findings).toHaveLength(0);
+  });
+
+  test('does not flag .catch(() => {}) draining a response body, while still flagging operational .catch(() => {})', () => {
+    const drain = scan(SwallowedErrorRule, 'scripts/fetch.ts', [
+      'export async function getJson(url: string) {',
+      '  const res = await fetch(url);',
+      '  if (!res.ok) { await res.text().catch(() => {}); return null; }',
+      '  return res.json();',
+      '}',
+    ].join('\n'));
+    expect(drain).toHaveLength(0);
+
+    const swallowed = scan(SwallowedErrorRule, 'web/lib/save.ts', [
+      'export function persist(saveData: () => Promise<void>) {',
+      '  saveData().catch(() => {});',
+      '}',
+    ].join('\n'));
+    expect(swallowed).toHaveLength(1);
+  });
 });

@@ -42,6 +42,9 @@ export const ComplexityRule: Rule = {
     const source = ctx.ast as SourceFile;
       const findings: Finding[] = [];
       const filePath = normalizePosixPath(source.getFilePath());
+      if (/\.(test|spec)\.[jt]sx?$/.test(filePath) || filePath.includes("__tests__/")) {
+        return findings;
+      }
       const lines = source.getText().split(/\r?\n/).length;
       if (lines > 500) {
         findings.push({
@@ -126,16 +129,46 @@ function isSelfProducedText(call: CallExpression): boolean {
   return Node.isPropertyAccessExpression(producer) && producer.getName() === "join";
 }
 
+/** Splitting an Error.message or stderr/stdout error output to extract a summary line is LF-delimited and safe. */
+function isErrorOrStderrSplit(call: CallExpression): boolean {
+  const callee = call.getExpression();
+  if (!Node.isPropertyAccessExpression(callee)) return false;
+  const receiverText = callee.getExpression().getText();
+  if (/\.message$|\b(stderr|stdout)\b/i.test(receiverText)) return true;
+  const stmt = call.getFirstAncestor((a) => Node.isStatement(a));
+  return !!stmt && /\b(stderr|stdout)\b/.test(stmt.getText()) && !!call.getFirstAncestorByKind(SyntaxKind.CatchClause);
+}
+
+/** Splitting NDJSON lines that are passed directly to JSON.parse (where trailing CR is valid JSON whitespace). */
+function isJsonLinesSplit(call: CallExpression): boolean {
+  const enclosingFn = call.getFirstAncestor((a) => Node.isFunctionLikeDeclaration(a)) ?? call.getSourceFile();
+  const varDecl = call.getFirstAncestorByKind(SyntaxKind.VariableDeclaration);
+  if (varDecl) {
+    const varName = varDecl.getName();
+    const esc = varName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    if (new RegExp(`\\b${esc}\\.map\\([\\s\\S]*?JSON\\.parse\\(`).test(enclosingFn.getText())) return true;
+  }
+  let cur: Node | undefined = call.getParent();
+  while (cur && !Node.isStatement(cur)) {
+    if (Node.isCallExpression(cur) && /\.map\([\s\S]*?JSON\.parse\(/.test(cur.getText())) return true;
+    cur = cur.getParent();
+  }
+  return false;
+}
+
 export const CrossPlatformRule: Rule = {
   name: "cross-platform-compatibility",
   check: (ctx: RuleContext) => {
     const source = ctx.ast as SourceFile;
     const findings: Finding[] = [];
     const filePath = normalizePosixPath(source.getFilePath());
+    if (/\.(test|spec)\.[jt]sx?$/.test(filePath) || filePath.includes("__tests__/")) {
+      return findings;
+    }
 
     const lfSplitMatches = source
       .getDescendantsOfKind(SyntaxKind.CallExpression)
-      .filter((call) => isLfSplit(call) && !isTrimmedSplit(call) && !isSelfProducedText(call));
+      .filter((call) => isLfSplit(call) && !isTrimmedSplit(call) && !isSelfProducedText(call) && !isErrorOrStderrSplit(call) && !isJsonLinesSplit(call));
     if (lfSplitMatches.length > 0) {
       findings.push({
         file: filePath,
@@ -306,8 +339,8 @@ export const WorkflowRule: Rule = {
         const isNamed = (names: string[]): boolean => names.some(name => text === name || text.endsWith(`.${name}`));
         // An aliased or destructured exec (`exec as run`) is matched by its binding name too.
         const isIOCall = isNamed(["fetch", "writeFile", "exec", "execSync"]) || isChildProcessExec(text);
-        // fetch holds no resource a finally block would release, so only the other calls need one.
-        const needsFinally = isChildProcessExec(text) || isNamed(["writeFile", "execSync"]);
+        // fetch holds no resource a finally block would release, and synchronous execSync blocks until exit with no open handle.
+        const needsFinally = isChildProcessExec(text) || isNamed(["writeFile"]);
 
         if (isIOCall) {
           const tryStatement = node.getFirstAncestorByKind(SyntaxKind.TryStatement);

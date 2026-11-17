@@ -161,6 +161,14 @@ describe('ErrorObservabilityRule', () => {
     const unlogged = findings.filter((f) => f.title === 'Observability: Catch block without error logging');
     expect(unlogged).toHaveLength(1);
   });
+
+  test('skips test files, best-effort rmdirSync cleanup, comment-only unbound fallback catches, error-object returns, and fail-closed URL checks', () => {
+    expect(scan(ErrorObservabilityRule, 'scripts/__tests__/helper.test.ts', 'try { run(); } catch { return true; }')).toHaveLength(0);
+    expect(scan(ErrorObservabilityRule, 'scripts/clean.ts', 'try { fs.rmdirSync(dir); } catch {}')).toHaveLength(0);
+    expect(scan(ErrorObservabilityRule, 'scripts/state.ts', 'try { s = JSON.parse(raw); } catch { // fresh state\n}')).toHaveLength(0);
+    expect(scan(ErrorObservabilityRule, 'scripts/http.ts', 'async function f() { try { return await g(); } catch (err) { return { error: (err as Error).message }; } }')).toHaveLength(0);
+    expect(scan(ErrorObservabilityRule, 'scripts/url.ts', 'function ok(u: string) { try { return new URL(u).hostname === "x"; } catch { return false; } }')).toHaveLength(0);
+  });
 });
 
 describe('ErrorNormalizationRule', () => {
@@ -273,5 +281,15 @@ describe('NumberCoercionGuardRule', () => {
   test('does not flag a Number call with more than one argument', () => {
     const findings = scan(NumberCoercionGuardRule, 'web/app/api/list/route.ts', 'const pair = Number(a, b);');
     expect(findings).toHaveLength(0);
+  });
+
+  test('skips test files and guarded isNaN / || fallback / ?? literal / Number.isFinite patterns', () => {
+    expect(scan(NumberCoercionGuardRule, 'payments/test/fake.test.ts', 'const n = Number(store.get(k));')).toHaveLength(0);
+    expect(scan(NumberCoercionGuardRule, 'scripts/cli.ts', [
+      'const isPath = isNaN(Number(arg));',
+      'const chunk = Number(raw) || 300;',
+      'const limit = Number(getArg("limit") ?? Infinity);',
+      'function check(x: unknown) { const f = Number(x); if (!Number.isFinite(f)) throw new Error("bad"); return f; }',
+    ].join('\n'))).toHaveLength(0);
   });
 });

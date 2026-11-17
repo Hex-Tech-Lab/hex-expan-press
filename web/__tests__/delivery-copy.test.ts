@@ -10,7 +10,7 @@ const INSTANT_CLAIM = /instant(ly)?\s+download|delivered instantly|online access
 const BUYER_SURFACES = [
   "app/checkout/[productId]/page.tsx",
   "app/books/[handle]/[product]/page.tsx",
-  "public/terms.html",
+  "public/books/legal/terms.html",
 ];
 
 describe("buyer delivery copy matches code", () => {
@@ -23,6 +23,6 @@ describe("buyer delivery copy matches code", () => {
   });
 
   it("terms say the download link is emailed after successful payment", () => {
-    expect(read("public/terms.html")).toMatch(/download link is emailed after successful payment/i);
+    expect(read("public/books/legal/terms.html")).toMatch(/download link is emailed after successful payment/i);
   });
 });

@@ -88,3 +88,74 @@ describe("resolveOrigin production allow-list (Wave 6.2)", () => {
     expect(await resolvedRedirectTo()).toBe("https://canonical.expanpress.com/auth/callback");
   });
 });
+
+// Argon F-11: outside production the request host is trusted only when it is this project's own
+// preview deployment or localhost, read as the FIRST comma-separated value of the proxy header.
+describe("resolveOrigin preview/development host rules (Argon F-11)", () => {
+  const PREVIEW = "hex-expan-press-cu2xu0a05-techhypexps-projects.vercel.app";
+
+  function setNonProduction(env: "preview" | "development" | undefined): void {
+    headerMap.clear();
+    if (env) vi.stubEnv("VERCEL_ENV", env);
+    ssrMock.mockResolvedValue({ data: { session: null }, error: null });
+  }
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    headerMap.clear();
+    ssrMock.mockReset();
+  });
+
+  it("refuses a comma-separated spoofed host even when a valid preview host follows it", async () => {
+    setNonProduction("preview");
+    vi.stubEnv("VERCEL_URL", PREVIEW);
+    headerMap.set("x-forwarded-host", `evil.example.com, ${PREVIEW}`);
+    expect(await resolvedRedirectTo()).toBe(`https://${PREVIEW}/auth/callback`);
+  });
+
+  it("refuses a spoofed host outright and falls back to VERCEL_URL", async () => {
+    setNonProduction("preview");
+    vi.stubEnv("VERCEL_URL", PREVIEW);
+    headerMap.set("x-forwarded-host", "evil.example.com");
+    expect(await resolvedRedirectTo()).toBe(`https://${PREVIEW}/auth/callback`);
+  });
+
+  it("accepts this project's preview deployment host (first value, https)", async () => {
+    setNonProduction("preview");
+    headerMap.set("x-forwarded-host", PREVIEW);
+    expect(await resolvedRedirectTo()).toBe(`https://${PREVIEW}/auth/callback`);
+  });
+
+  it("accepts a git-branch preview alias of this project", async () => {
+    setNonProduction("preview");
+    const branch = "hex-expan-press-git-feat-b2c-separation-techhypexps-projects.vercel.app";
+    headerMap.set("x-forwarded-host", branch);
+    expect(await resolvedRedirectTo()).toBe(`https://${branch}/auth/callback`);
+  });
+
+  it("refuses another project's vercel.app host in preview", async () => {
+    setNonProduction("preview");
+    vi.stubEnv("VERCEL_URL", PREVIEW);
+    headerMap.set("x-forwarded-host", "hex-yt-intel-abc123-techhypexps-projects.vercel.app");
+    expect(await resolvedRedirectTo()).toBe(`https://${PREVIEW}/auth/callback`);
+  });
+
+  it("accepts localhost in development over http", async () => {
+    setNonProduction("development");
+    headerMap.set("x-forwarded-host", "localhost:3000");
+    expect(await resolvedRedirectTo()).toBe("http://localhost:3000/auth/callback");
+  });
+
+  it("accepts localhost in development when the proxy reports https", async () => {
+    setNonProduction("development");
+    headerMap.set("host", "localhost:3000");
+    headerMap.set("x-forwarded-proto", "https");
+    expect(await resolvedRedirectTo()).toBe("https://localhost:3000/auth/callback");
+  });
+
+  it("refuses localhost in production (canonical origin instead)", async () => {
+    setProduction();
+    headerMap.set("x-forwarded-host", "localhost:3000");
+    expect(await resolvedRedirectTo()).toBe("https://expanpress.com/auth/callback");
+  });
+});

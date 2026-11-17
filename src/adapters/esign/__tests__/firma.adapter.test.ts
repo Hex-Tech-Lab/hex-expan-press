@@ -48,6 +48,8 @@ describe("FirmaAdapter.parseAndValidateWebhook (fail-closed HMAC gate)", () => {
     );
     expect(result.isValid).toBe(false);
     expect(result.error).toContain("not configured");
+    // A missing secret is a server configuration fault: 500 (Firma retries), never 401.
+    expect(result.httpStatus).toBe(500);
   });
 
   it("FAILS CLOSED for a correctly SIGNED payload when the secret is unconfigured", async () => {
@@ -66,6 +68,8 @@ describe("FirmaAdapter.parseAndValidateWebhook (fail-closed HMAC gate)", () => {
     const result = await adapter.parseAndValidateWebhook(body, headers);
     expect(result.isValid).toBe(false);
     expect(result.error).toBe("Invalid signature");
+    // A bad signature is an unauthenticated sender: 401, unchanged by the missing-secret fix.
+    expect(result.httpStatus).toBe(401);
   });
 
   it("accepts a validly-signed completed envelope and maps the event", async () => {

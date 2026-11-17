@@ -17,7 +17,7 @@ vi.mock("../../adapters/esign/esign.factory.ts", async () => {
       parseAndValidateWebhook: () => ({
         isValid: true, providerName: "firma",
         event: { eventType: "envelope.completed", envelopeId: "env_1", documentHash: ATTESTED_HASH,
-                 metadata: { productId: "p1", userId: "u1" } },
+                 metadata: { productId: "p1", userId: "57596c19-c550-4bde-b17a-e87b86d005c5" } },
       }),
       // Evidence-before-insert (F1): the mock returns real bytes so the upload
       // path succeeds and the replay contract below stays the focus.

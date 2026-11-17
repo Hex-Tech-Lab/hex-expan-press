@@ -1,10 +1,11 @@
 import { describe, it, expect, vi } from "vitest";
-import { deliverSale, type DeliveryDeps } from "../src/delivery";
+import { deliverSale, StaleFenceError, type DeliveryDeps } from "../src/delivery";
 
 // Two providers can issue the same sale ID. A delivery confirmed for one must not
 // stop the other provider's buyer from getting a link. Sourcery, PR #112.
 function providerScopedDeps() {
   const confirmed = new Set<string>();
+  const sendClaims = new Map<string, { state: "claimed" | "sent"; fence: number }>();
   const sendEmail = vi.fn(async () => ({ id: "e1" }));
   const deps: DeliveryDeps = {
     db: {
@@ -14,6 +15,43 @@ function providerScopedDeps() {
       deliveryConfirmed: vi.fn(async (provider: string, saleId: string) => confirmed.has(`${provider}:${saleId}`)),
       confirmDelivery: vi.fn(async ({ provider, saleId }: { provider: string; saleId: string }) => {
         confirmed.add(`${provider}:${saleId}`);
+      }),
+      claimDeliverySend: vi.fn(async ({ provider, saleId, sendKind, fence }) => {
+        const k = `${provider}:${saleId}:${sendKind}`;
+        const f = fence ?? 0;
+        const existing = sendClaims.get(k);
+        if (!existing) {
+          sendClaims.set(k, { state: "claimed", fence: f });
+          return { outcome: "claimed" as const, fence: f };
+        }
+        if (existing.fence > f) throw new StaleFenceError("delivery_sends", k, f, existing.fence);
+        existing.fence = f;
+        return { outcome: existing.state === "sent" ? ("already_sent" as const) : ("already_claimed" as const), fence: f };
+      }),
+      assertSendFence: vi.fn(async ({ provider, saleId, sendKind, fence }) => {
+        const k = `${provider}:${saleId}:${sendKind}`;
+        const existing = sendClaims.get(k);
+        if (!existing || existing.state !== "claimed" || existing.fence > fence) {
+          throw new StaleFenceError("delivery_sends", k, fence, existing?.fence);
+        }
+        existing.fence = fence;
+      }),
+      markDeliverySent: vi.fn(async ({ provider, saleId, sendKind, fence }) => {
+        const k = `${provider}:${saleId}:${sendKind}`;
+        const existing = sendClaims.get(k);
+        const f = fence ?? existing?.fence ?? 0;
+        if (!existing || (fence !== undefined && existing.fence > fence)) {
+          throw new StaleFenceError("delivery_sends", k, f, existing?.fence);
+        }
+        existing.state = "sent";
+        existing.fence = f;
+      }),
+      releaseDeliverySend: vi.fn(async ({ provider, saleId, sendKind, fence }) => {
+        const k = `${provider}:${saleId}:${sendKind}`;
+        const existing = sendClaims.get(k);
+        if (existing?.state === "claimed" && (fence === undefined || existing.fence <= fence)) {
+          sendClaims.delete(k);
+        }
       }),
     },
     sendEmail,

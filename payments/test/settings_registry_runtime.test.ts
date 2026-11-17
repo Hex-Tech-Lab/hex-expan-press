@@ -3,7 +3,7 @@
 // pure loader directly — they must NEVER move, rename or delete the real data/settings
 // directory (an earlier version renamed it and left it stranded on 2026-10-01).
 import { describe, expect, it, vi, afterEach } from "vitest";
-import { GLOBAL, loadPaymentsSection, loadEmailSection, getPath } from "../src/settings_registry.ts";
+import { GLOBAL, loadPaymentsSection, loadDeliverySection, loadEmailSection, getPath } from "../src/settings_registry.ts";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -232,5 +232,49 @@ describe("getPath prototype pollution and inheritance guards", () => {
     expect(getPath({ a: 1 }, undefined)).toBeUndefined();
     expect(getPath({ a: 1 }, "nonexistent")).toBeUndefined();
     expect(getPath({ a: null }, "a.b")).toBeUndefined();
+  });
+});
+
+describe("settings registry: lock fencing & delivery send_kind", () => {
+  it("exposes lock key prefixes, fence suffix, fence TTL, and delivery send_kind defaults", () => {
+    const p = loadPaymentsSection(undefined);
+    expect(p.webhook_lock_sale_prefix).toBe("lock:sale:");
+    expect(p.webhook_lock_refund_prefix).toBe("lock:refund:");
+    expect(p.webhook_lock_fence_suffix).toBe(":fence");
+    expect(p.webhook_lock_fence_ttl_seconds).toBe(604800);
+
+    const d = loadDeliverySection(undefined);
+    expect(d.send_kind).toBe("buyer_receipt");
+    expect(GLOBAL.delivery.send_kind).toBe("buyer_receipt");
+  });
+
+  it("validates lock fence TTL bounds and rejects whitespace/empty key tokens", () => {
+    const warn = vi.spyOn(console, "error").mockImplementation(() => {});
+    const valid = loadPaymentsSection({
+      webhook_lock_fence_ttl_seconds: 86400,
+      webhook_lock_sale_prefix: "v2:lock:sale:",
+      webhook_lock_refund_prefix: "v2:lock:refund:",
+      webhook_lock_fence_suffix: ":seq",
+    });
+    expect(valid.webhook_lock_fence_ttl_seconds).toBe(86400);
+    expect(valid.webhook_lock_sale_prefix).toBe("v2:lock:sale:");
+    expect(valid.webhook_lock_refund_prefix).toBe("v2:lock:refund:");
+    expect(valid.webhook_lock_fence_suffix).toBe(":seq");
+
+    const invalid = loadPaymentsSection({
+      webhook_lock_fence_ttl_seconds: 60,
+      webhook_lock_sale_prefix: " ",
+      webhook_lock_refund_prefix: "bad key",
+      webhook_lock_fence_suffix: "",
+    });
+    expect(invalid.webhook_lock_fence_ttl_seconds).toBe(604800);
+    expect(invalid.webhook_lock_sale_prefix).toBe("lock:sale:");
+    expect(invalid.webhook_lock_refund_prefix).toBe("lock:refund:");
+    expect(invalid.webhook_lock_fence_suffix).toBe(":fence");
+    expect(warn).toHaveBeenCalled();
+
+    const invalidDelivery = loadDeliverySection({ send_kind: "  ", link_ttl_days: 0 });
+    expect(invalidDelivery.send_kind).toBe("buyer_receipt");
+    expect(invalidDelivery.link_ttl_days).toBe(7);
   });
 });

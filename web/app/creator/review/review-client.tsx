@@ -141,7 +141,7 @@ export default function ReviewClient({ items, saved, pdfUrl, bookTitle }: Review
         setViewerReady(true);
         const start = items.findIndex((it) => !answers[it.id]);
         const anchor = items[start === -1 ? 0 : start]?.anchorPage;
-        setPage(anchor && anchor >= 1 && anchor <= doc.numPages ? anchor : 1);
+        if (anchor && anchor >= 1 && anchor <= doc.numPages) setPage(anchor);
       } catch (err) {
         if (!disposed) setViewerError(`Could not load the book (${err instanceof Error ? err.message : "unknown error"}). You can still answer from the questions shown.`);
       }
@@ -212,12 +212,17 @@ export default function ReviewClient({ items, saved, pdfUrl, bookTitle }: Review
 
   // Folio detection (best-effort): printed page numbers from the PDF text.
   useEffect(() => {
-    if (!docRef.current || folio !== null) return;
+    const doc = docRef.current;
+    if (!doc || folio !== null) return;
+    let cancelled = false;
     (async () => {
       try {
         for (let p = 2; p <= Math.min(total, 20); p++) {
-          const pdfPage = await docRef.current!.getPage(p);
+          if (cancelled) return;
+          const pdfPage = await doc.getPage(p);
+          if (cancelled) return;
           const tc = await pdfPage.getTextContent();
+          if (cancelled) return;
           const strs = tc.items.map((t) => t.str ?? "").filter((s) => s.trim());
           const cands = [...strs.slice(-2), ...strs.slice(0, 2)];
           for (const c of cands) {
@@ -235,9 +240,12 @@ export default function ReviewClient({ items, saved, pdfUrl, bookTitle }: Review
         }
       } catch (err) {
         // Folio detection is best-effort — log and fall back to raw page numbers.
-        console.warn("[review] folio detection failed:", err);
+        if (!cancelled) console.warn("[review] folio detection failed:", err);
       }
     })();
+    return () => {
+      cancelled = true;
+    };
   }, [total, folio]);
 
   async function saveAndNext() {
@@ -316,8 +324,8 @@ export default function ReviewClient({ items, saved, pdfUrl, bookTitle }: Review
     return (
       <div className="mx-auto max-w-[680px] px-5 py-16 text-center">
         <m.div
-          initial={{ opacity: 0, y: 24 }}
-          animate={{ opacity: 1, y: 0, transition: { duration: 0.5, ease: EASE } }}
+          initial={reduced ? { opacity: 0 } : { opacity: 0, y: 24 }}
+          animate={reduced ? { opacity: 1 } : { opacity: 1, y: 0, transition: { duration: 0.5, ease: EASE } }}
           className="neu-card rounded-[14px] p-(--space-6)"
         >
           <p className="text-[length:var(--font-size-2xs)] font-bold uppercase tracking-[0.08em] text-[#296E50]">Review complete</p>
@@ -348,7 +356,7 @@ export default function ReviewClient({ items, saved, pdfUrl, bookTitle }: Review
       </p>
       <div className="mb-6 h-1.5 w-full overflow-hidden rounded-full bg-[#EADFD1]" aria-hidden>
         <div
-          className="h-full rounded-full bg-[#E8622C] transition-all duration-500"
+          className="h-full rounded-full bg-[#E8622C] transition-[width] duration-500"
           style={{ width: `${items.length ? (answeredCount / items.length) * 100 : 0}%` }}
         />
       </div>
@@ -356,8 +364,8 @@ export default function ReviewClient({ items, saved, pdfUrl, bookTitle }: Review
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-[380px_1fr]">
         {/* Question card */}
         <m.section
-          initial={{ opacity: 0, y: 32 }}
-          animate={{ opacity: 1, y: 0, transition: { duration: 0.5, ease: EASE, delay: 0.06 } }}
+          initial={reduced ? { opacity: 0 } : { opacity: 0, y: 32 }}
+          animate={reduced ? { opacity: 1 } : { opacity: 1, y: 0, transition: { duration: 0.5, ease: EASE, delay: 0.06 } }}
           className="neu-card self-start rounded-[14px] p-(--space-5)"
           aria-label="Review question"
         >
@@ -434,7 +442,7 @@ export default function ReviewClient({ items, saved, pdfUrl, bookTitle }: Review
             // description — tabbing into this textarea announces the question.
             aria-describedby="review-question-text"
             className="mt-2 w-full rounded-lg border border-[#EADFD1] bg-[#FFFDF9] p-3 text-[length:var(--font-size-base)] text-[#2B2520] outline-none focus:border-[#E8622C] focus-visible:ring-2 focus-visible:ring-[#B3401E] focus-visible:ring-offset-2 focus-visible:ring-offset-[#FFFDF9]"
-            placeholder="Write the correct fact here."
+            placeholder="Write the correct fact here…"
           />
 
           {error && (
@@ -443,7 +451,7 @@ export default function ReviewClient({ items, saved, pdfUrl, bookTitle }: Review
             </p>
           )}
           {justSaved && !error && (
-            <p className="mt-3 text-[length:var(--font-size-sm)] text-[#296E50]">
+            <p className="mt-3 text-[length:var(--font-size-sm)] text-[#296E50]" aria-live="polite">
               Saved — you can safely stop here and continue later; your answer is already recorded.
             </p>
           )}
@@ -471,8 +479,8 @@ export default function ReviewClient({ items, saved, pdfUrl, bookTitle }: Review
 
         {/* PDF reader */}
         <m.section
-          initial={{ opacity: 0, y: 32 }}
-          animate={{ opacity: 1, y: 0, transition: { duration: 0.5, ease: EASE, delay: 0.12 } }}
+          initial={reduced ? { opacity: 0 } : { opacity: 0, y: 32 }}
+          animate={reduced ? { opacity: 1 } : { opacity: 1, y: 0, transition: { duration: 0.5, ease: EASE, delay: 0.12 } }}
           className="neu-card flex min-h-[70vh] flex-col rounded-[14px] p-(--space-5)"
           aria-label="Book excerpt"
         >

@@ -58,14 +58,15 @@ export default async function CreatorHubPage({ params }: { params: Promise<{ han
     <div className="sf-root">
       <AttributionCapture />
       <div className="wrap">
+        <main>
         <p className="kicker">Creator page &middot; ExpanPress</p>
         {creator.photo ? (
           <div className="avatar">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={creator.photo} alt={creator.display_name} />
+            <img src={creator.photo} alt={creator.display_name} width={84} height={84} />
           </div>
         ) : (
-          <div className="avatar" aria-label={creator.display_name}>
+          <div className="avatar" aria-hidden="true">
             {initial}
           </div>
         )}
@@ -111,7 +112,7 @@ export default async function CreatorHubPage({ params }: { params: Promise<{ han
                 >
                   <div className="cover">
                     <p className="cover-kicker">Digital PDF</p>
-                    <p className="cover-title">{p.title ?? p.composite_slug}</p>
+                    <p className="cover-title">{p.title ?? p.slug}</p>
                   </div>
                   <div className="card-body">
                     <p className="card-price">
@@ -138,6 +139,8 @@ export default async function CreatorHubPage({ params }: { params: Promise<{ han
             <b>Digital products:</b> all items are downloadable PDFs; no physical items are shipped.
           </p>
         </div>
+
+        </main>
 
         <StorefrontFooter />
       </div>

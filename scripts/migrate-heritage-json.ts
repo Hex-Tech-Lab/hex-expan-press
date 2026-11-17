@@ -56,7 +56,7 @@ interface CreatorEntry {
   bio?: string;
   bio_source?: string;
   photo?: string | null;
-  products?: { composite_slug: string; product_slug: string; config_file: string }[];
+  products?: { product_slug: string; config_file: string }[];
 }
 
 interface HeritageConfig {
@@ -80,7 +80,6 @@ interface HeritageConfig {
   support_email?: string;
   smoke_test?: boolean;
   same_details_on_all_providers?: boolean;
-  site_slug?: string;
   product_slug?: string;
   product_internal_id?: string;
   db_product_id?: string;
@@ -190,8 +189,6 @@ async function main(): Promise<void> {
       id: dbProductId,
       creator_id: creatorIdByHandle.get(cfg.creator_id),
       store_product_id: cfg.product_id,
-      composite_slug: cfg.product_internal_id ?? cfg.product_slug,
-      site_slug: cfg.site_slug,
       description: cfg.description ?? null,
       price_usd: priceUsd,
       currency: cfg.currency ?? "USD",

@@ -67,13 +67,33 @@ export interface GlobalSettings {
     allowed_currencies: string[];
     webhook_tolerance_seconds: number;
     webhook_lock_ttl_seconds: number;
+    webhook_lock_fence_ttl_seconds: number;
+    webhook_lock_sale_prefix: string;
+    webhook_lock_refund_prefix: string;
+    webhook_lock_fence_suffix: string;
     http_timeout_ms: number; // webhook-internal call budget: Paddle customer-email lookup AND the 503 audit insert (must stay short)
     sync_http_timeout_ms: number; // operator CLI (sync_book_identity) calls to Supabase/Paddle
     review_queue_page_size: number; // listManualReviewRefunds default page/limit
     /** Retry-After seconds sent on 503 webhook responses (in-flight AND generic 503 paths). */
     retry_after_seconds: number;
     paddle: { api_base: { production: string; sandbox: string }; js_cdn_url: string };
+    /** Creem TEST mode is accepted only when this is true, creem_test_database_ref is non-empty,
+     *  AND new URL(SUPABASE_URL).hostname equals `${creem_test_database_ref}.supabase.co`.
+     *  Production has no global.json, so this stays false there. Test-only; see creem.adapter.ts. */
+    creem_accept_test_mode: boolean;
+    /** Project ref of the separate test database (branch) that test-mode Creem events may write to. Empty = refuse. */
+    creem_test_database_ref: string;
+    /** Explicit opt-in for sandbox checkout acceptance (sandbox checkout_mode and sandbox.* rail hosts)
+     *  on non-production runtimes. Default false (fail closed); production always refuses regardless. */
+    sandbox_checkout_enabled: boolean;
   };
+  /** Buyer-facing storefront links. `b2c_landing_url` is the logo target on the thank-you page. */
+  storefront: { b2c_landing_url: string };
+  /** Creator handle policy (web/src/lib/handle-policy.ts). Set once at account creation; immutable after. */
+  handles: { min_length: number; max_length: number; separator: string; reserved: string[]; profanity_whitelist: string[] };
+  /** Product slug rule (ADR 0065): same shape as handles. Unique per creator (products_creator_id_slug_key);
+   *  platform-wide products_slug_key was reverted and is dropped by supabase/migrations/20261117110000_products_slug_convergence.sql. */
+product_slug: { min_length: number; max_length: number; separator: string };
   landing: { fallbacks: { title: string; creator: string }; disclaimers: string[] };
   /** Admin API allowlist + pagination (admin audit-log route). */
   admin: {
@@ -82,8 +102,18 @@ export interface GlobalSettings {
     /** Default page size for admin audit-log listing. */
     audit_log_page_size: number;
   };
-  /** Buyer delivery: download_events links, Dub short links, signed release URLs. */
-  delivery: { bucket: string; link_ttl_days: number; signed_url_seconds: number; short_domain: string };
+  /** Buyer delivery: download_events links, Dub short links, signed release URLs, delivery_sends kind. */
+  delivery: {
+    bucket: string;
+    link_ttl_days: number;
+    signed_url_seconds: number;
+    short_domain: string;
+    send_kind: string;
+    /** A send claim still in 'claimed' this long after it was made is logged as STUCK (never resent: at-most-once). */
+    stuck_claim_after_seconds: number;
+    /** Most rows listStuckDeliveryClaims returns (oldest first). Bounds the operator reconcile query. */
+    stuck_claim_list_limit: number;
+  };
   /** Transactional email (Resend). `from` must be on `sending_domain` (DKIM-verified in Resend). */
   email: {
     from: string;
@@ -92,7 +122,20 @@ export interface GlobalSettings {
     retryable_error_names: string[];
   };
   portal: { jwt_clock_skew_retry_delay_ms: number };
-  consent: { text_version: string };
+  consent: { text_version: string; evidence_path: { user_id_pattern: string; envelope_id_pattern: string } };
+  /** Daily usage watch (scripts/ops/usage_watch.ts). Limits are the plan limits we are on (Vercel Hobby, Supabase Free org,
+   *  Upstash pay-as-you-go); warn_ratio is the fraction of a limit at which the watch reports WARN and exits non-zero. */
+  usage_watch: UsageWatchSettings;
+}
+
+export interface UsageWatchSettings {
+  warn_ratio: number;
+  /** Per-request budget for every usage-watch HTTP or CLI call. */
+  timeout_ms: number;
+  endpoints: { supabase_api: string; upstash_api: string; vercel_cli: string };
+  vercel: { team_id: string; max_pages: number; deployments_per_day: number; deployments_per_hour: number; fluid_active_cpu_hours: number };
+  supabase: { db_size_bytes: number; egress_bytes: number; file_storage_bytes: number };
+  upstash: { monthly_commands: number; monthly_bandwidth_bytes: number; memory_bytes: number };
 }
 
 export const DEFAULT_GLOBAL: GlobalSettings = {
@@ -119,15 +162,44 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     allowed_currencies: ["USD"],
     webhook_tolerance_seconds: 300,
     webhook_lock_ttl_seconds: 300,
+    // Lock/fence defaults live in DEFAULT_GLOBAL because data/ is gitignored and absent in production.
+    webhook_lock_fence_ttl_seconds: 604800,
+    webhook_lock_sale_prefix: "lock:sale:",
+    webhook_lock_refund_prefix: "lock:refund:",
+    webhook_lock_fence_suffix: ":fence",
     http_timeout_ms: 5000,
     sync_http_timeout_ms: 30000,
     review_queue_page_size: 200,
     retry_after_seconds: 30,
+    creem_accept_test_mode: false,
+    creem_test_database_ref: "",
+    sandbox_checkout_enabled: false,
     paddle: {
       api_base: { production: "https://api.paddle.com", sandbox: "https://sandbox-api.paddle.com" },
       js_cdn_url: "https://cdn.paddle.com/paddle/v2/paddle.js",
     },
   },
+  // Home target for every buyer-side logo and home link (thank-you page, checkout). Absolute, so a buyer on
+  // pay.expanpress.com also lands on the B2C landing, never on the B2B root. The B2C landing is /books on the main site.
+  storefront: { b2c_landing_url: "https://expanpress.com/books" },
+  // Our handle rules, not a platform's (Instagram allows 1-30, Facebook requires 5). Reserved words are never assignable.
+  handles: {
+    min_length: 3,
+    max_length: 30,
+    // The only separator. Letters and digits between single separators; no leading, trailing or doubled separator.
+    separator: "_",
+    reserved: [
+      "admin", "root", "support", "expanpress", "api", "books", "creator", "creators", "login", "signin",
+      "signup", "thanks", "help", "legal", "privacy", "terms", "www", "official", "staff", "system",
+    ],
+    // Ordinary words that contain a blacklisted substring. Merged with the obscenity preset's own whitelist.
+    profanity_whitelist: [
+      "classic", "assess", "assessment", "assist", "assistant", "assume", "bass", "class", "glass", "grass", "pass", "passage",
+    ],
+  },
+  // Product slug rule (ADR 0065). Same shape as handles. Unique per creator (products_creator_id_slug_key);
+  // platform-wide products_slug_key was reverted and is dropped by supabase/migrations/20261117110000_products_slug_convergence.sql.
+  product_slug: { min_length: 3, max_length: 30, separator: "_" },
   landing: {
     fallbacks: { title: "Product", creator: "the creator" },
     disclaimers: [
@@ -135,12 +207,17 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
       "Educational content only — nothing in this document is financial advice. Do your own research.",
     ],
   },
-  // Buyer delivery (download_events). The bucket holds release files only, never review copies.
+  // Buyer delivery (download_events, delivery_sends). The bucket holds release files only, never review copies.
   delivery: {
     bucket: "release-files",
     link_ttl_days: 7,
     signed_url_seconds: 300,
     short_domain: "go.expanpress.com",
+    // Default send_kind lives in DEFAULT_GLOBAL because data/ is gitignored and absent in production.
+    send_kind: "buyer_receipt",
+    // Above the email deadline (payments.http_timeout_ms) and the webhook lock TTL, so a live send is never reported stuck.
+    stuck_claim_after_seconds: 900,
+    stuck_claim_list_limit: 500,
   },
   email: {
     from: "ExpanPress <support@esign.expanpress.com>",
@@ -155,7 +232,28 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
   },
   portal: { jwt_clock_skew_retry_delay_ms: 350 },
   admin: { admin_user_ids: [], audit_log_page_size: 50 },
-  consent: { text_version: "v1.1" },
+  consent: {
+    text_version: "v1.1",
+    // Object-path rules for consent evidence (`<userId>/<envelopeId>.pdf`). Enforced before any upload.
+    // Mirrors the DB CHECK on consents.evidence_path (lowercase UUID directory, bounded envelope name).
+    evidence_path: {
+      user_id_pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+      envelope_id_pattern: "^[A-Za-z0-9_-]{1,128}$",
+    },
+  },
+  usage_watch: {
+    warn_ratio: 0.8,
+    timeout_ms: 20000,
+    endpoints: { supabase_api: "https://api.supabase.com", upstash_api: "https://api.upstash.com", vercel_cli: "vercel" },
+    // Vercel Hobby: 100 deployments/day (vercel.com/docs/plans/hobby), 100 per hour (vercel.com/docs/limits),
+    // Fluid Active CPU 4 h/month (vercel.com/docs/functions/limitations). Hobby exposes no usage API; see usage_watch.ts.
+    vercel: { team_id: "team_vgnBI2s3ynPBzQdOLqhGvBnK", max_pages: 10, deployments_per_day: 100, deployments_per_hour: 100, fluid_active_cpu_hours: 4 },
+    // Supabase Free org: 500 MB database, 5 GB egress, 1 GB file storage (supabase.com/pricing).
+    supabase: { db_size_bytes: 524288000, egress_bytes: 5368709120, file_storage_bytes: 1073741824 },
+    // Upstash pay-as-you-go (no hard cap). monthly_commands is the 500K Free-tier quota kept as a spend trip-wire;
+    // monthly_bandwidth is the 200 GB PAYG free bandwidth (upstash.com/pricing/redis); memory is the API db_memory_threshold (3 GB).
+    upstash: { monthly_commands: 500000, monthly_bandwidth_bytes: 214748364800, memory_bytes: 3221225472 },
+  },
 };
 
 // Bounds for the admin tunables (feature code must never hard-code them).
@@ -164,12 +262,21 @@ export const ADMIN_LIMITS = {
   admin_user_ids: { max: 100 }, // sanity cap on allowlist size
 } as const;
 
+// Sign-in redirect hosts outside production (Argon F-11). The request host is trusted only when it
+// is this project's own Vercel deployment (production alias, git-branch alias, or per-deployment
+// host) or localhost. Production uses the canonical allowlist in web/app/creator/signin/actions.ts.
+export const AUTH_REDIRECT_HOSTS = {
+  preview_host_pattern: /^hex-expan-press(?:-git-[a-z0-9-]+|-[a-z0-9]+)?-techhypexps-projects\.vercel\.app$/,
+  local_host_pattern: /^localhost(?::\d{1,5})?$/,
+} as const;
+
 // Named bounds for the payments tunables (lives in the registry module by design —
 // feature code must never hard-code them). sync_http_timeout max 120000 keeps far
 // clear of Node's 2147483647 timer limit.
 export const PAYMENTS_LIMITS = {
   webhook_tolerance_seconds: { min: 60, max: 900 },
   webhook_lock_ttl_seconds: { min: 60, max: 3600 },
+  webhook_lock_fence_ttl_seconds: { min: 300, max: 2592000 },
   http_timeout_ms: { min: 1000, max: 30000 },
   sync_http_timeout_ms: { min: 1000, max: 120000 },
   review_queue_page_size: { min: 1, max: 1000 },
@@ -221,23 +328,34 @@ function isHttpsUrl(v: unknown): v is string {
 }
 
 export function loadPaymentsSection(raw: Record<string, unknown> | undefined): GlobalSettings["payments"] {
-  const d = DEFAULT_GLOBAL.payments;
-  if (!raw) return d;
+  const defaults = DEFAULT_GLOBAL.payments;
+  if (!raw) return defaults;
   const p = raw as Partial<GlobalSettings["payments"]> & Record<string, unknown>;
   const paddle = (p.paddle ?? {}) as Partial<GlobalSettings["payments"]["paddle"]>;
   const apiBase = (paddle.api_base ?? {}) as Partial<GlobalSettings["payments"]["paddle"]["api_base"]>;
   const fallbacks: string[] = [];
   // Warn ONLY for keys explicitly present and invalid; omitted keys default silently.
   const num = (key: keyof typeof PAYMENTS_LIMITS): number => {
-    if (!(key in p)) return d[key];
+    if (!(key in p)) return defaults[key];
     const v = p[key];
     const { min, max } = PAYMENTS_LIMITS[key];
     if (intInRange(v, min, max)) return v;
     fallbacks.push(key);
-    return d[key];
+    return defaults[key];
   };
   const webhookTolerance = num("webhook_tolerance_seconds");
   const webhookLockTtl = num("webhook_lock_ttl_seconds");
+  const webhookLockFenceTtl = num("webhook_lock_fence_ttl_seconds");
+  const keyToken = (key: "webhook_lock_sale_prefix" | "webhook_lock_refund_prefix" | "webhook_lock_fence_suffix"): string => {
+    if (!(key in p)) return defaults[key];
+    const v = p[key];
+    if (typeof v === "string" && v.length > 0 && !/\s/.test(v)) return v;
+    fallbacks.push(key);
+    return defaults[key];
+  };
+  const webhookLockSalePrefix = keyToken("webhook_lock_sale_prefix");
+  const webhookLockRefundPrefix = keyToken("webhook_lock_refund_prefix");
+  const webhookLockFenceSuffix = keyToken("webhook_lock_fence_suffix");
   const httpTimeout = num("http_timeout_ms");
   const syncHttpTimeout = num("sync_http_timeout_ms");
   // Validate BEFORE the fallback warning below, so an invalid value is reported, not silently defaulted.
@@ -250,15 +368,15 @@ export function loadPaymentsSection(raw: Record<string, unknown> | undefined): G
     return expected;
   };
   const apiProduction = paddleUrl(
-    apiBase.production, d.paddle.api_base.production, "paddle.api_base.production",
+    apiBase.production, defaults.paddle.api_base.production, "paddle.api_base.production",
     (x) => isCanonicalPaddleApiUrl(x, "https://api.paddle.com") ? (x as string).replace(/\/+$/, "") : null,
   );
   const apiSandbox = paddleUrl(
-    apiBase.sandbox, d.paddle.api_base.sandbox, "paddle.api_base.sandbox",
+    apiBase.sandbox, defaults.paddle.api_base.sandbox, "paddle.api_base.sandbox",
     (x) => isCanonicalPaddleApiUrl(x, "https://sandbox-api.paddle.com") ? (x as string).replace(/\/+$/, "") : null,
   );
-  const jsCdn = paddleUrl(paddle.js_cdn_url, d.paddle.js_cdn_url, "paddle.js_cdn_url", (x) => (isPaddleJsCdnUrl(x) ? (x as string) : null));
-  let currencies = d.allowed_currencies;
+  const jsCdn = paddleUrl(paddle.js_cdn_url, defaults.paddle.js_cdn_url, "paddle.js_cdn_url", (x) => (isPaddleJsCdnUrl(x) ? (x as string) : null));
+  let currencies = defaults.allowed_currencies;
   if (p.allowed_currencies !== undefined) {
     const list = Array.isArray(p.allowed_currencies)
       ? p.allowed_currencies.map(String)
@@ -269,16 +387,31 @@ export function loadPaymentsSection(raw: Record<string, unknown> | undefined): G
       fallbacks.push("allowed_currencies");
     }
   }
+  let sandboxCheckoutEnabled = defaults.sandbox_checkout_enabled;
+  if ("sandbox_checkout_enabled" in p) {
+    if (typeof p.sandbox_checkout_enabled === "boolean") {
+      sandboxCheckoutEnabled = p.sandbox_checkout_enabled;
+    } else {
+      fallbacks.push("sandbox_checkout_enabled");
+    }
+  }
   if (fallbacks.length > 0) warnFallback("global.json", `invalid payments values for ${fallbacks.join(", ")}`);
   return {
     allowed_currencies: currencies,
     webhook_tolerance_seconds: webhookTolerance,
     webhook_lock_ttl_seconds: webhookLockTtl,
+    webhook_lock_fence_ttl_seconds: webhookLockFenceTtl,
+    webhook_lock_sale_prefix: webhookLockSalePrefix,
+    webhook_lock_refund_prefix: webhookLockRefundPrefix,
+    webhook_lock_fence_suffix: webhookLockFenceSuffix,
     http_timeout_ms: httpTimeout,
     sync_http_timeout_ms: syncHttpTimeout,
     review_queue_page_size: reviewQueuePageSize,
     retry_after_seconds: retryAfterSeconds,
     paddle: { api_base: { production: apiProduction, sandbox: apiSandbox }, js_cdn_url: jsCdn },
+    creem_accept_test_mode: p.creem_accept_test_mode === true,
+    creem_test_database_ref: typeof p.creem_test_database_ref === "string" ? p.creem_test_database_ref.trim() : "",
+    sandbox_checkout_enabled: sandboxCheckoutEnabled,
   };
 }
 
@@ -287,7 +420,7 @@ function loadGlobal(): GlobalSettings {
   if (!raw) {
     warnFallback("global.json", "missing/unreadable");
     // Production deploys no global.json: env overrides (ADMIN_USER_IDS) must still apply.
-    return { ...DEFAULT_GLOBAL, admin: loadAdminSection(undefined) };
+    return { ...DEFAULT_GLOBAL, payments: loadPaymentsSection(undefined), admin: loadAdminSection(undefined) };
   }
   const g = raw as Partial<GlobalSettings> & Record<string, unknown>;
   return {
@@ -299,17 +432,94 @@ function loadGlobal(): GlobalSettings {
     server: { ...DEFAULT_GLOBAL.server, ...(g.server ?? {}) },
     defaults: { ...DEFAULT_GLOBAL.defaults, ...(g.defaults ?? {}) },
     payments: loadPaymentsSection(g.payments as Record<string, unknown> | undefined),
+    delivery: loadDeliverySection(g.delivery as Record<string, unknown> | undefined),
     landing: { ...DEFAULT_GLOBAL.landing, ...(g.landing ?? {}) },
+    storefront: { ...DEFAULT_GLOBAL.storefront, ...(g.storefront ?? {}) },
+    handles: { ...DEFAULT_GLOBAL.handles, ...(g.handles ?? {}) },
+    product_slug: { ...DEFAULT_GLOBAL.product_slug, ...(g.product_slug ?? {}) },
     email: loadEmailSection(g.email as Record<string, unknown> | undefined),
     portal: { ...DEFAULT_GLOBAL.portal, ...(g.portal ?? {}) },
     admin: loadAdminSection(g.admin as Record<string, unknown> | undefined),
     consent: { ...DEFAULT_GLOBAL.consent, ...(g.consent ?? {}) },
+    usage_watch: loadUsageWatchSection(g.usage_watch as Record<string, unknown> | undefined),
   };
+}
+
+/** Bounds for the usage watch tunables. warn_ratio stays strictly between 0.5 and 0.99 so WARN can fire before a hard limit. */
+export const USAGE_WATCH_LIMITS = {
+  warn_ratio: { min: 0.5, max: 0.99 },
+} as const;
+
+/** usage_watch: deep-merge over the defaults. Every number must be a finite positive value; a bad value falls back
+ *  to its default (with a warning) instead of disabling the watch. */
+export function loadUsageWatchSection(raw: Record<string, unknown> | undefined): UsageWatchSettings {
+  const defaults = DEFAULT_GLOBAL.usage_watch;
+  if (!raw) return defaults;
+  const fallbacks: string[] = [];
+  const pick = (candidate: unknown, fallback: number, key: string, ok: (value: number) => boolean): number => {
+    if (typeof candidate === "number" && Number.isFinite(candidate) && ok(candidate)) return candidate;
+    if (candidate !== undefined) fallbacks.push(key);
+    return fallback;
+  };
+  const positive = (value: number): boolean => value > 0;
+  const sub = (name: "vercel" | "supabase" | "upstash"): Record<string, unknown> =>
+    (raw[name] && typeof raw[name] === "object" ? raw[name] : {}) as Record<string, unknown>;
+  const v = sub("vercel");
+  const s = sub("supabase");
+  const u = sub("upstash");
+  const endpoints = (raw.endpoints && typeof raw.endpoints === "object" ? raw.endpoints : {}) as Record<string, unknown>;
+  const str = (candidate: unknown, fallback: string, key: string): string => {
+    if (typeof candidate === "string" && candidate.trim() !== "") return candidate;
+    if (candidate !== undefined) fallbacks.push(key);
+    return fallback;
+  };
+  const out: UsageWatchSettings = {
+    warn_ratio: pick(raw.warn_ratio, defaults.warn_ratio, "warn_ratio", (value) => value >= USAGE_WATCH_LIMITS.warn_ratio.min && value <= USAGE_WATCH_LIMITS.warn_ratio.max),
+    timeout_ms: pick(raw.timeout_ms, defaults.timeout_ms, "timeout_ms", positive),
+    endpoints: {
+      supabase_api: str(endpoints.supabase_api, defaults.endpoints.supabase_api, "endpoints.supabase_api"),
+      upstash_api: str(endpoints.upstash_api, defaults.endpoints.upstash_api, "endpoints.upstash_api"),
+      vercel_cli: str(endpoints.vercel_cli, defaults.endpoints.vercel_cli, "endpoints.vercel_cli"),
+    },
+    vercel: {
+      team_id: str(v.team_id, defaults.vercel.team_id, "vercel.team_id"),
+      max_pages: pick(v.max_pages, defaults.vercel.max_pages, "vercel.max_pages", positive),
+      deployments_per_day: pick(v.deployments_per_day, defaults.vercel.deployments_per_day, "vercel.deployments_per_day", positive),
+      deployments_per_hour: pick(v.deployments_per_hour, defaults.vercel.deployments_per_hour, "vercel.deployments_per_hour", positive),
+      fluid_active_cpu_hours: pick(v.fluid_active_cpu_hours, defaults.vercel.fluid_active_cpu_hours, "vercel.fluid_active_cpu_hours", positive),
+    },
+    supabase: {
+      db_size_bytes: pick(s.db_size_bytes, defaults.supabase.db_size_bytes, "supabase.db_size_bytes", positive),
+      egress_bytes: pick(s.egress_bytes, defaults.supabase.egress_bytes, "supabase.egress_bytes", positive),
+      file_storage_bytes: pick(s.file_storage_bytes, defaults.supabase.file_storage_bytes, "supabase.file_storage_bytes", positive),
+    },
+    upstash: {
+      monthly_commands: pick(u.monthly_commands, defaults.upstash.monthly_commands, "upstash.monthly_commands", positive),
+      monthly_bandwidth_bytes: pick(u.monthly_bandwidth_bytes, defaults.upstash.monthly_bandwidth_bytes, "upstash.monthly_bandwidth_bytes", positive),
+      memory_bytes: pick(u.memory_bytes, defaults.upstash.memory_bytes, "upstash.memory_bytes", positive),
+    },
+  };
+  if (fallbacks.length > 0) warnFallback("global.json", `invalid usage_watch values for ${fallbacks.join(", ")}`);
+  return out;
 }
 
 export function consentTextVersion(): string {
   const v = GLOBAL.consent?.text_version;
   return typeof v === "string" && v.trim().length > 0 ? v.trim() : DEFAULT_GLOBAL.consent.text_version;
+}
+
+/**
+ * Compiled consent-evidence path rules. A missing or empty override falls back to the default; an override
+ * that is not a valid regex throws, which fails closed (the caller refuses before any upload).
+ */
+export function consentEvidencePathRules(): { userId: RegExp; envelopeId: RegExp } {
+  const configured = GLOBAL.consent?.evidence_path;
+  const defaults = DEFAULT_GLOBAL.consent.evidence_path;
+  const pick = (value: unknown, fallback: string): string => (typeof value === "string" && value.length > 0 ? value : fallback);
+  return {
+    userId: new RegExp(pick(configured?.user_id_pattern, defaults.user_id_pattern)),
+    envelopeId: new RegExp(pick(configured?.envelope_id_pattern, defaults.envelope_id_pattern)),
+  };
 }
 
 export const PORTAL_JWT_SKEW_LIMITS = { min: 250, max: 500 } as const;
@@ -319,10 +529,10 @@ export const PORTAL_JWT_SKEW_LIMITS = { min: 250, max: 500 } as const;
  *  audit_log_page_size clamps into its bounds. Env overrides:
  *  ADMIN_USER_IDS (comma-separated), ADMIN_AUDIT_LOG_PAGE_SIZE. */
 export function loadAdminSection(raw: Record<string, unknown> | undefined): GlobalSettings["admin"] {
-  const d = DEFAULT_GLOBAL.admin;
+  const defaults = DEFAULT_GLOBAL.admin;
   const r = (raw ?? {}) as Partial<GlobalSettings["admin"]> & Record<string, unknown>;
   const fallbacks: string[] = [];
-  let userIds = d.admin_user_ids;
+  let userIds = defaults.admin_user_ids;
   // Env wins over global.json (production deploys no global.json; the env is the operator's override).
   // An empty / commas-only ADMIN_USER_IDS counts as unset, so it can't silently blank a file allowlist.
   const envIds = process.env.ADMIN_USER_IDS?.split(",").map((s) => s.trim()).filter((s) => s !== "");
@@ -338,7 +548,7 @@ export function loadAdminSection(raw: Record<string, unknown> | undefined): Glob
       fallbacks.push("admin_user_ids");
     }
   }
-  let pageSize = d.audit_log_page_size;
+  let pageSize = defaults.audit_log_page_size;
   const rawSize = process.env.ADMIN_AUDIT_LOG_PAGE_SIZE !== undefined ? Number(process.env.ADMIN_AUDIT_LOG_PAGE_SIZE) : r.audit_log_page_size;
   if (intInRange(rawSize, ADMIN_LIMITS.audit_log_page_size.min, ADMIN_LIMITS.audit_log_page_size.max)) {
     pageSize = rawSize;
@@ -360,12 +570,44 @@ export function jwtSkewRetryDelayMs(): number {
   return clampJwtSkewDelay(GLOBAL.portal?.jwt_clock_skew_retry_delay_ms);
 }
 
+export function loadDeliverySection(raw: Record<string, unknown> | undefined): GlobalSettings["delivery"] {
+  const defaults = DEFAULT_GLOBAL.delivery;
+  if (!raw) return defaults;
+  const record = raw as Partial<GlobalSettings["delivery"]> & Record<string, unknown>;
+  const fallbacks: string[] = [];
+  const str = (key: "bucket" | "short_domain" | "send_kind"): string => {
+    if (!(key in record)) return defaults[key];
+    const candidate = record[key];
+    if (typeof candidate === "string" && candidate.trim() !== "" && candidate === candidate.trim()) return candidate;
+    fallbacks.push(key);
+    return defaults[key];
+  };
+  const posInt = (key: "link_ttl_days" | "signed_url_seconds" | "stuck_claim_after_seconds" | "stuck_claim_list_limit", min: number, max: number): number => {
+    if (!(key in record)) return defaults[key];
+    const candidate = record[key];
+    if (intInRange(candidate, min, max)) return candidate;
+    fallbacks.push(key);
+    return defaults[key];
+  };
+  const out = {
+    bucket: str("bucket"),
+    link_ttl_days: posInt("link_ttl_days", 1, 365),
+    signed_url_seconds: posInt("signed_url_seconds", 30, 3600),
+    short_domain: str("short_domain"),
+    send_kind: str("send_kind"),
+    stuck_claim_after_seconds: posInt("stuck_claim_after_seconds", 60, 86400),
+    stuck_claim_list_limit: posInt("stuck_claim_list_limit", 1, 10000),
+  };
+  if (fallbacks.length > 0) warnFallback("global.json", `invalid delivery values for ${fallbacks.join(", ")}`);
+  return out;
+}
+
 /** email: shallow merge, but retryable_error_names must be a non-empty string[] (a string would make
  *  `.includes` a substring match; a number would throw inside sendEmail's error path). */
 export function loadEmailSection(raw: Record<string, unknown> | undefined): GlobalSettings["email"] {
   const merged = { ...DEFAULT_GLOBAL.email, ...(raw ?? {}) } as GlobalSettings["email"];
   const names = (raw ?? {}).retryable_error_names;
-  if (names !== undefined && !(Array.isArray(names) && names.length > 0 && names.every((n) => typeof n === "string" && n !== "" && n === n.trim()))) {
+  if (names !== undefined && !(Array.isArray(names) && names.length > 0 && names.every((entry) => typeof entry === "string" && entry !== "" && entry === entry.trim()))) {
     warnFallback("global.json", "invalid email values for retryable_error_names");
     merged.retryable_error_names = DEFAULT_GLOBAL.email.retryable_error_names;
   }

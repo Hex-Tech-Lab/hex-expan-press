@@ -1,9 +1,9 @@
 /**
  * Buyer delivery (launch blocker, item 3). After a sale is recorded:
  *   1. mint a random download token; store only its sha256 (download_events, once per sale)
- *   2. wrap {origin}/d/{token} in a Dub short link (go.expanpress.com)
+ *   2. wrap {origin}/books/d/{token} in a Dub short link (go.expanpress.com)
  *   3. email the buyer the link via Resend
- * GET /d/{token} then validates the hash and expiry, logs download_completed, and 302s to a
+ * GET /books/d/{token} then validates the hash and expiry, logs download_completed, and 302s to a
  * 300-second signed URL for the release file. Only the server-side log makes the served-download
  * claim; it records that a signed URL was issued, not that the browser finished the transfer.
  *
@@ -16,8 +16,11 @@
 import { createHash, randomBytes } from "node:crypto";
 import { GLOBAL } from "./settings_registry.ts";
 import { EmailSendError, sendEmail as realSendEmail } from "./email.ts";
-import { DeliveryBlockedError } from "./delivery_errors.ts";
+import { DeliveryBlockedError, StaleFenceError } from "./delivery_errors.ts";
+import { createDeliverySendsStore, type DeliverySendClaim } from "./delivery_sends_store.ts";
 import { getSupabaseAdmin } from "./supabase_admin.ts";
+
+export { StaleFenceError, type DeliverySendClaim };
 
 export const TOKEN_RE = /^[A-Za-z0-9_-]{43}$/;
 
@@ -67,6 +70,34 @@ export interface DeliveryDb {
   deliveryConfirmed(provider: string, saleId: string): Promise<boolean>;
   /** Records that the send for this provider's sale link was accepted. Called only after the send resolves. */
   confirmDelivery(row: { provider: string; saleId: string; tokenHash: string }): Promise<void>;
+  /** Option A + B: atomically claims (provider, saleId, sendKind) with ON CONFLICT DO NOTHING and fence check. */
+  claimDeliverySend(row: {
+    provider: string;
+    saleId: string;
+    sendKind: string;
+    fence?: number;
+  }): Promise<DeliverySendClaim>;
+  /** Option B: conditional fence verification immediately before sending email. */
+  assertSendFence(row: {
+    provider: string;
+    saleId: string;
+    sendKind: string;
+    fence: number;
+  }): Promise<void>;
+  /** Option A + B: transitions claim to 'sent' only when stored fence <= new fence. */
+  markDeliverySent(row: {
+    provider: string;
+    saleId: string;
+    sendKind: string;
+    fence?: number;
+  }): Promise<void>;
+  /** Releases a 'claimed' row only when no send was attempted or provider definitely refused. */
+  releaseDeliverySend(row: {
+    provider: string;
+    saleId: string;
+    sendKind: string;
+    fence?: number;
+  }): Promise<void>;
 }
 
 export interface DeliveryDeps {
@@ -90,21 +121,60 @@ function withDeadline<T>(work: Promise<T>, ms: number, label: string): Promise<T
   return Promise.race([work, deadline]).finally(() => clearTimeout(timer));
 }
 
+/**
+ * A held claim (state 'claimed', never confirmed sent) is never resent: at-most-once, by design. Once it is older than
+ * delivery.stuck_claim_after_seconds it is an unconfirmed buyer receipt, so it is logged at error level for an operator.
+ */
+function noteHeldClaim(provider: string, saleId: string, sendKind: string, claimedAt: string | undefined, deps: DeliveryDeps): void {
+  const thresholdMs = GLOBAL.delivery.stuck_claim_after_seconds * 1000;
+  if (claimedAt === undefined || !Number.isFinite(thresholdMs)) return;
+  const ageMs = (deps.now ? deps.now() : new Date()).getTime() - Date.parse(claimedAt);
+  if (!Number.isFinite(ageMs) || ageMs <= thresholdMs) return;
+  console.error(
+    `[delivery] STUCK CLAIM sale=${saleId} provider=${provider} send_kind=${sendKind} claimed_at=${claimedAt}: ` +
+      "no confirmed receipt and not resent (at-most-once). Verify the buyer and resend by hand (listStuckDeliveryClaims).",
+  );
+}
+
 export type DeliveryOutcome = "sent" | "duplicate" | "no_email" | "no_release_file";
 
 const esc = (s: string): string => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
 export async function deliverSale(
-  input: { provider: string; saleId: string; productAlias: string; buyerEmail?: string },
+  input: {
+    provider: string;
+    saleId: string;
+    productAlias: string;
+    buyerEmail?: string;
+    sendKind?: string;
+    fence?: number;
+  },
   deps: DeliveryDeps,
 ): Promise<DeliveryOutcome> {
+  if (input.fence !== undefined && (typeof input.fence !== "number" || !Number.isSafeInteger(input.fence) || input.fence < 0)) {
+    throw new TypeError("delivery: fence token must be a non-negative safe integer");
+  }
+  const sendKind = input.sendKind ?? GLOBAL.delivery?.send_kind;
+  if (typeof sendKind !== "string" || sendKind.trim() === "") {
+    throw new Error("delivery: delivery.send_kind is missing in settings registry");
+  }
   if (!input.buyerEmail) return "no_email";
   const product = await deps.db.productForAlias(input.provider, input.productAlias);
   // Fail closed on a product with no release file: a buyer must never get a link to nothing.
   if (!product || !product.releasePath) return "no_release_file";
 
-  // If this sale was already successfully delivered and confirmed, do not issue another link or send another email.
-  if (await deps.db.deliveryConfirmed(input.provider, input.saleId)) return "duplicate";
+  // Option A + Option B: claim the single-send row BEFORE creating any download link or sending email
+  // (and before deliveryConfirmed so stale-fence workers are rejected even after completion).
+  const claim = await deps.db.claimDeliverySend({
+    provider: input.provider,
+    saleId: input.saleId,
+    sendKind,
+    fence: input.fence,
+  });
+  if (claim.outcome !== "claimed") {
+    if (claim.outcome === "already_claimed") noteHeldClaim(input.provider, input.saleId, sendKind, claim.claimedAt, deps);
+    return "duplicate";
+  }
 
   const now = deps.now ? deps.now() : new Date();
   const token = (deps.newToken ?? newToken)();
@@ -113,28 +183,51 @@ export async function deliverSale(
   let linkGeneration = nextGeneration(now.getTime());
   let row = { saleId: input.saleId, productId: product.id, tokenHash: hash, expiresAt, linkGeneration };
 
-  const MAX_GENERATION_ATTEMPTS = 3;
-  let inserted = false;
-  for (let attempt = 0; attempt < MAX_GENERATION_ATTEMPTS; attempt++) {
-    inserted = await deps.db.recordLinkIssued(row);
-    if (inserted) break;
-    // If a concurrent worker completed delivery while we were attempting issuance:
-    if (await deps.db.deliveryConfirmed(input.provider, input.saleId)) return "duplicate";
-    // Monotonic generation retry without destroying prior links:
-    linkGeneration = nextGeneration(Math.max(now.getTime(), linkGeneration + 1));
-    row = { ...row, linkGeneration };
-  }
-
-  if (!inserted) {
-    if (await deps.db.deliveryConfirmed(input.provider, input.saleId)) return "duplicate";
-    throw new Error(`delivery blocked: sale ${input.saleId} link generation collision`);
-  }
-
+  let linkInserted = false;
+  let sendAttempted = false;
+  const confirmExistingAsDuplicate = async (): Promise<boolean> => {
+    if (!(await deps.db.deliveryConfirmed(input.provider, input.saleId))) return false;
+    await deps.db.markDeliverySent({
+      provider: input.provider,
+      saleId: input.saleId,
+      sendKind,
+      fence: input.fence,
+    });
+    return true;
+  };
   try {
-    const link = await deps.createShortLink(`${deps.origin}/d/${token}`);
+    // Legacy audit-log check (e.g. sales confirmed before public.delivery_sends existed).
+    if (await confirmExistingAsDuplicate()) return "duplicate";
+
+    const MAX_GENERATION_ATTEMPTS = 3;
+    for (let attempt = 0; attempt < MAX_GENERATION_ATTEMPTS; attempt++) {
+      linkInserted = await deps.db.recordLinkIssued(row);
+      if (linkInserted) break;
+      // If a concurrent worker completed delivery while we were attempting issuance:
+      if (await confirmExistingAsDuplicate()) return "duplicate";
+      // Monotonic generation retry without destroying prior links:
+      linkGeneration = nextGeneration(Math.max(now.getTime(), linkGeneration + 1));
+      row = { ...row, linkGeneration };
+    }
+
+    if (!linkInserted) {
+      if (await confirmExistingAsDuplicate()) return "duplicate";
+      throw new Error(`delivery blocked: sale ${input.saleId} link generation collision`);
+    }
+
+    const link = await deps.createShortLink(`${deps.origin}/books/d/${token}`);
+    if (input.fence !== undefined) {
+      await deps.db.assertSendFence({
+        provider: input.provider,
+        saleId: input.saleId,
+        sendKind,
+        fence: input.fence,
+      });
+    }
     const days = GLOBAL.delivery.link_ttl_days;
     const title = product.title;
     const deadlineMs = deps.timeoutMs ?? GLOBAL.payments.http_timeout_ms;
+    sendAttempted = true;
     await withDeadline(deps.sendEmail({
       to: input.buyerEmail,
       subject: `Your download: ${title}`,
@@ -149,19 +242,38 @@ export async function deliverSale(
       replyTo: deps.replyTo,
     }), deadlineMs, "email send");
   } catch (err) {
-    // Release the link only on a definite provider rejection: nothing was sent, so the slot can be reused.
-    // An ambiguous failure may still have been accepted, so its link stays valid. A retry may then send
-    // a second email (an accepted duplicate). The original error still propagates.
-    if (err instanceof EmailSendError && err.definite) {
+    // Release the link and claim ONLY when no email could have been accepted (before sendEmail was
+    // called, or on a definite provider 4xx rejection). On an ambiguous failure (timeout, transport
+    // error, 5xx), keep BOTH the link row and the 'claimed' row so retries never send a duplicate.
+    const definiteNonSend = !sendAttempted || (err instanceof EmailSendError && err.definite);
+    if (linkInserted && definiteNonSend) {
       try {
         await deps.db.releaseLinkIssued({ saleId: input.saleId, tokenHash: hash });
       } catch (releaseErr) {
         console.error(`[delivery] sale ${input.saleId}: could not release link row: ${String(releaseErr)}`);
       }
     }
+    if (definiteNonSend && !(err instanceof StaleFenceError)) {
+      try {
+        await deps.db.releaseDeliverySend({
+          provider: input.provider,
+          saleId: input.saleId,
+          sendKind,
+          fence: input.fence,
+        });
+      } catch (releaseClaimErr) {
+        console.error(`[delivery] sale ${input.saleId}: could not release send claim: ${String(releaseClaimErr)}`);
+      }
+    }
     throw err;
   }
-  // Written only after the send resolved. If this write fails, the row stays unconfirmed and a retry sends again.
+  await deps.db.markDeliverySent({
+    provider: input.provider,
+    saleId: input.saleId,
+    sendKind,
+    fence: input.fence,
+  });
+  // Written after sendEmail and delivery_sends transition to 'sent'.
   await deps.db.confirmDelivery({ provider: input.provider, saleId: input.saleId, tokenHash: hash });
   return "sent";
 }
@@ -185,6 +297,15 @@ export async function createDubShortLink(targetUrl: string, fetchImpl: typeof fe
   return body.shortLink;
 }
 
+/**
+ * True once the buyer's receipt for this provider's sale is confirmed sent (DELIVERY_LINK_SENT). The webhook lock uses
+ * this to decide whether a contended, already-recorded sale can be acknowledged: a recorded sale alone is not delivered.
+ * A lookup failure throws, so the caller answers retryable.
+ */
+export function saleDeliveryConfirmed(provider: string, saleId: string): Promise<boolean> {
+  return supabaseDeliveryDb().deliveryConfirmed(provider, saleId);
+}
+
 /** Production wiring: Supabase for persistence, Resend for mail, Dub for the short link. */
 export function productionDeps(): DeliveryDeps {
   const origin = "https://expanpress.com";
@@ -204,7 +325,14 @@ export function productionDeps(): DeliveryDeps {
  * the webhook must not acknowledge the sale as delivered.
  */
 export async function deliverSaleForWebhook(
-  input: { provider: string; saleId: string; productAlias: string; buyerEmail?: string },
+  input: {
+    provider: string;
+    saleId: string;
+    productAlias: string;
+    buyerEmail?: string;
+    sendKind?: string;
+    fence?: number;
+  },
   deps: DeliveryDeps = productionDeps(),
 ): Promise<void> {
   const outcome = await deliverSale(input, deps);
@@ -305,5 +433,6 @@ function supabaseDeliveryDb(): DeliveryDb {
         });
       if (error) throw new Error(`delivery confirmation write failed: ${error.message}`);
     },
+    ...createDeliverySendsStore(),
   };
 }

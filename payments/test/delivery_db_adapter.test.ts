@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { getSupabaseAdmin } from "../src/supabase_admin";
-import { productionDeps } from "../src/delivery";
+import { productionDeps, saleDeliveryConfirmed, StaleFenceError } from "../src/delivery";
 
 // The production DB adapter, reached through productionDeps().db. A fake Supabase client records every
 // table call and returns queued results, so each money-path branch can be driven directly.
@@ -21,8 +21,11 @@ function fakeClient() {
         then: (res: (v: Result) => unknown, rej: (e: unknown) => unknown) => Promise.resolve(result).then(res, rej),
         select: (...a: unknown[]) => (rec.ops.push(["select", a]), chain),
         insert: (...a: unknown[]) => (rec.ops.push(["insert", a]), chain),
+        upsert: (...a: unknown[]) => (rec.ops.push(["upsert", a]), chain),
+        update: (...a: unknown[]) => (rec.ops.push(["update", a]), chain),
         delete: (...a: unknown[]) => (rec.ops.push(["delete", a]), chain),
         eq: (...a: unknown[]) => (rec.ops.push(["eq", a]), chain),
+        lte: (...a: unknown[]) => (rec.ops.push(["lte", a]), chain),
         contains: (...a: unknown[]) => (rec.ops.push(["contains", a]), chain),
         is: (...a: unknown[]) => (rec.ops.push(["is", a]), chain),
         order: (...a: unknown[]) => (rec.ops.push(["order", a]), chain),
@@ -213,5 +216,101 @@ describe("supabaseDeliveryDb: confirmation and release", () => {
     await expect(db().releaseLinkIssued({ saleId: "s-1", tokenHash: "h".repeat(64) })).rejects.toThrow(
       /link release failed: locked/,
     );
+  });
+
+  it("throws when the admin client is unavailable for productForAlias, releaseLinkIssued, deliveryConfirmed, and confirmDelivery", async () => {
+    vi.mocked(getSupabaseAdmin).mockResolvedValue(null);
+    await expect(db().productForAlias("paddle", "alias-1")).rejects.toThrow(/Supabase admin client unavailable/);
+    await expect(db().releaseLinkIssued({ saleId: "s-1", tokenHash: "h".repeat(64) })).rejects.toThrow(/Supabase admin client unavailable/);
+    await expect(db().deliveryConfirmed("paddle", "s-1")).rejects.toThrow(/Supabase admin client unavailable/);
+    await expect(db().confirmDelivery({ provider: "paddle", saleId: "s-1", tokenHash: "h".repeat(64) })).rejects.toThrow(
+      /Supabase admin client unavailable/,
+    );
+  });
+
+  it("deliveryConfirmed treats null primary data as empty and throws if the legacy lookup errors", async () => {
+    useClient();
+    results = [
+      { data: null, error: null },
+      { data: null, error: { message: "legacy timeout" } },
+    ];
+    await expect(db().deliveryConfirmed("paddle", "s-null")).rejects.toThrow(/delivery confirmation lookup failed: legacy timeout/);
+  });
+});
+
+describe("saleDeliveryConfirmed and productionDeps().createShortLink", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  it("saleDeliveryConfirmed delegates to supabaseDeliveryDb().deliveryConfirmed", async () => {
+    useClient();
+    results = [{ data: [{ id: 1 }], error: null }];
+    await expect(saleDeliveryConfirmed("paddle", "s-confirmed")).resolves.toBe(true);
+  });
+
+  it("productionDeps().createShortLink delegates to createDubShortLink", async () => {
+    vi.stubEnv("DUB_API_KEY", "dub_prod_key");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({ shortLink: "https://go.expanpress.com/prod" }), { status: 200 })),
+    );
+    await expect(productionDeps().createShortLink("https://expanpress.com/books/d/tok")).resolves.toBe("https://go.expanpress.com/prod");
+  });
+});
+
+describe("supabaseDeliveryDb: delivery_sends single-send & fence adapter", () => {
+  it("claimDeliverySend uses upsert ignoreDuplicates and returns 'claimed' on new insert", async () => {
+    useClient();
+    results = [{ data: [{ state: "claimed", fence: 3 }], error: null }];
+    const claim = await db().claimDeliverySend({ provider: "paddle", saleId: "s-10", sendKind: "buyer_receipt", fence: 3 });
+    expect(claim).toEqual({ outcome: "claimed", fence: 3 });
+    expect(calls[0].table).toBe("delivery_sends");
+    expect(calls[0].ops[0]).toEqual([
+      "upsert",
+      [
+        { provider: "paddle", sale_id: "s-10", send_kind: "buyer_receipt", fence: 3, state: "claimed" },
+        { onConflict: "provider,sale_id,send_kind", ignoreDuplicates: true },
+      ],
+    ]);
+  });
+
+  it("claimDeliverySend conditionally updates fence <= newFence on conflict and rejects stale fence", async () => {
+    useClient();
+    results = [
+      { data: [], error: null },
+      { data: [], error: null },
+      { data: { state: "claimed", fence: 5 }, error: null },
+    ];
+    await expect(
+      db().claimDeliverySend({ provider: "paddle", saleId: "s-11", sendKind: "buyer_receipt", fence: 2 }),
+    ).rejects.toThrow(StaleFenceError);
+    const updateOps = calls[1].ops;
+    expect(updateOps).toContainEqual(["lte", ["fence", 2]]);
+  });
+
+  it("markDeliverySent updates state='sent' conditionally with fence <= newFence and throws StaleFenceError on 0 rows", async () => {
+    useClient();
+    results = [{ data: [], error: null }];
+    await expect(
+      db().markDeliverySent({ provider: "paddle", saleId: "s-12", sendKind: "buyer_receipt", fence: 1 }),
+    ).rejects.toThrow(StaleFenceError);
+    expect(calls[0].ops).toContainEqual(["lte", ["fence", 1]]);
+  });
+
+  it("releaseDeliverySend deletes only state='claimed' scoped by fence <= newFence", async () => {
+    useClient();
+    results = [{ data: null, error: null }];
+    await db().releaseDeliverySend({ provider: "paddle", saleId: "s-13", sendKind: "buyer_receipt", fence: 4 });
+    expect(calls[0].table).toBe("delivery_sends");
+    expect(calls[0].ops).toEqual([
+      ["delete", []],
+      ["eq", ["provider", "paddle"]],
+      ["eq", ["sale_id", "s-13"]],
+      ["eq", ["send_kind", "buyer_receipt"]],
+      ["eq", ["state", "claimed"]],
+      ["lte", ["fence", 4]],
+    ]);
   });
 });

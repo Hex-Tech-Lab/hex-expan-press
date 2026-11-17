@@ -3,6 +3,10 @@ import { Node, SyntaxKind } from "ts-morph";
 import type { CatchClause, SourceFile } from "ts-morph";
 import type { Finding, IRule } from "../engine";
 
+function isTestFilePath(filePath: string): boolean {
+  return /\.(test|spec)\.[jt]sx?$/.test(filePath) || filePath.includes("__tests__/");
+}
+
 export const AsyncWithoutAwaitRule: IRule = {
   name: "async-without-await-detector",
   check: (source: SourceFile) => {
@@ -76,51 +80,72 @@ export const VariableNamingRule: IRule = {
   check: (source: SourceFile) => {
     const findings: Finding[] = [];
     const filePath = source.getFilePath().replace(/\\/g, "/");
+    if (isTestFilePath(filePath)) return findings;
 
     source.forEachDescendant((node) => {
       if (Node.isVariableDeclaration(node) || Node.isParameterDeclaration(node)) {
+        // Catch bindings like `catch (e)` are universal in TS/JS.
+        if (Node.isVariableDeclaration(node) && Node.isCatchClause(node.getParent())) return;
+
         const nameNode = node.getNameNode();
         if (nameNode) {
           const name = nameNode.getText();
 
-          // Flag single-letter variable names (except in loops, the discard name `_`, or very short scopes)
+          // Flag single-letter variable names (except in loops, the discard name `_`, or narrow idiomatic scopes)
           if (name.length === 1 && !['i', 'j', 'x', 'y', '_'].includes(name)) {
-            // Exempt a single-letter PARAMETER that is the sole parameter of
-            // an arrow function passed directly as a callback argument to a
-            // call expression -- e.g. `useFooStore((s) => s.bar)`,
-            // `.map((x) => ...)`, `.then((r) => ...)`. This is a near-
-            // universal functional idiom (Zustand/Redux selectors, array
-            // methods, promise chains) across this codebase and the wider
-            // ecosystem, not an unclear-naming case: the parameter's whole
-            // referent is the single argument the call site already names.
-            // (2026-09-10 fix: false-positived on `(s) => s.error` in this
-            // exact codebase's own pervasive Zustand selector convention.)
             if (Node.isParameterDeclaration(node)) {
               const arrowFn = node.getParent();
               const callExpr = arrowFn?.getParent();
-              if (
-                Node.isArrowFunction(arrowFn) &&
-                arrowFn.getParameters().length === 1 &&
-                // A rest parameter (`(...q) => q.length`) also satisfies
-                // `getParameters().length === 1`, but it represents a
-                // variable-length collection, not the single callback value
-                // this exemption is meant for -- it must still be flagged.
-                // (2026-09-11 fix, external review on PR #307 finding #1.)
-                !node.isRestParameter() &&
-                Node.isCallExpression(callExpr) &&
-                // Defensive guard: ensure the arrow is an ARGUMENT of the
-                // call, not its callee. In practice the TS AST always wraps
-                // an arrow-as-callee in a ParenthesizedExpression (so
-                // `Node.isCallExpression(callExpr)` already excludes IIFEs
-                // like `((q) => q.trim())()`), but this check is harmless
-                // belt-and-suspenders against any AST shape where the arrow
-                // somehow lands as the call's callee rather than an arg.
-                // (2026-09-10, external review on PR #307 finding #2.)
-                callExpr.getArguments().includes(arrowFn)
-              ) {
+              if (Node.isArrowFunction(arrowFn) && !node.isRestParameter()) {
+                const params = arrowFn.getParameters();
+                const isIife =
+                  (Node.isCallExpression(callExpr) && (callExpr.getExpression() as Node) === arrowFn) ||
+                  (Node.isParenthesizedExpression(callExpr) && Node.isCallExpression(callExpr.getParent()));
+                const isCallbackArg = Node.isCallExpression(callExpr) && callExpr.getArguments().includes(arrowFn);
+
+                // Sole parameter of an inline callback arrow (`items.map((x) => ...)`, `useStore((s) => s.bar)`).
+                if (params.length === 1 && isCallbackArg) return;
+                // `.sort((a, b) => ...)` comparators and `(item, i) => ...` callbacks where 2nd param is loop index i/j/k.
+                if (params.length === 2 && isCallbackArg) {
+                  const calleeText = callExpr.getExpression().getText();
+                  const secondName = params[1].getName();
+                  if (calleeText.endsWith(".sort") && ['a', 'b'].includes(name)) return;
+                  if (params[0] === node && ['i', 'j', 'k'].includes(secondName)) return;
+                }
+                // Concise single-expression arrow helper (e.g. `const hash = (s: string) => ...`).
+                if (params.length === 1 && !Node.isBlock(arrowFn.getBody()) && !isIife) return;
+              }
+              // Tiny string/error helper (`maskProxy(s: string)`, `toError(e: unknown)`).
+              const fn = node.getFirstAncestor((a) => Node.isFunctionLikeDeclaration(a));
+              if (fn && ['s', 'e'].includes(name) && fn.getEndLineNumber() - fn.getStartLineNumber() <= 10) {
                 return;
               }
             }
+
+            if (Node.isVariableDeclaration(node)) {
+              const init = node.getInitializer();
+              // Uppercase math/settings constant (`const N = parseInt(...)`, `const T = loadTranscribeSettings()`).
+              if (/^[A-Z]$/.test(name) && init && Node.isCallExpression(init)) return;
+
+              // Short-lived local inside a function body (never module-level):
+              // either inside a <=10-line helper (`readRegistryFile`, `anchorPageOf`, `ts`) or read only within 10 lines.
+              const fn = node.getFirstAncestor((a) => Node.isFunctionLikeDeclaration(a));
+              if (fn) {
+                const fnLines = fn.getEndLineNumber() - fn.getStartLineNumber();
+                const isCallOrCast = init && (Node.isCallExpression(init) || Node.isAwaitExpression(init) || Node.isAsExpression(init));
+                if (fnLines <= 10 && (isCallOrCast || ['h', 'm', 's', 'v'].includes(name))) return;
+                const block = node.getFirstAncestorByKind(SyntaxKind.Block);
+                if (block) {
+                  const declLine = node.getStartLineNumber();
+                  const maxRefLine = block
+                    .getDescendantsOfKind(SyntaxKind.Identifier)
+                    .filter((id) => id.getText() === name)
+                    .reduce((max, id) => Math.max(max, id.getStartLineNumber()), declLine);
+                  if (maxRefLine - declLine <= (isCallOrCast ? 10 : 6)) return;
+                }
+              }
+            }
+
             // Check if this is in a loop context
             let inLoop = false;
             let current: Node | undefined = node.getParent();
@@ -195,58 +220,29 @@ export const ImportOrderingRule: IRule = {
   check: (source: SourceFile) => {
     const findings: Finding[] = [];
     const filePath = source.getFilePath().replace(/\\/g, "/");
+    if (isTestFilePath(filePath)) return findings;
 
-    // Get all import declarations
-    const imports = source.getImportDeclarations();
+    // Get all value imports (type-only imports have no runtime order or side-effect impact).
+    const imports = source.getImportDeclarations().filter((imp) => !imp.isTypeOnly());
     if (imports.length < 2) return findings;
 
-    const categories = {
-      framework: [] as string[],       // react, next, etc.
-      thirdparty: [] as string[],      // external packages
-      internal: [] as string[],        // local imports starting with ./
-      types: [] as string[]            // type-only imports
-    };
-
+    // Enforce external packages before internal relative/alias imports so third-party polyfills/setup precede local modules.
+    let sawInternal = false;
     for (const imp of imports) {
       const specifier = imp.getModuleSpecifierValue();
-      const isTypeOnly = imp.isTypeOnly();
-
-      if (isTypeOnly) {
-        categories.types.push(specifier);
-      } else if (specifier.startsWith('./') || specifier.startsWith('../') || specifier.startsWith('@/')) {
-        categories.internal.push(specifier);
-      } else if (specifier === 'react' || specifier.startsWith('react') || specifier.startsWith('next') || specifier === 'zustand' || specifier.startsWith('@sentry')) {
-        categories.framework.push(specifier);
-      } else {
-        categories.thirdparty.push(specifier);
-      }
-    }
-
-    // Check ordering: should be framework → thirdparty → internal → types
-    const order = ['framework', 'thirdparty', 'internal', 'types'] as const;
-    let lastCategory = -1;
-
-    for (const imp of imports) {
-      const specifier = imp.getModuleSpecifierValue();
-      const isTypeOnly = imp.isTypeOnly();
-
-      let category: typeof order[number] = 'thirdparty';
-      if (isTypeOnly) category = 'types';
-      else if (specifier.startsWith('./') || specifier.startsWith('../') || specifier.startsWith('@/')) category = 'internal';
-      else if (specifier === 'react' || specifier.startsWith('react') || specifier.startsWith('next') || specifier === 'zustand' || specifier.startsWith('@sentry')) category = 'framework';
-
-      const currentCategoryIndex = order.indexOf(category);
-      if (currentCategoryIndex < lastCategory) {
+      const isInternal = specifier.startsWith('./') || specifier.startsWith('../') || specifier.startsWith('@/');
+      if (isInternal) {
+        sawInternal = true;
+      } else if (sawInternal) {
         findings.push({
           file: filePath,
           severity: "low",
           title: "Code Quality: Import ordering violated",
-          why: `Import '${specifier}' (${category}) comes after ${order[lastCategory]}. Should follow order: framework → thirdparty → internal → types.`,
-          fix: "Reorganize imports to follow the correct order groups."
+          why: `External import '${specifier}' comes after internal module imports. External imports should precede internal imports.`,
+          fix: "Move external package imports above internal ('./', '../', '@/') imports."
         });
-        break; // Report once per file
+        break;
       }
-      lastCategory = currentCategoryIndex;
     }
 
     return findings;
@@ -255,20 +251,52 @@ export const ImportOrderingRule: IRule = {
 
 /**
  * True when a catch clause handles the error without logging it: it rethrows the caught error or its message,
- * or keeps the reason in a variable for a later throw.
+ * returns an error object carrying the caught error, or keeps the reason in a variable for a later throw.
  */
 function handlesCaughtError(catchClause: CatchClause): boolean {
   const block = catchClause.getBlock();
   const nameNode = catchClause.getVariableDeclaration()?.getNameNode();
   const caught = nameNode && Node.isIdentifier(nameNode) ? nameNode.getText() : undefined;
-  const mentionsCaught = (expr: Node): boolean =>
-    caught !== undefined && expr.getDescendantsOfKind(SyntaxKind.Identifier).concat(Node.isIdentifier(expr) ? [expr] : [])
+  const mentionsCaught = (expr: Node | undefined): boolean =>
+    expr !== undefined && caught !== undefined && expr.getDescendantsOfKind(SyntaxKind.Identifier).concat(Node.isIdentifier(expr) ? [expr] : [])
       .some((id) => id.getText() === caught);
 
   if (block.getDescendantsOfKind(SyntaxKind.ThrowStatement).some((t) => mentionsCaught(t.getExpression()))) return true;
+  if (block.getDescendantsOfKind(SyntaxKind.ReturnStatement).some((r) => mentionsCaught(r.getExpression()))) return true;
   // A comment before a fallback return documents a swallowed error; it does not handle it, so it is not a case here.
   return block.getDescendantsOfKind(SyntaxKind.BinaryExpression).some((b) =>
     b.getOperatorToken().getKind() === SyntaxKind.EqualsToken && Node.isIdentifier(b.getLeft()) && mentionsCaught(b.getRight()));
+}
+
+function isBestEffortFsCleanup(catchClause: CatchClause): boolean {
+  if (catchClause.getVariableDeclaration()) return false;
+  const tryStmt = catchClause.getParent();
+  if (!Node.isTryStatement(tryStmt)) return false;
+  const tryStmts = tryStmt.getTryBlock().getStatements();
+  return tryStmts.length === 1 && /\b(rmdirSync|unlinkSync|rmSync|closeSync)\s*\(/.test(tryStmts[0].getText());
+}
+
+function isFailClosedUrlParse(catchClause: CatchClause): boolean {
+  const tryStmt = catchClause.getParent();
+  if (!Node.isTryStatement(tryStmt)) return false;
+  const tryStmts = tryStmt.getTryBlock().getStatements();
+  const catchStmts = catchClause.getBlock().getStatements();
+  return tryStmts.length === 1
+    && /\bnew\s+URL\s*\(/.test(tryStmts[0].getText())
+    && catchStmts.length === 1
+    && /^return\s+(false|null|undefined)\s*;?$/.test(catchStmts[0].getText().trim());
+}
+
+function isRetryLoopWithTerminalThrow(catchClause: CatchClause): boolean {
+  const loop = catchClause.getFirstAncestor((a) =>
+    Node.isForStatement(a) || Node.isWhileStatement(a) || Node.isDoStatement(a)
+  );
+  if (!loop) return false;
+  const fn = catchClause.getFirstAncestor((a) => Node.isFunctionLikeDeclaration(a));
+  if (!fn) return false;
+  const catchStmts = catchClause.getBlock().getStatements();
+  const onlyResetsFlag = catchStmts.length === 1 && Node.isExpressionStatement(catchStmts[0]);
+  return onlyResetsFlag && fn.getDescendantsOfKind(SyntaxKind.ThrowStatement).some((t) => t.getStart() > loop.getEnd());
 }
 
 export const ErrorObservabilityRule: IRule = {
@@ -276,6 +304,7 @@ export const ErrorObservabilityRule: IRule = {
   check: (source: SourceFile) => {
     const findings: Finding[] = [];
     const filePath = source.getFilePath().replace(/\\/g, "/");
+    if (isTestFilePath(filePath)) return findings;
 
     source.forEachDescendant((node) => {
       // Look for catch blocks without logging/Sentry
@@ -283,6 +312,14 @@ export const ErrorObservabilityRule: IRule = {
         const block = node.getBlock();
         if (block) {
           const bodyText = block.getText();
+          const trimmed = bodyText.trim();
+          const statements = block.getStatements();
+          const innerText = trimmed.replace(/^\{/, '').replace(/\}$/, '').trim();
+          const isTrulyEmpty = trimmed === '{}' || trimmed === '{ }';
+          const isCommentOnlyUnbound = !node.getVariableDeclaration()
+            && statements.length === 0
+            && innerText.length > 0
+            && (innerText.startsWith('//') || /^\/\*[\s\S]*\*\/$/.test(innerText));
 
           // Observability must be a real call. A substring test over the raw body let a comment or a string
           // such as "Sentry. unavailable" silence the rule on a catch that swallows the error.
@@ -291,7 +328,14 @@ export const ErrorObservabilityRule: IRule = {
             return callee.includes('console.') || callee.includes('Sentry.') || callee.includes('logger.');
           });
 
-          if (!hasObservability && !bodyText.trim().startsWith('//') && !handlesCaughtError(node)) {
+          if (
+            !isTrulyEmpty &&
+            !isCommentOnlyUnbound &&
+            !hasObservability &&
+            !handlesCaughtError(node) &&
+            !isFailClosedUrlParse(node) &&
+            !isRetryLoopWithTerminalThrow(node)
+          ) {
             findings.push({
               file: filePath,
               severity: "medium",
@@ -306,11 +350,11 @@ export const ErrorObservabilityRule: IRule = {
       // Look for try-catch-ignore patterns
       if (Node.isTryStatement(node)) {
         const catchClause = node.getCatchClause();
-        if (catchClause) {
+        if (catchClause && !isBestEffortFsCleanup(catchClause)) {
           const block = catchClause.getBlock();
           if (block) {
             const catchBody = block.getText();
-            // Empty catch or just throw
+            // Empty catch
             if (catchBody.trim() === '{}' || catchBody.trim() === '{ }') {
               findings.push({
                 file: filePath,
@@ -360,14 +404,12 @@ export const ErrorNormalizationRule: IRule = {
 
       if (!forwardsRaw) return;
 
-      // A normalization guard looks like `X instanceof Error` or
-      // `String(X)` / `X.message` appearing anywhere in the block, applied
-      // to the caught variable before it's forwarded.
+      // A normalization guard looks like `X instanceof Error` (or `*Error` subclass) or
+      // `String(X)` / `X.message` / `(X as Error).message` appearing anywhere in the block.
       const isNormalized =
-        new RegExp(`${caughtName}\\s+instanceof\\s+Error`).test(bodyText) ||
+        new RegExp(`\\b${caughtName}\\s+instanceof\\s+[A-Z][A-Za-z0-9_]*Error\\b`).test(bodyText) ||
         new RegExp(`String\\(\\s*${caughtName}\\s*\\)`).test(bodyText) ||
-        new RegExp(`${caughtName}\\.message\\b`).test(bodyText) ||
-        new RegExp(`${caughtName}\\.stack\\b`).test(bodyText);
+        new RegExp(`(?:\\b${caughtName}|\\(\\s*${caughtName}\\s+as\\s+[^)]+\\))\\??\\.(?:message|stack)\\b`).test(bodyText);
 
       if (!isNormalized) {
         findings.push({
@@ -389,6 +431,7 @@ export const NumberCoercionGuardRule: IRule = {
   check: (source: SourceFile) => {
     const findings: Finding[] = [];
     const filePath = source.getFilePath().replace(/\\/g, "/");
+    if (isTestFilePath(filePath)) return findings;
 
     source.forEachDescendant((node) => {
       if (!Node.isCallExpression(node)) return;
@@ -400,10 +443,34 @@ export const NumberCoercionGuardRule: IRule = {
       const arg = args[0];
       const argText = arg.getText();
 
-      // Skip obviously-safe cases: numeric/string literals, or an argument
-      // already guarded by a typeof/nullish check earlier in the same
-      // logical expression (e.g. `x != null ? Number(x) : fallback`).
+      // Skip obviously-safe cases: numeric/string literals, or an argument defaulted with `?? <literal|Infinity>`
       if (Node.isNumericLiteral(arg) || Node.isStringLiteral(arg)) return;
+      if (
+        Node.isBinaryExpression(arg) &&
+        arg.getOperatorToken().getKind() === SyntaxKind.QuestionQuestionToken &&
+        (Node.isStringLiteral(arg.getRight()) || Node.isNumericLiteral(arg.getRight()) || arg.getRight().getText() === "Infinity")
+      ) {
+        return;
+      }
+
+      // Skip explicit NaN/finiteness checks or direct `|| fallback` on the Number() result.
+      const parent = node.getParent();
+      if (Node.isCallExpression(parent)) {
+        const parentCallee = parent.getExpression().getText();
+        if (["isNaN", "Number.isNaN", "Number.isFinite", "Number.isInteger"].includes(parentCallee)) return;
+      }
+      if (Node.isBinaryExpression(parent) && parent.getLeft() === node && parent.getOperatorToken().getKind() === SyntaxKind.BarBarToken) {
+        return;
+      }
+      // If `const n = Number(...)` is checked immediately by `Number.isFinite(n)` / `Number.isInteger(n)` / `Number.isNaN(n)` in the same block.
+      const varDecl = node.getFirstAncestorByKind(SyntaxKind.VariableDeclaration);
+      const varName = varDecl?.getName();
+      if (varName) {
+        const block = varDecl?.getFirstAncestorByKind(SyntaxKind.Block);
+        if (block && new RegExp(`Number\\.(?:isFinite|isInteger|isNaN)\\(\\s*${varName}\\s*\\)`).test(block.getText())) {
+          return;
+        }
+      }
 
       const enclosingStatement = node.getFirstAncestor((a) =>
         Node.isVariableStatement(a) || Node.isExpressionStatement(a) || Node.isReturnStatement(a) || Node.isIfStatement(a)

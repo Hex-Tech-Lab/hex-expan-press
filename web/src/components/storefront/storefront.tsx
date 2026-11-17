@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import "server-only";
 import "./storefront.css";
 import { getSupabaseAdmin } from "../../../../payments/src/supabase_admin";
+import { guidSchema, productSlugSchema } from "../../lib/zod-rules";
 
 /**
  * Storefront SSR (Sprint 16 — the dynamic handoff).
@@ -29,8 +30,6 @@ import { getSupabaseAdmin } from "../../../../payments/src/supabase_admin";
 export interface StoreProduct {
   id: string;
   store_product_id: string | null;
-  composite_slug: string | null;
-  site_slug: string | null;
   slug: string | null;
   title: string | null;
   /** PostgREST returns numeric columns as strings — always coerce. */
@@ -54,16 +53,12 @@ export interface HubCreator {
   products: StoreProduct[];
 }
 
-/** The DB-valid handle charset (creators.handle CHECK, portal migration). */
-export const CREATOR_HANDLE_RE = /^[a-z0-9_-]{2,64}$/;
-/** The DB-valid slug charset (products.slug CHECK, portal migration). */
-export const PRODUCT_SLUG_RE = /^[a-z0-9-]{2,80}$/;
+/** Product slug shape comes from the settings registry (product_slug section, ADR 0065). Same rule as the DB CHECK. */
 
-/** product_slug comes from site_slug's second segment ("handle/product_slug"),
- * falling back to the portal slug — same derivation the baker used. */
+/** The product slug in storefront URLs is products.slug, the agreed rule (ADR 0065, DB CHECK).
+ * A product is identified by its creator handle and products.slug only; no stored derived
+ * identifier is read. Every product link and the product lookup go through this one function. */
 export function productSlugOf(p: StoreProduct): string {
-  const siteSlug = typeof p.site_slug === "string" ? p.site_slug : "";
-  if (siteSlug.includes("/")) return siteSlug.split("/")[1] ?? "";
   return p.slug ?? "";
 }
 
@@ -92,7 +87,7 @@ async function fetchSiteOrigin(supabase: NonNullable<Awaited<ReturnType<typeof g
 
 // cache(): generateMetadata and the page share one query set per request.
 export const fetchCreatorHub = cache(async function fetchCreatorHub(handle: string): Promise<{ creator: HubCreator; origin: string } | null> {
-  if (!CREATOR_HANDLE_RE.test(handle)) return null;
+  if (!handle) return null;
   const supabase = await getSupabaseAdmin();
   if (!supabase) {
     throw new Error("storefront: Supabase admin client unavailable — hub cannot render (fail closed)");
@@ -100,7 +95,7 @@ export const fetchCreatorHub = cache(async function fetchCreatorHub(handle: stri
   const { data, error } = await supabase
     .from("creators")
     .select(
-      "handle, display_name, platform_handles, bio, photo, products(id, store_product_id, composite_slug, site_slug, slug, title, price_usd, currency, working_note, description, disclaimers, checkout_mode, inside)",
+      "handle, display_name, platform_handles, bio, photo, products(id, store_product_id, slug, title, price_usd, currency, working_note, description, disclaimers, checkout_mode, inside)",
     )
     .eq("handle", handle)
     .maybeSingle();
@@ -115,11 +110,29 @@ export const fetchCreatorHub = cache(async function fetchCreatorHub(handle: stri
   return { creator: { ...creator, products }, origin };
 });
 
+/** B2C landing (/books): every creator with at least one live, commercial product. Same data rule as the hub. */
+export const fetchB2cLanding = cache(async function fetchB2cLanding(): Promise<HubCreator[]> {
+  const supabase = await getSupabaseAdmin();
+  if (!supabase) {
+    throw new Error("storefront: Supabase admin client unavailable — B2C landing cannot render (fail closed)");
+  }
+  const { data, error } = await supabase
+    .from("creators")
+    .select(
+      "handle, display_name, platform_handles, bio, photo, products(id, store_product_id, slug, title, price_usd, currency, working_note, description, disclaimers, checkout_mode, inside)",
+    );
+  if (error) throw new Error(`storefront: B2C landing query failed: ${error.message}`);
+  const rows = (data ?? []) as HubCreator[];
+  return rows
+    .map((c) => ({ ...c, products: commercialProducts(c.products).filter((p) => p.checkout_mode === "live") }))
+    .filter((c) => c.products.length > 0);
+});
+
 export const fetchStoreProduct = cache(async function fetchStoreProduct(
   handle: string,
   productSlug: string,
 ): Promise<{ creator: HubCreator; product: StoreProduct; origin: string } | null> {
-  if (!CREATOR_HANDLE_RE.test(handle) || !PRODUCT_SLUG_RE.test(productSlug)) return null;
+  if (!handle || !productSlugSchema.safeParse(productSlug).success) return null;
   const supabase = await getSupabaseAdmin();
   if (!supabase) {
     throw new Error("storefront: Supabase admin client unavailable — product page cannot render (fail closed)");
@@ -127,7 +140,7 @@ export const fetchStoreProduct = cache(async function fetchStoreProduct(
   const { data, error } = await supabase
     .from("creators")
     .select(
-      "handle, display_name, platform_handles, bio, photo, products(id, store_product_id, composite_slug, site_slug, slug, title, price_usd, currency, working_note, description, disclaimers, checkout_mode, inside)",
+      "handle, display_name, platform_handles, bio, photo, products(id, store_product_id, slug, title, price_usd, currency, working_note, description, disclaimers, checkout_mode, inside)",
     )
     .eq("handle", handle)
     .maybeSingle();
@@ -143,20 +156,19 @@ export const fetchStoreProduct = cache(async function fetchStoreProduct(
 /** The single provider-agnostic checkout origin (ADR 0061). Buy links and the checkout page live here. */
 export const PAY_ORIGIN = "https://pay.expanpress.com";
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Checkout page lookup by product UUID (ADR 0061). Commercial products only, same rule as the storefront. */
 export const fetchCheckoutProduct = cache(async function fetchCheckoutProduct(
   productId: string,
 ): Promise<{ creator: { handle: string; display_name: string }; product: StoreProduct } | null> {
-  if (!UUID_RE.test(productId)) return null;
+  if (!guidSchema.safeParse(productId).success) return null;
   const supabase = await getSupabaseAdmin();
   if (!supabase) {
     throw new Error("storefront: Supabase admin client unavailable — checkout page cannot render (fail closed)");
   }
   const { data, error } = await supabase
     .from("products")
-    .select("id, store_product_id, composite_slug, site_slug, slug, title, price_usd, currency, working_note, description, disclaimers, checkout_mode, inside, creators(handle, display_name)")
+    .select("id, store_product_id, slug, title, price_usd, currency, working_note, description, disclaimers, checkout_mode, inside, creators(handle, display_name)")
     .eq("id", productId)
     .maybeSingle();
   if (error) throw new Error(`storefront: checkout product query failed for '${productId}': ${error.message}`);
@@ -206,15 +218,20 @@ export function platformLink(platform: string, handle: string): { label: string;
   return { label: `${platform.charAt(0).toUpperCase()}${platform.slice(1)} @${handle}`, url: null };
 }
 
-export function StorefrontFooter() {
+/** Buyer legal links are hidden on a gated (draft) product page, which shows a "Coming soon" banner instead of a sale. */
+export function StorefrontFooter({ showBuyerLegal = true }: { showBuyerLegal?: boolean }) {
   return (
     <footer>
-      <a href="/privacy.html">Privacy Policy</a>
-      <span className="sep">&middot;</span>
-      <a href="/terms.html">Terms of Service</a>
-      <span className="sep">&middot;</span>
-      <a href="/refund-policy.html">Refund Policy</a>
-      <span className="sep">&middot;</span>
+      {showBuyerLegal && (
+        <>
+          <a href="/books/legal/privacy.html">Privacy Policy</a>
+          <span className="sep">&middot;</span>
+          <a href="/books/legal/terms.html">Terms of Sale</a>
+          <span className="sep">&middot;</span>
+          <a href="/books/legal/refund-policy.html">Refund Policy</a>
+          <span className="sep">&middot;</span>
+        </>
+      )}
       <span>Support: support@expanpress.com</span>
     </footer>
   );

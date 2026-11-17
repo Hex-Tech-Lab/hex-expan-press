@@ -7,7 +7,7 @@
 
 import { test, describe, expect } from 'vitest';
 import { SourceFile, Project } from 'ts-morph';
-import { VariableNamingRule } from '../rules/quality';
+import { VariableNamingRule, ImportOrderingRule } from '../rules/quality';
 import { TruncationValidationRule } from '../rules/data-integrity';
 
 // Helper to create a test source file. One in-memory project is shared by the file: building a Project per
@@ -173,14 +173,26 @@ describe('WAVE 9: New Quality Rules', () => {
     expect(source.getText()).not.toContain('clearTimeout');
   });
 
-  test('ImportOrderingRule should parse imports correctly', () => {
-    const code = `
-      import React from 'react';
-      import fs from 'fs';
-      import { helper } from './utils';
-    `;
-    const source = createTestSource(code);
-    expect(source.getImportDeclarations().length).toBeGreaterThan(0);
+  test('ImportOrderingRule flags external value import after internal import, and allows Next.js type+value grouping and test files', () => {
+    const bad = createTestSource([
+      "import { helper } from './utils';",
+      "import fs from 'node:fs';",
+    ].join('\n'));
+    expect(ImportOrderingRule.check(bad)).toHaveLength(1);
+
+    const goodNext = createTestSource([
+      "import type { Metadata } from 'next';",
+      "import Link from 'next/link';",
+      "import type { StoreProduct } from '../storefront';",
+      "import { helper } from './utils';",
+    ].join('\n'));
+    expect(ImportOrderingRule.check(goodNext)).toHaveLength(0);
+
+    const testFile = sharedProject.createSourceFile('web/__tests__/sample.test.ts', [
+      "import { helper } from './utils';",
+      "import fs from 'node:fs';",
+    ].join('\n'), { overwrite: true });
+    expect(ImportOrderingRule.check(testFile)).toHaveLength(0);
   });
 
   test('ErrorObservabilityRule should detect empty catch blocks', () => {
@@ -307,5 +319,20 @@ describe('VariableNamingRule: discard name (triage item 5)', () => {
     expect(findings.some(f => f.title.includes("'_'"))).toBe(false);
     // Positive control: the rule still ran and still flags a real single-letter name.
     expect(findings.some(f => f.title.includes("'q'"))).toBe(true);
+  });
+
+  test('does not flag catch bindings, .sort comparators, concise arrow helpers, uppercase call constants, short-lived helper locals, or test files', () => {
+    const prod = createTestSource(`
+      const T = loadSettings();
+      const hash = (s: string) => digest(s);
+      function readOne(name: string) { const r = read(name); return r ? r.data : undefined; }
+      const pairs = items.map((p, i) => [p.id, i]);
+      const sorted = items.sort((a, b) => a - b);
+      try { run(); } catch (e) { console.error(e); }
+    `);
+    expect(VariableNamingRule.check(prod)).toHaveLength(0);
+
+    const testSf = sharedProject.createSourceFile('web/__tests__/x.test.ts', 'const r = run(); const P = "id";', { overwrite: true });
+    expect(VariableNamingRule.check(testSf)).toHaveLength(0);
   });
 });

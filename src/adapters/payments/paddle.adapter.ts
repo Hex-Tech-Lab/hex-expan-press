@@ -331,6 +331,9 @@ export class PaddleAdapter implements PaymentProviderPort {
         buyerEmail: email,
         occurredAt: validated.data.changed_at || new Date().toISOString(),
         attributionId: cleanAttributionId(validated.data.custom_data?.reference_id),
+        // Paddle's payload carries no live/test field. The environment comes from the verified server environment:
+        // each Paddle environment has its own webhook secret, and this adapter already refused a sandbox environment on production.
+        providerMode: serverEnv === "production" ? "live" : "sandbox",
         rawPayload: parsedJson
       };
       return { isValid: true, event };

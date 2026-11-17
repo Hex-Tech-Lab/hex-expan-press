@@ -568,9 +568,11 @@ export class FirmaAdapter implements EsignProviderPort, EsignWebhookPort, EsignE
 
     // Fail-closed (Wave 5.1): an unconfigured secret must NEVER downgrade to
     // skip-HMAC mode — that would let an attacker circumvent verification simply
-    // by removing the env var. Reject instead.
+    // by removing the env var. Reject instead. A missing secret is a server
+    // configuration fault, not an unauthenticated sender: 500 (retryable, matching
+    // the Paddle, Polar and Creem adapters), never 401.
     if (!secret) {
-      return { isValid: false, error: "FIRMA_WEBHOOK_SECRET not configured — HMAC verification cannot run", httpStatus: 401 };
+      return { isValid: false, error: "FIRMA_WEBHOOK_SECRET not configured — HMAC verification cannot run", httpStatus: 500 };
     }
     const hash = crypto.createHmac("sha256", secret).update(body).digest("hex");
     // Constant-time compare (sharp-edges audit 2026-10-01): `===` on hex

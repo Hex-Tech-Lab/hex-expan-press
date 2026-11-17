@@ -12,7 +12,7 @@ const h = vi.hoisted(() => ({
 
 vi.mock("server-only", () => ({}));
 vi.mock("../../../../../src/lib/supabase-server", () => ({
-  getPortalSession: async () => (h.user ? { user: h.user, supabase: {} } : null),
+  getVerifiedPortalSession: async () => (h.user ? { user: h.user, supabase: {} } : null),
 }));
 vi.mock("../../../../../../payments/src/settings_registry", () => ({
   GLOBAL: { admin: { get admin_user_ids() { return h.allowlist; }, audit_log_page_size: 2 } },

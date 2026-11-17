@@ -6,7 +6,7 @@ import { nextRail, skipRail, resetRails } from "../src/provider_router.ts";
 // so network latency made the ratio tests flaky and CI depended on secrets. Only the
 // client is faked — the real env helpers (isRedisRestConfigured) stay, and env is
 // stubbed so MatrixRouter takes its Redis code path (the path under test), never the
-// file fallback. Mirrors the used ExpanRedisClient surface: get / set / del.
+// file fallback. Mirrors the used ExpanRedisClient surface: get / set / del / incr.
 const store = vi.hoisted(() => new Map<string, string>());
 vi.mock("../../src/infrastructure/redis/redis.client.ts", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../src/infrastructure/redis/redis.client.ts")>()),
@@ -17,6 +17,11 @@ vi.mock("../../src/infrastructure/redis/redis.client.ts", async (importOriginal)
       return "OK";
     },
     del: async (key: string) => (store.delete(key) ? 1 : 0),
+    incr: async (key: string) => {
+      const next = Number(store.get(key) ?? "0") + 1;
+      store.set(key, String(next));
+      return next;
+    },
   },
 }));
 
@@ -35,8 +40,10 @@ const rails3 = [
 // persisted counter (counter % sum-of-weights) onto the weight-sorted routes — a
 // weighted round-robin with no Math.random. So N calls where N is a multiple of the
 // weight sum yield EXACT counts (40 calls at 3:1 → 30/10; at 2:1:1 → 20/10/10), and
-// exact assertions are correct. Tests in this file run sequentially (no .concurrent);
-// the shared mock store is cleared per test.
+// exact assertions are correct. Each rail set keeps its route entry at matrix:payments:<id>
+// and its round-robin counter at matrix:payments:<id>:counter. resetRails deletes both keys
+// for every test id, and the shared mock store is cleared per test, so each test starts at
+// counter 0. Tests in this file run sequentially (no .concurrent).
 describe("payments/src/provider_router (nextRail/skipRail)", () => {
   beforeEach(async () => {
     // Fake credentials: only switch MatrixRouter onto its Redis path; the client is mocked.
@@ -91,5 +98,25 @@ describe("payments/src/provider_router (nextRail/skipRail)", () => {
     await skipRail("t_all_down", "polar", rails2, 60_000);
     await skipRail("t_all_down", "lemonsqueezy", rails2, 60_000);
     await expect(nextRail("t_all_down", rails2)).rejects.toThrow(/every rail is marked down/);
+  });
+
+  it("resetRails deletes per-provider down keys for every provider in the rail set", async () => {
+    await skipRail("t_skip", "polar", rails2, 60_000);
+    await skipRail("t_all_down", "polar", rails2, 60_000);
+    await skipRail("t_all_down", "lemonsqueezy", rails2, 60_000);
+    await skipRail("t_ratio_3", "payhip", rails3, 60_000);
+
+    expect(store.has("matrix:payments:t_skip:down:polar")).toBe(true);
+    expect(store.has("matrix:payments:t_all_down:down:polar")).toBe(true);
+    expect(store.has("matrix:payments:t_all_down:down:lemonsqueezy")).toBe(true);
+    expect(store.has("matrix:payments:t_ratio_3:down:payhip")).toBe(true);
+
+    await resetRails();
+
+    expect(store.has("matrix:payments:t_skip:down:polar")).toBe(false);
+    expect(store.has("matrix:payments:t_all_down:down:polar")).toBe(false);
+    expect(store.has("matrix:payments:t_all_down:down:lemonsqueezy")).toBe(false);
+    expect(store.has("matrix:payments:t_ratio_3:down:payhip")).toBe(false);
+    await expect(nextRail("t_all_down", rails2)).resolves.toBe("polar");
   });
 });

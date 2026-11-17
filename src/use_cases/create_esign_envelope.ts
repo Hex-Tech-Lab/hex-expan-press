@@ -1,6 +1,6 @@
 import { SettingsRegistryPort } from "../domain/settings/settings.port.ts";
 import { createEsignAdapter } from "../adapters/esign/esign.factory.ts";
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseAdmin } from "../../payments/src/supabase_admin.ts";
 import { consentTextVersion } from "../../payments/src/settings_registry.ts";
 
 interface CreateEsignEnvelopeRequest {
@@ -35,7 +35,11 @@ export async function createEsignEnvelopeUseCase(
   const settings = await settingsRegistry.getPortalSettings();
 
   // 2. Resolve the creator's legal name (server-side, service role)
-  const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SECRET_KEY!);
+  const supabase = await getSupabaseAdmin();
+  // Null means SUPABASE_URL/SUPABASE_SECRET_KEY are unset; fail closed so we never send a
+  // legal revenue-split envelope with the creator's raw email as the legal name.
+  if (!supabase) throw new Error("service-role Supabase client unconfigured");
+
   let typedName: string | null = null;
   let metaName: string | null = null;
   try {

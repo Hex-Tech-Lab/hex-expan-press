@@ -123,3 +123,71 @@ describe("R04: Payhip routing and FastSpring multi-event deliveries", () => {
     expect(all.map((e) => [e.saleId, e.totalCents])).toEqual([["ord_1", 2900], ["ord_2", 3900]]);
   });
 });
+
+describe("F-09: LegacyPaymentAdapterWrapper providerMode forwarding", () => {
+  it("leaves providerMode unset when Fungies sale omits testMode", async () => {
+    const { headers, body } = fungiesSale();
+    const r = await new LegacyPaymentAdapterWrapper(fungiesProvider).parseAndValidateWebhook(headers, body);
+    expect(r.isValid).toBe(true);
+    if (!r.isValid) throw new Error("expected valid");
+    const ev = r.event as SaleCompletedEvent;
+    expect(ev.providerMode).toBeUndefined();
+    expect(ev.providerMode).not.toBe("live");
+    expect("providerMode" in ev).toBe(false);
+  });
+
+  it("forwards providerMode='live' when FastSpring order has live=true and leaves it unset when live is absent", async () => {
+    const makeSigned = (live?: boolean) => {
+      const data: Record<string, unknown> = {
+        id: "ord_mode_1",
+        total: 29,
+        currency: "USD",
+        customer: { email: "b@example.com" },
+        items: [{ product: "p1" }],
+      };
+      if (live !== undefined) data.live = live;
+      const body = JSON.stringify({ events: [{ id: "evt_m1", type: "order.completed", created: 1759000000000, data }] });
+      const sig = createHmac("sha256", SECRET).update(Buffer.from(body, "utf8")).digest("base64");
+      return { headers: { "x-fs-signature": sig }, body };
+    };
+
+    const absent = makeSigned(undefined);
+    const rAbsent = await new LegacyPaymentAdapterWrapper(fastspringProvider).parseAndValidateWebhook(absent.headers, absent.body);
+    expect(rAbsent.isValid).toBe(true);
+    if (!rAbsent.isValid) throw new Error("expected valid");
+    const evAbsent = rAbsent.event as SaleCompletedEvent;
+    expect(evAbsent.providerMode).toBeUndefined();
+    expect("providerMode" in evAbsent).toBe(false);
+
+    const live = makeSigned(true);
+    const rLive = await new LegacyPaymentAdapterWrapper(fastspringProvider).parseAndValidateWebhook(live.headers, live.body);
+    expect(rLive.isValid).toBe(true);
+    if (!rLive.isValid) throw new Error("expected valid");
+    expect((rLive.event as SaleCompletedEvent).providerMode).toBe("live");
+  });
+
+  it("forwards non-live provider_mode without promoting it to live", async () => {
+    const sandboxStub = {
+      name: "lemonsqueezy" as const,
+      parseWebhook: () => ({
+        ok: true as const,
+        sale: {
+          sale_id: "s_sbx",
+          provider: "lemonsqueezy" as const,
+          product_id: "p1",
+          currency: "USD",
+          amount_usd: 10,
+          ts: "2026-09-28T00:00:00.000Z",
+          email_hash: "h",
+          buyer_email: "b@example.com",
+          provider_mode: "sandbox" as const,
+        },
+      }),
+    };
+    const r = await new LegacyPaymentAdapterWrapper(sandboxStub).parseAndValidateWebhook({}, "{}");
+    expect(r.isValid).toBe(true);
+    if (!r.isValid) throw new Error("expected valid");
+    expect((r.event as SaleCompletedEvent).providerMode).toBe("sandbox");
+    expect((r.event as SaleCompletedEvent).providerMode).not.toBe("live");
+  });
+});

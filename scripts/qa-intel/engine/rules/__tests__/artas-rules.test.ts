@@ -629,6 +629,25 @@ describe("NonIdempotentRetryRule (V19)", () => {
     );
     expect(findings.length).toBe(0);
   });
+
+  test("negative control: per-item for-of loop with try/catch error isolation is not a retry loop", () => {
+    const findings = check(
+      NonIdempotentRetryRule,
+      "scripts/sync-supabase-to-r2.ts",
+      `
+      export async function syncAll(fetchImpl: typeof fetch, files: { path: string }[]) {
+        for (const file of files) {
+          try {
+            await fetchSourceObject(fetchImpl, "https://example.com", file.path);
+          } catch (fileErr) {
+            console.error(file.path, fileErr);
+          }
+        }
+      }
+      `,
+    );
+    expect(findings.length).toBe(0);
+  });
 });
 
 describe("FailOpenUndefinedFilterRule (V05)", () => {

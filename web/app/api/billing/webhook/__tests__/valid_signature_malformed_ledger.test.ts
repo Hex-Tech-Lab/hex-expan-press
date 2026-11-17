@@ -11,39 +11,58 @@ const ledgerDir = vi.hoisted(() => `/tmp/d6-ledger-${Date.now()}-${crypto.random
 
 vi.mock("@supabase/supabase-js", () => ({
   createClient: () => ({
-    from: (table: string) => ({
-      upsert: async (row: unknown) => { db.upserts.push(row); return { error: null }; },
-      insert: (row: unknown) => {
-        const r = row as { event?: string; details?: Record<string, unknown> };
-        if (table === "audit_log" && r.event === "WEBHOOK_TERMINAL_REJECT") db.terminalRejects.push(r);
-        db.audits.push({ table, row });
-        const insertResult = Promise.resolve({ error: null });
-        return Object.assign(insertResult, { abortSignal: () => insertResult });
-      },
-      select: () => ({ eq: function eq() { return { eq, in: eq, maybeSingle: async () => ({ data: null, error: null }) }; } }),
-    }),
+    from: (table: string) => {
+      const makeUpdate = () => ({
+        eq: () => makeUpdate(),
+        lte: () => makeUpdate(),
+        select: async () => ({ data: [] as unknown[], error: null }),
+      });
+      return {
+        upsert: async (row: unknown) => { db.upserts.push(row); return { error: null }; },
+        update: () => makeUpdate(),
+        insert: (row: unknown) => {
+          const r = row as { event?: string; details?: Record<string, unknown> };
+          if (table === "orders") db.upserts.push(row);
+          if (table === "audit_log" && r.event === "WEBHOOK_TERMINAL_REJECT") db.terminalRejects.push(r);
+          db.audits.push({ table, row });
+          const insertResult = Promise.resolve({ error: null });
+          return Object.assign(insertResult, { abortSignal: () => insertResult });
+        },
+        select: () => ({ eq: function eq() { return { eq, in: eq, maybeSingle: async () => ({ data: null, error: null }) }; } }),
+      };
+    },
   }),
 }));
 vi.mock("../../../../../../src/infrastructure/redis/redis.client.ts", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../../../../../src/infrastructure/redis/redis.client.ts")>()),
-  expanRedis: { setnx: async () => 1, del: async () => 1 },
+  expanRedis: { setnx: async () => 1, incr: async () => 1, compareAndDel: async () => 1, del: async () => 1 },
 }));
 vi.mock("../../../../../../payments/src/webhook_core.ts", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../../../../../payments/src/webhook_core.ts")>()),
   resolveProductByAlias: (alias: string) =>
-    alias === "p1" ? Promise.resolve({ productId: "p1", creatorHandle: "c1", currency: "USD" }) : Promise.resolve(null),
+    alias === "p1" ? Promise.resolve({ productId: "p1", creatorHandle: "c1", currency: "USD", checkoutMode: "live" }) : Promise.resolve(null),
 }));
 vi.mock("../../../../../../payments/src/terms.ts", () => ({
   effectiveCreatorSplitPct: () => 50,
   effectiveCreatorSplitPctAsync: () => Promise.resolve(50),
 }));
 // Delivery is stubbed: this file asserts ledger recording and the webhook status, not mail or Dub.
-vi.mock("../../../../../../payments/src/delivery.ts", () => ({ deliverSaleForWebhook: async () => undefined }));
+vi.mock("../../../../../../payments/src/delivery.ts", () => ({ deliverSaleForWebhook: async () => undefined, saleDeliveryConfirmed: async () => false }));
 vi.mock("../../../../../../payments/src/settings_registry.ts", () => ({
   GLOBAL: {
     paths: { sales_ledger: `${ledgerDir}/sales.jsonl` },
     defaults: { currency: "USD" },
-    payments: { webhook_tolerance_seconds: 300, webhook_lock_ttl_seconds: 300, http_timeout_ms: 5000, sync_http_timeout_ms: 30000, retry_after_seconds: 30 },
+    payments: {
+      webhook_tolerance_seconds: 300,
+      webhook_lock_ttl_seconds: 300,
+      webhook_lock_fence_ttl_seconds: 604800,
+      webhook_lock_sale_prefix: "lock:sale:",
+      webhook_lock_refund_prefix: "lock:refund:",
+      webhook_lock_fence_suffix: ":fence",
+      http_timeout_ms: 5000,
+      sync_http_timeout_ms: 30000,
+      retry_after_seconds: 30,
+    },
   },
   expandHome: (p: string) => p,
   isRegisteredPaymentProvider: (name: unknown) => typeof name === "string",
@@ -68,7 +87,7 @@ const signedFixtureAdapter = {
     const p = JSON.parse(body) as { id: string; totalCents: number };
     return {
       isValid: true,
-      event: { eventType: "sale_completed", providerName: "polar", saleId: p.id, productId: "p1", totalCents: p.totalCents, currency: "USD", buyerEmailHash: "0xabc", buyerEmail: "buyer@example.com", occurredAt: "2026-10-04T00:00:00.000Z", rawPayload: null },
+      event: { eventType: "sale_completed", providerName: "polar", saleId: p.id, productId: "p1", totalCents: p.totalCents, currency: "USD", buyerEmailHash: "0xabc", buyerEmail: "buyer@example.com", occurredAt: "2026-10-04T00:00:00.000Z", providerMode: "live", rawPayload: null },
     };
   },
 };
