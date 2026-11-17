@@ -1,0 +1,35 @@
+web/app/books/page.tsx
+  s_29893055f88353::t_b2c80ac7f9c77d 50-65,71-72
+web/app/creator/review/review-client.tsx
+  s_29893055f88353::t_9895307a51347a 215-217,221-223,225,243,246-248
+payments/DEPLOY-NOTES.md
+  s_29893055f88353::t_f7b1c5228b949c 21,23
+payments/src/delivery.ts
+  s_29893055f88353::t_ead12bb22b5843 170-179,182,189,196
+payments/src/settings_registry.ts
+  s_29893055f88353::t_4551f139df6419 94-95,177-178
+payments/test/delivery_retry_trade_off.test.ts
+  s_29893055f88353::t_73bf791160d4b9 259-346
+src/infrastructure/matrix_router/__tests__/matrix_router.test.ts
+  s_29893055f88353::t_18778f92836663 140-161
+src/infrastructure/matrix_router/matrix_router.ts
+  s_29893055f88353::t_6001f992782504 27,90,138-140
+web/app/creator/review/page.tsx
+  s_29893055f88353::t_5d299f671d0a02 87-105
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f58c89f4141f3b689af0bf32d8fc39f6214f8a57",
+  "prompts": {},
+  "sessions": {
+    "s_29893055f88353": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1c444932-1da1-4ad5-9e8b-395eb468f52a",
+        "model": "unknown"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
