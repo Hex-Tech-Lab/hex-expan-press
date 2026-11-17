@@ -1,0 +1,38 @@
+web/app/creator/consents/__tests__/page.test.ts
+  s_29893055f88353::t_6e4bc56f523dcb 1-78
+web/app/api/billing/checkout/route.ts
+  s_29893055f88353::t_adcca2678de9ea 265-271
+web/app/api/billing/checkout/__tests__/route.test.ts
+  s_29893055f88353::t_a6ba68a80a6ee1 371-383
+src/infrastructure/matrix_router/matrix_router.ts
+  s_29893055f88353::t_b60b2c1af03dc6 178-182
+web/app/creator/dashboard/__tests__/page.test.ts
+  s_29893055f88353::t_61e73a3fb8e759 1-200
+web/app/creator/dashboard/page.tsx
+  s_29893055f88353::t_6d5dba9be35da1 116
+  s_29893055f88353::t_58a694c9b8aafb 7
+web/app/creator/consents/esign_done/page.tsx
+  s_29893055f88353::t_2dc75dd352d65d 23
+web/app/creator/consents/page.tsx
+  s_29893055f88353::t_92e9b1021856b4 54
+  s_29893055f88353::t_3e325b9c2ea1f9 8
+  s_29893055f88353::t_6b94be577aaaed 41
+src/infrastructure/matrix_router/__tests__/matrix_router.test.ts
+  s_29893055f88353::t_0899a3a49cdff0 296-309
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3bbfa1b34f89bb5bbbd29ca49402d7e57cbb6f40",
+  "prompts": {},
+  "sessions": {
+    "s_29893055f88353": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1c444932-1da1-4ad5-9e8b-395eb468f52a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
