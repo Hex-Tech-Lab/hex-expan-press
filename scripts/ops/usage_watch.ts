@@ -49,10 +49,10 @@ const VERCEL_PAGE_SIZE = 100;
 // Pure helpers (no I/O; covered by scripts/ops/__tests__ with fixtures)
 // ---------------------------------------------------------------------------
 
-export function toRow(m: Metric, warnRatio: number): Row {
-  if (m.used === null || !Number.isFinite(m.used)) return { ...m, ratio: null, status: "UNKNOWN" };
-  const ratio = m.used / m.limit;
-  return { ...m, ratio, status: ratio >= warnRatio ? "WARN" : "OK" };
+export function toRow(metric: Metric, warnRatio: number): Row {
+  if (metric.used === null || !Number.isFinite(metric.used)) return { ...metric, ratio: null, status: "UNKNOWN" };
+  const ratio = metric.used / metric.limit;
+  return { ...metric, ratio, status: ratio >= warnRatio ? "WARN" : "OK" };
 }
 
 export function exitCodeFor(rows: Row[]): 0 | 1 | 2 {
@@ -61,14 +61,14 @@ export function exitCodeFor(rows: Row[]): 0 | 1 | 2 {
   return 0;
 }
 
-export function asRecord(v: unknown): Record<string, unknown> {
-  return v !== null && typeof v === "object" && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
+export function asRecord(value: unknown): Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 }
 
-export function parseNumber(v: unknown): number | null {
-  if (typeof v === "number") return Number.isFinite(v) ? v : null;
-  if (typeof v === "string" && v.trim() !== "") {
-    const n = Number(v);
+export function parseNumber(value: unknown): number | null {
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value === "string" && value.trim() !== "") {
+    const n = Number(value);
     return Number.isFinite(n) ? n : null;
   }
   return null;
@@ -122,13 +122,13 @@ export function parseInfoField(info: string, key: string): number | null {
   return m ? parseNumber(m[1]) : null;
 }
 
-export function formatValue(v: number | null, unit: Unit): string {
-  if (v === null) return "n/a";
-  if (unit === "hours") return `${v.toFixed(1)} h`;
-  if (unit === "count") return v.toLocaleString("en-US");
-  if (v >= 1024 ** 3) return `${(v / 1024 ** 3).toFixed(2)} GB`;
-  if (v >= 1024 ** 2) return `${(v / 1024 ** 2).toFixed(1)} MB`;
-  return `${v.toLocaleString("en-US")} B`;
+export function formatValue(value: number | null, unit: Unit): string {
+  if (value === null) return "n/a";
+  if (unit === "hours") return `${value.toFixed(1)} h`;
+  if (unit === "count") return value.toLocaleString("en-US");
+  if (value >= 1024 ** 3) return `${(value / 1024 ** 3).toFixed(2)} GB`;
+  if (value >= 1024 ** 2) return `${(value / 1024 ** 2).toFixed(1)} MB`;
+  return `${value.toLocaleString("en-US")} B`;
 }
 
 export function renderTable(rows: Row[], warnRatio: number): string {
@@ -161,16 +161,16 @@ export function renderTable(rows: Row[], warnRatio: number): string {
 // Providers (I/O; the injected runner and fetch keep them testable without a network)
 // ---------------------------------------------------------------------------
 
-export async function fetchVercel(s: UsageWatchSettings, sinceMs: number, nowMs: number, run: CliRunner): Promise<Metric[]> {
+export async function fetchVercel(settings: UsageWatchSettings, sinceMs: number, nowMs: number, run: CliRunner): Promise<Metric[]> {
   const created: number[] = [];
   let until: number | null = null;
   let truncated = false;
   for (let page = 0; ; page++) {
-    if (page >= s.vercel.max_pages) {
+    if (page >= settings.vercel.max_pages) {
       truncated = true;
       break;
     }
-    const q = new URLSearchParams({ teamId: s.vercel.team_id, since: String(sinceMs), limit: String(VERCEL_PAGE_SIZE) });
+    const q = new URLSearchParams({ teamId: settings.vercel.team_id, since: String(sinceMs), limit: String(VERCEL_PAGE_SIZE) });
     if (until !== null) q.set("until", String(until));
     const parsed = parseVercelPage(parseJsonFromCli(await run(["api", `/v6/deployments?${q.toString()}`, "--method", "GET"])));
     created.push(...parsed.created);
@@ -183,7 +183,7 @@ export async function fetchVercel(s: UsageWatchSettings, sinceMs: number, nowMs:
       provider: "Vercel",
       name: "Deployments (rolling 24 h)",
       used: countWithin(created, nowMs, DAY_MS),
-      limit: s.vercel.deployments_per_day,
+      limit: settings.vercel.deployments_per_day,
       unit: "count",
       source: `vercel api /v6/deployments${note}`,
     },
@@ -191,7 +191,7 @@ export async function fetchVercel(s: UsageWatchSettings, sinceMs: number, nowMs:
       provider: "Vercel",
       name: "Deployments (rolling 1 h)",
       used: countWithin(created, nowMs, HOUR_MS),
-      limit: s.vercel.deployments_per_hour,
+      limit: settings.vercel.deployments_per_hour,
       unit: "count",
       source: `vercel api /v6/deployments${note}`,
     },
@@ -199,14 +199,14 @@ export async function fetchVercel(s: UsageWatchSettings, sinceMs: number, nowMs:
       provider: "Vercel",
       name: "Fluid Active CPU (month)",
       used: null,
-      limit: s.vercel.fluid_active_cpu_hours,
+      limit: settings.vercel.fluid_active_cpu_hours,
       unit: "hours",
       source: "UNKNOWN: Hobby has no usage API (billing/charges 404 'Plan not found'; vercel usage: no billing data). Read the dashboard Usage page.",
     },
   ];
 }
 
-export async function fetchSupabase(s: UsageWatchSettings, env: Env, http: HttpFetch): Promise<Metric[]> {
+export async function fetchSupabase(settings: UsageWatchSettings, env: Env, http: HttpFetch): Promise<Metric[]> {
   const ref = projectRefFromUrl(env.SUPABASE_URL);
   const token = env.SUPABASE_ACCESS_TOKEN;
   const out: Metric[] = [
@@ -214,19 +214,19 @@ export async function fetchSupabase(s: UsageWatchSettings, env: Env, http: HttpF
       provider: "Supabase",
       name: "Egress (month)",
       used: null,
-      limit: s.supabase.egress_bytes,
+      limit: settings.supabase.egress_bytes,
       unit: "bytes",
       source: "UNKNOWN: no verified Management API egress endpoint. Read the dashboard Usage page.",
     },
   ];
   if (!ref || !token) {
     out.push(
-      { provider: "Supabase", name: "Database size", used: null, limit: s.supabase.db_size_bytes, unit: "bytes", source: "UNKNOWN: SUPABASE_URL or SUPABASE_ACCESS_TOKEN not set" },
-      { provider: "Supabase", name: "File storage", used: null, limit: s.supabase.file_storage_bytes, unit: "bytes", source: "UNKNOWN: SUPABASE_URL or SUPABASE_ACCESS_TOKEN not set" },
+      { provider: "Supabase", name: "Database size", used: null, limit: settings.supabase.db_size_bytes, unit: "bytes", source: "UNKNOWN: SUPABASE_URL or SUPABASE_ACCESS_TOKEN not set" },
+      { provider: "Supabase", name: "File storage", used: null, limit: settings.supabase.file_storage_bytes, unit: "bytes", source: "UNKNOWN: SUPABASE_URL or SUPABASE_ACCESS_TOKEN not set" },
     );
     return out;
   }
-  const res = await http(`${s.endpoints.supabase_api}/v1/projects/${ref}/database/query/read-only`, {
+  const res = await http(`${settings.endpoints.supabase_api}/v1/projects/${ref}/database/query/read-only`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -234,30 +234,30 @@ export async function fetchSupabase(s: UsageWatchSettings, env: Env, http: HttpF
         "select pg_database_size(current_database())::bigint as db_bytes, " +
         "(select coalesce(sum((metadata->>'size')::bigint), 0) from storage.objects)::bigint as storage_bytes",
     }),
-    signal: AbortSignal.timeout(s.timeout_ms),
+    signal: AbortSignal.timeout(settings.timeout_ms),
   });
   if (!res.ok) throw new Error(`Supabase read-only query HTTP ${res.status}`);
   const row = parseFirstRow(await res.json());
   const src = "Management API database/query/read-only";
   out.push(
-    { provider: "Supabase", name: "Database size", used: parseNumber(row.db_bytes), limit: s.supabase.db_size_bytes, unit: "bytes", source: src },
-    { provider: "Supabase", name: "File storage", used: parseNumber(row.storage_bytes), limit: s.supabase.file_storage_bytes, unit: "bytes", source: src },
+    { provider: "Supabase", name: "Database size", used: parseNumber(row.db_bytes), limit: settings.supabase.db_size_bytes, unit: "bytes", source: src },
+    { provider: "Supabase", name: "File storage", used: parseNumber(row.storage_bytes), limit: settings.supabase.file_storage_bytes, unit: "bytes", source: src },
   );
   return out;
 }
 
-export async function fetchUpstash(s: UsageWatchSettings, env: Env, http: HttpFetch): Promise<Metric[]> {
+export async function fetchUpstash(settings: UsageWatchSettings, env: Env, http: HttpFetch): Promise<Metric[]> {
   const out: Metric[] = [];
   const restUrl = env.UPSTASH_REDIS_REST_URL;
   const restToken = env.UPSTASH_REDIS_REST_TOKEN;
   if (!restUrl || !restToken) {
-    out.push({ provider: "Upstash", name: "Memory", used: null, limit: s.upstash.memory_bytes, unit: "bytes", source: "UNKNOWN: REST URL or token not set" });
+    out.push({ provider: "Upstash", name: "Memory", used: null, limit: settings.upstash.memory_bytes, unit: "bytes", source: "UNKNOWN: REST URL or token not set" });
   } else {
     const res = await http(restUrl, {
       method: "POST",
       headers: { Authorization: `Bearer ${restToken}`, "Content-Type": "application/json" },
       body: JSON.stringify(["INFO", "memory"]),
-      signal: AbortSignal.timeout(s.timeout_ms),
+      signal: AbortSignal.timeout(settings.timeout_ms),
     });
     if (!res.ok) throw new Error(`Upstash REST INFO HTTP ${res.status}`);
     const info = asRecord(await res.json()).result;
@@ -265,7 +265,7 @@ export async function fetchUpstash(s: UsageWatchSettings, env: Env, http: HttpFe
       provider: "Upstash",
       name: "Memory",
       used: typeof info === "string" ? parseInfoField(info, "used_memory") : null,
-      limit: s.upstash.memory_bytes,
+      limit: settings.upstash.memory_bytes,
       unit: "bytes",
       source: "REST INFO memory (used_memory)",
     });
@@ -278,22 +278,22 @@ export async function fetchUpstash(s: UsageWatchSettings, env: Env, http: HttpFe
   if (!email || !apiKey || !dbId) {
     const why = "UNKNOWN: needs UPSTASH_EMAIL, UPSTASH_API_KEY and UPSTASH_DATABASE_ID (Developer API)";
     out.push(
-      { provider: "Upstash", name: "Commands (month)", used: null, limit: s.upstash.monthly_commands, unit: "count", source: why },
-      { provider: "Upstash", name: "Bandwidth (month)", used: null, limit: s.upstash.monthly_bandwidth_bytes, unit: "bytes", source: why },
+      { provider: "Upstash", name: "Commands (month)", used: null, limit: settings.upstash.monthly_commands, unit: "count", source: why },
+      { provider: "Upstash", name: "Bandwidth (month)", used: null, limit: settings.upstash.monthly_bandwidth_bytes, unit: "bytes", source: why },
     );
     return out;
   }
   const basic = Buffer.from(`${email}:${apiKey}`).toString("base64");
-  const res = await http(`${s.endpoints.upstash_api}/v2/redis/stats/${encodeURIComponent(dbId)}?period=1d`, {
+  const res = await http(`${settings.endpoints.upstash_api}/v2/redis/stats/${encodeURIComponent(dbId)}?period=1d`, {
     headers: { Authorization: `Basic ${basic}` },
-    signal: AbortSignal.timeout(s.timeout_ms),
+    signal: AbortSignal.timeout(settings.timeout_ms),
   });
   if (!res.ok) throw new Error(`Upstash Developer API stats HTTP ${res.status}`);
   const stats = asRecord(await res.json());
   const src = "Developer API v2/redis/stats (monthly totals)";
   out.push(
-    { provider: "Upstash", name: "Commands (month)", used: parseNumber(stats.total_monthly_requests), limit: s.upstash.monthly_commands, unit: "count", source: src },
-    { provider: "Upstash", name: "Bandwidth (month)", used: parseNumber(stats.total_monthly_bandwidth), limit: s.upstash.monthly_bandwidth_bytes, unit: "bytes", source: src },
+    { provider: "Upstash", name: "Commands (month)", used: parseNumber(stats.total_monthly_requests), limit: settings.upstash.monthly_commands, unit: "count", source: src },
+    { provider: "Upstash", name: "Bandwidth (month)", used: parseNumber(stats.total_monthly_bandwidth), limit: settings.upstash.monthly_bandwidth_bytes, unit: "bytes", source: src },
   );
   return out;
 }
@@ -307,13 +307,13 @@ async function safely(provider: Metric["provider"], label: string, fn: () => Pro
   }
 }
 
-export async function collect(s: UsageWatchSettings, env: Env, deps: { run: CliRunner; http: HttpFetch; now: number }): Promise<Row[]> {
+export async function collect(settings: UsageWatchSettings, env: Env, deps: { run: CliRunner; http: HttpFetch; now: number }): Promise<Row[]> {
   const metrics = [
-    ...(await safely("Vercel", "Vercel check", () => fetchVercel(s, deps.now - DAY_MS, deps.now, deps.run))),
-    ...(await safely("Supabase", "Supabase check", () => fetchSupabase(s, env, deps.http))),
-    ...(await safely("Upstash", "Upstash check", () => fetchUpstash(s, env, deps.http))),
+    ...(await safely("Vercel", "Vercel check", () => fetchVercel(settings, deps.now - DAY_MS, deps.now, deps.run))),
+    ...(await safely("Supabase", "Supabase check", () => fetchSupabase(settings, env, deps.http))),
+    ...(await safely("Upstash", "Upstash check", () => fetchUpstash(settings, env, deps.http))),
   ];
-  return metrics.map((m) => toRow(m, s.warn_ratio));
+  return metrics.map((metric) => toRow(metric, settings.warn_ratio));
 }
 
 function vercelCli(bin: string, timeoutMs: number): CliRunner {
@@ -328,17 +328,17 @@ function vercelCli(bin: string, timeoutMs: number): CliRunner {
 
 async function main(): Promise<void> {
   dotenv.config({ quiet: true });
-  const s = GLOBAL.usage_watch;
+  const settings = GLOBAL.usage_watch;
   const json = process.argv.includes("--json");
-  const rows = await collect(s, process.env, {
-    run: vercelCli(s.endpoints.vercel_cli, s.timeout_ms),
+  const rows = await collect(settings, process.env, {
+    run: vercelCli(settings.endpoints.vercel_cli, settings.timeout_ms),
     http: fetch,
     now: Date.now(),
   });
   if (json) {
-    process.stdout.write(`${JSON.stringify({ warn_ratio: s.warn_ratio, rows }, null, 2)}\n`);
+    process.stdout.write(`${JSON.stringify({ warn_ratio: settings.warn_ratio, rows }, null, 2)}\n`);
   } else {
-    process.stdout.write(`${renderTable(rows, s.warn_ratio)}\n`);
+    process.stdout.write(`${renderTable(rows, settings.warn_ratio)}\n`);
   }
   process.exitCode = exitCodeFor(rows);
 }

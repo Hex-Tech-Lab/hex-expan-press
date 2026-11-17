@@ -4,6 +4,7 @@
  * one focused module.
  */
 import { StaleFenceError } from "./delivery_errors.ts";
+import { GLOBAL } from "./settings_registry.ts";
 import { getSupabaseAdmin } from "./supabase_admin.ts";
 
 export interface DeliverySendClaim {
@@ -93,6 +94,7 @@ async function lookupExistingDeliverySend(
  * Operator reconcile query (no scheduler): send claims still in 'claimed' whose claim is at least
  * olderThanMs old. Such a claim is never resent by the webhook (at-most-once), so each one is a buyer
  * who may have no receipt. Verify the buyer and resend by hand. Rows with created_at <= cutoff match.
+ * Capped at delivery.stuck_claim_list_limit rows, oldest first (the seq scan on state is tracked debt; an index needs a migration).
  */
 export async function listStuckDeliveryClaims(olderThanMs: number, nowMs: number = Date.now()): Promise<StuckDeliveryClaim[]> {
   const sb = await getSupabaseAdmin();
@@ -103,7 +105,8 @@ export async function listStuckDeliveryClaims(olderThanMs: number, nowMs: number
     .select("provider, sale_id, send_kind, fence, created_at")
     .eq("state", "claimed")
     .lte("created_at", cutoff)
-    .order("created_at", { ascending: true });
+    .order("created_at", { ascending: true })
+    .limit(GLOBAL.delivery.stuck_claim_list_limit);
   if (error) throw new Error(`stuck delivery claim lookup failed: ${error.message}`);
   return ((data ?? []) as Array<Record<string, unknown>>).map((row) => ({
     provider: String(row.provider),

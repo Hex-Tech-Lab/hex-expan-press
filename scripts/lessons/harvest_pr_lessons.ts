@@ -15,13 +15,17 @@
  * (tmp file + rename). Never commits or pushes.
  */
 import { createHash } from "node:crypto";
-import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { REPO, fetchPrPayload, type Exec, type RawPayload } from "./gh_payload.ts";
+import { classifyVector, type Vector } from "./vectors.ts";
 
-export const REPO = "Hex-Tech-Lab/hex-expan-press";
+export { REPO, fetchPrPayload, parseConcatenatedJsonArrays } from "./gh_payload.ts";
+export type { Exec, RawPayload } from "./gh_payload.ts";
+export { classifyVector, vectorScores } from "./vectors.ts";
+export type { Vector } from "./vectors.ts";
 
 /** Bot logins to harvest. Anything else (vercel, qodo, github-code-quality, ...) is ignored. */
 export const BOT_LOGINS: Record<string, BotName> = {
@@ -32,7 +36,6 @@ export const BOT_LOGINS: Record<string, BotName> = {
 };
 
 export type BotName = "cubic" | "coderabbit" | "codacy" | "sourcery";
-export type Vector = "V1" | "V2" | "V3" | "V4" | "V5" | "V6" | "V7" | "V8" | "V9" | "V10" | "new";
 export type Severity = "P1" | "P2" | "P3" | "unknown";
 export type Source = "inline" | "review" | "issue";
 
@@ -49,70 +52,8 @@ export interface LessonEntry {
   source: Source;
 }
 
-export interface RawPayload {
-  reviewComments: any[];
-  reviews: any[];
-  issueComments: any[];
-}
-
-export type Exec = (cmd: string, args: string[]) => string;
-
 const EXCERPT_MAX = 400;
 const TITLE_MAX = 120;
-
-/* ------------------------------------------------------------------ fetch */
-
-const defaultExec: Exec = (cmd, args) =>
-  execFileSync(cmd, args, { encoding: "utf8", maxBuffer: 256 * 1024 * 1024 });
-
-/**
- * `gh api --paginate` prints one JSON array per page, back to back (`[...][...]`).
- * gh 2.45 has no `--slurp`, so split the stream here. Brackets inside strings are
- * skipped. A truncated stream throws rather than returning a partial list.
- */
-export function parseConcatenatedJsonArrays(text: string): any[] {
-  const out: any[] = [];
-  let depth = 0;
-  let start = -1;
-  let inStr = false;
-  let esc = false;
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    if (inStr) {
-      if (esc) esc = false;
-      else if (c === "\\") esc = true;
-      else if (c === '"') inStr = false;
-      continue;
-    }
-    if (c === '"') {
-      inStr = true;
-    } else if (c === "[" || c === "{") {
-      if (depth === 0) start = i;
-      depth++;
-    } else if (c === "]" || c === "}") {
-      depth--;
-      if (depth < 0) throw new Error("malformed gh api output: unbalanced closing bracket");
-      if (depth === 0 && start >= 0) {
-        const value = JSON.parse(text.slice(start, i + 1));
-        if (Array.isArray(value)) out.push(...value);
-        else out.push(value);
-        start = -1;
-      }
-    }
-  }
-  if (depth !== 0 || inStr) throw new Error("truncated gh api output");
-  return out;
-}
-
-export function fetchPrPayload(pr: number, exec: Exec = defaultExec): RawPayload {
-  const get = (endpoint: string) =>
-    parseConcatenatedJsonArrays(exec("gh", ["api", "--paginate", `repos/${REPO}/${endpoint}`]));
-  return {
-    reviewComments: get(`pulls/${pr}/comments`),
-    reviews: get(`pulls/${pr}/reviews`),
-    issueComments: get(`issues/${pr}/comments`),
-  };
-}
 
 /* -------------------------------------------------------------- cleaning */
 
@@ -167,7 +108,7 @@ function plainText(rawBody: string): string {
  */
 export function titleOf(rawBody: string): string {
   const firstLine = stripNoise(rawBody)
-    .split("\n")
+    .split(/\r?\n/)
     .map((s) => s.trim())
     .find((s) => s.length > 0) ?? "";
   if (/^#{1,6}\s/.test(firstLine)) {
@@ -179,48 +120,6 @@ export function titleOf(rawBody: string): string {
 export function excerptOf(rawBody: string): string {
   const text = plainText(rawBody);
   return text.length > EXCERPT_MAX ? text.slice(0, EXCERPT_MAX) : text;
-}
-
-/* ---------------------------------------------------------------- vectors */
-
-/**
- * Keyword heuristics for V1-V10 (see the vector headings in cubic-lessons.md). The
- * best-scoring vector wins; ties go to the lower number; no hit gives "new".
- */
-const VECTOR_PATTERNS: Array<[Vector, RegExp]> = [
-  ["V1", /\.md\b|readme|documentation|\bdocs?\b|out of date|outdated|drift|stale (doc|count|number)|wrong (count|number)|file:\/\/|out-of-order timestamps?/g],
-  ["V2", /regex|pattern|matcher|case-insensitive|lowercase|bypass|\bescap\w*|lint rule|false negative|silence (a |the )?(rule|check|lint|guard)|whitespace|\bguard\b|exemption|suppress/g],
-  ["V3", /fails?[- ](open|closed)|silent\w*|swallow\w*|reports? success|returns? success|treated as success|fallback|fall back|default to|empty catch|ignored error|\bmasks?\b/g],
-  ["V4", /validat|schema|zod|untrusted|unvalidated|coerc|type[- ]check|out[- ]of[- ]range|reversed|duplicate (id|claim)|\bnan\b|model output|provider response|response body/g],
-  ["V5", /secret|token|leak|redact|sentry|signed url|api key|credential|\bpii\b|expos\w* (a |the |any )?(secret|token|key|credential|signed|url)/g],
-  ["V6", /\blayout\b|\brender(s|ed|ing)?\b|hydrat|transition|unmount|\bmount(s|ed)?\b|breakpoint|visual|ui state|overlap|shape switch|\bre-?render/g],
-  ["V7", /registry|setting_definitions|settings key|setting key|config(uration)? key|env (var|template)|feature flag|not registered|unregistered|hard-?coded (url|origin|key|id)/g],
-  ["V8", /timeout|time ?out|unbounded|\bhang\b|no deadline|\babort|indefinite|never resolves|wait(s|ing)? (forever|indefinitely)/g],
-  ["V9", /shell|bash|installer|\binstall\b|quot(e|ing)|set -e|posix|argv|spaces in (path|file)|cli arg/g],
-  ["V10", /unused|dead code|never called|unreachable|unwired|not wired|not (called|used|referenced)|orphan|vacuous|tautolog|always passes|inflated|100% (coverage|on empty)/g],
-];
-
-/** Hit count per vector. Exposed so every classification can be audited. */
-export function vectorScores(text: string): Record<Vector, number> {
-  const lower = text.toLowerCase();
-  const scores = { new: 0 } as Record<Vector, number>;
-  for (const [vector, pattern] of VECTOR_PATTERNS) {
-    scores[vector] = lower.match(pattern)?.length ?? 0;
-  }
-  return scores;
-}
-
-export function classifyVector(text: string): Vector {
-  const scores = vectorScores(text);
-  let best: Vector = "new";
-  let bestScore = 0;
-  for (const [vector] of VECTOR_PATTERNS) {
-    if (scores[vector] > bestScore) {
-      best = vector;
-      bestScore = scores[vector];
-    }
-  }
-  return best;
 }
 
 /* ------------------------------------------------------------ normalise */
@@ -267,7 +166,7 @@ function pathInBullet(bullet: string): string | null {
 function fileBullets(rawBody: string): Array<{ file: string; text: string }> {
   const out: Array<{ file: string; text: string }> = [];
   const body = rawBody.replace(/<details>[\s\S]*?<\/details>/gi, "");
-  for (const line of body.split("\n")) {
+  for (const line of body.split(/\r?\n/)) {
     const bullet = /^\s*[-*]\s+(.+)$/.exec(line);
     if (!bullet) continue;
     const file = pathInBullet(bullet[1]);
@@ -316,7 +215,7 @@ export function normalizeComments(pr: number, raw: RawPayload): LessonEntry[] {
     const rawBody = String(c.body ?? "");
     if (bot === "codacy") {
       const critical = /(\d+)\s+critical/i.exec(rawBody);
-      if (critical && Number(critical[1]) > 0 && /not up to standards/i.test(rawBody)) {
+      if (critical && typeof critical[1] === "string" && Number(critical[1]) > 0 && /not up to standards/i.test(rawBody)) {
         const gate = toEntry(pr, bot, "", null, rawBody, "issue", c.html_url ?? null,
           `Codacy gate: ${critical[1]} critical issue(s), not up to standards`);
         gate.severity = "P1";
@@ -559,7 +458,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   try {
     process.exitCode = main(process.argv.slice(2));
   } catch (err) {
-    process.stderr.write(`harvest_pr_lessons: ${(err as Error).message}\n`);
+    console.error(`harvest_pr_lessons: ${(err as Error).message}`);
     process.exitCode = 1;
   }
 }

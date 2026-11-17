@@ -111,6 +111,8 @@ product_slug: { min_length: number; max_length: number; separator: string };
     send_kind: string;
     /** A send claim still in 'claimed' this long after it was made is logged as STUCK (never resent: at-most-once). */
     stuck_claim_after_seconds: number;
+    /** Most rows listStuckDeliveryClaims returns (oldest first). Bounds the operator reconcile query. */
+    stuck_claim_list_limit: number;
   };
   /** Transactional email (Resend). `from` must be on `sending_domain` (DKIM-verified in Resend). */
   email: {
@@ -215,6 +217,7 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     send_kind: "buyer_receipt",
     // Above the email deadline (payments.http_timeout_ms) and the webhook lock TTL, so a live send is never reported stuck.
     stuck_claim_after_seconds: 900,
+    stuck_claim_list_limit: 500,
   },
   email: {
     from: "ExpanPress <support@esign.expanpress.com>",
@@ -325,30 +328,30 @@ function isHttpsUrl(v: unknown): v is string {
 }
 
 export function loadPaymentsSection(raw: Record<string, unknown> | undefined): GlobalSettings["payments"] {
-  const d = DEFAULT_GLOBAL.payments;
-  if (!raw) return d;
+  const defaults = DEFAULT_GLOBAL.payments;
+  if (!raw) return defaults;
   const p = raw as Partial<GlobalSettings["payments"]> & Record<string, unknown>;
   const paddle = (p.paddle ?? {}) as Partial<GlobalSettings["payments"]["paddle"]>;
   const apiBase = (paddle.api_base ?? {}) as Partial<GlobalSettings["payments"]["paddle"]["api_base"]>;
   const fallbacks: string[] = [];
   // Warn ONLY for keys explicitly present and invalid; omitted keys default silently.
   const num = (key: keyof typeof PAYMENTS_LIMITS): number => {
-    if (!(key in p)) return d[key];
+    if (!(key in p)) return defaults[key];
     const v = p[key];
     const { min, max } = PAYMENTS_LIMITS[key];
     if (intInRange(v, min, max)) return v;
     fallbacks.push(key);
-    return d[key];
+    return defaults[key];
   };
   const webhookTolerance = num("webhook_tolerance_seconds");
   const webhookLockTtl = num("webhook_lock_ttl_seconds");
   const webhookLockFenceTtl = num("webhook_lock_fence_ttl_seconds");
   const keyToken = (key: "webhook_lock_sale_prefix" | "webhook_lock_refund_prefix" | "webhook_lock_fence_suffix"): string => {
-    if (!(key in p)) return d[key];
+    if (!(key in p)) return defaults[key];
     const v = p[key];
     if (typeof v === "string" && v.length > 0 && !/\s/.test(v)) return v;
     fallbacks.push(key);
-    return d[key];
+    return defaults[key];
   };
   const webhookLockSalePrefix = keyToken("webhook_lock_sale_prefix");
   const webhookLockRefundPrefix = keyToken("webhook_lock_refund_prefix");
@@ -365,15 +368,15 @@ export function loadPaymentsSection(raw: Record<string, unknown> | undefined): G
     return expected;
   };
   const apiProduction = paddleUrl(
-    apiBase.production, d.paddle.api_base.production, "paddle.api_base.production",
+    apiBase.production, defaults.paddle.api_base.production, "paddle.api_base.production",
     (x) => isCanonicalPaddleApiUrl(x, "https://api.paddle.com") ? (x as string).replace(/\/+$/, "") : null,
   );
   const apiSandbox = paddleUrl(
-    apiBase.sandbox, d.paddle.api_base.sandbox, "paddle.api_base.sandbox",
+    apiBase.sandbox, defaults.paddle.api_base.sandbox, "paddle.api_base.sandbox",
     (x) => isCanonicalPaddleApiUrl(x, "https://sandbox-api.paddle.com") ? (x as string).replace(/\/+$/, "") : null,
   );
-  const jsCdn = paddleUrl(paddle.js_cdn_url, d.paddle.js_cdn_url, "paddle.js_cdn_url", (x) => (isPaddleJsCdnUrl(x) ? (x as string) : null));
-  let currencies = d.allowed_currencies;
+  const jsCdn = paddleUrl(paddle.js_cdn_url, defaults.paddle.js_cdn_url, "paddle.js_cdn_url", (x) => (isPaddleJsCdnUrl(x) ? (x as string) : null));
+  let currencies = defaults.allowed_currencies;
   if (p.allowed_currencies !== undefined) {
     const list = Array.isArray(p.allowed_currencies)
       ? p.allowed_currencies.map(String)
@@ -384,7 +387,7 @@ export function loadPaymentsSection(raw: Record<string, unknown> | undefined): G
       fallbacks.push("allowed_currencies");
     }
   }
-  let sandboxCheckoutEnabled = d.sandbox_checkout_enabled;
+  let sandboxCheckoutEnabled = defaults.sandbox_checkout_enabled;
   if ("sandbox_checkout_enabled" in p) {
     if (typeof p.sandbox_checkout_enabled === "boolean") {
       sandboxCheckoutEnabled = p.sandbox_checkout_enabled;
@@ -450,15 +453,15 @@ export const USAGE_WATCH_LIMITS = {
 /** usage_watch: deep-merge over the defaults. Every number must be a finite positive value; a bad value falls back
  *  to its default (with a warning) instead of disabling the watch. */
 export function loadUsageWatchSection(raw: Record<string, unknown> | undefined): UsageWatchSettings {
-  const d = DEFAULT_GLOBAL.usage_watch;
-  if (!raw) return d;
+  const defaults = DEFAULT_GLOBAL.usage_watch;
+  if (!raw) return defaults;
   const fallbacks: string[] = [];
-  const pick = (candidate: unknown, fallback: number, key: string, ok: (n: number) => boolean): number => {
+  const pick = (candidate: unknown, fallback: number, key: string, ok: (value: number) => boolean): number => {
     if (typeof candidate === "number" && Number.isFinite(candidate) && ok(candidate)) return candidate;
     if (candidate !== undefined) fallbacks.push(key);
     return fallback;
   };
-  const positive = (n: number): boolean => n > 0;
+  const positive = (value: number): boolean => value > 0;
   const sub = (name: "vercel" | "supabase" | "upstash"): Record<string, unknown> =>
     (raw[name] && typeof raw[name] === "object" ? raw[name] : {}) as Record<string, unknown>;
   const v = sub("vercel");
@@ -471,29 +474,29 @@ export function loadUsageWatchSection(raw: Record<string, unknown> | undefined):
     return fallback;
   };
   const out: UsageWatchSettings = {
-    warn_ratio: pick(raw.warn_ratio, d.warn_ratio, "warn_ratio", (n) => n >= USAGE_WATCH_LIMITS.warn_ratio.min && n <= USAGE_WATCH_LIMITS.warn_ratio.max),
-    timeout_ms: pick(raw.timeout_ms, d.timeout_ms, "timeout_ms", positive),
+    warn_ratio: pick(raw.warn_ratio, defaults.warn_ratio, "warn_ratio", (value) => value >= USAGE_WATCH_LIMITS.warn_ratio.min && value <= USAGE_WATCH_LIMITS.warn_ratio.max),
+    timeout_ms: pick(raw.timeout_ms, defaults.timeout_ms, "timeout_ms", positive),
     endpoints: {
-      supabase_api: str(endpoints.supabase_api, d.endpoints.supabase_api, "endpoints.supabase_api"),
-      upstash_api: str(endpoints.upstash_api, d.endpoints.upstash_api, "endpoints.upstash_api"),
-      vercel_cli: str(endpoints.vercel_cli, d.endpoints.vercel_cli, "endpoints.vercel_cli"),
+      supabase_api: str(endpoints.supabase_api, defaults.endpoints.supabase_api, "endpoints.supabase_api"),
+      upstash_api: str(endpoints.upstash_api, defaults.endpoints.upstash_api, "endpoints.upstash_api"),
+      vercel_cli: str(endpoints.vercel_cli, defaults.endpoints.vercel_cli, "endpoints.vercel_cli"),
     },
     vercel: {
-      team_id: str(v.team_id, d.vercel.team_id, "vercel.team_id"),
-      max_pages: pick(v.max_pages, d.vercel.max_pages, "vercel.max_pages", positive),
-      deployments_per_day: pick(v.deployments_per_day, d.vercel.deployments_per_day, "vercel.deployments_per_day", positive),
-      deployments_per_hour: pick(v.deployments_per_hour, d.vercel.deployments_per_hour, "vercel.deployments_per_hour", positive),
-      fluid_active_cpu_hours: pick(v.fluid_active_cpu_hours, d.vercel.fluid_active_cpu_hours, "vercel.fluid_active_cpu_hours", positive),
+      team_id: str(v.team_id, defaults.vercel.team_id, "vercel.team_id"),
+      max_pages: pick(v.max_pages, defaults.vercel.max_pages, "vercel.max_pages", positive),
+      deployments_per_day: pick(v.deployments_per_day, defaults.vercel.deployments_per_day, "vercel.deployments_per_day", positive),
+      deployments_per_hour: pick(v.deployments_per_hour, defaults.vercel.deployments_per_hour, "vercel.deployments_per_hour", positive),
+      fluid_active_cpu_hours: pick(v.fluid_active_cpu_hours, defaults.vercel.fluid_active_cpu_hours, "vercel.fluid_active_cpu_hours", positive),
     },
     supabase: {
-      db_size_bytes: pick(s.db_size_bytes, d.supabase.db_size_bytes, "supabase.db_size_bytes", positive),
-      egress_bytes: pick(s.egress_bytes, d.supabase.egress_bytes, "supabase.egress_bytes", positive),
-      file_storage_bytes: pick(s.file_storage_bytes, d.supabase.file_storage_bytes, "supabase.file_storage_bytes", positive),
+      db_size_bytes: pick(s.db_size_bytes, defaults.supabase.db_size_bytes, "supabase.db_size_bytes", positive),
+      egress_bytes: pick(s.egress_bytes, defaults.supabase.egress_bytes, "supabase.egress_bytes", positive),
+      file_storage_bytes: pick(s.file_storage_bytes, defaults.supabase.file_storage_bytes, "supabase.file_storage_bytes", positive),
     },
     upstash: {
-      monthly_commands: pick(u.monthly_commands, d.upstash.monthly_commands, "upstash.monthly_commands", positive),
-      monthly_bandwidth_bytes: pick(u.monthly_bandwidth_bytes, d.upstash.monthly_bandwidth_bytes, "upstash.monthly_bandwidth_bytes", positive),
-      memory_bytes: pick(u.memory_bytes, d.upstash.memory_bytes, "upstash.memory_bytes", positive),
+      monthly_commands: pick(u.monthly_commands, defaults.upstash.monthly_commands, "upstash.monthly_commands", positive),
+      monthly_bandwidth_bytes: pick(u.monthly_bandwidth_bytes, defaults.upstash.monthly_bandwidth_bytes, "upstash.monthly_bandwidth_bytes", positive),
+      memory_bytes: pick(u.memory_bytes, defaults.upstash.memory_bytes, "upstash.memory_bytes", positive),
     },
   };
   if (fallbacks.length > 0) warnFallback("global.json", `invalid usage_watch values for ${fallbacks.join(", ")}`);
@@ -526,10 +529,10 @@ export const PORTAL_JWT_SKEW_LIMITS = { min: 250, max: 500 } as const;
  *  audit_log_page_size clamps into its bounds. Env overrides:
  *  ADMIN_USER_IDS (comma-separated), ADMIN_AUDIT_LOG_PAGE_SIZE. */
 export function loadAdminSection(raw: Record<string, unknown> | undefined): GlobalSettings["admin"] {
-  const d = DEFAULT_GLOBAL.admin;
+  const defaults = DEFAULT_GLOBAL.admin;
   const r = (raw ?? {}) as Partial<GlobalSettings["admin"]> & Record<string, unknown>;
   const fallbacks: string[] = [];
-  let userIds = d.admin_user_ids;
+  let userIds = defaults.admin_user_ids;
   // Env wins over global.json (production deploys no global.json; the env is the operator's override).
   // An empty / commas-only ADMIN_USER_IDS counts as unset, so it can't silently blank a file allowlist.
   const envIds = process.env.ADMIN_USER_IDS?.split(",").map((s) => s.trim()).filter((s) => s !== "");
@@ -545,7 +548,7 @@ export function loadAdminSection(raw: Record<string, unknown> | undefined): Glob
       fallbacks.push("admin_user_ids");
     }
   }
-  let pageSize = d.audit_log_page_size;
+  let pageSize = defaults.audit_log_page_size;
   const rawSize = process.env.ADMIN_AUDIT_LOG_PAGE_SIZE !== undefined ? Number(process.env.ADMIN_AUDIT_LOG_PAGE_SIZE) : r.audit_log_page_size;
   if (intInRange(rawSize, ADMIN_LIMITS.audit_log_page_size.min, ADMIN_LIMITS.audit_log_page_size.max)) {
     pageSize = rawSize;
@@ -579,7 +582,7 @@ export function loadDeliverySection(raw: Record<string, unknown> | undefined): G
     fallbacks.push(key);
     return defaults[key];
   };
-  const posInt = (key: "link_ttl_days" | "signed_url_seconds" | "stuck_claim_after_seconds", min: number, max: number): number => {
+  const posInt = (key: "link_ttl_days" | "signed_url_seconds" | "stuck_claim_after_seconds" | "stuck_claim_list_limit", min: number, max: number): number => {
     if (!(key in record)) return defaults[key];
     const candidate = record[key];
     if (intInRange(candidate, min, max)) return candidate;
@@ -593,6 +596,7 @@ export function loadDeliverySection(raw: Record<string, unknown> | undefined): G
     short_domain: str("short_domain"),
     send_kind: str("send_kind"),
     stuck_claim_after_seconds: posInt("stuck_claim_after_seconds", 60, 86400),
+    stuck_claim_list_limit: posInt("stuck_claim_list_limit", 1, 10000),
   };
   if (fallbacks.length > 0) warnFallback("global.json", `invalid delivery values for ${fallbacks.join(", ")}`);
   return out;
@@ -603,7 +607,7 @@ export function loadDeliverySection(raw: Record<string, unknown> | undefined): G
 export function loadEmailSection(raw: Record<string, unknown> | undefined): GlobalSettings["email"] {
   const merged = { ...DEFAULT_GLOBAL.email, ...(raw ?? {}) } as GlobalSettings["email"];
   const names = (raw ?? {}).retryable_error_names;
-  if (names !== undefined && !(Array.isArray(names) && names.length > 0 && names.every((n) => typeof n === "string" && n !== "" && n === n.trim()))) {
+  if (names !== undefined && !(Array.isArray(names) && names.length > 0 && names.every((entry) => typeof entry === "string" && entry !== "" && entry === entry.trim()))) {
     warnFallback("global.json", "invalid email values for retryable_error_names");
     merged.retryable_error_names = DEFAULT_GLOBAL.email.retryable_error_names;
   }
