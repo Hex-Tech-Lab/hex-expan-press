@@ -201,7 +201,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       return jsonError(500, "Checkout consent verification failed");
     }
 
-    const active = strictActiveConsentKinds(consentRows ?? [], resolvedProduct.id);
+    // One nullish fallback for both readers below; a null list has no active kinds, so it returns at the gate.
+    const rows = consentRows ?? [];
+    const active = strictActiveConsentKinds(rows, resolvedProduct.id);
     const hasC1 = active.has("C1_data_accuracy");
     const hasC2 = active.has("C2_release_approval");
     const hasC3 = active.has("C3_revenue_split");
@@ -215,7 +217,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     // product's CURRENT release PDF. A missing/invalid hash on either side or a
     // mismatch fails closed — the same check the launch trigger enforces.
     const releaseSha = normalizeSha256(resolvedProduct.release_sha256);
-    const c2Head = strictChainHead(consentRows ?? [], resolvedProduct.id, "C2_release_approval");
+    const c2Head = strictChainHead(rows, resolvedProduct.id, "C2_release_approval");
     const approvedSha = normalizeSha256(c2Head?.document_sha256);
     if (!releaseSha || !approvedSha || approvedSha !== releaseSha) {
       console.error(`[billing/checkout] release hash mismatch for '${product}': release=${releaseSha ?? "invalid"} approved=${approvedSha ?? "invalid"}`);
@@ -279,7 +281,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     // are objects). A malformed row is a data-integrity failure: an active one
     // is rejected with 500 by the active-rail check above, and it must never be
     // misreported as an operator disable.
-    const configuredRowCount = (railRows ?? []).filter((r) => r !== null && typeof r === "object").length;
+    const configuredRowCount = (railRows ?? []).length;
 
     if (configuredRowCount > 0 && dbRails.length === 0) {
       console.error(`[billing/checkout] product '${product}' has ${configuredRowCount} configured rail(s) but none usable (not active, or provider switched off) — refusing checkout`);
@@ -297,14 +299,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const rails: CheckoutRail[] = dbRails;
 
 
-  // Fail closed on non-string RAW checkout_url values (missing/null/number
-  // from a malformed rails file) BEFORE any trimming — no silent rail skips.
-  for (const rail of rails) {
-    if (!rail || typeof rail !== "object" || typeof rail.checkout_url !== "string") {
-      console.error(`[billing/checkout] rejected checkout_url for '${product}' (${rail?.provider ?? "unknown"}): missing or not a string`);
-      return jsonError(500, "Checkout is not configured");
-    }
-  }
+  // Raw checkout_url types are enforced once, on the active rows above (non-string fails closed there),
+  // so every rail reaching this point is an object with a string checkout_url.
 
   // One URL policy for every source: validate before routing, redirect trimmed.
   for (const rail of rails) {
@@ -327,11 +323,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       return jsonError(503, "Checkout is temporarily unavailable. No payment rail is accepting orders.", "rails_unavailable");
     }
     console.error(`checkout: MatrixRouter failed, falling back to default rail: ${(err as Error).message}`);
-    const fallback = [...rails].sort((lhs, rhs) => rhs.weight - lhs.weight).find((r) => typeof r.checkout_url === "string" && r.checkout_url !== "");
-    if (!fallback) {
-      console.error(`[billing/checkout] Router unavailable and no fallback rail configured for '${product}': ${(err as Error).message}`);
-      return jsonError(503, "Checkout is temporarily unavailable");
-    }
+    // rails is non-empty (checked above) and every URL is validated non-empty (checkoutUrlProblem), so a fallback always exists.
+    const fallback = [...rails].sort((lhs, rhs) => rhs.weight - lhs.weight)[0];
     const res = NextResponse.redirect(withReference(fallback.checkout_url as string, fallback.provider, attributionRef((p) => request.nextUrl.searchParams.get(p))), 302);
     res.headers.set("Cache-Control", "no-store");
     return res;

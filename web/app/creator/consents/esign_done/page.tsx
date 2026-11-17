@@ -27,6 +27,14 @@ export const metadata = {
   robots: { index: false, follow: false },
 };
 
+function toError(err: unknown): Error {
+  if (err instanceof Error) return err;
+  if (err && typeof err === "object" && "message" in err && typeof (err as { message: unknown }).message === "string") {
+    return new Error((err as { message: string }).message);
+  }
+  return new Error(String(err));
+}
+
 async function hasRecordedC3(): Promise<boolean> {
   try {
     const session = await getPortalSession();
@@ -36,8 +44,9 @@ async function hasRecordedC3(): Promise<boolean> {
       "id, creator_id, release_sha256",
     );
     if (productError) {
-      console.error("[esign_done] products query failed:", productError.message);
-      Sentry.captureException(productError, { tags: { surface: "esign_done", query: "products" } });
+      const error = toError(productError);
+      console.error("[esign_done] products query failed:", error.message);
+      Sentry.captureException(error, { tags: { surface: "esign_done", query: "products" } });
       return false;
     }
     if (!product) return false;
@@ -47,14 +56,16 @@ async function hasRecordedC3(): Promise<boolean> {
       kinds: ["C3_revenue_split"],
     });
     if (consentsError) {
-      console.error("[esign_done] consents query failed:", consentsError.message);
-      Sentry.captureException(consentsError, { tags: { surface: "esign_done", query: "consents" } });
+      const error = toError(consentsError);
+      console.error("[esign_done] consents query failed:", error.message);
+      Sentry.captureException(error, { tags: { surface: "esign_done", query: "consents" } });
       return false;
     }
     return portalConsentState(rows, product.id, product.release_sha256).hasC3;
   } catch (err) {
-    console.error("[esign_done] C3 status check failed:", err);
-    Sentry.captureException(err, { tags: { surface: "esign_done", query: "c3" } });
+    const error = toError(err);
+    console.error("[esign_done] C3 status check failed:", error);
+    Sentry.captureException(error, { tags: { surface: "esign_done", query: "c3" } });
     return false;
   }
 }

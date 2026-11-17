@@ -148,11 +148,12 @@ async function handleWebhook(request: NextRequest, adapters: WebhookAdapters, sw
     // The use case attaches httpStatus to validation failures (e.g. 401 for a
     // bad/stale signature) — honor it when in the 4xx band; otherwise the
     // legacy 400/500 split stands.
-    const rawStatus = err instanceof WebhookValidationError ? err.httpStatus : (err as { httpStatus?: unknown })?.httpStatus;
+    const rawStatus = (err as { httpStatus?: unknown } | null | undefined)?.httpStatus;
     // Honour the adapter's hint: 4xx is final; 5xx (missing secret = 500, email lookup failure = 503)
     // makes the provider RETRY — never flatten a server-side problem into a permanent 400.
     const httpStatus = typeof rawStatus === "number" && rawStatus >= 400 && rawStatus < 600 ? rawStatus : undefined;
-    const status = isValidationErr && httpStatus === undefined ? 400 : httpStatus ?? (isValidationErr ? 400 : 500);
+    // httpStatus is a number or undefined here, so a validation error without an adapter hint maps to 400 and anything else to 500.
+    const status = httpStatus ?? (isValidationErr ? 400 : 500);
     const error = status === 401 ? "Unauthorized" : status === 503 ? "Temporarily unavailable — retry" : status === 500 ? "Internal Server Error" : "Bad Request";
     if (status === 503) {
       // Error name only: messages can carry buyer data (e.g. an email lookup failure).

@@ -10,6 +10,9 @@
  * empty. GET /__calls lists recorded RPC calls; POST /__reset clears state.
  */
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { createServer as createHttpsServer } from "node:https";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { E2E } from "./constants";
 
 type Row = Record<string, unknown>;
@@ -32,6 +35,7 @@ function seed(): Record<string, Row[]> {
     products: [
       {
         id: E2E.productId,
+        creator_id: E2E.creatorId,
         slug: "e2e-test-book",
         title: "E2E Test Book",
         release_path: "e2e/release.pdf",
@@ -40,8 +44,8 @@ function seed(): Record<string, Row[]> {
       },
     ],
     review_items: [
-      { id: "11111111-0000-4000-8000-000000000001", code: "Q1", kind: "choice", question: "Is the retirement age on p.12 correct?", options: [{ key: "yes", label: "Yes" }, { key: "no", label: "No" }], anchor: null, product_id: E2E.productId },
-      { id: "11111111-0000-4000-8000-000000000002", code: "Q2", kind: "choice", question: "Is the savings figure on p.30 correct?", options: [{ key: "yes", label: "Yes" }, { key: "no", label: "No" }], anchor: null, product_id: E2E.productId },
+      { id: "11111111-0000-4000-8000-000000000001", code: "Q1", kind: "choice", question: "Is the retirement age on p.12 correct?", options: [{ key: "yes", label: "Yes" }, { key: "no", label: "No" }], anchor: { page: 12 }, product_id: E2E.productId },
+      { id: "11111111-0000-4000-8000-000000000002", code: "Q2", kind: "choice", question: "Is the savings figure on p.30 correct?", options: [{ key: "yes", label: "Yes" }, { key: "no", label: "No" }], anchor: { page: 30 }, product_id: E2E.productId },
     ],
     review_answers: [],
     consents: [],
@@ -56,9 +60,7 @@ function seed(): Record<string, Row[]> {
           {
             id: "22222222-0000-4000-8000-000000000001",
             store_product_id: "prod_retire_500k",
-            composite_slug: "retirearly500k/500k-playbook",
-            site_slug: "retirearly500k/500k-playbook",
-            slug: "500k-playbook",
+            slug: "500k_playbook",
             title: "500k Playbook",
             price_usd: "47",
             currency: "USD",
@@ -67,6 +69,28 @@ function seed(): Record<string, Row[]> {
             disclaimers: [],
             checkout_mode: "gated",
             inside: [{ label: "Chapter 1", text: "The strategy" }],
+          },
+        ],
+      },
+      {
+        handle: E2E.liveCreatorHandle,
+        display_name: "E2E Live Creator",
+        platform_handles: null,
+        bio: "Fixture creator with one live book, for the B2C confinement test.",
+        photo: null,
+        products: [
+          {
+            id: E2E.liveProductId,
+            store_product_id: "prod_e2e_live",
+            slug: E2E.liveProductSlug,
+            title: "E2E Live Book",
+            price_usd: "29",
+            currency: "USD",
+            working_note: null,
+            description: "A fixture book for the B2C confinement test.",
+            disclaimers: [],
+            checkout_mode: "live",
+            inside: [{ label: "Chapter 1", text: "Fixture content" }],
           },
         ],
       },
@@ -111,8 +135,12 @@ function rpc(fn: string, args: Row): { status: number; body: unknown } {
   if (fn === "submit_consent") {
     const id = crypto.randomUUID();
     const prev = db.consents.find((c) => c.product_id === args.p_product_id && c.kind === args.p_kind);
+    // As the real submit_consent: the consent carries its product's creator, which the consent loader filters on.
+    const owner = db.products.find((p) => p.id === args.p_product_id);
     db.consents.unshift({
       id,
+      creator_id: owner?.creator_id ?? null,
+      document_sha256: args.p_document_sha256 ?? null,
       product_id: args.p_product_id,
       kind: args.p_kind,
       decision: args.p_decision,
@@ -124,7 +152,7 @@ function rpc(fn: string, args: Row): { status: number; body: unknown } {
   return { status: 404, body: { message: `unknown rpc ${fn}` } };
 }
 
-const server = createServer(async (req, res) => {
+const handle = async (req: IncomingMessage, res: ServerResponse) => {
   const url = new URL(req.url ?? "/", "http://mock");
   const path = url.pathname;
   try {
@@ -187,8 +215,15 @@ const server = createServer(async (req, res) => {
   } catch (err) {
     send(res, 500, { message: err instanceof Error ? err.message : String(err) });
   }
-});
+};
 
-server.listen(E2E.mockPort, "127.0.0.1", () => {
+// Same handler on two listeners: plain HTTP for Supabase, HTTPS for Firma.
+createServer(handle).listen(E2E.mockPort, "127.0.0.1", () => {
   console.log(`[mock-supabase] listening on ${E2E.mockPort}`);
+});
+createHttpsServer(
+  { key: readFileSync(path.join(E2E.tlsDir, "key.pem")), cert: readFileSync(path.join(E2E.tlsDir, "cert.pem")) },
+  handle,
+).listen(E2E.firmaTlsPort, "127.0.0.1", () => {
+  console.log(`[mock-supabase] firma https listening on ${E2E.firmaTlsPort}`);
 });

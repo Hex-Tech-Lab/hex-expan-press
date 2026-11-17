@@ -7,10 +7,11 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const rpcMock = vi.fn();
 let releaseSha: string | null = "a".repeat(64);
+let productQueryResult: { data: Array<{ id: string; release_sha256: string | null }> | null; error?: { message: string } | null } | null = null;
 const productSelect = {
   select: vi.fn(() => ({
     order: vi.fn(() => ({
-      limit: vi.fn(async () => ({ data: [{ id: "p1", release_sha256: releaseSha }] })),
+      limit: vi.fn(async () => productQueryResult ?? { data: [{ id: "p1", release_sha256: releaseSha }], error: null }),
     })),
   })),
 };
@@ -58,6 +59,7 @@ describe("signConsentAction (Wave 6.1)", () => {
     rpcMock.mockReset();
     rpcMock.mockResolvedValue({ error: null });
     releaseSha = "a".repeat(64);
+    productQueryResult = null;
   });
 
   it("fails closed to the signin redirect when there is no session", async () => {
@@ -136,5 +138,45 @@ describe("signConsentAction (Wave 6.1)", () => {
     rpcMock.mockResolvedValueOnce({ error: { message: "append-only violation" } });
     const res = await signConsentAction({}, fd("C1_data_accuracy", "Jane Example"));
     expect(res.error).toMatch(/could not record/i);
+  });
+
+  it("rejects FormData with missing kind without writing", async () => {
+    const f = new FormData();
+    f.set("typedName", "Jane Example");
+    const res = await signConsentAction({}, f);
+    expect(res.error).toMatch(/unknown consent/i);
+    expect(rpcMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects FormData with missing typedName or non-letter multi-word names without writing", async () => {
+    const missingName = new FormData();
+    missingName.set("kind", "C1_data_accuracy");
+    expect((await signConsentAction({}, missingName)).error).toMatch(/full legal name/i);
+    expect((await signConsentAction({}, fd("C1_data_accuracy", "Jane 123"))).error).toMatch(/full legal name/i);
+    expect(rpcMock).not.toHaveBeenCalled();
+  });
+
+  it("returns friendly error when product lookup errors or finds no linked product", async () => {
+    productQueryResult = { data: null, error: { message: "db error" } };
+    const errRes = await signConsentAction({}, fd("C1_data_accuracy", "Jane Example"));
+    expect(errRes.error).toMatch(/no product is linked/i);
+
+    productQueryResult = { data: [], error: null };
+    const emptyRes = await signConsentAction({}, fd("C1_data_accuracy", "Jane Example"));
+    expect(emptyRes.error).toMatch(/no product is linked/i);
+
+    expect(rpcMock).not.toHaveBeenCalled();
+  });
+
+  it("defaults p_user_agent to empty string when user-agent header is absent", async () => {
+    headerMap.current = new Map([["x-forwarded-for", "203.0.113.9"]]);
+    const res = await signConsentAction({}, fd("C1_data_accuracy", "Jane Example"));
+    expect(res).toEqual({ ok: true });
+    expect(rpcMock).toHaveBeenCalledWith(
+      "submit_consent",
+      expect.objectContaining({
+        p_user_agent: "",
+      }),
+    );
   });
 });

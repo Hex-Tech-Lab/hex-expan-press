@@ -1,4 +1,5 @@
-# PICT pairwise model for billing / consent / checkout parameters changed in 9dfcc5e, e378f18, 0498dfe (HEAD 0498dfe).
+# PICT pairwise model for billing / consent / checkout parameters changed in 9dfcc5e, e378f18, 0498dfe.
+# Last checked 2026-11-17: `pict` regenerated from this model matches billing_consent_checkout.rows.tsv (34 rows) at HEAD f58c89f.
 # Run: pict docs/testing/pairwise/billing_consent_checkout.model.txt > docs/testing/pairwise/billing_consent_checkout.rows.tsv
 #
 # Parameters:

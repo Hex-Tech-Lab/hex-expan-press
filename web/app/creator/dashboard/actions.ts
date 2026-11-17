@@ -57,7 +57,7 @@ export async function startPublisherAgreementAction(): Promise<void> {
   if (productError) {
     console.error("[dashboard] products query failed:", productError.message);
     Sentry.captureException(productError, { tags: { surface: "dashboard", query: "products" } });
-    redirect("/creator/dashboard?error=c2_required");
+    redirect("/creator/dashboard?error=load_failed");
   }
   if (!primary || !primary.id) {
     redirect("/creator/dashboard?error=c2_required");
@@ -69,7 +69,7 @@ export async function startPublisherAgreementAction(): Promise<void> {
   if (consentsError) {
     console.error("[dashboard] consents query failed:", consentsError.message);
     Sentry.captureException(consentsError, { tags: { surface: "dashboard", query: "consents" } });
-    redirect("/creator/dashboard?error=c2_required");
+    redirect("/creator/dashboard?error=load_failed");
   }
 
   // C1 and C2 must each be the single strict head of their kind, given, and (C2) bound to the current release.

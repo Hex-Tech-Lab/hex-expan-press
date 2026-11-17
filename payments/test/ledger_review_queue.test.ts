@@ -34,6 +34,7 @@ function row(id: number, createdAt: string, provider: string, saleId: string) {
 describe("listManualReviewRefunds", () => {
   afterEach(() => {
     vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
   });
 
   it("deduplicates by (provider, sale_id) keeping the newest row with occurrences=N", async () => {
@@ -109,5 +110,22 @@ describe("listManualReviewRefunds", () => {
     vi.stubEnv("SUPABASE_SECRET_KEY", "");
     const { fetchImpl } = captureFetch([]);
     await expect(listManualReviewRefunds({ fetchImpl })).resolves.toEqual([]);
+  });
+
+  it("uses global fetch when fetchImpl is omitted and flags null details or missing provider as incomplete", async () => {
+    vi.stubEnv("SUPABASE_URL", URL_BASE);
+    vi.stubEnv("SUPABASE_SECRET_KEY", "unit-test-key");
+    const { fetchImpl, captured } = captureFetch([
+      { id: 10, created_at: "2026-10-02T04:00:00Z", event: "MANUAL_REVIEW_REQUIRED_REFUND", details: null },
+      { id: 9, created_at: "2026-10-02T03:00:00Z", event: "MANUAL_REVIEW_REQUIRED_REFUND", details: { sale_id: "sale-no-prov" } },
+      { id: 8, created_at: "2026-10-02T02:00:00Z", event: "MANUAL_REVIEW_REQUIRED_REFUND", details: { provider: "", sale_id: "sale-empty-prov" } },
+    ]);
+    vi.stubGlobal("fetch", fetchImpl);
+    const out = await listManualReviewRefunds();
+    expect(captured.url).toContain("limit=200");
+    expect(out).toHaveLength(3);
+    expect(out[0]).toMatchObject({ id: 10, details: {}, provider: null, sale_id: null, incomplete: true });
+    expect(out[1]).toMatchObject({ id: 9, provider: null, sale_id: "sale-no-prov", incomplete: true });
+    expect(out[2]).toMatchObject({ id: 8, provider: null, sale_id: "sale-empty-prov", incomplete: true });
   });
 });

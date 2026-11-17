@@ -95,6 +95,17 @@ describe("MatrixRouter circuit breaker, multiple rails", () => {
     await expect(MatrixRouter.getNextProvider(NS, CTX, routes3to1)).rejects.toBeInstanceOf(MatrixRouterUnavailableError);
   });
 
+  it("keeps both providers marked down when markProviderDown is called concurrently for different providers", async () => {
+    await Promise.all([
+      MatrixRouter.markProviderDown(NS, CTX, "paddle"),
+      MatrixRouter.markProviderDown(NS, CTX, "polar"),
+    ]);
+
+    await expect(MatrixRouter.getNextProvider(NS, CTX, routes3to1)).rejects.toBeInstanceOf(MatrixRouterUnavailableError);
+    const routesWithThird: ProviderRoute[] = [...routes3to1, { provider: "stripe", weight: 1 }];
+    await expect(MatrixRouter.getNextProvider(NS, CTX, routesWithThird)).resolves.toBe("stripe");
+  });
+
   it("rejects an empty route list with a plain error, not the unavailable error", async () => {
     await expect(MatrixRouter.getNextProvider(NS, CTX, [])).rejects.toThrow("No routes provided");
   });
@@ -205,18 +216,22 @@ describe("MatrixRouter Redis failure handling (fail closed on read, degraded on 
     }
   });
 
-  it("reports degraded without overwriting breaker state when markProviderDown hits a Redis read failure", async () => {
+  it("writes only the target provider key without reading Redis, preserving other providers even when reads fail", async () => {
+    await MatrixRouter.markProviderDown(NS, CTX, "polar");
+    vi.mocked(expanRedis.get).mockClear();
     fake.getFail = true;
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
-    try {
-      const res = await MatrixRouter.markProviderDown(NS, CTX, "paddle");
-      expect(res).toEqual({ degraded: true });
-      expect(vi.mocked(expanRedis.set)).not.toHaveBeenCalled();
-      expect(warn).toHaveBeenCalledTimes(1);
-      expect(String(warn.mock.calls[0]?.[0] ?? "")).toContain("TypeError");
-    } finally {
-      warn.mockRestore();
-    }
+
+    const res = await MatrixRouter.markProviderDown(NS, CTX, "paddle", 500);
+    expect(res).toEqual({ degraded: false });
+    expect(vi.mocked(expanRedis.get)).not.toHaveBeenCalled();
+    expect(vi.mocked(expanRedis.set)).toHaveBeenLastCalledWith(
+      `matrix:${NS}:${CTX}:down:paddle`,
+      expect.any(String),
+      1,
+    );
+
+    fake.getFail = false;
+    await expect(MatrixRouter.getNextProvider(NS, CTX, routes3to1)).rejects.toBeInstanceOf(MatrixRouterUnavailableError);
   });
 
   it("logs error name only and returns degraded when markProviderDown hits a Redis save failure", async () => {

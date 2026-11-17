@@ -3,17 +3,22 @@ import { ProviderRoute } from "../../domain/settings/settings.port.ts";
 import { MatrixRouterUnavailableError } from "./matrix_router_errors.ts";
 
 /**
- * Circuit-breaker state for one routing context, stored as one JSON value. It holds only the rails marked down and
- * when each comes back. The round-robin counter is a separate key (see counterKey), so routing never
- * read-modify-writes it.
+ * Legacy single-key circuit-breaker shape (`matrix:${namespace}:${id}`), still read during rollout so any
+ * already-open breaker written before per-provider keys is respected. New writes use per-provider keys so
+ * concurrent marks for different providers cannot drop each other.
  */
 interface RouterState {
   down?: Record<string, string>;
   updated_at: string;
 }
 
-interface LoadStateResult {
-  state: RouterState | null;
+interface ProviderDownState {
+  down_until: string;
+  updated_at: string;
+}
+
+interface LoadDownStateResult {
+  down: Record<string, string>;
   degraded: boolean;
 }
 
@@ -48,31 +53,54 @@ export class MatrixRouter {
     return `matrix:${namespace}:${id}`;
   }
 
+  private static providerDownKey(namespace: string, id: string, provider: string): string {
+    return `matrix:${namespace}:${id}:down:${provider}`;
+  }
+
   private static counterKey(namespace: string, id: string): string {
     return `matrix:${namespace}:${id}:counter`;
   }
 
-  private static async loadState(namespace: string, id: string): Promise<LoadStateResult> {
-    if (!this.isRedisConfigured()) return { state: null, degraded: false };
-    try {
-      const raw = await expanRedis.get<string>(this.redisKey(namespace, id));
-      if (!raw) return { state: null, degraded: false };
-      return { state: JSON.parse(raw) as RouterState, degraded: false };
-    } catch (err) {
-      console.warn(`[matrix_router] routing state read failed (degraded): ${this.errorName(err)}`);
-      return { state: null, degraded: true };
-    }
+  private static parseDownUntilMs(iso: unknown): number {
+    if (typeof iso !== "string") throw new SyntaxError("Invalid breaker timestamp");
+    const ms = new Date(iso).getTime();
+    if (!Number.isFinite(ms)) throw new SyntaxError("Invalid breaker timestamp");
+    return ms;
   }
 
-  private static async saveState(namespace: string, id: string, state: RouterState): Promise<DegradedResult> {
-    if (!this.isRedisConfigured()) return { degraded: false };
+  private static async loadDownState(
+    namespace: string,
+    id: string,
+    routes: ProviderRoute[],
+    nowMs: number,
+  ): Promise<LoadDownStateResult> {
+    if (!this.isRedisConfigured()) return { down: {}, degraded: false };
+    const providers = [...new Set(routes.map((r) => r.provider))];
     try {
-      await expanRedis.set(this.redisKey(namespace, id), JSON.stringify(state));
-      return { degraded: false };
+      const [legacyRaw, ...providerRaws] = await Promise.all([
+        expanRedis.get<string>(this.redisKey(namespace, id)),
+        ...providers.map((provider) => expanRedis.get<string>(this.providerDownKey(namespace, id, provider))),
+      ]);
+
+      const down: Record<string, string> = {};
+      if (legacyRaw) {
+        const legacyState = JSON.parse(legacyRaw) as RouterState;
+        Object.assign(down, this.activeDown(legacyState?.down, nowMs));
+      }
+
+      for (let i = 0; i < providers.length; i++) {
+        const raw = providerRaws[i];
+        if (!raw) continue;
+        const parsed = JSON.parse(raw) as Partial<ProviderDownState>;
+        if (this.parseDownUntilMs(parsed?.down_until) > nowMs) {
+          down[providers[i]] = parsed.down_until!;
+        }
+      }
+
+      return { down, degraded: false };
     } catch (err) {
-      // Non-fatal: a transient save failure only loses breaker state.
-      console.warn(`[matrix_router] routing state save failed (degraded): ${this.errorName(err)}`);
-      return { degraded: true };
+      console.warn(`[matrix_router] routing state read failed (degraded): ${this.errorName(err)}`);
+      return { down: {}, degraded: true };
     }
   }
 
@@ -125,11 +153,10 @@ export class MatrixRouter {
   public static async getNextProvider(namespace: string, contextId: string, routes: ProviderRoute[]): Promise<string> {
     if (!routes || routes.length === 0) throw new Error("MatrixRouter: No routes provided.");
 
-    const loaded = await this.loadState(namespace, contextId);
+    const loaded = await this.loadDownState(namespace, contextId, routes, Date.now());
     if (loaded.degraded) throw new MatrixRouterUnavailableError(namespace, contextId);
 
-    const down = this.activeDown(loaded.state?.down, Date.now());
-    const live = this.liveRoutes(routes, down);
+    const live = this.liveRoutes(routes, loaded.down);
     if (live.length === 0) throw new MatrixRouterUnavailableError(namespace, contextId);
     // One live rail has nothing to rotate, so skip the counter round trip.
     if (live.length === 1) return live[0].provider;
@@ -142,13 +169,22 @@ export class MatrixRouter {
   }
 
   public static async markProviderDown(namespace: string, contextId: string, provider: string, durationMs: number = DEFAULT_DOWN_MS): Promise<DegradedResult> {
+    if (!this.isRedisConfigured()) return { degraded: false };
     const now = new Date();
-    const loaded = await this.loadState(namespace, contextId);
-    if (loaded.degraded) return { degraded: true };
-
-    const state: RouterState = loaded.state ?? { updated_at: now.toISOString() };
-    state.down = { ...(state.down ?? {}), [provider]: new Date(now.getTime() + durationMs).toISOString() };
-    state.updated_at = now.toISOString();
-    return this.saveState(namespace, contextId, state);
+    const safeDurationMs = Number.isFinite(durationMs) ? durationMs : DEFAULT_DOWN_MS;
+    const payload: ProviderDownState = {
+      down_until: new Date(now.getTime() + safeDurationMs).toISOString(),
+      updated_at: now.toISOString(),
+    };
+    // ExpanRedisClient.set supports EX (integer seconds), not PX; keep exact ms expiry inside JSON.
+    const exSeconds = safeDurationMs > 0 ? Math.max(1, Math.ceil(safeDurationMs / 1000)) : 1;
+    try {
+      await expanRedis.set(this.providerDownKey(namespace, contextId, provider), JSON.stringify(payload), exSeconds);
+      return { degraded: false };
+    } catch (err) {
+      // Non-fatal: a transient save failure only loses breaker state.
+      console.warn(`[matrix_router] routing state save failed (degraded): ${this.errorName(err)}`);
+      return { degraded: true };
+    }
   }
 }

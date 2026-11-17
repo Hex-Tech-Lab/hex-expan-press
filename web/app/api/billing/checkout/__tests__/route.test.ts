@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
-import { GET } from "../route";
+import { GET, HEAD } from "../route";
 import { MatrixRouter } from "../../../../../../src/infrastructure/matrix_router/matrix_router";
 import { portRails } from "../../../../../../scripts/lib/heritage-rails";
 import { MatrixRouterUnavailableError } from "../../../../../../src/infrastructure/matrix_router/matrix_router_errors";
@@ -12,12 +12,15 @@ const adminModule = vi.hoisted(() => ({
 
 const registryOverride = vi.hoisted(() => ({
   sandboxCheckoutEnabled: undefined as boolean | undefined,
+  polarEnabled: false,
 }));
 
 vi.mock("../../../../../../payments/src/settings_registry", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../../../../../payments/src/settings_registry")>();
   return {
     ...actual,
+    isEnabledPaymentProvider: (name: string) =>
+      (name === "polar" && registryOverride.polarEnabled) || actual.isEnabledPaymentProvider(name),
     GLOBAL: new Proxy(actual.GLOBAL, {
       get(target, prop, receiver) {
         if (prop === "payments" && registryOverride.sandboxCheckoutEnabled !== undefined) {
@@ -152,6 +155,7 @@ function request(): NextRequest {
 beforeEach(() => {
   adminModule.mockAdminClient = null;
   registryOverride.sandboxCheckoutEnabled = undefined;
+  registryOverride.polarEnabled = false;
 });
 
 describe("billing/checkout DB rail in production, fail-closed without rails", () => {
@@ -1152,5 +1156,174 @@ describe("billing/checkout matrix router: every rail marked down (Argon F-16)", 
     expect(handleRes.status).toBe(302);
 
     expect(vi.mocked(MatrixRouter.getNextProvider).mock.calls.map((c) => c[1])).toEqual([PID, PID]);
+  });
+});
+
+describe("billing/checkout HEAD handler", () => {
+  beforeEach(() => {
+    vi.stubEnv("VERCEL_ENV", "production");
+    adminModule.mockAdminClient = gateAdminClient(undefined, undefined, {
+      data: [{ provider: "paddle", weight: 100, checkout_url: "https://buy.paddle.com/live-rail", active: true }],
+      error: null,
+    });
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("returns the same status and redirect headers as GET with an empty body", async () => {
+    const getRes = await GET(request());
+    const headRes = await HEAD(new NextRequest(CHECKOUT_URL, { method: "HEAD" }));
+
+    expect(headRes.status).toBe(getRes.status);
+    expect(headRes.status).toBe(302);
+    expect(headRes.headers.get("location")).toBe(getRes.headers.get("location"));
+    expect(headRes.headers.get("cache-control")).toBe(getRes.headers.get("cache-control"));
+    expect(headRes.body).toBeNull();
+    expect(await headRes.text()).toBe("");
+  });
+});
+
+describe("billing/checkout additional defensive and lookup branches", () => {
+  beforeEach(() => {
+    vi.stubEnv("VERCEL_ENV", "production");
+    vi.mocked(MatrixRouter.getNextProvider).mockReset();
+    vi.mocked(MatrixRouter.getNextProvider).mockResolvedValue("paddle");
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    registryOverride.polarEnabled = false;
+    registryOverride.sandboxCheckoutEnabled = undefined;
+  });
+
+  it("returns 400 when product query parameter is absent", async () => {
+    const res = await GET(new NextRequest("http://localhost:3000/api/billing/checkout"));
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ ok: false, error: "Missing product parameter in URL" });
+  });
+
+  it("returns 404 product_not_found when UUID lookup finds no row", async () => {
+    adminModule.mockAdminClient = gateAdminClient({ data: null, error: null });
+    const res = await GET(request());
+    expect(res.status).toBe(404);
+    expect(await res.json()).toMatchObject({ ok: false, code: "product_not_found" });
+  });
+
+  it("returns 500 when <handle>/<slug> product lookup errors", async () => {
+    adminModule.mockAdminClient = gateAdminClient({ data: null, error: { message: "handle lookup failed" } });
+    const res = await GET(new NextRequest("http://localhost:3000/api/billing/checkout?product=creator_handle%2Fsome_book"));
+    expect(res.status).toBe(500);
+    expect(await res.json()).toMatchObject({ ok: false, error: "Checkout consent verification failed" });
+  });
+
+  it("returns 500 when bare slug lookup errors", async () => {
+    adminModule.mockAdminClient = {
+      from: (table: string) => {
+        if (table === "products") {
+          return productTableMock({ data: null, error: null }, { data: null, error: { message: "slug lookup failed" } });
+        }
+        return {};
+      },
+    };
+    const res = await GET(new NextRequest("http://localhost:3000/api/billing/checkout?product=some_book"));
+    expect(res.status).toBe(500);
+    expect(await res.json()).toMatchObject({ ok: false, error: "Checkout consent verification failed" });
+  });
+
+  it("returns 404 product_not_found when bare slug lookup returns null matches", async () => {
+    adminModule.mockAdminClient = {
+      from: (table: string) => {
+        if (table === "products") {
+          return productTableMock({ data: null, error: null }, { data: null, error: null });
+        }
+        return {};
+      },
+    };
+    const res = await GET(new NextRequest("http://localhost:3000/api/billing/checkout?product=some_book"));
+    expect(res.status).toBe(404);
+    expect(await res.json()).toMatchObject({ ok: false, code: "product_not_found" });
+  });
+
+  it("rejects non-https rail checkout_url with 500", async () => {
+    setLiveRail("http://buy.paddle.com/insecure");
+    const res = await GET(request());
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ ok: false, error: "Checkout is not configured" });
+  });
+
+  it("fails closed with 500 when consents query returns null data with positive count", async () => {
+    const client = gateAdminClient();
+    adminModule.mockAdminClient = {
+      from: (table: string) =>
+        table === "consents"
+          ? { select: () => ({ eq: () => ({ in: async () => ({ data: null, error: null, count: 1 }) }) }) }
+          : client.from(table),
+    };
+    const res = await GET(request());
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ ok: false, error: "Checkout consent verification failed" });
+  });
+
+  it("fails closed with 403 when consents query returns null data with count 0", async () => {
+    const client = gateAdminClient();
+    adminModule.mockAdminClient = {
+      from: (table: string) =>
+        table === "consents"
+          ? { select: () => ({ eq: () => ({ in: async () => ({ data: null, error: null, count: 0 }) }) }) }
+          : client.from(table),
+    };
+    const res = await GET(request());
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({ ok: false, error: "Checkout forbidden: required creator consents are not active" });
+  });
+
+  it("returns 404 when product_rails query returns null data", async () => {
+    adminModule.mockAdminClient = gateAdminClient(undefined, undefined, { data: null, error: null });
+    const res = await GET(request());
+    expect(res.status).toBe(404);
+    expect(res.headers.get("location")).toBeNull();
+  });
+
+  it("fails closed with 500 when consent verification throws an unexpected exception", async () => {
+    adminModule.mockAdminClient = {
+      from: () => {
+        throw new Error("unexpected db client failure");
+      },
+    };
+    const res = await GET(request());
+    expect(res.status).toBe(500);
+    expect(await res.json()).toEqual({ ok: false, error: "Checkout consent verification failed" });
+  });
+
+  it("sorts multiple rails by weight descending when MatrixRouter throws a generic error", async () => {
+    adminModule.mockAdminClient = gateAdminClient(undefined, undefined, {
+      data: [
+        { provider: "paddle", weight: 10, checkout_url: "https://buy.paddle.com/low-weight", active: true },
+        { provider: "paddle", weight: 100, checkout_url: "https://buy.paddle.com/high-weight", active: true },
+      ],
+      error: null,
+    });
+    vi.mocked(MatrixRouter.getNextProvider).mockRejectedValueOnce(new Error("router down"));
+    const res = await GET(request());
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("https://buy.paddle.com/high-weight");
+  });
+
+  it("appends reference_id when a Polar rail is enabled in settings and selected", async () => {
+    registryOverride.polarEnabled = true;
+    vi.mocked(MatrixRouter.getNextProvider).mockResolvedValueOnce("polar");
+    adminModule.mockAdminClient = gateAdminClient(undefined, undefined, {
+      data: [{ provider: "polar", weight: 100, checkout_url: "https://buy.polar.sh/live-polar", active: true }],
+      error: null,
+    });
+    const res = await GET(new NextRequest(`${CHECKOUT_URL}&src=ig`));
+    expect(res.status).toBe(302);
+    const location = res.headers.get("location");
+    expect(location).toBeTruthy();
+    const parsed = new URL(location!);
+    expect(parsed.origin + parsed.pathname).toBe("https://buy.polar.sh/live-polar");
+    expect(parsed.searchParams.get("reference_id")).toBeTruthy();
   });
 });

@@ -150,10 +150,12 @@ describe("C3 binding (startPublisherAgreementAction)", () => {
   };
 
 
-  it("redirects with c2_required when consents query errors or returns empty", async () => {
+  it("redirects with load_failed when the consents query errors (a read failure is not a missing approval)", async () => {
     setupSupabaseConsents(null, { message: "query failed" });
-    await expect(startPublisherAgreementAction()).rejects.toThrow("NEXT_REDIRECT:/creator/dashboard?error=c2_required");
+    await expect(startPublisherAgreementAction()).rejects.toThrow("NEXT_REDIRECT:/creator/dashboard?error=load_failed");
+  });
 
+  it("redirects with c2_required when the consents query returns empty", async () => {
     setupSupabaseConsents([]);
     await expect(startPublisherAgreementAction()).rejects.toThrow("NEXT_REDIRECT:/creator/dashboard?error=c2_required");
   });

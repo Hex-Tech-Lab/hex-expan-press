@@ -1,5 +1,6 @@
 import { defineConfig, devices } from "@playwright/test";
-import { E2E, MOCK_URL, APP_URL } from "./e2e/constants";
+import { join } from "node:path";
+import { E2E, MOCK_URL, MOCK_HTTP_URL, APP_URL } from "./e2e/constants";
 
 // Every env var in web/.env.local, plus every var the app reads, is set here
 // (process env beats .env files in Next), so the dev server never reaches a
@@ -25,6 +26,8 @@ const appEnv: Record<string, string> = {
   POLAR_CHECKOUT_URL: "",
   ALLOWED_AUTH_HOSTS: "localhost",
   NEXT_PUBLIC_ONBOARDING_ACTIVE: "true",
+  // The app's server-side fetches reach the HTTPS mock; trust only this run's throwaway certificate.
+  NODE_EXTRA_CA_CERTS: join(E2E.tlsDir, "cert.pem"),
 };
 
 export default defineConfig({
@@ -42,13 +45,16 @@ export default defineConfig({
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: [
     {
-      command: "pnpm exec tsx e2e/mock-supabase.ts",
-      url: `${MOCK_URL}/__calls`,
+      command: "pnpm exec tsx e2e/tls-cert.ts && pnpm exec tsx e2e/mock-supabase.ts",
+      // Readiness probe over plain HTTP (the mock's own twin port): the HTTPS mock's self-signed
+      // certificate made the probe fail TLS validation and hang until the timeout.
+      url: `${MOCK_HTTP_URL}/__calls`,
       reuseExistingServer: false,
       timeout: E2E.serverStartTimeoutMs,
     },
     {
-      command: `pnpm exec next dev -p ${E2E.appPort}`,
+      // E2E_PROD=1 serves the production build (run `pnpm build` first with the mock env, see the B2C runbook).
+      command: process.env.E2E_PROD === "1" ? `pnpm exec next start -p ${E2E.appPort}` : `pnpm exec next dev -p ${E2E.appPort}`,
       url: `${APP_URL}/creator/signin`,
       reuseExistingServer: false,
       timeout: E2E.serverStartTimeoutMs,

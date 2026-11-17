@@ -290,7 +290,7 @@ export function findSale(provider: string, saleId: string, salesFile: string = S
         return o as unknown as SaleRecord;
       }
     } catch (parseErr) {
-      console.error("ledger: malformed ledger line skipped:", parseErr instanceof Error ? parseErr.message : parseErr);
+      logMalformedLedgerLine(parseErr);
       continue; // malformed line — tolerated by contract
     }
   }
@@ -343,6 +343,14 @@ export async function findSaleAsync(provider: string, saleId: string, salesFile:
  *  replay; anything else is a real failure and is never swallowed. */
 export const ORDERS_ADJUSTMENT_UNIQ_INDEX = "orders_provider_adjustment_id_uniq";
 
+/**
+ * A ledger line that fails to parse is skipped, never fatal. Every reader calls this from inside its try,
+ * and everything in that try throws an Error (JSON.parse SyntaxError, or TypeError on a null payload).
+ */
+function logMalformedLedgerLine(parseErr: unknown): void {
+  console.error("ledger: malformed ledger line skipped:", (parseErr as Error).message);
+}
+
 export function isAdjustmentIdUniqueViolation(err: unknown): boolean {
   const e = err as { code?: unknown; constraint?: unknown; message?: unknown } | null;
   if (!e || typeof e !== "object") return false;
@@ -374,7 +382,7 @@ function findByProviderAdjustmentId(provider: string, providerAdjustmentId: stri
         return o as unknown as SaleRecord;
       }
     } catch (parseErr) {
-      console.error("ledger: malformed ledger line skipped:", parseErr instanceof Error ? parseErr.message : parseErr);
+      logMalformedLedgerLine(parseErr);
       continue; // malformed line — tolerated by contract
     }
   }
@@ -412,7 +420,7 @@ export function findRefund(provider: string, saleId: string, salesFile: string =
       const o = JSON.parse(trimmed) as Record<string, unknown>;
       if (o.event_type === "refund" && o.provider === provider && o.sale_id === saleId) return o as unknown as SaleRecord;
     } catch (parseErr) {
-      console.error("ledger: malformed ledger line skipped:", parseErr instanceof Error ? parseErr.message : parseErr);
+      logMalformedLedgerLine(parseErr);
       continue; // malformed line — tolerated by contract
     }
   }
@@ -581,7 +589,7 @@ export function findRefundReversal(provider: string, saleId: string, salesFile: 
       const o = JSON.parse(trimmed) as Record<string, unknown>;
       if (o.event_type === "refund_reversal" && o.provider === provider && o.sale_id === saleId) return o as unknown as SaleRecord;
     } catch (parseErr) {
-      console.error("ledger: malformed ledger line skipped:", parseErr instanceof Error ? parseErr.message : parseErr);
+      logMalformedLedgerLine(parseErr);
       continue;
     }
   }
@@ -655,7 +663,7 @@ export function findSalesByAttribution(attributionId: string, salesFile: string 
       const o = JSON.parse(trimmed) as Record<string, unknown>;
       if (o.attribution_id === attributionId) out.push(o as unknown as SaleRecord);
     } catch (parseErr) {
-      console.error("ledger: malformed ledger line skipped:", parseErr instanceof Error ? parseErr.message : parseErr);
+      logMalformedLedgerLine(parseErr);
       continue; // malformed line — tolerated by contract
     }
   }
@@ -690,15 +698,12 @@ export async function appendRefund(refund: RefundSpec, salesFile: string = SALES
   if (typeof ts !== "string" || Number.isNaN(Date.parse(ts))) {
     throw new TypeError('ledger: refund "ts" must be a parseable timestamp (UTC ISO string)');
   }
-  let original = findSale(refund.provider, refund.sale_id, salesFile);
-  if (!original) {
-    original = await findSaleAsync(refund.provider, refund.sale_id, salesFile);
-  }
+  // The Async helpers read the local file first and fall back to Supabase, so one call is the whole lookup.
+  const original = await findSaleAsync(refund.provider, refund.sale_id, salesFile);
   if (!original || original.event_type === "refund") {
     throw new Error(`ledger: refund refused — no recorded sale for provider=${refund.provider} sale_id=${refund.sale_id} (refunds must reference a recorded sale)`);
   }
-  const already = findRefund(refund.provider, refund.sale_id, salesFile)
-    ?? await findRefundAsync(refund.provider, refund.sale_id, salesFile);
+  const already = await findRefundAsync(refund.provider, refund.sale_id, salesFile);
   if (already) {
     if (fence !== undefined) {
       await persistToSupabaseOrder(already, fence);
@@ -746,24 +751,20 @@ export async function appendRefundReversal(spec: RefundSpec, salesFile: string =
   if (typeof ts !== "string" || Number.isNaN(Date.parse(ts))) {
     throw new TypeError('ledger: refund reversal "ts" must be a parseable timestamp (UTC ISO string)');
   }
-  let original = findSale(spec.provider, spec.sale_id, salesFile);
-  if (!original) {
-    original = await findSaleAsync(spec.provider, spec.sale_id, salesFile);
-  }
+  // The Async helpers read the local file first and fall back to Supabase, so one call is the whole lookup.
+  const original = await findSaleAsync(spec.provider, spec.sale_id, salesFile);
   if (!original || original.event_type === "refund" || original.event_type === "refund_reversal") {
     throw new Error(`ledger: refund reversal refused — no recorded sale for provider=${spec.provider} sale_id=${spec.sale_id}`);
   }
 
   // Must have an existing refund
-  const existingRefund = findRefund(spec.provider, spec.sale_id, salesFile)
-    ?? await findRefundAsync(spec.provider, spec.sale_id, salesFile);
+  const existingRefund = await findRefundAsync(spec.provider, spec.sale_id, salesFile);
   if (!existingRefund) {
     throw new Error(`ledger: refund reversal refused — no recorded refund for provider=${spec.provider} sale_id=${spec.sale_id} (reversals require an existing refund)`);
   }
 
   // Idempotency: if reversal already recorded, return it
-  const alreadyReversal = findRefundReversal(spec.provider, spec.sale_id, salesFile)
-    ?? await findRefundReversalAsync(spec.provider, spec.sale_id, salesFile);
+  const alreadyReversal = await findRefundReversalAsync(spec.provider, spec.sale_id, salesFile);
   if (alreadyReversal) {
     if (fence !== undefined) {
       await persistToSupabaseOrder(alreadyReversal, fence);

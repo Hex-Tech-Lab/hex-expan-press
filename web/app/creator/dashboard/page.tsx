@@ -36,7 +36,7 @@ function computeJourneyStep(state: { hasC1: boolean; hasC2: boolean; hasC3: bool
   return state.hasC3 ? 2 : state.hasC1 && state.hasC2 ? 1 : 0;
 }
 
-const ACTION_ERRORS = ["credits", "esign", "no_product", "c2_required"] as const;
+const ACTION_ERRORS = ["credits", "esign", "no_product", "c2_required", "load_failed"] as const;
 type ActionError = (typeof ACTION_ERRORS)[number];
 
 export default async function DashboardPage({

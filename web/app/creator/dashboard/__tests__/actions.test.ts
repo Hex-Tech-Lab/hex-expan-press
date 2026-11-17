@@ -96,6 +96,7 @@ import { getVerifiedPortalSession } from "../../../../src/lib/supabase-server";
 
 const SIGNIN = "NEXT_REDIRECT:/creator/signin";
 const C2_REQUIRED = "NEXT_REDIRECT:/creator/dashboard?error=c2_required";
+const LOAD_FAILED = "NEXT_REDIRECT:/creator/dashboard?error=load_failed";
 const ENVELOPE = "NEXT_REDIRECT:https://firma.im/sign/envelope_123";
 
 function c1(id: string, extra: Partial<ConsentTestRow> = {}): ConsentTestRow {
@@ -169,12 +170,12 @@ describe("startPublisherAgreementAction — complete consent prerequisite chain 
     expect(createEnvelopeMock).not.toHaveBeenCalled();
   });
 
-  it("fails closed and logs/captures when the primary product read errors", async () => {
+  it("fails closed with load_failed and logs/captures when the primary product read errors", async () => {
     productError = { message: "products timeout" };
     consentsData = [c1("c1_1"), c2("c2_1")];
     const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
-      await expect(startPublisherAgreementAction()).rejects.toThrow(C2_REQUIRED);
+      await expect(startPublisherAgreementAction()).rejects.toThrow(LOAD_FAILED);
       expect(createEnvelopeMock).not.toHaveBeenCalled();
       expect(consoleSpy).toHaveBeenCalledWith("[dashboard] products query failed:", "products timeout");
       expect(sentryCaptureMock).toHaveBeenCalledWith(productError, {
@@ -185,12 +186,12 @@ describe("startPublisherAgreementAction — complete consent prerequisite chain 
     }
   });
 
-  it("fails closed when the consents read errors and logs/captures the error", async () => {
+  it("fails closed with load_failed when the consents read errors and logs/captures the error", async () => {
     consentsError = { message: "permission denied for table consents" };
     consentsData = [c1("c1_1"), c2("c2_1")];
     const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
-      await expect(startPublisherAgreementAction()).rejects.toThrow(C2_REQUIRED);
+      await expect(startPublisherAgreementAction()).rejects.toThrow(LOAD_FAILED);
       expect(createEnvelopeMock).not.toHaveBeenCalled();
       expect(consoleSpy).toHaveBeenCalledWith(
         "[dashboard] consents query failed:",
@@ -318,7 +319,7 @@ describe("startPublisherAgreementAction — complete consent prerequisite chain 
     expect(records.length).toBe(5000);
     consentsData = records;
 
-    await expect(startPublisherAgreementAction()).rejects.toThrow(C2_REQUIRED);
+    await expect(startPublisherAgreementAction()).rejects.toThrow(LOAD_FAILED);
     expect(createEnvelopeMock).not.toHaveBeenCalled();
   });
 
