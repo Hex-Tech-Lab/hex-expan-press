@@ -167,31 +167,33 @@ export async function deliverSale(
 
   let linkInserted = false;
   let sendAttempted = false;
+  const confirmExistingAsDuplicate = async (): Promise<boolean> => {
+    if (!(await deps.db.deliveryConfirmed(input.provider, input.saleId))) return false;
+    await deps.db.markDeliverySent({
+      provider: input.provider,
+      saleId: input.saleId,
+      sendKind,
+      fence: input.fence,
+    });
+    return true;
+  };
   try {
     // Legacy audit-log check (e.g. sales confirmed before public.delivery_sends existed).
-    if (await deps.db.deliveryConfirmed(input.provider, input.saleId)) {
-      await deps.db.markDeliverySent({
-        provider: input.provider,
-        saleId: input.saleId,
-        sendKind,
-        fence: input.fence,
-      });
-      return "duplicate";
-    }
+    if (await confirmExistingAsDuplicate()) return "duplicate";
 
     const MAX_GENERATION_ATTEMPTS = 3;
     for (let attempt = 0; attempt < MAX_GENERATION_ATTEMPTS; attempt++) {
       linkInserted = await deps.db.recordLinkIssued(row);
       if (linkInserted) break;
       // If a concurrent worker completed delivery while we were attempting issuance:
-      if (await deps.db.deliveryConfirmed(input.provider, input.saleId)) return "duplicate";
+      if (await confirmExistingAsDuplicate()) return "duplicate";
       // Monotonic generation retry without destroying prior links:
       linkGeneration = nextGeneration(Math.max(now.getTime(), linkGeneration + 1));
       row = { ...row, linkGeneration };
     }
 
     if (!linkInserted) {
-      if (await deps.db.deliveryConfirmed(input.provider, input.saleId)) return "duplicate";
+      if (await confirmExistingAsDuplicate()) return "duplicate";
       throw new Error(`delivery blocked: sale ${input.saleId} link generation collision`);
     }
 

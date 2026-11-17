@@ -91,7 +91,8 @@ export interface GlobalSettings {
   storefront: { b2c_landing_url: string };
   /** Creator handle policy (web/src/lib/handle-policy.ts). Set once at account creation; immutable after. */
   handles: { min_length: number; max_length: number; separator: string; reserved: string[]; profanity_whitelist: string[] };
-  /** Product slug rule (ADR 0065): same shape as handles. Unique per creator, not platform-wide. */
+  /** Product slug rule (ADR 0065): same shape as handles. Unique per creator (products_creator_id_slug_key);
+   *  platform-wide products_slug_key was reverted and is dropped by supabase/migrations/20261117110000_products_slug_convergence.sql. */
 product_slug: { min_length: number; max_length: number; separator: string };
   landing: { fallbacks: { title: string; creator: string }; disclaimers: string[] };
   /** Admin API allowlist + pagination (admin audit-log route). */
@@ -173,7 +174,8 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
       "classic", "assess", "assessment", "assist", "assistant", "assume", "bass", "class", "glass", "grass", "pass", "passage",
     ],
   },
-  // Product slug rule (ADR 0065). Same shape as handles. Creator-scoped uniqueness (products_creator_id_slug_key).
+  // Product slug rule (ADR 0065). Same shape as handles. Unique per creator (products_creator_id_slug_key);
+  // platform-wide products_slug_key was reverted and is dropped by supabase/migrations/20261117110000_products_slug_convergence.sql.
   product_slug: { min_length: 3, max_length: 30, separator: "_" },
   landing: {
     fallbacks: { title: "Product", creator: "the creator" },

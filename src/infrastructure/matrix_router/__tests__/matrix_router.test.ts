@@ -137,6 +137,28 @@ describe("MatrixRouter round-robin counter is atomic", () => {
     }
   });
 
+  it("emits console.error with error name on INCR failure while keeping the chosen rail unchanged", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const baseline = await MatrixRouter.getNextProvider(NS, CTX, routes3to1);
+      expect(errorSpy).not.toHaveBeenCalled();
+
+      fake.incrFail = true;
+      const degraded = await MatrixRouter.getNextProvider(NS, CTX, routes3to1);
+      expect(degraded).toBe(baseline);
+      expect(degraded).toBe("paddle");
+      expect(errorSpy).toHaveBeenCalledTimes(1);
+      const logged = String(errorSpy.mock.calls[0]?.[0] ?? "");
+      expect(logged).toContain("Error");
+      expect(logged).toContain("degraded");
+      expect(logged).not.toContain("upstash unreachable");
+    } finally {
+      errorSpy.mockRestore();
+      warnSpy.mockRestore();
+    }
+  });
+
   it("returns the first rail with no Redis calls when Redis is not configured", async () => {
     fake.configured = false;
     const picks: string[] = [];

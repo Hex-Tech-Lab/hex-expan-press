@@ -256,6 +256,94 @@ describe("retry after ambiguous vs definite send failures (Option A single-send 
 
     await expect(deliverSale(sale, deps)).resolves.toBe("duplicate");
   });
+
+  it("collision loop calls markDeliverySent before returning duplicate so delivery_sends does not stay claimed", async () => {
+    let confirmed = false;
+    const guard = sendGuardHandlers();
+    const callOrder: string[] = [];
+    const origMark = guard.markDeliverySent;
+    guard.markDeliverySent = vi.fn(async (args) => {
+      callOrder.push("markDeliverySent");
+      return origMark(args);
+    });
+    const sendEmail = vi.fn(async () => ({ id: "e1" }));
+    const deps: DeliveryDeps = {
+      db: {
+        productForAlias: vi.fn(async () => PRODUCT),
+        recordLinkIssued: vi.fn(async () => {
+          confirmed = true;
+          return false;
+        }),
+        releaseLinkIssued: vi.fn(async () => undefined),
+        deliveryConfirmed: vi.fn(async () => confirmed),
+        confirmDelivery: vi.fn(async () => undefined),
+        ...guard,
+      },
+      sendEmail,
+      createShortLink: vi.fn(async () => "https://go.expanpress.com/x"),
+      origin: "https://expanpress.com",
+      replyTo: "support@expanpress.com",
+      newToken: () => "Y".repeat(43),
+    };
+    const sale = { provider: "paddle", saleId: "s-5", productAlias: "alias-1", buyerEmail: "buyer@example.com", fence: 3 };
+
+    const outcome = await deliverSale(sale, deps);
+    callOrder.push(`return:${outcome}`);
+
+    expect(outcome).toBe("duplicate");
+    expect(callOrder).toEqual(["markDeliverySent", "return:duplicate"]);
+    expect(guard.markDeliverySent).toHaveBeenCalledTimes(1);
+    expect(guard.markDeliverySent).toHaveBeenCalledWith({
+      provider: "paddle",
+      saleId: "s-5",
+      sendKind: "buyer_receipt",
+      fence: 3,
+    });
+    expect(guard.sendClaims.get("paddle:s-5:buyer_receipt")).toEqual({ state: "sent", fence: 3 });
+    expect(sendEmail).not.toHaveBeenCalled();
+  });
+
+  it("post-loop collision check calls markDeliverySent before returning duplicate when confirmed after all retries", async () => {
+    let confirmedCalls = 0;
+    const guard = sendGuardHandlers();
+    const callOrder: string[] = [];
+    const origMark = guard.markDeliverySent;
+    guard.markDeliverySent = vi.fn(async (args) => {
+      callOrder.push("markDeliverySent");
+      return origMark(args);
+    });
+    const deps: DeliveryDeps = {
+      db: {
+        productForAlias: vi.fn(async () => PRODUCT),
+        recordLinkIssued: vi.fn(async () => false),
+        releaseLinkIssued: vi.fn(async () => undefined),
+        // False on pre-loop and all 3 in-loop checks; true only on the post-loop !linkInserted check.
+        deliveryConfirmed: vi.fn(async () => ++confirmedCalls === 5),
+        confirmDelivery: vi.fn(async () => undefined),
+        ...guard,
+      },
+      sendEmail: vi.fn(async () => ({ id: "e1" })),
+      createShortLink: vi.fn(async () => "https://go.expanpress.com/x"),
+      origin: "https://expanpress.com",
+      replyTo: "support@expanpress.com",
+      newToken: () => "Z".repeat(43),
+    };
+    const sale = { provider: "paddle", saleId: "s-6", productAlias: "alias-1", buyerEmail: "buyer@example.com", fence: 4 };
+
+    const outcome = await deliverSale(sale, deps);
+    callOrder.push(`return:${outcome}`);
+
+    expect(outcome).toBe("duplicate");
+    expect(callOrder).toEqual(["markDeliverySent", "return:duplicate"]);
+    expect(guard.markDeliverySent).toHaveBeenCalledTimes(1);
+    expect(guard.markDeliverySent).toHaveBeenCalledWith({
+      provider: "paddle",
+      saleId: "s-6",
+      sendKind: "buyer_receipt",
+      fence: 4,
+    });
+    expect(guard.sendClaims.get("paddle:s-6:buyer_receipt")).toEqual({ state: "sent", fence: 4 });
+  });
 });
 
 describe("nextGeneration monotonic sequence", () => {

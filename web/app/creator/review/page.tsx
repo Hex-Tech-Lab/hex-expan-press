@@ -84,12 +84,25 @@ export default async function ReviewPage() {
   }
 
   const itemIds = allItems.map((it) => it.id);
-  const answersRes = await supabase
-    .from("review_answers")
-    .select("item_id, choice, free_text, answered_at")
-    .in("item_id", itemIds)
-    .order("answered_at", { ascending: false })
-    .limit(500);
+  const [answersRes, pdfUrl] = await Promise.all([
+    supabase
+      .from("review_answers")
+      .select("item_id, choice, free_text, answered_at")
+      .in("item_id", itemIds)
+      .order("answered_at", { ascending: false })
+      .limit(500),
+    // Short-lived signed URL for the private review PDF (server-side, RLS).
+    (async (): Promise<string | null> => {
+      if (!product.release_path) return null;
+      try {
+        const { data } = await supabase.storage.from("review-pdfs").createSignedUrl(product.release_path, 3600);
+        return data?.signedUrl ?? null;
+      } catch (err) {
+        console.error("[review] signed URL creation failed:", err);
+        return null;
+      }
+    })(),
+  ]);
 
   // A failed answers read must not look like "nothing answered yet".
   if (answersRes.error) {
@@ -105,17 +118,6 @@ export default async function ReviewPage() {
   const saved = new Map<string, { choice: string | null; freeText: string | null }>();
   for (const a of answersRes.data ?? []) {
     if (!saved.has(a.item_id)) saved.set(a.item_id, { choice: a.choice, freeText: a.free_text });
-  }
-
-  // Short-lived signed URL for the private review PDF (server-side, RLS).
-  let pdfUrl: string | null = null;
-  if (product.release_path) {
-    try {
-      const { data } = await supabase.storage.from("review-pdfs").createSignedUrl(product.release_path, 3600);
-      pdfUrl = data?.signedUrl ?? null;
-    } catch (err) {
-      console.error("[review] signed URL creation failed:", err);
-    }
   }
 
   const items: ReviewItemView[] = allItems.map((it) => {

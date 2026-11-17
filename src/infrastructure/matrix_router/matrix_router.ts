@@ -24,6 +24,7 @@ interface DegradedResult {
 interface NextIndexResult {
   index: number;
   degraded: boolean;
+  error?: unknown;
 }
 
 const DEFAULT_DOWN_MS = 15 * 60 * 1000;
@@ -86,7 +87,7 @@ export class MatrixRouter {
       return { index: value - 1, degraded: false };
     } catch (err) {
       console.warn(`[matrix_router] routing counter increment failed (degraded): ${this.errorName(err)}`);
-      return { index: 0, degraded: true };
+      return { index: 0, degraded: true, error: err };
     }
   }
 
@@ -134,6 +135,9 @@ export class MatrixRouter {
     if (live.length === 1) return live[0].provider;
 
     const next = await this.nextIndex(namespace, contextId);
+    if (next.degraded) {
+      console.error(`[matrix_router] routing fallback to first rail (degraded): ${this.errorName(next.error)}`);
+    }
     return this.pickAtIndex(next.index, live);
   }
 

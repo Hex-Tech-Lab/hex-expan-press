@@ -212,12 +212,17 @@ export default function ReviewClient({ items, saved, pdfUrl, bookTitle }: Review
 
   // Folio detection (best-effort): printed page numbers from the PDF text.
   useEffect(() => {
-    if (!docRef.current || folio !== null) return;
+    const doc = docRef.current;
+    if (!doc || folio !== null) return;
+    let cancelled = false;
     (async () => {
       try {
         for (let p = 2; p <= Math.min(total, 20); p++) {
-          const pdfPage = await docRef.current!.getPage(p);
+          if (cancelled) return;
+          const pdfPage = await doc.getPage(p);
+          if (cancelled) return;
           const tc = await pdfPage.getTextContent();
+          if (cancelled) return;
           const strs = tc.items.map((t) => t.str ?? "").filter((s) => s.trim());
           const cands = [...strs.slice(-2), ...strs.slice(0, 2)];
           for (const c of cands) {
@@ -235,9 +240,12 @@ export default function ReviewClient({ items, saved, pdfUrl, bookTitle }: Review
         }
       } catch (err) {
         // Folio detection is best-effort — log and fall back to raw page numbers.
-        console.warn("[review] folio detection failed:", err);
+        if (!cancelled) console.warn("[review] folio detection failed:", err);
       }
     })();
+    return () => {
+      cancelled = true;
+    };
   }, [total, folio]);
 
   async function saveAndNext() {

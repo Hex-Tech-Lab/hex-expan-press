@@ -47,27 +47,30 @@ export default async function B2cLandingPage() {
             <div className="products">
               {creators.map((c) => (
                 <section key={c.handle} className="card">
-                  <h2>
-                    <Link href={`/books/${c.handle}`}>{c.display_name}</Link>
-                  </h2>
-                  <ul>
-                    {c.products.map((p) => {
-                      const price = priceOf(p);
-                      return (
-                        <li key={p.id}>
-                          <Link href={`/books/${c.handle}/${productSlugOf(p)}`}>{p.title ?? productSlugOf(p)}</Link>
-                          {price !== null ? ` · $${price.toFixed(2)}` : ""}
-                        </li>
-                      );
-                    })}
-                  </ul>
+                  <div className="card-body">
+                    <h2>
+                      <Link href={`/books/${c.handle}`}>{c.display_name}</Link>
+                    </h2>
+                    <ul>
+                      {c.products.map((p) => {
+                        const price = priceOf(p);
+                        return (
+                          <li key={p.id}>
+                            <Link href={`/books/${c.handle}/${productSlugOf(p)}`}>{p.title ?? productSlugOf(p)}</Link>
+                            {price !== null ? ` · $${price.toFixed(2)}` : ""}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
                 </section>
               ))}
             </div>
           )}
         </main>
+
+        <StorefrontFooter />
       </div>
-      <StorefrontFooter />
     </div>
   );
 }
