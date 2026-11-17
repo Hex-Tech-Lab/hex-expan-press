@@ -119,21 +119,17 @@ export async function resolveProductByAlias(alias: string, providerName: string)
 // deliveries for the same sale_id could both pass the file-based duplicate check before
 // either has appended, producing a double creator payout. Upstash SETNX + a monotonic
 // companion INCR fencing token close that window and reject stale lock holders after TTL expiry.
-function lockSettings(): { ttlSeconds: number; fenceSuffix: string; fenceTtlSeconds: number } {
+function lockSettings(): { ttlSeconds: number; fenceSuffix: string } {
   const p = GLOBAL.payments;
   const ttlSeconds = p.webhook_lock_ttl_seconds;
   const fenceSuffix = p.webhook_lock_fence_suffix;
-  const fenceTtlSeconds = p.webhook_lock_fence_ttl_seconds;
   if (!Number.isSafeInteger(ttlSeconds) || ttlSeconds <= 0) {
     throw new Error("webhook idempotency lock: invalid payments.webhook_lock_ttl_seconds in settings registry");
   }
   if (typeof fenceSuffix !== "string" || fenceSuffix.trim() === "") {
     throw new Error("webhook idempotency lock: missing payments.webhook_lock_fence_suffix in settings registry");
   }
-  if (!Number.isSafeInteger(fenceTtlSeconds) || fenceTtlSeconds <= 0) {
-    throw new Error("webhook idempotency lock: invalid payments.webhook_lock_fence_ttl_seconds in settings registry");
-  }
-  return { ttlSeconds, fenceSuffix, fenceTtlSeconds };
+  return { ttlSeconds, fenceSuffix };
 }
 
 function isRedisConfigured(): boolean {
@@ -179,7 +175,7 @@ export async function withIdempotencyLock(
     return fn(undefined);
   }
 
-  const { ttlSeconds, fenceSuffix, fenceTtlSeconds } = lockSettings();
+  const { ttlSeconds, fenceSuffix } = lockSettings();
   // The stored value is this call's random owner token, so release can prove ownership (see releaseLock).
   const token = randomUUID();
   const acquired = await expanRedis.setnx(lockKey, token, ttlSeconds);
@@ -188,16 +184,12 @@ export async function withIdempotencyLock(
   let stillOwned = true;
   try {
     const fenceKey = `${lockKey}${fenceSuffix}`;
+    // The fence is monotonic per sale and persisted with no TTL (one key per sale, about 100 bytes each).
+    // Expiring the fence key would let Redis INCR reset to 1 while Postgres already stores a higher fence
+    // for that sale, causing newer deliveries to be rejected as stale; only the lock key carries a TTL.
     const fenceToken = await expanRedis.incr(fenceKey);
     if (typeof fenceToken !== "number" || !Number.isSafeInteger(fenceToken) || fenceToken < 1) {
       throw new Error(`webhook idempotency lock: invalid fencing token from Redis INCR on ${fenceKey}`);
-    }
-    if (typeof expanRedis.expire === "function") {
-      try {
-        await expanRedis.expire(fenceKey, fenceTtlSeconds);
-      } catch (expErr) {
-        console.warn(`[webhook] fence TTL refresh failed (key=${fenceKey}):`, expErr);
-      }
     }
     // Verify we still hold the lock after INCR so a process that stalled between SETNX and INCR
     // past lock TTL cannot carry a larger fence token than the worker that superseded it.

@@ -121,8 +121,29 @@ describe("withIdempotencyLock", () => {
     const expectedFenceKey = `lock:sale:polar:f1${GLOBAL.payments.webhook_lock_fence_suffix}`;
     expect(redis.incr).toHaveBeenNthCalledWith(1, expectedFenceKey);
     expect(redis.incr).toHaveBeenNthCalledWith(2, expectedFenceKey);
-    expect(redis.expire).toHaveBeenCalledWith(expectedFenceKey, GLOBAL.payments.webhook_lock_fence_ttl_seconds);
+    expect(redis.expire).not.toHaveBeenCalled();
     expect(seen).toEqual([1, 2]);
+  });
+
+  it("never sets a TTL on the fence key and returns a larger token on a second INCR", async () => {
+    redis.setnx.mockResolvedValue(1);
+    const tokens: number[] = [];
+    await withIdempotencyLock("lock:sale:polar:f_nottl", async (fence) => {
+      tokens.push(fence!);
+      return { status: 200, payload: { recorded: false } };
+    });
+    await withIdempotencyLock("lock:sale:polar:f_nottl", async (fence) => {
+      tokens.push(fence!);
+      return { status: 200, payload: { recorded: true } };
+    });
+    const expectedFenceKey = `lock:sale:polar:f_nottl${GLOBAL.payments.webhook_lock_fence_suffix}`;
+    expect(redis.expire).not.toHaveBeenCalled();
+    expect(redis.setnx).toHaveBeenCalledTimes(2);
+    for (const call of redis.setnx.mock.calls) {
+      expect(call[0]).not.toBe(expectedFenceKey);
+    }
+    expect(redis.incr).toHaveBeenCalledTimes(2);
+    expect(tokens[1]).toBeGreaterThan(tokens[0]);
   });
 
   it("rejects as in-flight without invoking fn when lock ownership was lost between setnx and incr", async () => {
