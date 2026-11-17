@@ -1,0 +1,21 @@
+payments/src/webhook_core.ts
+  s_29893055f88353::t_77a5e1f93a1bc8 122,132,178,187-189
+payments/test/webhook_core_lock.test.ts
+  s_29893055f88353::t_d16192fa472e43 124,128-148
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "427399288cafb9eb5d2bcdead0164efb9e97cecd",
+  "prompts": {},
+  "sessions": {
+    "s_29893055f88353": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1c444932-1da1-4ad5-9e8b-395eb468f52a",
+        "model": "unknown"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
