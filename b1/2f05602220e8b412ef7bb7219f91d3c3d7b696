@@ -1,0 +1,56 @@
+tech-freeze.json
+  s_29893055f88353::t_235d1e10e9d8da 6
+docs/testing/pairwise/billing_consent_checkout.model.txt
+  s_29893055f88353::t_e21ebef7a87c6e 2
+src/infrastructure/matrix_router/__tests__/matrix_router.test.ts
+  s_29893055f88353::t_61d2e489d18921 97,241-262
+  s_29893055f88353::t_6c0f1bc358c410 74-78,82-96
+  s_29893055f88353::t_29ba7fe2dec5c6 98
+web/app/creator/dashboard/__tests__/actions.test.ts
+  s_29893055f88353::t_d71a4759b98bdf 20
+  s_29893055f88353::t_fcd2bd4a75a514 48,98,168-175,189-193,210-214
+web/app/creator/consents/esign_done/page.tsx
+  s_29893055f88353::t_235d1e10e9d8da 7
+  s_29893055f88353::t_8ff28b929d4be9 31,33,36,45,47,57,59,64,69-71,75-79,83-103
+web/e2e/b2c-confinement.spec.ts
+  s_29893055f88353::t_232d68d5d5dc82 40
+  s_29893055f88353::t_f511dde1048d07 9-10
+web/src/lib/__tests__/error-reporting.test.ts
+  s_29893055f88353::t_d71a4759b98bdf 1-33
+.qa-intel/baseline.json
+  s_29893055f88353::t_5b2c42abc5fce6 2808-2849
+docs/qa-intel/BASELINE_TRIAGE_2026-10-26.md
+  s_29893055f88353::t_5b2c42abc5fce6 39-43
+payments/test/provider_router.test.ts
+  s_29893055f88353::t_6c0f1bc358c410 102-121
+payments/src/ledger.ts
+  s_29893055f88353::t_f00dab3e96ff33 347-348,351
+web/app/api/billing/checkout/route.ts
+  s_29893055f88353::t_3b5442b47ba1b5 17,263-273,280-283,307,328
+web/app/creator/dashboard/actions.ts
+  s_29893055f88353::t_434f6b43fea376 11,60,64,72
+payments/src/provider_router.ts
+  s_29893055f88353::t_bc5788ebbb5ab8 3,33,35-40
+web/app/creator/consents/esign_done/__tests__/page.test.ts
+  s_29893055f88353::t_8c1beecd42ef08 1-151
+web/app/creator/dashboard/__tests__/dashboard-client.test.ts
+  s_29893055f88353::t_714270eebc49e8 1-108
+web/src/lib/error-reporting.ts
+  s_29893055f88353::t_744b0be1746f30 1-17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b12f05602220e8b412ef7bb7219f91d3c3d7b696",
+  "prompts": {},
+  "sessions": {
+    "s_29893055f88353": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1c444932-1da1-4ad5-9e8b-395eb468f52a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
