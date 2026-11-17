@@ -1,0 +1,31 @@
+payments/test/delivery.test.ts
+  s_29893055f88353::t_b494d69204148b 217-225,332-344
+payments/test/delivery_db_adapter.test.ts
+  s_29893055f88353::t_b494d69204148b 1,3,220-260
+payments/test/ledger.test.ts
+  s_29893055f88353::t_6c0f1bc358c410 587-601
+payments/test/webhook_alias_provider_scope.test.ts
+  s_29893055f88353::t_ff40984eb531b5 105-145
+payments/test/webhook_core_lock.test.ts
+  s_29893055f88353::t_639e9cd91052a0 18-19,170-210
+web/src/lib/__tests__/consent-chain-set-supersession.test.ts
+  s_29893055f88353::t_49ee62281338e3 106-117
+web/src/lib/__tests__/creator-consents.test.ts
+  s_29893055f88353::t_2a94bab28cee56 79-188
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8423623c4275ca88c63aa5cbfa0cc29134a9b829",
+  "prompts": {},
+  "sessions": {
+    "s_29893055f88353": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1c444932-1da1-4ad5-9e8b-395eb468f52a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
