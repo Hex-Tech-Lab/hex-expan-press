@@ -1,0 +1,22 @@
+supabase/migrations/20261117110000_products_slug_convergence.sql
+  s_29893055f88353::t_9369f118024a6b 1-14
+  s_29893055f88353::t_05856b8cd0ca97 15-20
+supabase/tests/products_slug_convergence.pglite.mjs
+  s_29893055f88353::t_b8e994685459cc 1-26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3d1470970c89ffeb529ea3afc4c9b3d07c7b680f",
+  "prompts": {},
+  "sessions": {
+    "s_29893055f88353": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1c444932-1da1-4ad5-9e8b-395eb468f52a",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
