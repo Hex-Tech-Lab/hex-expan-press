@@ -1,0 +1,33 @@
+web/src/lib/handle-shape.ts
+  s_29893055f88353::t_74d7619abc8aa3 3
+web/app/api/billing/checkout/__tests__/billing_consent_checkout.pairwise.test.ts
+  s_29893055f88353::t_74d7619abc8aa3 136
+web/src/lib/__tests__/identifier-rule.test.ts
+  s_29893055f88353::t_74d7619abc8aa3 2-3,25
+web/src/lib/__tests__/consents-submit-supersedes-set.sql.test.ts
+  s_29893055f88353::t_74d7619abc8aa3 1
+web/src/lib/__tests__/consent-chain-set-supersession.test.ts
+  s_29893055f88353::t_74d7619abc8aa3 1
+web/src/lib/consent-chain.ts
+  s_29893055f88353::t_74d7619abc8aa3 22
+web/src/lib/__tests__/launch-gate-sql-parity.test.ts
+  s_29893055f88353::t_74d7619abc8aa3 13
+payments/test/delivery_single_send_and_fence.test.ts
+  s_29893055f88353::t_74d7619abc8aa3 290
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "66c162f7fc108fc6af5da0ea860357a2f22b74d8",
+  "prompts": {},
+  "sessions": {
+    "s_29893055f88353": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1c444932-1da1-4ad5-9e8b-395eb468f52a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
