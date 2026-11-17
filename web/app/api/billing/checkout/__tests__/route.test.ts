@@ -368,6 +368,19 @@ describe("billing/checkout wave85 sandbox + raw-URL fail-closed", () => {
     }
   });
 
+  it("production active rail with a negative, non-finite, or non-numeric weight fails closed 500 with no location", async () => {
+    vi.stubEnv("VERCEL_ENV", "production");
+    for (const weight of [-1, Number.NaN, Number.POSITIVE_INFINITY, "not-a-number"]) {
+      adminModule.mockAdminClient = gateAdminClient(undefined, undefined, {
+        data: [{ provider: "paddle", weight, checkout_url: "https://buy.paddle.com/live-rail", active: true }],
+        error: null,
+      });
+      const res = await GET(request());
+      expect(res.status, `weight=${String(weight)}`).toBe(500);
+      expect(res.headers.get("location")).toBeNull();
+    }
+  });
+
   it("production with rejecting MatrixRouter and valid live rails falls back 302 to the live url", async () => {
     vi.stubEnv("VERCEL_ENV", "production");
     adminModule.mockAdminClient = gateAdminClient(undefined, undefined, {

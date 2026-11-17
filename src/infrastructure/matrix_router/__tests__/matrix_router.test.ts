@@ -293,4 +293,18 @@ describe("MatrixRouter Redis failure handling (fail closed on read, degraded on 
       warn.mockRestore();
     }
   });
+
+  it("returns degraded instead of throwing when the breaker expiry is out of the Date range (RangeError stays inside the handler)", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      // now + MAX_SAFE_INTEGER ms is past the Date maximum, so toISOString() throws RangeError.
+      const res = await MatrixRouter.markProviderDown(NS, CTX, "paddle", Number.MAX_SAFE_INTEGER);
+      expect(res).toEqual({ degraded: true });
+      expect(vi.mocked(expanRedis.set)).not.toHaveBeenCalled();
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(String(warn.mock.calls[0]?.[0] ?? "")).toContain("RangeError");
+    } finally {
+      warn.mockRestore();
+    }
+  });
 });

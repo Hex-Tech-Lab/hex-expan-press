@@ -172,13 +172,14 @@ export class MatrixRouter {
     if (!this.isRedisConfigured()) return { degraded: false };
     const now = new Date();
     const safeDurationMs = Number.isFinite(durationMs) ? durationMs : DEFAULT_DOWN_MS;
-    const payload: ProviderDownState = {
-      down_until: new Date(now.getTime() + safeDurationMs).toISOString(),
-      updated_at: now.toISOString(),
-    };
     // ExpanRedisClient.set supports EX (integer seconds), not PX; keep exact ms expiry inside JSON.
     const exSeconds = safeDurationMs > 0 ? Math.max(1, Math.ceil(safeDurationMs / 1000)) : 1;
     try {
+      // Built inside the try: toISOString() throws RangeError for an expiry past the Date maximum.
+      const payload: ProviderDownState = {
+        down_until: new Date(now.getTime() + safeDurationMs).toISOString(),
+        updated_at: now.toISOString(),
+      };
       await expanRedis.set(this.providerDownKey(namespace, contextId, provider), JSON.stringify(payload), exSeconds);
       return { degraded: false };
     } catch (err) {

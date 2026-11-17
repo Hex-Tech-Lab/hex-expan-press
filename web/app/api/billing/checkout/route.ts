@@ -262,7 +262,13 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const activeRaw = allRails.filter((r) => r.active);
     const activeValid: CheckoutRail[] = [];
     for (const r of activeRaw) {
-      if (typeof r.provider !== "string" || r.provider === "" || typeof r.checkout_url !== "string") {
+      if (
+        typeof r.provider !== "string" ||
+        r.provider === "" ||
+        typeof r.checkout_url !== "string" ||
+        !Number.isFinite(r.weight) ||
+        r.weight < 0
+      ) {
         console.error(`[billing/checkout] product '${product}' has an active rail with a missing provider or non-string checkout_url — failing closed`);
         return jsonError(500, "Checkout is not configured");
       }

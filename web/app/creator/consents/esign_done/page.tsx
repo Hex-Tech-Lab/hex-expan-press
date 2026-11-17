@@ -20,7 +20,7 @@ import { toError } from "../../../../src/lib/error-reporting";
  */
 // Explicitly dynamic: the page reads the session cookie. Without this, Next tries a
 // static render at build, cookies() throws its dynamic-bailout signal, and
-// hasRecordedC3's catch swallowed it (logged as a false "C3 status check failed").
+// readC3Status's catch swallowed it (logged as a false "C3 status check failed").
 export const dynamic = "force-dynamic";
 
 export const metadata = {

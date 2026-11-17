@@ -4,6 +4,7 @@ import { getPortalSession } from "../../../src/lib/supabase-server";
 import { resolvePrimaryProduct } from "../../../src/lib/primary-product";
 import { portalConsentState } from "../../../src/lib/consent-chain";
 import { loadCreatorConsentRows } from "../../../src/lib/creator-consents";
+import { toError } from "../../../src/lib/error-reporting";
 import DashboardClient from "./dashboard-client";
 import { reviewProgress } from "./progress";
 import type { Metadata } from "next";
@@ -112,7 +113,7 @@ export default async function DashboardPage({
       const err = res.error;
       if (!err) continue;
       console.error(`[dashboard] ${label} query failed:`, err.message);
-      Sentry.captureException(err, { tags: { surface: "dashboard", query: label } });
+      Sentry.captureException(toError(err), { tags: { surface: "dashboard", query: label } });
     }
     return (
       <div className="mx-auto max-w-[680px] px-5 py-12" role="alert">
