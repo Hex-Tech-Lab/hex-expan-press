@@ -1,0 +1,47 @@
+supabase/migrations/20261111090620_handle_available.sql
+  s_29893055f88353::t_120e4560eff614 1-15
+web/src/lib/__tests__/consents-submit-supersedes-set.sql.test.ts
+  s_29893055f88353::t_14c9df4b01eb9e 13
+web/src/lib/__tests__/launch-gate-sql-parity.test.ts
+  s_29893055f88353::t_c1de4c89ee2d23 17
+supabase/migrations/20261110121805_products_platform_slug_unique.sql
+  s_29893055f88353::t_537b62e3ce0070 1-9
+supabase/migrations/20261103145843_release_stage_events.sql
+  s_29893055f88353::t_4242f9ff440c07 1-28
+supabase/migrations/20261111152756_revoke_client_write_grants.sql
+  s_29893055f88353::t_6b8ab789c90c9f 1-2
+supabase/migrations/20261111110141_handle_available_hardened.sql
+  s_29893055f88353::t_6aac57004fa4dc 1-17
+web/src/lib/__tests__/identifier-rule.test.ts
+  s_29893055f88353::t_ae5a38aded8d22 26
+supabase/migrations/20261112152745_revoke_handle_available_anon.sql
+  s_29893055f88353::t_fed4f4aaab716a 1-2
+supabase/migrations/20261111090604_revert_product_slug_platform_unique.sql
+  s_29893055f88353::t_5c4a18f932b545 1-22
+supabase/migrations/20261109205443_provider_price_sync.sql
+  s_29893055f88353::t_7bff43ab26444c 1-25
+supabase/migrations/20261111094835_handle_available_strict.sql
+  s_29893055f88353::t_b0275e740bee42 1-13
+supabase/migrations/20261114215705_products_slug_agreed_rule_validate.sql
+  s_29893055f88353::t_af58d3f2ea6303 1-2
+supabase/migrations/20261027110501_deny_client_access_explicit.sql
+  s_29893055f88353::t_bb6e8c0a20f507 1-9
+supabase/migrations/20261103134245_products_release_lifecycle.sql
+  s_29893055f88353::t_9d951ecc665560 1-38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0c1d2ae3834edf0f251c567edd55a8cd07d3621b",
+  "prompts": {},
+  "sessions": {
+    "s_29893055f88353": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1c444932-1da1-4ad5-9e8b-395eb468f52a",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
