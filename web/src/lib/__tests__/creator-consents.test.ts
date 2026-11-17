@@ -76,4 +76,114 @@ describe("loadCreatorConsentRows", () => {
     expect(inCalls).toEqual([]);
     expect(res).toEqual({ rows: [c1Row], error: null });
   });
+
+  it("propagates Supabase errors that have a string message", async () => {
+    const range = vi.fn(async () => ({ data: null, error: { message: "permission denied" } }));
+    const chain = {
+      select: vi.fn(() => chain),
+      eq: vi.fn(() => chain),
+      in: vi.fn(() => chain),
+      order: vi.fn(() => chain),
+      range,
+    };
+    const supabase = { from: vi.fn(() => chain) } as unknown as SupabaseClient;
+
+    const res = await loadCreatorConsentRows(supabase, "creator_1");
+
+    expect(res).toEqual({ rows: [], error: { message: "permission denied" } });
+  });
+
+  it("stringifies non-standard error values without a string message", async () => {
+    const range = vi.fn(async () => ({ data: null, error: { code: "ECONNRESET" } }));
+    const chain = {
+      select: vi.fn(() => chain),
+      eq: vi.fn(() => chain),
+      in: vi.fn(() => chain),
+      order: vi.fn(() => chain),
+      range,
+    };
+    const supabase = { from: vi.fn(() => chain) } as unknown as SupabaseClient;
+
+    const res = await loadCreatorConsentRows(supabase, "creator_1");
+
+    expect(res).toEqual({ rows: [], error: { message: "[object Object]" } });
+  });
+
+  it("returns Missing consent data error when data is null and error is null", async () => {
+    const range = vi.fn(async () => ({ data: null, error: null }));
+    const chain = {
+      select: vi.fn(() => chain),
+      eq: vi.fn(() => chain),
+      in: vi.fn(() => chain),
+      order: vi.fn(() => chain),
+      range,
+    };
+    const supabase = { from: vi.fn(() => chain) } as unknown as SupabaseClient;
+
+    const res = await loadCreatorConsentRows(supabase, "creator_1");
+
+    expect(res).toEqual({ rows: [], error: { message: "Missing consent data" } });
+  });
+
+  it("paginates across multiple 500-row pages until a partial page ends the chain", async () => {
+    const makeRow = (i: number): PortalConsentRow => ({
+      id: `row_${i}`,
+      kind: "C1_data_accuracy",
+      decision: "given",
+      product_id: "prod_1",
+      supersedes: null,
+      supersedes_ids: [],
+      document_sha256: null,
+    });
+    const page1 = Array.from({ length: 500 }, (_, i) => makeRow(i));
+    const page2 = [makeRow(500), makeRow(501)];
+    const ranges: Array<[number, number]> = [];
+    const range = vi.fn(async (from: number, to: number) => {
+      ranges.push([from, to]);
+      return { data: from === 0 ? page1 : page2, error: null };
+    });
+    const chain = {
+      select: vi.fn(() => chain),
+      eq: vi.fn(() => chain),
+      in: vi.fn(() => chain),
+      order: vi.fn(() => chain),
+      range,
+    };
+    const supabase = { from: vi.fn(() => chain) } as unknown as SupabaseClient;
+
+    const res = await loadCreatorConsentRows(supabase, "creator_1");
+
+    expect(ranges).toEqual([
+      [0, 499],
+      [500, 999],
+    ]);
+    expect(res.error).toBeNull();
+    expect(res.rows).toHaveLength(502);
+  });
+
+  it("fails closed when consent history reaches the 5000-row safety cap", async () => {
+    const fullPage: PortalConsentRow[] = Array.from({ length: 500 }, (_, i) => ({
+      id: `row_${i}`,
+      kind: "C1_data_accuracy",
+      decision: "given",
+      product_id: "prod_1",
+      supersedes: null,
+      supersedes_ids: [],
+      document_sha256: null,
+    }));
+    const range = vi.fn(async () => ({ data: fullPage, error: null }));
+    const chain = {
+      select: vi.fn(() => chain),
+      eq: vi.fn(() => chain),
+      in: vi.fn(() => chain),
+      order: vi.fn(() => chain),
+      range,
+    };
+    const supabase = { from: vi.fn(() => chain) } as unknown as SupabaseClient;
+
+    const res = await loadCreatorConsentRows(supabase, "creator_1");
+
+    expect(range).toHaveBeenCalledTimes(10);
+    expect(res).toEqual({ rows: [], error: { message: "consent history exceeds the safety cap" } });
+  });
 });

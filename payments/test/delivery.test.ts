@@ -214,6 +214,15 @@ describe("createDubShortLink", () => {
     const fetchImpl = (async () => new Response("no", { status: 402 })) as unknown as typeof fetch;
     await expect(createDubShortLink("https://expanpress.com/d/x", fetchImpl)).rejects.toThrow("HTTP 402");
   });
+
+  it("throws when Dub returns a missing, non-string, or non-https shortLink", async () => {
+    vi.stubEnv("DUB_API_KEY", "k");
+    const missingImpl = (async () => new Response(JSON.stringify({}), { status: 200 })) as unknown as typeof fetch;
+    await expect(createDubShortLink("https://expanpress.com/d/x", missingImpl)).rejects.toThrow("returned no shortLink");
+
+    const httpImpl = (async () => new Response(JSON.stringify({ shortLink: "http://go.expanpress.com/abc" }), { status: 200 })) as unknown as typeof fetch;
+    await expect(createDubShortLink("https://expanpress.com/d/x", httpImpl)).rejects.toThrow("returned no shortLink");
+  });
 });
 
 describe("deliverSaleForWebhook (webhook entry point)", () => {
@@ -319,6 +328,19 @@ describe("an ambiguous send error keeps the link; only a definite rejection rele
     f.sendEmail.mockRejectedValueOnce(definiteRejection());
     await expect(deliverSale(sale, f.deps)).rejects.toThrow("Resend error (422)");
     expect(f.releaseLinkIssued).toHaveBeenCalledTimes(1);
+  });
+
+  it("a definite 4xx rejection still propagates the send error if releaseDeliverySend fails", async () => {
+    const f = fakes();
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    f.sendEmail.mockRejectedValueOnce(definiteRejection());
+    (f.deps.db.releaseDeliverySend as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error("claim release failed"));
+    try {
+      await expect(deliverSale(sale, f.deps)).rejects.toThrow("Resend error (422)");
+      expect(errSpy).toHaveBeenCalledWith(expect.stringContaining("could not release send claim"));
+    } finally {
+      errSpy.mockRestore();
+    }
   });
 });
 

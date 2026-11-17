@@ -584,6 +584,21 @@ describe("payments/src/ledger", () => {
       }
     });
 
+    it("logs String(parseErr) when a ledger line parse throws a non-Error value", () => {
+      const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      const parseSpy = vi.spyOn(JSON, "parse").mockImplementationOnce(() => {
+        throw "non-error-parse-failure";
+      });
+      writeFileSync(salesFile, ["first-line", JSON.stringify(baseSale)].join("\n") + "\n", "utf8");
+      try {
+        expect(findSale("polar", baseSale.sale_id, salesFile)?.sale_id).toBe(baseSale.sale_id);
+        expect(errSpy).toHaveBeenCalledWith("ledger: malformed ledger line skipped:", "non-error-parse-failure");
+      } finally {
+        parseSpy.mockRestore();
+        errSpy.mockRestore();
+      }
+    });
+
     it("skips non-matching valid JSON lines before returning matching records across all ledger readers", async () => {
       const nonMatchingProvider = {
         ...baseSale,

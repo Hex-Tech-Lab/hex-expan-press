@@ -104,6 +104,18 @@ describe("set supersession: safety rules still hold", () => {
     expect(strictChainHead(rows, P, "C1_data_accuracy")?.id).toBe("a");
   });
 
+  it("blank or non-string entries inside supersedes_ids are ignored and never supersede a valid row", () => {
+    const rows = [
+      row("a", "C1_data_accuracy", "given"),
+      row("b", "C1_data_accuracy", "given", {
+        supersedes_ids: ["", null as unknown as string, 123 as unknown as string],
+      }),
+    ];
+    // Neither entry in b.supersedes_ids is valid, so `a` stays unsuperseded and the fork fails closed.
+    expect(strictChainHead(rows, P, "C1_data_accuracy")).toBeNull();
+    expect(strictActiveConsentKinds(rows, P).has("C1_data_accuracy")).toBe(false);
+  });
+
   it("empty or missing supersedes_ids resolves through the supersedes pointer alone", () => {
     const rows: ConsentChainRow[] = [
       { id: "old", kind: "C1_data_accuracy", decision: "given", product_id: P, supersedes: null },

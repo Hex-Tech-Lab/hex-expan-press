@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { getSupabaseAdmin } from "../src/supabase_admin";
-import { productionDeps, StaleFenceError } from "../src/delivery";
+import { productionDeps, saleDeliveryConfirmed, StaleFenceError } from "../src/delivery";
 
 // The production DB adapter, reached through productionDeps().db. A fake Supabase client records every
 // table call and returns queued results, so each money-path branch can be driven directly.
@@ -216,6 +216,47 @@ describe("supabaseDeliveryDb: confirmation and release", () => {
     await expect(db().releaseLinkIssued({ saleId: "s-1", tokenHash: "h".repeat(64) })).rejects.toThrow(
       /link release failed: locked/,
     );
+  });
+
+  it("throws when the admin client is unavailable for productForAlias, releaseLinkIssued, deliveryConfirmed, and confirmDelivery", async () => {
+    vi.mocked(getSupabaseAdmin).mockResolvedValue(null);
+    await expect(db().productForAlias("paddle", "alias-1")).rejects.toThrow(/Supabase admin client unavailable/);
+    await expect(db().releaseLinkIssued({ saleId: "s-1", tokenHash: "h".repeat(64) })).rejects.toThrow(/Supabase admin client unavailable/);
+    await expect(db().deliveryConfirmed("paddle", "s-1")).rejects.toThrow(/Supabase admin client unavailable/);
+    await expect(db().confirmDelivery({ provider: "paddle", saleId: "s-1", tokenHash: "h".repeat(64) })).rejects.toThrow(
+      /Supabase admin client unavailable/,
+    );
+  });
+
+  it("deliveryConfirmed treats null primary data as empty and throws if the legacy lookup errors", async () => {
+    useClient();
+    results = [
+      { data: null, error: null },
+      { data: null, error: { message: "legacy timeout" } },
+    ];
+    await expect(db().deliveryConfirmed("paddle", "s-null")).rejects.toThrow(/delivery confirmation lookup failed: legacy timeout/);
+  });
+});
+
+describe("saleDeliveryConfirmed and productionDeps().createShortLink", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  it("saleDeliveryConfirmed delegates to supabaseDeliveryDb().deliveryConfirmed", async () => {
+    useClient();
+    results = [{ data: [{ id: 1 }], error: null }];
+    await expect(saleDeliveryConfirmed("paddle", "s-confirmed")).resolves.toBe(true);
+  });
+
+  it("productionDeps().createShortLink delegates to createDubShortLink", async () => {
+    vi.stubEnv("DUB_API_KEY", "dub_prod_key");
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify({ shortLink: "https://go.expanpress.com/prod" }), { status: 200 })),
+    );
+    await expect(productionDeps().createShortLink("https://expanpress.com/books/d/tok")).resolves.toBe("https://go.expanpress.com/prod");
   });
 });
 

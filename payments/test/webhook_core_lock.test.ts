@@ -15,7 +15,8 @@ vi.mock("../../src/infrastructure/redis/redis.client.ts", async (importOriginal)
   expanRedis: redis,
 }));
 
-import { withIdempotencyLock, WebhookInFlightError } from "../src/webhook_core.ts";
+import { withIdempotencyLock, WebhookInFlightError, getSecret } from "../src/webhook_core.ts";
+import type { ProviderName } from "../src/provider.ts";
 import { GLOBAL } from "../src/settings_registry.ts";
 
 /** The token this call stored on acquire (the second argument of setnx). */
@@ -166,4 +167,45 @@ describe("withIdempotencyLock", () => {
       expect(redis.compareAndDel).toHaveBeenCalledWith("lock:sale:polar:f3", acquiredToken());
     },
   );
+
+  it("throws when payments.webhook_lock_ttl_seconds in GLOBAL is invalid", async () => {
+    const origTtl = GLOBAL.payments.webhook_lock_ttl_seconds;
+    GLOBAL.payments.webhook_lock_ttl_seconds = 0;
+    try {
+      const fn = vi.fn(async () => ({ status: 200, payload: { recorded: true } }));
+      await expect(withIdempotencyLock("lock:sale:paddle:bad-ttl", fn)).rejects.toThrow(
+        "invalid payments.webhook_lock_ttl_seconds in settings registry",
+      );
+      expect(fn).not.toHaveBeenCalled();
+    } finally {
+      GLOBAL.payments.webhook_lock_ttl_seconds = origTtl;
+    }
+  });
+
+  it("throws when payments.webhook_lock_fence_suffix in GLOBAL is empty or blank", async () => {
+    const origSuffix = GLOBAL.payments.webhook_lock_fence_suffix;
+    GLOBAL.payments.webhook_lock_fence_suffix = "   ";
+    try {
+      const fn = vi.fn(async () => ({ status: 200, payload: { recorded: true } }));
+      await expect(withIdempotencyLock("lock:sale:paddle:bad-suffix", fn)).rejects.toThrow(
+        "missing payments.webhook_lock_fence_suffix in settings registry",
+      );
+      expect(fn).not.toHaveBeenCalled();
+    } finally {
+      GLOBAL.payments.webhook_lock_fence_suffix = origSuffix;
+    }
+  });
+});
+
+describe("getSecret", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("returns undefined for an unregistered provider with no fallback secret env", () => {
+    expect(getSecret("unregistered_provider" as ProviderName)).toBeUndefined();
+  });
+
+  it("reads the configured webhook secret from process.env for a known provider", () => {
+    vi.stubEnv("PADDLE_WEBHOOK_SECRET", "pdl_sec_test");
+    expect(getSecret("paddle")).toBe("pdl_sec_test");
+  });
 });
