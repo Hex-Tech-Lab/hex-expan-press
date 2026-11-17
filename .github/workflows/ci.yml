@@ -27,6 +27,15 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
+      # PICT (Microsoft pairwise generator) at /usr/local/bin/pict: the pairwise suites assert it exists
+      # so CI can never silently skip them. Built from the pinned release tag.
+      - name: Install PICT
+        run: |
+          git clone --depth 1 --branch v3.7.4 https://github.com/microsoft/pict.git "$RUNNER_TEMP/pict"
+          cmake -S "$RUNNER_TEMP/pict" -B "$RUNNER_TEMP/pict/build" -DCMAKE_BUILD_TYPE=Release
+          cmake --build "$RUNNER_TEMP/pict/build" --parallel
+          sudo install -m 0755 "$(find "$RUNNER_TEMP/pict/build" -type f -name pict -perm -u+x | head -n 1)" /usr/local/bin/pict
+          pict 2>&1 | head -n 1
       - run: pnpm run lint
       - run: pnpm --dir web run lint
       - run: pnpm exec tsc --noEmit
