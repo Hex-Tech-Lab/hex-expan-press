@@ -23,7 +23,7 @@ describe("product slug rule (registry: product_slug)", () => {
     expect(GLOBAL.product_slug).toEqual({ min_length: 3, max_length: 30, separator: "_" });
   });
   it("matches the product_slug DB CHECK in the 20261114130000 migration", () => {
-    const sql = readFileSync(path.join(__dirname, "../../../../supabase/migrations/20261114130000_products_slug_agreed_rule.sql"), "utf8");
+    const sql = readFileSync(path.join(__dirname, "../../../../supabase/migrations/20261114215650_products_slug_agreed_rule.sql"), "utf8");
     const { min_length, max_length } = GLOBAL.product_slug;
     expect(sql).toContain(`char_length(slug) between ${min_length} and ${max_length}`);
     expect(sql).toContain("'^[a-z0-9]+(_[a-z0-9]+)*$'");

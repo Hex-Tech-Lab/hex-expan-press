@@ -14,7 +14,7 @@ const migration = (name: string) => readFileSync(join(__dirname, "../../../../su
 const MIGRATIONS = [
   "20261009000000_launch_trigger_and_audit.sql",
   "20261011000000_launch_gate_rechecks_live_changes.sql",
-  "20261115110000_consents_supersedes_set.sql",
+  "20261116142329_consents_supersedes_set.sql",
 ].map(migration);
 
 // Minimal stand-ins for the tables/types the migration depends on.

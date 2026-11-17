@@ -10,7 +10,7 @@ import { PGlite } from "@electric-sql/pglite";
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 const MIGRATION = readFileSync(
-  join(__dirname, "../../../../supabase/migrations/20261115110000_consents_supersedes_set.sql"),
+  join(__dirname, "../../../../supabase/migrations/20261116142329_consents_supersedes_set.sql"),
   "utf8",
 );
 
