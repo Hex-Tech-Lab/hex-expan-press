@@ -6,8 +6,8 @@
  * legal set at /terms.html, /privacy.html, /refund-policy.html, /legal/providers.html.
  *
  * Backend = e2e/mock-supabase.ts (server-side Supabase calls; see playwright.config.ts).
- * The pay host is simulated with a Host header on APIRequestContext: the proxy keys on
- * the request host, and the localhost control in the same test proves the header took effect.
+ * Test (d), the pay-host boundary, needs a real pay hostname (PAY_HOST_LIVE): `next dev` builds
+ * request.url from its listen address, so a Host header cannot reach the proxy's host check locally.
  */
 import { mkdirSync } from "node:fs";
 import path from "node:path";
@@ -37,7 +37,7 @@ const buyerLegalRule = (h: string) => h === "/books" || /^\/books\/legal\/[^/?#]
 /** Explicit B2B targets, named so a failure message says which boundary was crossed. */
 const B2B_PATHS = ["/", "/creator", "/terms.html", "/privacy.html", "/refund-policy.html", "/legal/providers.html"];
 
-async function hrefsOf(page: Page): Promise<string[]> {
+function hrefsOf(page: Page): Promise<string[]> {
   return page.locator("a[href]").evaluateAll((els) => els.map((e) => e.getAttribute("href") ?? ""));
 }
 

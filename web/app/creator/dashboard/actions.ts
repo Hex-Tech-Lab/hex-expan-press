@@ -8,6 +8,7 @@ import { EnvSettingsAdapter } from "../../../../src/adapters/settings/env_settin
 import { resolvePrimaryProduct } from "../../../src/lib/primary-product";
 import { portalConsentState } from "../../../src/lib/consent-chain";
 import { loadCreatorConsentRows } from "../../../src/lib/creator-consents";
+import { toError } from "../../../src/lib/error-reporting";
 import { createEsignEnvelopeUseCase } from "../../../../src/use_cases/create_esign_envelope";
 
 /**
@@ -56,11 +57,11 @@ export async function startPublisherAgreementAction(): Promise<void> {
   }>(supabase, "id, creator_id, release_sha256");
   if (productError) {
     console.error("[dashboard] products query failed:", productError.message);
-    Sentry.captureException(productError, { tags: { surface: "dashboard", query: "products" } });
+    Sentry.captureException(toError(productError), { tags: { surface: "dashboard", query: "products" } });
     redirect("/creator/dashboard?error=load_failed");
   }
   if (!primary || !primary.id) {
-    redirect("/creator/dashboard?error=c2_required");
+    redirect("/creator/dashboard?error=no_product");
   }
 
   // Creator-wide read: a successor on any product of this creator can supersede a row here.
@@ -68,7 +69,7 @@ export async function startPublisherAgreementAction(): Promise<void> {
   const { rows, error: consentsError } = await loadCreatorConsentRows(supabase, primary.creator_id);
   if (consentsError) {
     console.error("[dashboard] consents query failed:", consentsError.message);
-    Sentry.captureException(consentsError, { tags: { surface: "dashboard", query: "consents" } });
+    Sentry.captureException(toError(consentsError), { tags: { surface: "dashboard", query: "consents" } });
     redirect("/creator/dashboard?error=load_failed");
   }
 

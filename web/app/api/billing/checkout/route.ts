@@ -14,7 +14,7 @@ export const runtime = "nodejs";
 interface CheckoutRail {
   provider: string;
   weight: number;
-  checkout_url?: string;
+  checkout_url: string;
 }
 
 /**
@@ -260,27 +260,27 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     // Active rails must carry a non-empty provider and a string checkout_url, checked on the raw value.
     // A null or non-string URL on a live rail fails closed here, not via a stringified "null".
     const activeRaw = allRails.filter((r) => r.active);
-    if (activeRaw.some((r) => typeof r.provider !== "string" || r.provider === "" || typeof r.checkout_url !== "string")) {
-      console.error(`[billing/checkout] product '${product}' has an active rail with a missing provider or non-string checkout_url — failing closed`);
-      return jsonError(500, "Checkout is not configured");
+    const activeValid: CheckoutRail[] = [];
+    for (const r of activeRaw) {
+      if (typeof r.provider !== "string" || r.provider === "" || typeof r.checkout_url !== "string") {
+        console.error(`[billing/checkout] product '${product}' has an active rail with a missing provider or non-string checkout_url — failing closed`);
+        return jsonError(500, "Checkout is not configured");
+      }
+      activeValid.push({
+        provider: r.provider,
+        weight: r.weight,
+        checkout_url: r.checkout_url,
+      });
     }
-    // Runtime-checked above; the cast only drops the `active` flag from the shape.
     // A rail can take a buyer only if its provider is switched on AND has a verifier (a rail that cannot be verified
     // would refuse its own webhooks). The launch switch decides the first condition: an active row for a switched-off provider
     // is dropped here, so a product whose only active rows are switched off fails closed through the
     // disable guard below.
     const verified = verifiedProviderNames();
-    dbRails = activeRaw
-      .filter((r) => typeof r.provider === "string" && isEnabledPaymentProvider(r.provider) && verified.has(r.provider))
-      .map((r) => {
-        const rail: Record<string, unknown> = { ...r };
-        delete rail.active; // the active flag is not part of a checkout rail
-        return rail as unknown as CheckoutRail;
-      });
-    // The disable guard counts only WELL-FORMED rows (real product_rails rows
-    // are objects). A malformed row is a data-integrity failure: an active one
-    // is rejected with 500 by the active-rail check above, and it must never be
-    // misreported as an operator disable.
+    dbRails = activeValid.filter((r) => isEnabledPaymentProvider(r.provider) && verified.has(r.provider));
+    // Null/non-object rows and active rows with a missing provider or non-string
+    // checkout_url have already failed closed (500) above, so every row counted
+    // here is a configured rail row (inactive, or active for a disabled/unverified provider).
     const configuredRowCount = (railRows ?? []).length;
 
     if (configuredRowCount > 0 && dbRails.length === 0) {
@@ -304,7 +304,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   // One URL policy for every source: validate before routing, redirect trimmed.
   for (const rail of rails) {
-    rail.checkout_url = (rail.checkout_url as string).trim();
+    rail.checkout_url = rail.checkout_url.trim();
     const problem = checkoutUrlProblem(rail.checkout_url);
     if (problem) {
       console.error(`[billing/checkout] rejected checkout_url for '${product}' (${rail.provider}): ${problem}`);
@@ -325,7 +325,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     console.error(`checkout: MatrixRouter failed, falling back to default rail: ${(err as Error).message}`);
     // rails is non-empty (checked above) and every URL is validated non-empty (checkoutUrlProblem), so a fallback always exists.
     const fallback = [...rails].sort((lhs, rhs) => rhs.weight - lhs.weight)[0];
-    const res = NextResponse.redirect(withReference(fallback.checkout_url as string, fallback.provider, attributionRef((p) => request.nextUrl.searchParams.get(p))), 302);
+    const res = NextResponse.redirect(withReference(fallback.checkout_url, fallback.provider, attributionRef((p) => request.nextUrl.searchParams.get(p))), 302);
     res.headers.set("Cache-Control", "no-store");
     return res;
   }

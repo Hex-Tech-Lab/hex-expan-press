@@ -99,4 +99,24 @@ describe("payments/src/provider_router (nextRail/skipRail)", () => {
     await skipRail("t_all_down", "lemonsqueezy", rails2, 60_000);
     await expect(nextRail("t_all_down", rails2)).rejects.toThrow(/every rail is marked down/);
   });
+
+  it("resetRails deletes per-provider down keys for every provider in the rail set", async () => {
+    await skipRail("t_skip", "polar", rails2, 60_000);
+    await skipRail("t_all_down", "polar", rails2, 60_000);
+    await skipRail("t_all_down", "lemonsqueezy", rails2, 60_000);
+    await skipRail("t_ratio_3", "payhip", rails3, 60_000);
+
+    expect(store.has("matrix:payments:t_skip:down:polar")).toBe(true);
+    expect(store.has("matrix:payments:t_all_down:down:polar")).toBe(true);
+    expect(store.has("matrix:payments:t_all_down:down:lemonsqueezy")).toBe(true);
+    expect(store.has("matrix:payments:t_ratio_3:down:payhip")).toBe(true);
+
+    await resetRails();
+
+    expect(store.has("matrix:payments:t_skip:down:polar")).toBe(false);
+    expect(store.has("matrix:payments:t_all_down:down:polar")).toBe(false);
+    expect(store.has("matrix:payments:t_all_down:down:lemonsqueezy")).toBe(false);
+    expect(store.has("matrix:payments:t_ratio_3:down:payhip")).toBe(false);
+    await expect(nextRail("t_all_down", rails2)).resolves.toBe("polar");
+  });
 });

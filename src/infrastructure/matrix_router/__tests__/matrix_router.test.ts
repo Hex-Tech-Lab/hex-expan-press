@@ -71,7 +71,29 @@ describe("MatrixRouter circuit breaker, single rail (no silent bypass)", () => {
   it("serves the rail again once its down window has passed", async () => {
     // A negative window is already expired, so the breaker must not hold the rail out.
     await MatrixRouter.markProviderDown(NS, CTX, "paddle", -1000);
+    expect(vi.mocked(expanRedis.set)).toHaveBeenLastCalledWith(
+      `matrix:${NS}:${CTX}:down:paddle`,
+      expect.any(String),
+      1,
+    );
     await expect(MatrixRouter.getNextProvider(NS, CTX, [{ provider: "paddle", weight: 1 }])).resolves.toBe("paddle");
+  });
+
+  it("does not hold the rail down when durationMs is 0 (zero window expires immediately, exSeconds clamped to 1)", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-11-17T12:00:00.000Z"));
+    try {
+      await MatrixRouter.markProviderDown(NS, CTX, "paddle", 0);
+      expect(vi.mocked(expanRedis.set)).toHaveBeenLastCalledWith(
+        `matrix:${NS}:${CTX}:down:paddle`,
+        expect.any(String),
+        1,
+      );
+      await expect(MatrixRouter.getNextProvider(NS, CTX, [{ provider: "paddle", weight: 1 }])).resolves.toBe("paddle");
+      await expect(MatrixRouter.getNextProvider(NS, CTX, routes3to1)).resolves.toBe("paddle");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("keeps the single rail live when Redis is not configured, since there is no breaker state to read", async () => {
@@ -213,6 +235,28 @@ describe("MatrixRouter Redis failure handling (fail closed on read, degraded on 
       expect(logged).not.toContain("{not-valid-json");
     } finally {
       warn.mockRestore();
+    }
+  });
+
+  it("fails closed with MatrixRouterUnavailableError on a malformed per-provider down_until timestamp", async () => {
+    for (const badTimestamp of ["not-a-timestamp", 12345, null]) {
+      fake.store.set(
+        `matrix:${NS}:${CTX}:down:paddle`,
+        JSON.stringify({ down_until: badTimestamp, updated_at: "2026-11-17T12:00:00.000Z" }),
+      );
+      const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+      try {
+        await expect(MatrixRouter.getNextProvider(NS, CTX, routes3to1)).rejects.toBeInstanceOf(
+          MatrixRouterUnavailableError,
+        );
+        expect(warn).toHaveBeenCalledTimes(1);
+        const logged = String(warn.mock.calls[0]?.[0] ?? "");
+        expect(logged).toContain("SyntaxError");
+        expect(logged).toContain("degraded");
+        expect(logged).not.toContain("not-a-timestamp");
+      } finally {
+        warn.mockRestore();
+      }
     }
   });
 

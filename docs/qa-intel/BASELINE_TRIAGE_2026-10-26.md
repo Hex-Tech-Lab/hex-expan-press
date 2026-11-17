@@ -36,3 +36,8 @@ Verdict key: ACCEPTED = a real finding we are choosing not to fix now, with the 
 - Root `tsc --noEmit`: exit 0.
 - `qa-intel --mode full --compare`: no new issues against the baseline.
 - `contract-auditor`: 0 new criticals against the baseline.
+
+## Accepted 2026-11-17 (branch feat/b2c-separation)
+
+- `payments/src/ledger.ts`, 5 x "Observability: Catch block without error logging": false positive. Each of the five malformed-line catch blocks calls `logMalformedLedgerLine(parseErr)`, which writes the error with `console.error`. The rule checks only for a logging call inside the catch block itself and does not follow a helper call. The five copies were folded into the helper by /simplify; inlining them again to satisfy the rule would restore the duplication.
+- `web/e2e/b2c-confinement.spec.ts`, 1 x "Auth: localhost fallback in production route": false positive. The file is a Playwright spec that runs against the local test server; it is not a production route and is never deployed.

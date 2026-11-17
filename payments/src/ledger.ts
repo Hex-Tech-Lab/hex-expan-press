@@ -344,11 +344,11 @@ export async function findSaleAsync(provider: string, saleId: string, salesFile:
 export const ORDERS_ADJUSTMENT_UNIQ_INDEX = "orders_provider_adjustment_id_uniq";
 
 /**
- * A ledger line that fails to parse is skipped, never fatal. Every reader calls this from inside its try,
- * and everything in that try throws an Error (JSON.parse SyntaxError, or TypeError on a null payload).
+ * Logs a non-fatal warning when a ledger line fails to parse or cannot be read as an object;
+ * callers skip the malformed line rather than aborting the scan.
  */
 function logMalformedLedgerLine(parseErr: unknown): void {
-  console.error("ledger: malformed ledger line skipped:", (parseErr as Error).message);
+  console.error("ledger: malformed ledger line skipped:", parseErr instanceof Error ? parseErr.message : String(parseErr));
 }
 
 export function isAdjustmentIdUniqueViolation(err: unknown): boolean {

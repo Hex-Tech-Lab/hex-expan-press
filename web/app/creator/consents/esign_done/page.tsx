@@ -4,6 +4,7 @@ import { getPortalSession } from "../../../../src/lib/supabase-server";
 import { resolvePrimaryProduct } from "../../../../src/lib/primary-product";
 import { portalConsentState } from "../../../../src/lib/consent-chain";
 import { loadCreatorConsentRows } from "../../../../src/lib/creator-consents";
+import { toError } from "../../../../src/lib/error-reporting";
 
 /**
  * Post-signing return page (Wave 6.1, RSC): Firma redirects the creator
@@ -27,18 +28,12 @@ export const metadata = {
   robots: { index: false, follow: false },
 };
 
-function toError(err: unknown): Error {
-  if (err instanceof Error) return err;
-  if (err && typeof err === "object" && "message" in err && typeof (err as { message: unknown }).message === "string") {
-    return new Error((err as { message: string }).message);
-  }
-  return new Error(String(err));
-}
+type C3Status = "recorded" | "pending" | "failed";
 
-async function hasRecordedC3(): Promise<boolean> {
+async function readC3Status(): Promise<C3Status> {
   try {
     const session = await getPortalSession();
-    if (!session) return false;
+    if (!session) return "pending";
     const { product, error: productError } = await resolvePrimaryProduct<{ id: string; creator_id: string | null; release_sha256: string | null }>(
       session.supabase,
       "id, creator_id, release_sha256",
@@ -47,9 +42,9 @@ async function hasRecordedC3(): Promise<boolean> {
       const error = toError(productError);
       console.error("[esign_done] products query failed:", error.message);
       Sentry.captureException(error, { tags: { surface: "esign_done", query: "products" } });
-      return false;
+      return "failed";
     }
-    if (!product) return false;
+    if (!product) return "pending";
     // Same strict chain rule as checkout: a C3 superseded by a later refusal (even one on
     // another product) is not a recorded agreement. Only the C3 chain is read; the rule is per kind.
     const { rows, error: consentsError } = await loadCreatorConsentRows(session.supabase, product.creator_id, {
@@ -59,36 +54,53 @@ async function hasRecordedC3(): Promise<boolean> {
       const error = toError(consentsError);
       console.error("[esign_done] consents query failed:", error.message);
       Sentry.captureException(error, { tags: { surface: "esign_done", query: "consents" } });
-      return false;
+      return "failed";
     }
-    return portalConsentState(rows, product.id, product.release_sha256).hasC3;
+    return portalConsentState(rows, product.id, product.release_sha256).hasC3 ? "recorded" : "pending";
   } catch (err) {
     const error = toError(err);
     console.error("[esign_done] C3 status check failed:", error);
     Sentry.captureException(error, { tags: { surface: "esign_done", query: "c3" } });
-    return false;
+    return "failed";
   }
 }
 
 export default async function EsignDonePage() {
-  const recorded = await hasRecordedC3();
+  const status = await readC3Status();
+  const recorded = status === "recorded";
+  const failed = status === "failed";
   return (
     <div className="mx-auto max-w-[640px] px-5 py-20">
       <div className="neu-card rounded-[14px] p-(--space-6) text-center">
-        <p className="text-[40px] leading-none text-[#2E7D5B]" aria-hidden>
-          {recorded ? "✓" : "…"}
+        <p
+          className={`text-[40px] leading-none ${failed ? "text-[#8A4B2D]" : "text-[#2E7D5B]"}`}
+          aria-hidden
+        >
+          {recorded ? "✓" : failed ? "!" : "…"}
         </p>
         <h1 className="mt-3 font-sans text-[length:var(--text-heading-1-size)] font-bold text-[#2B2520]">
-          {recorded ? "Revenue-split agreement signed" : "Finalising your signature"}
-        </h1>
-        <p className="mt-3 text-[length:var(--font-size-base)] text-[#4A4136]">
           {recorded
-            ? "Thank you — your signature and the completion certificate have been recorded."
-            : "Thank you — we're confirming your signature with the signing service. This usually takes under a minute; your dashboard shows it as signed once it's recorded."}
-        </p>
-        <p className="mt-2 text-[length:var(--font-size-base)] text-[#4A4136]">
-          A copy of the signed agreement and its audit-trail certificate will arrive in your inbox within a few minutes. Keep both for your records.
-        </p>
+            ? "Revenue-split agreement signed"
+            : failed
+              ? "We couldn't verify your signature status"
+              : "Finalising your signature"}
+        </h1>
+        {failed ? (
+          <p className="mt-3 text-[length:var(--font-size-base)] text-[#8A4B2D]" role="alert">
+            This looks like a temporary problem on our side — please reload this page in a moment to check again, or return to your dashboard.
+          </p>
+        ) : (
+          <>
+            <p className="mt-3 text-[length:var(--font-size-base)] text-[#4A4136]">
+              {recorded
+                ? "Thank you — your signature and the completion certificate have been recorded."
+                : "Thank you — we're confirming your signature with the signing service. This usually takes under a minute; your dashboard shows it as signed once it's recorded."}
+            </p>
+            <p className="mt-2 text-[length:var(--font-size-base)] text-[#4A4136]">
+              A copy of the signed agreement and its audit-trail certificate will arrive in your inbox within a few minutes. Keep both for your records.
+            </p>
+          </>
+        )}
         <Link
           href="/creator/dashboard"
           className="mt-5 inline-flex min-h-11 items-center rounded-[10px] bg-[#2B2520] px-6 text-[length:var(--font-size-base)] font-semibold text-[#FAF7F2] no-underline transition-colors hover:bg-[#3d352d]"

@@ -1,5 +1,6 @@
 import { MatrixRouter } from "../../src/infrastructure/matrix_router/matrix_router.ts";
 import { expanRedis } from "../../src/infrastructure/redis/redis.client.ts";
+import { PAYMENT_PROVIDERS } from "./settings_registry.ts";
 
 export interface RailWeight {
   provider: string;
@@ -29,8 +30,13 @@ export async function skipRail(productId: string, provider: string, rails: RailW
   await MatrixRouter.markProviderDown("payments", productId, provider, durationMs);
 }
 
-export async function resetRails(): Promise<void> {
+export async function resetRails(providers: readonly string[] = Object.keys(PAYMENT_PROVIDERS)): Promise<void> {
   const ids = ["t_ratio_2", "t_ratio_3", "t_skip", "t_all_down"];
-  const keys = ids.flatMap((id) => [`matrix:payments:${id}`, `matrix:payments:${id}:counter`]);
+  const uniqueProviders = [...new Set(providers)];
+  const keys = ids.flatMap((id) => [
+    `matrix:payments:${id}`,
+    `matrix:payments:${id}:counter`,
+    ...uniqueProviders.map((provider) => `matrix:payments:${id}:down:${provider}`),
+  ]);
   await Promise.all(keys.map((key) => expanRedis.del(key)));
 }
