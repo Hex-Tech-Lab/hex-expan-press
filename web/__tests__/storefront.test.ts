@@ -9,6 +9,22 @@ const { NOINDEX, fetchCreatorHub, fetchStoreProduct, insideItems, productSlugOf,
   "../src/components/storefront/storefront"
 );
 
+describe("StorefrontFooter buyer legal links", () => {
+  it("shows the buyer legal links by default and hides them on a gated (draft) product page", async () => {
+    const { createElement } = await import("react");
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const { StorefrontFooter } = await import("../src/components/storefront/storefront");
+
+    const live = renderToStaticMarkup(createElement(StorefrontFooter));
+    expect(live).toContain("/books/legal/terms.html");
+    expect(live).toContain("/books/legal/refund-policy.html");
+
+    const gated = renderToStaticMarkup(createElement(StorefrontFooter, { showBuyerLegal: false }));
+    expect(gated).not.toContain("/books/legal/");
+    expect(gated).toContain("Support: support@expanpress.com");
+  });
+});
+
 /** A Supabase stand-in answering the hub's two reads: the creator (with products) and system_config. */
 function hubClient(creator: unknown) {
   return {

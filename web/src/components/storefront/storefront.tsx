@@ -218,15 +218,20 @@ export function platformLink(platform: string, handle: string): { label: string;
   return { label: `${platform.charAt(0).toUpperCase()}${platform.slice(1)} @${handle}`, url: null };
 }
 
-export function StorefrontFooter() {
+/** Buyer legal links are hidden on a gated (draft) product page, which shows a "Coming soon" banner instead of a sale. */
+export function StorefrontFooter({ showBuyerLegal = true }: { showBuyerLegal?: boolean }) {
   return (
     <footer>
-      <a href="/books/legal/privacy.html">Privacy Policy</a>
-      <span className="sep">&middot;</span>
-      <a href="/books/legal/terms.html">Terms of Sale</a>
-      <span className="sep">&middot;</span>
-      <a href="/books/legal/refund-policy.html">Refund Policy</a>
-      <span className="sep">&middot;</span>
+      {showBuyerLegal && (
+        <>
+          <a href="/books/legal/privacy.html">Privacy Policy</a>
+          <span className="sep">&middot;</span>
+          <a href="/books/legal/terms.html">Terms of Sale</a>
+          <span className="sep">&middot;</span>
+          <a href="/books/legal/refund-policy.html">Refund Policy</a>
+          <span className="sep">&middot;</span>
+        </>
+      )}
       <span>Support: support@expanpress.com</span>
     </footer>
   );

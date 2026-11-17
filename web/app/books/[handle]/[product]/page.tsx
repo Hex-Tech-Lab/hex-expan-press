@@ -125,7 +125,7 @@ export default async function StoreProductPage({
 
         </main>
 
-        <StorefrontFooter />
+        <StorefrontFooter showBuyerLegal={p.checkout_mode === "live"} />
       </div>
     </div>
   );
