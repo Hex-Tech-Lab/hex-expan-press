@@ -1,4 +1,4 @@
-// Runs the real public.submit_consent body (migration 20261115110000) in-process
+// Runs the real public.submit_consent body (migration 20261116142329) in-process
 // (PGlite) against a stand-in schema. Auth is stubbed as the service role, so the
 // service-role branch (creator lookup, signer membership) is what runs.
 // Proves: a new row retires EVERY current head of (product, kind) through

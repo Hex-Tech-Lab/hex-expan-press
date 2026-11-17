@@ -1,6 +1,6 @@
 // Tests the shared identifier rule (ADR 0065) for PRODUCT SLUGS ONLY: the accept/reject cases, the registry values
-// for GLOBAL.product_slug, and the product_slug DB CHECK text in migration 20261114130000.
-// NOT covered here: the creator handle rule (GLOBAL.handles) and the handle DB CHECK (20261113000000_handle_shape.sql).
+// for GLOBAL.product_slug, and the product_slug DB CHECK text in migration 20261114215650.
+// NOT covered here: the creator handle rule (GLOBAL.handles) and the handle DB CHECK (20261112231010_handle_shape.sql).
 // Handle shape is covered by handle_pairwise.test.ts and handle-policy tests, not by this file.
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -22,7 +22,7 @@ describe("product slug rule (registry: product_slug)", () => {
   it("uses the registry values, not literals", () => {
     expect(GLOBAL.product_slug).toEqual({ min_length: 3, max_length: 30, separator: "_" });
   });
-  it("matches the product_slug DB CHECK in the 20261114130000 migration", () => {
+  it("matches the product_slug DB CHECK in the 20261114215650 migration", () => {
     const sql = readFileSync(path.join(__dirname, "../../../../supabase/migrations/20261114215650_products_slug_agreed_rule.sql"), "utf8");
     const { min_length, max_length } = GLOBAL.product_slug;
     expect(sql).toContain(`char_length(slug) between ${min_length} and ${max_length}`);

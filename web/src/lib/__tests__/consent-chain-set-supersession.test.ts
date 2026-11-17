@@ -1,4 +1,4 @@
-// Set supersession (consents.supersedes_ids, migration 20261115110000): one new
+// Set supersession (consents.supersedes_ids, migration 20261116142329): one new
 // row can retire EVERY head of a forked (product, kind). These cases pin the
 // TypeScript chain reader; the SQL side is pinned by
 // consents-submit-supersedes-set.sql.test.ts and the launch-gate parity test.

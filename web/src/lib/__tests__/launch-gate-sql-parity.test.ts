@@ -10,7 +10,7 @@ import { strictActiveConsentKinds } from "../consent-chain";
 
 const migration = (name: string) => readFileSync(join(__dirname, "../../../../supabase/migrations", name), "utf8");
 // Applied in order: 20261011 replaces the trigger with the live-change re-check;
-// 20261115110000 adds set supersession (supersedes_ids) to both SQL readers.
+// 20261116142329 adds set supersession (supersedes_ids) to both SQL readers.
 const MIGRATIONS = [
   "20261009000000_launch_trigger_and_audit.sql",
   "20261011000000_launch_gate_rechecks_live_changes.sql",

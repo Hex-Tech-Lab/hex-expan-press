@@ -133,7 +133,7 @@ function buildConsentRows(row: PairwiseRow): PortalConsentRow[] {
         { id: `${kind}_fork_b`, kind, decision: "refused", product_id: PID, supersedes: null, supersedes_ids: [], document_sha256: docSha },
       );
     } else {
-      // resolved_by_set: two forked heads retired by a single successor via supersedes_ids (migration 20261115110000)
+      // resolved_by_set: two forked heads retired by a single successor via supersedes_ids (migration 20261116142329)
       result.push(
         { id: `${kind}_fork_a`, kind, decision: "given", product_id: PID, supersedes: null, supersedes_ids: [], document_sha256: docSha },
         { id: `${kind}_fork_b`, kind, decision: "refused", product_id: PID, supersedes: null, supersedes_ids: [], document_sha256: docSha },

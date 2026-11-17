@@ -287,7 +287,7 @@ const DL_EVENTS_SQL = readFileSync(join(import.meta.dirname, "../../supabase/mig
   .replace(/insert into storage\.buckets[\s\S]*?;/gi, "");
 const DL_GEN_SQL = readFileSync(join(import.meta.dirname, "../../supabase/migrations/20261019180000_download_events_generation_key.sql"), "utf8");
 const DL_SEQ_SQL = readFileSync(join(import.meta.dirname, "../../supabase/migrations/20261020090000_download_events_generation_seq.sql"), "utf8");
-const GUARD_MIGRATION_SQL = readFileSync(join(import.meta.dirname, "../../supabase/migrations/20261116120000_delivery_single_send_guard.sql"), "utf8")
+const GUARD_MIGRATION_SQL = readFileSync(join(import.meta.dirname, "../../supabase/migrations/20261116170055_delivery_single_send_guard.sql"), "utf8")
   .replace(/notify pgrst[\s\S]*?;/gi, "");
 
 let pg: PGlite;

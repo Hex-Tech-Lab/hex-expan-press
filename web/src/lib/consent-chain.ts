@@ -19,7 +19,7 @@ export interface ConsentChainRow {
   decision: string;
   product_id?: string | null;
   supersedes?: string | null;
-  /** Every head this row retired (set supersession, migration 20261115110000).
+  /** Every head this row retired (set supersession, migration 20261116142329).
    *  Absent or empty means the row resolves through `supersedes` alone. */
   supersedes_ids?: string[] | null;
 }
