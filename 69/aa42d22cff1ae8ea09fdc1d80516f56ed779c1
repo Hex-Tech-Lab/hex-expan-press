@@ -1,0 +1,110 @@
+web/e2e/tls-cert.ts
+  s_29893055f88353::t_0800dfa862e666 1-22
+web/e2e/focus.spec.ts
+  s_29893055f88353::t_ca269b184a191c 4
+web/playwright.config.ts
+  s_29893055f88353::t_abd3375f259d4c 29-30
+  s_29893055f88353::t_1be1b1f532bc75 48
+  s_29893055f88353::t_b96c34096e5912 49-51
+  s_29893055f88353::t_f583d151aaf5a3 2
+  s_29893055f88353::t_8bcc061d20b2ef 56-57
+  s_29893055f88353::t_0a8baf0f60edfc 3
+web/e2e/constants.ts
+  s_29893055f88353::t_9aac889049de38 14-15
+  s_29893055f88353::t_7160512ef4663d 17-21
+  s_29893055f88353::t_739f97e52d17cf 1-3,7-11,31-34
+web/app/api/billing/checkout/route.ts
+  s_29893055f88353::t_2c8b3e70969abe 284
+  s_29893055f88353::t_e7577a2b90a508 326-327
+  s_29893055f88353::t_b837bcbaa60f74 204-206
+  s_29893055f88353::t_f72891ea677a6d 220
+  s_29893055f88353::t_8d7f537d803941 302-303
+web/e2e/creator_funnel.spec.ts
+  s_be01e17a06932d::t_7d4884fc4c97f6 9,12,16
+  s_29893055f88353::t_ca269b184a191c 80
+web/e2e/b2c-confinement.spec.ts
+  s_29893055f88353::t_5aaaf7c0c19d99 1-14,16,18-19,21,23-48,50-107,111-117,131-158
+  s_29893055f88353::t_7cb14624a5292b 122-129
+  s_29893055f88353::t_3c288c2cc65699 15
+  s_29893055f88353::t_607c4bebef4f30 49
+  s_29893055f88353::t_5f8c58cfafe48f 118,130
+  s_29893055f88353::t_01ce75d81ad0e9 17,20
+  s_29893055f88353::t_38fb08f0288635 108-110
+  s_29893055f88353::t_8512d580701505 119-121
+  s_29893055f88353::t_3cec8cb98bda88 22
+web/src/lib/__tests__/primary-product.test.ts
+  s_29893055f88353::t_c14afca46541aa 153,155-156,158
+web/app/api/billing/checkout/__tests__/route.test.ts
+  s_29893055f88353::t_808f77962c7e38 15,22-23,158,1161-1329
+  s_29893055f88353::t_4b98c39d4e4a6b 3
+web/e2e/mock-supabase.ts
+  s_29893055f88353::t_739f97e52d17cf 13-15,47-48,63,155,218,220-221,224-228
+  s_29893055f88353::t_fb819fb3157a32 38
+  s_29893055f88353::t_23c178332d06e3 75-96
+  s_29893055f88353::t_63409daa8e2bd2 138-139,142
+  s_29893055f88353::t_a9b9542a8b4aab 143
+  s_29893055f88353::t_c2262961c2960b 229
+docs/testing/pairwise/billing_consent_checkout.model.txt
+  s_29893055f88353::t_e7b8fb251f37ae 1-2
+payments/src/ledger.ts
+  s_29893055f88353::t_73af3a2714b944 293,346-353,385,423,592,666
+  s_29893055f88353::t_9b46a50abe2d1b 754-755,761
+  s_29893055f88353::t_25b8f0261c0d38 701-702,706
+  s_29893055f88353::t_49014056de3a2f 767
+web/app/api/billing/webhook/handler.ts
+  s_29893055f88353::t_dcb0d189f67dc5 151
+  s_29893055f88353::t_95614bca3bef00 155-156
+vitest.config.ts
+  s_29893055f88353::t_7a533249745f25 30-45
+payments/test/ledger.test.ts
+  s_29893055f88353::t_808f77962c7e38 332-803
+  s_29893055f88353::t_8ae2e1d44475f9 2,4-24
+web/e2e/a11y.spec.ts
+  s_be01e17a06932d::t_797c497f208fab 7
+  s_29893055f88353::t_ca269b184a191c 40
+  s_be01e17a06932d::t_5d71f9ad8e48a6 35
+payments/test/ledger_review_queue.test.ts
+  s_29893055f88353::t_ac88dabce2221d 37,114-130
+web/app/creator/consents/__tests__/actions.test.ts
+  s_29893055f88353::t_3dd8a389d95111 10,14,62,142-181
+src/infrastructure/matrix_router/__tests__/matrix_router.test.ts
+  s_29893055f88353::t_ea1edd6c6ad8ed 98-108,219-221,223-234
+src/infrastructure/matrix_router/matrix_router.ts
+  s_29893055f88353::t_9f852c894b2da2 6-8,15-21,56-59,64-68,71-78,80-100,102-103,156,159,172,174-188
+vitest.qa-intel.config.ts
+  s_29893055f88353::t_bef70ff4e492f8 4,27
+web/app/creator/consents/esign_done/page.tsx
+  s_29893055f88353::t_7d90e0c0d3b4cd 30-37,47-49,59-61,66-68
+web/app/creator/dashboard/__tests__/actions.test.ts
+  s_29893055f88353::t_9c15f179e28ba8 99,173,178,189,194,322
+web/app/creator/dashboard/actions.ts
+  s_29893055f88353::t_976739a0e88fbd 60,72
+web/app/creator/dashboard/dashboard-client.tsx
+  s_29893055f88353::t_53515d59963c8f 52,59
+web/app/creator/dashboard/page.tsx
+  s_29893055f88353::t_9da18ecb08b377 39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "69aa42d22cff1ae8ea09fdc1d80516f56ed779c1",
+  "prompts": {},
+  "sessions": {
+    "s_29893055f88353": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1c444932-1da1-4ad5-9e8b-395eb468f52a",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    },
+    "s_be01e17a06932d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "6daf8866-5b2a-4ab3-9e3f-0767d29bf2ea",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
