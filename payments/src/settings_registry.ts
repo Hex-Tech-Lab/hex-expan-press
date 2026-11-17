@@ -103,7 +103,15 @@ product_slug: { min_length: number; max_length: number; separator: string };
     audit_log_page_size: number;
   };
   /** Buyer delivery: download_events links, Dub short links, signed release URLs, delivery_sends kind. */
-  delivery: { bucket: string; link_ttl_days: number; signed_url_seconds: number; short_domain: string; send_kind: string };
+  delivery: {
+    bucket: string;
+    link_ttl_days: number;
+    signed_url_seconds: number;
+    short_domain: string;
+    send_kind: string;
+    /** A send claim still in 'claimed' this long after it was made is logged as STUCK (never resent: at-most-once). */
+    stuck_claim_after_seconds: number;
+  };
   /** Transactional email (Resend). `from` must be on `sending_domain` (DKIM-verified in Resend). */
   email: {
     from: string;
@@ -113,6 +121,19 @@ product_slug: { min_length: number; max_length: number; separator: string };
   };
   portal: { jwt_clock_skew_retry_delay_ms: number };
   consent: { text_version: string; evidence_path: { user_id_pattern: string; envelope_id_pattern: string } };
+  /** Daily usage watch (scripts/ops/usage_watch.ts). Limits are the plan limits we are on (Vercel Hobby, Supabase Free org,
+   *  Upstash pay-as-you-go); warn_ratio is the fraction of a limit at which the watch reports WARN and exits non-zero. */
+  usage_watch: UsageWatchSettings;
+}
+
+export interface UsageWatchSettings {
+  warn_ratio: number;
+  /** Per-request budget for every usage-watch HTTP or CLI call. */
+  timeout_ms: number;
+  endpoints: { supabase_api: string; upstash_api: string; vercel_cli: string };
+  vercel: { team_id: string; max_pages: number; deployments_per_day: number; deployments_per_hour: number; fluid_active_cpu_hours: number };
+  supabase: { db_size_bytes: number; egress_bytes: number; file_storage_bytes: number };
+  upstash: { monthly_commands: number; monthly_bandwidth_bytes: number; memory_bytes: number };
 }
 
 export const DEFAULT_GLOBAL: GlobalSettings = {
@@ -192,6 +213,8 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     short_domain: "go.expanpress.com",
     // Default send_kind lives in DEFAULT_GLOBAL because data/ is gitignored and absent in production.
     send_kind: "buyer_receipt",
+    // Above the email deadline (payments.http_timeout_ms) and the webhook lock TTL, so a live send is never reported stuck.
+    stuck_claim_after_seconds: 900,
   },
   email: {
     from: "ExpanPress <support@esign.expanpress.com>",
@@ -214,6 +237,19 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
       user_id_pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
       envelope_id_pattern: "^[A-Za-z0-9_-]{1,128}$",
     },
+  },
+  usage_watch: {
+    warn_ratio: 0.8,
+    timeout_ms: 20000,
+    endpoints: { supabase_api: "https://api.supabase.com", upstash_api: "https://api.upstash.com", vercel_cli: "vercel" },
+    // Vercel Hobby: 100 deployments/day (vercel.com/docs/plans/hobby), 100 per hour (vercel.com/docs/limits),
+    // Fluid Active CPU 4 h/month (vercel.com/docs/functions/limitations). Hobby exposes no usage API; see usage_watch.ts.
+    vercel: { team_id: "team_vgnBI2s3ynPBzQdOLqhGvBnK", max_pages: 10, deployments_per_day: 100, deployments_per_hour: 100, fluid_active_cpu_hours: 4 },
+    // Supabase Free org: 500 MB database, 5 GB egress, 1 GB file storage (supabase.com/pricing).
+    supabase: { db_size_bytes: 524288000, egress_bytes: 5368709120, file_storage_bytes: 1073741824 },
+    // Upstash pay-as-you-go (no hard cap). monthly_commands is the 500K Free-tier quota kept as a spend trip-wire;
+    // monthly_bandwidth is the 200 GB PAYG free bandwidth (upstash.com/pricing/redis); memory is the API db_memory_threshold (3 GB).
+    upstash: { monthly_commands: 500000, monthly_bandwidth_bytes: 214748364800, memory_bytes: 3221225472 },
   },
 };
 
@@ -402,7 +438,66 @@ function loadGlobal(): GlobalSettings {
     portal: { ...DEFAULT_GLOBAL.portal, ...(g.portal ?? {}) },
     admin: loadAdminSection(g.admin as Record<string, unknown> | undefined),
     consent: { ...DEFAULT_GLOBAL.consent, ...(g.consent ?? {}) },
+    usage_watch: loadUsageWatchSection(g.usage_watch as Record<string, unknown> | undefined),
   };
+}
+
+/** Bounds for the usage watch tunables. warn_ratio stays strictly between 0.5 and 0.99 so WARN can fire before a hard limit. */
+export const USAGE_WATCH_LIMITS = {
+  warn_ratio: { min: 0.5, max: 0.99 },
+} as const;
+
+/** usage_watch: deep-merge over the defaults. Every number must be a finite positive value; a bad value falls back
+ *  to its default (with a warning) instead of disabling the watch. */
+export function loadUsageWatchSection(raw: Record<string, unknown> | undefined): UsageWatchSettings {
+  const d = DEFAULT_GLOBAL.usage_watch;
+  if (!raw) return d;
+  const fallbacks: string[] = [];
+  const pick = (candidate: unknown, fallback: number, key: string, ok: (n: number) => boolean): number => {
+    if (typeof candidate === "number" && Number.isFinite(candidate) && ok(candidate)) return candidate;
+    if (candidate !== undefined) fallbacks.push(key);
+    return fallback;
+  };
+  const positive = (n: number): boolean => n > 0;
+  const sub = (name: "vercel" | "supabase" | "upstash"): Record<string, unknown> =>
+    (raw[name] && typeof raw[name] === "object" ? raw[name] : {}) as Record<string, unknown>;
+  const v = sub("vercel");
+  const s = sub("supabase");
+  const u = sub("upstash");
+  const endpoints = (raw.endpoints && typeof raw.endpoints === "object" ? raw.endpoints : {}) as Record<string, unknown>;
+  const str = (candidate: unknown, fallback: string, key: string): string => {
+    if (typeof candidate === "string" && candidate.trim() !== "") return candidate;
+    if (candidate !== undefined) fallbacks.push(key);
+    return fallback;
+  };
+  const out: UsageWatchSettings = {
+    warn_ratio: pick(raw.warn_ratio, d.warn_ratio, "warn_ratio", (n) => n >= USAGE_WATCH_LIMITS.warn_ratio.min && n <= USAGE_WATCH_LIMITS.warn_ratio.max),
+    timeout_ms: pick(raw.timeout_ms, d.timeout_ms, "timeout_ms", positive),
+    endpoints: {
+      supabase_api: str(endpoints.supabase_api, d.endpoints.supabase_api, "endpoints.supabase_api"),
+      upstash_api: str(endpoints.upstash_api, d.endpoints.upstash_api, "endpoints.upstash_api"),
+      vercel_cli: str(endpoints.vercel_cli, d.endpoints.vercel_cli, "endpoints.vercel_cli"),
+    },
+    vercel: {
+      team_id: str(v.team_id, d.vercel.team_id, "vercel.team_id"),
+      max_pages: pick(v.max_pages, d.vercel.max_pages, "vercel.max_pages", positive),
+      deployments_per_day: pick(v.deployments_per_day, d.vercel.deployments_per_day, "vercel.deployments_per_day", positive),
+      deployments_per_hour: pick(v.deployments_per_hour, d.vercel.deployments_per_hour, "vercel.deployments_per_hour", positive),
+      fluid_active_cpu_hours: pick(v.fluid_active_cpu_hours, d.vercel.fluid_active_cpu_hours, "vercel.fluid_active_cpu_hours", positive),
+    },
+    supabase: {
+      db_size_bytes: pick(s.db_size_bytes, d.supabase.db_size_bytes, "supabase.db_size_bytes", positive),
+      egress_bytes: pick(s.egress_bytes, d.supabase.egress_bytes, "supabase.egress_bytes", positive),
+      file_storage_bytes: pick(s.file_storage_bytes, d.supabase.file_storage_bytes, "supabase.file_storage_bytes", positive),
+    },
+    upstash: {
+      monthly_commands: pick(u.monthly_commands, d.upstash.monthly_commands, "upstash.monthly_commands", positive),
+      monthly_bandwidth_bytes: pick(u.monthly_bandwidth_bytes, d.upstash.monthly_bandwidth_bytes, "upstash.monthly_bandwidth_bytes", positive),
+      memory_bytes: pick(u.memory_bytes, d.upstash.memory_bytes, "upstash.memory_bytes", positive),
+    },
+  };
+  if (fallbacks.length > 0) warnFallback("global.json", `invalid usage_watch values for ${fallbacks.join(", ")}`);
+  return out;
 }
 
 export function consentTextVersion(): string {
@@ -484,7 +579,7 @@ export function loadDeliverySection(raw: Record<string, unknown> | undefined): G
     fallbacks.push(key);
     return defaults[key];
   };
-  const posInt = (key: "link_ttl_days" | "signed_url_seconds", min: number, max: number): number => {
+  const posInt = (key: "link_ttl_days" | "signed_url_seconds" | "stuck_claim_after_seconds", min: number, max: number): number => {
     if (!(key in record)) return defaults[key];
     const candidate = record[key];
     if (intInRange(candidate, min, max)) return candidate;
@@ -497,6 +592,7 @@ export function loadDeliverySection(raw: Record<string, unknown> | undefined): G
     signed_url_seconds: posInt("signed_url_seconds", 30, 3600),
     short_domain: str("short_domain"),
     send_kind: str("send_kind"),
+    stuck_claim_after_seconds: posInt("stuck_claim_after_seconds", 60, 86400),
   };
   if (fallbacks.length > 0) warnFallback("global.json", `invalid delivery values for ${fallbacks.join(", ")}`);
   return out;

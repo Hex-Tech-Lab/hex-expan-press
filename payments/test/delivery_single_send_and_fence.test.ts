@@ -247,6 +247,7 @@ vi.mock("@supabase/supabase-js", () => ({
 
 import { withIdempotencyLock } from "../src/webhook_core.ts";
 import { deliverSale, deliverSaleForWebhook, productionDeps, resetLastGenerationForTest, StaleFenceError } from "../src/delivery.ts";
+import { listStuckDeliveryClaims } from "../src/delivery_sends_store.ts";
 import { appendSale, appendRefund, type SaleRecord } from "../src/ledger.ts";
 import { EmailSendError } from "../src/email.ts";
 import { GLOBAL } from "../src/settings_registry.ts";
@@ -672,5 +673,44 @@ describe("Option A + Option B single-send guard & fencing tokens (cases a-d + SQ
       "select state, fence::text as fence from public.delivery_sends where provider = 'paddle' and sale_id = 'sale-d-2'",
     );
     expect(sends2.rows).toEqual([{ state: "sent", fence: "2" }]);
+  });
+});
+
+// B2 (visibility only): a held claim is still never resent. Past delivery.stuck_claim_after_seconds it is logged
+// as STUCK, and the operator reconcile query lists it. No takeover: a takeover would resend after an accepted send.
+describe("stuck claim visibility (B2): held claims are never resent; past the threshold they are logged and listed", () => {
+  it("a retry inside the threshold is silent; past the threshold it logs STUCK and still does not resend", async () => {
+    const sendEmail = vi.fn<() => Promise<unknown>>()
+      .mockRejectedValueOnce(new Error("socket hang up"))
+      .mockResolvedValue({ id: "should-never-send" });
+    const deps = makeDeps(sendEmail);
+    const sale = { provider: "paddle", saleId: "sale-h-1", productAlias: "alias-1", buyerEmail: "buyer@example.com" };
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      await expect(deliverSale({ ...sale, fence: 1 }, deps)).rejects.toThrow("socket hang up");
+
+      await expect(deliverSale({ ...sale, fence: 2 }, deps)).resolves.toBe("duplicate");
+      expect(errSpy.mock.calls.some((c) => String(c[0]).includes("STUCK CLAIM"))).toBe(false);
+
+      await pg.exec("update public.delivery_sends set created_at = now() - interval '2 hours' where sale_id = 'sale-h-1'");
+
+      await expect(deliverSale({ ...sale, fence: 3 }, deps)).resolves.toBe("duplicate");
+      expect(errSpy.mock.calls.some((c) => String(c[0]).includes("STUCK CLAIM sale=sale-h-1"))).toBe(true);
+      expect(sendEmail).toHaveBeenCalledTimes(1);
+    } finally {
+      errSpy.mockRestore();
+    }
+  });
+
+  it("listStuckDeliveryClaims returns only 'claimed' rows at least the threshold old", async () => {
+    await pg.exec(`
+      insert into public.delivery_sends (provider, sale_id, send_kind, fence, state, created_at) values
+        ('paddle', 'stuck-1', 'buyer_receipt', 1, 'claimed', now() - interval '2 hours'),
+        ('paddle', 'fresh-1', 'buyer_receipt', 1, 'claimed', now()),
+        ('paddle', 'sent-old', 'buyer_receipt', 1, 'sent', now() - interval '2 hours');
+    `);
+    const stuck = await listStuckDeliveryClaims(GLOBAL.delivery.stuck_claim_after_seconds * 1000);
+    expect(stuck.map((s) => [s.provider, s.saleId, s.sendKind, s.fence])).toEqual([["paddle", "stuck-1", "buyer_receipt", 1]]);
+    expect(Number.isNaN(Date.parse(stuck[0].claimedAt))).toBe(false);
   });
 });

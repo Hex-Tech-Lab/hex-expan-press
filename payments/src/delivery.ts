@@ -121,6 +121,21 @@ function withDeadline<T>(work: Promise<T>, ms: number, label: string): Promise<T
   return Promise.race([work, deadline]).finally(() => clearTimeout(timer));
 }
 
+/**
+ * A held claim (state 'claimed', never confirmed sent) is never resent: at-most-once, by design. Once it is older than
+ * delivery.stuck_claim_after_seconds it is an unconfirmed buyer receipt, so it is logged at error level for an operator.
+ */
+function noteHeldClaim(provider: string, saleId: string, sendKind: string, claimedAt: string | undefined, deps: DeliveryDeps): void {
+  const thresholdMs = GLOBAL.delivery.stuck_claim_after_seconds * 1000;
+  if (claimedAt === undefined || !Number.isFinite(thresholdMs)) return;
+  const ageMs = (deps.now ? deps.now() : new Date()).getTime() - Date.parse(claimedAt);
+  if (!Number.isFinite(ageMs) || ageMs <= thresholdMs) return;
+  console.error(
+    `[delivery] STUCK CLAIM sale=${saleId} provider=${provider} send_kind=${sendKind} claimed_at=${claimedAt}: ` +
+      "no confirmed receipt and not resent (at-most-once). Verify the buyer and resend by hand (listStuckDeliveryClaims).",
+  );
+}
+
 export type DeliveryOutcome = "sent" | "duplicate" | "no_email" | "no_release_file";
 
 const esc = (s: string): string => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -156,7 +171,10 @@ export async function deliverSale(
     sendKind,
     fence: input.fence,
   });
-  if (claim.outcome !== "claimed") return "duplicate";
+  if (claim.outcome !== "claimed") {
+    if (claim.outcome === "already_claimed") noteHeldClaim(input.provider, input.saleId, sendKind, claim.claimedAt, deps);
+    return "duplicate";
+  }
 
   const now = deps.now ? deps.now() : new Date();
   const token = (deps.newToken ?? newToken)();
