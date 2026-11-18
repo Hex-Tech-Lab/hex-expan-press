@@ -1,0 +1,93 @@
+payments/src/delivery.ts
+  s_0e99959cd74c50::t_22341d14cef420 45
+  s_0e99959cd74c50::t_4ccf8313ddbde9 158-159
+  s_0e99959cd74c50::t_d63714fe9d62aa 571
+  s_0e99959cd74c50::t_ca1468a8498877 597
+  s_0e99959cd74c50::t_b790a5980f0964 182-186,366,368,581
+  s_0e99959cd74c50::t_b92b70ebf8b50d 164,187-194,314,365,386-387,408-409,428,481-482,510,512,569-570,572-573,596,601,605,607,635-636,638,661,676,696,704,709,716,723,733,740,744,750,760,765,768
+src/domain/payments/payments.port.ts
+  s_0e99959cd74c50::t_49ca387e1ef5ee 276-277
+src/use_cases/billing/process_billing_webhook.ts
+  s_0e99959cd74c50::t_a95c1bd6105b54 226
+  s_0e99959cd74c50::t_00a96a050505fd 254
+  s_0e99959cd74c50::t_7207695ce87eb8 16-17,20-32
+  s_0e99959cd74c50::t_03aed577411955 581
+  s_0e99959cd74c50::t_1587830a59aaf2 175-176
+  s_0e99959cd74c50::t_113c2a53d7173c 203
+  s_0e99959cd74c50::t_c8e548f521a16f 575
+  s_0e99959cd74c50::t_3d247491f42067 641
+  s_0e99959cd74c50::t_6b4edb0df67bc2 647
+  s_0e99959cd74c50::t_ea44e4451feef9 33,46-47,50,55,64-65,121,156,255,543-544,557-558,572,591,617
+payments/src/settings_registry.ts
+  s_0e99959cd74c50::t_917c70c8f56129 202
+  s_0e99959cd74c50::t_37779bfcdc2d17 407
+  s_0e99959cd74c50::t_5aa571b8a1cc45 75-79
+  s_0e99959cd74c50::t_01b3f27d23e793 456
+  s_0e99959cd74c50::t_2367bda032b612 326-327
+src/adapters/payments/paddle.adapter.ts
+  s_0e99959cd74c50::t_a3d44af119e283 31
+  s_0e99959cd74c50::t_200073e3a90d1e 300-302,304,308
+  s_0e99959cd74c50::t_d8bdba4323bc62 115-119
+web/app/api/billing/webhook/handler.ts
+  s_0e99959cd74c50::t_79afb80785ccac 115-117
+  s_0e99959cd74c50::t_3d55dbb119da42 126
+  s_0e99959cd74c50::t_6dd396a8215cc1 7
+  s_0e99959cd74c50::t_4c50bab47bd6a6 34-35,39,44,51-59
+  s_0e99959cd74c50::t_a627a8131b21f4 60-61,127-131,139,176
+payments/src/delivery_sends_store.ts
+  s_0e99959cd74c50::t_a1a06160dc325b 8,82,86,91,146,154,166,173,180,196,213,221,250,274,286,295,309,314
+payments/src/ledger.ts
+  s_0e99959cd74c50::t_64ea3e2ea9bef5 5,326,343,358,365
+payments/src/terms.ts
+  s_0e99959cd74c50::t_50bff150db6efe 4,123,139-140,147,154
+payments/src/webhook_budget.ts
+  s_0e99959cd74c50::t_cdeb6b3b82ee2a 1-43
+payments/src/webhook_core.ts
+  s_0e99959cd74c50::t_2eb960a972be25 2,72,86,90
+payments/test/delivery.test.ts
+  s_0e99959cd74c50::t_f486d96b9609c8 114
+payments/test/settings_registry_runtime.test.ts
+  s_0e99959cd74c50::t_2b0404131858a9 281-298
+payments/test/webhook_budget.test.ts
+  s_0e99959cd74c50::t_f39976a5a64d03 1-178
+payments/test/webhook_budget_supabase.test.ts
+  s_0e99959cd74c50::t_91e8b015077625 1-53
+src/adapters/payments/__tests__/paddle.adapter.test.ts
+  s_0e99959cd74c50::t_140e1ad1505a08 420-431
+src/use_cases/billing/__tests__/process_billing_webhook.test.ts
+  s_0e99959cd74c50::t_fcdecc06edfbdc 226,1313,1379,1400,1415,1430,1496,1571,1587,1603,1619,1635
+web/app/api/billing/webhook/__tests__/fungies-refund-dlq.test.ts
+  s_0e99959cd74c50::t_8f7004d34390fe 93
+web/app/api/billing/webhook/__tests__/in-flight.test.ts
+  s_0e99959cd74c50::t_874f543a411361 49,51,54
+web/app/api/billing/webhook/__tests__/lock_contention_503.test.ts
+  s_0e99959cd74c50::t_619bd8c6563f84 20,49
+web/app/api/billing/webhook/__tests__/polar-partial-refund.test.ts
+  s_0e99959cd74c50::t_8baef242aaa985 95
+web/app/api/billing/webhook/__tests__/provider_allowlist.test.ts
+  s_0e99959cd74c50::t_a112d637e3963d 78
+web/app/api/billing/webhook/__tests__/total-budget.test.ts
+  s_0e99959cd74c50::t_301dade962a087 1-177
+web/app/api/billing/webhook/__tests__/transient_classification.test.ts
+  s_0e99959cd74c50::t_cb3d7488eaaff5 19
+web/app/api/billing/webhook/__tests__/unclaimed-provider.test.ts
+  s_0e99959cd74c50::t_2e1529c08161c0 25
+web/app/api/billing/webhook/__tests__/valid_signature_malformed_ledger.test.ts
+  s_0e99959cd74c50::t_1b35a24fd0e42f 31,63
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d17ab31b67043bcda160b18f07a02bd28acfe265",
+  "prompts": {},
+  "sessions": {
+    "s_0e99959cd74c50": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "21b00acc-7513-46d6-9a35-038af7845be2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
