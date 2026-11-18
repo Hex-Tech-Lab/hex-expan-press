@@ -1,0 +1,42 @@
+payments/test/delivery_held_claim_resend.test.ts
+  s_29893055f88353::t_adff3b7d974405 111
+  s_29893055f88353::t_36e44b9515c0f1 325-336,344-346,348-349,351,354,361-362,368
+payments/src/delivery_sends_store.ts
+  s_29893055f88353::t_e7c8e10ff9c03f 238
+  s_29893055f88353::t_cc217dcbd4169a 39
+  s_29893055f88353::t_7dd596507839e6 237
+payments/test/delivery.test.ts
+  s_29893055f88353::t_5478ee9d0f15b6 62
+payments/test/delivery_retry_trade_off.test.ts
+  s_29893055f88353::t_2a2d6b8c7863da 52
+src/use_cases/billing/__tests__/process_billing_webhook.test.ts
+  s_29893055f88353::t_f7bfb4abea21e3 24-38
+  s_29893055f88353::t_e60d730c7d536d 1892-1980
+payments/test/delivery_db_adapter.test.ts
+  s_29893055f88353::t_f874001bb0bfef 302-309
+payments/src/delivery.ts
+  s_29893055f88353::t_aa3486a0d4bb34 20-21,24-25
+  s_29893055f88353::t_1f4f8bb8ce4d49 109-112
+  s_29893055f88353::t_a2b38bb1c59d28 500-501
+  s_29893055f88353::t_03fe91fab5678e 323
+src/use_cases/billing/process_billing_webhook.ts
+  s_29893055f88353::t_deae92d0fb96da 554,562-564
+payments/test/delivery_provider_scope.test.ts
+  s_29893055f88353::t_9a125fd107ed4e 52
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3ee7a80344974362f11c3ce5a609528cf958e004",
+  "prompts": {},
+  "sessions": {
+    "s_29893055f88353": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1c444932-1da1-4ad5-9e8b-395eb468f52a",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
