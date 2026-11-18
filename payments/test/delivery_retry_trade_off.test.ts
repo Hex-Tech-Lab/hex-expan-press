@@ -102,6 +102,7 @@ describe("retry after ambiguous vs definite send failures (Option A single-send 
           return true;
         }),
         releaseLinkIssued: vi.fn(async () => undefined),
+        linkStillIssued: vi.fn(async () => true),
         deliveryConfirmed: vi.fn(async (_provider: string, saleId: string) => confirmed.has(saleId)),
         confirmDelivery: vi.fn(async ({ saleId }: { provider: string; saleId: string }) => {
           confirmed.add(saleId);
@@ -159,6 +160,7 @@ describe("retry after ambiguous vs definite send failures (Option A single-send 
         releaseLinkIssued: vi.fn(async () => {
           throw new Error("link release failed");
         }),
+        linkStillIssued: vi.fn(async () => true),
         deliveryConfirmed: vi.fn(async (_provider: string, saleId: string) => confirmed.has(saleId)),
         confirmDelivery: vi.fn(async ({ saleId }: { provider: string; saleId: string }) => {
           confirmed.add(saleId);
@@ -215,6 +217,7 @@ describe("retry after ambiguous vs definite send failures (Option A single-send 
           return true;
         }),
         releaseLinkIssued: vi.fn(async () => undefined),
+        linkStillIssued: vi.fn(async () => true),
         deliveryConfirmed: vi.fn(async () => false),
         confirmDelivery: vi.fn(async () => undefined),
         ...sendGuardHandlers(),
@@ -240,6 +243,7 @@ describe("retry after ambiguous vs definite send failures (Option A single-send 
         productForAlias: vi.fn(async () => PRODUCT),
         recordLinkIssued: vi.fn(async () => false), // persistent collision
         releaseLinkIssued: vi.fn(async () => undefined),
+        linkStillIssued: vi.fn(async () => true),
         deliveryConfirmed: vi.fn(async () => false),
         confirmDelivery: vi.fn(async () => undefined),
         ...sendGuardHandlers(),
@@ -266,6 +270,7 @@ describe("retry after ambiguous vs definite send failures (Option A single-send 
           return false;
         }),
         releaseLinkIssued: vi.fn(async () => undefined),
+        linkStillIssued: vi.fn(async () => true),
         deliveryConfirmed: vi.fn(async () => confirmed),
         confirmDelivery: vi.fn(async () => undefined),
         ...sendGuardHandlers(),
@@ -299,6 +304,7 @@ describe("retry after ambiguous vs definite send failures (Option A single-send 
           return false;
         }),
         releaseLinkIssued: vi.fn(async () => undefined),
+        linkStillIssued: vi.fn(async () => true),
         deliveryConfirmed: vi.fn(async () => confirmed),
         confirmDelivery: vi.fn(async () => undefined),
         ...guard,
@@ -341,6 +347,7 @@ describe("retry after ambiguous vs definite send failures (Option A single-send 
         productForAlias: vi.fn(async () => PRODUCT),
         recordLinkIssued: vi.fn(async () => false),
         releaseLinkIssued: vi.fn(async () => undefined),
+        linkStillIssued: vi.fn(async () => true),
         // False on pre-loop and all 3 in-loop checks; true only on the post-loop !linkInserted check.
         deliveryConfirmed: vi.fn(async () => ++confirmedCalls === 5),
         confirmDelivery: vi.fn(async () => undefined),

@@ -109,12 +109,22 @@ product_slug: { min_length: number; max_length: number; separator: string };
     signed_url_seconds: number;
     short_domain: string;
     send_kind: string;
-    /** A send claim still in 'claimed' this long after it was made is logged as STUCK (never resent: at-most-once). */
+    /** Age in seconds an operator's listStuckDeliveryClaims query uses by default. The webhook does not age-gate held claims: a held claim with no stored message is flagged at once. */
     stuck_claim_after_seconds: number;
     /** Most rows listStuckDeliveryClaims returns (oldest first). Bounds the operator reconcile query. */
     stuck_claim_list_limit: number;
     /** NAME of the env var holding the base64 32-byte AES-256-GCM key that encrypts a held claim's stored buyer email. */
     link_key_env: string;
+    /** Key id written into each new encrypted claim message (envelope v2). A legacy v1 envelope is read as this id. */
+    link_key_id: string;
+    /** Origin of the buyer download link ({origin}/books/d/{token}). An https origin with no path. */
+    download_origin: string;
+    /**
+     * When the stored-message change took effect (migration 20261118120000). A held claim created before this instant with no
+     * stored message may have been sent without one, so it is flagged for manual reconciliation, never resent or re-minted.
+     * A later value is the safe direction (more claims are flagged). Set it to the deploy time before deploying.
+     */
+    stored_message_since: string;
   };
   /** Transactional email (Resend). `from` must be on `sending_domain` (DKIM-verified in Resend). */
   email: {
@@ -122,6 +132,10 @@ product_slug: { min_length: number; max_length: number; separator: string };
     reply_to: string;
     sending_domain: string;
     retryable_error_names: string[];
+    /** Resend HTTP status for a concurrent request with the same idempotency key: the original may still be accepted, so the outcome is unconfirmed. */
+    concurrent_request_status: number;
+    /** Resend error name that goes with concurrent_request_status. */
+    concurrent_request_error_name: string;
   };
   portal: { jwt_clock_skew_retry_delay_ms: number };
   consent: { text_version: string; evidence_path: { user_id_pattern: string; envelope_id_pattern: string } };
@@ -222,6 +236,11 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     stuck_claim_list_limit: 500,
     // Only the env var NAME is a setting; the key value never lives in the registry or the repo.
     link_key_env: "DELIVERY_LINK_KEY",
+    // Key id for new encrypted claim messages. Bump it together with the key in link_key_env when the key is rotated.
+    link_key_id: "k1",
+    download_origin: "https://expanpress.com",
+    // The version timestamp of migration 20261118120000_delivery_claim_link.sql. Set to the deploy time before deploying.
+    stored_message_since: "2026-11-18T12:00:00Z",
   },
   email: {
     from: "ExpanPress <support@esign.expanpress.com>",
@@ -233,6 +252,8 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
       "internal_server_error",
       "daily_quota_exceeded",
     ],
+    concurrent_request_status: 409,
+    concurrent_request_error_name: "concurrent_idempotent_requests",
   },
   portal: { jwt_clock_skew_retry_delay_ms: 350 },
   admin: { admin_user_ids: [], audit_log_page_size: 50 },
@@ -616,7 +637,7 @@ export function loadDeliverySection(raw: Record<string, unknown> | undefined): G
   if (!raw) return defaults;
   const record = raw as Partial<GlobalSettings["delivery"]> & Record<string, unknown>;
   const fallbacks: string[] = [];
-  const str = (key: "bucket" | "short_domain" | "send_kind" | "link_key_env"): string => {
+  const str = (key: "bucket" | "short_domain" | "send_kind" | "link_key_env" | "link_key_id" | "download_origin" | "stored_message_since"): string => {
     if (!(key in record)) return defaults[key];
     const candidate = record[key];
     if (typeof candidate === "string" && candidate.trim() !== "" && candidate === candidate.trim()) return candidate;
@@ -634,6 +655,17 @@ export function loadDeliverySection(raw: Record<string, unknown> | undefined): G
   const linkKeyEnv = str("link_key_env");
   const validLinkKeyEnv = /^[A-Z][A-Z0-9_]{0,63}$/.test(linkKeyEnv);
   if (!validLinkKeyEnv) fallbacks.push("link_key_env");
+  // A key id travels inside the ciphertext envelope, which separates fields with ":", so it is restricted to a safe charset.
+  const linkKeyId = str("link_key_id");
+  const validLinkKeyId = /^[A-Za-z0-9-]{1,32}$/.test(linkKeyId);
+  if (!validLinkKeyId) fallbacks.push("link_key_id");
+  // The buyer link origin: https, host only. Anything else falls back to the default (and warns).
+  const downloadOrigin = str("download_origin");
+  const validDownloadOrigin = /^https:\/\/[a-z0-9.-]+$/i.test(downloadOrigin);
+  if (!validDownloadOrigin) fallbacks.push("download_origin");
+  const storedSince = str("stored_message_since");
+  const validStoredSince = Number.isFinite(Date.parse(storedSince));
+  if (!validStoredSince) fallbacks.push("stored_message_since");
   const out = {
     bucket: str("bucket"),
     link_ttl_days: posInt("link_ttl_days", 1, 365),
@@ -643,6 +675,9 @@ export function loadDeliverySection(raw: Record<string, unknown> | undefined): G
     stuck_claim_after_seconds: posInt("stuck_claim_after_seconds", 60, 86400),
     stuck_claim_list_limit: posInt("stuck_claim_list_limit", 1, 10000),
     link_key_env: validLinkKeyEnv ? linkKeyEnv : defaults.link_key_env,
+    link_key_id: validLinkKeyId ? linkKeyId : defaults.link_key_id,
+    download_origin: validDownloadOrigin ? downloadOrigin : defaults.download_origin,
+    stored_message_since: validStoredSince ? storedSince : defaults.stored_message_since,
   };
   if (fallbacks.length > 0) warnFallback("global.json", `invalid delivery values for ${fallbacks.join(", ")}`);
   return out;
@@ -656,6 +691,15 @@ export function loadEmailSection(raw: Record<string, unknown> | undefined): Glob
   if (names !== undefined && !(Array.isArray(names) && names.length > 0 && names.every((entry) => typeof entry === "string" && entry !== "" && entry === entry.trim()))) {
     warnFallback("global.json", "invalid email values for retryable_error_names");
     merged.retryable_error_names = DEFAULT_GLOBAL.email.retryable_error_names;
+  }
+  // The concurrent-request status must be a 4xx; anything else would silently never match and reclassify the outcome.
+  if (!intInRange(merged.concurrent_request_status, 400, 499)) {
+    warnFallback("global.json", "invalid email values for concurrent_request_status");
+    merged.concurrent_request_status = DEFAULT_GLOBAL.email.concurrent_request_status;
+  }
+  if (typeof merged.concurrent_request_error_name !== "string" || merged.concurrent_request_error_name.trim() === "") {
+    warnFallback("global.json", "invalid email values for concurrent_request_error_name");
+    merged.concurrent_request_error_name = DEFAULT_GLOBAL.email.concurrent_request_error_name;
   }
   return merged;
 }

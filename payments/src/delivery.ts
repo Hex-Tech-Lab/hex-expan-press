@@ -16,15 +16,24 @@
  * Held claims (PR 136 H1): before the send, the rendered buyer message is stored encrypted on the claim row
  * (delivery_sends.link_ciphertext, AES-256-GCM, key from DELIVERY_LINK_KEY). A retry for a held or unconfirmed claim
  * resends those exact bytes under the same Resend idempotency key (provider|saleId|sendKind), so it cannot become a
- * second distinct email. The stored message is cleared once the send is confirmed. No message is ever sent without
- * being stored first, which is why a claim with no stored message can be minted fresh without risking a second email.
+ * second distinct email. The resend first confirms that the link is still issued and unexpired (download_events), so a
+ * dead link is never emailed. The stored message is cleared once the send is confirmed.
+ *
+ * A claim with NO stored message (PR 136 review H1, H5):
+ *   - a sent-but-unconfirmed claim with no message is never resent: this code clears the message only after confirmation,
+ *     so such a row is legacy. It is flagged for manual reconciliation and answers 503;
+ *   - a held claim created before delivery.stored_message_since is legacy: it may have been sent without a message. It is
+ *     never resent and never re-minted; it is flagged and answers 503;
+ *   - a held claim created at or after that instant with no message was never sent: this code stores the message before any
+ *     send, so the store must have failed before landing. It is minted fresh. This keeps an in-flight claim from stranding.
+ * A store that failed and was read back as landed nowhere releases its claim, so the retry starts clean.
  */
 import { createHash, randomBytes } from "node:crypto";
 import { GLOBAL } from "./settings_registry.ts";
 import { EmailSendError, sendEmail as realSendEmail } from "./email.ts";
 import { DeliveryBlockedError, DeliveryPendingError, StaleFenceError } from "./delivery_errors.ts";
 import { createDeliverySendsStore, type DeliverySendClaim } from "./delivery_sends_store.ts";
-import { decryptClaimMessage, encryptClaimMessage, loadDeliveryLinkKey } from "./delivery_link_crypto.ts";
+import { claimMessageKeyId, decryptClaimMessage, encryptClaimMessage, loadDeliveryLinkKey } from "./delivery_link_crypto.ts";
 import { getSupabaseAdmin } from "./supabase_admin.ts";
 
 export { StaleFenceError, DeliveryPendingError, type DeliverySendClaim };
@@ -76,6 +85,8 @@ export interface DeliveryDb {
   }): Promise<boolean>;
   /** Removes the link_issued row for this sale and token, so a later attempt can issue again. */
   releaseLinkIssued(row: { saleId: string; tokenHash: string }): Promise<void>;
+  /** True when this sale's link_issued row for the token exists and has not expired at `now`. A resend is refused without it. */
+  linkStillIssued(row: { saleId: string; tokenHash: string; now: Date }): Promise<boolean>;
   /** True once a send for this provider's sale has been confirmed accepted. Sale IDs are scoped by provider. */
   deliveryConfirmed(provider: string, saleId: string): Promise<boolean>;
   /** Records that the send for this provider's sale link was accepted. Called only after the send resolves. */
@@ -159,23 +170,52 @@ function withDeadline<T>(work: Promise<T>, ms: number, label: string): Promise<T
 }
 
 /**
- * A held claim with no stored message is minted fresh (see deliverSale). Once it is older than delivery.stuck_claim_after_seconds
- * it is logged at error level, so an operator can verify the buyer by hand (listStuckDeliveryClaims).
+ * Flags a claim that a retry cannot resend safely, for an operator to reconcile (listStuckDeliveryClaims). Logs at error
+ * level with the sale id and provider only: never the buyer email, the link or the ciphertext.
  */
-function noteHeldClaim(provider: string, saleId: string, sendKind: string, claimedAt: string | undefined, deps: DeliveryDeps): void {
-  const thresholdMs = GLOBAL.delivery.stuck_claim_after_seconds * 1000;
-  if (claimedAt === undefined || !Number.isFinite(thresholdMs)) return;
-  const ageMs = (deps.now ? deps.now() : new Date()).getTime() - Date.parse(claimedAt);
-  if (!Number.isFinite(ageMs) || ageMs <= thresholdMs) return;
+function flagForManualReconciliation(provider: string, saleId: string, sendKind: string, reason: string): void {
   console.error(
-    `[delivery] STUCK CLAIM sale=${saleId} provider=${provider} send_kind=${sendKind} claimed_at=${claimedAt}: ` +
-      "held claim with no stored buyer message. Verify the buyer and resend by hand (listStuckDeliveryClaims).",
+    `[delivery] MANUAL RECONCILE sale=${saleId} provider=${provider} send_kind=${sendKind}: ${reason}. ` +
+      "The webhook answers 503 until an operator resolves this claim.",
   );
+}
+
+/**
+ * True when a held claim predates the stored-message change, or when its creation time is unknown (fail closed). Such a claim
+ * may have been sent without a stored message, so it is never re-minted. delivery.stored_message_since is the cutover.
+ */
+function isLegacyClaim(claimedAt: string | undefined): boolean {
+  const created = claimedAt === undefined ? Number.NaN : Date.parse(claimedAt);
+  return !(created >= Date.parse(GLOBAL.delivery.stored_message_since));
+}
+
+/**
+ * Releases a definite non-send: the claim, then its link. The claim goes first. A claim kept with its message still points
+ * at a live link, which is safe to resend. A link dropped under a kept claim would email a dead link, so that order is never
+ * used. A failure to release the claim throws, and the link is then kept with it. A failure to release the link only leaves an
+ * orphan row that no claim points at, so it is logged and not thrown.
+ */
+async function releaseVerifiedNonSend(
+  input: { provider: string; saleId: string; sendKind: string; fence?: number; releaseClaim: boolean; linkInserted: boolean; tokenHash: string },
+  deps: DeliveryDeps,
+): Promise<void> {
+  if (input.releaseClaim) {
+    await deps.db.releaseDeliverySend({ provider: input.provider, saleId: input.saleId, sendKind: input.sendKind, fence: input.fence });
+  }
+  if (input.linkInserted) {
+    try {
+      await deps.db.releaseLinkIssued({ saleId: input.saleId, tokenHash: input.tokenHash });
+    } catch (releaseErr) {
+      console.error(`[delivery] sale ${input.saleId}: could not release link row (orphan; no claim points at it): ${String(releaseErr)}`);
+    }
+  }
 }
 
 export type DeliveryOutcome = "sent" | "duplicate" | "no_email" | "no_release_file";
 
 const esc = (s: string): string => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+
+const errorText = (err: unknown): string => (err instanceof Error ? err.message : String(err));
 
 /** The buyer email as rendered once. Stored encrypted on the claim, so a retry sends these exact bytes. */
 interface BuyerMessage {
@@ -245,7 +285,8 @@ async function clearStoredMessage(deps: DeliveryDeps, key: { provider: string; s
 
 /**
  * Resends the identical stored message under the same idempotency key. Any failure answers 503 (DeliveryPendingError):
- * the stored message is kept, so the next retry sends the same bytes again.
+ * the stored message is kept, so the next retry sends the same bytes again. Nothing is sent unless the message decrypts
+ * and its link is still issued and unexpired; otherwise the buyer would get a dead link marked as delivered.
  */
 async function resendStoredMessage(
   input: { provider: string; saleId: string; fence?: number },
@@ -260,7 +301,28 @@ async function resendStoredMessage(
     const linkKey = deps.linkKey ?? loadDeliveryLinkKey();
     message = parseBuyerMessage(decryptClaimMessage(stored, linkKey, idempotencyKey));
   } catch (err) {
+    // Logged once per attempt. The key id names the envelope's key so a rotation or a corrupt row is diagnosable.
+    console.error(
+      `[delivery] sale ${input.saleId} provider=${input.provider}: stored claim message is unreadable (link key id ${claimMessageKeyId(stored) ?? "unknown"}); ` +
+        `not sent, answering 503. Check DELIVERY_LINK_KEY against that key id. ${errorText(err)}`,
+    );
     throw new DeliveryPendingError(input.saleId, err);
+  }
+  const now = deps.now ? deps.now() : new Date();
+  let live: boolean;
+  try {
+    live = await deps.db.linkStillIssued({ saleId: input.saleId, tokenHash: message.tokenHash, now });
+  } catch (err) {
+    throw new DeliveryPendingError(input.saleId, err);
+  }
+  if (!live) {
+    flagForManualReconciliation(
+      input.provider,
+      input.saleId,
+      key.sendKind,
+      "the stored buyer message points at a link that is no longer issued or has expired; not sent",
+    );
+    throw new DeliveryPendingError(input.saleId, new Error("the download link for this sale is no longer issued"));
   }
   try {
     await sendBuyerMessage(deps, message, idempotencyKey, deadlineMs);
@@ -322,15 +384,16 @@ export async function deliverSale(
     // Held or sent-but-unconfirmed with a stored message: resend the identical bytes under the same key.
     const stored = await deps.db.readClaimMessage(key);
     if (stored !== null) return await resendStoredMessage(input, key, stored, deps, deadlineMs);
-    if (!held) {
-      // Sent without a confirmation and without a stored message (a row from before the stored-message change). It cannot
-      // be resent identically, so it is not resent; an operator checks it.
-      console.error(`[delivery] sale ${input.saleId}: sent without a confirmation and no stored message; not resent (operator check)`);
-      return "duplicate";
+    // No stored message. A held claim created after the change was never sent (the message is stored before any send), so it is
+    // minted below. Every other case may already have been sent: nothing is sent or re-minted. The 503 path keeps the claim for
+    // an operator to reconcile.
+    if (!held || isLegacyClaim(claim.claimedAt)) {
+      const reason = held
+        ? "held claim created before the stored-message change with no stored buyer message; not resent (it may already have been sent)"
+        : "sent without a confirmation and no stored buyer message; not resent (it may already have been delivered)";
+      flagForManualReconciliation(input.provider, input.saleId, sendKind, reason);
+      throw new DeliveryPendingError(input.saleId, new Error(reason));
     }
-    // Held with no stored message: this code stores the message before any send, so no email was sent for this claim.
-    // Mint a new message below. Pre-migration held rows are the exception (see the stuck-claim log).
-    noteHeldClaim(input.provider, input.saleId, sendKind, claim.claimedAt, deps);
   }
 
   const now = deps.now ? deps.now() : new Date();
@@ -391,8 +454,7 @@ export async function deliverSale(
       tokenHash: hash,
     });
     // The exact bytes are stored BEFORE the send. A fenced write: a newer worker that owns the claim makes this stale, and
-    // nothing is sent. A missing link key throws here, before any send, so the claim is released below.
-    // Encrypt before the store: a missing key throws here, before any write, so the claim is released below.
+    // nothing is sent. A missing link key throws here, before any write, so the claim is released below.
     const ciphertext = encryptClaimMessage(JSON.stringify(message), deps.linkKey ?? loadDeliveryLinkKey(), idempotencyKey);
     storeAttempted = true;
     await deps.db.storeClaimMessage({
@@ -406,34 +468,39 @@ export async function deliverSale(
     await sendBuyerMessage(deps, message, idempotencyKey, deadlineMs);
   } catch (err) {
     if (!sendAttempted && storeAttempted) {
-      // The store may have landed (lost response), or another worker already holds the message. The claim and the link row may
-      // belong to a stored message, so neither is released. The retry resends a stored message or mints again only if none exists.
+      // The store may have landed (lost response), or another worker already holds the message. A newer fence owner keeps its claim.
       if (err instanceof StaleFenceError) throw err;
+      // Read back. If no message landed, nothing was stored and nothing was sent: a verified non-send, so the claim and link are
+      // released and the retry starts clean. If a message landed, both are kept and the retry resends that message.
+      let nothingStored = false;
+      try {
+        nothingStored = (await deps.db.readClaimMessage(key)) === null;
+      } catch (readErr) {
+        console.error(`[delivery] sale ${input.saleId}: could not read back the claim message after a failed store: ${errorText(readErr)}`);
+      }
+      if (nothingStored) {
+        try {
+          await releaseVerifiedNonSend({ ...key, fence: input.fence, releaseClaim: true, linkInserted, tokenHash: hash }, deps);
+        } catch (releaseErr) {
+          console.error(`[delivery] sale ${input.saleId}: could not release the claim after a failed store: ${errorText(releaseErr)}`);
+        }
+      }
       throw new DeliveryPendingError(input.saleId, err);
     }
-    // Release the link and claim ONLY when no email could have been accepted: before the store and the send, or on a definite
-    // provider 4xx rejection. On an ambiguous send failure (timeout, transport error, 5xx), keep BOTH rows so the retry resends
-    // the stored message.
+    // Release ONLY when no email could have been accepted: before the store and the send, or on a definite provider 4xx
+    // rejection (409 concurrent_idempotent_requests is not definite). On an ambiguous send failure keep BOTH rows so the retry
+    // resends the stored message.
     const definiteNonSend = !sendAttempted || (err instanceof EmailSendError && err.definite);
     if (!definiteNonSend) throw new DeliveryPendingError(input.saleId, err);
-    if (linkInserted) {
-      try {
-        await deps.db.releaseLinkIssued({ saleId: input.saleId, tokenHash: hash });
-      } catch (releaseErr) {
-        console.error(`[delivery] sale ${input.saleId}: could not release link row: ${String(releaseErr)}`);
-      }
-    }
-    if (!(err instanceof StaleFenceError)) {
-      try {
-        await deps.db.releaseDeliverySend({
-          provider: input.provider,
-          saleId: input.saleId,
-          sendKind,
-          fence: input.fence,
-        });
-      } catch (releaseClaimErr) {
-        console.error(`[delivery] sale ${input.saleId}: could not release send claim: ${String(releaseClaimErr)}`);
-      }
+    try {
+      await releaseVerifiedNonSend(
+        { ...key, fence: input.fence, releaseClaim: !(err instanceof StaleFenceError), linkInserted, tokenHash: hash },
+        deps,
+      );
+    } catch (releaseErr) {
+      // The claim could not be released, so it keeps its state, and its link stays with it. The retry is safe: it resends the
+      // stored message against a live link, or flags the claim if it was created before the change.
+      console.error(`[delivery] sale ${input.saleId}: could not release send claim: ${errorText(releaseErr)}`);
     }
     throw err;
   }
@@ -484,7 +551,7 @@ export function saleDeliveryConfirmed(provider: string, saleId: string): Promise
 
 /** Production wiring: Supabase for persistence, Resend for mail, Dub for the short link. */
 export function productionDeps(): DeliveryDeps {
-  const origin = "https://expanpress.com";
+  const origin = GLOBAL.delivery.download_origin;
   const replyTo = GLOBAL.email.reply_to;
   return {
     db: supabaseDeliveryDb(),
@@ -567,6 +634,21 @@ function supabaseDeliveryDb(): DeliveryDb {
         .eq("token_hash", row.tokenHash)
         .eq("event_type", "link_issued");
       if (error) throw new Error(`link release failed: ${error.message}`);
+    },
+    async linkStillIssued(row) {
+      const sb = await getSupabaseAdmin();
+      if (!sb) throw new Error("Supabase admin client unavailable");
+      // expires_at NULL never matches the gt filter, so a link with no expiry is refused (fail closed).
+      const { data, error } = await sb
+        .from("download_events")
+        .select("token_hash")
+        .eq("sale_id", row.saleId)
+        .eq("token_hash", row.tokenHash)
+        .eq("event_type", "link_issued")
+        .gt("expires_at", row.now.toISOString())
+        .limit(1);
+      if (error) throw new Error(`link lookup failed: ${error.message}`);
+      return (data ?? []).length > 0;
     },
     async deliveryConfirmed(provider, saleId) {
       const sb = await getSupabaseAdmin();

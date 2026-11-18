@@ -86,7 +86,8 @@ const usdColumn = (field: string, min: number) =>
 /**
  * Write contract for public.orders, enforced immediately before the upsert so a malformed or
  * non-cent-exact value is rejected here (→ route 500, provider retries) instead of being
- * silently rounded or rejected by Postgres. Mirrors 20260927000200_orders_ledger.sql and the
+ * silently rounded or rejected by Postgres. A violation throws OrderSchemaError, which the webhook handler
+ * quarantines and answers with a terminal 400 (no provider retry). Mirrors 20260927000200_orders_ledger.sql and the
  * event_type CHECK widened in 20261003000200. amount_usd is always non-negative; the splits are
  * negated on "refund" rows (appendRefund) and positive on "sale" / "refund_reversal" rows.
  */
@@ -159,7 +160,8 @@ async function persistToSupabaseOrder(record: SaleRecord, fence?: number): Promi
     return;
   }
   try {
-    // Zod gate: the last check before the DB boundary. A violation throws a typed error (500 → retry); nothing is written.
+    // Zod gate: the last check before the DB boundary. A violation throws OrderSchemaError; the handler quarantines it and
+    // answers a terminal 400 (no retry). Nothing is written.
     const parsed = OrderUpsertSchema.safeParse({
       provider: record.provider,
       sale_id: record.sale_id,
@@ -281,17 +283,25 @@ function rowToSaleRecord(data: OrdersRow): SaleRecord {
   };
 }
 
+/** Read the local sales ledger. Only ENOENT means "no ledger yet" (null). Any other read error (EACCES, EIO, EISDIR)
+ *  is logged and rethrown: a broken ledger must never look empty, or a duplicate check would pass and re-book a sale. */
+function readLedgerText(salesFile: string): string | null {
+  try {
+    return readFileSync(salesFile, "utf8");
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return null;
+    console.error("ledger: sales ledger read failed:", err);
+    throw err instanceof Error ? err : new Error(String(err));
+  }
+}
+
 /** Find an already-recorded sale by provider + sale_id (webhook idempotency guard).
- *  Tolerant read: missing file or malformed lines are skipped (same posture as reports). */
+ *  Missing file → null. Malformed lines are skipped; other read errors throw (see readLedgerText). */
 export function findSale(provider: string, saleId: string, salesFile: string = SALES_FILE): SaleRecord | null {
   salesFile = resolveSalesFile(salesFile);
-  let lines: string[];
-  try {
-    lines = readFileSync(salesFile, "utf8").split(/\r?\n/);
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code !== "ENOENT") console.error("ledger: sales ledger read failed (treated as no ledger yet):", err);
-    return null; // no ledger yet
-  }
+  const text = readLedgerText(salesFile);
+  if (text === null) return null; // no ledger yet
+  const lines = text.split(/\r?\n/);
   for (const line of lines) {
     const trimmed = line.trim();
     if (trimmed === "") continue;
@@ -318,7 +328,12 @@ async function queryOrderRowFromSupabase(
     // fix-forward): a construction failure is logged + rethrown by the catch
     // below instead of escaping raw.
     const supabase = await getSupabaseAdmin();
-    if (!supabase) return null;
+    if (!supabase) {
+      // Unconfigured Supabase. In a money-path runtime a missing client must NOT read as "not found": a duplicate
+      // check would pass and the sale, refund or reversal would be booked again. Outside it (local dev, tests) it is a clean miss.
+      if (isMoneyPath()) throw new Error(`ledger: Supabase ${errorContext} unavailable: client not configured in a money-path runtime`);
+      return null;
+    }
     let query = supabase.from("orders").select(ORDERS_SELECT_COLUMNS);
     for (const [col, val] of Object.entries(filters)) {
       query = query.eq(col, val);
@@ -369,13 +384,9 @@ export function isAdjustmentIdUniqueViolation(err: unknown): boolean {
  *  Tolerant read: missing file or malformed lines are skipped (same posture as findRefund). */
 function findByProviderAdjustmentId(provider: string, providerAdjustmentId: string, eventType: "refund" | "refund_reversal", salesFile: string = SALES_FILE): SaleRecord | null {
   salesFile = resolveSalesFile(salesFile);
-  let lines: string[];
-  try {
-    lines = readFileSync(salesFile, "utf8").split(/\r?\n/);
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code !== "ENOENT") console.error("ledger: sales ledger read failed (treated as no ledger yet):", err);
-    return null; // no ledger yet
-  }
+  const text = readLedgerText(salesFile);
+  if (text === null) return null; // no ledger yet
+  const lines = text.split(/\r?\n/);
   for (const line of lines) {
     const trimmed = line.trim();
     if (trimmed === "") continue;
@@ -393,7 +404,7 @@ function findByProviderAdjustmentId(provider: string, providerAdjustmentId: stri
 }
 
 /** Async twin of findByProviderAdjustmentId, backed by Supabase public.orders.
- *  Returns null (not throws) on unconfigured Supabase; lookup errors FAIL CLOSED
+ *  Unconfigured Supabase returns null outside a money-path runtime and throws inside one; lookup errors FAIL CLOSED
  *  (throw) so a caller cannot mistake a broken lookup for "not a replay". */
 export async function findByProviderAdjustmentIdAsync(provider: string, providerAdjustmentId: string, eventType: "refund" | "refund_reversal", salesFile: string = SALES_FILE): Promise<SaleRecord | null> {
   const local = findByProviderAdjustmentId(provider, providerAdjustmentId, eventType, salesFile);
@@ -409,13 +420,9 @@ export async function findByProviderAdjustmentIdAsync(provider: string, provider
  *  Tolerant read: missing file or malformed lines are skipped (same posture as reports). */
 export function findRefund(provider: string, saleId: string, salesFile: string = SALES_FILE): SaleRecord | null {
   salesFile = resolveSalesFile(salesFile);
-  let lines: string[];
-  try {
-    lines = readFileSync(salesFile, "utf8").split(/\r?\n/);
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code !== "ENOENT") console.error("ledger: sales ledger read failed (treated as no ledger yet):", err);
-    return null; // no ledger yet
-  }
+  const text = readLedgerText(salesFile);
+  if (text === null) return null; // no ledger yet
+  const lines = text.split(/\r?\n/);
   for (const line of lines) {
     const trimmed = line.trim();
     if (trimmed === "") continue;
@@ -578,13 +585,9 @@ export async function findRefundAsync(provider: string, saleId: string, salesFil
 /** Find an already-recorded REFUND_REVERSAL by provider + sale_id (reversal idempotency guard). */
 export function findRefundReversal(provider: string, saleId: string, salesFile: string = SALES_FILE): SaleRecord | null {
   salesFile = resolveSalesFile(salesFile);
-  let lines: string[];
-  try {
-    lines = readFileSync(salesFile, "utf8").split(/\r?\n/);
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code !== "ENOENT") console.error("ledger: sales ledger read failed (treated as no ledger yet):", err);
-    return null;
-  }
+  const text = readLedgerText(salesFile);
+  if (text === null) return null; // no ledger yet
+  const lines = text.split(/\r?\n/);
   for (const line of lines) {
     const trimmed = line.trim();
     if (trimmed === "") continue;
@@ -661,6 +664,13 @@ function appendRecord(record: SaleRecord, salesFile: string): Promise<void> {
   });
 }
 
+/** Idempotent local mirror of a record that is already durable in Supabase. Duplicate paths call it: the durable write
+ *  can commit while the local append then fails, and a retry finds the record only in Supabase. Without this the local
+ *  ledger (what reports read) would stay short. A key already present locally is a no-op (appendRecord's check). */
+export function mirrorToLocalLedger(record: SaleRecord, salesFile: string = SALES_FILE): Promise<void> {
+  return appendRecord(record, salesFile);
+}
+
 export async function appendSale(sale: SaleRecord, salesFile: string = SALES_FILE, fence?: number): Promise<SaleRecord> {
   assertSale(sale);
   const record: SaleRecord = {
@@ -688,13 +698,9 @@ export async function appendSale(sale: SaleRecord, salesFile: string = SALES_FIL
  *  Tolerant read: missing file or malformed lines are skipped (same posture as findSale). */
 export function findSalesByAttribution(attributionId: string, salesFile: string = SALES_FILE): SaleRecord[] {
   salesFile = resolveSalesFile(salesFile);
-  let lines: string[];
-  try {
-    lines = readFileSync(salesFile, "utf8").split(/\r?\n/);
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code !== "ENOENT") console.error("ledger: sales ledger read failed (treated as empty):", err);
-    return [];
-  }
+  const text = readLedgerText(salesFile);
+  if (text === null) return []; // no ledger yet
+  const lines = text.split(/\r?\n/);
   const out: SaleRecord[] = [];
   for (const line of lines) {
     const trimmed = line.trim();
@@ -748,7 +754,8 @@ export async function appendRefund(refund: RefundSpec, salesFile: string = SALES
     if (fence !== undefined) {
       await persistToSupabaseOrder(already, fence);
     }
-    return already; // duplicate refund → resolve with the existing record (no throw, no duplicate write)
+    await mirrorToLocalLedger(already, salesFile); // duplicate refund: heal a lost local append, then resolve with the existing record
+    return already;
   }
   const record: SaleRecord = {
     ts,
@@ -809,6 +816,7 @@ export async function appendRefundReversal(spec: RefundSpec, salesFile: string =
     if (fence !== undefined) {
       await persistToSupabaseOrder(alreadyReversal, fence);
     }
+    await mirrorToLocalLedger(alreadyReversal, salesFile); // duplicate reversal: heal a lost local append
     return alreadyReversal;
   }
 

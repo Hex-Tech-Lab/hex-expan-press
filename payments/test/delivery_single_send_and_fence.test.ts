@@ -81,7 +81,7 @@ function makePgliteSupabaseClient(pg: PGlite) {
     return `"${col.replace(/"/g, "")}"`;
   };
 
-  const buildWhere = (filters: Array<{ op: "eq" | "lte" | "is"; col: string; val: unknown }>, startIdx = 1) => {
+  const buildWhere = (filters: Array<{ op: "eq" | "lte" | "gt" | "is"; col: string; val: unknown }>, startIdx = 1) => {
     const clauses: string[] = [];
     const params: unknown[] = [];
     for (const f of filters) {
@@ -90,6 +90,9 @@ function makePgliteSupabaseClient(pg: PGlite) {
         clauses.push(`${expr} is null`);
       } else if (f.op === "lte") {
         clauses.push(`${expr} <= $${startIdx + params.length}`);
+        params.push(f.val);
+      } else if (f.op === "gt") {
+        clauses.push(`${expr} > $${startIdx + params.length}`);
         params.push(f.val);
       } else {
         clauses.push(`${expr} = $${startIdx + params.length}`);
@@ -107,7 +110,7 @@ function makePgliteSupabaseClient(pg: PGlite) {
       let returningCols: string | null = null;
       let payload: Record<string, unknown> | null = null;
       let upsertOpts: { onConflict?: string; ignoreDuplicates?: boolean } | undefined;
-      const filters: Array<{ op: "eq" | "lte" | "is"; col: string; val: unknown }> = [];
+      const filters: Array<{ op: "eq" | "lte" | "gt" | "is"; col: string; val: unknown }> = [];
       let orderSql = "";
       let limitSql = "";
       let wantMaybeSingle = false;
@@ -211,6 +214,10 @@ function makePgliteSupabaseClient(pg: PGlite) {
         },
         lte(col: string, val: unknown) {
           filters.push({ op: "lte", col, val });
+          return chain;
+        },
+        gt(col: string, val: unknown) {
+          filters.push({ op: "gt", col, val });
           return chain;
         },
         is(col: string, val: unknown) {
@@ -356,6 +363,17 @@ function makeDeps(sendEmail: ReturnType<typeof vi.fn>, createShortLink?: ReturnT
 }
 
 describe("Option A + Option B single-send guard & fencing tokens (cases a-d + SQL invariants)", () => {
+  // These cases create claims with the database clock (now()). Claims created now must count as post-change, so the cutover is
+  // moved before them for this block only. The legacy cases below set their own pre-change created_at.
+  let savedSince: string;
+  beforeEach(() => {
+    savedSince = GLOBAL.delivery.stored_message_since;
+    GLOBAL.delivery.stored_message_since = "2000-01-01T00:00:00.000Z";
+  });
+  afterEach(() => {
+    GLOBAL.delivery.stored_message_since = savedSince;
+  });
+
   it("migration invariants: RLS enabled, no policies, anon/authenticated revoked, functions search_path empty", async () => {
     const rls = await pg.query<{ relrowsecurity: boolean }>(
       "select relrowsecurity from pg_catalog.pg_class where relname = 'delivery_sends' and relnamespace = 'public'::regnamespace",
@@ -697,10 +715,10 @@ describe("Option A + Option B single-send guard & fencing tokens (cases a-d + SQ
 });
 
 // B2 + H1: a held claim resends its stored message (identical bytes, same idempotency key) and is never a silent 200.
-// A held claim with NO stored message (a pre-migration row) cannot be resent identically: it is minted fresh, and past
-// delivery.stuck_claim_after_seconds it is logged as STUCK. The operator reconcile query lists held claims.
-describe("stuck claim visibility (B2 + H1): held claims resend the stored message; rows without one are logged STUCK past the threshold", () => {
-  it("a held claim resends its stored message identically inside the threshold (no STUCK log)", async () => {
+// A held claim with NO stored message (a pre-migration row) cannot be resent identically, and a new link could be a second
+// email, so it is never resent or re-minted: it is flagged for manual reconciliation and answers 503.
+describe("stuck claim visibility (B2 + H1): held claims resend the stored message; rows without one are flagged for manual reconciliation", () => {
+  it("a held claim resends its stored message identically and logs no manual flag", async () => {
     const sendEmail = vi.fn<(input: unknown) => Promise<unknown>>()
       .mockRejectedValueOnce(new Error("socket hang up"))
       .mockResolvedValue({ id: "resent" });
@@ -711,7 +729,7 @@ describe("stuck claim visibility (B2 + H1): held claims resend the stored messag
       await expect(deliverSale({ ...sale, fence: 1 }, deps)).rejects.toMatchObject({ httpStatus: 503 });
 
       await expect(deliverSale({ ...sale, fence: 2 }, deps)).resolves.toBe("sent");
-      expect(errSpy.mock.calls.some((c) => String(c[0]).includes("STUCK CLAIM"))).toBe(false);
+      expect(errSpy.mock.calls.some((c) => String(c[0]).includes("MANUAL RECONCILE"))).toBe(false);
       expect(sendEmail).toHaveBeenCalledTimes(2);
       expect(sendEmail.mock.calls[1][0]).toEqual(sendEmail.mock.calls[0][0]);
     } finally {
@@ -719,7 +737,7 @@ describe("stuck claim visibility (B2 + H1): held claims resend the stored messag
     }
   });
 
-  it("a held claim with no stored message is minted fresh; past the threshold it logs STUCK", async () => {
+  it("a held claim with no stored message is never resent or re-minted: 503, nothing sent, flagged for manual reconciliation", async () => {
     const sendEmail = vi.fn<(input: unknown) => Promise<unknown>>()
       .mockRejectedValueOnce(new Error("socket hang up"))
       .mockResolvedValue({ id: "minted" });
@@ -728,12 +746,15 @@ describe("stuck claim visibility (B2 + H1): held claims resend the stored messag
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
     try {
       await expect(deliverSale({ ...sale, fence: 1 }, deps)).rejects.toMatchObject({ httpStatus: 503 });
-      // Simulate a pre-migration held row: no stored message, and an old claim.
-      await pg.exec("update public.delivery_sends set link_ciphertext = null, created_at = now() - interval '2 hours' where sale_id = 'sale-h-2'");
+      // Simulate a pre-migration held row: no stored message.
+      await pg.exec("update public.delivery_sends set link_ciphertext = null, created_at = '2026-11-01T00:00:00Z' where sale_id = 'sale-h-2'");
 
-      await expect(deliverSale({ ...sale, fence: 3 }, deps)).resolves.toBe("sent");
-      expect(errSpy.mock.calls.some((c) => String(c[0]).includes("STUCK CLAIM sale=sale-h-2"))).toBe(true);
-      expect(sendEmail).toHaveBeenCalledTimes(2);
+      await expect(deliverSale({ ...sale, fence: 3 }, deps)).rejects.toMatchObject({ httpStatus: 503 });
+      expect(errSpy.mock.calls.some((c) => String(c[0]).includes("MANUAL RECONCILE sale=sale-h-2 provider=paddle"))).toBe(true);
+      expect(sendEmail).toHaveBeenCalledTimes(1);
+      expect(errSpy.mock.calls.flat().map(String).join("\n")).not.toContain("buyer@example.com");
+      const rows = await pg.query("select state from public.delivery_sends where sale_id = 'sale-h-2'");
+      expect(rows.rows).toEqual([{ state: "claimed" }]); // kept for the operator, not re-minted
     } finally {
       errSpy.mockRestore();
     }

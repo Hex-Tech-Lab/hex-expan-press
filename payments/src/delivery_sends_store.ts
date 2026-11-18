@@ -103,10 +103,14 @@ async function lookupExistingDeliverySend(
 }
 
 /**
- * Operator reconcile query (no scheduler): send claims still in 'claimed' whose claim is at least
- * olderThanMs old. Such a claim is never resent by the webhook (at-most-once), so each one is a buyer
- * who may have no receipt. Verify the buyer and resend by hand. Rows with created_at <= cutoff match.
- * Capped at delivery.stuck_claim_list_limit rows, oldest first. Served by the partial index delivery_sends_claimed_created_idx.
+ * Operator reconcile query (no scheduler): 'claimed' rows whose claim is at least olderThanMs old. The webhook
+ * resends a claim that has a stored buyer message (identical bytes, same idempotency key). A held claim with no stored
+ * message that was created before delivery.stored_message_since is never resent and never re-minted: the webhook logs it
+ * for manual reconciliation and answers 503 until an operator resolves it, because a new link could reach the buyer as a
+ * second email. This query lists those claims (among others that are old enough).
+ * It covers 'claimed' rows only: a legacy 'sent' row with no stored message is flagged in the webhook log, not listed here.
+ * Rows with created_at <= cutoff match. Capped at delivery.stuck_claim_list_limit rows, oldest first.
+ * Served by the partial index delivery_sends_claimed_created_idx.
  */
 export async function listStuckDeliveryClaims(olderThanMs: number, nowMs: number = Date.now()): Promise<StuckDeliveryClaim[]> {
   // A negative window would list claims made in the future; a non-integer or out-of-range value would crash toISOString.

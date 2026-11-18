@@ -16,6 +16,7 @@ function providerScopedDeps() {
       productForAlias: vi.fn(async () => ({ id: "11111111-1111-4111-8111-111111111111", title: "Playbook", releasePath: "p/file.pdf" })),
       recordLinkIssued: vi.fn(async () => true),
       releaseLinkIssued: vi.fn(async () => undefined),
+      linkStillIssued: vi.fn(async () => true),
       deliveryConfirmed: vi.fn(async (provider: string, saleId: string) => confirmed.has(`${provider}:${saleId}`)),
       confirmDelivery: vi.fn(async ({ provider, saleId }: { provider: string; saleId: string }) => {
         confirmed.add(`${provider}:${saleId}`);

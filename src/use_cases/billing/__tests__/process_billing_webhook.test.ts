@@ -1059,7 +1059,7 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
     await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_abc"))]);
     let rows = readFileSync(salesFilePath, "utf8").split(/\r?\n/).filter(Boolean);
     expect(rows).toHaveLength(2);
-    expect(JSON.parse(rows[1]!)).toMatchObject({ event_type: "refund", provider_adjustment_id: "adj_abc" });
+    expect(JSON.parse(rows.at(1) ?? "null")).toMatchObject({ event_type: "refund", provider_adjustment_id: "adj_abc" });
 
     // Replay: same adjustment id, no lock contention, must not write a new row.
     await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_abc"))]);
@@ -1079,6 +1079,61 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
     });
     // ...while the matching replay under contention is still confirmed.
     await expect(processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_same"))])).resolves.toBeUndefined();
+  });
+
+  it("contended refund with no Supabase client in a money-path runtime -> the confirm predicate throws, not a 503 in-flight", async () => {
+    await appendSale(BASE_SALE, salesFilePath);
+    vi.stubEnv("SUPABASE_URL", "");
+    vi.stubEnv("SUPABASE_SECRET_KEY", "");
+    vi.stubEnv("VERCEL_ENV", "production");
+    setnx.mockResolvedValue(0);
+    const err = await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(REFUND)]).catch((e: Error) => e);
+    expect((err as Error).name).not.toBe("WebhookInFlightError");
+    expect((err as Error).message).toMatch(/refund lookup unavailable: client not configured in a money-path runtime/);
+  });
+
+  it("contended replay whose adjustment-id confirm lookup errors -> rethrows the lookup error (500, retried), never not-persisted (503)", async () => {
+    vi.stubEnv("SUPABASE_URL", "https://unit.test.supabase.co");
+    vi.stubEnv("SUPABASE_SECRET_KEY", "unit-test-key");
+    setnx.mockResolvedValue(1);
+    await appendSale({ ...CB_SALE }, salesFilePath);
+    await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_confirm_a"))]);
+
+    // A different adjustment id is absent locally, so the confirm lookup reaches Supabase, which errors.
+    supa.adjLookupResult = { data: null, error: { message: "db down" } };
+    setnx.mockResolvedValue(0);
+    try {
+      const err = await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_confirm_b"))]).catch((e: Error) => e);
+      expect((err as Error).name).not.toBe("WebhookInFlightError");
+      expect((err as Error).message).toMatch(/adjustment-id lookup failed: db down/);
+    } finally {
+      supa.adjLookupResult = null;
+      setnx.mockResolvedValue(1);
+    }
+  });
+
+  it("a retry for a sale held only in Supabase (local append lost) mirrors it into the local ledger before delivery", async () => {
+    vi.stubEnv("SUPABASE_URL", "https://unit.test.supabase.co");
+    vi.stubEnv("SUPABASE_SECRET_KEY", "unit-test-key");
+    setnx.mockResolvedValue(1);
+    delivery.deliverSaleForWebhook.mockClear();
+    supa.lookupResult = {
+      data: {
+        provider: "polar", sale_id: "sale_dup_1", product_id: "p1", amount_usd: 39, creator_id: "c1",
+        creator_split_pct: 50, creator_split_usd: 19.5, our_split_usd: 19.5, currency: "USD", event_type: "sale",
+        occurred_at: "2026-09-27T00:00:00.000Z", email_hash: null, attribution_id: null, provider_adjustment_id: null,
+      },
+      error: null,
+    };
+    try {
+      await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(SALE)]);
+    } finally {
+      supa.lookupResult = { data: null, error: null };
+    }
+    const rows = readFileSync(salesFilePath, "utf8").split(/\r?\n/).filter(Boolean);
+    expect(rows).toHaveLength(1);
+    expect(JSON.parse(rows.at(0) ?? "null")).toMatchObject({ provider: "polar", sale_id: "sale_dup_1", event_type: "sale" });
+    expect(delivery.deliverSaleForWebhook).toHaveBeenCalledTimes(1);
   });
 
   it("adjustment-id lookup failure with a refund already recorded -> throws (provider retries), no manual-review flag", async () => {
@@ -1375,7 +1430,9 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
       supa.adjLookupResult = conflicts("sale_OTHER", 12.5, "EUR");
       try {
         expectConflictPending(await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_normalized"))]));
-        const args = [...supa.conflicts.values()][0]!.args;
+        const firstConflict = [...supa.conflicts.values()].at(0);
+        if (!firstConflict) throw new Error("expected one pending conflict");
+        const args = firstConflict.args;
         expect(Object.keys(args.p_incoming as object).sort()).toEqual(
           ["adjustment_id", "currency", "event_type", "occurred_at", "refund_id", "sale_id", "total_cents"],
         );

@@ -27,6 +27,7 @@ function fakes(over: Partial<DeliveryDeps> & { product?: unknown; inserted?: boo
       productForAlias: vi.fn(async () => (over.product === undefined ? PRODUCT : (over.product as typeof PRODUCT | null))),
       recordLinkIssued,
       releaseLinkIssued,
+      linkStillIssued: vi.fn(async () => true),
       deliveryConfirmed: vi.fn(async () => over.confirmed ?? false),
       confirmDelivery: vi.fn(async () => undefined),
       claimDeliverySend: vi.fn(async ({ provider, saleId, sendKind, fence }) => {

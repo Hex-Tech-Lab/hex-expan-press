@@ -8,7 +8,7 @@
  */
 import { PaymentProviderPort, BillingEvent, SaleCompletedEvent, RefundIssuedEvent, RefundReversedEvent } from "../../domain/payments/payments.port.ts";
 import { WebhookValidationError } from "../../domain/webhook/webhook_errors.ts";
-import { appendSale, appendRefund, appendRefundReversal, findSaleAsync, findRefundAsync, findRefundReversalAsync, findByProviderAdjustmentIdAsync, flagRefundForManualReview, recordWebhookConflict, isAdjustmentIdUniqueViolation, OrderSchemaError } from "../../../payments/src/ledger.ts";
+import { appendSale, appendRefund, appendRefundReversal, findSaleAsync, findRefundAsync, findRefundReversalAsync, findByProviderAdjustmentIdAsync, flagRefundForManualReview, recordWebhookConflict, isAdjustmentIdUniqueViolation, mirrorToLocalLedger, OrderSchemaError } from "../../../payments/src/ledger.ts";
 import { computeSplit, usdToCents } from "../../../payments/src/split.ts";
 import { effectiveCreatorSplitPctAsync } from "../../../payments/src/terms.ts";
 import { resolveProductByAlias, withIdempotencyLock, WebhookInFlightError } from "../../../payments/src/webhook_core.ts";
@@ -277,10 +277,13 @@ async function processBillingEvent(event: BillingEvent): Promise<ConflictPending
         const saleCurrency = (sale.currency ?? GLOBAL.defaults.currency).toUpperCase();
         if (refundEvent.currency !== undefined && refundEvent.currency.toUpperCase() !== saleCurrency) return false;
         if (refundEvent.providerAdjustmentId) {
+          // The lookup resolves null only for "no such row". A lookup error, or any other fault, is NOT "not persisted":
+          // log and rethrow, so the delivery answers 500 and the provider retries (a bare catch here would mask it as 503).
           try {
             if (await findByProviderAdjustmentIdAsync(refundEvent.providerName, refundEvent.providerAdjustmentId, "refund")) return true;
-          } catch {
-            return false; // fail closed: lookup errors make the provider retry
+          } catch (err) {
+            console.error("[billing-webhook] refund confirm: adjustment-id lookup failed:", err);
+            throw err;
           }
         }
         return !reversal;
@@ -548,6 +551,8 @@ async function processBillingEvent(event: BillingEvent): Promise<ConflictPending
         // failure rethrows (500) so the provider retries.
         const existing = await findSaleAsync(saleEvent.providerName, saleEvent.saleId);
         if (existing) {
+          // Heal a lost local append first: the sale may be durable in Supabase only, and reports read the local file.
+          await mirrorToLocalLedger(existing);
           await deliverSaleForWebhook({
             provider: saleEvent.providerName,
             saleId: saleEvent.saleId,
