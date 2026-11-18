@@ -58,12 +58,12 @@ export interface HubCreator {
 /** The product slug in storefront URLs is products.slug, the agreed rule (ADR 0065, DB CHECK).
  * A product is identified by its creator handle and products.slug only; no stored derived
  * identifier is read. Every product link and the product lookup go through this one function. */
-export function productSlugOf(p: StoreProduct): string {
+export function productSlugOf(p: Pick<StoreProduct, "slug">): string {
   return p.slug ?? "";
 }
 
 /** numeric-as-string coercion with a finite guard (Sprint 15 money-path rule). */
-export function priceOf(p: StoreProduct): number | null {
+export function priceOf(p: Pick<StoreProduct, "price_usd">): number | null {
   if (p.price_usd == null) return null;
   const n = Number(p.price_usd);
   return Number.isFinite(n) ? n : null;
@@ -74,7 +74,7 @@ export function isWorkingTitle(p: StoreProduct): boolean {
 }
 
 /** Only commercial products (store_product_id) belong on a storefront. */
-export function commercialProducts(products: StoreProduct[] | null | undefined): StoreProduct[] {
+export function commercialProducts<T extends { store_product_id: string | null }>(products: T[] | null | undefined): T[] {
   return (products ?? []).filter((p) => typeof p.store_product_id === "string" && p.store_product_id !== "");
 }
 
@@ -110,19 +110,30 @@ export const fetchCreatorHub = cache(async function fetchCreatorHub(handle: stri
   return { creator: { ...creator, products }, origin };
 });
 
-/** B2C landing (/books): every creator with at least one live, commercial product. Same data rule as the hub. */
-export const fetchB2cLanding = cache(async function fetchB2cLanding(): Promise<HubCreator[]> {
+/** The fields /books renders (price, title, link). Nothing else is transferred for the landing. */
+export type LandingProduct = Pick<StoreProduct, "id" | "store_product_id" | "slug" | "title" | "price_usd" | "checkout_mode">;
+export interface LandingCreator {
+  handle: string;
+  display_name: string;
+  products: LandingProduct[];
+}
+
+/** B2C landing (/books): every creator with at least one live, commercial product. Same data rule as the hub.
+ * The filter runs in PostgREST: `!inner` keeps only creators with a matching product, and the embed returns only
+ * those products, so catalog growth does not grow the transfer. The JS filter below is a guard, not the gate. */
+export const fetchB2cLanding = cache(async function fetchB2cLanding(): Promise<LandingCreator[]> {
   const supabase = await getSupabaseAdmin();
   if (!supabase) {
     throw new Error("storefront: Supabase admin client unavailable — B2C landing cannot render (fail closed)");
   }
   const { data, error } = await supabase
     .from("creators")
-    .select(
-      "handle, display_name, platform_handles, bio, photo, products(id, store_product_id, slug, title, price_usd, currency, working_note, description, disclaimers, checkout_mode, inside)",
-    );
+    .select("handle, display_name, products!inner(id, store_product_id, slug, title, price_usd, checkout_mode)")
+    .eq("products.checkout_mode", "live")
+    .not("products.store_product_id", "is", null)
+    .neq("products.store_product_id", "");
   if (error) throw new Error(`storefront: B2C landing query failed: ${error.message}`);
-  const rows = (data ?? []) as HubCreator[];
+  const rows = (data ?? []) as LandingCreator[];
   return rows
     .map((c) => ({ ...c, products: commercialProducts(c.products).filter((p) => p.checkout_mode === "live") }))
     .filter((c) => c.products.length > 0);

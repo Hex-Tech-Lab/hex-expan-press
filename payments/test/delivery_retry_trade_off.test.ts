@@ -2,6 +2,9 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { deliverSale, tokenHash, nextGeneration, resetLastGenerationForTest, StaleFenceError, type DeliveryDeps } from "../src/delivery";
 import { EmailSendError } from "../src/email";
 
+// A fixed 32-byte test key for the held-claim message store. Never a real key.
+const TEST_LINK_KEY = Buffer.alloc(32, 7);
+
 // Updated for Founder Decision (Option A + Option B single-send guard):
 // 1. After an ambiguous send failure (timeout, transport error, 5xx), BOTH the issued link row
 //    AND the public.delivery_sends claim (state='claimed') are kept, so a webhook retry sees
@@ -14,8 +17,10 @@ const PRODUCT = { id: "11111111-1111-4111-8111-111111111111", title: "500K Playb
 
 function sendGuardHandlers(sendClaims = new Map<string, { state: "claimed" | "sent"; fence: number }>()) {
   const keyOf = (provider: string, saleId: string, sendKind: string) => `${provider}:${saleId}:${sendKind}`;
+  const messages = new Map<string, string>();
   return {
     sendClaims,
+    messages,
     claimDeliverySend: vi.fn(async ({ provider, saleId, sendKind, fence }: { provider: string; saleId: string; sendKind: string; fence?: number }) => {
       const k = keyOf(provider, saleId, sendKind);
       const f = fence ?? 0;
@@ -51,7 +56,20 @@ function sendGuardHandlers(sendClaims = new Map<string, { state: "claimed" | "se
       const existing = sendClaims.get(k);
       if (existing?.state === "claimed" && (fence === undefined || existing.fence <= fence)) {
         sendClaims.delete(k);
+        messages.delete(k);
       }
+    }),
+    storeClaimMessage: vi.fn(async ({ provider, saleId, sendKind, fence, ciphertext }: { provider: string; saleId: string; sendKind: string; fence?: number; ciphertext: string }) => {
+      const k = keyOf(provider, saleId, sendKind);
+      const existing = sendClaims.get(k);
+      if (!existing || existing.state !== "claimed" || existing.fence > (fence ?? 0) || messages.has(k)) {
+        throw new StaleFenceError("delivery_sends", k, fence ?? 0, existing?.fence);
+      }
+      messages.set(k, ciphertext);
+    }),
+    readClaimMessage: vi.fn(async ({ provider, saleId, sendKind }: { provider: string; saleId: string; sendKind: string }) => messages.get(keyOf(provider, saleId, sendKind)) ?? null),
+    clearClaimMessage: vi.fn(async ({ provider, saleId, sendKind }: { provider: string; saleId: string; sendKind: string }) => {
+      messages.delete(keyOf(provider, saleId, sendKind));
     }),
   };
 }
@@ -61,14 +79,14 @@ describe("retry after ambiguous vs definite send failures (Option A single-send 
     resetLastGenerationForTest(0);
   });
 
-  it("after an ambiguous send error, keeps link and 'claimed' row so retry does NOT resend", async () => {
+  it("after an ambiguous send error, keeps link and 'claimed' row; retry resends the identical message under the same key (H1)", async () => {
     const FROZEN_MS = 1700000000000;
     const rows = new Map<string, Array<{ tokenHash: string; generation?: number }>>();
     const issuedGenerations = new Set<string>();
     const confirmed = new Set<string>();
     const sendClaims = new Map<string, { state: "claimed" | "sent"; fence: number }>();
     const tokens = ["T".repeat(43), "U".repeat(43)];
-    const sendEmail = vi.fn(async () => ({ id: "e1" }));
+    const sendEmail = vi.fn(async (_input: unknown) => ({ id: "e1" }));
     sendEmail.mockRejectedValueOnce(new Error("socket hang up")); // ambiguous: link & claim both kept
 
     const deps: DeliveryDeps = {
@@ -93,22 +111,28 @@ describe("retry after ambiguous vs definite send failures (Option A single-send 
       sendEmail,
       createShortLink: vi.fn(async (u: string) => `https://go.expanpress.com/x?to=${encodeURIComponent(u)}`),
       origin: "https://expanpress.com",
-      replyTo: "support@expanpress.com",
+      replyTo: "support@expanpress.com", linkKey: TEST_LINK_KEY,
       now: () => new Date(FROZEN_MS),
       newToken: () => tokens.shift() as string,
     };
     const sale = { provider: "paddle", saleId: "s-1", productAlias: "alias-1", buyerEmail: "buyer@example.com" };
 
-    await expect(deliverSale(sale, deps)).rejects.toThrow("socket hang up");
+    // The unconfirmed send answers 503 (retryable), not a bare error.
+    await expect(deliverSale(sale, deps)).rejects.toMatchObject({ httpStatus: 503 });
     const firstHash = tokenHash("T".repeat(43));
     expect(rows.get("s-1")?.map((r) => r.tokenHash)).toEqual([firstHash]);
     expect(rows.get("s-1")?.[0].generation).toBe(FROZEN_MS);
     expect(sendClaims.get("paddle:s-1:buyer_receipt")?.state).toBe("claimed");
 
-    // Option A: retry sees the 'claimed' row and does not resend or issue a second link.
-    await expect(deliverSale(sale, deps)).resolves.toBe("duplicate");
+    // H1: the retry resends the stored message (same bytes, same key). No second link is issued.
+    await expect(deliverSale(sale, deps)).resolves.toBe("sent");
     expect(rows.get("s-1")?.length).toBe(1);
-    expect(sendEmail).toHaveBeenCalledTimes(1);
+    expect(sendEmail).toHaveBeenCalledTimes(2);
+    const first = sendEmail.mock.calls[0][0] as { to: string; subject: string; text: string; html: string; idempotencyKey?: string };
+    const second = sendEmail.mock.calls[1][0] as typeof first;
+    expect(second).toEqual(first);
+    expect(first.idempotencyKey).toBe("paddle|s-1|buyer_receipt");
+    expect(sendClaims.get("paddle:s-1:buyer_receipt")?.state).toBe("sent");
   });
 
   it("after a definite rejection whose link release fails, retry issues a fresh monotonic generation link under frozen clock without destroying earlier links", async () => {
@@ -144,7 +168,7 @@ describe("retry after ambiguous vs definite send failures (Option A single-send 
       sendEmail,
       createShortLink: vi.fn(async (u: string) => `https://go.expanpress.com/x?to=${encodeURIComponent(u)}`),
       origin: "https://expanpress.com",
-      replyTo: "support@expanpress.com",
+      replyTo: "support@expanpress.com", linkKey: TEST_LINK_KEY,
       now: () => new Date(FROZEN_MS),
       newToken: () => tokens.shift() as string,
     };
@@ -198,7 +222,7 @@ describe("retry after ambiguous vs definite send failures (Option A single-send 
       sendEmail: vi.fn(async () => ({ id: "e1" })),
       createShortLink: vi.fn(async (u: string) => `https://go.expanpress.com/x?to=${encodeURIComponent(u)}`),
       origin: "https://expanpress.com",
-      replyTo: "support@expanpress.com",
+      replyTo: "support@expanpress.com", linkKey: TEST_LINK_KEY,
       now: () => new Date(FROZEN_MS),
       newToken: () => "V".repeat(43),
     };
@@ -223,7 +247,7 @@ describe("retry after ambiguous vs definite send failures (Option A single-send 
       sendEmail: vi.fn(async () => ({ id: "e1" })),
       createShortLink: vi.fn(async () => "https://go.expanpress.com/x"),
       origin: "https://expanpress.com",
-      replyTo: "support@expanpress.com",
+      replyTo: "support@expanpress.com", linkKey: TEST_LINK_KEY,
       now: () => new Date(FROZEN_MS),
       newToken: () => "W".repeat(43),
     };
@@ -249,7 +273,7 @@ describe("retry after ambiguous vs definite send failures (Option A single-send 
       sendEmail: vi.fn(async () => ({ id: "e1" })),
       createShortLink: vi.fn(async () => "https://go.expanpress.com/x"),
       origin: "https://expanpress.com",
-      replyTo: "support@expanpress.com",
+      replyTo: "support@expanpress.com", linkKey: TEST_LINK_KEY,
       newToken: () => "X".repeat(43),
     };
     const sale = { provider: "paddle", saleId: "s-4", productAlias: "alias-1", buyerEmail: "buyer@example.com" };
@@ -282,7 +306,7 @@ describe("retry after ambiguous vs definite send failures (Option A single-send 
       sendEmail,
       createShortLink: vi.fn(async () => "https://go.expanpress.com/x"),
       origin: "https://expanpress.com",
-      replyTo: "support@expanpress.com",
+      replyTo: "support@expanpress.com", linkKey: TEST_LINK_KEY,
       newToken: () => "Y".repeat(43),
     };
     const sale = { provider: "paddle", saleId: "s-5", productAlias: "alias-1", buyerEmail: "buyer@example.com", fence: 3 };
@@ -325,7 +349,7 @@ describe("retry after ambiguous vs definite send failures (Option A single-send 
       sendEmail: vi.fn(async () => ({ id: "e1" })),
       createShortLink: vi.fn(async () => "https://go.expanpress.com/x"),
       origin: "https://expanpress.com",
-      replyTo: "support@expanpress.com",
+      replyTo: "support@expanpress.com", linkKey: TEST_LINK_KEY,
       newToken: () => "Z".repeat(43),
     };
     const sale = { provider: "paddle", saleId: "s-6", productAlias: "alias-1", buyerEmail: "buyer@example.com", fence: 4 };

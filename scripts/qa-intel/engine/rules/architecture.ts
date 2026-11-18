@@ -129,14 +129,15 @@ function isSelfProducedText(call: CallExpression): boolean {
   return Node.isPropertyAccessExpression(producer) && producer.getName() === "join";
 }
 
-/** Splitting an Error.message or stderr/stdout error output to extract a summary line is LF-delimited and safe. */
-function isErrorOrStderrSplit(call: CallExpression): boolean {
+/**
+ * Splitting an Error.message or stderr/stdout string on LF is safe only when the receiver is CR-normalized first
+ * (`err.message.replace(/\r/g, "").split("\n")`). Raw message and subprocess output from CRLF platforms keep a trailing
+ * `\r` on the first line, so an unnormalized split is still reported.
+ */
+function isCrNormalizedSplit(call: CallExpression): boolean {
   const callee = call.getExpression();
   if (!Node.isPropertyAccessExpression(callee)) return false;
-  const receiverText = callee.getExpression().getText();
-  if (/\.message$|\b(stderr|stdout)\b/i.test(receiverText)) return true;
-  const stmt = call.getFirstAncestor((a) => Node.isStatement(a));
-  return !!stmt && /\b(stderr|stdout)\b/.test(stmt.getText()) && !!call.getFirstAncestorByKind(SyntaxKind.CatchClause);
+  return /\.replace\(\s*\/\\r/.test(callee.getExpression().getText());
 }
 
 /** Splitting NDJSON lines that are passed directly to JSON.parse (where trailing CR is valid JSON whitespace). */
@@ -168,7 +169,7 @@ export const CrossPlatformRule: Rule = {
 
     const lfSplitMatches = source
       .getDescendantsOfKind(SyntaxKind.CallExpression)
-      .filter((call) => isLfSplit(call) && !isTrimmedSplit(call) && !isSelfProducedText(call) && !isErrorOrStderrSplit(call) && !isJsonLinesSplit(call));
+      .filter((call) => isLfSplit(call) && !isTrimmedSplit(call) && !isSelfProducedText(call) && !isCrNormalizedSplit(call) && !isJsonLinesSplit(call));
     if (lfSplitMatches.length > 0) {
       findings.push({
         file: filePath,

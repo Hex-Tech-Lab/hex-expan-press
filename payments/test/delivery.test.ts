@@ -10,6 +10,8 @@ const definiteRejection = () => new EmailSendError("Resend error (422): invalid 
 const arg = <T>(m: { mock: { calls: unknown[][] } }, i = 0): T => m.mock.calls[i][0] as T;
 
 const NOW = new Date("2026-10-15T12:00:00Z");
+/** A fixed 32-byte test key. Never a real key: tests only need a valid AES-256 key. */
+const TEST_LINK_KEY = Buffer.alloc(32, 7);
 const PRODUCT = { id: "11111111-1111-4111-8111-111111111111", title: "500K Playbook", releasePath: "p/file.pdf" };
 
 function fakes(over: Partial<DeliveryDeps> & { product?: unknown; inserted?: boolean; confirmed?: boolean } = {}) {
@@ -18,6 +20,7 @@ function fakes(over: Partial<DeliveryDeps> & { product?: unknown; inserted?: boo
   const sendEmail = vi.fn(async () => ({ id: "e1" }));
   const createShortLink = vi.fn(async (u: string) => `https://go.expanpress.com/abc?to=${encodeURIComponent(u)}`);
   const sendClaims = new Map<string, { state: "claimed" | "sent"; fence: number }>();
+  const messages = new Map<string, string>();
   const keyOf = (provider: string, saleId: string, sendKind: string) => `${provider}:${saleId}:${sendKind}`;
   const deps: DeliveryDeps = {
     db: {
@@ -61,13 +64,27 @@ function fakes(over: Partial<DeliveryDeps> & { product?: unknown; inserted?: boo
         const existing = sendClaims.get(k);
         if (existing?.state === "claimed" && (fence === undefined || existing.fence <= fence)) {
           sendClaims.delete(k);
+          messages.delete(k);
         }
+      }),
+      storeClaimMessage: vi.fn(async ({ provider, saleId, sendKind, fence, ciphertext }) => {
+        const k = keyOf(provider, saleId, sendKind);
+        const existing = sendClaims.get(k);
+        // First writer wins: a claim that already holds a message matches no row, as in the store's IS NULL guard.
+        if (!existing || existing.state !== "claimed" || existing.fence > (fence ?? 0) || messages.has(k)) {
+          throw new StaleFenceError("delivery_sends", k, fence ?? 0, existing?.fence);
+        }
+        messages.set(k, ciphertext);
+      }),
+      readClaimMessage: vi.fn(async ({ provider, saleId, sendKind }) => messages.get(keyOf(provider, saleId, sendKind)) ?? null),
+      clearClaimMessage: vi.fn(async ({ provider, saleId, sendKind }) => {
+        messages.delete(keyOf(provider, saleId, sendKind));
       }),
     },
     sendEmail, createShortLink, origin: "https://expanpress.com", replyTo: "support@expanpress.com",
-    now: () => NOW, newToken: () => "T".repeat(43),
+    now: () => NOW, newToken: () => "T".repeat(43), linkKey: TEST_LINK_KEY,
   };
-  return { deps, recordLinkIssued, releaseLinkIssued, sendEmail, createShortLink, sendClaims };
+  return { deps, recordLinkIssued, releaseLinkIssued, sendEmail, createShortLink, sendClaims, messages };
 }
 const sale = { provider: "paddle", saleId: "s-1", productAlias: "alias-1", buyerEmail: "buyer@example.com" };
 

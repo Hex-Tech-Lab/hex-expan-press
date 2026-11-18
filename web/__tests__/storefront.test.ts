@@ -5,7 +5,7 @@ vi.mock("../src/components/storefront/storefront.css", () => ({}));
 const supa = vi.hoisted(() => ({ client: null as null | { from: (table: string) => unknown } }));
 vi.mock("../../payments/src/supabase_admin", () => ({ getSupabaseAdmin: vi.fn(async () => supa.client) }));
 
-const { NOINDEX, fetchCreatorHub, fetchStoreProduct, insideItems, productSlugOf, storefrontRobots } = await import(
+const { NOINDEX, fetchB2cLanding, fetchCreatorHub, fetchStoreProduct, insideItems, productSlugOf, storefrontRobots } = await import(
   "../src/components/storefront/storefront"
 );
 
@@ -75,6 +75,56 @@ describe("fetchCreatorHub lists only published (live) products", () => {
     supa.client = hubClient({ handle: "hublive", display_name: "Duane", platform_handles: null, bio: null, photo: null, products: [product("live", "live")] });
     const liveHub = await fetchCreatorHub("hublive");
     expect(storefrontRobots(liveHub!.creator.products)).toBeUndefined();
+  });
+});
+
+describe("B2C landing query filters live products in PostgREST and selects only landing fields", () => {
+  /** Records each builder call; awaiting the builder resolves to `rows`, as PostgREST would. */
+  function landingDb(rows: unknown[]) {
+    const calls: unknown[][] = [];
+    const q: Record<string, unknown> = {};
+    for (const method of ["eq", "not", "neq"]) {
+      q[method] = (...args: unknown[]) => {
+        calls.push([method, ...args]);
+        return q;
+      };
+    }
+    q.then = (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) =>
+      Promise.resolve({ data: rows, error: null }).then(resolve, reject);
+    supa.client = {
+      from: (table: string) => {
+        calls.push(["from", table]);
+        return {
+          select: (cols: string) => {
+            calls.push(["select", cols]);
+            return q;
+          },
+        };
+      },
+    };
+    return calls;
+  }
+
+  it("asks PostgREST for live commercial products only and selects no detail fields", async () => {
+    const calls = landingDb([{ handle: "duane", display_name: "Duane", products: [product("live", "live")] }]);
+    await fetchB2cLanding();
+    const select = calls.find((c) => c[0] === "select")?.[1] as string;
+    expect(select).toContain("products!inner(");
+    for (const detail of ["description", "disclaimers", "inside", "currency", "working_note", "composite_slug"]) {
+      expect(select, detail).not.toContain(detail);
+    }
+    expect(calls).toContainEqual(["eq", "products.checkout_mode", "live"]);
+    expect(calls).toContainEqual(["neq", "products.store_product_id", ""]);
+  });
+
+  it("returns only creators with a live product, and only that product", async () => {
+    landingDb([
+      { handle: "duane", display_name: "Duane", products: [product("live", "live"), product("draft", "gated")] },
+      { handle: "onlydraft", display_name: "Draft Only", products: [product("d2", "gated")] },
+    ]);
+    const creators = await fetchB2cLanding();
+    expect(creators.map((c) => c.handle)).toEqual(["duane"]);
+    expect(creators[0].products.map((p) => p.id)).toEqual(["live"]);
   });
 });
 

@@ -41,6 +41,11 @@ describe("resolveDefaultBaseRef", () => {
     expect(resolveDefaultBaseRef(fakeGit({ existing }))).toBe(QA_INTEL_CONFIG.baseRefCandidates[0]);
   });
 
+  test("accepts a fully qualified refs/ candidate as written, without adding the remotes prefix", () => {
+    const git = fakeGit({ existing: ["refs/heads/main"] });
+    expect(resolveDefaultBaseRef(git, ["refs/heads/main"])).toBe("refs/heads/main");
+  });
+
   test("throws, naming what it tried, when no base exists", () => {
     expect(() => resolveDefaultBaseRef(fakeGit({}), ["origin/master", "origin/main"])).toThrow(
       "no diff base found. Tried origin/HEAD, then origin/master, origin/main",

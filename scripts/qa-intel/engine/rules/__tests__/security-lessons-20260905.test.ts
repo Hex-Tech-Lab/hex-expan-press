@@ -16,6 +16,24 @@ function makeCtx(project: Project, filePath: string, allFiles: string[]) {
 }
 
 describe("SecurityFixWithoutTestRule", () => {
+  // The `//` in JSX text is content, not a comment, so the `getUser(` after it must still reach the marker scan.
+  test("keeps code that follows a `//` in JSX text, so a JSX-adjacent auth marker is still seen", () => {
+    const project = new Project({ useInMemoryFileSystem: true });
+    project.createSourceFile(
+      "web/components/ProfileView.tsx",
+      `export function ProfileView() {
+        const view = <div>// note</div>; getUser();
+        return view;
+      }`,
+    );
+    const allFiles = ["web/components/ProfileView.tsx"];
+    const findings = SecurityFixWithoutTestRule.check(
+      makeCtx(project, "web/components/ProfileView.tsx", allFiles),
+    );
+    expect(findings).toHaveLength(1);
+    expect(findings[0]!.title).toContain("no sibling test");
+  });
+
   test("flags an authorization-marked file with no sibling test in its directory", () => {
     const project = new Project({ useInMemoryFileSystem: true });
     project.createSourceFile(

@@ -251,13 +251,10 @@ export const SwallowedErrorRule: IRule = {
         // against an all-comment pattern could never match and deliberately documented catches were flagged.
         const innerText = block.getText().replace(/^\{/, '').replace(/\}$/, '').trim();
         const hasOnlyComments = statements.length === 0 && innerText.length > 0 && (/^\/\*[\s\S]*\*\/$/.test(innerText) || isAllLineComments(innerText));
-        // Best-effort single-call filesystem cleanup (e.g. `try { fs.rmdirSync(tempDir); } catch {}`) intentionally ignores ENOENT/ENOTEMPTY.
-        const tryStmt = node.getParent();
-        const tryStatements = Node.isTryStatement(tryStmt) ? tryStmt.getTryBlock().getStatements() : [];
-        const isBestEffortCleanup = !node.getVariableDeclaration()
-          && tryStatements.length === 1
-          && /\b(rmdirSync|unlinkSync|rmSync|closeSync)\s*\(/.test(tryStatements[0].getText());
-        if (statements.length === 0 && !hasOnlyComments && !isBestEffortCleanup) {
+        // An empty catch is flagged even around a single filesystem call (`try { fs.rmdirSync(d); } catch {}`). The
+        // exemption that used to skip it ignored every errno, so EACCES or EBUSY cleanup failures vanished. An unbound
+        // catch cannot filter ENOENT/ENOTEMPTY, and a catch that does filter them has statements, so it never reaches here.
+        if (statements.length === 0 && !hasOnlyComments) {
           findings.push({
             file: filePath,
             severity: "high",
@@ -273,8 +270,19 @@ export const SwallowedErrorRule: IRule = {
         if (Node.isPropertyAccessExpression(expr) && expr.getName() === 'catch') {
           const receiver = expr.getExpression();
           const recvCallee = Node.isCallExpression(receiver) ? receiver.getExpression() : undefined;
+          // Only a best-effort body discard is exempt: a stream `.cancel()`, or a `.text()`/`.arrayBuffer()`/`.blob()`
+          // drained as a statement on an error-status branch (`if (!res.ok) { await res.text().catch(() => {}); }`).
+          // `.json()` is never a drain, since a parse failure is operational. Matching on the method name alone also
+          // silenced unrelated objects, so the branch and statement position are required too.
+          const callParent = node.getParent();
+          const drainStatement = Node.isAwaitExpression(callParent) ? callParent.getParent() : callParent;
+          const errorStatusBranch = node.getFirstAncestor((a) => Node.isIfStatement(a));
           const isResponseBodyDrain = Node.isPropertyAccessExpression(recvCallee)
-            && ['text', 'json', 'arrayBuffer', 'blob', 'cancel'].includes(recvCallee.getName());
+            && Node.isExpressionStatement(drainStatement)
+            && ((recvCallee.getName() === 'cancel' && /\b(body|reader|stream|res|response)\b/i.test(recvCallee.getExpression().getText()))
+              || (['text', 'arrayBuffer', 'blob'].includes(recvCallee.getName())
+                && Node.isIfStatement(errorStatusBranch)
+                && /\.(ok|status)\b/.test(errorStatusBranch.getExpression().getText())));
           const arg = node.getArguments()[0];
           if (!isResponseBodyDrain && (Node.isArrowFunction(arg) || Node.isFunctionExpression(arg))) {
             const body = arg.getBody();

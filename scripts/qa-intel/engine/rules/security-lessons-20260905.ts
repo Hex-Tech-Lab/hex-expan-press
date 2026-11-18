@@ -8,8 +8,10 @@ function stripTsComments(source: SourceFile): string {
   const full = source.getFullText();
   const ranges: Array<[number, number]> = [];
   const seen = new Set<string>();
-  const collect = (pos: number, isTrailing: boolean, end: number) => {
-    const list = isTrailing ? ts.getTrailingCommentRanges(full, end) : ts.getLeadingCommentRanges(full, pos);
+  // Only leading trivia is read. Every comment sits in the leading trivia of the token that follows it, so trailing
+  // scans add nothing, and a trailing scan after a JSX tag would read the `//` in JSX text as a comment.
+  const collect = (pos: number) => {
+    const list = ts.getLeadingCommentRanges(full, pos);
     if (!list) return;
     for (const r of list) {
       const key = `${r.pos}:${r.end}`;
@@ -20,8 +22,8 @@ function stripTsComments(source: SourceFile): string {
     }
   };
   const visit = (n: ts.Node) => {
-    collect(n.getFullStart(), false, 0);
-    collect(0, true, n.getEnd());
+    // JSX text is character data, not trivia: a `//` inside `<div>// text</div>` is content, so JsxText adds no ranges.
+    if (n.kind !== ts.SyntaxKind.JsxText) collect(n.getFullStart());
     for (const child of n.getChildren(source.compilerNode)) visit(child);
   };
   visit(source.compilerNode);

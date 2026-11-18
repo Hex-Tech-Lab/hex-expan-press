@@ -84,8 +84,22 @@ export class MatrixRouter {
 
       const down: Record<string, string> = {};
       if (legacyRaw) {
-        const legacyState = JSON.parse(legacyRaw) as RouterState;
-        Object.assign(down, this.activeDown(legacyState?.down, nowMs));
+        // Valid JSON is not enough: a legacy breaker that is not an object, or whose `down` map holds a value that is not a
+        // parseable timestamp, is invalid state. It throws into the degraded handler below, so no rail is re-enabled silently.
+        const legacyState = JSON.parse(legacyRaw) as unknown;
+        if (legacyState === null || typeof legacyState !== "object" || Array.isArray(legacyState)) {
+          throw new SyntaxError("Invalid legacy breaker state");
+        }
+        const legacyDown = (legacyState as RouterState).down;
+        if (legacyDown !== undefined) {
+          if (legacyDown === null || typeof legacyDown !== "object" || Array.isArray(legacyDown)) {
+            throw new SyntaxError("Invalid legacy breaker down map");
+          }
+          for (const [provider, iso] of Object.entries(legacyDown)) {
+            const untilMs = this.parseDownUntilMs(iso);
+            if (untilMs > nowMs) down[provider] = iso;
+          }
+        }
       }
 
       for (let i = 0; i < providers.length; i++) {
@@ -117,15 +131,6 @@ export class MatrixRouter {
       console.warn(`[matrix_router] routing counter increment failed (degraded): ${this.errorName(err)}`);
       return { index: 0, degraded: true, error: err };
     }
-  }
-
-  private static activeDown(down: Record<string, string> | undefined, nowMs: number): Record<string, string> {
-    if (!down) return {};
-    const out: Record<string, string> = {};
-    for (const [provider, iso] of Object.entries(down)) {
-      if (new Date(iso).getTime() > nowMs) out[provider] = iso;
-    }
-    return out;
   }
 
   private static liveRoutes(routes: ProviderRoute[], down: Record<string, string>): ProviderRoute[] {

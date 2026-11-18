@@ -133,9 +133,9 @@
   <td class="hl">Buyers get a download link by email after payment. You grant ExpanPress a [licence type, scope and term: founder to set] licence to host your files (Cloudflare R2 for file storage and CDN, web/public/legal/providers.html:63) and deliver them under the buyer licence. Link validity and whether links are revoked on refund: [founder to decide, see option 4].
     <span class="ref">web/public/legal/providers.html:63</span>
     <span class="note"><b>Note:</b> The licence term and the link-revocation rule are open. No source sets either.</span></td>
-  <td class="hl">The download link is emailed after successful payment, valid for "[download link validity period]" (books/legal/terms.html:49). Licence: "personal, non-exclusive, non-transferable" (books/legal/terms.html:40). Refund and links: "[legal decision needed: whether this policy says if download links issued before a refund stay valid until they expire. The current code keeps them valid until they expire.]" (books/legal/refund-policy.html:49).
-    <span class="ref">web/public/books/legal/terms.html:49; web/public/books/legal/refund-policy.html:49</span>
-    <span class="note"><b>Note:</b> The validity period and the refund-link rule are open placeholders.</span></td>
+  <td class="hl">The download link is emailed after successful payment and is valid for 7 days (books/legal/terms.html:52; code: GLOBAL.delivery.link_ttl_days = 7). Licence: personal, not exclusive, and cannot be passed on (books/legal/terms.html:43). Refund and links: "A download link issued before a refund stays valid until it expires" (books/legal/refund-policy.html:51), which matches the code (no revocation on refund).
+    <span class="ref">web/public/books/legal/terms.html:52; web/public/books/legal/refund-policy.html:51; payments/src/settings_registry.ts</span>
+    <span class="note"><b>Note:</b> Validity is settled at 7 days. Whether links should be revoked on refund is still a founder decision (option 4), and the buyer copy states current behaviour only.</span></td>
 </tr>
 
 <tr>
@@ -241,9 +241,9 @@
   <td class="hl">The creator agreement, its signed audit record, and tax forms are kept for [retention period: founder to set]. Sales and tax records are kept as long as tax law requires.
     <span class="ref">Proposed</span>
     <span class="note"><b>Note:</b> The retention period for creator records is open.</span></td>
-  <td class="hl">Order, tax and accounting records are kept for [retention period]. Download records are kept for [retention period] (books/legal/privacy.html:66).
-    <span class="ref">web/public/books/legal/privacy.html:66</span>
-    <span class="note"><b>Note:</b> Two retention periods are open.</span></td>
+  <td class="hl">Order, tax and accounting records are kept for seven years. Download records are kept for seven years (books/legal/privacy.html:69).
+    <span class="ref">web/public/books/legal/privacy.html:69</span>
+    <span class="note"><b>Note:</b> Seven years is the buyer notice's current text, highlighted there for founder confirmation.</span></td>
 </tr>
 
 <tr>
@@ -261,12 +261,12 @@
   <td class="topic">Where sales happen</td>
   <td>"Prices are shown in US dollars" (terms.html:42). No territory is stated.
     <span class="ref">web/public/terms.html:42</span></td>
-  <td class="hl">Sales are planned for buyers in the United States, including all 52 states and territories (the founder's stated plan, CLAUDE.md, rules saved Nov 9, 2026). Creator residency and tax-form rules: [founder to set].
-    <span class="ref">CLAUDE.md (founder rule)</span>
+  <td class="hl">Sales are planned for buyers in the United States only. The founder's planning rule for US-only sales is in the founder's personal global rules (saved Nov 9, 2026; not in this repo). Creator residency and tax-form rules: [founder to set].
+    <span class="ref">Founder personal global rules (not in this repo)</span>
     <span class="note"><b>Note:</b> Creator eligibility by location is not decided.</span></td>
-  <td class="hl">At launch, sales are limited to buyers in [the United States, and the states and territories listed here]. Enforcement: [confirm how checkout enforces this] (books/legal/terms.html:55).
-    <span class="ref">web/public/books/legal/terms.html:55</span>
-    <span class="note"><b>Note:</b> The territory list and checkout enforcement are open.</span></td>
+  <td class="hl">At launch, sales are limited to buyers in the United States, its territories, and the District of Columbia. Enforcement: not built. No country check exists in the checkout route, so this is a founder decision (books/legal/terms.html:58).
+    <span class="ref">web/public/books/legal/terms.html:58</span>
+    <span class="note"><b>Note:</b> The territory list is stated in the buyer terms. Checkout enforcement is open: the founder decides between enforcing it and removing the promise.</span></td>
 </tr>
 
 <tr>
@@ -369,7 +369,7 @@
   <li>Confirm creators are never charged any fee, so the "never charged" line can stay (terms.html:51).</li>
   <li>Who pays creators, on what schedule, and by which method (option 2).</li>
   <li>How a refund reduces creator earnings (option 3).</li>
-  <li>Download link validity, and whether links are revoked on a refund (option 4).</li>
+  <li>Whether links are revoked on a refund (option 4). Link validity is settled at 7 days.</li>
   <li>Governing state and venue, for all three documents (option 5).</li>
   <li>Legal entity name and registered address for the creator agreement.</li>
   <li>Which Merchant of Record is live at launch, and its name in each document.</li>

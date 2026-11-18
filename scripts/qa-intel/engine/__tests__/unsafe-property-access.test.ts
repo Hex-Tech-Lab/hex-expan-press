@@ -173,4 +173,63 @@ describe('UnsafePropertyAccessRule', () => {
     `;
     expect(UnsafePropertyAccessRule.check(createTestSource(code))).toHaveLength(1);
   });
+
+  // Polarity: a check guards an access only when the branch it protects runs exactly when the array is present.
+  test('still flags an index after an earlier check that only mentions the array, without leaving the scope', () => {
+    const code = `
+      export function parseThing(raw: string) {
+        const parts = raw.split(".");
+        if (!parts) console.log("missing");
+        return parts[0];
+      }
+    `;
+    expect(UnsafePropertyAccessRule.check(createTestSource(code))).toHaveLength(1);
+  });
+
+  test('still flags an index after an undefined-equality check whose branch does not leave the scope', () => {
+    const code = `
+      export function parseThing(raw: string) {
+        const parts = raw.split(".");
+        if (parts === undefined) { console.log("missing"); }
+        return parts[0];
+      }
+    `;
+    expect(UnsafePropertyAccessRule.check(createTestSource(code))).toHaveLength(1);
+  });
+
+  test('still flags an index in the branch of a negated truthiness check', () => {
+    const code = `
+      export function parseThing(raw: string) {
+        const parts = raw.split(".");
+        return !parts ? parts[0] : null;
+      }
+    `;
+    expect(UnsafePropertyAccessRule.check(createTestSource(code))).toHaveLength(1);
+  });
+
+  test('does not flag an index after an exit guard on a negated truthiness or undefined check', () => {
+    const negatedTruthy = `
+      export function parseThing(raw: string) {
+        const parts = raw.split(".");
+        if (!parts) return null;
+        return parts[0];
+      }
+    `;
+    const undefinedCheck = `
+      export function parseThing(raw: string) {
+        const parts = raw.split(".");
+        if (parts === undefined) return null;
+        return parts[0];
+      }
+    `;
+    const negatedTernary = `
+      export function parseThing(raw: string) {
+        const parts = raw.split(".");
+        return !parts ? null : parts[0];
+      }
+    `;
+    expect(UnsafePropertyAccessRule.check(createTestSource(negatedTruthy))).toHaveLength(0);
+    expect(UnsafePropertyAccessRule.check(createTestSource(undefinedCheck))).toHaveLength(0);
+    expect(UnsafePropertyAccessRule.check(createTestSource(negatedTernary))).toHaveLength(0);
+  });
 });

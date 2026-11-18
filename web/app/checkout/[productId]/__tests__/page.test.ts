@@ -8,7 +8,7 @@ import CheckoutPage from "../page";
 
 vi.mock("../../../../src/components/storefront/storefront", () => ({
   NOINDEX: { index: false },
-  StorefrontFooter: () => null,
+  StorefrontFooter: "StorefrontFooter",
   fetchCheckoutProduct: vi.fn(),
   isWorkingTitle: () => false,
   priceOf: () => "39",
@@ -93,6 +93,30 @@ describe("checkout page: buy branch", () => {
       if (el.type === "BuyLink") hrefs.push(String(el.props.href));
     });
     expect(hrefs).toEqual(["/api/billing/checkout?product=p1"]);
+  });
+});
+
+describe("checkout page: buyer legal links follow the checkout mode", () => {
+  function footerProps(tree: unknown): Array<Record<string, unknown>> {
+    const found: Array<Record<string, unknown>> = [];
+    walk(tree as Node, (el) => {
+      if (el.type === "StorefrontFooter") found.push(el.props);
+    });
+    return found;
+  }
+
+  it("hides the buyer legal links on a gated (draft) product", async () => {
+    vi.mocked(fetchCheckoutProduct).mockResolvedValue(product({ checkout_mode: "gated" }) as never);
+    const footers = footerProps(await render("p1"));
+    expect(footers).toHaveLength(1);
+    expect(footers[0].showBuyerLegal).toBe(false);
+  });
+
+  it("shows the buyer legal links on a live product", async () => {
+    vi.mocked(fetchCheckoutProduct).mockResolvedValue(product({ checkout_mode: "live" }) as never);
+    const footers = footerProps(await render("p1"));
+    expect(footers).toHaveLength(1);
+    expect(footers[0].showBuyerLegal).toBe(true);
   });
 });
 

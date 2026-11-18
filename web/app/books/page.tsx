@@ -8,6 +8,7 @@ import {
   priceOf,
 } from "../../src/components/storefront/storefront";
 import { GLOBAL } from "../../../payments/src/settings_registry";
+import { AttributionCapture } from "../../src/components/storefront/buy-link";
 
 /**
  * B2C landing (/books). Every buyer-side logo and home link resolves here
@@ -30,6 +31,8 @@ export default async function B2cLandingPage() {
 
   return (
     <div className="sf-root">
+      {/* Keeps ?src / ?dub_id from the landing URL so a product bought from here is attributed, not "direct". */}
+      <AttributionCapture />
       <div className="wrap">
         <header className="thanks-top">
           <Link href={home} className="logo" aria-label="ExpanPress home">

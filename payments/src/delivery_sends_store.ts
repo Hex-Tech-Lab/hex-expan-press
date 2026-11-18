@@ -48,6 +48,18 @@ export interface DeliverySendsStore {
     sendKind: string;
     fence?: number;
   }): Promise<void>;
+  /** Stores the encrypted buyer message on a 'claimed' row. Fenced: a stale worker cannot overwrite a newer one. */
+  storeClaimMessage(row: {
+    provider: string;
+    saleId: string;
+    sendKind: string;
+    fence?: number;
+    ciphertext: string;
+  }): Promise<void>;
+  /** The stored encrypted buyer message for this claim, or null when none was stored. */
+  readClaimMessage(row: { provider: string; saleId: string; sendKind: string }): Promise<string | null>;
+  /** Removes the stored buyer message once the send is confirmed. The link no longer needs to be kept. */
+  clearClaimMessage(row: { provider: string; saleId: string; sendKind: string }): Promise<void>;
 }
 
 /** Parses a bigint fence column returned by PostgREST (number or decimal string) into a safe non-negative integer. */
@@ -94,12 +106,20 @@ async function lookupExistingDeliverySend(
  * Operator reconcile query (no scheduler): send claims still in 'claimed' whose claim is at least
  * olderThanMs old. Such a claim is never resent by the webhook (at-most-once), so each one is a buyer
  * who may have no receipt. Verify the buyer and resend by hand. Rows with created_at <= cutoff match.
- * Capped at delivery.stuck_claim_list_limit rows, oldest first (the seq scan on state is tracked debt; an index needs a migration).
+ * Capped at delivery.stuck_claim_list_limit rows, oldest first. Served by the partial index delivery_sends_claimed_created_idx.
  */
 export async function listStuckDeliveryClaims(olderThanMs: number, nowMs: number = Date.now()): Promise<StuckDeliveryClaim[]> {
+  // A negative window would list claims made in the future; a non-integer or out-of-range value would crash toISOString.
+  if (!Number.isSafeInteger(olderThanMs) || olderThanMs < 0) {
+    throw new RangeError("listStuckDeliveryClaims: olderThanMs must be a non-negative safe integer (milliseconds)");
+  }
+  const cutoffDate = new Date(nowMs - olderThanMs);
+  if (!Number.isFinite(cutoffDate.getTime())) {
+    throw new RangeError("listStuckDeliveryClaims: olderThanMs puts the cutoff outside the valid Date range");
+  }
   const sb = await getSupabaseAdmin();
   if (!sb) throw new Error("Supabase admin client unavailable");
-  const cutoff = new Date(nowMs - olderThanMs).toISOString();
+  const cutoff = cutoffDate.toISOString();
   const { data, error } = await sb
     .from("delivery_sends")
     .select("provider, sale_id, send_kind, fence, created_at")
@@ -246,6 +266,60 @@ export function createDeliverySendsStore(): DeliverySendsStore {
       }
       const { error } = await query;
       if (error) throw new Error(`delivery send release failed: ${error.message}`);
+    },
+    async storeClaimMessage({ provider, saleId, sendKind, fence, ciphertext }) {
+      const sb = await getSupabaseAdmin();
+      if (!sb) throw new Error("Supabase admin client unavailable");
+      // First writer wins. Conditional on the claim still being ours ('claimed', stored fence <= this fence) AND no message
+      // stored yet (link_ciphertext IS NULL). A newer worker that bumped the fence, or a concurrent worker that already stored
+      // its message, makes this write match no row. The caller then must not send, and must not release the claim.
+      const bound = fence ?? 0;
+      const changes: Record<string, unknown> = { link_ciphertext: ciphertext, updated_at: new Date().toISOString() };
+      if (fence !== undefined) changes.fence = fence;
+      const { data, error } = await sb
+        .from("delivery_sends")
+        .update(changes)
+        .eq("provider", provider)
+        .eq("sale_id", saleId)
+        .eq("send_kind", sendKind)
+        .eq("state", "claimed")
+        .is("link_ciphertext", null)
+        .lte("fence", bound)
+        .select("fence");
+      if (error) {
+        if (error.code === "40001") {
+          throw new StaleFenceError("delivery_sends", `${provider}:${saleId}:${sendKind}`, bound);
+        }
+        throw new Error(`delivery send message store failed: ${error.message}`);
+      }
+      if (!Array.isArray(data) || data.length === 0) {
+        throw new StaleFenceError("delivery_sends", `${provider}:${saleId}:${sendKind}`, bound);
+      }
+    },
+    async readClaimMessage({ provider, saleId, sendKind }) {
+      const sb = await getSupabaseAdmin();
+      if (!sb) throw new Error("Supabase admin client unavailable");
+      const { data, error } = await sb
+        .from("delivery_sends")
+        .select("link_ciphertext")
+        .eq("provider", provider)
+        .eq("sale_id", saleId)
+        .eq("send_kind", sendKind)
+        .maybeSingle();
+      if (error) throw new Error(`delivery send message lookup failed: ${error.message}`);
+      const value = (data as { link_ciphertext?: unknown } | null)?.link_ciphertext;
+      return typeof value === "string" && value !== "" ? value : null;
+    },
+    async clearClaimMessage({ provider, saleId, sendKind }) {
+      const sb = await getSupabaseAdmin();
+      if (!sb) throw new Error("Supabase admin client unavailable");
+      const { error } = await sb
+        .from("delivery_sends")
+        .update({ link_ciphertext: null, updated_at: new Date().toISOString() })
+        .eq("provider", provider)
+        .eq("sale_id", saleId)
+        .eq("send_kind", sendKind);
+      if (error) throw new Error(`delivery send message clear failed: ${error.message}`);
     },
   };
 }

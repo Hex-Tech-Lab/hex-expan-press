@@ -113,6 +113,8 @@ product_slug: { min_length: number; max_length: number; separator: string };
     stuck_claim_after_seconds: number;
     /** Most rows listStuckDeliveryClaims returns (oldest first). Bounds the operator reconcile query. */
     stuck_claim_list_limit: number;
+    /** NAME of the env var holding the base64 32-byte AES-256-GCM key that encrypts a held claim's stored buyer email. */
+    link_key_env: string;
   };
   /** Transactional email (Resend). `from` must be on `sending_domain` (DKIM-verified in Resend). */
   email: {
@@ -218,6 +220,8 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     // Above the email deadline (payments.http_timeout_ms) and the webhook lock TTL, so a live send is never reported stuck.
     stuck_claim_after_seconds: 900,
     stuck_claim_list_limit: 500,
+    // Only the env var NAME is a setting; the key value never lives in the registry or the repo.
+    link_key_env: "DELIVERY_LINK_KEY",
   },
   email: {
     from: "ExpanPress <support@esign.expanpress.com>",
@@ -450,6 +454,25 @@ export const USAGE_WATCH_LIMITS = {
   warn_ratio: { min: 0.5, max: 0.99 },
 } as const;
 
+/**
+ * The only HTTPS origins usage watch may send an Authorization header to. Not a tunable: a registry override that names
+ * any other host is refused at load time (the default is used), so a tampered settings file cannot receive the
+ * Supabase or Upstash credentials. vercel_cli is a command name, not a URL, and is not listed here.
+ */
+export const USAGE_WATCH_ENDPOINT_ORIGINS = {
+  supabase_api: "https://api.supabase.com",
+  upstash_api: "https://api.upstash.com",
+} as const;
+
+/** Largest delay Node timers accept (setTimeout and AbortSignal.timeout clamp or misfire above it). */
+const MAX_TIMER_MS = 2147483647;
+
+/** Non-overridable invariant mirroring the DB CHECK on consents.evidence_path. The registry rules may only tighten this. */
+export const CONSENT_EVIDENCE_SEGMENT_CONTRACT = {
+  userId: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+  envelopeId: /^[A-Za-z0-9_-]{1,128}$/,
+} as const;
+
 /** usage_watch: deep-merge over the defaults. Every number must be a finite positive value; a bad value falls back
  *  to its default (with a warning) instead of disabling the watch. */
 export function loadUsageWatchSection(raw: Record<string, unknown> | undefined): UsageWatchSettings {
@@ -473,12 +496,30 @@ export function loadUsageWatchSection(raw: Record<string, unknown> | undefined):
     if (candidate !== undefined) fallbacks.push(key);
     return fallback;
   };
+  // An HTTPS origin on the allowlist, with no userinfo and no path. Anything else falls back to the default.
+  const allowedOrigin = (candidate: unknown, fallback: string, key: "supabase_api" | "upstash_api"): string => {
+    if (candidate === undefined) return fallback;
+    const allowed = USAGE_WATCH_ENDPOINT_ORIGINS[key];
+    if (typeof candidate === "string") {
+      try {
+        const url = new URL(candidate);
+        const bare = url.protocol === "https:" && url.origin === allowed && url.username === "" && url.password === "" && (url.pathname === "/" || url.pathname === "") && url.search === "" && url.hash === "";
+        if (bare) return allowed;
+      } catch {
+        // Not a URL: falls through to the fallback below.
+      }
+    }
+    fallbacks.push(`endpoints.${key}`);
+    return fallback;
+  };
+  // timeout_ms feeds AbortSignal.timeout and execFile: it must be an integer that Node timers accept.
+  const timerMs = (candidate: unknown): boolean => Number.isSafeInteger(candidate) && (candidate as number) >= 1 && (candidate as number) <= MAX_TIMER_MS;
   const out: UsageWatchSettings = {
     warn_ratio: pick(raw.warn_ratio, defaults.warn_ratio, "warn_ratio", (value) => value >= USAGE_WATCH_LIMITS.warn_ratio.min && value <= USAGE_WATCH_LIMITS.warn_ratio.max),
-    timeout_ms: pick(raw.timeout_ms, defaults.timeout_ms, "timeout_ms", positive),
+    timeout_ms: pick(raw.timeout_ms, defaults.timeout_ms, "timeout_ms", timerMs),
     endpoints: {
-      supabase_api: str(endpoints.supabase_api, defaults.endpoints.supabase_api, "endpoints.supabase_api"),
-      upstash_api: str(endpoints.upstash_api, defaults.endpoints.upstash_api, "endpoints.upstash_api"),
+      supabase_api: allowedOrigin(endpoints.supabase_api, defaults.endpoints.supabase_api, "supabase_api"),
+      upstash_api: allowedOrigin(endpoints.upstash_api, defaults.endpoints.upstash_api, "upstash_api"),
       vercel_cli: str(endpoints.vercel_cli, defaults.endpoints.vercel_cli, "endpoints.vercel_cli"),
     },
     vercel: {
@@ -575,7 +616,7 @@ export function loadDeliverySection(raw: Record<string, unknown> | undefined): G
   if (!raw) return defaults;
   const record = raw as Partial<GlobalSettings["delivery"]> & Record<string, unknown>;
   const fallbacks: string[] = [];
-  const str = (key: "bucket" | "short_domain" | "send_kind"): string => {
+  const str = (key: "bucket" | "short_domain" | "send_kind" | "link_key_env"): string => {
     if (!(key in record)) return defaults[key];
     const candidate = record[key];
     if (typeof candidate === "string" && candidate.trim() !== "" && candidate === candidate.trim()) return candidate;
@@ -589,6 +630,10 @@ export function loadDeliverySection(raw: Record<string, unknown> | undefined): G
     fallbacks.push(key);
     return defaults[key];
   };
+  // An env var name, never a value: an invalid name falls back to the default (and warns) so the key lookup stays well-formed.
+  const linkKeyEnv = str("link_key_env");
+  const validLinkKeyEnv = /^[A-Z][A-Z0-9_]{0,63}$/.test(linkKeyEnv);
+  if (!validLinkKeyEnv) fallbacks.push("link_key_env");
   const out = {
     bucket: str("bucket"),
     link_ttl_days: posInt("link_ttl_days", 1, 365),
@@ -597,6 +642,7 @@ export function loadDeliverySection(raw: Record<string, unknown> | undefined): G
     send_kind: str("send_kind"),
     stuck_claim_after_seconds: posInt("stuck_claim_after_seconds", 60, 86400),
     stuck_claim_list_limit: posInt("stuck_claim_list_limit", 1, 10000),
+    link_key_env: validLinkKeyEnv ? linkKeyEnv : defaults.link_key_env,
   };
   if (fallbacks.length > 0) warnFallback("global.json", `invalid delivery values for ${fallbacks.join(", ")}`);
   return out;

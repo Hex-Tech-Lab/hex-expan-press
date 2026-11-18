@@ -8,6 +8,8 @@ export interface SendEmailInput {
   /** Plain-text part — required: HTML-only mail scores worse with spam filters. */
   text: string;
   replyTo?: string;
+  /** Sent as Resend's Idempotency-Key: a retry with the same key and payload is not a second email (Resend keeps keys for 24 hours). */
+  idempotencyKey?: string;
 }
 
 /**
@@ -58,7 +60,7 @@ export const isOnSendingDomain = (from: string, domain: string = GLOBAL.email.se
   return host === d || host.endsWith(`.${d}`);
 };
 
-export async function sendEmail({ to, subject, html, text, replyTo }: SendEmailInput): Promise<{ id: string }> {
+export async function sendEmail({ to, subject, html, text, replyTo, idempotencyKey }: SendEmailInput): Promise<{ id: string }> {
   const apiKey = process.env.RESEND_API_KEY;
   // The checks below run before any request, so nothing can have been sent.
   if (!apiKey) {
@@ -75,14 +77,17 @@ export async function sendEmail({ to, subject, html, text, replyTo }: SendEmailI
   const resend = new Resend(apiKey);
   let result: Awaited<ReturnType<typeof resend.emails.send>>;
   try {
-    result = await resend.emails.send({
+    const payload = {
       from,
       to,
       subject,
       html,
       text,
       replyTo: replyTo ?? GLOBAL.email.reply_to,
-    });
+    };
+    result = await (idempotencyKey !== undefined
+      ? resend.emails.send(payload, { idempotencyKey })
+      : resend.emails.send(payload));
   } catch (err) {
     // Network/transport failure before Resend answered.
     throw new EmailSendError(`Resend request failed: ${err instanceof Error ? err.message : String(err)}`, true);

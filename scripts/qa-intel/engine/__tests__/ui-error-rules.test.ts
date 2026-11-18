@@ -110,13 +110,50 @@ describe('SwallowedErrorRule', () => {
     expect(findings).toHaveLength(0);
   });
 
-  test('does not flag best-effort single-call filesystem cleanup in an empty catch', () => {
+  test('flags an empty catch around a single filesystem call, because an unbound catch cannot filter ENOENT from EACCES', () => {
     const findings = scan(SwallowedErrorRule, 'scripts/cleanup.ts', [
       'export function cleanup(tempDir: string) {',
       '  try { fs.rmdirSync(tempDir); } catch {}',
       '}',
     ].join('\n'));
+    expect(findings).toHaveLength(1);
+  });
+
+  test('does not flag a catch that filters the expected errno, since it is not empty', () => {
+    const findings = scan(SwallowedErrorRule, 'scripts/cleanup.ts', [
+      'export function cleanup(tempDir: string) {',
+      '  try { fs.rmdirSync(tempDir); } catch (err) { if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err; }',
+      '}',
+    ].join('\n'));
     expect(findings).toHaveLength(0);
+  });
+
+  test('exempts a body-stream cancel as a statement, but not a generic cancel() on an unrelated object', () => {
+    expect(scan(SwallowedErrorRule, 'web/lib/download.ts', [
+      'export function abort(res: { body: { cancel(): Promise<void> } }) {',
+      '  res.body.cancel().catch(() => {});',
+      '}',
+    ].join('\n'))).toHaveLength(0);
+    expect(scan(SwallowedErrorRule, 'web/lib/queue.ts', [
+      'export function stop(queue: { cancel(): Promise<void> }) {',
+      '  queue.cancel().catch(() => {});',
+      '}',
+    ].join('\n'))).toHaveLength(1);
+  });
+
+  test('does not exempt .json() or a discard outside an error-status branch, since those hide operational failures', () => {
+    expect(scan(SwallowedErrorRule, 'scripts/fetch.ts', [
+      'export async function getJson(url: string) {',
+      '  const res = await fetch(url);',
+      '  if (!res.ok) { await res.json().catch(() => {}); return null; }',
+      '  return res.json();',
+      '}',
+    ].join('\n'))).toHaveLength(1);
+    expect(scan(SwallowedErrorRule, 'web/lib/store.ts', [
+      'export function save(store: { text(): Promise<string> }) {',
+      '  store.text().catch(() => {});',
+      '}',
+    ].join('\n'))).toHaveLength(1);
   });
 
   test('does not flag .catch(() => {}) draining a response body, while still flagging operational .catch(() => {})', () => {

@@ -1,5 +1,4 @@
-import { mkdirSync, readFileSync } from "node:fs";
-import { open } from "node:fs/promises";
+import { closeSync, fsyncSync, mkdirSync, openSync, readFileSync, writeSync } from "node:fs";
 import { dirname, join, basename } from "node:path";
 import { createHash } from "node:crypto";
 import { z } from "zod";
@@ -122,6 +121,17 @@ export class OrderSchemaError extends Error {
   }
 }
 
+/** Parse the fence stored on a public.orders row. Only a non-negative safe integer (a JSON number, or its decimal
+ *  string) is accepted. Anything else is a corrupt row, and throwing fails the write closed: Number(null) is 0, so a
+ *  null fence would otherwise let a stale worker through. */
+function parseStoredFence(raw: unknown): number {
+  const fence = typeof raw === "number" ? raw : typeof raw === "string" && /^\d+$/.test(raw) ? Number(raw) : Number.NaN;
+  if (!Number.isSafeInteger(fence) || fence < 0) {
+    throw new Error(`ledger: stored orders.fence is not a non-negative safe integer (got ${String(raw)})`);
+  }
+  return fence;
+}
+
 /** Dual-write an order record to Supabase public.orders for permanent serverless persistence.
  *  When a fencing token is supplied, enforces stored fence <= new fence via conditional update. */
 async function persistToSupabaseOrder(record: SaleRecord, fence?: number): Promise<void> {
@@ -180,10 +190,12 @@ async function persistToSupabaseOrder(record: SaleRecord, fence?: number): Promi
 
     const rowWithFence = { ...parsed.data, fence };
     const keyLabel = `${parsed.data.provider}:${parsed.data.sale_id}:${parsed.data.event_type}`;
-    const runConditionalUpdate = async (): Promise<boolean> => {
+    // An existing key takes only the fence. The financial fields of the committed row are never rewritten, so a duplicate or
+    // conflicting payload cannot change what was booked. The full row is inserted only when the key is absent.
+    const runFenceUpdate = async (): Promise<boolean> => {
       const { data, error } = await supabase
         .from("orders")
-        .update(rowWithFence)
+        .update({ fence })
         .eq("provider", parsed.data.provider)
         .eq("sale_id", parsed.data.sale_id)
         .eq("event_type", parsed.data.event_type)
@@ -198,7 +210,7 @@ async function persistToSupabaseOrder(record: SaleRecord, fence?: number): Promi
       return Array.isArray(data) && data.length > 0;
     };
 
-    if (await runConditionalUpdate()) return;
+    if (await runFenceUpdate()) return;
 
     const { error: insertErr } = await supabase.from("orders").insert(rowWithFence);
     if (!insertErr) return;
@@ -207,7 +219,7 @@ async function persistToSupabaseOrder(record: SaleRecord, fence?: number): Promi
       throw Object.assign(new Error(`ledger: Supabase orders upsert failed: ${insertErr.message}`), { code: insertErr.code });
     }
 
-    if (await runConditionalUpdate()) return;
+    if (await runFenceUpdate()) return;
 
     const { data: stored, error: checkErr } = await supabase
       .from("orders")
@@ -219,10 +231,9 @@ async function persistToSupabaseOrder(record: SaleRecord, fence?: number): Promi
     if (checkErr) {
       throw Object.assign(new Error(`ledger: Supabase orders upsert failed: ${checkErr.message}`), { code: checkErr.code });
     }
-    const storedFence = stored && typeof (stored as { fence?: unknown }).fence !== "undefined"
-      ? Number((stored as { fence: number | string }).fence)
-      : undefined;
-    if (storedFence !== undefined && Number.isFinite(storedFence) && storedFence > fence) {
+    // A row that exists but carries no usable fence is corrupt: parseStoredFence throws, so nothing is written.
+    const storedFence = stored ? parseStoredFence((stored as { fence?: unknown }).fence) : undefined;
+    if (storedFence !== undefined && storedFence > fence) {
       throw new StaleFenceError("orders", keyLabel, fence, storedFence);
     }
     throw Object.assign(new Error(`ledger: Supabase orders upsert failed: ${insertErr.message}`), { code: insertErr.code });
@@ -290,7 +301,7 @@ export function findSale(provider: string, saleId: string, salesFile: string = S
         return o as unknown as SaleRecord;
       }
     } catch (parseErr) {
-      logMalformedLedgerLine(parseErr);
+      console.error("ledger: malformed ledger line skipped:", parseErr instanceof Error ? parseErr.message : String(parseErr));
       continue; // malformed line — tolerated by contract
     }
   }
@@ -343,14 +354,6 @@ export async function findSaleAsync(provider: string, saleId: string, salesFile:
  *  replay; anything else is a real failure and is never swallowed. */
 export const ORDERS_ADJUSTMENT_UNIQ_INDEX = "orders_provider_adjustment_id_uniq";
 
-/**
- * Logs a non-fatal warning when a ledger line fails to parse or cannot be read as an object;
- * callers skip the malformed line rather than aborting the scan.
- */
-function logMalformedLedgerLine(parseErr: unknown): void {
-  console.error("ledger: malformed ledger line skipped:", parseErr instanceof Error ? parseErr.message : String(parseErr));
-}
-
 export function isAdjustmentIdUniqueViolation(err: unknown): boolean {
   const e = err as { code?: unknown; constraint?: unknown; message?: unknown } | null;
   if (!e || typeof e !== "object") return false;
@@ -382,7 +385,7 @@ function findByProviderAdjustmentId(provider: string, providerAdjustmentId: stri
         return o as unknown as SaleRecord;
       }
     } catch (parseErr) {
-      logMalformedLedgerLine(parseErr);
+      console.error("ledger: malformed ledger line skipped:", parseErr instanceof Error ? parseErr.message : String(parseErr));
       continue; // malformed line — tolerated by contract
     }
   }
@@ -420,7 +423,7 @@ export function findRefund(provider: string, saleId: string, salesFile: string =
       const o = JSON.parse(trimmed) as Record<string, unknown>;
       if (o.event_type === "refund" && o.provider === provider && o.sale_id === saleId) return o as unknown as SaleRecord;
     } catch (parseErr) {
-      logMalformedLedgerLine(parseErr);
+      console.error("ledger: malformed ledger line skipped:", parseErr instanceof Error ? parseErr.message : String(parseErr));
       continue; // malformed line — tolerated by contract
     }
   }
@@ -589,7 +592,7 @@ export function findRefundReversal(provider: string, saleId: string, salesFile: 
       const o = JSON.parse(trimmed) as Record<string, unknown>;
       if (o.event_type === "refund_reversal" && o.provider === provider && o.sale_id === saleId) return o as unknown as SaleRecord;
     } catch (parseErr) {
-      logMalformedLedgerLine(parseErr);
+      console.error("ledger: malformed ledger line skipped:", parseErr instanceof Error ? parseErr.message : String(parseErr));
       continue;
     }
   }
@@ -607,18 +610,55 @@ export async function findRefundReversalAsync(provider: string, saleId: string, 
   );
 }
 
-async function appendRecord(record: SaleRecord, salesFile: string): Promise<void> {
-  // Serverless runtimes (Vercel/Lambda) have a read-only FS outside /tmp — keep the
-  // ledger writable there by redirecting to the basename under /tmp.
-  salesFile = resolveSalesFile(salesFile);
-  mkdirSync(dirname(salesFile), { recursive: true });
-  const fh = await open(salesFile, "a");
+/** True when the local ledger already holds a line for this (provider, sale_id, event_type). Malformed lines are skipped, as in findSale. */
+function localLedgerHasKey(salesFile: string, record: SaleRecord): boolean {
+  let text: string;
   try {
-    await fh.writeFile(JSON.stringify(record) + "\n", "utf8");
-    await fh.sync();
-  } finally {
-    await fh.close();
+    text = readFileSync(salesFile, "utf8");
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return false;
+    const normalized = err instanceof Error ? err : new Error(String(err));
+    console.error("ledger: sales ledger read failed during the duplicate check:", normalized);
+    throw normalized;
   }
+  const eventType = record.event_type ?? "sale";
+  for (const line of text.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (trimmed === "") continue;
+    let parsed: Partial<SaleRecord>;
+    try {
+      parsed = JSON.parse(trimmed) as Partial<SaleRecord>;
+    } catch (parseErr) {
+      console.error("ledger: malformed ledger line skipped:", parseErr instanceof Error ? parseErr.message : String(parseErr));
+      continue;
+    }
+    if (parsed.provider === record.provider && parsed.sale_id === record.sale_id && (parsed.event_type ?? "sale") === eventType) return true;
+  }
+  return false;
+}
+
+function appendRecord(record: SaleRecord, salesFile: string): Promise<void> {
+  // The body is synchronous. A throw inside the executor rejects the promise, which is what an async function did,
+  // so callers see the same behaviour and the same Promise<void> type.
+  return new Promise<void>((resolve) => {
+    // Serverless runtimes (Vercel/Lambda) have a read-only FS outside /tmp — keep the
+    // ledger writable there by redirecting to the basename under /tmp.
+    salesFile = resolveSalesFile(salesFile);
+    mkdirSync(dirname(salesFile), { recursive: true });
+    // The fenced orders row is the authoritative record; this file is derived from it. A key that is already present was written by
+    // the worker that won the fence, so a stale worker must not append it again. The check and the append run in one synchronous
+    // block, so no other handler in this process can interleave between them.
+    if (!localLedgerHasKey(salesFile, record)) {
+      const fd = openSync(salesFile, "a");
+      try {
+        writeSync(fd, JSON.stringify(record) + "\n", null, "utf8");
+        fsyncSync(fd);
+      } finally {
+        closeSync(fd);
+      }
+    }
+    resolve();
+  });
 }
 
 export async function appendSale(sale: SaleRecord, salesFile: string = SALES_FILE, fence?: number): Promise<SaleRecord> {
@@ -663,7 +703,7 @@ export function findSalesByAttribution(attributionId: string, salesFile: string 
       const o = JSON.parse(trimmed) as Record<string, unknown>;
       if (o.attribution_id === attributionId) out.push(o as unknown as SaleRecord);
     } catch (parseErr) {
-      logMalformedLedgerLine(parseErr);
+      console.error("ledger: malformed ledger line skipped:", parseErr instanceof Error ? parseErr.message : String(parseErr));
       continue; // malformed line — tolerated by contract
     }
   }

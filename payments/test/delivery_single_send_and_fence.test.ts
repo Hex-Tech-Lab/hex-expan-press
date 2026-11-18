@@ -290,6 +290,8 @@ const DL_GEN_SQL = readFileSync(join(import.meta.dirname, "../../supabase/migrat
 const DL_SEQ_SQL = readFileSync(join(import.meta.dirname, "../../supabase/migrations/20261020090000_download_events_generation_seq.sql"), "utf8");
 const GUARD_MIGRATION_SQL = readFileSync(join(import.meta.dirname, "../../supabase/migrations/20261116170055_delivery_single_send_guard.sql"), "utf8")
   .replace(/notify pgrst[\s\S]*?;/gi, "");
+const CLAIM_LINK_MIGRATION_SQL = readFileSync(join(import.meta.dirname, "../../supabase/migrations/20261118120000_delivery_claim_link.sql"), "utf8")
+  .replace(/notify pgrst[\s\S]*?;/gi, "");
 
 let pg: PGlite;
 let tmpDir: string;
@@ -307,6 +309,8 @@ beforeAll(async () => {
   // Run the new migration TWICE to verify full idempotency.
   await pg.exec(GUARD_MIGRATION_SQL);
   await pg.exec(GUARD_MIGRATION_SQL);
+  await pg.exec(CLAIM_LINK_MIGRATION_SQL);
+  await pg.exec(CLAIM_LINK_MIGRATION_SQL);
   // Warm dynamic import so Vitest's vi.mock resolver does not race on the first concurrent import.
   await import("@supabase/supabase-js");
   pgliteRef.db = pg;
@@ -344,6 +348,7 @@ afterEach(() => {
 function makeDeps(sendEmail: ReturnType<typeof vi.fn>, createShortLink?: ReturnType<typeof vi.fn>, timeoutMs?: number) {
   return {
     ...productionDeps(),
+    linkKey: Buffer.alloc(32, 7),
     sendEmail: sendEmail as unknown as (input: { to: string; subject: string; html: string; text: string; replyTo?: string }) => Promise<unknown>,
     createShortLink: (createShortLink ?? vi.fn(async (u: string) => `https://go.expanpress.com/x?to=${encodeURIComponent(u)}`)) as unknown as (u: string) => Promise<string>,
     timeoutMs,
@@ -381,18 +386,27 @@ describe("Option A + Option B single-send guard & fencing tokens (cases a-d + SQ
     }
   });
 
-  it("case (a): two concurrent claims for the same sale and event send exactly one email and one link", async () => {
-    const sendEmail = vi.fn(async () => ({ id: "email-1" }));
+  it("case (a): two concurrent claims for the same sale and event produce one distinct email and one link", async () => {
+    const sendEmail = vi.fn(async (_input: unknown) => ({ id: "email-1" }));
     const deps = makeDeps(sendEmail);
     const sale = { provider: "paddle", saleId: "sale-a-1", productAlias: "alias-1", buyerEmail: "buyer@example.com" };
 
-    const [r1, r2] = await Promise.all([
+    // The losing worker either resends the stored message (identical payload and key) or loses the store race and answers 503.
+    // Either way no second distinct email is sent.
+    const settled = await Promise.allSettled([
       deliverSale(sale, deps),
       deliverSale(sale, deps),
     ]);
-
-    expect([r1, r2].sort()).toEqual(["duplicate", "sent"]);
-    expect(sendEmail).toHaveBeenCalledTimes(1);
+    const fulfilled = settled.flatMap((s) => (s.status === "fulfilled" ? [s.value] : []));
+    expect(fulfilled).toContain("sent");
+    expect(fulfilled.every((o) => o === "sent")).toBe(true);
+    for (const s of settled) {
+      if (s.status === "rejected") expect(s.reason).toMatchObject({ httpStatus: 503 });
+    }
+    const distinctPayloads = new Set(sendEmail.mock.calls.map((c) => JSON.stringify(c[0])));
+    expect(distinctPayloads.size).toBe(1);
+    expect(sendEmail.mock.calls.every((c) => (c[0] as { idempotencyKey?: string }).idempotencyKey === "paddle|sale-a-1|buyer_receipt")).toBe(true);
+    const callsAfterConcurrent = sendEmail.mock.calls.length;
 
     const links = await pg.query<{ count: string }>(
       "select count(*)::text as count from public.download_events where sale_id = $1 and event_type = 'link_issued'",
@@ -411,7 +425,7 @@ describe("Option A + Option B single-send guard & fencing tokens (cases a-d + SQ
     // while a different provider with the same saleId is scoped independently.
     await expect(deliverSale({ ...sale, fence: 1 }, deps)).resolves.toBe("duplicate");
     await expect(deliverSale({ ...sale, provider: "fungies", fence: 1 }, deps)).resolves.toBe("sent");
-    expect(sendEmail).toHaveBeenCalledTimes(2);
+    expect(sendEmail).toHaveBeenCalledTimes(callsAfterConcurrent + 1);
   });
 
   it("case (b): ambiguous failures (transport error, 5xx, timeout) keep state='claimed' and retries do not resend", async () => {
@@ -423,7 +437,7 @@ describe("Option A + Option B single-send guard & fencing tokens (cases a-d + SQ
 
     for (const [idx, c] of cases.entries()) {
       const saleId = `sale-b-${idx}`;
-      const sendEmail = vi.fn<() => Promise<unknown>>()
+      const sendEmail = vi.fn<(input: unknown) => Promise<unknown>>()
         .mockImplementationOnce(c.failWith)
         .mockResolvedValueOnce({ id: "should-never-send" });
       const deps = makeDeps(sendEmail, undefined, c.timeoutMs);
@@ -437,9 +451,10 @@ describe("Option A + Option B single-send guard & fencing tokens (cases a-d + SQ
       );
       expect(beforeRetry.rows).toEqual([{ state: "claimed", fence: "1" }]);
 
-      // Retry with higher fence sees 'claimed' and does NOT resend.
-      await expect(deliverSale({ ...sale, fence: 2 }, deps)).resolves.toBe("duplicate");
-      expect(sendEmail).toHaveBeenCalledTimes(1);
+      // H1: a retry with a higher fence resends the stored message: the same payload under the same key.
+      await expect(deliverSale({ ...sale, fence: 2 }, deps)).resolves.toBe("sent");
+      expect(sendEmail).toHaveBeenCalledTimes(2);
+      expect(sendEmail.mock.calls[1][0]).toEqual(sendEmail.mock.calls[0][0]);
 
       const links = await pg.query<{ count: string }>(
         "select count(*)::text as count from public.download_events where sale_id = $1 and event_type = 'link_issued'",
@@ -449,7 +464,7 @@ describe("Option A + Option B single-send guard & fencing tokens (cases a-d + SQ
     }
 
     // Contrast: definite 422 rejection frees the claim so a retry CAN send.
-    const defSend = vi.fn<() => Promise<unknown>>()
+    const defSend = vi.fn<(input: unknown) => Promise<unknown>>()
       .mockRejectedValueOnce(new EmailSendError("Resend error (422)", false, 422, true))
       .mockResolvedValueOnce({ id: "email-def" });
     const defDeps = makeDeps(defSend);
@@ -460,7 +475,7 @@ describe("Option A + Option B single-send guard & fencing tokens (cases a-d + SQ
   });
 
   it("case (c): stale fence is rejected across deliverSale (claim, pre-send, markSent), ledger writes, and SQL triggers", async () => {
-    const sendEmail = vi.fn(async () => ({ id: "email-c" }));
+    const sendEmail = vi.fn(async (_input: unknown) => ({ id: "email-c" }));
     const deps = makeDeps(sendEmail);
     const sale = { provider: "paddle", saleId: "sale-c-1", productAlias: "alias-1", buyerEmail: "buyer@example.com" };
 
@@ -482,11 +497,14 @@ describe("Option A + Option B single-send guard & fencing tokens (cases a-d + SQ
     const p1 = deliverSale({ ...sale2, fence: 1 }, makeDeps(slowSend, slowShortLink));
     // Wait until Worker 1 has inserted its claim and entered createShortLink
     await vi.waitFor(() => expect(slowShortLink).toHaveBeenCalledTimes(1));
-    // Worker 2 arrives with fence=2: bumps fence to 2 and does not send (already claimed)
-    await expect(deliverSale({ ...sale2, fence: 2 }, makeDeps(slowSend))).resolves.toBe("duplicate");
+    // Worker 2 arrives with fence=2 before Worker 1 has stored a message. It takes the claim and mints its own message.
+    // (Before this fix it answered 'duplicate' and the sale was stranded.)
+    await expect(deliverSale({ ...sale2, fence: 2 }, makeDeps(slowSend))).resolves.toBe("sent");
     releaseShortLink();
+    // Worker 1 is stale: its fence assertion fails before any send, so only Worker 2's email went out.
     await expect(p1).rejects.toThrow(StaleFenceError);
-    expect(slowSend).not.toHaveBeenCalled();
+    expect(slowSend).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(slowSend.mock.calls[0])).not.toContain("/slow?to=");
 
     // 3) Stale fence on ledger writes (appendSale + appendRefund): fence=2 succeeds, stale fence=1 rejected.
     const salesFile = join(tmpDir, "sales.jsonl");
@@ -539,12 +557,12 @@ describe("Option A + Option B single-send guard & fencing tokens (cases a-d + SQ
     let releaseWorker1Send!: () => void;
     const worker1SendGate = new Promise<void>((r) => { releaseWorker1Send = r; });
 
-    const sendEmail1 = vi.fn(async () => {
+    const sendEmail1 = vi.fn(async (_input: unknown) => {
       worker1InSend();
       await worker1SendGate;
       return { id: "e-w1" };
     });
-    const sendEmail2 = vi.fn(async () => ({ id: "e-w2" }));
+    const sendEmail2 = vi.fn(async (_input: unknown) => ({ id: "e-w2" }));
     const lockKey = `${GLOBAL.payments.webhook_lock_sale_prefix}paddle:sale-d-1`;
 
     const runWorker = (workerSend: ReturnType<typeof vi.fn>) =>
@@ -579,16 +597,18 @@ describe("Option A + Option B single-send guard & fencing tokens (cases a-d + SQ
     redisState.nowMs += (GLOBAL.payments.webhook_lock_ttl_seconds + 1) * 1000;
 
     // Worker 2 acquires lock with fence=2 and runs overlapping with stalled Worker 1.
+    // Worker 2 owns fence 2 and finds Worker 1's stored message: it resends those exact bytes under the same key.
     const res2 = await runWorker(sendEmail2);
     expect(res2.status).toBe(200);
-    expect(sendEmail2).not.toHaveBeenCalled();
+    expect(sendEmail2).toHaveBeenCalledTimes(1);
+    expect(sendEmail2.mock.calls[0][0]).toEqual(sendEmail1.mock.calls[0][0]);
 
     // Release Worker 1: markDeliverySent(fence=1) is rejected as stale (stored fence is 2).
     releaseWorker1Send();
     await expect(pWorker1).rejects.toThrow(StaleFenceError);
 
     expect(sendEmail1).toHaveBeenCalledTimes(1);
-    expect(sendEmail2).not.toHaveBeenCalled();
+    expect(sendEmail2).toHaveBeenCalledTimes(1);
 
     const links1 = await pg.query<{ count: string }>(
       "select count(*)::text as count from public.download_events where sale_id = 'sale-d-1' and event_type = 'link_issued'",
@@ -676,27 +696,44 @@ describe("Option A + Option B single-send guard & fencing tokens (cases a-d + SQ
   });
 });
 
-// B2 (visibility only): a held claim is still never resent. Past delivery.stuck_claim_after_seconds it is logged
-// as STUCK, and the operator reconcile query lists it. No takeover: a takeover would resend after an accepted send.
-describe("stuck claim visibility (B2): held claims are never resent; past the threshold they are logged and listed", () => {
-  it("a retry inside the threshold is silent; past the threshold it logs STUCK and still does not resend", async () => {
-    const sendEmail = vi.fn<() => Promise<unknown>>()
+// B2 + H1: a held claim resends its stored message (identical bytes, same idempotency key) and is never a silent 200.
+// A held claim with NO stored message (a pre-migration row) cannot be resent identically: it is minted fresh, and past
+// delivery.stuck_claim_after_seconds it is logged as STUCK. The operator reconcile query lists held claims.
+describe("stuck claim visibility (B2 + H1): held claims resend the stored message; rows without one are logged STUCK past the threshold", () => {
+  it("a held claim resends its stored message identically inside the threshold (no STUCK log)", async () => {
+    const sendEmail = vi.fn<(input: unknown) => Promise<unknown>>()
       .mockRejectedValueOnce(new Error("socket hang up"))
-      .mockResolvedValue({ id: "should-never-send" });
+      .mockResolvedValue({ id: "resent" });
     const deps = makeDeps(sendEmail);
     const sale = { provider: "paddle", saleId: "sale-h-1", productAlias: "alias-1", buyerEmail: "buyer@example.com" };
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
     try {
-      await expect(deliverSale({ ...sale, fence: 1 }, deps)).rejects.toThrow("socket hang up");
+      await expect(deliverSale({ ...sale, fence: 1 }, deps)).rejects.toMatchObject({ httpStatus: 503 });
 
-      await expect(deliverSale({ ...sale, fence: 2 }, deps)).resolves.toBe("duplicate");
+      await expect(deliverSale({ ...sale, fence: 2 }, deps)).resolves.toBe("sent");
       expect(errSpy.mock.calls.some((c) => String(c[0]).includes("STUCK CLAIM"))).toBe(false);
+      expect(sendEmail).toHaveBeenCalledTimes(2);
+      expect(sendEmail.mock.calls[1][0]).toEqual(sendEmail.mock.calls[0][0]);
+    } finally {
+      errSpy.mockRestore();
+    }
+  });
 
-      await pg.exec("update public.delivery_sends set created_at = now() - interval '2 hours' where sale_id = 'sale-h-1'");
+  it("a held claim with no stored message is minted fresh; past the threshold it logs STUCK", async () => {
+    const sendEmail = vi.fn<(input: unknown) => Promise<unknown>>()
+      .mockRejectedValueOnce(new Error("socket hang up"))
+      .mockResolvedValue({ id: "minted" });
+    const deps = makeDeps(sendEmail);
+    const sale = { provider: "paddle", saleId: "sale-h-2", productAlias: "alias-1", buyerEmail: "buyer@example.com" };
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      await expect(deliverSale({ ...sale, fence: 1 }, deps)).rejects.toMatchObject({ httpStatus: 503 });
+      // Simulate a pre-migration held row: no stored message, and an old claim.
+      await pg.exec("update public.delivery_sends set link_ciphertext = null, created_at = now() - interval '2 hours' where sale_id = 'sale-h-2'");
 
-      await expect(deliverSale({ ...sale, fence: 3 }, deps)).resolves.toBe("duplicate");
-      expect(errSpy.mock.calls.some((c) => String(c[0]).includes("STUCK CLAIM sale=sale-h-1"))).toBe(true);
-      expect(sendEmail).toHaveBeenCalledTimes(1);
+      await expect(deliverSale({ ...sale, fence: 3 }, deps)).resolves.toBe("sent");
+      expect(errSpy.mock.calls.some((c) => String(c[0]).includes("STUCK CLAIM sale=sale-h-2"))).toBe(true);
+      expect(sendEmail).toHaveBeenCalledTimes(2);
     } finally {
       errSpy.mockRestore();
     }

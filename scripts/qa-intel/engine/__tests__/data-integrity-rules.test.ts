@@ -290,6 +290,21 @@ describe('TruncationValidationRule', () => {
     expect(findings).toHaveLength(0);
   });
 
+  // A non-literal end is a display cap unless it is a structural delimiter position.
+  test('flags a dynamic display cap returned to the caller, but not a structural delimiter span', () => {
+    expect(scan(TruncationValidationRule, 'web/lib/body.ts', [
+      'export function excerpt(body: string, max: number) {',
+      '  return body.slice(0, max);',
+      '}',
+    ].join('\n'))).toHaveLength(1);
+    expect(scan(TruncationValidationRule, 'web/lib/proxy.ts', [
+      'export function host(proxyUrl: string) {',
+      "  const proto = proxyUrl.indexOf('://');",
+      '  return proxyUrl.slice(0, proto + 2);',
+      '}',
+    ].join('\n'))).toHaveLength(0);
+  });
+
   test('flags substring and substr truncations', () => {
     const findings = scan(TruncationValidationRule, 'web/lib/labels.ts', [
       'export function labels(name: string, raw: string) {',

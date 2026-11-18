@@ -19,7 +19,7 @@ function signed(payload: string) {
 const refund = (data: Record<string, unknown>) =>
   JSON.stringify({ type: "refund.created", data: { id: "rf_1", order_id: "ord_1", amount: 3500, tax_amount: 400, status: "succeeded", created_at: "2026-09-30T00:00:00.000Z", ...data } });
 
-async function parse(body: string) {
+function parse(body: string) {
   vi.stubEnv("POLAR_WEBHOOK_SECRET", KEY);
   return new PolarAdapter().parseAndValidateWebhook(signed(body), body);
 }
@@ -94,7 +94,7 @@ describe("PolarAdapter webhook replay window", () => {
     return { "webhook-id": id, "webhook-timestamp": tsStr, "webhook-signature": `v1,${sig}` };
   }
 
-  async function parseWithTs(payload: string, ts: number | string) {
+  function parseWithTs(payload: string, ts: number | string) {
     vi.stubEnv("POLAR_WEBHOOK_SECRET", KEY);
     return new PolarAdapter().parseAndValidateWebhook(signedWithTs(payload, ts), payload);
   }

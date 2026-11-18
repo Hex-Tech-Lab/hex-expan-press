@@ -1,4 +1,3 @@
-import * as React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -108,6 +107,34 @@ describe("DashboardPage", () => {
     expect(sentryCaptureMock).not.toHaveBeenCalled();
   });
 
+  it("counts only the questions the review page serves (anchored) toward progress", async () => {
+    getPortalSessionMock.mockResolvedValueOnce({
+      user: { id: "u1", email: "creator@creator.test" },
+      supabase: supabaseWith({
+        review_items: {
+          data: [
+            { id: "i1", product_id: "p1", code: "A1", anchor: { page: 3 } },
+            { id: "i2", product_id: "p1", code: "A2", anchor: null },
+            { id: "i3", product_id: "p1", code: "A3", anchor: { touchpoints: [{ page: 5 }] } },
+          ],
+          error: null,
+        },
+        review_answers: {
+          data: [
+            { item_id: "i1", answered_at: "2026-11-18T00:00:00Z" },
+            { item_id: "i2", answered_at: "2026-11-18T00:00:00Z" },
+          ],
+          error: null,
+        },
+      }),
+    });
+    await renderDashboard();
+    const [props] = (dashboardClientMock.mock.calls as unknown as Array<[{ answersCount: number; answersTarget: number }]>)[0];
+    // i2 has no page anchor, so review/page.tsx never shows it: it must not raise the target or count as answered.
+    expect(props.answersTarget).toBe(2);
+    expect(props.answersCount).toBe(1);
+  });
+
   it("renders the failure UI, never the dashboard, when the profiles read fails", async () => {
     getPortalSessionMock.mockResolvedValueOnce({
       user: { id: "u1", email: "creator@creator.test" },
@@ -155,7 +182,7 @@ describe("DashboardPage", () => {
     getPortalSessionMock.mockResolvedValueOnce({
       user: { id: "u1", email: "creator@creator.test" },
       supabase: supabaseWith({
-        review_items: { data: [{ id: "i1", product_id: "p1", code: "A1" }], error: null },
+        review_items: { data: [{ id: "i1", product_id: "p1", code: "A1", anchor: { page: 1 } }], error: null },
         review_answers: { data: null, error: { message: "review_answers timeout" } },
       }),
     });

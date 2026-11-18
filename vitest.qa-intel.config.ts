@@ -1,7 +1,7 @@
 import path from "node:path";
 import { defineConfig } from "vitest/config";
 
-/** Files this port authored or adapted. Coverage floor: 70% line, branch, function and statement coverage (founder approved 2026-11-17). */
+/** Files this port authored or adapted. Coverage floor: 100% line, branch, function and statement coverage (CLAUDE.md, port-ownership policy). */
 const PORT_OWNED_FILES = [
   "scripts/qa-intel/config.ts",
   "scripts/qa-intel/base-ref.ts",
@@ -24,7 +24,7 @@ export default defineConfig({
       // asserted by scripts/contract-auditor/__tests__/shim.test.ts, which runs it under tsx.
       exclude: ["scripts/contract-auditor/__tests__/**", "scripts/contract-auditor.ts"],
       reporter: ["text"],
-      thresholds: { lines: 70, functions: 70, branches: 70, statements: 70 },
+      thresholds: { lines: 100, functions: 100, branches: 100, statements: 100 },
     },
   },
   resolve: {

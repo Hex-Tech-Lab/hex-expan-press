@@ -1,12 +1,5 @@
 [
   {
-    "file": "web/playwright.config.ts",
-    "severity": "high",
-    "title": "Auth: localhost fallback in production route",
-    "why": "Environment variable missing fallback to localhost can redirect production users to localhost:3000.",
-    "fix": "Fail closed (return 500) when APP_URL is missing, or derive origin from request headers."
-  },
-  {
     "file": "web/instrumentation-client.ts",
     "severity": "low",
     "title": "Code Quality: Import ordering violated",
@@ -2847,5 +2840,19 @@
     "title": "Auth: localhost fallback in production route",
     "why": "Environment variable missing fallback to localhost can redirect production users to localhost:3000.",
     "fix": "Fail closed (return 500) when APP_URL is missing, or derive origin from request headers."
+  },
+  {
+    "file": "payments/src/delivery.ts",
+    "severity": "medium",
+    "title": "Complexity: Monolithic File",
+    "why": "Tracked debt per owner severity bar (medium = tracked, not blocking). Split planned after launch; see docs/handover/PROJECT_TODO.md.",
+    "fix": "Decompose into smaller, domain-specific modules."
+  },
+  {
+    "file": "src/adapters/storage/r2.adapter.ts",
+    "severity": "medium",
+    "title": "Complexity: Monolithic File",
+    "why": "Tracked debt per owner severity bar (medium = tracked, not blocking). Split planned after launch; see docs/handover/PROJECT_TODO.md.",
+    "fix": "Decompose into smaller, domain-specific modules."
   }
 ]

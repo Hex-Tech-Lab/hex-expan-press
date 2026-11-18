@@ -355,6 +355,101 @@ describe("WAVE Q4: SqlSecurityDefinerCallerKeyRule (R4)", () => {
     const unclearedSql = clearedSql.replace("v_evidence_path := null;", "-- not cleared");
     expect(checkSql(SqlSecurityDefinerCallerKeyRule, unclearedSql)).toHaveLength(1);
   });
+
+  // Fixture for the R4 structural exemption. Each option swaps one part of an otherwise cleared function.
+  function gateFixture(opts: { rhs?: string; gate?: string; tag?: string; copy?: string } = {}): string {
+    const tag = opts.tag ?? "$$";
+    const rhs = opts.rhs ?? "coalesce((select auth.role()) = 'service_role', false)";
+    const copy = opts.copy ?? "v_evidence_path text := p_evidence_path;";
+    const gate = opts.gate ?? "if not is_service then\n          v_evidence_path := null;\n        end if;";
+    return `
+      create or replace function public.submit_consent_gate(p_evidence_path text default null)
+      returns uuid
+      language plpgsql
+      security definer
+      set search_path = ''
+      as ${tag}
+      declare
+        is_service boolean := ${rhs};
+        ${copy}
+      begin
+        ${gate}
+        insert into public.consents (evidence_path) values (v_evidence_path);
+        return gen_random_uuid();
+      end ${tag};
+      revoke all on function public.submit_consent_gate(text) from public, anon;
+      grant execute on function public.submit_consent_gate(text) to authenticated, service_role;
+    `;
+  }
+
+  test("exempts a gate written as (coalesce(...) or current_user = 'service_role') in a tagged body", () => {
+    const sql = gateFixture({
+      tag: "$fnbody$",
+      rhs: "(coalesce((select auth.role()) = 'service_role', false) or current_user = 'service_role')",
+    });
+    expect(checkSql(SqlSecurityDefinerCallerKeyRule, sql)).toHaveLength(0);
+  });
+
+  test("does not exempt a gate that tests a role other than service_role", () => {
+    expect(checkSql(SqlSecurityDefinerCallerKeyRule, gateFixture({ rhs: "auth.role() = 'anon'" }))).toHaveLength(1);
+  });
+
+  test("does not exempt a service flag that is constant true or ORs in a tautology", () => {
+    expect(checkSql(SqlSecurityDefinerCallerKeyRule, gateFixture({ rhs: "true" }))).toHaveLength(1);
+    expect(
+      checkSql(SqlSecurityDefinerCallerKeyRule, gateFixture({ rhs: "auth.role() = 'service_role' or true" }))
+    ).toHaveLength(1);
+  });
+
+  test("does not exempt a service flag that is reassigned in the body", () => {
+    const sql = gateFixture({
+      gate: "is_service := true;\n        if not is_service then\n          v_evidence_path := null;\n        end if;",
+    });
+    expect(checkSql(SqlSecurityDefinerCallerKeyRule, sql)).toHaveLength(1);
+  });
+
+  test("does not exempt a nulling that is conditional (nested inside another IF)", () => {
+    const sql = gateFixture({
+      gate: "if not is_service then\n          if current_setting('x', true) = 'y' then\n            v_evidence_path := null;\n          end if;\n        end if;",
+    });
+    expect(checkSql(SqlSecurityDefinerCallerKeyRule, sql)).toHaveLength(1);
+  });
+
+  test("does not exempt a nulling that sits in the ELSE branch (the service path)", () => {
+    const sql = gateFixture({
+      gate: "if not is_service then\n          null;\n        else\n          v_evidence_path := null;\n        end if;",
+    });
+    expect(checkSql(SqlSecurityDefinerCallerKeyRule, sql)).toHaveLength(1);
+  });
+
+  test("does not exempt when the local is used before it is nulled", () => {
+    const sql = gateFixture({
+      gate: "perform 1 where v_evidence_path is null;\n        if not is_service then\n          v_evidence_path := null;\n        end if;",
+    });
+    expect(checkSql(SqlSecurityDefinerCallerKeyRule, sql)).toHaveLength(1);
+  });
+
+  test("still exempts when the body uses raise exception (a statement, not an EXCEPTION handler)", () => {
+    const sql = gateFixture({
+      gate: "if not is_service then\n          v_evidence_path := null;\n        end if;\n        if v_evidence_path is null and false then\n          raise exception 'unreachable';\n        end if;",
+    });
+    expect(checkSql(SqlSecurityDefinerCallerKeyRule, sql)).toHaveLength(0);
+  });
+
+  test("does not exempt when an EXCEPTION handler is present (its nulling is not modelled)", () => {
+    const sql = gateFixture({
+      gate: "if not is_service then\n          v_evidence_path := null;\n        end if;\n        perform 1;\n        exception when others then\n          v_evidence_path := null;",
+    });
+    expect(checkSql(SqlSecurityDefinerCallerKeyRule, sql)).toHaveLength(1);
+  });
+
+  test("does not exempt when the key is copied in the body after the nulling", () => {
+    const sql = gateFixture({
+      copy: "v_evidence_path text;",
+      gate: "if not is_service then\n          v_evidence_path := null;\n        end if;\n        v_evidence_path := p_evidence_path;",
+    });
+    expect(checkSql(SqlSecurityDefinerCallerKeyRule, sql)).toHaveLength(1);
+  });
 });
 
 // PR #347 round 2: sanitizeSql() must handle dollar-quoted bodies, E'...'

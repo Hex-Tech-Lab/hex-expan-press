@@ -20,6 +20,24 @@ export class DeliveryBlockedError extends Error {
 }
 
 /**
+ * A buyer send whose outcome is not confirmed (ambiguous transport or provider failure, or a held claim that could not be
+ * resent). The stored claim keeps the message, so the provider's retry resends the identical email under the same
+ * idempotency key. Answers 503 so the provider retries. The message carries the cause text only, never buyer data.
+ */
+export class DeliveryPendingError extends Error {
+  readonly httpStatus = 503;
+
+  constructor(
+    readonly saleId: string,
+    cause: unknown,
+  ) {
+    const detail = cause instanceof Error ? cause.message : String(cause);
+    super(`delivery unconfirmed for sale ${saleId}: ${detail}; the provider will retry`);
+    this.name = "DeliveryPendingError";
+  }
+}
+
+/**
  * Thrown when a conditional DB write detects that a newer lock holder already advanced the fencing token.
  * Never applied; surfaces as retryable 503 so the provider retries cleanly (or reconciles on retry).
  */

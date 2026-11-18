@@ -3,10 +3,13 @@ import { createEsignAdapter } from "../adapters/esign/esign.factory.ts";
 import { ConsentDatabasePort } from "../domain/governance/consent.port.ts";
 import { WebhookValidationError } from "../domain/webhook/webhook_errors.ts";
 import { createHash } from "node:crypto";
-import { consentEvidencePathRules } from "../../payments/src/settings_registry.ts";
+import { consentEvidencePathRules, CONSENT_EVIDENCE_SEGMENT_CONTRACT } from "../../payments/src/settings_registry.ts";
 
 /** text_version recorded when the envelope carries no valid snapshot of the wording the signer saw. */
 export const LEGACY_TEXT_VERSION = "legacy/unknown";
+
+/** The id the Firma adapter substitutes when a completed payload carries no signing_request id (firma.adapter.ts, completed-event mapping). Not a real envelope. */
+const ADAPTER_MISSING_ENVELOPE_ID = "unknown";
 
 export interface ProcessEsignWebhookRequest {
   body: string;
@@ -56,8 +59,17 @@ export async function processEsignWebhookUseCase(
     // Path gate (F-07): userId and envelopeId become the Storage object path `<userId>/<envelopeId>.pdf`, and the
     // upload runs with service_role and x-upsert. Refuse any value that cannot name an evidence object BEFORE a
     // path is built or anything is uploaded. Rules come from the settings registry; the DB CHECK is the backstop.
+    // The registry rules may tighten this gate but cannot widen it: the whole-segment contract is enforced independently,
+    // so a permissive or unanchored override cannot admit a slash, dot segment, or anything the DB CHECK would reject.
     const evidenceRules = consentEvidencePathRules();
-    if (!evidenceRules.userId.test(userId) || typeof envelopeId !== "string" || !evidenceRules.envelopeId.test(envelopeId)) {
+    const userIdSafe = typeof userId === "string" && CONSENT_EVIDENCE_SEGMENT_CONTRACT.userId.test(userId) && evidenceRules.userId.test(userId);
+    const envelopeIdSafe =
+      typeof envelopeId === "string" &&
+      envelopeId !== ADAPTER_MISSING_ENVELOPE_ID &&
+      CONSENT_EVIDENCE_SEGMENT_CONTRACT.envelopeId.test(envelopeId) &&
+      evidenceRules.envelopeId.test(envelopeId);
+    if (!userIdSafe || !envelopeIdSafe) {
+      // Terminal (400): a missing or placeholder envelope id is refused before any fetch or upload, so no unknown.pdf is written.
       throw new WebhookValidationError(
         `Webhook validation failed: completed envelope ${typeof envelopeId === "string" ? envelopeId.slice(0, 64) : "(non-string id)"} has a userId or envelopeId that cannot name an evidence object`
       );

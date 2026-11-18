@@ -312,6 +312,16 @@ describe('AuthSecurityRule', () => {
     expect(findings).toHaveLength(1);
     expect(findings[0]?.title).toBe('Auth: localhost fallback in production route');
   });
+
+  // A fixed test base URL that names APP_URL and localhost, with no `||` or `??` default, is not a fallback.
+  test('does not flag a Playwright-style config that uses a fixed localhost base URL without a fallback', () => {
+    const findings = scan(AuthSecurityRule, 'web/playwright.config.ts', `
+      import { APP_URL } from "./e2e/constants";
+      const allowedHosts = "localhost";
+      export default { use: { baseURL: APP_URL }, webServer: [{ url: APP_URL + "/creator/signin" }] };
+    `);
+    expect(findings.filter((f) => f.title === 'Auth: localhost fallback in production route')).toHaveLength(0);
+  });
 });
 
 describe('HmacMessageFormatRule', () => {

@@ -89,7 +89,8 @@ export default async function CheckoutPage({
         <p className="assurance">A download link is emailed after purchase</p>
         </main>
 
-        <StorefrontFooter />
+        {/* A gated (draft) product hides the buyer legal links, the same rule as the product page. */}
+        <StorefrontFooter showBuyerLegal={p.checkout_mode === "live"} />
       </div>
     </div>
   );

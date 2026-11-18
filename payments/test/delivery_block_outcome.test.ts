@@ -1,6 +1,9 @@
 import { describe, it, expect, vi } from "vitest";
 import { deliverSaleForWebhook, type DeliveryDeps } from "../src/delivery";
 
+// A fixed 32-byte test key for the held-claim message store. Never a real key.
+const TEST_LINK_KEY = Buffer.alloc(32, 7);
+
 // A sale that cannot be delivered answers a typed status: a missing buyer email is final (422, the provider
 // stops retrying); a missing release file is fixable by ops, so it stays retryable (503).
 const PRODUCT = { id: "11111111-1111-4111-8111-111111111111", title: "500K Playbook", releasePath: "p/file.pdf" };
@@ -18,11 +21,14 @@ function deps(product: unknown): DeliveryDeps {
       assertSendFence: vi.fn(async () => undefined),
       markDeliverySent: vi.fn(async () => undefined),
       releaseDeliverySend: vi.fn(async () => undefined),
+      storeClaimMessage: vi.fn(async () => undefined),
+      readClaimMessage: vi.fn(async () => null),
+      clearClaimMessage: vi.fn(async () => undefined),
     },
     sendEmail: vi.fn(async () => ({ id: "e1" })),
     createShortLink: vi.fn(async () => "https://go.expanpress.com/x"),
     origin: "https://expanpress.com",
-    replyTo: "support@expanpress.com",
+    replyTo: "support@expanpress.com", linkKey: TEST_LINK_KEY,
   };
 }
 
