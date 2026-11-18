@@ -1,0 +1,54 @@
+payments/test/delivery_block_outcome.test.ts
+  s_0e99959cd74c50::t_bf3a1cba5afde3 3-4
+  s_0e99959cd74c50::t_073c3b173da0be 52-84
+payments/src/delivery.ts
+  s_0e99959cd74c50::t_6f1bcaeee8d5ef 588-594,597-599
+  s_0e99959cd74c50::t_2c08dc1d0452b3 13-17
+  s_0e99959cd74c50::t_660be4c46171a5 612-627
+  s_0e99959cd74c50::t_ecd94ff29f38d3 187
+  s_0e99959cd74c50::t_eb19346375df93 587
+payments/test/delivery.test.ts
+  s_0e99959cd74c50::t_908da859a5a71e 304-305,307
+payments/test/delivery_held_claim_resend.test.ts
+  s_0e99959cd74c50::t_53820344f17614 405-454
+src/adapters/payments/creem.adapter.ts
+  s_0e99959cd74c50::t_04fc0b715b1b77 43-45
+web/app/creator/review/review-client.tsx
+  s_0e99959cd74c50::t_849024253ed786 137-148
+  s_0e99959cd74c50::t_2f765d18bef9cd 161
+  s_0e99959cd74c50::t_cdfa6c8581afe0 15
+payments/src/settings_registry.ts
+  s_0e99959cd74c50::t_95538f9fd00313 146-148
+  s_0e99959cd74c50::t_30c56741c5ff78 270
+  s_0e99959cd74c50::t_4a891a5b90b7f8 724-727
+web/app/checkout/[productId]/page.tsx
+  s_0e99959cd74c50::t_f73c3c5cde408d 98-99,108-109
+  s_0e99959cd74c50::t_9ff50502395cab 4,13,23-24,59,62-65,67-70,72-79,81-89,94-97,100,102,105-107,110,115-120
+web/src/components/storefront/storefront.tsx
+  s_0e99959cd74c50::t_755d8c4afd1961 296-299
+web/e2e/mock-supabase.ts
+  s_0e99959cd74c50::t_9827d83e048662 118-126,132
+  s_0e99959cd74c50::t_3df8c71e5208d9 159-161,164-165,168
+  s_0e99959cd74c50::t_9e2c5767358ac7 135,138,140,144
+web/__tests__/no-sf-classes.test.ts
+  s_0e99959cd74c50::t_c1ff719a55a4a3 1-31
+web/app/checkout/[productId]/__tests__/page.test.ts
+  s_0e99959cd74c50::t_1e247117b02f2f 131
+  s_0e99959cd74c50::t_de3b9479ecf510 14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2fef63325c7c4366c02a9dc17e57f7d3fd23ffe4",
+  "prompts": {},
+  "sessions": {
+    "s_0e99959cd74c50": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "21b00acc-7513-46d6-9a35-038af7845be2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
