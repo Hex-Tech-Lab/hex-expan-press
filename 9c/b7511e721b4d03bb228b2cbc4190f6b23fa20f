@@ -1,0 +1,273 @@
+src/infrastructure/redis/__tests__/redis.client.test.ts
+  s_29893055f88353::t_52330fb3d466d1 65-68
+  s_29893055f88353::t_7fe12c1e921d39 1-64,69-75
+.qa-intel/baseline.json
+  s_29893055f88353::t_9ebb39a1fede6f 2843-2856
+payments/test/delivery_retry_trade_off.test.ts
+  s_29893055f88353::t_63980e0cd3028d 20,23
+  s_29893055f88353::t_c8c7a219c4bb7c 120-121,127-128,130-135
+  s_29893055f88353::t_402165f5b0432c 82
+  s_29893055f88353::t_c900d1cdbfbf12 59-66,68-72
+  s_29893055f88353::t_2adcd6a0912b82 5-7,89,114,171,225,250,276,309,352
+scripts/qa-intel/engine/rules/artas-rules.ts
+  s_29893055f88353::t_54c76fe5dc91b5 381-382,384
+  s_29893055f88353::t_f4afeae8580166 303,305-329
+  s_29893055f88353::t_bf763e6cba5963 304
+  s_29893055f88353::t_e97f2dc6d8991c 383
+web/app/books/page.tsx
+  s_29893055f88353::t_b2a9f8295a611c 34-35
+  s_29893055f88353::t_8740f62ed5adc2 11
+payments/src/ledger.ts
+  s_29893055f88353::t_97eef8f327b471 234-236
+  s_29893055f88353::t_0553903d53d9a5 631
+  s_29893055f88353::t_175600953af36f 613-615,617-619,624-630,633-639
+  s_29893055f88353::t_d0681879ba8e2a 193-195,198,213,222
+  s_29893055f88353::t_f36ee46d8e75a6 640-661
+  s_29893055f88353::t_f25249bbb3d859 620-622
+  s_29893055f88353::t_b3fe2e4507a827 124-134
+  s_29893055f88353::t_46dbc479e6b795 1
+  s_29893055f88353::t_20b70349dcccdf 304,388,426,595,632,706
+src/infrastructure/matrix_router/matrix_router.ts
+  s_29893055f88353::t_9d49cd2018501c 87-102
+scripts/qa-intel/engine/__tests__/ui-error-rules.test.ts
+  s_29893055f88353::t_b91cda9b4e4f6e 131-143,157
+  s_29893055f88353::t_1d4a2029b768ff 113,119-127,144-156
+  s_29893055f88353::t_9baf9e433f663a 158
+scripts/qa-intel/engine/__tests__/data-integrity-rules.test.ts
+  s_29893055f88353::t_e5e16f8cf93542 293-307
+payments/test/delivery.test.ts
+  s_29893055f88353::t_eb4e5c1080f4f5 67,70-72,75-82,85,87
+  s_29893055f88353::t_c81dac7e610b84 23
+  s_29893055f88353::t_a3fd8ef5793b06 73-74
+  s_29893055f88353::t_fb36ce4f32c7c2 13-14
+web/app/checkout/[productId]/__tests__/page.test.ts
+  s_29893055f88353::t_95a0819eba5737 99-122
+  s_29893055f88353::t_b93e8ac9543d40 11
+payments/src/settings_registry.ts
+  s_29893055f88353::t_6461443d41abc3 633-636,645
+  s_29893055f88353::t_89c8d5609f51a5 116-117
+  s_29893055f88353::t_017140f832aa8d 457-475
+  s_29893055f88353::t_4f36443fd7b6e5 499-516,519,521-522
+  s_29893055f88353::t_22a611943d699b 223-224
+  s_29893055f88353::t_dd3b8f55628c28 619
+web/public/privacy.html
+  s_29893055f88353::t_112f5dd2bcb6d7 56
+  s_29893055f88353::t_d66d683b3d5149 46-47
+supabase/test-data/test_replica_creator.sql
+  s_29893055f88353::t_c28397066dbde5 6-8,22-28,56-67
+web/app/books/__tests__/landing-attribution.test.ts
+  s_29893055f88353::t_28a3512ad16706 1-6,11-14,16-39
+  s_29893055f88353::t_0c1bd3a8502977 7-10,15
+payments/test/delivery_single_send_and_fence.test.ts
+  s_29893055f88353::t_5f0e5cc9113f0a 428
+  s_29893055f88353::t_f26d6843717371 699-704,706,711,713,715-720,722-732,734-736
+  s_29893055f88353::t_caf2cffaab034f 293-294
+  s_29893055f88353::t_18646726582ce2 454-457
+  s_29893055f88353::t_691897d711a682 500-502,504,506-507
+  s_29893055f88353::t_8ff850ea23d61b 312-313
+  s_29893055f88353::t_5e2b0154a036ef 389-390,394-396,400-409
+  s_29893055f88353::t_9599bd97283361 600,603-604,611
+  s_29893055f88353::t_b952c863fd6825 351,440,467,478,560,565
+web/public/books/legal/providers.html
+  s_29893055f88353::t_4f006f632d96e1 2,21,38,40,43,49
+web/app/creator/review/review-client.tsx
+  s_29893055f88353::t_449bffc40836fe 145
+  s_29893055f88353::t_5c7ce0bcf6cd3b 144
+scripts/qa-intel/engine/rules/ui.ts
+  s_29893055f88353::t_9d247e7d62dbaa 273-276,279,281,283-285
+  s_29893055f88353::t_c1eee63b1a2285 282
+  s_29893055f88353::t_5d1a22d79c331f 277-278
+  s_29893055f88353::t_4d2bbcc8680944 254-257
+supabase/migrations/20261110121805_products_platform_slug_unique.sql
+  s_29893055f88353::t_78b8983c8ec59d 5-6
+scripts/qa-intel/engine/rules/security.ts
+  s_29893055f88353::t_91d3450e6efef2 438-455,457-462,464-466,468-543,546-551
+  s_29893055f88353::t_ee985c25433304 338-341
+scripts/qa-intel/engine/rules/sql-migrations.ts
+  s_29893055f88353::t_6b068e560eed60 499-500
+  s_29893055f88353::t_c0f5a55f36d4cf 449-492,495-498,501-502,504-513,516-526,528-552
+  s_29893055f88353::t_d755deb135e4ff 514-515
+  s_29893055f88353::t_a2052ea992e241 333-337
+  s_29893055f88353::t_0d5316e3c11af5 215-217,229
+web/public/terms.html
+  s_29893055f88353::t_a94f763e5f06b4 44
+web/app/creator/review/__tests__/viewer-page-fallback.test.ts
+  s_29893055f88353::t_48e97a0814afe0 1-99
+scripts/qa-intel/engine/rules/__tests__/artas-rules.test.ts
+  s_29893055f88353::t_ef88b02175561c 310-350
+scripts/qa-intel/engine/rules/__tests__/security-lessons-20260905.test.ts
+  s_29893055f88353::t_a09a3c066e3e1e 19-36
+scripts/qa-intel/engine/__tests__/security-rules.test.ts
+  s_29893055f88353::t_c8fd7220cee741 315-324
+payments/test/delivery_provider_scope.test.ts
+  s_29893055f88353::t_a39291fe4d526b 12
+  s_29893055f88353::t_4f192be8e3fa53 58-65,67-71
+  s_b999021ea7ba22::t_329bf6e4a2d8b8 4-6,77
+web/app/creator/dashboard/page.tsx
+  s_29893055f88353::t_96d0206aa59a86 90-91
+  s_29893055f88353::t_3266f44a84f2b5 92
+  s_29893055f88353::t_545fae7be8f28b 10
+  s_29893055f88353::t_981ab8bd386ba4 81
+web/public/books/legal/terms.html
+  s_29893055f88353::t_6bc0c8c2d344b1 21,34,37,40,43,46,49,55,58,61,64,67,70
+  s_29893055f88353::t_fa663429b09a08 52
+docs/testing/pairwise/billing_consent_checkout.coverage.html
+  s_29893055f88353::t_e96f30b43e4268 20,22-23
+payments/src/email.ts
+  s_29893055f88353::t_a04cf130bedaa2 80,87-90
+  s_29893055f88353::t_283cf01c4dd749 63
+  s_29893055f88353::t_31bd196e9631e2 11-12
+payments/test/registry_guards.test.ts
+  s_29893055f88353::t_20f8799bcedf2a 1-77
+payments/test/delivery_held_claim_resend.test.ts
+  s_29893055f88353::t_999b7e17a97b0d 4
+  s_29893055f88353::t_a03d73781ba904 1-3,5-194,196-259,294
+  s_29893055f88353::t_b2a08c4215c80e 260-293
+  s_29893055f88353::t_3135b78076a8c7 195
+src/use_cases/process_esign_webhook.ts
+  s_29893055f88353::t_d8e7867556aba1 6,11-12
+  s_29893055f88353::t_69e6c9aba5192b 62-63,65-72
+  s_29893055f88353::t_6d448485ac3a48 13
+src/adapters/payments/__tests__/polar.adapter.test.ts
+  s_29893055f88353::t_54b1f5d77bdefd 22
+  s_29893055f88353::t_829078fe3ee9c6 97
+supabase/migrations/20261118090000_product_authority_head_counts.sql
+  s_29893055f88353::t_4f1039300afd85 1-66
+src/infrastructure/matrix_router/__tests__/matrix_router.legacy_state.test.ts
+  s_29893055f88353::t_cb2cb7ed6945e5 1-64
+payments/src/delivery_sends_store.ts
+  s_29893055f88353::t_4635bdac79bdf0 112-119,122
+  s_29893055f88353::t_91238c597dbdfb 273-275,286
+  s_29893055f88353::t_46302950a54fc8 51-62
+  s_29893055f88353::t_385a62831ae5a9 109
+  s_29893055f88353::t_b5a971cab734ae 270-272,276-285,287-323
+vitest.qa-intel.config.ts
+  s_29893055f88353::t_1224b1586ea3e3 4
+  s_29893055f88353::t_cd5da57a640641 27
+web/src/lib/__tests__/review-anchor.test.ts
+  s_29893055f88353::t_5bcf305bb6aa20 9-13
+web/__tests__/refund-copy.test.ts
+  s_29893055f88353::t_d48f8fb82297cc 5-6,10-14,21-22,32-43
+payments/src/delivery.ts
+  s_29893055f88353::t_9798c682f7887a 450
+  s_29893055f88353::t_0220c71e46148b 344
+  s_29893055f88353::t_a6fd0141684bf7 270
+  s_29893055f88353::t_cafa3b565dabbb 11-20,25,27,30,37-39,97,115-125,130-137,145-149,162-163,172,180-269,271-276,300-306,316-333,385,387-389,391-394,398-402,404-406,440-449,451-453
+  s_29893055f88353::t_44540859fb78ba 111-114
+  s_29893055f88353::t_63fc77b99bf232 395-397,403,408-416,418-419,426
+src/use_cases/__tests__/process_esign_webhook.gate.test.ts
+  s_29893055f88353::t_1067bfd07de6a9 1-93
+payments/src/delivery_errors.ts
+  s_29893055f88353::t_53b85060b988e2 23-39
+  s_29893055f88353::t_eb269961edb56c 22
+docs/handover/B2B_B2C_COMPARISON.html
+  s_29893055f88353::t_8567866f1255ef 264-265,267
+  s_29893055f88353::t_9086990e3a43d1 244-246
+  s_29893055f88353::t_8efd7f0ea36152 372
+  s_29893055f88353::t_2c470f364d6ed0 268-269
+  s_29893055f88353::t_2fa2dbbce507c6 136-138
+supabase/migrations/20261118090100_deny_client_policies_restrictive.sql
+  s_29893055f88353::t_7ffc1de20fbc73 1-18
+scripts/qa-intel/engine/rules/architecture.ts
+  s_29893055f88353::t_8901548f42bae9 132-137,140
+  s_29893055f88353::t_97c679fdac4571 172
+scripts/qa-intel/engine/__tests__/unsafe-property-access.test.ts
+  s_29893055f88353::t_e31b2ffd187f01 176-234
+web/__tests__/storefront.test.ts
+  s_29893055f88353::t_d2abb7cdd02b56 8
+  s_29893055f88353::t_9fab8ccc285f6d 81-130
+scripts/qa-intel/engine/__tests__/architecture-error-rules.test.ts
+  s_29893055f88353::t_5ea194cf1aca04 257,263,268-270
+  s_29893055f88353::t_7588e61fb94937 190-206
+payments/test/ledger_fence_and_local_dedupe.test.ts
+  s_29893055f88353::t_d956292440c1b2 48-49
+  s_29893055f88353::t_3c828754591810 5
+  s_29893055f88353::t_94ed34b0a70c46 136-149
+  s_29893055f88353::t_4d023d4044a6c6 1-4,6-47,50-62,65-135,150
+  s_29893055f88353::t_5bc2c88b8be4b6 63-64
+src/adapters/payments/__tests__/creem.boundary.test.ts
+  s_29893055f88353::t_a2990caac21213 1-69
+src/adapters/payments/creem.adapter.ts
+  s_29893055f88353::t_31ff30ea91a22b 43
+  s_29893055f88353::t_20433f1f794e0d 133
+  s_29893055f88353::t_5bbc812d0263d3 118-121
+web/public/legal/providers.html
+  s_29893055f88353::t_27eddf7fa6c211 70
+scripts/qa-intel/engine/rules/quality.ts
+  s_29893055f88353::t_bb5a23d97323ee 254
+  s_29893055f88353::t_1da1be6994917f 496,501-503
+  s_29893055f88353::t_a5f980ccabcfd6 298-328,334,337-339
+  s_29893055f88353::t_eaa122846930ef 252-253,255-256,268-270,272-273
+web/src/components/storefront/storefront.tsx
+  s_29893055f88353::t_de482245ea8098 77
+  s_29893055f88353::t_9e9330530deefb 66
+  s_29893055f88353::t_14718618437fc3 113-124,131-134,136
+  s_29893055f88353::t_512ec1110aba6f 61
+scripts/qa-intel/engine/rules/data-integrity.ts
+  s_29893055f88353::t_980142e88be12e 166-182
+  s_29893055f88353::t_f405ae96b55e43 255-257
+scripts/qa-intel/__tests__/cache.test.ts
+  s_29893055f88353::t_a0b87a1eceb1d4 214
+  s_29893055f88353::t_884c67b99e8a3d 204-213,215-218
+scripts/qa-intel/engine/__tests__/quality-error-rules.test.ts
+  s_29893055f88353::t_d94d452b2e7cb8 319,326-332
+  s_29893055f88353::t_9673977813b681 85-117,333
+payments/test/delivery_link_crypto.test.ts
+  s_29893055f88353::t_bd8b9add345e39 1-66
+web/src/lib/review-anchor.ts
+  s_29893055f88353::t_0f2deabdebb9b9 10-11,13-16
+payments/src/delivery_link_crypto.ts
+  s_29893055f88353::t_fd83cc26e0aa68 1-54
+supabase/migrations/20261118120000_delivery_claim_link.sql
+  s_29893055f88353::t_5b4c09822cea9c 1-24
+web/public/books/legal/refund-policy.html
+  s_29893055f88353::t_e515abf64b4e77 2,22,35,41,44,50-51,54,57
+scripts/qa-intel/engine/rules/security-lessons-20260905.ts
+  s_29893055f88353::t_f51667bd55806f 11-14,25-26
+scripts/qa-intel/__tests__/base-ref.test.ts
+  s_29893055f88353::t_fd767ce8f00bca 44-48
+supabase/migrations/20261103145843_release_stage_events.sql
+  s_29893055f88353::t_1e05664f6d5bd8 15-17
+  s_29893055f88353::t_40a4da76b6d98b 31-32
+web/__tests__/next-config-redirects.test.ts
+  s_29893055f88353::t_66858e932d8d96 1-2,9-15,17-25
+web/public/books/legal/privacy.html
+  s_29893055f88353::t_b82234e20b5451 21,34,37-38,41-42,56,63,66,69,72,75
+web/app/creator/dashboard/__tests__/page.test.ts
+  s_29893055f88353::t_e45687d9567970 132
+  s_29893055f88353::t_dd83418cbd7aef 185
+  s_29893055f88353::t_eaccbe4d8032a6 110-131,133-137
+web/app/checkout/[productId]/page.tsx
+  s_29893055f88353::t_dfda06646457d4 92-93
+scripts/qa-intel/engine/rules/__tests__/sql-migrations.test.ts
+  s_29893055f88353::t_aedfde5a60456f 358-431,446-452
+  s_29893055f88353::t_80cc55656dcd46 432-445
+docs/handover/LEGAL_COMPARISON_2026-11-18.html
+  s_29893055f88353::t_4d446309f2622a 1-122
+payments/test/delivery_block_outcome.test.ts
+  s_29893055f88353::t_35b3f3a8c816bd 4-6,24-26,31
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9cb7511e721b4d03bb228b2cbc4190f6b23fa20f",
+  "prompts": {},
+  "sessions": {
+    "s_29893055f88353": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1c444932-1da1-4ad5-9e8b-395eb468f52a",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    },
+    "s_b999021ea7ba22": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a9a2dea69930f8413",
+        "model": "unknown"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
