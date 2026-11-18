@@ -94,6 +94,8 @@ export interface GlobalSettings {
   /** Product slug rule (ADR 0065): same shape as handles. Unique per creator (products_creator_id_slug_key);
    *  platform-wide products_slug_key was reverted and is dropped by supabase/migrations/20261117110000_products_slug_convergence.sql. */
 product_slug: { min_length: number; max_length: number; separator: string };
+  /** Sign-in email length ceiling (O5). 254 is the RFC 5321 address limit; zod's email check supplies the shape. */
+  email_address: { max_length: number };
   landing: { fallbacks: { title: string; creator: string }; disclaimers: string[] };
   /** Admin API allowlist + pagination (admin audit-log route). */
   admin: {
@@ -221,6 +223,7 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
   // Product slug rule (ADR 0065). Same shape as handles. Unique per creator (products_creator_id_slug_key);
   // platform-wide products_slug_key was reverted and is dropped by supabase/migrations/20261117110000_products_slug_convergence.sql.
   product_slug: { min_length: 3, max_length: 30, separator: "_" },
+  email_address: { max_length: 254 },
   landing: {
     fallbacks: { title: "Product", creator: "the creator" },
     disclaimers: [
@@ -469,6 +472,7 @@ function loadGlobal(): GlobalSettings {
     storefront: { ...DEFAULT_GLOBAL.storefront, ...(g.storefront ?? {}) },
     handles: { ...DEFAULT_GLOBAL.handles, ...(g.handles ?? {}) },
     product_slug: { ...DEFAULT_GLOBAL.product_slug, ...(g.product_slug ?? {}) },
+    email_address: { ...DEFAULT_GLOBAL.email_address, ...(g.email_address ?? {}) },
     email: loadEmailSection(g.email as Record<string, unknown> | undefined),
     portal: { ...DEFAULT_GLOBAL.portal, ...(g.portal ?? {}) },
     admin: loadAdminSection(g.admin as Record<string, unknown> | undefined),

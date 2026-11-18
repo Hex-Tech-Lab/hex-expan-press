@@ -96,4 +96,15 @@ describe("review viewer opens on a real page", () => {
     expect(requested).not.toContain(NUM_PAGES + 4);
     expect(requested).not.toContain(0);
   });
+
+  it("tells the creator when the anchor is past the last page (visible, not silent)", async () => {
+    await renderWith(NUM_PAGES + 4);
+    const notice = container?.querySelector('[role="status"]')?.textContent ?? "";
+    expect(notice).toBe(`Question Q1 points to PDF page ${NUM_PAGES + 4}, but this PDF has ${NUM_PAGES} pages. Showing page 1.`);
+  });
+
+  it("shows no notice when the anchor is inside the document", async () => {
+    await renderWith(3);
+    expect(container?.querySelector('[role="status"]')).toBeNull();
+  });
 });

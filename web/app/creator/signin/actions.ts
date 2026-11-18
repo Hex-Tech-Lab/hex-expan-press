@@ -3,6 +3,7 @@
 import { headers } from "next/headers";
 import { redirect, unstable_rethrow } from "next/navigation";
 import { createSsrClient } from "../../../src/lib/supabase-ssr";
+import { emailSchema } from "../../../src/lib/zod-rules";
 import { AUTH_REDIRECT_HOSTS } from "../../../../payments/src/settings_registry";
 
 /**
@@ -98,8 +99,10 @@ export async function signInWithGoogleAction(): Promise<void> {
  * dashboard remains until the config is migrated.
  */
 export async function signInWithOtpAction(formData: FormData): Promise<void> {
-  const email = String(formData.get("email") ?? "").trim();
-  if (!email || !email.includes("@")) redirect("/creator/signin?error=invalid_email");
+  // O5: validate before any Supabase call; a malformed or over-long address never reaches the OTP send.
+  const parsed = emailSchema.safeParse(String(formData.get("email") ?? "").trim());
+  if (!parsed.success) redirect("/creator/signin?error=invalid_email");
+  const email = parsed.data;
 
   const origin = await resolveOrigin();
   try {

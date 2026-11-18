@@ -15,3 +15,15 @@ export function anchorPageOf(anchor: unknown): number | null {
   const fromPage = pageSchema.safeParse(a.page);
   return fromPage.success ? fromPage.data : null;
 }
+
+/** Where the viewer opens for an anchor in a PDF of `numPages` pages.
+ *  A null anchor opens page 1 with no notice (the caller decides whether that is a gate).
+ *  An anchor outside the PDF still opens page 1 (page 0 renders nothing), and the notice says so: the creator is told, not shown page 1 silently. */
+export function viewerPageFor(anchor: number | null, numPages: number, code: string): { page: number; notice: string | null } {
+  if (anchor === null) return { page: 1, notice: null };
+  if (anchor >= 1 && anchor <= numPages) return { page: anchor, notice: null };
+  return {
+    page: 1,
+    notice: `Question ${code} points to PDF page ${anchor}, but this PDF has ${numPages} pages. Showing page 1.`,
+  };
+}
