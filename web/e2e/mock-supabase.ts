@@ -115,15 +115,49 @@ async function readBody(req: IncomingMessage): Promise<string> {
   return Buffer.concat(chunks).toString("utf8");
 }
 
-/** Minimal PostgREST: `col=eq.value` filters, `limit`; order/select ignored. */
+/** Minimal PostgREST: `col=eq.value` filters, `limit`; order/select ignored.
+ * Embedded filters (`relation.col=op.value`, where `relation` is an array on the parent rows) filter the embedded
+ * rows. An inner embed (`relation!inner(` in select) also drops a parent left with no embedded row. Only eq, neq and
+ * not.is.null are modelled, the operators the storefront uses; other operators are ignored, as at top level. */
 function query(table: string, params: URLSearchParams): Row[] {
   let rows = db[table] ?? [];
+  const select = params.get("select") ?? "";
+  const embedded = new Map<string, Array<{ col: string; test: (x: unknown) => boolean }>>();
   for (const [k, v] of params) {
     if (["select", "order", "limit", "offset"].includes(k)) continue;
+    const dot = k.indexOf(".");
+    const relation = dot > 0 ? k.slice(0, dot) : "";
+    if (relation && rows.some((r) => Array.isArray(r[relation]))) {
+      const test = embeddedTest(v);
+      if (test) embedded.set(relation, [...(embedded.get(relation) ?? []), { col: k.slice(dot + 1), test }]);
+      continue;
+    }
     if (v.startsWith("eq.")) rows = rows.filter((r) => String(r[k]) === v.slice(3));
+  }
+  for (const [relation, conds] of embedded) {
+    const inner = select.includes(`${relation}!inner(`);
+    rows = rows.flatMap((r) => {
+      const children = Array.isArray(r[relation]) ? (r[relation] as Row[]) : [];
+      const kept = children.filter((c) => conds.every((cond) => cond.test(c[cond.col])));
+      if (inner && kept.length === 0) return [];
+      return [{ ...r, [relation]: kept }];
+    });
   }
   const limit = params.get("limit");
   return limit ? rows.slice(0, Number(limit)) : rows;
+}
+
+function embeddedTest(v: string): ((x: unknown) => boolean) | null {
+  if (v.startsWith("eq.")) {
+    const want = v.slice(3);
+    return (x) => String(x) === want;
+  }
+  if (v.startsWith("neq.")) {
+    const want = v.slice(4);
+    return (x) => String(x) !== want;
+  }
+  if (v === "not.is.null") return (x) => x !== null && x !== undefined;
+  return null;
 }
 
 function rpc(fn: string, args: Row): { status: number; body: unknown } {

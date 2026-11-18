@@ -4,7 +4,6 @@ import { describe, expect, it, vi } from "vitest";
 // string. Without the capture, a buyer who arrives at /books?src=... and buys reaches checkout as "direct".
 
 vi.mock("server-only", () => ({}));
-vi.mock("../../../src/components/storefront/storefront.css", () => ({}));
 vi.mock("../../../../payments/src/supabase_admin", () => ({ getSupabaseAdmin: vi.fn(async () => null) }));
 vi.mock("../../../src/components/storefront/storefront", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../../src/components/storefront/storefront")>()),

@@ -1,21 +1,19 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { AttributionCapture } from "../../../src/components/storefront/buy-link";
+import { BrandFrame, BrandWordmark } from "../../../src/components/brand/brand";
 import {
+  BookCard,
   NOINDEX,
   StorefrontFooter,
   storefrontRobots,
   fetchCreatorHub,
-  isWorkingTitle,
   platformLink,
-  priceOf,
-  productSlugOf,
   resolveCreatorOr404,
-  type StoreProduct,
 } from "../../../src/components/storefront/storefront";
+import { GLOBAL } from "../../../../payments/src/settings_registry";
 
 /**
- * Creator hub — SSR (Sprint 16). Replaces the frozen baked
+ * Creator shelf — SSR (Sprint 16). Replaces the frozen baked
  * public/c/<handle>/index.html: prices, product list, and availability render
  * from the Postgres SSOT with at most 60s of staleness instead of freezing at
  * bake time.
@@ -55,95 +53,92 @@ export default async function CreatorHubPage({ params }: { params: Promise<{ han
     : [];
 
   return (
-    <div className="sf-root">
+    <BrandFrame>
       <AttributionCapture />
-      <div className="wrap">
-        <main>
-        <p className="kicker">Creator page &middot; ExpanPress</p>
-        {creator.photo ? (
-          <div className="avatar">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={creator.photo} alt={creator.display_name} width={84} height={84} />
-          </div>
-        ) : (
-          <div className="avatar" aria-hidden="true">
-            {initial}
-          </div>
-        )}
-        <h1>{creator.display_name}</h1>
-        <p className="handles">
-          {Object.entries(creator.platform_handles ?? {}).map(([platform, ph], i) => {
-            const link = platformLink(platform, ph);
-            return (
-              <span key={platform}>
-                {i > 0 && <span className="sep"> &middot; </span>}
-                {link.url ? (
-                  <a href={link.url} rel="noopener">
-                    {link.label}
-                  </a>
-                ) : (
-                  link.label
-                )}
-              </span>
-            );
-          })}
-        </p>
-        {bioParas.length > 0 ? (
-          <div className="bio">
-            {bioParas.map((p, i) => (
-              <p key={i}>{p}</p>
-            ))}
-          </div>
-        ) : (
-          <p className="bio">Creator bio coming soon.</p>
-        )}
 
-        <div className="products">
-          <h2>Publications</h2>
-          <div className="grid">
-            {creator.products.map((p: StoreProduct) => {
-              const price = priceOf(p);
-              return (
-                <Link
-                  key={p.id}
-                  href={`/books/${creator.handle}/${productSlugOf(p)}`}
-                  className="card"
-                  data-card-source={`supabase:products/${p.id}`}
-                >
-                  <div className="cover">
-                    <p className="cover-kicker">Digital PDF</p>
-                    <p className="cover-title">{p.title ?? p.slug}</p>
-                  </div>
-                  <div className="card-body">
-                    <p className="card-price">
-                      ${price ?? "—"} <small>{p.currency ?? "USD"} &middot; one-time</small>
-                    </p>
-                    {isWorkingTitle(p) && (
-                      <p className="wt-note">Working title &mdash; final title may change before publication.</p>
+      <header className="flex items-center justify-between">
+        <BrandWordmark href={GLOBAL.storefront.b2c_landing_url} label="ExpanPress home" />
+      </header>
+
+      <main className="flex flex-col gap-6 md:gap-8">
+        <section className="glass-card card-shadow rounded-[32px] border-[1.5px] border-[#fff2e4] p-6 sm:p-8 flex flex-col sm:flex-row sm:items-center gap-6">
+          {creator.photo ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={creator.photo} alt={creator.display_name} width={84} height={84} className="w-20 h-20 shrink-0 rounded-full object-cover" />
+          ) : (
+            <div
+              aria-hidden="true"
+              className="w-20 h-20 shrink-0 rounded-full bg-charcoal text-white flex items-center justify-center text-3xl font-bold"
+            >
+              {initial}
+            </div>
+          )}
+          <div className="flex flex-col gap-3">
+            <p className="text-[11px] sm:text-xs font-mono font-medium tracking-[0.16em] uppercase text-gray-600">
+              Creator page &middot; ExpanPress
+            </p>
+            <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-gray-900 leading-tight">{creator.display_name}</h1>
+            <p className="text-sm text-gray-600">
+              {Object.entries(creator.platform_handles ?? {}).map(([platform, ph], i) => {
+                const link = platformLink(platform, ph);
+                return (
+                  <span key={platform}>
+                    {i > 0 && <span> &middot; </span>}
+                    {link.url ? (
+                      <a href={link.url} rel="noopener" className="font-medium text-gray-800 hover:underline underline-offset-4">
+                        {link.label}
+                      </a>
+                    ) : (
+                      link.label
                     )}
-                    <p className="card-cta">View details &rarr;</p>
-                  </div>
-                </Link>
-              );
-            })}
+                  </span>
+                );
+              })}
+            </p>
+            {bioParas.length > 0 ? (
+              bioParas.map((p, i) => (
+                <p key={i} className="text-sm sm:text-base text-gray-700 leading-relaxed">
+                  {p}
+                </p>
+              ))
+            ) : (
+              <p className="text-sm sm:text-base text-gray-600">Creator bio coming soon.</p>
+            )}
           </div>
-        </div>
+        </section>
 
-        <div className="disclaimers">
+        <section aria-labelledby="publications" className="flex flex-col gap-4">
+          <h2 id="publications" className="text-xl sm:text-2xl font-bold tracking-tight text-gray-900">
+            Publications
+          </h2>
+          {creator.products.length === 0 ? (
+            <div className="glass-card card-shadow rounded-[32px] border-[1.5px] border-[#fff2e4] p-8 text-center">
+              <p className="text-base text-gray-700">No books are on sale yet. Please check back soon.</p>
+            </div>
+          ) : (
+            <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5">
+              {creator.products.map((p) => (
+                <li key={p.id} className="list-none">
+                  <BookCard product={p} creatorHandle={creator.handle} creatorName={creator.display_name} headingLevel={3} />
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <section className="flex flex-col gap-2 text-xs text-gray-600 leading-relaxed px-2">
           <p>
-            <b>Educational content only &mdash; not financial advice.</b> The publications listed on this page are
+            <b className="text-gray-700">Educational content only &mdash; not financial advice.</b> The publications listed on this page are
             educational; nothing in them is a recommendation to buy, sell, or hold any security. See each
             publication&rsquo;s page for full disclaimers.
           </p>
           <p>
-            <b>Digital products:</b> all items are downloadable PDFs; no physical items are shipped.
+            <b className="text-gray-700">Digital products:</b> all items are downloadable PDFs; no physical items are shipped.
           </p>
-        </div>
+        </section>
+      </main>
 
-        </main>
-
-        <StorefrontFooter />
-      </div>
-    </div>
+      <StorefrontFooter />
+    </BrandFrame>
   );
 }

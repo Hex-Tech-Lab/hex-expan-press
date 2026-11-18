@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("server-only", () => ({}));
-vi.mock("../src/components/storefront/storefront.css", () => ({}));
 const supa = vi.hoisted(() => ({ client: null as null | { from: (table: string) => unknown } }));
 vi.mock("../../payments/src/supabase_admin", () => ({ getSupabaseAdmin: vi.fn(async () => supa.client) }));
 

@@ -1,9 +1,11 @@
 import { cache } from "react";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import "server-only";
-import "./storefront.css";
 import { getSupabaseAdmin } from "../../../../payments/src/supabase_admin";
+import { GLOBAL } from "../../../../payments/src/settings_registry";
 import { guidSchema, productSlugSchema } from "../../lib/zod-rules";
+import { BrandFooter } from "../brand/brand";
 
 /**
  * Storefront SSR (Sprint 16 — the dynamic handoff).
@@ -211,10 +213,6 @@ export function resolveCreatorOr404<T>(result: T | null): T {
   return result;
 }
 
-/* Design tokens carried over from the baked pages (PRODUCT_CSS in the retired
- * bake engine) — every selector scoped under .sf-root so nothing leaks into
- * the app's global element styles. */
-
 const PLATFORM_URLS: Record<string, { name: string; url: (h: string) => string }> = {
   youtube: { name: "YouTube", url: (h) => `https://youtube.com/@${h}` },
   instagram: { name: "Instagram", url: (h) => `https://instagram.com/${h}` },
@@ -229,21 +227,77 @@ export function platformLink(platform: string, handle: string): { label: string;
   return { label: `${platform.charAt(0).toUpperCase()}${platform.slice(1)} @${handle}`, url: null };
 }
 
-/** Buyer legal links are hidden on a gated (draft) product page, which shows a "Coming soon" banner instead of a sale. */
+/** Buyer legal links are hidden on a gated (draft) product page, which shows a "Coming soon" banner instead of a sale.
+ * The support address comes from the registry (email.reply_to), the same address the buyer emails use. It is plain
+ * text, not a mailto link: the B2C confinement rule (e2e/b2c-confinement.spec.ts) allows only /books, the B2C home and checkout. */
 export function StorefrontFooter({ showBuyerLegal = true }: { showBuyerLegal?: boolean }) {
   return (
-    <footer>
+    <BrandFooter>
       {showBuyerLegal && (
         <>
-          <a href="/books/legal/privacy.html">Privacy Policy</a>
-          <span className="sep">&middot;</span>
-          <a href="/books/legal/terms.html">Terms of Sale</a>
-          <span className="sep">&middot;</span>
-          <a href="/books/legal/refund-policy.html">Refund Policy</a>
-          <span className="sep">&middot;</span>
+          <a href="/books/legal/privacy.html" className="hover:text-gray-700 transition-colors">Privacy Policy</a>
+          <a href="/books/legal/terms.html" className="hover:text-gray-700 transition-colors">Terms of Sale</a>
+          <a href="/books/legal/refund-policy.html" className="hover:text-gray-700 transition-colors">Refund Policy</a>
         </>
       )}
-      <span>Support: support@expanpress.com</span>
-    </footer>
+      <span>{`Support: ${GLOBAL.email.reply_to}`}</span>
+    </BrandFooter>
+  );
+}
+
+/** Typographic cover. The catalog has no cover image yet, so the cover is the B2B hero slab with the title on it.
+ * Decorative: the card heading announces the title. */
+export function BookCover({ title, kicker = "Digital PDF" }: { title: string; kicker?: string }) {
+  return (
+    <div
+      aria-hidden="true"
+      className="relative aspect-[3/4] overflow-hidden rounded-[24px] bg-charcoal text-white p-6 flex flex-col justify-between shadow-[0_20px_50px_rgba(0,0,0,0.12)]"
+    >
+      <div className="absolute -right-10 -top-10 w-40 h-40 rounded-full bg-peach/20 blur-3xl pointer-events-none" />
+      <p className="relative text-[10px] font-mono font-medium tracking-[0.16em] uppercase text-gray-400">{kicker}</p>
+      <p className="relative text-xl sm:text-2xl font-bold tracking-tight leading-[1.15] text-white">{title}</p>
+      <p className="relative text-[10px] font-mono font-medium tracking-[0.16em] uppercase text-peach">ExpanPress</p>
+    </div>
+  );
+}
+
+/** One book in a grid: cover, title, creator, price. Used by /books and the creator shelf. */
+export function BookCard({
+  product,
+  creatorHandle,
+  creatorName,
+  headingLevel = 2,
+}: {
+  product: Pick<StoreProduct, "slug" | "title" | "price_usd">;
+  creatorHandle: string;
+  creatorName: string;
+  headingLevel?: 2 | 3;
+}) {
+  const slug = productSlugOf(product);
+  const title = product.title ?? slug;
+  const price = priceOf(product);
+  const Heading = headingLevel === 3 ? "h3" : "h2";
+  return (
+    <article className="glass-card card-shadow rounded-[32px] border-[1.5px] border-[#fff2e4] p-5 sm:p-6 h-full flex flex-col gap-5">
+      <BookCover title={title} />
+      <div className="flex flex-col gap-1.5">
+        <Heading className="text-lg sm:text-xl font-bold tracking-tight text-gray-900 leading-snug">
+          <Link href={`/books/${creatorHandle}/${slug}`} className="hover:underline underline-offset-4">
+            {title}
+          </Link>
+        </Heading>
+        <p className="text-xs sm:text-sm text-gray-600">
+          {"by "}
+          <Link href={`/books/${creatorHandle}`} className="font-medium text-gray-800 hover:underline underline-offset-4">
+            {creatorName}
+          </Link>
+        </p>
+      </div>
+      {price !== null && (
+        <p className="mt-auto text-lg font-bold text-gray-900">
+          {`$${price.toFixed(2)}`} <span className="text-xs font-normal text-gray-600">USD &middot; one-time</span>
+        </p>
+      )}
+    </article>
   );
 }

@@ -32,7 +32,11 @@ function linkTargets(text: string): string[] {
 function b2cSources(): string[] {
   const books = walk(join(WEB, "app/books")).filter((f) => f.endsWith(".tsx"));
   const checkout = walk(join(WEB, "app/checkout")).filter((f) => f.endsWith(".tsx"));
-  const storefront = ["src/components/storefront/storefront.tsx", "src/components/storefront/buy-link.tsx"].map((r) => join(WEB, r));
+  const storefront = [
+    "src/components/storefront/storefront.tsx",
+    "src/components/storefront/buy-link.tsx",
+    "src/components/brand/brand.tsx",
+  ].map((r) => join(WEB, r));
   const legal = walk(join(WEB, "public/books/legal")).filter((f) => f.endsWith(".html"));
   return [...books, ...checkout, ...storefront, ...legal];
 }
