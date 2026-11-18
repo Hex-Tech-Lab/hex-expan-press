@@ -1,0 +1,18 @@
+payments/src/settings_registry.ts
+  h_e6b68dcbbd0983 263-265
+scripts/ops/__tests__/stuck_report.test.ts
+  h_e6b68dcbbd0983 40-43,56,136,145-146,148-151,153-155,157,161,164,166,172,178,203-205
+scripts/ops/stuck_report.ts
+  h_e6b68dcbbd0983 6-10,69,120,187,190,199,230,253-254,261
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1083e5fb91df5f3476e7a9b4ae2d29876d819824",
+  "prompts": {},
+  "humans": {
+    "h_e6b68dcbbd0983": {
+      "author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
