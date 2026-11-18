@@ -8,7 +8,7 @@
  */
 import { PaymentProviderPort, BillingEvent, SaleCompletedEvent, RefundIssuedEvent, RefundReversedEvent } from "../../domain/payments/payments.port.ts";
 import { WebhookValidationError } from "../../domain/webhook/webhook_errors.ts";
-import { appendSale, appendRefund, appendRefundReversal, findSaleAsync, findRefundAsync, findRefundReversalAsync, findByProviderAdjustmentIdAsync, flagRefundForManualReview, recordWebhookConflict, isAdjustmentIdUniqueViolation, mirrorToLocalLedger, OrderSchemaError } from "../../../payments/src/ledger.ts";
+import { persistSale, appendRefund, appendRefundReversal, findSaleAsync, findRefundAsync, findRefundReversalAsync, findByProviderAdjustmentIdAsync, flagRefundForManualReview, recordWebhookConflict, isAdjustmentIdUniqueViolation, mirrorToLocalLedger, OrderSchemaError } from "../../../payments/src/ledger.ts";
 import { computeSplit, usdToCents } from "../../../payments/src/split.ts";
 import { effectiveCreatorSplitPctAsync } from "../../../payments/src/terms.ts";
 import { resolveProductByAlias, withIdempotencyLock, WebhookInFlightError } from "../../../payments/src/webhook_core.ts";
@@ -573,7 +573,7 @@ async function processBillingEvent(event: BillingEvent): Promise<ConflictPending
 
         // F-09 mode gate: a sale is booked only when the provider's mode equals the product's checkout_mode. Live money
         // never lands on a sandbox or gated product, and a test event never books a live product. Refused before any
-        // write, so no ledger row exists and no link is minted (delivery runs only after appendSale).
+        // write, so no ledger row exists and no link is minted (delivery runs only after persistSale).
         if (saleEvent.providerMode === undefined) {
           throw saleRefused("SALE_MODE_UNKNOWN", `sale ${saleEvent.saleId} from ${saleEvent.providerName} carries no provider mode; refused`);
         }
@@ -599,8 +599,8 @@ async function processBillingEvent(event: BillingEvent): Promise<ConflictPending
         const amountUsd = saleEvent.totalCents / 100; // Ledger still stores USD float — convert from canonical cents
         const split = computeSplit(amountUsd, creatorPct);
 
-        // Append to ledger
-        await appendSale({
+        // Durable Supabase write first (Supabase-first rule). The local mirror follows delivery, below.
+        const saleRecord = await persistSale({
           sale_id: saleEvent.saleId,
           provider: saleEvent.providerName,
           product_id: saleEvent.productId,
@@ -613,8 +613,8 @@ async function processBillingEvent(event: BillingEvent): Promise<ConflictPending
           our_split_usd: split.our_split_usd,
           currency: cfg.currency,
           ...(saleEvent.attributionId ? { attribution_id: saleEvent.attributionId } : {})
-        }, undefined, fenceToken);
-        // Receipt and download link, after the ledger write. A delivery failure rethrows: the webhook answers 500 and the
+        }, fenceToken);
+        // Receipt and download link, after the durable write. A delivery failure rethrows: the webhook answers 500 and the
         // provider retries, which re-attempts delivery on the duplicate path above.
         await deliverSaleForWebhook({
           provider: saleEvent.providerName,
@@ -623,6 +623,9 @@ async function processBillingEvent(event: BillingEvent): Promise<ConflictPending
           buyerEmail: saleEvent.buyerEmail,
           ...(fenceToken !== undefined ? { fence: fenceToken } : {}),
         });
+        // Then the local mirror, the same order as the duplicate path above. A failure here rethrows (500); the provider retries,
+        // delivery returns duplicate (no second email), and the mirror is retried.
+        await mirrorToLocalLedger(saleRecord);
         return { status: 200, payload: { ok: true, recorded: true, sale_id: saleEvent.saleId } };
       },
     );

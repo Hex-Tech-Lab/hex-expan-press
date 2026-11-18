@@ -93,5 +93,9 @@ docs/for_sharing/
 !docs/adr/
 docs/_archive/legacy_adrs/
 
+# Strategic and legal comparison material (Rule #0): never tracked in git
+docs/handover/LEGAL_COMPARISON_2026-11-18.html
+docs/handover/B2B_B2C_COMPARISON.html
+
 # code-review-graph machine-local DB (build-graph skill)
 .code-review-graph/

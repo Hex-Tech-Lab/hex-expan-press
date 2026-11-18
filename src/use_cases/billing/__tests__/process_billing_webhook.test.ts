@@ -36,6 +36,21 @@ vi.mock("../../../../payments/src/ledger.ts", async (importOriginal) => {
   };
 });
 
+// Local write fault at the file layer, for the first-sale mirror-order test. The mirrorToLocalLedger wrapper above cannot
+// stand in for it: appendSale appends through appendRecord, not through the wrapper. Only a fault on openSync (the ledger's
+// append open) fails the first-sale local write, so the old and new orders really differ under this fault.
+const localWriteFault = vi.hoisted(() => ({ fail: false }));
+vi.mock("node:fs", async (importOriginal) => {
+  const orig = await importOriginal<typeof import("node:fs")>();
+  return {
+    ...orig,
+    openSync: ((...args: Parameters<typeof orig.openSync>) => {
+      if (localWriteFault.fail) throw Object.assign(new Error("ENOSPC: no space left on device, open"), { code: "ENOSPC" });
+      return orig.openSync(...args);
+    }) as typeof orig.openSync,
+  };
+});
+
 const SALE: SaleCompletedEvent = {
   eventType: "sale_completed",
   providerName: "polar",
@@ -1127,7 +1142,7 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
     }
   });
 
-  it("a retry for a sale held only in Supabase (local append lost) mirrors it into the local ledger before delivery", async () => {
+  it("a retry for a sale held only in Supabase (local append lost) delivers, then mirrors it into the local ledger", async () => {
     vi.stubEnv("SUPABASE_URL", "https://unit.test.supabase.co");
     vi.stubEnv("SUPABASE_SECRET_KEY", "unit-test-key");
     setnx.mockResolvedValue(1);
@@ -1890,10 +1905,10 @@ describe("sale mode gate (F-09) and contended-lock confirmation (F-14)", () => {
   });
 });
 
-// Mirror-order contract: on a duplicate sale the buyer's delivery runs BEFORE the local-file mirror, so a
-// local-file fault can never block the buyer's email. A mirror failure still surfaces (500, provider retries),
-// and the retry re-delivers nothing and writes the mirror exactly once.
-describe("duplicate sale: delivery runs before the local mirror (mirror-order contract)", () => {
+// Mirror-order contract: on a duplicate sale and on a first sale, the buyer's delivery runs BEFORE the local-file
+// mirror, so a local-file fault can never block the buyer's email. A mirror failure still surfaces (500, provider
+// retries), and on a duplicate the retry re-delivers nothing and writes the mirror exactly once.
+describe("sale mirror order: delivery runs before the local mirror (mirror-order contract)", () => {
   const SALE_ROW = {
     provider: "polar", sale_id: "sale_dup_1", product_id: "p1", amount_usd: 39, creator_id: "c1",
     creator_split_pct: 50, creator_split_usd: 19.5, our_split_usd: 19.5, currency: "USD", event_type: "sale",
@@ -1922,6 +1937,7 @@ describe("duplicate sale: delivery runs before the local mirror (mirror-order co
     supa.auditError = null;
     mirrorFault.fail = false;
     mirrorFault.calls = 0;
+    localWriteFault.fail = false;
     sentSaleIds.clear();
     mkdirSync(salesFileDir, { recursive: true });
     vi.stubEnv("UPSTASH_REDIS_REST_URL", "https://unit.test.redis.example");
@@ -1938,6 +1954,7 @@ describe("duplicate sale: delivery runs before the local mirror (mirror-order co
 
   afterEach(() => {
     mirrorFault.fail = false;
+    localWriteFault.fail = false;
     delivery.deliverSaleForWebhook.mockImplementation(async () => undefined);
     rmSync(salesFileDir, { recursive: true, force: true });
     vi.unstubAllEnvs();
@@ -1976,5 +1993,17 @@ describe("duplicate sale: delivery runs before the local mirror (mirror-order co
     const rows = localRows();
     expect(rows).toHaveLength(1);
     expect(JSON.parse(rows.at(0) ?? "null")).toMatchObject({ provider: "polar", sale_id: "sale_dup_1" });
+  });
+
+  it("(d) a first sale whose local mirror write fails still delivers the buyer email before the error surfaces", async () => {
+    supa.lookupResult = { data: null, error: null }; // first sale: not yet recorded in Supabase or locally
+    localWriteFault.fail = true;
+    await expect(processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter({ ...SALE, saleId: "sale_first_1" })])).rejects.toThrow("ENOSPC");
+    expect(delivery.deliverSaleForWebhook).toHaveBeenCalledTimes(1);
+    expect(delivery.deliverSaleForWebhook).toHaveBeenCalledWith({
+      provider: "polar", saleId: "sale_first_1", productAlias: "p1", buyerEmail: "buyer@example.com", fence: expect.any(Number),
+    });
+    expect(sentSaleIds).toEqual(new Set(["sale_first_1"]));
+    expect(localRows()).toHaveLength(0);
   });
 });

@@ -36,6 +36,21 @@ describe("delivery.stored_message_since registry key", () => {
   });
 });
 
+describe("delivery.stored_message_resend_max_age_hours registry key", () => {
+  it("defaults to 24 hours, the Resend idempotency window, and accepts a shorter window", () => {
+    expect(DEFAULT_GLOBAL.delivery.stored_message_resend_max_age_hours).toBe(24);
+    expect(loadDeliverySection({ stored_message_resend_max_age_hours: 6 }).stored_message_resend_max_age_hours).toBe(6);
+  });
+
+  it("refuses a window above 24 hours (a later resend could be a second email), a non-integer, or a non-positive value", () => {
+    for (const bad of [0, -1, 25, 1.5, "24"]) {
+      expect(loadDeliverySection({ stored_message_resend_max_age_hours: bad }).stored_message_resend_max_age_hours).toBe(
+        DEFAULT_GLOBAL.delivery.stored_message_resend_max_age_hours,
+      );
+    }
+  });
+});
+
 describe("email.concurrent_request_* registry keys", () => {
   it("keep the 409 concurrent defaults, and reject a status that is not a 4xx", () => {
     const ok = loadEmailSection({});

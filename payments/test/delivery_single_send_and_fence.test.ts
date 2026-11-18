@@ -300,6 +300,8 @@ const GUARD_MIGRATION_SQL = readFileSync(join(import.meta.dirname, "../../supaba
 const CLAIM_LINK_MIGRATION_SQL = readFileSync(join(import.meta.dirname, "../../supabase/migrations/20261118120000_delivery_claim_link.sql"), "utf8")
   .replace(/notify pgrst[\s\S]*?;/gi, "");
 
+const CLAIM_INDEX_SQL = readFileSync(join(import.meta.dirname, "../../supabase/migrations/20261118120100_delivery_claim_link_index_concurrently.sql"), "utf8");
+
 let pg: PGlite;
 let tmpDir: string;
 
@@ -318,6 +320,8 @@ beforeAll(async () => {
   await pg.exec(GUARD_MIGRATION_SQL);
   await pg.exec(CLAIM_LINK_MIGRATION_SQL);
   await pg.exec(CLAIM_LINK_MIGRATION_SQL);
+  await pg.exec(CLAIM_INDEX_SQL);
+  await pg.exec(CLAIM_INDEX_SQL);
   // Warm dynamic import so Vitest's vi.mock resolver does not race on the first concurrent import.
   await import("@supabase/supabase-js");
   pgliteRef.db = pg;
@@ -404,20 +408,31 @@ describe("Option A + Option B single-send guard & fencing tokens (cases a-d + SQ
     }
   });
 
+  it("the claim-link index comes from its own CONCURRENTLY migration with no transaction control; the claim-link migration builds none", async () => {
+    const stripLineComments = (sql: string): string => sql.replace(/--[^\n]*/g, "");
+    expect(stripLineComments(CLAIM_LINK_MIGRATION_SQL)).not.toMatch(/create\s+(unique\s+)?index/i);
+    const indexSql = stripLineComments(CLAIM_INDEX_SQL);
+    expect(indexSql).toMatch(/create index concurrently if not exists delivery_sends_claimed_created_idx/i);
+    expect(indexSql).not.toMatch(/\b(begin|commit|rollback)\b/i);
+    const { rows } = await pg.query("select indexname from pg_indexes where schemaname = 'public' and indexname = 'delivery_sends_claimed_created_idx'");
+    expect(rows).toHaveLength(1);
+  });
+
   it("case (a): two concurrent claims for the same sale and event produce one distinct email and one link", async () => {
     const sendEmail = vi.fn(async (_input: unknown) => ({ id: "email-1" }));
     const deps = makeDeps(sendEmail);
     const sale = { provider: "paddle", saleId: "sale-a-1", productAlias: "alias-1", buyerEmail: "buyer@example.com" };
 
-    // The losing worker either resends the stored message (identical payload and key) or loses the store race and answers 503.
-    // Either way no second distinct email is sent.
+    // The losing worker either finds the receipt already confirmed (duplicate: the re-check right before a resend sees the
+    // winner's receipt, and nothing is sent), resends the stored message (identical payload and key), or loses the store race
+    // and answers 503. Either way no second distinct email is sent.
     const settled = await Promise.allSettled([
       deliverSale(sale, deps),
       deliverSale(sale, deps),
     ]);
     const fulfilled = settled.flatMap((s) => (s.status === "fulfilled" ? [s.value] : []));
     expect(fulfilled).toContain("sent");
-    expect(fulfilled.every((o) => o === "sent")).toBe(true);
+    expect(fulfilled.every((o) => o === "sent" || o === "duplicate")).toBe(true);
     for (const s of settled) {
       if (s.status === "rejected") expect(s.reason).toMatchObject({ httpStatus: 503 });
     }

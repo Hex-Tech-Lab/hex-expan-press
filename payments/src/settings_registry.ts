@@ -125,6 +125,11 @@ product_slug: { min_length: number; max_length: number; separator: string };
      * A later value is the safe direction (more claims are flagged). Set it to the deploy time before deploying.
      */
     stored_message_since: string;
+    /**
+     * Oldest a held or unconfirmed claim may be and still resend its stored message under the same Resend idempotency key.
+     * Resend keeps idempotency keys for 24 hours, so the loader caps this at 24: a later resend could be a second email.
+     */
+    stored_message_resend_max_age_hours: number;
   };
   /** Transactional email (Resend). `from` must be on `sending_domain` (DKIM-verified in Resend). */
   email: {
@@ -241,6 +246,8 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     download_origin: "https://expanpress.com",
     // The version timestamp of migration 20261118120000_delivery_claim_link.sql. Set to the deploy time before deploying.
     stored_message_since: "2026-11-18T12:00:00Z",
+    // Resend keeps idempotency keys for 24 hours (email.ts). A shorter window only resends less often.
+    stored_message_resend_max_age_hours: 24,
   },
   email: {
     from: "ExpanPress <support@esign.expanpress.com>",
@@ -644,7 +651,11 @@ export function loadDeliverySection(raw: Record<string, unknown> | undefined): G
     fallbacks.push(key);
     return defaults[key];
   };
-  const posInt = (key: "link_ttl_days" | "signed_url_seconds" | "stuck_claim_after_seconds" | "stuck_claim_list_limit", min: number, max: number): number => {
+  const posInt = (
+    key: "link_ttl_days" | "signed_url_seconds" | "stuck_claim_after_seconds" | "stuck_claim_list_limit" | "stored_message_resend_max_age_hours",
+    min: number,
+    max: number,
+  ): number => {
     if (!(key in record)) return defaults[key];
     const candidate = record[key];
     if (intInRange(candidate, min, max)) return candidate;
@@ -678,6 +689,7 @@ export function loadDeliverySection(raw: Record<string, unknown> | undefined): G
     link_key_id: validLinkKeyId ? linkKeyId : defaults.link_key_id,
     download_origin: validDownloadOrigin ? downloadOrigin : defaults.download_origin,
     stored_message_since: validStoredSince ? storedSince : defaults.stored_message_since,
+    stored_message_resend_max_age_hours: posInt("stored_message_resend_max_age_hours", 1, 24),
   };
   if (fallbacks.length > 0) warnFallback("global.json", `invalid delivery values for ${fallbacks.join(", ")}`);
   return out;

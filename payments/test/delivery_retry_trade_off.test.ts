@@ -15,7 +15,10 @@ const TEST_LINK_KEY = Buffer.alloc(32, 7);
 //    a new monotonic generation row under a frozen clock without destroying prior valid links.
 const PRODUCT = { id: "11111111-1111-4111-8111-111111111111", title: "500K Playbook", releasePath: "p/file.pdf" };
 
-function sendGuardHandlers(sendClaims = new Map<string, { state: "claimed" | "sent"; fence: number }>()) {
+function sendGuardHandlers(
+  sendClaims = new Map<string, { state: "claimed" | "sent"; fence: number; createdAt: string }>(),
+  createdAt = new Date().toISOString(),
+) {
   const keyOf = (provider: string, saleId: string, sendKind: string) => `${provider}:${saleId}:${sendKind}`;
   const messages = new Map<string, string>();
   return {
@@ -26,12 +29,16 @@ function sendGuardHandlers(sendClaims = new Map<string, { state: "claimed" | "se
       const f = fence ?? 0;
       const existing = sendClaims.get(k);
       if (!existing) {
-        sendClaims.set(k, { state: "claimed", fence: f });
+        sendClaims.set(k, { state: "claimed", fence: f, createdAt });
         return { outcome: "claimed" as const, fence: f };
       }
       if (existing.fence > f) throw new StaleFenceError("delivery_sends", k, f, existing.fence);
       existing.fence = f;
-      return { outcome: existing.state === "sent" ? ("already_sent" as const) : ("already_claimed" as const), fence: f };
+      return {
+        outcome: existing.state === "sent" ? ("already_sent" as const) : ("already_claimed" as const),
+        fence: f,
+        claimedAt: existing.createdAt, // the real store returns created_at for an existing claim
+      };
     }),
     assertSendFence: vi.fn(async ({ provider, saleId, sendKind, fence }: { provider: string; saleId: string; sendKind: string; fence: number }) => {
       const k = keyOf(provider, saleId, sendKind);
@@ -82,7 +89,7 @@ describe("retry after ambiguous vs definite send failures (Option A single-send 
     const rows = new Map<string, Array<{ tokenHash: string; generation?: number }>>();
     const issuedGenerations = new Set<string>();
     const confirmed = new Set<string>();
-    const sendClaims = new Map<string, { state: "claimed" | "sent"; fence: number }>();
+    const sendClaims = new Map<string, { state: "claimed" | "sent"; fence: number; createdAt: string }>();
     const tokens = ["T".repeat(43), "U".repeat(43)];
     const sendEmail = vi.fn(async (_input: unknown) => ({ id: "e1" }));
     sendEmail.mockRejectedValueOnce(new Error("socket hang up")); // ambiguous: link & claim both kept
@@ -105,7 +112,7 @@ describe("retry after ambiguous vs definite send failures (Option A single-send 
         confirmDelivery: vi.fn(async ({ saleId }: { provider: string; saleId: string }) => {
           confirmed.add(saleId);
         }),
-        ...sendGuardHandlers(sendClaims),
+        ...sendGuardHandlers(sendClaims, new Date(FROZEN_MS).toISOString()),
       },
       sendEmail,
       createShortLink: vi.fn(async (u: string) => `https://go.expanpress.com/x?to=${encodeURIComponent(u)}`),
@@ -327,7 +334,7 @@ describe("retry after ambiguous vs definite send failures (Option A single-send 
       sendKind: "buyer_receipt",
       fence: 3,
     });
-    expect(guard.sendClaims.get("paddle:s-5:buyer_receipt")).toEqual({ state: "sent", fence: 3 });
+    expect(guard.sendClaims.get("paddle:s-5:buyer_receipt")).toMatchObject({ state: "sent", fence: 3 });
     expect(sendEmail).not.toHaveBeenCalled();
   });
 
@@ -371,7 +378,7 @@ describe("retry after ambiguous vs definite send failures (Option A single-send 
       sendKind: "buyer_receipt",
       fence: 4,
     });
-    expect(guard.sendClaims.get("paddle:s-6:buyer_receipt")).toEqual({ state: "sent", fence: 4 });
+    expect(guard.sendClaims.get("paddle:s-6:buyer_receipt")).toMatchObject({ state: "sent", fence: 4 });
   });
 });
 

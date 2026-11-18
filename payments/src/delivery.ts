@@ -18,7 +18,9 @@
  * resends those exact bytes under the same Resend idempotency key (provider|saleId|sendKind), so it cannot become a
  * second distinct email. The resend first confirms that the link is still issued and unexpired (download_events), so a
  * dead link is never emailed. The stored message is cleared in the same write that marks the claim 'sent', which runs only
- * after the receipt is confirmed.
+ * after the receipt is confirmed. A resend is refused once its claim is older than delivery.stored_message_resend_max_age_hours
+ * (default 24, the Resend idempotency window): the key may have expired, so the send could be a second email. It is flagged
+ * for manual reconciliation instead.
  *
  * A claim with NO stored message (PR 136 review H1, H5):
  *   - a sent-but-unconfirmed claim with no message is never resent: this code clears the message only in the sent write,
@@ -279,12 +281,14 @@ async function sendBuyerMessage(deps: DeliveryDeps, message: BuyerMessage, idemp
 /**
  * Resends the identical stored message under the same idempotency key. Any failure answers 503 (DeliveryPendingError):
  * the stored message is kept, so the next retry sends the same bytes again. Nothing is sent unless the message decrypts
- * and its link is still issued and unexpired; otherwise the buyer would get a dead link marked as delivered.
+ * and its link is still issued and unexpired; otherwise the buyer would get a dead link marked as delivered. The receipt is
+ * re-checked right before the send, and the claim must be inside the resend window.
  */
 async function resendStoredMessage(
   input: { provider: string; saleId: string; fence?: number },
   key: { provider: string; saleId: string; sendKind: string },
   stored: string,
+  claim: DeliverySendClaim,
   deps: DeliveryDeps,
   deadlineMs: number,
 ): Promise<DeliveryOutcome> {
@@ -316,6 +320,26 @@ async function resendStoredMessage(
       "the stored buyer message points at a link that is no longer issued or has expired; not sent",
     );
     throw new DeliveryPendingError(input.saleId, new Error("the download link for this sale is no longer issued"));
+  }
+  // Re-check right before the send: a concurrent worker may have confirmed the receipt since deliverSale's first check. A
+  // confirmed sale is a duplicate and nothing is sent. A held row is closed here, as the first check closes it.
+  if (await deps.db.deliveryConfirmed(key.provider, input.saleId)) {
+    if (claim.outcome === "already_claimed") {
+      await deps.db.markDeliverySent({ provider: key.provider, saleId: key.saleId, sendKind: key.sendKind, fence: input.fence });
+    }
+    return "duplicate";
+  }
+  // The provider's idempotency window bounds the resend. The claim is created before the first send, so its creation time is
+  // the earliest the key can have started: measuring from it refuses sooner than the key expires, never later. An unknown
+  // creation time is not within the cap (fail closed), as in isLegacyClaim.
+  const maxAgeMs = GLOBAL.delivery.stored_message_resend_max_age_hours * 60 * 60 * 1000;
+  const claimedMs = claim.claimedAt === undefined ? Number.NaN : Date.parse(claim.claimedAt);
+  if (!(now.getTime() - claimedMs <= maxAgeMs)) {
+    const reason =
+      `the claim is older than delivery.stored_message_resend_max_age_hours (${GLOBAL.delivery.stored_message_resend_max_age_hours}h) or has no known creation time; ` +
+      "not resent, because the provider may no longer hold its idempotency key";
+    flagForManualReconciliation(key.provider, input.saleId, key.sendKind, reason);
+    throw new DeliveryPendingError(input.saleId, new Error(reason));
   }
   try {
     await sendBuyerMessage(deps, message, idempotencyKey, deadlineMs);
@@ -375,7 +399,7 @@ export async function deliverSale(
     }
     // Held or sent-but-unconfirmed with a stored message: resend the identical bytes under the same key.
     const stored = await deps.db.readClaimMessage(key);
-    if (stored !== null) return await resendStoredMessage(input, key, stored, deps, deadlineMs);
+    if (stored !== null) return await resendStoredMessage(input, key, stored, claim, deps, deadlineMs);
     // No stored message. A held claim created after the change was never sent (the message is stored before any send), so it is
     // minted below. Every other case may already have been sent: nothing is sent or re-minted. The 503 path keeps the claim for
     // an operator to reconcile.

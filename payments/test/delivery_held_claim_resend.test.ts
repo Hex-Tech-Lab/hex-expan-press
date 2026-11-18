@@ -369,6 +369,73 @@ describe("H1: held delivery claim resends the identical email under the same ide
   });
 });
 
+describe("resend age cap and re-check: a stored message resends only inside the provider's idempotency window", () => {
+  const HOUR_MS = 60 * 60 * 1000;
+  let savedKey: string | undefined;
+  beforeEach(() => {
+    savedKey = process.env.DELIVERY_LINK_KEY;
+    delete process.env.DELIVERY_LINK_KEY;
+  });
+  afterEach(() => {
+    if (savedKey === undefined) delete process.env.DELIVERY_LINK_KEY;
+    else process.env.DELIVERY_LINK_KEY = savedKey;
+  });
+
+  /** Moves the held claim's creation time back, as a claim left unsent for `ms` looks to the resend. */
+  function ageClaim(claims: ReturnType<typeof fakeDb>["claims"], ms: number): void {
+    const row = claims.get(CLAIM);
+    if (!row) throw new Error("no claim row to age");
+    row.createdAt = new Date(NOW.getTime() - ms).toISOString();
+  }
+
+  it("under the cap, a held claim resends the identical message under the same key", async () => {
+    const provider = fakeProvider();
+    provider.failAcceptedButLost(1);
+    const { db, claims } = fakeDb();
+    const deps = makeDeps(provider, db);
+    await expect(deliverSale(SALE, deps)).rejects.toMatchObject({ httpStatus: 503 });
+    ageClaim(claims, 23 * HOUR_MS);
+
+    await expect(deliverSale(SALE, deps)).resolves.toBe("sent");
+    expect(provider.attempts).toHaveLength(2);
+    expect(provider.attempts[1]).toEqual(provider.attempts[0]);
+    expect(provider.delivered).toHaveLength(1);
+  });
+
+  it("over the cap, nothing is sent: 503, flagged for manual reconciliation, and the stored message is kept", async () => {
+    const provider = fakeProvider();
+    provider.failAcceptedButLost(1);
+    const { db, claims } = fakeDb();
+    const deps = makeDeps(provider, db);
+    await expect(deliverSale(SALE, deps)).rejects.toMatchObject({ httpStatus: 503 });
+    ageClaim(claims, 25 * HOUR_MS);
+
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      await expect(deliverSale(SALE, deps)).rejects.toBeInstanceOf(DeliveryPendingError);
+      expect(provider.send).toHaveBeenCalledTimes(1); // the first attempt only: no resend
+      expect(claims.get(CLAIM)?.message).not.toBeNull();
+      expect(errSpy.mock.calls.some((c) => String(c[0]).includes("MANUAL RECONCILE sale=sale-h1 provider=paddle"))).toBe(true);
+    } finally {
+      errSpy.mockRestore();
+    }
+  });
+
+  it("a receipt confirmed by a concurrent worker before the send returns duplicate with no send", async () => {
+    const provider = fakeProvider();
+    provider.failAcceptedButLost(1);
+    const { db, claims } = fakeDb();
+    const deps = makeDeps(provider, db);
+    await expect(deliverSale(SALE, deps)).rejects.toMatchObject({ httpStatus: 503 });
+
+    // deliverSale's first check sees no receipt; the re-check right before the resend sees one.
+    vi.mocked(db.deliveryConfirmed).mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+    await expect(deliverSale(SALE, deps)).resolves.toBe("duplicate");
+    expect(provider.send).toHaveBeenCalledTimes(1); // no resend
+    expect(claims.get(CLAIM)).toMatchObject({ state: "sent", message: null }); // the held row is closed, as the first check closes it
+  });
+});
+
 describe("C: a resend needs a live link, and a release never drops a link under a kept claim", () => {
   it("a definite 4xx whose claim release fails keeps the claim and its link: 503, and the retry resends the stored message against the live link", async () => {
     const provider = fakeProvider();

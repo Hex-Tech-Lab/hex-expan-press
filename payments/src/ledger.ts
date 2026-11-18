@@ -671,7 +671,10 @@ export function mirrorToLocalLedger(record: SaleRecord, salesFile: string = SALE
   return appendRecord(record, salesFile);
 }
 
-export async function appendSale(sale: SaleRecord, salesFile: string = SALES_FILE, fence?: number): Promise<SaleRecord> {
+/** Durable Supabase write of a sale, and nothing else. The first-sale webhook path calls this, delivers the receipt, and only
+ *  then mirrors the sale locally, so a local-file fault can never block the buyer's email. appendSale composes the two for
+ *  every other caller. */
+export async function persistSale(sale: SaleRecord, fence?: number): Promise<SaleRecord> {
   assertSale(sale);
   const record: SaleRecord = {
     ts: sale.ts,
@@ -690,6 +693,11 @@ export async function appendSale(sale: SaleRecord, salesFile: string = SALES_FIL
   // Durable store FIRST: if Supabase fails the route 500s and the provider retries;
   // writing the local file first would make that retry look like a duplicate.
   await persistToSupabaseOrder(record, fence);
+  return record;
+}
+
+export async function appendSale(sale: SaleRecord, salesFile: string = SALES_FILE, fence?: number): Promise<SaleRecord> {
+  const record = await persistSale(sale, fence);
   await appendRecord(record, salesFile);
   return record;
 }
