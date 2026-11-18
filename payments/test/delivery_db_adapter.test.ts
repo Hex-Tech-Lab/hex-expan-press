@@ -299,6 +299,14 @@ describe("supabaseDeliveryDb: delivery_sends single-send & fence adapter", () =>
     expect(calls[0].ops).toContainEqual(["lte", ["fence", 1]]);
   });
 
+  it("markDeliverySent clears link_ciphertext in the same update that sets state='sent', so no separate clear can be left behind", async () => {
+    useClient();
+    results = [{ data: [{ state: "sent", fence: 1 }], error: null }];
+    await db().markDeliverySent({ provider: "paddle", saleId: "s-14", sendKind: "buyer_receipt", fence: 1 });
+    expect(calls).toHaveLength(1);
+    expect(calls[0].ops).toContainEqual(["update", [expect.objectContaining({ state: "sent", link_ciphertext: null })]]);
+  });
+
   it("releaseDeliverySend deletes only state='claimed' scoped by fence <= newFence", async () => {
     useClient();
     results = [{ data: null, error: null }];

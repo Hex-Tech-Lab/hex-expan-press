@@ -21,6 +21,21 @@ const delivery = vi.hoisted(() => ({
 }));
 vi.mock("../../../../payments/src/delivery.ts", () => delivery);
 
+// Local ledger mirror fault: when set, mirrorToLocalLedger throws before writing (ENOSPC-style local-file failure).
+// Other exports stay real; with the fault clear the mirror behaves exactly as before.
+const mirrorFault = vi.hoisted(() => ({ fail: false, calls: 0 }));
+vi.mock("../../../../payments/src/ledger.ts", async (importOriginal) => {
+  const orig = await importOriginal<typeof import("../../../../payments/src/ledger.ts")>();
+  return {
+    ...orig,
+    mirrorToLocalLedger: async (record: SaleRecord, salesFile?: string) => {
+      mirrorFault.calls += 1;
+      if (mirrorFault.fail) throw new Error("ENOSPC: local ledger write failed");
+      return orig.mirrorToLocalLedger(record, salesFile);
+    },
+  };
+});
+
 const SALE: SaleCompletedEvent = {
   eventType: "sale_completed",
   providerName: "polar",
@@ -1872,5 +1887,94 @@ describe("sale mode gate (F-09) and contended-lock confirmation (F-14)", () => {
       name: "WebhookInFlightError",
     });
     expect(booked()).toEqual([]);
+  });
+});
+
+// Mirror-order contract: on a duplicate sale the buyer's delivery runs BEFORE the local-file mirror, so a
+// local-file fault can never block the buyer's email. A mirror failure still surfaces (500, provider retries),
+// and the retry re-delivers nothing and writes the mirror exactly once.
+describe("duplicate sale: delivery runs before the local mirror (mirror-order contract)", () => {
+  const SALE_ROW = {
+    provider: "polar", sale_id: "sale_dup_1", product_id: "p1", amount_usd: 39, creator_id: "c1",
+    creator_split_pct: 50, creator_split_usd: 19.5, our_split_usd: 19.5, currency: "USD", event_type: "sale",
+    occurred_at: "2026-09-27T00:00:00.000Z", email_hash: null, attribution_id: null, provider_adjustment_id: null,
+  };
+  // Send-once model of delivery's per-sale idempotency: the first call sends, later calls are no-ops ("duplicate").
+  const sentSaleIds = new Set<string>();
+  const run = () => processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(SALE)]);
+  const localRows = () => {
+    try {
+      return readFileSync(salesFilePath, "utf8").split(/\r?\n/).filter(Boolean);
+    } catch {
+      return [];
+    }
+  };
+
+  beforeEach(() => {
+    setnx.mockReset();
+    setnx.mockResolvedValue(1);
+    mockFenceSeq = 0;
+    supa.lookupResult = { data: SALE_ROW, error: null }; // sale is durable in Supabase; the local file is missing it
+    supa.adjLookupResult = null;
+    supa.auditInserts = [];
+    supa.conflicts.clear();
+    supa.rpcError = null;
+    supa.auditError = null;
+    mirrorFault.fail = false;
+    mirrorFault.calls = 0;
+    sentSaleIds.clear();
+    mkdirSync(salesFileDir, { recursive: true });
+    vi.stubEnv("UPSTASH_REDIS_REST_URL", "https://unit.test.redis.example");
+    vi.stubEnv("UPSTASH_REDIS_REST_TOKEN", "unit-test-token");
+    vi.stubEnv("SUPABASE_URL", "https://unit.test.supabase.co");
+    vi.stubEnv("SUPABASE_SECRET_KEY", "unit-test-key");
+    delivery.deliverSaleForWebhook.mockClear();
+    delivery.deliverSaleForWebhook.mockImplementation(async (input: unknown) => {
+      const { saleId } = input as { saleId: string };
+      if (!sentSaleIds.has(saleId)) sentSaleIds.add(saleId);
+    });
+    delivery.saleDeliveryConfirmed.mockResolvedValue(false);
+  });
+
+  afterEach(() => {
+    mirrorFault.fail = false;
+    delivery.deliverSaleForWebhook.mockImplementation(async () => undefined);
+    rmSync(salesFileDir, { recursive: true, force: true });
+    vi.unstubAllEnvs();
+  });
+
+  it("(a) a duplicate sale whose local mirror throws still delivers the buyer email before the error surfaces", async () => {
+    mirrorFault.fail = true;
+    await expect(run()).rejects.toThrow("ENOSPC");
+    expect(delivery.deliverSaleForWebhook).toHaveBeenCalledTimes(1);
+    expect(delivery.deliverSaleForWebhook).toHaveBeenCalledWith({
+      provider: "polar", saleId: "sale_dup_1", productAlias: "p1", buyerEmail: "buyer@example.com", fence: expect.any(Number),
+    });
+    expect(sentSaleIds).toEqual(new Set(["sale_dup_1"]));
+    expect(mirrorFault.calls).toBe(1);
+    expect(localRows()).toHaveLength(0);
+  });
+
+  it("(b) a mirror failure surfaces as a plain retryable error (no validation status, no in-flight 503), so the webhook answers 500", async () => {
+    mirrorFault.fail = true;
+    const err = await run().catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(Error);
+    expect(err).not.toBeInstanceOf(WebhookValidationError);
+    expect((err as Error).name).not.toBe("WebhookInFlightError");
+    expect((err as { httpStatus?: unknown }).httpStatus).toBeUndefined();
+    expect((err as Error).message).toContain("ENOSPC");
+  });
+
+  it("(c) on retry with the mirror healthy: no second send, and the local mirror is written exactly once", async () => {
+    mirrorFault.fail = true;
+    await expect(run()).rejects.toThrow("ENOSPC"); // attempt 1: send happens, mirror fails
+    mirrorFault.fail = false;
+    await expect(run()).resolves.toBeUndefined(); // attempt 2 (provider retry): duplicate path, mirror healthy
+    expect(delivery.deliverSaleForWebhook).toHaveBeenCalledTimes(2); // delivery re-attempted, idempotent per sale
+    expect(sentSaleIds).toEqual(new Set(["sale_dup_1"])); // exactly one send across both attempts
+    expect(mirrorFault.calls).toBe(2);
+    const rows = localRows();
+    expect(rows).toHaveLength(1);
+    expect(JSON.parse(rows.at(0) ?? "null")).toMatchObject({ provider: "polar", sale_id: "sale_dup_1" });
   });
 });

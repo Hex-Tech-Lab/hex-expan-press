@@ -17,11 +17,12 @@
  * (delivery_sends.link_ciphertext, AES-256-GCM, key from DELIVERY_LINK_KEY). A retry for a held or unconfirmed claim
  * resends those exact bytes under the same Resend idempotency key (provider|saleId|sendKind), so it cannot become a
  * second distinct email. The resend first confirms that the link is still issued and unexpired (download_events), so a
- * dead link is never emailed. The stored message is cleared once the send is confirmed.
+ * dead link is never emailed. The stored message is cleared in the same write that marks the claim 'sent', which runs only
+ * after the receipt is confirmed.
  *
  * A claim with NO stored message (PR 136 review H1, H5):
- *   - a sent-but-unconfirmed claim with no message is never resent: this code clears the message only after confirmation,
- *     so such a row is legacy. It is flagged for manual reconciliation and answers 503;
+ *   - a sent-but-unconfirmed claim with no message is never resent: this code clears the message only in the sent write,
+ *     after confirmation, so such a row is legacy. It is flagged for manual reconciliation and answers 503;
  *   - a held claim created before delivery.stored_message_since is legacy: it may have been sent without a message. It is
  *     never resent and never re-minted; it is flagged and answers 503;
  *   - a held claim created at or after that instant with no message was never sent: this code stores the message before any
@@ -105,7 +106,10 @@ export interface DeliveryDb {
     sendKind: string;
     fence: number;
   }): Promise<void>;
-  /** Transitions claim to 'sent' only when stored fence <= new fence. */
+  /**
+   * Transitions claim to 'sent' only when stored fence <= new fence, and clears the stored buyer message in the same write.
+   * Call only after the receipt is confirmed: a 'sent' row keeps no message to resend.
+   */
   markDeliverySent(row: {
     provider: string;
     saleId: string;
@@ -132,8 +136,6 @@ export interface DeliveryDb {
   }): Promise<void>;
   /** The stored encrypted buyer message for this claim, or null when none was stored. */
   readClaimMessage(row: { provider: string; saleId: string; sendKind: string }): Promise<string | null>;
-  /** Removes the stored buyer message once the send is confirmed. */
-  clearClaimMessage(row: { provider: string; saleId: string; sendKind: string }): Promise<void>;
 }
 
 export interface DeliveryDeps {
@@ -274,15 +276,6 @@ async function sendBuyerMessage(deps: DeliveryDeps, message: BuyerMessage, idemp
   );
 }
 
-/** Clears the stored message after a confirmed send. A failure is logged: the row then keeps its ciphertext until the link expires. */
-async function clearStoredMessage(deps: DeliveryDeps, key: { provider: string; saleId: string; sendKind: string }): Promise<void> {
-  try {
-    await deps.db.clearClaimMessage(key);
-  } catch (err) {
-    console.error(`[delivery] sale ${key.saleId}: could not clear the stored buyer message: ${String(err)}`);
-  }
-}
-
 /**
  * Resends the identical stored message under the same idempotency key. Any failure answers 503 (DeliveryPendingError):
  * the stored message is kept, so the next retry sends the same bytes again. Nothing is sent unless the message decrypts
@@ -326,13 +319,12 @@ async function resendStoredMessage(
   }
   try {
     await sendBuyerMessage(deps, message, idempotencyKey, deadlineMs);
-    await deps.db.markDeliverySent({ provider: key.provider, saleId: key.saleId, sendKind: key.sendKind, fence: input.fence });
     await deps.db.confirmDelivery({ provider: key.provider, saleId: key.saleId, tokenHash: message.tokenHash });
+    await deps.db.markDeliverySent({ provider: key.provider, saleId: key.saleId, sendKind: key.sendKind, fence: input.fence });
   } catch (err) {
     if (err instanceof StaleFenceError) throw err;
     throw new DeliveryPendingError(input.saleId, err);
   }
-  await clearStoredMessage(deps, key);
   return "sent";
 }
 
@@ -505,19 +497,19 @@ export async function deliverSale(
     throw err;
   }
   try {
+    // Receipt first, then the sent write that clears the stored message. A failed confirmation keeps the message for the resend.
+    await deps.db.confirmDelivery({ provider: input.provider, saleId: input.saleId, tokenHash: hash });
     await deps.db.markDeliverySent({
       provider: input.provider,
       saleId: input.saleId,
       sendKind,
       fence: input.fence,
     });
-    await deps.db.confirmDelivery({ provider: input.provider, saleId: input.saleId, tokenHash: hash });
   } catch (err) {
     // The email was accepted but the receipt is not confirmed. Retryable: the retry resends the identical message.
     if (err instanceof StaleFenceError) throw err;
     throw new DeliveryPendingError(input.saleId, err);
   }
-  await clearStoredMessage(deps, key);
   return "sent";
 }
 

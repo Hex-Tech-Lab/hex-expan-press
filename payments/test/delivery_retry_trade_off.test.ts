@@ -49,6 +49,7 @@ function sendGuardHandlers(sendClaims = new Map<string, { state: "claimed" | "se
         throw new StaleFenceError("delivery_sends", k, f, existing?.fence);
       }
       existing.state = "sent";
+      messages.delete(k); // the sent write clears the stored message, as in the Supabase store
       existing.fence = f;
     }),
     releaseDeliverySend: vi.fn(async ({ provider, saleId, sendKind, fence }: { provider: string; saleId: string; sendKind: string; fence?: number }) => {
@@ -68,9 +69,6 @@ function sendGuardHandlers(sendClaims = new Map<string, { state: "claimed" | "se
       messages.set(k, ciphertext);
     }),
     readClaimMessage: vi.fn(async ({ provider, saleId, sendKind }: { provider: string; saleId: string; sendKind: string }) => messages.get(keyOf(provider, saleId, sendKind)) ?? null),
-    clearClaimMessage: vi.fn(async ({ provider, saleId, sendKind }: { provider: string; saleId: string; sendKind: string }) => {
-      messages.delete(keyOf(provider, saleId, sendKind));
-    }),
   };
 }
 

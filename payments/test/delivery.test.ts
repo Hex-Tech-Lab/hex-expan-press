@@ -59,6 +59,7 @@ function fakes(over: Partial<DeliveryDeps> & { product?: unknown; inserted?: boo
         }
         existing.state = "sent";
         existing.fence = f;
+        messages.delete(k); // the sent write clears the stored message, as in the Supabase store
       }),
       releaseDeliverySend: vi.fn(async ({ provider, saleId, sendKind, fence }) => {
         const k = keyOf(provider, saleId, sendKind);
@@ -78,9 +79,6 @@ function fakes(over: Partial<DeliveryDeps> & { product?: unknown; inserted?: boo
         messages.set(k, ciphertext);
       }),
       readClaimMessage: vi.fn(async ({ provider, saleId, sendKind }) => messages.get(keyOf(provider, saleId, sendKind)) ?? null),
-      clearClaimMessage: vi.fn(async ({ provider, saleId, sendKind }) => {
-        messages.delete(keyOf(provider, saleId, sendKind));
-      }),
     },
     sendEmail, createShortLink, origin: "https://expanpress.com", replyTo: "support@expanpress.com",
     now: () => NOW, newToken: () => "T".repeat(43), linkKey: TEST_LINK_KEY,

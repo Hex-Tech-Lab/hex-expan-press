@@ -108,6 +108,7 @@ function fakeDb() {
       const cur = claims.get(key);
       if (!cur || (fence !== undefined && cur.fence > fence)) throw new StaleFenceError("delivery_sends", key, fence ?? 0, cur?.fence);
       cur.state = "sent";
+      cur.message = null; // the same write as the state change, as in the Supabase store
     }),
     releaseDeliverySend: vi.fn(async ({ provider, saleId, sendKind, fence }: { provider: string; saleId: string; sendKind: string; fence?: number }) => {
       const key = k(provider, saleId, sendKind);
@@ -127,10 +128,6 @@ function fakeDb() {
       cur.message = ciphertext;
     }),
     readClaimMessage: vi.fn(async ({ provider, saleId, sendKind }: { provider: string; saleId: string; sendKind: string }) => claims.get(k(provider, saleId, sendKind))?.message ?? null),
-    clearClaimMessage: vi.fn(async ({ provider, saleId, sendKind }: { provider: string; saleId: string; sendKind: string }) => {
-      const cur = claims.get(k(provider, saleId, sendKind));
-      if (cur) cur.message = null;
-    }),
   };
   return { db, claims, links, confirmed };
 }
@@ -325,7 +322,18 @@ describe("H1: held delivery claim resends the identical email under the same ide
     expect(provider.delivered).toHaveLength(1);
   });
 
-  it("the email is accepted but the sent-state write fails: 503, then the retry confirms without a second email", async () => {
+  it("a confirmed send leaves the row 'sent' with no stored message, from the same write that marks it sent", async () => {
+    const provider = fakeProvider();
+    const { db, claims, confirmed } = fakeDb();
+    const deps = makeDeps(provider, db);
+
+    await expect(deliverSale(SALE, deps)).resolves.toBe("sent");
+    expect(claims.get(CLAIM)).toMatchObject({ state: "sent", message: null });
+    expect(confirmed.has("paddle|sale-h1")).toBe(true);
+    expect("clearClaimMessage" in db).toBe(false); // no separate clear that could fail after the sent write
+  });
+
+  it("the receipt is confirmed but the sent-state write fails: 503 with the message kept, then the retry marks it sent without a second email", async () => {
     const provider = fakeProvider();
     const { db, claims, confirmed } = fakeDb();
     vi.mocked(db.markDeliverySent).mockRejectedValueOnce(new Error("mark blip after send"));
@@ -333,30 +341,31 @@ describe("H1: held delivery claim resends the identical email under the same ide
 
     await expect(deliverSale(SALE, deps)).rejects.toMatchObject({ httpStatus: 503 });
     expect(provider.delivered).toHaveLength(1);
-
-    await expect(deliverSale(SALE, deps)).resolves.toBe("sent");
-    expect(provider.attempts).toHaveLength(2);
-    expect(provider.attempts[1]).toEqual(provider.attempts[0]);
-    expect(provider.delivered).toHaveLength(1);
-    expect(claims.get(CLAIM)?.state).toBe("sent");
     expect(confirmed.has("paddle|sale-h1")).toBe(true);
+    expect(claims.get(CLAIM)).toMatchObject({ state: "claimed" });
+    expect(claims.get(CLAIM)?.message).not.toBeNull(); // kept: the sent write did not happen
+
+    await expect(deliverSale(SALE, deps)).resolves.toBe("duplicate"); // receipt already confirmed: no resend
+    expect(provider.attempts).toHaveLength(1);
+    expect(provider.delivered).toHaveLength(1);
+    expect(claims.get(CLAIM)).toMatchObject({ state: "sent", message: null });
   });
 
-  it("the email is accepted and the sent state is written, but the receipt confirmation fails: 503, then the retry confirms from the kept message", async () => {
+  it("the receipt confirmation fails before the sent write: 503 with the claim still 'claimed' and the message kept, then the retry resends and confirms", async () => {
     const provider = fakeProvider();
     const { db, claims, confirmed } = fakeDb();
     vi.mocked(db.confirmDelivery).mockRejectedValueOnce(new Error("audit blip after send"));
     const deps = makeDeps(provider, db);
 
     await expect(deliverSale(SALE, deps)).rejects.toMatchObject({ httpStatus: 503 });
-    expect(claims.get(CLAIM)).toMatchObject({ state: "sent" });
-    expect(claims.get(CLAIM)?.message).not.toBeNull(); // kept: the confirmation has not been written
+    expect(claims.get(CLAIM)).toMatchObject({ state: "claimed" });
+    expect(claims.get(CLAIM)?.message).not.toBeNull(); // kept: no sent write happened
 
     await expect(deliverSale(SALE, deps)).resolves.toBe("sent");
     expect(provider.attempts[1]).toEqual(provider.attempts[0]);
     expect(provider.delivered).toHaveLength(1);
     expect(confirmed.has("paddle|sale-h1")).toBe(true);
-    expect(claims.get(CLAIM)?.message).toBeNull(); // cleared once confirmed
+    expect(claims.get(CLAIM)?.message).toBeNull(); // cleared by the sent write
   });
 });
 

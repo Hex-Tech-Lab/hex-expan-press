@@ -24,7 +24,6 @@ function deps(product: unknown): DeliveryDeps {
       releaseDeliverySend: vi.fn(async () => undefined),
       storeClaimMessage: vi.fn(async () => undefined),
       readClaimMessage: vi.fn(async () => null),
-      clearClaimMessage: vi.fn(async () => undefined),
     },
     sendEmail: vi.fn(async () => ({ id: "e1" })),
     createShortLink: vi.fn(async () => "https://go.expanpress.com/x"),

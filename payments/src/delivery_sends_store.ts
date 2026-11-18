@@ -36,6 +36,7 @@ export interface DeliverySendsStore {
     sendKind: string;
     fence: number;
   }): Promise<void>;
+  /** Sets state='sent' and clears the stored buyer message in one fenced write. Call only after the receipt is confirmed. */
   markDeliverySent(row: {
     provider: string;
     saleId: string;
@@ -58,8 +59,6 @@ export interface DeliverySendsStore {
   }): Promise<void>;
   /** The stored encrypted buyer message for this claim, or null when none was stored. */
   readClaimMessage(row: { provider: string; saleId: string; sendKind: string }): Promise<string | null>;
-  /** Removes the stored buyer message once the send is confirmed. The link no longer needs to be kept. */
-  clearClaimMessage(row: { provider: string; saleId: string; sendKind: string }): Promise<void>;
 }
 
 /** Parses a bigint fence column returned by PostgREST (number or decimal string) into a safe non-negative integer. */
@@ -235,6 +234,8 @@ export function createDeliverySendsStore(): DeliverySendsStore {
         .from("delivery_sends")
         .update({
           state: "sent",
+          // Cleared in the same write as the state change, so no encrypted link outlives the 'sent' state.
+          link_ciphertext: null,
           ...(fence !== undefined ? { fence } : {}),
           updated_at: new Date().toISOString(),
         })
@@ -313,17 +314,6 @@ export function createDeliverySendsStore(): DeliverySendsStore {
       if (error) throw new Error(`delivery send message lookup failed: ${error.message}`);
       const value = (data as { link_ciphertext?: unknown } | null)?.link_ciphertext;
       return typeof value === "string" && value !== "" ? value : null;
-    },
-    async clearClaimMessage({ provider, saleId, sendKind }) {
-      const sb = await getSupabaseAdmin();
-      if (!sb) throw new Error("Supabase admin client unavailable");
-      const { error } = await sb
-        .from("delivery_sends")
-        .update({ link_ciphertext: null, updated_at: new Date().toISOString() })
-        .eq("provider", provider)
-        .eq("sale_id", saleId)
-        .eq("send_kind", sendKind);
-      if (error) throw new Error(`delivery send message clear failed: ${error.message}`);
     },
   };
 }

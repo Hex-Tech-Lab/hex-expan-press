@@ -551,8 +551,7 @@ async function processBillingEvent(event: BillingEvent): Promise<ConflictPending
         // failure rethrows (500) so the provider retries.
         const existing = await findSaleAsync(saleEvent.providerName, saleEvent.saleId);
         if (existing) {
-          // Heal a lost local append first: the sale may be durable in Supabase only, and reports read the local file.
-          await mirrorToLocalLedger(existing);
+          // Deliver first: a local-file fault must never block the buyer's email. Delivery is idempotent per sale.
           await deliverSaleForWebhook({
             provider: saleEvent.providerName,
             saleId: saleEvent.saleId,
@@ -560,6 +559,9 @@ async function processBillingEvent(event: BillingEvent): Promise<ConflictPending
             buyerEmail: saleEvent.buyerEmail,
             ...(fenceToken !== undefined ? { fence: fenceToken } : {}),
           });
+          // Then heal a lost local append: the sale may be durable in Supabase only, and reports read the local file.
+          // A failure here rethrows (500); the provider retries, delivery returns duplicate (no second email), and the mirror is retried.
+          await mirrorToLocalLedger(existing);
           return { status: 200, payload: { ok: true, recorded: false, reason: "duplicate", sale_id: saleEvent.saleId } };
         }
 

@@ -49,6 +49,7 @@ function providerScopedDeps() {
           throw new StaleFenceError("delivery_sends", k, f, existing?.fence);
         }
         existing.state = "sent";
+        messages.delete(k); // the sent write clears the stored message, as in the Supabase store
         existing.fence = f;
       }),
       releaseDeliverySend: vi.fn(async ({ provider, saleId, sendKind, fence }) => {
@@ -68,9 +69,6 @@ function providerScopedDeps() {
         messages.set(k, ciphertext);
       }),
       readClaimMessage: vi.fn(async ({ provider, saleId, sendKind }) => messages.get(`${provider}:${saleId}:${sendKind}`) ?? null),
-      clearClaimMessage: vi.fn(async ({ provider, saleId, sendKind }) => {
-        messages.delete(`${provider}:${saleId}:${sendKind}`);
-      }),
     },
     sendEmail,
     createShortLink: vi.fn(async (u: string) => `https://go.expanpress.com/abc?to=${encodeURIComponent(u)}`),
