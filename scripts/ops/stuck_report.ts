@@ -3,10 +3,11 @@
 //      resends a row with a stored message, under the same key and within delivery.stored_message_resend_max_age_hours. A
 //      legacy row (created before delivery.stored_message_since) with no stored message is flagged and never resent.
 //   2. audit_log MANUAL_REVIEW_REQUIRED_REFUND rows, deduplicated per (provider, sale_id) like listManualReviewRefunds.
-//   3. audit_log WEBHOOK_TERMINAL_REJECT rows within delivery.terminal_reject_lookback_hours, newest first, capped at
-//      delivery.terminal_reject_list_limit. A buyer whose address the mail provider refused (DeliveryBlockedError, 422) is
-//      booked and quarantined by the webhook handler (web/app/api/billing/webhook/handler.ts), and its only console flag is
-//      payments/src/delivery.ts flagForManualReconciliation.
+//   3. audit_log WEBHOOK_TERMINAL_REJECT and WEBHOOK_PROVIDER_SWITCHED_OFF rows within delivery.terminal_reject_lookback_hours,
+//      newest first, capped at delivery.terminal_reject_list_limit. A buyer whose address the mail provider refused
+//      (DeliveryBlockedError, 422) is booked and quarantined by the webhook handler (web/app/api/billing/webhook/handler.ts),
+//      and its only console flag is payments/src/delivery.ts flagForManualReconciliation. Validly signed deliveries arriving
+//      on a switched-off rail are recorded as WEBHOOK_PROVIDER_SWITCHED_OFF so operators can reconcile them.
 //      The look-back is a display window, not an acknowledgement: nothing here marks a reject as reconciled. A reject older
 //      than the window is not listed, but a presence probe still finds it, so the report exits 1 and never prints clear
 //      while such a row exists.
@@ -65,7 +66,7 @@ export interface StuckReport {
   terminalRejects: TerminalReject[];
   terminalRejectLimit: number;
   terminalRejectLookbackHours: number;
-  /** True when at least one WEBHOOK_TERMINAL_REJECT row is older than the look-back window (not listed, never acknowledged). */
+  /** True when at least one WEBHOOK_TERMINAL_REJECT or WEBHOOK_PROVIDER_SWITCHED_OFF row is older than the look-back window (not listed, never acknowledged). */
   olderRejectsBeyondWindow: boolean;
 }
 
@@ -116,7 +117,7 @@ export function dedupeReviewRows(rows: Array<{ details: unknown }>): ReviewItem[
   return [...byPair.values(), ...standalone];
 }
 
-/** One WEBHOOK_TERMINAL_REJECT row. details.provider and details.sale_id are absent when the headers or body did not parse. */
+/** One WEBHOOK_TERMINAL_REJECT or WEBHOOK_PROVIDER_SWITCHED_OFF row. details.provider and details.sale_id are absent when the headers or body did not parse. */
 export function terminalRejectFrom(row: Record<string, unknown>): TerminalReject {
   const details = typeof row.details === "object" && row.details !== null ? (row.details as Record<string, unknown>) : {};
   return {
@@ -183,9 +184,10 @@ export async function collectStuck(env: Env, http: HttpFetch, nowMs: number, set
   );
 
   const rejectSince = new Date(nowMs - settings.terminal_reject_lookback_hours * 3600 * 1000).toISOString();
+  const rejectEventFilter = "event=in.(WEBHOOK_TERMINAL_REJECT,WEBHOOK_PROVIDER_SWITCHED_OFF)";
   const rejectRows = await getRows(
     http,
-    `${base}/rest/v1/audit_log?select=id,created_at:at,event,details&event=eq.WEBHOOK_TERMINAL_REJECT&at=gte.${encodeURIComponent(rejectSince)}&order=at.desc,id.desc&limit=${settings.terminal_reject_list_limit}`,
+    `${base}/rest/v1/audit_log?select=id,created_at:at,event,details&${rejectEventFilter}&at=gte.${encodeURIComponent(rejectSince)}&order=at.desc,id.desc&limit=${settings.terminal_reject_list_limit}`,
     key,
     settings.timeout_ms,
     "terminal reject read",
@@ -194,7 +196,7 @@ export async function collectStuck(env: Env, http: HttpFetch, nowMs: number, set
   // must still stop the report from clearing. limit=1 asks whether any such row exists; it lists nothing.
   const olderRows = await getRows(
     http,
-    `${base}/rest/v1/audit_log?select=id&event=eq.WEBHOOK_TERMINAL_REJECT&at=lt.${encodeURIComponent(rejectSince)}&limit=1`,
+    `${base}/rest/v1/audit_log?select=id&${rejectEventFilter}&at=lt.${encodeURIComponent(rejectSince)}&limit=1`,
     key,
     settings.timeout_ms,
     "older terminal reject probe",
@@ -225,7 +227,7 @@ export function renderStuck(report: StuckReport, afterSeconds: number): string {
   if (report.terminalRejects.length > 0 || report.olderRejectsBeyondWindow) {
     const capRejects = report.terminalRejects.length >= report.terminalRejectLimit;
     lines.push(
-      `Terminal webhook rejects (WEBHOOK_TERMINAL_REJECT, last ${report.terminalRejectLookbackHours} h, newest first): ${capRejects ? "at least " : ""}${report.terminalRejects.length}`,
+      `Terminal webhook rejects (WEBHOOK_TERMINAL_REJECT, WEBHOOK_PROVIDER_SWITCHED_OFF, last ${report.terminalRejectLookbackHours} h, newest first): ${capRejects ? "at least " : ""}${report.terminalRejects.length}`,
     );
     for (const r of report.terminalRejects.slice(0, 20)) {
       lines.push(`  ${r.provider ?? "(no provider)"}  sale ${r.saleId ?? "(no sale_id)"}  reason ${r.reason ?? "(no reason)"}  at ${r.at}`);
@@ -248,14 +250,15 @@ export function isDirectRun(argv1: string | undefined, moduleUrl: string): boole
   if (argv1 === undefined) return false;
   try {
     return realpathSync(argv1) === realpathSync(fileURLToPath(moduleUrl));
-  } catch {
+  } catch (err) {
+    console.error("[stuck_report] realpath check failed:", err instanceof Error ? err.message : String(err));
     return false;
   }
 }
 
 const isEntry = isDirectRun(process.argv[1], import.meta.url);
 if (isEntry) {
-  dotenv.config({ quiet: true });
+  dotenv.config({ quiet: true, override: true });
   const settings = settingsFromGlobal();
   collectStuck(process.env, fetch, Date.now(), settings)
     .then((report) => {

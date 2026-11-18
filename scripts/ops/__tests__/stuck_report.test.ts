@@ -37,6 +37,10 @@ const REJECT = {
   created_at: "2026-11-18T11:00:00.000Z",
   details: { provider: "paddle", sale_id: "txn_1", reason: "DeliveryBlockedError", payload_sha256: "fixture-digest" },
 };
+const REJECT_SWITCHED_OFF = {
+  created_at: "2026-11-18T11:15:00.000Z",
+  details: { provider: "polar", sale_id: "sale_off_1", reason: "provider_switched_off", payload_sha256: "fixture-digest-2" },
+};
 const REJECT_BARE = { created_at: "2026-11-18T11:30:00.000Z", details: {} };
 
 /** Routes by table name and event. Records every requested URL so the test can check the query shape.
@@ -49,7 +53,7 @@ function fakeFetch(claims: unknown[], review: unknown[], status = 200, rejects: 
     urls.push(url);
     if (status !== 200) return new Response("upstream body must not be echoed", { status });
     const limit = Number(new URL(url).searchParams.get("limit"));
-    if (url.includes("event=eq.WEBHOOK_TERMINAL_REJECT")) {
+    if (url.includes("event=in.(WEBHOOK_TERMINAL_REJECT,WEBHOOK_PROVIDER_SWITCHED_OFF)")) {
       if (rejectStatus !== 200) return new Response("upstream body must not be echoed", { status: rejectStatus });
       const body = url.includes("at=lt.") ? older : rejects;
       return new Response(JSON.stringify(body.slice(0, limit)), { status: 200, headers: { "Content-Type": "application/json" } });
@@ -129,7 +133,7 @@ describe("collectStuck", () => {
 
   it("fails when only the terminal-reject read returns a non-list 2xx body", async () => {
     const fetchImpl = (async (input: string | URL | Request) =>
-      String(input).includes("event=eq.WEBHOOK_TERMINAL_REJECT")
+      String(input).includes("event=in.(WEBHOOK_TERMINAL_REJECT,WEBHOOK_PROVIDER_SWITCHED_OFF)")
         ? new Response(JSON.stringify({ ok: true }), { status: 200 })
         : new Response("[]", { status: 200 })) as typeof fetch;
     const err = await collectStuck(ENV, fetchImpl, NOW, S).catch((e: unknown) => e);
@@ -138,34 +142,40 @@ describe("collectStuck", () => {
 });
 
 describe("terminal webhook rejects", () => {
-  it("lists a WEBHOOK_TERMINAL_REJECT row with its provider, sale, reason and time, and exits 1", async () => {
-    const { fetchImpl } = fakeFetch([], [], 200, [REJECT]);
+  it("lists WEBHOOK_TERMINAL_REJECT and WEBHOOK_PROVIDER_SWITCHED_OFF rows with provider, sale, reason and time, and exits 1", async () => {
+    const { fetchImpl } = fakeFetch([], [], 200, [REJECT, REJECT_SWITCHED_OFF]);
     const r = await collectStuck(ENV, fetchImpl, NOW, S);
-    expect(r.terminalRejects).toEqual([{ provider: "paddle", saleId: "txn_1", reason: "DeliveryBlockedError", at: REJECT.created_at }]);
+    expect(r.terminalRejects).toEqual([
+      { provider: "paddle", saleId: "txn_1", reason: "DeliveryBlockedError", at: REJECT.created_at },
+      { provider: "polar", saleId: "sale_off_1", reason: "provider_switched_off", at: REJECT_SWITCHED_OFF.created_at },
+    ]);
     const out = renderStuck(r, 900);
-    expect(out).toContain(`Terminal webhook rejects (WEBHOOK_TERMINAL_REJECT, last ${S.terminal_reject_lookback_hours} h, newest first): 1`);
+    expect(out).toContain(
+      `Terminal webhook rejects (WEBHOOK_TERMINAL_REJECT, WEBHOOK_PROVIDER_SWITCHED_OFF, last ${S.terminal_reject_lookback_hours} h, newest first): 2`,
+    );
     expect(out).toContain("  paddle  sale txn_1  reason DeliveryBlockedError  at 2026-11-18T11:00:00.000Z");
+    expect(out).toContain("  polar  sale sale_off_1  reason provider_switched_off  at 2026-11-18T11:15:00.000Z");
     expect(exitCodeForStuck(r)).toBe(1);
   });
 
-  it("queries the event with the registry look-back window and list limit", async () => {
+  it("queries both terminal-reject and switched-off events with the registry look-back window and list limit", async () => {
     const { fetchImpl, urls } = fakeFetch([], [], 200, []);
     await collectStuck(ENV, fetchImpl, NOW, S);
-    const rejectUrl = new URL(urls.find((u) => u.includes("event=eq.WEBHOOK_TERMINAL_REJECT")) as string);
+    const rejectUrl = new URL(urls.find((u) => u.includes("event=in.(WEBHOOK_TERMINAL_REJECT,WEBHOOK_PROVIDER_SWITCHED_OFF)")) as string);
     const since = new Date(NOW - S.terminal_reject_lookback_hours * 3600 * 1000).toISOString();
-    expect(rejectUrl.searchParams.get("event")).toBe("eq.WEBHOOK_TERMINAL_REJECT");
+    expect(rejectUrl.searchParams.get("event")).toBe("in.(WEBHOOK_TERMINAL_REJECT,WEBHOOK_PROVIDER_SWITCHED_OFF)");
     expect(rejectUrl.searchParams.get("at")).toBe(`gte.${since}`);
     expect(rejectUrl.searchParams.get("limit")).toBe(String(S.terminal_reject_list_limit));
     expect(rejectUrl.pathname).toBe("/rest/v1/audit_log");
   });
 
-  it("probes for older rejects with a presence query: before the window, one row, the same event", async () => {
+  it("probes for older rejects with a presence query: before the window, one row, the same events", async () => {
     const { fetchImpl, urls } = fakeFetch([], []);
     await collectStuck(ENV, fetchImpl, NOW, S);
     const probe = new URL(urls.find((u) => u.includes("at=lt.")) as string);
     const since = new Date(NOW - S.terminal_reject_lookback_hours * 3600 * 1000).toISOString();
     expect(probe.pathname).toBe("/rest/v1/audit_log");
-    expect(probe.searchParams.get("event")).toBe("eq.WEBHOOK_TERMINAL_REJECT");
+    expect(probe.searchParams.get("event")).toBe("in.(WEBHOOK_TERMINAL_REJECT,WEBHOOK_PROVIDER_SWITCHED_OFF)");
     expect(probe.searchParams.get("at")).toBe(`lt.${since}`);
     expect(probe.searchParams.get("limit")).toBe("1");
   });
@@ -190,7 +200,9 @@ describe("terminal webhook rejects", () => {
     expect(r.olderRejectsBeyondWindow).toBe(true);
     expect(exitCodeForStuck(r)).toBe(1);
     const out = renderStuck(r, 900);
-    expect(out).toContain(`Terminal webhook rejects (WEBHOOK_TERMINAL_REJECT, last ${S.terminal_reject_lookback_hours} h, newest first): 0`);
+    expect(out).toContain(
+      `Terminal webhook rejects (WEBHOOK_TERMINAL_REJECT, WEBHOOK_PROVIDER_SWITCHED_OFF, last ${S.terminal_reject_lookback_hours} h, newest first): 0`,
+    );
     expect(out).toContain(`at least one older reject exists beyond the last ${S.terminal_reject_lookback_hours} h`);
     expect(out).toContain("not an acknowledgement, so the report stays at exit 1");
     expect(out).toContain("RESULT: action needed");
