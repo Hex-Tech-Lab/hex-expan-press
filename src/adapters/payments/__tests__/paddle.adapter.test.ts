@@ -417,6 +417,18 @@ describe("PaddleAdapter buyer-email fallback (customer lookup)", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("the lookup gets only the budget left: a spent budget makes no Paddle call and answers 503", async () => {
+    vi.stubEnv("PADDLE_API_KEY", KEY);
+    vi.stubEnv("PADDLE_WEBHOOK_SECRET", SECRET);
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const body = bodyWithCustomer("ctm_test_0001");
+    const res = await new PaddleAdapter().parseAndValidateWebhook(headersFor(freshSig(body)), body, { deadlineAt: Date.now() - 1 });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(res.isValid).toBe(false);
+    expect((res as { httpStatus?: number }).httpStatus).toBe(503);
+  });
+
   it("invalid signature → fetch NOT called (never call Paddle for unverified payloads)", async () => {
     vi.stubEnv("PADDLE_API_KEY", KEY);
     const fetchMock = vi.fn();

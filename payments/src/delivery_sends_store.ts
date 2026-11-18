@@ -5,6 +5,7 @@
  */
 import { StaleFenceError } from "./delivery_errors.ts";
 import { GLOBAL } from "./settings_registry.ts";
+import { bounded } from "./webhook_budget.ts";
 import { getSupabaseAdmin } from "./supabase_admin.ts";
 
 export interface DeliverySendClaim {
@@ -78,15 +79,16 @@ async function lookupExistingDeliverySend(
   provider: string,
   saleId: string,
   sendKind: string,
+  signal?: AbortSignal,
 ): Promise<{ state: "claimed" | "sent"; fence: number; claimedAt?: string } | null> {
   const sb = await getSupabaseAdmin();
   if (!sb) throw new Error("Supabase admin client unavailable");
-  const { data: existing, error: selectError } = await sb
+  const { data: existing, error: selectError } = await bounded(sb
     .from("delivery_sends")
     .select("state, fence, created_at")
     .eq("provider", provider)
     .eq("sale_id", saleId)
-    .eq("send_kind", sendKind)
+    .eq("send_kind", sendKind), signal)
     .maybeSingle();
   if (selectError) throw new Error(`delivery send lookup failed: ${selectError.message}`);
   if (!existing) return null;
@@ -141,7 +143,7 @@ export async function listStuckDeliveryClaims(olderThanMs: number, nowMs: number
 }
 
 /** Creates the Supabase-backed public.delivery_sends store used by supabaseDeliveryDb(). */
-export function createDeliverySendsStore(): DeliverySendsStore {
+export function createDeliverySendsStore(signal?: AbortSignal): DeliverySendsStore {
   return {
     async claimDeliverySend({ provider, saleId, sendKind, fence }) {
       const sb = await getSupabaseAdmin();
@@ -149,7 +151,7 @@ export function createDeliverySendsStore(): DeliverySendsStore {
       const newFence = fence ?? 0;
       const MAX_CLAIM_ATTEMPTS = 2;
       for (let attempt = 0; attempt < MAX_CLAIM_ATTEMPTS; attempt++) {
-        const { data: inserted, error: insertError } = await sb
+        const { data: inserted, error: insertError } = await bounded(sb
           .from("delivery_sends")
           .upsert(
             {
@@ -161,21 +163,21 @@ export function createDeliverySendsStore(): DeliverySendsStore {
             },
             { onConflict: "provider,sale_id,send_kind", ignoreDuplicates: true },
           )
-          .select("state, fence");
+          .select("state, fence"), signal);
         if (insertError) throw new Error(`delivery send claim failed: ${insertError.message}`);
         if (Array.isArray(inserted) && inserted.length > 0) {
           const row = inserted[0] as { state: string; fence: unknown };
           return { outcome: "claimed", fence: parseFenceValue(row.fence, "delivery_sends insert") };
         }
 
-        const { data: updated, error: updateError } = await sb
+        const { data: updated, error: updateError } = await bounded(sb
           .from("delivery_sends")
           .update({ fence: newFence, updated_at: new Date().toISOString() })
           .eq("provider", provider)
           .eq("sale_id", saleId)
           .eq("send_kind", sendKind)
           .lte("fence", newFence)
-          .select("state, fence, created_at");
+          .select("state, fence, created_at"), signal);
         if (updateError) {
           if (updateError.code === "40001") {
             throw new StaleFenceError("delivery_sends", `${provider}:${saleId}:${sendKind}`, newFence);
@@ -191,7 +193,7 @@ export function createDeliverySendsStore(): DeliverySendsStore {
           };
         }
 
-        const existing = await lookupExistingDeliverySend(provider, saleId, sendKind);
+        const existing = await lookupExistingDeliverySend(provider, saleId, sendKind, signal);
         if (existing) {
           if (existing.fence > newFence) {
             throw new StaleFenceError("delivery_sends", `${provider}:${saleId}:${sendKind}`, newFence, existing.fence);
@@ -208,7 +210,7 @@ export function createDeliverySendsStore(): DeliverySendsStore {
     async assertSendFence({ provider, saleId, sendKind, fence }) {
       const sb = await getSupabaseAdmin();
       if (!sb) throw new Error("Supabase admin client unavailable");
-      const { data, error } = await sb
+      const { data, error } = await bounded(sb
         .from("delivery_sends")
         .update({ fence, updated_at: new Date().toISOString() })
         .eq("provider", provider)
@@ -216,7 +218,7 @@ export function createDeliverySendsStore(): DeliverySendsStore {
         .eq("send_kind", sendKind)
         .eq("state", "claimed")
         .lte("fence", fence)
-        .select("fence");
+        .select("fence"), signal);
       if (error) {
         if (error.code === "40001") {
           throw new StaleFenceError("delivery_sends", `${provider}:${saleId}:${sendKind}`, fence);
@@ -245,7 +247,7 @@ export function createDeliverySendsStore(): DeliverySendsStore {
       if (fence !== undefined) {
         query = query.lte("fence", fence);
       }
-      const { data, error } = await query.select("state, fence");
+      const { data, error } = await bounded(query.select("state, fence"), signal);
       if (error) {
         if (error.code === "40001") {
           throw new StaleFenceError("delivery_sends", `${provider}:${saleId}:${sendKind}`, fence ?? 0);
@@ -269,7 +271,7 @@ export function createDeliverySendsStore(): DeliverySendsStore {
       if (fence !== undefined) {
         query = query.lte("fence", fence);
       }
-      const { error } = await query;
+      const { error } = await bounded(query, signal);
       if (error) throw new Error(`delivery send release failed: ${error.message}`);
     },
     async storeClaimMessage({ provider, saleId, sendKind, fence, ciphertext }) {
@@ -281,7 +283,7 @@ export function createDeliverySendsStore(): DeliverySendsStore {
       const bound = fence ?? 0;
       const changes: Record<string, unknown> = { link_ciphertext: ciphertext, updated_at: new Date().toISOString() };
       if (fence !== undefined) changes.fence = fence;
-      const { data, error } = await sb
+      const { data, error } = await bounded(sb
         .from("delivery_sends")
         .update(changes)
         .eq("provider", provider)
@@ -290,7 +292,7 @@ export function createDeliverySendsStore(): DeliverySendsStore {
         .eq("state", "claimed")
         .is("link_ciphertext", null)
         .lte("fence", bound)
-        .select("fence");
+        .select("fence"), signal);
       if (error) {
         if (error.code === "40001") {
           throw new StaleFenceError("delivery_sends", `${provider}:${saleId}:${sendKind}`, bound);
@@ -304,12 +306,12 @@ export function createDeliverySendsStore(): DeliverySendsStore {
     async readClaimMessage({ provider, saleId, sendKind }) {
       const sb = await getSupabaseAdmin();
       if (!sb) throw new Error("Supabase admin client unavailable");
-      const { data, error } = await sb
+      const { data, error } = await bounded(sb
         .from("delivery_sends")
         .select("link_ciphertext")
         .eq("provider", provider)
         .eq("sale_id", saleId)
-        .eq("send_kind", sendKind)
+        .eq("send_kind", sendKind), signal)
         .maybeSingle();
       if (error) throw new Error(`delivery send message lookup failed: ${error.message}`);
       const value = (data as { link_ciphertext?: unknown } | null)?.link_ciphertext;

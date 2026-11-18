@@ -278,3 +278,21 @@ describe("settings registry: lock fencing & delivery send_kind", () => {
     expect(invalidDelivery.link_ttl_days).toBe(7);
   });
 });
+
+describe("settings registry: webhook_total_budget_ms (payments.webhook_total_budget_ms)", () => {
+  it("defaults to 3000 ms, leaving 2 s inside Paddle's 5 s answer limit", () => {
+    expect(GLOBAL.payments.webhook_total_budget_ms).toBe(3000);
+    expect(loadPaymentsSection(undefined).webhook_total_budget_ms).toBe(3000);
+  });
+
+  it("accepts any in-range value, including the 4500 ms ceiling", () => {
+    expect(loadPaymentsSection({ webhook_total_budget_ms: 2500 }).webhook_total_budget_ms).toBe(2500);
+    expect(loadPaymentsSection({ webhook_total_budget_ms: 4500 }).webhook_total_budget_ms).toBe(4500);
+  });
+
+  it("falls back to the default for a value that would breach the 5 s limit, or is not an integer", () => {
+    expect(loadPaymentsSection({ webhook_total_budget_ms: 4501 }).webhook_total_budget_ms).toBe(3000);
+    expect(loadPaymentsSection({ webhook_total_budget_ms: 999 }).webhook_total_budget_ms).toBe(3000);
+    expect(loadPaymentsSection({ webhook_total_budget_ms: 3000.5 }).webhook_total_budget_ms).toBe(3000);
+  });
+});

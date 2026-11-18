@@ -28,6 +28,7 @@ import { z } from "zod";
 import crypto from "crypto";
 import { cleanAttributionId, hashEmail } from "../../../payments/src/provider.ts";
 import { GLOBAL } from "../../../payments/src/settings_registry.ts";
+import { budgetLeftMs } from "../../../payments/src/webhook_budget.ts";
 
 // Minimal schema to inspect event_type before strict validation
 const MinimalPaddleEventSchema = z.object({
@@ -111,7 +112,11 @@ export class PaddleAdapter implements PaymentProviderPort {
     return Boolean(headers["paddle-signature"]);
   }
 
-  async parseAndValidateWebhook(headers: Record<string, string | string[] | undefined>, body: string): Promise<WebhookParseResult> {
+  async parseAndValidateWebhook(
+    headers: Record<string, string | string[] | undefined>,
+    body: string,
+    options?: { deadlineAt?: number },
+  ): Promise<WebhookParseResult> {
     const secret = process.env.PADDLE_WEBHOOK_SECRET;
     if (!secret) return { isValid: false, error: "PADDLE_WEBHOOK_SECRET not configured", httpStatus: 500 };
 
@@ -292,11 +297,15 @@ export class PaddleAdapter implements PaymentProviderPort {
             ? GLOBAL.payments.paddle.api_base.production
             : GLOBAL.payments.paddle.api_base.sandbox;
         const apiKey = process.env.PADDLE_API_KEY;
+        // The lookup takes only the time left in this request's budget (payments.webhook_total_budget_ms); with no deadline
+        // from the caller it keeps the call-level timeout.
+        const lookupMs = options?.deadlineAt === undefined ? GLOBAL.payments.http_timeout_ms : budgetLeftMs(options.deadlineAt);
         try {
+          if (lookupMs <= 0) throw new Error("webhook budget exhausted before the customer email lookup");
           if (!apiKey) throw new Error("PADDLE_API_KEY not configured");
           const resp = await fetch(`${base}/customers/${encodeURIComponent(customerId)}`, {
             headers: { Authorization: `Bearer ${apiKey}` },
-            signal: AbortSignal.timeout(GLOBAL.payments.http_timeout_ms)
+            signal: AbortSignal.timeout(lookupMs)
           });
           const fetched = ((await resp.json()) as { data?: { email?: unknown } }).data;
           if (typeof fetched?.email === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fetched.email)) {

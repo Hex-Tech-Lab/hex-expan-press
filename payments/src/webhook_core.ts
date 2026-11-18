@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { bounded } from "./webhook_budget.ts";
 import { isEnabledPaymentProvider, paymentProviderSetting, isMoneyPath, GLOBAL } from "./settings_registry.ts";
 import { getSupabaseAdmin } from "./supabase_admin.ts";
 import { expanRedis, isRedisRestConfigured } from "../../src/infrastructure/redis/redis.client.ts";
@@ -68,7 +69,7 @@ export interface ResolvedProduct {
  * Resolves a sale's product alias. paddle_product_id is Paddle's own column, so only a Paddle sale may match it.
  * Any other provider matching it would book a sale that delivery then cannot deliver (the delivery lookup applies the same rule).
  */
-export async function resolveProductByAlias(alias: string, providerName: string): Promise<ResolvedProduct | null> {
+export async function resolveProductByAlias(alias: string, providerName: string, signal?: AbortSignal): Promise<ResolvedProduct | null> {
   if (typeof alias !== "string" || !PRODUCT_ALIAS_RE.test(alias)) return null;
   const supabase = await getSupabaseAdmin();
   if (!supabase) {
@@ -82,11 +83,11 @@ export async function resolveProductByAlias(alias: string, providerName: string)
     `polar_product_id_live.eq.${alias}`,
     ...(isUuid ? [`id.eq.${alias}`] : []),
   ];
-  const { data, error } = await supabase
+  const { data, error } = await bounded(supabase
     .from("products")
     .select("store_product_id, currency, provider, checkout_mode, creators(handle)")
     .or(conditions.join(","))
-    .eq("provider", providerName)
+    .eq("provider", providerName), signal)
     .maybeSingle();
   if (error) {
     throw new Error(`webhook: product lookup failed for '${alias}': ${error.message}`);

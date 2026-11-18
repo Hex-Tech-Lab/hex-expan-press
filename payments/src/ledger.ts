@@ -2,6 +2,7 @@ import { closeSync, fsyncSync, mkdirSync, openSync, readFileSync, writeSync } fr
 import { dirname, join, basename } from "node:path";
 import { createHash } from "node:crypto";
 import { z } from "zod";
+import { bounded } from "./webhook_budget.ts";
 import { GLOBAL, isMoneyPath } from "./settings_registry.ts";
 import { getSupabaseAdmin } from "./supabase_admin.ts";
 import { StaleFenceError } from "./delivery_errors.ts";
@@ -322,6 +323,7 @@ export function findSale(provider: string, saleId: string, salesFile: string = S
 async function queryOrderRowFromSupabase(
   filters: Record<string, string>,
   errorContext: string,
+  signal?: AbortSignal,
 ): Promise<SaleRecord | null> {
   try {
     // Client construction inside the lookup error boundary (Cubic P3, PR #80
@@ -338,7 +340,7 @@ async function queryOrderRowFromSupabase(
     for (const [col, val] of Object.entries(filters)) {
       query = query.eq(col, val);
     }
-    const { data, error } = await query.maybeSingle();
+    const { data, error } = await bounded(query, signal).maybeSingle();
     // Fail CLOSED: a lookup error is not "not found" — treating it as such would
     // let a duplicate delivery through. The route 500s and the provider retries.
     if (error) throw new Error(`ledger: Supabase ${errorContext} failed: ${error.message}`);
@@ -353,13 +355,14 @@ async function queryOrderRowFromSupabase(
 }
 
 /** Asynchronously finds a sale, falling back to Supabase public.orders if not found in local file. */
-export async function findSaleAsync(provider: string, saleId: string, salesFile: string = SALES_FILE): Promise<SaleRecord | null> {
+export async function findSaleAsync(provider: string, saleId: string, salesFile: string = SALES_FILE, signal?: AbortSignal): Promise<SaleRecord | null> {
   const local = findSale(provider, saleId, salesFile);
   if (local) return local;
 
   return queryOrderRowFromSupabase(
     { provider, sale_id: saleId, event_type: "sale" },
     "sale lookup",
+    signal,
   );
 }
 

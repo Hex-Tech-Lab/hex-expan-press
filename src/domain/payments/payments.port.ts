@@ -273,7 +273,8 @@ export interface PaymentProviderPort {
    */
   parseAndValidateWebhook(
     headers: Record<string, string | string[] | undefined>,
-    body: string
+    body: string,
+    options?: { deadlineAt?: number }
   ): Promise<WebhookParseResult>;
 
   /**

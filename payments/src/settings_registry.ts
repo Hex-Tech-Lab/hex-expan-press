@@ -72,6 +72,11 @@ export interface GlobalSettings {
     webhook_lock_refund_prefix: string;
     webhook_lock_fence_suffix: string;
     http_timeout_ms: number; // webhook-internal call budget: Paddle customer-email lookup AND the 503 audit insert (must stay short)
+    /** One overall deadline per webhook request, in ms, counted from the request start. The sale write is never cut short;
+     *  the buyer lookup, the download link and the receipt send get only what is left. Past it, delivery answers 503
+     *  (Retry-After) and the provider's retry resends the stored receipt under the same idempotency key. Paddle answers
+     *  within 5 s, so the default is 3000 (2 s headroom for cold start and the response). Set in the registry, not in code. */
+    webhook_total_budget_ms: number;
     sync_http_timeout_ms: number; // operator CLI (sync_book_identity) calls to Supabase/Paddle
     review_queue_page_size: number; // listManualReviewRefunds default page/limit
     /** Retry-After seconds sent on 503 webhook responses (in-flight AND generic 503 paths). */
@@ -194,6 +199,7 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     webhook_lock_refund_prefix: "lock:refund:",
     webhook_lock_fence_suffix: ":fence",
     http_timeout_ms: 5000,
+    webhook_total_budget_ms: 3000,
     sync_http_timeout_ms: 30000,
     review_queue_page_size: 200,
     retry_after_seconds: 30,
@@ -317,6 +323,8 @@ export const PAYMENTS_LIMITS = {
   webhook_lock_ttl_seconds: { min: 60, max: 3600 },
   webhook_lock_fence_ttl_seconds: { min: 300, max: 2592000 },
   http_timeout_ms: { min: 1000, max: 30000 },
+  // Paddle needs an answer within 5 s; the max leaves 500 ms headroom. The default is 3000 (see GlobalSettings).
+  webhook_total_budget_ms: { min: 1000, max: 4500 },
   sync_http_timeout_ms: { min: 1000, max: 120000 },
   review_queue_page_size: { min: 1, max: 1000 },
   retry_after_seconds: { min: 1, max: 600 },
@@ -396,6 +404,7 @@ export function loadPaymentsSection(raw: Record<string, unknown> | undefined): G
   const webhookLockRefundPrefix = keyToken("webhook_lock_refund_prefix");
   const webhookLockFenceSuffix = keyToken("webhook_lock_fence_suffix");
   const httpTimeout = num("http_timeout_ms");
+  const webhookTotalBudget = num("webhook_total_budget_ms");
   const syncHttpTimeout = num("sync_http_timeout_ms");
   // Validate BEFORE the fallback warning below, so an invalid value is reported, not silently defaulted.
   const reviewQueuePageSize = num("review_queue_page_size");
@@ -444,6 +453,7 @@ export function loadPaymentsSection(raw: Record<string, unknown> | undefined): G
     webhook_lock_refund_prefix: webhookLockRefundPrefix,
     webhook_lock_fence_suffix: webhookLockFenceSuffix,
     http_timeout_ms: httpTimeout,
+    webhook_total_budget_ms: webhookTotalBudget,
     sync_http_timeout_ms: syncHttpTimeout,
     review_queue_page_size: reviewQueuePageSize,
     retry_after_seconds: retryAfterSeconds,

@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { bounded } from "./webhook_budget.ts";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const CANDIDATE_DIRS = [
@@ -119,7 +120,7 @@ export function effectiveCreatorSplitPct(creator_id: string, product_id: string,
  * Fail closed: an unconfigured Supabase admin client THROWS (never silently
  * returns null — a null means "no terms", a throw means "cannot determine").
  */
-export async function effectiveCreatorSplitPctAsync(creatorHandle: string, storeProductId: string, atISO: string): Promise<number | null> {
+export async function effectiveCreatorSplitPctAsync(creatorHandle: string, storeProductId: string, atISO: string, signal?: AbortSignal): Promise<number | null> {
   if (typeof creatorHandle !== "string" || creatorHandle.trim() === "") {
     throw new TypeError("terms: creatorHandle must be a non-empty string");
   }
@@ -135,22 +136,22 @@ export async function effectiveCreatorSplitPctAsync(creatorHandle: string, store
     throw new Error("terms: Supabase admin client unavailable — split resolution cannot run (fail closed)");
   }
   const [{ data: creator, error: creatorErr }, { data: product, error: productErr }] = await Promise.all([
-    supabase.from("creators").select("id").eq("handle", creatorHandle).maybeSingle(),
-    supabase.from("products").select("id").eq("store_product_id", storeProductId).maybeSingle(),
+    bounded(supabase.from("creators").select("id").eq("handle", creatorHandle), signal).maybeSingle(),
+    bounded(supabase.from("products").select("id").eq("store_product_id", storeProductId), signal).maybeSingle(),
   ]);
   // A DB failure is NOT "no terms" — fail loud so the provider retries instead
   // of settling the payout on a defaulted split.
   if (creatorErr) throw new Error(`terms: creator lookup failed (${creatorHandle}): ${creatorErr.message}`);
   if (productErr) throw new Error(`terms: product lookup failed (${storeProductId}): ${productErr.message}`);
   if (!creator?.id || !product?.id) return null;
-  const { data, error } = await supabase
+  const { data, error } = await bounded(supabase
     .from("creator_terms")
     .select("creator_split_pct, effective_from")
     .eq("creator_id", creator.id as string)
     .eq("product_id", product.id as string)
     .lte("effective_from", new Date(Date.parse(atISO)).toISOString())
     .order("effective_from", { ascending: false })
-    .limit(1)
+    .limit(1), signal)
     .maybeSingle();
   if (error) {
     throw new Error(`terms: creator_terms lookup failed (${creatorHandle}/${storeProductId}): ${error.message}`);

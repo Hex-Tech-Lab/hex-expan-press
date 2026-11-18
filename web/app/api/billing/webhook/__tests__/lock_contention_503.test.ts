@@ -17,7 +17,7 @@ vi.mock("@supabase/supabase-js", () => ({
         const result = Promise.resolve({ error: null });
         return Object.assign(result, { abortSignal: () => result });
       },
-      select: () => ({ eq: function eq() { return { eq, in: eq, maybeSingle: async () => ({ data: null, error: null }) }; } }),
+      select: () => ({ eq: function eq() { return { eq, in: eq, abortSignal() { return this; }, maybeSingle: async () => ({ data: null, error: null }) }; } }),
     }),
   }),
 }));
@@ -46,6 +46,7 @@ vi.mock("../../../../../../payments/src/settings_registry.ts", () => ({
       webhook_lock_refund_prefix: "lock:refund:",
       webhook_lock_fence_suffix: ":fence",
       http_timeout_ms: 5000,
+      webhook_total_budget_ms: 3000,
       sync_http_timeout_ms: 30000,
       retry_after_seconds: 30,
     },

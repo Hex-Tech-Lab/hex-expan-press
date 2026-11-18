@@ -92,6 +92,7 @@ vi.mock("../../../../../../payments/src/settings_registry.ts", () => ({
       webhook_lock_refund_prefix: "lock:refund:",
       webhook_lock_fence_suffix: ":fence",
       http_timeout_ms: 5000,
+      webhook_total_budget_ms: 3000,
       sync_http_timeout_ms: 30000,
     },
   },

@@ -223,6 +223,7 @@ vi.mock("../../../../payments/src/settings_registry.ts", () => ({
       webhook_lock_refund_prefix: "lock:refund:",
       webhook_lock_fence_suffix: ":fence",
       http_timeout_ms: 5000,
+      webhook_total_budget_ms: 3000,
       sync_http_timeout_ms: 30000,
     },
     delivery: {
@@ -1309,7 +1310,7 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
   };
 
   const expectConflictPending = (out: unknown, sale = CB_SALE.sale_id) => {
-    expect(out).toMatchObject({ status: 202, payload: { ok: true, recorded: false, reason: "conflict_pending", sale_id: sale } });
+    expect(out).toMatchObject({ status: 200, payload: { ok: true, recorded: false, reason: "conflict_pending", sale_id: sale } });
     expect((out as { payload: { conflict_id: number } }).payload.conflict_id).toBeGreaterThanOrEqual(1);
   };
 
@@ -1375,7 +1376,7 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
       }
     });
 
-    it("refund: 23505 + conflicting row with a DIFFERENT sale_id -> 202 conflict_pending + inbox row + adjustment_id_collision flag", async () => {
+    it("refund: 23505 + conflicting row with a DIFFERENT sale_id -> 200 conflict_pending + inbox row + adjustment_id_collision flag", async () => {
       race23505();
       supa.adjLookupResult = conflicts("sale_OTHER");
       try {
@@ -1396,7 +1397,7 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
       }
     });
 
-    it("refund: 23505 + conflicting row with a different amount -> 202 conflict_pending + inbox row", async () => {
+    it("refund: 23505 + conflicting row with a different amount -> 200 conflict_pending + inbox row", async () => {
       race23505();
       supa.adjLookupResult = conflicts(CB_SALE.sale_id, 12.5);
       try {
@@ -1411,7 +1412,7 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
       }
     });
 
-    it("refund: 23505 + same sale/amount but different currency -> 202 conflict_pending + inbox row + collision flag", async () => {
+    it("refund: 23505 + same sale/amount but different currency -> 200 conflict_pending + inbox row + collision flag", async () => {
       race23505();
       supa.adjLookupResult = conflicts(CB_SALE.sale_id, 39, "EUR");
       try {
@@ -1426,7 +1427,7 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
       }
     });
 
-    it("redelivery: two identical refund collisions -> 202 both times, ONE inbox row (delivery_count 2), exactly ONE flag row, forensic context recorded", async () => {
+    it("redelivery: two identical refund collisions -> 200 both times, ONE inbox row (delivery_count 2), exactly ONE flag row, forensic context recorded", async () => {
       race23505();
       supa.adjLookupResult = conflicts("sale_OTHER", 12.5, "EUR");
       try {
@@ -1492,7 +1493,7 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
       }
     });
 
-    it("refund: mismatch but the inbox write fails -> 503 retryable, never 202", async () => {
+    it("refund: mismatch but the inbox write fails -> 503 retryable, never 200", async () => {
       race23505();
       supa.adjLookupResult = conflicts("sale_OTHER");
       supa.rpcError = { message: "rpc down" };
@@ -1567,7 +1568,7 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
       }
     });
 
-    it("reversal: 23505 + conflicting row with a DIFFERENT sale_id -> 202 conflict_pending + inbox row + adjustment_id_collision flag", async () => {
+    it("reversal: 23505 + conflicting row with a DIFFERENT sale_id -> 200 conflict_pending + inbox row + adjustment_id_collision flag", async () => {
       await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_rev_refund2"))]);
       race23505();
       supa.adjLookupResult = conflicts("sale_OTHER");
@@ -1583,7 +1584,7 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
       }
     });
 
-    it("reversal: 23505 + conflicting row with a different amount -> 202 conflict_pending + inbox row", async () => {
+    it("reversal: 23505 + conflicting row with a different amount -> 200 conflict_pending + inbox row", async () => {
       await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_rev_refund3"))]);
       race23505();
       supa.adjLookupResult = conflicts(CB_SALE.sale_id, 12.5);
@@ -1599,7 +1600,7 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
       }
     });
 
-    it("reversal: 23505 + same sale/amount but different currency -> 202 conflict_pending + inbox row + collision flag", async () => {
+    it("reversal: 23505 + same sale/amount but different currency -> 200 conflict_pending + inbox row + collision flag", async () => {
       await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_rev_refund_cur"))]);
       race23505();
       supa.adjLookupResult = conflicts(CB_SALE.sale_id, 39, "EUR");
@@ -1615,7 +1616,7 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
       }
     });
 
-    it("refund: 23505 + conflicting row with a NULL stored currency -> empty string treated as non-matching -> 202 conflict_pending", async () => {
+    it("refund: 23505 + conflicting row with a NULL stored currency -> empty string treated as non-matching -> 200 conflict_pending", async () => {
       race23505();
       supa.adjLookupResult = conflicts();
       (supa.adjLookupResult.data as { currency: string | null }).currency = null;
@@ -1631,7 +1632,7 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
       }
     });
 
-    it("reversal: 23505 + conflicting row with a NULL stored currency -> empty string treated as non-matching -> 202 conflict_pending", async () => {
+    it("reversal: 23505 + conflicting row with a NULL stored currency -> empty string treated as non-matching -> 200 conflict_pending", async () => {
       await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_rev_nullc_refund"))]);
       race23505();
       supa.adjLookupResult = conflicts();

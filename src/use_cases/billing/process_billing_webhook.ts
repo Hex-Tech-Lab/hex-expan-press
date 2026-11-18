@@ -13,7 +13,23 @@ import { computeSplit, usdToCents } from "../../../payments/src/split.ts";
 import { effectiveCreatorSplitPctAsync } from "../../../payments/src/terms.ts";
 import { resolveProductByAlias, withIdempotencyLock, WebhookInFlightError } from "../../../payments/src/webhook_core.ts";
 import { deliverSaleForWebhook, saleDeliveryConfirmed } from "../../../payments/src/delivery.ts";
+import { DeliveryPendingError } from "../../../payments/src/delivery_errors.ts";
+import { requestSignal, settleByDeadline } from "../../../payments/src/webhook_budget.ts";
 import { GLOBAL } from "../../../payments/src/settings_registry.ts";
+
+type DeliveryInput = Parameters<typeof deliverSaleForWebhook>[0];
+
+/**
+ * The receipt send, raced against the request deadline (payments.webhook_total_budget_ms). Past the deadline the answer is a 503
+ * (DeliveryPendingError) and the sale is already booked. The send is not aborted, so it may still finish; the provider's retry
+ * then takes the duplicate path and resends the stored message under the same idempotency key.
+ */
+function deliverWithinBudget(input: DeliveryInput): Promise<void> {
+  if (input.deadlineAt === undefined) return deliverSaleForWebhook(input);
+  return settleByDeadline(deliverSaleForWebhook(input), input.deadlineAt, () =>
+    new DeliveryPendingError(input.saleId, new Error("webhook budget exhausted (payments.webhook_total_budget_ms)")),
+  );
+}
 
 type LockedResult = { status: number; payload: Record<string, unknown> };
 type LockedFn = (fenceToken?: number) => Promise<LockedResult>;
@@ -27,16 +43,16 @@ function requireLockPrefix(value: unknown, name: string): string {
 
 /**
  * A mismatching adjustment-id collision stored in the reconciliation inbox (public.webhook_conflicts).
- * The route answers 202: every provider treats any 2xx as delivered, so the retry loop stops, and the event
- * lives on in the inbox until an operator resolves it. Never produced without a durable row.
+ * The route answers 200 (Paddle documents 200 as success; any other status is retried). The event lives on in the
+ * inbox until an operator resolves it. Never produced without a durable row.
  */
 export interface ConflictPendingOutcome {
-  status: 202;
+  status: 200;
   payload: { ok: true; recorded: false; reason: "conflict_pending"; conflict_id: number; event_type: "refund" | "refund_reversal"; sale_id: string };
 }
 
 function asConflictPending(result: LockedResult | undefined): ConflictPendingOutcome | undefined {
-  return result?.status === 202 ? (result as ConflictPendingOutcome) : undefined;
+  return result?.payload?.reason === "conflict_pending" ? (result as ConflictPendingOutcome) : undefined;
 }
 
 /**
@@ -45,8 +61,8 @@ function asConflictPending(result: LockedResult | undefined): ConflictPendingOut
  * same amount, same currency) is a genuine replay worth acknowledging 200.
  * Anything else is a real collision: the incoming event is stored in the
  * reconciliation inbox together with the manual-review flag (one atomic RPC) and
- * answered 202 conflict_pending. A write failure must never soften into a 200
- * or a 202: it surfaces as a retryable 503 so the provider redelivers.
+ * answered 200 conflict_pending. A write failure must never soften into a 200
+ * without a stored row: it surfaces as a retryable 503 so the provider redelivers.
  */
 /**
  * Terminal 422 for a sale the mode gate refuses. The error name is the quarantine reason (the route records err.name in
@@ -102,7 +118,7 @@ async function resolveAdjustmentIdCollision(
     return { status: 200, payload: { ok: true, recorded: false, reason: "duplicate", dedupe: "provider_adjustment_id", event_type: eventType, sale_id: event.saleId } };
   }
   // Mismatch: store the event durably first (inbox row + audit flag, one transaction). A write failure must
-  // never become a 200/202; it surfaces as a retryable 503 (the route attaches Retry-After from the settings registry).
+  // never become a 200 without a row; it surfaces as a retryable 503 (the route attaches Retry-After from the settings registry).
   let conflictId: number;
   try {
     conflictId = await recordWebhookConflict(
@@ -137,7 +153,7 @@ async function resolveAdjustmentIdCollision(
     console.error("[billing-webhook] adjustment_id_collision conflict write failed:", recordErr);
     throw collisionRetryable("AdjustmentIdCollisionRecordError", `adjustment-id collision conflict write failed for ${eventType} ${adjustmentId}`);
   }
-  return { status: 202, payload: { ok: true, recorded: false, reason: "conflict_pending", conflict_id: conflictId, event_type: eventType, sale_id: event.saleId } };
+  return { status: 200, payload: { ok: true, recorded: false, reason: "conflict_pending", conflict_id: conflictId, event_type: eventType, sale_id: event.saleId } };
 }
 /**
  * Run fn under the idempotency lock. A held lock is NOT success — the holder may
@@ -156,6 +172,8 @@ async function underLockOrConfirmed(lockKey: string, isPersisted: () => Promise<
 export interface ProcessWebhookRequest {
   headers: Record<string, string | string[] | undefined>;
   body: string;
+  /** Absolute epoch-ms answer deadline (payments.webhook_total_budget_ms). Delivery and the buyer lookup take only what is left. */
+  deadlineAt?: number;
 }
 
 export async function processBillingWebhookUseCase(
@@ -182,7 +200,7 @@ export async function processBillingWebhookUseCase(
   }
 
   // 2. Zod-enforced parse — strict SSOT shape validation
-  const validation = await matchedAdapter.parseAndValidateWebhook(req.headers, req.body);
+  const validation = await matchedAdapter.parseAndValidateWebhook(req.headers, req.body, { deadlineAt: req.deadlineAt });
 
   if (!validation.isValid) {
     // The adapter's httpStatus hint (401 bad signature, 500 missing secret,
@@ -205,7 +223,7 @@ export async function processBillingWebhookUseCase(
   let terminal: unknown;
   for (const [index, event] of events.entries()) {
     try {
-      const outcome = await processBillingEvent(event); // always runs: never inside ??= (short-circuit)
+      const outcome = await processBillingEvent(event, req.deadlineAt); // always runs: never inside ??= (short-circuit)
       conflict ??= outcome ?? undefined;
     } catch (err) {
       if (events.length > 1) {
@@ -233,8 +251,8 @@ function isTerminalFailure(err: unknown): boolean {
   return err.httpStatus === undefined || err.httpStatus < 500;
 }
 
-async function processBillingEvent(event: BillingEvent): Promise<ConflictPendingOutcome | void> {
-  // 3. Ignored events — return silently (controller replies 202)
+async function processBillingEvent(event: BillingEvent, deadlineAt?: number): Promise<ConflictPendingOutcome | void> {
+  // 3. Ignored events — return silently (controller replies 200)
   if (event.eventType === "ignored") {
     return;
   }
@@ -522,6 +540,8 @@ async function processBillingEvent(event: BillingEvent): Promise<ConflictPending
   if (event.eventType === "sale_completed") {
     const saleEvent = event as SaleCompletedEvent;
     const saleLockPrefix = requireLockPrefix(GLOBAL.payments.webhook_lock_sale_prefix, "webhook_lock_sale_prefix");
+    // Every Supabase read on the sale path takes this signal, so a hung read is cut at the request budget. The sale write does not.
+    const readSignal = requestSignal(deadlineAt);
 
     // 5a. Distributed idempotency lock: concurrent/duplicate deliveries for the same sale
     // take the lock. Already-recorded sale → the lock holder re-attempts delivery under the lock
@@ -534,8 +554,8 @@ async function processBillingEvent(event: BillingEvent): Promise<ConflictPending
     await underLockOrConfirmed(
       `${saleLockPrefix}${saleEvent.providerName}:${saleEvent.saleId}`,
       async () =>
-        Boolean(await findSaleAsync(saleEvent.providerName, saleEvent.saleId)) &&
-        (await saleDeliveryConfirmed(saleEvent.providerName, saleEvent.saleId)),
+        Boolean(await findSaleAsync(saleEvent.providerName, saleEvent.saleId, undefined, readSignal)) &&
+        (await saleDeliveryConfirmed(saleEvent.providerName, saleEvent.saleId, deadlineAt)),
       async (fenceToken) => {
         // Fail closed for a non-Paddle sale without a buyer email: no download link can be sent, and a retry cannot
         // change that. Delivery would throw on every retry (a 500 loop), so the sale is refused with a final 422.
@@ -549,15 +569,16 @@ async function processBillingEvent(event: BillingEvent): Promise<ConflictPending
         // Duplicate guard: if sale already recorded, do not duplicate splits. A prior attempt may have
         // failed after the ledger write, so re-attempt delivery; it is idempotent per sale, and a
         // failure rethrows (500) so the provider retries.
-        const existing = await findSaleAsync(saleEvent.providerName, saleEvent.saleId);
+        const existing = await findSaleAsync(saleEvent.providerName, saleEvent.saleId, undefined, readSignal);
         if (existing) {
           // Deliver first: a local-file fault must never block the buyer's email. Delivery is idempotent per sale.
-          await deliverSaleForWebhook({
+          await deliverWithinBudget({
             provider: saleEvent.providerName,
             saleId: saleEvent.saleId,
             productAlias: saleEvent.productId,
             buyerEmail: saleEvent.buyerEmail,
             ...(fenceToken !== undefined ? { fence: fenceToken } : {}),
+            deadlineAt,
           });
           // Then heal a lost local append: the sale may be durable in Supabase only, and reports read the local file.
           // A failure here rethrows (500); the provider retries, delivery returns duplicate (no second email), and the mirror is retried.
@@ -567,7 +588,7 @@ async function processBillingEvent(event: BillingEvent): Promise<ConflictPending
 
         // Resolve product from the DATABASE (Sprint 15: commercial state is
         // DB-only — the provider's product alias must map to a products row).
-        const cfg = await resolveProductByAlias(saleEvent.productId, saleEvent.providerName);
+        const cfg = await resolveProductByAlias(saleEvent.productId, saleEvent.providerName, readSignal);
         // Terminal: the alias resolves to no product (no row, or an alias outside the allowed charset). A retry cannot create one; the quarantined event is for an operator.
         if (!cfg) throw new WebhookValidationError(`Unknown product_id for provider ${saleEvent.providerName}`, 422);
 
@@ -593,7 +614,7 @@ async function processBillingEvent(event: BillingEvent): Promise<ConflictPending
         }
 
         // Compute split (DB-backed creator_terms — latest effective_from <= sale time)
-        const creatorPct = await effectiveCreatorSplitPctAsync(cfg.creatorHandle, cfg.productId, saleEvent.occurredAt);
+        const creatorPct = await effectiveCreatorSplitPctAsync(cfg.creatorHandle, cfg.productId, saleEvent.occurredAt, readSignal);
         if (creatorPct === null) throw new Error(`Could not resolve split percentage for creator ${cfg.creatorHandle}`);
 
         const amountUsd = saleEvent.totalCents / 100; // Ledger still stores USD float — convert from canonical cents
@@ -617,12 +638,13 @@ async function processBillingEvent(event: BillingEvent): Promise<ConflictPending
         // Receipt and download link, after the durable write. A delivery failure rethrows: the handler answers the error's own
         // status (503 for DeliveryPendingError, 422 or 503 for DeliveryBlockedError, 500 otherwise). The provider retries the
         // 503 and 500 answers, which re-attempt delivery on the duplicate path above.
-        await deliverSaleForWebhook({
+        await deliverWithinBudget({
           provider: saleEvent.providerName,
           saleId: saleEvent.saleId,
           productAlias: saleEvent.productId,
           buyerEmail: saleEvent.buyerEmail,
           ...(fenceToken !== undefined ? { fence: fenceToken } : {}),
+          deadlineAt,
         });
         // Then the local mirror, the same order as the duplicate path above. A failure here rethrows (500); the provider retries,
         // delivery returns duplicate (no second email), and the mirror is retried.
