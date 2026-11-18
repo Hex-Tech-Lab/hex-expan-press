@@ -115,6 +115,10 @@ product_slug: { min_length: number; max_length: number; separator: string };
     stuck_claim_after_seconds: number;
     /** Most rows listStuckDeliveryClaims returns (oldest first). Bounds the operator reconcile query. */
     stuck_claim_list_limit: number;
+    /** Look-back window (hours) for the operator's WEBHOOK_TERMINAL_REJECT listing in scripts/ops/stuck_report.ts. A reject older than the window drops off that report. */
+    terminal_reject_lookback_hours: number;
+    /** Most WEBHOOK_TERMINAL_REJECT rows stuck_report.ts lists (newest first). Bounds the operator read. */
+    terminal_reject_list_limit: number;
     /** NAME of the env var holding the base64 32-byte AES-256-GCM key that encrypts a held claim's stored buyer email. */
     link_key_env: string;
     /** Key id written into each new encrypted claim message (envelope v2). A legacy v1 envelope is read as this id. */
@@ -245,6 +249,9 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     // Above the email deadline (payments.http_timeout_ms) and the webhook lock TTL, so a live send is never reported stuck.
     stuck_claim_after_seconds: 900,
     stuck_claim_list_limit: 500,
+    // 30 days: a quarantined sale stays unresolved until an operator reconciles it, so the operator listing must reach back that far.
+    terminal_reject_lookback_hours: 720,
+    terminal_reject_list_limit: 200,
     // Only the env var NAME is a setting; the key value never lives in the registry or the repo.
     link_key_env: "DELIVERY_LINK_KEY",
     // Key id for new encrypted claim messages. Bump it together with the key in link_key_env when the key is rotated.
@@ -660,7 +667,14 @@ export function loadDeliverySection(raw: Record<string, unknown> | undefined): G
     return defaults[key];
   };
   const posInt = (
-    key: "link_ttl_days" | "signed_url_seconds" | "stuck_claim_after_seconds" | "stuck_claim_list_limit" | "stored_message_resend_max_age_hours",
+    key:
+      | "link_ttl_days"
+      | "signed_url_seconds"
+      | "stuck_claim_after_seconds"
+      | "stuck_claim_list_limit"
+      | "stored_message_resend_max_age_hours"
+      | "terminal_reject_lookback_hours"
+      | "terminal_reject_list_limit",
     min: number,
     max: number,
   ): number => {
@@ -693,6 +707,8 @@ export function loadDeliverySection(raw: Record<string, unknown> | undefined): G
     send_kind: str("send_kind"),
     stuck_claim_after_seconds: posInt("stuck_claim_after_seconds", 60, 86400),
     stuck_claim_list_limit: posInt("stuck_claim_list_limit", 1, 10000),
+    terminal_reject_lookback_hours: posInt("terminal_reject_lookback_hours", 1, 8760),
+    terminal_reject_list_limit: posInt("terminal_reject_list_limit", 1, 10000),
     link_key_env: validLinkKeyEnv ? linkKeyEnv : defaults.link_key_env,
     link_key_id: validLinkKeyId ? linkKeyId : defaults.link_key_id,
     download_origin: validDownloadOrigin ? downloadOrigin : defaults.download_origin,

@@ -13,7 +13,9 @@
  * rethrown for a definite non-send before the store, or a definite provider 4xx rejection other than an address refusal. A
  * definite 422 from the mail provider (GLOBAL.email.address_rejected_status: the message was refused, and no retry can succeed)
  * is answered by deliverSaleForWebhook as DeliveryBlockedError('no_email'): 422, terminal. The sale stays booked, the webhook
- * quarantines the event, and an operator is flagged. A 401 or 403 is a config refusal and stays retryable. A download_events
+ * quarantines the event, and an operator is flagged: a console line here (flagForManualReconciliation), plus a
+ * WEBHOOK_TERMINAL_REJECT audit row that scripts/ops/stuck_report.ts lists under "Terminal webhook rejects" (the operator path).
+ * A 401 or 403 is a config refusal and stays retryable. A download_events
  * row is released only on a verified non-send. A sale counts as delivered only once its send is confirmed (an audit_log row with
  * event DELIVERY_LINK_SENT, scoped to the provider that issued the sale).
  *

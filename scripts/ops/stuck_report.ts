@@ -3,11 +3,17 @@
 //      resends a row with a stored message, under the same key and within delivery.stored_message_resend_max_age_hours. A
 //      legacy row (created before delivery.stored_message_since) with no stored message is flagged and never resent.
 //   2. audit_log MANUAL_REVIEW_REQUIRED_REFUND rows, deduplicated per (provider, sale_id) like listManualReviewRefunds.
+//   3. audit_log WEBHOOK_TERMINAL_REJECT rows within delivery.terminal_reject_lookback_hours, newest first, capped at
+//      delivery.terminal_reject_list_limit. A buyer whose address the mail provider refused (DeliveryBlockedError, 422) is
+//      booked and quarantined by the webhook handler (web/app/api/billing/webhook/handler.ts), and its only console flag is
+//      payments/src/delivery.ts flagForManualReconciliation. This listing is the operator path to find those sales. The row
+//      records the error name as reason, not the block reason, and there is no acknowledge step: a row stays listed until
+//      it ages out of the window.
 // Reads the live database through PostgREST with SUPABASE_URL and SUPABASE_SECRET_KEY. Names only: values are never printed.
 // Thresholds and limits come from payments/src/settings_registry.ts.
 //
-// Exit codes: 0 = nothing stuck and nothing in the review queue;
-//             1 = at least one stuck claim or manual-review refund (count > 0);
+// Exit codes: 0 = nothing stuck, nothing in the review queue, and no terminal reject in the window;
+//             1 = at least one stuck claim, manual-review refund, or terminal reject (count > 0);
 //             2 = config missing, non-HTTPS URL, or a read failed, so the check could not decide.
 //
 // Usage: node --import tsx scripts/ops/stuck_report.ts
@@ -24,6 +30,8 @@ export interface StuckSettings {
   stuck_claim_after_seconds: number;
   stuck_claim_list_limit: number;
   review_queue_page_size: number;
+  terminal_reject_lookback_hours: number;
+  terminal_reject_list_limit: number;
   timeout_ms: number;
 }
 
@@ -40,12 +48,22 @@ export interface ReviewItem {
   occurrences: number;
 }
 
+export interface TerminalReject {
+  provider: string | null;
+  saleId: string | null;
+  reason: string | null;
+  at: string;
+}
+
 export interface StuckReport {
   stuckClaims: StuckClaim[];
   claimLimit: number;
   reviewItems: ReviewItem[];
   reviewRowsRead: number;
   reviewLimit: number;
+  terminalRejects: TerminalReject[];
+  terminalRejectLimit: number;
+  terminalRejectLookbackHours: number;
 }
 
 export class StuckCheckError extends Error {}
@@ -55,13 +73,15 @@ export function settingsFromGlobal(): StuckSettings {
     stuck_claim_after_seconds: GLOBAL.delivery.stuck_claim_after_seconds,
     stuck_claim_list_limit: GLOBAL.delivery.stuck_claim_list_limit,
     review_queue_page_size: GLOBAL.payments.review_queue_page_size,
+    terminal_reject_lookback_hours: GLOBAL.delivery.terminal_reject_lookback_hours,
+    terminal_reject_list_limit: GLOBAL.delivery.terminal_reject_list_limit,
     timeout_ms: GLOBAL.payments.sync_http_timeout_ms,
   };
 }
 
 /** Exit 1 when any count is above zero; the caller maps thrown errors to exit 2. */
 export function exitCodeForStuck(report: StuckReport): 0 | 1 {
-  return report.stuckClaims.length > 0 || report.reviewItems.length > 0 ? 1 : 0;
+  return report.stuckClaims.length > 0 || report.reviewItems.length > 0 || report.terminalRejects.length > 0 ? 1 : 0;
 }
 
 function str(value: unknown): string | null {
@@ -86,6 +106,17 @@ export function dedupeReviewRows(rows: Array<{ details: unknown }>): ReviewItem[
     else byPair.set(key, { provider, saleId, occurrences: 1 });
   }
   return [...byPair.values(), ...standalone];
+}
+
+/** One WEBHOOK_TERMINAL_REJECT row. details.provider and details.sale_id are absent when the headers or body did not parse. */
+export function terminalRejectFrom(row: Record<string, unknown>): TerminalReject {
+  const details = typeof row.details === "object" && row.details !== null ? (row.details as Record<string, unknown>) : {};
+  return {
+    provider: str(details.provider),
+    saleId: str(details.sale_id),
+    reason: str(details.reason),
+    at: String(row.created_at),
+  };
 }
 
 function requireHttpsBase(env: Env): { base: string; key: string } {
@@ -141,12 +172,24 @@ export async function collectStuck(env: Env, http: HttpFetch, nowMs: number, set
     "manual-review queue read",
   );
 
+  const rejectSince = new Date(nowMs - settings.terminal_reject_lookback_hours * 3600 * 1000).toISOString();
+  const rejectRows = await getRows(
+    http,
+    `${base}/rest/v1/audit_log?select=id,created_at:at,event,details&event=eq.WEBHOOK_TERMINAL_REJECT&at=gte.${encodeURIComponent(rejectSince)}&order=at.desc,id.desc&limit=${settings.terminal_reject_list_limit}`,
+    key,
+    settings.timeout_ms,
+    "terminal reject read",
+  );
+
   return {
     stuckClaims,
     claimLimit: settings.stuck_claim_list_limit,
     reviewItems: dedupeReviewRows(reviewRows as Array<{ details: unknown }>),
     reviewRowsRead: reviewRows.length,
     reviewLimit: settings.review_queue_page_size,
+    terminalRejects: rejectRows.map(terminalRejectFrom),
+    terminalRejectLimit: settings.terminal_reject_list_limit,
+    terminalRejectLookbackHours: settings.terminal_reject_lookback_hours,
   };
 }
 
@@ -158,6 +201,17 @@ export function renderStuck(report: StuckReport, afterSeconds: number): string {
   const capReview = report.reviewRowsRead >= report.reviewLimit;
   lines.push(`Manual-review refunds (MANUAL_REVIEW_REQUIRED_REFUND, distinct sale): ${capReview ? "at least " : ""}${report.reviewItems.length}`);
   for (const i of report.reviewItems.slice(0, 20)) lines.push(`  ${i.provider ?? "(no provider)"}  sale ${i.saleId ?? "(no sale_id)"}  rows ${i.occurrences}`);
+  // Printed only when there is at least one reject, so an empty window adds no lines.
+  if (report.terminalRejects.length > 0) {
+    const capRejects = report.terminalRejects.length >= report.terminalRejectLimit;
+    lines.push(
+      `Terminal webhook rejects (WEBHOOK_TERMINAL_REJECT, last ${report.terminalRejectLookbackHours} h, newest first): ${capRejects ? "at least " : ""}${report.terminalRejects.length}`,
+    );
+    for (const r of report.terminalRejects.slice(0, 20)) {
+      lines.push(`  ${r.provider ?? "(no provider)"}  sale ${r.saleId ?? "(no sale_id)"}  reason ${r.reason ?? "(no reason)"}  at ${r.at}`);
+    }
+    if (report.terminalRejects.length > 20) lines.push(`  ... ${report.terminalRejects.length - 20} more not shown`);
+  }
   lines.push("");
   lines.push(exitCodeForStuck(report) === 0 ? "RESULT: clear (exit 0)" : "RESULT: action needed, verify each buyer by hand (exit 1)");
   return `${lines.join("\n")}\n`;

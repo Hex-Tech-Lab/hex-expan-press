@@ -1,5 +1,6 @@
 // PR 136 Creem boundary checks: a signed but malformed checkout.completed is a terminal 400 at the adapter, never a
-// thrown RangeError (a 500 retry loop). A buyer email's format never refuses a paid sale (delivery refuses an empty one).
+// thrown RangeError (a 500 retry loop). The adapter refuses an email under 3 characters; any longer email is booked, and an
+// address the mail provider rejects is quarantined with 422 at delivery (the sale stays booked).
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import crypto from "node:crypto";
 import { CreemAdapter } from "../creem.adapter.ts";
