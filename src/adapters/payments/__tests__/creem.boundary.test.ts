@@ -1,5 +1,5 @@
 // PR 136 Creem boundary checks: a signed but malformed checkout.completed is a terminal 400 at the adapter, never a
-// thrown RangeError (a 500 retry loop) and never a buyer email that is not an address.
+// thrown RangeError (a 500 retry loop). A buyer email's format never refuses a paid sale (delivery refuses an empty one).
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import crypto from "node:crypto";
 import { CreemAdapter } from "../creem.adapter.ts";
@@ -51,12 +51,12 @@ describe("CreemAdapter boundary validation", () => {
     expect((res as { event?: { eventType: string } }).event?.eventType).toBe("sale_completed");
   });
 
-  it.each(["abc", "buyer@", "not an address", "@example.com"])("refuses a buyer email that is not an address (%p) with 400", async (email) => {
+  it.each(["abc", "buyer@", "not an address", "@example.com"])("accepts and books a paid sale whose buyer email is not an address (%p)", async (email) => {
     const body = delivery((e) => {
       (e.object as { customer: { email: string } }).customer.email = email;
     });
     const res = await adapter.parseAndValidateWebhook(headersFor(body), body);
-    expect(res).toMatchObject({ isValid: false, httpStatus: 400 });
+    expect(res).toMatchObject({ isValid: true, event: { eventType: "sale_completed", buyerEmail: email } });
   });
 
   it.each([1e17, -1e17, 9e15])("answers 400 for an out-of-range event time (%p) instead of throwing RangeError", async (createdAt) => {

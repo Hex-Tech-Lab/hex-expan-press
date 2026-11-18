@@ -6,6 +6,7 @@ export default defineConfig({
   test: {
     include: [
       "payments/test/**/*.test.ts",
+      "payments/src/**/*.test.ts",
       "web/src/lib/__tests__/**/*.test.ts",
       "web/app/**/__tests__/**/*.test.ts",
       "src/adapters/**/__tests__/**/*.test.ts",

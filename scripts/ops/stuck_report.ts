@@ -1,5 +1,7 @@
 // stuck_report.ts: read-only operator check for buyers the webhook cannot resend on its own.
-//   1. delivery_sends rows still in state 'claimed' older than delivery.stuck_claim_after_seconds (never resent: at-most-once).
+//   1. delivery_sends rows still in state 'claimed' older than delivery.stuck_claim_after_seconds. The next provider retry
+//      resends a row with a stored message, under the same key and within delivery.stored_message_resend_max_age_hours. A
+//      legacy row (created before delivery.stored_message_since) with no stored message is flagged and never resent.
 //   2. audit_log MANUAL_REVIEW_REQUIRED_REFUND rows, deduplicated per (provider, sale_id) like listManualReviewRefunds.
 // Reads the live database through PostgREST with SUPABASE_URL and SUPABASE_SECRET_KEY. Names only: values are never printed.
 // Thresholds and limits come from payments/src/settings_registry.ts.
@@ -58,12 +60,12 @@ export function settingsFromGlobal(): StuckSettings {
 }
 
 /** Exit 1 when any count is above zero; the caller maps thrown errors to exit 2. */
-export function exitCodeForStuck(r: StuckReport): 0 | 1 {
-  return r.stuckClaims.length > 0 || r.reviewItems.length > 0 ? 1 : 0;
+export function exitCodeForStuck(report: StuckReport): 0 | 1 {
+  return report.stuckClaims.length > 0 || report.reviewItems.length > 0 ? 1 : 0;
 }
 
-function str(v: unknown): string | null {
-  return typeof v === "string" && v !== "" ? v : null;
+function str(value: unknown): string | null {
+  return typeof value === "string" && value !== "" ? value : null;
 }
 
 /** Same dedupe as payments/src/ledger.ts listManualReviewRefunds: one entry per (provider, sale_id); incomplete rows stay standalone. */
@@ -124,11 +126,11 @@ export async function collectStuck(env: Env, http: HttpFetch, nowMs: number, set
     settings.timeout_ms,
     "stuck delivery claim lookup",
   );
-  const stuckClaims: StuckClaim[] = claimRows.map((r) => ({
-    provider: String(r.provider),
-    saleId: String(r.sale_id),
-    sendKind: String(r.send_kind),
-    claimedAt: String(r.created_at),
+  const stuckClaims: StuckClaim[] = claimRows.map((row) => ({
+    provider: String(row.provider),
+    saleId: String(row.sale_id),
+    sendKind: String(row.send_kind),
+    claimedAt: String(row.created_at),
   }));
 
   const reviewRows = await getRows(
@@ -148,16 +150,16 @@ export async function collectStuck(env: Env, http: HttpFetch, nowMs: number, set
   };
 }
 
-export function renderStuck(r: StuckReport, afterSeconds: number): string {
+export function renderStuck(report: StuckReport, afterSeconds: number): string {
   const lines: string[] = [];
-  const capClaims = r.stuckClaims.length >= r.claimLimit;
-  lines.push(`Stuck delivery claims (state=claimed, older than ${afterSeconds} s): ${capClaims ? "at least " : ""}${r.stuckClaims.length}`);
-  for (const c of r.stuckClaims.slice(0, 20)) lines.push(`  ${c.provider}  sale ${c.saleId}  ${c.sendKind}  claimed ${c.claimedAt}`);
-  const capReview = r.reviewRowsRead >= r.reviewLimit;
-  lines.push(`Manual-review refunds (MANUAL_REVIEW_REQUIRED_REFUND, distinct sale): ${capReview ? "at least " : ""}${r.reviewItems.length}`);
-  for (const i of r.reviewItems.slice(0, 20)) lines.push(`  ${i.provider ?? "(no provider)"}  sale ${i.saleId ?? "(no sale_id)"}  rows ${i.occurrences}`);
+  const capClaims = report.stuckClaims.length >= report.claimLimit;
+  lines.push(`Stuck delivery claims (state=claimed, older than ${afterSeconds} s): ${capClaims ? "at least " : ""}${report.stuckClaims.length}`);
+  for (const c of report.stuckClaims.slice(0, 20)) lines.push(`  ${c.provider}  sale ${c.saleId}  ${c.sendKind}  claimed ${c.claimedAt}`);
+  const capReview = report.reviewRowsRead >= report.reviewLimit;
+  lines.push(`Manual-review refunds (MANUAL_REVIEW_REQUIRED_REFUND, distinct sale): ${capReview ? "at least " : ""}${report.reviewItems.length}`);
+  for (const i of report.reviewItems.slice(0, 20)) lines.push(`  ${i.provider ?? "(no provider)"}  sale ${i.saleId ?? "(no sale_id)"}  rows ${i.occurrences}`);
   lines.push("");
-  lines.push(exitCodeForStuck(r) === 0 ? "RESULT: clear (exit 0)" : "RESULT: action needed, verify each buyer by hand (exit 1)");
+  lines.push(exitCodeForStuck(report) === 0 ? "RESULT: clear (exit 0)" : "RESULT: action needed, verify each buyer by hand (exit 1)");
   return `${lines.join("\n")}\n`;
 }
 

@@ -40,7 +40,9 @@ const CreemCheckoutDataSchema = z.object({
     product: z.string().min(1),
     mode: z.string().optional(),
   }),
-  customer: z.object({ email: z.string().email() }),
+  // Shape only, never format: a paid sale must not be refused on the email's syntax. Delivery refuses an empty address
+  // (no_email); a malformed one is rejected by the mail provider on send.
+  customer: z.object({ email: z.string().min(3) }),
 });
 
 /**

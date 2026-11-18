@@ -2854,5 +2854,12 @@
     "title": "Complexity: Monolithic File",
     "why": "Tracked debt per owner severity bar (medium = tracked, not blocking). Split planned after launch; see docs/handover/PROJECT_TODO.md.",
     "fix": "Decompose into smaller, domain-specific modules."
+  },
+  {
+    "file": "scripts/ops/stuck_report.ts",
+    "severity": "medium",
+    "title": "Observability: Catch block without error logging",
+    "why": "False positive. The catch in requireHttpsBase only rethrows a StuckCheckError with a fixed message, so the failure is not silent: the top-level handler writes that message to stderr and exits 2. The original URL parse error is dropped, accepted as minor: the message names the variable that is wrong and the URL text is never printed.",
+    "fix": "None required. Re-open this entry if the catch stops rethrowing or the top-level handler stops writing to stderr."
   }
 ]

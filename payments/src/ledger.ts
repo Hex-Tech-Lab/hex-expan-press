@@ -85,7 +85,7 @@ const usdColumn = (field: string, min: number) =>
 
 /**
  * Write contract for public.orders, enforced immediately before the upsert so a malformed or
- * non-cent-exact value is rejected here (→ route 500, provider retries) instead of being
+ * non-cent-exact value is rejected here (a terminal 400, no provider retry) instead of being
  * silently rounded or rejected by Postgres. A violation throws OrderSchemaError, which the webhook handler
  * quarantines and answers with a terminal 400 (no provider retry). Mirrors 20260927000200_orders_ledger.sql and the
  * event_type CHECK widened in 20261003000200. amount_usd is always non-negative; the splits are

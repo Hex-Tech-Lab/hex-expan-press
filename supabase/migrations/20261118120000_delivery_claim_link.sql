@@ -14,6 +14,6 @@ alter table public.delivery_sends
   add column if not exists link_ciphertext text;
 
 comment on column public.delivery_sends.link_ciphertext is
-  'AES-256-GCM ciphertext of the buyer message for a claim (v1:iv:tag:body). Service role only; NULL once confirmed or for pre-migration rows.';
+  'AES-256-GCM ciphertext of the buyer message for a claim (v2:keyId:iv:tag:body; v1 rows are read only). Service role only; NULL once confirmed or for pre-migration rows.';
 
 notify pgrst, 'reload schema';

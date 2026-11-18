@@ -8,10 +8,11 @@
  * claim; it records that a signed URL was issued, not that the browser finished the transfer.
  *
  * Failure policy: the ledger write is the money record and stays authoritative. A delivery failure
- * is rethrown to the webhook as a DeliveryPendingError (503, so the provider retries) when the send's outcome is unknown,
- * or as the original error when no email could have been accepted. A download_events row is released only on a definite
- * non-send. A sale counts as delivered only once its send is confirmed (an audit_log row with event DELIVERY_LINK_SENT,
- * scoped to the provider that issued the sale).
+ * is rethrown to the webhook as a DeliveryPendingError (503, so the provider retries) whenever the send's outcome is unknown or a message
+ * store failed, even when the read-back shows nothing stored (a stale fence is rethrown unchanged). The original error is
+ * rethrown only for a definite non-send before the store, or a definite provider 4xx rejection. A download_events row is
+ * released only on a verified non-send. A sale counts as delivered only once its send is confirmed (an audit_log row with
+ * event DELIVERY_LINK_SENT, scoped to the provider that issued the sale).
  *
  * Held claims (PR 136 H1): before the send, the rendered buyer message is stored encrypted on the claim row
  * (delivery_sends.link_ciphertext, AES-256-GCM, key from DELIVERY_LINK_KEY). A retry for a held or unconfirmed claim
@@ -279,10 +280,12 @@ async function sendBuyerMessage(deps: DeliveryDeps, message: BuyerMessage, idemp
 }
 
 /**
- * Resends the identical stored message under the same idempotency key. Any failure answers 503 (DeliveryPendingError):
- * the stored message is kept, so the next retry sends the same bytes again. Nothing is sent unless the message decrypts
- * and its link is still issued and unexpired; otherwise the buyer would get a dead link marked as delivered. The receipt is
- * re-checked right before the send, and the claim must be inside the resend window.
+ * Resends the identical stored message under the same idempotency key. A failure to decrypt the message, to confirm its link
+ * is still issued and unexpired, to check the resend window, or to send (unless the fence is stale) answers 503
+ * (DeliveryPendingError), and the stored message is kept, so the next retry sends the same bytes again. Nothing is sent
+ * unless the message decrypts and its link is still issued and unexpired; otherwise the buyer would get a dead link marked
+ * as delivered. The receipt is re-checked right before the send, and the claim must be inside the resend window. The receipt
+ * re-check runs outside the send's try: a database failure there throws its own error, which the webhook answers 500.
  */
 async function resendStoredMessage(
   input: { provider: string; saleId: string; fence?: number },
@@ -579,9 +582,10 @@ export function productionDeps(): DeliveryDeps {
 }
 
 /**
- * Webhook entry point. A delivery failure is rethrown, so the webhook answers 500 and the provider retries.
- * A sale that cannot be delivered (no buyer email, no release file) also throws: the buyer is owed a link, so
- * the webhook must not acknowledge the sale as delivered.
+ * Webhook entry point. A delivery failure is rethrown and answers the error's own status: 503 with Retry-After for a
+ * DeliveryPendingError, 422 (terminal) for a DeliveryBlockedError with no buyer email, 503 for one with no release file,
+ * and 500 for any other error. The provider retries the 503 and 500 answers. A sale that cannot be delivered also throws:
+ * the buyer is owed a link, so the webhook must not acknowledge the sale as delivered.
  */
 export async function deliverSaleForWebhook(
   input: {

@@ -614,8 +614,9 @@ async function processBillingEvent(event: BillingEvent): Promise<ConflictPending
           currency: cfg.currency,
           ...(saleEvent.attributionId ? { attribution_id: saleEvent.attributionId } : {})
         }, fenceToken);
-        // Receipt and download link, after the durable write. A delivery failure rethrows: the webhook answers 500 and the
-        // provider retries, which re-attempts delivery on the duplicate path above.
+        // Receipt and download link, after the durable write. A delivery failure rethrows: the handler answers the error's own
+        // status (503 for DeliveryPendingError, 422 or 503 for DeliveryBlockedError, 500 otherwise). The provider retries the
+        // 503 and 500 answers, which re-attempt delivery on the duplicate path above.
         await deliverSaleForWebhook({
           provider: saleEvent.providerName,
           saleId: saleEvent.saleId,
