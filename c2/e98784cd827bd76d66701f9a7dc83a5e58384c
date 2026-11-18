@@ -1,0 +1,66 @@
+payments/src/settings_registry.ts
+  s_0e99959cd74c50::t_06d92341db1380 692
+  s_0e99959cd74c50::t_93a734272d4e70 128-132
+  s_0e99959cd74c50::t_dd843a95004db7 249-250
+  s_0e99959cd74c50::t_d6f898030a81cd 654-658
+.gitignore
+  s_0e99959cd74c50::t_b9fe16e4873e08 96-99
+payments/test/delivery_retry_trade_off.test.ts
+  s_0e99959cd74c50::t_bb1ccd34143c93 92
+  s_0e99959cd74c50::t_487bf1ec6186fc 115
+  s_0e99959cd74c50::t_9452f2388399cf 381
+  s_0e99959cd74c50::t_f943895691d372 32,37-41
+  s_0e99959cd74c50::t_232dd9fc28fb57 337
+  s_0e99959cd74c50::t_44a7e5f01a1430 18-21
+payments/test/delivery_single_send_and_fence.test.ts
+  s_0e99959cd74c50::t_375913a6fc8efe 411-420
+  s_0e99959cd74c50::t_840a196c47c0e2 426-428,435
+  s_0e99959cd74c50::t_dbc9f272b9a471 323-324
+  s_0e99959cd74c50::t_f965f598dc059e 303-304
+supabase/migrations/20261118120000_delivery_claim_link.sql
+  s_0e99959cd74c50::t_3b95c33b6f732b 9
+src/use_cases/billing/__tests__/process_billing_webhook.test.ts
+  s_0e99959cd74c50::t_5ca858107259f7 1957
+  s_0e99959cd74c50::t_02ca580fc21c25 39-53
+  s_0e99959cd74c50::t_62b8a062934f62 1908-1911
+  s_0e99959cd74c50::t_61bce487a042ad 1145
+  s_0e99959cd74c50::t_3e0f1651e9779f 1940
+  s_0e99959cd74c50::t_e8738535487f1b 1997-2008
+payments/test/delivery_held_claim_resend.test.ts
+  s_0e99959cd74c50::t_95fc33755054a2 372-438
+payments/src/delivery.ts
+  s_0e99959cd74c50::t_1bf02c13b3e956 284-285,291
+  s_0e99959cd74c50::t_087391eb37fd44 324-338,340-343
+  s_0e99959cd74c50::t_e6e759a3308311 21-23
+  s_0e99959cd74c50::t_2c943b07c2ec1a 402
+  s_0e99959cd74c50::t_28018657545988 339
+payments/test/delivery_registry_keys.test.ts
+  s_0e99959cd74c50::t_84ceb82ca467c6 39-53
+supabase/migrations/20261118120100_delivery_claim_link_index_concurrently.sql
+  s_0e99959cd74c50::t_b15a75844a318d 1-13
+payments/src/ledger.ts
+  s_0e99959cd74c50::t_ccd90dc9387f50 674-677
+  s_0e99959cd74c50::t_eafdb9d613a174 696-700
+src/use_cases/billing/process_billing_webhook.ts
+  s_0e99959cd74c50::t_5cbb3f7adea0ec 602-603
+  s_0e99959cd74c50::t_f9e7df806ee432 616-617
+  s_0e99959cd74c50::t_b256c1fc190c1e 11
+  s_0e99959cd74c50::t_2d28041c6d88f6 626-628
+  s_0e99959cd74c50::t_22abad71c023fb 576
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c2e98784cd827bd76d66701f9a7dc83a5e58384c",
+  "prompts": {},
+  "sessions": {
+    "s_0e99959cd74c50": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "21b00acc-7513-46d6-9a35-038af7845be2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
