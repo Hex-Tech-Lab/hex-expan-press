@@ -1,0 +1,44 @@
+web/app/creator/review/__tests__/viewer-page-fallback.test.ts
+  s_0e99959cd74c50::t_09ac72b6fe6ff8 99-109
+web/app/creator/signin/__tests__/otp-email-validation.test.ts
+  s_0e99959cd74c50::t_3978db6293e1cd 1-60,63-73
+  s_0e99959cd74c50::t_817c1488076edb 61-62
+web/src/lib/__tests__/zod-rules-email.test.ts
+  s_0e99959cd74c50::t_e1b836fd84948d 1-30
+web/src/lib/review-anchor.ts
+  s_0e99959cd74c50::t_6aef06a47315ae 18-29
+web/src/lib/zod-rules.ts
+  s_0e99959cd74c50::t_5ff613f8934d85 18-19
+payments/src/settings_registry.ts
+  s_0e99959cd74c50::t_9d3904fb4b2e22 226
+  s_0e99959cd74c50::t_21bc13ef43136b 475
+  s_0e99959cd74c50::t_5492757f9e73c1 97-98
+web/src/lib/__tests__/review-anchor.test.ts
+  s_0e99959cd74c50::t_c66dc315e23561 24-46
+  s_0e99959cd74c50::t_b8bb03565d8432 2
+web/app/creator/signin/actions.ts
+  s_0e99959cd74c50::t_7cfbd925faeabe 6
+  s_0e99959cd74c50::t_7786516db34b64 102-105
+web/app/creator/review/review-client.tsx
+  s_0e99959cd74c50::t_722ec40be66811 113-119
+  s_0e99959cd74c50::t_59e45ce9940993 83-84
+  s_0e99959cd74c50::t_9c75f35e93668d 20
+  s_0e99959cd74c50::t_7a0407e58fbe3d 151-155
+  s_0e99959cd74c50::t_c37c6b6850d42f 558-563
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "838ba5279e0d8b3aa2fad4c78559df5756380caf",
+  "prompts": {},
+  "sessions": {
+    "s_0e99959cd74c50": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "21b00acc-7513-46d6-9a35-038af7845be2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
