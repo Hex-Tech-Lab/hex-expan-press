@@ -1,0 +1,28 @@
+scripts/ops/stuck_report.ts
+  s_0e99959cd74c50::t_f11120f9b2d2d1 10-12,16-17,85,193,224,234
+  s_0e99959cd74c50::t_bade8d2029ec0e 9,18,22,68-69,87-92,153-155,194-201,212,225,235-239,246-256
+payments/src/settings_registry.ts
+  s_0e99959cd74c50::t_fc4e09dba10564 252-253
+  s_0e99959cd74c50::t_d50d2a51c307b8 255-256
+  s_0e99959cd74c50::t_93ac921424d1d8 714
+scripts/ops/__tests__/stuck_report.test.ts
+  s_0e99959cd74c50::t_99bd9f39bedbbf 2-5,11,30,43-45,51,54-55,58,63-67,103,123-131,133-137,162-172,177,186-194,196-198,233,235-240,242-244,257,265,269,273,290-308
+  s_0e99959cd74c50::t_a2e6a69c3af411 132,195,200-208,234,241,260
+  s_0e99959cd74c50::t_212ec1a97a863d 199,309
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7e60ca3207bfbab32ebf692a03e591b71ae1c628",
+  "prompts": {},
+  "sessions": {
+    "s_0e99959cd74c50": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "21b00acc-7513-46d6-9a35-038af7845be2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
