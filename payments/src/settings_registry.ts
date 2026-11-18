@@ -249,8 +249,11 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     // Above the email deadline (payments.http_timeout_ms) and the webhook lock TTL, so a live send is never reported stuck.
     stuck_claim_after_seconds: 900,
     stuck_claim_list_limit: 500,
-    // 30 days: a quarantined sale stays unresolved until an operator reconciles it, so the operator listing must reach back that far.
+    // Display window for the stuck_report terminal-reject section (30 days), not an acknowledgement: nothing marks a reject
+    // as reconciled. A reject older than this is no longer listed, but stuck_report still exits 1 while one exists.
     terminal_reject_lookback_hours: 720,
+    // Rows stuck_report lists. Reaching this cap prints an explicit line and the report exits 1. Validated at most 1000
+    // (Supabase's default max rows): a larger limit would be truncated server-side, and the cap could then not be detected.
     terminal_reject_list_limit: 200,
     // Only the env var NAME is a setting; the key value never lives in the registry or the repo.
     link_key_env: "DELIVERY_LINK_KEY",
@@ -708,7 +711,7 @@ export function loadDeliverySection(raw: Record<string, unknown> | undefined): G
     stuck_claim_after_seconds: posInt("stuck_claim_after_seconds", 60, 86400),
     stuck_claim_list_limit: posInt("stuck_claim_list_limit", 1, 10000),
     terminal_reject_lookback_hours: posInt("terminal_reject_lookback_hours", 1, 8760),
-    terminal_reject_list_limit: posInt("terminal_reject_list_limit", 1, 10000),
+    terminal_reject_list_limit: posInt("terminal_reject_list_limit", 1, 1000),
     link_key_env: validLinkKeyEnv ? linkKeyEnv : defaults.link_key_env,
     link_key_id: validLinkKeyId ? linkKeyId : defaults.link_key_id,
     download_origin: validDownloadOrigin ? downloadOrigin : defaults.download_origin,
