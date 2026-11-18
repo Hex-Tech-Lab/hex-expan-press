@@ -439,6 +439,8 @@ describe("Option A + Option B single-send guard & fencing tokens (cases a-d + SQ
     const distinctPayloads = new Set(sendEmail.mock.calls.map((c) => JSON.stringify(c[0])));
     expect(distinctPayloads.size).toBe(1);
     expect(sendEmail.mock.calls.every((c) => (c[0] as { idempotencyKey?: string }).idempotencyKey === "paddle|sale-a-1|buyer_receipt")).toBe(true);
+    // Strict: exactly one send across both workers (a second send, even with the same key, fails this).
+    expect(sendEmail).toHaveBeenCalledTimes(1);
     const callsAfterConcurrent = sendEmail.mock.calls.length;
 
     const links = await pg.query<{ count: string }>(
