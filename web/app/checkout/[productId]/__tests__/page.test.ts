@@ -11,7 +11,7 @@ vi.mock("../../../../src/components/storefront/storefront", () => ({
   StorefrontFooter: "StorefrontFooter",
   fetchCheckoutProduct: vi.fn(),
   isWorkingTitle: () => false,
-  priceOf: () => "39",
+  priceOf: () => 39,
 }));
 
 vi.mock("../../../../src/components/storefront/buy-link", () => ({ BuyLink: "BuyLink" }));
@@ -128,7 +128,7 @@ describe("checkout page: gated branch", () => {
     let gatedNotices = 0;
     walk(tree as unknown as Node, (el) => {
       if (el.type === "BuyLink") buyLinks += 1;
-      if (typeof el.props.className === "string" && el.props.className.includes("buybtn-gated")) gatedNotices += 1;
+      if (el.props["data-checkout-mode"] === "gated") gatedNotices += 1;
     });
     expect(buyLinks).toBe(0);
     expect(gatedNotices).toBe(1);

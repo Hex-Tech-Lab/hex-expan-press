@@ -40,8 +40,9 @@ const CreemCheckoutDataSchema = z.object({
     product: z.string().min(1),
     mode: z.string().optional(),
   }),
-  // Shape only, never format: a paid sale must not be refused on the email's syntax. Delivery refuses an empty address
-  // (no_email); a malformed one is rejected by the mail provider on send.
+  // Shape only, never format: a paid sale must not be refused on the email's syntax. This schema refuses an address under
+  // 3 characters before booking (400, quarantined). A longer malformed address is booked; the mail provider refuses it on
+  // send, and delivery answers 422 and quarantines the event, with the sale kept.
   customer: z.object({ email: z.string().min(3) }),
 });
 

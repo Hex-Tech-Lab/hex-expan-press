@@ -115,24 +115,33 @@ async function readBody(req: IncomingMessage): Promise<string> {
   return Buffer.concat(chunks).toString("utf8");
 }
 
+/** The `products` table as PostgREST serves it. Fixture live products are nested under their creator (creators[].products),
+ * so each is also exposed as a flat row with its many-to-one `creators` object, the shape the checkout lookup embeds. */
+function productRows(): Row[] {
+  const nested = (db.creators ?? []).flatMap((c) =>
+    (Array.isArray(c.products) ? (c.products as Row[]) : []).map((p) => ({ ...p, creators: { handle: c.handle, display_name: c.display_name } })),
+  );
+  return [...(db.products ?? []), ...nested];
+}
+
 /** Minimal PostgREST: `col=eq.value` filters, `limit`; order/select ignored.
  * Embedded filters (`relation.col=op.value`, where `relation` is an array on the parent rows) filter the embedded
  * rows. An inner embed (`relation!inner(` in select) also drops a parent left with no embedded row. Only eq, neq and
  * not.is.null are modelled, the operators the storefront uses; other operators are ignored, as at top level. */
 function query(table: string, params: URLSearchParams): Row[] {
-  let rows = db[table] ?? [];
+  let rows = table === "products" ? productRows() : (db[table] ?? []);
   const select = params.get("select") ?? "";
   const embedded = new Map<string, Array<{ col: string; test: (x: unknown) => boolean }>>();
-  for (const [k, v] of params) {
+  for (const [k, value] of params) {
     if (["select", "order", "limit", "offset"].includes(k)) continue;
     const dot = k.indexOf(".");
-    const relation = dot > 0 ? k.slice(0, dot) : "";
+    const relation = dot > 0 ? k.split(".", 1)[0] : "";
     if (relation && rows.some((r) => Array.isArray(r[relation]))) {
-      const test = embeddedTest(v);
+      const test = embeddedTest(value);
       if (test) embedded.set(relation, [...(embedded.get(relation) ?? []), { col: k.slice(dot + 1), test }]);
       continue;
     }
-    if (v.startsWith("eq.")) rows = rows.filter((r) => String(r[k]) === v.slice(3));
+    if (value.startsWith("eq.")) rows = rows.filter((r) => String(r[k]) === value.slice(3));
   }
   for (const [relation, conds] of embedded) {
     const inner = select.includes(`${relation}!inner(`);
@@ -147,16 +156,16 @@ function query(table: string, params: URLSearchParams): Row[] {
   return limit ? rows.slice(0, Number(limit)) : rows;
 }
 
-function embeddedTest(v: string): ((x: unknown) => boolean) | null {
-  if (v.startsWith("eq.")) {
-    const want = v.slice(3);
+function embeddedTest(value: string): ((x: unknown) => boolean) | null {
+  if (value.startsWith("eq.")) {
+    const want = value.slice(3);
     return (x) => String(x) === want;
   }
-  if (v.startsWith("neq.")) {
-    const want = v.slice(4);
+  if (value.startsWith("neq.")) {
+    const want = value.slice(4);
     return (x) => String(x) !== want;
   }
-  if (v === "not.is.null") return (x) => x !== null && x !== undefined;
+  if (value === "not.is.null") return (x) => x !== null && x !== undefined;
   return null;
 }
 

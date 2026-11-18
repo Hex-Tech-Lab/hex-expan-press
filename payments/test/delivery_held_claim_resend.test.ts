@@ -402,6 +402,56 @@ describe("resend age cap and re-check: a stored message resends only inside the 
     expect(provider.delivered).toHaveLength(1);
   });
 
+  it("reads the cap from the registry: with a 2-hour cap, a claim 3 hours old is refused and not resent", async () => {
+    const savedCap = GLOBAL.delivery.stored_message_resend_max_age_hours;
+    GLOBAL.delivery.stored_message_resend_max_age_hours = 2;
+    try {
+      const provider = fakeProvider();
+      provider.failAcceptedButLost(1);
+      const { db, claims } = fakeDb();
+      const deps = makeDeps(provider, db);
+      await expect(deliverSale(SALE, deps)).rejects.toMatchObject({ httpStatus: 503 });
+      ageClaim(claims, 3 * HOUR_MS);
+
+      const errSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+      try {
+        await expect(deliverSale(SALE, deps)).rejects.toBeInstanceOf(DeliveryPendingError);
+        expect(provider.send).toHaveBeenCalledTimes(1); // the first attempt only: a hard-coded 24h cap would resend here
+      } finally {
+        errSpy.mockRestore();
+      }
+    } finally {
+      GLOBAL.delivery.stored_message_resend_max_age_hours = savedCap;
+    }
+  });
+
+  it("the cap is inclusive: a claim exactly at the cap is resent, and one millisecond over it is refused", async () => {
+    const CAP_MS = GLOBAL.delivery.stored_message_resend_max_age_hours * HOUR_MS;
+
+    const atCap = fakeProvider();
+    atCap.failAcceptedButLost(1);
+    const atCapFakes = fakeDb();
+    const atCapDeps = makeDeps(atCap, atCapFakes.db);
+    await expect(deliverSale(SALE, atCapDeps)).rejects.toMatchObject({ httpStatus: 503 });
+    ageClaim(atCapFakes.claims, CAP_MS);
+    await expect(deliverSale(SALE, atCapDeps)).resolves.toBe("sent");
+    expect(atCap.send).toHaveBeenCalledTimes(2);
+
+    const overCap = fakeProvider();
+    overCap.failAcceptedButLost(1);
+    const overCapFakes = fakeDb();
+    const overCapDeps = makeDeps(overCap, overCapFakes.db);
+    await expect(deliverSale(SALE, overCapDeps)).rejects.toMatchObject({ httpStatus: 503 });
+    ageClaim(overCapFakes.claims, CAP_MS + 1);
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      await expect(deliverSale(SALE, overCapDeps)).rejects.toBeInstanceOf(DeliveryPendingError);
+      expect(overCap.send).toHaveBeenCalledTimes(1); // refused one millisecond past the cap: no resend
+    } finally {
+      errSpy.mockRestore();
+    }
+  });
+
   it("over the cap, nothing is sent: 503, flagged for manual reconciliation, and the stored message is kept", async () => {
     const provider = fakeProvider();
     provider.failAcceptedButLost(1);

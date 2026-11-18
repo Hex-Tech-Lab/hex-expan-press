@@ -12,7 +12,7 @@
  * Visuals follow the Astryx system: cream canvas (#FAF7F2), charcoal
  * containers (neu-card), peach accents, sans-serif headings (font-sans).
  */
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import Link from "next/link";
 import { m, useReducedMotion } from "framer-motion";
 import { submitReviewAnswerAction } from "./actions";
@@ -134,7 +134,18 @@ export default function ReviewClient({ items, saved, pdfUrl, bookTitle }: Review
     questionRef.current?.focus({ preventScroll: true });
   }, [index]);
 
-  // Load the document once; re-render on page/zoom changes.
+  // Opens the document at the first unanswered question. An Effect Event reads the current items and answers when it runs, so
+  // the load effect below depends only on pdfUrl and does not rely on the hydrated props keeping their identity.
+  const openAtFirstUnanswered = useEffectEvent((numPages: number) => {
+    const start = items.findIndex((it) => !answers[it.id]);
+    const opening = items[start === -1 ? 0 : start];
+    // An anchor outside the loaded PDF still opens a real page (page 0 renders nothing), and the creator is told why.
+    const view = viewerPageFor(opening?.anchorPage ?? null, numPages, opening?.code ?? "");
+    setPage(view.page);
+    setAnchorNotice(view.notice);
+  });
+
+  // Load the document once per pdfUrl; re-render on page/zoom changes.
   useEffect(() => {
     if (!pdfUrl) return;
     let disposed = false;
@@ -147,12 +158,7 @@ export default function ReviewClient({ items, saved, pdfUrl, bookTitle }: Review
         docRef.current = doc;
         setTotal(doc.numPages);
         setViewerReady(true);
-        const start = items.findIndex((it) => !answers[it.id]);
-        const opening = items[start === -1 ? 0 : start];
-        // An anchor outside the loaded PDF still opens a real page (page 0 renders nothing), and the creator is told why.
-        const view = viewerPageFor(opening?.anchorPage ?? null, doc.numPages, opening?.code ?? "");
-        setPage(view.page);
-        setAnchorNotice(view.notice);
+        openAtFirstUnanswered(doc.numPages);
       } catch (err) {
         if (!disposed) setViewerError(`Could not load the book (${err instanceof Error ? err.message : "unknown error"}). You can still answer from the questions shown.`);
       }
@@ -160,9 +166,6 @@ export default function ReviewClient({ items, saved, pdfUrl, bookTitle }: Review
     return () => {
       disposed = true;
     };
-    // items/answers are RSC-hydrated props — they never change identity
-    // during a client session, and the doc must load exactly once.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pdfUrl]);
 
   useEffect(() => {

@@ -293,11 +293,10 @@ export function BookCard({
           </Link>
         </p>
       </div>
-      {price !== null && (
-        <p className="mt-auto text-lg font-bold text-gray-900">
-          {`$${price.toFixed(2)}`} <span className="text-xs font-normal text-gray-600">USD &middot; one-time</span>
-        </p>
-      )}
+      <p className="mt-auto text-lg font-bold text-gray-900">
+        {price !== null ? `$${price.toFixed(2)}` : "-"}{" "}
+        <span className="text-xs font-normal text-gray-600">USD &middot; one-time</span>
+      </p>
     </article>
   );
 }

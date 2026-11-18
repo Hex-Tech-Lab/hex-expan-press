@@ -143,6 +143,9 @@ product_slug: { min_length: number; max_length: number; separator: string };
     concurrent_request_status: number;
     /** Resend error name that goes with concurrent_request_status. */
     concurrent_request_error_name: string;
+    /** Resend HTTP status for a definite refusal of the message itself (a validation error, in practice the buyer address).
+     *  No retry can succeed, so the sale is answered 422 and quarantined, not retried. Config refusals (401, 403) stay retryable. */
+    address_rejected_status: number;
   };
   portal: { jwt_clock_skew_retry_delay_ms: number };
   consent: { text_version: string; evidence_path: { user_id_pattern: string; envelope_id_pattern: string } };
@@ -264,6 +267,7 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     ],
     concurrent_request_status: 409,
     concurrent_request_error_name: "concurrent_idempotent_requests",
+    address_rejected_status: 422,
   },
   portal: { jwt_clock_skew_retry_delay_ms: 350 },
   admin: { admin_user_ids: [], audit_log_page_size: 50 },
@@ -716,6 +720,10 @@ export function loadEmailSection(raw: Record<string, unknown> | undefined): Glob
   if (typeof merged.concurrent_request_error_name !== "string" || merged.concurrent_request_error_name.trim() === "") {
     warnFallback("global.json", "invalid email values for concurrent_request_error_name");
     merged.concurrent_request_error_name = DEFAULT_GLOBAL.email.concurrent_request_error_name;
+  }
+  if (!intInRange(merged.address_rejected_status, 400, 499)) {
+    warnFallback("global.json", "invalid email values for address_rejected_status");
+    merged.address_rejected_status = DEFAULT_GLOBAL.email.address_rejected_status;
   }
   return merged;
 }

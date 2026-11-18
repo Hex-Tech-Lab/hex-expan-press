@@ -301,9 +301,10 @@ describe("deliverSaleForWebhook never acknowledges an unconfirmed sale", () => {
     f.deps.db.confirmDelivery = vi.fn(async ({ saleId }: { provider: string; saleId: string }) => {
       confirmed.add(saleId);
     });
-    f.sendEmail.mockRejectedValueOnce(definiteRejection());
+    // A config refusal (401), not an address refusal: it stays retryable, so the provider's retry is the path under test.
+    f.sendEmail.mockRejectedValueOnce(new EmailSendError("Resend error (401): invalid api key", false, 401, true));
 
-    await expect(deliverSaleForWebhook(sale, f.deps)).rejects.toThrow("Resend error (422)");
+    await expect(deliverSaleForWebhook(sale, f.deps)).rejects.toThrow("Resend error (401)");
     expect(rows.size).toBe(1);
     expect(confirmed.has("s-1")).toBe(false);
 

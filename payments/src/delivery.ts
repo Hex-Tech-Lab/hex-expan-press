@@ -10,8 +10,11 @@
  * Failure policy: the ledger write is the money record and stays authoritative. A delivery failure
  * is rethrown to the webhook as a DeliveryPendingError (503, so the provider retries) whenever the send's outcome is unknown or a message
  * store failed, even when the read-back shows nothing stored (a stale fence is rethrown unchanged). The original error is
- * rethrown only for a definite non-send before the store, or a definite provider 4xx rejection. A download_events row is
- * released only on a verified non-send. A sale counts as delivered only once its send is confirmed (an audit_log row with
+ * rethrown for a definite non-send before the store, or a definite provider 4xx rejection other than an address refusal. A
+ * definite 422 from the mail provider (GLOBAL.email.address_rejected_status: the message was refused, and no retry can succeed)
+ * is answered by deliverSaleForWebhook as DeliveryBlockedError('no_email'): 422, terminal. The sale stays booked, the webhook
+ * quarantines the event, and an operator is flagged. A 401 or 403 is a config refusal and stays retryable. A download_events
+ * row is released only on a verified non-send. A sale counts as delivered only once its send is confirmed (an audit_log row with
  * event DELIVERY_LINK_SENT, scoped to the provider that issued the sale).
  *
  * Held claims (PR 136 H1): before the send, the rendered buyer message is stored encrypted on the claim row
@@ -181,7 +184,7 @@ function withDeadline<T>(work: Promise<T>, ms: number, label: string): Promise<T
 function flagForManualReconciliation(provider: string, saleId: string, sendKind: string, reason: string): void {
   console.error(
     `[delivery] MANUAL RECONCILE sale=${saleId} provider=${provider} send_kind=${sendKind}: ${reason}. ` +
-      "The webhook answers 503 until an operator resolves this claim.",
+      "The sale stays unresolved until an operator reconciles it.",
   );
 }
 
@@ -582,10 +585,18 @@ export function productionDeps(): DeliveryDeps {
 }
 
 /**
+ * A definite refusal of the message by the mail provider at GLOBAL.email.address_rejected_status. In practice this is the
+ * buyer address. No email was accepted, so there is nothing to resend.
+ */
+function isBuyerAddressRejection(err: unknown): err is EmailSendError {
+  return err instanceof EmailSendError && err.definite && err.statusCode === GLOBAL.email.address_rejected_status;
+}
+
+/**
  * Webhook entry point. A delivery failure is rethrown and answers the error's own status: 503 with Retry-After for a
- * DeliveryPendingError, 422 (terminal) for a DeliveryBlockedError with no buyer email, 503 for one with no release file,
- * and 500 for any other error. The provider retries the 503 and 500 answers. A sale that cannot be delivered also throws:
- * the buyer is owed a link, so the webhook must not acknowledge the sale as delivered.
+ * DeliveryPendingError, 422 (terminal) for a DeliveryBlockedError with no buyer email or a buyer address the mail provider
+ * refused, 503 for one with no release file, and 500 for any other error. The provider retries the 503 and 500 answers. A sale
+ * that cannot be delivered also throws: the buyer is owed a link, so the webhook must not acknowledge the sale as delivered.
  */
 export async function deliverSaleForWebhook(
   input: {
@@ -598,7 +609,22 @@ export async function deliverSaleForWebhook(
   },
   deps: DeliveryDeps = productionDeps(),
 ): Promise<void> {
-  const outcome = await deliverSale(input, deps);
+  let outcome: DeliveryOutcome;
+  try {
+    outcome = await deliverSale(input, deps);
+  } catch (err) {
+    // deliverSale has already released the claim and the link (a definite rejection is a verified non-send). The 500 that a raw
+    // error would answer is retried by the provider forever against the same refused address, so the sale is refused with a
+    // terminal 422 instead. A config refusal is not this case: it is rethrown unchanged and stays retryable.
+    if (!isBuyerAddressRejection(err)) throw err;
+    flagForManualReconciliation(
+      input.provider,
+      input.saleId,
+      input.sendKind ?? GLOBAL.delivery.send_kind,
+      `the mail provider refused the buyer address (HTTP ${err.statusCode}); no email was accepted and a retry cannot succeed`,
+    );
+    throw new DeliveryBlockedError("no_email", input.saleId);
+  }
   if (outcome === "no_email") throw new DeliveryBlockedError("no_email", input.saleId);
   if (outcome === "no_release_file") throw new DeliveryBlockedError("no_release_file", input.saleId);
   if (outcome !== "sent") console.warn(`[delivery] sale ${input.saleId}: ${outcome}`);
