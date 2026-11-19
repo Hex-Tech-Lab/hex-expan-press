@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { ATTRIBUTION_KEYS as KEYS } from "../../lib/attribution";
+import { BrandButton } from "../brand/brand";
 
 /**
  * Buy CTA with attribution forwarding (Sprint 17 P3 — ports the retired
@@ -37,7 +38,7 @@ export function BuyLink({
   className,
   children,
   ...props
-}: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string; className: string; children: React.ReactNode }) {
+}: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string; className?: string; children: React.ReactNode }) {
   useAttributionCapture();
 
   // Forward on click (as the static page did): no state, no hydration mismatch.
@@ -55,8 +56,8 @@ export function BuyLink({
   };
 
   return (
-    <a className={className} href={href} onClick={onClick} {...props}>
+    <BrandButton className={className} href={href} onClick={onClick} {...props}>
       {children}
-    </a>
+    </BrandButton>
   );
 }

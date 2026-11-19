@@ -1615,6 +1615,102 @@ describe("billing/checkout POST single-hop form & JSON (F-07 Option A)", () => {
     expect(invalidRes.status).toBe(400);
     expect(await invalidRes.json()).toMatchObject({ ok: false, code: "buyer_email_invalid" });
   });
+
+  it("returns 200 paddle_overlay JSON when Accept: application/json is sent for a Paddle rail with paddle_price_id", async () => {
+    const o = GLOBAL.payments.paddle.overlay;
+    vi.stubEnv(o.client_token_env, "live_tok_route");
+    vi.stubEnv(o.environment_env, "production");
+    adminModule.mockAdminClient = gateAdminClient(
+      {
+        data: {
+          id: PID,
+          store_product_id: "store_book_1",
+          creator_id: OWNER_ID,
+          release_sha256: RELEASE_SHA,
+          checkout_mode: "live",
+          paddle_price_id: "pri_live_99",
+          creators: { handle: "duane" },
+        },
+        error: null,
+      },
+      undefined,
+      { data: [{ provider: "paddle", weight: 100, checkout_url: "https://buy.paddle.com/live-rail", active: true }], error: null },
+    );
+
+    const res = await POST(new NextRequest("http://localhost:3000/api/billing/checkout", {
+      method: "POST",
+      headers: { "content-type": "application/json", accept: "application/json" },
+      body: JSON.stringify({
+        product: PID,
+        buyer_email: "ann@example.com",
+        buyer_email_confirm: "ann@example.com",
+        buyer_consent: false,
+        src: "ig",
+        dub_id: "dub_7",
+      }),
+    }));
+    expect(res.status).toBe(200);
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    expect(await res.json()).toEqual({
+      ok: true,
+      kind: "paddle_overlay",
+      payload: {
+        items: [{ priceId: "pri_live_99", quantity: 1 }],
+        customer: { email: "ann@example.com" },
+        customData: {
+          [o.order_ref_key]: "ig:dub_7",
+          [o.buyer_consent_key]: "false",
+        },
+        settings: {
+          displayMode: "overlay",
+          theme: o.theme,
+          locale: o.locale,
+          successUrl: `${GLOBAL.delivery.download_origin}/books/duane/thanks`,
+        },
+      },
+    });
+  });
+
+  it("returns 200 redirect JSON when Accept: application/json is sent for a non-Paddle rail (other providers keep redirect)", async () => {
+    registryOverride.creemEnabled = true;
+    vi.mocked(MatrixRouter.getNextProvider).mockResolvedValueOnce("creem");
+    adminModule.mockAdminClient = gateAdminClient(
+      {
+        data: {
+          id: PID,
+          store_product_id: "sp_creem",
+          creator_id: OWNER_ID,
+          release_sha256: RELEASE_SHA,
+          checkout_mode: "live",
+          paddle_price_id: "pri_ignored",
+          creators: { handle: "duane" },
+        },
+        error: null,
+      },
+      undefined,
+      { data: [{ provider: "creem", weight: 100, checkout_url: "https://creem.io/payment/prod_live", active: true }], error: null },
+    );
+
+    const res = await POST(new NextRequest("http://localhost:3000/api/billing/checkout", {
+      method: "POST",
+      headers: { "content-type": "application/json", accept: "application/json" },
+      body: JSON.stringify({
+        product: PID,
+        buyer_email: "ann@example.com",
+        buyer_email_confirm: "ann@example.com",
+        buyer_consent: true,
+        src: "yt",
+      }),
+    }));
+    expect(res.status).toBe(200);
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    const json = (await res.json()) as { ok: boolean; kind: string; redirectUrl: string };
+    expect(json.ok).toBe(true);
+    expect(json.kind).toBe("redirect");
+    const loc = new URL(json.redirectUrl);
+    expect(loc.origin + loc.pathname).toBe("https://creem.io/payment/prod_live");
+    expect(loc.searchParams.get(`metadata[${GLOBAL.delivery.buyer_consent_metadata_key}]`)).toBe("true");
+  });
 });
 
 describe("billing/checkout F-03 test/stage/path-based sandbox guard & F-06 US-only geo gate", () => {

@@ -14,8 +14,8 @@ import { AttributionCapture } from "../../src/components/storefront/buy-link";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Books by creators · ExpanPress",
-  description: "Browse the books creators have published on ExpanPress.",
+  title: `Books by creators · ${GLOBAL.storefront.brand_name}`,
+  description: `Browse the books creators have published on ${GLOBAL.storefront.brand_name}.`,
   robots: NOINDEX,
 };
 

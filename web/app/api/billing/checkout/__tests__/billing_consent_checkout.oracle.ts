@@ -8,6 +8,7 @@ export const MODEL_COLUMNS = [
   "consent_kind",
   "decision",
   "provider",
+  "provider_path",
   "checkout_mode",
   "sandbox_flag",
   "vercel_env",
@@ -23,6 +24,7 @@ export const COLUMN_VALUES = {
   consent_kind: CONSENT_KINDS,
   decision: ["given", "refused", "forked", "resolved_by_set"],
   provider: ["paddle", "polar", "creem", "fungies", "lemonsqueezy"],
+  provider_path: ["overlay", "redirect"],
   checkout_mode: ["live", "sandbox", "gated"],
   sandbox_flag: ["false", "true"],
   vercel_env: ["production", "preview", "development", "unset_node_prod", "unset_node_test"],
@@ -70,6 +72,8 @@ export function parseRows(tsv: string): PairwiseRow[] {
 
 export interface Outcome {
   status: number;
+  /** Routed checkout delivery kind when status is 200 or 302. */
+  kind?: "paddle_overlay" | "redirect";
   /** Set on 302: the rail URL the route must redirect to (the provider may append parameters). */
   railUrl?: string;
   /** Set where the body's machine code is part of the contract. */
@@ -87,14 +91,16 @@ export function expectedOutcome(row: PairwiseRow): Outcome {
   // 1. Geo gate: the US, its territories, and DC only. It runs before any other check.
   if (row.buyer_country === "non_us") return { status: 403, code: "country_not_supported" };
 
-  // 2. Buyer email shape: a malformed address is a 400 before the product is looked up. Absent and typo-suggested pass.
-  if (row.buyer_email === "invalid") return { status: 400, code: "buyer_email_invalid" };
+  // 2. Buyer email shape: a malformed address is a 400 before the product is looked up. Overlay POST also requires an email.
+  if (row.buyer_email === "invalid" || (row.provider_path === "overlay" && row.buyer_email === "absent")) {
+    return { status: 400, code: "buyer_email_invalid" };
+  }
 
   // 3. Product reference: a bare slug is ambiguous (409) or needs its creator handle (400).
   if (row.product_state === "bare_slug_ambiguous") return { status: 409, code: "product_slug_ambiguous" };
   if (row.product_state === "bare_slug_single") return { status: 400, code: "product_ref_requires_handle" };
 
-  // 4. Launch state: gated products never redirect; sandbox products only where sandbox checkout may open.
+  // 4. Launch state: gated products never open checkout; sandbox products only where sandbox checkout may open.
   if (row.checkout_mode === "gated") return { status: 403 };
   if (row.checkout_mode === "sandbox" && !sandboxOpen(row)) return { status: 403 };
 
@@ -113,8 +119,9 @@ export function expectedOutcome(row: PairwiseRow): Outcome {
   if (railSandbox !== (row.checkout_mode === "sandbox")) return { status: 500 };
   if (railSandbox && !sandboxOpen(row)) return { status: 500 };
 
-  // 9. Routed: the matching rail URL, with provider parameters appended where the provider documents them.
-  return { status: 302, railUrl: railSandbox ? SANDBOX_RAIL_URL : LIVE_RAIL_URL };
+  // 9. Routed: Paddle overlay returns 200 JSON payload; redirect path returns 302 to the matching rail URL.
+  if (row.provider_path === "overlay") return { status: 200, kind: "paddle_overlay" };
+  return { status: 302, kind: "redirect", railUrl: railSandbox ? SANDBOX_RAIL_URL : LIVE_RAIL_URL };
 }
 
 /** Expected portalConsentState flag (Argon F-15 parity) for the row's consent kind. */

@@ -2117,4 +2117,41 @@ describe("F-05 duplicate identity checks on refund_issued and refund_reversed", 
       })]),
     ).rejects.toThrow(/in flight/);
   });
+
+  it("persists buyer_email_consent (true, false, or NULL when absent) and delivers regardless of buyer consent", async () => {
+    for (const [suffix, consent, expectedRowVal] of [
+      ["t", true, true],
+      ["f", false, false],
+      ["n", undefined, null],
+    ] as const) {
+      delivery.deliverSaleForWebhook.mockClear();
+      await expect(
+        processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter({
+          eventType: "sale_completed",
+          providerName: "paddle",
+          saleId: `sale_consent_${suffix}`,
+          productId: "p1",
+          totalCents: 3900,
+          currency: "USD",
+          buyerEmailHash: "h",
+          buyerEmail: "buyer@example.com",
+          ...(consent !== undefined ? { buyerEmailConsent: consent } : {}),
+          occurredAt: "2026-11-19T12:00:00Z",
+          providerMode: "live",
+          rawPayload: null,
+        })]),
+      ).resolves.toBeUndefined();
+      expect(delivery.deliverSaleForWebhook).toHaveBeenCalledTimes(1);
+      const row = readFileSync(salesFilePath, "utf8")
+        .split(/\r?\n/)
+        .filter(Boolean)
+        .map((l) => JSON.parse(l) as { sale_id: string; buyer_email_consent?: boolean })
+        .find((r) => r.sale_id === `sale_consent_${suffix}`);
+      if (expectedRowVal === null) {
+        expect("buyer_email_consent" in (row ?? {})).toBe(false);
+      } else {
+        expect(row?.buyer_email_consent).toBe(expectedRowVal);
+      }
+    }
+  });
 });

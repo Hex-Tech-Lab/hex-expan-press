@@ -53,6 +53,15 @@ export function buyerConsentText(typicalMinutes: number, supportAfterHours: numb
   return `ExpanPress will email your e-book to this address, usually within ${typicalMinutes} minutes. If it has not arrived within ${window}, email ${supportEmail} and we will send it by hand. We may also email you about this purchase and related updates. You can unsubscribe at any time.`;
 }
 
+/**
+ * Thank-you page delivery body, using the same registry timing and support address as buyerConsentText.
+ */
+export function buyerDeliveryPromiseText(typicalMinutes: number, supportAfterHours: number, supportEmail: string): string {
+  const mins = typicalMinutes === 1 ? "1 minute" : `${typicalMinutes} minutes`;
+  const window = supportAfterHours === 1 ? "1 hour" : `${supportAfterHours} hours`;
+  return `Your e-book is on its way to the email you used at checkout, usually within ${mins}. If it has not arrived within ${window}, email ${supportEmail} and we will send it by hand.`;
+}
+
 /** Attribution parameters read from storage (with optional query-param fallback). The storage key for each parameter comes from ATTRIBUTION_KEYS (attribution.ts). */
 export function storedAttributionParams(
   read: (storageKey: string, param: string) => string | null,

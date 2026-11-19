@@ -24,6 +24,8 @@ export interface SaleRecord {
   currency: string;
   event_type?: LedgerEventType; // absent = "sale" (legacy records predate the field)
   email_hash?: string; // buyer-email sha256 from the webhook event (optional; never raw email)
+  /** Buyer-supplied consent to email delivery (custom_data.buyer_consent). Recorded only; absent = not supplied (stored as NULL). */
+  buyer_email_consent?: boolean;
   attribution_id?: string; // our own canonical cross-provider attribution ID (see provider.ts SaleEvent)
   provider_adjustment_id?: string; // provider's own adjustment id on refund/refund_reversal rows (replay dedupe); absent on sale rows
 }
@@ -105,6 +107,7 @@ export const OrderUpsertSchema = z.strictObject({
   event_type: z.enum(["sale", "refund", "refund_reversal"]),
   email_hash: z.string().min(1).nullable(),
   attribution_id: z.string().min(1).nullable(),
+  buyer_email_consent: z.boolean().nullable(),
   provider_adjustment_id: z.string().min(1).nullable(),
   occurred_at: z.string().refine((v) => !Number.isNaN(Date.parse(v)), { message: "occurred_at must be a parseable timestamp" }),
 }).superRefine((row, ctx) => {
@@ -176,6 +179,8 @@ async function persistToSupabaseOrder(record: SaleRecord, fence?: number): Promi
       event_type: record.event_type || "sale",
       email_hash: record.email_hash || null,
       attribution_id: record.attribution_id || null,
+      // ?? not ||: a recorded false must stay false, not become NULL.
+      buyer_email_consent: record.buyer_email_consent ?? null,
       provider_adjustment_id: record.provider_adjustment_id || null,
       occurred_at: record.ts,
     });
@@ -704,6 +709,7 @@ export async function persistSale(sale: SaleRecord, fence?: number): Promise<Sal
   };
   if (typeof sale.email_hash === "string" && sale.email_hash !== "") record.email_hash = sale.email_hash;
   if (typeof sale.attribution_id === "string" && sale.attribution_id !== "") record.attribution_id = sale.attribution_id;
+  if (typeof sale.buyer_email_consent === "boolean") record.buyer_email_consent = sale.buyer_email_consent;
   // Durable store FIRST: if Supabase fails the route 500s and the provider retries;
   // writing the local file first would make that retry look like a duplicate.
   await persistToSupabaseOrder(record, fence);

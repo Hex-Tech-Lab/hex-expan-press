@@ -1,16 +1,20 @@
-// Pairwise (PICT) test for billing / consent / checkout parameters of GET /api/billing/checkout.
+// Pairwise (PICT) test for billing / consent / checkout parameters of /api/billing/checkout and webhook buyer_consent.
 // Model: docs/testing/pairwise/billing_consent_checkout.model.txt
-// Rows:  docs/testing/pairwise/billing_consent_checkout.rows.tsv (42 generated PICT rows, every row asserted below)
+// Rows:  docs/testing/pairwise/billing_consent_checkout.rows.tsv (45 generated PICT rows, every row asserted below)
 // Expected outcomes come from billing_consent_checkout.oracle.ts, written from the specification, not from route.ts.
 // Test world only: creem is routable here through an override of isEnabledPaymentProvider. Production settings keep creem off.
+import crypto from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
-import { GET } from "../route";
+import { GET, POST } from "../route";
 import { portalConsentState, type PortalConsentRow } from "../../../../../src/lib/consent-chain";
 import { GLOBAL } from "../../../../../../payments/src/settings_registry";
+import { PaddleAdapter } from "../../../../../../src/adapters/payments/paddle.adapter";
+import type { SaleCompletedEvent } from "../../../../../../src/domain/payments/payments.port";
+import type { PaddleOverlayPayload } from "../../../../../src/lib/paddle-overlay";
 import {
   CONSENT_KINDS,
   LIVE_RAIL_URL,
@@ -66,7 +70,9 @@ vi.mock("../../../../../../src/infrastructure/matrix_router/matrix_router", () =
 const MODEL_PATH = fileURLToPath(new URL("../../../../../../docs/testing/pairwise/billing_consent_checkout.model.txt", import.meta.url));
 const ROWS_PATH = fileURLToPath(new URL("../../../../../../docs/testing/pairwise/billing_consent_checkout.rows.tsv", import.meta.url));
 const PICT_BIN = "/usr/local/bin/pict";
-const EXPECTED_ROW_COUNT = 42;
+const EXPECTED_ROW_COUNT = 45;
+const PADDLE_PRICE_ID = "pri_pw_overlay_1";
+const PADDLE_WH_SECRET = "whsec_pairwise_test_secret";
 
 const BUYER_EMAIL: Partial<Record<PairwiseRow["buyer_email"], string>> = {
   valid: "buyer@example.com",
@@ -161,6 +167,8 @@ function buildAdminMock(row: PairwiseRow) {
               creator_id: "c0a80101-0000-4000-8000-000000000001",
               release_sha256: RELEASE_SHA,
               checkout_mode: row.checkout_mode,
+              paddle_price_id: row.provider === "paddle" ? PADDLE_PRICE_ID : null,
+              creators: { handle: "pw_creator" },
             },
             error: null,
           }),
@@ -214,18 +222,75 @@ function applyRuntimeEnv(row: PairwiseRow): void {
     vi.stubEnv("VERCEL_ENV", row.vercel_env);
   }
   registryOverride.sandboxCheckoutEnabled = row.sandbox_flag === "true";
+  const o = GLOBAL.payments.paddle.overlay;
+  vi.stubEnv(o.client_token_env, "tok_pw_overlay");
+  vi.stubEnv(o.environment_env, row.checkout_mode === "sandbox" ? "sandbox" : "production");
 }
 
 function checkoutRequest(row: PairwiseRow, productParam: string): NextRequest {
+  const email = BUYER_EMAIL[row.buyer_email];
+  const consentBool = row.buyer_consent === "checked";
+  if (row.provider_path === "overlay") {
+    const body: Record<string, unknown> = {
+      product: productParam,
+      buyer_consent: consentBool,
+    };
+    if (email !== undefined) {
+      body.buyer_email = email;
+      body.buyer_email_confirm = email;
+    }
+    return new NextRequest("http://localhost:3000/api/billing/checkout", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        accept: "application/json",
+        "x-vercel-ip-country": COUNTRY_HEADER[row.buyer_country],
+      },
+      body: JSON.stringify(body),
+    });
+  }
   const params = new URLSearchParams({
     product: productParam,
-    buyer_consent: row.buyer_consent === "checked" ? "true" : "false",
+    buyer_consent: consentBool ? "true" : "false",
   });
-  const email = BUYER_EMAIL[row.buyer_email];
   if (email !== undefined) params.set("buyer_email", email);
   return new NextRequest(`http://localhost:3000/api/billing/checkout?${params.toString()}`, {
     headers: { "x-vercel-ip-country": COUNTRY_HEADER[row.buyer_country] },
   });
+}
+
+function sendCheckout(row: PairwiseRow, productParam: string): Promise<Response> {
+  const req = checkoutRequest(row, productParam);
+  return row.provider_path === "overlay" ? POST(req) : GET(req);
+}
+
+/** Verifies a signed Paddle transaction.completed webhook carries customData.buyer_consent through to SaleCompletedEvent. */
+async function verifyPaddleWebhookConsent(
+  customData: Record<string, string>,
+  mode: "sandbox" | "production",
+  email: string,
+): Promise<SaleCompletedEvent> {
+  vi.stubEnv("PADDLE_WEBHOOK_SECRET", PADDLE_WH_SECRET);
+  vi.stubEnv("PADDLE_ENVIRONMENT", mode);
+  vi.stubEnv("PADDLE_PRICE_MAP", JSON.stringify({ [PADDLE_PRICE_ID]: PID }));
+  if (mode === "sandbox") vi.stubEnv("VERCEL_ENV", "preview");
+  const payload = JSON.stringify({
+    event_type: "transaction.completed",
+    data: {
+      id: `txn_pw_${mode}_${customData.buyer_consent ?? "none"}`,
+      currency_code: "USD",
+      details: { totals: { total: "900" } },
+      items: [{ price: { id: PADDLE_PRICE_ID } }],
+      custom_data: { product_id: PID, email, ...customData },
+      changed_at: new Date().toISOString(),
+    },
+  });
+  const ts = Math.floor(Date.now() / 1000).toString();
+  const h1 = crypto.createHmac("sha256", PADDLE_WH_SECRET).update(`${ts}:${payload}`, "utf8").digest("hex");
+  const parsed = await new PaddleAdapter().parseAndValidateWebhook({ "paddle-signature": `ts=${ts};h1=${h1}` }, payload);
+  expect(parsed.isValid).toBe(true);
+  if (!parsed.isValid) throw new Error("expected valid webhook");
+  return parsed.event as SaleCompletedEvent;
 }
 
 /**
@@ -270,7 +335,7 @@ describe(`billing / consent / checkout: ${EXPECTED_ROW_COUNT} PICT pairwise rows
   });
 
   it.each(ROWS)(
-    "row #$rowNum: $consent_kind/$decision | $provider | mode=$checkout_mode | flag=$sandbox_flag | env=$vercel_env | $product_state | rail=$rail_mode | email=$buyer_email | consent=$buyer_consent | country=$buyer_country",
+    "row #$rowNum: $consent_kind/$decision | $provider/$provider_path | mode=$checkout_mode | flag=$sandbox_flag | env=$vercel_env | $product_state | rail=$rail_mode | email=$buyer_email | consent=$buyer_consent | country=$buyer_country",
     async (row) => {
       applyRuntimeEnv(row);
       adminModule.mockAdminClient = buildAdminMock(row);
@@ -282,14 +347,26 @@ describe(`billing / consent / checkout: ${EXPECTED_ROW_COUNT} PICT pairwise rows
             ? "single_slug"
             : PID;
 
-      const res = await GET(checkoutRequest(row, productParam));
+      const res = await sendCheckout(row, productParam);
       const want = expectedOutcome(row);
 
       expect(res.status).toBe(want.status);
       if (want.code) {
         expect(await res.json()).toMatchObject({ ok: false, code: want.code });
       }
-      if (want.status === 302) {
+      if (want.status === 200) {
+        const body = (await res.json()) as { ok: boolean; kind: string; payload: PaddleOverlayPayload };
+        expect(body.ok).toBe(true);
+        expect(body.kind).toBe("paddle_overlay");
+        const o = GLOBAL.payments.paddle.overlay;
+        expect(body.payload.customData[o.buyer_consent_key]).toBe(row.buyer_consent === "checked" ? "true" : "false");
+        const wh = await verifyPaddleWebhookConsent(
+          body.payload.customData,
+          row.checkout_mode === "sandbox" ? "sandbox" : "production",
+          BUYER_EMAIL[row.buyer_email] ?? "buyer@example.com",
+        );
+        expect(wh.buyerEmailConsent).toBe(row.buyer_consent === "checked");
+      } else if (want.status === 302) {
         assertRedirect(res.headers.get("location"), row, want.railUrl);
       } else {
         expect(res.headers.get("location")).toBeNull();
@@ -316,12 +393,13 @@ describe("billing / consent / checkout: explicit valid paths", () => {
     registryOverride.sandboxCheckoutEnabled = undefined;
   });
 
-  it("resolved_by_set + paddle + live + production + active live rail succeeds with 302", async () => {
+  it("resolved_by_set + paddle + redirect + live + production + active live rail succeeds with 302", async () => {
     const row: PairwiseRow = {
       rowNum: 101,
       consent_kind: "C2_release_approval",
       decision: "resolved_by_set",
       provider: "paddle",
+      provider_path: "redirect",
       checkout_mode: "live",
       sandbox_flag: "false",
       vercel_env: "production",
@@ -331,17 +409,18 @@ describe("billing / consent / checkout: explicit valid paths", () => {
     };
     applyRuntimeEnv(row);
     adminModule.mockAdminClient = buildAdminMock(row);
-    const res = await GET(checkoutRequest(row, PID));
+    const res = await sendCheckout(row, PID);
     expect(res.status).toBe(302);
     expect(res.headers.get("location")).toBe(LIVE_RAIL_URL);
   });
 
-  it("resolved_by_set + paddle + sandbox + sandbox_flag=true + development + sandbox rail succeeds with 302", async () => {
+  it("resolved_by_set + paddle + redirect + sandbox + sandbox_flag=true + development + sandbox rail succeeds with 302", async () => {
     const row: PairwiseRow = {
       rowNum: 102,
       consent_kind: "C3_revenue_split",
       decision: "resolved_by_set",
       provider: "paddle",
+      provider_path: "redirect",
       checkout_mode: "sandbox",
       sandbox_flag: "true",
       vercel_env: "development",
@@ -351,17 +430,18 @@ describe("billing / consent / checkout: explicit valid paths", () => {
     };
     applyRuntimeEnv(row);
     adminModule.mockAdminClient = buildAdminMock(row);
-    const res = await GET(checkoutRequest(row, PID));
+    const res = await sendCheckout(row, PID);
     expect(res.status).toBe(302);
     expect(res.headers.get("location")).toBe(SANDBOX_RAIL_URL);
   });
 
-  it("given + paddle + sandbox + sandbox_flag=false + development + sandbox rail refuses with 403", async () => {
+  it("given + paddle + redirect + sandbox + sandbox_flag=false + development + sandbox rail refuses with 403", async () => {
     const row: PairwiseRow = {
       rowNum: 103,
       consent_kind: "C1_data_accuracy",
       decision: "given",
       provider: "paddle",
+      provider_path: "redirect",
       checkout_mode: "sandbox",
       sandbox_flag: "false",
       vercel_env: "development",
@@ -371,19 +451,20 @@ describe("billing / consent / checkout: explicit valid paths", () => {
     };
     applyRuntimeEnv(row);
     adminModule.mockAdminClient = buildAdminMock(row);
-    const res = await GET(checkoutRequest(row, PID));
+    const res = await sendCheckout(row, PID);
     expect(res.status).toBe(403);
     expect(res.headers.get("location")).toBeNull();
   });
 
   // The pairwise rows cover every pair of factors, but masking gates (refused heads, gated launch) hide the rail-mode mismatch
-  // outcome in every generated row. These three cases make it, and the creem metadata path, observable.
+  // outcome in every generated row. These cases make it, the creem metadata path, and the Paddle overlay -> webhook consent path observable.
   it("live product with a sandbox rail host is refused as 500 even with the sandbox flag on (rail mode mismatch)", async () => {
     const row: PairwiseRow = {
       rowNum: 104,
       consent_kind: "C2_release_approval",
       decision: "given",
       provider: "paddle",
+      provider_path: "redirect",
       checkout_mode: "live",
       sandbox_flag: "true",
       vercel_env: "preview",
@@ -393,7 +474,7 @@ describe("billing / consent / checkout: explicit valid paths", () => {
     };
     applyRuntimeEnv(row);
     adminModule.mockAdminClient = buildAdminMock(row);
-    const res = await GET(checkoutRequest(row, PID));
+    const res = await sendCheckout(row, PID);
     expect(res.status).toBe(500);
     expect(res.headers.get("location")).toBeNull();
   });
@@ -404,6 +485,7 @@ describe("billing / consent / checkout: explicit valid paths", () => {
       consent_kind: "C1_data_accuracy",
       decision: "given",
       provider: "paddle",
+      provider_path: "redirect",
       checkout_mode: "sandbox",
       sandbox_flag: "true",
       vercel_env: "development",
@@ -413,7 +495,7 @@ describe("billing / consent / checkout: explicit valid paths", () => {
     };
     applyRuntimeEnv(row);
     adminModule.mockAdminClient = buildAdminMock(row);
-    const res = await GET(checkoutRequest(row, PID));
+    const res = await sendCheckout(row, PID);
     expect(res.status).toBe(500);
     expect(res.headers.get("location")).toBeNull();
   });
@@ -424,6 +506,7 @@ describe("billing / consent / checkout: explicit valid paths", () => {
       consent_kind: "C3_revenue_split",
       decision: "given",
       provider: "creem",
+      provider_path: "redirect",
       checkout_mode: "live",
       sandbox_flag: "false",
       vercel_env: "production",
@@ -435,17 +518,18 @@ describe("billing / consent / checkout: explicit valid paths", () => {
     };
     applyRuntimeEnv(row);
     adminModule.mockAdminClient = buildAdminMock(row);
-    const res = await GET(checkoutRequest(row, PID));
+    const res = await sendCheckout(row, PID);
     expect(res.status).toBe(302);
     assertRedirect(res.headers.get("location"), row, LIVE_RAIL_URL);
   });
 
-  it("paddle rail on a live product redirects with the buyer's email prefilled as user_email and no consent parameter", async () => {
+  it("paddle rail redirect path carries user_email and no consent parameter (webhook stores NULL)", async () => {
     const row: PairwiseRow = {
       rowNum: 107,
       consent_kind: "C3_revenue_split",
       decision: "given",
       provider: "paddle",
+      provider_path: "redirect",
       checkout_mode: "live",
       sandbox_flag: "false",
       vercel_env: "production",
@@ -457,10 +541,49 @@ describe("billing / consent / checkout: explicit valid paths", () => {
     };
     applyRuntimeEnv(row);
     adminModule.mockAdminClient = buildAdminMock(row);
-    const res = await GET(checkoutRequest(row, PID));
+    const res = await sendCheckout(row, PID);
     expect(res.status).toBe(302);
     assertRedirect(res.headers.get("location"), row, LIVE_RAIL_URL);
     expect(new URL(res.headers.get("location")!).searchParams.get("user_email")).toBe("buyer@example.com");
     expect(new URL(res.headers.get("location")!).searchParams.has(`metadata[${GLOBAL.delivery.buyer_consent_metadata_key}]`)).toBe(false);
+    const wh = await verifyPaddleWebhookConsent({}, "production", "buyer@example.com");
+    expect(wh.buyerEmailConsent).toBeUndefined();
   });
+
+  it.each(["checked", "unchecked"] as const)(
+    "paddle overlay path with buyer_consent=%s returns 200 payload and reaches transaction.completed webhook as %s",
+    async (consentState) => {
+      const row: PairwiseRow = {
+        rowNum: consentState === "checked" ? 108 : 109,
+        consent_kind: "C2_release_approval",
+        decision: "given",
+        provider: "paddle",
+        provider_path: "overlay",
+        checkout_mode: "live",
+        sandbox_flag: "false",
+        vercel_env: "production",
+        product_state: "active_rail",
+        rail_mode: "live",
+        buyer_email: "valid",
+        buyer_consent: consentState,
+        buyer_country: "us",
+      };
+      applyRuntimeEnv(row);
+      adminModule.mockAdminClient = buildAdminMock(row);
+      const res = await sendCheckout(row, PID);
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { ok: boolean; kind: string; payload: PaddleOverlayPayload };
+      expect(body.ok).toBe(true);
+      expect(body.kind).toBe("paddle_overlay");
+      expect(body.payload.items).toEqual([{ priceId: PADDLE_PRICE_ID, quantity: 1 }]);
+      expect(body.payload.customer).toEqual({ email: "buyer@example.com" });
+      expect(body.payload.settings.successUrl).toBe(`${GLOBAL.delivery.download_origin}/books/pw_creator/thanks`);
+      const o = GLOBAL.payments.paddle.overlay;
+      const wantConsentBool = consentState === "checked";
+      expect(body.payload.customData[o.buyer_consent_key]).toBe(wantConsentBool ? "true" : "false");
+
+      const wh = await verifyPaddleWebhookConsent(body.payload.customData, "production", "buyer@example.com");
+      expect(wh.buyerEmailConsent).toBe(wantConsentBool);
+    },
+  );
 });

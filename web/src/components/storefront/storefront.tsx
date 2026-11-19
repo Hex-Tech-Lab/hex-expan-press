@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import "server-only";
 import { getSupabaseAdmin } from "../../../../payments/src/supabase_admin";
-import { GLOBAL } from "../../../../payments/src/settings_registry";
+import { GLOBAL, isEnabledPaymentProvider } from "../../../../payments/src/settings_registry";
 import { guidSchema, productSlugSchema } from "../../lib/zod-rules";
 import { BrandFooter } from "../brand/brand";
 
@@ -44,6 +44,8 @@ export interface StoreProduct {
   inside: unknown;
   /** Only 'live' sells (the launch trigger guards that transition). */
   checkout_mode: string | null;
+  /** Paddle price id used by the pay.expanpress.com Paddle.js overlay (products.paddle_price_id). */
+  paddle_price_id?: string | null;
 }
 
 export interface HubCreator {
@@ -173,7 +175,7 @@ export const PAY_ORIGIN = "https://pay.expanpress.com";
 /** Checkout page lookup by product UUID (ADR 0061). Commercial products only, same rule as the storefront. */
 export const fetchCheckoutProduct = cache(async function fetchCheckoutProduct(
   productId: string,
-): Promise<{ creator: { handle: string; display_name: string }; product: StoreProduct } | null> {
+): Promise<{ creator: { handle: string; display_name: string }; product: StoreProduct; railProvider: string | null } | null> {
   if (!guidSchema.safeParse(productId).success) return null;
   const supabase = await getSupabaseAdmin();
   if (!supabase) {
@@ -181,7 +183,9 @@ export const fetchCheckoutProduct = cache(async function fetchCheckoutProduct(
   }
   const { data, error } = await supabase
     .from("products")
-    .select("id, store_product_id, slug, title, price_usd, currency, working_note, description, disclaimers, checkout_mode, inside, creators(handle, display_name)")
+    .select(
+      "id, store_product_id, slug, title, price_usd, currency, working_note, description, disclaimers, checkout_mode, paddle_price_id, inside, creators(handle, display_name)",
+    )
     .eq("id", productId)
     .maybeSingle();
   if (error) throw new Error(`storefront: checkout product query failed for '${productId}': ${error.message}`);
@@ -189,8 +193,60 @@ export const fetchCheckoutProduct = cache(async function fetchCheckoutProduct(
   const row = data as unknown as StoreProduct & { creators: { handle: string; display_name: string } | Array<{ handle: string; display_name: string }> | null };
   const creator = Array.isArray(row.creators) ? row.creators[0] : row.creators;
   if (!creator || commercialProducts([row]).length === 0) return null;
-  return { creator, product: row };
+  const { data: railRows, error: railErr } = await supabase
+    .from("product_rails")
+    .select("provider, weight, active")
+    .eq("product_id", productId)
+    .order("weight", { ascending: false });
+  if (railErr) throw new Error(`storefront: checkout rails query failed for '${productId}': ${railErr.message}`);
+  const activeRail = (railRows ?? []).find(
+    (r) =>
+      r !== null &&
+      typeof r === "object" &&
+      ((r as { active?: unknown }).active === true || (r as { active?: unknown }).active === "true") &&
+      typeof (r as { provider?: unknown }).provider === "string" &&
+      isEnabledPaymentProvider((r as { provider: string }).provider),
+  ) as { provider: string } | undefined;
+  return { creator, product: row, railProvider: activeRail?.provider ?? null };
 });
+
+/** True when the creator display name equals the house brand (settings: storefront.brand_name). */
+export function isHouseCreator(displayName: string, brandName: string = GLOBAL.storefront.brand_name): boolean {
+  return displayName.trim() === brandName.trim();
+}
+
+/** Shared publication attribution sentence used identically on the product and checkout pages. */
+export function PublicationByline({
+  creatorHandle,
+  creatorDisplayName,
+  linkCreator = false,
+}: {
+  creatorHandle: string;
+  creatorDisplayName: string;
+  linkCreator?: boolean;
+}) {
+  const brand = GLOBAL.storefront.brand_name;
+  if (isHouseCreator(creatorDisplayName, brand)) {
+    return (
+      <p className="text-sm text-gray-600">
+        {`Published by `}
+        <span className="font-medium text-gray-800">{brand}</span>
+      </p>
+    );
+  }
+  return (
+    <p className="text-sm text-gray-600">
+      {`A creator-collaboration publication with `}
+      {linkCreator ? (
+        <Link href={`/books/${creatorHandle}`} className="font-medium text-gray-800 hover:underline underline-offset-4">
+          {creatorDisplayName}
+        </Link>
+      ) : (
+        <span className="font-medium text-gray-800">{creatorDisplayName}</span>
+      )}
+    </p>
+  );
+}
 
 /** Well-formed {label, text} entries from products.inside, others dropped. */
 export function insideItems(raw: unknown): Array<{ label: string; text: string }> {

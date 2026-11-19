@@ -6,9 +6,11 @@ import {
   BookCover,
   NOINDEX,
   PAY_ORIGIN,
+  PublicationByline,
   StorefrontFooter,
   storefrontRobots,
   fetchStoreProduct,
+  isHouseCreator,
   isWorkingTitle,
   priceOf,
   productSlugOf,
@@ -34,18 +36,22 @@ export async function generateMetadata({
   params: Promise<{ handle: string; product: string }>;
 }): Promise<Metadata> {
   const { handle, product } = await params;
+  const brand = GLOBAL.storefront.brand_name;
   const result = await fetchStoreProduct(handle, product);
-  if (!result) return { title: "Publication · ExpanPress", robots: NOINDEX };
+  if (!result) return { title: `Publication · ${brand}`, robots: NOINDEX };
   const { creator, product: p, origin } = result;
-  const title = `${p.title ?? p.slug} · ${creator.display_name} · ExpanPress`;
-  const description = (p.description ?? `A publication by ${creator.display_name} on ExpanPress.`).slice(0, 155);
+  const productTitle = p.title ?? p.slug;
+  const title = isHouseCreator(creator.display_name, brand)
+    ? `${productTitle} · ${brand}`
+    : `${productTitle} · ${creator.display_name} · ${brand}`;
+  const description = (p.description ?? `A publication by ${creator.display_name} on ${brand}.`).slice(0, 155);
   const canonical = `${origin}/books/${creator.handle}/${product}`;
   return {
     robots: storefrontRobots([p]),
     title,
     description,
     alternates: { canonical },
-    openGraph: { type: "website", siteName: "ExpanPress", title, description, url: canonical },
+    openGraph: { type: "website", siteName: brand, title, description, url: canonical },
     twitter: { card: "summary", title, description },
   };
 }
@@ -87,15 +93,7 @@ export default async function StoreProductPage({
               Digital PDF &middot; Download link by email
             </p>
             <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-gray-900 leading-[1.12]">{title}</h1>
-            <p className="text-sm text-gray-600">
-              A creator-collaboration publication with{" "}
-              <Link
-                href={`/books/${creator.handle}`}
-                className="font-medium text-gray-800 hover:underline underline-offset-4"
-              >
-                {creator.display_name}
-              </Link>
-            </p>
+            <PublicationByline creatorHandle={creator.handle} creatorDisplayName={creator.display_name} linkCreator />
             {isWorkingTitle(p) && (
               <p className="text-xs italic text-gray-600">
                 Product shown under a working title &mdash; final title may change before publication.
@@ -112,7 +110,6 @@ export default async function StoreProductPage({
 
           {live ? (
             <BuyLink
-              className="self-start inline-flex items-center gap-3 rounded-full bg-[#2A2A2A] hover:bg-[#383838] text-white px-6 py-3.5 text-sm font-semibold transition-colors"
               href={buyUrl}
               data-checkout-slot="primary"
               data-checkout-mode="live"

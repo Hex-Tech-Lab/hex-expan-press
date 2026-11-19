@@ -98,6 +98,9 @@ function seed(): Record<string, Row[]> {
     system_config: [
       { key: "site.origin", value: "https://expanpress.com" },
     ],
+    product_rails: [
+      { product_id: E2E.liveProductId, provider: "paddle", weight: 100, checkout_url: "https://buy.paddle.com/e2e-live", active: true },
+    ],
   };
 }
 

@@ -91,3 +91,24 @@ describe("B2B side never links into B2C", () => {
     }
   });
 });
+
+describe("ADR 0061: Paddle.js loads only on the pay host", () => {
+  it("no page or component outside the pay checkout surface imports @paddle/paddle-js or paddle-overlay", () => {
+    const allowedPrefixes = [
+      "app/checkout/",
+      "app/api/billing/checkout/",
+      "src/components/storefront/buyer-email-step.tsx",
+      "src/lib/paddle-overlay",
+      "src/components/billing/paddle-checkout-button.tsx",
+    ];
+    const roots = ["app", "src/components"].map((d) => walk(join(WEB, d))).flat();
+    const sources = roots.filter((f) => /\.(ts|tsx)$/.test(f) && !f.includes("__tests__"));
+    for (const f of sources) {
+      const rel = relative(WEB, f);
+      if (allowedPrefixes.some((p) => rel.startsWith(p))) continue;
+      const src = readFileSync(f, "utf8");
+      expect(src, `${rel} must not import @paddle/paddle-js`).not.toMatch(/@paddle\/paddle-js/);
+      expect(src, `${rel} must not import paddle-overlay`).not.toMatch(/paddle-overlay/);
+    }
+  });
+});

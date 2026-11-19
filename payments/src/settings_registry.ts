@@ -53,6 +53,20 @@ function warnFallback(file: string, why: string): void {
   console.error(`[settings-registry] ${file} ${why} — inline fallbacks in effect (expected at ${CANDIDATE_DIRS[0]})`);
 }
 
+/** Paddle.js overlay checkout on pay.expanpress.com (the buyer email step opens it). The two *_env fields are the NAMES of
+ *  environment variables, never values. The client token and the environment are read on the server with these names, because
+ *  a NEXT_PUBLIC_* value is only inlined into the client bundle when it is referenced by its literal name. */
+export interface PaddleOverlaySettings {
+  client_token_env: string;
+  environment_env: string;
+  theme: "light" | "dark";
+  locale: string;
+  /** customData key carrying the attribution reference. The webhook reads it as the sale's attribution id. */
+  order_ref_key: string;
+  /** customData key carrying the buyer's consent ("true" or "false"). Buyer-supplied: recorded on the order, never a trust decision. */
+  buyer_consent_key: string;
+}
+
 // ---------------------------------------------------------------------------
 // global.json — paths, endpoints, tool paths, server, shared defaults
 // ---------------------------------------------------------------------------
@@ -81,7 +95,7 @@ export interface GlobalSettings {
     review_queue_page_size: number; // listManualReviewRefunds default page/limit
     /** Retry-After seconds sent on 503 webhook responses (in-flight AND generic 503 paths). */
     retry_after_seconds: number;
-    paddle: { api_base: { production: string; sandbox: string }; js_cdn_url: string };
+    paddle: { api_base: { production: string; sandbox: string }; js_cdn_url: string; overlay: PaddleOverlaySettings };
     /** Creem TEST mode is accepted only when this is true, creem_test_database_ref is non-empty,
      *  AND new URL(SUPABASE_URL).hostname equals `${creem_test_database_ref}.supabase.co`.
      *  Production has no global.json, so this stays false there. Test-only; see creem.adapter.ts. */
@@ -94,8 +108,10 @@ export interface GlobalSettings {
     /** ISO 3166-1 alpha-2 buyer country codes permitted at checkout (launch: US + DC/territories). */
     allowed_buyer_countries: string[];
   };
-  /** Buyer-facing storefront links. `b2c_landing_url` is the logo target on the thank-you page. */
-  storefront: { b2c_landing_url: string };
+  /** Buyer-facing storefront links and copy. `b2c_landing_url` is the logo target on the thank-you page. `brand_name` is the
+   *  publisher's name: a creator whose display name equals it is the house, and the page names ExpanPress as publisher.
+   *  `thanks_path_template` is the thank-you page a checkout returns to ({handle} is replaced with the creator handle). */
+  storefront: { b2c_landing_url: string; brand_name: string; thanks_path_template: string };
   /** Creator handle policy (web/src/lib/handle-policy.ts). Set once at account creation; immutable after. */
   handles: { min_length: number; max_length: number; separator: string; reserved: string[]; profanity_whitelist: string[] };
   /** Product slug rule (ADR 0065): same shape as handles. Unique per creator (products_creator_id_slug_key);
@@ -226,11 +242,23 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     paddle: {
       api_base: { production: "https://api.paddle.com", sandbox: "https://sandbox-api.paddle.com" },
       js_cdn_url: "https://cdn.paddle.com/paddle/v2/paddle.js",
+      overlay: {
+        client_token_env: "NEXT_PUBLIC_PADDLE_CLIENT_TOKEN",
+        environment_env: "NEXT_PUBLIC_PADDLE_ENVIRONMENT",
+        theme: "light",
+        locale: "en",
+        order_ref_key: "order_ref",
+        buyer_consent_key: "buyer_consent",
+      },
     },
   },
   // Home target for every buyer-side logo and home link (thank-you page, checkout). Absolute, so a buyer on
   // pay.expanpress.com also lands on the B2C landing, never on the B2B root. The B2C landing is /books on the main site.
-  storefront: { b2c_landing_url: "https://expanpress.com/books" },
+  storefront: {
+    b2c_landing_url: "https://expanpress.com/books",
+    brand_name: "ExpanPress",
+    thanks_path_template: "/books/{handle}/thanks",
+  },
   // Our handle rules, not a platform's (Instagram allows 1-30, Facebook requires 5). Reserved words are never assignable.
   handles: {
     min_length: 3,
@@ -409,6 +437,29 @@ function isHttpsUrl(v: unknown): v is string {
   }
 }
 
+/** paddle.overlay: each value is checked against its own shape. An invalid value falls back to its default and is reported. */
+function loadPaddleOverlay(raw: Record<string, unknown> | undefined, fallbacks: string[]): PaddleOverlaySettings {
+  const defaults = DEFAULT_GLOBAL.payments.paddle.overlay;
+  if (!raw) return defaults;
+  const pick = <K extends keyof PaddleOverlaySettings>(key: K, valid: (v: unknown) => boolean): PaddleOverlaySettings[K] => {
+    if (!(key in raw)) return defaults[key];
+    const candidate = raw[key];
+    if (valid(candidate)) return candidate as PaddleOverlaySettings[K];
+    fallbacks.push(`paddle.overlay.${key}`);
+    return defaults[key];
+  };
+  const envName = (v: unknown): boolean => typeof v === "string" && /^[A-Z][A-Z0-9_]{0,63}$/.test(v);
+  const keyName = (v: unknown): boolean => typeof v === "string" && /^[a-z][a-z0-9_]{0,63}$/.test(v);
+  return {
+    client_token_env: pick("client_token_env", envName),
+    environment_env: pick("environment_env", envName),
+    theme: pick("theme", (v) => v === "light" || v === "dark"),
+    locale: pick("locale", (v) => typeof v === "string" && /^[a-z]{2}(-[A-Z]{2})?$/.test(v)),
+    order_ref_key: pick("order_ref_key", keyName),
+    buyer_consent_key: pick("buyer_consent_key", keyName),
+  };
+}
+
 export function loadPaymentsSection(raw: Record<string, unknown> | undefined): GlobalSettings["payments"] {
   const defaults = DEFAULT_GLOBAL.payments;
   if (!raw) return defaults;
@@ -459,6 +510,7 @@ export function loadPaymentsSection(raw: Record<string, unknown> | undefined): G
     (x) => isCanonicalPaddleApiUrl(x, "https://sandbox-api.paddle.com") ? (x as string).replace(/\/+$/, "") : null,
   );
   const jsCdn = paddleUrl(paddle.js_cdn_url, defaults.paddle.js_cdn_url, "paddle.js_cdn_url", (x) => (isPaddleJsCdnUrl(x) ? (x as string) : null));
+  const overlay = loadPaddleOverlay(paddle.overlay as Record<string, unknown> | undefined, fallbacks);
   let currencies = defaults.allowed_currencies;
   if (p.allowed_currencies !== undefined) {
     const list = Array.isArray(p.allowed_currencies)
@@ -503,12 +555,36 @@ export function loadPaymentsSection(raw: Record<string, unknown> | undefined): G
     sync_http_timeout_ms: syncHttpTimeout,
     review_queue_page_size: reviewQueuePageSize,
     retry_after_seconds: retryAfterSeconds,
-    paddle: { api_base: { production: apiProduction, sandbox: apiSandbox }, js_cdn_url: jsCdn },
+    paddle: { api_base: { production: apiProduction, sandbox: apiSandbox }, js_cdn_url: jsCdn, overlay },
     creem_accept_test_mode: p.creem_accept_test_mode === true,
     creem_test_database_ref: typeof p.creem_test_database_ref === "string" ? p.creem_test_database_ref.trim() : "",
     sandbox_checkout_enabled: sandboxCheckoutEnabled,
     allowed_buyer_countries: allowedBuyerCountries,
   };
+}
+
+/** storefront: validates b2c_landing_url, brand_name, and thanks_path_template; falls back per key on invalid input. */
+export function loadStorefrontSection(raw: Record<string, unknown> | undefined): GlobalSettings["storefront"] {
+  const defaults = DEFAULT_GLOBAL.storefront;
+  if (!raw) return defaults;
+  const fallbacks: string[] = [];
+  const b2cLanding = isHttpsUrl(raw.b2c_landing_url) ? raw.b2c_landing_url : defaults.b2c_landing_url;
+  if (raw.b2c_landing_url !== undefined && !isHttpsUrl(raw.b2c_landing_url)) fallbacks.push("b2c_landing_url");
+  const brandName =
+    typeof raw.brand_name === "string" && raw.brand_name.trim() !== ""
+      ? raw.brand_name.trim()
+      : defaults.brand_name;
+  if (raw.brand_name !== undefined && !(typeof raw.brand_name === "string" && raw.brand_name.trim() !== "")) {
+    fallbacks.push("brand_name");
+  }
+  const tplOk =
+    typeof raw.thanks_path_template === "string" &&
+    raw.thanks_path_template.startsWith("/") &&
+    raw.thanks_path_template.includes("{handle}");
+  const thanksTpl = tplOk ? (raw.thanks_path_template as string) : defaults.thanks_path_template;
+  if (raw.thanks_path_template !== undefined && !tplOk) fallbacks.push("thanks_path_template");
+  if (fallbacks.length > 0) warnFallback("global.json", `invalid storefront values for ${fallbacks.join(", ")}`);
+  return { b2c_landing_url: b2cLanding, brand_name: brandName, thanks_path_template: thanksTpl };
 }
 
 function loadGlobal(): GlobalSettings {
@@ -530,7 +606,7 @@ function loadGlobal(): GlobalSettings {
     payments: loadPaymentsSection(g.payments as Record<string, unknown> | undefined),
     delivery: loadDeliverySection(g.delivery as Record<string, unknown> | undefined),
     landing: { ...DEFAULT_GLOBAL.landing, ...(g.landing ?? {}) },
-    storefront: { ...DEFAULT_GLOBAL.storefront, ...(g.storefront ?? {}) },
+    storefront: loadStorefrontSection(g.storefront as Record<string, unknown> | undefined),
     handles: { ...DEFAULT_GLOBAL.handles, ...(g.handles ?? {}) },
     product_slug: { ...DEFAULT_GLOBAL.product_slug, ...(g.product_slug ?? {}) },
     email_address: loadEmailAddressSection(g.email_address as Record<string, unknown> | undefined),
@@ -851,6 +927,8 @@ export function isMoneyPath(): boolean {
 // providers.json — payment providers (route tokens, signature, events, secrets)
 // ---------------------------------------------------------------------------
 export interface PaymentProviderSetting {
+  /** The processor's name as a buyer reads it (the merchant-of-record line on checkout). Falls back to the provider key. */
+  display_name?: string;
   route: string;
   signature_header?: string | null;
   signature_scheme?: string;
@@ -877,6 +955,7 @@ export interface PaymentProviderSetting {
 export const DEFAULT_PAYMENT_PROVIDERS: Record<string, PaymentProviderSetting> = {
   lemonsqueezy: {
     enabled: false,
+    display_name: "Lemon Squeezy",
     route: "lemonsqueezy",
     signature_header: "x-signature",
     sale_event: "order_created",
@@ -894,6 +973,7 @@ export const DEFAULT_PAYMENT_PROVIDERS: Record<string, PaymentProviderSetting> =
   },
   payhip: {
     enabled: false,
+    display_name: "Payhip",
     route: "payhip",
     signature_header: null,
     signature_field: "signature",
@@ -916,6 +996,7 @@ export const DEFAULT_PAYMENT_PROVIDERS: Record<string, PaymentProviderSetting> =
   },
   paddle: {
     enabled: true,
+    display_name: "Paddle.com",
     route: "paddle",
     signature_header: "paddle-signature",
     sale_event: "transaction.completed",
@@ -932,6 +1013,7 @@ export const DEFAULT_PAYMENT_PROVIDERS: Record<string, PaymentProviderSetting> =
   },
   fastspring: {
     enabled: false,
+    display_name: "FastSpring",
     route: "fastspring",
     signature_header: "x-fs-signature",
     signature_scheme: "hmac-sha256-base64: `x-fs-signature` = base64(HMAC-SHA256(raw_body, secret)) (developer.fastspring.com/reference/message-security)",
@@ -957,6 +1039,7 @@ export const DEFAULT_PAYMENT_PROVIDERS: Record<string, PaymentProviderSetting> =
   },
   polar: {
     enabled: false,
+    display_name: "Polar",
     route: "polar",
     signature_header: "webhook-signature",
     signature_scheme: "standard-webhooks: HMAC-SHA256 over `${webhook-id}.${webhook-timestamp}.${raw_body}`, base64; whsec_ secrets created on/after 2026-09-08 = base64-decoded, older = UTF-8 bytes of full string",
@@ -978,6 +1061,7 @@ export const DEFAULT_PAYMENT_PROVIDERS: Record<string, PaymentProviderSetting> =
     },
   },
   creem: {
+    display_name: "Creem",
     // Defined so the registry knows Creem, but off until the founder approves it as a launch rail (Paddle-only launch).
     // Production has no providers.json, so this entry is the only switch; flip it to route Creem checkout and webhooks.
     enabled: false,
@@ -997,6 +1081,7 @@ export const DEFAULT_PAYMENT_PROVIDERS: Record<string, PaymentProviderSetting> =
   fungies: {
     // Off until the founder approves Fungies as a launch rail. Its verifier stays wired so it can be switched on.
     enabled: false,
+    display_name: "Fungies",
     route: "fungies",
     signature_header: "x-fngs-signature",
     signature_scheme:
@@ -1065,6 +1150,17 @@ export const PAYMENT_PROVIDERS: Record<string, PaymentProviderSetting> = loadPay
 
 export function paymentProviderSetting(name: string): PaymentProviderSetting | undefined {
   return PAYMENT_PROVIDERS[name];
+}
+
+/** Buyer-facing processor name for the Merchant of Record line on checkout (registry display_name, falling back to default or key). */
+export function paymentProviderDisplayName(name: string): string {
+  const raw = paymentProviderSetting(name)?.display_name ?? DEFAULT_PAYMENT_PROVIDERS[name]?.display_name;
+  return typeof raw === "string" && raw.trim() !== "" ? raw.trim() : name;
+}
+
+/** First enabled payment provider in the registry, or null when all providers are switched off. */
+export function defaultEnabledPaymentProvider(): string | null {
+  return Object.keys(PAYMENT_PROVIDERS).find((name) => isEnabledPaymentProvider(name)) ?? null;
 }
 
 /** True only for a provider that is defined AND switched on. Use this for anything that takes or routes a sale. */

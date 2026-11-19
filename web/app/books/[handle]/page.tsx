@@ -22,20 +22,21 @@ export const revalidate = 60;
 
 export async function generateMetadata({ params }: { params: Promise<{ handle: string }> }): Promise<Metadata> {
   const { handle } = await params;
+  const brand = GLOBAL.storefront.brand_name;
   const result = await fetchCreatorHub(handle);
-  if (!result) return { title: "Creator page · ExpanPress", robots: NOINDEX };
+  if (!result) return { title: `Creator page · ${brand}`, robots: NOINDEX };
   const { creator, origin } = result;
-  const title = `${creator.display_name} — Creator page · ExpanPress`;
+  const title = `${creator.display_name} — Creator page · ${brand}`;
   const description = creator.bio
     ? creator.bio.slice(0, 155)
-    : `Publications by ${creator.display_name} on ExpanPress.`;
+    : `Publications by ${creator.display_name} on ${brand}.`;
   const canonical = `${origin}/books/${creator.handle}`;
   return {
     robots: storefrontRobots(creator.products),
     title,
     description,
     alternates: { canonical },
-    openGraph: { type: "website", siteName: "ExpanPress", title, description, url: canonical },
+    openGraph: { type: "website", siteName: brand, title, description, url: canonical },
     twitter: { card: "summary", title, description },
   };
 }

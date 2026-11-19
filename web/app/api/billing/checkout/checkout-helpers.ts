@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { GLOBAL } from "../../../../../payments/src/settings_registry";
 import { attributionRef } from "../../../../src/lib/attribution";
 import { buyerEmailsMatch, isValidBuyerEmail } from "../../../../src/lib/buyer-email";
+import type { PaddleOverlayPayload } from "../../../../src/lib/paddle-overlay";
+import { buildPaddleOverlayPayload, paddleOverlayConfig, paddleOverlayUsable } from "../../../../src/lib/paddle-overlay-server";
 
 export interface CheckoutRail {
   provider: string;
@@ -15,6 +17,8 @@ export type ProductRow = {
   creator_id: string | null;
   release_sha256?: string | null;
   checkout_mode?: string | null;
+  /** The Paddle price the overlay sells (products.paddle_price_id). Null until the price is set up at Paddle. */
+  paddle_price_id?: string | null;
   creators?: { handle?: string | null } | Array<{ handle?: string | null }> | null;
 };
 
@@ -165,9 +169,42 @@ export function buildCheckoutRedirectUrl(
   for (const [key, value] of params) url.searchParams.set(key, value);
   if (rail.provider === "creem" && creatorHandle && !url.searchParams.has("success_url")) {
     const origin = GLOBAL.delivery.download_origin.replace(/\/$/, "");
-    url.searchParams.set("success_url", `${origin}/books/${creatorHandle}/thanks`);
+    const thanks = GLOBAL.storefront.thanks_path_template.replace("{handle}", encodeURIComponent(creatorHandle));
+    url.searchParams.set("success_url", `${origin}${thanks}`);
   }
   return url.toString();
+}
+
+/** True when a POST caller explicitly asks for a JSON overlay/redirect descriptor rather than a 303 HTTP redirect. */
+export function wantsCheckoutOverlayJson(request: NextRequest): boolean {
+  const accept = request.headers.get("accept")?.toLowerCase() ?? "";
+  return accept.includes("application/json");
+}
+
+/**
+ * Builds the Paddle.js overlay payload when the selected rail is Paddle, the product has a Paddle price id,
+ * the creator handle is known, and the server's Paddle overlay config matches the product's checkout_mode.
+ * Returns null otherwise so callers fall back to the provider's redirect URL.
+ */
+export function resolvePaddleOverlay(
+  rail: CheckoutRail,
+  product: ProductRow,
+  creatorHandle: string | undefined,
+  attribution: string,
+  buyer: BuyerFields,
+): PaddleOverlayPayload | null {
+  if (rail.provider !== "paddle") return null;
+  const priceId = typeof product.paddle_price_id === "string" ? product.paddle_price_id.trim() : "";
+  if (!priceId || !creatorHandle) return null;
+  const cfg = paddleOverlayConfig();
+  if (!cfg.ok || !paddleOverlayUsable(cfg.client, product.checkout_mode)) return null;
+  return buildPaddleOverlayPayload({
+    priceId,
+    creatorHandle,
+    orderRef: attribution,
+    buyerEmail: buyer.email,
+    buyerConsent: buyer.consent === true,
+  });
 }
 
 export function checkoutUrlProblem(raw: unknown, expectedMode?: string | null): string | null {

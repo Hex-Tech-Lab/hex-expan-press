@@ -25,4 +25,19 @@ describe("buyer delivery copy matches code", () => {
   it("terms say the download link is emailed after successful payment", () => {
     expect(read("public/books/legal/terms.html")).toMatch(/download link is emailed after successful payment/i);
   });
+
+  it("buyer legal pages and thank-you page use curly apostrophes, never straight ASCII apostrophes in copy", () => {
+    for (const rel of [
+      "public/books/legal/terms.html",
+      "public/books/legal/privacy.html",
+      "public/books/legal/refund-policy.html",
+      "public/books/legal/providers.html",
+    ]) {
+      const body = read(rel).replace(/<[^>]+>/g, " ");
+      expect(body, rel).not.toContain("'");
+    }
+    const thanksSource = read("app/books/[handle]/thanks/page.tsx").replace(/\/\*[\s\S]*?\*\//g, "");
+    expect(thanksSource).toContain("\\u2019s books");
+    expect(thanksSource).not.toContain("'s books");
+  });
 });

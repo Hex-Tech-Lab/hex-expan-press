@@ -3,7 +3,7 @@
 // pure loader directly — they must NEVER move, rename or delete the real data/settings
 // directory (an earlier version renamed it and left it stranded on 2026-10-01).
 import { describe, expect, it, vi, afterEach } from "vitest";
-import { GLOBAL, loadPaymentsSection, loadDeliverySection, loadEmailSection, getPath } from "../src/settings_registry.ts";
+import { GLOBAL, loadPaymentsSection, loadDeliverySection, loadEmailSection, loadStorefrontSection, paymentProviderDisplayName, getPath } from "../src/settings_registry.ts";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -304,5 +304,67 @@ describe("settings registry: allowed_buyer_countries (payments.allowed_buyer_cou
     expect(loadPaymentsSection({ allowed_buyer_countries: ["us", " pr "] }).allowed_buyer_countries).toEqual(["US", "PR"]);
     expect(loadPaymentsSection({ allowed_buyer_countries: [] }).allowed_buyer_countries).toEqual(["US", "PR", "VI", "GU", "AS", "MP"]);
     expect(loadPaymentsSection({ allowed_buyer_countries: ["USA"] }).allowed_buyer_countries).toEqual(["US", "PR", "VI", "GU", "AS", "MP"]);
+  });
+});
+
+describe("settings registry: paddle.overlay, storefront, and provider display names", () => {
+  it("validates paddle.overlay fields and rejects invalid env/key/theme/locale values", () => {
+    const warn = vi.spyOn(console, "error").mockImplementation(() => {});
+    const valid = loadPaymentsSection({
+      paddle: {
+        overlay: {
+          client_token_env: "CUSTOM_PADDLE_TOKEN",
+          environment_env: "CUSTOM_PADDLE_ENV",
+          theme: "dark",
+          locale: "en-US",
+          order_ref_key: "ref_id",
+          buyer_consent_key: "consent_flag",
+        },
+      },
+    }).paddle.overlay;
+    expect(valid).toEqual({
+      client_token_env: "CUSTOM_PADDLE_TOKEN",
+      environment_env: "CUSTOM_PADDLE_ENV",
+      theme: "dark",
+      locale: "en-US",
+      order_ref_key: "ref_id",
+      buyer_consent_key: "consent_flag",
+    });
+
+    const invalid = loadPaymentsSection({
+      paddle: {
+        overlay: {
+          client_token_env: "lowercase_bad",
+          theme: "neon",
+          locale: "english",
+          order_ref_key: "Bad-Key",
+        },
+      },
+    }).paddle.overlay;
+    expect(invalid.client_token_env).toBe("NEXT_PUBLIC_PADDLE_CLIENT_TOKEN");
+    expect(invalid.theme).toBe("light");
+    expect(invalid.locale).toBe("en");
+    expect(invalid.order_ref_key).toBe("order_ref");
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it("validates storefront brand_name and thanks_path_template, and exposes provider display names", () => {
+    const warn = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(loadStorefrontSection(undefined)).toEqual({
+      b2c_landing_url: "https://expanpress.com/books",
+      brand_name: "ExpanPress",
+      thanks_path_template: "/books/{handle}/thanks",
+    });
+    const invalid = loadStorefrontSection({ b2c_landing_url: "http://bad", brand_name: " ", thanks_path_template: "no-handle" });
+    expect(invalid).toEqual({
+      b2c_landing_url: "https://expanpress.com/books",
+      brand_name: "ExpanPress",
+      thanks_path_template: "/books/{handle}/thanks",
+    });
+    expect(paymentProviderDisplayName("paddle")).toBe("Paddle.com");
+    expect(paymentProviderDisplayName("creem")).toBe("Creem");
+    expect(paymentProviderDisplayName("unknown_rail")).toBe("unknown_rail");
+    warn.mockRestore();
   });
 });

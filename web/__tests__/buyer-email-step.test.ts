@@ -60,4 +60,16 @@ describe("BuyerEmailStep initial render (Option A single-hop POST)", () => {
     expect(html).toContain('<input type="hidden" name="src" value="ig"/>');
     expect(html).toContain('<input type="hidden" name="dub_id" value="dub_123"/>');
   });
+
+  it("renders BrandField and BrandButton shared primitives (focus ring, disabled, hover from brand.tsx)", () => {
+    const html = render();
+    const emailInput = html.match(/<input[^>]*id="buyer-email"[^>]*>/)?.[0] ?? "";
+    const confirmInput = html.match(/<input[^>]*id="buyer-email-confirm"[^>]*>/)?.[0] ?? "";
+    const submitBtn = html.match(/<button[^>]*type="submit"[^>]*>/)?.[0] ?? "";
+    expect(emailInput).toContain("focus-visible:outline-[#E8622C]");
+    expect(confirmInput).toContain("focus-visible:outline-[#E8622C]");
+    expect(submitBtn).toContain("focus-visible:outline-[#E8622C]");
+    expect(submitBtn).toContain("disabled:bg-[#9a9a9a]");
+    expect(submitBtn).toContain("hover:bg-[#383838]");
+  });
 });

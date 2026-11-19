@@ -15,6 +15,8 @@ import {
   jsonError,
   parseBuyerQuery,
   parsePostBody,
+  resolvePaddleOverlay,
+  wantsCheckoutOverlayJson,
   type CheckoutRail,
   type ParsedCheckoutRequest,
   type ProductRow,
@@ -25,7 +27,7 @@ export const runtime = "nodejs";
 type SupabaseAdmin = NonNullable<Awaited<ReturnType<typeof getSupabaseAdmin>>>;
 type ProductLookup = { product: ProductRow } | { response: NextResponse };
 
-const PRODUCT_COLUMNS = "id, store_product_id, creator_id, release_sha256, checkout_mode";
+const PRODUCT_COLUMNS = "id, store_product_id, creator_id, release_sha256, checkout_mode, paddle_price_id";
 const GATE_CONSENT_KINDS = ["C1_data_accuracy", "C2_release_approval", "C3_revenue_split"] as const;
 const CONSENT_VERIFICATION_FAILED = "Checkout consent verification failed";
 
@@ -241,6 +243,15 @@ async function handleCheckout(
   }
 
   const redirectUrl = buildCheckoutRedirectUrl(selectedRail, resolvedProduct, creatorHandle, attribution, buyer.value);
+  if (redirectStatus === 303 && wantsCheckoutOverlayJson(request)) {
+    const overlayPayload = resolvePaddleOverlay(selectedRail, resolvedProduct, creatorHandle, attribution, buyer.value);
+    const body = overlayPayload
+      ? { ok: true, kind: "paddle_overlay" as const, payload: overlayPayload }
+      : { ok: true, kind: "redirect" as const, redirectUrl };
+    const res = NextResponse.json(body, { status: 200 });
+    res.headers.set("Cache-Control", "no-store");
+    return res;
+  }
   const res = NextResponse.redirect(redirectUrl, redirectStatus);
   res.headers.set("Cache-Control", "no-store");
   return res;

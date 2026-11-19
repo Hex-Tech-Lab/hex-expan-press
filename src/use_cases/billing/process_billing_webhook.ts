@@ -800,7 +800,8 @@ async function processBillingEvent(event: BillingEvent, deadlineAt?: number): Pr
           creator_split_usd: split.creator_split_usd,
           our_split_usd: split.our_split_usd,
           currency: cfg.currency,
-          ...(saleEvent.attributionId ? { attribution_id: saleEvent.attributionId } : {})
+          ...(saleEvent.attributionId ? { attribution_id: saleEvent.attributionId } : {}),
+          ...(saleEvent.buyerEmailConsent !== undefined ? { buyer_email_consent: saleEvent.buyerEmailConsent } : {}),
         }, fenceToken);
         // Receipt and download link, after the durable write. A delivery failure rethrows: the handler answers the error's own
         // status (503 for DeliveryPendingError, 422 or 503 for DeliveryBlockedError, 500 otherwise). The provider retries the

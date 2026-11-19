@@ -629,5 +629,43 @@ describe("PaddleAdapter buyer-email fallback (customer lookup)", () => {
     expect(errSpy).toHaveBeenCalledWith(expect.stringContaining("txn_test_null_details"));
     errSpy.mockRestore();
   });
+
+  it("reads custom_data.order_ref ahead of reference_id and parses custom_data.buyer_consent without gating the sale", async () => {
+    for (const [consentRaw, want] of [
+      ["true", true],
+      ["false", false],
+      [true, true],
+      [false, false],
+      ["yes", undefined],
+      [undefined, undefined],
+    ] as const) {
+      const custom_data: Record<string, unknown> = {
+        product_id: "test_product_basic",
+        email: "buyer@example.com",
+        order_ref: "ig:dub_42",
+        reference_id: "legacy_ref",
+      };
+      if (consentRaw !== undefined) custom_data.buyer_consent = consentRaw;
+      const body = validBody({ custom_data: custom_data as never });
+      const res = await parse(body, freshSig(body));
+      expect(res.isValid).toBe(true);
+      const ev = (res as { event: SaleCompletedEvent }).event;
+      expect(ev.attributionId).toBe("ig:dub_42");
+      expect(ev.buyerEmailConsent).toBe(want);
+    }
+
+    // Forged order_ref falls back cleanly to reference_id without rejecting the sale.
+    const fallbackBody = validBody({
+      custom_data: {
+        product_id: "test_product_basic",
+        email: "buyer@example.com",
+        order_ref: "<script>",
+        reference_id: "yt_desc",
+      } as never,
+    });
+    const fallbackRes = await parse(fallbackBody, freshSig(fallbackBody));
+    expect(fallbackRes.isValid).toBe(true);
+    expect((fallbackRes as { event: SaleCompletedEvent }).event.attributionId).toBe("yt_desc");
+  });
 });
 
