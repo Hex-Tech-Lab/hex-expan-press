@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>The Quiet Workshop: listing runbook (not executed)</title>
+  <style>
+    html {
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 12px;
+      }
+      h1 {
+        font-size: 1.8em;
+      }
+    }
+    @media print {
+      html {
+        background-color: white;
+      }
+      body {
+        background-color: transparent;
+        color: black;
+        font-size: 12pt;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    svg {
+      height: auto;
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li > ol, li > ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+      font-size: 85%;
+      margin: 0;
+      hyphens: manual;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      border: none;
+      border-top: 1px solid #1a1a1a;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC ul {
+      padding-left: 1.3em;
+    }
+    #TOC > ul {
+      padding-left: 0;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">The Quiet Workshop: listing runbook (not
+executed)</h1>
+</header>
+<h1 id="the-quiet-workshop-listing-runbook-not-executed">The Quiet
+Workshop: listing runbook (not executed)</h1>
+<p><strong>Date:</strong> 2026-11-19. <strong>Branch:</strong>
+<code>feat/quiet-workshop-listing</code> (from <code>origin/main</code>
+a2eae74). <strong>Identity file:</strong>
+<code>books/the_quiet_workshop.json</code>.</p>
+<p><strong>Status: NOT READY TO LIST.</strong> This runbook covers the
+production steps only. Nothing was written to production, Paddle,
+storage or any <code>.env</code>. Read-only SQL on the live project was
+used to verify the current state.</p>
+<h2 id="1-blockers">1. Blockers</h2>
+<p>Each blocker must clear before the step that depends on it runs.</p>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Blocker</th>
+<th>Evidence (checked)</th>
+<th>Owner</th>
+<th>Clears when</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>B1</td>
+<td>The local sample PDF is not sellable.</td>
+<td><code>data/books/house_expanpress/the_quiet_workshop/ExpanPress_TheQuietWorkshop_EliasHartwell_2026.pdf</code>
+(11 pages, sha256 <code>a06f9979...ebe0a8</code>) shows "SAMPLE COPY ·
+NOT FOR SALE" on page 1 and "Not for sale" in the body.</td>
+<td>Founder</td>
+<td>A buyer-clean release PDF exists, with its own sha256, and the
+founder approves it.</td>
+</tr>
+<tr>
+<td>B2</td>
+<td>The author credit describes a made-up person.</td>
+<td>The PDF body reads "Elias Hartwell is a made-up name for this
+sample. The publisher is ExpanPress."</td>
+<td>Founder, with legal review</td>
+<td>The founder decides the byline (see D4).</td>
+</tr>
+<tr>
+<td>B3</td>
+<td>Paddle live account is not approved.</td>
+<td><code>docs/handover/THOS_KYC_ROLLING.md</code>, 2026-11-12 and
+2026-11-17 entries: Paddle KYC "NOT STARTED";
+<code>pay.expanpress.com</code> pending review.</td>
+<td>Founder</td>
+<td>Paddle approves the live account. Live products cannot be created
+before that.</td>
+</tr>
+<tr>
+<td>B4</td>
+<td>No house creator, no signer, no consents.</td>
+<td>Live <code>public.creators</code>: 4 rows, none is a house creator.
+Live <code>public.consents</code>: C1 given x2, C2 given x2, <strong>C3
+zero rows</strong>. C3 can be written only by the e-sign webhook
+(<code>supabase/migrations/20261116142329_consents_supersedes_set.sql</code>,
+line 199).</td>
+<td>Founder</td>
+<td>C1, C2 and C3 are given for the house creator through the e-sign
+flow.</td>
+</tr>
+<tr>
+<td>B5</td>
+<td>The sync script handles one book only.</td>
+<td><code>payments/sync_book_identity.ts</code> line 50 throws "sync
+target ambiguous" when more than one <code>products</code> row carries
+<code>book_registry</code>. Live: exactly one row (Duane). Adding this
+book breaks the Duane sync.</td>
+<td>Code (PR)</td>
+<td>The target is chosen by book id or product id, with tests.</td>
+</tr>
+<tr>
+<td>B6</td>
+<td>The subtitle is a placeholder.</td>
+<td><code>books/the_quiet_workshop.json</code> <code>subtitle</code>.
+The sync writes it to the Paddle product description.</td>
+<td>Founder</td>
+<td>The founder supplies the subtitle.</td>
+</tr>
+<tr>
+<td>B7</td>
+<td>The price is not approved.</td>
+<td><code>books/the_quiet_workshop.json</code> <code>price.usd</code> =
+9.00, status PROPOSED.</td>
+<td>Founder</td>
+<td>The founder approves a price (see D1).</td>
+</tr>
+<tr>
+<td>B8</td>
+<td>The release hash is not set.</td>
+<td>The launch trigger (<code>public.enforce_launch_gate</code>) and the
+checkout route both require <code>products.release_sha256</code> to
+equal the C2 <code>document_sha256</code>.</td>
+<td>Ops</td>
+<td>After B1 and B4.</td>
+</tr>
+<tr>
+<td>B9</td>
+<td>Paddle state is unverified from this session.</td>
+<td>The Paddle MCP connection timed out. Live Paddle state was not
+read.</td>
+<td>Ops</td>
+<td>Verify with the Paddle dashboard or a direct read before S6.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="2-decisions">2. Decisions</h2>
+<p>Each option lists the industry norm, the recommendation, and the
+trade-offs.</p>
+<p><strong>D1. Price (B7).</strong></p>
+<ul>
+<li><strong>A. $9.00 (recommended, PROPOSED).</strong> Standard for a
+single-PDF product that is bought on impulse. Sits well below the $39
+flagship. Why yes: low friction for a first sale. Why no: the fixed
+per-transaction fee is a larger share of a low price, so check the
+Paddle fee schedule before the final choice.</li>
+<li>B. $19.00. Standard for a full-length guide. Why yes: better margin
+per sale. Why no: higher friction for a sample-scale product.</li>
+<li>C. $4.99. Why yes: lowest friction. Why no: the fixed fee can exceed
+a large share of the revenue.</li>
+<li>Not an option: $0. The <code>price_usd</code> column is
+<code>CHECK (price_usd &gt; 0)</code>.</li>
+</ul>
+<p><strong>D2. Creator of record.</strong></p>
+<ul>
+<li><strong>A. House creator <code>expanpress_house</code>
+(recommended).</strong> Industry norm: an imprint model, where the
+publisher is the seller of record. Why yes: the founder can sign the
+consents as a real person. The handle is not reserved (checked against
+<code>GLOBAL.handles.reserved</code>). Why no: the storefront shows
+"ExpanPress" as the creator.</li>
+<li>B. A creator row named for the fictional author. Not viable: no real
+person exists to sign C1, C2 or C3.</li>
+<li>C. The existing test creator. Rejected: test identities must not
+appear in the live namespace (ADR 0065, rule 4), and the test creator is
+not a real signer.</li>
+</ul>
+<p><strong>D3. Release file (B1).</strong></p>
+<ul>
+<li><strong>A. A new buyer-clean PDF (recommended).</strong> Industry
+norm: the sold file is the final artifact, and it carries no sample or
+draft markers. Why yes: it is the only thing a buyer can legitimately
+receive. Why no: it needs production time.</li>
+<li>B. Sell the existing sample. Rejected: it is marked "NOT FOR SALE"
+in its own text.</li>
+</ul>
+<p><strong>D4. Byline (B2).</strong></p>
+<ul>
+<li><strong>A. Publisher-only credit: "ExpanPress"
+(recommended).</strong> Requires a
+<code>books/the_quiet_workshop.json</code> change to
+<code>author</code>. Why yes: no fictional person appears on a paid
+page. Why no: the title loses the named-author framing.</li>
+<li>B. Keep "Elias Hartwell" as the author with an explicit pen-name
+disclosure. Requires legal review before listing. Why yes: matches the
+founder's stated intent. Why no: a made-up name on a paid listing
+carries a misrepresentation risk.</li>
+</ul>
+<h2 id="3-production-steps-in-order">3. Production steps (in order)</h2>
+<p>Each write step needs the founder's explicit approval, recorded in
+the ledger, before it runs. Only the steps marked READ run without
+approval.</p>
+<p><strong>S0. Preconditions.</strong> B1 to B9 cleared, or the step
+that needs them is held.</p>
+<p><strong>S1. Create the house creator (WRITE, DB).</strong> Confirm
+the <code>public.creators</code> and <code>public.creator_users</code>
+columns with a read first. Then insert the <code>creators</code> row
+(<code>handle</code> = <code>expanpress_house</code>,
+<code>display_name</code> = <code>ExpanPress</code>) and one
+<code>creator_users</code> row for the founder's auth user. Writes go
+through the service role. Verify with a SELECT.</p>
+<p><strong>S2. Upload the release PDF (WRITE, storage).</strong> Bucket
+<code>release-files</code>, private (verified read-only:
+<code>public = false</code>). Proposed object path:
+<code>house_expanpress/the_quiet_workshop/ExpanPress_TheQuietWorkshop_EliasHartwell_2026.pdf</code>.
+Confirm the path convention against the existing upload script first
+(<code>scripts/sync-supabase-to-r2.ts</code> reads from
+<code>SUPABASE_STORAGE_BUCKET</code>, default
+<code>release-files</code>). Compute the sha256 locally. Verify the
+object exists after upload, without making it public.</p>
+<p><strong>S3. Insert the product row (WRITE, DB).</strong> Fields:
+<code>creator_id</code> (from S1), <code>slug</code> =
+<code>the_quiet_workshop</code>, <code>title</code>,
+<code>description</code>, <code>price_usd</code> = the approved price,
+<code>currency</code> = <code>USD</code>, <code>store_product_id</code>
+= a unique provider key (proposed
+<code>house_the_quiet_workshop_v1</code>), <code>pdf_file</code> (from
+S2), <code>release_sha256</code> (from S2), <code>release_state</code> =
+<code>release</code>, <code>release_year</code> = 2026,
+<code>checkout_mode</code> = <code>gated</code>. Set
+<code>book_registry</code> = <code>books/the_quiet_workshop.json</code>
+only after B5 is fixed. Otherwise the Duane sync fails. Do not set the
+derived identifier columns. They were dropped on 2026-11-16.</p>
+<p><strong>S4. Record consents (WRITE, legal evidence).</strong> C1 and
+C2 through the creator consent flow. C2's <code>document_sha256</code>
+must equal the S2 sha256. C3 through the Firma e-sign flow. Never insert
+consent rows by hand. They are legal evidence. The
+<code>submit_consent</code> RPC rejects a C3 write from any caller that
+is not the service role, which is the e-sign webhook's role
+(<code>20261116142329</code>, line 199).</p>
+<p><strong>S5. Add the Paddle rail (WRITE, DB).</strong>
+<code>public.product_rails</code>: <code>provider</code> =
+<code>paddle</code>, <code>weight</code> = 1, <code>active</code> =
+true, <code>checkout_url</code> = the Paddle hosted checkout URL for the
+live price. The URL must be <code>https</code>, and a live rail must not
+use a sandbox host (<code>checkoutUrlProblem</code> in
+<code>web/app/api/billing/checkout/route.ts</code>).</p>
+<p><strong>S6. Paddle product and price (EXTERNAL WRITE).</strong></p>
+<ul>
+<li>Live (after B3): create the product with <code>name</code> = title,
+<code>description</code> = subtitle, and <code>custom_data</code>
+carrying <code>store_product_id</code>. Create a USD price for the
+approved amount. Record the <code>pro_</code> and <code>pri_</code> ids
+in <code>products.paddle_product_ref</code> and
+<code>products.paddle_price_id</code>.</li>
+<li>Sandbox: the same in the Paddle sandbox. The sync's sandbox apply is
+refused unless <code>--sandbox-db-ref</code> matches the
+<code>SUPABASE_URL</code> project ref (<code>assertApplyAllowed</code>,
+<code>payments/sync_book_identity.ts</code>). Run any sandbox apply only
+against the test project (<code>hex-expan-test</code>), never against
+production.</li>
+</ul>
+<p><strong>S7. Identity sync (REMOTE WRITE, after B5).</strong></p>
+<ol type="1">
+<li><code>PADDLE_ENVIRONMENT=sandbox pnpm exec tsx payments/sync_book_identity.ts --check</code>
+(read-only). The script has no dry-run flag. <code>--check</code> is its
+read-only mode.</li>
+<li>Read the mismatch list. Apply only when it matches the expected
+changes.</li>
+<li>Apply, then re-run <code>--check</code> to confirm all targets match
+the registry.</li>
+</ol>
+<p>The offline payload dry run is in section 5.</p>
+<p><strong>S8. Go live (WRITE, public).</strong> Set
+<code>products.checkout_mode</code> = <code>live</code>. The
+<code>products_launch_gate</code> trigger re-checks C1, C2, C3 and the
+release hash, and rejects the change if any check fails. The product
+then appears on <code>/books</code> (the live-only query in
+<code>fetchB2cLanding</code>).</p>
+<p><strong>S9. Verification probes (READ-ONLY).</strong> Run P1 to P2
+before S8 (expect the product not listed) and again after it.</p>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Command</th>
+<th>Expected</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>P1</td>
+<td><code>curl -sS -o /dev/null -w '%{http_code}\n' https://expanpress.com/books</code></td>
+<td>200. After S8, the body contains "The Quiet Workshop". Before S8, it
+does not.</td>
+</tr>
+<tr>
+<td>P2</td>
+<td><code>curl -sS -o /dev/null -w '%{http_code}\n' https://expanpress.com/books/expanpress_house/the_quiet_workshop</code></td>
+<td>200. Before S8 the page should carry a <code>noindex</code> robots
+meta; <code>storefrontRobots</code> sets it when no live product exists.
+Verify on the product page itself.</td>
+</tr>
+<tr>
+<td>P3</td>
+<td><code>curl -sS -o /dev/null -w '%{http_code}\n' https://pay.expanpress.com/checkout/&lt;product-uuid&gt;</code></td>
+<td>200 once live. Unknown ids return 404
+(<code>web/app/checkout/[productId]/page.tsx</code>).</td>
+</tr>
+<tr>
+<td>P4</td>
+<td><code>curl -sS -o /dev/null -w '%{http_code} %{redirect_url}\n' 'https://expanpress.com/api/billing/checkout?product=expanpress_house/the_quiet_workshop'</code></td>
+<td>Read the success status in
+<code>web/app/api/billing/checkout/route.ts</code> before running. The
+route must not return 403 or 500 once live.</td>
+</tr>
+<tr>
+<td>P5</td>
+<td>Sentry: no new unresolved issues in the window after S8.</td>
+<td>Clean.</td>
+</tr>
+</tbody>
+</table>
+<p>Probes use no credentials.</p>
+<p><strong>Rollback.</strong> Set <code>checkout_mode</code> back to
+<code>gated</code>. Set the <code>product_rails</code> row to
+<code>active</code> = false. Archive the Paddle product rather than
+deleting it. Never delete consent rows.</p>
+<h2 id="4-time-estimate">4. Time estimate</h2>
+<p>Estimates, not measurements. Active work only.</p>
+<table>
+<thead>
+<tr>
+<th>Step</th>
+<th>Estimate</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Decisions D1 to D4</td>
+<td>15 to 30 min</td>
+<td>Founder</td>
+</tr>
+<tr>
+<td>Buyer-clean release PDF (B1)</td>
+<td>30 to 60 min</td>
+<td>Founder or designer</td>
+</tr>
+<tr>
+<td>Paddle live approval (B3)</td>
+<td>Not estimated</td>
+<td>No evidence for a duration. KYC was "not started" on
+2026-11-17.</td>
+</tr>
+<tr>
+<td>Sync fix for multiple books (B5)</td>
+<td>1 to 2 h</td>
+<td>Code, tests and PR</td>
+</tr>
+<tr>
+<td>S1 to S3 (creator, upload, product row)</td>
+<td>20 to 30 min</td>
+<td>Each write needs approval</td>
+</tr>
+<tr>
+<td>S4 consents via e-sign</td>
+<td>15 to 30 min plus signer turnaround</td>
+<td>Founder signs</td>
+</tr>
+<tr>
+<td>S5 and S6 (rail, Paddle product and price)</td>
+<td>30 to 60 min</td>
+<td>Live step depends on B3</td>
+</tr>
+<tr>
+<td>S7 sync check and apply</td>
+<td>10 min</td>
+<td></td>
+</tr>
+<tr>
+<td>S8 and S9 (go live and probes)</td>
+<td>15 min</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p>Active work after the blockers clear: about 3 to 4 hours, plus the
+Paddle approval wait and the signer turnaround.</p>
+<h2 id="5-appendix-offline-dry-run-2026-11-19">5. Appendix: offline dry
+run (2026-11-19)</h2>
+<p>Run with a recording fetch stub, placeholder ids and no network. It
+uses the real <code>loadBookIdentity</code>, <code>applyIdentity</code>,
+<code>fetchTargetState</code> and <code>mismatchList</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Check</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Identity loads from <code>books/the_quiet_workshop.json</code></td>
+<td>PASS (<code>id</code>, <code>title</code>, <code>subtitle</code>,
+<code>author</code> non-empty)</td>
+</tr>
+<tr>
+<td>ADR 0065 shape, product slug <code>the_quiet_workshop</code> (18
+chars)</td>
+<td>PASS</td>
+</tr>
+<tr>
+<td>ADR 0065 shape, creator handle <code>expanpress_house</code> (16
+chars)</td>
+<td>PASS</td>
+</tr>
+<tr>
+<td>Post-apply mismatch list</td>
+<td>empty</td>
+</tr>
+<tr>
+<td>Planned Supabase PATCH</td>
+<td><code>products?id=eq.&lt;db_product_id&gt;</code> with body
+<code>{"title":"The Quiet Workshop"}</code></td>
+</tr>
+<tr>
+<td>Planned Paddle PATCH</td>
+<td>sandbox base, <code>products/&lt;pro_id&gt;</code> with body
+<code>{"name":"The Quiet Workshop","description":"PENDING: ... subtitle"}</code></td>
+</tr>
+<tr>
+<td>Planned reads (<code>--check</code>)</td>
+<td>GET Supabase <code>products?...&amp;select=title</code> and GET
+Paddle <code>products/&lt;pro_id&gt;</code></td>
+</tr>
+</tbody>
+</table>
+<p>The dry run exposes the placeholder subtitle (B6). It would be sent
+to Paddle as the product description.</p>
+<p>Dry-run script (not committed):
+<code>/tmp/claude-1001/-home-kellyb-dev-projects-hex-expan/21b00acc-7513-46d6-9a35-038af7845be2/scratchpad/quiet_dryrun.mts</code>.</p>
+<h2 id="6-sources">6. Sources</h2>
+<ul>
+<li><code>payments/sync_book_identity.ts</code>,
+<code>payments/book_identity.ts</code></li>
+<li><code>supabase/migrations/20261007000000_commercial_heritage.sql</code>
+(products and product_rails)</li>
+<li><code>supabase/migrations/20261009000000_launch_trigger_and_audit.sql</code>
+and <code>20261116142329_consents_supersedes_set.sql</code> (launch
+gate)</li>
+<li><code>supabase/migrations/20261103134245_products_release_lifecycle.sql</code></li>
+<li><code>docs/adr/0060-universal-consent-enforcement.md</code>,
+<code>docs/adr/0061-payment-domain-pay-subdomain.md</code>,
+<code>docs/adr/0065-identifier-rules.md</code></li>
+<li><code>web/app/books/</code> and
+<code>web/src/components/storefront/storefront.tsx</code> (live-only
+storefront)</li>
+<li><code>web/app/api/billing/checkout/route.ts</code> (consent,
+release-hash and rail gates)</li>
+</ul>
+</body>
+</html>

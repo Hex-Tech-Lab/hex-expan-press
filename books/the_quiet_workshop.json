@@ -1,0 +1,25 @@
+{
+  "id": "the_quiet_workshop",
+  "title": "The Quiet Workshop",
+  "subtitle": "PENDING: founder to supply the subtitle (the sync pushes it to the Paddle product description)",
+  "author": "Elias Hartwell",
+  "creator": {
+    "handle": "expanpress_house",
+    "display_name": "ExpanPress",
+    "kind": "house",
+    "status": "PROPOSED: no creators row exists yet; see runbook step S1"
+  },
+  "product_slug": "the_quiet_workshop",
+  "price": {
+    "usd": 9.00,
+    "currency": "USD",
+    "status": "PROPOSED: not approved by the founder"
+  },
+  "release": {
+    "pdf_name": "ExpanPress_TheQuietWorkshop_EliasHartwell_2026.pdf",
+    "release_year": 2026,
+    "local_source": "data/books/house_expanpress/the_quiet_workshop/ (gitignored)",
+    "status": "BLOCKED: the local PDF is marked 'SAMPLE COPY · NOT FOR SALE' and states the author is a made-up name; a buyer-clean release PDF with its own sha256 is required"
+  },
+  "listing_status": "NOT_LISTED"
+}
