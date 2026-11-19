@@ -7,6 +7,9 @@ export interface BookIdentity {
   title: string;
   subtitle: string;
   author: string;
+  cover_image?: string | null;
+  preview_pdf?: string | null;
+  is_sample?: boolean;
 }
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -34,10 +37,20 @@ export function loadBookIdentity(bookFile: string = defaultBookFile): BookIdenti
     throw new Error(`book_identity: ${bookFile} must contain a single JSON object`);
   }
   const b = parsed as Record<string, unknown>;
-  return {
+  const out: BookIdentity = {
     id: needNonEmpty(b.id, "id", bookFile),
     title: needNonEmpty(b.title, "title", bookFile),
     subtitle: needNonEmpty(b.subtitle, "subtitle", bookFile),
     author: needNonEmpty(b.author, "author", bookFile),
   };
+  if ("cover_image" in b && (b.cover_image === null || typeof b.cover_image === "string")) {
+    out.cover_image = b.cover_image;
+  }
+  if ("preview_pdf" in b && (b.preview_pdf === null || typeof b.preview_pdf === "string")) {
+    out.preview_pdf = b.preview_pdf;
+  }
+  if (typeof b.is_sample === "boolean") {
+    out.is_sample = b.is_sample;
+  }
+  return out;
 }

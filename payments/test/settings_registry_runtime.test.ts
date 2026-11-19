@@ -3,7 +3,7 @@
 // pure loader directly — they must NEVER move, rename or delete the real data/settings
 // directory (an earlier version renamed it and left it stranded on 2026-10-01).
 import { describe, expect, it, vi, afterEach } from "vitest";
-import { GLOBAL, loadPaymentsSection, loadDeliverySection, loadEmailSection, loadStorefrontSection, paymentProviderDisplayName, getPath } from "../src/settings_registry.ts";
+import { DEFAULT_GLOBAL, GLOBAL, loadPaymentsSection, loadDeliverySection, loadEmailSection, loadStorefrontSection, paymentProviderDisplayName, getPath } from "../src/settings_registry.ts";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -351,17 +351,12 @@ describe("settings registry: paddle.overlay, storefront, and provider display na
 
   it("validates storefront brand_name and thanks_path_template, and exposes provider display names", () => {
     const warn = vi.spyOn(console, "error").mockImplementation(() => {});
-    expect(loadStorefrontSection(undefined)).toEqual({
-      b2c_landing_url: "https://expanpress.com/books",
-      brand_name: "ExpanPress",
-      thanks_path_template: "/books/{handle}/thanks",
-    });
+    expect(loadStorefrontSection(undefined)).toEqual(DEFAULT_GLOBAL.storefront);
+    expect(DEFAULT_GLOBAL.storefront.brand_name).toBe("ExpanPress");
+    expect(DEFAULT_GLOBAL.storefront.publisher_label).toBe(DEFAULT_GLOBAL.storefront.brand_name);
+    expect(DEFAULT_GLOBAL.storefront.thanks_path_template).toBe("/books/{handle}/thanks");
     const invalid = loadStorefrontSection({ b2c_landing_url: "http://bad", brand_name: " ", thanks_path_template: "no-handle" });
-    expect(invalid).toEqual({
-      b2c_landing_url: "https://expanpress.com/books",
-      brand_name: "ExpanPress",
-      thanks_path_template: "/books/{handle}/thanks",
-    });
+    expect(invalid).toEqual(DEFAULT_GLOBAL.storefront);
     expect(paymentProviderDisplayName("paddle")).toBe("Paddle.com");
     expect(paymentProviderDisplayName("creem")).toBe("Creem");
     expect(paymentProviderDisplayName("unknown_rail")).toBe("unknown_rail");
