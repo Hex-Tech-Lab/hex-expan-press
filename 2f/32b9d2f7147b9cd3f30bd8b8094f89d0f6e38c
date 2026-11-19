@@ -1,0 +1,126 @@
+payments/src/settings_registry.ts
+  s_0e99959cd74c50::t_72d607d1e5dd08 513
+  s_0e99959cd74c50::t_925e5ec314a9d8 111-114
+  s_0e99959cd74c50::t_da85d2bdf7ec93 930-931
+  s_0e99959cd74c50::t_f2dd649aad79cc 440-462,574
+  s_0e99959cd74c50::t_10441601ea9f3b 558
+  s_0e99959cd74c50::t_d0cc302c5f66cc 56-69
+  s_0e99959cd74c50::t_f284783697cdbc 999
+  s_0e99959cd74c50::t_e6d2e6f199d4dd 1064
+  s_0e99959cd74c50::t_05f3fd0866cbe8 98
+  s_0e99959cd74c50::t_b777b770d0e4af 245-252,257-261,1156,1162
+  s_0e99959cd74c50::t_323a3aa00afa42 571-573
+  s_0e99959cd74c50::t_8f9d23b0c61fd8 575-577
+  s_0e99959cd74c50::t_e1eafca0ce8de6 1155
+  s_0e99959cd74c50::t_9124e6956e1355 1157-1161
+  s_0e99959cd74c50::t_7b88df54920468 1163-1165
+  s_0e99959cd74c50::t_782cb3505ba671 566-570,578-589,609,958,976,1016,1042,1084
+web/app/api/billing/checkout/checkout-helpers.ts
+  s_0e99959cd74c50::t_a2e2a0f9e05f99 5-6,20
+  s_0e99959cd74c50::t_3d7a9820b51e8a 21
+  s_0e99959cd74c50::t_288bd3f7001c53 172-173,178-209
+payments/src/ledger.ts
+  s_0e99959cd74c50::t_86680b78a873dd 110
+  s_0e99959cd74c50::t_e06a786c42992d 182-183
+  s_0e99959cd74c50::t_45e84551895797 27-28
+  s_0e99959cd74c50::t_745b6f4049c5de 712
+src/adapters/payments/paddle.adapter.ts
+  s_0e99959cd74c50::t_8cc235d0454bbf 78-91
+  s_0e99959cd74c50::t_761853971247bb 20-21
+  s_0e99959cd74c50::t_95c2d3c6a5aa43 347
+  s_0e99959cd74c50::t_a57aeb2b01c432 359-360
+  s_0e99959cd74c50::t_9e570347f8384c 348
+  s_0e99959cd74c50::t_9248b10fa13344 361
+web/src/lib/paddle-overlay-server.ts
+  s_0e99959cd74c50::t_acdf660d69c654 1-59
+web/src/lib/paddle-overlay.ts
+  s_0e99959cd74c50::t_c1fcf48deccaf7 1-80
+supabase/migrations/20261119120000_orders_buyer_email_consent.sql
+  s_0e99959cd74c50::t_b51685bc5fdc76 1-9
+src/domain/payments/payments.port.ts
+  s_0e99959cd74c50::t_6743279e934e45 125-127
+src/use_cases/billing/process_billing_webhook.ts
+  s_0e99959cd74c50::t_8da1a2d28f78a6 803-804
+web/public/books/legal/providers.html
+  s_0e99959cd74c50::t_a931173dbb558c 50
+payments/test/settings_registry_runtime.test.ts
+  s_0e99959cd74c50::t_86550d9687ca4b 6,309-370
+docs/testing/pairwise/billing_consent_checkout.coverage.html
+  s_0e99959cd74c50::t_e7dbb870ba4a7d 7,174,176-177,180-182,187,193-194,196,198-211,214-231,238,257,266,274,283,291,300,308,317,325,334,342,351,359,368,376,385,391,393,399,401-402,408,410,412-414,416-419,426-427,429-436,441-445,448-449,452-453,458-461,464-470,475-479,481,483-484,486-487,494-495,497-501,504,511-512,515-518,521,526-529,532-535,537-538,545-546,549-550,552-555,561-563,565-570,572,577-578,580,582-583,587-589,594-597,599-602,606,611-614,616-623,628,631,633-634,636-637,640,646-648,651-652,655,657,662,664-665,668-669,672-674,679,681-682,685-688,691,696-700,702-703,705,708,713-716,718-720,722,724-725,731-734,736-740,742,747-756,758-759,764-767,769-774,776,781,783-788,790,793,798-802,804-805,807,809-810,815,817-819,822,827,832,834-836,838-841,843-844,849,851-852,854,858-861,867,869,871-873,876-878,884-886,888-893,895,901-906,910-912,917-918,920-923,926,929,934-938,940,942-943,945-946,951-954,960,962-963,966-1016,1021,1023-1056,1058-1063
+docs/testing/pairwise/billing_consent_checkout.coverage.md
+  s_0e99959cd74c50::t_df1cee2114cf2c 1,3,5,8,10,12-13,17-63,67,69-77,79
+docs/testing/pairwise/billing_consent_checkout.model.txt
+  s_0e99959cd74c50::t_48ff763b9bd8c2 1-3,10,16-17,23,33-36
+docs/testing/pairwise/billing_consent_checkout.rows.tsv
+  s_0e99959cd74c50::t_c394bfed3253dc 1-46
+payments/test/delivery_single_send_and_fence.test.ts
+  s_0e99959cd74c50::t_b25e5ac3f7348a 294,316
+payments/test/ledger_orders_schema.test.ts
+  s_0e99959cd74c50::t_6ee11a9c00bf22 59,63-69,115,122,136,148,162-164
+src/adapters/payments/__tests__/paddle.adapter.test.ts
+  s_0e99959cd74c50::t_4a5316a9e1d046 632-669
+src/use_cases/billing/__tests__/process_billing_webhook.test.ts
+  s_0e99959cd74c50::t_0f9e4e195aaa55 2120-2156
+web/__tests__/b2c-confinement.test.ts
+  s_0e99959cd74c50::t_b5681cdc0ca1da 94-114
+web/__tests__/buyer-email-step.client.test.ts
+  s_0e99959cd74c50::t_bfa0b476f29749 1-166
+web/__tests__/buyer-email-step.test.ts
+  s_0e99959cd74c50::t_a891f68f6c3eb3 63-74
+web/__tests__/delivery-copy.test.ts
+  s_0e99959cd74c50::t_1bbfb2513974d1 28-42
+web/app/api/billing/checkout/__tests__/billing_consent_checkout.oracle.ts
+  s_0e99959cd74c50::t_8f39cf2298d165 11,27,75-76,94-97,103,122-124
+web/app/api/billing/checkout/__tests__/billing_consent_checkout.pairwise.test.ts
+  s_0e99959cd74c50::t_f549c02de30909 1,3,6,12,15-17,73-75,170-171,225-227,231-251,254,262-295,338,350,357-369,396,402,412,417,423,433,438,444,454,460,467,477,488,498,509,521,526,532,544,549-550,552-588
+web/app/api/billing/checkout/__tests__/route.test.ts
+  s_0e99959cd74c50::t_8d1c5eb175671d 1618-1713
+web/app/api/billing/checkout/route.ts
+  s_0e99959cd74c50::t_55054277dfcf9d 18-19,30,246-254
+web/app/books/[handle]/[product]/__tests__/page.test.ts
+  s_0e99959cd74c50::t_321b7ecf59fc6a 1-81
+web/app/books/[handle]/[product]/page.tsx
+  s_0e99959cd74c50::t_906180f54f1242 9,13,39,41,43-47,54,96
+web/app/books/[handle]/page.tsx
+  s_0e99959cd74c50::t_09e7b10c4a3bd3 25,27,29,32,39
+web/app/books/[handle]/thanks/__tests__/page.test.ts
+  s_0e99959cd74c50::t_b4eecfc309af7c 6-9,12,16,29,31-32,34-37,41,44-56
+web/app/books/[handle]/thanks/page.tsx
+  s_0e99959cd74c50::t_4296ccbe7af1fc 5-12,17,24,26-29,36-40,59,65
+web/app/books/page.tsx
+  s_0e99959cd74c50::t_e6228f53732f6e 17-18
+web/app/checkout/[productId]/__tests__/page.test.ts
+  s_0e99959cd74c50::t_d5c0689a0586cb 1-2,5,12-22,46,48-49,57,73-76,173-232
+web/app/checkout/[productId]/page.tsx
+  s_0e99959cd74c50::t_7886942a51b1b6 7,15-16,23-25,38,40-41,55,65-77,82,88,91,101,104-108,118
+web/e2e/mock-supabase.ts
+  s_0e99959cd74c50::t_288150cef51d3b 101-103
+web/src/components/brand/brand.tsx
+  s_0e99959cd74c50::t_aa27c443fd5934 56-105
+web/src/components/storefront/buy-link.tsx
+  s_0e99959cd74c50::t_4f39595d9e7776 5,41,59,61
+web/src/components/storefront/buyer-email-step.tsx
+  s_0e99959cd74c50::t_2c817e02f37838 4,7,23-24,53-56,62-63,73,77-79,92,94-134,150,158,168,170,179,187,201-202,208-214,216,222
+web/src/components/storefront/storefront.tsx
+  s_0e99959cd74c50::t_da6634f053b396 6,47-48,178,186-188,196-210,213-250
+web/src/lib/__tests__/paddle-overlay.test.ts
+  s_0e99959cd74c50::t_4a3fb73e5dc537 1-126
+web/src/lib/buyer-email.ts
+  s_0e99959cd74c50::t_6c3ee02c2e9de6 56-64
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2f32b9d2f7147b9cd3f30bd8b8094f89d0f6e38c",
+  "prompts": {},
+  "sessions": {
+    "s_0e99959cd74c50": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "21b00acc-7513-46d6-9a35-038af7845be2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
