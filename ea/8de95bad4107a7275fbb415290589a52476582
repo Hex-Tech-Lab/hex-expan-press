@@ -1,0 +1,26 @@
+books/the_quiet_workshop.json
+  s_0e99959cd74c50::t_d84aac97be729a 1-25
+docs/handover/QUIET_WORKSHOP_LISTING_RUNBOOK.md
+  s_0e99959cd74c50::t_884434860d4bc5 1-12,14-57,59-79,81-133
+  s_0e99959cd74c50::t_db5b02d3c2644a 13
+  s_0e99959cd74c50::t_0e77cfb78e180a 80
+  s_0e99959cd74c50::t_6a6c305fc3a727 58
+docs/handover/QUIET_WORKSHOP_LISTING_RUNBOOK.html
+  s_0e99959cd74c50::t_715d7fdfa395ef 1-600
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ea8de95bad4107a7275fbb415290589a52476582",
+  "prompts": {},
+  "sessions": {
+    "s_0e99959cd74c50": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "21b00acc-7513-46d6-9a35-038af7845be2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
