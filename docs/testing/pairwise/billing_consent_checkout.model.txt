@@ -1,15 +1,22 @@
-# PICT pairwise model for billing / consent / checkout parameters changed in 9dfcc5e, e378f18, 0498dfe.
-# Last checked 2026-11-17: `pict` regenerated from this model matches billing_consent_checkout.rows.tsv (34 rows) at HEAD 69aa42d.
+# PICT pairwise model for billing / consent / checkout parameters of GET /api/billing/checkout.
+# Rev 2 (fix/funnel-kyc-buildable): adds rail_mode, buyer_email, buyer_consent, buyer_country; creem enabled in the test
+# world only; product_state narrowed to rail presence (rail host mode moved to rail_mode).
 # Run: pict docs/testing/pairwise/billing_consent_checkout.model.txt > docs/testing/pairwise/billing_consent_checkout.rows.tsv
 #
 # Parameters:
-#   consent_kind  : consent kind under evaluation (other two gate kinds remain active "given" in row setup)
+#   consent_kind  : consent kind under evaluation (the other two gate kinds remain "given" in row setup)
 #   decision      : head state of consent_kind ("forked" = given + refused heads; "resolved_by_set" = fork retired via supersedes_ids)
-#   provider      : product_rails.provider (paddle enabled; polar/creem/fungies switched off with verifier; lemonsqueezy switched off, no verifier)
+#   provider      : product_rails.provider. paddle and creem are routable in the test world (creem is switched off in production
+#                   settings_registry and is enabled here by a test-only override); polar, fungies, lemonsqueezy are switched off
 #   checkout_mode : products.checkout_mode
-#   sandbox_flag  : GLOBAL.payments.sandbox_checkout_enabled (default false; true opt-in)
-#   vercel_env    : process.env.VERCEL_ENV (unset_node_prod / unset_node_test distinguish NODE_ENV fallback when VERCEL_ENV is unset)
-#   product_state : product lookup + C2 release hash + rail configuration state
+#   sandbox_flag  : GLOBAL.payments.sandbox_checkout_enabled (default false; true is an opt-in)
+#   vercel_env    : process.env.VERCEL_ENV (unset_node_prod / unset_node_test: VERCEL_ENV unset, NODE_ENV production / test)
+#   product_state : product lookup, C2 release hash, and rail presence (active_rail = one active rail row)
+#   rail_mode     : host class of the active rail's checkout_url (live host, or sandbox host)
+#   buyer_email   : buyer_email query parameter (absent; valid; invalid shape; typo_suggested = valid shape with a likely domain
+#                   typo, which the server accepts unchanged and the UI only offers to correct)
+#   buyer_consent : buyer_consent query parameter (checked = "true", unchecked = "false")
+#   buyer_country : x-vercel-ip-country header (us = US; us_territory = PR, VI, GU, AS, MP; non_us = outside the allow list)
 
 consent_kind: C1_data_accuracy, C2_release_approval, C3_revenue_split
 decision: given, refused, forked, resolved_by_set
@@ -17,4 +24,11 @@ provider: paddle, polar, creem, fungies, lemonsqueezy
 checkout_mode: live, sandbox, gated
 sandbox_flag: false, true
 vercel_env: production, preview, development, unset_node_prod, unset_node_test
-product_state: valid_live_rail, sandbox_rail_host, release_hash_mismatch, no_rails, bare_slug_ambiguous, bare_slug_single
+product_state: active_rail, no_rails, release_hash_mismatch, bare_slug_ambiguous, bare_slug_single
+rail_mode: live, sandbox
+buyer_email: absent, valid, invalid, typo_suggested
+buyer_consent: checked, unchecked
+buyer_country: us, us_territory, non_us
+
+# States that never reach a rail: the rail's provider and host class cannot change the outcome, so they are pinned.
+IF [product_state] IN {"no_rails", "release_hash_mismatch", "bare_slug_ambiguous", "bare_slug_single"} THEN [rail_mode] = "live" AND [provider] = "paddle";
