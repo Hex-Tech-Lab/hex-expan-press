@@ -5,7 +5,7 @@ import type { IncomingHttpHeaders } from "node:http";
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import type { ProviderMode } from "../../src/domain/payments/payments.port.ts";
 
-export type ProviderName = "lemonsqueezy" | "payhip" | "paddle" | "polar" | "fungies" | "fastspring";
+export type ProviderName = "lemonsqueezy" | "payhip" | "paddle" | "polar" | "creem" | "fungies" | "fastspring";
 
 export interface SaleEvent {
   sale_id: string;

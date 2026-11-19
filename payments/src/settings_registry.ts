@@ -91,6 +91,8 @@ export interface GlobalSettings {
     /** Explicit opt-in for sandbox checkout acceptance (sandbox checkout_mode and sandbox.* rail hosts)
      *  on non-production runtimes. Default false (fail closed); production always refuses regardless. */
     sandbox_checkout_enabled: boolean;
+    /** ISO 3166-1 alpha-2 buyer country codes permitted at checkout (launch: US + DC/territories). */
+    allowed_buyer_countries: string[];
   };
   /** Buyer-facing storefront links. `b2c_landing_url` is the logo target on the thank-you page. */
   storefront: { b2c_landing_url: string };
@@ -100,7 +102,8 @@ export interface GlobalSettings {
    *  platform-wide products_slug_key was reverted and is dropped by supabase/migrations/20261117110000_products_slug_convergence.sql. */
 product_slug: { min_length: number; max_length: number; separator: string };
   /** Sign-in email length ceiling (O5). 254 is the RFC 5321 address limit; zod's email check supplies the shape. */
-  email_address: { max_length: number };
+  /** `typo_domains` is the list the buyer email step checks a typo against. A close miss is suggested, never applied silently. */
+  email_address: { max_length: number; typo_domains: string[] };
   landing: { fallbacks: { title: string; creator: string }; disclaimers: string[] };
   /** Admin API allowlist + pagination (admin audit-log route). */
   admin: {
@@ -137,6 +140,12 @@ product_slug: { min_length: number; max_length: number; separator: string };
      * Resend keeps idempotency keys for 24 hours, so the loader caps this at 24: a later resend could be a second email.
      */
     stored_message_resend_max_age_hours: number;
+    /** Buyer delivery promise shown in the consent line: the usual delay in minutes. */
+    buyer_typical_minutes: number;
+    /** Buyer delivery promise shown in the consent line: the longest delay in hours. */
+    buyer_max_hours: number;
+    /** Checkout metadata key that carries the buyer's consent (true or false) on a provider whose checkout link documents metadata. */
+    buyer_consent_metadata_key: string;
   };
   /** Transactional email (Resend). `from` must be on `sending_domain` (DKIM-verified in Resend). */
   email: {
@@ -206,6 +215,7 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     creem_accept_test_mode: false,
     creem_test_database_ref: "",
     sandbox_checkout_enabled: false,
+    allowed_buyer_countries: ["US", "PR", "VI", "GU", "AS", "MP"],
     paddle: {
       api_base: { production: "https://api.paddle.com", sandbox: "https://sandbox-api.paddle.com" },
       js_cdn_url: "https://cdn.paddle.com/paddle/v2/paddle.js",
@@ -232,7 +242,14 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
   // Product slug rule (ADR 0065). Same shape as handles. Unique per creator (products_creator_id_slug_key);
   // platform-wide products_slug_key was reverted and is dropped by supabase/migrations/20261117110000_products_slug_convergence.sql.
   product_slug: { min_length: 3, max_length: 30, separator: "_" },
-  email_address: { max_length: 254 },
+  email_address: {
+    max_length: 254,
+    // US consumer mail domains (the plan is US sales only). Used by the buyer email typo check.
+    typo_domains: [
+      "gmail.com", "googlemail.com", "yahoo.com", "ymail.com", "outlook.com", "hotmail.com", "live.com", "msn.com",
+      "icloud.com", "me.com", "aol.com", "comcast.net", "verizon.net", "att.net", "sbcglobal.net", "protonmail.com", "proton.me",
+    ],
+  },
   landing: {
     fallbacks: { title: "Product", creator: "the creator" },
     disclaimers: [
@@ -260,6 +277,10 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     stored_message_since: "2026-11-18T14:00:00Z",
     // Resend keeps idempotency keys for 24 hours (email.ts). A shorter window only resends less often.
     stored_message_resend_max_age_hours: 24,
+    // The buyer consent line promises a usual delay of 2 minutes and a longest delay of 6 hours.
+    buyer_typical_minutes: 2,
+    buyer_max_hours: 6,
+    buyer_consent_metadata_key: "buyer_email_consent",
   },
   email: {
     from: "ExpanPress <support@esign.expanpress.com>",
@@ -443,6 +464,17 @@ export function loadPaymentsSection(raw: Record<string, unknown> | undefined): G
       fallbacks.push("sandbox_checkout_enabled");
     }
   }
+  let allowedBuyerCountries = defaults.allowed_buyer_countries;
+  if (p.allowed_buyer_countries !== undefined) {
+    const list = Array.isArray(p.allowed_buyer_countries)
+      ? p.allowed_buyer_countries.map((c) => String(c).trim().toUpperCase())
+      : null;
+    if (list && list.length > 0 && list.every((c) => /^[A-Z]{2}$/.test(c))) {
+      allowedBuyerCountries = list;
+    } else {
+      fallbacks.push("allowed_buyer_countries");
+    }
+  }
   if (fallbacks.length > 0) warnFallback("global.json", `invalid payments values for ${fallbacks.join(", ")}`);
   return {
     allowed_currencies: currencies,
@@ -461,6 +493,7 @@ export function loadPaymentsSection(raw: Record<string, unknown> | undefined): G
     creem_accept_test_mode: p.creem_accept_test_mode === true,
     creem_test_database_ref: typeof p.creem_test_database_ref === "string" ? p.creem_test_database_ref.trim() : "",
     sandbox_checkout_enabled: sandboxCheckoutEnabled,
+    allowed_buyer_countries: allowedBuyerCountries,
   };
 }
 
@@ -486,7 +519,7 @@ function loadGlobal(): GlobalSettings {
     storefront: { ...DEFAULT_GLOBAL.storefront, ...(g.storefront ?? {}) },
     handles: { ...DEFAULT_GLOBAL.handles, ...(g.handles ?? {}) },
     product_slug: { ...DEFAULT_GLOBAL.product_slug, ...(g.product_slug ?? {}) },
-    email_address: { ...DEFAULT_GLOBAL.email_address, ...(g.email_address ?? {}) },
+    email_address: loadEmailAddressSection(g.email_address as Record<string, unknown> | undefined),
     email: loadEmailSection(g.email as Record<string, unknown> | undefined),
     portal: { ...DEFAULT_GLOBAL.portal, ...(g.portal ?? {}) },
     admin: loadAdminSection(g.admin as Record<string, unknown> | undefined),
@@ -662,7 +695,17 @@ export function loadDeliverySection(raw: Record<string, unknown> | undefined): G
   if (!raw) return defaults;
   const record = raw as Partial<GlobalSettings["delivery"]> & Record<string, unknown>;
   const fallbacks: string[] = [];
-  const str = (key: "bucket" | "short_domain" | "send_kind" | "link_key_env" | "link_key_id" | "download_origin" | "stored_message_since"): string => {
+  const str = (
+    key:
+      | "bucket"
+      | "short_domain"
+      | "send_kind"
+      | "link_key_env"
+      | "link_key_id"
+      | "download_origin"
+      | "stored_message_since"
+      | "buyer_consent_metadata_key",
+  ): string => {
     if (!(key in record)) return defaults[key];
     const candidate = record[key];
     if (typeof candidate === "string" && candidate.trim() !== "" && candidate === candidate.trim()) return candidate;
@@ -670,7 +713,14 @@ export function loadDeliverySection(raw: Record<string, unknown> | undefined): G
     return defaults[key];
   };
   const posInt = (
-    key: "link_ttl_days" | "signed_url_seconds" | "stuck_claim_after_seconds" | "stuck_claim_list_limit" | "stored_message_resend_max_age_hours",
+    key:
+      | "link_ttl_days"
+      | "signed_url_seconds"
+      | "stuck_claim_after_seconds"
+      | "stuck_claim_list_limit"
+      | "stored_message_resend_max_age_hours"
+      | "buyer_typical_minutes"
+      | "buyer_max_hours",
     min: number,
     max: number,
   ): number => {
@@ -708,9 +758,28 @@ export function loadDeliverySection(raw: Record<string, unknown> | undefined): G
     download_origin: validDownloadOrigin ? downloadOrigin : defaults.download_origin,
     stored_message_since: validStoredSince ? storedSince : defaults.stored_message_since,
     stored_message_resend_max_age_hours: posInt("stored_message_resend_max_age_hours", 1, 24),
+    buyer_typical_minutes: posInt("buyer_typical_minutes", 1, 60),
+    buyer_max_hours: posInt("buyer_max_hours", 1, 24),
+    // A metadata key name, not a value: the charset keeps it a plain key in a checkout link query. Invalid falls back.
+    buyer_consent_metadata_key: /^[a-z][a-z0-9_]{0,63}$/.test(str("buyer_consent_metadata_key"))
+      ? str("buyer_consent_metadata_key")
+      : defaults.buyer_consent_metadata_key,
   };
   if (fallbacks.length > 0) warnFallback("global.json", `invalid delivery values for ${fallbacks.join(", ")}`);
   return out;
+}
+
+/** email_address: shallow merge, but typo_domains must be a non-empty list of hostnames (else the default, with a warning). */
+function loadEmailAddressSection(raw: Record<string, unknown> | undefined): GlobalSettings["email_address"] {
+  const base = DEFAULT_GLOBAL.email_address;
+  if (!raw) return base;
+  const domains = raw.typo_domains;
+  const valid =
+    Array.isArray(domains) &&
+    domains.length > 0 &&
+    domains.every((d) => typeof d === "string" && /^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(d));
+  if (raw.typo_domains !== undefined && !valid) warnFallback("global.json", "invalid email_address values for typo_domains");
+  return { ...base, ...raw, typo_domains: valid ? (domains as string[]) : base.typo_domains };
 }
 
 /** email: shallow merge, but retryable_error_names must be a non-empty string[] (a string would make
@@ -888,6 +957,23 @@ export const DEFAULT_PAYMENT_PROVIDERS: Record<string, PaymentProviderSetting> =
       refund_sale_id: "data.order_id",
       refund_ts: "data.created_at",
       attribution_id: "data.metadata.reference_id",
+    },
+  },
+  creem: {
+    // Defined so the registry knows Creem, but off until the founder approves it as a launch rail (Paddle-only launch).
+    // Production has no providers.json, so this entry is the only switch; flip it to route Creem checkout and webhooks.
+    enabled: false,
+    route: "creem",
+    signature_header: "creem-signature",
+    sale_event: "checkout.completed",
+    secret_env: "CREEM_WEBHOOK_SECRET",
+    field_map: {
+      product_id: "data.metadata.product_id",
+      sale_id: "data.order.id",
+      total_cents: "data.order.amount_paid",
+      currency: "data.order.currency",
+      email: "data.customer.email",
+      attribution_id: "data.metadata.order_ref",
     },
   },
   fungies: {

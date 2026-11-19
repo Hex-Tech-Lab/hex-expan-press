@@ -84,7 +84,26 @@ test("(b) crawl: links from /books, the first creator page, the first product pa
   expect(productRes?.status(), "product page status").toBe(200);
   const product = await hrefsOf(page);
   expect(outside(product, B2C_PAGE_RULE), "product page links outside B2C").toEqual([]);
+  // Clean BuyLink on the product page pointing to pay.expanpress.com/checkout/<id> (zero buyer email PII in URL).
   await expect(page.locator('[data-checkout-slot="primary"]')).toHaveAttribute("href", PAY_BUY_HREF);
+});
+
+test("(b3) checkout page renders single-hop BuyerEmailStep POST form with MoR disclosure", async ({ page }) => {
+  const res = await page.goto(`/checkout/${E2E.liveProductId}?src=ig`);
+  expect(res?.status(), "checkout page status").toBe(200);
+  await expect(page.getByText(/Merchant of Record/)).toBeVisible();
+  const form = page.locator('form:has([data-checkout-slot="primary"])');
+  await expect(form).toHaveAttribute("action", "/api/billing/checkout");
+  await expect(form).toHaveAttribute("method", "post");
+  await expect(form.locator('input[name="product"]')).toHaveValue(E2E.liveProductId);
+  await expect(form.locator('input[name="buyer_email"]')).toBeVisible();
+  await expect(form.locator('input[name="buyer_email_confirm"]')).toBeVisible();
+  await expect(form.locator('input[name="buyer_consent"]')).toBeChecked();
+  await expect(form.locator('input[name="src"]')).toHaveValue("ig");
+  await expect(form.locator('[data-checkout-slot="primary"]')).toBeDisabled();
+  await form.locator('input[name="buyer_email"]').fill("buyer@example.com");
+  await form.locator('input[name="buyer_email_confirm"]').fill("buyer@example.com");
+  await expect(form.locator('[data-checkout-slot="primary"]')).toBeEnabled();
 });
 
 test("(b2) thank-you page links stay in B2C", async ({ page }) => {
@@ -146,6 +165,7 @@ test("(e) screenshots of B2C pages and the B2B creator legal page", async ({ pag
     ["/books", "01-b2c-landing.png"],
     [CREATOR_HREF, "02-b2c-creator-page.png"],
     [PRODUCT_HREF, "03-b2c-product-page.png"],
+    [`/checkout/${E2E.liveProductId}`, "07-b2c-checkout-page.png"],
     [THANKS_HREF, "04-b2c-thanks-page.png"],
     ["/books/legal/terms.html", "05-b2c-buyer-legal-terms.png"],
     ["/terms.html", "06-b2b-creator-legal-terms.png"],

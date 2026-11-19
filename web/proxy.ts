@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { GLOBAL } from "../payments/src/settings_registry";
 
 /**
  * Session-refresh boundary (Wave 5.1, P1): the ONLY place in Next.js where a
@@ -42,6 +43,18 @@ const PAY_ALLOWED_EXACT = [
 // /api/billing/checkoutevil to pay, which bounced it back to main in a loop (Cubic P2, 2026-10-15).
 const isPayCheckoutApi = (path: string): boolean => PAY_ALLOWED_EXACT_API.includes(path) || path.startsWith("/api/billing/checkout/");
 
+function buyerCountryBlocked(request: NextRequest, path: string): NextResponse | null {
+  if (!path.startsWith("/checkout/") && !isPayCheckoutApi(path)) return null;
+  const ipCountry = request.headers.get("x-vercel-ip-country")?.trim().toUpperCase();
+  if (!ipCountry || GLOBAL.payments.allowed_buyer_countries.includes(ipCountry)) return null;
+  if (request.method === "HEAD") return new NextResponse(null, { status: 403 });
+  const msg = "At launch we sell only to buyers in the United States, its territories, and the District of Columbia.";
+  if (isPayCheckoutApi(path)) {
+    return NextResponse.json({ ok: false, error: msg, code: "country_not_supported" }, { status: 403 });
+  }
+  return new NextResponse(msg, { status: 403, headers: { "content-type": "text/plain; charset=utf-8" } });
+}
+
 import { decodeAndVerifyJwt } from "./src/lib/jwt-verify";
 export { decodeAndVerifyJwt };
 
@@ -60,8 +73,12 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
     // Pay serves checkout, legal pages and their assets only. Everything else is a hard 404: no redirect
     // to the main site, so a pay URL never bounces to the apex or www.
     if (!allowed) return new NextResponse(null, { status: 404 });
+    const blocked = buyerCountryBlocked(request, path);
+    if (blocked) return blocked;
     return NextResponse.next({ request });
   }
+  const blocked = buyerCountryBlocked(request, path);
+  if (blocked) return blocked;
   if ((host === MAIN_HOST || host === WWW_HOST) && (path.startsWith("/checkout/") || isPayCheckoutApi(path))) {
     return NextResponse.redirect(new URL(path + url.search, PAY_ORIGIN), 307);
   }

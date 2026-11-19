@@ -14,10 +14,22 @@ import { effectiveCreatorSplitPctAsync } from "../../../payments/src/terms.ts";
 import { resolveProductByAlias, withIdempotencyLock, WebhookInFlightError } from "../../../payments/src/webhook_core.ts";
 import { deliverSaleForWebhook, saleDeliveryConfirmed } from "../../../payments/src/delivery.ts";
 import { DeliveryPendingError } from "../../../payments/src/delivery_errors.ts";
-import { requestSignal, settleByDeadline } from "../../../payments/src/webhook_budget.ts";
+import { budgetLeftMs, requestSignal, settleByDeadline } from "../../../payments/src/webhook_budget.ts";
 import { GLOBAL } from "../../../payments/src/settings_registry.ts";
 
 type DeliveryInput = Parameters<typeof deliverSaleForWebhook>[0];
+
+/** Wraps a pre-persist read so a budget-expired abort becomes a retryable 503 (DeliveryPendingError), never an untyped 500. */
+async function withBudgetRead<T>(deadlineAt: number | undefined, saleId: string, op: () => Promise<T>): Promise<T> {
+  try {
+    return await op();
+  } catch (err) {
+    if (deadlineAt !== undefined && budgetLeftMs(deadlineAt) <= 0) {
+      throw new DeliveryPendingError(saleId, err);
+    }
+    throw err;
+  }
+}
 
 /**
  * The receipt send, raced against the request deadline (payments.webhook_total_budget_ms). Past the deadline the answer is a 503
@@ -26,8 +38,11 @@ type DeliveryInput = Parameters<typeof deliverSaleForWebhook>[0];
  */
 function deliverWithinBudget(input: DeliveryInput): Promise<void> {
   if (input.deadlineAt === undefined) return deliverSaleForWebhook(input);
-  return settleByDeadline(deliverSaleForWebhook(input), input.deadlineAt, () =>
-    new DeliveryPendingError(input.saleId, new Error("webhook budget exhausted (payments.webhook_total_budget_ms)")),
+  const work = deliverSaleForWebhook(input);
+  // The lock holder keeps the lock until the unawaited send settles; the rejection itself is surfaced through the race.
+  const settled = work.then(() => undefined, () => undefined);
+  return settleByDeadline(work, input.deadlineAt, () =>
+    new DeliveryPendingError(input.saleId, new Error("webhook budget exhausted (payments.webhook_total_budget_ms)"), settled),
   );
 }
 
@@ -82,6 +97,69 @@ function collisionRetryable(name: string, message: string): Error {
   return Object.assign(err, { httpStatus: 503 });
 }
 
+function adjustmentRowMatchesEvent(
+  row: { sale_id: string; amount_usd: number; currency?: string | null },
+  event: { saleId: string; totalCents?: number; currency?: string },
+): boolean {
+  let rowCents: number;
+  try {
+    rowCents = usdToCents(row.amount_usd);
+  } catch (err) {
+    console.error("[billing-webhook] adjustment row amount unparseable:", err);
+    return false;
+  }
+  return (
+    row.sale_id === event.saleId &&
+    (event.totalCents === undefined || rowCents === event.totalCents) &&
+    (event.currency === undefined || (row.currency ?? "").toUpperCase() === event.currency.toUpperCase())
+  );
+}
+
+async function persistAdjustmentCollision(
+  provider: string,
+  adjustmentId: string,
+  eventType: "refund" | "refund_reversal",
+  event: { saleId: string; totalCents?: number; currency?: string },
+  flag: { refundId: string | null; refundCents: number | null; occurredAt: string },
+  conflicting: { sale_id: string; cents: number; currency: string | null; creator_id: string | null },
+): Promise<LockedResult> {
+  let conflictId: number;
+  try {
+    conflictId = await recordWebhookConflict(
+      {
+        provider,
+        event_type: eventType,
+        sale_id: event.saleId,
+        adjustment_id: adjustmentId,
+        total_cents: event.totalCents ?? null,
+        currency: event.currency ?? null,
+        occurred_at: flag.occurredAt,
+        refund_id: flag.refundId,
+      },
+      {
+        reason: "adjustment_id_collision",
+        provider,
+        sale_id: event.saleId,
+        refund_id: flag.refundId,
+        refund_cents: flag.refundCents,
+        sale_cents: conflicting.cents,
+        creator_id: conflicting.creator_id,
+        occurred_at: flag.occurredAt,
+        adjustment_id: adjustmentId,
+        event_type: eventType,
+        incoming_currency: event.currency ?? null,
+        conflicting_sale_id: conflicting.sale_id,
+        conflicting_cents: conflicting.cents,
+        conflicting_currency: conflicting.currency,
+      },
+    );
+  } catch (recordErr) {
+    console.error("[billing-webhook] adjustment_id_collision conflict write failed:", recordErr);
+    throw collisionRetryable("AdjustmentIdCollisionRecordError", `adjustment-id collision conflict write failed for ${eventType} ${adjustmentId}`);
+  }
+  return { status: 200, payload: { ok: true, recorded: false, reason: "conflict_pending", conflict_id: conflictId, event_type: eventType, sale_id: event.saleId } };
+}
+
 async function resolveAdjustmentIdCollision(
   provider: string,
   adjustmentId: string,
@@ -117,43 +195,12 @@ async function resolveAdjustmentIdCollision(
   if (matches) {
     return { status: 200, payload: { ok: true, recorded: false, reason: "duplicate", dedupe: "provider_adjustment_id", event_type: eventType, sale_id: event.saleId } };
   }
-  // Mismatch: store the event durably first (inbox row + audit flag, one transaction). A write failure must
-  // never become a 200 without a row; it surfaces as a retryable 503 (the route attaches Retry-After from the settings registry).
-  let conflictId: number;
-  try {
-    conflictId = await recordWebhookConflict(
-      {
-        provider,
-        event_type: eventType,
-        sale_id: event.saleId,
-        adjustment_id: adjustmentId,
-        total_cents: event.totalCents ?? null,
-        currency: event.currency ?? null,
-        occurred_at: flag.occurredAt,
-        refund_id: flag.refundId,
-      },
-      {
-        reason: "adjustment_id_collision",
-        provider,
-        sale_id: event.saleId,
-        refund_id: flag.refundId,
-        refund_cents: flag.refundCents,
-        sale_cents: rowCents,
-        creator_id: row.creator_id ?? null,
-        occurred_at: flag.occurredAt,
-        adjustment_id: adjustmentId,
-        event_type: eventType,
-        incoming_currency: event.currency ?? null,
-        conflicting_sale_id: row.sale_id,
-        conflicting_cents: rowCents,
-        conflicting_currency: row.currency ?? null,
-      },
-    );
-  } catch (recordErr) {
-    console.error("[billing-webhook] adjustment_id_collision conflict write failed:", recordErr);
-    throw collisionRetryable("AdjustmentIdCollisionRecordError", `adjustment-id collision conflict write failed for ${eventType} ${adjustmentId}`);
-  }
-  return { status: 200, payload: { ok: true, recorded: false, reason: "conflict_pending", conflict_id: conflictId, event_type: eventType, sale_id: event.saleId } };
+  return persistAdjustmentCollision(provider, adjustmentId, eventType, event, flag, {
+    sale_id: row.sale_id,
+    cents: rowCents,
+    currency: row.currency ?? null,
+    creator_id: row.creator_id ?? null,
+  });
 }
 /**
  * Run fn under the idempotency lock. A held lock is NOT success — the holder may
@@ -298,9 +345,16 @@ async function processBillingEvent(event: BillingEvent, deadlineAt?: number): Pr
           // The lookup resolves null only for "no such row". A lookup error, or any other fault, is NOT "not persisted":
           // log and rethrow, so the delivery answers 500 and the provider retries (a bare catch here would mask it as 503).
           try {
-            if (await findByProviderAdjustmentIdAsync(refundEvent.providerName, refundEvent.providerAdjustmentId, "refund")) return true;
+            const adjRow = await findByProviderAdjustmentIdAsync(refundEvent.providerName, refundEvent.providerAdjustmentId, "refund");
+            if (adjRow) {
+              return adjustmentRowMatchesEvent(adjRow, {
+                saleId: refundEvent.saleId,
+                totalCents: refundEvent.totalCents,
+                currency: refundEvent.currency,
+              });
+            }
           } catch (err) {
-            console.error("[billing-webhook] refund confirm: adjustment-id lookup failed:", err);
+            console.error("[billing-webhook] refund confirm: adjustment-id lookup failed:", err instanceof Error ? err.message : String(err));
             throw err;
           }
         }
@@ -372,15 +426,23 @@ async function processBillingEvent(event: BillingEvent, deadlineAt?: number): Pr
           // Replay of the SAME adjustment (chargeback .created/.updated share one id) is a
           // no-op success — including after a won dispute recorded a reversal.
           if (refundEvent.providerAdjustmentId) {
+            let adjRow: Awaited<ReturnType<typeof findByProviderAdjustmentIdAsync>> | null = null;
             try {
-              if (await findByProviderAdjustmentIdAsync(refundEvent.providerName, refundEvent.providerAdjustmentId, "refund")) {
-                return { status: 200, payload: { ok: true, recorded: false, reason: "duplicate", dedupe: "provider_adjustment_id", event_type: "refund", sale_id: refundEvent.saleId } };
-              }
+              adjRow = await findByProviderAdjustmentIdAsync(refundEvent.providerName, refundEvent.providerAdjustmentId, "refund");
             } catch (err) {
               // Fail closed: a broken lookup can't tell a replay from a new chargeback, so the
               // provider retries (500) instead of this delivery being flagged or dropped.
-              console.error("[billing-webhook] adjustment-id dedupe lookup failed:", err);
+              console.error("[billing-webhook] adjustment-id dedupe lookup failed:", err instanceof Error ? err.message : String(err));
               throw err;
+            }
+            if (adjRow) {
+              return await resolveAdjustmentIdCollision(
+                refundEvent.providerName,
+                refundEvent.providerAdjustmentId,
+                "refund",
+                { saleId: refundEvent.saleId, totalCents: refundEvent.totalCents, currency: refundEvent.currency },
+                { refundId: refundEvent.refundId ?? null, refundCents: refundEvent.totalCents ?? null, occurredAt: refundEvent.occurredAt },
+              );
             }
           }
           // A reversal can only exist once a refund does. After a won dispute the ledger can't hold a
@@ -437,7 +499,38 @@ async function processBillingEvent(event: BillingEvent, deadlineAt?: number): Pr
     const refundLockPrefix = requireLockPrefix(GLOBAL.payments.webhook_lock_refund_prefix, "webhook_lock_refund_prefix");
     const reversalResult = await underLockOrConfirmed(
       `${refundLockPrefix}${revEvent.providerName}:${revEvent.saleId}`,
-      async () => (await findRefundReversalAsync(revEvent.providerName, revEvent.saleId)) !== null,
+      async () => {
+        const [sale, reversal] = await Promise.all([
+          findSaleAsync(revEvent.providerName, revEvent.saleId),
+          findRefundReversalAsync(revEvent.providerName, revEvent.saleId),
+        ]);
+        if (!sale || !reversal) return false;
+        const saleCurrency = (sale.currency ?? GLOBAL.defaults.currency).toUpperCase();
+        if (revEvent.currency !== undefined && revEvent.currency.toUpperCase() !== saleCurrency) return false;
+        if (revEvent.totalCents === undefined || revEvent.totalCents !== Math.round(sale.amount_usd * 100)) return false;
+        if (!adjustmentRowMatchesEvent(reversal, { saleId: revEvent.saleId, totalCents: revEvent.totalCents, currency: revEvent.currency })) {
+          return false;
+        }
+        if (revEvent.providerAdjustmentId) {
+          try {
+            const adjRow = await findByProviderAdjustmentIdAsync(revEvent.providerName, revEvent.providerAdjustmentId, "refund_reversal");
+            if (adjRow) {
+              return adjustmentRowMatchesEvent(adjRow, {
+                saleId: revEvent.saleId,
+                totalCents: revEvent.totalCents,
+                currency: revEvent.currency,
+              });
+            }
+          } catch (err) {
+            console.error("[billing-webhook] reversal confirm: adjustment-id lookup failed:", err instanceof Error ? err.message : String(err));
+            throw err;
+          }
+          if (reversal.provider_adjustment_id && reversal.provider_adjustment_id !== revEvent.providerAdjustmentId) {
+            return false;
+          }
+        }
+        return true;
+      },
       async (fenceToken) => {
         const sale = await findSaleAsync(revEvent.providerName, revEvent.saleId);
         const refund = await findRefundAsync(revEvent.providerName, revEvent.saleId);
@@ -507,6 +600,67 @@ async function processBillingEvent(event: BillingEvent, deadlineAt?: number): Pr
 
         const existingReversal = await findRefundReversalAsync(revEvent.providerName, revEvent.saleId);
         if (existingReversal) {
+          if (revEvent.providerAdjustmentId) {
+            let adjRow: Awaited<ReturnType<typeof findByProviderAdjustmentIdAsync>> | null = null;
+            try {
+              adjRow = await findByProviderAdjustmentIdAsync(revEvent.providerName, revEvent.providerAdjustmentId, "refund_reversal");
+            } catch (err) {
+              console.error("[billing-webhook] reversal adjustment-id dedupe lookup failed:", err instanceof Error ? err.message : String(err));
+              throw err;
+            }
+            if (adjRow) {
+              return await resolveAdjustmentIdCollision(
+                revEvent.providerName,
+                revEvent.providerAdjustmentId,
+                "refund_reversal",
+                { saleId: revEvent.saleId, totalCents: revEvent.totalCents, currency: revEvent.currency },
+                { refundId: revEvent.refundId ?? null, refundCents: revEvent.totalCents ?? null, occurredAt: revEvent.occurredAt },
+              );
+            }
+            if (existingReversal.provider_adjustment_id && existingReversal.provider_adjustment_id !== revEvent.providerAdjustmentId) {
+              return await persistAdjustmentCollision(
+                revEvent.providerName,
+                revEvent.providerAdjustmentId,
+                "refund_reversal",
+                { saleId: revEvent.saleId, totalCents: revEvent.totalCents, currency: revEvent.currency },
+                { refundId: revEvent.refundId ?? null, refundCents: revEvent.totalCents ?? null, occurredAt: revEvent.occurredAt },
+                {
+                  sale_id: existingReversal.sale_id,
+                  cents: usdToCents(existingReversal.amount_usd),
+                  currency: existingReversal.currency ?? null,
+                  creator_id: existingReversal.creator_id ?? null,
+                },
+              );
+            }
+          }
+          const existingCents = usdToCents(existingReversal.amount_usd);
+          const existingCurrency = (existingReversal.currency ?? GLOBAL.defaults.currency).toUpperCase();
+          if (revEvent.currency !== undefined && revEvent.currency.toUpperCase() !== existingCurrency) {
+            await flagRefundForManualReview({
+              reason: "currency_mismatch",
+              provider: revEvent.providerName,
+              sale_id: revEvent.saleId,
+              refund_id: revEvent.refundId ?? null,
+              refund_cents: revEvent.totalCents ?? null,
+              sale_cents: existingCents,
+              creator_id: existingReversal.creator_id ?? null,
+              occurred_at: revEvent.occurredAt,
+            });
+            return { status: 200, payload: { ok: true, recorded: false, reason: "manual_review" } };
+          }
+          if (revEvent.totalCents !== existingCents) {
+            await flagRefundForManualReview({
+              reason: "reversal_amount_mismatch",
+              provider: revEvent.providerName,
+              sale_id: revEvent.saleId,
+              refund_id: revEvent.refundId ?? null,
+              refund_cents: revEvent.totalCents,
+              sale_cents: existingCents,
+              creator_id: existingReversal.creator_id ?? null,
+              occurred_at: revEvent.occurredAt,
+            });
+            return { status: 200, payload: { ok: true, recorded: false, reason: "manual_review" } };
+          }
           return { status: 200, payload: { ok: true, recorded: false, reason: "duplicate", event_type: "refund_reversal", sale_id: revEvent.saleId } };
         }
         try {
@@ -554,8 +708,10 @@ async function processBillingEvent(event: BillingEvent, deadlineAt?: number): Pr
     await underLockOrConfirmed(
       `${saleLockPrefix}${saleEvent.providerName}:${saleEvent.saleId}`,
       async () =>
-        Boolean(await findSaleAsync(saleEvent.providerName, saleEvent.saleId, undefined, readSignal)) &&
-        (await saleDeliveryConfirmed(saleEvent.providerName, saleEvent.saleId, deadlineAt)),
+        withBudgetRead(deadlineAt, saleEvent.saleId, async () =>
+          Boolean(await findSaleAsync(saleEvent.providerName, saleEvent.saleId, undefined, readSignal)) &&
+          (await saleDeliveryConfirmed(saleEvent.providerName, saleEvent.saleId, deadlineAt)),
+        ),
       async (fenceToken) => {
         // Fail closed for a non-Paddle sale without a buyer email: no download link can be sent, and a retry cannot
         // change that. Delivery would throw on every retry (a 500 loop), so the sale is refused with a final 422.
@@ -569,13 +725,15 @@ async function processBillingEvent(event: BillingEvent, deadlineAt?: number): Pr
         // Duplicate guard: if sale already recorded, do not duplicate splits. A prior attempt may have
         // failed after the ledger write, so re-attempt delivery; it is idempotent per sale, and a
         // failure rethrows (500) so the provider retries.
-        const existing = await findSaleAsync(saleEvent.providerName, saleEvent.saleId, undefined, readSignal);
+        const existing = await withBudgetRead(deadlineAt, saleEvent.saleId, () =>
+          findSaleAsync(saleEvent.providerName, saleEvent.saleId, undefined, readSignal),
+        );
         if (existing) {
           // Deliver first: a local-file fault must never block the buyer's email. Delivery is idempotent per sale.
           await deliverWithinBudget({
             provider: saleEvent.providerName,
             saleId: saleEvent.saleId,
-            productAlias: saleEvent.productId,
+            productAlias: existing.product_id,
             buyerEmail: saleEvent.buyerEmail,
             ...(fenceToken !== undefined ? { fence: fenceToken } : {}),
             deadlineAt,
@@ -588,7 +746,9 @@ async function processBillingEvent(event: BillingEvent, deadlineAt?: number): Pr
 
         // Resolve product from the DATABASE (Sprint 15: commercial state is
         // DB-only — the provider's product alias must map to a products row).
-        const cfg = await resolveProductByAlias(saleEvent.productId, saleEvent.providerName, readSignal);
+        const cfg = await withBudgetRead(deadlineAt, saleEvent.saleId, () =>
+          resolveProductByAlias(saleEvent.productId, saleEvent.providerName, readSignal),
+        );
         // Terminal: the alias resolves to no product (no row, or an alias outside the allowed charset). A retry cannot create one; the quarantined event is for an operator.
         if (!cfg) throw new WebhookValidationError(`Unknown product_id for provider ${saleEvent.providerName}`, 422);
 
@@ -614,7 +774,9 @@ async function processBillingEvent(event: BillingEvent, deadlineAt?: number): Pr
         }
 
         // Compute split (DB-backed creator_terms — latest effective_from <= sale time)
-        const creatorPct = await effectiveCreatorSplitPctAsync(cfg.creatorHandle, cfg.productId, saleEvent.occurredAt, readSignal);
+        const creatorPct = await withBudgetRead(deadlineAt, saleEvent.saleId, () =>
+          effectiveCreatorSplitPctAsync(cfg.creatorHandle, cfg.productId, saleEvent.occurredAt, readSignal),
+        );
         if (creatorPct === null) throw new Error(`Could not resolve split percentage for creator ${cfg.creatorHandle}`);
 
         const amountUsd = saleEvent.totalCents / 100; // Ledger still stores USD float — convert from canonical cents
@@ -624,7 +786,7 @@ async function processBillingEvent(event: BillingEvent, deadlineAt?: number): Pr
         const saleRecord = await persistSale({
           sale_id: saleEvent.saleId,
           provider: saleEvent.providerName,
-          product_id: saleEvent.productId,
+          product_id: cfg.productId,
           amount_usd: amountUsd,
           ts: saleEvent.occurredAt,
           email_hash: saleEvent.buyerEmailHash,
@@ -641,7 +803,7 @@ async function processBillingEvent(event: BillingEvent, deadlineAt?: number): Pr
         await deliverWithinBudget({
           provider: saleEvent.providerName,
           saleId: saleEvent.saleId,
-          productAlias: saleEvent.productId,
+          productAlias: cfg.productId,
           buyerEmail: saleEvent.buyerEmail,
           ...(fenceToken !== undefined ? { fence: fenceToken } : {}),
           deadlineAt,

@@ -396,10 +396,6 @@ export async function deliverSale(
     throw new Error("delivery: delivery.send_kind is missing in settings registry");
   }
   if (!input.buyerEmail) return "no_email";
-  const product = await deps.db.productForAlias(input.provider, input.productAlias);
-  // Fail closed on a product with no release file: a buyer must never get a link to nothing.
-  if (!product || !product.releasePath) return "no_release_file";
-
   const key = { provider: input.provider, saleId: input.saleId, sendKind };
   const idempotencyKey = claimKey(input.provider, input.saleId, sendKind);
   if (idempotencyKey.length > RESEND_IDEMPOTENCY_KEY_MAX_CHARS) {
@@ -407,24 +403,43 @@ export async function deliverSale(
   }
   const deadlineAt = input.deadlineAt ?? webhookDeadlineAt();
   assertBudget(deadlineAt, input.saleId);
+  const runPreSendStep = async <T>(op: () => Promise<T>): Promise<T> => {
+    try {
+      return await op();
+    } catch (err) {
+      if (budgetLeftMs(deadlineAt) <= 0 && !(err instanceof StaleFenceError)) {
+        throw new DeliveryPendingError(input.saleId, err);
+      }
+      throw err;
+    }
+  };
+  const product = await runPreSendStep(() => deps.db.productForAlias(input.provider, input.productAlias));
+  // Fail closed on a product with no release file: a buyer must never get a link to nothing.
+  if (!product || !product.releasePath) return "no_release_file";
 
   // Option A + Option B: claim the single-send row BEFORE creating any download link or sending email
   // (and before deliveryConfirmed so stale-fence workers are rejected even after completion).
-  const claim = await deps.db.claimDeliverySend({
-    provider: input.provider,
-    saleId: input.saleId,
-    sendKind,
-    fence: input.fence,
-  });
+  const claim = await runPreSendStep(() =>
+    deps.db.claimDeliverySend({
+      provider: input.provider,
+      saleId: input.saleId,
+      sendKind,
+      fence: input.fence,
+    }),
+  );
   if (claim.outcome !== "claimed") {
     const held = claim.outcome === "already_claimed";
-    if (await deps.db.deliveryConfirmed(input.provider, input.saleId)) {
+    if (await runPreSendStep(() => deps.db.deliveryConfirmed(input.provider, input.saleId))) {
       // Confirmed before this attempt: the buyer already has the receipt. A legacy held row is closed here.
-      if (held) await deps.db.markDeliverySent({ provider: input.provider, saleId: input.saleId, sendKind, fence: input.fence });
+      if (held) {
+        await runPreSendStep(() =>
+          deps.db.markDeliverySent({ provider: input.provider, saleId: input.saleId, sendKind, fence: input.fence }),
+        );
+      }
       return "duplicate";
     }
     // Held or sent-but-unconfirmed with a stored message: resend the identical bytes under the same key.
-    const stored = await deps.db.readClaimMessage(key);
+    const stored = await runPreSendStep(() => deps.db.readClaimMessage(key));
     if (stored !== null) return await resendStoredMessage(input, key, stored, claim, deps, deadlineAt);
     // No stored message. A held claim created after the change was never sent (the message is stored before any send), so it is
     // minted below. Every other case may already have been sent: nothing is sent or re-minted. The 503 path keeps the claim for
@@ -546,6 +561,10 @@ export async function deliverSale(
       // stored message against a live link, or flags the claim if it was created before the change.
       console.error(`[delivery] sale ${input.saleId}: could not release send claim: ${errorText(releaseErr)}`);
     }
+    // A pre-send step cut by the request budget is a retryable 503, not a raw 500 with no Retry-After.
+    if (budgetLeftMs(deadlineAt) <= 0 && !(err instanceof StaleFenceError) && !(err instanceof EmailSendError)) {
+      throw new DeliveryPendingError(input.saleId, err);
+    }
     throw err;
   }
   try {
@@ -597,12 +616,29 @@ export function saleDeliveryConfirmed(provider: string, saleId: string, deadline
   return supabaseDeliveryDb(requestSignal(deadlineAt)).deliveryConfirmed(provider, saleId);
 }
 
+/**
+ * Cleanup and post-send confirmation writes must still land after the request deadline: aborting them strands a claim
+ * with no stored link, or leaves an accepted email unconfirmed. Each runs on a fresh signal bounded by
+ * payments.http_timeout_ms instead of the expiring request signal.
+ */
+function withFreshCleanupSignals(budgeted: DeliveryDb): DeliveryDb {
+  const fresh = (): DeliveryDb => supabaseDeliveryDb(AbortSignal.timeout(GLOBAL.payments.http_timeout_ms));
+  return {
+    ...budgeted,
+    releaseLinkIssued: (row) => fresh().releaseLinkIssued(row),
+    confirmDelivery: (row) => fresh().confirmDelivery(row),
+    markDeliverySent: (row) => fresh().markDeliverySent(row),
+    releaseDeliverySend: (row) => fresh().releaseDeliverySend(row),
+    readClaimMessage: (row) => fresh().readClaimMessage(row),
+  };
+}
+
 /** Production wiring: Supabase for persistence, Resend for mail, Dub for the short link. */
 export function productionDeps(deadlineAt?: number): DeliveryDeps {
   const origin = GLOBAL.delivery.download_origin;
   const replyTo = GLOBAL.email.reply_to;
   return {
-    db: supabaseDeliveryDb(requestSignal(deadlineAt)),
+    db: deadlineAt === undefined ? supabaseDeliveryDb() : withFreshCleanupSignals(supabaseDeliveryDb(requestSignal(deadlineAt))),
     sendEmail: realSendEmail,
     createShortLink: (u, timeoutMs) => createDubShortLink(u, fetch, timeoutMs),
     origin,

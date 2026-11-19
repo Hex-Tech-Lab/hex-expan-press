@@ -6,8 +6,8 @@
 // Pay-host requests return before any Supabase call, so no mocks are needed here.
 import { describe, it, expect } from "vitest";
 
-function hostRequest(url: string): unknown {
-  return { cookies: { getAll: () => [], set: () => undefined }, url, headers: new Headers() };
+function hostRequest(url: string, headers: Record<string, string> = {}, method = "GET"): unknown {
+  return { cookies: { getAll: () => [], set: () => undefined }, url, method, headers: new Headers(headers) };
 }
 
 describe("pay host confinement (b2c-confinement spec, test d)", () => {
@@ -39,5 +39,25 @@ describe("pay host confinement (b2c-confinement spec, test d)", () => {
       expect(res.status, path).not.toBe(404);
       expect(res.headers.get("location"), path).toBeNull();
     }
+  });
+
+  it("blocks non-US x-vercel-ip-country on pay checkout page and API with 403 while allowing US and buyer legal pages", async () => {
+    const { proxy } = await import("../proxy");
+    const blockedPage = await proxy(hostRequest("https://pay.expanpress.com/checkout/p1", { "x-vercel-ip-country": "DE" }) as never);
+    expect(blockedPage.status).toBe(403);
+
+    const blockedApi = await proxy(hostRequest("https://pay.expanpress.com/api/billing/checkout?product=p1", { "x-vercel-ip-country": "DE" }) as never);
+    expect(blockedApi.status).toBe(403);
+    expect(await blockedApi.json()).toMatchObject({ ok: false, code: "country_not_supported" });
+
+    const blockedHead = await proxy(hostRequest("https://pay.expanpress.com/api/billing/checkout?product=p1", { "x-vercel-ip-country": "GB" }, "HEAD") as never);
+    expect(blockedHead.status).toBe(403);
+    expect(await blockedHead.text()).toBe("");
+
+    const allowedUs = await proxy(hostRequest("https://pay.expanpress.com/checkout/p1", { "x-vercel-ip-country": "US" }) as never);
+    expect(allowedUs.status).toBe(200);
+
+    const allowedLegal = await proxy(hostRequest("https://pay.expanpress.com/books/legal/terms.html", { "x-vercel-ip-country": "DE" }) as never);
+    expect(allowedLegal.status).toBe(200);
   });
 });

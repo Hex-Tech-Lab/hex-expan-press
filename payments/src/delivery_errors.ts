@@ -30,6 +30,11 @@ export class DeliveryPendingError extends Error {
   constructor(
     readonly saleId: string,
     cause: unknown,
+    /**
+     * Set when the answer was cut at the request deadline while the send is still running unawaited. The sale lock must stay
+     * held until it settles (never rejects), or a retry could start a second send against the same claim.
+     */
+    readonly backgroundWork?: Promise<void>,
   ) {
     const detail = cause instanceof Error ? cause.message : String(cause);
     super(`delivery unconfirmed for sale ${saleId}: ${detail}; the provider will retry`);

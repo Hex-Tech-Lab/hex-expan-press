@@ -3,8 +3,9 @@ import { fetchCheckoutProduct } from "../../../../src/components/storefront/stor
 import { ATTRIBUTION_KEYS } from "../../../../src/lib/attribution";
 import CheckoutPage from "../page";
 
-// Money-path branches of the pay-domain checkout page: a live product gets the buy link, a gated product
-// gets the disabled notice and no link, and an unknown product must not render a checkout at all.
+// Money-path branches of the pay-domain checkout page: a live product renders the single-hop
+// BuyerEmailStep POST form, a gated product gets the disabled notice and no form, and an
+// unknown product must not render a checkout at all.
 
 vi.mock("../../../../src/components/storefront/storefront", () => ({
   NOINDEX: { index: false },
@@ -14,7 +15,7 @@ vi.mock("../../../../src/components/storefront/storefront", () => ({
   priceOf: () => 39,
 }));
 
-vi.mock("../../../../src/components/storefront/buy-link", () => ({ BuyLink: "BuyLink" }));
+vi.mock("../../../../src/components/storefront/buyer-email-step", () => ({ BuyerEmailStep: "BuyerEmailStep" }));
 
 vi.mock("next/navigation", () => ({
   notFound: vi.fn(() => {
@@ -61,38 +62,44 @@ beforeEach(() => {
   vi.mocked(fetchCheckoutProduct).mockReset();
 });
 
-describe("checkout page: buy branch", () => {
-  it("live product renders the buy link to the checkout route with the product id", async () => {
+describe("checkout page: single-hop BuyerEmailStep branch", () => {
+  it("live product renders BuyerEmailStep posting to /api/billing/checkout with productId", async () => {
     vi.mocked(fetchCheckoutProduct).mockResolvedValue(product() as never);
     const tree = await render("p1");
-    const links: string[] = [];
+    const steps: Array<Record<string, unknown>> = [];
     walk(tree as unknown as Node, (el) => {
-      if (el.type === "BuyLink") links.push(String(el.props.href));
+      if (el.type === "BuyerEmailStep") steps.push(el.props);
     });
-    expect(links).toEqual(["/api/billing/checkout?product=p1"]);
+    expect(steps).toHaveLength(1);
+    expect(steps[0]).toMatchObject({
+      action: "/api/billing/checkout",
+      productId: "p1",
+      initialAttribution: {},
+    });
   });
 
-  it("forwards an attribution parameter to the buy link", async () => {
+  it("forwards attribution parameters from searchParams into initialAttribution", async () => {
     vi.mocked(fetchCheckoutProduct).mockResolvedValue(product() as never);
     const key = Object.keys(ATTRIBUTION_KEYS)[0];
-    const tree = await render("p1", { [key]: "abc" });
-    const hrefs: string[] = [];
+    const tree = await render("p1", { [key]: "abc", buyer_email: "ignored@example.com" });
+    const steps: Array<Record<string, unknown>> = [];
     walk(tree as unknown as Node, (el) => {
-      if (el.type === "BuyLink") hrefs.push(String(el.props.href));
+      if (el.type === "BuyerEmailStep") steps.push(el.props);
     });
-    expect(hrefs).toHaveLength(1);
-    expect(hrefs[0]).toContain(`${key}=abc`);
+    expect(steps).toHaveLength(1);
+    expect(steps[0].initialAttribution).toEqual({ [key]: "abc" });
   });
 
   it("drops empty attribution values rather than forwarding them", async () => {
     vi.mocked(fetchCheckoutProduct).mockResolvedValue(product() as never);
     const key = Object.keys(ATTRIBUTION_KEYS)[0];
     const tree = await render("p1", { [key]: "" });
-    const hrefs: string[] = [];
+    const steps: Array<Record<string, unknown>> = [];
     walk(tree as unknown as Node, (el) => {
-      if (el.type === "BuyLink") hrefs.push(String(el.props.href));
+      if (el.type === "BuyerEmailStep") steps.push(el.props);
     });
-    expect(hrefs).toEqual(["/api/billing/checkout?product=p1"]);
+    expect(steps).toHaveLength(1);
+    expect(steps[0].initialAttribution).toEqual({});
   });
 });
 
@@ -121,27 +128,27 @@ describe("checkout page: buyer legal links follow the checkout mode", () => {
 });
 
 describe("checkout page: gated branch", () => {
-  it("gated product renders no buy link and shows the disabled notice", async () => {
+  it("gated product renders no BuyerEmailStep and shows the disabled notice", async () => {
     vi.mocked(fetchCheckoutProduct).mockResolvedValue(product({ checkout_mode: "gated" }) as never);
     const tree = await render("p1");
-    let buyLinks = 0;
+    let emailSteps = 0;
     let gatedNotices = 0;
     walk(tree as unknown as Node, (el) => {
-      if (el.type === "BuyLink") buyLinks += 1;
+      if (el.type === "BuyerEmailStep") emailSteps += 1;
       if (el.props["data-checkout-mode"] === "gated") gatedNotices += 1;
     });
-    expect(buyLinks).toBe(0);
+    expect(emailSteps).toBe(0);
     expect(gatedNotices).toBe(1);
   });
 
-  it("a null checkout_mode also renders no buy link", async () => {
+  it("a null checkout_mode also renders no BuyerEmailStep", async () => {
     vi.mocked(fetchCheckoutProduct).mockResolvedValue(product({ checkout_mode: null }) as never);
     const tree = await render("p1");
-    let buyLinks = 0;
+    let emailSteps = 0;
     walk(tree as unknown as Node, (el) => {
-      if (el.type === "BuyLink") buyLinks += 1;
+      if (el.type === "BuyerEmailStep") emailSteps += 1;
     });
-    expect(buyLinks).toBe(0);
+    expect(emailSteps).toBe(0);
   });
 });
 

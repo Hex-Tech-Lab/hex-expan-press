@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
-import { GET, HEAD } from "../route";
+import { GET, HEAD, POST } from "../route";
 import { MatrixRouter } from "../../../../../../src/infrastructure/matrix_router/matrix_router";
 import { portRails } from "../../../../../../scripts/lib/heritage-rails";
 import { MatrixRouterUnavailableError } from "../../../../../../src/infrastructure/matrix_router/matrix_router_errors";
@@ -13,6 +13,7 @@ const adminModule = vi.hoisted(() => ({
 const registryOverride = vi.hoisted(() => ({
   sandboxCheckoutEnabled: undefined as boolean | undefined,
   polarEnabled: false,
+  creemEnabled: false,
 }));
 
 vi.mock("../../../../../../payments/src/settings_registry", async (importOriginal) => {
@@ -20,7 +21,9 @@ vi.mock("../../../../../../payments/src/settings_registry", async (importOrigina
   return {
     ...actual,
     isEnabledPaymentProvider: (name: string) =>
-      (name === "polar" && registryOverride.polarEnabled) || actual.isEnabledPaymentProvider(name),
+      (name === "polar" && registryOverride.polarEnabled) ||
+      (name === "creem" && registryOverride.creemEnabled) ||
+      actual.isEnabledPaymentProvider(name),
     GLOBAL: new Proxy(actual.GLOBAL, {
       get(target, prop, receiver) {
         if (prop === "payments" && registryOverride.sandboxCheckoutEnabled !== undefined) {
@@ -156,6 +159,7 @@ beforeEach(() => {
   adminModule.mockAdminClient = null;
   registryOverride.sandboxCheckoutEnabled = undefined;
   registryOverride.polarEnabled = false;
+  registryOverride.creemEnabled = false;
 });
 
 describe("billing/checkout DB rail in production, fail-closed without rails", () => {
@@ -326,11 +330,15 @@ describe("billing/checkout wave85 sandbox + raw-URL fail-closed", () => {
     expect(res.headers.get("location")).toBeNull();
   });
 
-  it("VERCEL_ENV unset + NODE_ENV=test serves a sandbox rail when sandbox_checkout_enabled is true (302)", async () => {
+  it("VERCEL_ENV unset + NODE_ENV=test serves a sandbox rail on a sandbox product when sandbox_checkout_enabled is true (302)", async () => {
     vi.stubEnv("VERCEL_ENV", undefined as unknown as string);
     vi.stubEnv("NODE_ENV", "test");
     registryOverride.sandboxCheckoutEnabled = true;
-    setLiveRail("https://sandbox-api.polar.sh/v1/checkout-links/x/redirect");
+    adminModule.mockAdminClient = gateAdminClient(
+      { data: { id: PID, creator_id: OWNER_ID, release_sha256: RELEASE_SHA, checkout_mode: "sandbox" }, error: null },
+      undefined,
+      { data: [{ provider: "paddle", weight: 100, checkout_url: "https://sandbox-api.polar.sh/v1/checkout-links/x/redirect", active: true }], error: null },
+    );
     const res = await GET(request());
     expect(res.status).toBe(302);
     expect(res.headers.get("location")).toContain("sandbox-api.polar.sh");
@@ -984,14 +992,14 @@ describe("billing/checkout launch state + complete consent history (Sprint 17)",
     expect(urlRes.headers.get("location")).toBeNull();
   });
 
-  it("accepts checkout_mode=sandbox and sandbox rail host on VERCEL_ENV=preview when setting is true (even when NODE_ENV=production)", async () => {
+  it("accepts checkout_mode=sandbox only with a sandbox rail host on VERCEL_ENV=preview when setting is true, and rejects live rail mismatch (F-03)", async () => {
     vi.stubEnv("VERCEL_ENV", "preview");
     vi.stubEnv("NODE_ENV", "production");
     registryOverride.sandboxCheckoutEnabled = true;
     adminModule.mockAdminClient = withMode("sandbox");
     const modeRes = await GET(request());
-    expect(modeRes.status).toBe(302);
-    expect(modeRes.headers.get("location")).toBe("https://buy.paddle.com/live-rail");
+    expect(modeRes.status).toBe(500);
+    expect(modeRes.headers.get("location")).toBeNull();
 
     adminModule.mockAdminClient = gateAdminClient(
       { data: { id: PID, creator_id: OWNER_ID, release_sha256: RELEASE_SHA, checkout_mode: "sandbox" }, error: null },
@@ -1196,6 +1204,67 @@ describe("billing/checkout HEAD handler", () => {
     expect(headRes.body).toBeNull();
     expect(await headRes.text()).toBe("");
   });
+
+  it("mirrors error status codes (400, 403, 404, 500, 503) with empty body on HEAD (F-11)", async () => {
+    const badEmailRes = await HEAD(new NextRequest(`${CHECKOUT_URL}&buyer_email=not-an-email`, { method: "HEAD" }));
+    expect(badEmailRes.status).toBe(400);
+    expect(await badEmailRes.text()).toBe("");
+
+    const blockedCountryRes = await HEAD(new NextRequest(CHECKOUT_URL, { method: "HEAD", headers: { "x-vercel-ip-country": "DE" } }));
+    expect(blockedCountryRes.status).toBe(403);
+    expect(await blockedCountryRes.text()).toBe("");
+
+    adminModule.mockAdminClient = gateAdminClient({ data: { id: PID, creator_id: OWNER_ID, release_sha256: RELEASE_SHA, checkout_mode: "gated" }, error: null });
+    const gatedRes = await HEAD(new NextRequest(CHECKOUT_URL, { method: "HEAD" }));
+    expect(gatedRes.status).toBe(403);
+    expect(await gatedRes.text()).toBe("");
+
+    adminModule.mockAdminClient = gateAdminClient({ data: null, error: null });
+    const notFoundRes = await HEAD(new NextRequest(CHECKOUT_URL, { method: "HEAD" }));
+    expect(notFoundRes.status).toBe(404);
+    expect(await notFoundRes.text()).toBe("");
+
+    adminModule.mockAdminClient = gateAdminClient(undefined, undefined, {
+      data: [{ provider: "paddle", weight: 100, checkout_url: "http://buy.paddle.com/insecure", active: true }],
+      error: null,
+    });
+    const badRailRes = await HEAD(new NextRequest(CHECKOUT_URL, { method: "HEAD" }));
+    expect(badRailRes.status).toBe(500);
+    expect(await badRailRes.text()).toBe("");
+
+    adminModule.mockAdminClient = gateAdminClient();
+    vi.mocked(MatrixRouter.getNextProvider).mockRejectedValueOnce(new MatrixRouterUnavailableError("payments", PID));
+    const downRes = await HEAD(new NextRequest(CHECKOUT_URL, { method: "HEAD" }));
+    expect(downRes.status).toBe(503);
+    expect(await downRes.text()).toBe("");
+  });
+
+  it("forwards buyer params on HEAD for Polar and Creem rails with empty body (F-11)", async () => {
+    registryOverride.polarEnabled = true;
+    vi.mocked(MatrixRouter.getNextProvider).mockResolvedValueOnce("polar");
+    adminModule.mockAdminClient = gateAdminClient(undefined, undefined, {
+      data: [{ provider: "polar", weight: 100, checkout_url: "https://buy.polar.sh/live-polar", active: true }],
+      error: null,
+    });
+    const polarHead = await HEAD(new NextRequest(`${CHECKOUT_URL}&buyer_email=ann%40example.com&buyer_consent=true`, { method: "HEAD" }));
+    expect(polarHead.status).toBe(302);
+    expect(new URL(polarHead.headers.get("location")!).searchParams.get("customer_email")).toBe("ann@example.com");
+    expect(await polarHead.text()).toBe("");
+
+    registryOverride.creemEnabled = true;
+    vi.mocked(MatrixRouter.getNextProvider).mockResolvedValueOnce("creem");
+    adminModule.mockAdminClient = gateAdminClient(
+      { data: { id: PID, store_product_id: "store_book_1", creator_id: OWNER_ID, release_sha256: RELEASE_SHA, checkout_mode: "live", creators: { handle: "duane" } }, error: null },
+      undefined,
+      { data: [{ provider: "creem", weight: 100, checkout_url: "https://creem.io/payment/prod_live", active: true }], error: null },
+    );
+    const creemHead = await HEAD(new NextRequest(`${CHECKOUT_URL}&buyer_email=ann%40example.com&buyer_consent=true`, { method: "HEAD" }));
+    expect(creemHead.status).toBe(302);
+    const loc = new URL(creemHead.headers.get("location")!);
+    expect(loc.searchParams.get(`metadata[${GLOBAL.delivery.buyer_consent_metadata_key}]`)).toBe("true");
+    expect(loc.searchParams.get("success_url")).toBe(`${GLOBAL.delivery.download_origin}/books/duane/thanks`);
+    expect(await creemHead.text()).toBe("");
+  });
 });
 
 describe("billing/checkout additional defensive and lookup branches", () => {
@@ -1338,5 +1407,266 @@ describe("billing/checkout additional defensive and lookup branches", () => {
     const parsed = new URL(location!);
     expect(parsed.origin + parsed.pathname).toBe("https://buy.polar.sh/live-polar");
     expect(parsed.searchParams.get("reference_id")).toBeTruthy();
+  });
+});
+
+// Buyer email and consent from the product page's email step. Each provider receives only what its checkout link documents:
+// Polar customer_email, Creem a metadata key. Paddle's redirect documents neither, so its URL must stay exactly as configured.
+describe("billing/checkout buyer email and consent (product page email step)", () => {
+  const BUYER = "buyer_email=ann%40example.com&buyer_consent=true";
+
+  beforeEach(() => {
+    adminModule.mockAdminClient = gateAdminClient();
+  });
+
+  it("answers 400 for a malformed buyer email before any product lookup", async () => {
+    const res = await GET(new NextRequest(`${CHECKOUT_URL}&buyer_email=not-an-email`));
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ ok: false, error: "Invalid buyer email", code: "buyer_email_invalid" });
+    expect(res.headers.get("location")).toBeNull();
+  });
+
+  it("answers 400 for a consent value other than true or false", async () => {
+    const res = await GET(new NextRequest(`${CHECKOUT_URL}&buyer_consent=yes`));
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ ok: false, error: "Invalid buyer consent", code: "buyer_consent_invalid" });
+  });
+
+  it("prefills customer_email on a Polar checkout link", async () => {
+    registryOverride.polarEnabled = true;
+    vi.mocked(MatrixRouter.getNextProvider).mockResolvedValueOnce("polar");
+    adminModule.mockAdminClient = gateAdminClient(undefined, undefined, {
+      data: [{ provider: "polar", weight: 100, checkout_url: "https://buy.polar.sh/live-polar", active: true }],
+      error: null,
+    });
+    const res = await GET(new NextRequest(`${CHECKOUT_URL}&${BUYER}`));
+    expect(res.status).toBe(302);
+    const parsed = new URL(res.headers.get("location")!);
+    expect(parsed.origin + parsed.pathname).toBe("https://buy.polar.sh/live-polar");
+    expect(parsed.searchParams.get("customer_email")).toBe("ann@example.com");
+  });
+
+  it("prefills the same Polar email on the router fallback redirect", async () => {
+    registryOverride.polarEnabled = true;
+    vi.mocked(MatrixRouter.getNextProvider).mockRejectedValueOnce(new Error("router down"));
+    adminModule.mockAdminClient = gateAdminClient(undefined, undefined, {
+      data: [{ provider: "polar", weight: 100, checkout_url: "https://buy.polar.sh/live-polar", active: true }],
+      error: null,
+    });
+    const res = await GET(new NextRequest(`${CHECKOUT_URL}&${BUYER}`));
+    expect(res.status).toBe(302);
+    expect(new URL(res.headers.get("location")!).searchParams.get("customer_email")).toBe("ann@example.com");
+  });
+
+  it("records consent as checkout metadata on a Creem link and sends no email there", async () => {
+    registryOverride.creemEnabled = true;
+    vi.mocked(MatrixRouter.getNextProvider).mockResolvedValueOnce("creem");
+    adminModule.mockAdminClient = gateAdminClient(undefined, undefined, {
+      data: [{ provider: "creem", weight: 100, checkout_url: "https://creem.io/payment/prod_live", active: true }],
+      error: null,
+    });
+    const res = await GET(new NextRequest(`${CHECKOUT_URL}&buyer_email=ann%40example.com&buyer_consent=false`));
+    expect(res.status).toBe(302);
+    const parsed = new URL(res.headers.get("location")!);
+    expect(parsed.searchParams.get(`metadata[${GLOBAL.delivery.buyer_consent_metadata_key}]`)).toBe("false");
+    expect(parsed.searchParams.get("customer_email")).toBeNull();
+    expect(parsed.searchParams.get("reference_id")).toBeNull();
+  });
+
+  it("leaves the Paddle redirect exactly as configured, with no buyer parameters added", async () => {
+    const res = await GET(new NextRequest(`${CHECKOUT_URL}&${BUYER}`));
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("https://buy.paddle.com/live-rail");
+  });
+
+  it("sets Creem metadata[order_ref], metadata[product_id], and success_url without overwriting an existing success_url (F-04, F-07)", async () => {
+    registryOverride.creemEnabled = true;
+    vi.mocked(MatrixRouter.getNextProvider).mockResolvedValue("creem");
+    adminModule.mockAdminClient = gateAdminClient(
+      { data: { id: PID, store_product_id: "store_book_1", creator_id: OWNER_ID, release_sha256: RELEASE_SHA, checkout_mode: "live", creators: { handle: "duane" } }, error: null },
+      undefined,
+      { data: [{ provider: "creem", weight: 100, checkout_url: "https://creem.io/payment/prod_live", active: true }], error: null },
+    );
+    const res = await GET(new NextRequest(`${CHECKOUT_URL}&src=ig&dub_id=d1&buyer_email=ann%40example.com&buyer_consent=true`));
+    expect(res.status).toBe(302);
+    const parsed = new URL(res.headers.get("location")!);
+    expect(parsed.searchParams.get("metadata[order_ref]")).toBe("ig:d1");
+    expect(parsed.searchParams.get("metadata[product_id]")).toBe("store_book_1");
+    expect(parsed.searchParams.get("success_url")).toBe(`${GLOBAL.delivery.download_origin}/books/duane/thanks`);
+
+    adminModule.mockAdminClient = gateAdminClient(
+      { data: { id: PID, store_product_id: null, creator_id: OWNER_ID, release_sha256: RELEASE_SHA, checkout_mode: "live", creators: { handle: "duane" } }, error: null },
+      undefined,
+      { data: [{ provider: "creem", weight: 100, checkout_url: "https://creem.io/payment/prod_live?success_url=https%3A%2F%2Fexpanpress.com%2Fbooks%2Fcustom", active: true }], error: null },
+    );
+    const presetRes = await GET(new NextRequest(`${CHECKOUT_URL}&buyer_email=ann%40example.com&buyer_consent=true`));
+    const presetUrl = new URL(presetRes.headers.get("location")!);
+    expect(presetUrl.searchParams.get("metadata[product_id]")).toBe(PID);
+    expect(presetUrl.searchParams.get("success_url")).toBe("https://expanpress.com/books/custom");
+  });
+});
+
+describe("billing/checkout POST single-hop form & JSON (F-07 Option A)", () => {
+  beforeEach(() => {
+    vi.stubEnv("VERCEL_ENV", "production");
+    adminModule.mockAdminClient = gateAdminClient();
+    vi.mocked(MatrixRouter.getNextProvider).mockReset();
+    vi.mocked(MatrixRouter.getNextProvider).mockResolvedValue("paddle");
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  function postForm(fields: Record<string, string>, headers: Record<string, string> = {}) {
+    return new NextRequest("http://localhost:3000/api/billing/checkout", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded", ...headers },
+      body: new URLSearchParams(fields).toString(),
+    });
+  }
+
+  it("returns 303 See Other with Cache-Control: no-store on valid form POST", async () => {
+    const res = await POST(postForm({
+      product: PID,
+      buyer_email: "ann@example.com",
+      buyer_email_confirm: "ann@example.com",
+      buyer_consent: "true",
+      src: "ig",
+    }));
+    expect(res.status).toBe(303);
+    expect(res.headers.get("cache-control")).toBe("no-store");
+    expect(res.headers.get("location")).toBe("https://buy.paddle.com/live-rail");
+  });
+
+  it("treats omitted buyer_consent checkbox on POST as false and forwards Creem metadata + order_ref + success_url", async () => {
+    registryOverride.creemEnabled = true;
+    vi.mocked(MatrixRouter.getNextProvider).mockResolvedValueOnce("creem");
+    adminModule.mockAdminClient = gateAdminClient(
+      { data: { id: PID, store_product_id: "sp_1", creator_id: OWNER_ID, release_sha256: RELEASE_SHA, checkout_mode: "live", creators: { handle: "duane" } }, error: null },
+      undefined,
+      { data: [{ provider: "creem", weight: 100, checkout_url: "https://creem.io/payment/prod_live", active: true }], error: null },
+    );
+    const res = await POST(postForm({
+      product: PID,
+      buyer_email: "ann@example.com",
+      buyer_email_confirm: "ann@example.com",
+      src: "yt",
+    }));
+    expect(res.status).toBe(303);
+    const loc = new URL(res.headers.get("location")!);
+    expect(loc.searchParams.get(`metadata[${GLOBAL.delivery.buyer_consent_metadata_key}]`)).toBe("false");
+    expect(loc.searchParams.get("metadata[order_ref]")).toBe("yt");
+    expect(loc.searchParams.get("metadata[product_id]")).toBe("sp_1");
+    expect(loc.searchParams.get("success_url")).toBe(`${GLOBAL.delivery.download_origin}/books/duane/thanks`);
+  });
+
+  it("supports JSON POST bodies and returns 303", async () => {
+    registryOverride.polarEnabled = true;
+    vi.mocked(MatrixRouter.getNextProvider).mockResolvedValueOnce("polar");
+    adminModule.mockAdminClient = gateAdminClient(undefined, undefined, {
+      data: [{ provider: "polar", weight: 100, checkout_url: "https://buy.polar.sh/live-polar", active: true }],
+      error: null,
+    });
+    const res = await POST(new NextRequest("http://localhost:3000/api/billing/checkout", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        product: PID,
+        buyer_email: "ann@example.com",
+        buyer_email_confirm: "ann@example.com",
+        buyer_consent: true,
+        src: "ig",
+      }),
+    }));
+    expect(res.status).toBe(303);
+    const loc = new URL(res.headers.get("location")!);
+    expect(loc.searchParams.get("customer_email")).toBe("ann@example.com");
+    expect(loc.searchParams.get("reference_id")).toBe("ig");
+  });
+
+  it("enforces buyerEmailsMatch and valid email on POST with 400", async () => {
+    const mismatchRes = await POST(postForm({
+      product: PID,
+      buyer_email: "ann@example.com",
+      buyer_email_confirm: "other@example.com",
+      buyer_consent: "true",
+    }));
+    expect(mismatchRes.status).toBe(400);
+    expect(await mismatchRes.json()).toMatchObject({ ok: false, code: "buyer_email_mismatch" });
+
+    const invalidRes = await POST(postForm({
+      product: PID,
+      buyer_email: "bad",
+      buyer_email_confirm: "bad",
+    }));
+    expect(invalidRes.status).toBe(400);
+    expect(await invalidRes.json()).toMatchObject({ ok: false, code: "buyer_email_invalid" });
+  });
+});
+
+describe("billing/checkout F-03 test/stage/path-based sandbox guard & F-06 US-only geo gate", () => {
+  beforeEach(() => {
+    adminModule.mockAdminClient = gateAdminClient();
+    vi.mocked(MatrixRouter.getNextProvider).mockReset();
+    vi.mocked(MatrixRouter.getNextProvider).mockResolvedValue("paddle");
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    registryOverride.sandboxCheckoutEnabled = undefined;
+  });
+
+  it.each([
+    "https://creem.io/test/payment/prod_123",
+    "https://www.creem.io/test/payment/prod_123",
+    "https://test-api.creem.io/pay/prod_123",
+    "https://api.stage.fungies.net/pay/123",
+  ])("rejects %s on a live product in production (500)", async (url) => {
+    vi.stubEnv("VERCEL_ENV", "production");
+    setLiveRail(url);
+    const res = await GET(request());
+    expect(res.status).toBe(500);
+  });
+
+  it("rejects a sandbox rail on a live product even in preview when sandbox_checkout_enabled is true", async () => {
+    vi.stubEnv("VERCEL_ENV", "preview");
+    registryOverride.sandboxCheckoutEnabled = true;
+    setLiveRail("https://creem.io/test/payment/prod_123");
+    const res = await GET(request());
+    expect(res.status).toBe(500);
+  });
+
+  it("allows a /test/ sandbox rail on a sandbox product in preview when sandbox_checkout_enabled is true", async () => {
+    vi.stubEnv("VERCEL_ENV", "preview");
+    registryOverride.sandboxCheckoutEnabled = true;
+    adminModule.mockAdminClient = gateAdminClient(
+      { data: { id: PID, creator_id: OWNER_ID, release_sha256: RELEASE_SHA, checkout_mode: "sandbox" }, error: null },
+      undefined,
+      { data: [{ provider: "paddle", weight: 100, checkout_url: "https://creem.io/test/payment/prod_123", active: true }], error: null },
+    );
+    const res = await GET(request());
+    expect(res.status).toBe(302);
+    expect(res.headers.get("location")).toBe("https://creem.io/test/payment/prod_123");
+  });
+
+  it("blocks non-US countries with 403 country_not_supported on GET and POST, and allows US + territories", async () => {
+    vi.stubEnv("VERCEL_ENV", "production");
+    const getBlocked = await GET(new NextRequest(CHECKOUT_URL, { headers: { "x-vercel-ip-country": "DE" } }));
+    expect(getBlocked.status).toBe(403);
+    expect(await getBlocked.json()).toMatchObject({ ok: false, code: "country_not_supported" });
+
+    const postBlocked = await POST(new NextRequest("http://localhost:3000/api/billing/checkout", {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded", "x-vercel-ip-country": "GB" },
+      body: new URLSearchParams({ product: PID, buyer_email: "ann@example.com", buyer_email_confirm: "ann@example.com" }).toString(),
+    }));
+    expect(postBlocked.status).toBe(403);
+    expect(await postBlocked.json()).toMatchObject({ ok: false, code: "country_not_supported" });
+
+    for (const country of ["US", "PR", "VI", "GU", "AS", "MP"]) {
+      const ok = await GET(new NextRequest(CHECKOUT_URL, { headers: { "x-vercel-ip-country": country } }));
+      expect(ok.status, country).toBe(302);
+    }
   });
 });

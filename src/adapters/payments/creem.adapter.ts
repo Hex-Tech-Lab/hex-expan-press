@@ -128,7 +128,8 @@ export class CreemAdapter implements PaymentProviderPort {
       eventType: "sale_completed",
       providerName: this.providerName,
       saleId: data.order.id,
-      productId: data.order.product,
+      // Our own product key when the payment link carries it (metadata.product_id); Creem's prod_ id is only the fallback.
+      productId: typeof data.metadata?.product_id === "string" && data.metadata.product_id !== "" ? data.metadata.product_id : data.order.product,
       totalCents: data.order.amount_paid ?? data.order.amount,
       currency: data.order.currency.toUpperCase(),
       buyerEmailHash: hashEmail(data.customer.email),

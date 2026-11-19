@@ -49,6 +49,17 @@ class Query {
     const matches = (row: Row) => this.filters.every(([c, op, v]) => (op === "eq" ? row[c] === v : row[c] !== null && row[c] !== undefined && Number(row[c]) <= Number(v)));
     if (this.mode === "insert") {
       const k = orderKey(this.payload.provider, this.payload.sale_id, this.payload.event_type ?? "sale");
+      if (
+        typeof this.payload.provider_adjustment_id === "string" &&
+        [...orders.values()].some(
+          (r) =>
+            r.provider === this.payload.provider &&
+            r.event_type === (this.payload.event_type ?? "sale") &&
+            r.provider_adjustment_id === this.payload.provider_adjustment_id,
+        )
+      ) {
+        return { data: null, error: { code: "23505", message: "duplicate key value violates unique constraint orders_provider_adjustment_id_uniq" } };
+      }
       if (orders.has(k)) return { data: null, error: { code: "23505", message: "duplicate key value violates unique constraint orders_provider_sale_id_event_type_key" } };
       orders.set(k, { ...this.payload });
       return { data: null, error: null };
@@ -146,5 +157,69 @@ describe("ledger: existing orders key takes only the fence; local JSONL line is 
     await expect(appendSale(SALE_A, salesFile, 3)).rejects.toThrow("ledger: Supabase dual-write failed");
     expect(orders.get(orderKey("paddle", SALE_A.sale_id, "sale"))).toMatchObject({ amount_usd: 10, fence: storedFence });
     expect(existsSync(salesFile)).toBe(false);
+  });
+
+  it("fenced refund/reversal never advances fence or swallows a mismatched provider_adjustment_id (F-05)", async () => {
+    const { appendSale, appendRefund } = await import("../src/ledger.ts");
+    await appendSale(SALE_A, salesFile, 1);
+    await appendSale({ ...SALE_A, sale_id: "sale-ledger-fence-other" }, salesFile, 1);
+    await appendRefund({ provider: "paddle", sale_id: "sale-ledger-fence-other", provider_adjustment_id: "adj_other" }, salesFile, 1);
+
+    // Seed an existing refund in Supabase with adj_1, and simulate a race where findRefundAsync hasn't seen it yet
+    // when appendRefund reaches persistToSupabaseOrder(record, fence=2).
+    const saleARefundKey = orderKey("paddle", SALE_A.sale_id, "refund");
+    orders.set(saleARefundKey, {
+      provider: "paddle",
+      sale_id: SALE_A.sale_id,
+      product_id: SALE_A.product_id,
+      creator_id: SALE_A.creator_id,
+      creator_split_pct: SALE_A.creator_split_pct,
+      creator_split_usd: -SALE_A.creator_split_usd,
+      our_split_usd: -SALE_A.our_split_usd,
+      event_type: "refund",
+      amount_usd: 10,
+      currency: "USD",
+      occurred_at: SALE_A.ts,
+      email_hash: null,
+      attribution_id: null,
+      provider_adjustment_id: "adj_1",
+      fence: 1,
+    });
+
+    const origMaybeSingle = Query.prototype.maybeSingle;
+    Query.prototype.maybeSingle = function () {
+      // Force findRefundAsync on SALE_A to return null so appendRefund reaches persistToSupabaseOrder with the incoming adjustment_id.
+      const isRefundLookup = this["filters"].some(([c, , v]) => c === "event_type" && v === "refund")
+        && this["filters"].some(([c, , v]) => c === "sale_id" && v === SALE_A.sale_id);
+      if (isRefundLookup) {
+        this["filters"].push(["sale_id", "eq", "__force_miss__"]);
+      }
+      return origMaybeSingle.call(this);
+    };
+    try {
+      // Different adjustment_id already owned by another sale -> surfaces 23505 on orders_provider_adjustment_id_uniq.
+      const collisionErr = await appendRefund(
+        { provider: "paddle", sale_id: SALE_A.sale_id, provider_adjustment_id: "adj_other" },
+        salesFile,
+        2,
+      ).catch((e: unknown) => e);
+      expect(collisionErr).toMatchObject({ code: "23505", message: expect.stringContaining("orders_provider_adjustment_id_uniq") });
+      expect(orders.get(saleARefundKey)).toMatchObject({ provider_adjustment_id: "adj_1", fence: 1 });
+
+      // Different adjustment_id not on another sale -> still refuses to advance fence on adj_1 (throws 23505).
+      const mismatchErr = await appendRefund(
+        { provider: "paddle", sale_id: SALE_A.sale_id, provider_adjustment_id: "adj_brand_new" },
+        salesFile,
+        2,
+      ).catch((e: unknown) => e);
+      expect(mismatchErr).toMatchObject({ code: "23505", message: expect.stringContaining("orders_provider_sale_id_event_type_key") });
+      expect(orders.get(saleARefundKey)).toMatchObject({ provider_adjustment_id: "adj_1", fence: 1 });
+    } finally {
+      Query.prototype.maybeSingle = origMaybeSingle;
+    }
+
+    // Same adjustment_id + amount + currency advances the fence cleanly.
+    await appendRefund({ provider: "paddle", sale_id: SALE_A.sale_id, provider_adjustment_id: "adj_1" }, salesFile, 2);
+    expect(orders.get(saleARefundKey)).toMatchObject({ provider_adjustment_id: "adj_1", fence: 2 });
   });
 });

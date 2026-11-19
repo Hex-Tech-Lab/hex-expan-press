@@ -196,12 +196,23 @@ async function persistToSupabaseOrder(record: SaleRecord, fence?: number): Promi
     // An existing key takes only the fence. The financial fields of the committed row are never rewritten, so a duplicate or
     // conflicting payload cannot change what was booked. The full row is inserted only when the key is absent.
     const runFenceUpdate = async (): Promise<boolean> => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("orders")
         .update({ fence })
         .eq("provider", parsed.data.provider)
         .eq("sale_id", parsed.data.sale_id)
-        .eq("event_type", parsed.data.event_type)
+        .eq("event_type", parsed.data.event_type);
+      if (parsed.data.provider_adjustment_id !== null) {
+        query = query
+          .eq("provider_adjustment_id", parsed.data.provider_adjustment_id)
+          .eq("amount_usd", parsed.data.amount_usd)
+          .eq("currency", parsed.data.currency);
+      } else if (parsed.data.event_type !== "sale") {
+        query = query
+          .eq("amount_usd", parsed.data.amount_usd)
+          .eq("currency", parsed.data.currency);
+      }
+      const { data, error } = await query
         .lte("fence", fence)
         .select("sale_id");
       if (error) {

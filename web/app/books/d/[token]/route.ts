@@ -80,3 +80,27 @@ export async function GET(_request: NextRequest, ctx: { params: Promise<{ token:
   res.headers.set("Referrer-Policy", "no-referrer");
   return res;
 }
+
+/**
+ * HEAD /books/d/{token}: non-logging probe. Email scanners/link previewers often HEAD before the buyer clicks;
+ * this validates token shape, existence and expiry (200/404/410) but never signs an R2 URL and never writes
+ * download_completed. Any other fault is a bodyless 500. The token is never logged.
+ */
+export async function HEAD(_request: NextRequest, ctx: { params: Promise<{ token: string }> }): Promise<NextResponse> {
+  const { token } = await ctx.params;
+  const bare = (status: number) => new NextResponse(null, { status, headers: { "Cache-Control": "no-store" } });
+  if (!TOKEN_RE.test(token)) return bare(404);
+  const sb = await getSupabaseAdmin();
+  if (!sb) return bare(500);
+  const { data: link, error } = await sb
+    .from("download_events")
+    .select("sale_id, product_id, expires_at")
+    .eq("token_hash", tokenHash(token))
+    .eq("event_type", "link_issued")
+    .maybeSingle();
+  if (error) return bare(500);
+  if (!link) return bare(404);
+  if (!link.expires_at) return bare(500);
+  if (new Date(link.expires_at as string).getTime() <= Date.now()) return bare(410);
+  return bare(200);
+}

@@ -296,3 +296,13 @@ describe("settings registry: webhook_total_budget_ms (payments.webhook_total_bud
     expect(loadPaymentsSection({ webhook_total_budget_ms: 3000.5 }).webhook_total_budget_ms).toBe(3000);
   });
 });
+
+describe("settings registry: allowed_buyer_countries (payments.allowed_buyer_countries)", () => {
+  it("defaults to US + DC + US territories and rejects invalid values", () => {
+    expect(GLOBAL.payments.allowed_buyer_countries).toEqual(["US", "PR", "VI", "GU", "AS", "MP"]);
+    expect(loadPaymentsSection(undefined).allowed_buyer_countries).toEqual(["US", "PR", "VI", "GU", "AS", "MP"]);
+    expect(loadPaymentsSection({ allowed_buyer_countries: ["us", " pr "] }).allowed_buyer_countries).toEqual(["US", "PR"]);
+    expect(loadPaymentsSection({ allowed_buyer_countries: [] }).allowed_buyer_countries).toEqual(["US", "PR", "VI", "GU", "AS", "MP"]);
+    expect(loadPaymentsSection({ allowed_buyer_countries: ["USA"] }).allowed_buyer_countries).toEqual(["US", "PR", "VI", "GU", "AS", "MP"]);
+  });
+});

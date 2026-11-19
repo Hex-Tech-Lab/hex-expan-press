@@ -194,6 +194,9 @@ importers:
       '@supabase/supabase-js':
         specifier: ^2.117.1
         version: 2.117.1(@opentelemetry/api@1.9.1)
+      '@zootools/email-spell-checker':
+        specifier: 1.13.0
+        version: 1.13.0
       framer-motion:
         specifier: 12.40.0
         version: 12.40.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -2842,6 +2845,10 @@ packages:
 
   '@workflow/serde@4.1.0-beta.2':
     resolution: {integrity: sha512-8kkeoQKLDaKXefjV5dbhBj2aErfKp1Mc4pb6tj8144cF+Em5SPbyMbyLCHp+BVrFfFVCBluCtMx+jjvaFVZGww==}
+
+  '@zootools/email-spell-checker@1.13.0':
+    resolution: {integrity: sha512-Xd+O8ZoR2/fKopJzA8p8lGRKFruGtVYuf/s1z8QV1ztZ/8QyzvCod/m2PShM/yse8QIstdHxL/jK/zrqQKUcAA==}
+    engines: {node: '>=12.0'}
 
   abbrev@3.0.1:
     resolution: {integrity: sha512-AO2ac6pjRB3SJmGJo+v5/aK6Omggp6fsLrs6wN9bd35ulu4cCwaAU9+7ZhXjeqHVkaHThLuzH0nZr0YpCDhygg==}
@@ -7672,6 +7679,8 @@ snapshots:
   '@vitest/spy@5.0.1': {}
 
   '@workflow/serde@4.1.0-beta.2': {}
+
+  '@zootools/email-spell-checker@1.13.0': {}
 
   abbrev@3.0.1: {}
 
