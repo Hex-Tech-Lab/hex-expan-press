@@ -123,6 +123,10 @@ product_slug: { min_length: number; max_length: number; separator: string };
     stuck_claim_after_seconds: number;
     /** Most rows listStuckDeliveryClaims returns (oldest first). Bounds the operator reconcile query. */
     stuck_claim_list_limit: number;
+    /** Look-back window (hours) for the operator's WEBHOOK_TERMINAL_REJECT listing in scripts/ops/stuck_report.ts. A reject older than the window drops off that report. */
+    terminal_reject_lookback_hours: number;
+    /** Most WEBHOOK_TERMINAL_REJECT rows stuck_report.ts lists (newest first). Bounds the operator read. */
+    terminal_reject_list_limit: number;
     /** NAME of the env var holding the base64 32-byte AES-256-GCM key that encrypts a held claim's stored buyer email. */
     link_key_env: string;
     /** Key id written into each new encrypted claim message (envelope v2). A legacy v1 envelope is read as this id. */
@@ -268,13 +272,20 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     // Above the email deadline (payments.http_timeout_ms) and the webhook lock TTL, so a live send is never reported stuck.
     stuck_claim_after_seconds: 900,
     stuck_claim_list_limit: 500,
+    // Display window for the stuck_report terminal-reject section (30 days), not an acknowledgement: nothing marks a reject
+    // as reconciled. A reject older than this is no longer listed, but stuck_report still exits 1 while one exists.
+    terminal_reject_lookback_hours: 720,
+    // Rows stuck_report lists. Reaching this cap prints an explicit line and the report exits 1. Validated at most 1000
+    // (Supabase's default max rows): a larger limit would be truncated server-side, and the cap could then not be detected.
+    terminal_reject_list_limit: 200,
     // Only the env var NAME is a setting; the key value never lives in the registry or the repo.
     link_key_env: "DELIVERY_LINK_KEY",
     // Key id for new encrypted claim messages. Bump it together with the key in link_key_env when the key is rotated.
     link_key_id: "k1",
     download_origin: "https://expanpress.com",
-    // The version timestamp of migration 20261118120000_delivery_claim_link.sql. Set to the deploy time before deploying.
-    stored_message_since: "2026-11-18T14:00:00Z",
+    // Cutover timestamp for migration 20261118120000_delivery_claim_link.sql.
+    // NOTE: CCT must stamp the exact UTC deploy time at merge/deploy so pre-deploy held claims cannot be misclassified as post-cutover and resent twice.
+    stored_message_since: "2026-11-19T05:00:00Z",
     // Resend keeps idempotency keys for 24 hours (email.ts). A shorter window only resends less often.
     stored_message_resend_max_age_hours: 24,
     // The buyer consent line promises a usual delay of 2 minutes and a longest delay of 6 hours.
@@ -720,7 +731,9 @@ export function loadDeliverySection(raw: Record<string, unknown> | undefined): G
       | "stuck_claim_list_limit"
       | "stored_message_resend_max_age_hours"
       | "buyer_typical_minutes"
-      | "buyer_max_hours",
+      | "buyer_max_hours"
+      | "terminal_reject_lookback_hours"
+      | "terminal_reject_list_limit",
     min: number,
     max: number,
   ): number => {
@@ -753,6 +766,8 @@ export function loadDeliverySection(raw: Record<string, unknown> | undefined): G
     send_kind: str("send_kind"),
     stuck_claim_after_seconds: posInt("stuck_claim_after_seconds", 60, 86400),
     stuck_claim_list_limit: posInt("stuck_claim_list_limit", 1, 10000),
+    terminal_reject_lookback_hours: posInt("terminal_reject_lookback_hours", 1, 8760),
+    terminal_reject_list_limit: posInt("terminal_reject_list_limit", 1, 1000),
     link_key_env: validLinkKeyEnv ? linkKeyEnv : defaults.link_key_env,
     link_key_id: validLinkKeyId ? linkKeyId : defaults.link_key_id,
     download_origin: validDownloadOrigin ? downloadOrigin : defaults.download_origin,

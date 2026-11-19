@@ -3,17 +3,25 @@
 //      resends a row with a stored message, under the same key and within delivery.stored_message_resend_max_age_hours. A
 //      legacy row (created before delivery.stored_message_since) with no stored message is flagged and never resent.
 //   2. audit_log MANUAL_REVIEW_REQUIRED_REFUND rows, deduplicated per (provider, sale_id) like listManualReviewRefunds.
+//   3. audit_log WEBHOOK_TERMINAL_REJECT and WEBHOOK_PROVIDER_SWITCHED_OFF rows within delivery.terminal_reject_lookback_hours,
+//      newest first, capped at delivery.terminal_reject_list_limit. A buyer whose address the mail provider refused
+//      (DeliveryBlockedError, 422) is booked and quarantined by the webhook handler (web/app/api/billing/webhook/handler.ts),
+//      and its only console flag is payments/src/delivery.ts flagForManualReconciliation. Validly signed deliveries arriving
+//      on a switched-off rail are recorded as WEBHOOK_PROVIDER_SWITCHED_OFF so operators can reconcile them.
+//      The look-back is a display window, not an acknowledgement: nothing here marks a reject as reconciled. A reject older
+//      than the window is not listed, but a presence probe still finds it, so the report exits 1 and never prints clear
+//      while such a row exists.
 // Reads the live database through PostgREST with SUPABASE_URL and SUPABASE_SECRET_KEY. Names only: values are never printed.
 // Thresholds and limits come from payments/src/settings_registry.ts.
 //
-// Exit codes: 0 = nothing stuck and nothing in the review queue;
-//             1 = at least one stuck claim or manual-review refund (count > 0);
-//             2 = config missing, non-HTTPS URL, or a read failed, so the check could not decide.
+// Exit codes: 0 = nothing stuck, nothing in the review queue, no terminal reject in or beyond the window;
+//             1 = at least one stuck claim, manual-review refund, terminal reject, or reject beyond the window;
+//             2 = config missing, non-HTTPS URL, a read failed, or a response was not a list, so the check could not decide.
 //
 // Usage: node --import tsx scripts/ops/stuck_report.ts
 
+import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import path from "node:path";
 import dotenv from "dotenv";
 import { GLOBAL } from "../../payments/src/settings_registry.ts";
 
@@ -24,6 +32,8 @@ export interface StuckSettings {
   stuck_claim_after_seconds: number;
   stuck_claim_list_limit: number;
   review_queue_page_size: number;
+  terminal_reject_lookback_hours: number;
+  terminal_reject_list_limit: number;
   timeout_ms: number;
 }
 
@@ -40,12 +50,24 @@ export interface ReviewItem {
   occurrences: number;
 }
 
+export interface TerminalReject {
+  provider: string | null;
+  saleId: string | null;
+  reason: string | null;
+  at: string;
+}
+
 export interface StuckReport {
   stuckClaims: StuckClaim[];
   claimLimit: number;
   reviewItems: ReviewItem[];
   reviewRowsRead: number;
   reviewLimit: number;
+  terminalRejects: TerminalReject[];
+  terminalRejectLimit: number;
+  terminalRejectLookbackHours: number;
+  /** True when at least one WEBHOOK_TERMINAL_REJECT or WEBHOOK_PROVIDER_SWITCHED_OFF row is older than the look-back window (not listed, never acknowledged). */
+  olderRejectsBeyondWindow: boolean;
 }
 
 export class StuckCheckError extends Error {}
@@ -55,13 +77,20 @@ export function settingsFromGlobal(): StuckSettings {
     stuck_claim_after_seconds: GLOBAL.delivery.stuck_claim_after_seconds,
     stuck_claim_list_limit: GLOBAL.delivery.stuck_claim_list_limit,
     review_queue_page_size: GLOBAL.payments.review_queue_page_size,
+    terminal_reject_lookback_hours: GLOBAL.delivery.terminal_reject_lookback_hours,
+    terminal_reject_list_limit: GLOBAL.delivery.terminal_reject_list_limit,
     timeout_ms: GLOBAL.payments.sync_http_timeout_ms,
   };
 }
 
-/** Exit 1 when any count is above zero; the caller maps thrown errors to exit 2. */
+/** Exit 1 when any count is above zero or an older reject exists; the caller maps thrown errors to exit 2. */
 export function exitCodeForStuck(report: StuckReport): 0 | 1 {
-  return report.stuckClaims.length > 0 || report.reviewItems.length > 0 ? 1 : 0;
+  const found =
+    report.stuckClaims.length > 0 ||
+    report.reviewItems.length > 0 ||
+    report.terminalRejects.length > 0 ||
+    report.olderRejectsBeyondWindow;
+  return found ? 1 : 0;
 }
 
 function str(value: unknown): string | null {
@@ -88,6 +117,17 @@ export function dedupeReviewRows(rows: Array<{ details: unknown }>): ReviewItem[
   return [...byPair.values(), ...standalone];
 }
 
+/** One WEBHOOK_TERMINAL_REJECT or WEBHOOK_PROVIDER_SWITCHED_OFF row. details.provider and details.sale_id are absent when the headers or body did not parse. */
+export function terminalRejectFrom(row: Record<string, unknown>): TerminalReject {
+  const details = typeof row.details === "object" && row.details !== null ? (row.details as Record<string, unknown>) : {};
+  return {
+    provider: str(details.provider),
+    saleId: str(details.sale_id),
+    reason: str(details.reason),
+    at: String(row.created_at),
+  };
+}
+
 function requireHttpsBase(env: Env): { base: string; key: string } {
   const url = env.SUPABASE_URL;
   const key = env.SUPABASE_SECRET_KEY;
@@ -111,7 +151,9 @@ async function getRows(http: HttpFetch, url: string, key: string, timeoutMs: num
   // Only the status is reported: a response body could echo request data.
   if (!res.ok) throw new StuckCheckError(`${what} failed: HTTP ${res.status}`);
   const body = (await res.json()) as unknown;
-  return Array.isArray(body) ? (body as Array<Record<string, unknown>>) : [];
+  // A 2xx body that is not a list is an error, never zero rows: zero rows would print clear.
+  if (!Array.isArray(body)) throw new StuckCheckError(`${what} returned a body that is not a list`);
+  return body as Array<Record<string, unknown>>;
 }
 
 /** Read-only collection. Every request is a GET; no row is written. */
@@ -141,12 +183,35 @@ export async function collectStuck(env: Env, http: HttpFetch, nowMs: number, set
     "manual-review queue read",
   );
 
+  const rejectSince = new Date(nowMs - settings.terminal_reject_lookback_hours * 3600 * 1000).toISOString();
+  const rejectEventFilter = "event=in.(WEBHOOK_TERMINAL_REJECT,WEBHOOK_PROVIDER_SWITCHED_OFF)";
+  const rejectRows = await getRows(
+    http,
+    `${base}/rest/v1/audit_log?select=id,created_at:at,event,details&${rejectEventFilter}&at=gte.${encodeURIComponent(rejectSince)}&order=at.desc,id.desc&limit=${settings.terminal_reject_list_limit}`,
+    key,
+    settings.timeout_ms,
+    "terminal reject read",
+  );
+  // Presence probe for rows older than the window. The window only limits what is listed, so an older unreconciled reject
+  // must still stop the report from clearing. limit=1 asks whether any such row exists; it lists nothing.
+  const olderRows = await getRows(
+    http,
+    `${base}/rest/v1/audit_log?select=id&${rejectEventFilter}&at=lt.${encodeURIComponent(rejectSince)}&limit=1`,
+    key,
+    settings.timeout_ms,
+    "older terminal reject probe",
+  );
+
   return {
     stuckClaims,
     claimLimit: settings.stuck_claim_list_limit,
     reviewItems: dedupeReviewRows(reviewRows as Array<{ details: unknown }>),
     reviewRowsRead: reviewRows.length,
     reviewLimit: settings.review_queue_page_size,
+    terminalRejects: rejectRows.map(terminalRejectFrom),
+    terminalRejectLimit: settings.terminal_reject_list_limit,
+    terminalRejectLookbackHours: settings.terminal_reject_lookback_hours,
+    olderRejectsBeyondWindow: olderRows.length > 0,
   };
 }
 
@@ -158,14 +223,42 @@ export function renderStuck(report: StuckReport, afterSeconds: number): string {
   const capReview = report.reviewRowsRead >= report.reviewLimit;
   lines.push(`Manual-review refunds (MANUAL_REVIEW_REQUIRED_REFUND, distinct sale): ${capReview ? "at least " : ""}${report.reviewItems.length}`);
   for (const i of report.reviewItems.slice(0, 20)) lines.push(`  ${i.provider ?? "(no provider)"}  sale ${i.saleId ?? "(no sale_id)"}  rows ${i.occurrences}`);
+  // Printed when a reject is listed or an older one exists, so an empty window with no older reject adds no lines.
+  if (report.terminalRejects.length > 0 || report.olderRejectsBeyondWindow) {
+    const capRejects = report.terminalRejects.length >= report.terminalRejectLimit;
+    lines.push(
+      `Terminal webhook rejects (WEBHOOK_TERMINAL_REJECT, WEBHOOK_PROVIDER_SWITCHED_OFF, last ${report.terminalRejectLookbackHours} h, newest first): ${capRejects ? "at least " : ""}${report.terminalRejects.length}`,
+    );
+    for (const r of report.terminalRejects.slice(0, 20)) {
+      lines.push(`  ${r.provider ?? "(no provider)"}  sale ${r.saleId ?? "(no sale_id)"}  reason ${r.reason ?? "(no reason)"}  at ${r.at}`);
+    }
+    if (report.terminalRejects.length > 20) lines.push(`  ... ${report.terminalRejects.length - 20} more not shown`);
+    if (capRejects) lines.push(`  list cap reached (limit ${report.terminalRejectLimit}): rows beyond the cap are not listed, so the report stays at exit 1`);
+    if (report.olderRejectsBeyondWindow) {
+      lines.push(
+        `  at least one older reject exists beyond the last ${report.terminalRejectLookbackHours} h: not listed here; the window is a display limit, not an acknowledgement, so the report stays at exit 1`,
+      );
+    }
+  }
   lines.push("");
   lines.push(exitCodeForStuck(report) === 0 ? "RESULT: clear (exit 0)" : "RESULT: action needed, verify each buyer by hand (exit 1)");
   return `${lines.join("\n")}\n`;
 }
 
-const isEntry = process.argv[1] !== undefined && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+/** True when this file is the program node was started with. Compares realpaths, so a symlink to this file still runs the check. */
+export function isDirectRun(argv1: string | undefined, moduleUrl: string): boolean {
+  if (argv1 === undefined) return false;
+  try {
+    return realpathSync(argv1) === realpathSync(fileURLToPath(moduleUrl));
+  } catch (err) {
+    console.error("[stuck_report] realpath check failed:", err instanceof Error ? err.message : String(err));
+    return false;
+  }
+}
+
+const isEntry = isDirectRun(process.argv[1], import.meta.url);
 if (isEntry) {
-  dotenv.config({ quiet: true });
+  dotenv.config({ quiet: true, override: true });
   const settings = settingsFromGlobal();
   collectStuck(process.env, fetch, Date.now(), settings)
     .then((report) => {
