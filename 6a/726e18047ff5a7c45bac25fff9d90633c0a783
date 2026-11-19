@@ -1,0 +1,60 @@
+payments/src/settings_registry.ts
+  s_0e99959cd74c50::t_dbbb45f09c4192 105-106
+  s_0e99959cd74c50::t_0967cd4b32f6c3 245-252
+  s_0e99959cd74c50::t_add0a182d7e4be 280-283,968
+  s_0e99959cd74c50::t_4578d6ddd47db4 761-766,772-783
+  s_0e99959cd74c50::t_5cffbd8b7d6b55 698-708
+  s_0e99959cd74c50::t_2f4fb0f5d72a6a 94,716-723
+  s_0e99959cd74c50::t_6be76439000197 143-148
+  s_0e99959cd74c50::t_8f315e352bcd50 522
+  s_0e99959cd74c50::t_4e3a1d4ef5bc8e 95
+  s_0e99959cd74c50::t_a4a76f9f6b7b44 784
+  s_0e99959cd74c50::t_4ddec8f1945933 965-967
+  s_0e99959cd74c50::t_e0b4339f8a4f14 969-971
+web/app/checkout/[productId]/page.tsx
+  s_0e99959cd74c50::t_67d9c6fe73dbd1 13
+web/e2e/b2c-confinement.spec.ts
+  s_0e99959cd74c50::t_34f875079bdb4b 87
+web/src/lib/buyer-email.ts
+  s_0e99959cd74c50::t_817d81373c79cf 1-83
+web/src/lib/__tests__/buyer-email.test.ts
+  s_0e99959cd74c50::t_f5cb6befaf03ab 1-142
+web/app/api/billing/checkout/__tests__/route.test.ts
+  s_0e99959cd74c50::t_2fd631e7b11680 162
+  s_0e99959cd74c50::t_11ddd018b0f172 16
+  s_0e99959cd74c50::t_7e161c852cb025 24-26
+web/app/api/billing/checkout/route.ts
+  s_0e99959cd74c50::t_e5ba5b82c53b8f 78-84,86,93,162
+  s_0e99959cd74c50::t_16120bd3921d5f 94
+web/src/components/storefront/buyer-email-step.tsx
+  s_0e99959cd74c50::t_c39bacbde098d7 144
+  s_0e99959cd74c50::t_e9ec66d86c2f8d 62-63
+  s_0e99959cd74c50::t_947a0052a29444 3
+  s_0e99959cd74c50::t_b0e8aceabf5381 1-2,4-19,36-46,51-61,64-143,145-146
+  s_0e99959cd74c50::t_0340391886450d 20-35,147
+  s_0e99959cd74c50::t_1fc28dc44582f2 47-50
+  s_0e99959cd74c50::t_66c1b6a0458cb0 148-150
+web/__tests__/buyer-email-step.test.ts
+  s_0e99959cd74c50::t_0571e528db4e94 1-54
+  s_0e99959cd74c50::t_1969eb40eebe37 55-57
+pnpm-lock.yaml
+  s_0e99959cd74c50::t_0ed49e31f3628f 197-199,2849-2852,7683-7684
+web/package.json
+  s_0e99959cd74c50::t_b5a07cab843921 27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6a726e18047ff5a7c45bac25fff9d90633c0a783",
+  "prompts": {},
+  "sessions": {
+    "s_0e99959cd74c50": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "21b00acc-7513-46d6-9a35-038af7845be2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
