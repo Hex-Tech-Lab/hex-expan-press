@@ -1,0 +1,63 @@
+web/src/components/storefront/storefront.tsx
+  s_0e99959cd74c50::t_b9f96030a6460e 8,48-52,96-111,122,133,137-141,158,165-170,186,196,278-307,309-338,350,361
+web/app/books/[handle]/[product]/page.tsx
+  s_0e99959cd74c50::t_ef571960e1a329 4,73-77,79,144-153
+.gitignore
+  s_0e99959cd74c50::t_302aa183f756a9 12
+books/duane.json
+  s_0e99959cd74c50::t_e2f33af78f1369 30-34
+books/sample_the_quiet_workshop.json
+  s_0e99959cd74c50::t_b6b6c9325330ce 1-15
+books/smoke.json
+  s_0e99959cd74c50::t_d36473c411ed70 24-27
+docs/handover/BOOK_PREVIEW_OPTIONS_2026-11-19.html
+  s_0e99959cd74c50::t_eeb5129c957803 1-323
+docs/handover/BOOK_PREVIEW_OPTIONS_2026-11-19.md
+  s_0e99959cd74c50::t_1e43a9d46f9088 1-28
+payments/book_identity.ts
+  s_0e99959cd74c50::t_55efb8d4280179 10-12,40,46-55
+payments/src/settings_registry.ts
+  s_0e99959cd74c50::t_c79a493cdecc38 97-111,191-209,265-294,594-595,890-1048
+payments/test/book_preview_settings.test.ts
+  s_0e99959cd74c50::t_5327443a98085b 1-141
+pnpm-lock.yaml
+  s_0e99959cd74c50::t_15a5a5fc1b4d78 209-211,4591-4593,9723-9724
+scripts/preview_pdf_build.py
+  s_0e99959cd74c50::t_5d7eb93ab6f686 1-132
+web/__tests__/book-assets.test.ts
+  s_0e99959cd74c50::t_32088f00475383 1-102
+web/__tests__/book-previewer.test.ts
+  s_0e99959cd74c50::t_26bb9353b8f576 1-255
+web/__tests__/storefront.test.ts
+  s_0e99959cd74c50::t_a39027039d3276 7-18,193-279
+web/e2e/book-preview.spec.ts
+  s_0e99959cd74c50::t_db413e97106a47 1-118
+web/e2e/mock-supabase.ts
+  s_0e99959cd74c50::t_d68331d93c7bce 64-65,68,71-72,94,99-121
+web/next.config.ts
+  s_0e99959cd74c50::t_d3b10c2bdbee0f 76-77,79-81
+web/package.json
+  s_0e99959cd74c50::t_d87d6074998ef8 31
+web/src/components/storefront/book-previewer.tsx
+  s_0e99959cd74c50::t_08adc293d05e72 1-327
+web/src/lib/book-assets.ts
+  s_0e99959cd74c50::t_eefc3529162053 1-108
+web/src/types/page-flip.d.ts
+  s_0e99959cd74c50::t_677755ccdd08e3 1-53
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e6817e586dde5cddebd11d2877f9636dc6adb790",
+  "prompts": {},
+  "sessions": {
+    "s_0e99959cd74c50": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "21b00acc-7513-46d6-9a35-038af7845be2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
