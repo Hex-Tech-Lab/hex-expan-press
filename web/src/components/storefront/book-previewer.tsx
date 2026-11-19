@@ -211,7 +211,6 @@ export default function BookPreviewer({
           swipeDistance: settings.swipe_distance_px,
           mobileScrollSupport: true,
         });
-        setRenderPaused(pf, !visibleRef.current);
 
         pf.on("init", (e) => {
           if (disposed) return;
@@ -233,6 +232,7 @@ export default function BookPreviewer({
         });
 
         pf.loadFromImages(raster.images);
+        setRenderPaused(pf, !visibleRef.current);
         flipRef.current = pf;
         setTotalPages(raster.images.length);
         setPageTexts(raster.texts);

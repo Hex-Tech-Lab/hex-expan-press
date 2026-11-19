@@ -57,13 +57,8 @@ vi.mock("pdfjs-dist", () => ({
 vi.mock("page-flip", () => {
   class MockPageFlip {
     private state: (typeof flipMocks.instances)[number];
-    render: { drawFrame: () => void };
+    render?: { drawFrame: () => void };
     constructor(host: HTMLElement, settings: Record<string, unknown>) {
-      // Like the real library, drawFrame lives on the prototype: an own property overrides it, deleting it restores it.
-      const draw = vi.fn();
-      const render = Object.create({ drawFrame() { draw(); } }) as { drawFrame: () => void };
-      flipMocks.renders.push({ render, draw });
-      this.render = render;
       this.state = {
         host,
         settings,
@@ -93,6 +88,12 @@ vi.mock("page-flip", () => {
       this.state.handlers[event] = cb;
     }
     loadFromImages(images: string[]) {
+      // Like the real library, render is created during loadFromImages (not the constructor),
+      // and drawFrame lives on the prototype: an own property overrides it, deleting it restores it.
+      const draw = vi.fn();
+      const render = Object.create({ drawFrame() { draw(); } }) as { drawFrame: () => void };
+      flipMocks.renders.push({ render, draw });
+      this.render = render;
       this.state.images = images;
       this.state.handlers.init?.({ data: { page: 0, mode: this.state.orientation } });
     }
@@ -340,6 +341,45 @@ describe("BookPreviewer visibility gate and focus", () => {
     });
     render.drawFrame();
     expect(draw).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps render paused when IntersectionObserver reports not-visible before load completes", async () => {
+    vi.stubGlobal("IntersectionObserver", MockIntersectionObserver);
+    let releaseFirstPage!: () => void;
+    const firstPageGate = new Promise<void>((resolve) => {
+      releaseFirstPage = resolve;
+    });
+    pdfMocks.getPage.mockImplementation(async (n: number) => {
+      if (n === 1) await firstPageGate;
+      return {
+        getViewport: ({ scale }: { scale: number }) => ({ width: 400 * scale, height: 600 * scale }),
+        render: () => ({ promise: Promise.resolve() }),
+        getTextContent: async () => ({ items: [{ str: `Preview text on page ${n}` }] }),
+      };
+    });
+
+    await mountPreviewer();
+    await act(async () => {
+      ioMocks.fire(true);
+    });
+    await act(async () => {
+      ioMocks.fire(false);
+    });
+
+    releaseFirstPage();
+    await flush();
+    await flush();
+
+    expect(flipMocks.renders).toHaveLength(1);
+    const { render, draw } = flipMocks.renders[0];
+    render.drawFrame();
+    expect(draw).not.toHaveBeenCalled();
+
+    await act(async () => {
+      ioMocks.fire(true);
+    });
+    render.drawFrame();
+    expect(draw).toHaveBeenCalledTimes(1);
   });
 
   it("stops redrawing and destroys the book when the component unmounts", async () => {
