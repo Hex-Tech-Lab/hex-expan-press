@@ -1,0 +1,33 @@
+books/sample_the_quiet_workshop.json
+  s_0e99959cd74c50::t_e63a11e21bfcfd 11
+payments/test/book_preview_settings.test.ts
+  s_0e99959cd74c50::t_71fc1ad8465f69 129
+web/__tests__/book-assets.test.ts
+  s_0e99959cd74c50::t_d00e462be54f34 12,57
+web/__tests__/book-previewer.test.ts
+  s_0e99959cd74c50::t_c1f8c44235e14a 211-219
+web/__tests__/storefront.test.ts
+  s_0e99959cd74c50::t_5a251a9d417a46 217,222,275
+web/app/books/[handle]/[product]/page.tsx
+  s_0e99959cd74c50::t_b475b43a123087 150
+web/e2e/book-preview.spec.ts
+  s_0e99959cd74c50::t_2c8784e246728d 23,116
+web/src/components/storefront/book-previewer.tsx
+  s_0e99959cd74c50::t_e7ccc1ff72dd94 24,64-69,111-116,207
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "dc3557ee20ac0bd0371e6ba9d73164012f5d9744",
+  "prompts": {},
+  "sessions": {
+    "s_0e99959cd74c50": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "21b00acc-7513-46d6-9a35-038af7845be2",
+        "model": "unknown"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
