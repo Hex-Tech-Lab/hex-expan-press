@@ -126,7 +126,7 @@ describe("loadBookIdentity optional media fields", () => {
     expect(duane.is_sample).toBe(false);
 
     const sample = loadBookIdentity("books/sample_the_quiet_workshop.json");
-    expect(sample.cover_image).toBe("/books/covers/sample_the_quiet_workshop.png");
+    expect(sample.cover_image).toBe("/books/covers/sample_the_quiet_workshop.webp");
     expect(sample.preview_pdf).toBe("/books/previews/sample_the_quiet_workshop.pdf");
     expect(sample.is_sample).toBe(true);
   });

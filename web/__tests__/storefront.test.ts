@@ -214,12 +214,12 @@ describe("BookCover and BookCard layout, cover aspect ratio, and (Sample) footer
     const html = renderToStaticMarkup(
       createElement(BookCover, {
         title: "The Quiet Workshop (Sample)",
-        coverImage: "/books/covers/sample_the_quiet_workshop.png",
+        coverImage: "/books/covers/sample_the_quiet_workshop.webp",
         isSample: true,
       }),
     );
     expect(html).toContain("DIGITAL PDF");
-    expect(html).toContain('src="/books/covers/sample_the_quiet_workshop.png"');
+    expect(html).toContain('src="/books/covers/sample_the_quiet_workshop.webp"');
     expect(html).toContain("object-contain");
     expect(html).not.toContain("object-cover");
     expect(html).toContain("The Quiet Workshop");
@@ -272,7 +272,7 @@ describe("BookCover and BookCard layout, cover aspect ratio, and (Sample) footer
       ],
     });
     const found = await fetchStoreProduct("expanpress_house", "sample_the_quiet_workshop");
-    expect(found?.product.cover_image).toBe("/books/covers/sample_the_quiet_workshop.png");
+    expect(found?.product.cover_image).toBe("/books/covers/sample_the_quiet_workshop.webp");
     expect(found?.product.preview_pdf).toBe("/books/previews/sample_the_quiet_workshop.pdf");
     expect(found?.product.is_sample).toBe(true);
   });

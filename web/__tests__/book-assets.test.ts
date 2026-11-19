@@ -9,6 +9,7 @@ import {
 describe("book-assets path safety", () => {
   it("accepts valid /books/covers/* and https:// cover URLs and rejects traversal or non-image paths", () => {
     expect(isSafeCoverPath("/books/covers/duane.jpg")).toBe(true);
+    expect(isSafeCoverPath("/books/covers/sample_the_quiet_workshop.webp")).toBe(true);
     expect(isSafeCoverPath("/books/covers/sample_the_quiet_workshop.png")).toBe(true);
     expect(isSafeCoverPath("https://cdn.example.com/covers/book.webp")).toBe(true);
 
@@ -53,7 +54,7 @@ describe("resolveProductBookAssets", () => {
       }),
     ).toEqual({
       book_registry: "books/sample_the_quiet_workshop.json",
-      cover_image: "/books/covers/sample_the_quiet_workshop.png",
+      cover_image: "/books/covers/sample_the_quiet_workshop.webp",
       preview_pdf: "/books/previews/sample_the_quiet_workshop.pdf",
       is_sample: true,
     });

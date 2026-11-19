@@ -208,6 +208,15 @@ describe("BookPreviewer component", () => {
     expect(label?.textContent).toBe("Front cover · Page 1 of 6");
   });
 
+  it("uses coverImageUrl for the first page image when supplied", async () => {
+    await mountPreviewer({
+      coverImageUrl: "/books/covers/sample_the_quiet_workshop.webp",
+    });
+    const inst = flipMocks.instances[0];
+    expect(inst).toBeDefined();
+    expect(inst.images[0]).toBe("/books/covers/sample_the_quiet_workshop.webp");
+  });
+
   it("turns pages via Prev/Next buttons and keyboard arrows, updating spread label and accessible text", async () => {
     await mountPreviewer();
     const inst = flipMocks.instances[0];

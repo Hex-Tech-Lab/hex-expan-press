@@ -20,7 +20,7 @@ test("book cards on /books show DIGITAL PDF header, aspect-preserving cover, and
   expect(res?.status()).toBe(200);
 
   await expect(page.getByText("DIGITAL PDF").first()).toBeVisible();
-  const sampleImg = page.locator('img[src="/books/covers/sample_the_quiet_workshop.png"]');
+  const sampleImg = page.locator('img[src="/books/covers/sample_the_quiet_workshop.webp"]');
   await expect(sampleImg).toBeVisible();
 
   const metrics = await sampleImg.evaluate((el) => {
@@ -113,6 +113,6 @@ test("sample product page loads its own sample preview PDF", async ({ page }) =>
   await page.setViewportSize({ width: 1280, height: 900 });
   const res = await page.goto("/books/expanpress_house/sample_the_quiet_workshop");
   expect(res?.status()).toBe(200);
-  await expect(page.locator('img[src="/books/covers/sample_the_quiet_workshop.png"]')).toBeVisible();
+  await expect(page.locator('img[src="/books/covers/sample_the_quiet_workshop.webp"]')).toBeVisible();
   await expect(page.getByTestId("book-preview-page-label")).toHaveText("Front cover · Page 1 of 8", { timeout: 30_000 });
 });

@@ -147,6 +147,7 @@ export default async function StoreProductPage({
         {p.preview_pdf && (
           <BookPreviewer
             previewPdfUrl={p.preview_pdf}
+            coverImageUrl={p.cover_image ?? null}
             bookTitle={title}
             settings={GLOBAL.book_preview}
           />

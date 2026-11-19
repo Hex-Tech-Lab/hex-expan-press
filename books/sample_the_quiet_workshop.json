@@ -8,7 +8,7 @@
   "book_dir": "manuscript/sample_book",
   "data_dir": "data/books/house_expanpress/the_quiet_workshop",
   "product_slug": "sample_the_quiet_workshop",
-  "cover_image": "/books/covers/sample_the_quiet_workshop.png",
+  "cover_image": "/books/covers/sample_the_quiet_workshop.webp",
   "preview_pdf": "/books/previews/sample_the_quiet_workshop.pdf",
   "preview_pages": "1,2,3,4,5,6,8,9",
   "is_sample": true

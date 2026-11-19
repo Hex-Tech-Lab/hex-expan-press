@@ -21,6 +21,7 @@ interface PdfDocLike {
 
 export interface BookPreviewerProps {
   previewPdfUrl: string;
+  coverImageUrl?: string | null;
   bookTitle: string;
   settings: BookPreviewSettings;
 }
@@ -60,7 +61,12 @@ export function formatSpreadLabel(spread: number[], totalPages: number, showCove
   return `Pages ${spread[0] + 1}–${spread[spread.length - 1] + 1} of ${totalPages}`;
 }
 
-export default function BookPreviewer({ previewPdfUrl, bookTitle, settings }: BookPreviewerProps) {
+export default function BookPreviewer({
+  previewPdfUrl,
+  coverImageUrl = null,
+  bookTitle,
+  settings,
+}: BookPreviewerProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const flipRef = useRef<PageFlip | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
@@ -102,8 +108,12 @@ export default function BookPreviewer({ previewPdfUrl, bookTitle, settings }: Bo
           const ctx = canvas.getContext("2d");
           if (!ctx) throw new Error("Canvas 2D context unavailable");
 
-          await pdfPage.render({ canvasContext: ctx, viewport: vp }).promise;
-          images.push(canvas.toDataURL("image/png"));
+          if (i === 1 && coverImageUrl) {
+            images.push(coverImageUrl);
+          } else {
+            await pdfPage.render({ canvasContext: ctx, viewport: vp }).promise;
+            images.push(canvas.toDataURL("image/png"));
+          }
 
           try {
             const tc = await pdfPage.getTextContent();
@@ -194,7 +204,7 @@ export default function BookPreviewer({ previewPdfUrl, bookTitle, settings }: Bo
         }
       }
     };
-  }, [previewPdfUrl, settings]);
+  }, [previewPdfUrl, coverImageUrl, settings]);
 
   const spreads = buildSpreadGroups(totalPages, orientation, settings.show_cover);
   const spreadIdx = spreadIndexForPage(spreads, pageIndex);
