@@ -1,46 +1,47 @@
-consent_kind	decision	provider	provider_path	checkout_mode	sandbox_flag	vercel_env	product_state	rail_mode	buyer_email	buyer_consent	buyer_country
-C2_release_approval	forked	paddle	redirect	live	true	production	release_hash_mismatch	live	absent	checked	non_us
-C3_revenue_split	resolved_by_set	fungies	redirect	sandbox	false	production	active_rail	sandbox	valid	unchecked	us_territory
-C1_data_accuracy	given	polar	redirect	gated	true	production	active_rail	live	invalid	unchecked	us
-C3_revenue_split	refused	paddle	redirect	live	false	development	bare_slug_single	live	typo_suggested	unchecked	non_us
-C2_release_approval	given	paddle	redirect	sandbox	false	unset_node_prod	bare_slug_ambiguous	live	valid	checked	us
-C1_data_accuracy	resolved_by_set	paddle	redirect	gated	true	unset_node_prod	bare_slug_single	live	invalid	checked	us_territory
-C2_release_approval	refused	paddle	overlay	gated	true	unset_node_test	active_rail	sandbox	typo_suggested	checked	non_us
-C1_data_accuracy	forked	lemonsqueezy	redirect	live	false	production	active_rail	sandbox	absent	unchecked	us
-C3_revenue_split	refused	paddle	redirect	sandbox	true	preview	bare_slug_ambiguous	live	absent	unchecked	us_territory
-C1_data_accuracy	forked	paddle	redirect	sandbox	false	unset_node_test	bare_slug_ambiguous	live	invalid	unchecked	non_us
-C3_revenue_split	given	paddle	redirect	live	true	development	no_rails	live	valid	checked	us_territory
-C3_revenue_split	forked	creem	redirect	gated	false	preview	active_rail	sandbox	typo_suggested	checked	us
-C1_data_accuracy	given	fungies	redirect	live	true	unset_node_prod	active_rail	sandbox	typo_suggested	unchecked	non_us
-C2_release_approval	refused	lemonsqueezy	redirect	sandbox	true	unset_node_prod	active_rail	live	typo_suggested	checked	us_territory
-C2_release_approval	resolved_by_set	paddle	redirect	sandbox	false	development	release_hash_mismatch	live	invalid	unchecked	us
-C3_revenue_split	forked	polar	redirect	live	false	unset_node_prod	active_rail	sandbox	absent	checked	us_territory
-C1_data_accuracy	resolved_by_set	paddle	redirect	live	false	production	bare_slug_ambiguous	live	typo_suggested	unchecked	non_us
-C3_revenue_split	refused	fungies	redirect	gated	false	unset_node_test	active_rail	live	absent	checked	us
-C1_data_accuracy	refused	paddle	redirect	sandbox	false	production	bare_slug_single	live	valid	unchecked	us
-C3_revenue_split	given	lemonsqueezy	redirect	gated	false	unset_node_test	active_rail	live	valid	unchecked	non_us
-C2_release_approval	resolved_by_set	lemonsqueezy	redirect	live	false	preview	active_rail	sandbox	invalid	unchecked	non_us
-C1_data_accuracy	refused	paddle	redirect	live	false	unset_node_test	release_hash_mismatch	live	valid	unchecked	us_territory
-C1_data_accuracy	given	creem	redirect	live	true	development	active_rail	live	absent	unchecked	non_us
-C1_data_accuracy	forked	paddle	redirect	sandbox	false	preview	bare_slug_single	live	valid	unchecked	us_territory
-C3_revenue_split	refused	creem	redirect	sandbox	false	unset_node_test	active_rail	live	invalid	unchecked	us_territory
-C2_release_approval	forked	paddle	redirect	sandbox	false	production	no_rails	live	invalid	unchecked	us
-C2_release_approval	forked	fungies	redirect	live	false	preview	active_rail	live	invalid	unchecked	non_us
-C2_release_approval	resolved_by_set	polar	redirect	sandbox	false	preview	active_rail	live	typo_suggested	unchecked	non_us
-C1_data_accuracy	resolved_by_set	paddle	redirect	gated	false	unset_node_test	no_rails	live	absent	unchecked	non_us
-C2_release_approval	forked	paddle	redirect	gated	false	development	bare_slug_ambiguous	live	valid	unchecked	us_territory
-C2_release_approval	forked	lemonsqueezy	redirect	live	false	development	active_rail	sandbox	typo_suggested	unchecked	us
-C3_revenue_split	refused	fungies	redirect	sandbox	false	development	active_rail	live	typo_suggested	unchecked	us_territory
-C2_release_approval	given	paddle	redirect	live	false	unset_node_test	bare_slug_single	live	absent	unchecked	us_territory
-C2_release_approval	resolved_by_set	creem	redirect	sandbox	false	unset_node_prod	active_rail	live	valid	unchecked	us
-C1_data_accuracy	refused	paddle	redirect	live	false	preview	no_rails	live	typo_suggested	unchecked	us
-C1_data_accuracy	given	paddle	overlay	sandbox	false	unset_node_prod	active_rail	live	valid	unchecked	us_territory
-C3_revenue_split	given	paddle	redirect	gated	true	unset_node_prod	release_hash_mismatch	live	typo_suggested	checked	us
-C2_release_approval	refused	polar	redirect	live	true	unset_node_test	active_rail	sandbox	valid	unchecked	us
-C3_revenue_split	forked	paddle	overlay	live	true	production	active_rail	sandbox	absent	checked	us
-C3_revenue_split	given	paddle	redirect	sandbox	true	preview	release_hash_mismatch	live	invalid	checked	us
-C1_data_accuracy	given	creem	redirect	gated	true	production	active_rail	sandbox	invalid	checked	us
-C1_data_accuracy	resolved_by_set	paddle	overlay	sandbox	true	preview	active_rail	live	invalid	checked	us
-C1_data_accuracy	refused	paddle	redirect	live	true	unset_node_prod	no_rails	live	typo_suggested	checked	us
-C1_data_accuracy	forked	paddle	overlay	live	false	development	active_rail	live	typo_suggested	unchecked	non_us
-C3_revenue_split	forked	polar	redirect	live	true	development	active_rail	live	valid	unchecked	non_us
+consent_kind	decision	provider	provider_path	checkout_mode	sandbox_flag	vercel_env	product_state	rail_mode	buyer_email	buyer_consent	buyer_country	creator_kind
+C3_revenue_split	refused	creem	redirect	gated	true	unset_node_prod	active_rail	live	valid	checked	us	creator
+C2_release_approval	given	paddle	redirect	live	false	unset_node_prod	bare_slug_ambiguous	live	typo_suggested	unchecked	non_us	house
+C1_data_accuracy	resolved_by_set	polar	redirect	sandbox	false	production	active_rail	sandbox	invalid	checked	us_territory	house
+C2_release_approval	forked	lemonsqueezy	redirect	live	true	unset_node_prod	active_rail	sandbox	absent	unchecked	us_territory	creator
+C1_data_accuracy	forked	paddle	redirect	sandbox	true	preview	no_rails	live	invalid	checked	non_us	creator
+C3_revenue_split	resolved_by_set	paddle	redirect	gated	true	production	bare_slug_ambiguous	live	typo_suggested	unchecked	us	creator
+C1_data_accuracy	refused	paddle	redirect	live	false	production	no_rails	live	valid	unchecked	us	house
+C3_revenue_split	given	polar	redirect	gated	false	development	active_rail	live	absent	unchecked	non_us	creator
+C3_revenue_split	forked	paddle	redirect	gated	false	preview	release_hash_mismatch	live	typo_suggested	unchecked	us_territory	house
+C1_data_accuracy	given	fungies	redirect	sandbox	true	unset_node_prod	active_rail	sandbox	absent	checked	us	house
+C2_release_approval	resolved_by_set	paddle	redirect	live	false	unset_node_prod	bare_slug_single	live	invalid	checked	non_us	house
+C2_release_approval	refused	fungies	redirect	sandbox	false	unset_node_test	active_rail	sandbox	valid	unchecked	us_territory	creator
+C1_data_accuracy	forked	fungies	redirect	gated	true	development	active_rail	sandbox	typo_suggested	checked	us	house
+C2_release_approval	given	paddle	redirect	gated	false	development	no_rails	live	invalid	unchecked	us_territory	house
+C2_release_approval	given	paddle	redirect	live	true	preview	bare_slug_single	live	valid	unchecked	us	creator
+C3_revenue_split	resolved_by_set	paddle	overlay	live	true	unset_node_test	active_rail	sandbox	absent	checked	non_us	house
+C2_release_approval	refused	fungies	redirect	live	false	production	active_rail	live	absent	checked	non_us	creator
+C3_revenue_split	refused	paddle	redirect	sandbox	true	unset_node_prod	release_hash_mismatch	live	invalid	checked	us	creator
+C2_release_approval	refused	polar	redirect	sandbox	true	preview	active_rail	sandbox	typo_suggested	unchecked	us	creator
+C1_data_accuracy	forked	paddle	redirect	live	false	production	release_hash_mismatch	live	valid	unchecked	non_us	house
+C1_data_accuracy	forked	polar	redirect	gated	false	unset_node_test	active_rail	live	valid	unchecked	us	creator
+C3_revenue_split	resolved_by_set	fungies	redirect	gated	false	preview	active_rail	live	absent	checked	us_territory	creator
+C3_revenue_split	refused	paddle	redirect	sandbox	false	development	bare_slug_single	live	typo_suggested	unchecked	us_territory	house
+C1_data_accuracy	forked	paddle	redirect	gated	false	unset_node_test	bare_slug_single	live	invalid	unchecked	us	house
+C2_release_approval	given	creem	redirect	sandbox	false	unset_node_test	active_rail	sandbox	typo_suggested	unchecked	us_territory	house
+C1_data_accuracy	refused	paddle	redirect	sandbox	false	preview	bare_slug_ambiguous	live	invalid	checked	us_territory	house
+C1_data_accuracy	resolved_by_set	creem	redirect	live	false	development	active_rail	live	absent	unchecked	non_us	creator
+C3_revenue_split	resolved_by_set	lemonsqueezy	redirect	gated	false	preview	active_rail	live	valid	checked	us	house
+C2_release_approval	resolved_by_set	paddle	redirect	sandbox	false	development	release_hash_mismatch	live	valid	unchecked	non_us	creator
+C1_data_accuracy	forked	paddle	redirect	sandbox	false	development	bare_slug_ambiguous	live	absent	unchecked	non_us	creator
+C2_release_approval	given	polar	redirect	live	false	unset_node_prod	active_rail	live	absent	unchecked	us	creator
+C1_data_accuracy	given	lemonsqueezy	redirect	sandbox	false	production	active_rail	live	typo_suggested	unchecked	non_us	creator
+C1_data_accuracy	resolved_by_set	paddle	redirect	gated	false	unset_node_test	bare_slug_ambiguous	live	valid	unchecked	us_territory	creator
+C3_revenue_split	resolved_by_set	paddle	redirect	gated	false	unset_node_prod	no_rails	live	typo_suggested	unchecked	us_territory	creator
+C2_release_approval	refused	lemonsqueezy	redirect	gated	false	development	active_rail	live	invalid	unchecked	us	creator
+C1_data_accuracy	given	paddle	overlay	gated	false	preview	active_rail	live	invalid	unchecked	us	creator
+C2_release_approval	given	paddle	redirect	sandbox	true	unset_node_test	release_hash_mismatch	live	absent	unchecked	us_territory	creator
+C1_data_accuracy	forked	creem	redirect	sandbox	true	production	active_rail	live	invalid	checked	us_territory	house
+C2_release_approval	forked	paddle	overlay	sandbox	true	development	active_rail	sandbox	typo_suggested	unchecked	us_territory	creator
+C2_release_approval	given	creem	redirect	live	false	preview	active_rail	live	absent	unchecked	us	house
+C3_revenue_split	resolved_by_set	paddle	redirect	live	false	production	bare_slug_single	live	absent	unchecked	non_us	house
+C3_revenue_split	refused	paddle	overlay	gated	true	production	active_rail	sandbox	valid	checked	us_territory	creator
+C2_release_approval	given	paddle	overlay	live	false	unset_node_prod	active_rail	live	invalid	unchecked	non_us	creator
+C1_data_accuracy	forked	paddle	redirect	gated	true	unset_node_test	no_rails	live	absent	checked	us	house
+C1_data_accuracy	forked	fungies	redirect	gated	false	development	active_rail	sandbox	invalid	unchecked	us	house
+C3_revenue_split	resolved_by_set	lemonsqueezy	redirect	gated	false	unset_node_test	active_rail	sandbox	typo_suggested	unchecked	non_us	house

@@ -12,6 +12,7 @@ import {
   buyerCountryError,
   checkoutUrlProblem,
   creatorHandleOf,
+  isHouseProduct,
   jsonError,
   parseBuyerQuery,
   parsePostBody,
@@ -45,7 +46,7 @@ async function lookupProduct(supabase: SupabaseAdmin, product: string): Promise<
   if (guidSchema.safeParse(product).success) {
     const { data, error } = await supabase
       .from("products")
-      .select(`${PRODUCT_COLUMNS}, creators(handle)`)
+      .select(`${PRODUCT_COLUMNS}, creators(handle, is_house)`)
       .eq("id", product)
       .maybeSingle();
     if (error) return lookupFailed(product, error.message);
@@ -56,7 +57,7 @@ async function lookupProduct(supabase: SupabaseAdmin, product: string): Promise<
     const [handle, slug] = product.split("/");
     const { data, error } = await supabase
       .from("products")
-      .select(`${PRODUCT_COLUMNS}, creators!inner(handle)`)
+      .select(`${PRODUCT_COLUMNS}, creators!inner(handle, is_house)`)
       .eq("slug", slug)
       .eq("creators.handle", handle)
       .maybeSingle();
@@ -75,6 +76,75 @@ async function lookupProduct(supabase: SupabaseAdmin, product: string): Promise<
     return { response: jsonError(400, "A product slug alone does not identify a product. Use <handle>/<product_slug> or the product id.", "product_ref_requires_handle") };
   }
   return productNotFound(product);
+}
+
+/**
+ * Creator gate. C1, C2 and C3 must each have exactly one active head, and the C2 head must approve the product's release hash.
+ * Returns the refusal, or null when checkout may continue. Errors inside propagate to handleCheckout's fail-closed catch.
+ */
+async function checkCreatorConsents(
+  supabase: SupabaseAdmin,
+  product: string,
+  resolvedProduct: ProductRow,
+  ownerId: string,
+): Promise<NextResponse | null> {
+  const { data: consentRows, error: consentErr, count: consentCount } = await supabase
+    .from("consents")
+    .select("id, kind, decision, product_id, supersedes, supersedes_ids, document_sha256", { count: "exact" })
+    .eq("creator_id", ownerId)
+    .in("kind", GATE_CONSENT_KINDS);
+
+  if (consentErr) {
+    console.error(`[billing/checkout] failed to query consents for '${product}': ${consentErr.message}`);
+    return jsonError(500, CONSENT_VERIFICATION_FAILED);
+  }
+  if (typeof consentCount !== "number" || consentCount !== (consentRows ?? []).length) {
+    console.error(`[billing/checkout] incomplete consent history for '${product}': got ${(consentRows ?? []).length} of ${consentCount ?? "unknown"}`);
+    return jsonError(500, CONSENT_VERIFICATION_FAILED);
+  }
+
+  const rows = consentRows ?? [];
+  const active = strictActiveConsentKinds(rows, resolvedProduct.id);
+  const hasC1 = active.has("C1_data_accuracy");
+  const hasC2 = active.has("C2_release_approval");
+  const hasC3 = active.has("C3_revenue_split");
+
+  if (!hasC1 || !hasC2 || !hasC3) {
+    console.error(`[billing/checkout] missing active consents for '${product}': C1=${hasC1}, C2=${hasC2}, C3=${hasC3}`);
+    return jsonError(403, "Checkout forbidden: required creator consents are not active");
+  }
+
+  const releaseSha = normalizeSha256(resolvedProduct.release_sha256);
+  const c2Head = strictChainHead(rows, resolvedProduct.id, "C2_release_approval");
+  const approvedSha = normalizeSha256(c2Head?.document_sha256);
+  if (!releaseSha || !approvedSha || approvedSha !== releaseSha) {
+    console.error(`[billing/checkout] release hash mismatch for '${product}': release=${releaseSha ?? "invalid"} approved=${approvedSha ?? "invalid"}`);
+    return jsonError(403, "Checkout forbidden: release hash mismatch");
+  }
+  return null;
+}
+
+/**
+ * House gate (founder decision, 2026-11-19). A house title has no creator consents to check. Its release file must still match
+ * the digest the operator pinned in house_release_pins (the sha256 of the stored object). Returns the refusal, or null.
+ */
+async function checkHousePin(supabase: SupabaseAdmin, product: string, resolvedProduct: ProductRow): Promise<NextResponse | null> {
+  const releaseSha = normalizeSha256(resolvedProduct.release_sha256);
+  const { data: pinRow, error: pinErr } = await supabase
+    .from("house_release_pins")
+    .select("sha256")
+    .eq("product_id", resolvedProduct.id)
+    .maybeSingle();
+  if (pinErr) {
+    console.error(`[billing/checkout] failed to read the house release pin for '${product}': ${pinErr.message}`);
+    return jsonError(500, CONSENT_VERIFICATION_FAILED);
+  }
+  const pinnedSha = normalizeSha256((pinRow as { sha256?: unknown } | null)?.sha256);
+  if (!releaseSha || !pinnedSha || pinnedSha !== releaseSha) {
+    console.error(`[billing/checkout] house release hash mismatch for '${product}': release=${releaseSha ?? "invalid"} pinned=${pinnedSha ?? "none"}`);
+    return jsonError(403, "Checkout forbidden: release hash mismatch");
+  }
+  return null;
 }
 
 async function handleCheckout(
@@ -120,39 +190,10 @@ async function handleCheckout(
       return jsonError(500, CONSENT_VERIFICATION_FAILED);
     }
 
-    const { data: consentRows, error: consentErr, count: consentCount } = await supabase
-      .from("consents")
-      .select("id, kind, decision, product_id, supersedes, supersedes_ids, document_sha256", { count: "exact" })
-      .eq("creator_id", ownerId)
-      .in("kind", GATE_CONSENT_KINDS);
-
-    if (consentErr) {
-      console.error(`[billing/checkout] failed to query consents for '${product}': ${consentErr.message}`);
-      return jsonError(500, CONSENT_VERIFICATION_FAILED);
-    }
-    if (typeof consentCount !== "number" || consentCount !== (consentRows ?? []).length) {
-      console.error(`[billing/checkout] incomplete consent history for '${product}': got ${(consentRows ?? []).length} of ${consentCount ?? "unknown"}`);
-      return jsonError(500, CONSENT_VERIFICATION_FAILED);
-    }
-
-    const rows = consentRows ?? [];
-    const active = strictActiveConsentKinds(rows, resolvedProduct.id);
-    const hasC1 = active.has("C1_data_accuracy");
-    const hasC2 = active.has("C2_release_approval");
-    const hasC3 = active.has("C3_revenue_split");
-
-    if (!hasC1 || !hasC2 || !hasC3) {
-      console.error(`[billing/checkout] missing active consents for '${product}': C1=${hasC1}, C2=${hasC2}, C3=${hasC3}`);
-      return jsonError(403, "Checkout forbidden: required creator consents are not active");
-    }
-
-    const releaseSha = normalizeSha256(resolvedProduct.release_sha256);
-    const c2Head = strictChainHead(rows, resolvedProduct.id, "C2_release_approval");
-    const approvedSha = normalizeSha256(c2Head?.document_sha256);
-    if (!releaseSha || !approvedSha || approvedSha !== releaseSha) {
-      console.error(`[billing/checkout] release hash mismatch for '${product}': release=${releaseSha ?? "invalid"} approved=${approvedSha ?? "invalid"}`);
-      return jsonError(403, "Checkout forbidden: release hash mismatch");
-    }
+    const refusal = isHouseProduct(resolvedProduct)
+      ? await checkHousePin(supabase, product, resolvedProduct)
+      : await checkCreatorConsents(supabase, product, resolvedProduct, ownerId);
+    if (refusal) return refusal;
 
     const { data: railRows, error: railErr } = await supabase
       .from("product_rails")

@@ -161,8 +161,9 @@ export interface GlobalSettings {
   };
   /** Buyer-facing storefront links and copy. `b2c_landing_url` is the logo target on the thank-you page. `brand_name` is the
    *  publisher's name: a creator whose display name equals it is the house, and the page names ExpanPress as publisher.
-   *  `thanks_path_template` is the thank-you page a checkout returns to ({handle} is replaced with the creator handle). */
-  storefront: { b2c_landing_url: string; brand_name: string; thanks_path_template: string };
+   *  `thanks_path_template` is the thank-you page a checkout returns to ({handle} is replaced with the creator handle).
+   *  `house_title_note` is the one-line note on a house title (creators.is_house): published by ExpanPress, no creator split. */
+  storefront: { b2c_landing_url: string; brand_name: string; thanks_path_template: string; house_title_note: string };
   /** Creator handle policy (web/src/lib/handle-policy.ts). Set once at account creation; immutable after. */
   handles: { min_length: number; max_length: number; separator: string; reserved: string[]; profanity_whitelist: string[] };
   /** Product slug rule (ADR 0065): same shape as handles. Unique per creator (products_creator_id_slug_key);
@@ -304,6 +305,7 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     b2c_landing_url: "https://expanpress.com/books",
     brand_name: "ExpanPress",
     thanks_path_template: "/books/{handle}/thanks",
+    house_title_note: "House title. Published by ExpanPress. No creator revenue split.",
   },
   // Our handle rules, not a platform's (Instagram allows 1-30, Facebook requires 5). Reserved words are never assignable.
   handles: {
@@ -674,7 +676,7 @@ export function loadPaymentsSection(raw: Record<string, unknown> | undefined): G
   };
 }
 
-/** storefront: validates b2c_landing_url, brand_name, and thanks_path_template; falls back per key on invalid input. */
+/** storefront: validates b2c_landing_url, brand_name, thanks_path_template, and house_title_note; falls back per key on invalid input. */
 export function loadStorefrontSection(raw: Record<string, unknown> | undefined): GlobalSettings["storefront"] {
   const defaults = DEFAULT_GLOBAL.storefront;
   if (!raw) return defaults;
@@ -694,8 +696,15 @@ export function loadStorefrontSection(raw: Record<string, unknown> | undefined):
     raw.thanks_path_template.includes("{handle}");
   const thanksTpl = tplOk ? (raw.thanks_path_template as string) : defaults.thanks_path_template;
   if (raw.thanks_path_template !== undefined && !tplOk) fallbacks.push("thanks_path_template");
+  const houseNote =
+    typeof raw.house_title_note === "string" && raw.house_title_note.trim() !== ""
+      ? raw.house_title_note.trim()
+      : defaults.house_title_note;
+  if (raw.house_title_note !== undefined && !(typeof raw.house_title_note === "string" && raw.house_title_note.trim() !== "")) {
+    fallbacks.push("house_title_note");
+  }
   if (fallbacks.length > 0) warnFallback("global.json", `invalid storefront values for ${fallbacks.join(", ")}`);
-  return { b2c_landing_url: b2cLanding, brand_name: brandName, thanks_path_template: thanksTpl };
+  return { b2c_landing_url: b2cLanding, brand_name: brandName, thanks_path_template: thanksTpl, house_title_note: houseNote };
 }
 
 /** branding: validates version, theme_mode, font_family, logo URLs, hex colours, and button radius. */

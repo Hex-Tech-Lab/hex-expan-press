@@ -17,6 +17,7 @@ export const MODEL_COLUMNS = [
   "buyer_email",
   "buyer_consent",
   "buyer_country",
+  "creator_kind",
 ] as const;
 
 /** Allowed values per column. A row with a value outside its column's set fails the parse, so a typo cannot pass silently. */
@@ -33,6 +34,7 @@ export const COLUMN_VALUES = {
   buyer_email: ["absent", "valid", "invalid", "typo_suggested"],
   buyer_consent: ["checked", "unchecked"],
   buyer_country: ["us", "us_territory", "non_us"],
+  creator_kind: ["creator", "house"],
 } as const satisfies Record<(typeof MODEL_COLUMNS)[number], readonly string[]>;
 
 export type RowValues = { [K in (typeof MODEL_COLUMNS)[number]]: (typeof COLUMN_VALUES)[K][number] };
@@ -104,10 +106,11 @@ export function expectedOutcome(row: PairwiseRow): Outcome {
   if (row.checkout_mode === "gated") return { status: 403 };
   if (row.checkout_mode === "sandbox" && !sandboxOpen(row)) return { status: 403 };
 
-  // 5. Consents: a refused or forked head of the kind under evaluation blocks checkout.
-  if (row.decision === "refused" || row.decision === "forked") return { status: 403 };
+  // 5. Consents: a refused or forked head of the kind under evaluation blocks an external creator's checkout.
+  //    A house title has no creator consents, so its decision never blocks it (house-title exemption, 2026-11-19).
+  if (row.creator_kind === "creator" && (row.decision === "refused" || row.decision === "forked")) return { status: 403 };
 
-  // 6. Release hash: the approved C2 document must match the product's release hash.
+  // 6. Release hash: the creator's approved C2 document, or for a house title its pinned digest, must match the release hash.
   if (row.product_state === "release_hash_mismatch") return { status: 403 };
 
   // 7. Rails: none configured, or none routable (switched-off or unverified provider).

@@ -70,7 +70,7 @@ vi.mock("../../../../../../src/infrastructure/matrix_router/matrix_router", () =
 const MODEL_PATH = fileURLToPath(new URL("../../../../../../docs/testing/pairwise/billing_consent_checkout.model.txt", import.meta.url));
 const ROWS_PATH = fileURLToPath(new URL("../../../../../../docs/testing/pairwise/billing_consent_checkout.rows.tsv", import.meta.url));
 const PICT_BIN = "/usr/local/bin/pict";
-const EXPECTED_ROW_COUNT = 45;
+const EXPECTED_ROW_COUNT = 46;
 const PADDLE_PRICE_ID = "pri_pw_overlay_1";
 const PADDLE_WH_SECRET = "whsec_pairwise_test_secret";
 
@@ -168,7 +168,7 @@ function buildAdminMock(row: PairwiseRow) {
               release_sha256: RELEASE_SHA,
               checkout_mode: row.checkout_mode,
               paddle_price_id: row.provider === "paddle" ? PADDLE_PRICE_ID : null,
-              creators: { handle: "pw_creator" },
+              creators: { handle: "pw_creator", is_house: row.creator_kind === "house" },
             },
             error: null,
           }),
@@ -202,6 +202,17 @@ function buildAdminMock(row: PairwiseRow) {
           select: () => ({
             eq: () => ({
               order: async () => ({ data: rails, error: null }),
+            }),
+          }),
+        };
+      }
+      if (table === "house_release_pins") {
+        // The operator's pinned digest for the house file. A mismatched release fails against the pin, as the C2 hash does for creators.
+        const pinned = row.product_state === "release_hash_mismatch" ? OLD_SHA : RELEASE_SHA;
+        return {
+          select: () => ({
+            eq: () => ({
+              maybeSingle: async () => ({ data: { sha256: pinned }, error: null }),
             }),
           }),
         };
@@ -373,14 +384,17 @@ describe(`billing / consent / checkout: ${EXPECTED_ROW_COUNT} PICT pairwise rows
       }
 
       // Portal parity check (F-15): portalConsentState must agree with the consent gate for this row's consent_kind.
-      const portal = portalConsentState(buildConsentRows(row), PID, RELEASE_SHA);
-      const portalFlag =
-        row.consent_kind === "C1_data_accuracy"
-          ? portal.hasC1
-          : row.consent_kind === "C2_release_approval"
-            ? portal.hasC2
-            : portal.hasC3;
-      expect(portalFlag).toBe(expectedPortalKey(row));
+      // A house title has no creator portal and no creator consents, so the parity applies to creator rows only.
+      if (row.creator_kind === "creator") {
+        const portal = portalConsentState(buildConsentRows(row), PID, RELEASE_SHA);
+        const portalFlag =
+          row.consent_kind === "C1_data_accuracy"
+            ? portal.hasC1
+            : row.consent_kind === "C2_release_approval"
+              ? portal.hasC2
+              : portal.hasC3;
+        expect(portalFlag).toBe(expectedPortalKey(row));
+      }
     },
   );
 });
@@ -406,6 +420,7 @@ describe("billing / consent / checkout: explicit valid paths", () => {
       product_state: "active_rail",
       rail_mode: "live",
       ...US_BUYER,
+      creator_kind: "creator",
     };
     applyRuntimeEnv(row);
     adminModule.mockAdminClient = buildAdminMock(row);
@@ -427,6 +442,7 @@ describe("billing / consent / checkout: explicit valid paths", () => {
       product_state: "active_rail",
       rail_mode: "sandbox",
       ...US_BUYER,
+      creator_kind: "creator",
     };
     applyRuntimeEnv(row);
     adminModule.mockAdminClient = buildAdminMock(row);
@@ -448,6 +464,7 @@ describe("billing / consent / checkout: explicit valid paths", () => {
       product_state: "active_rail",
       rail_mode: "sandbox",
       ...US_BUYER,
+      creator_kind: "creator",
     };
     applyRuntimeEnv(row);
     adminModule.mockAdminClient = buildAdminMock(row);
@@ -471,6 +488,7 @@ describe("billing / consent / checkout: explicit valid paths", () => {
       product_state: "active_rail",
       rail_mode: "sandbox",
       ...US_BUYER,
+      creator_kind: "creator",
     };
     applyRuntimeEnv(row);
     adminModule.mockAdminClient = buildAdminMock(row);
@@ -492,6 +510,7 @@ describe("billing / consent / checkout: explicit valid paths", () => {
       product_state: "active_rail",
       rail_mode: "live",
       ...US_BUYER,
+      creator_kind: "creator",
     };
     applyRuntimeEnv(row);
     adminModule.mockAdminClient = buildAdminMock(row);
@@ -503,6 +522,7 @@ describe("billing / consent / checkout: explicit valid paths", () => {
   it("creem rail on a live product redirects with the buyer's consent carried as creem metadata", async () => {
     const row: PairwiseRow = {
       rowNum: 106,
+      creator_kind: "creator",
       consent_kind: "C3_revenue_split",
       decision: "given",
       provider: "creem",
@@ -526,6 +546,7 @@ describe("billing / consent / checkout: explicit valid paths", () => {
   it("paddle rail redirect path carries user_email and no consent parameter (webhook stores NULL)", async () => {
     const row: PairwiseRow = {
       rowNum: 107,
+      creator_kind: "creator",
       consent_kind: "C3_revenue_split",
       decision: "given",
       provider: "paddle",
@@ -555,6 +576,7 @@ describe("billing / consent / checkout: explicit valid paths", () => {
     async (consentState) => {
       const row: PairwiseRow = {
         rowNum: consentState === "checked" ? 108 : 109,
+        creator_kind: "creator",
         consent_kind: "C2_release_approval",
         decision: "given",
         provider: "paddle",

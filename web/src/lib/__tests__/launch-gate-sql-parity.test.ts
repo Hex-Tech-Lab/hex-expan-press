@@ -10,17 +10,20 @@ import { strictActiveConsentKinds } from "../consent-chain";
 
 const migration = (name: string) => readFileSync(join(__dirname, "../../../../supabase/migrations", name), "utf8");
 // Applied in order: 20261011 replaces the trigger with the live-change re-check;
-// 20261116142329 adds set supersession (supersedes_ids) to both SQL readers.
+// 20261116142329 adds set supersession (supersedes_ids) to both SQL readers;
+// 20261119130000 adds the house exemption (creators.is_house, house_release_pins). Non-house behavior is unchanged.
 const MIGRATIONS = [
   "20261009000000_launch_trigger_and_audit.sql",
   "20261011000000_launch_gate_rechecks_live_changes.sql",
   "20261116142329_consents_supersedes_set.sql",
+  "20261119130000_house_title_exemption.sql",
 ].map(migration);
 
 // Minimal stand-ins for the tables/types the migration depends on.
 const SCHEMA = `
   create role anon; create role authenticated; create role service_role;
   create type public.consent_kind as enum ('C1_data_accuracy', 'C2_release_approval', 'C3_revenue_split');
+  create table public.creators (id uuid primary key, handle text not null unique, display_name text not null);
   create table public.products (
     id uuid primary key, creator_id uuid, release_sha256 text,
     checkout_mode text check (checkout_mode in ('gated','live','sandbox','paddle'))
