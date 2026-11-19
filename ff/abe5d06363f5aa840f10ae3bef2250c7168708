@@ -1,0 +1,30 @@
+docs/testing/pairwise/billing_consent_checkout.model.txt
+  s_0e99959cd74c50::t_a3cf0c6408215e 1-3,7,9-10,12-19,27-34
+web/app/api/billing/checkout/__tests__/billing_consent_checkout.pairwise.test.ts
+  s_0e99959cd74c50::t_8ab3d9a830faa8 1,3-5,13-25,39-40,60-63,68-80,83,89,148,161,219-228,231-244,248,251,255,267,279,286-290,293,305-307,313,322-324,328,333,342-344,348,353,362-364,368
+  s_0e99959cd74c50::t_0ad4f00a94c450 372-435
+web/app/api/billing/checkout/__tests__/billing_consent_checkout.oracle.ts
+  s_0e99959cd74c50::t_482db099d6eb84 1-125
+docs/testing/pairwise/billing_consent_checkout.coverage.html
+  s_0e99959cd74c50::t_eb896198e916ea 1-2,4-169,172-223,226-241,244-915,918-939
+docs/testing/pairwise/billing_consent_checkout.coverage.md
+  s_0e99959cd74c50::t_692fbb48cf43bc 1,3,5-80
+docs/testing/pairwise/billing_consent_checkout.rows.tsv
+  s_0e99959cd74c50::t_7866eb5b2f7fef 1-43
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "ffabe5d06363f5aa840f10ae3bef2250c7168708",
+  "prompts": {},
+  "sessions": {
+    "s_0e99959cd74c50": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "21b00acc-7513-46d6-9a35-038af7845be2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
