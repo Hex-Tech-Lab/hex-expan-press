@@ -128,8 +128,10 @@ export class CreemAdapter implements PaymentProviderPort {
       eventType: "sale_completed",
       providerName: this.providerName,
       saleId: data.order.id,
-      // Our own product key when the payment link carries it (metadata.product_id); Creem's prod_ id is only the fallback.
-      productId: typeof data.metadata?.product_id === "string" && data.metadata.product_id !== "" ? data.metadata.product_id : data.order.product,
+      // Creem's own order.product: the product whose price the provider charged. Metadata rides on the checkout link, where the
+      // buyer can edit it, so it never selects the product. The product's store_product_id must carry this prod_ id before
+      // Creem is enabled (ADR 0065, KYC_TODO E2); until then a Creem sale for an unmapped id is refused, not released.
+      productId: data.order.product,
       totalCents: data.order.amount_paid ?? data.order.amount,
       currency: data.order.currency.toUpperCase(),
       buyerEmailHash: hashEmail(data.customer.email),

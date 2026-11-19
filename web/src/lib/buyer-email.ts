@@ -44,11 +44,13 @@ export function buyerEmailState(
 }
 
 /**
- * The consent line, verbatim, with the delivery promise from the registry (delivery.buyer_typical_minutes and
- * delivery.buyer_max_hours). The wording is the founder's text and must not be reworded.
+ * The consent line, verbatim, with the promise from the registry: the usual delay (delivery.buyer_typical_minutes), the hour
+ * after which the buyer is sent to support (delivery.buyer_support_after_hours), and the support address (email.reply_to).
+ * The wording is the founder's text and must not be reworded.
  */
-export function buyerConsentText(typicalMinutes: number, maxHours: number): string {
-  return `ExpanPress will email your e-book to this address, usually within ${typicalMinutes} minutes and no later than ${maxHours} hours, and may also email you about this purchase and related updates. You can unsubscribe at any time.`;
+export function buyerConsentText(typicalMinutes: number, supportAfterHours: number, supportEmail: string): string {
+  const window = supportAfterHours === 1 ? "1 hour" : `${supportAfterHours} hours`;
+  return `ExpanPress will email your e-book to this address, usually within ${typicalMinutes} minutes. If it has not arrived within ${window}, email ${supportEmail} and we will send it by hand. We may also email you about this purchase and related updates. You can unsubscribe at any time.`;
 }
 
 /** Attribution parameters read from storage (with optional query-param fallback). The storage key for each parameter comes from ATTRIBUTION_KEYS (attribution.ts). */

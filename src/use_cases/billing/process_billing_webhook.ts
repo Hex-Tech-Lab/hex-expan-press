@@ -36,11 +36,16 @@ async function withBudgetRead<T>(deadlineAt: number | undefined, saleId: string,
  * (DeliveryPendingError) and the sale is already booked. The send is not aborted, so it may still finish; the provider's retry
  * then takes the duplicate path and resends the stored message under the same idempotency key.
  */
-function deliverWithinBudget(input: DeliveryInput): Promise<void> {
+export function deliverWithinBudget(input: DeliveryInput): Promise<void> {
   if (input.deadlineAt === undefined) return deliverSaleForWebhook(input);
   const work = deliverSaleForWebhook(input);
-  // The lock holder keeps the lock until the unawaited send settles; the rejection itself is surfaced through the race.
-  const settled = work.then(() => undefined, () => undefined);
+  // The lock holder keeps the lock until the send still running (if any) settles. A pending error from inside the work carries
+  // its send's settlement (delivery.ts), so this waits for that send, not for the work alone: the work can end while its send
+  // is still in flight. Work that ends with no send running settles with the work. The rejection itself is surfaced through the race.
+  const settled = work.then(
+    () => undefined,
+    (err: unknown) => (err instanceof DeliveryPendingError ? err.backgroundWork : undefined),
+  );
   return settleByDeadline(work, input.deadlineAt, () =>
     new DeliveryPendingError(input.saleId, new Error("webhook budget exhausted (payments.webhook_total_budget_ms)"), settled),
   );

@@ -228,14 +228,20 @@ function checkoutRequest(row: PairwiseRow, productParam: string): NextRequest {
   });
 }
 
-/** A 302 must land on the rail. Paddle documents no link parameters, so its URL is exact. Creem carries the product and the consent. */
+/**
+ * A 302 must land on the rail. Paddle's hosted checkout documents user_email, the only buyer field its link carries: the URL is
+ * the rail plus user_email when the buyer gave an email, and exact otherwise. Creem carries the product and the consent.
+ */
 function assertRedirect(location: string | null, row: PairwiseRow, railUrl: string | undefined): void {
   expect(location).not.toBeNull();
   const target = new URL(location as string);
   const rail = new URL(railUrl as string);
   expect(`${target.origin}${target.pathname}`).toBe(`${rail.origin}${rail.pathname}`);
   if (row.provider === "paddle") {
-    expect(location).toBe(railUrl);
+    const expected = new URL(railUrl as string);
+    const email = BUYER_EMAIL[row.buyer_email];
+    if (email !== undefined) expected.searchParams.set("user_email", email);
+    expect(location).toBe(expected.toString());
   } else {
     expect(target.searchParams.get("metadata[product_id]")).toBe(PID);
     expect(target.searchParams.get(`metadata[${GLOBAL.delivery.buyer_consent_metadata_key}]`)).toBe(
@@ -432,5 +438,29 @@ describe("billing / consent / checkout: explicit valid paths", () => {
     const res = await GET(checkoutRequest(row, PID));
     expect(res.status).toBe(302);
     assertRedirect(res.headers.get("location"), row, LIVE_RAIL_URL);
+  });
+
+  it("paddle rail on a live product redirects with the buyer's email prefilled as user_email and no consent parameter", async () => {
+    const row: PairwiseRow = {
+      rowNum: 107,
+      consent_kind: "C3_revenue_split",
+      decision: "given",
+      provider: "paddle",
+      checkout_mode: "live",
+      sandbox_flag: "false",
+      vercel_env: "production",
+      product_state: "active_rail",
+      rail_mode: "live",
+      buyer_email: "valid",
+      buyer_consent: "checked",
+      buyer_country: "us",
+    };
+    applyRuntimeEnv(row);
+    adminModule.mockAdminClient = buildAdminMock(row);
+    const res = await GET(checkoutRequest(row, PID));
+    expect(res.status).toBe(302);
+    assertRedirect(res.headers.get("location"), row, LIVE_RAIL_URL);
+    expect(new URL(res.headers.get("location")!).searchParams.get("user_email")).toBe("buyer@example.com");
+    expect(new URL(res.headers.get("location")!).searchParams.has(`metadata[${GLOBAL.delivery.buyer_consent_metadata_key}]`)).toBe(false);
   });
 });

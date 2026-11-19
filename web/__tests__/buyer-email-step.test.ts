@@ -15,7 +15,7 @@ function render(initialAttribution?: Record<string, string>): string {
       productId: PRODUCT_ID,
       domains: [...DEFAULT_GLOBAL.email_address.typo_domains],
       maxEmailLength: DEFAULT_GLOBAL.email_address.max_length,
-      consentText: buyerConsentText(DEFAULT_GLOBAL.delivery.buyer_typical_minutes, DEFAULT_GLOBAL.delivery.buyer_max_hours),
+      consentText: buyerConsentText(DEFAULT_GLOBAL.delivery.buyer_typical_minutes, DEFAULT_GLOBAL.delivery.buyer_support_after_hours, DEFAULT_GLOBAL.email.reply_to),
       initialAttribution,
     }),
   );
@@ -43,7 +43,7 @@ describe("BuyerEmailStep initial render (Option A single-hop POST)", () => {
 
   it("shows the consent line verbatim, with the registry delivery promise", () => {
     expect(render()).toContain(
-      "ExpanPress will email your e-book to this address, usually within 2 minutes and no later than 6 hours, and may also email you about this purchase and related updates. You can unsubscribe at any time.",
+      "ExpanPress will email your e-book to this address, usually within 2 minutes. If it has not arrived within 1 hour, email support@expanpress.com and we will send it by hand. We may also email you about this purchase and related updates. You can unsubscribe at any time.",
     );
   });
 

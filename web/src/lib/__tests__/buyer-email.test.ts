@@ -95,14 +95,20 @@ describe("buyerEmailState", () => {
 });
 
 describe("buyerConsentText", () => {
-  it("renders the founder's consent line verbatim with the registry delivery promise", () => {
-    expect(buyerConsentText(2, 6)).toBe(
-      "ExpanPress will email your e-book to this address, usually within 2 minutes and no later than 6 hours, and may also email you about this purchase and related updates. You can unsubscribe at any time.",
+  it("renders the founder's consent line verbatim with the registry delivery promise and support address", () => {
+    expect(buyerConsentText(2, 1, "support@expanpress.com")).toBe(
+      "ExpanPress will email your e-book to this address, usually within 2 minutes. If it has not arrived within 1 hour, email support@expanpress.com and we will send it by hand. We may also email you about this purchase and related updates. You can unsubscribe at any time.",
     );
   });
 
-  it("takes the timing from the arguments, not from fixed text", () => {
-    expect(buyerConsentText(5, 12)).toContain("usually within 5 minutes and no later than 12 hours");
+  it("takes the timing and the support address from the arguments, not from fixed text", () => {
+    const line = buyerConsentText(5, 12, "help@example.com");
+    expect(line).toContain("usually within 5 minutes.");
+    expect(line).toContain("If it has not arrived within 12 hours, email help@example.com and we will send it by hand.");
+  });
+
+  it("never states the retired six-hour promise", () => {
+    expect(buyerConsentText(2, 1, "support@expanpress.com")).not.toMatch(/no later than|6 hours/);
   });
 });
 

@@ -98,7 +98,7 @@ export default async function CheckoutPage({
             productId={p.id}
             domains={[...GLOBAL.email_address.typo_domains]}
             maxEmailLength={GLOBAL.email_address.max_length}
-            consentText={buyerConsentText(GLOBAL.delivery.buyer_typical_minutes, GLOBAL.delivery.buyer_max_hours)}
+            consentText={buyerConsentText(GLOBAL.delivery.buyer_typical_minutes, GLOBAL.delivery.buyer_support_after_hours, GLOBAL.email.reply_to)}
             initialAttribution={initialAttribution}
           />
         ) : (

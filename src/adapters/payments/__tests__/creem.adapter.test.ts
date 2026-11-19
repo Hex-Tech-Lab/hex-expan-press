@@ -68,6 +68,16 @@ describe("CreemAdapter", () => {
     expect(r).toMatchObject({ isValid: false, httpStatus: 401 });
   });
 
+  // The product must come from the provider's own order.product (the price Creem charged), never from metadata. Metadata
+  // travels on the checkout link, where the buyer can edit it: a forged product_id must not pick the product that is released.
+  it("takes the product only from order.product: a forged metadata.product_id is ignored (F-04c)", async () => {
+    const body = checkoutCompleted({ metadata: { order_ref: "order-ref-123", product_id: "forged_other_product" } });
+    const r = await adapter.parseAndValidateWebhook(headersFor(body), body);
+    expect(r.isValid).toBe(true);
+    if (!r.isValid || r.event.eventType !== "sale_completed") throw new Error("expected a sale_completed event");
+    expect(r.event.productId).toBe("prod_test_1");
+  });
+
   it("maps a paid live checkout.completed to sale_completed with our reference", async () => {
     const body = checkoutCompleted();
     const r = await adapter.parseAndValidateWebhook(headersFor(body), body);

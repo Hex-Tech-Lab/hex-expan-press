@@ -172,11 +172,30 @@ export interface DeliveryDeps {
   linkKey?: Buffer;
 }
 
-/** Rejects if the promise has not settled within ms. The send may still complete after a timeout. */
-function withDeadline<T>(work: Promise<T>, ms: number, label: string): Promise<T> {
+/**
+ * The send's own timer fired before the provider answered. The send is not aborted and may still complete. `settled` resolves
+ * when the send ends and never rejects: the sale lock holder waits on it, so a retry cannot start a second send on the same claim.
+ */
+class SendTimedOutError extends Error {
+  constructor(
+    readonly ms: number,
+    readonly settled: Promise<void>,
+  ) {
+    super(`email send timed out after ${ms}ms`);
+    this.name = "SendTimedOutError";
+  }
+}
+
+/** The settlement of a send that is still running after its timer answered. Undefined for any other failure: that send has ended. */
+function sendBackgroundOf(err: unknown): Promise<void> | undefined {
+  return err instanceof SendTimedOutError ? err.settled : undefined;
+}
+
+/** Rejects with onTimeout() if the promise has not settled within ms. The work is not aborted and may still complete. */
+function withDeadline<T>(work: Promise<T>, ms: number, onTimeout: () => Error): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const deadline = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+    timer = setTimeout(() => reject(onTimeout()), ms);
   });
   return Promise.race([work, deadline]).finally(() => clearTimeout(timer));
 }
@@ -285,18 +304,17 @@ function claimKey(provider: string, saleId: string, sendKind: string): string {
 }
 
 async function sendBuyerMessage(deps: DeliveryDeps, message: BuyerMessage, idempotencyKey: string, deadlineMs: number): Promise<void> {
-  await withDeadline(
-    deps.sendEmail({
-      to: message.to,
-      subject: message.subject,
-      text: message.text,
-      html: message.html,
-      replyTo: message.replyTo,
-      idempotencyKey,
-    }),
-    deadlineMs,
-    "email send",
-  );
+  const send = deps.sendEmail({
+    to: message.to,
+    subject: message.subject,
+    text: message.text,
+    html: message.html,
+    replyTo: message.replyTo,
+    idempotencyKey,
+  });
+  // Never rejects. If the timer answers first, the caller hands this to the lock holder (see sendBackgroundOf).
+  const settled = send.then(() => undefined, () => undefined);
+  await withDeadline(send, deadlineMs, () => new SendTimedOutError(deadlineMs, settled));
 }
 
 /**
@@ -377,7 +395,7 @@ async function resendStoredMessage(
     // deliverSaleForWebhook answers 422 and flags the sale. The claim and the stored message are kept: an earlier send under
     // this key may have been accepted, so nothing here releases them.
     if (isBuyerAddressRejection(err)) throw err;
-    throw new DeliveryPendingError(input.saleId, err);
+    throw new DeliveryPendingError(input.saleId, err, sendBackgroundOf(err));
   }
   return "sent";
 }
@@ -557,7 +575,7 @@ export async function deliverSale(
     // rejection (409 concurrent_idempotent_requests is not definite). On an ambiguous send failure keep BOTH rows so the retry
     // resends the stored message.
     const definiteNonSend = !sendAttempted || (err instanceof EmailSendError && err.definite);
-    if (!definiteNonSend) throw new DeliveryPendingError(input.saleId, err);
+    if (!definiteNonSend) throw new DeliveryPendingError(input.saleId, err, sendBackgroundOf(err));
     try {
       await releaseVerifiedNonSend(
         { ...key, fence: input.fence, releaseClaim: !(err instanceof StaleFenceError), linkInserted, tokenHash: hash },

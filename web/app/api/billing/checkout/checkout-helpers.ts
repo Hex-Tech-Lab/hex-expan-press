@@ -131,7 +131,8 @@ export function parseBuyerPost(
 
 /**
  * Buyer email, consent, product_id, and success_url on the provider's checkout link, only where documented.
- * Paddle's redirect link documents none, so its URL stays untouched.
+ * Paddle's hosted checkout documents user_email (prefills the buyer's email; the buyer can still edit it). It documents no
+ * consent parameter and no success_url on the link, so neither is set there.
  */
 export function buildCheckoutRedirectUrl(
   rail: CheckoutRail,
@@ -144,6 +145,9 @@ export function buildCheckoutRedirectUrl(
   const params: Array<[string, string]> = [];
   if (rail.provider === "polar" && buyer.email !== undefined) {
     params.push(["customer_email", buyer.email]);
+  }
+  if (rail.provider === "paddle" && buyer.email !== undefined) {
+    params.push(["user_email", buyer.email]);
   }
   if (rail.provider === "creem") {
     if (buyer.consent !== undefined) {

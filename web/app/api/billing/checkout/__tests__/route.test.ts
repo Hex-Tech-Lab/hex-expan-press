@@ -1411,7 +1411,8 @@ describe("billing/checkout additional defensive and lookup branches", () => {
 });
 
 // Buyer email and consent from the product page's email step. Each provider receives only what its checkout link documents:
-// Polar customer_email, Creem a metadata key. Paddle's redirect documents neither, so its URL must stay exactly as configured.
+// Polar customer_email, Creem a metadata key, Paddle user_email (its hosted checkout parameter). Paddle's hosted link documents
+// no consent or success_url parameter, so neither is added there.
 describe("billing/checkout buyer email and consent (product page email step)", () => {
   const BUYER = "buyer_email=ann%40example.com&buyer_consent=true";
 
@@ -1473,8 +1474,17 @@ describe("billing/checkout buyer email and consent (product page email step)", (
     expect(parsed.searchParams.get("reference_id")).toBeNull();
   });
 
-  it("leaves the Paddle redirect exactly as configured, with no buyer parameters added", async () => {
+  it("prefills user_email on the Paddle hosted checkout link and adds no other buyer parameter", async () => {
     const res = await GET(new NextRequest(`${CHECKOUT_URL}&${BUYER}`));
+    expect(res.status).toBe(302);
+    const parsed = new URL(res.headers.get("location")!);
+    expect(parsed.origin + parsed.pathname).toBe("https://buy.paddle.com/live-rail");
+    expect([...parsed.searchParams.keys()]).toEqual(["user_email"]);
+    expect(parsed.searchParams.get("user_email")).toBe("ann@example.com");
+  });
+
+  it("leaves the Paddle redirect exactly as configured when the buyer gave no email", async () => {
+    const res = await GET(new NextRequest(`${CHECKOUT_URL}&buyer_consent=true`));
     expect(res.status).toBe(302);
     expect(res.headers.get("location")).toBe("https://buy.paddle.com/live-rail");
   });
@@ -1536,7 +1546,9 @@ describe("billing/checkout POST single-hop form & JSON (F-07 Option A)", () => {
     }));
     expect(res.status).toBe(303);
     expect(res.headers.get("cache-control")).toBe("no-store");
-    expect(res.headers.get("location")).toBe("https://buy.paddle.com/live-rail");
+    const location = new URL(res.headers.get("location")!);
+    expect(location.origin + location.pathname).toBe("https://buy.paddle.com/live-rail");
+    expect(location.searchParams.get("user_email")).toBe("ann@example.com");
   });
 
   it("treats omitted buyer_consent checkbox on POST as false and forwards Creem metadata + order_ref + success_url", async () => {

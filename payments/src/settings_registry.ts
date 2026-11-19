@@ -146,8 +146,11 @@ product_slug: { min_length: number; max_length: number; separator: string };
     stored_message_resend_max_age_hours: number;
     /** Buyer delivery promise shown in the consent line: the usual delay in minutes. */
     buyer_typical_minutes: number;
-    /** Buyer delivery promise shown in the consent line: the longest delay in hours. */
-    buyer_max_hours: number;
+    /**
+     * Buyer support promise shown in the consent line: after this many hours without the e-book, the buyer is asked to write to
+     * the support address (email.reply_to), and support sends it by hand. Replaces the retired six-hour delivery promise.
+     */
+    buyer_support_after_hours: number;
     /** Checkout metadata key that carries the buyer's consent (true or false) on a provider whose checkout link documents metadata. */
     buyer_consent_metadata_key: string;
   };
@@ -288,9 +291,9 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     stored_message_since: "2026-11-19T05:00:00Z",
     // Resend keeps idempotency keys for 24 hours (email.ts). A shorter window only resends less often.
     stored_message_resend_max_age_hours: 24,
-    // The buyer consent line promises a usual delay of 2 minutes and a longest delay of 6 hours.
+    // The buyer consent line promises a usual delay of 2 minutes, and a support route after 1 hour without the e-book.
     buyer_typical_minutes: 2,
-    buyer_max_hours: 6,
+    buyer_support_after_hours: 1,
     buyer_consent_metadata_key: "buyer_email_consent",
   },
   email: {
@@ -731,7 +734,7 @@ export function loadDeliverySection(raw: Record<string, unknown> | undefined): G
       | "stuck_claim_list_limit"
       | "stored_message_resend_max_age_hours"
       | "buyer_typical_minutes"
-      | "buyer_max_hours"
+      | "buyer_support_after_hours"
       | "terminal_reject_lookback_hours"
       | "terminal_reject_list_limit",
     min: number,
@@ -774,7 +777,7 @@ export function loadDeliverySection(raw: Record<string, unknown> | undefined): G
     stored_message_since: validStoredSince ? storedSince : defaults.stored_message_since,
     stored_message_resend_max_age_hours: posInt("stored_message_resend_max_age_hours", 1, 24),
     buyer_typical_minutes: posInt("buyer_typical_minutes", 1, 60),
-    buyer_max_hours: posInt("buyer_max_hours", 1, 24),
+    buyer_support_after_hours: posInt("buyer_support_after_hours", 1, 24),
     // A metadata key name, not a value: the charset keeps it a plain key in a checkout link query. Invalid falls back.
     buyer_consent_metadata_key: /^[a-z][a-z0-9_]{0,63}$/.test(str("buyer_consent_metadata_key"))
       ? str("buyer_consent_metadata_key")
