@@ -1,0 +1,66 @@
+payments/src/delivery.ts
+  s_0e99959cd74c50::t_90e37638d90abd 398
+  s_0e99959cd74c50::t_c30e4fb3d12e7e 578
+  s_0e99959cd74c50::t_ca3b09ad979028 307-317
+  s_0e99959cd74c50::t_e8e31a48de5614 175-195,198
+web/app/api/billing/checkout/__tests__/route.test.ts
+  s_0e99959cd74c50::t_76ff9df3168ebe 1414-1415
+  s_0e99959cd74c50::t_89067a0293939f 1477,1480-1487
+  s_0e99959cd74c50::t_ffd009705e9c7b 1549-1551
+  s_0e99959cd74c50::t_2e1bb1a9139db1 1488
+web/src/lib/buyer-email.ts
+  s_0e99959cd74c50::t_3544291bc0fd57 47-49,51-53
+web/src/lib/__tests__/buyer-email.test.ts
+  s_0e99959cd74c50::t_2d0e3a0fdb1404 98-100,104-111
+src/use_cases/billing/__tests__/deliver_within_budget.test.ts
+  s_0e99959cd74c50::t_ddc73240835931 8-9
+  s_0e99959cd74c50::t_70514f650be7ed 1-7,10-75
+payments/src/settings_registry.ts
+  s_0e99959cd74c50::t_76ba7d63f17458 780
+  s_0e99959cd74c50::t_241a26890df5db 149-153
+  s_0e99959cd74c50::t_c1c61c7e84e77b 294,296
+  s_0e99959cd74c50::t_741ce4dddfc99d 737
+web/app/api/billing/checkout/checkout-helpers.ts
+  s_0e99959cd74c50::t_22bbcbce66d9b0 134-135
+  s_0e99959cd74c50::t_2a7207d57bb2cc 149-151
+payments/test/delivery_fresh_cleanup_signals.test.ts
+  s_0e99959cd74c50::t_8237151bbea92d 1-76
+src/use_cases/billing/process_billing_webhook.ts
+  s_0e99959cd74c50::t_f3fd8bd858c10e 39
+  s_0e99959cd74c50::t_dad49dfeab314d 42-44
+  s_0e99959cd74c50::t_d055c6a33cc821 45
+  s_0e99959cd74c50::t_3ca11549c843ba 46-48
+web/app/api/billing/checkout/__tests__/billing_consent_checkout.pairwise.test.ts
+  s_0e99959cd74c50::t_bf353570f146bb 442-465
+  s_0e99959cd74c50::t_62f14bebe82761 231-234,241-244
+src/adapters/payments/creem.adapter.ts
+  s_0e99959cd74c50::t_b66475b957f302 134
+  s_0e99959cd74c50::t_e27a724fdeec7c 131-133
+payments/test/delivery_send_outlives_deadline.test.ts
+  s_0e99959cd74c50::t_6b0cb632f55c6a 50
+  s_0e99959cd74c50::t_8d269ffa08d877 1-49,51-102,104-145
+  s_0e99959cd74c50::t_39f563406b13bf 103
+web/__tests__/buyer-email-step.test.ts
+  s_0e99959cd74c50::t_e18f8a6bbf0d69 18
+  s_0e99959cd74c50::t_d3d3bb1a68fea7 46
+web/app/checkout/[productId]/page.tsx
+  s_0e99959cd74c50::t_98931a96c3d3d0 101
+src/adapters/payments/__tests__/creem.adapter.test.ts
+  s_0e99959cd74c50::t_9dc52ed75dc054 71-80
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "96373631e86fe0b1c69b6ae710d0990e6b4be774",
+  "prompts": {},
+  "sessions": {
+    "s_0e99959cd74c50": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "21b00acc-7513-46d6-9a35-038af7845be2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
