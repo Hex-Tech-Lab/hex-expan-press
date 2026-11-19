@@ -54,6 +54,7 @@ vi.mock("@iconify-json/lucide/icons.json", () => ({
   default: {},
 }));
 
+import { GLOBAL } from "../../../../../payments/src/settings_registry";
 import DashboardClient, { type DashboardClientProps } from "../dashboard-client";
 
 let container: HTMLDivElement | null = null;
@@ -66,6 +67,7 @@ async function renderDashboard(overrides: Partial<DashboardClientProps> = {}): P
   const props: DashboardClientProps = {
     name: "Ada Lovelace",
     email: "ada@expanpress.com",
+    supportEmail: GLOBAL.email.support,
     answersCount: 1,
     answersTarget: 3,
     hasC1: true,

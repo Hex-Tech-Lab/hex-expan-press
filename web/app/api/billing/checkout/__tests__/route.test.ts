@@ -1777,4 +1777,39 @@ describe("billing/checkout F-03 test/stage/path-based sandbox guard & F-06 US-on
       expect(ok.status, country).toBe(302);
     }
   });
+
+  it("reads supports_reference_id and theme_param capabilities from PAYMENT_PROVIDERS (B-05 + checkout branding)", async () => {
+    const { PAYMENT_PROVIDERS } = await import("../../../../../../payments/src/settings_registry");
+    const origCreemRef = PAYMENT_PROVIDERS.creem.supports_reference_id;
+    const origPolarTheme = PAYMENT_PROVIDERS.polar.theme_param;
+    PAYMENT_PROVIDERS.creem.supports_reference_id = true;
+    PAYMENT_PROVIDERS.polar.theme_param = "theme";
+    try {
+      registryOverride.creemEnabled = true;
+      vi.mocked(MatrixRouter.getNextProvider).mockResolvedValueOnce("creem");
+      adminModule.mockAdminClient = gateAdminClient(undefined, undefined, {
+        data: [{ provider: "creem", weight: 100, checkout_url: "https://creem.io/payment/prod_live", active: true }],
+        error: null,
+      });
+      const creemRes = await GET(new NextRequest(`${CHECKOUT_URL}&src=ig`));
+      expect(creemRes.status).toBe(302);
+      const creemLoc = new URL(creemRes.headers.get("location")!);
+      expect(creemLoc.searchParams.get("reference_id")).toBe("ig");
+      expect(creemLoc.searchParams.get("theme")).toBe(GLOBAL.branding.theme_mode);
+
+      registryOverride.polarEnabled = true;
+      vi.mocked(MatrixRouter.getNextProvider).mockResolvedValueOnce("polar");
+      adminModule.mockAdminClient = gateAdminClient(undefined, undefined, {
+        data: [{ provider: "polar", weight: 100, checkout_url: "https://buy.polar.sh/live-polar", active: true }],
+        error: null,
+      });
+      const polarRes = await GET(new NextRequest(`${CHECKOUT_URL}&src=ig`));
+      expect(polarRes.status).toBe(302);
+      const polarLoc = new URL(polarRes.headers.get("location")!);
+      expect(polarLoc.searchParams.get("theme")).toBe(GLOBAL.branding.theme_mode);
+    } finally {
+      PAYMENT_PROVIDERS.creem.supports_reference_id = origCreemRef;
+      PAYMENT_PROVIDERS.polar.theme_param = origPolarTheme;
+    }
+  });
 });

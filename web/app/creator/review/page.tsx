@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { GLOBAL } from "../../../../payments/src/settings_registry";
 import { naturalCode } from "../../../src/lib/natural-code";
 import { anchorPageOf } from "../../../src/lib/review-anchor";
 import { getPortalSession } from "../../../src/lib/supabase-server";
@@ -70,7 +71,7 @@ export default async function ReviewPage() {
     return (
       <ReviewNotice
         title={itemsRes.error ? "We couldn't load your review items." : "No review items yet."}
-        body="Please reload in a moment, or contact support@expanpress.com if this persists."
+        body={`Please reload in a moment, or contact ${GLOBAL.email.support} if this persists.`}
       />
     );
   }

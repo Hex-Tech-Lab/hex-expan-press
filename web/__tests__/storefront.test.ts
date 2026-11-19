@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { GLOBAL } from "../../payments/src/settings_registry";
 
 vi.mock("server-only", () => ({}));
 const supa = vi.hoisted(() => ({ client: null as null | { from: (table: string) => unknown } }));
@@ -20,7 +21,30 @@ describe("StorefrontFooter buyer legal links", () => {
 
     const gated = renderToStaticMarkup(createElement(StorefrontFooter, { showBuyerLegal: false }));
     expect(gated).not.toContain("/books/legal/");
-    expect(gated).toContain("Support: support@expanpress.com");
+    expect(gated).toContain(GLOBAL.email.support);
+    expect(gated).not.toContain("Support:");
+  });
+});
+
+describe("BookCard and formatProductPrice currency formatting (B-10)", () => {
+  it("formats non-USD product currency instead of hard-coding $ and USD", async () => {
+    const { createElement } = await import("react");
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const { BookCard, formatProductPrice } = await import("../src/components/storefront/storefront");
+
+    expect(formatProductPrice(19, "EUR")).toEqual({ formatted: "€19.00", currency: "EUR" });
+    expect(formatProductPrice(19, null)).toEqual({ formatted: "$19.00", currency: GLOBAL.defaults.currency });
+
+    const html = renderToStaticMarkup(
+      createElement(BookCard, {
+        product: { slug: "euro_book", title: "Euro Book", price_usd: "19", currency: "EUR" },
+        creatorHandle: "ada",
+        creatorName: "Ada",
+      }),
+    );
+    expect(html).toContain("€19.00");
+    expect(html).toContain("EUR · one-time");
+    expect(html).not.toContain("USD · one-time");
   });
 });
 

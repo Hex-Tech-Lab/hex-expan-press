@@ -7,6 +7,7 @@ import {
   PublicationByline,
   StorefrontFooter,
   fetchCheckoutProduct,
+  formatProductPrice,
   isWorkingTitle,
   priceOf,
 } from "../../../src/components/storefront/storefront";
@@ -61,6 +62,7 @@ export default async function CheckoutPage({
     if (typeof v === "string" && v !== "") initialAttribution[key] = v;
   }
   const price = priceOf(p);
+  const priceDisplay = formatProductPrice(price, p.currency, "—");
   const live = p.checkout_mode === "live";
   const brand = GLOBAL.storefront.brand_name;
   const activeProvider = railProvider ?? defaultEnabledPaymentProvider();
@@ -97,8 +99,8 @@ export default async function CheckoutPage({
         {p.description && <p className="text-base text-gray-700 leading-relaxed">{p.description}</p>}
 
         <p className="text-2xl font-bold tracking-tight text-gray-900">
-          {price !== null ? `$${price.toFixed(2)}` : "—"}{" "}
-          <span className="text-xs font-normal text-gray-600">{`${p.currency ?? GLOBAL.defaults.currency} · one-time`}</span>
+          {priceDisplay.formatted}{" "}
+          <span className="text-xs font-normal text-gray-600">{`${priceDisplay.currency} · one-time`}</span>
         </p>
 
         {morName && (
@@ -113,7 +115,7 @@ export default async function CheckoutPage({
             productId={p.id}
             domains={[...GLOBAL.email_address.typo_domains]}
             maxEmailLength={GLOBAL.email_address.max_length}
-            consentText={buyerConsentText(GLOBAL.delivery.buyer_typical_minutes, GLOBAL.delivery.buyer_support_after_hours, GLOBAL.email.reply_to)}
+            consentText={buyerConsentText(GLOBAL.delivery.buyer_typical_minutes, GLOBAL.delivery.buyer_support_after_hours, GLOBAL.email.support)}
             initialAttribution={initialAttribution}
             paddleClient={paddleClient}
           />

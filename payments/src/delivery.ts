@@ -38,7 +38,7 @@
  * A store that failed and was read back as landed nowhere releases its claim, so the retry starts clean.
  */
 import { createHash, randomBytes } from "node:crypto";
-import { GLOBAL } from "./settings_registry.ts";
+import { GLOBAL, paymentProviderProductIdColumn } from "./settings_registry.ts";
 import { EmailSendError, sendEmail as realSendEmail } from "./email.ts";
 import { DeliveryBlockedError, DeliveryPendingError, StaleFenceError } from "./delivery_errors.ts";
 import { createDeliverySendsStore, type DeliverySendClaim } from "./delivery_sends_store.ts";
@@ -161,6 +161,8 @@ export interface DeliveryDeps {
   createShortLink: (targetUrl: string, timeoutMs?: number) => Promise<string>;
   origin: string;
   replyTo: string;
+  /** Dedicated billing/refund inquiry address (`GLOBAL.email.billing`), shown when distinct from `replyTo`. */
+  billingEmail?: string;
   now?: () => Date;
   newToken?: () => string;
   /** Optional cap on each send, below the request budget. Tests and operator tools only; the request budget always applies. */
@@ -271,19 +273,29 @@ interface BuyerMessage {
   tokenHash: string;
 }
 
-function buildBuyerMessage(args: { to: string; title: string; link: string; days: number; replyTo: string; tokenHash: string }): BuyerMessage {
-  const { to, title, link, days, replyTo, tokenHash: hash } = args;
+function buildBuyerMessage(args: {
+  to: string;
+  title: string;
+  link: string;
+  days: number;
+  replyTo: string;
+  billingEmail?: string;
+  tokenHash: string;
+}): BuyerMessage {
+  const { to, title, link, days, replyTo, billingEmail, tokenHash: hash } = args;
+  const billingNote = billingEmail && billingEmail !== replyTo ? ` (billing or refund questions: ${billingEmail})` : "";
+  const billingHtml = billingEmail && billingEmail !== replyTo ? ` (billing or refund questions: ${esc(billingEmail)})` : "";
   return {
     to,
     subject: `Your download: ${title}`,
     text:
       `Thank you for your purchase of ${title}.\n\n` +
       `Download your copy here (the link is valid for ${days} days):\n${link}\n\n` +
-      `Questions? Reply to this email or write to ${replyTo}.\n`,
+      `Questions? Reply to this email or write to ${replyTo}${billingNote}.\n`,
     html:
       `<p>Thank you for your purchase of <strong>${esc(title)}</strong>.</p>` +
       `<p>Download your copy here (the link is valid for ${days} days):<br><a href="${esc(link)}">${esc(link)}</a></p>` +
-      `<p>Questions? Reply to this email or write to ${esc(replyTo)}.</p>`,
+      `<p>Questions? Reply to this email or write to ${esc(replyTo)}${billingHtml}.</p>`,
     replyTo,
     tokenHash: hash,
   };
@@ -534,6 +546,7 @@ export async function deliverSale(
       link,
       days: GLOBAL.delivery.link_ttl_days,
       replyTo: deps.replyTo,
+      billingEmail: deps.billingEmail,
       tokenHash: hash,
     });
     // The exact bytes are stored BEFORE the send. A fenced write: a newer worker that owns the claim makes this stale, and
@@ -661,13 +674,15 @@ function withFreshCleanupSignals(budgeted: DeliveryDb): DeliveryDb {
 /** Production wiring: Supabase for persistence, Resend for mail, Dub for the short link. */
 export function productionDeps(deadlineAt?: number): DeliveryDeps {
   const origin = GLOBAL.delivery.download_origin;
-  const replyTo = GLOBAL.email.reply_to;
+  const replyTo = GLOBAL.email.support;
+  const billingEmail = GLOBAL.email.billing;
   return {
     db: deadlineAt === undefined ? supabaseDeliveryDb() : withFreshCleanupSignals(supabaseDeliveryDb(requestSignal(deadlineAt))),
     sendEmail: realSendEmail,
     createShortLink: (u, timeoutMs) => createDubShortLink(u, fetch, timeoutMs),
     origin,
     replyTo,
+    billingEmail,
   };
 }
 
@@ -729,9 +744,10 @@ function supabaseDeliveryDb(signal?: AbortSignal): DeliveryDb {
       // store_product_id is the internal key every provider carries. paddle_product_id is Paddle's own column, so only
       // a Paddle sale may match it; any other provider matching it would resolve a sale through another provider's ID.
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(alias);
+      const providerColumn = paymentProviderProductIdColumn(provider);
       const columns = [
         "store_product_id",
-        ...(provider === "paddle" ? ["paddle_product_id"] : []),
+        ...(providerColumn ? [providerColumn] : []),
         ...(isUuid ? ["id"] : []),
       ];
       for (const column of columns) {

@@ -6,7 +6,7 @@
 import { z } from "zod";
 import { constructWebhookEvent, WebhookVerificationError } from "creem/webhooks";
 import { cleanAttributionId, hashEmail } from "../../../payments/src/provider.ts";
-import { GLOBAL } from "../../../payments/src/settings_registry.ts";
+import { GLOBAL, readProviderField } from "../../../payments/src/settings_registry.ts";
 import type { PaymentProviderPort, WebhookParseResult, CheckoutCommand, CheckoutResult, SaleCompletedEvent, ProviderMode } from "../../domain/payments/payments.port.ts";
 
 /** Test-mode gate. Test events are accepted only when the flag is on AND the database they would write to is the
@@ -124,20 +124,39 @@ export class CreemAdapter implements PaymentProviderPort {
     if (occurred === undefined || !Number.isFinite(occurred.getTime())) {
       return { isValid: false, error: "Creem delivery has no event time", httpStatus: 400 };
     }
+    // Extract mapped fields through PAYMENT_PROVIDERS.creem.field_map (shared getPath helper)
+    // after Zod validation confirms shape. product_id resolves from order.product, never metadata.
+    const envelope = { data };
+    const mappedProductId = readProviderField(envelope, this.providerName, "product_id");
+    const mappedSaleId = readProviderField(envelope, this.providerName, "sale_id");
+    const mappedPaidCents = readProviderField(envelope, this.providerName, "total_cents");
+    const mappedFallbackCents = readProviderField(envelope, this.providerName, "total_cents_fallback");
+    const mappedCurrency = readProviderField(envelope, this.providerName, "currency");
+    const mappedEmail = readProviderField(envelope, this.providerName, "email");
+    const mappedAttribution = readProviderField(envelope, this.providerName, "attribution_id");
+
+    const productId = typeof mappedProductId === "string" && mappedProductId !== "" ? mappedProductId : data.order.product;
+    const saleId = typeof mappedSaleId === "string" && mappedSaleId !== "" ? mappedSaleId : data.order.id;
+    const totalCents =
+      typeof mappedPaidCents === "number"
+        ? mappedPaidCents
+        : typeof mappedFallbackCents === "number"
+          ? mappedFallbackCents
+          : (data.order.amount_paid ?? data.order.amount);
+    const currency = (typeof mappedCurrency === "string" && mappedCurrency !== "" ? mappedCurrency : data.order.currency).toUpperCase();
+    const buyerEmail = typeof mappedEmail === "string" && mappedEmail !== "" ? mappedEmail : data.customer.email;
+
     const event: SaleCompletedEvent = {
       eventType: "sale_completed",
       providerName: this.providerName,
-      saleId: data.order.id,
-      // Creem's own order.product: the product whose price the provider charged. Metadata rides on the checkout link, where the
-      // buyer can edit it, so it never selects the product. The product's store_product_id must carry this prod_ id before
-      // Creem is enabled (ADR 0065, KYC_TODO E2); until then a Creem sale for an unmapped id is refused, not released.
-      productId: data.order.product,
-      totalCents: data.order.amount_paid ?? data.order.amount,
-      currency: data.order.currency.toUpperCase(),
-      buyerEmailHash: hashEmail(data.customer.email),
-      buyerEmail: data.customer.email,
+      saleId,
+      productId,
+      totalCents,
+      currency,
+      buyerEmailHash: hashEmail(buyerEmail),
+      buyerEmail,
       occurredAt: occurred.toISOString(),
-      attributionId: cleanAttributionId(data.metadata?.order_ref),
+      attributionId: cleanAttributionId(mappedAttribution),
       providerMode: creemProviderMode(data),
       rawPayload: verified.raw,
     };

@@ -4,8 +4,9 @@
 import type { IncomingHttpHeaders } from "node:http";
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import type { ProviderMode } from "../../src/domain/payments/payments.port.ts";
+import type { DEFAULT_PAYMENT_PROVIDERS } from "./settings_registry.ts";
 
-export type ProviderName = "lemonsqueezy" | "payhip" | "paddle" | "polar" | "creem" | "fungies" | "fastspring";
+export type ProviderName = keyof typeof DEFAULT_PAYMENT_PROVIDERS;
 
 export interface SaleEvent {
   sale_id: string;

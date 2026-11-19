@@ -367,4 +367,33 @@ describe("settings registry: paddle.overlay, storefront, and provider display na
     expect(paymentProviderDisplayName("unknown_rail")).toBe("unknown_rail");
     warn.mockRestore();
   });
+
+  it("validates payments.routing and email role keys", () => {
+    const warn = vi.spyOn(console, "error").mockImplementation(() => {});
+    const p = loadPaymentsSection({
+      routing: { mode: "cascade", distribution: [{ provider: "creem", weight: 50 }], fallbacks: ["paddle"] },
+    });
+    expect(p.routing).toEqual({
+      mode: "cascade",
+      distribution: [{ provider: "creem", weight: 50 }],
+      fallbacks: ["paddle"],
+    });
+    const badP = loadPaymentsSection({ routing: { mode: "invalid", distribution: [], fallbacks: [] } });
+    expect(badP.routing).toEqual({
+      mode: "2d",
+      distribution: [{ provider: "paddle", weight: 100 }],
+      fallbacks: ["lemonsqueezy", "fastspring"],
+    });
+
+    const e = loadEmailSection({
+      support: "help@expanpress.com",
+      billing: "invalid-no-at",
+      sender: "ExpanPress <mailer@expanpress.com>",
+    });
+    expect(e.support).toBe("help@expanpress.com");
+    expect(e.billing).toBe("billing@expanpress.com");
+    expect(e.sender).toBe("ExpanPress <mailer@expanpress.com>");
+    expect(e.from).toBe("ExpanPress <mailer@expanpress.com>");
+    warn.mockRestore();
+  });
 });

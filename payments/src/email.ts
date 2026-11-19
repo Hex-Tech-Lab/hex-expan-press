@@ -71,7 +71,7 @@ export async function sendEmail({ to, subject, html, text, replyTo, idempotencyK
   if (!text.trim()) {
     throw new EmailSendError("Email text part is empty — send multipart (html + text)", false, undefined, true);
   }
-  const from = process.env.EMAIL_FROM || GLOBAL.email.from;
+  const from = process.env.EMAIL_FROM || GLOBAL.email.sender;
   if (!isOnSendingDomain(from)) {
     throw new EmailSendError(`From address ${addressOf(from)} is not on ${GLOBAL.email.sending_domain}`, false, undefined, true);
   }
@@ -85,7 +85,7 @@ export async function sendEmail({ to, subject, html, text, replyTo, idempotencyK
       subject,
       html,
       text,
-      replyTo: replyTo ?? GLOBAL.email.reply_to,
+      replyTo: replyTo ?? GLOBAL.email.support,
     };
     result = await (idempotencyKey !== undefined
       ? resend.emails.send(payload, { idempotencyKey })

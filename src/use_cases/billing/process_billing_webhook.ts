@@ -15,7 +15,7 @@ import { resolveProductByAlias, withIdempotencyLock, WebhookInFlightError } from
 import { deliverSaleForWebhook, saleDeliveryConfirmed } from "../../../payments/src/delivery.ts";
 import { DeliveryPendingError } from "../../../payments/src/delivery_errors.ts";
 import { budgetLeftMs, requestSignal, settleByDeadline } from "../../../payments/src/webhook_budget.ts";
-import { GLOBAL } from "../../../payments/src/settings_registry.ts";
+import { allowsDeferredBuyerEmail, GLOBAL } from "../../../payments/src/settings_registry.ts";
 
 type DeliveryInput = Parameters<typeof deliverSaleForWebhook>[0];
 
@@ -718,9 +718,9 @@ async function processBillingEvent(event: BillingEvent, deadlineAt?: number): Pr
           (await saleDeliveryConfirmed(saleEvent.providerName, saleEvent.saleId, deadlineAt)),
         ),
       async (fenceToken) => {
-        // Fail closed for a non-Paddle sale without a buyer email: no download link can be sent, and a retry cannot
-        // change that. Delivery would throw on every retry (a 500 loop), so the sale is refused with a final 422.
-        if (saleEvent.providerName !== "paddle" && !saleEvent.buyerEmail) {
+        // Fail closed for a sale without a buyer email unless the provider declares `allows_deferred_buyer_email`:
+        // otherwise no download link can be sent and retries would loop on 500, so refuse with a final 422.
+        if (!allowsDeferredBuyerEmail(saleEvent.providerName) && !saleEvent.buyerEmail) {
           console.error(`[billing-webhook] sale ${saleEvent.saleId} from ${saleEvent.providerName} has no buyer email; refused`);
           throw new WebhookValidationError(
             `Webhook validation failed: sale ${saleEvent.saleId} from ${saleEvent.providerName} has no buyer email; refused, no download link can be sent`,

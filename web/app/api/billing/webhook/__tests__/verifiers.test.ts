@@ -6,13 +6,14 @@ vi.mock("node:fs", async (importOriginal) => {
   return { ...actual, existsSync: () => false };
 });
 
-import { routableVerifiers, verifiedProviderNames } from "../verifiers";
+import { buildWebhookVerifiers, routableVerifiers, verifiedProviderNames } from "../verifiers";
 import { DEFAULT_PAYMENT_PROVIDERS } from "../../../../../../payments/src/settings_registry";
 
 // Pins the real switch through the route's verifier list (not a mocked switch): with the inline defaults,
-// only Paddle is offered requests. Fungies and Polar are switched off, so their verifiers are not offered.
-describe("webhook verifier list follows the launch switch", () => {
-  it("offers only Paddle, and not the switched-off Fungies or Polar", () => {
+// only Paddle is offered requests. Registered switched-off providers are still built from PAYMENT_PROVIDERS
+// so config-only activation works and switched-off deliveries can be audited for manual review.
+describe("webhook verifier list follows the launch switch and registry (B-03)", () => {
+  it("offers only Paddle, and not the switched-off providers", () => {
     expect(routableVerifiers().map((a) => a.providerName)).toEqual(["paddle"]);
   });
 
@@ -24,11 +25,12 @@ describe("webhook verifier list follows the launch switch", () => {
     for (const name of enabled) expect(routable).toContain(name);
   });
 
-  it("only providers with a verifier can be offered a buyer", () => {
+  it("instantiates verifiers for every registered provider in DEFAULT_PAYMENT_PROVIDERS including lemonsqueezy, payhip, fastspring", () => {
     const names = verifiedProviderNames();
-    expect(names.has("paddle")).toBe(true);
-    expect(names.has("fungies")).toBe(true);
-    expect(names.has("polar")).toBe(true);
-    expect(names.has("lemonsqueezy")).toBe(false);
+    for (const registered of Object.keys(DEFAULT_PAYMENT_PROVIDERS)) {
+      expect(names.has(registered), registered).toBe(true);
+    }
+    const subset = buildWebhookVerifiers({ paddle: DEFAULT_PAYMENT_PROVIDERS.paddle });
+    expect(subset.map((a) => a.providerName)).toEqual(["paddle"]);
   });
 });

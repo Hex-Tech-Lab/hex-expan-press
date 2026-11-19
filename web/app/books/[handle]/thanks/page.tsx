@@ -36,7 +36,7 @@ export default async function ThankYouPage({ params }: { params: Promise<{ handl
   const body = buyerDeliveryPromiseText(
     GLOBAL.delivery.buyer_typical_minutes,
     GLOBAL.delivery.buyer_support_after_hours,
-    GLOBAL.email.reply_to,
+    GLOBAL.email.support,
   );
 
   return (

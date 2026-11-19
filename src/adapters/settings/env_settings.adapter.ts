@@ -1,7 +1,9 @@
 import { SettingsRegistryPort, PortalSettings } from "../../domain/settings/settings.port.ts";
+import { GLOBAL } from "../../../payments/src/settings_registry.ts";
 
 export class EnvSettingsAdapter implements SettingsRegistryPort {
   async getPortalSettings(): Promise<PortalSettings> {
+    const routing = GLOBAL.payments.routing;
     return {
       esign: {
         strategy: {
@@ -15,11 +17,9 @@ export class EnvSettingsAdapter implements SettingsRegistryPort {
       },
       payments: {
         checkoutStrategy: {
-          mode: '2d',
-          distribution: [
-            { provider: "paddle", weight: 100 }
-          ],
-          fallbacks: ["lemonsqueezy", "fastspring"]
+          mode: routing.mode,
+          distribution: routing.distribution.map((route) => ({ ...route })),
+          fallbacks: [...routing.fallbacks],
         }
       }
     };

@@ -9,6 +9,7 @@ vi.mock("resend", () => ({
 }));
 
 import { sendEmail, sendEmailSafe, isOnSendingDomain, EmailSendError } from "../src/email.ts";
+import { GLOBAL } from "../src/settings_registry.ts";
 
 describe("payments/src/email", () => {
   const origKey = process.env.RESEND_API_KEY;
@@ -42,10 +43,10 @@ describe("payments/src/email", () => {
     expect(out).toEqual({ id: "abc-123" });
     expect(sendMock).toHaveBeenCalledWith(
       expect.objectContaining({
-        from: "ExpanPress <support@esign.expanpress.com>",
+        from: GLOBAL.email.sender,
         to: "a@b.c",
         text: "hi",
-        replyTo: "support@expanpress.com",
+        replyTo: GLOBAL.email.support,
       }),
     );
   });

@@ -73,6 +73,34 @@ export function priceOf(p: Pick<StoreProduct, "price_usd">): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+/**
+ * Formats a product price and ISO currency code from the product row (falling back to `GLOBAL.defaults.currency`).
+ * Replaces hard-coded `$${price.toFixed(2)}` and `"USD · one-time"` literals on buyer surfaces.
+ */
+export function formatProductPrice(
+  price: number | null,
+  currency?: string | null,
+  emptyLabel: string = "-",
+): { formatted: string; currency: string } {
+  const code = (typeof currency === "string" && currency.trim() !== "" ? currency.trim() : GLOBAL.defaults.currency).toUpperCase();
+  if (price === null) return { formatted: emptyLabel, currency: code };
+  try {
+    const formatted = new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: code,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(price);
+    return { formatted, currency: code };
+  } catch (err) {
+    console.error("[storefront] currency format fallback", {
+      currency: code,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return { formatted: `${code} ${price.toFixed(2)}`, currency: code };
+  }
+}
+
 export function isWorkingTitle(p: StoreProduct): boolean {
   return typeof p.working_note === "string" && p.working_note.toUpperCase().startsWith("WORKING");
 }
@@ -284,7 +312,7 @@ export function platformLink(platform: string, handle: string): { label: string;
 }
 
 /** Buyer legal links are hidden on a gated (draft) product page, which shows a "Coming soon" banner instead of a sale.
- * The support address comes from the registry (email.reply_to), the same address the buyer emails use. It is plain
+ * The support address comes from the registry (email.support), the same address the buyer emails use. It is plain
  * text, not a mailto link: the B2C confinement rule (e2e/b2c-confinement.spec.ts) allows only /books, the B2C home and checkout. */
 export function StorefrontFooter({ showBuyerLegal = true }: { showBuyerLegal?: boolean }) {
   return (
@@ -296,7 +324,7 @@ export function StorefrontFooter({ showBuyerLegal = true }: { showBuyerLegal?: b
           <a href="/books/legal/refund-policy.html" className="hover:text-gray-700 transition-colors">Refund Policy</a>
         </>
       )}
-      <span>{`Support: ${GLOBAL.email.reply_to}`}</span>
+      <span>{GLOBAL.email.support}</span>
     </BrandFooter>
   );
 }
@@ -324,7 +352,7 @@ export function BookCard({
   creatorName,
   headingLevel = 2,
 }: {
-  product: Pick<StoreProduct, "slug" | "title" | "price_usd">;
+  product: Pick<StoreProduct, "slug" | "title" | "price_usd"> & { currency?: string | null };
   creatorHandle: string;
   creatorName: string;
   headingLevel?: 2 | 3;
@@ -332,6 +360,7 @@ export function BookCard({
   const slug = productSlugOf(product);
   const title = product.title ?? slug;
   const price = priceOf(product);
+  const { formatted, currency } = formatProductPrice(price, product.currency);
   const Heading = headingLevel === 3 ? "h3" : "h2";
   return (
     <article className="glass-card card-shadow rounded-[32px] border-[1.5px] border-[#fff2e4] p-5 sm:p-6 h-full flex flex-col gap-5">
@@ -350,8 +379,8 @@ export function BookCard({
         </p>
       </div>
       <p className="mt-auto text-lg font-bold text-gray-900">
-        {price !== null ? `$${price.toFixed(2)}` : "-"}{" "}
-        <span className="text-xs font-normal text-gray-600">USD &middot; one-time</span>
+        {formatted}{" "}
+        <span className="text-xs font-normal text-gray-600">{`${currency} · one-time`}</span>
       </p>
     </article>
   );

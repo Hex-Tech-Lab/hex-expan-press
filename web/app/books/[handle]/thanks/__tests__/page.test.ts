@@ -35,7 +35,8 @@ describe("thank-you page (/books/{handle}/thanks)", () => {
       "Your e-book is on its way to the email you used at checkout, usually within 2 minutes. If it has not arrived within 1 hour, email support@expanpress.com and we will send it by hand.",
     );
     expect(html.toLowerCase()).not.toContain("spam");
-    expect(html).toContain(`Support: ${GLOBAL.email.reply_to}`);
+    expect(html).toContain(GLOBAL.email.support);
+    expect(html).not.toContain("Support:");
   });
 
   it("links back to the creator's books with a curly apostrophe", async () => {

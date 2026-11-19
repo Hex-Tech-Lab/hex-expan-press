@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import * as Sentry from "@sentry/nextjs";
+import { GLOBAL } from "../../../../payments/src/settings_registry";
 import { getPortalSession } from "../../../src/lib/supabase-server";
 import { resolvePrimaryProduct } from "../../../src/lib/primary-product";
 import { portalConsentState } from "../../../src/lib/consent-chain";
@@ -165,6 +166,7 @@ export default async function DashboardPage({
       <DashboardClient
         name={name}
         email={email}
+        supportEmail={GLOBAL.email.support}
         answersCount={answered}
         answersTarget={total}
         hasC1={hasC1}

@@ -4,6 +4,7 @@
  * payload the checkout route returns. Nothing here is imported by client code.
  */
 import { GLOBAL } from "../../../payments/src/settings_registry";
+import { paddleInitializeCheckoutSettings } from "../../../payments/src/checkout_branding";
 import { resolvePaddleEnvironment } from "./paddle-env";
 import type { PaddleEnvironmentName, PaddleOverlayClient, PaddleOverlayPayload } from "./paddle-overlay";
 
@@ -41,6 +42,7 @@ export function buildPaddleOverlayPayload(input: {
   buyerConsent: boolean;
 }): PaddleOverlayPayload {
   const o = GLOBAL.payments.paddle.overlay;
+  const brandingSettings = paddleInitializeCheckoutSettings(GLOBAL.branding, o);
   const origin = GLOBAL.delivery.download_origin.replace(/\/$/, "");
   const thanks = GLOBAL.storefront.thanks_path_template.replace("{handle}", encodeURIComponent(input.creatorHandle));
   const customData: Record<string, string> = { [o.buyer_consent_key]: input.buyerConsent ? "true" : "false" };
@@ -50,9 +52,7 @@ export function buildPaddleOverlayPayload(input: {
     ...(input.buyerEmail ? { customer: { email: input.buyerEmail } } : {}),
     customData,
     settings: {
-      displayMode: "overlay",
-      theme: o.theme,
-      locale: o.locale,
+      ...brandingSettings,
       successUrl: `${origin}${thanks}`,
     },
   };

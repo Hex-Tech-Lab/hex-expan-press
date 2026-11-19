@@ -10,6 +10,7 @@ import {
   StorefrontFooter,
   storefrontRobots,
   fetchStoreProduct,
+  formatProductPrice,
   isHouseCreator,
   isWorkingTitle,
   priceOf,
@@ -65,6 +66,7 @@ export default async function StoreProductPage({
   const { creator, product: p } = resolveCreatorOr404(await fetchStoreProduct(handle, product));
 
   const price = priceOf(p);
+  const priceDisplay = formatProductPrice(price, p.currency, "—");
   const live = p.checkout_mode === "live";
   const title = p.title ?? productSlugOf(p);
   const buyUrl = `${PAY_ORIGIN}/checkout/${p.id}`;
@@ -104,8 +106,8 @@ export default async function StoreProductPage({
           {p.description && <p className="text-base text-gray-700 leading-relaxed">{p.description}</p>}
 
           <p className="text-2xl font-bold tracking-tight text-gray-900">
-            {price !== null ? `$${price.toFixed(2)}` : "—"}{" "}
-            <span className="text-xs font-normal text-gray-600">{`${p.currency ?? "USD"} · one-time`}</span>
+            {priceDisplay.formatted}{" "}
+            <span className="text-xs font-normal text-gray-600">{`${priceDisplay.currency} · one-time`}</span>
           </p>
 
           {live ? (

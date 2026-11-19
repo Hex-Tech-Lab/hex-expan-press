@@ -470,7 +470,7 @@ function TiltCard({
 
 /* --------------------------------------------------------------- landing */
 
-export default function LandingPage({ onboarding }: { onboarding: boolean }) {
+export default function LandingPage({ onboarding, supportEmail }: { onboarding: boolean; supportEmail: string }) {
   const reduced = useReducedMotion();
   const fine = useFinePointer();
   const [active, setActive] = useState<number | null>(null);
@@ -617,7 +617,7 @@ export default function LandingPage({ onboarding }: { onboarding: boolean }) {
         <a href="/privacy.html" className="hover:text-gray-700 transition-colors">Privacy</a>
         <a href="/terms.html" className="hover:text-gray-700 transition-colors">Terms</a>
         <a href="/refund-policy.html" className="hover:text-gray-700 transition-colors">Refunds</a>
-        <a href="mailto:support@expanpress.com" className="hover:text-gray-700 transition-colors">support@expanpress.com</a>
+        <a href={`mailto:${supportEmail}`} className="hover:text-gray-700 transition-colors">{supportEmail}</a>
       </BrandFooter>
     </BrandFrame>
   );

@@ -1,6 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { bounded } from "./webhook_budget.ts";
-import { isEnabledPaymentProvider, paymentProviderSetting, isMoneyPath, GLOBAL } from "./settings_registry.ts";
+import {
+  isEnabledPaymentProvider,
+  paymentProviderProductIdColumns,
+  paymentProviderSetting,
+  isMoneyPath,
+  GLOBAL,
+} from "./settings_registry.ts";
 import { getSupabaseAdmin } from "./supabase_admin.ts";
 import { expanRedis, isRedisRestConfigured } from "../../src/infrastructure/redis/redis.client.ts";
 import { WebhookValidationError } from "../../src/domain/webhook/webhook_errors.ts";
@@ -67,8 +73,23 @@ export interface ResolvedProduct {
 }
 
 /**
- * Resolves a sale's product alias. paddle_product_id is Paddle's own column, so only a Paddle sale may match it.
- * Any other provider matching it would book a sale that delivery then cannot deliver (the delivery lookup applies the same rule).
+ * Builds the PostgREST `.or(...)` filter arms for `resolveProductByAlias`, adding only the
+ * provider-owned product-id columns configured on `PAYMENT_PROVIDERS[provider]`.
+ */
+export function resolveProductByProviderId(alias: string, providerName: string, isUuid: boolean): string {
+  const providerCols = paymentProviderProductIdColumns(providerName);
+  const conditions = [
+    `store_product_id.eq.${alias}`,
+    ...providerCols.map((col) => `${col}.eq.${alias}`),
+    ...(isUuid ? [`id.eq.${alias}`] : []),
+  ];
+  return conditions.join(",");
+}
+
+/**
+ * Resolves a sale's product alias. Provider-specific product-id columns come from the provider
+ * registry (`product_id_column` / `extra_product_id_columns`) so one provider never matches
+ * another provider's external product column.
  */
 export async function resolveProductByAlias(alias: string, providerName: string, signal?: AbortSignal): Promise<ResolvedProduct | null> {
   if (typeof alias !== "string" || !PRODUCT_ALIAS_RE.test(alias)) return null;
@@ -77,14 +98,7 @@ export async function resolveProductByAlias(alias: string, providerName: string,
     throw new Error("webhook: Supabase admin client unavailable — product resolution cannot run (fail closed)");
   }
   const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(alias);
-  const conditions = [
-    `store_product_id.eq.${alias}`,
-    ...(providerName === "paddle" ? [`paddle_product_id.eq.${alias}`] : []),
-    `polar_product_id_sandbox.eq.${alias}`,
-    `polar_product_id_live.eq.${alias}`,
-    ...(isUuid ? [`id.eq.${alias}`] : []),
-  ];
-  const filter = conditions.join(",");
+  const filter = resolveProductByProviderId(alias, providerName, isUuid);
   const primary = await bounded(supabase
     .from("products")
     .select("store_product_id, currency, provider, checkout_mode, creators(handle)")

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import * as Sentry from "@sentry/nextjs";
+import { GLOBAL } from "../../../../payments/src/settings_registry";
 import { getPortalSession } from "../../../src/lib/supabase-server";
 import { resolvePrimaryProduct } from "../../../src/lib/primary-product";
 import { portalConsentState } from "../../../src/lib/consent-chain";
@@ -43,7 +44,7 @@ export default async function ConsentsPage() {
     return (
       <ConsentNotice
         title="We couldn't load your consents."
-        body="This looks like a temporary problem on our side — please reload in a moment, or contact support@expanpress.com."
+        body={`This looks like a temporary problem on our side — please reload in a moment, or contact ${GLOBAL.email.support}.`}
       />
     );
   }

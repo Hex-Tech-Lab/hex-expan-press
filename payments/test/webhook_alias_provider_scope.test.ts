@@ -1,6 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { getSupabaseAdmin } from "../src/supabase_admin";
 import { resolveProductByAlias } from "../src/webhook_core";
+import { PAYMENT_PROVIDERS } from "../src/settings_registry";
 
 // Records the OR filter the product lookup sends. A Paddle ID must only be matchable by a Paddle sale.
 const seen: string[] = [];
@@ -141,5 +142,16 @@ describe("resolveProductByAlias: input validation, UUID arm, and DB errors", () 
     await expect(resolveProductByAlias(ALIAS, "paddle")).rejects.toThrow(
       `webhook: product lookup failed for '${ALIAS}': db timeout`,
     );
+  });
+
+  it("reads product_id_column from PAYMENT_PROVIDERS rather than a hard-coded provider name (B-06)", async () => {
+    const orig = PAYMENT_PROVIDERS.creem.product_id_column;
+    PAYMENT_PROVIDERS.creem.product_id_column = "creem_custom_product_id";
+    try {
+      await resolveProductByAlias(ALIAS, "creem");
+      expect(seen[0]).toContain(`creem_custom_product_id.eq.${ALIAS}`);
+    } finally {
+      PAYMENT_PROVIDERS.creem.product_id_column = orig;
+    }
   });
 });

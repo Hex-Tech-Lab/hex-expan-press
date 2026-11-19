@@ -63,7 +63,7 @@ describe("paddleOverlayUsable and buildPaddleOverlayPayload", () => {
       },
       settings: {
         displayMode: "overlay",
-        theme: GLOBAL.payments.paddle.overlay.theme,
+        theme: GLOBAL.branding.theme_mode,
         locale: GLOBAL.payments.paddle.overlay.locale,
         successUrl: `${GLOBAL.delivery.download_origin}/books/expanpress_house/thanks`,
       },
@@ -96,7 +96,17 @@ describe("openPaddleOverlay (dynamic Paddle.js load + Paddle.Checkout.open)", ()
     });
     await openPaddleOverlay({ token: "test_tok_1", environment: "sandbox" }, payload);
 
-    expect(paddleJsMock.initializePaddle).toHaveBeenCalledWith({ token: "test_tok_1", environment: "sandbox" });
+    expect(paddleJsMock.initializePaddle).toHaveBeenCalledWith({
+      token: "test_tok_1",
+      environment: "sandbox",
+      checkout: {
+        settings: {
+          displayMode: "overlay",
+          theme: GLOBAL.branding.theme_mode,
+          locale: GLOBAL.payments.paddle.overlay.locale,
+        },
+      },
+    });
     expect(paddleJsMock.checkoutOpen).toHaveBeenCalledWith({
       items: payload.items,
       customer: payload.customer,

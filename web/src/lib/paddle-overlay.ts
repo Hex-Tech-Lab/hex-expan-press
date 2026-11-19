@@ -42,14 +42,27 @@ type PaddleInstance = {
   };
 };
 
-/** One Paddle instance per token and environment. A failed load is not cached, so the next submit can try again. */
+/** One Paddle instance per token, environment, and checkout theme/locale. A failed load is not cached, so the next submit can try again. */
 let cached: { key: string; instance: Promise<PaddleInstance | undefined> } | null = null;
 
-async function paddleInstance(client: PaddleOverlayClient): Promise<PaddleInstance> {
-  const key = `${client.environment}:${client.token}`;
+async function paddleInstance(
+  client: PaddleOverlayClient,
+  checkoutSettings: Pick<PaddleOverlayPayload["settings"], "displayMode" | "theme" | "locale">,
+): Promise<PaddleInstance> {
+  const key = `${client.environment}:${client.token}:${checkoutSettings.displayMode}:${checkoutSettings.theme}:${checkoutSettings.locale}`;
   if (cached === null || cached.key !== key) {
     const instance = import("@paddle/paddle-js").then(({ initializePaddle }) =>
-      initializePaddle({ token: client.token, environment: client.environment }) as Promise<PaddleInstance | undefined>,
+      initializePaddle({
+        token: client.token,
+        environment: client.environment,
+        checkout: {
+          settings: {
+            displayMode: checkoutSettings.displayMode,
+            theme: checkoutSettings.theme,
+            locale: checkoutSettings.locale,
+          },
+        },
+      }) as Promise<PaddleInstance | undefined>,
     );
     cached = { key, instance };
   }
@@ -59,7 +72,7 @@ async function paddleInstance(client: PaddleOverlayClient): Promise<PaddleInstan
     paddle = await entry.instance;
   } catch (err) {
     if (cached === entry) cached = null;
-    throw err;
+    throw err instanceof Error ? err : new Error(String(err));
   }
   if (!paddle) {
     if (cached === entry) cached = null;
@@ -70,7 +83,11 @@ async function paddleInstance(client: PaddleOverlayClient): Promise<PaddleInstan
 
 /** Opens the Paddle overlay with the server's payload. Rejects if Paddle.js cannot load; the caller shows the buyer a message. */
 export async function openPaddleOverlay(client: PaddleOverlayClient, payload: PaddleOverlayPayload): Promise<void> {
-  const paddle = await paddleInstance(client);
+  const paddle = await paddleInstance(client, {
+    displayMode: payload.settings.displayMode,
+    theme: payload.settings.theme,
+    locale: payload.settings.locale,
+  });
   paddle.Checkout.open({
     items: payload.items,
     ...(payload.customer ? { customer: payload.customer } : {}),

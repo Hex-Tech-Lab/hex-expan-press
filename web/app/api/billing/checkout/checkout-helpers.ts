@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { GLOBAL } from "../../../../../payments/src/settings_registry";
+import {
+  DEFAULT_PAYMENT_PROVIDERS,
+  GLOBAL,
+  paymentProviderSetting,
+  type PaymentProviderSetting,
+} from "../../../../../payments/src/settings_registry";
+import { applyCheckoutUrlTheme } from "../../../../../payments/src/checkout_branding";
 import { attributionRef } from "../../../../src/lib/attribution";
 import { buyerEmailsMatch, isValidBuyerEmail } from "../../../../src/lib/buyer-email";
 import type { PaddleOverlayPayload } from "../../../../src/lib/paddle-overlay";
@@ -70,17 +76,21 @@ export function sandboxAllowed(): boolean {
   return GLOBAL.payments?.sandbox_checkout_enabled === true;
 }
 
-const REFERENCE_ID_PROVIDERS = new Set(["polar"]);
+function providerCapabilities(provider: string): PaymentProviderSetting | undefined {
+  const defaults = DEFAULT_PAYMENT_PROVIDERS as Record<string, PaymentProviderSetting>;
+  return paymentProviderSetting(provider) ?? defaults[provider];
+}
 
 function withReference(checkoutUrl: string, provider: string, ref: string): string {
-  if (REFERENCE_ID_PROVIDERS.has(provider)) {
+  const caps = providerCapabilities(provider);
+  if (caps?.supports_reference_id === true) {
     const url = new URL(checkoutUrl);
     url.searchParams.set("reference_id", ref);
     return url.toString();
   }
-  if (provider === "creem" && ref) {
+  if (caps?.order_ref_param && ref) {
     const url = new URL(checkoutUrl);
-    url.searchParams.set("metadata[order_ref]", ref);
+    url.searchParams.set(caps.order_ref_param, ref);
     return url.toString();
   }
   return checkoutUrl;
@@ -146,32 +156,33 @@ export function buildCheckoutRedirectUrl(
   buyer: BuyerFields,
 ): string {
   const target = withReference(rail.checkout_url, rail.provider, attribution);
+  const caps = providerCapabilities(rail.provider);
   const params: Array<[string, string]> = [];
-  if (rail.provider === "polar" && buyer.email !== undefined) {
-    params.push(["customer_email", buyer.email]);
+  if (caps?.buyer_email_param && buyer.email !== undefined) {
+    params.push([caps.buyer_email_param, buyer.email]);
   }
-  if (rail.provider === "paddle" && buyer.email !== undefined) {
-    params.push(["user_email", buyer.email]);
+  if (caps?.supports_consent_metadata === true && buyer.consent !== undefined) {
+    params.push([`metadata[${GLOBAL.delivery.buyer_consent_metadata_key}]`, String(buyer.consent)]);
   }
-  if (rail.provider === "creem") {
-    if (buyer.consent !== undefined) {
-      params.push([`metadata[${GLOBAL.delivery.buyer_consent_metadata_key}]`, String(buyer.consent)]);
-    }
-    const creemProductId =
+  if (caps?.metadata_product_id_param) {
+    const providerProductId =
       typeof product.store_product_id === "string" && product.store_product_id.trim() !== ""
         ? product.store_product_id.trim()
         : product.id;
-    params.push(["metadata[product_id]", creemProductId]);
+    params.push([caps.metadata_product_id_param, providerProductId]);
   }
-  if (params.length === 0 && !(rail.provider === "creem" && creatorHandle)) return target;
+  const wantsSuccessUrl = Boolean(caps?.success_url_param && creatorHandle);
+  const wantsTheme = Boolean(caps?.theme_param);
+  if (params.length === 0 && !wantsSuccessUrl && !wantsTheme) return target;
 
   const url = new URL(target);
   for (const [key, value] of params) url.searchParams.set(key, value);
-  if (rail.provider === "creem" && creatorHandle && !url.searchParams.has("success_url")) {
+  if (caps?.success_url_param && creatorHandle && !url.searchParams.has(caps.success_url_param)) {
     const origin = GLOBAL.delivery.download_origin.replace(/\/$/, "");
     const thanks = GLOBAL.storefront.thanks_path_template.replace("{handle}", encodeURIComponent(creatorHandle));
-    url.searchParams.set("success_url", `${origin}${thanks}`);
+    url.searchParams.set(caps.success_url_param, `${origin}${thanks}`);
   }
+  applyCheckoutUrlTheme(url, caps?.theme_param, GLOBAL.branding);
   return url.toString();
 }
 

@@ -21,6 +21,7 @@ interface PaddleCheckoutButtonProps {
   priceId: string;
   productId: string;
   email?: string;
+  theme?: "light" | "dark";
   children?: ReactNode;
   className?: string;
 }
@@ -30,7 +31,7 @@ export function paddleCustomData(productId: string, email?: string): Record<stri
   return { product_id: productId, reference_id: storedAttributionRef(), ...(email ? { email } : {}) };
 }
 
-export function PaddleCheckoutButton({ priceId, productId, email, children = "Buy now", className }: PaddleCheckoutButtonProps) {
+export function PaddleCheckoutButton({ priceId, productId, email, theme = "light", children = "Buy now", className }: PaddleCheckoutButtonProps) {
   // NEXT_PUBLIC_* values are build-time inlined: resolve once, never guess.
   const { envCheck, token } = useMemo(
     () => {
@@ -55,7 +56,11 @@ export function PaddleCheckoutButton({ priceId, productId, email, children = "Bu
       return;
     }
     let cancelled = false;
-    void initializePaddle({ token, environment: envCheck.env })
+    void initializePaddle({
+      token,
+      environment: envCheck.env,
+      checkout: { settings: { displayMode: "overlay", theme } },
+    })
       .then((instance) => {
         if (cancelled) return;
         if (instance) setPaddle(instance);
@@ -74,7 +79,7 @@ export function PaddleCheckoutButton({ priceId, productId, email, children = "Bu
     return () => {
       cancelled = true;
     };
-  }, [envCheck, token, unavailableReason]);
+  }, [envCheck, theme, token, unavailableReason]);
 
   const openCheckout = () => {
     if (!paddle) return;
@@ -82,6 +87,7 @@ export function PaddleCheckoutButton({ priceId, productId, email, children = "Bu
       items: [{ priceId, quantity: 1 }],
       customData: paddleCustomData(productId, email),
       ...(email ? { customer: { email } } : {}),
+      settings: { displayMode: "overlay", theme },
     });
   };
 

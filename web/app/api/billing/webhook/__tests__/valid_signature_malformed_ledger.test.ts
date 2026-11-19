@@ -48,29 +48,19 @@ vi.mock("../../../../../../payments/src/terms.ts", () => ({
 }));
 // Delivery is stubbed: this file asserts ledger recording and the webhook status, not mail or Dub.
 vi.mock("../../../../../../payments/src/delivery.ts", () => ({ deliverSaleForWebhook: async () => undefined, saleDeliveryConfirmed: async () => false }));
-vi.mock("../../../../../../payments/src/settings_registry.ts", () => ({
-  GLOBAL: {
-    paths: { sales_ledger: `${ledgerDir}/sales.jsonl` },
-    defaults: { currency: "USD" },
-    payments: {
-      webhook_tolerance_seconds: 300,
-      webhook_lock_ttl_seconds: 300,
-      webhook_lock_fence_ttl_seconds: 604800,
-      webhook_lock_sale_prefix: "lock:sale:",
-      webhook_lock_refund_prefix: "lock:refund:",
-      webhook_lock_fence_suffix: ":fence",
-      http_timeout_ms: 5000,
-      webhook_total_budget_ms: 3000,
-      sync_http_timeout_ms: 30000,
-      retry_after_seconds: 30,
+vi.mock("../../../../../../payments/src/settings_registry.ts", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../../../../../payments/src/settings_registry")>();
+  return {
+    ...actual,
+    GLOBAL: {
+      ...actual.GLOBAL,
+      paths: { ...actual.GLOBAL.paths, sales_ledger: `${ledgerDir}/sales.jsonl` },
     },
-  },
-  expandHome: (p: string) => p,
-  isRegisteredPaymentProvider: (name: unknown) => typeof name === "string",
-  isEnabledPaymentProvider: (name: unknown) => typeof name === "string",
-  paymentProviderSetting: () => undefined,
-  isMoneyPath: () => false,
-}));
+    isRegisteredPaymentProvider: (name: unknown) => typeof name === "string",
+    isEnabledPaymentProvider: (name: unknown) => typeof name === "string",
+    isMoneyPath: () => false,
+  };
+});
 
 import { createWebhookHandler } from "../handler";
 

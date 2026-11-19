@@ -211,41 +211,26 @@ vi.mock("../../../../payments/src/terms.ts", () => ({
 const salesFileDir = vi.hoisted(() => `/tmp/hook-settings-${Date.now()}-${crypto.randomUUID()}`);
 const salesFilePath = vi.hoisted(() => `${salesFileDir}/sales.jsonl`);
 
-vi.mock("../../../../payments/src/settings_registry.ts", () => ({
-  GLOBAL: {
-    paths: { sales_ledger: salesFilePath },
-    defaults: { currency: "USD" },
-    payments: {
-      webhook_tolerance_seconds: 300,
-      webhook_lock_ttl_seconds: 300,
-      webhook_lock_fence_ttl_seconds: 604800,
-      webhook_lock_sale_prefix: "lock:sale:",
-      webhook_lock_refund_prefix: "lock:refund:",
-      webhook_lock_fence_suffix: ":fence",
-      http_timeout_ms: 5000,
-      webhook_total_budget_ms: 3000,
-      sync_http_timeout_ms: 30000,
+const deferredEmailOverride = vi.hoisted(() => ({ map: {} as Record<string, boolean> }));
+
+vi.mock("../../../../payments/src/settings_registry.ts", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../../../payments/src/settings_registry.ts")>();
+  return {
+    ...actual,
+    GLOBAL: {
+      ...actual.GLOBAL,
+      paths: { ...actual.GLOBAL.paths, sales_ledger: salesFilePath },
     },
-    delivery: {
-      bucket: "release-files",
-      link_ttl_days: 7,
-      signed_url_seconds: 300,
-      short_domain: "go.expanpress.com",
-      send_kind: "buyer_receipt",
-    },
-  },
-  expandHome: (p: string, home: string) => (home && (p === "~" || p.startsWith("~/")) ? p : p),
-  isRegisteredPaymentProvider: (name: unknown) => typeof name === "string",
-  isEnabledPaymentProvider: (name: unknown) => typeof name === "string",
-  paymentProviderSetting: () => undefined,
-  // Used by the real legacy provider parsers in the end-to-end tests (registry fallbacks: USD only).
-  getPath: (obj: unknown, dotted: string | undefined) =>
-    typeof dotted === "string" && dotted !== ""
-      ? dotted.split(".").reduce<unknown>((cur, k) => (cur && typeof cur === "object" ? (cur as Record<string, unknown>)[k] : undefined), obj)
-      : undefined,
-  isAllowedCurrency: (c: string) => String(c).toUpperCase() === "USD",
-  isMoneyPath: () => process.env.NODE_ENV === "production" || process.env.VERCEL_ENV !== undefined || !!process.env.AWS_LAMBDA_FUNCTION_NAME,
-}));
+    isRegisteredPaymentProvider: (name: unknown) => typeof name === "string",
+    isEnabledPaymentProvider: (name: unknown) => typeof name === "string",
+    paymentProviderSetting: () => undefined,
+    allowsDeferredBuyerEmail: (name: string) =>
+      Object.prototype.hasOwnProperty.call(deferredEmailOverride.map, name)
+        ? deferredEmailOverride.map[name]
+        : name === "paddle",
+    isMoneyPath: () => process.env.NODE_ENV === "production" || process.env.VERCEL_ENV !== undefined || !!process.env.AWS_LAMBDA_FUNCTION_NAME,
+  };
+});
 
 describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
   it("a sale whose alias resolves to no product is a terminal 422, and the lookup uses the sale's provider", async () => {
@@ -2152,6 +2137,31 @@ describe("F-05 duplicate identity checks on refund_issued and refund_reversed", 
       } else {
         expect(row?.buyer_email_consent).toBe(expectedRowVal);
       }
+    }
+  });
+
+  it("honours allows_deferred_buyer_email capability flag instead of hard-coding paddle (B-07)", async () => {
+    deferredEmailOverride.map = { polar: true, paddle: false };
+    try {
+      await expect(
+        processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter({
+          ...SALE,
+          providerName: "polar",
+          saleId: "sale_deferred_polar_1",
+          buyerEmail: undefined,
+        })]),
+      ).resolves.toBeUndefined();
+
+      const paddleErr = await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter({
+        ...SALE,
+        providerName: "paddle",
+        saleId: "sale_no_deferred_paddle_1",
+        buyerEmail: undefined,
+      })]).catch((e: unknown) => e);
+      expect(paddleErr).toBeInstanceOf(WebhookValidationError);
+      expect((paddleErr as WebhookValidationError).httpStatus).toBe(422);
+    } finally {
+      deferredEmailOverride.map = {};
     }
   });
 });

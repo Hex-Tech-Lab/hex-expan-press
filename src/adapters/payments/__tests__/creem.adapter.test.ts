@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import crypto from "node:crypto";
 import { CreemAdapter } from "../creem.adapter.ts";
+import { PAYMENT_PROVIDERS } from "../../../../payments/src/settings_registry.ts";
 
 const SECRET = "whsec_test_creem_fixture";
 
@@ -211,5 +212,24 @@ describe("CreemAdapter", () => {
 
   it("refuses to create checkouts on the buy path (product_rails serves static links)", async () => {
     await expect(adapter.createCheckout({ productId: "p", userId: "u", buyerEmail: "a@b.co", successUrl: "https://x.y" })).rejects.toThrow();
+  });
+
+  it("reads field extraction paths from PAYMENT_PROVIDERS.creem.field_map (B-09)", async () => {
+    const fm = PAYMENT_PROVIDERS.creem.field_map as Record<string, string>;
+    const origProduct = fm.product_id;
+    const origAttr = fm.attribution_id;
+    fm.product_id = "data.metadata.custom_prod";
+    fm.attribution_id = "data.metadata.custom_ref";
+    try {
+      const body = checkoutCompleted({ metadata: { order_ref: "ignored", custom_prod: "prod_mapped_1", custom_ref: "yt:mapped" } });
+      const r = await adapter.parseAndValidateWebhook(headersFor(body), body);
+      expect(r.isValid).toBe(true);
+      if (!r.isValid || r.event.eventType !== "sale_completed") throw new Error("expected sale_completed");
+      expect(r.event.productId).toBe("prod_mapped_1");
+      expect(r.event.attributionId).toBe("yt:mapped");
+    } finally {
+      fm.product_id = origProduct;
+      fm.attribution_id = origAttr;
+    }
   });
 });

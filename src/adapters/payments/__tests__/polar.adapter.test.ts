@@ -5,6 +5,7 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import crypto from "node:crypto";
 import { PolarAdapter, POLAR_WEBHOOK_TOLERANCE_SECONDS } from "../polar.adapter.ts";
+import { GLOBAL } from "../../../../payments/src/settings_registry.ts";
 import type { RefundIssuedEvent } from "../../../domain/payments/payments.port.ts";
 
 const KEY = "wave72-polar-adapter-test-key";
@@ -193,5 +194,17 @@ describe("PolarAdapter internal errors stay retryable", () => {
     spy.mockRestore();
     expect(res.isValid).toBe(false);
     expect((res as { httpStatus?: number }).httpStatus).toBe(500);
+  });
+
+  it("includes branding theme query parameter on createCheckout links", async () => {
+    const out = await new PolarAdapter().createCheckout({
+      productId: "polar_prod_1",
+      userId: "u1",
+      buyerEmail: "buyer@example.com",
+      successUrl: "https://expanpress.com/books/ada/thanks",
+    });
+    const parsed = new URL(out.checkoutUrl);
+    expect(parsed.searchParams.get("email")).toBe("buyer@example.com");
+    expect(parsed.searchParams.get("theme")).toBe(GLOBAL.branding.theme_mode);
   });
 });
