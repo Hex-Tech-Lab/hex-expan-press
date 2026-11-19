@@ -1,0 +1,68 @@
+payments/src/launch_gate.ts
+  s_0e99959cd74c50::t_3692d6045240b8 83-100
+web/app/api/billing/checkout/__tests__/billing_consent_checkout.oracle.ts
+  s_0e99959cd74c50::t_82c9f9a62b47b4 37
+  s_0e99959cd74c50::t_4481a25933d7d3 109-111,113
+  s_0e99959cd74c50::t_32d2d72ae10ac4 20
+web/src/lib/__tests__/launch-gate-sql-parity.test.ts
+  s_0e99959cd74c50::t_c660917295f6aa 13-14,19,26
+scripts/ops/__tests__/deny_client_policies.restrictive.test.ts
+  s_0e99959cd74c50::t_561897206d7904 31
+web/app/api/billing/checkout/__tests__/billing_consent_checkout.pairwise.test.ts
+  s_0e99959cd74c50::t_9c0cd698a66f04 423,445,467,491,513
+  s_0e99959cd74c50::t_ba36b828793137 549
+  s_0e99959cd74c50::t_a92100453a7636 387-397
+  s_0e99959cd74c50::t_c2ccad5f04bbb0 209-219
+  s_0e99959cd74c50::t_6c04bcb7684c53 525
+  s_0e99959cd74c50::t_8b0a1a881a25f6 579
+  s_0e99959cd74c50::t_00ba85b8a551bb 73
+  s_0e99959cd74c50::t_b61dd1add77ae2 171
+docs/testing/pairwise/billing_consent_checkout.model.txt
+  s_0e99959cd74c50::t_fe08029929b2e3 3-4
+  s_0e99959cd74c50::t_c28fbf7c4cecfb 21
+  s_0e99959cd74c50::t_eddf83a51e9bc4 35
+web/app/api/billing/checkout/__tests__/house-title.test.ts
+  s_0e99959cd74c50::t_2eb1139ada1851 1-197
+web/app/api/billing/checkout/route.ts
+  s_0e99959cd74c50::t_6c65c2755ac96d 15
+  s_0e99959cd74c50::t_a03e4a20c2a59d 81-149
+  s_0e99959cd74c50::t_25fbd85371e38a 60
+  s_0e99959cd74c50::t_df68fffe0d3711 193-196
+  s_0e99959cd74c50::t_874cb6ebd9625c 49
+web/app/api/billing/checkout/checkout-helpers.ts
+  s_0e99959cd74c50::t_77cf96f2baf379 28,31-40
+  s_0e99959cd74c50::t_a75dd812c79d1b 41
+payments/test/settings_registry_runtime.test.ts
+  s_0e99959cd74c50::t_af0d3221c67c8d 354,359,361,366,368
+payments/test/launch_gate_house.test.ts
+  s_0e99959cd74c50::t_61e54f5ea1d193 1-91
+payments/src/settings_registry.ts
+  s_0e99959cd74c50::t_a979997ada09ea 164-166
+  s_0e99959cd74c50::t_8bb7b7eb57985f 699-705,707
+  s_0e99959cd74c50::t_beb6a9daa00ff2 679
+  s_0e99959cd74c50::t_98ef5e39db01bf 308
+supabase/migrations/20261119130000_house_title_exemption.sql
+  s_0e99959cd74c50::t_b2cfaf5e1ac2e0 1-132
+web/src/lib/__tests__/house-title-exemption.test.ts
+  s_0e99959cd74c50::t_24a5217f5276a1 1-18,20-159,162-169,171-224
+  s_0e99959cd74c50::t_85453d6fa001f7 160-161,170
+  s_0e99959cd74c50::t_d951a31c720279 19
+docs/testing/pairwise/billing_consent_checkout.rows.tsv
+  s_0e99959cd74c50::t_0e6309bafc0861 1-47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "282e5166530deae1d749aea4d01c7768d65108f5",
+  "prompts": {},
+  "sessions": {
+    "s_0e99959cd74c50": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "21b00acc-7513-46d6-9a35-038af7845be2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
