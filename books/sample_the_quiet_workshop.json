@@ -1,7 +1,8 @@
 {
-  "id": "the_quiet_workshop",
-  "title": "The Quiet Workshop",
+  "id": "sample_the_quiet_workshop",
+  "title": "The Quiet Workshop (Sample)",
   "subtitle": "Twelve Practical Projects for a Small Home Bench",
+  "description": "Sample: Chapter 1, \"Setting Up the Bench\", of a 12-project book in progress.",
   "author": "Elias Hartwell",
   "byline": "Elias Hartwell is a pen name. Published by ExpanPress.",
   "creator": {
@@ -10,17 +11,17 @@
     "kind": "house",
     "status": "PROPOSED: no creators row exists yet; see runbook step S1"
   },
-  "product_slug": "the_quiet_workshop",
+  "product_slug": "sample_the_quiet_workshop",
   "price": {
     "usd": 9.00,
     "currency": "USD",
     "status": "APPROVED by the founder on 2026-11-19"
   },
   "release": {
-    "pdf_name": "ExpanPress_TheQuietWorkshop_EliasHartwell_2026.pdf",
+    "pdf_name": "ExpanPress_Sample_TheQuietWorkshop_EliasHartwell_2026.pdf",
     "release_year": 2026,
     "local_source": "data/books/house_expanpress/the_quiet_workshop/ (gitignored)",
-    "status": "NOT CLEARED: a text-clean master is built from manuscript/sample_book (unexported). The export (optimisation, hashing, fingerprint, watermark) has no repeatable pipeline, and the source holds chapter 1 of the 12 listed. See runbook B1, B10, B11."
+    "status": "NOT CLEARED: sample master rebuilt with 'Sample: Chapter 1 of 12' on the title page and back cover (unexported, review only). The founder exports it by hand with the Acrobat recipe (runbook B11). Release sha256 not set (B8), so the listing stays gated."
   },
   "listing_status": "NOT_LISTED"
 }

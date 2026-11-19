@@ -27,8 +27,8 @@ const DUANE_ROW: BookRegistryRow = {
 // Synthetic ids: no live product uses them.
 const QUIET_ROW: BookRegistryRow = {
   id: "00000000-0000-4000-8000-00000000c0de",
-  store_product_id: "house_the_quiet_workshop_v1",
-  book_registry: "books/the_quiet_workshop.json",
+  store_product_id: "house_sample_the_quiet_workshop_v1",
+  book_registry: "books/sample_the_quiet_workshop.json",
   paddle_product_ref: "pro_TESTQUIETWORKSHOP",
 };
 
@@ -39,12 +39,12 @@ const duaneTarget: SyncConfig = {
 };
 
 const quietTarget: SyncConfig = {
-  book: "books/the_quiet_workshop.json",
+  book: "books/sample_the_quiet_workshop.json",
   db_product_id: QUIET_ROW.id,
   paddle_product_ref: QUIET_ROW.paddle_product_ref ?? "",
 };
 
-const quietIdentity = loadBookIdentity(join(repoRoot, "books", "the_quiet_workshop.json"));
+const quietIdentity = loadBookIdentity(join(repoRoot, "books", "sample_the_quiet_workshop.json"));
 const duaneIdentity = loadBookIdentity(join(repoRoot, "books", "duane.json"));
 
 const ENV_OK: CliEnv = {
@@ -65,9 +65,9 @@ const remoteShowing = (identity: { title: string; subtitle: string }): typeof fe
 
 describe("normaliseBookRef", () => {
   it("maps a bare book id and a registry path to the same repo-relative file", () => {
-    expect(normaliseBookRef("the_quiet_workshop")).toBe("books/the_quiet_workshop.json");
-    expect(normaliseBookRef("books/the_quiet_workshop.json")).toBe("books/the_quiet_workshop.json");
-    expect(normaliseBookRef("books/the_quiet_workshop")).toBe("books/the_quiet_workshop.json");
+    expect(normaliseBookRef("sample_the_quiet_workshop")).toBe("books/sample_the_quiet_workshop.json");
+    expect(normaliseBookRef("books/sample_the_quiet_workshop.json")).toBe("books/sample_the_quiet_workshop.json");
+    expect(normaliseBookRef("books/sample_the_quiet_workshop")).toBe("books/sample_the_quiet_workshop.json");
     expect(normaliseBookRef("./books/duane.json")).toBe("books/duane.json");
   });
 
@@ -99,12 +99,12 @@ describe("selectSyncTarget: two books share the database", () => {
 
   it("fails loud with no selector and names both books and the flags to use", () => {
     expect(() => selectSyncTarget(rows, {})).toThrow(/sync target ambiguous/);
-    expect(() => selectSyncTarget(rows, {})).toThrow(/books\/duane\.json.*books\/the_quiet_workshop\.json/);
+    expect(() => selectSyncTarget(rows, {})).toThrow(/books\/duane\.json.*books\/sample_the_quiet_workshop\.json/);
     expect(() => selectSyncTarget(rows, {})).toThrow(/--book <id>/);
   });
 
-  it("selects the quiet workshop by book id", () => {
-    expect(selectSyncTarget(rows, { book: "the_quiet_workshop" })).toEqual(quietTarget);
+  it("selects the sample by book id", () => {
+    expect(selectSyncTarget(rows, { book: "sample_the_quiet_workshop" })).toEqual(quietTarget);
   });
 
   it("selects Duane by book id, so the existing sync keeps working", () => {
@@ -112,7 +112,7 @@ describe("selectSyncTarget: two books share the database", () => {
   });
 
   it("selects by registry path as well as by id", () => {
-    expect(selectSyncTarget(rows, { book: "books/the_quiet_workshop.json" })).toEqual(quietTarget);
+    expect(selectSyncTarget(rows, { book: "books/sample_the_quiet_workshop.json" })).toEqual(quietTarget);
   });
 
   it("selects by products.id", () => {
@@ -133,15 +133,15 @@ describe("selectSyncTarget: two books share the database", () => {
 
   it("refuses when two rows share a book and --book cannot tell them apart; --product can", () => {
     const twin: BookRegistryRow = { ...QUIET_ROW, id: "00000000-0000-4000-8000-00000000beef" };
-    expect(() => selectSyncTarget([QUIET_ROW, twin], { book: "the_quiet_workshop" })).toThrow(
-      /2 products rows match --book the_quiet_workshop.*--product/,
+    expect(() => selectSyncTarget([QUIET_ROW, twin], { book: "sample_the_quiet_workshop" })).toThrow(
+      /2 products rows match --book sample_the_quiet_workshop.*--product/,
     );
     expect(selectSyncTarget([QUIET_ROW, twin], { product: twin.id }).db_product_id).toBe(twin.id);
   });
 
   it("fails closed when the selected row has no paddle_product_ref", () => {
     const unlinked: BookRegistryRow = { ...QUIET_ROW, paddle_product_ref: null };
-    expect(() => selectSyncTarget([unlinked, DUANE_ROW], { book: "the_quiet_workshop" })).toThrow(
+    expect(() => selectSyncTarget([unlinked, DUANE_ROW], { book: "sample_the_quiet_workshop" })).toThrow(
       /"paddle_product_ref" must be a non-empty string/,
     );
   });
@@ -152,8 +152,8 @@ describe("loadSyncConfigFromDb: the row list drives the same selection", () => {
     await expect(loadSyncConfigFromDb({}, async () => [DUANE_ROW, QUIET_ROW])).rejects.toThrow(/sync target ambiguous/);
   });
 
-  it("--book the_quiet_workshop returns the quiet workshop target", async () => {
-    await expect(loadSyncConfigFromDb({ book: "the_quiet_workshop" }, async () => [DUANE_ROW, QUIET_ROW])).resolves.toEqual(
+  it("--book sample_the_quiet_workshop returns the sample target", async () => {
+    await expect(loadSyncConfigFromDb({ book: "sample_the_quiet_workshop" }, async () => [DUANE_ROW, QUIET_ROW])).resolves.toEqual(
       quietTarget,
     );
   });
@@ -164,10 +164,10 @@ describe("loadSyncConfigFromDb: the row list drives the same selection", () => {
 });
 
 describe("runSync with two books", () => {
-  it("--check on the quiet workshop target compares against the quiet workshop identity", async () => {
-    const result = await runSync(["--book", "the_quiet_workshop", "--check"], ENV_OK, remoteShowing(quietIdentity), quietTarget);
+  it("--check on the sample target compares against the sample identity", async () => {
+    const result = await runSync(["--book", "sample_the_quiet_workshop", "--check"], ENV_OK, remoteShowing(quietIdentity), quietTarget);
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toContain(`target: books/the_quiet_workshop.json (products.id ${QUIET_ROW.id})`);
+    expect(result.stdout).toContain(`target: books/sample_the_quiet_workshop.json (products.id ${QUIET_ROW.id})`);
   });
 
   it("--check reports a mismatch when the remote still carries the other book's identity", async () => {

@@ -25,7 +25,7 @@ export interface SyncConfig {
 /** Operator selector for the book target. With neither flag, the sync needs exactly one
  *  products row that carries a book_registry (the original single-book rule). */
 export interface SyncSelector {
-  /** Book id ("the_quiet_workshop") or its registry path ("books/the_quiet_workshop.json"). */
+  /** Book id ("sample_the_quiet_workshop") or its registry path ("books/sample_the_quiet_workshop.json"). */
   book?: string;
   /** public.products.id of the target row. */
   product?: string;
@@ -39,8 +39,8 @@ export interface BookRegistryRow {
   paddle_product_ref: string | null;
 }
 
-/** Repo-relative registry path for a book reference. "the_quiet_workshop" and
- *  "books/the_quiet_workshop" both map to "books/the_quiet_workshop.json". */
+/** Repo-relative registry path for a book reference. "sample_the_quiet_workshop" and
+ *  "books/sample_the_quiet_workshop" both map to "books/sample_the_quiet_workshop.json". */
 export const normaliseBookRef = (ref: string): string => {
   const slashed = ref.trim().replace(/\\/g, "/").replace(/^\.\//, "");
   const withDir = slashed.includes("/") ? slashed : `books/${slashed}`;
