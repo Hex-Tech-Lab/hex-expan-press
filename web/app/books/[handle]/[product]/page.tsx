@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { BuyLink } from "../../../../src/components/storefront/buy-link";
+import BookPreviewer from "../../../../src/components/storefront/book-previewer";
 import { ArrowIcon, BrandFrame, BrandWordmark } from "../../../../src/components/brand/brand";
 import {
   BookCover,
@@ -69,12 +70,13 @@ export default async function StoreProductPage({
         <BrandWordmark href={GLOBAL.storefront.b2c_landing_url} label="ExpanPress home" />
       </header>
 
-      <main className="grid gap-6 md:grid-cols-2 md:gap-8 md:items-start">
-        <div className="w-full max-w-sm mx-auto md:mx-0">
-          <BookCover title={title} />
-        </div>
+      <main className="flex flex-col gap-6 md:gap-8">
+        <div className="grid gap-6 md:grid-cols-2 md:gap-8 md:items-start">
+          <div className="w-full max-w-sm mx-auto md:mx-0">
+            <BookCover title={title} coverImage={p.cover_image ?? null} isSample={p.is_sample ?? false} />
+          </div>
 
-        <section className="glass-card card-shadow rounded-[32px] border-[1.5px] border-[#fff2e4] p-6 sm:p-8 flex flex-col gap-5">
+          <section className="glass-card card-shadow rounded-[32px] border-[1.5px] border-[#fff2e4] p-6 sm:p-8 flex flex-col gap-5">
           <Link
             href={`/books/${creator.handle}`}
             className="self-start text-sm font-semibold text-gray-700 hover:text-gray-900 hover:underline underline-offset-4"
@@ -139,7 +141,16 @@ export default async function StoreProductPage({
               {d}
             </p>
           ))}
-        </section>
+          </section>
+        </div>
+
+        {p.preview_pdf && (
+          <BookPreviewer
+            previewPdfUrl={p.preview_pdf}
+            bookTitle={title}
+            settings={GLOBAL.book_preview}
+          />
+        )}
       </main>
 
       <StorefrontFooter showBuyerLegal={live} />

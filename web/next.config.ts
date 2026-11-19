@@ -73,9 +73,12 @@ const nextConfig: NextConfig = {
   // Sprint 15: the webhook resolves products from Supabase (resolveProductByAlias)
   // — no runtime config.*.json enumeration, so the former outputFileTracingIncludes
   // bundling of payments/config.*.json + books/*.json is gone.
-  // Pin the tracing root to the repo root: keeps the tracer's workspace-root
-  // detection deterministic across build environments.
+  // Storefront SSR resolves cover_image & preview_pdf from books/*.json via products.book_registry
+  // (or settings_registry fallback), so bundle books/*.json with the /books/** server routes.
   outputFileTracingRoot: join(__dirname, ".."),
+  outputFileTracingIncludes: {
+    "/books/**": ["../books/*.json"],
+  },
 };
 
 export default withSentryConfig(nextConfig, {

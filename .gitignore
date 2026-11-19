@@ -9,6 +9,7 @@ ideabrowser_vault.json
 # (Rule #0). data/ above already catches releases/; these are the belt-and-suspenders global
 # rules so no future *.pdf or *.typ anywhere in the tree is ever tracked by accident.
 *.pdf
+!web/public/books/previews/*.pdf
 *.typ
 
 # Raw capture media (multi-GB video/audio) — never belongs in git, regenerable via yt-dlp/transcribe.ts

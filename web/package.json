@@ -28,6 +28,7 @@
     "framer-motion": "12.40.0",
     "next": "16.4.5",
     "obscenity": "0.4.6",
+    "page-flip": "2.0.7",
     "pdfjs-dist": "4.10.38",
     "react": "19.2.7",
     "react-dom": "19.2.7",

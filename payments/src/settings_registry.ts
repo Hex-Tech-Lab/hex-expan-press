@@ -94,8 +94,21 @@ export interface GlobalSettings {
     /** ISO 3166-1 alpha-2 buyer country codes permitted at checkout (launch: US + DC/territories). */
     allowed_buyer_countries: string[];
   };
-  /** Buyer-facing storefront links. `b2c_landing_url` is the logo target on the thank-you page. */
-  storefront: { b2c_landing_url: string };
+  /** Buyer-facing storefront links, card copy, and registry-driven asset paths. */
+  storefront: {
+    b2c_landing_url: string;
+    digital_pdf_kicker: string;
+    publisher_label: string;
+    sample_badge_label: string;
+    covers_base_path: string;
+    previews_base_path: string;
+    book_assets: Record<
+      string,
+      { book_registry?: string; cover_image?: string | null; preview_pdf?: string | null; is_sample?: boolean }
+    >;
+  };
+  /** Product-page PDF previewer tunables (PDF.js + StPageFlip). */
+  book_preview: BookPreviewSettings;
   /** Creator handle policy (web/src/lib/handle-policy.ts). Set once at account creation; immutable after. */
   handles: { min_length: number; max_length: number; separator: string; reserved: string[]; profanity_whitelist: string[] };
   /** Product slug rule (ADR 0065): same shape as handles. Unique per creator (products_creator_id_slug_key);
@@ -175,6 +188,25 @@ product_slug: { min_length: number; max_length: number; separator: string };
   usage_watch: UsageWatchSettings;
 }
 
+export interface BookPreviewSettings {
+  pdf_worker_src: string;
+  render_scale: number;
+  max_preview_pages: number;
+  page_width_px: number;
+  page_height_px: number;
+  min_width_px: number;
+  max_width_px: number;
+  min_height_px: number;
+  max_height_px: number;
+  flipping_time_ms: number;
+  max_shadow_opacity: number;
+  swipe_distance_px: number;
+  show_cover: boolean;
+  use_portrait: boolean;
+  heading: string;
+  subheading: string;
+}
+
 export interface UsageWatchSettings {
   warn_ratio: number;
   /** Per-request budget for every usage-watch HTTP or CLI call. */
@@ -230,7 +262,36 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
   },
   // Home target for every buyer-side logo and home link (thank-you page, checkout). Absolute, so a buyer on
   // pay.expanpress.com also lands on the B2C landing, never on the B2B root. The B2C landing is /books on the main site.
-  storefront: { b2c_landing_url: "https://expanpress.com/books" },
+  storefront: {
+    b2c_landing_url: "https://expanpress.com/books",
+    digital_pdf_kicker: "DIGITAL PDF",
+    publisher_label: "ExpanPress",
+    sample_badge_label: "(Sample)",
+    covers_base_path: "/books/covers",
+    previews_base_path: "/books/previews",
+    book_assets: {
+      "500k_playbook": { book_registry: "books/duane.json" },
+      sample_the_quiet_workshop: { book_registry: "books/sample_the_quiet_workshop.json" },
+    },
+  },
+  book_preview: {
+    pdf_worker_src: "/pdfjs/pdf.worker.min.mjs",
+    render_scale: 2,
+    max_preview_pages: 16,
+    page_width_px: 400,
+    page_height_px: 600,
+    min_width_px: 260,
+    max_width_px: 460,
+    min_height_px: 390,
+    max_height_px: 690,
+    flipping_time_ms: 600,
+    max_shadow_opacity: 0.25,
+    swipe_distance_px: 30,
+    show_cover: true,
+    use_portrait: true,
+    heading: "Preview inside the book",
+    subheading: "Turn pages to inspect the cover, Chapter 1, an interior chapter opener, and back cover.",
+  },
   // Our handle rules, not a platform's (Instagram allows 1-30, Facebook requires 5). Reserved words are never assignable.
   handles: {
     min_length: 3,
@@ -530,7 +591,8 @@ function loadGlobal(): GlobalSettings {
     payments: loadPaymentsSection(g.payments as Record<string, unknown> | undefined),
     delivery: loadDeliverySection(g.delivery as Record<string, unknown> | undefined),
     landing: { ...DEFAULT_GLOBAL.landing, ...(g.landing ?? {}) },
-    storefront: { ...DEFAULT_GLOBAL.storefront, ...(g.storefront ?? {}) },
+    storefront: loadStorefrontSection(g.storefront as Record<string, unknown> | undefined),
+    book_preview: loadBookPreviewSection(g.book_preview as Record<string, unknown> | undefined),
     handles: { ...DEFAULT_GLOBAL.handles, ...(g.handles ?? {}) },
     product_slug: { ...DEFAULT_GLOBAL.product_slug, ...(g.product_slug ?? {}) },
     email_address: loadEmailAddressSection(g.email_address as Record<string, unknown> | undefined),
@@ -823,6 +885,165 @@ export function loadEmailSection(raw: Record<string, unknown> | undefined): Glob
     merged.address_rejected_status = DEFAULT_GLOBAL.email.address_rejected_status;
   }
   return merged;
+}
+
+export const BOOK_PREVIEW_LIMITS = {
+  render_scale: { min: 1, max: 3 },
+  max_preview_pages: { min: 2, max: 32 },
+  page_width_px: { min: 200, max: 800 },
+  page_height_px: { min: 300, max: 1200 },
+  min_width_px: { min: 180, max: 600 },
+  max_width_px: { min: 280, max: 900 },
+  min_height_px: { min: 240, max: 900 },
+  max_height_px: { min: 360, max: 1400 },
+  flipping_time_ms: { min: 150, max: 2000 },
+  max_shadow_opacity: { min: 0, max: 1 },
+  swipe_distance_px: { min: 10, max: 120 },
+} as const;
+
+function isSafeBooksPrefix(v: unknown): v is string {
+  return typeof v === "string" && /^\/books\/[a-z0-9_-]+$/.test(v);
+}
+
+export function loadStorefrontSection(raw: Record<string, unknown> | undefined): GlobalSettings["storefront"] {
+  const defaults = DEFAULT_GLOBAL.storefront;
+  if (!raw) return defaults;
+  const fallbacks: string[] = [];
+  const str = (key: "digital_pdf_kicker" | "publisher_label" | "sample_badge_label"): string => {
+    if (!(key in raw)) return defaults[key];
+    const v = raw[key];
+    if (typeof v === "string" && v.trim() !== "") return v.trim();
+    fallbacks.push(key);
+    return defaults[key];
+  };
+  let b2cLandingUrl = defaults.b2c_landing_url;
+  if ("b2c_landing_url" in raw) {
+    if (isHttpsUrl(raw.b2c_landing_url)) {
+      b2cLandingUrl = raw.b2c_landing_url;
+    } else {
+      fallbacks.push("b2c_landing_url");
+    }
+  }
+  let coversBasePath = defaults.covers_base_path;
+  if ("covers_base_path" in raw) {
+    if (isSafeBooksPrefix(raw.covers_base_path)) coversBasePath = raw.covers_base_path;
+    else fallbacks.push("covers_base_path");
+  }
+  let previewsBasePath = defaults.previews_base_path;
+  if ("previews_base_path" in raw) {
+    if (isSafeBooksPrefix(raw.previews_base_path)) previewsBasePath = raw.previews_base_path;
+    else fallbacks.push("previews_base_path");
+  }
+  let bookAssets = defaults.book_assets;
+  if ("book_assets" in raw) {
+    if (raw.book_assets && typeof raw.book_assets === "object" && !Array.isArray(raw.book_assets)) {
+      const merged: GlobalSettings["storefront"]["book_assets"] = { ...defaults.book_assets };
+      for (const [slug, entry] of Object.entries(raw.book_assets as Record<string, unknown>)) {
+        if (!/^[a-z0-9_]+$/.test(slug) || !entry || typeof entry !== "object" || Array.isArray(entry)) {
+          fallbacks.push(`book_assets.${slug}`);
+          continue;
+        }
+        const e = entry as Record<string, unknown>;
+        merged[slug] = {
+          ...(typeof e.book_registry === "string" ? { book_registry: e.book_registry } : {}),
+          ...(e.cover_image === null || typeof e.cover_image === "string" ? { cover_image: e.cover_image } : {}),
+          ...(e.preview_pdf === null || typeof e.preview_pdf === "string" ? { preview_pdf: e.preview_pdf } : {}),
+          ...(typeof e.is_sample === "boolean" ? { is_sample: e.is_sample } : {}),
+        };
+      }
+      bookAssets = merged;
+    } else {
+      fallbacks.push("book_assets");
+    }
+  }
+  if (fallbacks.length > 0) warnFallback("global.json", `invalid storefront values for ${fallbacks.join(", ")}`);
+  return {
+    b2c_landing_url: b2cLandingUrl,
+    digital_pdf_kicker: str("digital_pdf_kicker"),
+    publisher_label: str("publisher_label"),
+    sample_badge_label: str("sample_badge_label"),
+    covers_base_path: coversBasePath,
+    previews_base_path: previewsBasePath,
+    book_assets: bookAssets,
+  };
+}
+
+export function loadBookPreviewSection(raw: Record<string, unknown> | undefined): BookPreviewSettings {
+  const defaults = DEFAULT_GLOBAL.book_preview;
+  if (!raw) return defaults;
+  const fallbacks: string[] = [];
+  const intField = (
+    key:
+      | "max_preview_pages"
+      | "page_width_px"
+      | "page_height_px"
+      | "min_width_px"
+      | "max_width_px"
+      | "min_height_px"
+      | "max_height_px"
+      | "flipping_time_ms"
+      | "swipe_distance_px",
+  ): number => {
+    if (!(key in raw)) return defaults[key];
+    const v = raw[key];
+    const { min, max } = BOOK_PREVIEW_LIMITS[key];
+    if (intInRange(v, min, max)) return v;
+    fallbacks.push(key);
+    return defaults[key];
+  };
+  const floatField = (key: "render_scale" | "max_shadow_opacity"): number => {
+    if (!(key in raw)) return defaults[key];
+    const v = raw[key];
+    const { min, max } = BOOK_PREVIEW_LIMITS[key];
+    if (typeof v === "number" && Number.isFinite(v) && v >= min && v <= max) return v;
+    fallbacks.push(key);
+    return defaults[key];
+  };
+  const boolField = (key: "show_cover" | "use_portrait"): boolean => {
+    if (!(key in raw)) return defaults[key];
+    const v = raw[key];
+    if (typeof v === "boolean") return v;
+    fallbacks.push(key);
+    return defaults[key];
+  };
+  const strField = (key: "heading" | "subheading"): string => {
+    if (!(key in raw)) return defaults[key];
+    const v = raw[key];
+    if (typeof v === "string" && v.trim() !== "") return v.trim();
+    fallbacks.push(key);
+    return defaults[key];
+  };
+  let pdfWorkerSrc = defaults.pdf_worker_src;
+  if ("pdf_worker_src" in raw) {
+    if (typeof raw.pdf_worker_src === "string" && /^\/[a-z0-9/_.-]+\.mjs$/.test(raw.pdf_worker_src) && !raw.pdf_worker_src.includes("..")) {
+      pdfWorkerSrc = raw.pdf_worker_src;
+    } else {
+      fallbacks.push("pdf_worker_src");
+    }
+  }
+  const minW = intField("min_width_px");
+  const maxW = Math.max(minW, intField("max_width_px"));
+  const minH = intField("min_height_px");
+  const maxH = Math.max(minH, intField("max_height_px"));
+  if (fallbacks.length > 0) warnFallback("global.json", `invalid book_preview values for ${fallbacks.join(", ")}`);
+  return {
+    pdf_worker_src: pdfWorkerSrc,
+    render_scale: floatField("render_scale"),
+    max_preview_pages: intField("max_preview_pages"),
+    page_width_px: intField("page_width_px"),
+    page_height_px: intField("page_height_px"),
+    min_width_px: minW,
+    max_width_px: maxW,
+    min_height_px: minH,
+    max_height_px: maxH,
+    flipping_time_ms: intField("flipping_time_ms"),
+    max_shadow_opacity: floatField("max_shadow_opacity"),
+    swipe_distance_px: intField("swipe_distance_px"),
+    show_cover: boolField("show_cover"),
+    use_portrait: boolField("use_portrait"),
+    heading: strField("heading"),
+    subheading: strField("subheading"),
+  };
 }
 
 export const GLOBAL: GlobalSettings = loadGlobal();
