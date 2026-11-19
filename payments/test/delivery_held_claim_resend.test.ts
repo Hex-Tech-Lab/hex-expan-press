@@ -2,7 +2,7 @@
 // The provider fake behaves like Resend: a request whose key was already accepted returns the original and sends nothing.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { deliverSale, deliverSaleForWebhook, type DeliveryDb, type DeliveryDeps } from "../src/delivery";
-import { DeliveryPendingError, StaleFenceError } from "../src/delivery_errors";
+import { DeliveryBlockedError, DeliveryPendingError, StaleFenceError } from "../src/delivery_errors";
 import { decryptClaimMessage, encryptClaimMessage } from "../src/delivery_link_crypto";
 import { EmailSendError, sendEmail as realSendEmail } from "../src/email";
 import { GLOBAL } from "../src/settings_registry";
@@ -483,6 +483,48 @@ describe("resend age cap and re-check: a stored message resends only inside the 
     await expect(deliverSale(SALE, deps)).resolves.toBe("duplicate");
     expect(provider.send).toHaveBeenCalledTimes(1); // no resend
     expect(claims.get(CLAIM)).toMatchObject({ state: "sent", message: null }); // the held row is closed, as the first check closes it
+  });
+
+  // A definite 422 on a held resend used to answer 503 (DeliveryPendingError) and loop on provider retries. It is terminal now.
+  it("a definite 422 on a held resend answers 422 through the webhook entry point, keeps the claim, its message and its link, and resends nothing more", async () => {
+    const provider = fakeProvider();
+    provider.failBeforeAccept(1); // the first send never reached the provider: a held claim with its message stored
+    const { db, claims, links } = fakeDb();
+    const deps = makeDeps(provider, db);
+    await expect(deliverSale(SALE, deps)).rejects.toMatchObject({ httpStatus: 503 });
+    const held = claims.get(CLAIM)?.message;
+    expect(held).toEqual(expect.any(String));
+
+    provider.send.mockRejectedValueOnce(new EmailSendError("Resend error (422): invalid to", false, 422, true));
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      const err = await deliverSaleForWebhook(SALE, deps).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(DeliveryBlockedError);
+      expect(err).toMatchObject({ httpStatus: 422, reason: "no_email" });
+      expect(provider.send).toHaveBeenCalledTimes(2); // the first attempt and this resend only
+      expect(claims.get(CLAIM)).toMatchObject({ state: "claimed", message: held }); // a release would drop a send that may have been accepted
+      expect(links).toHaveLength(1); // the link is kept with its claim
+      const logged = errSpy.mock.calls.map((c) => String(c[0]));
+      expect(logged.some((l) => l.includes("MANUAL RECONCILE sale=sale-h1 provider=paddle send_kind=buyer_receipt"))).toBe(true);
+      expect(logged.join("\n")).not.toContain("buyer@example.com");
+    } finally {
+      errSpy.mockRestore();
+    }
+  });
+
+  it("a definite 422 on a held resend reaches the caller unchanged from deliverSale, not as a retryable 503", async () => {
+    const provider = fakeProvider();
+    provider.failBeforeAccept(1);
+    const { db, claims } = fakeDb();
+    const deps = makeDeps(provider, db);
+    await expect(deliverSale(SALE, deps)).rejects.toMatchObject({ httpStatus: 503 });
+
+    provider.send.mockRejectedValueOnce(new EmailSendError("Resend error (422): invalid to", false, 422, true));
+    const err = await deliverSale(SALE, deps).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(EmailSendError);
+    expect(err).not.toBeInstanceOf(DeliveryPendingError);
+    expect((err as EmailSendError).statusCode).toBe(422);
+    expect(claims.get(CLAIM)?.message).not.toBeNull();
   });
 });
 

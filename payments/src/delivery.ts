@@ -301,8 +301,9 @@ async function sendBuyerMessage(deps: DeliveryDeps, message: BuyerMessage, idemp
 
 /**
  * Resends the identical stored message under the same idempotency key. A failure to decrypt the message, to confirm its link
- * is still issued and unexpired, to check the resend window, or to send (unless the fence is stale) answers 503
- * (DeliveryPendingError), and the stored message is kept, so the next retry sends the same bytes again. Nothing is sent
+ * is still issued and unexpired, to check the resend window, or to send answers 503 (DeliveryPendingError), and the stored
+ * message is kept, so the next retry sends the same bytes again. A stale fence is rethrown. A definite refusal of the buyer
+ * address is rethrown unchanged: 422, terminal, as on the first send. Nothing is sent
  * unless the message decrypts and its link is still issued and unexpired; otherwise the buyer would get a dead link marked
  * as delivered. The receipt is re-checked right before the send, and the claim must be inside the resend window. The receipt
  * re-check runs outside the send's try: a database failure there throws its own error, which the webhook answers 500.
@@ -372,6 +373,10 @@ async function resendStoredMessage(
     await deps.db.markDeliverySent({ provider: key.provider, saleId: key.saleId, sendKind: key.sendKind, fence: input.fence });
   } catch (err) {
     if (err instanceof StaleFenceError) throw err;
+    // A definite refusal of the buyer address is terminal, as on the first send. It is rethrown unchanged, so
+    // deliverSaleForWebhook answers 422 and flags the sale. The claim and the stored message are kept: an earlier send under
+    // this key may have been accepted, so nothing here releases them.
+    if (isBuyerAddressRejection(err)) throw err;
     throw new DeliveryPendingError(input.saleId, err);
   }
   return "sent";
@@ -650,7 +655,7 @@ export function productionDeps(deadlineAt?: number): DeliveryDeps {
 
 /**
  * A definite refusal of the message by the mail provider at GLOBAL.email.address_rejected_status. In practice this is the
- * buyer address. No email was accepted, so there is nothing to resend.
+ * buyer address. The refused send was not accepted, and a retry with the same address cannot succeed.
  */
 function isBuyerAddressRejection(err: unknown): err is EmailSendError {
   return err instanceof EmailSendError && err.definite && err.statusCode === GLOBAL.email.address_rejected_status;
@@ -679,15 +684,16 @@ export async function deliverSaleForWebhook(
   try {
     outcome = await deliverSale(input, deps);
   } catch (err) {
-    // deliverSale has already released the claim and the link (a definite rejection is a verified non-send). The 500 that a raw
-    // error would answer is retried by the provider forever against the same refused address, so the sale is refused with a
+    // On a first send, deliverSale has released the claim and the link (a definite rejection is a verified non-send). On a held
+    // resend it keeps them, since an earlier send under the key may have been accepted. Either way the 500 that a raw error
+    // would answer is retried by the provider forever against the same refused address, so the sale is refused with a
     // terminal 422 instead. A config refusal is not this case: it is rethrown unchanged and stays retryable.
     if (!isBuyerAddressRejection(err)) throw err;
     flagForManualReconciliation(
       input.provider,
       input.saleId,
       input.sendKind ?? GLOBAL.delivery.send_kind,
-      `the mail provider refused the buyer address (HTTP ${err.statusCode}); no email was accepted and a retry cannot succeed`,
+      `the mail provider refused the buyer address (HTTP ${err.statusCode}) on this send; a retry with the same address cannot succeed`,
     );
     throw new DeliveryBlockedError("no_email", input.saleId);
   }
