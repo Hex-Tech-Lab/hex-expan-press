@@ -70,14 +70,14 @@ const REFERENCE_ID_PROVIDERS = new Set(["polar"]);
 
 function withReference(checkoutUrl: string, provider: string, ref: string): string {
   if (REFERENCE_ID_PROVIDERS.has(provider)) {
-    const u = new URL(checkoutUrl);
-    u.searchParams.set("reference_id", ref);
-    return u.toString();
+    const url = new URL(checkoutUrl);
+    url.searchParams.set("reference_id", ref);
+    return url.toString();
   }
   if (provider === "creem" && ref) {
-    const u = new URL(checkoutUrl);
-    u.searchParams.set("metadata[order_ref]", ref);
-    return u.toString();
+    const url = new URL(checkoutUrl);
+    url.searchParams.set("metadata[order_ref]", ref);
+    return url.toString();
   }
   return checkoutUrl;
 }
@@ -157,27 +157,27 @@ export function buildCheckoutRedirectUrl(
   }
   if (params.length === 0 && !(rail.provider === "creem" && creatorHandle)) return target;
 
-  const u = new URL(target);
-  for (const [key, value] of params) u.searchParams.set(key, value);
-  if (rail.provider === "creem" && creatorHandle && !u.searchParams.has("success_url")) {
+  const url = new URL(target);
+  for (const [key, value] of params) url.searchParams.set(key, value);
+  if (rail.provider === "creem" && creatorHandle && !url.searchParams.has("success_url")) {
     const origin = GLOBAL.delivery.download_origin.replace(/\/$/, "");
-    u.searchParams.set("success_url", `${origin}/books/${creatorHandle}/thanks`);
+    url.searchParams.set("success_url", `${origin}/books/${creatorHandle}/thanks`);
   }
-  return u.toString();
+  return url.toString();
 }
 
 export function checkoutUrlProblem(raw: unknown, expectedMode?: string | null): string | null {
   if (typeof raw !== "string" || raw.trim() === "") return "missing";
-  let u: URL;
+  let url: URL;
   try {
-    u = new URL(raw.trim());
+    url = new URL(raw.trim());
   } catch (err) {
     console.warn("[billing/checkout] malformed rail checkout_url:", err instanceof Error ? err.message : String(err));
     return "malformed";
   }
-  if (u.protocol !== "https:") return "not https";
-  const labels = u.hostname.toLowerCase().split(/[.-]/);
-  const pathSegments = u.pathname.toLowerCase().split("/").filter(Boolean);
+  if (url.protocol !== "https:") return "not https";
+  const labels = url.hostname.toLowerCase().split(/[.-]/);
+  const pathSegments = url.pathname.toLowerCase().split("/").filter(Boolean);
   const isSandboxUrl =
     labels.includes("sandbox") ||
     labels.includes("test") ||
