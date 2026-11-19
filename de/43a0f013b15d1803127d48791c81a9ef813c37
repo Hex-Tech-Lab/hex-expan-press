@@ -1,0 +1,141 @@
+web/app/api/billing/checkout/checkout-helpers.ts
+  s_0e99959cd74c50::t_a2e2a0f9e05f99 2
+  s_0e99959cd74c50::t_cd588e92daf2e0 3-5
+  s_0e99959cd74c50::t_bcdd2c05da981b 6-8,79-82,85-86,91,93,159,161-162,164-165,167-168,172,174-176,180,183,185
+docs/ops/PROVIDER_BRANDING_DASHBOARD_CHECKLIST.html
+  s_0e99959cd74c50::t_fcf5ab536d5573 1-464
+docs/ops/PROVIDER_BRANDING_DASHBOARD_CHECKLIST.md
+  s_0e99959cd74c50::t_8afeb959fcbc84 1-121
+payments/src/checkout_branding.ts
+  s_0e99959cd74c50::t_8cb200f39fa8f6 1-84
+payments/src/delivery.ts
+  s_0e99959cd74c50::t_393a51f25130af 41,164-165,276-287,294,298,549,677-678,685,747,750
+payments/src/email.ts
+  s_0e99959cd74c50::t_623db3d7aed2e8 74,88
+payments/src/provider.ts
+  s_0e99959cd74c50::t_a610b68ea4f231 7,9
+payments/src/settings_registry.ts
+  s_0e99959cd74c50::t_5068eaff89b7f4 70-119,149,224-227,295-299,374-379,392-409,613-653,669,701-754,760-765,784,1053-1081,1145-1164,1173,1182-1190,1211-1219,1240-1248,1269-1277,1304-1313,1336-1344,1346,1349,1365-1373,1387,1440-1441,1445-1485
+payments/src/webhook_core.ts
+  s_0e99959cd74c50::t_df96ad9dbc8d58 3-9,76-92,101
+payments/test/checkout_branding.test.ts
+  s_0e99959cd74c50::t_19feb1e987247a 1-131
+payments/test/delivery_db_adapter.test.ts
+  s_0e99959cd74c50::t_4c200be39db155 4,124-143
+payments/test/email.test.ts
+  s_0e99959cd74c50::t_bda57ab4fdb85a 12,46,49
+payments/test/provider_launch_switch.test.ts
+  s_0e99959cd74c50::t_9fe44e7ac02a63 11,14,16,25-29,34
+payments/test/settings_registry_runtime.test.ts
+  s_0e99959cd74c50::t_fd655ab6cc57bb 370-398
+payments/test/webhook_alias_provider_scope.test.ts
+  s_0e99959cd74c50::t_c4198313359f59 1,4,146-156
+scripts/ops/sync_paddle_checkout_styles.ts
+  s_0e99959cd74c50::t_db75ad99430c92 1-72
+scripts/sync_email_roles.ts
+  s_0e99959cd74c50::t_40dba1273ccc9c 1-86
+src/adapters/payments/__tests__/creem.adapter.test.ts
+  s_0e99959cd74c50::t_e299fa4206a750 4,216-234
+src/adapters/payments/__tests__/polar.adapter.test.ts
+  s_0e99959cd74c50::t_6f26e552bba88a 8,198-209
+src/adapters/payments/creem.adapter.ts
+  s_0e99959cd74c50::t_b062fb13e4187b 9,127-148,152-157,159
+src/adapters/payments/legacy.adapter.ts
+  s_0e99959cd74c50::t_afbe45a06a61d6 26,28-30,32,35,51-55
+src/adapters/payments/polar.adapter.ts
+  s_0e99959cd74c50::t_a16fca24b79e5e 20-21,189-191,193
+src/adapters/settings/__tests__/env_settings.adapter.test.ts
+  s_0e99959cd74c50::t_964c93d53302ce 1,3,6-19,30-43
+src/adapters/settings/env_settings.adapter.ts
+  s_0e99959cd74c50::t_4f66f916754f29 2,6,20-22
+src/use_cases/billing/__tests__/process_billing_webhook.test.ts
+  s_0e99959cd74c50::t_76dfc36022261a 214-222,224-233,2142-2166
+src/use_cases/billing/process_billing_webhook.ts
+  s_0e99959cd74c50::t_2688b905eb11bf 18,721-723
+supabase/templates/confirmation.html
+  s_0e99959cd74c50::t_cddf116c3dce15 14
+supabase/templates/magic_link.html
+  s_0e99959cd74c50::t_112de4ad950702 14
+web/__tests__/email-roles.test.ts
+  s_0e99959cd74c50::t_58e74764d16b10 1-45
+web/__tests__/storefront.test.ts
+  s_0e99959cd74c50::t_69095d71320a2c 2,24-47
+web/app/api/billing/checkout/__tests__/route.test.ts
+  s_0e99959cd74c50::t_cb47e313117373 1780-1814
+web/app/api/billing/webhook/__tests__/fungies-refund-dlq.test.ts
+  s_0e99959cd74c50::t_8b67d3d982efef 82-88,90-93
+web/app/api/billing/webhook/__tests__/polar-partial-refund.test.ts
+  s_0e99959cd74c50::t_a7387b4fad1943 84-90,92-95
+web/app/api/billing/webhook/__tests__/provider_allowlist.test.ts
+  s_0e99959cd74c50::t_285aa1930d41da 35,37-38,40,42-43,69-75,77-80,148-149,166-167
+web/app/api/billing/webhook/__tests__/total-budget.test.ts
+  s_0e99959cd74c50::t_abf644bd39df0f 56-63,65-69
+web/app/api/billing/webhook/__tests__/valid_signature_malformed_ledger.test.ts
+  s_0e99959cd74c50::t_043db1bd6c3474 51-57,59-63
+web/app/api/billing/webhook/__tests__/verifiers.test.ts
+  s_0e99959cd74c50::t_ef2596f9b96801 9,13-16,28,30-34
+web/app/api/billing/webhook/verifiers.ts
+  s_0e99959cd74c50::t_c5905f0a49eff5 5-6,8-14,16-41,43,48,54,59
+web/app/books/[handle]/[product]/page.tsx
+  s_0e99959cd74c50::t_a34d0b2af6d600 13,69,109-110
+web/app/books/[handle]/thanks/__tests__/page.test.ts
+  s_0e99959cd74c50::t_3a4377c600ccc4 38-39
+web/app/books/[handle]/thanks/page.tsx
+  s_0e99959cd74c50::t_2c873f10c6d4eb 39
+web/app/checkout/[productId]/page.tsx
+  s_0e99959cd74c50::t_395a5d2ec87a5c 10,65,102-103,118
+web/app/creator/consents/actions.ts
+  s_0e99959cd74c50::t_21f32ef52af72e 9,50
+web/app/creator/consents/page.tsx
+  s_0e99959cd74c50::t_8ab7e7669f3084 4,47
+web/app/creator/dashboard/__tests__/dashboard-client.test.ts
+  s_0e99959cd74c50::t_61192c2671512b 57,70
+web/app/creator/dashboard/dashboard-client.tsx
+  s_0e99959cd74c50::t_16cd1e4099723d 45,56-70,88,243,320
+web/app/creator/dashboard/page.tsx
+  s_0e99959cd74c50::t_a30e8520c53522 3,169
+web/app/creator/review/page.tsx
+  s_0e99959cd74c50::t_649b2de6d1f4d5 3,74
+web/app/page.tsx
+  s_0e99959cd74c50::t_664d14fc4bb03f 2,30
+web/public/books/legal/privacy.html
+  s_0e99959cd74c50::t_9b9c23ee3fd47f 37,75
+web/public/books/legal/refund-policy.html
+  s_0e99959cd74c50::t_44360bb8b027f4 54,57
+web/public/books/legal/terms.html
+  s_0e99959cd74c50::t_02355bdb3e1d16 76
+web/public/privacy.html
+  s_0e99959cd74c50::t_6d19d388b1f063 37,75
+web/public/refund-policy.html
+  s_0e99959cd74c50::t_c738f30226330e 49,52
+web/public/terms.html
+  s_0e99959cd74c50::t_8dfef91219d073 65
+web/src/components/billing/paddle-checkout-button.tsx
+  s_0e99959cd74c50::t_159ddb8119236d 24,34,59-63,82,90
+web/src/components/landing/landing-page.tsx
+  s_0e99959cd74c50::t_b4e71c329e068b 473,620
+web/src/components/storefront/storefront.tsx
+  s_0e99959cd74c50::t_8cd48d5c550d49 76-103,315,327,355,363,382-383
+web/src/lib/__tests__/paddle-overlay.test.ts
+  s_0e99959cd74c50::t_4fd75d58173093 66,99-109
+web/src/lib/paddle-overlay-server.ts
+  s_0e99959cd74c50::t_8704d9a7b199f5 7,45,55
+web/src/lib/paddle-overlay.ts
+  s_0e99959cd74c50::t_2ed843916505f5 45,48-52,55-65,75,86-90
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "de43a0f013b15d1803127d48791c81a9ef813c37",
+  "prompts": {},
+  "sessions": {
+    "s_0e99959cd74c50": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "21b00acc-7513-46d6-9a35-038af7845be2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
