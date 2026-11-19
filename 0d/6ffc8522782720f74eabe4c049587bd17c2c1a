@@ -1,0 +1,18 @@
+docs/agent_ledger.jsonl
+  h_e6b68dcbbd0983 976-978
+web/__tests__/book-previewer.test.ts
+  h_e6b68dcbbd0983 60,91-96,346-384
+web/src/components/storefront/book-previewer.tsx
+  h_e6b68dcbbd0983 235
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0d6ffc8522782720f74eabe4c049587bd17c2c1a",
+  "prompts": {},
+  "humans": {
+    "h_e6b68dcbbd0983": {
+      "author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
