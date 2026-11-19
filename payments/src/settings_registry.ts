@@ -73,6 +73,7 @@ export interface GlobalSettings {
     webhook_lock_fence_suffix: string;
     http_timeout_ms: number; // webhook-internal call budget: Paddle customer-email lookup AND the 503 audit insert (must stay short)
     sync_http_timeout_ms: number; // operator CLI (sync_book_identity) calls to Supabase/Paddle
+    sync_products_query_limit: number; // operator CLI: max products rows read to pick the book target; reaching it fails closed
     review_queue_page_size: number; // listManualReviewRefunds default page/limit
     /** Retry-After seconds sent on 503 webhook responses (in-flight AND generic 503 paths). */
     retry_after_seconds: number;
@@ -199,6 +200,7 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     webhook_lock_fence_suffix: ":fence",
     http_timeout_ms: 5000,
     sync_http_timeout_ms: 30000,
+    sync_products_query_limit: 500,
     review_queue_page_size: 200,
     retry_after_seconds: 30,
     creem_accept_test_mode: false,
@@ -329,6 +331,7 @@ export const PAYMENTS_LIMITS = {
   webhook_lock_fence_ttl_seconds: { min: 300, max: 2592000 },
   http_timeout_ms: { min: 1000, max: 30000 },
   sync_http_timeout_ms: { min: 1000, max: 120000 },
+  sync_products_query_limit: { min: 1, max: 5000 },
   review_queue_page_size: { min: 1, max: 1000 },
   retry_after_seconds: { min: 1, max: 600 },
 } as const;
@@ -408,6 +411,7 @@ export function loadPaymentsSection(raw: Record<string, unknown> | undefined): G
   const webhookLockFenceSuffix = keyToken("webhook_lock_fence_suffix");
   const httpTimeout = num("http_timeout_ms");
   const syncHttpTimeout = num("sync_http_timeout_ms");
+  const syncProductsQueryLimit = num("sync_products_query_limit");
   // Validate BEFORE the fallback warning below, so an invalid value is reported, not silently defaulted.
   const reviewQueuePageSize = num("review_queue_page_size");
   const retryAfterSeconds = num("retry_after_seconds");
@@ -456,6 +460,7 @@ export function loadPaymentsSection(raw: Record<string, unknown> | undefined): G
     webhook_lock_fence_suffix: webhookLockFenceSuffix,
     http_timeout_ms: httpTimeout,
     sync_http_timeout_ms: syncHttpTimeout,
+    sync_products_query_limit: syncProductsQueryLimit,
     review_queue_page_size: reviewQueuePageSize,
     retry_after_seconds: retryAfterSeconds,
     paddle: { api_base: { production: apiProduction, sandbox: apiSandbox }, js_cdn_url: jsCdn },

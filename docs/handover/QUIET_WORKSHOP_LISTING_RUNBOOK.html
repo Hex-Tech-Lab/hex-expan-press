@@ -179,13 +179,25 @@ Workshop: listing runbook (not executed)</h1>
 <code>feat/quiet-workshop-listing</code> (from <code>origin/main</code>
 a2eae74). <strong>Identity file:</strong>
 <code>books/the_quiet_workshop.json</code>.</p>
-<p><strong>Status: NOT READY TO LIST.</strong> This runbook covers the
-production steps only. Nothing was written to production, Paddle,
-storage or any <code>.env</code>. Read-only SQL on the live project was
-used to verify the current state.</p>
-<h2 id="1-blockers">1. Blockers</h2>
+<p><strong>Status: NOT READY TO LIST.</strong> Updated 2026-11-19 (task
+<code>quiet-workshop-sellable</code>): B2, B5, B6 and B7 are cleared. B1
+is partly cleared: a text-clean master exists, but no sellable export
+does. Two new blockers were found: B10 (the source holds chapter 1 of
+the 12 listed) and B11 (no repeatable export pipeline). This runbook
+covers the production steps only. Nothing was written to production,
+Paddle, storage or any <code>.env</code>. Read-only SQL on the live
+project was used to verify the state before this update.</p>
+<h2 id="blockers">1. Blockers</h2>
 <p>Each blocker must clear before the step that depends on it runs.</p>
-<table>
+<table style="width:100%;">
+<colgroup>
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+<col style="width: 16%" />
+</colgroup>
 <thead>
 <tr>
 <th>ID</th>
@@ -193,6 +205,7 @@ used to verify the current state.</p>
 <th>Evidence (checked)</th>
 <th>Owner</th>
 <th>Clears when</th>
+<th>Status (2026-11-19)</th>
 </tr>
 </thead>
 <tbody>
@@ -200,29 +213,36 @@ used to verify the current state.</p>
 <td>B1</td>
 <td>The local sample PDF is not sellable.</td>
 <td><code>data/books/house_expanpress/the_quiet_workshop/ExpanPress_TheQuietWorkshop_EliasHartwell_2026.pdf</code>
-(11 pages, sha256 <code>a06f9979...ebe0a8</code>) shows "SAMPLE COPY ·
-NOT FOR SALE" on page 1 and "Not for sale" in the body.</td>
+(sha256 <code>a06f9979...ebe0a8</code>) is still the old sample: “SAMPLE
+COPY · NOT FOR SALE” on page 1 and “Not for sale” in the body.</td>
 <td>Founder</td>
 <td>A buyer-clean release PDF exists, with its own sha256, and the
 founder approves it.</td>
+<td>PARTLY CLEARED. A text-clean master is built and checked (§7). Not
+cleared: the export (B11) and the content (B10). The release path was
+not replaced.</td>
 </tr>
 <tr>
 <td>B2</td>
 <td>The author credit describes a made-up person.</td>
-<td>The PDF body reads "Elias Hartwell is a made-up name for this
-sample. The publisher is ExpanPress."</td>
+<td>The old PDF body reads “Elias Hartwell is a made-up name for this
+sample. The publisher is ExpanPress.”</td>
 <td>Founder, with legal review</td>
 <td>The founder decides the byline (see D4).</td>
+<td>CLEARED by the founder’s decision on 2026-11-19: byline “Elias
+Hartwell”, pen-name line “Elias Hartwell is a pen name. Published by
+ExpanPress.” Still open: D4-B requires legal review before listing.</td>
 </tr>
 <tr>
 <td>B3</td>
 <td>Paddle live account is not approved.</td>
 <td><code>docs/handover/THOS_KYC_ROLLING.md</code>, 2026-11-12 and
-2026-11-17 entries: Paddle KYC "NOT STARTED";
+2026-11-17 entries: Paddle KYC “NOT STARTED”;
 <code>pay.expanpress.com</code> pending review.</td>
 <td>Founder</td>
 <td>Paddle approves the live account. Live products cannot be created
 before that.</td>
+<td>OPEN. Not changed in this task.</td>
 </tr>
 <tr>
 <td>B4</td>
@@ -235,16 +255,24 @@ line 199).</td>
 <td>Founder</td>
 <td>C1, C2 and C3 are given for the house creator through the e-sign
 flow.</td>
+<td>OPEN.</td>
 </tr>
 <tr>
 <td>B5</td>
-<td>The sync script handles one book only.</td>
-<td><code>payments/sync_book_identity.ts</code> line 50 throws "sync
-target ambiguous" when more than one <code>products</code> row carries
-<code>book_registry</code>. Live: exactly one row (Duane). Adding this
-book breaks the Duane sync.</td>
+<td>The sync script handled one book only.</td>
+<td><code>payments/sync_book_identity.ts</code> threw “sync target
+ambiguous” when more than one <code>products</code> row carried
+<code>book_registry</code>. Live: exactly one row (Duane).</td>
 <td>Code (PR)</td>
 <td>The target is chosen by book id or product id, with tests.</td>
+<td>CLEARED on branch <code>feat/quiet-workshop-listing</code>.
+<code>--book &lt;id&gt;</code> and
+<code>--product &lt;products.id&gt;</code> select the target. With no
+selector and two books it fails closed and names the choices. The
+single-book Duane path is unchanged. Tests:
+<code>payments/test/sync_book_selection.test.ts</code> (23) and
+<code>payments/test/book_identity.test.ts</code>. The 500-row read limit
+moved to the registry (<code>sync_products_query_limit</code>).</td>
 </tr>
 <tr>
 <td>B6</td>
@@ -253,14 +281,19 @@ book breaks the Duane sync.</td>
 The sync writes it to the Paddle product description.</td>
 <td>Founder</td>
 <td>The founder supplies the subtitle.</td>
+<td>CLEARED: “Twelve Practical Projects for a Small Home Bench”, the
+wording in <code>manuscript.md</code>. The cover sets the same words in
+sentence case.</td>
 </tr>
 <tr>
 <td>B7</td>
 <td>The price is not approved.</td>
 <td><code>books/the_quiet_workshop.json</code> <code>price.usd</code> =
-9.00, status PROPOSED.</td>
+9.00.</td>
 <td>Founder</td>
 <td>The founder approves a price (see D1).</td>
+<td>CLEARED: $9.00 USD, approved by the founder on 2026-11-19
+(D1-A).</td>
 </tr>
 <tr>
 <td>B8</td>
@@ -270,6 +303,8 @@ checkout route both require <code>products.release_sha256</code> to
 equal the C2 <code>document_sha256</code>.</td>
 <td>Ops</td>
 <td>After B1 and B4.</td>
+<td>OPEN. The sha256 of the unexported master (§7) must not be used
+here.</td>
 </tr>
 <tr>
 <td>B9</td>
@@ -278,75 +313,100 @@ equal the C2 <code>document_sha256</code>.</td>
 read.</td>
 <td>Ops</td>
 <td>Verify with the Paddle dashboard or a direct read before S6.</td>
+<td>OPEN.</td>
+</tr>
+<tr>
+<td>B10</td>
+<td>The source is chapter 1 of the 12 listed.</td>
+<td><code>manuscript/sample_book/manuscript.md</code> holds the front
+matter and Chapter 1 only. Its Contents lists twelve chapters. A
+repo-wide search for “quiet workshop” finds no other manuscript. Selling
+this file as the book would sell one chapter under a 12-chapter
+description.</td>
+<td>Founder</td>
+<td>The full 12-chapter manuscript is supplied and checked; or the
+founder decides to sell a different product (for example a sample), with
+a title and description that match its content.</td>
+<td>OPEN, critical. Blocks B1 and B8.</td>
+</tr>
+<tr>
+<td>B11</td>
+<td>No repeatable export pipeline (optimisation, hashing, fingerprint,
+watermark).</td>
+<td><code>docs/handover/THOS_KYC_ROLLING.md</code> (2026-11-18 entry):
+“standard PDF optimisation step (founder Acrobat recipe -&gt; repeatable
+tool)” is OPEN. <code>scripts/watermark_pdf.py</code> has no buyer
+purpose, drops <code>/StructTreeRoot</code> (AGENTS.md P-36: Acrobat and
+Edge then show blank pages), and has the overlay defects recorded in
+<code>docs/integrations/pdf-stamping-decision.html</code>. The per-buyer
+stamp design (pdf-lib, option B) is a 2026-10-31 recommendation, not
+built.</td>
+<td>Code, plus a founder decision on the stamp design</td>
+<td>An optimisation tool reproduces the ~500 KB Acrobat result. A
+per-buyer stamp design is chosen and built. The export passes a tag
+check, <code>pdftotext</code>, and
+<code>scripts/pdf_a11y_check.sh</code>.</td>
+<td>OPEN. Blocks B1 and B8.</td>
 </tr>
 </tbody>
 </table>
-<h2 id="2-decisions">2. Decisions</h2>
+<h2 id="decisions">2. Decisions</h2>
 <p>Each option lists the industry norm, the recommendation, and the
 trade-offs.</p>
-<p><strong>D1. Price (B7).</strong></p>
-<ul>
-<li><strong>A. $9.00 (recommended, PROPOSED).</strong> Standard for a
+<p><strong>D1. Price (B7).</strong> Decided 2026-11-19: option A. -
+<strong>A. $9.00 (APPROVED by the founder).</strong> Standard for a
 single-PDF product that is bought on impulse. Sits well below the $39
 flagship. Why yes: low friction for a first sale. Why no: the fixed
 per-transaction fee is a larger share of a low price, so check the
-Paddle fee schedule before the final choice.</li>
-<li>B. $19.00. Standard for a full-length guide. Why yes: better margin
-per sale. Why no: higher friction for a sample-scale product.</li>
-<li>C. $4.99. Why yes: lowest friction. Why no: the fixed fee can exceed
-a large share of the revenue.</li>
-<li>Not an option: $0. The <code>price_usd</code> column is
-<code>CHECK (price_usd &gt; 0)</code>.</li>
-</ul>
-<p><strong>D2. Creator of record.</strong></p>
-<ul>
-<li><strong>A. House creator <code>expanpress_house</code>
-(recommended).</strong> Industry norm: an imprint model, where the
-publisher is the seller of record. Why yes: the founder can sign the
-consents as a real person. The handle is not reserved (checked against
-<code>GLOBAL.handles.reserved</code>). Why no: the storefront shows
-"ExpanPress" as the creator.</li>
-<li>B. A creator row named for the fictional author. Not viable: no real
-person exists to sign C1, C2 or C3.</li>
-<li>C. The existing test creator. Rejected: test identities must not
-appear in the live namespace (ADR 0065, rule 4), and the test creator is
-not a real signer.</li>
-</ul>
-<p><strong>D3. Release file (B1).</strong></p>
-<ul>
-<li><strong>A. A new buyer-clean PDF (recommended).</strong> Industry
-norm: the sold file is the final artifact, and it carries no sample or
-draft markers. Why yes: it is the only thing a buyer can legitimately
-receive. Why no: it needs production time.</li>
-<li>B. Sell the existing sample. Rejected: it is marked "NOT FOR SALE"
-in its own text.</li>
-</ul>
-<p><strong>D4. Byline (B2).</strong></p>
-<ul>
-<li><strong>A. Publisher-only credit: "ExpanPress"
-(recommended).</strong> Requires a
-<code>books/the_quiet_workshop.json</code> change to
-<code>author</code>. Why yes: no fictional person appears on a paid
-page. Why no: the title loses the named-author framing.</li>
-<li>B. Keep "Elias Hartwell" as the author with an explicit pen-name
-disclosure. Requires legal review before listing. Why yes: matches the
-founder's stated intent. Why no: a made-up name on a paid listing
-carries a misrepresentation risk.</li>
-</ul>
-<h2 id="3-production-steps-in-order">3. Production steps (in order)</h2>
-<p>Each write step needs the founder's explicit approval, recorded in
+Paddle fee schedule before the final choice. - B. $19.00. Standard for a
+full-length guide. Why yes: better margin per sale. Why no: higher
+friction for a sample-scale product. - C. $4.99. Why yes: lowest
+friction. Why no: the fixed fee can exceed a large share of the revenue.
+- Not an option: $0. The <code>price_usd</code> column is
+<code>CHECK (price_usd &gt; 0)</code>.</p>
+<p><strong>D2. Creator of record.</strong> - <strong>A. House creator
+<code>expanpress_house</code> (recommended).</strong> Industry norm: an
+imprint model, where the publisher is the seller of record. Why yes: the
+founder can sign the consents as a real person. The handle is not
+reserved (checked against <code>GLOBAL.handles.reserved</code>). Why no:
+the storefront shows “ExpanPress” as the creator. - B. A creator row
+named for the pen name. Not viable: no real person exists to sign C1, C2
+or C3. - C. The existing test creator. Rejected: test identities must
+not appear in the live namespace (ADR 0065, rule 4), and the test
+creator is not a real signer.</p>
+<p><strong>D3. Release file (B1).</strong> - <strong>A. A new
+buyer-clean PDF (recommended).</strong> Industry norm: the sold file is
+the final artifact, and it carries no sample or draft markers. Why yes:
+it is the only thing a buyer can legitimately receive. Why no: it needs
+production time, and it needs B10 and B11 cleared first. - B. Sell the
+existing sample. Rejected: it is marked “NOT FOR SALE” in its own
+text.</p>
+<p><strong>D4. Byline (B2).</strong> Decided 2026-11-19: option B, the
+founder’s stated intent. - A. Publisher-only credit: “ExpanPress”
+(recommended by the earlier draft). Why yes: no fictional person appears
+on a paid page. Why no: the title loses the named-author framing. -
+<strong>B. Keep “Elias Hartwell” as the author with an explicit pen-name
+disclosure (chosen).</strong> The disclosure is “Elias Hartwell is a pen
+name. Published by ExpanPress.” It appears on the title page and the
+back cover. Why yes: it matches the founder’s intent and tells the buyer
+the name is a pen name. Why no: it still needs legal review before
+listing, as the earlier draft noted. That review is not verified
+here.</p>
+<h2 id="production-steps-in-order">3. Production steps (in order)</h2>
+<p>Each write step needs the founder’s explicit approval, recorded in
 the ledger, before it runs. Only the steps marked READ run without
 approval.</p>
-<p><strong>S0. Preconditions.</strong> B1 to B9 cleared, or the step
+<p><strong>S0. Preconditions.</strong> B1 to B11 cleared, or the step
 that needs them is held.</p>
 <p><strong>S1. Create the house creator (WRITE, DB).</strong> Confirm
 the <code>public.creators</code> and <code>public.creator_users</code>
 columns with a read first. Then insert the <code>creators</code> row
 (<code>handle</code> = <code>expanpress_house</code>,
 <code>display_name</code> = <code>ExpanPress</code>) and one
-<code>creator_users</code> row for the founder's auth user. Writes go
+<code>creator_users</code> row for the founder’s auth user. Writes go
 through the service role. Verify with a SELECT.</p>
-<p><strong>S2. Upload the release PDF (WRITE, storage).</strong> Bucket
+<p><strong>S2. Upload the release PDF (WRITE, storage).</strong> Upload
+only the exported file (B11). Never upload the unexported master. Bucket
 <code>release-files</code>, private (verified read-only:
 <code>public = false</code>). Proposed object path:
 <code>house_expanpress/the_quiet_workshop/ExpanPress_TheQuietWorkshop_EliasHartwell_2026.pdf</code>.
@@ -358,22 +418,23 @@ object exists after upload, without making it public.</p>
 <p><strong>S3. Insert the product row (WRITE, DB).</strong> Fields:
 <code>creator_id</code> (from S1), <code>slug</code> =
 <code>the_quiet_workshop</code>, <code>title</code>,
-<code>description</code>, <code>price_usd</code> = the approved price,
+<code>description</code>, <code>price_usd</code> = 9.00 (approved),
 <code>currency</code> = <code>USD</code>, <code>store_product_id</code>
 = a unique provider key (proposed
 <code>house_the_quiet_workshop_v1</code>), <code>pdf_file</code> (from
 S2), <code>release_sha256</code> (from S2), <code>release_state</code> =
 <code>release</code>, <code>release_year</code> = 2026,
 <code>checkout_mode</code> = <code>gated</code>. Set
-<code>book_registry</code> = <code>books/the_quiet_workshop.json</code>
-only after B5 is fixed. Otherwise the Duane sync fails. Do not set the
-derived identifier columns. They were dropped on 2026-11-16.</p>
+<code>book_registry</code> = <code>books/the_quiet_workshop.json</code>.
+B5 is fixed on this branch. With two book rows, every sync needs
+<code>--book</code> (see S7). Do not set the derived identifier columns.
+They were dropped on 2026-11-16.</p>
 <p><strong>S4. Record consents (WRITE, legal evidence).</strong> C1 and
-C2 through the creator consent flow. C2's <code>document_sha256</code>
+C2 through the creator consent flow. C2’s <code>document_sha256</code>
 must equal the S2 sha256. C3 through the Firma e-sign flow. Never insert
 consent rows by hand. They are legal evidence. The
 <code>submit_consent</code> RPC rejects a C3 write from any caller that
-is not the service role, which is the e-sign webhook's role
+is not the service role, which is the e-sign webhook’s role
 (<code>20261116142329</code>, line 199).</p>
 <p><strong>S5. Add the Paddle rail (WRITE, DB).</strong>
 <code>public.product_rails</code>: <code>provider</code> =
@@ -382,31 +443,30 @@ true, <code>checkout_url</code> = the Paddle hosted checkout URL for the
 live price. The URL must be <code>https</code>, and a live rail must not
 use a sandbox host (<code>checkoutUrlProblem</code> in
 <code>web/app/api/billing/checkout/route.ts</code>).</p>
-<p><strong>S6. Paddle product and price (EXTERNAL WRITE).</strong></p>
-<ul>
-<li>Live (after B3): create the product with <code>name</code> = title,
+<p><strong>S6. Paddle product and price (EXTERNAL WRITE).</strong> -
+Live (after B3): create the product with <code>name</code> = title,
 <code>description</code> = subtitle, and <code>custom_data</code>
-carrying <code>store_product_id</code>. Create a USD price for the
-approved amount. Record the <code>pro_</code> and <code>pri_</code> ids
-in <code>products.paddle_product_ref</code> and
-<code>products.paddle_price_id</code>.</li>
-<li>Sandbox: the same in the Paddle sandbox. The sync's sandbox apply is
-refused unless <code>--sandbox-db-ref</code> matches the
-<code>SUPABASE_URL</code> project ref (<code>assertApplyAllowed</code>,
+carrying <code>store_product_id</code>. Create a USD price for $9.00.
+Record the <code>pro_</code> and <code>pri_</code> ids in
+<code>products.paddle_product_ref</code> and
+<code>products.paddle_price_id</code>. - Sandbox: the same in the Paddle
+sandbox. The sync’s sandbox apply is refused unless
+<code>--sandbox-db-ref</code> matches the <code>SUPABASE_URL</code>
+project ref (<code>assertApplyAllowed</code>,
 <code>payments/sync_book_identity.ts</code>). Run any sandbox apply only
 against the test project (<code>hex-expan-test</code>), never against
-production.</li>
-</ul>
-<p><strong>S7. Identity sync (REMOTE WRITE, after B5).</strong></p>
-<ol type="1">
-<li><code>PADDLE_ENVIRONMENT=sandbox pnpm exec tsx payments/sync_book_identity.ts --check</code>
+production.</p>
+<p><strong>S7. Identity sync (REMOTE WRITE, after B5 and S3).</strong>
+1.
+<code>PADDLE_ENVIRONMENT=sandbox pnpm exec tsx payments/sync_book_identity.ts --book the_quiet_workshop --check</code>
 (read-only). The script has no dry-run flag. <code>--check</code> is its
-read-only mode.</li>
-<li>Read the mismatch list. Apply only when it matches the expected
-changes.</li>
-<li>Apply, then re-run <code>--check</code> to confirm all targets match
-the registry.</li>
-</ol>
+read-only mode. It prints <code>target:</code> (the registry file and
+the <code>products.id</code> it will touch) before any comparison.
+Without <code>--book</code>, the command fails while two products carry
+a <code>book_registry</code>. That is intended. 2. Read the mismatch
+list. Apply only when it matches the expected changes. 3. Apply with the
+same <code>--book the_quiet_workshop</code>, then re-run
+<code>--check</code> to confirm all targets match the registry.</p>
 <p>The offline payload dry run is in section 5.</p>
 <p><strong>S8. Go live (WRITE, public).</strong> Set
 <code>products.checkout_mode</code> = <code>live</code>. The
@@ -417,6 +477,11 @@ then appears on <code>/books</code> (the live-only query in
 <p><strong>S9. Verification probes (READ-ONLY).</strong> Run P1 to P2
 before S8 (expect the product not listed) and again after it.</p>
 <table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
 <thead>
 <tr>
 <th>ID</th>
@@ -428,7 +493,7 @@ before S8 (expect the product not listed) and again after it.</p>
 <tr>
 <td>P1</td>
 <td><code>curl -sS -o /dev/null -w '%{http_code}\n' https://expanpress.com/books</code></td>
-<td>200. After S8, the body contains "The Quiet Workshop". Before S8, it
+<td>200. After S8, the body contains “The Quiet Workshop”. Before S8, it
 does not.</td>
 </tr>
 <tr>
@@ -463,9 +528,14 @@ route must not return 403 or 500 once live.</td>
 <code>gated</code>. Set the <code>product_rails</code> row to
 <code>active</code> = false. Archive the Paddle product rather than
 deleting it. Never delete consent rows.</p>
-<h2 id="4-time-estimate">4. Time estimate</h2>
+<h2 id="time-estimate">4. Time estimate</h2>
 <p>Estimates, not measurements. Active work only.</p>
 <table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
 <thead>
 <tr>
 <th>Step</th>
@@ -476,24 +546,36 @@ deleting it. Never delete consent rows.</p>
 <tbody>
 <tr>
 <td>Decisions D1 to D4</td>
-<td>15 to 30 min</td>
-<td>Founder</td>
+<td>Done 2026-11-19</td>
+<td>Founder decided D1 (A), D4 (B).</td>
+</tr>
+<tr>
+<td>Full manuscript (B10)</td>
+<td>Not estimated</td>
+<td>The source is one chapter of twelve. Founder decision on the
+product.</td>
+</tr>
+<tr>
+<td>Export pipeline (B11)</td>
+<td>Not estimated</td>
+<td>No repeatable optimisation tool. Per-buyer stamp design is
+undecided.</td>
 </tr>
 <tr>
 <td>Buyer-clean release PDF (B1)</td>
-<td>30 to 60 min</td>
+<td>30 to 60 min after B10 and B11</td>
 <td>Founder or designer</td>
 </tr>
 <tr>
 <td>Paddle live approval (B3)</td>
 <td>Not estimated</td>
-<td>No evidence for a duration. KYC was "not started" on
+<td>No evidence for a duration. KYC was “not started” on
 2026-11-17.</td>
 </tr>
 <tr>
 <td>Sync fix for multiple books (B5)</td>
-<td>1 to 2 h</td>
-<td>Code, tests and PR</td>
+<td>Done 2026-11-19</td>
+<td>Code and tests on <code>feat/quiet-workshop-listing</code>.</td>
 </tr>
 <tr>
 <td>S1 to S3 (creator, upload, product row)</td>
@@ -522,14 +604,19 @@ deleting it. Never delete consent rows.</p>
 </tr>
 </tbody>
 </table>
-<p>Active work after the blockers clear: about 3 to 4 hours, plus the
-Paddle approval wait and the signer turnaround.</p>
-<h2 id="5-appendix-offline-dry-run-2026-11-19">5. Appendix: offline dry
+<p>Active work after the blockers clear: about 2 to 3 hours, plus the
+Paddle approval wait, the signer turnaround, and the B10 and B11 work,
+which is not estimated.</p>
+<h2 id="appendix-offline-dry-run-2026-11-19">5. Appendix: offline dry
 run (2026-11-19)</h2>
 <p>Run with a recording fetch stub, placeholder ids and no network. It
 uses the real <code>loadBookIdentity</code>, <code>applyIdentity</code>,
 <code>fetchTargetState</code> and <code>mismatchList</code>.</p>
 <table>
+<colgroup>
+<col style="width: 50%" />
+<col style="width: 50%" />
+</colgroup>
 <thead>
 <tr>
 <th>Check</th>
@@ -564,7 +651,7 @@ chars)</td>
 <tr>
 <td>Planned Paddle PATCH</td>
 <td>sandbox base, <code>products/&lt;pro_id&gt;</code> with body
-<code>{"name":"The Quiet Workshop","description":"PENDING: ... subtitle"}</code></td>
+<code>{"name":"The Quiet Workshop","description":"&lt;subtitle&gt;"}</code></td>
 </tr>
 <tr>
 <td>Planned reads (<code>--check</code>)</td>
@@ -573,14 +660,34 @@ Paddle <code>products/&lt;pro_id&gt;</code></td>
 </tr>
 </tbody>
 </table>
-<p>The dry run exposes the placeholder subtitle (B6). It would be sent
-to Paddle as the product description.</p>
+<p>The original dry run exposed the placeholder subtitle (B6). That
+subtitle is now set (§7), so the Paddle description in the 2026-11-19
+run would be the real subtitle. Re-run the dry run before S7.</p>
 <p>Dry-run script (not committed):
 <code>/tmp/claude-1001/-home-kellyb-dev-projects-hex-expan/21b00acc-7513-46d6-9a35-038af7845be2/scratchpad/quiet_dryrun.mts</code>.</p>
-<h2 id="6-sources">6. Sources</h2>
+<h2 id="sources">6. Sources</h2>
 <ul>
-<li><code>payments/sync_book_identity.ts</code>,
-<code>payments/book_identity.ts</code></li>
+<li><code>payments/sync_book_identity.ts</code>
+(<code>selectSyncTarget</code>, <code>fetchBookRegistryRows</code>,
+<code>flagValue</code>), <code>payments/book_identity.ts</code></li>
+<li><code>payments/src/settings_registry.ts</code>
+(<code>sync_products_query_limit</code>,
+<code>sync_http_timeout_ms</code>)</li>
+<li><code>payments/test/sync_book_selection.test.ts</code> (two-book
+selection), <code>payments/test/book_identity.test.ts</code>
+(single-book sync)</li>
+<li><code>manuscript/sample_book/</code> (the source; untracked in the
+main repo, so not in the commit): <code>manuscript.md</code>,
+<code>layout.typ</code>, <code>body.typ</code> (generated by
+pandoc)</li>
+<li><code>scripts/watermark_pdf.py</code>,
+<code>scripts/generate_bundle_manifest.py</code>,
+<code>scripts/pdf_a11y_check.sh</code></li>
+<li><code>docs/integrations/pdf-stamping-decision.html</code> (per-buyer
+stamp options, 2026-10-31), <code>AGENTS.md</code> P-36 (tag tree and
+Acrobat)</li>
+<li><code>docs/handover/THOS_KYC_ROLLING.md</code> (2026-11-18 entry:
+optimisation step OPEN)</li>
 <li><code>supabase/migrations/20261007000000_commercial_heritage.sql</code>
 (products and product_rails)</li>
 <li><code>supabase/migrations/20261009000000_launch_trigger_and_audit.sql</code>
@@ -595,6 +702,51 @@ gate)</li>
 storefront)</li>
 <li><code>web/app/api/billing/checkout/route.ts</code> (consent,
 release-hash and rail gates)</li>
+</ul>
+<h2 id="status-log-2026-11-19-task-quiet-workshop-sellable">7. Status
+log: 2026-11-19 (task <code>quiet-workshop-sellable</code>)</h2>
+<ul>
+<li><strong>Source (<code>manuscript/sample_book/</code>, untracked in
+the main repo).</strong> <code>manuscript.md</code>: removed the sample
+Notice block and the “About This Sample” section; both were sample-only
+text. <code>layout.typ</code>: document title and author metadata;
+footer; cover notice; title-page sample lines; the back-cover sample
+paragraph and its “Edition / ISBN / Pages / Chapters” rows; the barcode
+placeholder box and the publisher sub-line. The pen-name line now sits
+on the title page and the back cover. <code>body.typ</code> was
+regenerated with the repo’s pandoc 3.6.4, not hand-edited.</li>
+<li><strong>Master (unexported, for review only).</strong>
+<code>data/books/house_expanpress/the_quiet_workshop/ExpanPress_TheQuietWorkshop_EliasHartwell_2026_master_unexported.pdf</code>.
+Built with typst 0.15.1 from <code>layout.typ</code>. 9 pages,
+11,377,046 bytes, sha256
+<code>c8db06ecaa5cef36c3b39a1f673bdceac2629b94cc90ba333ef2cd404ba41c9f</code>.
+Metadata: Title “The Quiet Workshop”, Author “Elias Hartwell”, tagged
+yes. This file is not the release: it is unoptimised, unhashed for
+release, unwatermarked, and it holds one chapter of twelve (B10).</li>
+<li><strong>Checks on the master.</strong>
+<code>pdftotext -layout</code>: 0 matches for “not for sale”, “made-up”,
+“sample”, “placeholder” and “test” (the old release has 24 matches). The
+pen-name line appears twice. Word diff against the old release: only the
+removed sample text and the page-number shift; the Chapter 1 text is
+identical. Cover, title and back pages were rendered and checked by
+eye.</li>
+<li><strong>Release path unchanged.</strong>
+<code>data/books/house_expanpress/the_quiet_workshop/ExpanPress_TheQuietWorkshop_EliasHartwell_2026.pdf</code>,
+sha256
+<code>a06f99794d61ac8b84bb74071c8f9935e8cc8b2eb016742cd975c1b064ebe0a8</code>
+(the old sample, still NOT FOR SALE). No <code>_sample_backup</code> was
+made, because the release path was not replaced.</li>
+<li><strong>Export not run (B11).</strong> No optimisation step,
+watermark, fingerprint or release upload was run. The founder’s rule is
+to stop when no export pipeline exists, and none does.</li>
+<li><strong>Code.</strong> <code>payments/sync_book_identity.ts</code>,
+<code>payments/src/settings_registry.ts</code>,
+<code>payments/test/sync_book_selection.test.ts</code> (new),
+<code>books/the_quiet_workshop.json</code>. Gates: root
+<code>vitest run</code> 189 files, 2716 passed, 1 skipped;
+<code>pnpm exec tsc --noEmit</code> exit 0;
+<code>pnpm exec eslint src payments</code> 0 errors, 16 warnings, all
+pre-existing and none in the changed files.</li>
 </ul>
 </body>
 </html>

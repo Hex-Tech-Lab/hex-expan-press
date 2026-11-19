@@ -1,7 +1,9 @@
-// Sync the book registry identity (books/duane.json) to the remote surfaces that
+// Sync the book registry identity (books/<id>.json) to the remote surfaces that
 // carry the title: the Supabase public.products row and the Paddle product.
-// Title SSOT discipline (2026-10-01): the title lives in books/duane.json; configs
-// point at it via "book"; this CLI pushes it outward. --check is read-only.
+// Title SSOT discipline (2026-10-01): each book's title and subtitle live in its
+// registry file; the products row names that file in book_registry; this CLI pushes
+// them outward. Several books can share the database, so the operator picks the
+// target with --book <id> and/or --product <products.id>. --check is read-only.
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import dotenv from "dotenv";
@@ -20,38 +22,69 @@ export interface SyncConfig {
   paddle_product_ref: string;
 }
 
-/**
- * DB-backed sync target (Sprint 15 heritage eradication — replaces the
- * config.duane.json read; the product row IS the config now). The CLI syncs
- * the product carrying a book_registry: exactly one must exist, else the
- * target is ambiguous and the sync fails loud instead of guessing.
- */
-const loadSyncConfigFromDb = async (): Promise<SyncConfig> => {
-  const { getSupabaseAdmin } = await import("./src/supabase_admin.ts");
-  const supabase = await getSupabaseAdmin();
-  if (!supabase) {
-    throw new Error("sync_book_identity: SUPABASE_URL/SUPABASE_SECRET_KEY not configured — the DB is the only source of the sync target (fail closed)");
+/** Operator selector for the book target. With neither flag, the sync needs exactly one
+ *  products row that carries a book_registry (the original single-book rule). */
+export interface SyncSelector {
+  /** Book id ("the_quiet_workshop") or its registry path ("books/the_quiet_workshop.json"). */
+  book?: string;
+  /** public.products.id of the target row. */
+  product?: string;
+}
+
+/** The fields of one products row that the target selection reads. */
+export interface BookRegistryRow {
+  id: string;
+  store_product_id: string | null;
+  book_registry: string | null;
+  paddle_product_ref: string | null;
+}
+
+/** Repo-relative registry path for a book reference. "the_quiet_workshop" and
+ *  "books/the_quiet_workshop" both map to "books/the_quiet_workshop.json". */
+export const normaliseBookRef = (ref: string): string => {
+  const slashed = ref.trim().replace(/\\/g, "/").replace(/^\.\//, "");
+  const withDir = slashed.includes("/") ? slashed : `books/${slashed}`;
+  const file = withDir.endsWith(".json") ? withDir : `${withDir}.json`;
+  if (!file.startsWith("books/") || file.split("/").includes("..")) {
+    throw new Error(`sync_book_identity: book reference "${ref}" must name a repo-relative books/<id>.json file`);
   }
-  const PRODUCTS_QUERY_LIMIT = 500;
-  const { data, error } = await supabase
-    .from("products")
-    .select("id, store_product_id, book_registry, paddle_product_ref")
-    .not("book_registry", "is", null)
-    .order("id", { ascending: true })
-    .limit(PRODUCTS_QUERY_LIMIT);
-  if (error) throw new Error(`sync_book_identity: products query failed: ${error.message}`);
-  if (!data || data.length === 0) {
-    throw new Error("sync_book_identity: no products row carries book_registry — nothing to sync");
+  return file;
+};
+
+const describeSelector = (s: SyncSelector): string => {
+  const parts: string[] = [];
+  if (s.book !== undefined) parts.push(`--book ${s.book}`);
+  if (s.product !== undefined) parts.push(`--product ${s.product}`);
+  return parts.join(" ");
+};
+
+/** Pick the sync target from the products rows that carry a book_registry. Pure, so the
+ *  selection rule is testable. It fails loud on zero matches and on any ambiguity, and it
+ *  never guesses which book to write. */
+export const selectSyncTarget = (rows: BookRegistryRow[], selector: SyncSelector): SyncConfig => {
+  const scope = describeSelector(selector);
+  const wantedBook = selector.book === undefined ? undefined : normaliseBookRef(selector.book);
+  const matches = rows.filter(
+    (r) =>
+      typeof r.book_registry === "string" &&
+      r.book_registry !== "" &&
+      (wantedBook === undefined || normaliseBookRef(r.book_registry) === wantedBook) &&
+      (selector.product === undefined || r.id === selector.product),
+  );
+  if (matches.length === 0) {
+    const matching = scope === "" ? "" : ` matching ${scope}`;
+    throw new Error(`sync_book_identity: no products row carries a book_registry${matching} — nothing to sync`);
   }
-  if (data.length >= PRODUCTS_QUERY_LIMIT) {
-    throw new Error(`sync_book_identity: products query reached limit of ${PRODUCTS_QUERY_LIMIT} rows; potential truncation, failing closed`);
+  if (matches.length > 1) {
+    const choices = matches.map((r) => `${normaliseBookRef(r.book_registry ?? "")} (products.id ${r.id})`).join(", ");
+    const subject = scope === "" ? "carry a book_registry" : `match ${scope}`;
+    throw new Error(
+      `sync_book_identity: ${matches.length} products rows ${subject}: ${choices} — sync target ambiguous, failing loud; pass --book <id> and/or --product <products.id>`,
+    );
   }
-  if (data.length > 1) {
-    throw new Error(`sync_book_identity: ${data.length} products carry book_registry — sync target ambiguous, failing loud`);
-  }
-  const row = data[0] as { id: string; store_product_id: string | null; book_registry: string; paddle_product_ref: string | null };
+  const row = matches[0]!;
   const cfg: SyncConfig = {
-    book: row.book_registry,
+    book: normaliseBookRef(row.book_registry ?? ""),
     db_product_id: row.id,
     paddle_product_ref: row.paddle_product_ref ?? "",
   };
@@ -61,6 +94,48 @@ const loadSyncConfigFromDb = async (): Promise<SyncConfig> => {
     }
   }
   return cfg;
+};
+
+/** Read the products rows that carry a book_registry. Fails closed when the read reaches its
+ *  limit, because a truncated list could hide the target. */
+export const fetchBookRegistryRows = async (): Promise<BookRegistryRow[]> => {
+  const { getSupabaseAdmin } = await import("./src/supabase_admin.ts");
+  const supabase = await getSupabaseAdmin();
+  if (!supabase) {
+    throw new Error("sync_book_identity: SUPABASE_URL/SUPABASE_SECRET_KEY not configured — the DB is the only source of the sync target (fail closed)");
+  }
+  const limit = GLOBAL.payments.sync_products_query_limit;
+  const { data, error } = await supabase
+    .from("products")
+    .select("id, store_product_id, book_registry, paddle_product_ref")
+    .not("book_registry", "is", null)
+    .order("id", { ascending: true })
+    .limit(limit);
+  if (error) throw new Error(`sync_book_identity: products query failed: ${error.message}`);
+  const rows = (data ?? []) as BookRegistryRow[];
+  if (rows.length >= limit) {
+    throw new Error(`sync_book_identity: products query reached limit of ${limit} rows; potential truncation, failing closed`);
+  }
+  return rows;
+};
+
+/** DB-backed sync target. The product row IS the config (Sprint 15). Several book rows may
+ *  exist; the selector picks one. The row fetch is injectable so the selection is testable. */
+export const loadSyncConfigFromDb = async (
+  selector: SyncSelector,
+  fetchRows: () => Promise<BookRegistryRow[]> = fetchBookRegistryRows,
+): Promise<SyncConfig> => selectSyncTarget(await fetchRows(), selector);
+
+/** Value of a `--flag value` pair, or undefined when the flag is absent. A flag with no value
+ *  fails closed instead of being read as absent. */
+export const flagValue = (argv: string[], flag: string): string | undefined => {
+  const idx = argv.indexOf(flag);
+  if (idx < 0) return undefined;
+  const value = argv[idx + 1];
+  if (value === undefined || value.startsWith("--")) {
+    throw new Error(`sync_book_identity: ${flag} requires a value`);
+  }
+  return value;
 };
 
 export const resolvePaddleEnvironment = (env: string | undefined): "production" | "sandbox" => {
@@ -313,6 +388,7 @@ export const runSync = async (
   const checkOnly = argv.includes("--check");
   const sandboxDbRefIdx = argv.indexOf("--sandbox-db-ref");
   const sandboxDbRef = sandboxDbRefIdx >= 0 ? argv[sandboxDbRefIdx + 1] : undefined;
+  const selector: SyncSelector = { book: flagValue(argv, "--book"), product: flagValue(argv, "--product") };
   // Validate argv/env BEFORE touching the DB (fail fast, 0 network calls on
   // operator error), then resolve the sync target. Tests inject cfgOverride so
   // the hermetic suite never needs a live Supabase.
@@ -325,8 +401,16 @@ export const runSync = async (
   };
   const targets = resolveTargetsFrom(supaEnv, environment);
   if (!checkOnly) assertApplyAllowed(environment, targets.supabaseBase, sandboxDbRef);
-  const cfg = cfgOverride ?? (await loadSyncConfigFromDb());
+  // A cfgOverride stands in for the one products row the DB would return, so tests reach the
+  // same selection rule as the CLI.
+  const cfg = cfgOverride
+    ? selectSyncTarget(
+        [{ id: cfgOverride.db_product_id, store_product_id: null, book_registry: cfgOverride.book, paddle_product_ref: cfgOverride.paddle_product_ref }],
+        selector,
+      )
+    : await loadSyncConfigFromDb(selector);
   const identity = loadBookIdentity(join(here, "..", cfg.book));
+  stdout.push(`target: ${cfg.book} (products.id ${cfg.db_product_id})`);
   if (checkOnly) {
     const state = await fetchTargetState(targets, cfg, fetchImpl);
     const mismatches = mismatchList(identity, state);

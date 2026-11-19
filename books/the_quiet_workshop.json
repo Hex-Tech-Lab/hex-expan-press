@@ -1,8 +1,9 @@
 {
   "id": "the_quiet_workshop",
   "title": "The Quiet Workshop",
-  "subtitle": "PENDING: founder to supply the subtitle (the sync pushes it to the Paddle product description)",
+  "subtitle": "Twelve Practical Projects for a Small Home Bench",
   "author": "Elias Hartwell",
+  "byline": "Elias Hartwell is a pen name. Published by ExpanPress.",
   "creator": {
     "handle": "expanpress_house",
     "display_name": "ExpanPress",
@@ -13,13 +14,13 @@
   "price": {
     "usd": 9.00,
     "currency": "USD",
-    "status": "PROPOSED: not approved by the founder"
+    "status": "APPROVED by the founder on 2026-11-19"
   },
   "release": {
     "pdf_name": "ExpanPress_TheQuietWorkshop_EliasHartwell_2026.pdf",
     "release_year": 2026,
     "local_source": "data/books/house_expanpress/the_quiet_workshop/ (gitignored)",
-    "status": "BLOCKED: the local PDF is marked 'SAMPLE COPY · NOT FOR SALE' and states the author is a made-up name; a buyer-clean release PDF with its own sha256 is required"
+    "status": "NOT CLEARED: a text-clean master is built from manuscript/sample_book (unexported). The export (optimisation, hashing, fingerprint, watermark) has no repeatable pipeline, and the source holds chapter 1 of the 12 listed. See runbook B1, B10, B11."
   },
   "listing_status": "NOT_LISTED"
 }
