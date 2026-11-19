@@ -261,6 +261,9 @@ export interface BookPreviewSettings {
   flipping_time_ms: number;
   max_shadow_opacity: number;
   swipe_distance_px: number;
+  /** Distance (px) outside the viewport at which the preview starts loading and stops when it is further away.
+   *  The page-flip loop redraws every animation frame while mounted, so the book is mounted only near the viewport. */
+  visibility_margin_px: number;
   show_cover: boolean;
   use_portrait: boolean;
   heading: string;
@@ -365,6 +368,7 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     flipping_time_ms: 600,
     max_shadow_opacity: 0.25,
     swipe_distance_px: 30,
+    visibility_margin_px: 200,
     show_cover: true,
     use_portrait: true,
     heading: "Preview inside the book",
@@ -1227,6 +1231,7 @@ export const BOOK_PREVIEW_LIMITS = {
   flipping_time_ms: { min: 150, max: 2000 },
   max_shadow_opacity: { min: 0, max: 1 },
   swipe_distance_px: { min: 10, max: 120 },
+  visibility_margin_px: { min: 0, max: 1000 },
 } as const;
 
 function isSafeBooksPrefix(v: unknown): v is string {
@@ -1247,7 +1252,8 @@ export function loadBookPreviewSection(raw: Record<string, unknown> | undefined)
       | "min_height_px"
       | "max_height_px"
       | "flipping_time_ms"
-      | "swipe_distance_px",
+      | "swipe_distance_px"
+      | "visibility_margin_px",
   ): number => {
     if (!(key in raw)) return defaults[key];
     const v = raw[key];
@@ -1304,6 +1310,7 @@ export function loadBookPreviewSection(raw: Record<string, unknown> | undefined)
     flipping_time_ms: intField("flipping_time_ms"),
     max_shadow_opacity: floatField("max_shadow_opacity"),
     swipe_distance_px: intField("swipe_distance_px"),
+    visibility_margin_px: intField("visibility_margin_px"),
     show_cover: boolField("show_cover"),
     use_portrait: boolField("use_portrait"),
     heading: strField("heading"),

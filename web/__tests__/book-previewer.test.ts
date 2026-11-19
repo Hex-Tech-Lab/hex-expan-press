@@ -28,6 +28,7 @@ const flipMocks = vi.hoisted(() => ({
     orientation: "portrait" | "landscape";
     currentPage: number;
   }>,
+  renders: [] as Array<{ render: { drawFrame: () => void }; draw: ReturnType<typeof vi.fn> }>,
 }));
 
 vi.mock("pdfjs-dist", () => ({
@@ -56,7 +57,13 @@ vi.mock("pdfjs-dist", () => ({
 vi.mock("page-flip", () => {
   class MockPageFlip {
     private state: (typeof flipMocks.instances)[number];
+    render: { drawFrame: () => void };
     constructor(host: HTMLElement, settings: Record<string, unknown>) {
+      // Like the real library, drawFrame lives on the prototype: an own property overrides it, deleting it restores it.
+      const draw = vi.fn();
+      const render = Object.create({ drawFrame() { draw(); } }) as { drawFrame: () => void };
+      flipMocks.renders.push({ render, draw });
+      this.render = render;
       this.state = {
         host,
         settings,
@@ -260,5 +267,98 @@ describe("BookPreviewer component", () => {
       root = null;
     });
     expect(inst.destroy).toHaveBeenCalledTimes(1);
+  });
+});
+
+const ioMocks = {
+  callbacks: [] as Array<(entries: Array<{ isIntersecting: boolean }>) => void>,
+  fire(isIntersecting: boolean) {
+    for (const cb of ioMocks.callbacks) cb([{ isIntersecting }]);
+  },
+};
+
+class MockIntersectionObserver {
+  constructor(cb: (entries: Array<{ isIntersecting: boolean }>) => void) {
+    ioMocks.callbacks.push(cb);
+  }
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+
+describe("BookPreviewer visibility gate and focus", () => {
+  beforeEach(() => {
+    ioMocks.callbacks = [];
+    flipMocks.renders.length = 0;
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("keeps a visible keyboard focus ring on the page region", async () => {
+    await mountPreviewer();
+    const region = container!.querySelector('[role="region"]') as HTMLElement | null;
+    expect(region).not.toBeNull();
+    expect(region!.className).not.toMatch(/focus:outline-none/);
+  });
+
+  it("mounts the page-flip book only once the section first comes into view", async () => {
+    vi.stubGlobal("IntersectionObserver", MockIntersectionObserver);
+    await mountPreviewer();
+    expect(flipMocks.instances).toHaveLength(0);
+
+    await act(async () => {
+      ioMocks.fire(true);
+    });
+    await flush();
+    await flush();
+    expect(flipMocks.instances).toHaveLength(1);
+  });
+
+  it("pauses the page-flip redraw while the section is out of view and resumes it when it returns", async () => {
+    vi.stubGlobal("IntersectionObserver", MockIntersectionObserver);
+    await mountPreviewer();
+    await act(async () => {
+      ioMocks.fire(true);
+    });
+    await flush();
+    await flush();
+    const { render, draw } = flipMocks.renders[0];
+
+    render.drawFrame();
+    expect(draw).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      ioMocks.fire(false);
+    });
+    render.drawFrame();
+    expect(draw).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      ioMocks.fire(true);
+    });
+    render.drawFrame();
+    expect(draw).toHaveBeenCalledTimes(2);
+  });
+
+  it("stops redrawing and destroys the book when the component unmounts", async () => {
+    vi.stubGlobal("IntersectionObserver", MockIntersectionObserver);
+    await mountPreviewer();
+    await act(async () => {
+      ioMocks.fire(true);
+    });
+    await flush();
+    await flush();
+    const { render, draw } = flipMocks.renders[0];
+
+    await act(async () => {
+      root!.unmount();
+    });
+    root = null;
+    const drawnBefore = draw.mock.calls.length;
+    render.drawFrame();
+    expect(draw.mock.calls.length).toBe(drawnBefore);
+    expect(flipMocks.instances[0].destroy).toHaveBeenCalledTimes(1);
   });
 });

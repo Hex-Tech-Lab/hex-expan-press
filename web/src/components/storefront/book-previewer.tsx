@@ -17,6 +17,7 @@ interface PdfPageLike {
 interface PdfDocLike {
   numPages: number;
   getPage(n: number): Promise<PdfPageLike>;
+  destroy?(): Promise<void>;
 }
 
 export interface BookPreviewerProps {
@@ -61,6 +62,75 @@ export function formatSpreadLabel(spread: number[], totalPages: number, showCove
   return `Pages ${spread[0] + 1}–${spread[spread.length - 1] + 1} of ${totalPages}`;
 }
 
+type Rasterized = { images: string[]; texts: string[] };
+
+type RenderLike = { drawFrame: () => void };
+
+/** page-flip 2.0.7 has no pause or stop. Its requestAnimationFrame loop redraws the canvas every frame and destroy() does not
+ *  cancel it. Pausing replaces drawFrame on the library's render object with a no-op, so the per-frame redraw stops. Resuming
+ *  deletes that override so the library's own method returns. */
+function setRenderPaused(flip: PageFlip | null, paused: boolean): void {
+  const render = (flip as unknown as { render?: RenderLike } | null)?.render;
+  if (!render) return;
+  if (paused) render.drawFrame = () => {};
+  else delete (render as Partial<RenderLike>).drawFrame;
+}
+
+/** Renders the first max_preview_pages pages to PNG data URLs (page 1 is the registry cover when one is set) and their text.
+ *  The pdf.js document is destroyed before this returns, so only the images stay in memory. Returns null when cancelled. */
+async function rasterizePreview(
+  previewPdfUrl: string,
+  coverImageUrl: string | null,
+  settings: BookPreviewSettings,
+  isCancelled: () => boolean,
+): Promise<Rasterized | null> {
+  const pdfjs = await import("pdfjs-dist");
+  pdfjs.GlobalWorkerOptions.workerSrc = settings.pdf_worker_src;
+  const doc = (await pdfjs.getDocument(previewPdfUrl).promise) as unknown as PdfDocLike;
+  try {
+    const count = Math.min(doc.numPages, settings.max_preview_pages);
+    const images: string[] = [];
+    const texts: string[] = [];
+    for (let i = 1; i <= count; i++) {
+      if (isCancelled()) return null;
+      const pdfPage = await doc.getPage(i);
+      if (isCancelled()) return null;
+      const baseVp = pdfPage.getViewport({ scale: 1 });
+      const targetScale = (settings.page_width_px * settings.render_scale) / Math.max(baseVp.width, 1);
+      const vp = pdfPage.getViewport({ scale: targetScale });
+
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.floor(vp.width));
+      canvas.height = Math.max(1, Math.floor(vp.height));
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("Canvas 2D context unavailable");
+
+      if (i === 1 && coverImageUrl) {
+        images.push(coverImageUrl);
+      } else {
+        await pdfPage.render({ canvasContext: ctx, viewport: vp }).promise;
+        images.push(canvas.toDataURL("image/png"));
+      }
+
+      try {
+        const tc = await pdfPage.getTextContent();
+        texts.push(
+          tc.items
+            .map((it) => it.str ?? "")
+            .join(" ")
+            .replace(/\s+/g, " ")
+            .trim(),
+        );
+      } catch {
+        texts.push("");
+      }
+    }
+    return { images, texts };
+  } finally {
+    await doc.destroy?.();
+  }
+}
+
 export default function BookPreviewer({
   previewPdfUrl,
   coverImageUrl = null,
@@ -75,8 +145,30 @@ export default function BookPreviewer({
   const [pageIndex, setPageIndex] = useState(0);
   const [orientation, setOrientation] = useState<Orientation>("landscape");
   const [pageTexts, setPageTexts] = useState<string[]>([]);
+  const sectionRef = useRef<HTMLElement>(null);
+  // Mount on first view; without IntersectionObserver (old browsers, jsdom) mount at once. Afterwards, pause the page-flip
+  // redraw while the section is out of view and resume it when the section returns.
+  const [seen, setSeen] = useState(() => typeof IntersectionObserver === "undefined");
+  const visibleRef = useRef(true);
 
   useEffect(() => {
+    const el = sectionRef.current;
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries.some((entry) => entry.isIntersecting);
+        visibleRef.current = visible;
+        if (visible) setSeen(true);
+        setRenderPaused(flipRef.current, !visible);
+      },
+      { rootMargin: `${settings.visibility_margin_px}px 0px` },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [settings.visibility_margin_px]);
+
+  useEffect(() => {
+    if (!seen) return;
     let disposed = false;
     let pf: PageFlip | null = null;
 
@@ -85,49 +177,8 @@ export default function BookPreviewer({
         setStatus("loading");
         setErrorMessage(null);
 
-        const pdfjs = await import("pdfjs-dist");
-        pdfjs.GlobalWorkerOptions.workerSrc = settings.pdf_worker_src;
-        const doc = (await pdfjs.getDocument(previewPdfUrl).promise) as unknown as PdfDocLike;
-        if (disposed) return;
-
-        const count = Math.min(doc.numPages, settings.max_preview_pages);
-        const images: string[] = [];
-        const texts: string[] = [];
-
-        for (let i = 1; i <= count; i++) {
-          if (disposed) return;
-          const pdfPage = await doc.getPage(i);
-          if (disposed) return;
-          const baseVp = pdfPage.getViewport({ scale: 1 });
-          const targetScale = (settings.page_width_px * settings.render_scale) / Math.max(baseVp.width, 1);
-          const vp = pdfPage.getViewport({ scale: targetScale });
-
-          const canvas = document.createElement("canvas");
-          canvas.width = Math.max(1, Math.floor(vp.width));
-          canvas.height = Math.max(1, Math.floor(vp.height));
-          const ctx = canvas.getContext("2d");
-          if (!ctx) throw new Error("Canvas 2D context unavailable");
-
-          if (i === 1 && coverImageUrl) {
-            images.push(coverImageUrl);
-          } else {
-            await pdfPage.render({ canvasContext: ctx, viewport: vp }).promise;
-            images.push(canvas.toDataURL("image/png"));
-          }
-
-          try {
-            const tc = await pdfPage.getTextContent();
-            texts.push(
-              tc.items
-                .map((it) => it.str ?? "")
-                .join(" ")
-                .replace(/\s+/g, " ")
-                .trim(),
-            );
-          } catch {
-            texts.push("");
-          }
-        }
+        const raster = await rasterizePreview(previewPdfUrl, coverImageUrl, settings, () => disposed);
+        if (!raster) return;
 
         if (disposed || !hostRef.current) return;
 
@@ -160,6 +211,7 @@ export default function BookPreviewer({
           swipeDistance: settings.swipe_distance_px,
           mobileScrollSupport: true,
         });
+        setRenderPaused(pf, !visibleRef.current);
 
         pf.on("init", (e) => {
           if (disposed) return;
@@ -180,10 +232,10 @@ export default function BookPreviewer({
           if (e.data === "portrait" || e.data === "landscape") setOrientation(e.data);
         });
 
-        pf.loadFromImages(images);
+        pf.loadFromImages(raster.images);
         flipRef.current = pf;
-        setTotalPages(images.length);
-        setPageTexts(texts);
+        setTotalPages(raster.images.length);
+        setPageTexts(raster.texts);
         setPageIndex(0);
         setStatus("ready");
       } catch (err) {
@@ -197,6 +249,7 @@ export default function BookPreviewer({
       disposed = true;
       flipRef.current = null;
       if (pf) {
+        setRenderPaused(pf, true);
         try {
           pf.destroy();
         } catch {
@@ -204,7 +257,7 @@ export default function BookPreviewer({
         }
       }
     };
-  }, [previewPdfUrl, coverImageUrl, settings]);
+  }, [previewPdfUrl, coverImageUrl, settings, seen]);
 
   const spreads = buildSpreadGroups(totalPages, orientation, settings.show_cover);
   const spreadIdx = spreadIndexForPage(spreads, pageIndex);
@@ -252,6 +305,7 @@ export default function BookPreviewer({
 
   return (
     <section
+      ref={sectionRef}
       aria-labelledby="book-preview-heading"
       onKeyDown={handleKeyDown}
       data-testid="book-preview-section"
@@ -310,7 +364,7 @@ export default function BookPreviewer({
             role="region"
             aria-label={`Interactive page-turning preview of ${bookTitle}. Use Left and Right arrow keys or Prev and Next buttons to turn pages.`}
             data-orientation={orientation}
-            className={`w-full flex justify-center focus:outline-none ${status === "loading" ? "sr-only" : ""}`}
+            className={`w-full flex justify-center ${status === "loading" ? "sr-only" : ""}`}
           />
         </div>
       )}
