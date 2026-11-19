@@ -1,17 +1,22 @@
 import { describe, it, expect, vi } from "vitest";
 import { deliverSale, StaleFenceError, type DeliveryDeps } from "../src/delivery";
 
+// A fixed 32-byte test key for the held-claim message store. Never a real key.
+const TEST_LINK_KEY = Buffer.alloc(32, 7);
+
 // Two providers can issue the same sale ID. A delivery confirmed for one must not
 // stop the other provider's buyer from getting a link. Sourcery, PR #112.
 function providerScopedDeps() {
   const confirmed = new Set<string>();
   const sendClaims = new Map<string, { state: "claimed" | "sent"; fence: number }>();
+  const messages = new Map<string, string>();
   const sendEmail = vi.fn(async () => ({ id: "e1" }));
   const deps: DeliveryDeps = {
     db: {
       productForAlias: vi.fn(async () => ({ id: "11111111-1111-4111-8111-111111111111", title: "Playbook", releasePath: "p/file.pdf" })),
       recordLinkIssued: vi.fn(async () => true),
       releaseLinkIssued: vi.fn(async () => undefined),
+      linkStillIssued: vi.fn(async () => true),
       deliveryConfirmed: vi.fn(async (provider: string, saleId: string) => confirmed.has(`${provider}:${saleId}`)),
       confirmDelivery: vi.fn(async ({ provider, saleId }: { provider: string; saleId: string }) => {
         confirmed.add(`${provider}:${saleId}`);
@@ -44,6 +49,7 @@ function providerScopedDeps() {
           throw new StaleFenceError("delivery_sends", k, f, existing?.fence);
         }
         existing.state = "sent";
+        messages.delete(k); // the sent write clears the stored message, as in the Supabase store
         existing.fence = f;
       }),
       releaseDeliverySend: vi.fn(async ({ provider, saleId, sendKind, fence }) => {
@@ -51,13 +57,23 @@ function providerScopedDeps() {
         const existing = sendClaims.get(k);
         if (existing?.state === "claimed" && (fence === undefined || existing.fence <= fence)) {
           sendClaims.delete(k);
+          messages.delete(k);
         }
       }),
+      storeClaimMessage: vi.fn(async ({ provider, saleId, sendKind, fence, ciphertext }) => {
+        const k = `${provider}:${saleId}:${sendKind}`;
+        const existing = sendClaims.get(k);
+        if (!existing || existing.state !== "claimed" || existing.fence > (fence ?? 0) || messages.has(k)) {
+          throw new StaleFenceError("delivery_sends", k, fence ?? 0, existing?.fence);
+        }
+        messages.set(k, ciphertext);
+      }),
+      readClaimMessage: vi.fn(async ({ provider, saleId, sendKind }) => messages.get(`${provider}:${saleId}:${sendKind}`) ?? null),
     },
     sendEmail,
     createShortLink: vi.fn(async (u: string) => `https://go.expanpress.com/abc?to=${encodeURIComponent(u)}`),
     origin: "https://expanpress.com",
-    replyTo: "support@expanpress.com",
+    replyTo: "support@expanpress.com", linkKey: TEST_LINK_KEY,
     now: () => new Date("2026-10-15T12:00:00Z"),
     newToken: () => "T".repeat(43),
   };

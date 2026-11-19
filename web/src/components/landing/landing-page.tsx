@@ -24,6 +24,7 @@ import {
 } from "framer-motion";
 import Link from "next/link";
 import JourneyDots from "../journey/journey-dots";
+import { ArrowIcon, BrandFooter, BrandFrame, BrandWordmark } from "../brand/brand";
 import { memo, useCallback, useRef, useState, useSyncExternalStore, useTransition } from "react";
 
 /** True only when the device has a fine pointer (hover-capable mouse) — tilt
@@ -57,12 +58,6 @@ const BEAT = 0.09; // seconds between staggered constructions — the page's pul
 const SHADOW_LIFT = "0 32px 72px rgba(0,0,0,0.05), 0 2px 6px rgba(0,0,0,0.02)";
 
 /* ----------------------------------------------------------------- icons */
-
-const ArrowIcon = ({ className = "w-3.5 h-3.5" }: { className?: string }) => (
-  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
-    <path d="M5 12h14M12 5l7 7-7 7" />
-  </svg>
-);
 
 const DockIcon = ({ d }: { d: string }) => (
   <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
@@ -491,153 +486,140 @@ export default function LandingPage({ onboarding }: { onboarding: boolean }) {
   const bentoItem = bentoItemVariants(reduced);
 
   return (
-    <div className="min-h-screen p-4 sm:p-8 md:p-12 flex flex-col justify-between pb-32 lg:pb-12 overflow-x-clip">
-      <div className="max-w-[1240px] w-full mx-auto flex flex-col gap-6 md:gap-8">
-        {/* Header — words construct upward */}
-        <motion.header variants={rise} initial="hidden" animate="show" className="flex items-start justify-between">
-          <div>
-            <h1 className="text-3xl sm:text-4xl md:text-5xl tracking-tight text-gray-900 font-normal">
-              Hello, <span className="font-bold">creator</span>
-            </h1>
-            <p className="text-sm sm:text-base text-gray-600 mt-1 sm:mt-2">
-              A dedicated publishing house for <b className="text-gray-700 font-medium">your lived wisdom</b> and{" "}
-              <b className="text-gray-700 font-medium">lasting legacy</b>.
-            </p>
-          </div>
-          <Link href="/" className="text-xl sm:text-2xl font-bold tracking-tight text-gray-900 group">
-            <span className="text-gray-600 font-light">{"{"}</span>
-            <span className="text-gray-900">expanpress</span>
-            <span className="text-gray-600 font-light">{"}"}</span>
-          </Link>
-        </motion.header>
+    <BrandFrame outerClassName="justify-between pb-32 lg:pb-12">
+      {/* Header — words construct upward */}
+      <motion.header variants={rise} initial="hidden" animate="show" className="flex items-start justify-between">
+        <div>
+          <h1 className="text-3xl sm:text-4xl md:text-5xl tracking-tight text-gray-900 font-normal">
+            Hello, <span className="font-bold">creator</span>
+          </h1>
+          <p className="text-sm sm:text-base text-gray-600 mt-1 sm:mt-2">
+            A dedicated publishing house for <b className="text-gray-700 font-medium">your lived wisdom</b> and{" "}
+            <b className="text-gray-700 font-medium">lasting legacy</b>.
+          </p>
+        </div>
+        <BrandWordmark href="/" />
+      </motion.header>
 
-        <div className="flex flex-col lg:flex-row gap-5 md:gap-7 items-stretch">
-          {/* Dock — desktop rail; tablet/mobile: fixed bottom glass bar */}
-          <motion.nav
-            variants={rise}
-            initial="hidden"
-            animate="show"
-            className="hidden lg:flex flex-col justify-center items-center gap-4 py-6 px-3 rounded-full glass-card dock-shadow shrink-0 self-center border border-white/90"
-            aria-label="Quick Navigation"
-          >
-            {DOCK_ITEMS.slice(0, 2).map((it) => <DockLink key={it.title} {...it} />)}
-            <motion.div
-              className="w-11 h-11 rounded-2xl bg-white border border-peach/50 flex items-center justify-center text-gray-900 font-bold text-sm"
-              animate={reduced ? undefined : { boxShadow: ["0 2px 14px rgba(255,158,128,0.35)", "0 2px 22px rgba(255,158,128,0.6)", "0 2px 14px rgba(255,158,128,0.35)"] }}
-              transition={{ duration: 2.6, repeat: Infinity, ease: "easeInOut" }}
-            >
-              {"{ }"}
-            </motion.div>
-            {DOCK_ITEMS.slice(2).map((it) => <DockLink key={it.title} {...it} />)}
-          </motion.nav>
-
-          <motion.nav
-            initial={reduced ? { opacity: 0 } : { opacity: 0, y: 70 }}
-            animate={reduced ? { opacity: 1 } : { opacity: 1, y: 0, transition: settle(0.6, 0.35) }}
-            style={{ bottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}
-            className="lg:hidden fixed inset-x-3 z-50 flex justify-center items-center gap-3 px-4 py-2.5 rounded-full glass-card dock-shadow border border-[#dcc7b4]"
-            aria-label="Quick Navigation"
-          >
-            {DOCK_ITEMS.slice(0, 2).map((it) => <DockLink key={it.title} {...it} />)}
-            <div className="w-10 h-10 rounded-2xl bg-white border border-peach/50 flex items-center justify-center text-gray-900 font-bold text-sm shrink-0">
-              {"{" }
-            </div>
-            {DOCK_ITEMS.slice(2).map((it) => <DockLink key={it.title} {...it} />)}
-          </motion.nav>
-
-          {/* Hero — the charcoal slab; blobs drift on scroll, aura breathes */}
-          <HeroCard heroRef={heroRef} reduced={Boolean(reduced)} blobY={blobY} blobY2={blobY2} />
-
-          {/* Bento — pointer-3D cards; click splits the page */}
+      <div className="flex flex-col lg:flex-row gap-5 md:gap-7 items-stretch">
+        {/* Dock — desktop rail; tablet/mobile: fixed bottom glass bar */}
+        <motion.nav
+          variants={rise}
+          initial="hidden"
+          animate="show"
+          className="hidden lg:flex flex-col justify-center items-center gap-4 py-6 px-3 rounded-full glass-card dock-shadow shrink-0 self-center border border-white/90"
+          aria-label="Quick Navigation"
+        >
+          {DOCK_ITEMS.slice(0, 2).map((it) => <DockLink key={it.title} {...it} />)}
           <motion.div
-            className="lg:w-[54%] grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-5 [perspective:1200px]"
-            id="how-it-works"
-            variants={bentoContainer}
-            initial="hidden"
-            whileInView="show"
-            viewport={{ once: true, amount: 0.12 }}
+            className="w-11 h-11 rounded-2xl bg-white border border-peach/50 flex items-center justify-center text-gray-900 font-bold text-sm"
+            animate={reduced ? undefined : { boxShadow: ["0 2px 14px rgba(255,158,128,0.35)", "0 2px 22px rgba(255,158,128,0.6)", "0 2px 14px rgba(255,158,128,0.35)"] }}
+            transition={{ duration: 2.6, repeat: Infinity, ease: "easeInOut" }}
           >
-            <AnimatePresence mode="popLayout" initial={false}>
-              {BENTO.map((card, i) => {
-                const Art = card.Art;
-                const isActive = active === i;
-                const isRail = active !== null && !isActive;
-                return (
-                  <motion.div
-                    key={card.title}
-                    id={i === 0 ? "voice" : undefined}
-                                        layout
-                    layoutId={`bento-${i}`}
-                    variants={bentoItem}
-                    transition={APPLE}
-                    style={{ transformStyle: "preserve-3d", scrollMarginTop: "6rem" }}
-                    animate={isRail ? { opacity: 0, scale: 0.95, pointerEvents: "none", transition: { duration: 0.3, ease: EASE } } : undefined}
-                    className={isActive ? "sm:col-span-2 z-10" : ""}
+            {"{ }"}
+          </motion.div>
+          {DOCK_ITEMS.slice(2).map((it) => <DockLink key={it.title} {...it} />)}
+        </motion.nav>
+
+        <motion.nav
+          initial={reduced ? { opacity: 0 } : { opacity: 0, y: 70 }}
+          animate={reduced ? { opacity: 1 } : { opacity: 1, y: 0, transition: settle(0.6, 0.35) }}
+          style={{ bottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}
+          className="lg:hidden fixed inset-x-3 z-50 flex justify-center items-center gap-3 px-4 py-2.5 rounded-full glass-card dock-shadow border border-[#dcc7b4]"
+          aria-label="Quick Navigation"
+        >
+          {DOCK_ITEMS.slice(0, 2).map((it) => <DockLink key={it.title} {...it} />)}
+          <div className="w-10 h-10 rounded-2xl bg-white border border-peach/50 flex items-center justify-center text-gray-900 font-bold text-sm shrink-0">
+            {"{" }
+          </div>
+          {DOCK_ITEMS.slice(2).map((it) => <DockLink key={it.title} {...it} />)}
+        </motion.nav>
+
+        {/* Hero — the charcoal slab; blobs drift on scroll, aura breathes */}
+        <HeroCard heroRef={heroRef} reduced={Boolean(reduced)} blobY={blobY} blobY2={blobY2} />
+
+        {/* Bento — pointer-3D cards; click splits the page */}
+        <motion.div
+          className="lg:w-[54%] grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-5 [perspective:1200px]"
+          id="how-it-works"
+          variants={bentoContainer}
+          initial="hidden"
+          whileInView="show"
+          viewport={{ once: true, amount: 0.12 }}
+        >
+          <AnimatePresence mode="popLayout" initial={false}>
+            {BENTO.map((card, i) => {
+              const Art = card.Art;
+              const isActive = active === i;
+              const isRail = active !== null && !isActive;
+              return (
+                <motion.div
+                  key={card.title}
+                  id={i === 0 ? "voice" : undefined}
+                                      layout
+                  layoutId={`bento-${i}`}
+                  variants={bentoItem}
+                  transition={APPLE}
+                  style={{ transformStyle: "preserve-3d", scrollMarginTop: "6rem" }}
+                  animate={isRail ? { opacity: 0, scale: 0.95, pointerEvents: "none", transition: { duration: 0.3, ease: EASE } } : undefined}
+                  className={isActive ? "sm:col-span-2 z-10" : ""}
+                >
+                  <TiltCard
+                    reduced={Boolean(reduced) || !fine}
+                    active={isActive}
+                    onOpen={() => setActive(i)}
+                    className={`rounded-[32px] glass-card h-full p-6 sm:p-7 flex flex-col justify-between relative overflow-hidden border-[1.5px] border-[#fff2e4] ${isActive ? "card-shadow" : "card-shadow"}`}
                   >
-                    <TiltCard
-                      reduced={Boolean(reduced) || !fine}
-                      active={isActive}
-                      onOpen={() => setActive(i)}
-                      className={`rounded-[32px] glass-card h-full p-6 sm:p-7 flex flex-col justify-between relative overflow-hidden border-[1.5px] border-[#fff2e4] ${isActive ? "card-shadow" : "card-shadow"}`}
-                    >
-                      <div>
-                        <h3 className="text-lg sm:text-xl font-bold tracking-tight text-gray-900">{card.title}</h3>
-                        <p className="text-xs sm:text-sm text-gray-600 mt-1.5 leading-relaxed">{card.body}</p>
-                      </div>
-                      {i === 3 ? (
-                        <JourneyPanel
+                    <div>
+                      <h3 className="text-lg sm:text-xl font-bold tracking-tight text-gray-900">{card.title}</h3>
+                      <p className="text-xs sm:text-sm text-gray-600 mt-1.5 leading-relaxed">{card.body}</p>
+                    </div>
+                    {i === 3 ? (
+                      <JourneyPanel
+                        title={card.title}
+                        reduced={Boolean(reduced)}
+                        active={isActive}
+                        onClose={closeCard}
+                      />
+                    ) : (
+                      <>
+                        <div className="my-4 py-3 flex-1 flex items-center justify-center relative">
+                          <Art reduced={Boolean(reduced)} />
+                        </div>
+                        <DetailSlide
                           title={card.title}
                           reduced={Boolean(reduced)}
-                          active={isActive}
+                          show={isActive}
                           onClose={closeCard}
-                        />
-                      ) : (
-                        <>
-                          <div className="my-4 py-3 flex-1 flex items-center justify-center relative">
-                            <Art reduced={Boolean(reduced)} />
-                          </div>
-                          <DetailSlide
-                            title={card.title}
+                        >
+                          <JourneySteps
+                            steps={DETAILS[i].steps}
+                            journeyStep={0}
+                            interactive={false}
                             reduced={Boolean(reduced)}
-                            show={isActive}
-                            onClose={closeCard}
-                          >
-                            <JourneySteps
-                              steps={DETAILS[i].steps}
-                              journeyStep={0}
-                              interactive={false}
-                              reduced={Boolean(reduced)}
-                              onSelect={noop}
-                            />
-                          </DetailSlide>
-                        </>
-                      )}
-                    </TiltCard>
-                  </motion.div>
-                );
-              })}
-            </AnimatePresence>
-          </motion.div>
-        </div>
-
-        {/* Spotlight bar — launch-state driven (no stale hard-coded claim) */}
-        <SpotlightBar onboarding={onboarding} reduced={Boolean(reduced)} />
-
-        <footer className="flex flex-wrap items-center justify-between gap-3 text-xs text-gray-600 px-2 pb-6 lg:pb-4">
-          <div className="flex items-center gap-2">
-            <span>&copy; 2026 ExpanPress</span>
-            <span>&middot;</span>
-            <span>A private publishing house for creators</span>
-          </div>
-          <div className="flex items-center gap-4">
-            <a href="/privacy.html" className="hover:text-gray-700 transition-colors">Privacy</a>
-            <a href="/terms.html" className="hover:text-gray-700 transition-colors">Terms</a>
-            <a href="/refund-policy.html" className="hover:text-gray-700 transition-colors">Refunds</a>
-            <a href="mailto:support@expanpress.com" className="hover:text-gray-700 transition-colors">support@expanpress.com</a>
-          </div>
-        </footer>
+                            onSelect={noop}
+                          />
+                        </DetailSlide>
+                      </>
+                    )}
+                  </TiltCard>
+                </motion.div>
+              );
+            })}
+          </AnimatePresence>
+        </motion.div>
       </div>
-    </div>
+
+      {/* Spotlight bar — launch-state driven (no stale hard-coded claim) */}
+      <SpotlightBar onboarding={onboarding} reduced={Boolean(reduced)} />
+
+      <BrandFooter tagline="A private publishing house for creators">
+        <a href="/privacy.html" className="hover:text-gray-700 transition-colors">Privacy</a>
+        <a href="/terms.html" className="hover:text-gray-700 transition-colors">Terms</a>
+        <a href="/refund-policy.html" className="hover:text-gray-700 transition-colors">Refunds</a>
+        <a href="mailto:support@expanpress.com" className="hover:text-gray-700 transition-colors">support@expanpress.com</a>
+      </BrandFooter>
+    </BrandFrame>
   );
 }
 

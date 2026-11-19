@@ -15,3 +15,5 @@ export const productHandleRefSchema = z.string().refine((ref) => {
 }, "expected <creator handle>/<product slug>");
 /** A product reference in a URL: a bare slug (shape-checked; the route decides whether it may resolve), its id (guid), or the handle form. */
 export const productRefSchema = z.union([productSlugSchema, guidSchema, productHandleRefSchema]);
+/** Sign-in email (O5): zod's email check, length-bounded by the registry (email_address.max_length). */
+export const emailSchema = z.email().max(GLOBAL.email_address.max_length);

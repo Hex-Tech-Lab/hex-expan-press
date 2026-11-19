@@ -82,6 +82,39 @@ describe('ErrorObservabilityRule', () => {
   });
 
   // R4: a comment documents a swallowed error; it does not handle it.
+  test('still flags a catch whose only return sits inside a nested callback, which does not leave the catch function', () => {
+    expect(unlogged([
+      'export function read(run: () => string, schedule: (f: () => string) => void) {',
+      '  try { return run(); } catch (err) {',
+      '    schedule(() => { return err; });',
+      '  }',
+      '}',
+    ])).toHaveLength(1);
+  });
+
+  test('still flags a retry-loop catch that only runs a cleanup call before the terminal throw', () => {
+    expect(unlogged([
+      'export function read(run: () => string, cleanup: () => void) {',
+      '  for (let attempt = 0; attempt < 3; attempt++) {',
+      '    try { return run(); } catch (e) { cleanup(); }',
+      '  }',
+      "  throw new Error('gave up');",
+      '}',
+    ])).toHaveLength(1);
+  });
+
+  test('does not flag a retry-loop catch that advances the backoff before the terminal throw', () => {
+    expect(unlogged([
+      'export function read(run: () => string) {',
+      '  let delay = 100;',
+      '  for (let attempt = 0; attempt < 3; attempt++) {',
+      '    try { return run(); } catch (e) { delay *= 2; }',
+      '  }',
+      "  throw new Error('gave up');",
+      '}',
+    ])).toHaveLength(0);
+  });
+
   test('still flags a swallowing return that a comment precedes', () => {
     expect(unlogged([
       'export function read(run: () => string) {',
@@ -283,13 +316,19 @@ describe('NumberCoercionGuardRule', () => {
     expect(findings).toHaveLength(0);
   });
 
-  test('skips test files and guarded isNaN / || fallback / ?? literal / Number.isFinite patterns', () => {
+  test('skips test files and explicit || fallback / ?? literal patterns', () => {
     expect(scan(NumberCoercionGuardRule, 'payments/test/fake.test.ts', 'const n = Number(store.get(k));')).toHaveLength(0);
     expect(scan(NumberCoercionGuardRule, 'scripts/cli.ts', [
-      'const isPath = isNaN(Number(arg));',
       'const chunk = Number(raw) || 300;',
       'const limit = Number(getArg("limit") ?? Infinity);',
-      'function check(x: unknown) { const f = Number(x); if (!Number.isFinite(f)) throw new Error("bad"); return f; }',
     ].join('\n'))).toHaveLength(0);
+  });
+
+  // Number(null) and Number("") are 0: finite, an integer, and not NaN. A check AFTER the conversion cannot catch them.
+  test('still flags a Number result that is only checked for finiteness or NaN after the conversion', () => {
+    expect(scan(NumberCoercionGuardRule, 'scripts/cli.ts', [
+      'const isPath = isNaN(Number(arg));',
+      'function check(x: unknown) { const f = Number(x); if (!Number.isFinite(f)) throw new Error("bad"); return f; }',
+    ].join('\n'))).toHaveLength(2);
   });
 });

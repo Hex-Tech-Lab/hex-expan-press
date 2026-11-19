@@ -307,6 +307,47 @@ describe("UnboundedBodyReadRule (V10)", () => {
 });
 
 describe("NonIdempotentRetryRule (V19)", () => {
+  // A for-of over delays has no retry vocabulary, but the POST it sends is the same request on every pass.
+  test("positive: for-of over backoff delays resends the same POST with no method gate", () => {
+    const findings = check(
+      NonIdempotentRetryRule,
+      "scripts/send-with-backoff.ts",
+      `
+      export async function sendWithBackoff(url: string, body: string) {
+        for (const delay of [100, 200, 400]) {
+          try {
+            return await fetch(url, { method: "POST", body });
+          } catch {
+            await new Promise((r) => setTimeout(r, delay));
+          }
+        }
+        throw new Error("gave up");
+      }
+      `,
+    );
+    expect(findings.length).toBe(1);
+    expect(findings[0]?.title).toContain("V19");
+  });
+
+  test("negative control: for-of whose fetch reads the loop variable is per-item, not a replay", () => {
+    const findings = check(
+      NonIdempotentRetryRule,
+      "scripts/post-each.ts",
+      `
+      export async function postEach(files: { url: string }[]) {
+        for (const file of files) {
+          try {
+            await fetch(file.url, { method: "POST" });
+          } catch {
+            console.error("failed", file.url);
+          }
+        }
+      }
+      `,
+    );
+    expect(findings.length).toBe(0);
+  });
+
   test("positive: while-loop retry with fetch and no method gate", () => {
     const findings = check(
       NonIdempotentRetryRule,

@@ -201,6 +201,21 @@ describe("RedisCache", () => {
     await cache.del("k");
     expect(store.has("k")).toBe(false);
   });
+
+  // A set queued behind a pending del owns the key's entry; when the del settles it must not clear that entry.
+  test("a write queued behind a pending delete keeps its own entry when the delete settles", async () => {
+    let releaseDelete: () => void = () => {};
+    const { port } = fakePort({
+      deleteRedisKey: vi.fn(() => new Promise<number>((resolve) => { releaseDelete = () => resolve(1); })),
+    });
+    const cache = createCache(true, port) as { set: (k: string, v: unknown) => Promise<void>; del: (k: string) => Promise<void> };
+    const deleting = cache.del("k");
+    const writing = cache.set("k", 2);
+    await vi.waitFor(() => expect(port.deleteRedisKey).toHaveBeenCalled());
+    releaseDelete();
+    await Promise.all([deleting, writing]);
+    expect(port.setRedisValue).toHaveBeenCalledWith("k", "2", 3600);
+  });
 });
 
 // PR 129 cubic #70: a different-value write queues behind the in-flight one instead of being dropped.

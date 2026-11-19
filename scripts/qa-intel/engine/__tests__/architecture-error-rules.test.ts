@@ -187,6 +187,23 @@ describe('CrossPlatformRule (LF-only split)', () => {
     expect(findings[0]?.why).toContain('1 instance(s)');
   });
 
+  // CRLF platforms leave a trailing \r on the first line of raw error or subprocess text.
+  test('flags an LF split of a raw error message, which keeps a CR on CRLF output', () => {
+    expect(lfFindings([
+      'export function summary(err: Error) {',
+      '  return err.message.split("\\n")[0];',
+      '}',
+    ].join('\n'))).toHaveLength(1);
+  });
+
+  test('does not flag an LF split of an error message after CR normalization', () => {
+    expect(lfFindings([
+      'export function summary(err: Error) {',
+      '  return err.message.replace(/\\r/g, "").split("\\n")[0];',
+      '}',
+    ].join('\n'))).toHaveLength(0);
+  });
+
   // Triage item 10 negative controls.
   test('does not flag a split whose first element is trimmed', () => {
     expect(lfFindings([
@@ -237,16 +254,20 @@ describe('CrossPlatformRule (LF-only split)', () => {
     ].join('\n'))).toHaveLength(1);
   });
 
-  test('skips test files, error.message/stderr line splits, and NDJSON JSON.parse splits', () => {
+  test('skips test files and NDJSON JSON.parse splits, but reports raw stderr and error-message splits', () => {
     const testFile = check(CrossPlatformRule, 'scripts/__tests__/bash.test.ts', [
       'export function parse(out: string) { return out.split("\\n"); }',
     ].join('\n'));
     expect(testFile).toHaveLength(0);
 
+    // Raw subprocess and error text keeps a trailing \r on CRLF platforms, so these splits are reported.
     expect(lfFindings([
       'export function errLine(e: unknown, stderr: string) {',
       '  return stderr.split("\\n").pop() ?? (e instanceof Error ? e.message.split("\\n")[0] : "");',
       '}',
+    ].join('\n'))).toHaveLength(1);
+
+    expect(lfFindings([
       'export function readNdjson(raw: string) {',
       '  const lines = raw.trim().split("\\n").filter(Boolean);',
       '  return lines.map((l) => JSON.parse(l));',

@@ -12,6 +12,9 @@ create table if not exists public.release_stage_events (
 create index if not exists release_stage_events_product_time on public.release_stage_events (product_id, occurred_at);
 alter table public.release_stage_events enable row level security;
 revoke all on public.release_stage_events from anon, authenticated;
+-- Guarded: a fresh replay has no products rows, and the FK would reject the historical backfill. On production the product exists, so the insert runs exactly as applied.
+do $$ begin
+if exists (select 1 from public.products where id = '57596c19-c550-4bde-b17a-e87b86d005c5') then
 insert into public.release_stage_events (product_id, stage, version, occurred_at, source, confidence) values
   ('57596c19-c550-4bde-b17a-e87b86d005c5', 'work_started', null,   '2026-09-19T07:50:34Z', 'ledger docs/agent_ledger.jsonl: first Duane entry', 'ledger'),
   ('57596c19-c550-4bde-b17a-e87b86d005c5', 'draft', 'v5.2', '2026-09-22T18:18:44Z', 'PDF CreationDate, releases/2026-09-22_v5.2-founder-review-fixes', 'file_metadata'),
@@ -25,4 +28,6 @@ insert into public.release_stage_events (product_id, stage, version, occurred_at
   ('57596c19-c550-4bde-b17a-e87b86d005c5', 'draft', 'v6.6', '2026-09-24T15:24:31Z', 'PDF CreationDate, releases/2026-09-24_v6.6', 'file_metadata'),
   ('57596c19-c550-4bde-b17a-e87b86d005c5', 'draft', 'v6.7', '2026-09-24T16:30:59Z', 'PDF CreationDate, releases/2026-09-24_v6.7', 'file_metadata'),
   ('57596c19-c550-4bde-b17a-e87b86d005c5', 'proof', 'v6.8', '2026-09-24T17:57:44Z', 'PDF CreationDate, releases/2026-09-24_v6.8: current proof build; creator review not yet recorded', 'file_metadata');
+end if;
+end $$;
 update public.products set work_started_at = '2026-09-19T07:50:34Z', draft_at = '2026-09-22T18:18:44Z' where id = '57596c19-c550-4bde-b17a-e87b86d005c5' and work_started_at is null;

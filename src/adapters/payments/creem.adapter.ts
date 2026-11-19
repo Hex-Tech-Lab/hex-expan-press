@@ -40,6 +40,9 @@ const CreemCheckoutDataSchema = z.object({
     product: z.string().min(1),
     mode: z.string().optional(),
   }),
+  // Shape only, never format: a paid sale must not be refused on the email's syntax. This schema refuses an address under
+  // 3 characters before booking (400, quarantined). A longer malformed address is booked; the mail provider refuses it on
+  // send, and delivery answers 422 and quarantines the event, with the sale kept.
   customer: z.object({ email: z.string().min(3) }),
 });
 
@@ -115,7 +118,10 @@ export class CreemAdapter implements PaymentProviderPort {
       return { isValid: true, event: { eventType: "ignored", providerName: this.providerName, reason: "Creem checkout not paid" } };
     }
 
-    if (typeof verified.createdAt !== "number") {
+    // Checked before formatting: toISOString() throws RangeError on an out-of-range or non-finite time, which would turn a
+    // signed malformed delivery into an uncaught 500 (a retry loop). Invalid time is a terminal 400.
+    const occurred = typeof verified.createdAt === "number" ? new Date(verified.createdAt) : undefined;
+    if (occurred === undefined || !Number.isFinite(occurred.getTime())) {
       return { isValid: false, error: "Creem delivery has no event time", httpStatus: 400 };
     }
     const event: SaleCompletedEvent = {
@@ -127,7 +133,7 @@ export class CreemAdapter implements PaymentProviderPort {
       currency: data.order.currency.toUpperCase(),
       buyerEmailHash: hashEmail(data.customer.email),
       buyerEmail: data.customer.email,
-      occurredAt: new Date(verified.createdAt).toISOString(),
+      occurredAt: occurred.toISOString(),
       attributionId: cleanAttributionId(data.metadata?.order_ref),
       providerMode: creemProviderMode(data),
       rawPayload: verified.raw,

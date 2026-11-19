@@ -532,14 +532,15 @@ describe("payments/src/ledger", () => {
   });
 
   describe("tolerant local file readers (non-ENOENT, ENOENT, malformed lines)", () => {
-    it("treats non-ENOENT read errors (directory EISDIR) and missing files (ENOENT) as empty", async () => {
+    it("treats missing files (ENOENT) as empty and fails closed on other read errors (directory EISDIR)", async () => {
       const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
       try {
-        expect(findSale("polar", "s1", tmpDir)).toBeNull();
-        expect(findRefund("polar", "s1", tmpDir)).toBeNull();
-        expect(findRefundReversal("polar", "s1", tmpDir)).toBeNull();
-        expect(findSalesByAttribution("attr_1", tmpDir)).toEqual([]);
-        await expect(findByProviderAdjustmentIdAsync("polar", "adj_1", "refund", tmpDir)).resolves.toBeNull();
+        // A directory is a non-ENOENT read failure: only ENOENT means "no ledger yet", so every reader throws.
+        expect(() => findSale("polar", "s1", tmpDir)).toThrow(/EISDIR/);
+        expect(() => findRefund("polar", "s1", tmpDir)).toThrow(/EISDIR/);
+        expect(() => findRefundReversal("polar", "s1", tmpDir)).toThrow(/EISDIR/);
+        expect(() => findSalesByAttribution("attr_1", tmpDir)).toThrow(/EISDIR/);
+        await expect(findByProviderAdjustmentIdAsync("polar", "adj_1", "refund", tmpDir)).rejects.toThrow(/EISDIR/);
 
         const missing = join(tmpDir, "does-not-exist.jsonl");
         expect(findRefundReversal("polar", "s1", missing)).toBeNull();

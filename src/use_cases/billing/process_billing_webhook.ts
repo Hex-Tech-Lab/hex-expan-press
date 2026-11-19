@@ -8,7 +8,7 @@
  */
 import { PaymentProviderPort, BillingEvent, SaleCompletedEvent, RefundIssuedEvent, RefundReversedEvent } from "../../domain/payments/payments.port.ts";
 import { WebhookValidationError } from "../../domain/webhook/webhook_errors.ts";
-import { appendSale, appendRefund, appendRefundReversal, findSaleAsync, findRefundAsync, findRefundReversalAsync, findByProviderAdjustmentIdAsync, flagRefundForManualReview, recordWebhookConflict, isAdjustmentIdUniqueViolation, OrderSchemaError } from "../../../payments/src/ledger.ts";
+import { persistSale, appendRefund, appendRefundReversal, findSaleAsync, findRefundAsync, findRefundReversalAsync, findByProviderAdjustmentIdAsync, flagRefundForManualReview, recordWebhookConflict, isAdjustmentIdUniqueViolation, mirrorToLocalLedger, OrderSchemaError } from "../../../payments/src/ledger.ts";
 import { computeSplit, usdToCents } from "../../../payments/src/split.ts";
 import { effectiveCreatorSplitPctAsync } from "../../../payments/src/terms.ts";
 import { resolveProductByAlias, withIdempotencyLock, WebhookInFlightError } from "../../../payments/src/webhook_core.ts";
@@ -277,10 +277,13 @@ async function processBillingEvent(event: BillingEvent): Promise<ConflictPending
         const saleCurrency = (sale.currency ?? GLOBAL.defaults.currency).toUpperCase();
         if (refundEvent.currency !== undefined && refundEvent.currency.toUpperCase() !== saleCurrency) return false;
         if (refundEvent.providerAdjustmentId) {
+          // The lookup resolves null only for "no such row". A lookup error, or any other fault, is NOT "not persisted":
+          // log and rethrow, so the delivery answers 500 and the provider retries (a bare catch here would mask it as 503).
           try {
             if (await findByProviderAdjustmentIdAsync(refundEvent.providerName, refundEvent.providerAdjustmentId, "refund")) return true;
-          } catch {
-            return false; // fail closed: lookup errors make the provider retry
+          } catch (err) {
+            console.error("[billing-webhook] refund confirm: adjustment-id lookup failed:", err);
+            throw err;
           }
         }
         return !reversal;
@@ -548,6 +551,7 @@ async function processBillingEvent(event: BillingEvent): Promise<ConflictPending
         // failure rethrows (500) so the provider retries.
         const existing = await findSaleAsync(saleEvent.providerName, saleEvent.saleId);
         if (existing) {
+          // Deliver first: a local-file fault must never block the buyer's email. Delivery is idempotent per sale.
           await deliverSaleForWebhook({
             provider: saleEvent.providerName,
             saleId: saleEvent.saleId,
@@ -555,6 +559,9 @@ async function processBillingEvent(event: BillingEvent): Promise<ConflictPending
             buyerEmail: saleEvent.buyerEmail,
             ...(fenceToken !== undefined ? { fence: fenceToken } : {}),
           });
+          // Then heal a lost local append: the sale may be durable in Supabase only, and reports read the local file.
+          // A failure here rethrows (500); the provider retries, delivery returns duplicate (no second email), and the mirror is retried.
+          await mirrorToLocalLedger(existing);
           return { status: 200, payload: { ok: true, recorded: false, reason: "duplicate", sale_id: saleEvent.saleId } };
         }
 
@@ -566,7 +573,7 @@ async function processBillingEvent(event: BillingEvent): Promise<ConflictPending
 
         // F-09 mode gate: a sale is booked only when the provider's mode equals the product's checkout_mode. Live money
         // never lands on a sandbox or gated product, and a test event never books a live product. Refused before any
-        // write, so no ledger row exists and no link is minted (delivery runs only after appendSale).
+        // write, so no ledger row exists and no link is minted (delivery runs only after persistSale).
         if (saleEvent.providerMode === undefined) {
           throw saleRefused("SALE_MODE_UNKNOWN", `sale ${saleEvent.saleId} from ${saleEvent.providerName} carries no provider mode; refused`);
         }
@@ -592,8 +599,8 @@ async function processBillingEvent(event: BillingEvent): Promise<ConflictPending
         const amountUsd = saleEvent.totalCents / 100; // Ledger still stores USD float — convert from canonical cents
         const split = computeSplit(amountUsd, creatorPct);
 
-        // Append to ledger
-        await appendSale({
+        // Durable Supabase write first (Supabase-first rule). The local mirror follows delivery, below.
+        const saleRecord = await persistSale({
           sale_id: saleEvent.saleId,
           provider: saleEvent.providerName,
           product_id: saleEvent.productId,
@@ -606,9 +613,10 @@ async function processBillingEvent(event: BillingEvent): Promise<ConflictPending
           our_split_usd: split.our_split_usd,
           currency: cfg.currency,
           ...(saleEvent.attributionId ? { attribution_id: saleEvent.attributionId } : {})
-        }, undefined, fenceToken);
-        // Receipt and download link, after the ledger write. A delivery failure rethrows: the webhook answers 500 and the
-        // provider retries, which re-attempts delivery on the duplicate path above.
+        }, fenceToken);
+        // Receipt and download link, after the durable write. A delivery failure rethrows: the handler answers the error's own
+        // status (503 for DeliveryPendingError, 422 or 503 for DeliveryBlockedError, 500 otherwise). The provider retries the
+        // 503 and 500 answers, which re-attempt delivery on the duplicate path above.
         await deliverSaleForWebhook({
           provider: saleEvent.providerName,
           saleId: saleEvent.saleId,
@@ -616,6 +624,9 @@ async function processBillingEvent(event: BillingEvent): Promise<ConflictPending
           buyerEmail: saleEvent.buyerEmail,
           ...(fenceToken !== undefined ? { fence: fenceToken } : {}),
         });
+        // Then the local mirror, the same order as the duplicate path above. A failure here rethrows (500); the provider retries,
+        // delivery returns duplicate (no second email), and the mirror is retried.
+        await mirrorToLocalLedger(saleRecord);
         return { status: 200, payload: { ok: true, recorded: true, sale_id: saleEvent.saleId } };
       },
     );

@@ -212,6 +212,9 @@ function sanitizeSql(text: string): string {
     }
     if (ch === "'") {
       // '...' literal with '' escapes: keep the quotes, drop the contents.
+      // Exception: the exact 'service_role' literal is kept, so the R4 check can
+      // tell a service-role gate from one on any other role (e.g. 'anon').
+      const start = i;
       i++;
       while (i < text.length) {
         if (text[i] === "'") {
@@ -223,7 +226,7 @@ function sanitizeSql(text: string): string {
         }
         i++;
       }
-      out += "''";
+      out += text.slice(start + 1, i) === "service_role" ? "'service_role'" : "''";
       i++;
       continue;
     }
@@ -327,8 +330,11 @@ function extractFunctionBlocks(text: string): FunctionBlock[] {
     const name = m[1];
     const params = text.slice(open + 1, close);
     const blockStart = m.index;
-    const bodyEnd = text.indexOf("$$;", close);
-    const body = bodyEnd === -1 ? text.slice(blockStart) : text.slice(blockStart, bodyEnd + 3);
+    // The body closes with the same tag it opened with (`as $$ ... $$;` or `as $fnbody$ ... $fnbody$;`).
+    const tagMatch = /\bas\s+(\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$)/i.exec(text.slice(close));
+    const tag = tagMatch ? tagMatch[1] : "$$";
+    const bodyEnd = text.indexOf(`${tag};`, close);
+    const body = bodyEnd === -1 ? text.slice(blockStart) : text.slice(blockStart, bodyEnd + tag.length + 1);
     blocks.push({ name, params, body });
   }
   return blocks;
@@ -440,25 +446,110 @@ function hasKeyAllowlistGuard(body: string, keyParam: string): boolean {
 }
 
 /**
- * True when a parameter is copied once into a local `v_*` variable and unconditionally cleared to `null`
- * for non-service callers (`if not is_service then ... v_x := null; end if;`), so untrusted callers
- * cannot supply or steer the value.
+ * Service-role gate shapes used by this repo's consent RPCs. Matched against the sanitized
+ * body, where sanitizeSql keeps the exact 'service_role' literal.
+ */
+const SERVICE_ROLE_EQ = String.raw`(?:\(\s*select\s+auth\.role\(\)\s*\)|auth\.role\(\))\s*=\s*'service_role'`;
+const SERVICE_ROLE_RHS = new RegExp(
+  String.raw`^\(?\s*(?:coalesce\(\s*${SERVICE_ROLE_EQ}\s*,\s*false\s*\)|${SERVICE_ROLE_EQ})(?:\s+or\s+current_user\s*=\s*'service_role')?\s*\)?$`,
+  "i",
+);
+
+/** Block delimiters that create conditional or repeated execution: IF / LOOP openers, END IF / END LOOP closers. */
+const PLPGSQL_BLOCK_DELIMITER = /\bend\s+(?:if|loop)\b|\b(?:if|loop)\b/gi;
+
+interface BlockDelimiter {
+  index: number;
+  delta: 1 | -1;
+}
+
+function plpgsqlBlockDelimiters(text: string): BlockDelimiter[] {
+  const out: BlockDelimiter[] = [];
+  const re = new RegExp(PLPGSQL_BLOCK_DELIMITER.source, "gi");
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    out.push({ index: m.index, delta: /^end/i.test(m[0]) ? -1 : 1 });
+  }
+  return out;
+}
+
+/** Number of enclosing IF/LOOP blocks at `pos` (0 = unconditional top level of the body). */
+function plpgsqlDepthAt(delimiters: BlockDelimiter[], pos: number): number {
+  let depth = 0;
+  for (const d of delimiters) {
+    if (d.index >= pos) break;
+    depth += d.delta;
+  }
+  return depth;
+}
+
+/**
+ * True only when the key parameter is copied once into a DECLARE-section local, the local is
+ * assigned exactly once after that (`:= null`), and that assignment sits unconditionally at the top
+ * level of `if not is_service then ... end if;` before any other use of the local. `is_service` must
+ * be declared once from a validated service_role expression and never reassigned. Anything the
+ * structural scan cannot model (nested BEGIN, EXCEPTION handlers, CASE statements, ELSE/ELSIF
+ * branches around the nulling) fails closed, so the R4 finding stays.
  */
 function isClearedForUntrustedCallers(body: string, keyParam: string): boolean {
-  const bodyStart = body.search(/\bas\s+\$\$/i);
-  if (bodyStart === -1) return false;
-  const execBody = body.slice(bodyStart);
+  const open = /\bas\s+\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$/i.exec(body);
+  if (!open) return false;
+  const execBody = body.slice(open.index);
+  if ((execBody.match(/\bbegin\b/gi) ?? []).length !== 1) return false;
+  // EXCEPTION handlers (`exception when ...`) and CASE statements are not modelled; `raise exception` is fine.
+  if (/\bexception\s+when\b|\bend\s+case\b/i.test(execBody)) return false;
+  const bodyBegin = execBody.search(/\bbegin\b/i);
+  const declare = execBody.slice(0, bodyBegin);
   const esc = keyParam.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const aliasMatch = new RegExp(`\\b([a-z_][\\w$]*)\\s+(?:text\\s+)?\\:=\\s*${esc}\\b`, "i").exec(execBody);
-  if (!aliasMatch) return false;
-  const alias = aliasMatch[1];
-  const paramUses = execBody.match(new RegExp(`\\b${esc}\\b`, "gi")) ?? [];
-  if (paramUses.length !== 1) return false;
-  const escAlias = alias.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const nonServiceGuard = /if\s+not\s+(?:is_service|\(?\s*auth\.role\(\)\s*=\s*''?\s*\)?)\s+then([\s\S]*?)end\s+if\s*;/gi;
+
+  // The key parameter is read exactly once, copied into a DECLARE-section local.
+  const copy = new RegExp(`\\b([a-z_][\\w$]*)\\s+(?:text\\s+)?(?::=|default)\\s*${esc}\\b`, "i").exec(declare);
+  if (!copy) return false;
+  if ((execBody.match(new RegExp(`\\b${esc}\\b`, "gi")) ?? []).length !== 1) return false;
+  const escAlias = copy[1].replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+  // is_service: declared once from a validated service_role expression, never reassigned.
+  const service = /\bis_service\s+boolean\s*(:=|default)\s*([^;]+);/i.exec(declare);
+  if (!service || !SERVICE_ROLE_RHS.test(service[2].replace(/\s+/g, " ").trim())) return false;
+  // Direct assignments only (the declaration is `is_service boolean := ...`, which this pattern does not match).
+  if ((execBody.match(/\bis_service\s*:=/gi) ?? []).length !== 0) return false;
+  if (/\binto\s+(?:strict\s+)?is_service\b/i.test(execBody)) return false;
+
+  // The local is assigned once after the copy, as `:= null`, and is never a SELECT INTO or FOR target.
+  if ((execBody.match(new RegExp(`\\b${escAlias}\\s*:=`, "gi")) ?? []).length !== 1) return false;
+  if (new RegExp(`\\b(?:into\\s+(?:strict\\s+)?|for\\s+)${escAlias}\\b`, "i").test(execBody)) return false;
+
+  // The untrusted branch nulls the local at its top level, before any other use of it.
+  const delimiters = plpgsqlBlockDelimiters(execBody);
+  const aliasUse = new RegExp(`\\b${escAlias}\\b`, "i");
+  const elseBranch = /\b(?:else|elsif)\b/i;
+  const ifNotService = /\bif\s+not\s+is_service\s+then\b/gi;
   let m: RegExpExecArray | null;
-  while ((m = nonServiceGuard.exec(execBody)) !== null) {
-    if (new RegExp(`\\b${escAlias}\\s*:=\\s*null\\s*;`, "i").test(m[1])) return true;
+  while ((m = ifNotService.exec(execBody)) !== null) {
+    const ifPos = m.index;
+    if (ifPos < bodyBegin || plpgsqlDepthAt(delimiters, ifPos) !== 0) continue;
+    const ifIdx = delimiters.findIndex((d) => d.index === ifPos);
+    if (ifIdx === -1) continue;
+    let depth = 0;
+    let ifEnd = -1;
+    for (let j = ifIdx; j < delimiters.length; j++) {
+      depth += delimiters[j].delta;
+      if (depth === 0) {
+        ifEnd = delimiters[j].index;
+        break;
+      }
+    }
+    if (ifEnd === -1) continue;
+    const nullAssign = new RegExp(`\\b${escAlias}\\s*:=\\s*null\\s*;`, "gi");
+    nullAssign.lastIndex = ifPos;
+    let n: RegExpExecArray | null;
+    while ((n = nullAssign.exec(execBody)) !== null && n.index < ifEnd) {
+      const at = n.index;
+      if (plpgsqlDepthAt(delimiters, at) !== 1) continue; // directly inside this IF, not nested
+      if (elseBranch.test(execBody.slice(ifPos, at))) continue; // in the untrusted branch, not an ELSE/ELSIF
+      if (aliasUse.test(execBody.slice(bodyBegin, at))) continue; // no earlier use of the local
+      return true;
+    }
   }
   return false;
 }

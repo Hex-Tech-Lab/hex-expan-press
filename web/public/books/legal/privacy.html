@@ -18,7 +18,7 @@
   h2 { font-family: "Fraunces", Georgia, "Times New Roman", serif; font-size: 19px; font-weight: 700; margin: 26px 0 10px; }
   p, li { font-size: 14.5px; color: #2B2520; margin-bottom: 10px; }
   ul { padding-left: 22px; }
-  .todo { background: #FFF3C4; padding: 0 4px; }
+  mark.review { background: #FFF3A3; color: inherit; padding: 0 2px; border-radius: 2px; }
   footer { border-top: 1px solid #EADFD1; margin-top: 36px; padding-top: 18px; font-size: 13px; color: #6E5F53; display: flex; flex-wrap: wrap; gap: 8px 22px; }
   footer a { color: #2E7D5B; text-decoration: none; }
   footer a:hover, footer a:focus-visible { text-decoration: underline; }
@@ -31,16 +31,15 @@
   <a class="back" href="https://expanpress.com/books" data-backlink>&larr; Back to ExpanPress</a>
   <p class="kicker">Legal</p>
   <h1>Privacy Notice</h1>
-  <p class="todo"><b>DRAFT FOR LEGAL REVIEW, not yet approved.</b> Buyer set. Placeholders are highlighted.</p>
-  <p class="updated">Last updated: 16 November 2026</p>
+  <p class="updated">Last updated: 18 November 2026</p>
 
   <h2>1. Who we are</h2>
-  <p>ExpanPress is the controller of the personal data it collects directly: for example, when you visit our site, contact support, receive a download link, or choose to receive updates. Contact: support@expanpress.com.</p>
-  <p>The Merchant of Record that processed your order is a separate controller of the order and payment data it collects. It processes that data under its own privacy policy, named on your receipt.</p>
+  <p>ExpanPress is responsible for the personal data it collects directly, for example when you visit our site, contact support, receive a download link, or choose to get updates. Contact: support@expanpress.com.</p>
+  <p>The Merchant of Record that processed your order is responsible for the order and payment data it collects. It handles that data under its own privacy policy, which you can find on your receipt.</p>
 
   <h2>2. When you buy</h2>
-  <p>Your order is taken by the Merchant of Record named on your receipt. It processes your name, email, country, order details and payment data under its own privacy policy, <span class="todo">[link to each Merchant of Record's privacy policy]</span>. Card details are entered with the Merchant of Record, and we do not receive or store them. <span class="todo">[confirm]</span></p>
-  <p>When you buy, we also pass a referral tag to the Merchant of Record. It holds the source of the link you followed (the <b>src</b> value) and, when present, a tracking ID (the <b>dub_id</b> value), so the sale can be credited to the channel that sent you. If neither is present, the tag reads <b>direct</b>.</p>
+  <p>The Merchant of Record named on your receipt takes your order and payment. It handles your name, email, country, order details and payment details under its own privacy policy. <mark class="review">We never receive or store your full card details.</mark></p>
+  <p>When you buy, we also pass a referral tag to the Merchant of Record. It records where you found the product (the <b>src</b> value) and, when there is one, a tracking ID (the <b>dub_id</b> value), so the sale can be credited to the right channel. If no source is recorded, the source reads <b>direct</b>. A tracking ID, when there is one, follows the source after a colon.</p>
 
   <h2>3. Data we collect</h2>
   <ul>
@@ -54,26 +53,26 @@
   <h2>4. Why we use it</h2>
   <ul>
     <li>To deliver the product you bought and send the download link.</li>
-    <li>To answer support requests and to pass refund requests to the Merchant of Record.</li>
+    <li>To answer support requests and pass refund requests to the Merchant of Record.</li>
     <li>To prevent fraud and keep the site secure.</li>
     <li>To meet tax and accounting duties.</li>
     <li>To send you updates, only if you opt in. You can withdraw consent at any time.</li>
   </ul>
 
   <h2>5. Who we share it with</h2>
-  <p>We share data only with: the Merchant of Record for your order, to take payment and handle tax and refunds; service providers that work on our instructions, listed at <a href="/books/legal/providers.html">Service providers</a>; professional advisers; and authorities where the law requires it. <span class="todo">[legal: confirm no sale or sharing of personal data for targeted advertising, under US state law]</span></p>
+  <p>We share data only with the Merchant of Record for your order, to take payment and handle tax and refunds; with service providers that work for us and only on our instructions, listed at <a href="/books/legal/providers.html">Service providers</a>; with professional advisers; and with authorities where the law requires it. <mark class="review">We do not sell your personal data, and we do not share it for targeted advertising.</mark></p>
 
   <h2>6. International transfers</h2>
-  <p>Some providers process data outside the United States. Those transfers rely on the processors' data processing agreements and the transfer safeguards those agreements contain.</p>
+  <p><mark class="review">Some service providers process data outside the United States. Where they do, the transfer is covered by their data processing agreements and the safeguards those agreements contain.</mark></p>
 
   <h2>7. How long we keep data</h2>
-  <p>Order, tax and accounting records are kept for seven years, as tax and accounting law requires. Download records are kept for seven years. Other records are kept only as long as we need them for the purposes in section 4.</p>
+  <p><mark class="review">Order, tax and accounting records are kept for seven years, as tax and accounting law requires. Download records are kept for seven years. Other records are kept only as long as we need them for the purposes in section 4.</mark></p>
 
   <h2>8. Cookies and browser storage</h2>
-  <p>We use essential cookies for checkout and security. We set one preference cookie, <b>ep_marketing_optin</b>, which records whether you opted in to updates; it lasts one year. Links to a product pass the <b>src</b> and <b>dub_id</b> values; we keep them in your browser's session storage under the keys <b>ep_src</b> and <b>ep_dub_id</b>, so the purchase can be credited. That storage is cleared when your browser tab session ends. You can control cookies in your browser settings.</p>
+  <p>We use essential cookies for checkout and security. We set one preference cookie, <b>ep_marketing_optin</b>, which records whether you opted in to updates. It lasts one year. When you follow a link to a product, we keep the <b>src</b> and <b>dub_id</b> values in your browser’s session storage so the purchase can be credited. That storage is cleared when your browser tab session ends. You can control cookies in your browser settings.</p>
 
   <h2>9. Your rights</h2>
-  <p>Depending on where you live, including under US state privacy laws, you may ask us to access, correct or delete your data, to give you a copy in a portable form, and to withdraw consent to updates. <span class="todo">[legal: state-specific rights and appeal wording]</span> Email support@expanpress.com. We will respond within 45 days.</p>
+  <p><mark class="review">Depending on where you live, including under US state privacy laws, you can ask us to see, correct or delete your data, to give you a copy in a portable form, and to withdraw consent to updates. Email support@expanpress.com. We aim to reply within 45 days.</mark></p>
 
   <h2>10. Security</h2>
   <p>We use reasonable technical and organisational measures to protect personal data.</p>

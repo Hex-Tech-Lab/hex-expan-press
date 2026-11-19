@@ -94,6 +94,8 @@ export interface GlobalSettings {
   /** Product slug rule (ADR 0065): same shape as handles. Unique per creator (products_creator_id_slug_key);
    *  platform-wide products_slug_key was reverted and is dropped by supabase/migrations/20261117110000_products_slug_convergence.sql. */
 product_slug: { min_length: number; max_length: number; separator: string };
+  /** Sign-in email length ceiling (O5). 254 is the RFC 5321 address limit; zod's email check supplies the shape. */
+  email_address: { max_length: number };
   landing: { fallbacks: { title: string; creator: string }; disclaimers: string[] };
   /** Admin API allowlist + pagination (admin audit-log route). */
   admin: {
@@ -109,10 +111,31 @@ product_slug: { min_length: number; max_length: number; separator: string };
     signed_url_seconds: number;
     short_domain: string;
     send_kind: string;
-    /** A send claim still in 'claimed' this long after it was made is logged as STUCK (never resent: at-most-once). */
+    /** Age in seconds an operator's listStuckDeliveryClaims query uses by default. The webhook does not age-gate held claims: a held claim with no stored message is flagged at once. */
     stuck_claim_after_seconds: number;
     /** Most rows listStuckDeliveryClaims returns (oldest first). Bounds the operator reconcile query. */
     stuck_claim_list_limit: number;
+    /** Look-back window (hours) for the operator's WEBHOOK_TERMINAL_REJECT listing in scripts/ops/stuck_report.ts. A reject older than the window drops off that report. */
+    terminal_reject_lookback_hours: number;
+    /** Most WEBHOOK_TERMINAL_REJECT rows stuck_report.ts lists (newest first). Bounds the operator read. */
+    terminal_reject_list_limit: number;
+    /** NAME of the env var holding the base64 32-byte AES-256-GCM key that encrypts a held claim's stored buyer email. */
+    link_key_env: string;
+    /** Key id written into each new encrypted claim message (envelope v2). A legacy v1 envelope is read as this id. */
+    link_key_id: string;
+    /** Origin of the buyer download link ({origin}/books/d/{token}). An https origin with no path. */
+    download_origin: string;
+    /**
+     * When the stored-message change took effect (migration 20261118120000). A held claim created before this instant with no
+     * stored message may have been sent without one, so it is flagged for manual reconciliation, never resent or re-minted.
+     * A later value is the safe direction (more claims are flagged). Set it to the deploy time before deploying.
+     */
+    stored_message_since: string;
+    /**
+     * Oldest a held or unconfirmed claim may be and still resend its stored message under the same Resend idempotency key.
+     * Resend keeps idempotency keys for 24 hours, so the loader caps this at 24: a later resend could be a second email.
+     */
+    stored_message_resend_max_age_hours: number;
   };
   /** Transactional email (Resend). `from` must be on `sending_domain` (DKIM-verified in Resend). */
   email: {
@@ -120,6 +143,13 @@ product_slug: { min_length: number; max_length: number; separator: string };
     reply_to: string;
     sending_domain: string;
     retryable_error_names: string[];
+    /** Resend HTTP status for a concurrent request with the same idempotency key: the original may still be accepted, so the outcome is unconfirmed. */
+    concurrent_request_status: number;
+    /** Resend error name that goes with concurrent_request_status. */
+    concurrent_request_error_name: string;
+    /** Resend HTTP status for a definite refusal of the message itself (a validation error, in practice the buyer address).
+     *  No retry can succeed, so the sale is answered 422 and quarantined, not retried. Config refusals (401, 403) stay retryable. */
+    address_rejected_status: number;
   };
   portal: { jwt_clock_skew_retry_delay_ms: number };
   consent: { text_version: string; evidence_path: { user_id_pattern: string; envelope_id_pattern: string } };
@@ -200,6 +230,7 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
   // Product slug rule (ADR 0065). Same shape as handles. Unique per creator (products_creator_id_slug_key);
   // platform-wide products_slug_key was reverted and is dropped by supabase/migrations/20261117110000_products_slug_convergence.sql.
   product_slug: { min_length: 3, max_length: 30, separator: "_" },
+  email_address: { max_length: 254 },
   landing: {
     fallbacks: { title: "Product", creator: "the creator" },
     disclaimers: [
@@ -218,6 +249,22 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     // Above the email deadline (payments.http_timeout_ms) and the webhook lock TTL, so a live send is never reported stuck.
     stuck_claim_after_seconds: 900,
     stuck_claim_list_limit: 500,
+    // Display window for the stuck_report terminal-reject section (30 days), not an acknowledgement: nothing marks a reject
+    // as reconciled. A reject older than this is no longer listed, but stuck_report still exits 1 while one exists.
+    terminal_reject_lookback_hours: 720,
+    // Rows stuck_report lists. Reaching this cap prints an explicit line and the report exits 1. Validated at most 1000
+    // (Supabase's default max rows): a larger limit would be truncated server-side, and the cap could then not be detected.
+    terminal_reject_list_limit: 200,
+    // Only the env var NAME is a setting; the key value never lives in the registry or the repo.
+    link_key_env: "DELIVERY_LINK_KEY",
+    // Key id for new encrypted claim messages. Bump it together with the key in link_key_env when the key is rotated.
+    link_key_id: "k1",
+    download_origin: "https://expanpress.com",
+    // Cutover timestamp for migration 20261118120000_delivery_claim_link.sql.
+    // NOTE: CCT must stamp the exact UTC deploy time at merge/deploy so pre-deploy held claims cannot be misclassified as post-cutover and resent twice.
+    stored_message_since: "2026-11-19T05:00:00Z",
+    // Resend keeps idempotency keys for 24 hours (email.ts). A shorter window only resends less often.
+    stored_message_resend_max_age_hours: 24,
   },
   email: {
     from: "ExpanPress <support@esign.expanpress.com>",
@@ -229,6 +276,9 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
       "internal_server_error",
       "daily_quota_exceeded",
     ],
+    concurrent_request_status: 409,
+    concurrent_request_error_name: "concurrent_idempotent_requests",
+    address_rejected_status: 422,
   },
   portal: { jwt_clock_skew_retry_delay_ms: 350 },
   admin: { admin_user_ids: [], audit_log_page_size: 50 },
@@ -437,6 +487,7 @@ function loadGlobal(): GlobalSettings {
     storefront: { ...DEFAULT_GLOBAL.storefront, ...(g.storefront ?? {}) },
     handles: { ...DEFAULT_GLOBAL.handles, ...(g.handles ?? {}) },
     product_slug: { ...DEFAULT_GLOBAL.product_slug, ...(g.product_slug ?? {}) },
+    email_address: { ...DEFAULT_GLOBAL.email_address, ...(g.email_address ?? {}) },
     email: loadEmailSection(g.email as Record<string, unknown> | undefined),
     portal: { ...DEFAULT_GLOBAL.portal, ...(g.portal ?? {}) },
     admin: loadAdminSection(g.admin as Record<string, unknown> | undefined),
@@ -448,6 +499,25 @@ function loadGlobal(): GlobalSettings {
 /** Bounds for the usage watch tunables. warn_ratio stays strictly between 0.5 and 0.99 so WARN can fire before a hard limit. */
 export const USAGE_WATCH_LIMITS = {
   warn_ratio: { min: 0.5, max: 0.99 },
+} as const;
+
+/**
+ * The only HTTPS origins usage watch may send an Authorization header to. Not a tunable: a registry override that names
+ * any other host is refused at load time (the default is used), so a tampered settings file cannot receive the
+ * Supabase or Upstash credentials. vercel_cli is a command name, not a URL, and is not listed here.
+ */
+export const USAGE_WATCH_ENDPOINT_ORIGINS = {
+  supabase_api: "https://api.supabase.com",
+  upstash_api: "https://api.upstash.com",
+} as const;
+
+/** Largest delay Node timers accept (setTimeout and AbortSignal.timeout clamp or misfire above it). */
+const MAX_TIMER_MS = 2147483647;
+
+/** Non-overridable invariant mirroring the DB CHECK on consents.evidence_path. The registry rules may only tighten this. */
+export const CONSENT_EVIDENCE_SEGMENT_CONTRACT = {
+  userId: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+  envelopeId: /^[A-Za-z0-9_-]{1,128}$/,
 } as const;
 
 /** usage_watch: deep-merge over the defaults. Every number must be a finite positive value; a bad value falls back
@@ -473,12 +543,30 @@ export function loadUsageWatchSection(raw: Record<string, unknown> | undefined):
     if (candidate !== undefined) fallbacks.push(key);
     return fallback;
   };
+  // An HTTPS origin on the allowlist, with no userinfo and no path. Anything else falls back to the default.
+  const allowedOrigin = (candidate: unknown, fallback: string, key: "supabase_api" | "upstash_api"): string => {
+    if (candidate === undefined) return fallback;
+    const allowed = USAGE_WATCH_ENDPOINT_ORIGINS[key];
+    if (typeof candidate === "string") {
+      try {
+        const url = new URL(candidate);
+        const bare = url.protocol === "https:" && url.origin === allowed && url.username === "" && url.password === "" && (url.pathname === "/" || url.pathname === "") && url.search === "" && url.hash === "";
+        if (bare) return allowed;
+      } catch {
+        // Not a URL: falls through to the fallback below.
+      }
+    }
+    fallbacks.push(`endpoints.${key}`);
+    return fallback;
+  };
+  // timeout_ms feeds AbortSignal.timeout and execFile: it must be an integer that Node timers accept.
+  const timerMs = (candidate: unknown): boolean => Number.isSafeInteger(candidate) && (candidate as number) >= 1 && (candidate as number) <= MAX_TIMER_MS;
   const out: UsageWatchSettings = {
     warn_ratio: pick(raw.warn_ratio, defaults.warn_ratio, "warn_ratio", (value) => value >= USAGE_WATCH_LIMITS.warn_ratio.min && value <= USAGE_WATCH_LIMITS.warn_ratio.max),
-    timeout_ms: pick(raw.timeout_ms, defaults.timeout_ms, "timeout_ms", positive),
+    timeout_ms: pick(raw.timeout_ms, defaults.timeout_ms, "timeout_ms", timerMs),
     endpoints: {
-      supabase_api: str(endpoints.supabase_api, defaults.endpoints.supabase_api, "endpoints.supabase_api"),
-      upstash_api: str(endpoints.upstash_api, defaults.endpoints.upstash_api, "endpoints.upstash_api"),
+      supabase_api: allowedOrigin(endpoints.supabase_api, defaults.endpoints.supabase_api, "supabase_api"),
+      upstash_api: allowedOrigin(endpoints.upstash_api, defaults.endpoints.upstash_api, "upstash_api"),
       vercel_cli: str(endpoints.vercel_cli, defaults.endpoints.vercel_cli, "endpoints.vercel_cli"),
     },
     vercel: {
@@ -575,20 +663,46 @@ export function loadDeliverySection(raw: Record<string, unknown> | undefined): G
   if (!raw) return defaults;
   const record = raw as Partial<GlobalSettings["delivery"]> & Record<string, unknown>;
   const fallbacks: string[] = [];
-  const str = (key: "bucket" | "short_domain" | "send_kind"): string => {
+  const str = (key: "bucket" | "short_domain" | "send_kind" | "link_key_env" | "link_key_id" | "download_origin" | "stored_message_since"): string => {
     if (!(key in record)) return defaults[key];
     const candidate = record[key];
     if (typeof candidate === "string" && candidate.trim() !== "" && candidate === candidate.trim()) return candidate;
     fallbacks.push(key);
     return defaults[key];
   };
-  const posInt = (key: "link_ttl_days" | "signed_url_seconds" | "stuck_claim_after_seconds" | "stuck_claim_list_limit", min: number, max: number): number => {
+  const posInt = (
+    key:
+      | "link_ttl_days"
+      | "signed_url_seconds"
+      | "stuck_claim_after_seconds"
+      | "stuck_claim_list_limit"
+      | "stored_message_resend_max_age_hours"
+      | "terminal_reject_lookback_hours"
+      | "terminal_reject_list_limit",
+    min: number,
+    max: number,
+  ): number => {
     if (!(key in record)) return defaults[key];
     const candidate = record[key];
     if (intInRange(candidate, min, max)) return candidate;
     fallbacks.push(key);
     return defaults[key];
   };
+  // An env var name, never a value: an invalid name falls back to the default (and warns) so the key lookup stays well-formed.
+  const linkKeyEnv = str("link_key_env");
+  const validLinkKeyEnv = /^[A-Z][A-Z0-9_]{0,63}$/.test(linkKeyEnv);
+  if (!validLinkKeyEnv) fallbacks.push("link_key_env");
+  // A key id travels inside the ciphertext envelope, which separates fields with ":", so it is restricted to a safe charset.
+  const linkKeyId = str("link_key_id");
+  const validLinkKeyId = /^[A-Za-z0-9-]{1,32}$/.test(linkKeyId);
+  if (!validLinkKeyId) fallbacks.push("link_key_id");
+  // The buyer link origin: https, host only. Anything else falls back to the default (and warns).
+  const downloadOrigin = str("download_origin");
+  const validDownloadOrigin = /^https:\/\/[a-z0-9.-]+$/i.test(downloadOrigin);
+  if (!validDownloadOrigin) fallbacks.push("download_origin");
+  const storedSince = str("stored_message_since");
+  const validStoredSince = Number.isFinite(Date.parse(storedSince));
+  if (!validStoredSince) fallbacks.push("stored_message_since");
   const out = {
     bucket: str("bucket"),
     link_ttl_days: posInt("link_ttl_days", 1, 365),
@@ -597,6 +711,13 @@ export function loadDeliverySection(raw: Record<string, unknown> | undefined): G
     send_kind: str("send_kind"),
     stuck_claim_after_seconds: posInt("stuck_claim_after_seconds", 60, 86400),
     stuck_claim_list_limit: posInt("stuck_claim_list_limit", 1, 10000),
+    terminal_reject_lookback_hours: posInt("terminal_reject_lookback_hours", 1, 8760),
+    terminal_reject_list_limit: posInt("terminal_reject_list_limit", 1, 1000),
+    link_key_env: validLinkKeyEnv ? linkKeyEnv : defaults.link_key_env,
+    link_key_id: validLinkKeyId ? linkKeyId : defaults.link_key_id,
+    download_origin: validDownloadOrigin ? downloadOrigin : defaults.download_origin,
+    stored_message_since: validStoredSince ? storedSince : defaults.stored_message_since,
+    stored_message_resend_max_age_hours: posInt("stored_message_resend_max_age_hours", 1, 24),
   };
   if (fallbacks.length > 0) warnFallback("global.json", `invalid delivery values for ${fallbacks.join(", ")}`);
   return out;
@@ -610,6 +731,19 @@ export function loadEmailSection(raw: Record<string, unknown> | undefined): Glob
   if (names !== undefined && !(Array.isArray(names) && names.length > 0 && names.every((entry) => typeof entry === "string" && entry !== "" && entry === entry.trim()))) {
     warnFallback("global.json", "invalid email values for retryable_error_names");
     merged.retryable_error_names = DEFAULT_GLOBAL.email.retryable_error_names;
+  }
+  // The concurrent-request status must be a 4xx; anything else would silently never match and reclassify the outcome.
+  if (!intInRange(merged.concurrent_request_status, 400, 499)) {
+    warnFallback("global.json", "invalid email values for concurrent_request_status");
+    merged.concurrent_request_status = DEFAULT_GLOBAL.email.concurrent_request_status;
+  }
+  if (typeof merged.concurrent_request_error_name !== "string" || merged.concurrent_request_error_name.trim() === "") {
+    warnFallback("global.json", "invalid email values for concurrent_request_error_name");
+    merged.concurrent_request_error_name = DEFAULT_GLOBAL.email.concurrent_request_error_name;
+  }
+  if (!intInRange(merged.address_rejected_status, 400, 499)) {
+    warnFallback("global.json", "invalid email values for address_rejected_status");
+    merged.address_rejected_status = DEFAULT_GLOBAL.email.address_rejected_status;
   }
   return merged;
 }

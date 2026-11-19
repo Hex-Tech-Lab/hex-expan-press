@@ -7,6 +7,7 @@ import { loadCreatorConsentRows } from "../../../src/lib/creator-consents";
 import { toError } from "../../../src/lib/error-reporting";
 import DashboardClient from "./dashboard-client";
 import { reviewProgress } from "./progress";
+import { anchorPageOf } from "../../../src/lib/review-anchor";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
@@ -77,7 +78,7 @@ export default async function DashboardPage({
     ? await Promise.all([
         supabase
           .from("review_items")
-          .select("id, product_id, code")
+          .select("id, product_id, code, anchor")
           .eq("product_id", product.id)
           .order("code", { ascending: true })
           .limit(500),
@@ -86,7 +87,9 @@ export default async function DashboardPage({
     : [{ data: [], error: null }, { rows: [], error: null }];
   const consentsRes = { data: consentsLoad.rows, error: consentsLoad.error };
 
-  const itemIds = (itemsRes.data ?? []).map((it) => it.id);
+  // Progress counts only the questions the review page serves: an unanchored question is hidden there
+  // (review/page.tsx gate), so counting it here would make Step 1 impossible to complete.
+  const itemIds = (itemsRes.data ?? []).filter((it) => anchorPageOf(it.anchor) !== null).map((it) => it.id);
   const answersRes =
     itemIds.length > 0
       ? await supabase

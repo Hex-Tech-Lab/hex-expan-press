@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- Buyer set (B2C). Not for search engines: noindex here, and no robots.txt Disallow (Disallow would stop crawlers reading the noindex). Rows are carried from the creator-set providers page and must be checked against live configuration before approval. -->
+<!-- Buyer set (B2C) infrastructure page: the only buyer page that names providers. Not for search engines: noindex here, and no robots.txt Disallow (Disallow would stop crawlers reading the noindex). -->
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -18,7 +18,7 @@
   .updated { font-size: 13px; color: #6E5F53; margin-bottom: 28px; }
   h2 { font-family: "Fraunces", Georgia, "Times New Roman", serif; font-size: 19px; font-weight: 700; margin: 26px 0 10px; }
   p { font-size: 14.5px; color: #2B2520; margin-bottom: 16px; }
-  .todo { background: #FFF3C4; padding: 0 4px; }
+  mark.review { background: #FFF3A3; color: inherit; padding: 0 2px; border-radius: 2px; }
   table { width: 100%; border-collapse: collapse; font-size: 14px; }
   th, td { text-align: left; vertical-align: top; padding: 8px 6px; border-bottom: 1px solid #EADFD1; }
   th { font-weight: 600; }
@@ -35,19 +35,18 @@
   <a class="back" href="https://expanpress.com/books" data-backlink>&larr; Back to ExpanPress</a>
   <p class="kicker">Legal</p>
   <h1>Service providers</h1>
-  <p class="todo"><b>DRAFT FOR LEGAL REVIEW, not yet approved.</b> Buyer set. Placeholders are highlighted.</p>
-  <p class="updated">Last updated: 16 November 2026</p>
+  <p class="updated">Last updated: 18 November 2026</p>
 
-  <p>This page lists the companies that process buyer personal data for ExpanPress. It is updated whenever a provider is added or removed.</p>
+  <p><mark class="review">This page lists the companies that process buyer personal data for ExpanPress.</mark> We update it whenever a provider is added or removed.</p>
 
   <h2>Merchant of Record</h2>
-  <p>The Merchant of Record that processed your order is named on your receipt. It is the seller of record for that order. It takes payment, handles tax and refunds, and processes your order data under its own privacy policy. <span class="todo">[each Merchant of Record is added to this table before it takes its first order. No Merchant of Record is live at this draft date.]</span></p>
+  <p>The Merchant of Record that processed your order is named on your receipt. It is the seller of record for that order. It takes payment, works out and collects tax, handles refunds, and processes your order data under its own privacy policy.</p>
   <table>
     <thead><tr><th scope="col">Provider</th><th scope="col">Role</th><th scope="col">Data processed</th></tr></thead>
     <tbody>
       <tr>
         <td class="name">Paddle.com</td>
-        <td>Seller of record for your order: takes payment, calculates and remits tax, handles refunds and buyer billing support</td>
+        <td><mark class="review">Seller of record for your order: takes payment, calculates and remits tax, handles refunds and buyer billing support</mark></td>
         <td>Name, email, country, order details and payment data. That provider's own privacy policy applies.</td>
       </tr>
     </tbody>
@@ -63,6 +62,7 @@
       <tr><td class="name">Cloudflare (R2 and CDN)</td><td>Storage for digital product files, and content delivery</td><td>IP address, request headers, and download bandwidth data</td></tr>
       <tr><td class="name">Sentry</td><td>Error monitoring, so we can fix faults</td><td>Technical error data, which may include IP address and browser details</td></tr>
       <tr><td class="name">Upstash</td><td>Short-lived payment locks and routing settings</td><td>Transaction reference IDs and routing settings only. No names or email addresses.</td></tr>
+      <tr><td class="name">Dub</td><td>Short links for download links (go.expanpress.com)</td><td>The download link URL it shortens, which contains the download token. <mark class="review">Needs counsel review: confirm Dub data categories and whether the bearer link token is shared</mark></td></tr>
     </tbody>
   </table>
   </main>

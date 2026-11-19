@@ -89,6 +89,23 @@ describe("CreemAdapter", () => {
     }
   });
 
+  it("accepts and books a paid checkout.completed whose buyer email is not RFC-valid (no sale is refused on email format)", async () => {
+    const oddEmail = "buyer name@example.com";
+    const body = checkoutCompleted({ customer: { email: oddEmail } });
+    const r = await adapter.parseAndValidateWebhook(headersFor(body), body);
+    expect(r.isValid).toBe(true);
+    if (!r.isValid) return;
+    expect(r.event).toMatchObject({
+      eventType: "sale_completed",
+      providerName: "creem",
+      saleId: "ord_test_1",
+      buyerEmail: oddEmail,
+    });
+    if (r.event.eventType === "sale_completed") {
+      expect(r.event.buyerEmailHash).toMatch(/^[0-9a-f]{64}$/);
+    }
+  });
+
   it("refuses test-mode deliveries when the test gate is closed (default)", async () => {
     const closed = new CreemAdapter({ accept: false, databaseRef: "test-branch-ref", supabaseUrl: "https://test-branch-ref.supabase.co" });
     const body = checkoutCompleted({ mode: "test" }, { mode: "test" });

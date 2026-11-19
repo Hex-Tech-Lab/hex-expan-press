@@ -10,6 +10,8 @@ const definiteRejection = () => new EmailSendError("Resend error (422): invalid 
 const arg = <T>(m: { mock: { calls: unknown[][] } }, i = 0): T => m.mock.calls[i][0] as T;
 
 const NOW = new Date("2026-10-15T12:00:00Z");
+/** A fixed 32-byte test key. Never a real key: tests only need a valid AES-256 key. */
+const TEST_LINK_KEY = Buffer.alloc(32, 7);
 const PRODUCT = { id: "11111111-1111-4111-8111-111111111111", title: "500K Playbook", releasePath: "p/file.pdf" };
 
 function fakes(over: Partial<DeliveryDeps> & { product?: unknown; inserted?: boolean; confirmed?: boolean } = {}) {
@@ -18,12 +20,14 @@ function fakes(over: Partial<DeliveryDeps> & { product?: unknown; inserted?: boo
   const sendEmail = vi.fn(async () => ({ id: "e1" }));
   const createShortLink = vi.fn(async (u: string) => `https://go.expanpress.com/abc?to=${encodeURIComponent(u)}`);
   const sendClaims = new Map<string, { state: "claimed" | "sent"; fence: number }>();
+  const messages = new Map<string, string>();
   const keyOf = (provider: string, saleId: string, sendKind: string) => `${provider}:${saleId}:${sendKind}`;
   const deps: DeliveryDeps = {
     db: {
       productForAlias: vi.fn(async () => (over.product === undefined ? PRODUCT : (over.product as typeof PRODUCT | null))),
       recordLinkIssued,
       releaseLinkIssued,
+      linkStillIssued: vi.fn(async () => true),
       deliveryConfirmed: vi.fn(async () => over.confirmed ?? false),
       confirmDelivery: vi.fn(async () => undefined),
       claimDeliverySend: vi.fn(async ({ provider, saleId, sendKind, fence }) => {
@@ -55,19 +59,31 @@ function fakes(over: Partial<DeliveryDeps> & { product?: unknown; inserted?: boo
         }
         existing.state = "sent";
         existing.fence = f;
+        messages.delete(k); // the sent write clears the stored message, as in the Supabase store
       }),
       releaseDeliverySend: vi.fn(async ({ provider, saleId, sendKind, fence }) => {
         const k = keyOf(provider, saleId, sendKind);
         const existing = sendClaims.get(k);
         if (existing?.state === "claimed" && (fence === undefined || existing.fence <= fence)) {
           sendClaims.delete(k);
+          messages.delete(k);
         }
       }),
+      storeClaimMessage: vi.fn(async ({ provider, saleId, sendKind, fence, ciphertext }) => {
+        const k = keyOf(provider, saleId, sendKind);
+        const existing = sendClaims.get(k);
+        // First writer wins: a claim that already holds a message matches no row, as in the store's IS NULL guard.
+        if (!existing || existing.state !== "claimed" || existing.fence > (fence ?? 0) || messages.has(k)) {
+          throw new StaleFenceError("delivery_sends", k, fence ?? 0, existing?.fence);
+        }
+        messages.set(k, ciphertext);
+      }),
+      readClaimMessage: vi.fn(async ({ provider, saleId, sendKind }) => messages.get(keyOf(provider, saleId, sendKind)) ?? null),
     },
     sendEmail, createShortLink, origin: "https://expanpress.com", replyTo: "support@expanpress.com",
-    now: () => NOW, newToken: () => "T".repeat(43),
+    now: () => NOW, newToken: () => "T".repeat(43), linkKey: TEST_LINK_KEY,
   };
-  return { deps, recordLinkIssued, releaseLinkIssued, sendEmail, createShortLink, sendClaims };
+  return { deps, recordLinkIssued, releaseLinkIssued, sendEmail, createShortLink, sendClaims, messages };
 }
 const sale = { provider: "paddle", saleId: "s-1", productAlias: "alias-1", buyerEmail: "buyer@example.com" };
 
@@ -285,9 +301,10 @@ describe("deliverSaleForWebhook never acknowledges an unconfirmed sale", () => {
     f.deps.db.confirmDelivery = vi.fn(async ({ saleId }: { provider: string; saleId: string }) => {
       confirmed.add(saleId);
     });
-    f.sendEmail.mockRejectedValueOnce(definiteRejection());
+    // A config refusal (401), not an address refusal: it stays retryable, so the provider's retry is the path under test.
+    f.sendEmail.mockRejectedValueOnce(new EmailSendError("Resend error (401): invalid api key", false, 401, true));
 
-    await expect(deliverSaleForWebhook(sale, f.deps)).rejects.toThrow("Resend error (422)");
+    await expect(deliverSaleForWebhook(sale, f.deps)).rejects.toThrow("Resend error (401)");
     expect(rows.size).toBe(1);
     expect(confirmed.has("s-1")).toBe(false);
 

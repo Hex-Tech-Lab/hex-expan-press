@@ -8,6 +8,8 @@ export interface SendEmailInput {
   /** Plain-text part — required: HTML-only mail scores worse with spam filters. */
   text: string;
   replyTo?: string;
+  /** Sent as Resend's Idempotency-Key: a retry with the same key and payload is not a second email (Resend keeps keys for 24 hours). */
+  idempotencyKey?: string;
 }
 
 /**
@@ -17,6 +19,8 @@ export interface SendEmailInput {
  *
  * `definite` is true only when the provider certainly did not accept the message: a
  * local config check failed before any request, or Resend answered with a 4xx (429 included).
+ * The exception is a 409 concurrent_idempotent_requests: another request with the same idempotency key is
+ * in flight, so the original may still be accepted. That outcome is ambiguous and retryable.
  * Anything else (a transport failure, a 5xx, an error with no status) is ambiguous: the message
  * may have been accepted. Callers must not treat an ambiguous failure as a non-delivery.
  */
@@ -58,7 +62,7 @@ export const isOnSendingDomain = (from: string, domain: string = GLOBAL.email.se
   return host === d || host.endsWith(`.${d}`);
 };
 
-export async function sendEmail({ to, subject, html, text, replyTo }: SendEmailInput): Promise<{ id: string }> {
+export async function sendEmail({ to, subject, html, text, replyTo, idempotencyKey }: SendEmailInput): Promise<{ id: string }> {
   const apiKey = process.env.RESEND_API_KEY;
   // The checks below run before any request, so nothing can have been sent.
   if (!apiKey) {
@@ -75,14 +79,17 @@ export async function sendEmail({ to, subject, html, text, replyTo }: SendEmailI
   const resend = new Resend(apiKey);
   let result: Awaited<ReturnType<typeof resend.emails.send>>;
   try {
-    result = await resend.emails.send({
+    const payload = {
       from,
       to,
       subject,
       html,
       text,
       replyTo: replyTo ?? GLOBAL.email.reply_to,
-    });
+    };
+    result = await (idempotencyKey !== undefined
+      ? resend.emails.send(payload, { idempotencyKey })
+      : resend.emails.send(payload));
   } catch (err) {
     // Network/transport failure before Resend answered.
     throw new EmailSendError(`Resend request failed: ${err instanceof Error ? err.message : String(err)}`, true);
@@ -94,10 +101,12 @@ export async function sendEmail({ to, subject, html, text, replyTo }: SendEmailI
     const name = errObj?.name ?? undefined;
     const status = errObj?.statusCode ?? undefined;
     // A 4xx means Resend refused the request. Without a status, or with a 5xx, the outcome is ambiguous.
-    const refused = typeof status === "number" && status >= 400 && status < 500;
+    // The concurrent-request 409 is ambiguous too: the original request with this key may still be accepted, so it is retryable.
+    const concurrent = status === GLOBAL.email.concurrent_request_status && name === GLOBAL.email.concurrent_request_error_name;
+    const refused = typeof status === "number" && status >= 400 && status < 500 && !concurrent;
     throw new EmailSendError(
       `Resend error${status ? ` (${status})` : ""}: ${error?.message ?? "no data"}`,
-      isRetryableError(name, status),
+      concurrent || isRetryableError(name, status),
       status,
       refused,
     );

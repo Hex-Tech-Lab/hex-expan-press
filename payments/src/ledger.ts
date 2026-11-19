@@ -1,5 +1,4 @@
-import { mkdirSync, readFileSync } from "node:fs";
-import { open } from "node:fs/promises";
+import { closeSync, fsyncSync, mkdirSync, openSync, readFileSync, writeSync } from "node:fs";
 import { dirname, join, basename } from "node:path";
 import { createHash } from "node:crypto";
 import { z } from "zod";
@@ -86,8 +85,9 @@ const usdColumn = (field: string, min: number) =>
 
 /**
  * Write contract for public.orders, enforced immediately before the upsert so a malformed or
- * non-cent-exact value is rejected here (→ route 500, provider retries) instead of being
- * silently rounded or rejected by Postgres. Mirrors 20260927000200_orders_ledger.sql and the
+ * non-cent-exact value is rejected here (a terminal 400, no provider retry) instead of being
+ * silently rounded or rejected by Postgres. A violation throws OrderSchemaError, which the webhook handler
+ * quarantines and answers with a terminal 400 (no provider retry). Mirrors 20260927000200_orders_ledger.sql and the
  * event_type CHECK widened in 20261003000200. amount_usd is always non-negative; the splits are
  * negated on "refund" rows (appendRefund) and positive on "sale" / "refund_reversal" rows.
  */
@@ -122,6 +122,17 @@ export class OrderSchemaError extends Error {
   }
 }
 
+/** Parse the fence stored on a public.orders row. Only a non-negative safe integer (a JSON number, or its decimal
+ *  string) is accepted. Anything else is a corrupt row, and throwing fails the write closed: Number(null) is 0, so a
+ *  null fence would otherwise let a stale worker through. */
+function parseStoredFence(raw: unknown): number {
+  const fence = typeof raw === "number" ? raw : typeof raw === "string" && /^\d+$/.test(raw) ? Number(raw) : Number.NaN;
+  if (!Number.isSafeInteger(fence) || fence < 0) {
+    throw new Error(`ledger: stored orders.fence is not a non-negative safe integer (got ${String(raw)})`);
+  }
+  return fence;
+}
+
 /** Dual-write an order record to Supabase public.orders for permanent serverless persistence.
  *  When a fencing token is supplied, enforces stored fence <= new fence via conditional update. */
 async function persistToSupabaseOrder(record: SaleRecord, fence?: number): Promise<void> {
@@ -149,7 +160,8 @@ async function persistToSupabaseOrder(record: SaleRecord, fence?: number): Promi
     return;
   }
   try {
-    // Zod gate: the last check before the DB boundary. A violation throws a typed error (500 → retry); nothing is written.
+    // Zod gate: the last check before the DB boundary. A violation throws OrderSchemaError; the handler quarantines it and
+    // answers a terminal 400 (no retry). Nothing is written.
     const parsed = OrderUpsertSchema.safeParse({
       provider: record.provider,
       sale_id: record.sale_id,
@@ -180,10 +192,12 @@ async function persistToSupabaseOrder(record: SaleRecord, fence?: number): Promi
 
     const rowWithFence = { ...parsed.data, fence };
     const keyLabel = `${parsed.data.provider}:${parsed.data.sale_id}:${parsed.data.event_type}`;
-    const runConditionalUpdate = async (): Promise<boolean> => {
+    // An existing key takes only the fence. The financial fields of the committed row are never rewritten, so a duplicate or
+    // conflicting payload cannot change what was booked. The full row is inserted only when the key is absent.
+    const runFenceUpdate = async (): Promise<boolean> => {
       const { data, error } = await supabase
         .from("orders")
-        .update(rowWithFence)
+        .update({ fence })
         .eq("provider", parsed.data.provider)
         .eq("sale_id", parsed.data.sale_id)
         .eq("event_type", parsed.data.event_type)
@@ -198,7 +212,7 @@ async function persistToSupabaseOrder(record: SaleRecord, fence?: number): Promi
       return Array.isArray(data) && data.length > 0;
     };
 
-    if (await runConditionalUpdate()) return;
+    if (await runFenceUpdate()) return;
 
     const { error: insertErr } = await supabase.from("orders").insert(rowWithFence);
     if (!insertErr) return;
@@ -207,7 +221,7 @@ async function persistToSupabaseOrder(record: SaleRecord, fence?: number): Promi
       throw Object.assign(new Error(`ledger: Supabase orders upsert failed: ${insertErr.message}`), { code: insertErr.code });
     }
 
-    if (await runConditionalUpdate()) return;
+    if (await runFenceUpdate()) return;
 
     const { data: stored, error: checkErr } = await supabase
       .from("orders")
@@ -219,10 +233,9 @@ async function persistToSupabaseOrder(record: SaleRecord, fence?: number): Promi
     if (checkErr) {
       throw Object.assign(new Error(`ledger: Supabase orders upsert failed: ${checkErr.message}`), { code: checkErr.code });
     }
-    const storedFence = stored && typeof (stored as { fence?: unknown }).fence !== "undefined"
-      ? Number((stored as { fence: number | string }).fence)
-      : undefined;
-    if (storedFence !== undefined && Number.isFinite(storedFence) && storedFence > fence) {
+    // A row that exists but carries no usable fence is corrupt: parseStoredFence throws, so nothing is written.
+    const storedFence = stored ? parseStoredFence((stored as { fence?: unknown }).fence) : undefined;
+    if (storedFence !== undefined && storedFence > fence) {
       throw new StaleFenceError("orders", keyLabel, fence, storedFence);
     }
     throw Object.assign(new Error(`ledger: Supabase orders upsert failed: ${insertErr.message}`), { code: insertErr.code });
@@ -270,17 +283,25 @@ function rowToSaleRecord(data: OrdersRow): SaleRecord {
   };
 }
 
+/** Read the local sales ledger. Only ENOENT means "no ledger yet" (null). Any other read error (EACCES, EIO, EISDIR)
+ *  is logged and rethrown: a broken ledger must never look empty, or a duplicate check would pass and re-book a sale. */
+function readLedgerText(salesFile: string): string | null {
+  try {
+    return readFileSync(salesFile, "utf8");
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return null;
+    console.error("ledger: sales ledger read failed:", err);
+    throw err instanceof Error ? err : new Error(String(err));
+  }
+}
+
 /** Find an already-recorded sale by provider + sale_id (webhook idempotency guard).
- *  Tolerant read: missing file or malformed lines are skipped (same posture as reports). */
+ *  Missing file → null. Malformed lines are skipped; other read errors throw (see readLedgerText). */
 export function findSale(provider: string, saleId: string, salesFile: string = SALES_FILE): SaleRecord | null {
   salesFile = resolveSalesFile(salesFile);
-  let lines: string[];
-  try {
-    lines = readFileSync(salesFile, "utf8").split(/\r?\n/);
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code !== "ENOENT") console.error("ledger: sales ledger read failed (treated as no ledger yet):", err);
-    return null; // no ledger yet
-  }
+  const text = readLedgerText(salesFile);
+  if (text === null) return null; // no ledger yet
+  const lines = text.split(/\r?\n/);
   for (const line of lines) {
     const trimmed = line.trim();
     if (trimmed === "") continue;
@@ -290,7 +311,7 @@ export function findSale(provider: string, saleId: string, salesFile: string = S
         return o as unknown as SaleRecord;
       }
     } catch (parseErr) {
-      logMalformedLedgerLine(parseErr);
+      console.error("ledger: malformed ledger line skipped:", parseErr instanceof Error ? parseErr.message : String(parseErr));
       continue; // malformed line — tolerated by contract
     }
   }
@@ -307,7 +328,12 @@ async function queryOrderRowFromSupabase(
     // fix-forward): a construction failure is logged + rethrown by the catch
     // below instead of escaping raw.
     const supabase = await getSupabaseAdmin();
-    if (!supabase) return null;
+    if (!supabase) {
+      // Unconfigured Supabase. In a money-path runtime a missing client must NOT read as "not found": a duplicate
+      // check would pass and the sale, refund or reversal would be booked again. Outside it (local dev, tests) it is a clean miss.
+      if (isMoneyPath()) throw new Error(`ledger: Supabase ${errorContext} unavailable: client not configured in a money-path runtime`);
+      return null;
+    }
     let query = supabase.from("orders").select(ORDERS_SELECT_COLUMNS);
     for (const [col, val] of Object.entries(filters)) {
       query = query.eq(col, val);
@@ -343,14 +369,6 @@ export async function findSaleAsync(provider: string, saleId: string, salesFile:
  *  replay; anything else is a real failure and is never swallowed. */
 export const ORDERS_ADJUSTMENT_UNIQ_INDEX = "orders_provider_adjustment_id_uniq";
 
-/**
- * Logs a non-fatal warning when a ledger line fails to parse or cannot be read as an object;
- * callers skip the malformed line rather than aborting the scan.
- */
-function logMalformedLedgerLine(parseErr: unknown): void {
-  console.error("ledger: malformed ledger line skipped:", parseErr instanceof Error ? parseErr.message : String(parseErr));
-}
-
 export function isAdjustmentIdUniqueViolation(err: unknown): boolean {
   const e = err as { code?: unknown; constraint?: unknown; message?: unknown } | null;
   if (!e || typeof e !== "object") return false;
@@ -366,13 +384,9 @@ export function isAdjustmentIdUniqueViolation(err: unknown): boolean {
  *  Tolerant read: missing file or malformed lines are skipped (same posture as findRefund). */
 function findByProviderAdjustmentId(provider: string, providerAdjustmentId: string, eventType: "refund" | "refund_reversal", salesFile: string = SALES_FILE): SaleRecord | null {
   salesFile = resolveSalesFile(salesFile);
-  let lines: string[];
-  try {
-    lines = readFileSync(salesFile, "utf8").split(/\r?\n/);
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code !== "ENOENT") console.error("ledger: sales ledger read failed (treated as no ledger yet):", err);
-    return null; // no ledger yet
-  }
+  const text = readLedgerText(salesFile);
+  if (text === null) return null; // no ledger yet
+  const lines = text.split(/\r?\n/);
   for (const line of lines) {
     const trimmed = line.trim();
     if (trimmed === "") continue;
@@ -382,7 +396,7 @@ function findByProviderAdjustmentId(provider: string, providerAdjustmentId: stri
         return o as unknown as SaleRecord;
       }
     } catch (parseErr) {
-      logMalformedLedgerLine(parseErr);
+      console.error("ledger: malformed ledger line skipped:", parseErr instanceof Error ? parseErr.message : String(parseErr));
       continue; // malformed line — tolerated by contract
     }
   }
@@ -390,7 +404,7 @@ function findByProviderAdjustmentId(provider: string, providerAdjustmentId: stri
 }
 
 /** Async twin of findByProviderAdjustmentId, backed by Supabase public.orders.
- *  Returns null (not throws) on unconfigured Supabase; lookup errors FAIL CLOSED
+ *  Unconfigured Supabase returns null outside a money-path runtime and throws inside one; lookup errors FAIL CLOSED
  *  (throw) so a caller cannot mistake a broken lookup for "not a replay". */
 export async function findByProviderAdjustmentIdAsync(provider: string, providerAdjustmentId: string, eventType: "refund" | "refund_reversal", salesFile: string = SALES_FILE): Promise<SaleRecord | null> {
   const local = findByProviderAdjustmentId(provider, providerAdjustmentId, eventType, salesFile);
@@ -406,13 +420,9 @@ export async function findByProviderAdjustmentIdAsync(provider: string, provider
  *  Tolerant read: missing file or malformed lines are skipped (same posture as reports). */
 export function findRefund(provider: string, saleId: string, salesFile: string = SALES_FILE): SaleRecord | null {
   salesFile = resolveSalesFile(salesFile);
-  let lines: string[];
-  try {
-    lines = readFileSync(salesFile, "utf8").split(/\r?\n/);
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code !== "ENOENT") console.error("ledger: sales ledger read failed (treated as no ledger yet):", err);
-    return null; // no ledger yet
-  }
+  const text = readLedgerText(salesFile);
+  if (text === null) return null; // no ledger yet
+  const lines = text.split(/\r?\n/);
   for (const line of lines) {
     const trimmed = line.trim();
     if (trimmed === "") continue;
@@ -420,7 +430,7 @@ export function findRefund(provider: string, saleId: string, salesFile: string =
       const o = JSON.parse(trimmed) as Record<string, unknown>;
       if (o.event_type === "refund" && o.provider === provider && o.sale_id === saleId) return o as unknown as SaleRecord;
     } catch (parseErr) {
-      logMalformedLedgerLine(parseErr);
+      console.error("ledger: malformed ledger line skipped:", parseErr instanceof Error ? parseErr.message : String(parseErr));
       continue; // malformed line — tolerated by contract
     }
   }
@@ -575,13 +585,9 @@ export async function findRefundAsync(provider: string, saleId: string, salesFil
 /** Find an already-recorded REFUND_REVERSAL by provider + sale_id (reversal idempotency guard). */
 export function findRefundReversal(provider: string, saleId: string, salesFile: string = SALES_FILE): SaleRecord | null {
   salesFile = resolveSalesFile(salesFile);
-  let lines: string[];
-  try {
-    lines = readFileSync(salesFile, "utf8").split(/\r?\n/);
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code !== "ENOENT") console.error("ledger: sales ledger read failed (treated as no ledger yet):", err);
-    return null;
-  }
+  const text = readLedgerText(salesFile);
+  if (text === null) return null; // no ledger yet
+  const lines = text.split(/\r?\n/);
   for (const line of lines) {
     const trimmed = line.trim();
     if (trimmed === "") continue;
@@ -589,7 +595,7 @@ export function findRefundReversal(provider: string, saleId: string, salesFile: 
       const o = JSON.parse(trimmed) as Record<string, unknown>;
       if (o.event_type === "refund_reversal" && o.provider === provider && o.sale_id === saleId) return o as unknown as SaleRecord;
     } catch (parseErr) {
-      logMalformedLedgerLine(parseErr);
+      console.error("ledger: malformed ledger line skipped:", parseErr instanceof Error ? parseErr.message : String(parseErr));
       continue;
     }
   }
@@ -607,21 +613,68 @@ export async function findRefundReversalAsync(provider: string, saleId: string, 
   );
 }
 
-async function appendRecord(record: SaleRecord, salesFile: string): Promise<void> {
-  // Serverless runtimes (Vercel/Lambda) have a read-only FS outside /tmp — keep the
-  // ledger writable there by redirecting to the basename under /tmp.
-  salesFile = resolveSalesFile(salesFile);
-  mkdirSync(dirname(salesFile), { recursive: true });
-  const fh = await open(salesFile, "a");
+/** True when the local ledger already holds a line for this (provider, sale_id, event_type). Malformed lines are skipped, as in findSale. */
+function localLedgerHasKey(salesFile: string, record: SaleRecord): boolean {
+  let text: string;
   try {
-    await fh.writeFile(JSON.stringify(record) + "\n", "utf8");
-    await fh.sync();
-  } finally {
-    await fh.close();
+    text = readFileSync(salesFile, "utf8");
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return false;
+    const normalized = err instanceof Error ? err : new Error(String(err));
+    console.error("ledger: sales ledger read failed during the duplicate check:", normalized);
+    throw normalized;
   }
+  const eventType = record.event_type ?? "sale";
+  for (const line of text.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (trimmed === "") continue;
+    let parsed: Partial<SaleRecord>;
+    try {
+      parsed = JSON.parse(trimmed) as Partial<SaleRecord>;
+    } catch (parseErr) {
+      console.error("ledger: malformed ledger line skipped:", parseErr instanceof Error ? parseErr.message : String(parseErr));
+      continue;
+    }
+    if (parsed.provider === record.provider && parsed.sale_id === record.sale_id && (parsed.event_type ?? "sale") === eventType) return true;
+  }
+  return false;
 }
 
-export async function appendSale(sale: SaleRecord, salesFile: string = SALES_FILE, fence?: number): Promise<SaleRecord> {
+function appendRecord(record: SaleRecord, salesFile: string): Promise<void> {
+  // The body is synchronous. A throw inside the executor rejects the promise, which is what an async function did,
+  // so callers see the same behaviour and the same Promise<void> type.
+  return new Promise<void>((resolve) => {
+    // Serverless runtimes (Vercel/Lambda) have a read-only FS outside /tmp — keep the
+    // ledger writable there by redirecting to the basename under /tmp.
+    salesFile = resolveSalesFile(salesFile);
+    mkdirSync(dirname(salesFile), { recursive: true });
+    // The fenced orders row is the authoritative record; this file is derived from it. A key that is already present was written by
+    // the worker that won the fence, so a stale worker must not append it again. The check and the append run in one synchronous
+    // block, so no other handler in this process can interleave between them.
+    if (!localLedgerHasKey(salesFile, record)) {
+      const fd = openSync(salesFile, "a");
+      try {
+        writeSync(fd, JSON.stringify(record) + "\n", null, "utf8");
+        fsyncSync(fd);
+      } finally {
+        closeSync(fd);
+      }
+    }
+    resolve();
+  });
+}
+
+/** Idempotent local mirror of a record that is already durable in Supabase. Duplicate paths call it: the durable write
+ *  can commit while the local append then fails, and a retry finds the record only in Supabase. Without this the local
+ *  ledger (what reports read) would stay short. A key already present locally is a no-op (appendRecord's check). */
+export function mirrorToLocalLedger(record: SaleRecord, salesFile: string = SALES_FILE): Promise<void> {
+  return appendRecord(record, salesFile);
+}
+
+/** Durable Supabase write of a sale, and nothing else. The first-sale webhook path calls this, delivers the receipt, and only
+ *  then mirrors the sale locally, so a local-file fault can never block the buyer's email. appendSale composes the two for
+ *  every other caller. */
+export async function persistSale(sale: SaleRecord, fence?: number): Promise<SaleRecord> {
   assertSale(sale);
   const record: SaleRecord = {
     ts: sale.ts,
@@ -640,6 +693,11 @@ export async function appendSale(sale: SaleRecord, salesFile: string = SALES_FIL
   // Durable store FIRST: if Supabase fails the route 500s and the provider retries;
   // writing the local file first would make that retry look like a duplicate.
   await persistToSupabaseOrder(record, fence);
+  return record;
+}
+
+export async function appendSale(sale: SaleRecord, salesFile: string = SALES_FILE, fence?: number): Promise<SaleRecord> {
+  const record = await persistSale(sale, fence);
   await appendRecord(record, salesFile);
   return record;
 }
@@ -648,13 +706,9 @@ export async function appendSale(sale: SaleRecord, salesFile: string = SALES_FIL
  *  Tolerant read: missing file or malformed lines are skipped (same posture as findSale). */
 export function findSalesByAttribution(attributionId: string, salesFile: string = SALES_FILE): SaleRecord[] {
   salesFile = resolveSalesFile(salesFile);
-  let lines: string[];
-  try {
-    lines = readFileSync(salesFile, "utf8").split(/\r?\n/);
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code !== "ENOENT") console.error("ledger: sales ledger read failed (treated as empty):", err);
-    return [];
-  }
+  const text = readLedgerText(salesFile);
+  if (text === null) return []; // no ledger yet
+  const lines = text.split(/\r?\n/);
   const out: SaleRecord[] = [];
   for (const line of lines) {
     const trimmed = line.trim();
@@ -663,7 +717,7 @@ export function findSalesByAttribution(attributionId: string, salesFile: string 
       const o = JSON.parse(trimmed) as Record<string, unknown>;
       if (o.attribution_id === attributionId) out.push(o as unknown as SaleRecord);
     } catch (parseErr) {
-      logMalformedLedgerLine(parseErr);
+      console.error("ledger: malformed ledger line skipped:", parseErr instanceof Error ? parseErr.message : String(parseErr));
       continue; // malformed line — tolerated by contract
     }
   }
@@ -708,7 +762,8 @@ export async function appendRefund(refund: RefundSpec, salesFile: string = SALES
     if (fence !== undefined) {
       await persistToSupabaseOrder(already, fence);
     }
-    return already; // duplicate refund → resolve with the existing record (no throw, no duplicate write)
+    await mirrorToLocalLedger(already, salesFile); // duplicate refund: heal a lost local append, then resolve with the existing record
+    return already;
   }
   const record: SaleRecord = {
     ts,
@@ -769,6 +824,7 @@ export async function appendRefundReversal(spec: RefundSpec, salesFile: string =
     if (fence !== undefined) {
       await persistToSupabaseOrder(alreadyReversal, fence);
     }
+    await mirrorToLocalLedger(alreadyReversal, salesFile); // duplicate reversal: heal a lost local append
     return alreadyReversal;
   }
 

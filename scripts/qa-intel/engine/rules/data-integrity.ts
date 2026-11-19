@@ -163,6 +163,23 @@ export const DefaultValueConsistencyRule: IRule = {
 
 const SINK_CALL = /^(insert|update|upsert|upload|put|send|json|write|writeFile|set|save|store|append|post|publish)$/;
 
+/** Names that mark a slice end as a position in the text, not a display width: `proto + 2`, `end + 1`, `idx`, `match.index`. */
+const STRUCTURAL_BOUND_NAME = /^(idx|index|pos|position|offset|start|end|boundary|delim\w*|open\w*|close\w*|proto\w*|found\w*|match\w*)$/i;
+
+/** True when a non-literal slice end is a structural position (a delimiter index), so the slice extracts a span. */
+function isStructuralBound(expr: Node): boolean {
+  if (Node.isBinaryExpression(expr)) {
+    const op = expr.getOperatorToken().getKind();
+    return (op === SyntaxKind.PlusToken || op === SyntaxKind.MinusToken)
+      && Node.isNumericLiteral(expr.getRight())
+      && isStructuralBound(expr.getLeft());
+  }
+  if (Node.isIdentifier(expr)) return STRUCTURAL_BOUND_NAME.test(expr.getText());
+  if (Node.isPropertyAccessExpression(expr)) return STRUCTURAL_BOUND_NAME.test(expr.getName());
+  if (Node.isCallExpression(expr)) return /\.(indexOf|lastIndexOf|search|findIndex)$/.test(expr.getExpression().getText());
+  return false;
+}
+
 /**
  * True when the value of `start` reaches storage or a caller: it is returned, written to a property, or passed to a
  * storing call (a DB write, an upload, a response). A local alias is followed to each of its reads.
@@ -235,8 +252,9 @@ export const TruncationValidationRule: IRule = {
             Node.isPrefixUnaryExpression(endArg) && endArg.getOperatorToken() === SyntaxKind.MinusToken
           );
           if (isNegativeEnd) return;
-          // Dynamic end bounds (`proxyUrl.slice(0, proto + 2)`, `content.slice(start, end + 1)`) extract structural delimiters, not display truncation.
-          if (endArg && !Node.isNumericLiteral(endArg)) return;
+          // Structural end bounds (`proxyUrl.slice(0, proto + 2)`, `content.slice(start, end + 1)`, `s.slice(0, s.indexOf(x))`)
+          // extract a delimited span, not display truncation. Any other dynamic bound (`body.slice(0, max)`) is still a cap.
+          if (endArg && !Node.isNumericLiteral(endArg) && isStructuralBound(endArg)) return;
           // Diagnostic error-message caps inside template literals (e.g. `(${lastError.slice(0, 120)})`) are bounded log/reason details, not truncated UI prose.
           const inTemplate = node.getFirstAncestorByKind(SyntaxKind.TemplateExpression);
           if (inTemplate && /err(?:or)?$/i.test(receiverText)) return;

@@ -335,8 +335,10 @@ export const AuthSecurityRule: IRule = {
         }
       }
 
-    // Check for localhost fallbacks in production routes
-    if (text.includes('localhost') && (text.includes('NEXT_PUBLIC_APP_URL') || text.includes('APP_URL'))) {
+    // Check for localhost fallbacks in production routes. The fallback is the defect: an APP_URL read with `||` or `??`
+    // whose default is localhost, on one statement. A file that merely names APP_URL and localhost (a Playwright config
+    // that imports a fixed test base URL) has no fallback and is not flagged.
+    if (/\b(NEXT_PUBLIC_APP_URL|APP_URL)\b[^;\n]*(\|\||\?\?)[^;\n]*localhost/.test(text)) {
       findings.push({
         file: filePath,
         severity: "high",
@@ -433,28 +435,120 @@ function isSplitOrMatchAllExempt(node: ElementAccessExpression, index: string | 
  * or `Array.isArray(a.touchpoints) ? a.touchpoints[0] : undefined`.
  */
 function guardedByEarlierCheck(func: Node, base: Node, access: Node): boolean {
-  const name = base.getText().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const reference = new RegExp(`(?<![\\w$])${name}(?![\\w$])`);
-  if (func.getDescendantsOfKind(SyntaxKind.IfStatement).some((ifStatement) => {
-    const condition = ifStatement.getExpression();
-    return condition.getEnd() <= access.getStart() && reference.test(condition.getText());
-  })) {
-    return true;
-  }
+  const baseText = base.getText();
+  const contains = (outer: Node, inner: Node): boolean => outer.getStart() <= inner.getStart() && inner.getEnd() <= outer.getEnd();
+
+  // An earlier `if` narrows the rest of its block only when its then-branch always leaves (return, throw, continue,
+  // break) and its condition is false only when the array is present. A check that merely mentions the array
+  // (`if (!parts) log()`, `if (parts === undefined) {}`) narrows nothing and must not exempt the access.
+  const earlierExitGuard = func.getDescendantsOfKind(SyntaxKind.IfStatement).some((ifStatement) => {
+    const scope = ifStatement.getParent();
+    if (!scope || ifStatement.getEnd() > access.getStart() || !contains(scope, access)) return false;
+    if (ifStatement.getElseStatement()) return false;
+    const thenStatement = ifStatement.getThenStatement();
+    const thenStatements = Node.isBlock(thenStatement) ? thenStatement.getStatements() : [thenStatement];
+    const leavesScope = thenStatements.some((s) =>
+      Node.isReturnStatement(s) || Node.isThrowStatement(s) || Node.isContinueStatement(s) || Node.isBreakStatement(s));
+    return leavesScope && presentWhenFalse(ifStatement.getExpression(), baseText);
+  });
+  if (earlierExitGuard) return true;
+
   for (let cur = access.getParent(); cur && cur !== func; cur = cur.getParent()) {
-    if (Node.isConditionalExpression(cur)) {
-      const whenTrue = cur.getWhenTrue();
-      if (whenTrue.getStart() <= access.getStart() && access.getEnd() <= whenTrue.getEnd() && reference.test(cur.getCondition().getText())) {
-        return true;
-      }
+    if (Node.isIfStatement(cur)) {
+      const condition = cur.getExpression();
+      if (contains(cur.getThenStatement(), access) && presentWhenTrue(condition, baseText)) return true;
+      const elseStatement = cur.getElseStatement();
+      if (elseStatement && contains(elseStatement, access) && presentWhenFalse(condition, baseText)) return true;
     }
-    if (Node.isBinaryExpression(cur) && cur.getOperatorToken().getKind() === SyntaxKind.AmpersandAmpersandToken) {
-      const right = cur.getRight();
-      if (right.getStart() <= access.getStart() && access.getEnd() <= right.getEnd() && reference.test(cur.getLeft().getText())) {
-        return true;
-      }
+    if (Node.isConditionalExpression(cur)) {
+      const condition = cur.getCondition();
+      if (contains(cur.getWhenTrue(), access) && presentWhenTrue(condition, baseText)) return true;
+      if (contains(cur.getWhenFalse(), access) && presentWhenFalse(condition, baseText)) return true;
+    }
+    if (Node.isBinaryExpression(cur) && contains(cur.getRight(), access)) {
+      const op = cur.getOperatorToken().getKind();
+      if (op === SyntaxKind.AmpersandAmpersandToken && presentWhenTrue(cur.getLeft(), baseText)) return true;
+      if (op === SyntaxKind.BarBarToken && presentWhenFalse(cur.getLeft(), baseText)) return true;
     }
   }
+  return false;
+}
+
+/** Strips parentheses so `(parts)` and `parts` compare the same. */
+function unwrapParens(expr: Node): Node {
+  return Node.isParenthesizedExpression(expr) ? unwrapParens(expr.getExpression()) : expr;
+}
+
+/** `base` itself, or `Array.isArray(base)`: both are true only when the array is present. */
+function isArrayPresence(expr: Node, baseText: string): boolean {
+  const e = unwrapParens(expr);
+  if (e.getText() === baseText) return true;
+  return Node.isCallExpression(e) && e.getExpression().getText() === 'Array.isArray'
+    && e.getArguments()[0]?.getText() === baseText;
+}
+
+function isNullish(expr: Node): boolean {
+  const e = unwrapParens(expr);
+  return Node.isNullLiteral(e) || e.getText() === 'undefined';
+}
+
+/** A comparison of `base.length` with a numeric literal, as its operator and value. */
+function lengthComparison(expr: Node, baseText: string): { op: string; k: number } | undefined {
+  const e = unwrapParens(expr);
+  if (!Node.isBinaryExpression(e)) return undefined;
+  const left = unwrapParens(e.getLeft());
+  const right = unwrapParens(e.getRight());
+  if (!Node.isPropertyAccessExpression(left) || left.getName() !== 'length') return undefined;
+  if (left.getExpression().getText() !== baseText || !Node.isNumericLiteral(right)) return undefined;
+  return { op: e.getOperatorToken().getText(), k: Number(right.getLiteralValue()) };
+}
+
+/** True only when the condition holds only if the array has an element (or is not nullish). */
+function presentWhenTrue(expr: Node, baseText: string): boolean {
+  const e = unwrapParens(expr);
+  if (isArrayPresence(e, baseText)) return true;
+  if (Node.isPrefixUnaryExpression(e) && e.getOperatorToken() === SyntaxKind.ExclamationToken) {
+    return presentWhenFalse(e.getOperand(), baseText);
+  }
+  if (Node.isBinaryExpression(e)) {
+    const op = e.getOperatorToken().getKind();
+    if (op === SyntaxKind.AmpersandAmpersandToken) return presentWhenTrue(e.getLeft(), baseText) || presentWhenTrue(e.getRight(), baseText);
+    if (op === SyntaxKind.BarBarToken) return presentWhenTrue(e.getLeft(), baseText) && presentWhenTrue(e.getRight(), baseText);
+    if (op === SyntaxKind.ExclamationEqualsEqualsToken || op === SyntaxKind.ExclamationEqualsToken) {
+      if (isNullish(e.getRight()) && isArrayPresence(e.getLeft(), baseText)) return true;
+      if (isNullish(e.getLeft()) && isArrayPresence(e.getRight(), baseText)) return true;
+    }
+  }
+  const cmp = lengthComparison(e, baseText);
+  if (!cmp) return false;
+  if (cmp.op === '===' || cmp.op === '==') return cmp.k >= 1;
+  if (cmp.op === '>') return cmp.k >= 0;
+  if (cmp.op === '>=') return cmp.k >= 1;
+  if (cmp.op === '!==' || cmp.op === '!=') return cmp.k === 0;
+  return false;
+}
+
+/** True only when the condition is false only if the array is present: a negated presence check or `base === undefined`. */
+function presentWhenFalse(expr: Node, baseText: string): boolean {
+  const e = unwrapParens(expr);
+  if (Node.isPrefixUnaryExpression(e) && e.getOperatorToken() === SyntaxKind.ExclamationToken) {
+    return presentWhenTrue(e.getOperand(), baseText);
+  }
+  if (Node.isBinaryExpression(e)) {
+    const op = e.getOperatorToken().getKind();
+    if (op === SyntaxKind.BarBarToken) return presentWhenFalse(e.getLeft(), baseText) || presentWhenFalse(e.getRight(), baseText);
+    if (op === SyntaxKind.AmpersandAmpersandToken) return presentWhenFalse(e.getLeft(), baseText) && presentWhenFalse(e.getRight(), baseText);
+    if (op === SyntaxKind.EqualsEqualsEqualsToken || op === SyntaxKind.EqualsEqualsToken) {
+      if (isNullish(e.getRight()) && isArrayPresence(e.getLeft(), baseText)) return true;
+      if (isNullish(e.getLeft()) && isArrayPresence(e.getRight(), baseText)) return true;
+    }
+  }
+  const cmp = lengthComparison(e, baseText);
+  if (!cmp) return false;
+  if (cmp.op === '!==' || cmp.op === '!=') return cmp.k >= 1;
+  if (cmp.op === '<') return cmp.k >= 1;
+  if (cmp.op === '<=') return cmp.k >= 0;
+  if (cmp.op === '===' || cmp.op === '==') return cmp.k === 0;
   return false;
 }
 

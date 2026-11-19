@@ -300,6 +300,33 @@ export const UnboundedBodyReadRule: Rule = {
  * `fetch` through a helper variable are recognized only when the callee text
  * contains `fetch`.
  */
+
+/** True when the ancestor walk from `node` up to `boundary` passes through a catch clause. */
+function insideCatchWithin(node: Node, boundary: Node): boolean {
+  for (let cur: Node | undefined = node; cur && cur !== boundary; cur = cur.getParent()) {
+    if (Node.isCatchClause(cur)) return true;
+  }
+  return false;
+}
+
+/**
+ * True when a for-of/for-in loop variable feeds the loop body outside its catch clause and outside delay calls, so each
+ * pass sends a different request (`for (const file of files) { fetch(file.url) }`). A variable read only by a delay
+ * (`sleep(delay)`, `setTimeout(r, delay)`) or only in a catch means every pass repeats the same request.
+ */
+function loopVariableReadsRequest(loop: Node): boolean {
+  if (!Node.isForOfStatement(loop) && !Node.isForInStatement(loop)) return true;
+  const init = loop.getInitializer();
+  const names = new Set(init.getDescendantsOfKind(SyntaxKind.Identifier).map((id) => id.getText()));
+  if (Node.isIdentifier(init)) names.add(init.getText());
+  const delayCall = (id: Node): boolean => {
+    const call = id.getFirstAncestor((a) => Node.isCallExpression(a));
+    return Node.isCallExpression(call) && /sleep|delay|wait|timeout|backoff/i.test(call.getExpression().getText());
+  };
+  return loop.getStatement().getDescendantsOfKind(SyntaxKind.Identifier).some((id) =>
+    names.has(id.getText()) && !insideCatchWithin(id, loop.getStatement()) && !delayCall(id));
+}
+
 export const NonIdempotentRetryRule: Rule = {
   name: "artas-v19-non-idempotent-retry",
   scope: "file",
@@ -351,7 +378,10 @@ export const NonIdempotentRetryRule: Rule = {
       const isPerItemLoop = Node.isForOfStatement(node) || Node.isForInStatement(node);
       const hasCatch = node.getDescendantsOfKind(SyntaxKind.CatchClause).length > 0;
       const hasRetryVocabulary = /\b\w*(attempt|retr(y|ies)|tries|backoff)\w*\b/i.test(node.getText());
-      if (!isConditionLoop && !hasRetryVocabulary && (isPerItemLoop || !hasCatch)) return;
+      // A for-of/for-in over delays or other non-request values (`for (const delay of [100, 200]) { try { fetch(url, POST) }
+      // catch { sleep(delay) } }`) has no retry vocabulary but resends the same request, so it is a retry loop too.
+      const repeatsSameRequest = isPerItemLoop && hasCatch && !loopVariableReadsRequest(node);
+      if (!isConditionLoop && !hasRetryVocabulary && !repeatsSameRequest && (isPerItemLoop || !hasCatch)) return;
 
       const fn = findEnclosingFunction(node);
       if (!fn) return;

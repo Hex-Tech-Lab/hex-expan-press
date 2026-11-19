@@ -3,12 +3,11 @@
 -- platform handles (none), product title, slug, copy, disclaimers and inside items.
 --
 -- RUN ONLY AGAINST THE SEPARATE TEST DATABASE. Never against the production project.
--- Idempotent: re-running removes the test creator and its test product first.
+-- Idempotent: re-running UPDATES the existing fixture rows in place (upsert on the natural keys) and
+-- never deletes. Deleting failed once the test creator had portal, launch or delivery history: the
+-- product delete hits restrictive child rows and the creator delete hits retained references.
 
 begin;
-
-delete from products where creator_id in (select id from creators where handle = 'test_replica');
-delete from creators where handle = 'test_replica';
 
 insert into creators (id, handle, display_name, platform_handles, bio, bio_source, photo, created_at)
 values (
@@ -20,7 +19,13 @@ values (
   'TEST DATA. Structure copied from a live creator, identity removed. Not for publication.',
   null,
   now()
-);
+)
+on conflict (handle) do update set
+  display_name = excluded.display_name,
+  platform_handles = excluded.platform_handles,
+  bio = excluded.bio,
+  bio_source = excluded.bio_source,
+  photo = excluded.photo;
 
 insert into products (
   id, creator_id, slug, title, description,
@@ -45,11 +50,20 @@ select
     'Test-mode payments only. No real card is charged.'
   ],
   (select jsonb_agg(jsonb_build_object('label', 'Test item ' || g, 'text', 'Placeholder text for the test.') order by g) from generate_series(1, 4) g),
-
-
   'TEST DATA - not a real publication.',
   now()
 from creators c
-where c.handle = 'test_replica';
+where c.handle = 'test_replica'
+on conflict (creator_id, slug) do update set
+  title = excluded.title,
+  description = excluded.description,
+  price_usd = excluded.price_usd,
+  currency = excluded.currency,
+  provider = excluded.provider,
+  checkout_mode = excluded.checkout_mode,
+  store_product_id = excluded.store_product_id,
+  disclaimers = excluded.disclaimers,
+  inside = excluded.inside,
+  working_note = excluded.working_note;
 
 commit;

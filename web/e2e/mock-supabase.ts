@@ -115,15 +115,58 @@ async function readBody(req: IncomingMessage): Promise<string> {
   return Buffer.concat(chunks).toString("utf8");
 }
 
-/** Minimal PostgREST: `col=eq.value` filters, `limit`; order/select ignored. */
+/** The `products` table as PostgREST serves it. Fixture live products are nested under their creator (creators[].products),
+ * so each is also exposed as a flat row with its many-to-one `creators` object, the shape the checkout lookup embeds. */
+function productRows(): Row[] {
+  const nested = (db.creators ?? []).flatMap((c) =>
+    (Array.isArray(c.products) ? (c.products as Row[]) : []).map((p) => ({ ...p, creators: { handle: c.handle, display_name: c.display_name } })),
+  );
+  return [...(db.products ?? []), ...nested];
+}
+
+/** Minimal PostgREST: `col=eq.value` filters, `limit`; order/select ignored.
+ * Embedded filters (`relation.col=op.value`, where `relation` is an array on the parent rows) filter the embedded
+ * rows. An inner embed (`relation!inner(` in select) also drops a parent left with no embedded row. Only eq, neq and
+ * not.is.null are modelled, the operators the storefront uses; other operators are ignored, as at top level. */
 function query(table: string, params: URLSearchParams): Row[] {
-  let rows = db[table] ?? [];
-  for (const [k, v] of params) {
+  let rows = table === "products" ? productRows() : (db[table] ?? []);
+  const select = params.get("select") ?? "";
+  const embedded = new Map<string, Array<{ col: string; test: (x: unknown) => boolean }>>();
+  for (const [k, value] of params) {
     if (["select", "order", "limit", "offset"].includes(k)) continue;
-    if (v.startsWith("eq.")) rows = rows.filter((r) => String(r[k]) === v.slice(3));
+    const dot = k.indexOf(".");
+    const relation = dot > 0 ? k.split(".", 1)[0] : "";
+    if (relation && rows.some((r) => Array.isArray(r[relation]))) {
+      const test = embeddedTest(value);
+      if (test) embedded.set(relation, [...(embedded.get(relation) ?? []), { col: k.slice(dot + 1), test }]);
+      continue;
+    }
+    if (value.startsWith("eq.")) rows = rows.filter((r) => String(r[k]) === value.slice(3));
+  }
+  for (const [relation, conds] of embedded) {
+    const inner = select.includes(`${relation}!inner(`);
+    rows = rows.flatMap((r) => {
+      const children = Array.isArray(r[relation]) ? (r[relation] as Row[]) : [];
+      const kept = children.filter((c) => conds.every((cond) => cond.test(c[cond.col])));
+      if (inner && kept.length === 0) return [];
+      return [{ ...r, [relation]: kept }];
+    });
   }
   const limit = params.get("limit");
   return limit ? rows.slice(0, Number(limit)) : rows;
+}
+
+function embeddedTest(value: string): ((x: unknown) => boolean) | null {
+  if (value.startsWith("eq.")) {
+    const want = value.slice(3);
+    return (x) => String(x) === want;
+  }
+  if (value.startsWith("neq.")) {
+    const want = value.slice(4);
+    return (x) => String(x) !== want;
+  }
+  if (value === "not.is.null") return (x) => x !== null && x !== undefined;
+  return null;
 }
 
 function rpc(fn: string, args: Row): { status: number; body: unknown } {

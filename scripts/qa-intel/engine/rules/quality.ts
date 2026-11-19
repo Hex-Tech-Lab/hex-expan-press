@@ -249,6 +249,11 @@ export const ImportOrderingRule: IRule = {
   }
 };
 
+/** The nearest function that contains a node, or undefined at module level. */
+function owningFunction(node: Node): Node | undefined {
+  return node.getFirstAncestor((a) => Node.isFunctionLikeDeclaration(a));
+}
+
 /**
  * True when a catch clause handles the error without logging it: it rethrows the caught error or its message,
  * returns an error object carrying the caught error, or keeps the reason in a variable for a later throw.
@@ -260,9 +265,12 @@ function handlesCaughtError(catchClause: CatchClause): boolean {
   const mentionsCaught = (expr: Node | undefined): boolean =>
     expr !== undefined && caught !== undefined && expr.getDescendantsOfKind(SyntaxKind.Identifier).concat(Node.isIdentifier(expr) ? [expr] : [])
       .some((id) => id.getText() === caught);
+  // A return or throw inside a nested callback leaves that callback, not the catch's own function, so it does not handle the error.
+  const catchOwner = owningFunction(catchClause);
+  const leavesCatchFunction = (n: Node): boolean => owningFunction(n) !== catchOwner;
 
-  if (block.getDescendantsOfKind(SyntaxKind.ThrowStatement).some((t) => mentionsCaught(t.getExpression()))) return true;
-  if (block.getDescendantsOfKind(SyntaxKind.ReturnStatement).some((r) => mentionsCaught(r.getExpression()))) return true;
+  if (block.getDescendantsOfKind(SyntaxKind.ThrowStatement).some((t) => !leavesCatchFunction(t) && mentionsCaught(t.getExpression()))) return true;
+  if (block.getDescendantsOfKind(SyntaxKind.ReturnStatement).some((r) => !leavesCatchFunction(r) && mentionsCaught(r.getExpression()))) return true;
   // A comment before a fallback return documents a swallowed error; it does not handle it, so it is not a case here.
   return block.getDescendantsOfKind(SyntaxKind.BinaryExpression).some((b) =>
     b.getOperatorToken().getKind() === SyntaxKind.EqualsToken && Node.isIdentifier(b.getLeft()) && mentionsCaught(b.getRight()));
@@ -287,16 +295,48 @@ function isFailClosedUrlParse(catchClause: CatchClause): boolean {
     && /^return\s+(false|null|undefined)\s*;?$/.test(catchStmts[0].getText().trim());
 }
 
+/** Retry bookkeeping: an attempt counter, a backoff or delay, or a success/done flag. */
+const RETRY_STATE_NAME = /attempt|retr|tries|backoff|delay|wait|sleep|succe|done/i;
+
+/** The name a state update writes to: `attempt` in `attempt++`, `this.delay` in `this.delay *= 2`. */
+function assignedStateName(target: Node | undefined): string | undefined {
+  if (Node.isIdentifier(target)) return target.getText();
+  if (Node.isPropertyAccessExpression(target)) return target.getName();
+  return undefined;
+}
+
+/**
+ * True when a catch's only statement advances retry state (`attempt++`, `delay *= 2`, `done = false`), so the catch
+ * is the loop's retry path rather than a discarded error. Any other single statement, such as `cleanup()`, is not.
+ */
+function isRetryStateUpdate(statement: Node | undefined): boolean {
+  if (!Node.isExpressionStatement(statement)) return false;
+  const expr = statement.getExpression();
+  if (Node.isBinaryExpression(expr)) {
+    const op = expr.getOperatorToken().getKind();
+    const assigns = [SyntaxKind.EqualsToken, SyntaxKind.PlusEqualsToken, SyntaxKind.MinusEqualsToken, SyntaxKind.AsteriskEqualsToken]
+      .includes(op);
+    const name = assignedStateName(expr.getLeft());
+    return assigns && name !== undefined && RETRY_STATE_NAME.test(name);
+  }
+  if (Node.isPrefixUnaryExpression(expr) || Node.isPostfixUnaryExpression(expr)) {
+    const name = assignedStateName(expr.getOperand());
+    return name !== undefined && RETRY_STATE_NAME.test(name);
+  }
+  return false;
+}
+
 function isRetryLoopWithTerminalThrow(catchClause: CatchClause): boolean {
   const loop = catchClause.getFirstAncestor((a) =>
     Node.isForStatement(a) || Node.isWhileStatement(a) || Node.isDoStatement(a)
   );
   if (!loop) return false;
-  const fn = catchClause.getFirstAncestor((a) => Node.isFunctionLikeDeclaration(a));
+  const fn = owningFunction(catchClause);
   if (!fn) return false;
   const catchStmts = catchClause.getBlock().getStatements();
-  const onlyResetsFlag = catchStmts.length === 1 && Node.isExpressionStatement(catchStmts[0]);
-  return onlyResetsFlag && fn.getDescendantsOfKind(SyntaxKind.ThrowStatement).some((t) => t.getStart() > loop.getEnd());
+  if (catchStmts.length !== 1 || !isRetryStateUpdate(catchStmts[0])) return false;
+  // The terminal throw must belong to the same function as the loop, not to a nested callback.
+  return fn.getDescendantsOfKind(SyntaxKind.ThrowStatement).some((t) => t.getStart() > loop.getEnd() && owningFunction(t) === fn);
 }
 
 export const ErrorObservabilityRule: IRule = {
@@ -453,24 +493,14 @@ export const NumberCoercionGuardRule: IRule = {
         return;
       }
 
-      // Skip explicit NaN/finiteness checks or direct `|| fallback` on the Number() result.
+      // A direct `|| fallback` on the Number() result is an explicit default, so it is not silent.
       const parent = node.getParent();
-      if (Node.isCallExpression(parent)) {
-        const parentCallee = parent.getExpression().getText();
-        if (["isNaN", "Number.isNaN", "Number.isFinite", "Number.isInteger"].includes(parentCallee)) return;
-      }
       if (Node.isBinaryExpression(parent) && parent.getLeft() === node && parent.getOperatorToken().getKind() === SyntaxKind.BarBarToken) {
         return;
       }
-      // If `const n = Number(...)` is checked immediately by `Number.isFinite(n)` / `Number.isInteger(n)` / `Number.isNaN(n)` in the same block.
-      const varDecl = node.getFirstAncestorByKind(SyntaxKind.VariableDeclaration);
-      const varName = varDecl?.getName();
-      if (varName) {
-        const block = varDecl?.getFirstAncestorByKind(SyntaxKind.Block);
-        if (block && new RegExp(`Number\\.(?:isFinite|isInteger|isNaN)\\(\\s*${varName}\\s*\\)`).test(block.getText())) {
-          return;
-        }
-      }
+      // Finiteness checks AFTER the conversion (`isNaN(Number(x))`, `Number.isFinite(n)`) do not catch the silent 0:
+      // Number(null) and Number("") are 0, which is finite, an integer, and not NaN. Only a guard on the argument
+      // BEFORE the conversion (checked below) makes the coercion safe.
 
       const enclosingStatement = node.getFirstAncestor((a) =>
         Node.isVariableStatement(a) || Node.isExpressionStatement(a) || Node.isReturnStatement(a) || Node.isIfStatement(a)

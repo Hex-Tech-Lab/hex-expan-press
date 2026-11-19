@@ -57,4 +57,20 @@ describe("payments/src/email send outcome", () => {
     sendMock.mockRejectedValue(new Error("socket hang up"));
     await expect(sendEmail(MAIL)).rejects.toMatchObject({ definite: false });
   });
+
+  // PR 136 A: 409 concurrent_idempotent_requests means another request with this key is in flight. The original may still be
+  // accepted, so the outcome is unconfirmed and retryable. The claim and the link must be kept.
+  it("a 409 concurrent_idempotent_requests is unconfirmed and retryable, not a definite refusal", async () => {
+    sendMock.mockResolvedValue({
+      data: null,
+      error: { message: "a request with this idempotency key is in flight", name: "concurrent_idempotent_requests", statusCode: 409 },
+    });
+    const err = await sendEmail({ ...MAIL, idempotencyKey: "paddle|sale-1|buyer_receipt" }).catch((e: unknown) => e);
+    expect(err).toMatchObject({ definite: false, retryable: true, statusCode: 409 });
+  });
+
+  it("any other 409 is still a definite refusal", async () => {
+    sendMock.mockResolvedValue({ data: null, error: { message: "conflict", name: "validation_error", statusCode: 409 } });
+    await expect(sendEmail(MAIL)).rejects.toMatchObject({ definite: true, retryable: false, statusCode: 409 });
+  });
 });
