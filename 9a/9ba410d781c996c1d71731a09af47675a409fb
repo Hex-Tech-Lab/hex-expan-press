@@ -1,0 +1,101 @@
+payments/src/settings_registry.ts
+  s_0e99959cd74c50::t_6c9894f10e751c 162-164,166-171
+  s_0e99959cd74c50::t_e44c2fcca98095 343-344
+  s_0e99959cd74c50::t_274a13681e750f 179,742-743,748-754,770-801,803-813,1252-1253,1256-1258,1260-1261,1264-1266,1268-1269,1271-1273,1275-1280,1285,1287-1288,1294,1311
+  s_0e99959cd74c50::t_8d6918425e60cf 280-282
+  s_0e99959cd74c50::t_b4def9600fc6a5 172-174,176-178
+  s_0e99959cd74c50::t_58d41192ff9cc8 180-181
+  s_0e99959cd74c50::t_29c37aabd4cc40 1249-1251
+  s_0e99959cd74c50::t_ded3f0c44e7406 1254-1255
+  s_0e99959cd74c50::t_bd83a6d2644c98 1259
+  s_0e99959cd74c50::t_795a8c09b09e0d 1262-1263
+  s_0e99959cd74c50::t_c3d6cbba7c9c7d 1267
+  s_0e99959cd74c50::t_455d8400c2f3e7 1270
+  s_0e99959cd74c50::t_179aa0beca4460 1274
+  s_0e99959cd74c50::t_b1d62d834c2f36 1281-1284
+  s_0e99959cd74c50::t_2612e54c1de3fe 1286
+  s_0e99959cd74c50::t_f917ea6c85b77d 1289-1293
+  s_0e99959cd74c50::t_611a7bf00c40d9 1295-1297,1308-1310
+  s_0e99959cd74c50::t_58ebcc33cebc50 1312-1313
+  s_38efe3453a60c3::t_acfdd99d2ef834 175,251-269,346-371,895,1218-1248,1298-1307
+web/src/components/storefront/storefront.tsx
+  s_0e99959cd74c50::t_5f220dbec70c34 434
+  s_0e99959cd74c50::t_4317b539b752ac 375
+  s_0e99959cd74c50::t_c158e7ab1d84f7 372-374
+  s_0e99959cd74c50::t_01429c4c800f80 376-378
+  s_38efe3453a60c3::t_a94c033f957e16 8,50-54,126-141,152,163,167-171,188,195-200,216,226,362-371,379-391,393-422,446
+payments/test/settings_registry_runtime.test.ts
+  s_0e99959cd74c50::t_089298e0f34988 6
+  s_0e99959cd74c50::t_bf733c564b067b 354-357,359
+payments/test/book_preview_settings.test.ts
+  s_0e99959cd74c50::t_2ab1caf5e5e511 44
+  s_0e99959cd74c50::t_a127630e679d07 28-29
+  s_0e99959cd74c50::t_9cbf74d4c9a416 25-27
+  s_0e99959cd74c50::t_b6678d2c99180e 30-32,41-43
+  s_0e99959cd74c50::t_fbe7017aea5100 45-47
+  s_38efe3453a60c3::t_6489378412d2a8 1-24,33-40,48-143
+.gitignore
+  s_0e99959cd74c50::t_cf40509c9aacaa 12
+books/duane.json
+  s_0e99959cd74c50::t_c9c842c739da92 30-34
+books/sample_the_quiet_workshop.json
+  s_0e99959cd74c50::t_c6cfb3c6247461 1-15
+books/smoke.json
+  s_0e99959cd74c50::t_d4f128cae4fd5d 24-27
+docs/handover/BOOK_PREVIEW_OPTIONS_2026-11-19.html
+  s_0e99959cd74c50::t_d7feb823e74e7b 1-323
+docs/handover/BOOK_PREVIEW_OPTIONS_2026-11-19.md
+  s_0e99959cd74c50::t_86564134be5ee8 1-28
+payments/book_identity.ts
+  s_0e99959cd74c50::t_9fb1972b0ea93d 10-12,40,46-55
+pnpm-lock.yaml
+  s_0e99959cd74c50::t_81f7221d99786e 209-211,4591-4593,9723-9724
+scripts/preview_pdf_build.py
+  s_0e99959cd74c50::t_43c5b3f771987a 1-132
+web/__tests__/book-assets.test.ts
+  s_0e99959cd74c50::t_2bc51d6341399b 1-103
+web/__tests__/book-previewer.test.ts
+  s_0e99959cd74c50::t_7848194e1dbf86 1-264
+web/__tests__/storefront.test.ts
+  s_0e99959cd74c50::t_edc61c4f7575ed 8-19,217-303
+web/app/books/[handle]/[product]/page.tsx
+  s_0e99959cd74c50::t_2255c3eb95f2a1 4,81-85,87,143-153
+web/e2e/book-preview.spec.ts
+  s_0e99959cd74c50::t_f824271193034a 1-118
+web/e2e/mock-supabase.ts
+  s_0e99959cd74c50::t_0696ee65eaf5f8 64-65,68,71-72,94,99-121
+web/next.config.ts
+  s_0e99959cd74c50::t_3eac84611b0b59 76-77,79-81
+web/package.json
+  s_0e99959cd74c50::t_0b4ecfda5c6ff8 31
+web/src/components/storefront/book-previewer.tsx
+  s_0e99959cd74c50::t_ab1831086fbf82 1-337
+web/src/lib/book-assets.ts
+  s_0e99959cd74c50::t_4e99d586f1eaef 1-108
+web/src/types/page-flip.d.ts
+  s_0e99959cd74c50::t_4b679e51dd19c8 1-53
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "9a9ba410d781c996c1d71731a09af47675a409fb",
+  "prompts": {},
+  "sessions": {
+    "s_0e99959cd74c50": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "21b00acc-7513-46d6-9a35-038af7845be2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    },
+    "s_38efe3453a60c3": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a56cc27d73532b897",
+        "model": "unknown"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
