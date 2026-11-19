@@ -1,0 +1,27 @@
+payments/src/delivery.ts
+  s_0e99959cd74c50::t_a5542a9c561f78 379
+  s_0e99959cd74c50::t_2814af07569643 376-378
+  s_0e99959cd74c50::t_898e7872cf9877 658
+  s_0e99959cd74c50::t_7da0f4f863418b 304-306
+  s_0e99959cd74c50::t_082dcec7b77bd0 687-689
+  s_0e99959cd74c50::t_0a237db78e274a 696
+payments/test/delivery_held_claim_resend.test.ts
+  s_0e99959cd74c50::t_dbfbbfb9e557a0 487-528
+  s_0e99959cd74c50::t_5f01d0682c50e2 5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c847b3bf034d7fbdb8bc74695f5e2894f56b417b",
+  "prompts": {},
+  "sessions": {
+    "s_0e99959cd74c50": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "21b00acc-7513-46d6-9a35-038af7845be2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
