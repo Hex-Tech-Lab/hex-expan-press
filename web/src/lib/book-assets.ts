@@ -19,6 +19,7 @@ function findRepoRoot(): string {
   if (existsSync(join(cwd, "books"))) return cwd;
   const parent = resolve(cwd, "..");
   if (existsSync(join(parent, "books"))) return parent;
+  console.error(`[book-assets] books directory not found under ${cwd} or ${parent}; using ${cwd}`);
   return cwd;
 }
 
@@ -62,7 +63,10 @@ function readBookJsonSafe(bookRegistryPath: string): Record<string, unknown> | n
   }
   try {
     const parsed: unknown = JSON.parse(readFileSync(/*turbopackIgnore: true*/ fullPath, "utf8"));
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      console.error(`[book-assets] books json is not an object for ${bookRegistryPath}`);
+      return null;
+    }
     return parsed as Record<string, unknown>;
   } catch (err) {
     console.error(`[book-assets] books json unreadable for ${bookRegistryPath}: ${err instanceof Error ? err.name : "unknown"}`);
@@ -82,6 +86,9 @@ export function resolveProductBookAssets(product: {
   const houseCreator = isHouse(product.creator_is_house);
   // Slug-keyed registry overrides are house-only: a creator product whose slug matches must not inherit house assets.
   const registryOverride = houseCreator && slug ? GLOBAL.storefront.book_assets[slug] : undefined;
+  if (typeof product.book_registry === "string" && product.book_registry !== "" && !SAFE_BOOK_REGISTRY_RE.test(product.book_registry)) {
+    console.error(`[book-assets] rejected book_registry for slug ${slug}`);
+  }
   const registryPath =
     typeof product.book_registry === "string" && SAFE_BOOK_REGISTRY_RE.test(product.book_registry)
       ? product.book_registry
@@ -97,6 +104,8 @@ export function resolveProductBookAssets(product: {
   const rawCover = registryOverride?.cover_image !== undefined ? registryOverride.cover_image : bookJson?.cover_image;
   const rawPreview = registryOverride?.preview_pdf !== undefined ? registryOverride.preview_pdf : bookJson?.preview_pdf;
 
+  if (rawCover != null && !isSafeCoverPath(rawCover)) console.error(`[book-assets] rejected cover_image for slug ${slug}`);
+  if (rawPreview != null && !isSafePreviewPdfPath(rawPreview)) console.error(`[book-assets] rejected preview_pdf for slug ${slug}`);
   const cover_image = isSafeCoverPath(rawCover) ? rawCover.trim() : null;
   const preview_pdf = isSafePreviewPdfPath(rawPreview) ? rawPreview.trim() : null;
 
