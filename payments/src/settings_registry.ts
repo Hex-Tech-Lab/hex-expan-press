@@ -215,7 +215,7 @@ product_slug: { min_length: number; max_length: number; separator: string };
   /** Sign-in email length ceiling (O5). 254 is the RFC 5321 address limit; zod's email check supplies the shape. */
   /** `typo_domains` is the list the buyer email step checks a typo against. A close miss is suggested, never applied silently. */
   email_address: { max_length: number; typo_domains: string[] };
-  landing: { fallbacks: { title: string; creator: string }; disclaimers: string[] };
+  landing: { fallbacks: { title: string; creator: string }; disclaimers: string[]; disclaimer_required_terms: string[] };
   /** Admin API allowlist + pagination (admin audit-log route). */
   admin: {
     /** Supabase auth user ids permitted to call admin API routes. Empty => fail closed (403 for everyone). */
@@ -598,6 +598,8 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
       "Educational and informational content only. Nothing in these publications is professional advice of any kind, including financial, legal, medical, or tax advice. See each publication's page for its full disclaimer.",
       "Digital products: all items are downloadable PDFs; no physical items are shipped.",
     ],
+    // Every disclaimer set (default or stored) must name each of these categories, or the default set is used.
+    disclaimer_required_terms: ["financial", "legal", "medical", "tax"],
   },
   // Buyer delivery (download_events, delivery_sends). The bucket holds release files only, never review copies.
   delivery: {
@@ -1146,6 +1148,27 @@ export function loadStorefrontSection(raw: Record<string, unknown> | undefined):
   };
 }
 
+/** landing: fallbacks keep the stored-or-default object as before. A stored disclaimers list is used only when it is non-empty
+ *  text and names every required category; otherwise the default set wins, with a warning. */
+export function loadLandingSection(raw: Record<string, unknown> | undefined): GlobalSettings["landing"] {
+  const defaults = DEFAULT_GLOBAL.landing;
+  const required = defaults.disclaimer_required_terms;
+  const candidate = raw?.disclaimers;
+  const usable =
+    Array.isArray(candidate) &&
+    candidate.length > 0 &&
+    candidate.every((line) => typeof line === "string" && line.trim() !== "") &&
+    required.every((term) => new RegExp(`\\b${term}\\b`, "i").test((candidate as string[]).join(" ")));
+  if (candidate !== undefined && !usable) {
+    warnFallback("global.json", `landing.disclaimers must be non-empty text naming every required category (${required.join(", ")})`);
+  }
+  return {
+    fallbacks: (raw?.fallbacks as GlobalSettings["landing"]["fallbacks"] | undefined) ?? defaults.fallbacks,
+    disclaimers: usable ? (candidate as string[]) : defaults.disclaimers,
+    disclaimer_required_terms: required,
+  };
+}
+
 /** branding: validates version, theme_mode, font_family, logo URLs, hex colours, and button radius. */
 export function loadBrandingSection(raw: Record<string, unknown> | undefined): BrandCheckoutSettings {
   const defaults = DEFAULT_GLOBAL.branding;
@@ -1227,7 +1250,7 @@ function loadGlobal(): GlobalSettings {
     defaults: { ...DEFAULT_GLOBAL.defaults, ...(g.defaults ?? {}) },
     payments: loadPaymentsSection(g.payments as Record<string, unknown> | undefined),
     delivery: loadDeliverySection(g.delivery as Record<string, unknown> | undefined),
-    landing: { ...DEFAULT_GLOBAL.landing, ...(g.landing ?? {}) },
+    landing: loadLandingSection(g.landing as Record<string, unknown> | undefined),
     storefront: loadStorefrontSection(g.storefront as Record<string, unknown> | undefined),
     book_preview: loadBookPreviewSection(g.book_preview as Record<string, unknown> | undefined),
     handles: { ...DEFAULT_GLOBAL.handles, ...(g.handles ?? {}) },
