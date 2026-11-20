@@ -351,12 +351,20 @@ describe("settings registry: paddle.overlay, storefront, and provider display na
 
   it("validates storefront brand_name and thanks_path_template, and exposes provider display names", () => {
     const warn = vi.spyOn(console, "error").mockImplementation(() => {});
+    const HOUSE_NOTE = "House title. Published by ExpanPress. No creator revenue split.";
     expect(loadStorefrontSection(undefined)).toEqual(DEFAULT_GLOBAL.storefront);
     expect(DEFAULT_GLOBAL.storefront.brand_name).toBe("ExpanPress");
     expect(DEFAULT_GLOBAL.storefront.publisher_label).toBe(DEFAULT_GLOBAL.storefront.brand_name);
     expect(DEFAULT_GLOBAL.storefront.thanks_path_template).toBe("/books/{handle}/thanks");
-    const invalid = loadStorefrontSection({ b2c_landing_url: "http://bad", brand_name: " ", thanks_path_template: "no-handle" });
+    expect(DEFAULT_GLOBAL.storefront.house_title_note).toBe(HOUSE_NOTE);
+    const invalid = loadStorefrontSection({
+      b2c_landing_url: "http://bad",
+      brand_name: " ",
+      thanks_path_template: "no-handle",
+      house_title_note: "  ",
+    });
     expect(invalid).toEqual(DEFAULT_GLOBAL.storefront);
+    expect(loadStorefrontSection({ house_title_note: " Edited note. " }).house_title_note).toBe("Edited note.");
     expect(paymentProviderDisplayName("paddle")).toBe("Paddle.com");
     expect(paymentProviderDisplayName("creem")).toBe("Creem");
     expect(paymentProviderDisplayName("unknown_rail")).toBe("unknown_rail");

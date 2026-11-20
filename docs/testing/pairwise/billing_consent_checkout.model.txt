@@ -1,5 +1,7 @@
 # PICT pairwise model for billing / consent / checkout parameters of /api/billing/checkout and webhook consent persistence.
 # Rev 3 (paddle-option-a): adds provider_path (overlay vs redirect) and asserts buyer_consent true/false reaching the webhook.
+# Rev 4 (house-title-consent-exemption, 2026-11-19): adds creator_kind (creator vs house). A house title skips the creator consents
+#   C1-C3 (decision and consent_kind have no effect on it) and must still match its pinned release hash (house_release_pins).
 # Run: /usr/local/bin/pict docs/testing/pairwise/billing_consent_checkout.model.txt > docs/testing/pairwise/billing_consent_checkout.rows.tsv
 #
 # Parameters:
@@ -16,6 +18,7 @@
 #   buyer_email   : buyer_email parameter (absent; valid; invalid shape; typo_suggested = valid shape with a likely domain typo)
 #   buyer_consent : buyer_consent parameter (checked = "true", unchecked = "false"; carried on overlay/creem and persisted by webhook)
 #   buyer_country : x-vercel-ip-country header (us = US; us_territory = PR, VI, GU, AS, MP; non_us = outside the allow list)
+#   creator_kind  : owner of the product (creator = external creator, C1-C3 gate applies; house = creators.is_house, consent gate skipped)
 
 consent_kind: C1_data_accuracy, C2_release_approval, C3_revenue_split
 decision: given, refused, forked, resolved_by_set
@@ -29,6 +32,7 @@ rail_mode: live, sandbox
 buyer_email: absent, valid, invalid, typo_suggested
 buyer_consent: checked, unchecked
 buyer_country: us, us_territory, non_us
+creator_kind: creator, house
 
 # Only Paddle supports the overlay path; other providers keep their redirect path.
 IF [provider] <> "paddle" THEN [provider_path] = "redirect";

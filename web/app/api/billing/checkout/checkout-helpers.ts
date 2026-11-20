@@ -25,8 +25,19 @@ export type ProductRow = {
   checkout_mode?: string | null;
   /** The Paddle price the overlay sells (products.paddle_price_id). Null until the price is set up at Paddle. */
   paddle_price_id?: string | null;
-  creators?: { handle?: string | null } | Array<{ handle?: string | null }> | null;
+  creators?: { handle?: string | null; is_house?: boolean | null } | Array<{ handle?: string | null; is_house?: boolean | null }> | null;
 };
+
+/**
+ * True when the product's creator is the house (creators.is_house, operator-set).
+ * A house title skips the creator consents C1-C3; its release file must still match the pin in house_release_pins.
+ * PostgREST returns a many-to-one embed as an object, but the array form is accepted too. Any other shape is not house.
+ */
+export function isHouseProduct(product: ProductRow): boolean {
+  const embedded = product.creators;
+  const creator = Array.isArray(embedded) ? embedded[0] : embedded;
+  return creator?.is_house === true;
+}
 
 export interface BuyerFields {
   email?: string;

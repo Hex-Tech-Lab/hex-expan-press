@@ -162,12 +162,14 @@ export interface GlobalSettings {
   /** Buyer-facing storefront links, publisher name, card copy, and registry-driven asset paths. `b2c_landing_url` is the logo
    *  target on the thank-you page. `brand_name` is the publisher's name: a creator whose display name equals it is the house, and
    *  the page names it as publisher. `publisher_label` is not set separately; it always equals `brand_name` (one source).
-   *  `thanks_path_template` is the thank-you page a checkout returns to ({handle} is replaced with the creator handle). */
+   *  `thanks_path_template` is the thank-you page a checkout returns to ({handle} is replaced with the creator handle).
+   *  `house_title_note` is the one-line note on a house title (creators.is_house): published by ExpanPress, no creator split. */
   storefront: {
     b2c_landing_url: string;
     brand_name: string;
     publisher_label: string;
     thanks_path_template: string;
+    house_title_note: string;
     digital_pdf_kicker: string;
     sample_badge_label: string;
     covers_base_path: string;
@@ -346,6 +348,7 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     brand_name: STOREFRONT_BRAND,
     publisher_label: STOREFRONT_BRAND,
     thanks_path_template: "/books/{handle}/thanks",
+    house_title_note: `House title. Published by ${STOREFRONT_BRAND}. No creator revenue split.`,
     digital_pdf_kicker: "DIGITAL PDF",
     sample_badge_label: "(Sample)",
     covers_base_path: "/books/covers",
@@ -743,14 +746,14 @@ export function loadPaymentsSection(raw: Record<string, unknown> | undefined): G
   };
 }
 
-/** storefront: validates b2c_landing_url, brand_name, thanks_path_template, card copy and asset paths; falls back per key on
- *  invalid input. publisher_label is derived from brand_name (one source), so a raw publisher_label is not read. */
+/** storefront: validates b2c_landing_url, brand_name, thanks_path_template, house_title_note, card copy and asset paths;
+ *  falls back per key on invalid input. publisher_label is derived from brand_name (one source), so a raw publisher_label is not read. */
 export function loadStorefrontSection(raw: Record<string, unknown> | undefined): GlobalSettings["storefront"] {
   const defaults = DEFAULT_GLOBAL.storefront;
   if (!raw) return defaults;
   const fallbacks: string[] = [];
-  const strField = (key: "digital_pdf_kicker" | "sample_badge_label"): string => {
-    if (!(key in raw)) return defaults[key];
+  const strField = (key: "digital_pdf_kicker" | "sample_badge_label" | "house_title_note"): string => {
+    if (raw[key] === undefined) return defaults[key];
     const v = raw[key];
     if (typeof v === "string" && v.trim() !== "") return v.trim();
     fallbacks.push(key);
@@ -803,12 +806,14 @@ export function loadStorefrontSection(raw: Record<string, unknown> | undefined):
       fallbacks.push("book_assets");
     }
   }
+  const houseNote = strField("house_title_note");
   if (fallbacks.length > 0) warnFallback("global.json", `invalid storefront values for ${fallbacks.join(", ")}`);
   return {
     b2c_landing_url: b2cLanding,
     brand_name: brandName,
     publisher_label: brandName,
     thanks_path_template: thanksTpl,
+    house_title_note: houseNote,
     digital_pdf_kicker: strField("digital_pdf_kicker"),
     sample_badge_label: strField("sample_badge_label"),
     covers_base_path: coversBasePath,
