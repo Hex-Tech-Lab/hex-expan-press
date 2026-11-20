@@ -1,0 +1,8 @@
+preview_pdf	target_exists	match_media_supported	framer_reduced	media_reduced	interaction
+present	no	yes	false	true	none
+present	yes	yes	true	true	click
+present	no	no	true	false	none
+present	no	no	false	false	click
+present	yes	yes	false	false	none
+absent	no	yes	false	false	none
+present	yes	no	true	false	none

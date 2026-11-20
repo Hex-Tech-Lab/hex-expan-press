@@ -1,0 +1,15 @@
+# PICT pairwise model for product-page preview scroll arrow (PreviewScrollCue + product page gate)
+# (web/src/components/storefront/preview-scroll-cue.tsx, web/app/books/[handle]/[product]/page.tsx).
+# Run: /usr/local/bin/pict docs/testing/pairwise/preview_scroll_cue.model.txt > docs/testing/pairwise/preview_scroll_cue.rows.tsv
+
+preview_pdf: present, absent
+target_exists: yes, no
+match_media_supported: yes, no
+framer_reduced: true, false
+media_reduced: true, false
+interaction: click, none
+
+# When preview_pdf is absent on the product page, PreviewScrollCue is not rendered.
+IF [preview_pdf] = "absent" THEN [target_exists] = "no" AND [match_media_supported] = "yes" AND [framer_reduced] = "false" AND [media_reduced] = "false" AND [interaction] = "none";
+# Without window.matchMedia, the media query fallback resolves false.
+IF [match_media_supported] = "no" THEN [media_reduced] = "false";

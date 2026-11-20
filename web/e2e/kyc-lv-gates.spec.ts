@@ -141,6 +141,36 @@ for (const viewport of [
       await backLink.click();
       await expect(page).toHaveURL(/\/books$/);
     });
+
+    test(`LV-05: pay. root renders cleanly with 0 horizontal overflow at ${viewport.width}px`, async ({ page }) => {
+      const pay = await apiRequest.newContext({
+        baseURL: APP_URL,
+        maxRedirects: 0,
+        extraHTTPHeaders: { host: "pay.expanpress.com" },
+      });
+      try {
+        const payRoot = await pay.get("/");
+        expect(payRoot.status(), "pay / status").toBe(200);
+        const payHtml = await payRoot.text();
+        await page.route("https://pay.expanpress.com/", (route) =>
+          route.fulfill({ status: 200, contentType: "text/html; charset=utf-8", body: payHtml }),
+        );
+        await page.goto("https://pay.expanpress.com/");
+        await expect(page.locator("header .name")).toHaveText("expanpress");
+        await expect(page.getByRole("heading", { name: "Digital book checkout" })).toBeVisible();
+        await expect(page.getByRole("link", { name: "Browse books" })).toHaveAttribute(
+          "href",
+          "https://expanpress.com/books",
+        );
+        await expect(page.locator("footer a[href='/books/legal/privacy.html']")).toBeVisible();
+        await expect(page.locator("footer a[href='/books/legal/terms.html']")).toBeVisible();
+        await expect(page.locator("footer a[href='/books/legal/refund-policy.html']")).toBeVisible();
+        const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+        expect(overflow, `pay. root horizontal overflow at ${viewport.width}px`).toBe(false);
+      } finally {
+        await pay.dispose();
+      }
+    });
   });
 }
 
