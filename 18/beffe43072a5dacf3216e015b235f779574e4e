@@ -1,0 +1,63 @@
+web/src/components/storefront/book-preview-toolbar.tsx
+  s_0e99959cd74c50::t_1baf63b2a8f07f 143-144
+  s_0e99959cd74c50::t_d01ada9d4d6045 113-115
+  s_0e99959cd74c50::t_f8757f272894c6 25
+  s_0e99959cd74c50::t_278ed83fe2175b 154-155
+  s_0e99959cd74c50::t_995674ac87aa50 22-24
+  s_0e99959cd74c50::t_f6ac65a4c24065 26-28,110-112
+  s_0e99959cd74c50::t_a445b2f4e698b0 116-118,140-142
+  s_0e99959cd74c50::t_9e53cf21a719ac 145-147,151-153
+  s_0e99959cd74c50::t_7014de05a906ab 156-158
+  s_ebeb98d74ea0a9::t_18703f5c797e58 1-21,29-109,119-139,148-150,159-164
+payments/src/settings_registry.ts
+  s_0e99959cd74c50::t_10ed3b9568e58d 285-286
+  s_0e99959cd74c50::t_b598649efe2e6c 488-489
+  s_0e99959cd74c50::t_3970d732b69fcb 1617-1618
+  s_0e99959cd74c50::t_76822e273fb47d 287-320,346-347,490-519,1507-1514,1517-1518,1539,1541,1547,1549,1555-1556,1562-1563,1625-1776,1798-1799
+docs/testing/pairwise/book_previewer_read_aloud.model.txt
+  s_0e99959cd74c50::t_71c26f247698c6 1-14
+docs/testing/pairwise/book_previewer_read_aloud.rows.tsv
+  s_0e99959cd74c50::t_051def348914f6 1-29
+payments/test/book_preview_settings.test.ts
+  s_0e99959cd74c50::t_5aadb00bb85d75 199-218,230-237,240,251-265,275-282
+web/__tests__/book-previewer.test.ts
+  s_0e99959cd74c50::t_873f080b0d5856 123,125,129,478-757
+web/__tests__/book_previewer_read_aloud.pairwise.test.ts
+  s_0e99959cd74c50::t_fc9687c6b1e277 1-319
+web/e2e/book-preview-read-aloud.spec.ts
+  s_0e99959cd74c50::t_3c6339788a6342 1-245
+web/playwright.config.ts
+  s_0e99959cd74c50::t_108c796fc3ec8c 45-61
+web/src/components/storefront/book-preview-accessible-card.tsx
+  s_0e99959cd74c50::t_78060d4cd2761e 1-286
+web/src/components/storefront/book-previewer-text.ts
+  s_0e99959cd74c50::t_b78c4dff18eba9 1-449
+web/src/components/storefront/book-previewer.tsx
+  s_0e99959cd74c50::t_ebde378c1f0e40 6-40,60,67-68,72,84-107,151,194-195,203-204,212,217,230-231,235,257-258,264,327-336,371-390,434-451
+web/src/components/storefront/use-read-aloud.ts
+  s_0e99959cd74c50::t_78cd7c5dd40c3d 1-175
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "18beffe43072a5dacf3216e015b235f779574e4e",
+  "prompts": {},
+  "sessions": {
+    "s_0e99959cd74c50": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "21b00acc-7513-46d6-9a35-038af7845be2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    },
+    "s_ebeb98d74ea0a9": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a6761e653a7461987",
+        "model": "unknown"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
