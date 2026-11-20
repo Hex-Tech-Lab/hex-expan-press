@@ -93,10 +93,12 @@ export default function BookPreviewer({
   );
 
   const expandTextPanel = useCallback(() => setTextOpen(true), []);
+  const continueOnPageTurn = settings.read_aloud.continue_on_page_turn;
   const {
     speechSupported,
     playbackState,
     activeChunkId,
+    activeWord,
     currentRate,
     speechAnnouncement,
     stopReadAloud,
@@ -191,8 +193,11 @@ export default function BookPreviewer({
 
         pf.on("flip", (e) => {
           if (disposed) return;
-          stopReadAloud();
-          clearAnnouncement();
+          // With continue_on_page_turn, useReadAloud restarts on the new page instead of stopping here.
+          if (!settings.read_aloud.continue_on_page_turn) {
+            stopReadAloud();
+            clearAnnouncement();
+          }
           if (typeof e.data === "number") setPageIndex(e.data);
           else if (pf) setPageIndex(pf.getCurrentPageIndex());
           setDraftPageInput(null);
@@ -254,14 +259,16 @@ export default function BookPreviewer({
   const turnToPage = useCallback(
     (targetIdx: number) => {
       if (!flipRef.current || status !== "ready" || totalPages <= 0) return;
-      stopReadAloud();
-      clearAnnouncement();
+      if (!continueOnPageTurn) {
+        stopReadAloud();
+        clearAnnouncement();
+      }
       const clamped = Math.min(Math.max(0, targetIdx), totalPages - 1);
       flipRef.current.turnToPage(clamped);
       setPageIndex(clamped);
       setDraftPageInput(null);
     },
-    [status, totalPages, stopReadAloud, clearAnnouncement],
+    [status, totalPages, continueOnPageTurn, stopReadAloud, clearAnnouncement],
   );
 
   const applyZoomAction = useCallback(
@@ -438,6 +445,7 @@ export default function BookPreviewer({
           spreadCount={currentSpread.length}
           pages={spreadAccessible.pages}
           activeChunkId={activeChunkId}
+          activeWord={activeWord}
           playbackState={playbackState}
           currentRate={currentRate}
           showReadAloudControls={settings.read_aloud.enabled && speechSupported && spreadAccessible.chunks.length > 0}

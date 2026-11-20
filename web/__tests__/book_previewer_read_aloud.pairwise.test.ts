@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 // Pairwise (PICT) test for BookPreviewer Read Aloud & disclosure controls.
 // Model: docs/testing/pairwise/book_previewer_read_aloud.model.txt
-// Rows:  docs/testing/pairwise/book_previewer_read_aloud.rows.tsv (28 PICT rows, every row asserted below)
+// Rows:  docs/testing/pairwise/book_previewer_read_aloud.rows.tsv (30 PICT rows, every row asserted below)
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
@@ -77,16 +77,18 @@ const REPO_ROOT = existsSync(join(process.cwd(), "docs/testing/pairwise"))
 const PICT_BIN = "/usr/local/bin/pict";
 const MODEL_PATH = join(REPO_ROOT, "docs/testing/pairwise/book_previewer_read_aloud.model.txt");
 const ROWS_PATH = join(REPO_ROOT, "docs/testing/pairwise/book_previewer_read_aloud.rows.tsv");
-const EXPECTED_ROW_COUNT = 28;
+const EXPECTED_ROW_COUNT = 30;
 
 interface ReadAloudRow {
   rowNum: number;
   browser_support: "supported" | "unsupported";
+  voice_set: "natural_available" | "legacy_only" | "none_yet";
+  boundary_events: "yes" | "no";
   playback_state: "idle" | "playing" | "paused";
   speed_rate: "r075" | "r100" | "r125" | "r150";
   panel_collapsed: "collapsed" | "expanded";
   spread_size: "single_page" | "two_page";
-  action: "play_pause" | "stop" | "speed_cycle" | "toggle_panel" | "page_flip" | "page_hide";
+  action: "play" | "pause" | "speed_change_mid_sentence" | "stop" | "toggle_panel" | "page_flip" | "page_hide";
 }
 
 function parseRows(tsv: string): ReadAloudRow[] {
@@ -118,9 +120,29 @@ async function flush() {
   });
 }
 
+type VoiceLike = { name: string; lang: string };
+type SpokenUtterance = { text: string; rate: number; voiceName: string | null };
+
+const NATURAL_VOICE: VoiceLike = { name: "Microsoft Aria Online (Natural) - English (United States)", lang: "en-US" };
+const DAVID_VOICE: VoiceLike = { name: "Microsoft David - English (United States)", lang: "en-US" };
+const ZIRA_VOICE: VoiceLike = { name: "Microsoft Zira - English (United States)", lang: "en-US" };
+const VOICE_SETS: Record<ReadAloudRow["voice_set"], VoiceLike[]> = {
+  natural_available: [DAVID_VOICE, NATURAL_VOICE, ZIRA_VOICE],
+  legacy_only: [DAVID_VOICE, ZIRA_VOICE],
+  none_yet: [],
+};
+/** The voice the registry ranking must pick for each browser voice set. */
+const EXPECTED_VOICE: Record<ReadAloudRow["voice_set"], string | null> = {
+  natural_available: NATURAL_VOICE.name,
+  legacy_only: ZIRA_VOICE.name,
+  none_yet: null,
+};
+
 class MockUtterance {
   text: string;
   rate = 1;
+  voice: VoiceLike | null = null;
+  onboundary: ((ev: { charIndex: number }) => void) | null = null;
   onstart: (() => void) | null = null;
   onend: (() => void) | null = null;
   onerror: (() => void) | null = null;
@@ -129,8 +151,9 @@ class MockUtterance {
   }
 }
 
-function installSpeechMock() {
-  const state = { paused: false, cancelCount: 0, spokenRates: [] as number[] };
+function installSpeechMock(row: ReadAloudRow) {
+  const state = { paused: false, cancelCount: 0, spoken: [] as SpokenUtterance[] };
+  const voices = VOICE_SETS[row.voice_set];
   Object.defineProperty(window, "SpeechSynthesisUtterance", {
     value: MockUtterance,
     configurable: true,
@@ -141,10 +164,15 @@ function installSpeechMock() {
       get paused() {
         return state.paused;
       },
+      getVoices: () => voices,
       speak: vi.fn((u: MockUtterance) => {
         state.paused = false;
-        state.spokenRates.push(u.rate);
+        state.spoken.push({ text: u.text, rate: u.rate, voiceName: u.voice?.name ?? null });
         u.onstart?.();
+        if (row.boundary_events === "yes") {
+          // A voice that reports word boundaries: the second word starts after the first space.
+          u.onboundary?.({ charIndex: u.text.indexOf(" ") + 1 });
+        }
       }),
       cancel: vi.fn(() => {
         state.cancelCount += 1;
@@ -196,7 +224,7 @@ describe("BookPreviewer Read Aloud: PICT pairwise (browser support x state x spe
   it.each(ROWS)(
     "row $rowNum: support=$browser_support state=$playback_state speed=$speed_rate panel=$panel_collapsed spread=$spread_size action=$action",
     async (row) => {
-      const speech = row.browser_support === "supported" ? installSpeechMock() : null;
+      const speech = row.browser_support === "supported" ? installSpeechMock(row) : null;
       flipMocks.orientation = row.spread_size === "two_page" ? "landscape" : "portrait";
 
       container = document.createElement("div");
@@ -272,14 +300,35 @@ describe("BookPreviewer Read Aloud: PICT pairwise (browser support x state x spe
         }
       }
 
-      if (row.action === "play_pause") {
+      if (row.action === "play") {
+        // Idle or paused: the toggle starts (or resumes) speech and expands the panel.
         await act(async () => {
           playToggle.click();
         });
-        const expected =
-          row.playback_state === "idle" ? "playing" : row.playback_state === "playing" ? "paused" : "playing";
-        expect(playToggle.getAttribute("data-playback-state")).toBe(expected);
+        expect(playToggle.getAttribute("data-playback-state")).toBe("playing");
         expect(panelToggle.getAttribute("aria-expanded")).toBe("true");
+      } else if (row.action === "pause") {
+        await act(async () => {
+          playToggle.click();
+        });
+        expect(playToggle.getAttribute("data-playback-state")).toBe("paused");
+      } else if (row.action === "speed_change_mid_sentence") {
+        const nextExpectedRate = rates[(targetIdx + 1) % rates.length];
+        const before = speech!.spoken[speech!.spoken.length - 1];
+        await act(async () => {
+          speedBtn.click();
+        });
+        expect(speedBtn.getAttribute("data-rate")).toBe(String(nextExpectedRate));
+        const resumed = speech!.spoken[speech!.spoken.length - 1];
+        expect(resumed.rate).toBe(nextExpectedRate);
+        if (row.boundary_events === "yes") {
+          // Resumes at the last word boundary (the second word), never at the sentence start.
+          expect(resumed.text).toBe(before.text.slice(before.text.indexOf(" ") + 1));
+        } else {
+          // No boundary events: the documented fallback restarts the current sentence.
+          expect(resumed.text).toBe(before.text);
+        }
+        expect(playToggle.getAttribute("data-playback-state")).toBe("playing");
       } else if (row.action === "stop") {
         const stopBtn = container.querySelector('[data-testid="read-aloud-stop"]') as HTMLButtonElement;
         expect(stopBtn).not.toBeNull();
@@ -287,15 +336,6 @@ describe("BookPreviewer Read Aloud: PICT pairwise (browser support x state x spe
           stopBtn.click();
         });
         expect(playToggle.getAttribute("data-playback-state")).toBe("idle");
-      } else if (row.action === "speed_cycle") {
-        const nextExpectedRate = rates[(targetIdx + 1) % rates.length];
-        await act(async () => {
-          speedBtn.click();
-        });
-        expect(speedBtn.getAttribute("data-rate")).toBe(String(nextExpectedRate));
-        if (row.playback_state === "playing") {
-          expect(speech!.spokenRates[speech!.spokenRates.length - 1]).toBe(nextExpectedRate);
-        }
       } else if (row.action === "toggle_panel") {
         const wasOpen = panelToggle.getAttribute("aria-expanded") === "true";
         await act(async () => {
@@ -307,12 +347,18 @@ describe("BookPreviewer Read Aloud: PICT pairwise (browser support x state x spe
         await act(async () => {
           (container!.querySelector('button[aria-label="Next preview page"]') as HTMLButtonElement).click();
         });
-        expect(playToggle.getAttribute("data-playback-state")).toBe("idle");
+        // continue_on_page_turn (default on): playback state survives the turn; playing restarts on the new page.
+        expect(playToggle.getAttribute("data-playback-state")).toBe(row.playback_state);
       } else if (row.action === "page_hide") {
         await act(async () => {
           window.dispatchEvent(new Event("pagehide"));
         });
         expect(playToggle.getAttribute("data-playback-state")).toBe("idle");
+      }
+
+      // Every utterance in the row uses the voice the registry ranking picks for this browser voice set.
+      for (const spoken of speech!.spoken) {
+        expect(spoken.voiceName).toBe(EXPECTED_VOICE[row.voice_set]);
       }
     },
   );

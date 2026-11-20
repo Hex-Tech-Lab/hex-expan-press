@@ -1,0 +1,9 @@
+page_turn	playback_state
+jump	paused
+none	paused
+jump	playing
+none	playing
+prev	playing
+next	paused
+next	playing
+prev	paused
