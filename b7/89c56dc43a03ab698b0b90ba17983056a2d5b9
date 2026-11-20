@@ -1,0 +1,23 @@
+web/src/lib/book-assets.ts
+  s_7e539dcf78d9db::t_0ab36638d0429f 123-125
+  s_7e539dcf78d9db::t_f983fde7c3c34d 93
+  s_7e539dcf78d9db::t_75d81994a3001a 55-58
+  s_7e539dcf78d9db::t_de02ddb9275e68 118-120
+  s_7e539dcf78d9db::t_88537f026bc62a 88
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b789c56dc43a03ab698b0b90ba17983056a2d5b9",
+  "prompts": {},
+  "sessions": {
+    "s_7e539dcf78d9db": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7aec794a-3e95-4ace-bf8d-7a1962c629d9",
+        "model": "unknown"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
