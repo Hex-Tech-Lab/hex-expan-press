@@ -1,0 +1,24 @@
+web/__tests__/landing-browse-books-flag.test.ts
+  s_7e539dcf78d9db::t_79b68188565117 3,11-17,19,27-29,58,61,63,69,81-83
+web/__tests__/landing-browse-books-page-wiring.test.ts
+  s_7e539dcf78d9db::t_bf278132bd06d5 4,17-18,24-25,31-32,34-35
+web/__tests__/landing-browse-books.pairwise.test.ts
+  s_7e539dcf78d9db::t_0e6688f5cdf5ca 14
+  s_7e539dcf78d9db::t_6bc9b63391e921 71
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e5a4ffb81d29eecf73a48ded6c176505103a5295",
+  "prompts": {},
+  "sessions": {
+    "s_7e539dcf78d9db": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7aec794a-3e95-4ace-bf8d-7a1962c629d9",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
