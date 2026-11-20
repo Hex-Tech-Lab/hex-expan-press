@@ -1,4 +1,4 @@
-# PICT pairwise model for the buyer download link, valid path (web/app/books/d/[token]/route.ts).
+# PICT pairwise model for the buyer download link (web/app/books/d/[token]/route.ts): token state x method x release x referrer.
 # Factors: token state x method x release present x referrer.
 # "used-up" is not a state on main (no download limit exists on main), so it is not modelled.
 # Run: /usr/local/bin/pict docs/testing/pairwise/download_link.model.txt > docs/testing/pairwise/download_link.rows.tsv

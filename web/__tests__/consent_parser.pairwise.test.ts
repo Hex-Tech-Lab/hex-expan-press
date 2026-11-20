@@ -1,4 +1,5 @@
-// PICT pairwise test for webhook buyer_email_consent parsing (provider x field x value).
+// PICT pairwise test for webhook buyer consent parsing (provider x field x value).
+// Paddle reads custom_data.buyer_consent; Creem metadata key is buyer_email_consent (never read by the Creem adapter).
 // Model: docs/testing/pairwise/consent_parser.model.txt
 // Rows:  docs/testing/pairwise/consent_parser.rows.tsv (16 generated PICT rows)
 // Paddle drives PaddleAdapter.parseAndValidateWebhook; Creem drives CreemAdapter.parseAndValidateWebhook. No network.
@@ -168,7 +169,8 @@ describe("buyer consent parsing: PICT pairwise rows", () => {
     expect(result.ok).toBe(true);
     expect(result.consent).toBe(expectedConsent(row));
 
-    // Only a non-null, non-boolean value is logged (malformed). Absent and null stay silent.
+    // Only Paddle logs, and only a non-null value that is not true, "true", false or "false" (e.g. 1 or "yes").
+    // Absent, null and the accepted strings stay silent. Creem never calls the parser, so it never logs.
     const malformed = row.field === "present" && VALUE_OF[row.value] !== undefined && expectedConsent(row) === undefined && row.provider === "paddle";
     if (malformed) expect(warn).toHaveBeenCalled();
     else expect(warn).not.toHaveBeenCalled();
@@ -177,8 +179,9 @@ describe("buyer consent parsing: PICT pairwise rows", () => {
 
 describe("buyer consent parsing: known gap", () => {
   // Documents the gap rather than locking it in. It passes while Creem drops metadata[buyer_email_consent].
-  // When the Creem adapter starts recording consent, this flips to a failure: remove .fails and the Creem rows above
-  // then expect the recorded value.
+  // When the Creem adapter starts recording consent, this flips to a failure. To switch it on: remove .fails here,
+  // change expectedConsent() so Creem rows expect the parsed value (not undefined), and update the Paddle-only
+  // warn condition in the per-row test so Creem malformed values are checked too.
   it.fails("Creem records metadata buyer_email_consent \"true\" as buyerEmailConsent true", async () => {
     vi.stubEnv("CREEM_WEBHOOK_SECRET", CREEM_SECRET);
     const body = creemBody("present", "true");

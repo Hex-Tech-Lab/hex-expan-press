@@ -1,4 +1,5 @@
-// PICT pairwise test for the buyer download link, valid path (GET logs and 302s, HEAD probes without logging).
+// PICT pairwise test for the buyer download link: token state x method x release present x referrer
+// (GET logs and 302s on a valid link, HEAD probes without logging, other states return 404, 410 or 500).
 // Model: docs/testing/pairwise/download_link.model.txt
 // Rows:  docs/testing/pairwise/download_link.rows.tsv (16 generated PICT rows)
 // Mock harness only: getSupabaseAdmin and the storage signer are stubbed, no network, no production writes.
