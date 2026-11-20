@@ -1,0 +1,20 @@
+payments/src/settings_registry.ts
+  s_0e99959cd74c50::t_5e2be661d7a128 438-439
+  s_0e99959cd74c50::t_357cce685d6c54 566
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "447ea95da05447b21e3a7c3414a8aa14fe51e850",
+  "prompts": {},
+  "sessions": {
+    "s_0e99959cd74c50": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "21b00acc-7513-46d6-9a35-038af7845be2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}

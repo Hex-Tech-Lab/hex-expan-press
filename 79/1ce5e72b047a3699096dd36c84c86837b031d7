@@ -1,0 +1,19 @@
+payments/src/delivery.ts
+  s_0e99959cd74c50::t_c85623562e9ad9 288-320,328
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "791ce5e72b047a3699096dd36c84c86837b031d7",
+  "prompts": {},
+  "sessions": {
+    "s_0e99959cd74c50": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "21b00acc-7513-46d6-9a35-038af7845be2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}

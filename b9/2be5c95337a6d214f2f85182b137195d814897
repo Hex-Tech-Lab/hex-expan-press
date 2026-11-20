@@ -1,0 +1,37 @@
+payments/test/checkout_branding.test.ts
+  s_0e99959cd74c50::t_7b6441ea10f5d5 28-30,32
+web/__tests__/consistency_surfaces.pairwise.test.ts
+  s_0e99959cd74c50::t_d6b4b18663c44d 354-356
+payments/src/settings_registry.ts
+  s_0e99959cd74c50::t_2cb38211f92823 705-707
+  s_0e99959cd74c50::t_7c10d4f223ae57 625,637-639
+  s_0e99959cd74c50::t_583852ca7d9545 438-439
+  s_0e99959cd74c50::t_16f28bed3301f3 1161-1163
+  s_0e99959cd74c50::t_1fe4a90b437f2f 698-699
+  s_0e99959cd74c50::t_389206d3c03b69 1149
+  s_0e99959cd74c50::t_1ae211df859e43 732-733,735
+  s_0e99959cd74c50::t_b27876e23bd9be 80-81,93-98
+  s_0e99959cd74c50::t_c0d07a438d8c5b 719-720
+payments/src/delivery.ts
+  s_0e99959cd74c50::t_4f1d9212e9bcf0 284-285,287,293
+  s_0e99959cd74c50::t_9a1699c57cc562 317,319
+  s_0e99959cd74c50::t_9a9b0c91af90ce 583
+  s_0e99959cd74c50::t_93126eb8174c0d 303,305
+  s_0e99959cd74c50::t_9b966f81dff34e 313
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b92be5c95337a6d214f2f85182b137195d814897",
+  "prompts": {},
+  "sessions": {
+    "s_0e99959cd74c50": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "21b00acc-7513-46d6-9a35-038af7845be2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}

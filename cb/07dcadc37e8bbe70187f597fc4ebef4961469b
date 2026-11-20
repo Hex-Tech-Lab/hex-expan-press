@@ -1,0 +1,27 @@
+docs/testing/pairwise/consistency_surfaces.model.txt
+  s_0e99959cd74c50::t_cd9a86f737035b 1-14
+docs/testing/pairwise/consistency_surfaces.rows.tsv
+  s_0e99959cd74c50::t_dcd063b8a6c0e0 1-18
+web/__tests__/brand-and-legal.test.ts
+  s_0e99959cd74c50::t_7c68e40757ab61 1-118
+web/__tests__/consistency_surfaces.pairwise.test.ts
+  s_0e99959cd74c50::t_ec622e10724213 1-367
+web/e2e/consistency-high.spec.ts
+  s_0e99959cd74c50::t_3834b54f5c759c 1-150
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "cb07dcadc37e8bbe70187f597fc4ebef4961469b",
+  "prompts": {},
+  "sessions": {
+    "s_0e99959cd74c50": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "21b00acc-7513-46d6-9a35-038af7845be2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}

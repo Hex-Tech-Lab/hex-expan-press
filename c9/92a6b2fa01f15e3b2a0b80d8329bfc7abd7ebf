@@ -1,0 +1,35 @@
+web/public/assets/legal-brand.css
+  s_0e99959cd74c50::t_24d7083a2ca58f 1-268
+web/public/books/legal/privacy.html
+  s_0e99959cd74c50::t_7aa4f816120e9e 8,11-20,22-24,26-28,30-37,39-46,48-49,51-52,54-55,57-58,60-61,63-64,66-68,70-79
+web/public/books/legal/providers.html
+  s_0e99959cd74c50::t_367d89bf568510 9,12-21,23,25-36,38-51,53-63
+web/public/books/legal/refund-policy.html
+  s_0e99959cd74c50::t_6a0773c50db535 8,11-23,25-26,28-29,31-32,34-36,38-39,41-43,45-54
+web/public/books/legal/terms.html
+  s_0e99959cd74c50::t_aa3e926d73a7ea 8,11-20,22-23,25-26,28-29,31-32,34-35,37-38,40-41,43-44,46-47,49-50,52-53,55-56,58-59,61-63,65-74
+web/public/legal/providers.html
+  s_0e99959cd74c50::t_d9cd4141832404 9,12-21,23,25-40,42-56,58-70,72-82
+web/public/privacy.html
+  s_0e99959cd74c50::t_03fae819bf2dee 8,11-20,22-23,25-26,28-36,38-46,48-49,51-52,54-55,57-58,60-61,63-64,66-68,70-80
+web/public/refund-policy.html
+  s_0e99959cd74c50::t_07401681bbd252 8,11-23,25-26,28-29,31-32,34-35,37-39,41-51
+web/public/terms.html
+  s_0e99959cd74c50::t_189df1c6d2743a 7,10-19,21-22,24-25,27-28,30-31,33-34,36-37,39-40,42-43,45-46,48-49,51-53,55-65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c992a6b2fa01f15e3b2a0b80d8329bfc7abd7ebf",
+  "prompts": {},
+  "sessions": {
+    "s_0e99959cd74c50": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "21b00acc-7513-46d6-9a35-038af7845be2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
