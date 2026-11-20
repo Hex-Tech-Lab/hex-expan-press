@@ -2869,5 +2869,13 @@
     "why": "File exceeds 500 lines.",
     "fix": "Decompose into smaller, domain-specific modules.",
     "reason": "pre-existing on main 1abd4db; split tracked post-KYC"
+  },
+  {
+    "file": "web/__tests__/use-read-aloud.engine.test.ts",
+    "severity": "medium",
+    "title": "Syntax Error Risk: Reserved keyword 'type' used as identifier",
+    "why": "Using 'type' as a variable/test name causes parse errors. JavaScript reserves this keyword.",
+    "fix": "Rename to a non-reserved alternative: 'typetest', 'testType', etc.",
+    "reason": "false positive: 'type' is a contextual keyword, not reserved; flagged identifier is the callback parameter (type: string) at line 79, not the 'import type' modifier"
   }
 ]

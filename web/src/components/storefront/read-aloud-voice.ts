@@ -59,10 +59,10 @@ export function rankVoice<T extends VoiceCandidate>(
   return best?.voice ?? null;
 }
 
-function compareKeys(a: readonly number[], b: readonly number[]): number {
-  for (let i = 0; i < a.length; i++) {
-    const diff = (a[i] ?? 0) - (b[i] ?? 0);
-    if (diff !== 0) return diff;
+function compareKeys(leftKey: readonly number[], rightKey: readonly number[]): number {
+  for (let index = 0; index < leftKey.length; index++) {
+    const difference = (leftKey[index] ?? 0) - (rightKey[index] ?? 0);
+    if (difference !== 0) return difference;
   }
   return 0;
 }
