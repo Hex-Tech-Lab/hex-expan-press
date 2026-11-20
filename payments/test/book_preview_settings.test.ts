@@ -196,6 +196,26 @@ describe("loadBookPreviewSection (settings_registry)", () => {
         go_to_page: "Jump to page",
         go_to_page_submit: "Jump",
       },
+      read_aloud: {
+        enabled: true,
+        rates: [0.75, 1, 1.5],
+        default_rate: 1.5,
+        max_chunk_chars: 140,
+        labels: {
+          play: "Listen to sample",
+          stop: "Stop audio",
+        },
+      },
+      text_structure: {
+        line_y_tolerance: 3,
+        heading_scale_ratio: 1.25,
+        major_heading_scale_ratio: 1.5,
+        paragraph_gap_ratio: 1.8,
+        max_heading_chars: 100,
+        toggle_single: "Show page text",
+        toggle_plural: "Show spread text",
+        page_label_prefix: "Sheet",
+      },
     });
     expect(out.render_scale).toBe(1.5);
     expect(out.max_preview_pages).toBe(10);
@@ -207,9 +227,17 @@ describe("loadBookPreviewSection (settings_registry)", () => {
     expect(out.heading).toBe("Look inside");
     expect(out.zoom_levels).toEqual([1, 1.5, 2]);
     expect(out.toolbar_labels.zoom_in).toBe("Larger");
+    expect(out.read_aloud.rates).toEqual([0.75, 1, 1.5]);
+    expect(out.read_aloud.default_rate).toBe(1.5);
+    expect(out.read_aloud.max_chunk_chars).toBe(140);
+    expect(out.read_aloud.labels.play).toBe("Listen to sample");
+    expect(out.read_aloud.labels.stop).toBe("Stop audio");
+    expect(out.text_structure.line_y_tolerance).toBe(3);
+    expect(out.text_structure.major_heading_scale_ratio).toBe(1.5);
+    expect(out.text_structure.toggle_plural).toBe("Show spread text");
   });
 
-  it("falls back for out-of-range numbers, invalid zoom_levels/toolbar_labels, and traversal worker paths", () => {
+  it("falls back for out-of-range numbers, invalid zoom_levels/toolbar_labels/read_aloud/text_structure, and traversal worker paths", () => {
     const warn = vi.spyOn(console, "error").mockImplementation(() => undefined);
     const out = loadBookPreviewSection({
       render_scale: 10,
@@ -220,6 +248,21 @@ describe("loadBookPreviewSection (settings_registry)", () => {
       show_cover: "yes",
       zoom_levels: [1, 1],
       toolbar_labels: { zoom_in: "  " },
+      read_aloud: {
+        enabled: "yes",
+        rates: [1.5, 1],
+        default_rate: 9,
+        max_chunk_chars: 10,
+        labels: { play: "   " },
+      },
+      text_structure: {
+        line_y_tolerance: 0,
+        heading_scale_ratio: 0.9,
+        major_heading_scale_ratio: 1.0,
+        paragraph_gap_ratio: 99,
+        max_heading_chars: 5,
+        toggle_single: "",
+      },
     });
     expect(out.render_scale).toBe(DEFAULT_GLOBAL.book_preview.render_scale);
     expect(out.max_preview_pages).toBe(DEFAULT_GLOBAL.book_preview.max_preview_pages);
@@ -229,6 +272,14 @@ describe("loadBookPreviewSection (settings_registry)", () => {
     expect(out.show_cover).toBe(DEFAULT_GLOBAL.book_preview.show_cover);
     expect(out.zoom_levels).toEqual(DEFAULT_GLOBAL.book_preview.zoom_levels);
     expect(out.toolbar_labels).toEqual(DEFAULT_GLOBAL.book_preview.toolbar_labels);
+    expect(out.read_aloud).toEqual(DEFAULT_GLOBAL.book_preview.read_aloud);
+    expect(out.text_structure).toEqual(DEFAULT_GLOBAL.book_preview.text_structure);
+
+    const crossField = loadBookPreviewSection({
+      text_structure: { heading_scale_ratio: 1.4, major_heading_scale_ratio: 1.2 },
+    });
+    expect(crossField.text_structure.heading_scale_ratio).toBe(1.4);
+    expect(crossField.text_structure.major_heading_scale_ratio).toBe(1.45);
     warn.mockRestore();
   });
 });

@@ -120,10 +120,13 @@ vi.mock("page-flip", () => {
 });
 
 import BookPreviewer, {
+  buildSpreadAccessibleModel,
   buildSpreadGroups,
+  extractStructuredPageBlocks,
   formatSpreadLabel,
   parseTargetPageInput,
   resolveZoomIndex,
+  splitIntoSentenceChunks,
   spreadIndexForPage,
 } from "../src/components/storefront/book-previewer";
 
@@ -470,5 +473,285 @@ describe("BookPreviewer visibility gate and focus", () => {
     render.drawFrame();
     expect(draw.mock.calls.length).toBe(drawnBefore);
     expect(flipMocks.instances[0].destroy).toHaveBeenCalledTimes(1);
+  });
+});
+
+interface MockSpeechState {
+  paused: boolean;
+  speaking: boolean;
+  spoken: Array<{ text: string; rate: number; instance: MockUtterance }>;
+  cancelCount: number;
+  pauseCount: number;
+  resumeCount: number;
+}
+
+class MockUtterance {
+  text: string;
+  rate = 1;
+  onstart: (() => void) | null = null;
+  onend: (() => void) | null = null;
+  onerror: (() => void) | null = null;
+  constructor(text: string) {
+    this.text = text;
+  }
+}
+
+function installSpeechMock(): MockSpeechState {
+  const state: MockSpeechState = {
+    paused: false,
+    speaking: false,
+    spoken: [],
+    cancelCount: 0,
+    pauseCount: 0,
+    resumeCount: 0,
+  };
+  Object.defineProperty(window, "SpeechSynthesisUtterance", {
+    value: MockUtterance,
+    configurable: true,
+    writable: true,
+  });
+  Object.defineProperty(window, "speechSynthesis", {
+    value: {
+      get paused() {
+        return state.paused;
+      },
+      get speaking() {
+        return state.speaking;
+      },
+      speak: vi.fn((u: MockUtterance) => {
+        state.speaking = true;
+        state.paused = false;
+        state.spoken.push({ text: u.text, rate: u.rate, instance: u });
+        u.onstart?.();
+      }),
+      cancel: vi.fn(() => {
+        state.cancelCount += 1;
+        state.speaking = false;
+        state.paused = false;
+      }),
+      pause: vi.fn(() => {
+        state.pauseCount += 1;
+        state.paused = true;
+      }),
+      resume: vi.fn(() => {
+        state.resumeCount += 1;
+        state.paused = false;
+      }),
+    },
+    configurable: true,
+    writable: true,
+  });
+  return state;
+}
+
+describe("structured accessible text extraction and chunking", () => {
+  it("extracts headings, drop-caps, list items, and paragraphs from pdf.js text items", () => {
+    const ts = DEFAULT_GLOBAL.book_preview.text_structure;
+    const blocks = extractStructuredPageBlocks(
+      [
+        { str: "Chapter 1: Setting Up the", hasEOL: true, height: 24, transform: [24, 0, 0, 24, 24, 520] },
+        { str: "Bench", hasEOL: false, height: 24, transform: [24, 0, 0, 24, 24, 484] },
+        { str: "Tools Needed", hasEOL: true, height: 14, transform: [14, 0, 0, 14, 24, 440] },
+        { str: "T", hasEOL: false, height: 34, transform: [34, 0, 0, 34, 24, 390] },
+        { str: "his bench fits in a corner.", hasEOL: true, height: 10.5, transform: [10.5, 0, 0, 10.5, 48, 396] },
+        { str: "Keep good light overhead.", hasEOL: true, height: 10.5, transform: [10.5, 0, 0, 10.5, 48, 380] },
+        { str: "• Hand saw", hasEOL: true, height: 10.5, transform: [10.5, 0, 0, 10.5, 32, 340] },
+        { str: "• Block plane", hasEOL: true, height: 10.5, transform: [10.5, 0, 0, 10.5, 32, 323] },
+        { str: "1. First project", hasEOL: true, height: 10.5, transform: [10.5, 0, 0, 10.5, 32, 290] },
+        { str: "2. Second project . . . . . . 12", hasEOL: true, height: 10.5, transform: [10.5, 0, 0, 10.5, 32, 270] },
+      ],
+      ts,
+    );
+
+    expect(blocks).toEqual([
+      { kind: "heading", level: 3, text: "Chapter 1: Setting Up the Bench" },
+      { kind: "heading", level: 4, text: "Tools Needed" },
+      { kind: "paragraph", text: "This bench fits in a corner. Keep good light overhead." },
+      { kind: "list-item", text: "Hand saw" },
+      { kind: "list-item", text: "Block plane" },
+      { kind: "list-item", text: "1. First project" },
+      { kind: "list-item", text: "2. Second project — 12" },
+    ]);
+  });
+
+  it("splits long text into sentence chunks capped at max_chunk_chars", () => {
+    const chunks = splitIntoSentenceChunks(
+      "First short sentence. Second sentence is deliberately quite long, with a comma clause, so it must split cleanly below the cap without cutting mid-word.",
+      70,
+    );
+    expect(chunks.length).toBeGreaterThanOrEqual(3);
+    for (const chunk of chunks) {
+      expect(chunk.length).toBeLessThanOrEqual(70);
+    }
+
+    const spreadModel = buildSpreadAccessibleModel(
+      [0],
+      [[{ kind: "paragraph", text: "One sentence. Two sentences." }]],
+      180,
+    );
+    expect(spreadModel.chunks.map((c) => c.text)).toEqual(["One sentence.", "Two sentences."]);
+  });
+});
+
+describe("BookPreviewer Read Aloud controls and lifecycle", () => {
+  afterEach(() => {
+    delete (window as unknown as { speechSynthesis?: unknown }).speechSynthesis;
+    delete (window as unknown as { SpeechSynthesisUtterance?: unknown }).SpeechSynthesisUtterance;
+  });
+
+  it("hides Read Aloud controls when speechSynthesis is unsupported, while keeping structured disclosure working", async () => {
+    delete (window as unknown as { speechSynthesis?: unknown }).speechSynthesis;
+    pdfMocks.getPage.mockImplementation(async () => ({
+      getViewport: ({ scale }: { scale: number }) => ({ width: 400 * scale, height: 600 * scale }),
+      render: () => ({ promise: Promise.resolve() }),
+      getTextContent: async () => ({
+        items: [
+          { str: "Chapter 1: Intro", hasEOL: true, height: 22, transform: [22, 0, 0, 22, 24, 500] },
+          { str: "Body paragraph line.", hasEOL: true, height: 10, transform: [10, 0, 0, 10, 24, 460] },
+        ],
+      }),
+    }));
+
+    await mountPreviewer();
+    expect(container!.querySelector('[data-testid="read-aloud-controls"]')).toBeNull();
+
+    const toggle = container!.querySelector('[data-testid="book-preview-accessible-toggle"]') as HTMLButtonElement;
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    const panelId = toggle.getAttribute("aria-controls");
+    expect(panelId).toBeTruthy();
+
+    await act(async () => {
+      toggle.click();
+    });
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    const panel = document.getElementById(panelId!);
+    expect(panel?.hidden).toBe(false);
+    expect(panel?.querySelector("h3")?.textContent).toBe("Chapter 1: Intro");
+    expect(panel?.querySelector("p:not(.font-mono)")?.textContent).toBe("Body paragraph line.");
+  });
+
+  it("plays, highlights active sentence, pauses/resumes, cycles speed, announces completion, and stops cleanly", async () => {
+    const speech = installSpeechMock();
+    pdfMocks.getPage.mockImplementation(async (n: number) => ({
+      getViewport: ({ scale }: { scale: number }) => ({ width: 400 * scale, height: 600 * scale }),
+      render: () => ({ promise: Promise.resolve() }),
+      getTextContent: async () => ({
+        items: [
+          { str: `Chapter ${n}`, hasEOL: true, height: 22, transform: [22, 0, 0, 22, 24, 520] },
+          { str: `First sentence on page ${n}. Second sentence on page ${n}.`, hasEOL: true, height: 10, transform: [10, 0, 0, 10, 24, 480] },
+        ],
+      }),
+    }));
+
+    await mountPreviewer();
+    const toggle = container!.querySelector('[data-testid="book-preview-accessible-toggle"]') as HTMLButtonElement;
+    const playBtn = container!.querySelector('[data-testid="read-aloud-toggle"]') as HTMLButtonElement;
+    const speedBtn = container!.querySelector('[data-testid="read-aloud-speed"]') as HTMLButtonElement;
+    const labels = DEFAULT_GLOBAL.book_preview.read_aloud.labels;
+
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(playBtn.getAttribute("aria-label")).toBe(labels.play);
+    expect(speedBtn.textContent).toBe("1×");
+    expect(container!.querySelector('[data-testid="read-aloud-stop"]')).toBeNull();
+
+    // Play auto-expands the panel and highlights chunk 0
+    await act(async () => {
+      playBtn.click();
+    });
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    expect(playBtn.getAttribute("aria-label")).toBe(labels.pause);
+    expect(container!.querySelector('[data-testid="read-aloud-stop"]')).not.toBeNull();
+    expect(speech.spoken).toHaveLength(1);
+    expect(speech.spoken[0].text).toBe("Chapter 1");
+    expect(speech.spoken[0].rate).toBe(1);
+
+    const activeSentences = container!.querySelectorAll('[data-testid="read-aloud-sentence"][data-active="true"]');
+    expect(activeSentences).toHaveLength(1);
+    expect(activeSentences[0].textContent).toBe("Chapter 1");
+    expect(activeSentences[0].className).toContain("motion-reduce:transition-none");
+
+    // Advance to next sentence via onend
+    await act(async () => {
+      speech.spoken[0].instance.onend?.();
+    });
+    expect(speech.spoken).toHaveLength(2);
+    expect(speech.spoken[1].text).toBe("First sentence on page 1.");
+
+    // Cycle speed while playing restarts current chunk at 1.25x
+    await act(async () => {
+      speedBtn.click();
+    });
+    expect(speedBtn.textContent).toBe("1.25×");
+    expect(speech.spoken).toHaveLength(3);
+    expect(speech.spoken[2].rate).toBe(1.25);
+    expect(speech.spoken[2].text).toBe("First sentence on page 1.");
+
+    // Pause -> Resume
+    await act(async () => {
+      playBtn.click();
+    });
+    expect(playBtn.getAttribute("aria-label")).toBe(labels.resume);
+    expect(speech.pauseCount).toBe(1);
+
+    await act(async () => {
+      playBtn.click();
+    });
+    expect(playBtn.getAttribute("aria-label")).toBe(labels.pause);
+    expect(speech.resumeCount).toBe(1);
+
+    // Finish remaining utterances -> polite status announcement
+    await act(async () => {
+      speech.spoken[2].instance.onend?.();
+    });
+    await act(async () => {
+      speech.spoken[3].instance.onend?.();
+    });
+    expect(playBtn.getAttribute("aria-label")).toBe(labels.play);
+    expect(container!.querySelector('[data-testid="read-aloud-status"]')?.textContent).toBe(labels.finished_announcement);
+
+    // Restart, then verify stop on collapse, pagehide, page flip, and unmount
+    await act(async () => {
+      playBtn.click();
+    });
+    const cancelsBeforeCollapse = speech.cancelCount;
+    await act(async () => {
+      toggle.click();
+    });
+    expect(toggle.getAttribute("aria-expanded")).toBe("false");
+    expect(playBtn.getAttribute("aria-label")).toBe(labels.play);
+    expect(speech.cancelCount).toBeGreaterThan(cancelsBeforeCollapse);
+
+    // Restart, then pagehide stops speech
+    await act(async () => {
+      playBtn.click();
+    });
+    const cancelsBeforeHide = speech.cancelCount;
+    await act(async () => {
+      window.dispatchEvent(new Event("pagehide"));
+    });
+    expect(playBtn.getAttribute("aria-label")).toBe(labels.play);
+    expect(speech.cancelCount).toBeGreaterThan(cancelsBeforeHide);
+
+    // Restart, then page flip cancels speech
+    await act(async () => {
+      playBtn.click();
+    });
+    const cancelsBeforeFlip = speech.cancelCount;
+    await act(async () => {
+      (container!.querySelector('button[aria-label="Next preview page"]') as HTMLButtonElement).click();
+    });
+    expect(playBtn.getAttribute("aria-label")).toBe(labels.play);
+    expect(speech.cancelCount).toBeGreaterThan(cancelsBeforeFlip);
+
+    // Restart, then unmount cancels speech
+    await act(async () => {
+      playBtn.click();
+    });
+    const cancelsBeforeUnmount = speech.cancelCount;
+    await act(async () => {
+      root!.unmount();
+    });
+    root = null;
+    expect(speech.cancelCount).toBeGreaterThan(cancelsBeforeUnmount);
   });
 });

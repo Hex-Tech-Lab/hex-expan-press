@@ -3,22 +3,41 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import type { Orientation, PageFlip } from "page-flip";
 import type { BookPreviewSettings } from "../../../../payments/src/settings_registry";
-import { ArrowIcon } from "../brand/brand";
+import { BookPreviewAccessibleCard, type ReadAloudState } from "./book-preview-accessible-card";
+import { BookPreviewToolbar } from "./book-preview-toolbar";
+import {
+  buildSpreadAccessibleModel,
+  buildSpreadGroups,
+  extractStructuredPageBlocks,
+  formatSpreadLabel,
+  parseTargetPageInput,
+  rasterizePreview,
+  resolveZoomIndex,
+  setRenderPaused,
+  splitIntoSentenceChunks,
+  spreadIndexForPage,
+  type AccessibleBlock,
+  type PdfTextItemLike,
+  type PreviewZoomAction,
+  type ReadAloudChunk,
+} from "./book-previewer-text";
+import { useReadAloud } from "./use-read-aloud";
 
-interface PdfPageLike {
-  getViewport(opts: { scale: number }): { width: number; height: number };
-  render(opts: { canvasContext: CanvasRenderingContext2D; viewport: { width: number; height: number } }): {
-    promise: Promise<void>;
-    cancel?: () => void;
-  };
-  getTextContent(): Promise<{ items: Array<{ str?: string }> }>;
-}
-
-interface PdfDocLike {
-  numPages: number;
-  getPage(n: number): Promise<PdfPageLike>;
-  destroy?(): Promise<void>;
-}
+export {
+  buildSpreadAccessibleModel,
+  buildSpreadGroups,
+  extractStructuredPageBlocks,
+  formatSpreadLabel,
+  parseTargetPageInput,
+  resolveZoomIndex,
+  splitIntoSentenceChunks,
+  spreadIndexForPage,
+  type AccessibleBlock,
+  type PdfTextItemLike,
+  type PreviewZoomAction,
+  type ReadAloudChunk,
+  type ReadAloudState,
+};
 
 export interface BookPreviewerProps {
   id?: string;
@@ -27,157 +46,6 @@ export interface BookPreviewerProps {
   bookTitle: string;
   settings: BookPreviewSettings;
 }
-
-export type PreviewZoomAction = "zoom_in" | "zoom_out" | "reset";
-
-/** Compute the next zoom index within `zoomLevels`, clamped cleanly at bounds. */
-export function resolveZoomIndex(
-  currentIndex: number,
-  action: PreviewZoomAction,
-  zoomLevels: ReadonlyArray<number>,
-): number {
-  const maxIndex = Math.max(0, zoomLevels.length - 1);
-  const clamped = Math.min(Math.max(0, currentIndex), maxIndex);
-  if (action === "zoom_in") return Math.min(clamped + 1, maxIndex);
-  if (action === "zoom_out") return Math.max(clamped - 1, 0);
-  return 0;
-}
-
-/** Parse a 1-based page string into a clamped 0-based page index, or null when invalid. */
-export function parseTargetPageInput(raw: string, totalPages: number): number | null {
-  if (totalPages <= 0) return null;
-  const trimmed = raw.trim();
-  if (!/^-?\d+$/.test(trimmed)) return null;
-  const parsedPage = Number.parseInt(trimmed, 10);
-  if (!Number.isFinite(parsedPage)) return null;
-  const clamped = Math.min(Math.max(1, parsedPage), totalPages);
-  return clamped - 1;
-}
-
-/** Build StPageFlip spread groups matching PageCollection.createSpread(). */
-export function buildSpreadGroups(totalPages: number, orientation: Orientation, showCover: boolean): number[][] {
-  if (totalPages <= 0) return [];
-  if (orientation === "portrait") {
-    return Array.from({ length: totalPages }, (_, i) => [i]);
-  }
-  const spreads: number[][] = [];
-  let start = 0;
-  if (showCover) {
-    spreads.push([0]);
-    start = 1;
-  }
-  for (let i = start; i < totalPages; i += 2) {
-    if (i < totalPages - 1) spreads.push([i, i + 1]);
-    else spreads.push([i]);
-  }
-  return spreads;
-}
-
-export function spreadIndexForPage(spreads: number[][], pageIndex: number): number {
-  const idx = spreads.findIndex((group) => group.includes(pageIndex));
-  return idx >= 0 ? idx : 0;
-}
-
-export function formatSpreadLabel(spread: number[], totalPages: number, showCover: boolean): string {
-  if (totalPages <= 0 || spread.length === 0) return "";
-  if (spread.length === 1) {
-    const p = spread[0] + 1;
-    if (showCover && p === 1) return `Front cover · Page 1 of ${totalPages}`;
-    if (showCover && p === totalPages && totalPages > 1) return `Back cover · Page ${p} of ${totalPages}`;
-    return `Page ${p} of ${totalPages}`;
-  }
-  return `Pages ${spread[0] + 1}–${spread[spread.length - 1] + 1} of ${totalPages}`;
-}
-
-type Rasterized = { images: string[]; texts: string[] };
-
-type RenderLike = { drawFrame: () => void };
-
-/** page-flip 2.0.7 has no pause or stop. Its requestAnimationFrame loop redraws the canvas every frame and destroy() does not
- *  cancel it. Pausing replaces drawFrame on the library's render object with a no-op, so the per-frame redraw stops. Resuming
- *  deletes that override so the library's own method returns. */
-function setRenderPaused(flip: PageFlip | null, paused: boolean): void {
-  const render = (flip as unknown as { render?: RenderLike } | null)?.render;
-  if (!render) return;
-  if (paused) render.drawFrame = () => {};
-  else delete (render as Partial<RenderLike>).drawFrame;
-}
-
-/** Renders the first max_preview_pages pages to PNG data URLs (page 1 is the registry cover when one is set) and their text.
- *  The pdf.js document is destroyed before this returns, so only the images stay in memory. Returns null when cancelled. */
-async function rasterizePreview(
-  previewPdfUrl: string,
-  coverImageUrl: string | null,
-  settings: BookPreviewSettings,
-  isCancelled: () => boolean,
-): Promise<Rasterized | null> {
-  const pdfjs = await import("pdfjs-dist");
-  pdfjs.GlobalWorkerOptions.workerSrc = settings.pdf_worker_src;
-  const doc = (await pdfjs.getDocument(previewPdfUrl).promise) as unknown as PdfDocLike;
-  try {
-    const count = Math.min(doc.numPages, settings.max_preview_pages);
-    const images: string[] = [];
-    const texts: string[] = [];
-    for (let i = 1; i <= count; i++) {
-      if (isCancelled()) return null;
-      const pdfPage = await doc.getPage(i);
-      if (isCancelled()) return null;
-      const baseVp = pdfPage.getViewport({ scale: 1 });
-      const targetScale = (settings.page_width_px * settings.render_scale) / Math.max(baseVp.width, 1);
-      const vp = pdfPage.getViewport({ scale: targetScale });
-
-      const canvas = document.createElement("canvas");
-      canvas.width = Math.max(1, Math.floor(vp.width));
-      canvas.height = Math.max(1, Math.floor(vp.height));
-      const ctx = canvas.getContext("2d");
-      if (!ctx) throw new Error("Canvas 2D context unavailable");
-
-      if (i === 1 && coverImageUrl) {
-        images.push(coverImageUrl);
-      } else {
-        await pdfPage.render({ canvasContext: ctx, viewport: vp }).promise;
-        images.push(canvas.toDataURL("image/png"));
-      }
-
-      try {
-        const tc = await pdfPage.getTextContent();
-        texts.push(
-          tc.items
-            .map((it) => it.str ?? "")
-            .join(" ")
-            .replace(/\s+/g, " ")
-            .trim(),
-        );
-      } catch {
-        texts.push("");
-      }
-    }
-    return { images, texts };
-  } finally {
-    await doc.destroy?.();
-  }
-}
-
-const ZoomInIcon = () => (
-  <svg aria-hidden="true" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="11" cy="11" r="7" />
-    <path d="m21 21-4.35-4.35M11 8v6M8 11h6" />
-  </svg>
-);
-
-const ZoomOutIcon = () => (
-  <svg aria-hidden="true" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-    <circle cx="11" cy="11" r="7" />
-    <path d="m21 21-4.35-4.35M8 11h6" />
-  </svg>
-);
-
-const ResetZoomIcon = () => (
-  <svg aria-hidden="true" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-    <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
-    <path d="M3 3v5h5" />
-  </svg>
-);
 
 export default function BookPreviewer({
   id,
@@ -189,18 +57,19 @@ export default function BookPreviewer({
   const hostRef = useRef<HTMLDivElement>(null);
   const flipRef = useRef<PageFlip | null>(null);
   const goToInputId = useId();
+  const accessiblePanelId = useId();
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [totalPages, setTotalPages] = useState(0);
   const [pageIndex, setPageIndex] = useState(0);
   const [draftPageInput, setDraftPageInput] = useState<string | null>(null);
   const [orientation, setOrientation] = useState<Orientation>("landscape");
-  const [pageTexts, setPageTexts] = useState<string[]>([]);
+  const [pageBlocks, setPageBlocks] = useState<AccessibleBlock[][]>([]);
+  const [textOpen, setTextOpen] = useState(false);
   const [zoomIndex, setZoomIndex] = useState(0);
   const [stageSize, setStageSize] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
   const sectionRef = useRef<HTMLElement>(null);
-  // Mount on first view; without IntersectionObserver (old browsers, jsdom) mount at once. Afterwards, pause the page-flip
-  // redraw while the section is out of view and resume it when the section returns.
+  // Mount on first view; without IntersectionObserver (old browsers, jsdom) mount at once.
   const [seen, setSeen] = useState(() => typeof IntersectionObserver === "undefined");
   const visibleRef = useRef(true);
 
@@ -208,10 +77,33 @@ export default function BookPreviewer({
     () => (settings.zoom_levels.length > 0 ? settings.zoom_levels : [1]),
     [settings.zoom_levels],
   );
-  const labels = settings.toolbar_labels;
   const safeZoomIndex = Math.min(Math.max(0, zoomIndex), zoomLevels.length - 1);
   const zoom = zoomLevels[safeZoomIndex] ?? 1;
   const pageInput = draftPageInput ?? String(pageIndex + 1);
+
+  const spreads = useMemo(
+    () => buildSpreadGroups(totalPages, orientation, settings.show_cover),
+    [totalPages, orientation, settings.show_cover],
+  );
+  const spreadIdx = spreadIndexForPage(spreads, pageIndex);
+  const currentSpread = useMemo(() => spreads[spreadIdx] ?? [], [spreads, spreadIdx]);
+  const spreadAccessible = useMemo(
+    () => buildSpreadAccessibleModel(currentSpread, pageBlocks, settings.read_aloud.max_chunk_chars),
+    [currentSpread, pageBlocks, settings.read_aloud.max_chunk_chars],
+  );
+
+  const expandTextPanel = useCallback(() => setTextOpen(true), []);
+  const {
+    speechSupported,
+    playbackState,
+    activeChunkId,
+    currentRate,
+    speechAnnouncement,
+    stopReadAloud,
+    clearAnnouncement,
+    handlePlayPauseResume,
+    handleCycleSpeed,
+  } = useReadAloud(spreadAccessible.chunks, settings.read_aloud, expandTextPanel);
 
   useEffect(() => {
     const el = sectionRef.current;
@@ -256,15 +148,11 @@ export default function BookPreviewer({
         setErrorMessage(null);
 
         const raster = await rasterizePreview(previewPdfUrl, coverImageUrl, settings, () => disposed);
-        if (!raster) return;
-
-        if (disposed || !hostRef.current) return;
+        if (!raster || disposed || !hostRef.current) return;
 
         const { PageFlip: PageFlipCtor } = await import("page-flip");
         if (disposed || !hostRef.current) return;
 
-        // PageFlip.destroy() calls this.block.remove(); mount on an imperative child node
-        // so React's StrictMode double-mount never loses hostRef.current.
         const stage = document.createElement("div");
         stage.setAttribute("data-testid", "book-preview-stage");
         hostRef.current.replaceChildren(stage);
@@ -303,6 +191,8 @@ export default function BookPreviewer({
 
         pf.on("flip", (e) => {
           if (disposed) return;
+          stopReadAloud();
+          clearAnnouncement();
           if (typeof e.data === "number") setPageIndex(e.data);
           else if (pf) setPageIndex(pf.getCurrentPageIndex());
           setDraftPageInput(null);
@@ -310,6 +200,8 @@ export default function BookPreviewer({
 
         pf.on("changeOrientation", (e) => {
           if (disposed) return;
+          stopReadAloud();
+          clearAnnouncement();
           if (e.data === "portrait" || e.data === "landscape") setOrientation(e.data);
         });
 
@@ -317,11 +209,12 @@ export default function BookPreviewer({
         setRenderPaused(pf, !visibleRef.current);
         flipRef.current = pf;
         setTotalPages(raster.images.length);
-        setPageTexts(raster.texts);
+        setPageBlocks(raster.pageBlocks);
         setPageIndex(0);
         setStatus("ready");
       } catch (err) {
         if (disposed) return;
+        console.error("[book-previewer] Failed to load preview:", err);
         setStatus("error");
         setErrorMessage(err instanceof Error ? err.message : "Could not load book preview.");
       }
@@ -334,16 +227,13 @@ export default function BookPreviewer({
         setRenderPaused(pf, true);
         try {
           pf.destroy();
-        } catch {
-          /* ignore teardown errors if container was unmounted */
+        } catch (err) {
+          console.error("[book-previewer] PageFlip destroy error:", err);
         }
       }
     };
-  }, [previewPdfUrl, coverImageUrl, settings, seen]);
+  }, [previewPdfUrl, coverImageUrl, settings, seen, stopReadAloud, clearAnnouncement]);
 
-  const spreads = buildSpreadGroups(totalPages, orientation, settings.show_cover);
-  const spreadIdx = spreadIndexForPage(spreads, pageIndex);
-  const currentSpread = spreads[spreadIdx] ?? [];
   const canFlipPrev = status === "ready" && spreadIdx > 0;
   const canFlipNext = status === "ready" && spreadIdx < spreads.length - 1;
   const canZoomIn = status === "ready" && safeZoomIndex < zoomLevels.length - 1;
@@ -364,12 +254,14 @@ export default function BookPreviewer({
   const turnToPage = useCallback(
     (targetIdx: number) => {
       if (!flipRef.current || status !== "ready" || totalPages <= 0) return;
+      stopReadAloud();
+      clearAnnouncement();
       const clamped = Math.min(Math.max(0, targetIdx), totalPages - 1);
       flipRef.current.turnToPage(clamped);
       setPageIndex(clamped);
       setDraftPageInput(null);
     },
-    [status, totalPages],
+    [status, totalPages, stopReadAloud, clearAnnouncement],
   );
 
   const applyZoomAction = useCallback(
@@ -432,10 +324,16 @@ export default function BookPreviewer({
     [status, flipPrev, flipNext, totalPages, turnToPage, applyZoomAction],
   );
 
-  const visibleExcerpt = currentSpread
-    .map((idx) => pageTexts[idx] ?? "")
-    .filter(Boolean)
-    .join(" — ");
+  const handleToggleTextPanel = useCallback(() => {
+    setTextOpen((prev) => {
+      const next = !prev;
+      if (!next) {
+        stopReadAloud();
+        clearAnnouncement();
+      }
+      return next;
+    });
+  }, [stopReadAloud, clearAnnouncement]);
 
   const isZoomed = zoom > 1;
   const scaledSpacerStyle =
@@ -470,117 +368,26 @@ export default function BookPreviewer({
           <p className="text-xs sm:text-sm text-gray-600">{settings.subheading}</p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 self-start lg:self-auto">
-          <div
-            role="toolbar"
-            aria-label={labels.toolbar_aria_label}
-            data-testid="book-preview-toolbar"
-            className="flex flex-wrap items-center gap-1.5"
-          >
-            <button
-              type="button"
-              onClick={() => applyZoomAction("zoom_out")}
-              disabled={!canZoomOut}
-              aria-label={labels.zoom_out}
-              title={labels.zoom_out}
-              data-testid="book-preview-zoom-out"
-              className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] rounded-full border border-[#dcc7b4] bg-white text-gray-900 hover:bg-[#faf5ee] disabled:opacity-45 disabled:cursor-not-allowed transition-colors"
-            >
-              <ZoomOutIcon />
-            </button>
-            <span
-              data-testid="book-preview-zoom-label"
-              aria-live="polite"
-              className="min-w-[3rem] text-center font-mono text-xs font-medium text-gray-700 select-none"
-            >
-              {`${Math.round(zoom * 100)}%`}
-            </span>
-            <button
-              type="button"
-              onClick={() => applyZoomAction("zoom_in")}
-              disabled={!canZoomIn}
-              aria-label={labels.zoom_in}
-              title={labels.zoom_in}
-              data-testid="book-preview-zoom-in"
-              className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] rounded-full border border-[#dcc7b4] bg-white text-gray-900 hover:bg-[#faf5ee] disabled:opacity-45 disabled:cursor-not-allowed transition-colors"
-            >
-              <ZoomInIcon />
-            </button>
-            <button
-              type="button"
-              onClick={() => applyZoomAction("reset")}
-              disabled={!canResetZoom}
-              aria-label={labels.reset_zoom}
-              title={labels.reset_zoom}
-              data-testid="book-preview-zoom-reset"
-              className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] rounded-full border border-[#dcc7b4] bg-white text-gray-900 hover:bg-[#faf5ee] disabled:opacity-45 disabled:cursor-not-allowed transition-colors"
-            >
-              <ResetZoomIcon />
-            </button>
-            <form
-              onSubmit={handleGoToPageSubmit}
-              className="inline-flex items-center gap-1 rounded-full border border-[#dcc7b4] bg-white pl-3 min-h-[44px]"
-            >
-              <label htmlFor={goToInputId} className="sr-only">
-                {labels.go_to_page}
-              </label>
-              <input
-                id={goToInputId}
-                type="number"
-                min={1}
-                max={Math.max(1, totalPages)}
-                inputMode="numeric"
-                value={pageInput}
-                onChange={(e) => setDraftPageInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Escape") setDraftPageInput(null);
-                }}
-                disabled={status !== "ready" || totalPages <= 0}
-                title={labels.go_to_page}
-                data-testid="book-preview-goto-input"
-                className="w-11 bg-transparent text-center font-mono text-xs font-medium text-gray-900 focus:outline-none disabled:opacity-45"
-              />
-              <span className="font-mono text-xs text-gray-500 select-none pr-1" aria-hidden="true">
-                {`/ ${totalPages || "—"}`}
-              </span>
-              <button
-                type="submit"
-                disabled={status !== "ready" || totalPages <= 0}
-                aria-label={labels.go_to_page_submit}
-                title={labels.go_to_page_submit}
-                data-testid="book-preview-goto-submit"
-                className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] px-3 rounded-full bg-charcoal hover:bg-[#2a2a2a] text-xs font-semibold text-white disabled:opacity-45 disabled:cursor-not-allowed transition-colors"
-              >
-                {labels.go_to_page_submit}
-              </button>
-            </form>
-          </div>
-
-          <div className="flex items-center gap-2" role="group" aria-label={`Preview navigation for ${bookTitle}`}>
-            <button
-              type="button"
-              onClick={flipPrev}
-              disabled={!canFlipPrev}
-              aria-label="Previous preview page"
-              title="Previous preview page"
-              className="inline-flex items-center gap-2 min-h-[44px] px-4 py-2.5 rounded-full border border-[#dcc7b4] bg-white text-sm font-semibold text-gray-900 hover:bg-[#faf5ee] disabled:opacity-45 disabled:cursor-not-allowed transition-colors"
-            >
-              <ArrowIcon className="w-3.5 h-3.5 rotate-180" />
-              <span>Prev</span>
-            </button>
-            <button
-              type="button"
-              onClick={flipNext}
-              disabled={!canFlipNext}
-              aria-label="Next preview page"
-              title="Next preview page"
-              className="inline-flex items-center gap-2 min-h-[44px] px-4 py-2.5 rounded-full bg-charcoal hover:bg-[#2a2a2a] text-sm font-semibold text-white disabled:opacity-45 disabled:cursor-not-allowed transition-colors"
-            >
-              <span>Next</span>
-              <ArrowIcon />
-            </button>
-          </div>
-        </div>
+        <BookPreviewToolbar
+          bookTitle={bookTitle}
+          labels={settings.toolbar_labels}
+          goToInputId={goToInputId}
+          pageInput={pageInput}
+          totalPages={totalPages}
+          status={status}
+          zoom={zoom}
+          canZoomIn={canZoomIn}
+          canZoomOut={canZoomOut}
+          canResetZoom={canResetZoom}
+          canFlipPrev={canFlipPrev}
+          canFlipNext={canFlipNext}
+          onApplyZoom={applyZoomAction}
+          onPageInputChange={setDraftPageInput}
+          onPageInputReset={() => setDraftPageInput(null)}
+          onGoToPageSubmit={handleGoToPageSubmit}
+          onFlipPrev={flipPrev}
+          onFlipNext={flipNext}
+        />
       </div>
 
       {status === "error" ? (
@@ -624,15 +431,24 @@ export default function BookPreviewer({
         <p className="text-gray-600">Drag a corner, swipe, or use Prev / Next (Arrow keys)</p>
       </div>
 
-      {status === "ready" && visibleExcerpt && (
-        <details className="text-xs text-gray-700 rounded-2xl border border-[#e8dacb] bg-white/70 px-4 py-3">
-          <summary className="cursor-pointer font-semibold text-gray-800 select-none">
-            Accessible text for visible preview {currentSpread.length > 1 ? "pages" : "page"}
-          </summary>
-          <p className="mt-2 leading-relaxed text-gray-700" data-testid="book-preview-accessible-text">
-            {visibleExcerpt}
-          </p>
-        </details>
+      {status === "ready" && spreadAccessible.pages.length > 0 && (
+        <BookPreviewAccessibleCard
+          panelId={accessiblePanelId}
+          textOpen={textOpen}
+          spreadCount={currentSpread.length}
+          pages={spreadAccessible.pages}
+          activeChunkId={activeChunkId}
+          playbackState={playbackState}
+          currentRate={currentRate}
+          showReadAloudControls={settings.read_aloud.enabled && speechSupported && spreadAccessible.chunks.length > 0}
+          speechAnnouncement={speechAnnouncement}
+          readAloudSettings={settings.read_aloud}
+          textStructureSettings={settings.text_structure}
+          onTogglePanel={handleToggleTextPanel}
+          onPlayPauseResume={handlePlayPauseResume}
+          onStop={stopReadAloud}
+          onCycleSpeed={handleCycleSpeed}
+        />
       )}
     </section>
   );
