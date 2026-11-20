@@ -7,6 +7,7 @@ import { getSupabaseAdmin } from "../../../../payments/src/supabase_admin";
 import { GLOBAL, isEnabledPaymentProvider } from "../../../../payments/src/settings_registry";
 import { guidSchema, productSlugSchema } from "../../lib/zod-rules";
 import { resolveProductBookAssets } from "../../lib/book-assets";
+import { isHouseCreator } from "../../lib/house";
 import { isPurchasableProduct, productPriceUsd } from "../../lib/product-purchasable";
 import { resolveCheckoutRails, usableRailsOf, type RailResolution, type UsableRail } from "../../lib/checkout-rails";
 import { verifiedProviderNames } from "../../../app/api/billing/webhook/verifiers";
@@ -214,6 +215,15 @@ export function isVisibleStorefrontProduct(
     typeof product.checkout_mode === "string" &&
     storefront.allowed_non_live_sample_modes.includes(product.checkout_mode)
   );
+}
+
+/** A creator hub is published when it is the house hub, or when at least one product passes isVisibleStorefrontProduct
+ *  (the same rule the shelf and /books use). Under storefront.hide_empty_creator_hubs (default true), a hub with nothing
+ *  visible is 404 Not Found instead of an empty shelf that exposes the creator's name. false restores the empty shelf. */
+export function isPublishedCreatorHub(hub: { creator: Pick<HubCreator, "is_house" | "products"> }): boolean {
+  if (!GLOBAL.storefront.hide_empty_creator_hubs) return true;
+  if (isHouseCreator(hub.creator)) return true;
+  return hub.creator.products.some((storeProduct) => isVisibleStorefrontProduct(storeProduct));
 }
 
 // cache(): generateMetadata and the page share one query set per request.
