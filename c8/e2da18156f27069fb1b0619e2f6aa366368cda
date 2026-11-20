@@ -1,0 +1,45 @@
+web/app/api/billing/checkout/route.ts
+  s_0e99959cd74c50::t_e5ba5b82c53b8f 84,87-115,117-124,132,137,146,193
+  s_0e99959cd74c50::t_4a2663d707c2aa 116
+  s_0e99959cd74c50::t_55475ffb31e667 15,49,60,81-83,85-86,125-131,133-136,138-145,147-149,194-196
+docs/testing/pairwise/billing_consent_checkout.model.txt
+  s_0e99959cd74c50::t_b1ce1aefc38708 3-4,21,35
+docs/testing/pairwise/billing_consent_checkout.rows.tsv
+  s_0e99959cd74c50::t_079743e257767a 1-47
+payments/src/launch_gate.ts
+  s_0e99959cd74c50::t_b93d17b217c20e 83-100
+payments/test/launch_gate_house.test.ts
+  s_0e99959cd74c50::t_f7017eb5cbf516 1-91
+scripts/ops/__tests__/deny_client_policies.restrictive.test.ts
+  s_0e99959cd74c50::t_5e161c456d936e 31
+supabase/migrations/20261119130000_house_title_exemption.sql
+  s_0e99959cd74c50::t_66465cf0c4760f 1-132
+web/app/api/billing/checkout/__tests__/billing_consent_checkout.oracle.ts
+  s_0e99959cd74c50::t_a3116767d3c44d 20,37,109-111,113
+web/app/api/billing/checkout/__tests__/billing_consent_checkout.pairwise.test.ts
+  s_0e99959cd74c50::t_4864dec8720570 73,171,209-219,387-397,423,445,467,491,513,525,549,579
+web/app/api/billing/checkout/__tests__/house-title.test.ts
+  s_0e99959cd74c50::t_b6c81941df46ad 1-197
+web/app/api/billing/checkout/checkout-helpers.ts
+  s_0e99959cd74c50::t_5a590b02bfb79c 28,31-41
+web/src/lib/__tests__/house-title-exemption.test.ts
+  s_0e99959cd74c50::t_eab56b76ab9ddd 1-224
+web/src/lib/__tests__/launch-gate-sql-parity.test.ts
+  s_0e99959cd74c50::t_0fa4243adab562 13-14,19,26
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "c8e2da18156f27069fb1b0619e2f6aa366368cda",
+  "prompts": {},
+  "sessions": {
+    "s_0e99959cd74c50": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "21b00acc-7513-46d6-9a35-038af7845be2",
+        "model": "unknown"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
