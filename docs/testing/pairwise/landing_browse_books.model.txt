@@ -1,9 +1,10 @@
 # PICT pairwise model for the B2B home browse-books link visibility (storefront.browse_books_enabled).
-# Covers the landing header and hero "Browse books" links rendered by landing-page.tsx, gated by
-# GLOBAL.storefront.browse_books_enabled (default false), wired in web/app/page.tsx.
-# Unit oracle: web/__tests__/landing-browse-books-flag.test.ts
+# Factors are the ones the oracle tests actually vary:
+#   browse_books_enabled: GLOBAL.storefront.browse_books_enabled (default false), read in web/app/page.tsx.
+#   render_entry: LandingPage rendered directly (landing-browse-books-flag.test.ts) or the app page.tsx Home wiring
+#   (landing-browse-books-page-wiring.test.ts). Viewport and per-link visibility are NOT factors here: the SSR oracle
+#   does not vary them. Viewport coverage is the chromium spec web/e2e/kyc-lv-gates.spec.ts at 390px and 1560px (flag off).
 # Run: /usr/local/bin/pict docs/testing/pairwise/landing_browse_books.model.txt > docs/testing/pairwise/landing_browse_books.rows.tsv
 
 browse_books_enabled: true, false
-viewport: mobile, desktop
-link_surface: header, hero
+render_entry: landing_component, app_page
