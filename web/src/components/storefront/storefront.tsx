@@ -61,6 +61,8 @@ export interface HubCreator {
   platform_handles: Record<string, string> | null;
   bio: string | null;
   photo: string | null;
+  /** Operator-set house flag (creators.is_house). Client roles cannot write it (creators_is_house_guard). */
+  is_house: boolean;
   products: StoreProduct[];
 }
 
@@ -178,7 +180,7 @@ export const fetchCreatorHub = cache(async function fetchCreatorHub(handle: stri
   const { data, error } = await supabase
     .from("creators")
     .select(
-      "handle, display_name, platform_handles, bio, photo, products(id, store_product_id, slug, title, price_usd, currency, working_note, description, disclaimers, checkout_mode, inside, book_registry)",
+      "handle, display_name, platform_handles, bio, photo, is_house, products(id, store_product_id, slug, title, price_usd, currency, working_note, description, disclaimers, checkout_mode, inside, book_registry)",
     )
     .eq("handle", handle)
     .maybeSingle();
@@ -247,7 +249,7 @@ export const fetchStoreProduct = cache(async function fetchStoreProduct(
   const { data, error } = await supabase
     .from("creators")
     .select(
-      "handle, display_name, platform_handles, bio, photo, products(id, store_product_id, slug, title, price_usd, currency, working_note, description, disclaimers, checkout_mode, inside, book_registry)",
+      "handle, display_name, platform_handles, bio, photo, is_house, products(id, store_product_id, slug, title, price_usd, currency, working_note, description, disclaimers, checkout_mode, inside, book_registry)",
     )
     .eq("handle", handle)
     .maybeSingle();

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { NextRequest } from "next/server";
-import { GET } from "../route";
+import { GET, HEAD } from "../route";
 import { tokenHash } from "../../../../../../payments/src/delivery";
 
 const maybeSingleMock = vi.fn();
@@ -263,8 +263,85 @@ describe("GET /books/d/[token] (Buyer delivery route)", () => {
     });
     insertMock.mockResolvedValueOnce({ error: null });
 
-    await expectRedirectTo(validToken, "https://supabase.example/signed/books/fallback-book.pdf");
+    const { res } = await expectRedirectTo(validToken, "https://supabase.example/signed/books/fallback-book.pdf");
     expect(createSignedUrlMock).toHaveBeenCalledWith("books/fallback-book.pdf", expect.any(Number));
     expect(insertMock).toHaveBeenCalled();
+    // The 302 redirect also carries the header, so the signed URL never leaks the referrer.
+    expect(res.headers.get("referrer-policy")).toBe("no-referrer");
+  });
+});
+
+describe("download responses never leak the /books/d/{token} URL via Referrer-Policy", () => {
+  const token = "B".repeat(43);
+  const url = `https://expanpress.com/books/d/${token}`;
+
+  it("404 Not Found (branded HTML) sends Referrer-Policy: no-referrer", async () => {
+    maybeSingleMock.mockResolvedValueOnce({ data: null, error: null });
+    const res = await GET(new NextRequest(url, { headers: { accept: "text/html" } }), {
+      params: Promise.resolve({ token }),
+    });
+    expect(res.status).toBe(404);
+    expect(res.headers.get("content-type")).toContain("text/html");
+    expect(res.headers.get("referrer-policy")).toBe("no-referrer");
+  });
+
+  it("410 Gone (branded HTML) sends Referrer-Policy: no-referrer", async () => {
+    maybeSingleMock.mockResolvedValueOnce({
+      data: { sale_id: "s1", product_id: "p1", expires_at: new Date(Date.now() - 10000).toISOString() },
+      error: null,
+    });
+    const res = await GET(new NextRequest(url, { headers: { accept: "text/html" } }), {
+      params: Promise.resolve({ token }),
+    });
+    expect(res.status).toBe(410);
+    expect(res.headers.get("content-type")).toContain("text/html");
+    expect(res.headers.get("referrer-policy")).toBe("no-referrer");
+  });
+
+  it("500 Internal Server Error (branded HTML) sends Referrer-Policy: no-referrer", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    maybeSingleMock.mockResolvedValueOnce({ data: null, error: { message: "db unavailable" } });
+    const res = await GET(new NextRequest(url, { headers: { accept: "text/html" } }), {
+      params: Promise.resolve({ token }),
+    });
+    expect(res.status).toBe(500);
+    expect(res.headers.get("content-type")).toContain("text/html");
+    expect(res.headers.get("referrer-policy")).toBe("no-referrer");
+  });
+
+  it.each([
+    ["404", () => maybeSingleMock.mockResolvedValueOnce({ data: null, error: null }), 404],
+    [
+      "410",
+      () =>
+        maybeSingleMock.mockResolvedValueOnce({
+          data: { sale_id: "s1", product_id: "p1", expires_at: new Date(Date.now() - 10000).toISOString() },
+          error: null,
+        }),
+      410,
+    ],
+    [
+      "500",
+      () => {
+        vi.spyOn(console, "error").mockImplementation(() => {});
+        maybeSingleMock.mockResolvedValueOnce({ data: null, error: { message: "db unavailable" } });
+      },
+      500,
+    ],
+  ])("%s plain-text response sends Referrer-Policy: no-referrer", async (_label, arrange, status) => {
+    arrange();
+    const res = await GET(new NextRequest(url, { headers: { accept: "application/json" } }), {
+      params: Promise.resolve({ token }),
+    });
+    expect(res.status).toBe(status);
+    expect(res.headers.get("content-type")).toContain("text/plain");
+    expect(res.headers.get("referrer-policy")).toBe("no-referrer");
+  });
+
+  it("HEAD probe 404 sends Referrer-Policy: no-referrer", async () => {
+    maybeSingleMock.mockResolvedValueOnce({ data: null, error: null });
+    const res = await HEAD(new NextRequest(url, { method: "HEAD" }), { params: Promise.resolve({ token }) });
+    expect(res.status).toBe(404);
+    expect(res.headers.get("referrer-policy")).toBe("no-referrer");
   });
 });

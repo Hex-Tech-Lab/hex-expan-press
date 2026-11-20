@@ -7,7 +7,6 @@ import {
   StorefrontFooter,
   storefrontRobots,
   fetchCreatorHub,
-  isHouseCreator,
   platformLink,
   resolveCreatorOr404,
 } from "../../../src/components/storefront/storefront";
@@ -45,7 +44,8 @@ export async function generateMetadata({ params }: { params: Promise<{ handle: s
 export default async function CreatorHubPage({ params }: { params: Promise<{ handle: string }> }) {
   const { handle } = await params;
   const { creator } = resolveCreatorOr404(await fetchCreatorHub(handle));
-  const houseCreator = isHouseCreator(creator.display_name, GLOBAL.storefront.brand_name);
+  // Operator-controlled flag, not the display name: a creator who types "ExpanPress" must not get the house bio.
+  const houseCreator = creator.is_house === true;
 
   const initial = creator.display_name.trim().charAt(0).toUpperCase();
   const bioParas = creator.bio

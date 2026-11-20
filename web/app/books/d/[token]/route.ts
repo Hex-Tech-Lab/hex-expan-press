@@ -7,6 +7,15 @@ import { acceptsHtml, renderBrandedB2cHtml } from "../../../../src/lib/branded-h
 
 export const runtime = "nodejs";
 
+/**
+ * Every response this route sends (HTML and plain-text error pages, the 302 redirect, and the HEAD probe)
+ * carries Referrer-Policy: no-referrer, so a buyer's browser never sends the /books/d/{token} URL to a
+ * third party from a page that links out. Single source for the header; add headers here, not per response.
+ */
+function downloadHeaders(extra: Record<string, string> = {}): Record<string, string> {
+  return { "referrer-policy": "no-referrer", "cache-control": "no-store", ...extra };
+}
+
 function downloadErrorResponse(
   request: NextRequest,
   opts: {
@@ -30,16 +39,15 @@ function downloadErrorResponse(
     });
     return new NextResponse(html, {
       status: opts.status,
-      headers: {
+      headers: downloadHeaders({
         "content-type": "text/html; charset=utf-8",
-        "cache-control": "no-store",
         "x-robots-tag": "noindex, nofollow",
-      },
+      }),
     });
   }
   return new NextResponse(opts.plainText, {
     status: opts.status,
-    headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" },
+    headers: downloadHeaders({ "content-type": "text/plain; charset=utf-8" }),
   });
 }
 
@@ -147,8 +155,7 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ token: 
   }
 
   const res = NextResponse.redirect(signedUrl, 302);
-  res.headers.set("Cache-Control", "no-store");
-  res.headers.set("Referrer-Policy", "no-referrer");
+  for (const [k, v] of Object.entries(downloadHeaders())) res.headers.set(k, v);
   return res;
 }
 
@@ -159,7 +166,7 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ token: 
  */
 export async function HEAD(_request: NextRequest, ctx: { params: Promise<{ token: string }> }): Promise<NextResponse> {
   const { token } = await ctx.params;
-  const bare = (status: number) => new NextResponse(null, { status, headers: { "Cache-Control": "no-store" } });
+  const bare = (status: number) => new NextResponse(null, { status, headers: downloadHeaders() });
   if (!TOKEN_RE.test(token)) return bare(404);
   const sb = await getSupabaseAdmin();
   if (!sb) return bare(500);

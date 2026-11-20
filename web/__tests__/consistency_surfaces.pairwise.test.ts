@@ -84,6 +84,7 @@ vi.mock("../src/components/storefront/storefront", async (importOriginal) => {
         platform_handles: null,
         bio: hubMock.hasBio ? "Custom creator biography." : null,
         photo: null,
+        is_house: hubMock.isHouse,
         products: [
           {
             id: "00000000-0000-4000-8000-0000000000c1",
