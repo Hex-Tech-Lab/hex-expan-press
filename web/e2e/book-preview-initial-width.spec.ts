@@ -20,7 +20,7 @@ function settleFrames(page: Page) {
 }
 
 /** Bitmap and CSS-box size of the flipbook canvas, plus the orientation page-flip chose. */
-async function readCanvas(page: Page) {
+function readCanvas(page: Page) {
   return page.evaluate(() => {
     const canvas = document.querySelector<HTMLCanvasElement>('[data-testid="book-preview-stage"] canvas');
     const host = document.querySelector<HTMLElement>('[data-testid="book-preview-viewport"] [data-orientation]');
@@ -86,5 +86,24 @@ for (const vp of VIEWPORTS) {
     expect(withPanel).not.toBeNull();
     const wantWithPanel = expectedAspect(withPanel!.orientation, pageAspect);
     expect(relativeError(withPanel!.bitmapW / withPanel!.bitmapH, wantWithPanel)).toBeLessThan(ASPECT_TOLERANCE);
+  });
+
+  // The product has no open-at-load state: the text panel opens only from its toggle or read-aloud. This variant
+  // opens it as soon as the page label appears, before the first frames settle, to cover the early-open ordering.
+  test(`flipbook bitmap keeps PDF page aspect when text panel opens during load (${vp.name})`, async ({ page, baseURL }) => {
+    await page.setViewportSize({ width: vp.width, height: vp.height });
+    await page.goto(SAMPLE_URL);
+    await expect(page.getByTestId("book-preview-page-label")).toHaveText("Front cover · Page 1 of 8", {
+      timeout: 30_000,
+    });
+    await page.getByTestId("book-preview-accessible-toggle").click();
+    await settleFrames(page);
+
+    const pageAspect = await pdfPageAspect(page, baseURL);
+    const settled = await readCanvas(page);
+    expect(settled).not.toBeNull();
+    const want = expectedAspect(settled!.orientation, pageAspect);
+    expect(relativeError(settled!.bitmapW / settled!.bitmapH, want)).toBeLessThan(ASPECT_TOLERANCE);
+    expect(relativeError(settled!.cssW / settled!.cssH, want)).toBeLessThan(ASPECT_TOLERANCE);
   });
 }
