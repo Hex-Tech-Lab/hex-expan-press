@@ -114,6 +114,18 @@ describe("book-assets warnings for impersonation and missing assets", () => {
     }
   });
 
+  it("warns for a house product whose books json has no string product_id (identity unchecked)", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    resolveProductBookAssets({
+      id: "ababab02-0000-4000-8000-000000000007",
+      slug: "house_no_identity_field",
+      book_registry: "books/smoke.json",
+      creator_is_house: true,
+    });
+    const hits = warn.mock.calls.map((c) => String(c[0])).filter((m) => m.includes("identity unchecked") && m.includes("ababab02-0000-4000-8000-000000000007"));
+    expect(hits).toHaveLength(1);
+  });
+
   it("fails closed and warns when creator_is_house is not a boolean", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const resolved = resolveProductBookAssets({

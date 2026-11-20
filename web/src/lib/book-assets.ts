@@ -19,7 +19,7 @@ function findRepoRoot(): string {
   if (existsSync(join(cwd, "books"))) return cwd;
   const parent = resolve(cwd, "..");
   if (existsSync(join(parent, "books"))) return parent;
-  console.error(`[book-assets] books directory not found under ${cwd} or ${parent}; using ${cwd}`);
+  logOnce(`[book-assets] books directory not found under ${cwd} or ${parent}; using ${cwd}`);
   return cwd;
 }
 
@@ -29,6 +29,15 @@ function warnOnce(key: string, message: string): void {
   if (warnedKeys.has(key)) return;
   warnedKeys.add(key);
   console.warn(message);
+}
+
+// Errors are logged once per distinct message. Each message names its product slug or registry path,
+// so the message itself is the product+reason key and a render never repeats the same error.
+const loggedMessages = new Set<string>();
+function logOnce(message: string): void {
+  if (loggedMessages.has(message)) return;
+  loggedMessages.add(message);
+  console.error(message);
 }
 
 function isSafeHttpsUrl(candidate: string): boolean {
@@ -61,7 +70,7 @@ export function isSafePreviewPdfPath(value: unknown, previewsBasePath: string = 
 
 function readBookJsonSafe(bookRegistryPath: string): Record<string, unknown> | null {
   if (!SAFE_BOOK_REGISTRY_RE.test(bookRegistryPath)) {
-    console.error(`[book-assets] rejected book_registry path in readBookJsonSafe`);
+    logOnce(`[book-assets] rejected book_registry path in readBookJsonSafe`);
     return null;
   }
   const fileName = bookRegistryPath.slice("books/".length);
@@ -69,20 +78,24 @@ function readBookJsonSafe(bookRegistryPath: string): Record<string, unknown> | n
   const fullPath = join(/*turbopackIgnore: true*/ findRepoRoot(), "books", fileName);
   if (!existsSync(/*turbopackIgnore: true*/ fullPath)) {
     // A registry path with no file is an operator bundling error: say so, do not stay silent.
-    console.error(`[book-assets] books json missing for ${bookRegistryPath}`);
+    logOnce(`[book-assets] books json missing for ${bookRegistryPath}`);
     return null;
   }
   try {
     const parsed: unknown = JSON.parse(readFileSync(/*turbopackIgnore: true*/ fullPath, "utf8"));
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      console.error(`[book-assets] books json is not an object for ${bookRegistryPath}`);
+      logOnce(`[book-assets] books json is not an object for ${bookRegistryPath}`);
       return null;
     }
     return parsed as Record<string, unknown>;
   } catch (err) {
     const code = (err as { code?: unknown } | null)?.code;
     const reason = typeof code === "string" ? code : err instanceof Error ? err.name : "unknown";
-    console.error(`[book-assets] books json unreadable for ${bookRegistryPath}: ${reason}`);
+    const message = `[book-assets] books json unreadable for ${bookRegistryPath}: ${reason}`;
+    if (!loggedMessages.has(message)) {
+      loggedMessages.add(message);
+      console.error(message);
+    }
     return null;
   }
 }
@@ -95,7 +108,7 @@ export function resolveProductBookAssets(product: {
   book_registry?: string | null;
   creator_is_house?: boolean | null;
 }): ResolvedBookAssets {
-  if (product.slug != null && typeof product.slug !== "string") console.error(`[book-assets] non-string slug ignored`);
+  if (product.slug != null && typeof product.slug !== "string") logOnce(`[book-assets] non-string slug ignored`);
   const slug = typeof product.slug === "string" ? product.slug : "";
   const houseCreator = isHouse(product.creator_is_house);
   if (typeof product.creator_is_house !== "boolean") {
@@ -105,7 +118,7 @@ export function resolveProductBookAssets(product: {
   // Slug-keyed registry overrides are house-only: a creator product whose slug matches must not inherit house assets.
   const registryOverride = houseCreator && slug ? GLOBAL.storefront.book_assets[slug] : undefined;
   if (product.book_registry != null && product.book_registry !== "" && (typeof product.book_registry !== "string" || !SAFE_BOOK_REGISTRY_RE.test(product.book_registry))) {
-    console.error(`[book-assets] rejected book_registry for slug ${slug}`);
+    logOnce(`[book-assets] rejected book_registry for slug ${slug}`);
   }
   const registryPath =
     typeof product.book_registry === "string" && SAFE_BOOK_REGISTRY_RE.test(product.book_registry)
@@ -115,7 +128,7 @@ export function resolveProductBookAssets(product: {
   const bookJson = registryPath ? readBookJsonSafe(registryPath) : null;
   // A non-house product takes house assets only when its id is the exact product_id of the books/*.json identity.
   const identityMatch = typeof product.id === "string" && product.id !== "" && bookJson?.product_id === product.id;
-  const warnKey = String(product.id ?? slug);
+  const warnKey = product.id || slug || "unknown-product";
   // Impersonation signal: a non-house product whose registry file names a different product id.
   // A non-house product whose file has no product_id, or its own matching id, stays silent.
   if (!houseCreator && bookJson && typeof bookJson.product_id === "string" && bookJson.product_id !== product.id) {
@@ -126,6 +139,9 @@ export function resolveProductBookAssets(product: {
   }
   if (!houseCreator && bookJson && bookJson.product_id !== undefined && typeof bookJson.product_id !== "string") {
     warnOnce(`malformed-id:${warnKey}`, `[book-assets] books json for ${registryPath} has a non-string product_id; identity ignored`);
+  }
+  if (houseCreator && bookJson && typeof bookJson.product_id !== "string") {
+    warnOnce(`house-no-id:${warnKey}`, `[book-assets] house product ${warnKey}: ${registryPath} has no string product_id; identity unchecked`);
   }
   if (houseCreator && bookJson && typeof bookJson.product_id === "string" && bookJson.product_id !== product.id) {
     warnOnce(`house-id:${warnKey}`, `[book-assets] house product ${warnKey} resolves to ${registryPath}, which names another product`);
@@ -140,23 +156,23 @@ export function resolveProductBookAssets(product: {
   if (houseCreator && bookJson && rawCover == null) {
     warnOnce(`no-cover:${warnKey}`, `[book-assets] house product ${warnKey} has no cover_image in ${registryPath}`);
   }
-  if (rawCover != null && !isSafeCoverPath(rawCover)) console.error(`[book-assets] rejected cover_image for slug ${slug}`);
-  if (rawPreview != null && !isSafePreviewPdfPath(rawPreview)) console.error(`[book-assets] rejected preview_pdf for slug ${slug}`);
+  if (rawCover != null && !isSafeCoverPath(rawCover)) logOnce(`[book-assets] rejected cover_image for slug ${slug}`);
+  if (rawPreview != null && !isSafePreviewPdfPath(rawPreview)) logOnce(`[book-assets] rejected preview_pdf for slug ${slug}`);
   const cover_image = isSafeCoverPath(rawCover) ? rawCover.trim() : null;
   const preview_pdf = isSafePreviewPdfPath(rawPreview) ? rawPreview.trim() : null;
 
   // Explicit flags only (books/*.json identity or a registry flag). Never inferred from the slug or title,
   // so a non-sample gated book with a sample-like slug or "(Sample)" title stays hidden from the shelf.
   if (bookJson?.is_sample !== undefined && typeof bookJson.is_sample !== "boolean") {
-    console.error(`[book-assets] non-boolean is_sample in ${registryPath} treated as not sample`);
+    logOnce(`[book-assets] non-boolean is_sample in ${registryPath} treated as not sample`);
   }
   if (registryOverride?.is_sample !== undefined && typeof registryOverride.is_sample !== "boolean") {
-    console.error(`[book-assets] non-boolean override is_sample for slug ${slug} treated as not sample`);
+    logOnce(`[book-assets] non-boolean override is_sample for slug ${slug} treated as not sample`);
   }
   const is_sample = registryOverride?.is_sample === true || bookJson?.is_sample === true;
 
   if (bookJson?.overview != null && (typeof bookJson.overview !== "string" || bookJson.overview.trim() === "")) {
-    console.error(`[book-assets] overview in ${registryPath} is blank or not a string; overview omitted`);
+    logOnce(`[book-assets] overview in ${registryPath} is blank or not a string; overview omitted`);
   }
   const overview =
     typeof bookJson?.overview === "string" && bookJson.overview.trim() !== "" ? bookJson.overview.trim() : null;
