@@ -1,0 +1,28 @@
+web/__tests__/consistency_surfaces.pairwise.test.ts
+  s_0e99959cd74c50::t_00f0624ca172bc 330,332
+web/app/creator/dashboard/dashboard-client.tsx
+  s_0e99959cd74c50::t_66e765e5ee3dcb 17,19
+  s_0e99959cd74c50::t_3490fcdf43f0b6 108
+web/app/creator/signin/signin-client.tsx
+  s_0e99959cd74c50::t_e541bda03b7296 3,7
+  s_0e99959cd74c50::t_569b8bc62de807 47-57
+  s_0e99959cd74c50::t_7b5da82a7c9e0a 148
+web/src/lib/iconify-lucide.ts
+  s_0e99959cd74c50::t_9a293ce0f15481 1-13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5fb52c63fcef7a4f28c163b676adab22270df5f2",
+  "prompts": {},
+  "sessions": {
+    "s_0e99959cd74c50": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "21b00acc-7513-46d6-9a35-038af7845be2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
