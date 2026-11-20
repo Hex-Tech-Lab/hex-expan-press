@@ -28,13 +28,9 @@ export function isSafeCoverPath(value: unknown, coversBasePath: string = GLOBAL.
   if (v.startsWith(`${coversBasePath}/`)) {
     return /^\/books\/[a-z0-9/_-]+\.(?:png|jpe?g|webp|avif)$/i.test(v);
   }
-  if (v.startsWith("https://")) {
-    try {
-      const u = new URL(v);
-      return u.protocol === "https:" && !u.username && !u.password;
-    } catch {
-      return false;
-    }
+  if (v.startsWith("https://") && URL.canParse(v)) {
+    const u = new URL(v);
+    return u.protocol === "https:" && !u.username && !u.password;
   }
   return false;
 }
@@ -46,13 +42,9 @@ export function isSafePreviewPdfPath(value: unknown, previewsBasePath: string = 
   if (v.startsWith(`${previewsBasePath}/`)) {
     return /^\/books\/[a-z0-9/_-]+\.pdf$/i.test(v);
   }
-  if (v.startsWith("https://")) {
-    try {
-      const u = new URL(v);
-      return u.protocol === "https:" && !u.username && !u.password;
-    } catch {
-      return false;
-    }
+  if (v.startsWith("https://") && URL.canParse(v)) {
+    const u = new URL(v);
+    return u.protocol === "https:" && !u.username && !u.password;
   }
   return false;
 }
@@ -67,7 +59,8 @@ function readBookJsonSafe(bookRegistryPath: string): Record<string, unknown> | n
     const parsed: unknown = JSON.parse(readFileSync(/*turbopackIgnore: true*/ fullPath, "utf8"));
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
     return parsed as Record<string, unknown>;
-  } catch {
+  } catch (err) {
+    console.error(`[book-assets] books json unreadable for ${bookRegistryPath}: ${err instanceof Error ? err.name : "unknown"}`);
     return null;
   }
 }
