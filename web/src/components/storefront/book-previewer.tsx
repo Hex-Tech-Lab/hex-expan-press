@@ -137,6 +137,32 @@ export default function BookPreviewer({
     return () => ro.disconnect();
   }, [status, safeZoomIndex, orientation]);
 
+  // page-flip sizes its canvas bitmap once, from the container's CSS box, and re-syncs only on window
+  // resize. A container that settles after mount (the text panel, late layout, Safari's first layout)
+  // left the bitmap squeezed. Observe the container and re-sync on the next frame, one pending frame at a time.
+  useEffect(() => {
+    const node = hostRef.current;
+    if (!node || typeof ResizeObserver === "undefined") return;
+    let frame = 0;
+    let lastWidth = -1;
+    const ro = new ResizeObserver(() => {
+      const width = node.clientWidth;
+      if (Math.abs(width - lastWidth) < settings.resize_min_delta_px) return;
+      lastWidth = width;
+      if (frame) cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        // Same call page-flip makes on window resize (UI.onResize): re-syncs the canvas bitmap.
+        flipRef.current?.getUI().update();
+      });
+    });
+    ro.observe(node);
+    return () => {
+      ro.disconnect();
+      if (frame) cancelAnimationFrame(frame);
+    };
+  }, [status, settings.resize_min_delta_px]);
+
   useEffect(() => {
     if (!seen) return;
     let disposed = false;
@@ -417,7 +443,7 @@ export default function BookPreviewer({
                 role="region"
                 aria-label={settings.toolbar_labels.region_aria_label.replace("{title}", bookTitle)}
                 data-orientation={orientation}
-                className={`w-full flex justify-center ${status === "loading" ? "sr-only" : ""}`}
+                className={`w-full flex justify-center ${status === "loading" ? "invisible" : ""}`}
               />
             </div>
           </div>
