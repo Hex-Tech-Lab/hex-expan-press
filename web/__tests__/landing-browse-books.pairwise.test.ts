@@ -11,6 +11,7 @@ import MaxMotionProvider from "../src/components/motion/max-motion-provider";
 // Each row sets the flag and the render entry point, then asserts the header link is present exactly when enabled.
 const ROWS_PATH = new URL("../../docs/testing/pairwise/landing_browse_books.rows.tsv", import.meta.url);
 const HEADER_TESTID = 'data-testid="header-browse-books"';
+const HERO_TESTID = 'data-testid="hero-browse-books"';
 
 const originalEnabled = GLOBAL.storefront.browse_books_enabled;
 
@@ -67,6 +68,7 @@ describe("PICT rows: landing browse-books visibility", () => {
       const html = render(row);
       if (row.browse_books_enabled) expect(html).toContain(HEADER_TESTID);
       else expect(html).not.toContain(HEADER_TESTID);
+      expect(html).not.toContain(HERO_TESTID);
     });
   }
 });
