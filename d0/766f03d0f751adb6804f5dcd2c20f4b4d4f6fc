@@ -1,0 +1,39 @@
+scripts/paddle_sandbox_sample_product.ts
+  s_0e99959cd74c50::t_5d6c4971594991 1-407
+payments/src/delivery.ts
+  s_0e99959cd74c50::t_386ea2f8eeb716 633-641,643
+payments/src/settings_registry.ts
+  s_36278aa50ee825::t_075a9daf4d56c3 148-155,334-336,661-685,772-779
+payments/test/paddle_sandbox_sample_product.test.ts
+  s_0e99959cd74c50::t_cdd7b6adedb515 1-113
+payments/test/settings_registry_runtime.test.ts
+  s_0e99959cd74c50::t_7676668cfcbe0f 22-23
+web/app/checkout/[productId]/__tests__/page.test.ts
+  s_0e99959cd74c50::t_d9cb4cb77dae34 6,233-265
+web/app/checkout/[productId]/page.tsx
+  s_0e99959cd74c50::t_74aa14e8c32ef6 17,68,75,114,139
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d0766f03d0f751adb6804f5dcd2c20f4b4d4f6fc",
+  "prompts": {},
+  "sessions": {
+    "s_0e99959cd74c50": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "21b00acc-7513-46d6-9a35-038af7845be2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    },
+    "s_36278aa50ee825": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "de3fc623-dc55-4a01-acc7-18a5de037275",
+        "model": "unknown"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
