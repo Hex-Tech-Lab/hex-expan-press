@@ -17,17 +17,26 @@ afterEach(() => {
 });
 
 describe("loadStorefrontSection (settings_registry)", () => {
-  it("returns defaults when section is omitted", () => {
-    expect(loadStorefrontSection(undefined)).toEqual(DEFAULT_GLOBAL.storefront);
+  it("returns defaults when section is omitted (including non-live sample launch flags)", () => {
+    const out = loadStorefrontSection(undefined);
+    expect(out).toEqual(DEFAULT_GLOBAL.storefront);
+    expect(out.show_non_live_samples).toBe(true);
+    expect(out.allowed_non_live_sample_modes).toEqual(["gated"]);
+    expect(out.coming_soon_badge).toBe("Coming soon");
+    expect(out.sample_preview_cta).toBe("Preview sample");
   });
 
-  it("accepts valid overrides for card labels, safe /books/* base paths, and slug asset map", () => {
+  it("accepts valid overrides for card labels, sample listing toggles, safe /books/* base paths, and slug asset map", () => {
     const out = loadStorefrontSection({
       b2c_landing_url: "https://staging.expanpress.com/books",
       digital_pdf_kicker: "E-BOOK PDF",
       brand_name: "ExpanPress Books",
       publisher_label: "Ignored: publisher_label is derived from brand_name",
       sample_badge_label: "(Preview)",
+      show_non_live_samples: false,
+      allowed_non_live_sample_modes: ["gated", "sandbox"],
+      coming_soon_badge: "Launching soon",
+      sample_preview_cta: "Read Chapter 1",
       covers_base_path: "/books/cover_art",
       previews_base_path: "/books/preview_pdfs",
       book_assets: {
@@ -44,6 +53,10 @@ describe("loadStorefrontSection (settings_registry)", () => {
     expect(out.brand_name).toBe("ExpanPress Books");
     expect(out.publisher_label).toBe("ExpanPress Books");
     expect(out.sample_badge_label).toBe("(Preview)");
+    expect(out.show_non_live_samples).toBe(false);
+    expect(out.allowed_non_live_sample_modes).toEqual(["gated", "sandbox"]);
+    expect(out.coming_soon_badge).toBe("Launching soon");
+    expect(out.sample_preview_cta).toBe("Read Chapter 1");
     expect(out.covers_base_path).toBe("/books/cover_art");
     expect(out.previews_base_path).toBe("/books/preview_pdfs");
     expect(out.book_assets.custom_slug).toEqual({
@@ -54,17 +67,25 @@ describe("loadStorefrontSection (settings_registry)", () => {
     });
   });
 
-  it("falls back to defaults for unsafe paths, non-https landing url, or blank labels", () => {
+  it("falls back to defaults for unsafe paths, non-https landing url, invalid sample modes, or blank labels", () => {
     const warn = vi.spyOn(console, "error").mockImplementation(() => undefined);
     const out = loadStorefrontSection({
       b2c_landing_url: "http://expanpress.com/books",
       digital_pdf_kicker: "   ",
+      show_non_live_samples: "yes",
+      allowed_non_live_sample_modes: ["live"],
+      coming_soon_badge: "",
+      sample_preview_cta: "   ",
       covers_base_path: "/etc/passwd",
       previews_base_path: "/books/../secret",
       book_assets: { "bad-slug": { cover_image: "/x" } },
     });
     expect(out.b2c_landing_url).toBe(DEFAULT_GLOBAL.storefront.b2c_landing_url);
     expect(out.digital_pdf_kicker).toBe(DEFAULT_GLOBAL.storefront.digital_pdf_kicker);
+    expect(out.show_non_live_samples).toBe(DEFAULT_GLOBAL.storefront.show_non_live_samples);
+    expect(out.allowed_non_live_sample_modes).toEqual(DEFAULT_GLOBAL.storefront.allowed_non_live_sample_modes);
+    expect(out.coming_soon_badge).toBe(DEFAULT_GLOBAL.storefront.coming_soon_badge);
+    expect(out.sample_preview_cta).toBe(DEFAULT_GLOBAL.storefront.sample_preview_cta);
     expect(out.covers_base_path).toBe(DEFAULT_GLOBAL.storefront.covers_base_path);
     expect(out.previews_base_path).toBe(DEFAULT_GLOBAL.storefront.previews_base_path);
     expect(out.book_assets["bad-slug"]).toBeUndefined();

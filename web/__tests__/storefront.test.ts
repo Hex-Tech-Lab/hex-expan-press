@@ -85,18 +85,40 @@ const product = (id: string, checkout_mode: string) => ({
   inside: null,
 });
 
-describe("fetchCreatorHub lists only published (live) products", () => {
-  it("renders and links only the live product, never a gated one", async () => {
+describe("fetchCreatorHub lists published (live) products + allowed non-live samples only", () => {
+  it("renders and links live products and sample gated products, never a non-sample gated one", async () => {
     supa.client = hubClient({
       handle: "hubpub",
       display_name: "Duane",
       platform_handles: null,
       bio: null,
       photo: null,
-      products: [product("live", "live"), product("draft", "gated")],
+      products: [
+        product("live", "live"),
+        { ...product("draft", "gated"), book_registry: "books/duane.json" },
+      ],
     });
     const hub = await fetchCreatorHub("hubpub");
     expect(hub?.creator.products.map((p) => p.id)).toEqual(["live"]);
+
+    supa.client = hubClient({
+      handle: "expanpress_house",
+      display_name: "ExpanPress",
+      platform_handles: null,
+      bio: null,
+      photo: null,
+      products: [
+        {
+          ...product("sample_the_quiet_workshop", "gated"),
+          title: "The Quiet Workshop (Sample)",
+          book_registry: "books/sample_the_quiet_workshop.json",
+        },
+      ],
+    });
+    const houseHub = await fetchCreatorHub("expanpress_house");
+    expect(houseHub?.creator.products.map((p) => p.id)).toEqual(["sample_the_quiet_workshop"]);
+    expect(houseHub?.creator.products[0]?.is_sample).toBe(true);
+    expect(storefrontRobots(houseHub!.creator.products)).toEqual(NOINDEX);
   });
 
   it("keeps the robots result: gated-only stays noindex, a live product stays indexable", async () => {
@@ -110,12 +132,12 @@ describe("fetchCreatorHub lists only published (live) products", () => {
   });
 });
 
-describe("B2C landing query filters live products in PostgREST and selects only landing fields", () => {
+describe("B2C landing query filters live + allowed non-live sample products only", () => {
   /** Records each builder call; awaiting the builder resolves to `rows`, as PostgREST would. */
   function landingDb(rows: unknown[]) {
     const calls: unknown[][] = [];
     const q: Record<string, unknown> = {};
-    for (const method of ["eq", "not", "neq"]) {
+    for (const method of ["eq", "in", "not", "neq"]) {
       q[method] = (...args: unknown[]) => {
         calls.push([method, ...args]);
         return q;
@@ -137,7 +159,7 @@ describe("B2C landing query filters live products in PostgREST and selects only 
     return calls;
   }
 
-  it("asks PostgREST for live commercial products only and selects no detail fields", async () => {
+  it("asks PostgREST for live + allowed non-live sample modes and selects no detail fields", async () => {
     const calls = landingDb([{ handle: "duane", display_name: "Duane", products: [product("live", "live")] }]);
     await fetchB2cLanding();
     const select = calls.find((c) => c[0] === "select")?.[1] as string;
@@ -145,18 +167,69 @@ describe("B2C landing query filters live products in PostgREST and selects only 
     for (const detail of ["description", "disclaimers", "inside", "currency", "working_note", "composite_slug"]) {
       expect(select, detail).not.toContain(detail);
     }
-    expect(calls).toContainEqual(["eq", "products.checkout_mode", "live"]);
+    expect(calls).toContainEqual(["in", "products.checkout_mode", ["live", "gated"]]);
     expect(calls).toContainEqual(["neq", "products.store_product_id", ""]);
   });
 
-  it("returns only creators with a live product, and only that product", async () => {
+  it("lists live products and gated SAMPLE products (is_sample from book registry), while keeping non-sample gated products hidden", async () => {
     landingDb([
-      { handle: "duane", display_name: "Duane", products: [product("live", "live"), product("draft", "gated")] },
-      { handle: "onlydraft", display_name: "Draft Only", products: [product("d2", "gated")] },
+      {
+        handle: "duane",
+        display_name: "Duane",
+        products: [
+          product("live", "live"),
+          { ...product("500k_playbook", "gated"), book_registry: "books/duane.json" },
+        ],
+      },
+      {
+        handle: "onlydraft",
+        display_name: "Draft Only",
+        products: [
+          product("d2", "gated"),
+          { ...product("duane_gated", "gated"), book_registry: "books/duane.json" },
+        ],
+      },
+      {
+        handle: "expanpress_house",
+        display_name: "ExpanPress",
+        products: [
+          {
+            ...product("sample_the_quiet_workshop", "gated"),
+            title: "The Quiet Workshop (Sample)",
+            book_registry: "books/sample_the_quiet_workshop.json",
+          },
+        ],
+      },
     ]);
     const creators = await fetchB2cLanding();
-    expect(creators.map((c) => c.handle)).toEqual(["duane"]);
+    expect(creators.map((c) => c.handle)).toEqual(["duane", "expanpress_house"]);
     expect(creators[0].products.map((p) => p.id)).toEqual(["live"]);
+    expect(creators[1].products.map((p) => p.id)).toEqual(["sample_the_quiet_workshop"]);
+    expect(creators[1].products[0]?.is_sample).toBe(true);
+  });
+
+  it("hides gated samples and queries live-only when show_non_live_samples is disabled", async () => {
+    const orig = GLOBAL.storefront.show_non_live_samples;
+    GLOBAL.storefront.show_non_live_samples = false;
+    try {
+      const calls = landingDb([
+        {
+          handle: "expanpress_house",
+          display_name: "ExpanPress",
+          products: [
+            {
+              ...product("sample_the_quiet_workshop", "gated"),
+              book_registry: "books/sample_the_quiet_workshop.json",
+            },
+          ],
+        },
+      ]);
+      const creators = await fetchB2cLanding();
+      expect(calls).toContainEqual(["eq", "products.checkout_mode", "live"]);
+      expect(creators).toEqual([]);
+    } finally {
+      GLOBAL.storefront.show_non_live_samples = orig;
+    }
   });
 });
 
@@ -276,8 +349,33 @@ describe("BookCover and BookCard layout, cover aspect ratio, and (Sample) footer
     expect(html).not.toContain("<img");
     expect(html).toContain("E2E Live Book");
     expect(html).not.toContain("(Sample)");
+    expect(html).not.toContain(GLOBAL.storefront.coming_soon_badge);
     expect(html).toContain("ExpanPress");
     expect(html).toContain("$29.00");
+  });
+
+  it("renders coming-soon pill and preview CTA linking to product page on non-live sample BookCard", async () => {
+    const { createElement } = await import("react");
+    const { renderToStaticMarkup } = await import("react-dom/server");
+
+    const html = renderToStaticMarkup(
+      createElement(BookCard, {
+        product: {
+          slug: "sample_the_quiet_workshop",
+          title: "The Quiet Workshop (Sample)",
+          price_usd: "9.00",
+          cover_image: "/books/covers/sample_the_quiet_workshop.webp",
+          is_sample: true,
+          checkout_mode: "gated",
+        },
+        creatorHandle: "expanpress_house",
+        creatorName: "ExpanPress",
+      }),
+    );
+    expect(html).toContain(GLOBAL.storefront.coming_soon_badge);
+    expect(html).toContain('data-checkout-mode="gated"');
+    expect(html).toContain(GLOBAL.storefront.sample_preview_cta);
+    expect(html).toContain('href="/books/expanpress_house/sample_the_quiet_workshop"');
   });
 
   it("fetchB2cLanding and fetchStoreProduct enrich products with cover_image, preview_pdf, and is_sample", async () => {

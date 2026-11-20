@@ -179,6 +179,10 @@ export interface GlobalSettings {
     house_title_note: string;
     digital_pdf_kicker: string;
     sample_badge_label: string;
+    show_non_live_samples: boolean;
+    allowed_non_live_sample_modes: string[];
+    coming_soon_badge: string;
+    sample_preview_cta: string;
     covers_base_path: string;
     previews_base_path: string;
     book_assets: Record<
@@ -361,6 +365,10 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     house_title_note: `House title. Published by ${STOREFRONT_BRAND}. No creator revenue split.`,
     digital_pdf_kicker: "DIGITAL PDF",
     sample_badge_label: "(Sample)",
+    show_non_live_samples: true,
+    allowed_non_live_sample_modes: ["gated"],
+    coming_soon_badge: "Coming soon",
+    sample_preview_cta: "Preview sample",
     covers_base_path: "/books/covers",
     previews_base_path: "/books/previews",
     book_assets: {
@@ -788,19 +796,39 @@ export function loadPaymentsSection(raw: Record<string, unknown> | undefined): G
   };
 }
 
-/** storefront: validates b2c_landing_url, brand_name, thanks_path_template, house_title_note, card copy and asset paths;
- *  falls back per key on invalid input. publisher_label is derived from brand_name (one source), so a raw publisher_label is not read. */
+/** storefront: validates b2c_landing_url, brand_name, thanks_path_template, house_title_note, card copy, sample listing flags,
+ *  and asset paths; falls back per key on invalid input. publisher_label is derived from brand_name (one source). */
 export function loadStorefrontSection(raw: Record<string, unknown> | undefined): GlobalSettings["storefront"] {
   const defaults = DEFAULT_GLOBAL.storefront;
   if (!raw) return defaults;
   const fallbacks: string[] = [];
-  const strField = (key: "digital_pdf_kicker" | "sample_badge_label" | "house_title_note"): string => {
+  const strField = (
+    key: "digital_pdf_kicker" | "sample_badge_label" | "house_title_note" | "coming_soon_badge" | "sample_preview_cta",
+  ): string => {
     if (raw[key] === undefined) return defaults[key];
     const v = raw[key];
     if (typeof v === "string" && v.trim() !== "") return v.trim();
     fallbacks.push(key);
     return defaults[key];
   };
+  let showNonLiveSamples = defaults.show_non_live_samples;
+  if ("show_non_live_samples" in raw) {
+    if (typeof raw.show_non_live_samples === "boolean") showNonLiveSamples = raw.show_non_live_samples;
+    else fallbacks.push("show_non_live_samples");
+  }
+  const NON_LIVE_MODES = new Set(["gated", "sandbox", "paddle"]);
+  let allowedNonLiveSampleModes = defaults.allowed_non_live_sample_modes;
+  if ("allowed_non_live_sample_modes" in raw) {
+    const rawModes = raw.allowed_non_live_sample_modes;
+    if (
+      Array.isArray(rawModes) &&
+      rawModes.every((m) => typeof m === "string" && NON_LIVE_MODES.has(m.trim()))
+    ) {
+      allowedNonLiveSampleModes = Array.from(new Set(rawModes.map((m) => m.trim())));
+    } else {
+      fallbacks.push("allowed_non_live_sample_modes");
+    }
+  }
   const b2cLanding = isHttpsUrl(raw.b2c_landing_url) ? raw.b2c_landing_url : defaults.b2c_landing_url;
   if (raw.b2c_landing_url !== undefined && !isHttpsUrl(raw.b2c_landing_url)) fallbacks.push("b2c_landing_url");
   const brandName =
@@ -858,6 +886,10 @@ export function loadStorefrontSection(raw: Record<string, unknown> | undefined):
     house_title_note: houseNote,
     digital_pdf_kicker: strField("digital_pdf_kicker"),
     sample_badge_label: strField("sample_badge_label"),
+    show_non_live_samples: showNonLiveSamples,
+    allowed_non_live_sample_modes: allowedNonLiveSampleModes,
+    coming_soon_badge: strField("coming_soon_badge"),
+    sample_preview_cta: strField("sample_preview_cta"),
     covers_base_path: coversBasePath,
     previews_base_path: previewsBasePath,
     book_assets: bookAssets,
