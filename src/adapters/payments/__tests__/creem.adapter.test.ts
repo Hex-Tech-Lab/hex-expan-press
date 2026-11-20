@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import crypto from "node:crypto";
 import { CreemAdapter } from "../creem.adapter.ts";
-import { PAYMENT_PROVIDERS } from "../../../../payments/src/settings_registry.ts";
+import { GLOBAL, PAYMENT_PROVIDERS } from "../../../../payments/src/settings_registry.ts";
 
 const SECRET = "whsec_test_creem_fixture";
 
@@ -247,5 +247,59 @@ describe("CreemAdapter", () => {
       fm.product_id = origProduct;
       fm.attribution_id = origAttr;
     }
+  });
+});
+
+describe("CreemAdapter buyer consent (metadata buyer_email_consent)", () => {
+  const consentKey = GLOBAL.delivery.buyer_consent_metadata_key;
+  let adapter: CreemAdapter;
+  let prevSecret: string | undefined;
+
+  beforeEach(() => {
+    adapter = new CreemAdapter();
+    prevSecret = process.env.CREEM_WEBHOOK_SECRET;
+    process.env.CREEM_WEBHOOK_SECRET = SECRET;
+  });
+  afterEach(() => {
+    if (prevSecret === undefined) delete process.env.CREEM_WEBHOOK_SECRET;
+    else process.env.CREEM_WEBHOOK_SECRET = prevSecret;
+    vi.restoreAllMocks();
+  });
+
+  /** Sends a paid checkout whose metadata carries the consent key with `value` (or omits the key when `omit`). */
+  async function consentFor(value: unknown, omit = false) {
+    const metadata: Record<string, unknown> = { order_ref: "order-ref-123" };
+    if (!omit) metadata[consentKey] = value;
+    const body = checkoutCompleted({ metadata });
+    const r = await adapter.parseAndValidateWebhook(headersFor(body), body);
+    expect(r.isValid).toBe(true);
+    if (!r.isValid || r.event.eventType !== "sale_completed") throw new Error("expected sale_completed");
+    return r.event.buyerEmailConsent;
+  }
+
+  it.each([
+    ["the string \"true\"", "true", true],
+    ["the boolean true", true, true],
+    ["the string \"false\"", "false", false],
+    ["the boolean false", false, false],
+  ])("records %s as buyerEmailConsent", async (_label, value, want) => {
+    expect(await consentFor(value)).toBe(want);
+  });
+
+  it("leaves buyerEmailConsent undefined when the metadata key is absent", async () => {
+    expect(await consentFor(undefined, true)).toBeUndefined();
+  });
+
+  it.each([
+    ["null", null],
+    ["the number 1", 1],
+    ["the string \"yes\"", "yes"],
+    ["the string \"TRUE\" (not exact)", "TRUE"],
+    ["an empty string", ""],
+  ])("treats %s as absent and warns only for non-null values", async (_label, value) => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    expect(await consentFor(value)).toBeUndefined();
+    if (value === null) expect(warn).not.toHaveBeenCalled();
+    else expect(warn).toHaveBeenCalledWith(expect.stringContaining(consentKey));
   });
 });
