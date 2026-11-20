@@ -1,0 +1,14 @@
+books/sample_the_quiet_workshop.json
+  h_e6b68dcbbd0983 23-24
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1c9ca77bc01574b7b4f4b6765c31aee899343e36",
+  "prompts": {},
+  "humans": {
+    "h_e6b68dcbbd0983": {
+      "author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
