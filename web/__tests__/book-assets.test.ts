@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   isSafeCoverPath,
   isSafePreviewPdfPath,
@@ -170,6 +170,21 @@ describe("resolveProductBookAssets never lets a non-house product claim house as
       is_sample: false,
       overview: null,
     });
+  });
+
+  it("logs and fails closed when a house registry path has no books/*.json file", () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const resolved = resolveProductBookAssets({
+        slug: "unbundled_house_book",
+        book_registry: "books/no_such_book_for_test.json",
+        creator_is_house: true,
+      });
+      expect(resolved).toMatchObject({ cover_image: null, preview_pdf: null, is_sample: false, overview: null });
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("books json missing for books/no_such_book_for_test.json"));
+    } finally {
+      errorSpy.mockRestore();
+    }
   });
 
   it("resolves Duane's live product through the exact product_id in books/duane.json, with no house flag", () => {

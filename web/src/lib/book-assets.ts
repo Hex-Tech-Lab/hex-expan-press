@@ -55,7 +55,11 @@ function readBookJsonSafe(bookRegistryPath: string): Record<string, unknown> | n
   const fileName = bookRegistryPath.slice("books/".length);
   // Scoped strictly to books/*.json (bundled via outputFileTracingIncludes in next.config.ts).
   const fullPath = join(/*turbopackIgnore: true*/ findRepoRoot(), "books", fileName);
-  if (!existsSync(/*turbopackIgnore: true*/ fullPath)) return null;
+  if (!existsSync(/*turbopackIgnore: true*/ fullPath)) {
+    // A registry path with no file is an operator bundling error: say so, do not stay silent.
+    console.error(`[book-assets] books json missing for ${bookRegistryPath}`);
+    return null;
+  }
   try {
     const parsed: unknown = JSON.parse(readFileSync(/*turbopackIgnore: true*/ fullPath, "utf8"));
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
@@ -71,7 +75,6 @@ function readBookJsonSafe(bookRegistryPath: string): Record<string, unknown> | n
 export function resolveProductBookAssets(product: {
   id?: string | null;
   slug?: string | null;
-  title?: string | null;
   book_registry?: string | null;
   creator_is_house?: boolean | null;
 }): ResolvedBookAssets {

@@ -44,7 +44,6 @@ import { resolveProductBookAssets } from "../../../../../src/lib/book-assets";
 // fetchStoreProduct always runs withResolvedAssets, so its product arrives with overview already resolved.
 const SAMPLE_OVERVIEW = resolveProductBookAssets({
   slug: "sample_the_quiet_workshop",
-  title: "The Quiet Workshop (Sample)",
   book_registry: "books/sample_the_quiet_workshop.json",
   creator_is_house: true,
 }).overview;

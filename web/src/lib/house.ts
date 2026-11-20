@@ -3,7 +3,7 @@
  * (creators_is_house_guard), never the display name: a creator who types the brand name is not the house.
  * Lives in lib (not a component) so server-only modules such as book-assets can import it without a cycle.
  */
-export function isHouse(flag: unknown): boolean {
+export function isHouse(flag: boolean | null | undefined): boolean {
   return flag === true;
 }
 
