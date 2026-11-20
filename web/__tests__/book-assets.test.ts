@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   isSafeCoverPath,
   isSafePreviewPdfPath,
-  isSampleTitle,
   resolveProductBookAssets,
 } from "../src/lib/book-assets";
 
@@ -62,6 +61,20 @@ describe("resolveProductBookAssets", () => {
     expect(sampleAssets.overview?.toLowerCase()).toContain("sample");
   });
 
+  it("describes the house sample as a preview sample coming soon, never as a sold or standalone product", () => {
+    const overview = resolveProductBookAssets({
+      slug: "sample_the_quiet_workshop",
+      title: "The Quiet Workshop (Sample)",
+      book_registry: "books/sample_the_quiet_workshop.json",
+    }).overview;
+    expect(overview).toMatch(/preview sample/i);
+    expect(overview).toMatch(/coming soon/i);
+    expect(overview).not.toMatch(/standalone/i);
+    expect(overview).not.toMatch(/delivered by email/i);
+    expect(overview).not.toMatch(/\bsold\b/i);
+    expect(overview).not.toMatch(/\bguides?\b/i);
+  });
+
   it("falls back to GLOBAL.storefront.book_assets[slug] when products.book_registry is null", () => {
     expect(
       resolveProductBookAssets({
@@ -93,14 +106,26 @@ describe("resolveProductBookAssets", () => {
     });
   });
 
-  it("detects sample products from title or sample_ slug prefix even without a book JSON", () => {
-    expect(isSampleTitle("The Quiet Workshop (Sample)")).toBe(true);
-    expect(isSampleTitle("Full Book")).toBe(false);
+  it("never infers is_sample from a sample_ slug or a (Sample) title; only an explicit is_sample in books/*.json counts", () => {
     expect(
       resolveProductBookAssets({
         slug: "sample_another_book",
         title: "Another Book",
         book_registry: null,
+      }).is_sample,
+    ).toBe(false);
+    expect(
+      resolveProductBookAssets({
+        slug: "sample_duane",
+        title: "Duane Playbook (Sample)",
+        book_registry: "books/duane.json",
+      }).is_sample,
+    ).toBe(false);
+    expect(
+      resolveProductBookAssets({
+        slug: "sample_the_quiet_workshop",
+        title: "The Quiet Workshop (Sample)",
+        book_registry: "books/sample_the_quiet_workshop.json",
       }).is_sample,
     ).toBe(true);
   });

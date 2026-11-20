@@ -35,24 +35,34 @@ describe("service providers de-indexing and buyer legal navigation", () => {
 
   it("removes providers.html from every footer and keeps it linked only inside Privacy Policy body text", () => {
     for (const rel of ["books/legal/terms.html", "books/legal/privacy.html", "books/legal/refund-policy.html"]) {
-      const doc = readPublic(rel);
-      const footerMatch = doc.match(/<footer>([\s\S]*?)<\/footer>/);
-      expect(footerMatch?.[1] ?? "", `${rel} footer`).not.toContain("providers.html");
+      const footerMatch = readPublic(rel).match(/<footer>([\s\S]*?)<\/footer>/);
+      if (footerMatch === null) throw new Error(`${rel}: footer element not found`);
+      expect(footerMatch[1], `${rel} footer`).not.toContain("providers.html");
     }
     const privacyMain = readPublic("books/legal/privacy.html").match(/<main>([\s\S]*?)<\/main>/)?.[1] ?? "";
     expect(privacyMain).toContain('href="/books/legal/providers.html"');
   });
 
-  it("marks both providers pages noindex,nofollow and disallows them in robots.txt and vercel.json", () => {
+  it("marks both providers pages noindex,nofollow in the document head", () => {
     expect(readPublic("books/legal/providers.html")).toContain('<meta name="robots" content="noindex,nofollow">');
     expect(readPublic("legal/providers.html")).toContain('<meta name="robots" content="noindex,nofollow">');
+  });
+
+  it("does not disallow providers pages in robots.txt, so crawlers can read their noindex signals", () => {
     const robots = readPublic("robots.txt");
-    expect(robots).toContain("Disallow: /books/legal/providers.html");
-    expect(robots).toContain("Disallow: /legal/providers.html");
-    const vercelJson = readFileSync(new URL("../vercel.json", import.meta.url), "utf8");
-    expect(vercelJson).toContain("/books/legal/providers.html");
-    expect(vercelJson).toContain("/legal/providers.html");
-    expect(vercelJson).toContain("noindex, nofollow");
+    expect(robots).not.toContain("/books/legal/providers.html");
+    expect(robots).not.toContain("/legal/providers.html");
+  });
+
+  it("sends an X-Robots-Tag noindex, nofollow header for each providers page in vercel.json", () => {
+    const vercel = JSON.parse(readFileSync(new URL("../vercel.json", import.meta.url), "utf8")) as {
+      headers?: { source: string; headers: { key: string; value: string }[] }[];
+    };
+    for (const source of ["/books/legal/providers.html", "/legal/providers.html"]) {
+      const entry = vercel.headers?.find((h) => h.source === source);
+      expect(entry, `${source} header entry`).toBeDefined();
+      expect(entry?.headers, source).toContainEqual({ key: "X-Robots-Tag", value: "noindex, nofollow" });
+    }
   });
 
   it("replaces circular referrer backlinks on buyer legal pages with direct Back to books links", () => {

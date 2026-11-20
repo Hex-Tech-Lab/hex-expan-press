@@ -72,10 +72,6 @@ function readBookJsonSafe(bookRegistryPath: string): Record<string, unknown> | n
   }
 }
 
-export function isSampleTitle(title: string | null | undefined): boolean {
-  return typeof title === "string" && /\(sample\)/i.test(title);
-}
-
 /** Resolve cover image, public preview PDF, and sample flag from products.book_registry -> books/*.json
  *  with GLOBAL.storefront.book_assets[slug] fallback (no DB migration required). */
 export function resolveProductBookAssets(product: {
@@ -98,12 +94,9 @@ export function resolveProductBookAssets(product: {
   const cover_image = isSafeCoverPath(rawCover) ? rawCover.trim() : null;
   const preview_pdf = isSafePreviewPdfPath(rawPreview) ? rawPreview.trim() : null;
 
-  const is_sample = Boolean(
-    registryOverride?.is_sample === true ||
-      bookJson?.is_sample === true ||
-      slug.startsWith("sample_") ||
-      isSampleTitle(product.title),
-  );
+  // Explicit flags only (books/*.json identity or a registry flag). Never inferred from the slug or title,
+  // so a non-sample gated book with a sample-like slug or "(Sample)" title stays hidden from the shelf.
+  const is_sample = registryOverride?.is_sample === true || bookJson?.is_sample === true;
 
   const overview =
     typeof bookJson?.overview === "string" && bookJson.overview.trim() !== "" ? bookJson.overview.trim() : null;

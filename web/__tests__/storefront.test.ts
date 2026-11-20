@@ -132,6 +132,24 @@ describe("fetchCreatorHub lists published (live) products + allowed non-live sam
   });
 });
 
+describe("is_sample is explicit: a non-sample with a sample-like slug and title is never listed", () => {
+  it("hides a gated product whose slug starts with sample_ and title ends (Sample) when books/*.json says is_sample false", async () => {
+    supa.client = hubClient({
+      handle: "hublookalike",
+      display_name: "Duane",
+      platform_handles: null,
+      bio: null,
+      photo: null,
+      products: [
+        { ...product("sample_lookalike", "gated"), title: "Lookalike (Sample)", book_registry: "books/duane.json" },
+      ],
+    });
+    const hub = await fetchCreatorHub("hublookalike");
+    expect(hub).not.toBeNull();
+    expect(hub?.creator.products.map((p) => p.id)).toEqual([]);
+  });
+});
+
 describe("B2C landing query filters live + allowed non-live sample products only", () => {
   /** Records each builder call; awaiting the builder resolves to `rows`, as PostgREST would. */
   function landingDb(rows: unknown[]) {
