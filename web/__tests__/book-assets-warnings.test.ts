@@ -113,4 +113,17 @@ describe("book-assets warnings for impersonation and missing assets", () => {
       delete overrides.house_no_cover_probe;
     }
   });
+
+  it("fails closed and warns when creator_is_house is not a boolean", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const resolved = resolveProductBookAssets({
+      id: "ababab01-0000-4000-8000-000000000006",
+      slug: "string_house_flag",
+      book_registry: "books/duane.json",
+      creator_is_house: "true" as unknown as boolean,
+    });
+    expect(resolved).toMatchObject({ cover_image: null, preview_pdf: null, is_sample: false });
+    const hits = warn.mock.calls.map((c) => String(c[0])).filter((m) => m.includes("treated as non-house") && m.includes("ababab01-0000-4000-8000-000000000006"));
+    expect(hits).toHaveLength(1);
+  });
 });

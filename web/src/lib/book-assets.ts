@@ -98,6 +98,10 @@ export function resolveProductBookAssets(product: {
   if (product.slug != null && typeof product.slug !== "string") console.error(`[book-assets] non-string slug ignored`);
   const slug = typeof product.slug === "string" ? product.slug : "";
   const houseCreator = isHouse(product.creator_is_house);
+  if (typeof product.creator_is_house !== "boolean") {
+    // A missing or non-boolean house flag fails closed to non-house; say so once, so a bad select is visible.
+    warnOnce(`house-flag:${String(product.id ?? slug)}`, `[book-assets] creator_is_house is ${product.creator_is_house === undefined ? "missing" : typeof product.creator_is_house} for ${String(product.id ?? slug)}; treated as non-house`);
+  }
   // Slug-keyed registry overrides are house-only: a creator product whose slug matches must not inherit house assets.
   const registryOverride = houseCreator && slug ? GLOBAL.storefront.book_assets[slug] : undefined;
   if (product.book_registry != null && product.book_registry !== "" && (typeof product.book_registry !== "string" || !SAFE_BOOK_REGISTRY_RE.test(product.book_registry))) {
