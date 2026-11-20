@@ -7,6 +7,7 @@ import {
   StorefrontFooter,
   storefrontRobots,
   fetchCreatorHub,
+  isHouseCreator,
   platformLink,
   resolveCreatorOr404,
 } from "../../../src/components/storefront/storefront";
@@ -45,7 +46,7 @@ export default async function CreatorHubPage({ params }: { params: Promise<{ han
   const { handle } = await params;
   const { creator } = resolveCreatorOr404(await fetchCreatorHub(handle));
   // Operator-controlled flag, not the display name: a creator who types "ExpanPress" must not get the house bio.
-  const houseCreator = creator.is_house === true;
+  const houseCreator = isHouseCreator(creator);
 
   const initial = creator.display_name.trim().charAt(0).toUpperCase();
   const bioParas = creator.bio

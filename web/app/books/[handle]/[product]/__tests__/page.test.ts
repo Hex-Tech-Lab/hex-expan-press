@@ -39,6 +39,15 @@ vi.mock("../../../../../src/components/storefront/storefront", async (importOrig
 
 import { GLOBAL } from "../../../../../../payments/src/settings_registry";
 import StoreProductPage, { generateMetadata } from "../page";
+import { resolveProductBookAssets } from "../../../../../src/lib/book-assets";
+
+// fetchStoreProduct always runs withResolvedAssets, so its product arrives with overview already resolved.
+const SAMPLE_OVERVIEW = resolveProductBookAssets({
+  slug: "sample_the_quiet_workshop",
+  title: "The Quiet Workshop (Sample)",
+  book_registry: "books/sample_the_quiet_workshop.json",
+  creator_is_house: true,
+}).overview;
 
 const stripTags = (html: string) => html.replace(/<[^>]+>/g, "");
 
@@ -92,7 +101,7 @@ describe("store product page (/books/{handle}/{product})", () => {
     productMock.creator.display_name = GLOBAL.storefront.brand_name;
     productMock.creator.is_house = true;
     productMock.creator.handle = "expanpress_house";
-    productMock.product.overview = undefined;
+    productMock.product.overview = SAMPLE_OVERVIEW;
     const sampleHtml = renderToStaticMarkup(
       await StoreProductPage({
         params: Promise.resolve({ handle: "expanpress_house", product: "sample_the_quiet_workshop" }),
@@ -116,6 +125,7 @@ describe("store product page (/books/{handle}/{product})", () => {
     productMock.creator.display_name = GLOBAL.storefront.brand_name;
     productMock.creator.is_house = true;
     productMock.creator.handle = "expanpress_house";
+    productMock.product.overview = SAMPLE_OVERVIEW;
     const layout = GLOBAL.storefront.product_layout;
 
     productMock.product.preview_pdf = null;

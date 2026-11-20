@@ -313,13 +313,7 @@ export const fetchCheckoutProduct = cache(async function fetchCheckoutProduct(
   return { creator, product: row, railProvider: activeRail?.provider ?? null };
 });
 
-/**
- * The one house check for every storefront surface. Reads the operator-set creators.is_house column
- * (creators_is_house_guard), never the display name: a creator who types the brand name is not the house.
- */
-export function isHouseCreator(creator: { is_house: boolean }): boolean {
-  return creator.is_house === true;
-}
+export { isHouseCreator } from "../../lib/house";
 
 /** Shared publication attribution sentence used identically on the product and checkout pages. */
 export function PublicationByline({

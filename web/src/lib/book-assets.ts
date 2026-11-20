@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import "server-only";
 import { GLOBAL } from "../../../payments/src/settings_registry";
+import { isHouse } from "./house";
 
 export interface ResolvedBookAssets {
   book_registry: string | null;
@@ -21,6 +22,12 @@ function findRepoRoot(): string {
   return cwd;
 }
 
+function isSafeHttpsUrl(v: string): boolean {
+  if (!URL.canParse(v)) return false;
+  const u = new URL(v);
+  return u.protocol === "https:" && !u.username && !u.password;
+}
+
 export function isSafeCoverPath(value: unknown, coversBasePath: string = GLOBAL.storefront.covers_base_path): value is string {
   if (typeof value !== "string" || value.trim() === "") return false;
   const v = value.trim();
@@ -28,10 +35,7 @@ export function isSafeCoverPath(value: unknown, coversBasePath: string = GLOBAL.
   if (v.startsWith(`${coversBasePath}/`)) {
     return /^\/books\/[a-z0-9/_-]+\.(?:png|jpe?g|webp|avif)$/i.test(v);
   }
-  if (v.startsWith("https://") && URL.canParse(v)) {
-    const u = new URL(v);
-    return u.protocol === "https:" && !u.username && !u.password;
-  }
+  if (v.startsWith("https://")) return isSafeHttpsUrl(v);
   return false;
 }
 
@@ -42,10 +46,7 @@ export function isSafePreviewPdfPath(value: unknown, previewsBasePath: string = 
   if (v.startsWith(`${previewsBasePath}/`)) {
     return /^\/books\/[a-z0-9/_-]+\.pdf$/i.test(v);
   }
-  if (v.startsWith("https://") && URL.canParse(v)) {
-    const u = new URL(v);
-    return u.protocol === "https:" && !u.username && !u.password;
-  }
+  if (v.startsWith("https://")) return isSafeHttpsUrl(v);
   return false;
 }
 
@@ -75,7 +76,7 @@ export function resolveProductBookAssets(product: {
   creator_is_house?: boolean | null;
 }): ResolvedBookAssets {
   const slug = typeof product.slug === "string" ? product.slug : "";
-  const houseCreator = product.creator_is_house === true;
+  const houseCreator = isHouse(product.creator_is_house);
   // Slug-keyed registry overrides are house-only: a creator product whose slug matches must not inherit house assets.
   const registryOverride = houseCreator && slug ? GLOBAL.storefront.book_assets[slug] : undefined;
   const registryPath =
