@@ -1,0 +1,25 @@
+payments/src/settings_registry.ts
+  s_0e99959cd74c50::t_c91e66fbf89894 287-288
+  s_0e99959cd74c50::t_9cbd27a3577a6e 492-493
+  s_0e99959cd74c50::t_6251b3027b3e24 1623-1624
+web/src/components/storefront/book-preview-toolbar.tsx
+  s_0e99959cd74c50::t_52446c253e4bf0 138
+web/src/components/storefront/book-previewer.tsx
+  s_0e99959cd74c50::t_bd5877c6399908 418
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "51a322894c8a2f1cf350e3e40dec574fced9a36d",
+  "prompts": {},
+  "sessions": {
+    "s_0e99959cd74c50": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "21b00acc-7513-46d6-9a35-038af7845be2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
