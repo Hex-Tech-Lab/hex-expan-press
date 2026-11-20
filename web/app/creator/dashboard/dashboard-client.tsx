@@ -14,8 +14,9 @@
 import { useEffect, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { AnimatePresence, m, useReducedMotion } from "framer-motion";
-import { Icon, addCollection } from "@iconify/react";
+import { Icon } from "@iconify/react";
 import { BrandFooter, BrandFrame, BrandWordmark } from "../../../src/components/brand/brand";
+import { loadLucideIcons } from "../../../src/lib/iconify-lucide";
 import JourneyDots from "../../../src/components/journey/journey-dots";
 import SignOutButton from "./sign-out-button";
 import { startPublisherAgreementAction } from "./actions";
@@ -104,9 +105,7 @@ export default function DashboardClient({
   // main bundle (bundle-* rules); icons resolve right after hydration.
   useEffect(() => {
     let mounted = true;
-    void import("@iconify-json/lucide/icons.json").then((m) => {
-      const data = (m as { default?: object }).default ?? (m as object);
-      addCollection(data as Parameters<typeof addCollection>[0]);
+    void loadLucideIcons().then(() => {
       if (mounted) setIconsReady(true);
     });
     return () => {

@@ -327,9 +327,9 @@ describe("consistency surfaces: PICT pairwise", () => {
       if (hubMock.hasBio) {
         expect(hubHtml).toContain("Custom creator biography.");
       } else if (hubMock.isHouse) {
-        expect(hubHtml).toContain(GLOBAL.storefront.house_creator_bio);
+        expect(decodedHubHtml).toContain(GLOBAL.storefront.house_creator_bio);
       } else {
-        expect(hubHtml).not.toContain(GLOBAL.storefront.house_creator_bio);
+        expect(decodedHubHtml).not.toContain(GLOBAL.storefront.house_creator_bio);
       }
 
       // 4. Buyer delivery email HTML card

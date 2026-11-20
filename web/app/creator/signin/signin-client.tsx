@@ -1,8 +1,10 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { Icon } from "@iconify/react";
 import { BrandButton, BrandField, BrandFooter, BrandFrame, BrandWordmark } from "../../../src/components/brand/brand";
+import { loadLucideIcons } from "../../../src/lib/iconify-lucide";
 import { AppleIcon, GoogleIcon } from "./icons";
 import { signInWithGoogleAction, signInWithOtpAction, setMarketingOptInAction } from "./actions";
 
@@ -42,6 +44,17 @@ export default function SignInClient({
   optinDefault: boolean;
   supportEmail?: string;
 }) {
+  const [iconsReady, setIconsReady] = useState(false);
+  useEffect(() => {
+    let mounted = true;
+    void loadLucideIcons().then(() => {
+      if (mounted) setIconsReady(true);
+    });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   return (
     <BrandFrame outerClassName="justify-between">
       <header className="flex items-center justify-between">
@@ -132,7 +145,7 @@ export default function SignInClient({
                 </label>
               </div>
               <BrandButton variant="secondary" type="submit" className="px-4 py-2 text-xs">
-                <Icon icon="lucide:check" width={16} height={16} aria-hidden />
+                {iconsReady && <Icon icon="lucide:check" width={16} height={16} aria-hidden />}
                 Save preference
               </BrandButton>
             </form>
