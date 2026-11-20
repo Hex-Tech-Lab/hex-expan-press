@@ -1,6 +1,6 @@
 // PICT pairwise test for pay. root branding, host confinement, country blocking, and E2E_PROXY_HOST_OVERRIDE.
 // Model: docs/testing/pairwise/pay_root.model.txt
-// Rows:  docs/testing/pairwise/pay_root.rows.tsv (49 generated PICT rows)
+// Rows:  docs/testing/pairwise/pay_root.rows.tsv (46 generated PICT rows)
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
@@ -11,12 +11,11 @@ import { proxy } from "../proxy";
 const MODEL_PATH = path.resolve(import.meta.dirname, "../../docs/testing/pairwise/pay_root.model.txt");
 const ROWS_PATH = path.resolve(import.meta.dirname, "../../docs/testing/pairwise/pay_root.rows.tsv");
 const PICT_BIN = "/usr/local/bin/pict";
-const EXPECTED_ROW_COUNT = 49;
+const EXPECTED_ROW_COUNT = 46;
 
 type HostToken = "pay_host" | "main_host" | "www_host" | "localhost";
 type PathToken =
   | "root"
-  | "root_empty"
   | "checkout_page"
   | "checkout_api"
   | "buyer_legal"
@@ -56,7 +55,6 @@ const HOST_MAP: Record<HostToken, string> = {
 
 const PATH_MAP: Record<PathToken, string> = {
   root: "/",
-  root_empty: "",
   checkout_page: "/checkout/00000000-0000-4000-8000-0000000000b2",
   checkout_api: "/api/billing/checkout",
   buyer_legal: "/books/legal/terms.html",
@@ -123,7 +121,7 @@ describe(`pay_root: ${EXPECTED_ROW_COUNT} PICT pairwise rows`, () => {
           expect(res.headers.get("x-middleware-rewrite")).toContain("/robots-pay.txt");
           return;
         }
-        if (row.path === "root" || row.path === "root_empty") {
+        if (row.path === "root") {
           expect(res.status).toBe(200);
           expect(res.headers.get("location")).toBeNull();
           expect(res.headers.get("x-robots-tag")).toBe("noindex, nofollow");

@@ -1,7 +1,9 @@
 // PICT pairwise test for the buyer download link: token state x method x release present x referrer
 // (GET logs and 302s on a valid link, HEAD probes without logging, other states return 404, 410 or 500).
 // Model: docs/testing/pairwise/download_link.model.txt
-// Rows:  docs/testing/pairwise/download_link.rows.tsv (16 generated PICT rows)
+// Seed:  docs/testing/pairwise/download_link.seed.tsv pins valid GET with release present, the only row that
+//        returns 302 and logs download_completed; PICT does not generate it under the model constraints.
+// Rows:  docs/testing/pairwise/download_link.rows.tsv (17 PICT rows: 16 generated + 1 seed)
 // Mock harness only: getSupabaseAdmin and the storage signer are stubbed, no network, no production writes.
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
@@ -38,8 +40,9 @@ const VALID_TOKEN = "A".repeat(43);
 const UNKNOWN_TOKEN = "B".repeat(43);
 const MODEL_PATH = path.resolve(import.meta.dirname, "../../docs/testing/pairwise/download_link.model.txt");
 const ROWS_PATH = path.resolve(import.meta.dirname, "../../docs/testing/pairwise/download_link.rows.tsv");
+const SEED_PATH = path.resolve(import.meta.dirname, "../../docs/testing/pairwise/download_link.seed.tsv");
 const PICT_BIN = "/usr/local/bin/pict";
-const EXPECTED_ROW_COUNT = 16;
+const EXPECTED_ROW_COUNT = 17;
 
 type TokenState = "valid" | "expired" | "unknown" | "malformed" | "no_expiry";
 type Method = "GET" | "HEAD";
@@ -117,9 +120,13 @@ describe("download link valid path: PICT pairwise artifact integrity", () => {
       if (process.env.CI) throw new Error(`pict binary missing at ${PICT_BIN}`);
       return;
     }
-    const liveOut = execFileSync(PICT_BIN, [MODEL_PATH], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+    const liveOut = execFileSync(PICT_BIN, [MODEL_PATH, `/e:${SEED_PATH}`], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
     expect(liveOut.trim()).toBe(ROWS_TSV.trim());
     expect(ROWS).toHaveLength(EXPECTED_ROW_COUNT);
+  });
+
+  it("keeps the seeded valid GET row with release present (the 302 + download_completed path)", () => {
+    expect(ROWS.some((r) => r.token_state === "valid" && r.method === "GET" && r.release_present === "yes")).toBe(true);
   });
 });
 

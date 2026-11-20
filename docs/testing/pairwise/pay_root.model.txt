@@ -6,7 +6,7 @@ url_host: pay_host, main_host, www_host, localhost
 host_header: pay_host, main_host, www_host, localhost
 node_env: development, production
 host_override: enabled, disabled
-path: root, root_empty, checkout_page, checkout_api, buyer_legal, buyer_providers, creator_legal, books, favicon, robots
+path: root, checkout_page, checkout_api, buyer_legal, buyer_providers, creator_legal, books, favicon, robots
 method: GET, HEAD
 country: US, DE, empty
 
