@@ -2861,5 +2861,13 @@
     "title": "Observability: Catch block without error logging",
     "why": "False positive. The catch in requireHttpsBase only rethrows a StuckCheckError with a fixed message, so the failure is not silent: the top-level handler writes that message to stderr and exits 2. The original URL parse error is dropped, accepted as minor: the message names the variable that is wrong and the URL text is never printed.",
     "fix": "None required. Re-open this entry if the catch stops rethrowing or the top-level handler stops writing to stderr."
+  },
+  {
+    "file": "web/src/components/storefront/storefront.tsx",
+    "severity": "medium",
+    "title": "Complexity: Monolithic File",
+    "why": "File exceeds 500 lines.",
+    "fix": "Decompose into smaller, domain-specific modules.",
+    "reason": "pre-existing on main 1abd4db; split tracked post-KYC"
   }
 ]

@@ -8,6 +8,7 @@ const productMock = vi.hoisted(() => ({
   creator: {
     handle: "expanpress_house",
     display_name: "ExpanPress",
+    is_house: true,
     platform_handles: null,
     bio: null,
     photo: null,
@@ -44,12 +45,15 @@ const stripTags = (html: string) => html.replace(/<[^>]+>/g, "");
 describe("store product page (/books/{handle}/{product})", () => {
   it("drops the trailing brand suffix in generateMetadata when creator display name is the brand itself", async () => {
     productMock.creator.display_name = GLOBAL.storefront.brand_name;
+    productMock.creator.is_house = true;
     const houseMeta = await generateMetadata({
       params: Promise.resolve({ handle: "expanpress_house", product: "sample_the_quiet_workshop" }),
     });
     expect(houseMeta.title).toBe("The Quiet Workshop (Sample) · ExpanPress");
 
     productMock.creator.display_name = "Ada";
+
+    productMock.creator.is_house = false;
     const creatorMeta = await generateMetadata({
       params: Promise.resolve({ handle: "ada", product: "sample_the_quiet_workshop" }),
     });
@@ -58,6 +62,7 @@ describe("store product page (/books/{handle}/{product})", () => {
 
   it("renders shared house vs creator sentence and shared BrandButton CTA classes", async () => {
     productMock.creator.display_name = GLOBAL.storefront.brand_name;
+    productMock.creator.is_house = true;
     productMock.creator.handle = "expanpress_house";
     const houseHtml = renderToStaticMarkup(
       await StoreProductPage({
@@ -70,6 +75,8 @@ describe("store product page (/books/{handle}/{product})", () => {
     expect(houseHtml).toContain("ExpanPress’s books");
 
     productMock.creator.display_name = "Ada";
+
+    productMock.creator.is_house = false;
     productMock.creator.handle = "ada";
     const creatorHtml = renderToStaticMarkup(
       await StoreProductPage({
@@ -83,6 +90,7 @@ describe("store product page (/books/{handle}/{product})", () => {
 
   it("renders book overview from the book identity SSOT and omits it when absent", async () => {
     productMock.creator.display_name = GLOBAL.storefront.brand_name;
+    productMock.creator.is_house = true;
     productMock.creator.handle = "expanpress_house";
     productMock.product.overview = undefined;
     const sampleHtml = renderToStaticMarkup(
@@ -106,6 +114,7 @@ describe("store product page (/books/{handle}/{product})", () => {
 
   it("renders the preview scroll cue arrow only when preview_pdf is present and binds layout spacing from settings_registry", async () => {
     productMock.creator.display_name = GLOBAL.storefront.brand_name;
+    productMock.creator.is_house = true;
     productMock.creator.handle = "expanpress_house";
     const layout = GLOBAL.storefront.product_layout;
 
@@ -145,6 +154,7 @@ describe("store product page (/books/{handle}/{product})", () => {
     const origName = productMock.creator.display_name;
     productMock.creator.handle = "expanpress_house";
     productMock.creator.display_name = GLOBAL.storefront.brand_name;
+    productMock.creator.is_house = true;
     productMock.product.checkout_mode = "gated";
     try {
       const html = renderToStaticMarkup(
@@ -161,6 +171,7 @@ describe("store product page (/books/{handle}/{product})", () => {
       productMock.product.checkout_mode = origMode;
       productMock.creator.handle = origHandle;
       productMock.creator.display_name = origName;
+      productMock.creator.is_house = true;
     }
   });
 });
