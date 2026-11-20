@@ -1,0 +1,90 @@
+web/e2e/book-preview-voice-guide.spec.ts
+  s_0e99959cd74c50::t_e19a0c2466e52e 178
+  s_0e99959cd74c50::t_3fddeb23a0b46c 1-3,6-59,64-75,79-80,93,95-99,102-104,111-120,123-125,131-139,148,151-153,170-172,175-176,182,184-185,188-189,199-201,204
+  s_0e99959cd74c50::t_edaa50c8535ce8 81-87,89
+  s_0e99959cd74c50::t_ad998e0503ea54 92,127-128,130,140-147,149-150,155-167,181
+  s_0e99959cd74c50::t_8cad646f7b3043 60-63
+  s_0e99959cd74c50::t_437f73005a6947 4-5
+  s_0e99959cd74c50::t_345fd062bbf110 76-78
+  s_0e99959cd74c50::t_b7bda57a755276 88
+  s_0e99959cd74c50::t_c14461a47b0ce2 90-91
+  s_0e99959cd74c50::t_84db6eb88a2dfd 94
+  s_0e99959cd74c50::t_75094acbd0ecb5 100-101
+  s_0e99959cd74c50::t_1f68ec654a3e84 105-110
+  s_0e99959cd74c50::t_ac9b94a74481a1 121-122
+  s_0e99959cd74c50::t_e884f420678c01 126
+  s_0e99959cd74c50::t_7d8a08e00dd2aa 129
+  s_0e99959cd74c50::t_6433f71bb3eec9 154
+  s_0e99959cd74c50::t_ffcbe2c00cb311 168-169
+  s_0e99959cd74c50::t_70bff8dc3128a0 173-174
+  s_0e99959cd74c50::t_adda6cf762c5bf 177
+  s_0e99959cd74c50::t_ccac75cd2251f6 179-180
+  s_0e99959cd74c50::t_cbf5cc01166e85 183
+  s_0e99959cd74c50::t_50ebe3950319c3 186-187
+  s_0e99959cd74c50::t_5fe043c7c670d8 190-192,196-198
+  s_0e99959cd74c50::t_8ce03f8cad5154 202-203
+  s_23242eb4161c97::t_29e1a52b68ef40 193-195
+web/src/components/storefront/use-read-aloud.ts
+  s_0e99959cd74c50::t_3f43b977817791 123-127,131-134
+  s_0e99959cd74c50::t_4bbc44646502a0 289
+web/src/components/storefront/basic-voice-guide-card.tsx
+  s_0e99959cd74c50::t_1399afe39cbcd1 20
+  s_0e99959cd74c50::t_abf8944a38dcc8 8
+  s_0e99959cd74c50::t_a8a892dcfd60d6 110
+  s_0e99959cd74c50::t_99e7d63818d5fb 30
+  s_0e99959cd74c50::t_595efa9a53a275 102-109,111-115
+  s_0e99959cd74c50::t_9a5d45f8aaeeb8 1-7,9-19,21-27,29,31-35,37-101,116-119
+  s_0e99959cd74c50::t_5ab355ec776f2f 28
+  s_0e99959cd74c50::t_f8e31fb355cbcc 36
+web/src/components/storefront/book-previewer.tsx
+  s_0e99959cd74c50::t_161b6e0dc327ad 25
+  s_0e99959cd74c50::t_d78723f79d46ac 109,112-117
+  s_0e99959cd74c50::t_131f68ccd29221 450-458,469
+  s_0e99959cd74c50::t_6f38d123b1949b 118
+payments/src/settings_registry.ts
+  s_0e99959cd74c50::t_082a6c009e4111 341,343-350
+  s_0e99959cd74c50::t_4e201df6e05400 1623
+  s_0e99959cd74c50::t_76414a5f9b6735 584-592
+  s_0e99959cd74c50::t_0e3610ec990d56 1671-1674
+  s_0e99959cd74c50::t_5f8a17dfec4290 1934-1937,1947
+  s_0e99959cd74c50::t_b19b59d8c05785 1634-1670,1675-1680
+  s_0e99959cd74c50::t_fe677dcc06267f 327-340,342,351-356,368
+  s_0e99959cd74c50::t_3fe4c404d6bd01 569-583,593-596
+web/src/components/storefront/use-basic-voice-guide.ts
+  s_0e99959cd74c50::t_2e4fbe72381632 76-83
+  s_0e99959cd74c50::t_969c633ab08c88 9
+  s_0e99959cd74c50::t_ee2fa06771d648 10
+  s_0e99959cd74c50::t_2dfdd91c20396b 52,55-61
+  s_0e99959cd74c50::t_3a9595ca184906 1-8,11-51,53-54,62-75,84-103
+web/__tests__/basic-voice-guide.test.ts
+  s_0e99959cd74c50::t_2b23d677d910ce 1-141
+  s_0e99959cd74c50::t_d4b55926ac1287 142-204
+web/src/components/storefront/basic-voice-guide.ts
+  s_0e99959cd74c50::t_543ef83a97ddf0 1-92
+web/src/components/storefront/read-aloud-voice.ts
+  s_0e99959cd74c50::t_7e3f4c25ca79ee 9
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e699f5aa72ae700dbf08676cb4969c92d7779f1a",
+  "prompts": {},
+  "sessions": {
+    "s_0e99959cd74c50": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "21b00acc-7513-46d6-9a35-038af7845be2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    },
+    "s_23242eb4161c97": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a7c552655c2df2d92",
+        "model": "unknown"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
