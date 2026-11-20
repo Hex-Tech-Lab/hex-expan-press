@@ -12,25 +12,28 @@ for (const viewport of [
   test.describe(`KYC live-verification gates (${viewport.width}px)`, () => {
     test.use({ viewport });
 
-    test("LV-02: home page links to /books from header nav and hero and navigates cleanly", async ({ page }) => {
+    test("LV-02: home page hides both browse-books links while storefront.browse_books_enabled is off (default), and /books still loads", async ({ page }) => {
       const res = await page.goto("/");
       expect(res?.status(), "GET / status").toBe(200);
 
-      const headerLink = page.getByTestId("header-browse-books");
-      await expect(headerLink).toBeVisible();
-      await expect(headerLink).toHaveText("Browse books");
-      await expect(headerLink).toHaveAttribute("href", "/books");
-
-      const heroLink = page.getByTestId("hero-browse-books");
-      await expect(heroLink).toBeVisible();
-      await expect(heroLink).toHaveText("Browse books");
-      await expect(heroLink).toHaveAttribute("href", "/books");
+      // Founder decision: no "browse books" link on the B2B home until several creators and house books are live.
+      // The enabled-state rendering (both links, header top-right) is pinned by web/__tests__/landing-browse-books-flag.test.ts.
+      await expect(page.getByTestId("header-browse-books")).toHaveCount(0);
+      await expect(page.getByTestId("hero-browse-books")).toHaveCount(0);
+      await expect(page.getByText("Tap to begin")).toBeVisible();
 
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
       expect(overflow, `home horizontal overflow at ${viewport.width}px`).toBe(false);
 
-      await heroLink.click();
-      await expect(page).toHaveURL(/\/books$/);
+      // Mobile header: with the browse link hidden, the wordmark must stay on the right (it is alone in its row).
+      if (viewport.width < 640) {
+        const wordmarkBox = await page.locator("header").first().locator('a[href="/"]').first().boundingBox();
+        expect(wordmarkBox, "wordmark rendered in header").not.toBeNull();
+        expect(wordmarkBox!.x + wordmarkBox!.width, `header wordmark right-aligned at ${viewport.width}px`).toBeGreaterThan(viewport.width - 48);
+      }
+
+      const booksRes = await page.goto("/books");
+      expect(booksRes?.status(), "GET /books status").toBe(200);
       await expect(page.getByRole("heading", { name: "Find a book from a creator" })).toBeVisible();
     });
 

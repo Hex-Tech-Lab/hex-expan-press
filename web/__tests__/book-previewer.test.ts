@@ -732,16 +732,23 @@ describe("BookPreviewer Read Aloud controls and lifecycle", () => {
     expect(playBtn.getAttribute("aria-label")).toBe(labels.play);
     expect(speech.cancelCount).toBeGreaterThan(cancelsBeforeHide);
 
-    // Restart, then page flip cancels speech
+    // Restart, then a page turn keeps playing (continue_on_page_turn, default on) and speaks the new page from its top
     await act(async () => {
       playBtn.click();
     });
+    const spokenBeforeFlip = speech.spoken.length;
     const cancelsBeforeFlip = speech.cancelCount;
     await act(async () => {
       (container!.querySelector('button[aria-label="Next preview page"]') as HTMLButtonElement).click();
     });
-    expect(playBtn.getAttribute("aria-label")).toBe(labels.play);
+    expect(playBtn.getAttribute("aria-label")).toBe(labels.pause);
     expect(speech.cancelCount).toBeGreaterThan(cancelsBeforeFlip);
+    expect(speech.spoken.length).toBeGreaterThan(spokenBeforeFlip);
+    expect(speech.spoken[speech.spoken.length - 1].text).toContain("Chapter 2");
+    await act(async () => {
+      (container!.querySelector('[data-testid="read-aloud-stop"]') as HTMLButtonElement).click();
+    });
+    expect(playBtn.getAttribute("aria-label")).toBe(labels.play);
 
     // Restart, then unmount cancels speech
     await act(async () => {

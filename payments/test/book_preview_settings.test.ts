@@ -16,6 +16,25 @@ afterEach(() => {
   }
 });
 
+describe("storefront.browse_books_enabled (storefront flag)", () => {
+  it("defaults to false so the home browse-books links stay hidden", () => {
+    expect(DEFAULT_GLOBAL.storefront.browse_books_enabled).toBe(false);
+    expect(loadStorefrontSection(undefined).browse_books_enabled).toBe(false);
+  });
+
+  it("accepts an explicit boolean", () => {
+    expect(loadStorefrontSection({ browse_books_enabled: true }).browse_books_enabled).toBe(true);
+    expect(loadStorefrontSection({ browse_books_enabled: false }).browse_books_enabled).toBe(false);
+  });
+
+  it("falls back to false on a non-boolean value", () => {
+    const warn = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(loadStorefrontSection({ browse_books_enabled: "true" }).browse_books_enabled).toBe(false);
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+});
+
 describe("loadStorefrontSection (settings_registry)", () => {
   it("returns defaults when section is omitted (including non-live sample launch flags and LV-02/03/05 keys)", () => {
     const out = loadStorefrontSection(undefined);

@@ -187,6 +187,10 @@ export interface GlobalSettings {
     sample_preview_cta: string;
     browse_books_label: string;
     browse_books_path: string;
+    /** `storefront.browse_books_enabled`: shows the "browse books" links on the B2B home (header top-right and hero card).
+     *  Off by default because the links expose how few titles exist. Re-enable once several creators and house books
+     *  are live. If re-enabled, the header top-right is the founder-approved placement. */
+    browse_books_enabled: boolean;
     always_show_buyer_legal: boolean;
     /** Buyer legal links (label and path) shown in the storefront footer and on the pay root page. Fixed copy and paths. */
     buyer_legal_links: ReadonlyArray<{ label: string; path: string }>;
@@ -312,11 +316,28 @@ export interface BookPreviewReadAloudLabels {
   finished_announcement: string;
 }
 
+export interface BookPreviewReadAloudVoiceSettings {
+  /** Book language as a BCP 47 tag. Voices in this language rank first, then any voice sharing its primary subtag. */
+  lang: string;
+  /** Quality markers in priority order. A voice whose name contains an earlier marker ranks higher. */
+  quality_markers: ReadonlyArray<string>;
+  /** Preferred gender order. A voice with no recognised gender ranks after every listed gender. */
+  gender_order: ReadonlyArray<"female" | "male">;
+  /** Name tokens that identify a voice's gender. Browser voices expose no gender field. */
+  female_name_hints: ReadonlyArray<string>;
+  male_name_hints: ReadonlyArray<string>;
+}
+
 export interface BookPreviewReadAloudSettings {
   enabled: boolean;
   rates: ReadonlyArray<number>;
   default_rate: number;
   max_chunk_chars: number;
+  /** Also highlight the word being spoken. Needs boundary events; voices without them keep the sentence highlight only. */
+  highlight_words: boolean;
+  /** On a page turn during playback, continue from the top of the newly visible page (true) or stop (false). */
+  continue_on_page_turn: boolean;
+  voice: BookPreviewReadAloudVoiceSettings;
   labels: BookPreviewReadAloudLabels;
 }
 
@@ -448,6 +469,7 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     sample_preview_cta: "Preview sample",
     browse_books_label: "Browse books",
     browse_books_path: "/books",
+    browse_books_enabled: false,
     always_show_buyer_legal: true,
     buyer_legal_links: [
       { label: "Privacy Policy", path: "/books/legal/privacy.html" },
@@ -512,6 +534,16 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
       rates: [0.75, 1, 1.25, 1.5],
       default_rate: 1,
       max_chunk_chars: 180,
+      highlight_words: false,
+      continue_on_page_turn: true,
+      voice: {
+        lang: "en-US",
+        // Edge neural ("Online (Natural)"), Chrome network ("Google"), Apple ("Enhanced"/"Premium"/"Siri"), then legacy SAPI.
+        quality_markers: ["Online (Natural)", "Natural", "Google", "Neural", "Enhanced", "Premium", "Siri"],
+        gender_order: ["female", "male"],
+        female_name_hints: ["Aria", "Jenny", "Zira", "Ava", "Allison", "Susan", "Karen", "Samantha", "Victoria", "Female"],
+        male_name_hints: ["David", "Mark", "Guy", "Daniel", "Alex", "Fred", "Tom", "Male"],
+      },
       labels: {
         group_aria_label: "Read aloud controls",
         play: "Read aloud: preview text",
@@ -1011,6 +1043,11 @@ export function loadStorefrontSection(raw: Record<string, unknown> | undefined):
       fallbacks.push("browse_books_path");
     }
   }
+  let browseBooksEnabled = defaults.browse_books_enabled;
+  if ("browse_books_enabled" in raw) {
+    if (typeof raw.browse_books_enabled === "boolean") browseBooksEnabled = raw.browse_books_enabled;
+    else fallbacks.push("browse_books_enabled");
+  }
   let alwaysShowBuyerLegal = defaults.always_show_buyer_legal;
   if ("always_show_buyer_legal" in raw) {
     if (typeof raw.always_show_buyer_legal === "boolean") alwaysShowBuyerLegal = raw.always_show_buyer_legal;
@@ -1099,6 +1136,7 @@ export function loadStorefrontSection(raw: Record<string, unknown> | undefined):
     sample_preview_cta: strField("sample_preview_cta"),
     browse_books_label: strField("browse_books_label"),
     browse_books_path: browseBooksPath,
+    browse_books_enabled: browseBooksEnabled,
     always_show_buyer_legal: alwaysShowBuyerLegal,
     // Fixed legal set (reviewed copy): not overridable from global.json, so the wording cannot drift from the defaults.
     buyer_legal_links: defaults.buyer_legal_links,
@@ -1537,12 +1575,56 @@ export const BOOK_PREVIEW_LIMITS = {
   read_aloud_rate: { min: 0.5, max: 3 },
   read_aloud_rates_length: { min: 1, max: 8 },
   read_aloud_max_chunk_chars: { min: 60, max: 500 },
+  read_aloud_voice_list_length: { min: 0, max: 50 },
+  read_aloud_gender_order_length: { min: 1, max: 2 },
   text_line_y_tolerance: { min: 0.5, max: 12 },
   text_heading_scale_ratio: { min: 1.05, max: 2.5 },
   text_major_heading_scale_ratio: { min: 1.1, max: 3.0 },
   text_paragraph_gap_ratio: { min: 1.1, max: 4.0 },
   text_max_heading_chars: { min: 20, max: 240 },
 } as const;
+
+/** BCP 47 primary subtag plus optional subtags, e.g. "en", "en-US", "zh-Hant-TW". Structural format check only. */
+const READ_ALOUD_LANG_RE = /^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/;
+
+/** Parses read_aloud.voice field by field; any invalid field keeps its default and is reported as a fallback. */
+function parseReadAloudVoice(
+  raw: unknown,
+  defaults: BookPreviewReadAloudVoiceSettings,
+  fallbacks: string[],
+): BookPreviewReadAloudVoiceSettings {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    fallbacks.push("read_aloud.voice");
+    return defaults;
+  }
+  const rec = raw as Record<string, unknown>;
+  const pick = <T>(key: string, parse: (value: unknown) => T | null, fallback: T): T => {
+    if (!(key in rec)) return fallback;
+    const parsed = parse(rec[key]);
+    if (parsed !== null) return parsed;
+    fallbacks.push(`read_aloud.voice.${key}`);
+    return fallback;
+  };
+  const stringList = (value: unknown): string[] | null => {
+    const { min, max } = BOOK_PREVIEW_LIMITS.read_aloud_voice_list_length;
+    if (!Array.isArray(value) || value.length < min || value.length > max) return null;
+    const trimmed = value.map((item) => (typeof item === "string" ? item.trim() : ""));
+    return trimmed.every((item) => item !== "") ? trimmed : null;
+  };
+  const genderList = (value: unknown): Array<"female" | "male"> | null => {
+    const { min, max } = BOOK_PREVIEW_LIMITS.read_aloud_gender_order_length;
+    if (!Array.isArray(value) || value.length < min || value.length > max) return null;
+    const valid = value.every((g) => g === "female" || g === "male") && new Set(value).size === value.length;
+    return valid ? (value as Array<"female" | "male">) : null;
+  };
+  return {
+    lang: pick("lang", (v) => (typeof v === "string" && READ_ALOUD_LANG_RE.test(v.trim()) ? v.trim() : null), defaults.lang),
+    quality_markers: pick("quality_markers", stringList, defaults.quality_markers),
+    gender_order: pick("gender_order", genderList, defaults.gender_order),
+    female_name_hints: pick("female_name_hints", stringList, defaults.female_name_hints),
+    male_name_hints: pick("male_name_hints", stringList, defaults.male_name_hints),
+  };
+}
 
 function isSafeBooksPrefix(prefixValue: unknown): prefixValue is string {
   return typeof prefixValue === "string" && /^\/books\/[a-z0-9_-]+$/.test(prefixValue);
@@ -1687,7 +1769,7 @@ export function loadBookPreviewSection(raw: Record<string, unknown> | undefined)
 
       let defaultRate = rates.includes(defaults.read_aloud.default_rate)
         ? defaults.read_aloud.default_rate
-        : (rates[0] ?? defaults.read_aloud.default_rate);
+        : (rates.at(0) ?? defaults.read_aloud.default_rate);
       if ("default_rate" in rec) {
         const dr = rec.default_rate;
         if (typeof dr === "number" && Number.isFinite(dr) && rates.includes(dr)) {
@@ -1743,11 +1825,30 @@ export function loadBookPreviewSection(raw: Record<string, unknown> | undefined)
         }
       }
 
+      let highlightWords = defaults.read_aloud.highlight_words;
+      if ("highlight_words" in rec) {
+        if (typeof rec.highlight_words === "boolean") highlightWords = rec.highlight_words;
+        else fallbacks.push("read_aloud.highlight_words");
+      }
+
+      let continueOnPageTurn = defaults.read_aloud.continue_on_page_turn;
+      if ("continue_on_page_turn" in rec) {
+        if (typeof rec.continue_on_page_turn === "boolean") continueOnPageTurn = rec.continue_on_page_turn;
+        else fallbacks.push("read_aloud.continue_on_page_turn");
+      }
+
+      const voice = "voice" in rec
+        ? parseReadAloudVoice(rec.voice, defaults.read_aloud.voice, fallbacks)
+        : defaults.read_aloud.voice;
+
       readAloud = {
         enabled,
         rates,
         default_rate: defaultRate,
         max_chunk_chars: maxChunkChars,
+        highlight_words: highlightWords,
+        continue_on_page_turn: continueOnPageTurn,
+        voice,
         labels: raLabels,
       };
     } else {

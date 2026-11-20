@@ -3,19 +3,37 @@ import { MOCK_HTTP_URL } from "./constants";
 
 const PRODUCT_PATH = "/books/expanpress_house/sample_the_quiet_workshop";
 
-async function installMockSpeechSynthesis(page: Page) {
-  await page.addInitScript(() => {
+interface MockVoice {
+  name: string;
+  lang: string;
+}
+
+interface MockSpeechOptions {
+  voices: MockVoice[];
+  /** Fire word boundary events, as voices that report them do. */
+  boundaries: boolean;
+}
+
+const NATURAL_VOICE: MockVoice = { name: "Microsoft Aria Online (Natural) - English (United States)", lang: "en-US" };
+const LEGACY_VOICE: MockVoice = { name: "Microsoft David - English (United States)", lang: "en-US" };
+const NO_BOUNDARY_VOICES: MockSpeechOptions = { voices: [], boundaries: false };
+
+async function installMockSpeechSynthesis(page: Page, options: MockSpeechOptions = NO_BOUNDARY_VOICES) {
+  await page.addInitScript((opts: MockSpeechOptions) => {
     const log = {
-      spoken: [] as Array<{ text: string; rate: number }>,
+      spoken: [] as Array<{ text: string; rate: number; voice: string | null }>,
       cancels: 0,
       pauses: 0,
       resumes: 0,
+      boundaries: 0,
     };
     const active: Array<{ instance: FakeUtterance }> = [];
 
     class FakeUtterance {
       text: string;
       rate = 1;
+      voice: { name: string } | null = null;
+      onboundary: ((ev: { charIndex: number }) => void) | null = null;
       onstart: ((ev: Event) => void) | null = null;
       onend: ((ev: Event) => void) | null = null;
       onerror: ((ev: Event) => void) | null = null;
@@ -40,10 +58,15 @@ async function installMockSpeechSynthesis(page: Page) {
       speak(u: FakeUtterance) {
         speaking = true;
         paused = false;
-        log.spoken.push({ text: u.text, rate: u.rate });
+        log.spoken.push({ text: u.text, rate: u.rate, voice: u.voice?.name ?? null });
         active.push({ instance: u });
         setTimeout(() => {
           u.onstart?.(new Event("start"));
+          if (opts.boundaries) {
+            // Second word starts after the first space, as a boundary-reporting voice would say.
+            log.boundaries += 1;
+            u.onboundary?.({ charIndex: u.text.indexOf(" ") + 1 });
+          }
         }, 0);
       },
       cancel() {
@@ -61,7 +84,7 @@ async function installMockSpeechSynthesis(page: Page) {
         paused = false;
       },
       getVoices() {
-        return [];
+        return opts.voices;
       },
     };
 
@@ -84,7 +107,7 @@ async function installMockSpeechSynthesis(page: Page) {
         }
       },
     };
-  });
+  }, options);
 }
 
 async function installUnsupportedSpeechSynthesis(page: Page) {
@@ -243,3 +266,81 @@ test("Read Aloud controls remain hidden when speechSynthesis is unsupported", as
   await page.getByTestId("book-preview-accessible-toggle").click();
   await expect(page.getByTestId("book-preview-accessible-text")).toBeVisible();
 });
+
+type MockWindow = Window & {
+  __speechMock: {
+    log: {
+      spoken: Array<{ text: string; rate: number; voice: string | null }>;
+      cancels: number;
+      boundaries: number;
+    };
+  };
+};
+
+async function openPreviewSpread(page: Page, viewport: { width: number; height: number }) {
+  await page.setViewportSize(viewport);
+  const res = await page.goto(PRODUCT_PATH);
+  expect(res?.status()).toBe(200);
+  await page.getByTestId("book-preview-section").scrollIntoViewIfNeeded();
+  await expect(page.getByTestId("book-preview-page-label")).toHaveText("Front cover · Page 1 of 8", {
+    timeout: 30_000,
+  });
+  await page.getByRole("button", { name: "Next preview page" }).click();
+  // Wait for the turn to settle (the label updates when the flip animation ends) before any play click.
+  const settledLabel = viewport.width === 390 ? "Page 2 of 8" : "Pages 2–3 of 8";
+  await expect(page.getByTestId("book-preview-page-label")).toHaveText(settledLabel);
+  await expect(page.getByTestId("read-aloud-controls")).toBeVisible();
+}
+
+for (const viewport of [
+  { width: 390, height: 844 },
+  { width: 1560, height: 940 },
+]) {
+  test(`first click starts speech synchronously with no voices loaded, without cancel, at ${viewport.width}px`, async ({
+    page,
+  }) => {
+    await installMockSpeechSynthesis(page, NO_BOUNDARY_VOICES);
+    await openPreviewSpread(page, viewport);
+
+    // One click, no wait: Firefox used to need one or two clicks before speech started.
+    await page.getByTestId("read-aloud-toggle").click();
+    const seen = await page.evaluate(() => {
+      const { log } = (window as unknown as MockWindow).__speechMock;
+      return { spoken: log.spoken.length, cancels: log.cancels, voice: log.spoken[0]?.voice ?? null };
+    });
+    expect(seen.spoken).toBe(1);
+    expect(seen.cancels).toBe(0);
+    expect(seen.voice).toBeNull();
+    await expect(page.getByTestId("read-aloud-toggle")).toHaveAttribute("data-playback-state", "playing");
+  });
+
+  test(`browser voice ranking picks the natural voice over the legacy one at ${viewport.width}px`, async ({ page }) => {
+    await installMockSpeechSynthesis(page, { voices: [LEGACY_VOICE, NATURAL_VOICE], boundaries: false });
+    await openPreviewSpread(page, viewport);
+
+    await page.getByTestId("read-aloud-toggle").click();
+    await expect(page.getByTestId("read-aloud-toggle")).toHaveAttribute("data-playback-state", "playing");
+    const voices = await page.evaluate(() => (window as unknown as MockWindow).__speechMock.log.spoken.map((s) => s.voice));
+    expect(voices.length).toBeGreaterThan(0);
+    for (const voice of voices) expect(voice).toBe(NATURAL_VOICE.name);
+  });
+
+  test(`speed change mid-sentence resumes from the last word boundary at ${viewport.width}px`, async ({ page }) => {
+    await installMockSpeechSynthesis(page, { voices: [NATURAL_VOICE], boundaries: true });
+    await openPreviewSpread(page, viewport);
+
+    await page.getByTestId("read-aloud-toggle").click();
+    await page.waitForFunction(() => (window as unknown as MockWindow).__speechMock.log.boundaries >= 1);
+    const before = await page.evaluate(() => (window as unknown as MockWindow).__speechMock.log.spoken[0]);
+
+    await page.getByTestId("read-aloud-speed").click();
+    await expect(page.getByTestId("read-aloud-speed")).toHaveText("1.25×");
+
+    const spoken = await page.evaluate(() => (window as unknown as MockWindow).__speechMock.log.spoken);
+    expect(spoken).toHaveLength(2);
+    expect(spoken[1].rate).toBe(1.25);
+    // Continues from the second word (the last boundary), not from the start of the sentence.
+    expect(spoken[1].text).toBe(before.text.slice(before.text.indexOf(" ") + 1));
+    expect(spoken[1].text).not.toBe(before.text);
+  });
+}

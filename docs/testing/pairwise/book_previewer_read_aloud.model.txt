@@ -1,14 +1,19 @@
 # PICT pairwise model for BookPreviewer Read Aloud + accessible text disclosure.
-# Covers browser support x playback state x speed rate x panel collapsed x spread size x user action.
+# Covers browser support x browser voice set x boundary events x playback state x speed rate x panel collapsed x spread size x user action.
 # Run: /usr/local/bin/pict docs/testing/pairwise/book_previewer_read_aloud.model.txt > docs/testing/pairwise/book_previewer_read_aloud.rows.tsv
 
 browser_support: supported, unsupported
+voice_set: natural_available, legacy_only, none_yet
+boundary_events: yes, no
 playback_state: idle, playing, paused
 speed_rate: r075, r100, r125, r150
 panel_collapsed: collapsed, expanded
 spread_size: single_page, two_page
-action: play_pause, stop, speed_cycle, toggle_panel, page_flip, page_hide
+action: play, pause, speed_change_mid_sentence, stop, toggle_panel, page_flip, page_hide
 
-IF [browser_support] = "unsupported" THEN [playback_state] = "idle" AND [speed_rate] = "r100" AND [action] = "toggle_panel";
+IF [browser_support] = "unsupported" THEN [playback_state] = "idle" AND [speed_rate] = "r100" AND [action] = "toggle_panel" AND [voice_set] = "none_yet" AND [boundary_events] = "no";
 IF [playback_state] IN {"playing", "paused"} THEN [panel_collapsed] = "expanded";
-IF [playback_state] = "idle" THEN [action] <> "stop";
+IF [playback_state] = "idle" THEN [action] <> "stop" AND [action] <> "pause" AND [action] <> "speed_change_mid_sentence";
+IF [action] = "pause" THEN [playback_state] = "playing";
+IF [action] = "speed_change_mid_sentence" THEN [playback_state] = "playing";
+IF [action] = "play" THEN [playback_state] <> "playing";
