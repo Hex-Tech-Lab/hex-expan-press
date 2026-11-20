@@ -120,16 +120,18 @@ export function useReadAloud(
   }, [stopReadAloud, cancelSpeechEngine]);
 
   // getVoices() is empty until the engine loads its list. Chrome and Edge fire voiceschanged when it arrives.
+  const refreshVoice = useCallback(() => {
+    if (!detectSpeechSynthesisSupport()) return;
+    voiceRef.current = rankVoice(window.speechSynthesis.getVoices?.() ?? [], raSettings.voice);
+  }, [raSettings.voice]);
+
   useEffect(() => {
     if (!detectSpeechSynthesisSupport()) return;
     const synth = window.speechSynthesis;
-    const chooseVoice = () => {
-      voiceRef.current = rankVoice(synth.getVoices?.() ?? [], raSettings.voice);
-    };
-    chooseVoice();
-    synth.addEventListener?.("voiceschanged", chooseVoice);
-    return () => synth.removeEventListener?.("voiceschanged", chooseVoice);
-  }, [raSettings.voice]);
+    refreshVoice();
+    synth.addEventListener?.("voiceschanged", refreshVoice);
+    return () => synth.removeEventListener?.("voiceschanged", refreshVoice);
+  }, [refreshVoice]);
 
   /**
    * Speaks chunk startIdx from char offset startCharIndex, then every later chunk.
@@ -284,5 +286,6 @@ export function useReadAloud(
     clearAnnouncement,
     handlePlayPauseResume,
     handleCycleSpeed,
+    refreshVoice,
   };
 }

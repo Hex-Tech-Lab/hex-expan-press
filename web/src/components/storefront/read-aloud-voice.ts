@@ -6,7 +6,7 @@ export interface VoiceCandidate {
   lang: string;
 }
 
-function primarySubtag(lang: string): string {
+export function primarySubtag(lang: string): string {
   return (lang.toLowerCase().split(/[-_]/)[0] ?? "").trim();
 }
 

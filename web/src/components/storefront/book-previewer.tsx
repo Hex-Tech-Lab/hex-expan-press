@@ -22,6 +22,7 @@ import {
   type ReadAloudChunk,
 } from "./book-previewer-text";
 import { useReadAloud } from "./use-read-aloud";
+import { BasicVoiceGuideCard } from "./basic-voice-guide-card";
 
 export {
   buildSpreadAccessibleModel,
@@ -105,7 +106,15 @@ export default function BookPreviewer({
     clearAnnouncement,
     handlePlayPauseResume,
     handleCycleSpeed,
+    refreshVoice,
   } = useReadAloud(spreadAccessible.chunks, settings.read_aloud, expandTextPanel);
+
+  const showReadAloudControls = settings.read_aloud.enabled && speechSupported && spreadAccessible.chunks.length > 0;
+
+  /** After the voice card hides, focus goes to the Read Aloud play control, not to the top of the page. */
+  const focusReadAloudToggle = useCallback(() => {
+    document.querySelector<HTMLButtonElement>('[data-testid="read-aloud-toggle"]')?.focus();
+  }, []);
 
   useEffect(() => {
     const el = sectionRef.current;
@@ -438,6 +447,15 @@ export default function BookPreviewer({
         <p className="text-gray-600">Drag a corner, swipe, or use Prev / Next (Arrow keys)</p>
       </div>
 
+      {status === "ready" && spreadAccessible.pages.length > 0 && showReadAloudControls && (
+        <BasicVoiceGuideCard
+          guide={settings.read_aloud.voice_guide}
+          voiceSettings={settings.read_aloud.voice}
+          onRefreshVoice={refreshVoice}
+          onHidden={focusReadAloudToggle}
+        />
+      )}
+
       {status === "ready" && spreadAccessible.pages.length > 0 && (
         <BookPreviewAccessibleCard
           panelId={accessiblePanelId}
@@ -448,7 +466,7 @@ export default function BookPreviewer({
           activeWord={activeWord}
           playbackState={playbackState}
           currentRate={currentRate}
-          showReadAloudControls={settings.read_aloud.enabled && speechSupported && spreadAccessible.chunks.length > 0}
+          showReadAloudControls={showReadAloudControls}
           speechAnnouncement={speechAnnouncement}
           readAloudSettings={settings.read_aloud}
           textStructureSettings={settings.text_structure}

@@ -324,6 +324,36 @@ export interface BookPreviewReadAloudVoiceSettings {
   male_name_hints: ReadonlyArray<string>;
 }
 
+/** Basic-voice guidance card shown on iPhone and iPad when no Enhanced or Premium voice exists for the page language. */
+export interface BookPreviewReadAloudVoiceGuideSettings {
+  enabled: boolean;
+  /** User-agent tokens that identify an iOS device (iPhone, iPad, iPod). */
+  device_tokens: ReadonlyArray<string>;
+  /** navigator.platform that iPadOS reports in desktop-site mode. Only counts with touch points. */
+  ipados_platform: string;
+  /** Voice-name markers that mean a natural-sounding voice is installed. */
+  premium_markers: ReadonlyArray<string>;
+  /** sessionStorage key for "Not now" (this visit only). */
+  storage_key: string;
+  message: string;
+  show_steps_label: string;
+  hide_steps_label: string;
+  /** Numbered steps for iPhone and iPad, shown in order. */
+  steps: ReadonlyArray<string>;
+  /** Numbered steps for Safari on macOS, shown in order. */
+  mac_steps: ReadonlyArray<string>;
+  /** User-agent token that identifies a Mac desktop (no touch points; iPadOS in desktop mode has touch). */
+  mac_token: string;
+  /** User-agent token that identifies Safari. Browsers with an excluded token are not Safari. */
+  mac_safari_token: string;
+  /** Tokens of other desktop browsers that also carry "Safari" in the UA (Chrome, Edge, Firefox ...). */
+  mac_excluded_tokens: ReadonlyArray<string>;
+  retry_label: string;
+  /** Shown after "Try the voice again" finds no Enhanced or Premium voice. */
+  retry_still_basic_message: string;
+  dismiss_label: string;
+}
+
 export interface BookPreviewReadAloudSettings {
   enabled: boolean;
   rates: ReadonlyArray<number>;
@@ -335,6 +365,7 @@ export interface BookPreviewReadAloudSettings {
   continue_on_page_turn: boolean;
   voice: BookPreviewReadAloudVoiceSettings;
   labels: BookPreviewReadAloudLabels;
+  voice_guide: BookPreviewReadAloudVoiceGuideSettings;
 }
 
 export interface BookPreviewTextStructureSettings {
@@ -534,6 +565,34 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
         gender_order: ["female", "male"],
         female_name_hints: ["Aria", "Jenny", "Zira", "Ava", "Allison", "Susan", "Karen", "Samantha", "Victoria", "Female"],
         male_name_hints: ["David", "Mark", "Guy", "Daniel", "Alex", "Fred", "Tom", "Male"],
+      },
+      voice_guide: {
+        enabled: true,
+        device_tokens: ["iPhone", "iPad", "iPod"],
+        ipados_platform: "MacIntel",
+        premium_markers: ["Enhanced", "Premium"],
+        storage_key: "read_aloud_voice_guide_dismissed",
+        message: "Your device is using a basic voice. Apple offers a natural-sounding voice for free. Want to switch? It takes about 30 seconds.",
+        show_steps_label: "Show me how",
+        hide_steps_label: "Hide the steps",
+        steps: [
+          "Open Settings.",
+          "Tap Accessibility, then Spoken Content.",
+          "Tap Voices, then English.",
+          "Download a voice marked Premium or Enhanced (e.g. Ava or Zoe), then come back here.",
+        ],
+        mac_steps: [
+          "Open System Settings.",
+          "Click Accessibility, then Spoken Content.",
+          "Next to System Voice, choose Manage Voices.",
+          "Download a voice marked Premium or Enhanced (e.g. Ava or Zoe), then come back here.",
+        ],
+        mac_token: "Macintosh",
+        mac_safari_token: "Safari",
+        mac_excluded_tokens: ["Chrome", "Chromium", "Edg", "OPR", "Firefox"],
+        retry_label: "Try the voice again",
+        retry_still_basic_message: "Still a basic voice. Download a voice marked Premium or Enhanced, then try again.",
+        dismiss_label: "Not now",
       },
       labels: {
         group_aria_label: "Read aloud controls",
@@ -1561,6 +1620,7 @@ export const BOOK_PREVIEW_LIMITS = {
   read_aloud_max_chunk_chars: { min: 60, max: 500 },
   read_aloud_voice_list_length: { min: 0, max: 50 },
   read_aloud_gender_order_length: { min: 1, max: 2 },
+  read_aloud_voice_guide_steps_length: { min: 1, max: 8 },
   text_line_y_tolerance: { min: 0.5, max: 12 },
   text_heading_scale_ratio: { min: 1.05, max: 2.5 },
   text_major_heading_scale_ratio: { min: 1.1, max: 3.0 },
@@ -1570,6 +1630,53 @@ export const BOOK_PREVIEW_LIMITS = {
 
 /** BCP 47 primary subtag plus optional subtags, e.g. "en", "en-US", "zh-Hant-TW". Structural format check only. */
 const READ_ALOUD_LANG_RE = /^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/;
+
+/** Parses read_aloud.voice_guide field by field; any invalid field keeps its default and is reported as a fallback. */
+function parseReadAloudVoiceGuide(
+  raw: unknown,
+  defaults: BookPreviewReadAloudVoiceGuideSettings,
+  fallbacks: string[],
+): BookPreviewReadAloudVoiceGuideSettings {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    fallbacks.push("read_aloud.voice_guide");
+    return defaults;
+  }
+  const rec = raw as Record<string, unknown>;
+  const nonEmptyString = (value: unknown): string | null =>
+    typeof value === "string" && value.trim() !== "" ? value.trim() : null;
+  const stringList = (value: unknown, min: number, max: number): string[] | null => {
+    if (!Array.isArray(value) || value.length < min || value.length > max) return null;
+    const trimmed = value.map(nonEmptyString);
+    return trimmed.every((item): item is string => item !== null) ? trimmed : null;
+  };
+  const pick = <T>(key: keyof BookPreviewReadAloudVoiceGuideSettings, parse: (value: unknown) => T | null): T => {
+    const fallback = defaults[key] as T;
+    if (!(key in rec)) return fallback;
+    const parsed = parse(rec[key]);
+    if (parsed !== null) return parsed;
+    fallbacks.push(`read_aloud.voice_guide.${key}`);
+    return fallback;
+  };
+  const { min: stepsMin, max: stepsMax } = BOOK_PREVIEW_LIMITS.read_aloud_voice_guide_steps_length;
+  return {
+    enabled: pick("enabled", (value) => (typeof value === "boolean" ? value : null)),
+    device_tokens: pick("device_tokens", (value) => stringList(value, 1, 10)),
+    ipados_platform: pick("ipados_platform", nonEmptyString),
+    premium_markers: pick("premium_markers", (value) => stringList(value, 1, 10)),
+    storage_key: pick("storage_key", nonEmptyString),
+    message: pick("message", nonEmptyString),
+    show_steps_label: pick("show_steps_label", nonEmptyString),
+    hide_steps_label: pick("hide_steps_label", nonEmptyString),
+    steps: pick("steps", (value) => stringList(value, stepsMin, stepsMax)),
+    mac_steps: pick("mac_steps", (value) => stringList(value, stepsMin, stepsMax)),
+    mac_token: pick("mac_token", nonEmptyString),
+    mac_safari_token: pick("mac_safari_token", nonEmptyString),
+    mac_excluded_tokens: pick("mac_excluded_tokens", (value) => stringList(value, 0, 10)),
+    retry_label: pick("retry_label", nonEmptyString),
+    retry_still_basic_message: pick("retry_still_basic_message", nonEmptyString),
+    dismiss_label: pick("dismiss_label", nonEmptyString),
+  };
+}
 
 /** Parses read_aloud.voice field by field; any invalid field keeps its default and is reported as a fallback. */
 function parseReadAloudVoice(
@@ -1824,6 +1931,10 @@ export function loadBookPreviewSection(raw: Record<string, unknown> | undefined)
         ? parseReadAloudVoice(rec.voice, defaults.read_aloud.voice, fallbacks)
         : defaults.read_aloud.voice;
 
+      const voiceGuide = "voice_guide" in rec
+        ? parseReadAloudVoiceGuide(rec.voice_guide, defaults.read_aloud.voice_guide, fallbacks)
+        : defaults.read_aloud.voice_guide;
+
       readAloud = {
         enabled,
         rates,
@@ -1833,6 +1944,7 @@ export function loadBookPreviewSection(raw: Record<string, unknown> | undefined)
         continue_on_page_turn: continueOnPageTurn,
         voice,
         labels: raLabels,
+        voice_guide: voiceGuide,
       };
     } else {
       fallbacks.push("read_aloud");
