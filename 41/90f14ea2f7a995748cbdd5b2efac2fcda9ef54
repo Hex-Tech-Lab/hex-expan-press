@@ -1,0 +1,27 @@
+payments/src/settings_registry.ts
+  s_0e99959cd74c50::t_b5b0244d7b98d8 182-185,368-371,799-800,805-807,814-831,889-892
+web/__tests__/storefront.test.ts
+  s_0e99959cd74c50::t_b017114603d01e 88-89,96-99,103-121,135,140,162,170,174,176-202,205,207-232,352,357-380
+web/e2e/books-sample-listing.spec.ts
+  s_0e99959cd74c50::t_f89cf6dce0818f 1-82
+web/e2e/mock-supabase.ts
+  s_0e99959cd74c50::t_e23acfbdf75b82 153,334-340
+web/src/components/storefront/storefront.tsx
+  s_0e99959cd74c50::t_669e1c5781b6ef 142-167,187-189,204-206,212-213,215-220,229-230,458,465-468,478-479,485,496-517
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4190f14ea2f7a995748cbdd5b2efac2fcda9ef54",
+  "prompts": {},
+  "sessions": {
+    "s_0e99959cd74c50": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "21b00acc-7513-46d6-9a35-038af7845be2",
+        "model": "unknown"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
