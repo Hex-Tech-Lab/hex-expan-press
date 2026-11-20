@@ -21,6 +21,7 @@ interface PdfDocLike {
 }
 
 export interface BookPreviewerProps {
+  id?: string;
   previewPdfUrl: string;
   coverImageUrl?: string | null;
   bookTitle: string;
@@ -132,6 +133,7 @@ async function rasterizePreview(
 }
 
 export default function BookPreviewer({
+  id,
   previewPdfUrl,
   coverImageUrl = null,
   bookTitle,
@@ -305,11 +307,12 @@ export default function BookPreviewer({
 
   return (
     <section
+      id={id}
       ref={sectionRef}
       aria-labelledby="book-preview-heading"
       onKeyDown={handleKeyDown}
       data-testid="book-preview-section"
-      className="glass-card card-shadow rounded-[32px] border-[1.5px] border-[#fff2e4] p-5 sm:p-8 flex flex-col gap-5"
+      className="glass-card card-shadow rounded-[32px] border-[1.5px] border-[#fff2e4] p-5 sm:p-8 flex flex-col gap-5 scroll-mt-6"
     >
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div className="flex flex-col gap-1">

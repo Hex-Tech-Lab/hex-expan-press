@@ -299,5 +299,6 @@ describe("BookCover and BookCard layout, cover aspect ratio, and (Sample) footer
     expect(found?.product.cover_image).toBe("/books/covers/sample_the_quiet_workshop.webp");
     expect(found?.product.preview_pdf).toBe("/books/previews/sample_the_quiet_workshop.pdf");
     expect(found?.product.is_sample).toBe(true);
+    expect(found?.product.overview).toContain("Setting Up the Bench");
   });
 });

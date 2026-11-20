@@ -178,6 +178,7 @@ export interface GlobalSettings {
       string,
       { book_registry?: string; cover_image?: string | null; preview_pdf?: string | null; is_sample?: boolean }
     >;
+    product_layout: StorefrontProductLayoutSettings;
   };
   /** Product-page PDF previewer tunables (PDF.js + StPageFlip). */
   book_preview: BookPreviewSettings;
@@ -248,6 +249,18 @@ product_slug: { min_length: number; max_length: number; separator: string };
   /** Daily usage watch (scripts/ops/usage_watch.ts). Limits are the plan limits we are on (Vercel Hobby, Supabase Free org,
    *  Upstash pay-as-you-go); warn_ratio is the fraction of a limit at which the watch reports WARN and exits non-zero. */
   usage_watch: UsageWatchSettings;
+}
+
+export interface StorefrontProductLayoutSettings {
+  cover_max_width_px: number;
+  cover_max_width_pct: number;
+  gap_mobile_px: number;
+  gap_desktop_px: number;
+  preview_section_id: string;
+  preview_cue_label: string;
+  cue_bounce_distance_px: number;
+  cue_bounce_duration_s: number;
+  cue_bounce_repeat_delay_s: number;
 }
 
 export interface BookPreviewSettings {
@@ -356,6 +369,17 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     book_assets: {
       "500k_playbook": { book_registry: "books/duane.json" },
       sample_the_quiet_workshop: { book_registry: "books/sample_the_quiet_workshop.json" },
+    },
+    product_layout: {
+      cover_max_width_px: 384,
+      cover_max_width_pct: 36,
+      gap_mobile_px: 24,
+      gap_desktop_px: 56,
+      preview_section_id: "book-preview",
+      preview_cue_label: "Have a look inside",
+      cue_bounce_distance_px: 5,
+      cue_bounce_duration_s: 1.8,
+      cue_bounce_repeat_delay_s: 0.4,
     },
   },
   book_preview: {
@@ -746,7 +770,74 @@ export function loadPaymentsSection(raw: Record<string, unknown> | undefined): G
   };
 }
 
-/** storefront: validates b2c_landing_url, brand_name, thanks_path_template, house_title_note, card copy and asset paths;
+export const STOREFRONT_PRODUCT_LAYOUT_LIMITS = {
+  cover_max_width_px: { min: 240, max: 600 },
+  cover_max_width_pct: { min: 25, max: 50 },
+  gap_mobile_px: { min: 8, max: 64 },
+  gap_desktop_px: { min: 40, max: 72 },
+  cue_bounce_distance_px: { min: 1, max: 16 },
+  cue_bounce_duration_s: { min: 0.4, max: 5 },
+  cue_bounce_repeat_delay_s: { min: 0, max: 5 },
+} as const;
+
+function loadStorefrontProductLayout(
+  raw: unknown,
+  fallbacks: string[],
+): StorefrontProductLayoutSettings {
+  const defaults = DEFAULT_GLOBAL.storefront.product_layout;
+  if (raw === undefined) return defaults;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    fallbacks.push("product_layout");
+    return defaults;
+  }
+  const layoutRaw = raw as Record<string, unknown>;
+  const intField = (
+    key: "cover_max_width_px" | "cover_max_width_pct" | "gap_mobile_px" | "gap_desktop_px" | "cue_bounce_distance_px",
+  ): number => {
+    if (!(key in layoutRaw)) return defaults[key];
+    const { min, max } = STOREFRONT_PRODUCT_LAYOUT_LIMITS[key];
+    if (intInRange(layoutRaw[key], min, max)) return layoutRaw[key];
+    fallbacks.push(`product_layout.${key}`);
+    return defaults[key];
+  };
+  const floatField = (key: "cue_bounce_duration_s" | "cue_bounce_repeat_delay_s"): number => {
+    if (!(key in layoutRaw)) return defaults[key];
+    const candidate = layoutRaw[key];
+    const { min, max } = STOREFRONT_PRODUCT_LAYOUT_LIMITS[key];
+    if (typeof candidate === "number" && Number.isFinite(candidate) && candidate >= min && candidate <= max) return candidate;
+    fallbacks.push(`product_layout.${key}`);
+    return defaults[key];
+  };
+  let previewSectionId = defaults.preview_section_id;
+  if ("preview_section_id" in layoutRaw) {
+    if (typeof layoutRaw.preview_section_id === "string" && /^[a-z][a-z0-9_-]{1,63}$/.test(layoutRaw.preview_section_id)) {
+      previewSectionId = layoutRaw.preview_section_id;
+    } else {
+      fallbacks.push("product_layout.preview_section_id");
+    }
+  }
+  let previewCueLabel = defaults.preview_cue_label;
+  if ("preview_cue_label" in layoutRaw) {
+    if (typeof layoutRaw.preview_cue_label === "string" && layoutRaw.preview_cue_label.trim() !== "") {
+      previewCueLabel = layoutRaw.preview_cue_label.trim();
+    } else {
+      fallbacks.push("product_layout.preview_cue_label");
+    }
+  }
+  return {
+    cover_max_width_px: intField("cover_max_width_px"),
+    cover_max_width_pct: intField("cover_max_width_pct"),
+    gap_mobile_px: intField("gap_mobile_px"),
+    gap_desktop_px: intField("gap_desktop_px"),
+    preview_section_id: previewSectionId,
+    preview_cue_label: previewCueLabel,
+    cue_bounce_distance_px: intField("cue_bounce_distance_px"),
+    cue_bounce_duration_s: floatField("cue_bounce_duration_s"),
+    cue_bounce_repeat_delay_s: floatField("cue_bounce_repeat_delay_s"),
+  };
+}
+
+/** storefront: validates b2c_landing_url, brand_name, thanks_path_template, house_title_note, card copy, asset paths, and product_layout;
  *  falls back per key on invalid input. publisher_label is derived from brand_name (one source), so a raw publisher_label is not read. */
 export function loadStorefrontSection(raw: Record<string, unknown> | undefined): GlobalSettings["storefront"] {
   const defaults = DEFAULT_GLOBAL.storefront;
@@ -807,6 +898,7 @@ export function loadStorefrontSection(raw: Record<string, unknown> | undefined):
     }
   }
   const houseNote = strField("house_title_note");
+  const productLayout = loadStorefrontProductLayout(raw.product_layout, fallbacks);
   if (fallbacks.length > 0) warnFallback("global.json", `invalid storefront values for ${fallbacks.join(", ")}`);
   return {
     b2c_landing_url: b2cLanding,
@@ -819,6 +911,7 @@ export function loadStorefrontSection(raw: Record<string, unknown> | undefined):
     covers_base_path: coversBasePath,
     previews_base_path: previewsBasePath,
     book_assets: bookAssets,
+    product_layout: productLayout,
   };
 }
 

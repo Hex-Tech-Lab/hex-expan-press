@@ -8,6 +8,7 @@ export interface BookIdentity {
   subtitle: string;
   author: string;
   description?: string;
+  overview?: string;
   byline?: string;
   data_dir?: string;
   product_id?: string;
@@ -59,6 +60,7 @@ export function loadBookIdentity(bookFile: string = defaultBookFile): BookIdenti
   };
   for (const key of [
     "description",
+    "overview",
     "byline",
     "data_dir",
     "product_id",

@@ -52,6 +52,7 @@ export interface StoreProduct {
   cover_image?: string | null;
   preview_pdf?: string | null;
   is_sample?: boolean;
+  overview?: string | null;
 }
 
 export interface HubCreator {
@@ -128,6 +129,7 @@ function withResolvedAssets<T extends { slug: string | null; title: string | nul
   cover_image: string | null;
   preview_pdf: string | null;
   is_sample: boolean;
+  overview: string | null;
 } {
   const assets = resolveProductBookAssets(p);
   return {
@@ -136,6 +138,7 @@ function withResolvedAssets<T extends { slug: string | null; title: string | nul
     cover_image: assets.cover_image,
     preview_pdf: assets.preview_pdf,
     is_sample: assets.is_sample,
+    overview: assets.overview,
   };
 }
 

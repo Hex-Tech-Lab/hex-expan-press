@@ -44,20 +44,22 @@ describe("resolveProductBookAssets", () => {
       cover_image: "/books/covers/duane.jpg",
       preview_pdf: "/books/previews/duane.pdf",
       is_sample: false,
+      overview: null,
     });
 
-    expect(
-      resolveProductBookAssets({
-        slug: "sample_the_quiet_workshop",
-        title: "The Quiet Workshop (Sample)",
-        book_registry: "books/sample_the_quiet_workshop.json",
-      }),
-    ).toEqual({
+    const sampleAssets = resolveProductBookAssets({
+      slug: "sample_the_quiet_workshop",
+      title: "The Quiet Workshop (Sample)",
+      book_registry: "books/sample_the_quiet_workshop.json",
+    });
+    expect(sampleAssets).toMatchObject({
       book_registry: "books/sample_the_quiet_workshop.json",
       cover_image: "/books/covers/sample_the_quiet_workshop.webp",
       preview_pdf: "/books/previews/sample_the_quiet_workshop.pdf",
       is_sample: true,
     });
+    expect(sampleAssets.overview).toContain("Setting Up the Bench");
+    expect(sampleAssets.overview?.toLowerCase()).toContain("sample");
   });
 
   it("falls back to GLOBAL.storefront.book_assets[slug] when products.book_registry is null", () => {
@@ -72,6 +74,7 @@ describe("resolveProductBookAssets", () => {
       cover_image: "/books/covers/duane.jpg",
       preview_pdf: "/books/previews/duane.pdf",
       is_sample: false,
+      overview: null,
     });
   });
 
@@ -86,6 +89,7 @@ describe("resolveProductBookAssets", () => {
       cover_image: null,
       preview_pdf: null,
       is_sample: false,
+      overview: null,
     });
   });
 

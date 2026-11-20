@@ -71,6 +71,51 @@ describe("loadStorefrontSection (settings_registry)", () => {
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();
   });
+
+  it("validates storefront.product_layout overrides and falls back when out of range or malformed", () => {
+    const valid = loadStorefrontSection({
+      product_layout: {
+        cover_max_width_px: 360,
+        cover_max_width_pct: 34,
+        gap_mobile_px: 20,
+        gap_desktop_px: 48,
+        preview_section_id: "sample-preview",
+        preview_cue_label: "Peek inside",
+        cue_bounce_distance_px: 6,
+        cue_bounce_duration_s: 1.5,
+        cue_bounce_repeat_delay_s: 0.25,
+      },
+    });
+    expect(valid.product_layout).toEqual({
+      cover_max_width_px: 360,
+      cover_max_width_pct: 34,
+      gap_mobile_px: 20,
+      gap_desktop_px: 48,
+      preview_section_id: "sample-preview",
+      preview_cue_label: "Peek inside",
+      cue_bounce_distance_px: 6,
+      cue_bounce_duration_s: 1.5,
+      cue_bounce_repeat_delay_s: 0.25,
+    });
+
+    const warn = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const invalid = loadStorefrontSection({
+      product_layout: {
+        cover_max_width_px: 9999,
+        cover_max_width_pct: 90,
+        gap_mobile_px: 2,
+        gap_desktop_px: 200,
+        preview_section_id: "Bad Id!",
+        preview_cue_label: "   ",
+        cue_bounce_distance_px: 0,
+        cue_bounce_duration_s: 20,
+        cue_bounce_repeat_delay_s: -1,
+      },
+    });
+    expect(invalid.product_layout).toEqual(DEFAULT_GLOBAL.storefront.product_layout);
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
 });
 
 describe("loadBookPreviewSection (settings_registry)", () => {
@@ -131,6 +176,9 @@ describe("loadBookIdentity optional media fields", () => {
     expect(sample.cover_image).toBe("/books/covers/sample_the_quiet_workshop.webp");
     expect(sample.preview_pdf).toBe("/books/previews/sample_the_quiet_workshop.pdf");
     expect(sample.is_sample).toBe(true);
+    expect(sample.overview).toBeDefined();
+    expect(sample.overview).toContain("Setting Up the Bench");
+    expect(sample.overview?.toLowerCase()).toContain("sample");
   });
 
   it("omits optional keys when not present in a book JSON", () => {

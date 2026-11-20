@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import type { CSSProperties } from "react";
 import { BuyLink } from "../../../../src/components/storefront/buy-link";
 import BookPreviewer from "../../../../src/components/storefront/book-previewer";
+import { PreviewScrollCue } from "../../../../src/components/storefront/preview-scroll-cue";
 import { ArrowIcon, BrandFrame, BrandWordmark } from "../../../../src/components/brand/brand";
+import { resolveProductBookAssets } from "../../../../src/lib/book-assets";
 import {
   BookCover,
   NOINDEX,
@@ -71,6 +74,19 @@ export default async function StoreProductPage({
   const live = p.checkout_mode === "live";
   const title = p.title ?? productSlugOf(p);
   const buyUrl = `${PAY_ORIGIN}/checkout/${p.id}`;
+  const layout = GLOBAL.storefront.product_layout;
+  const overview =
+    typeof p.overview === "string" && p.overview.trim() !== ""
+      ? p.overview.trim()
+      : p.overview === null
+        ? null
+        : resolveProductBookAssets(p).overview;
+  const gridStyle = {
+    "--product-cover-max-w": `${layout.cover_max_width_px}px`,
+    "--product-cover-max-pct": `${layout.cover_max_width_pct}%`,
+    "--product-gap-mobile": `${layout.gap_mobile_px}px`,
+    "--product-gap-desktop": `${layout.gap_desktop_px}px`,
+  } as CSSProperties;
 
   return (
     <BrandFrame>
@@ -79,8 +95,12 @@ export default async function StoreProductPage({
       </header>
 
       <main className="flex flex-col gap-6 md:gap-8">
-        <div className="grid gap-6 md:grid-cols-2 md:gap-8 md:items-start">
-          <div className="w-full max-w-sm mx-auto md:mx-0">
+        <div
+          style={gridStyle}
+          data-testid="product-hero-grid"
+          className="grid grid-cols-1 gap-[var(--product-gap-mobile)] md:gap-[var(--product-gap-desktop)] md:grid-cols-[minmax(0,min(var(--product-cover-max-pct),var(--product-cover-max-w)))_minmax(0,1fr)] md:items-stretch"
+        >
+          <div className="w-full max-w-[var(--product-cover-max-w)] mx-auto md:max-w-none md:mx-0">
             <BookCover title={title} coverImage={p.cover_image ?? null} isSample={p.is_sample ?? false} />
           </div>
 
@@ -105,7 +125,12 @@ export default async function StoreProductPage({
             )}
           </div>
 
-          {p.description && <p className="text-base text-gray-700 leading-relaxed">{p.description}</p>}
+          {p.description && <p className="text-base font-medium text-gray-800 leading-relaxed">{p.description}</p>}
+          {overview && (
+            <p className="text-sm sm:text-base text-gray-700 leading-relaxed" data-testid="book-overview">
+              {overview}
+            </p>
+          )}
 
           <p className="text-2xl font-bold tracking-tight text-gray-900">
             {priceDisplay.formatted}{" "}
@@ -140,11 +165,22 @@ export default async function StoreProductPage({
               {d}
             </p>
           ))}
+
+          {p.preview_pdf && (
+            <PreviewScrollCue
+              targetId={layout.preview_section_id}
+              label={layout.preview_cue_label}
+              bounceDistancePx={layout.cue_bounce_distance_px}
+              bounceDurationS={layout.cue_bounce_duration_s}
+              bounceRepeatDelayS={layout.cue_bounce_repeat_delay_s}
+            />
+          )}
           </section>
         </div>
 
         {p.preview_pdf && (
           <BookPreviewer
+            id={layout.preview_section_id}
             previewPdfUrl={p.preview_pdf}
             coverImageUrl={p.cover_image ?? null}
             bookTitle={title}
