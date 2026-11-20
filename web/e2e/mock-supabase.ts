@@ -102,6 +102,7 @@ function seed(): Record<string, Row[]> {
         platform_handles: null,
         bio: "ExpanPress house publications and sample chapters.",
         photo: null,
+        is_house: true,
         products: [
           {
             id: "33333333-0000-4000-8000-000000000001",

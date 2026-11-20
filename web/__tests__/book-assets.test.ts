@@ -172,6 +172,41 @@ describe("resolveProductBookAssets never lets a non-house product claim house as
     });
   });
 
+  it("resolves Duane's live product through the exact product_id in books/duane.json, with no house flag", () => {
+    expect(
+      resolveProductBookAssets({
+        id: "57596c19-c550-4bde-b17a-e87b86d005c5",
+        slug: "retirearly500k",
+        title: "You Don't Need a Million Dollars to Retire",
+        book_registry: "books/duane.json",
+        creator_is_house: false,
+      }),
+    ).toMatchObject({
+      book_registry: "books/duane.json",
+      cover_image: "/books/covers/duane.jpg",
+      preview_pdf: "/books/previews/duane.pdf",
+      is_sample: false,
+    });
+  });
+
+  it("gives a non-house product whose slug matches a registry key no override when its id does not match", () => {
+    expect(
+      resolveProductBookAssets({
+        id: UNRELATED_PRODUCT_ID,
+        slug: "500k_playbook",
+        title: "500k Playbook",
+        book_registry: "books/duane.json",
+        creator_is_house: false,
+      }),
+    ).toEqual({
+      book_registry: null,
+      cover_image: null,
+      preview_pdf: null,
+      is_sample: false,
+      overview: null,
+    });
+  });
+
   it("honours a non-house product only when its id is the books/*.json product_id (exact identity match)", () => {
     const resolved = resolveProductBookAssets({
       id: HOUSE_SAMPLE_PRODUCT_ID,
