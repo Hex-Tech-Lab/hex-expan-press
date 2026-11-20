@@ -473,11 +473,13 @@ function TiltCard({
 export default function LandingPage({
   onboarding,
   supportEmail,
+  browseBooksEnabled,
   browseBooksLabel,
   browseBooksPath,
 }: {
   onboarding: boolean;
   supportEmail: string;
+  browseBooksEnabled: boolean;
   browseBooksLabel: string;
   browseBooksPath: string;
 }) {
@@ -509,15 +511,17 @@ export default function LandingPage({
           </p>
         </div>
         <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-4 shrink-0">
-          <nav aria-label="Storefront navigation">
-            <Link
-              href={browseBooksPath}
-              data-testid="header-browse-books"
-              className="inline-flex items-center min-h-[44px] rounded-full border border-[#dcc7b4] bg-white/75 hover:bg-[#fff2e4] px-4 py-2 text-xs sm:text-sm font-semibold text-gray-900 transition-colors focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#E8622C]"
-            >
-              {browseBooksLabel}
-            </Link>
-          </nav>
+          {browseBooksEnabled && (
+            <nav aria-label="Storefront navigation">
+              <Link
+                href={browseBooksPath}
+                data-testid="header-browse-books"
+                className="inline-flex items-center min-h-[44px] rounded-full border border-[#dcc7b4] bg-white/75 hover:bg-[#fff2e4] px-4 py-2 text-xs sm:text-sm font-semibold text-gray-900 transition-colors focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#E8622C]"
+              >
+                {browseBooksLabel}
+              </Link>
+            </nav>
+          )}
           <BrandWordmark href="/" />
         </div>
       </motion.header>
@@ -566,6 +570,7 @@ export default function LandingPage({
           reduced={Boolean(reduced)}
           blobY={blobY}
           blobY2={blobY2}
+          browseBooksEnabled={browseBooksEnabled}
           browseBooksLabel={browseBooksLabel}
           browseBooksPath={browseBooksPath}
         />
@@ -673,6 +678,7 @@ function HeroCard({
   reduced,
   blobY,
   blobY2,
+  browseBooksEnabled,
   browseBooksLabel,
   browseBooksPath,
 }: {
@@ -680,6 +686,7 @@ function HeroCard({
   reduced: boolean;
   blobY: ReturnType<typeof useTransform<number, number>>;
   blobY2: ReturnType<typeof useTransform<number, number>>;
+  browseBooksEnabled: boolean;
   browseBooksLabel: string;
   browseBooksPath: string;
 }) {
@@ -724,13 +731,15 @@ function HeroCard({
             <span>Tap to begin</span>
             <span className="group-hover:translate-x-1 transition-transform">&rarr;</span>
           </a>
-          <Link
-            href={browseBooksPath}
-            data-testid="hero-browse-books"
-            className="inline-flex items-center min-h-[44px] text-sm font-semibold text-peach hover:text-white underline underline-offset-4 transition-colors focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#E8622C]"
-          >
-            {browseBooksLabel}
-          </Link>
+          {browseBooksEnabled && (
+            <Link
+              href={browseBooksPath}
+              data-testid="hero-browse-books"
+              className="inline-flex items-center min-h-[44px] text-sm font-semibold text-peach hover:text-white underline underline-offset-4 transition-colors focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#E8622C]"
+            >
+              {browseBooksLabel}
+            </Link>
+          )}
         </div>
         {/* Living CTA: breathing peach aura + magnetic press */}
         <motion.a
