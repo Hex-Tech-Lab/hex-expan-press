@@ -415,7 +415,7 @@ export default function BookPreviewer({
                 ref={hostRef}
                 tabIndex={status === "ready" ? 0 : -1}
                 role="region"
-                aria-label={`Interactive page-turning preview of ${bookTitle}. Use Left and Right arrow keys or Prev and Next buttons to turn pages.`}
+                aria-label={settings.toolbar_labels.region_aria_label.replace("{title}", bookTitle)}
                 data-orientation={orientation}
                 className={`w-full flex justify-center ${status === "loading" ? "sr-only" : ""}`}
               />

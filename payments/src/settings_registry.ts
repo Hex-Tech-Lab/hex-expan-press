@@ -284,6 +284,8 @@ export interface BookPreviewToolbarLabels {
   go_to_page_submit: string;
   prev_page: string;
   next_page: string;
+  navigation_aria_label: string;
+  region_aria_label: string;
 }
 
 export interface BookPreviewReadAloudLabels {
@@ -487,6 +489,8 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
       go_to_page_submit: "Go",
       prev_page: "Previous preview page",
       next_page: "Next preview page",
+      navigation_aria_label: "Preview navigation for {title}",
+      region_aria_label: "Interactive page-turning preview of {title}. Use Left and Right arrow keys or Prev and Next buttons to turn pages.",
     },
     read_aloud: {
       enabled: true,
@@ -1616,6 +1620,8 @@ export function loadBookPreviewSection(raw: Record<string, unknown> | undefined)
         go_to_page_submit: labelField("go_to_page_submit"),
         prev_page: labelField("prev_page"),
         next_page: labelField("next_page"),
+        navigation_aria_label: labelField("navigation_aria_label"),
+        region_aria_label: labelField("region_aria_label"),
       };
     } else {
       fallbacks.push("toolbar_labels");

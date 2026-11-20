@@ -135,7 +135,7 @@ export function BookPreviewToolbar({
         </form>
       </div>
 
-      <div className="flex items-center gap-2" role="group" aria-label={`Preview navigation for ${bookTitle}`}>
+      <div className="flex items-center gap-2" role="group" aria-label={labels.navigation_aria_label.replace("{title}", bookTitle)}>
         <button
           type="button"
           onClick={onFlipPrev}
