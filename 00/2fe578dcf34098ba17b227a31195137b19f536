@@ -1,0 +1,20 @@
+web/src/lib/book-assets.ts
+  s_7e539dcf78d9db::t_4eb887d19af7ca 62-63
+  s_7e539dcf78d9db::t_e2464f07cd1ea5 31-33,45-47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "002fe578dcf34098ba17b227a31195137b19f536",
+  "prompts": {},
+  "sessions": {
+    "s_7e539dcf78d9db": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7aec794a-3e95-4ace-bf8d-7a1962c629d9",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
