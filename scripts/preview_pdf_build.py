@@ -20,8 +20,6 @@ import tempfile
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(REPO / "scripts"))
-from flipbook_build import parse_pages  # noqa: E402
 
 
 def load_book_cfg(book_id: str) -> dict:
@@ -31,6 +29,11 @@ def load_book_cfg(book_id: str) -> dict:
 def build_preview_pdf(source_pdf: Path, pages_spec: str, out_pdf: Path, gs_preset: str = "/ebook") -> int:
     import pdfplumber
     import pikepdf
+
+    scripts_dir = str(REPO / "scripts")
+    if scripts_dir not in sys.path:
+        sys.path.insert(0, scripts_dir)
+    from flipbook_build import parse_pages
 
     with pdfplumber.open(source_pdf) as probe:
         total = len(probe.pages)
