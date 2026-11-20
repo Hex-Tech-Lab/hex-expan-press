@@ -6,6 +6,7 @@ import type {
   BookPreviewTextStructureSettings,
 } from "../../../../payments/src/settings_registry";
 import type { AccessiblePageGroup, ReadAloudChunk } from "./book-previewer-text";
+import type { ReadAloudWord } from "./use-read-aloud";
 
 export type ReadAloudState = "idle" | "playing" | "paused";
 
@@ -71,6 +72,7 @@ export interface BookPreviewAccessibleCardProps {
   spreadCount: number;
   pages: AccessiblePageGroup[];
   activeChunkId: string | null;
+  activeWord: ReadAloudWord | null;
   playbackState: ReadAloudState;
   currentRate: number;
   showReadAloudControls: boolean;
@@ -90,6 +92,7 @@ export function BookPreviewAccessibleCard({
   spreadCount,
   pages,
   activeChunkId,
+  activeWord,
   playbackState,
   currentRate,
   showReadAloudControls,
@@ -118,6 +121,7 @@ export function BookPreviewAccessibleCard({
   const renderChunks = (chunks: ReadAloudChunk[]): ReactNode =>
     chunks.map((chunk, idx) => {
       const isActive = activeChunkId === chunk.id;
+      const word = isActive && activeWord?.chunkId === chunk.id ? activeWord : null;
       return (
         <Fragment key={chunk.id}>
           {idx > 0 ? " " : null}
@@ -131,7 +135,20 @@ export function BookPreviewAccessibleCard({
                 : "transition-colors duration-200 motion-reduce:transition-none"
             }
           >
-            {chunk.text}
+            {word ? (
+              <>
+                {chunk.text.slice(0, word.start)}
+                <mark
+                  data-testid="read-aloud-word"
+                  className="bg-[#FF9E80]/40 text-gray-950 rounded-sm"
+                >
+                  {chunk.text.slice(word.start, word.end)}
+                </mark>
+                {chunk.text.slice(word.end)}
+              </>
+            ) : (
+              chunk.text
+            )}
           </span>
         </Fragment>
       );

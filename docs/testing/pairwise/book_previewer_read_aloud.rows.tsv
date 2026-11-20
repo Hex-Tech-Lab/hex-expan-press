@@ -1,29 +1,31 @@
-browser_support	playback_state	speed_rate	panel_collapsed	spread_size	action
-supported	playing	r150	expanded	two_page	stop
-supported	idle	r125	collapsed	single_page	play_pause
-supported	idle	r100	collapsed	two_page	page_flip
-supported	paused	r150	expanded	single_page	speed_cycle
-supported	idle	r075	expanded	single_page	toggle_panel
-supported	playing	r100	expanded	single_page	play_pause
-supported	idle	r125	collapsed	two_page	speed_cycle
-supported	paused	r125	expanded	single_page	page_flip
-supported	idle	r125	collapsed	two_page	toggle_panel
-supported	idle	r150	collapsed	two_page	toggle_panel
-supported	paused	r150	expanded	two_page	page_flip
-supported	paused	r100	expanded	single_page	stop
-supported	playing	r100	expanded	two_page	speed_cycle
-supported	idle	r075	collapsed	two_page	page_hide
-supported	playing	r100	expanded	single_page	page_hide
-supported	idle	r075	collapsed	two_page	speed_cycle
-supported	playing	r075	expanded	single_page	page_flip
-supported	idle	r150	collapsed	two_page	page_hide
-supported	idle	r125	collapsed	two_page	page_hide
-supported	idle	r150	collapsed	two_page	play_pause
-supported	paused	r075	expanded	single_page	play_pause
-supported	playing	r100	expanded	single_page	toggle_panel
-supported	playing	r075	expanded	single_page	stop
-supported	paused	r100	expanded	single_page	toggle_panel
-unsupported	idle	r100	collapsed	two_page	toggle_panel
-supported	playing	r125	expanded	single_page	stop
-unsupported	idle	r100	expanded	single_page	toggle_panel
-supported	paused	r100	expanded	single_page	page_hide
+browser_support	voice_set	boundary_events	playback_state	speed_rate	panel_collapsed	spread_size	action
+supported	none_yet	no	playing	r150	expanded	two_page	stop
+supported	natural_available	yes	paused	r125	expanded	single_page	stop
+supported	legacy_only	no	paused	r075	expanded	two_page	stop
+supported	legacy_only	yes	idle	r150	collapsed	single_page	page_hide
+supported	natural_available	no	idle	r125	collapsed	two_page	play
+supported	none_yet	no	idle	r075	collapsed	single_page	page_flip
+supported	natural_available	yes	playing	r075	expanded	single_page	pause
+supported	none_yet	yes	playing	r100	expanded	two_page	speed_change_mid_sentence
+supported	none_yet	yes	paused	r075	expanded	single_page	play
+supported	legacy_only	no	idle	r100	collapsed	single_page	toggle_panel
+supported	none_yet	no	idle	r075	expanded	two_page	page_hide
+supported	natural_available	no	paused	r100	expanded	single_page	stop
+supported	none_yet	yes	playing	r125	expanded	two_page	toggle_panel
+supported	natural_available	yes	paused	r150	expanded	two_page	page_flip
+supported	legacy_only	no	playing	r125	expanded	two_page	pause
+supported	legacy_only	no	idle	r100	collapsed	two_page	page_flip
+supported	natural_available	no	paused	r150	expanded	single_page	toggle_panel
+supported	natural_available	no	playing	r150	expanded	single_page	speed_change_mid_sentence
+supported	none_yet	no	idle	r075	expanded	single_page	toggle_panel
+supported	legacy_only	no	idle	r100	collapsed	two_page	play
+supported	none_yet	no	playing	r100	expanded	single_page	pause
+supported	legacy_only	no	playing	r125	expanded	single_page	speed_change_mid_sentence
+supported	none_yet	no	playing	r150	expanded	two_page	pause
+supported	none_yet	no	playing	r075	expanded	two_page	speed_change_mid_sentence
+supported	natural_available	no	paused	r125	expanded	two_page	page_hide
+supported	none_yet	no	idle	r150	expanded	two_page	play
+unsupported	none_yet	no	idle	r100	collapsed	two_page	toggle_panel
+supported	natural_available	yes	playing	r125	expanded	single_page	page_flip
+supported	legacy_only	yes	playing	r100	expanded	single_page	page_hide
+unsupported	none_yet	no	idle	r100	expanded	single_page	toggle_panel

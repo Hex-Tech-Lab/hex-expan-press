@@ -1,0 +1,5 @@
+# PICT pairwise model: page turn during Read Aloud x playback state.
+# Run: /usr/local/bin/pict docs/testing/pairwise/read_aloud_page_turn.model.txt > docs/testing/pairwise/read_aloud_page_turn.rows.tsv
+
+page_turn: none, next, prev, jump
+playback_state: playing, paused
