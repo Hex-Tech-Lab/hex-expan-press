@@ -1,0 +1,37 @@
+web/__tests__/pay_root.pairwise.test.ts
+  s_0e99959cd74c50::t_69999146714b26 124
+  s_0e99959cd74c50::t_55ee94c90c4a28 14
+  s_0e99959cd74c50::t_8d38137b219ed2 3
+web/__tests__/download_link.pairwise.test.ts
+  s_0e99959cd74c50::t_fde17beece7270 4-6
+  s_0e99959cd74c50::t_087f7ee576f51c 123,127-129
+  s_0e99959cd74c50::t_524b3861c7841b 43
+  s_0e99959cd74c50::t_c17a0dbb8d5a09 45
+  s_0e99959cd74c50::t_d11d6b5b4fd12e 130
+docs/testing/pairwise/download_link.model.txt
+  s_0e99959cd74c50::t_71ebec3f028152 4-5
+docs/testing/pairwise/download_link.rows.tsv
+  s_0e99959cd74c50::t_fa0a1cc298c14c 2-3,6-8,10-18
+docs/testing/pairwise/download_link.seed.tsv
+  s_0e99959cd74c50::t_859c2e542482d2 1-2
+docs/testing/pairwise/pay_root.model.txt
+  s_0e99959cd74c50::t_838a9d1ebf73b1 9
+docs/testing/pairwise/pay_root.rows.tsv
+  s_0e99959cd74c50::t_1b728f99d2bcd8 2-11,14-34,36-43,45,47
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0f12545cb72caa5cdebf3971981fd95bfcf6b93c",
+  "prompts": {},
+  "sessions": {
+    "s_0e99959cd74c50": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "21b00acc-7513-46d6-9a35-038af7845be2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
