@@ -1,0 +1,21 @@
+web/__tests__/use-read-aloud.test.ts
+  s_0e99959cd74c50::t_e04aac7558d781 1-154
+web/src/components/storefront/use-read-aloud.ts
+  s_0e99959cd74c50::t_8b8efcff46034f 90-91
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "84e5dd2bd903d91af1372f29803b92f949715afd",
+  "prompts": {},
+  "sessions": {
+    "s_0e99959cd74c50": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "21b00acc-7513-46d6-9a35-038af7845be2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
