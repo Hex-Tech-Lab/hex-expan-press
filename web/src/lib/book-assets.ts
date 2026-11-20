@@ -52,7 +52,10 @@ export function isSafePreviewPdfPath(value: unknown, previewsBasePath: string = 
 }
 
 function readBookJsonSafe(bookRegistryPath: string): Record<string, unknown> | null {
-  if (!SAFE_BOOK_REGISTRY_RE.test(bookRegistryPath)) return null;
+  if (!SAFE_BOOK_REGISTRY_RE.test(bookRegistryPath)) {
+    console.error(`[book-assets] rejected book_registry path in readBookJsonSafe`);
+    return null;
+  }
   const fileName = bookRegistryPath.slice("books/".length);
   // Scoped strictly to books/*.json (bundled via outputFileTracingIncludes in next.config.ts).
   const fullPath = join(/*turbopackIgnore: true*/ findRepoRoot(), "books", fileName);
@@ -82,11 +85,12 @@ export function resolveProductBookAssets(product: {
   book_registry?: string | null;
   creator_is_house?: boolean | null;
 }): ResolvedBookAssets {
+  if (product.slug != null && typeof product.slug !== "string") console.error(`[book-assets] non-string slug ignored`);
   const slug = typeof product.slug === "string" ? product.slug : "";
   const houseCreator = isHouse(product.creator_is_house);
   // Slug-keyed registry overrides are house-only: a creator product whose slug matches must not inherit house assets.
   const registryOverride = houseCreator && slug ? GLOBAL.storefront.book_assets[slug] : undefined;
-  if (typeof product.book_registry === "string" && product.book_registry !== "" && !SAFE_BOOK_REGISTRY_RE.test(product.book_registry)) {
+  if (product.book_registry != null && product.book_registry !== "" && (typeof product.book_registry !== "string" || !SAFE_BOOK_REGISTRY_RE.test(product.book_registry))) {
     console.error(`[book-assets] rejected book_registry for slug ${slug}`);
   }
   const registryPath =
@@ -111,8 +115,14 @@ export function resolveProductBookAssets(product: {
 
   // Explicit flags only (books/*.json identity or a registry flag). Never inferred from the slug or title,
   // so a non-sample gated book with a sample-like slug or "(Sample)" title stays hidden from the shelf.
+  if (bookJson?.is_sample !== undefined && typeof bookJson.is_sample !== "boolean") {
+    console.error(`[book-assets] non-boolean is_sample in ${registryPath} treated as not sample`);
+  }
   const is_sample = registryOverride?.is_sample === true || bookJson?.is_sample === true;
 
+  if (bookJson?.overview != null && (typeof bookJson.overview !== "string" || bookJson.overview.trim() === "")) {
+    console.error(`[book-assets] overview in ${registryPath} is blank or not a string; overview omitted`);
+  }
   const overview =
     typeof bookJson?.overview === "string" && bookJson.overview.trim() !== "" ? bookJson.overview.trim() : null;
 
