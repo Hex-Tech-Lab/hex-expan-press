@@ -14,6 +14,7 @@ import {
 import { ATTRIBUTION_KEYS } from "../../../src/lib/attribution";
 import { buyerConsentText } from "../../../src/lib/buyer-email";
 import { paddleOverlayConfig, paddleOverlayUsable } from "../../../src/lib/paddle-overlay-server";
+import { sandboxAllowed } from "../../api/billing/checkout/checkout-helpers";
 import { GLOBAL, defaultEnabledPaymentProvider, paymentProviderDisplayName } from "../../../../payments/src/settings_registry";
 
 /**
@@ -64,13 +65,14 @@ export default async function CheckoutPage({
   const price = priceOf(p);
   const priceDisplay = formatProductPrice(price, p.currency, "—");
   const live = p.checkout_mode === "live";
+  const open = live || (p.checkout_mode === "sandbox" && sandboxAllowed());
   const brand = GLOBAL.storefront.brand_name;
   const activeProvider = railProvider ?? defaultEnabledPaymentProvider();
   const morName = activeProvider ? paymentProviderDisplayName(activeProvider) : null;
   const overlayCfg = paddleOverlayConfig();
   const hasPaddlePrice = typeof p.paddle_price_id === "string" && p.paddle_price_id.trim() !== "";
   const paddleClient =
-    live &&
+    open &&
     activeProvider === "paddle" &&
     hasPaddlePrice &&
     overlayCfg.ok &&
@@ -109,7 +111,7 @@ export default async function CheckoutPage({
           </p>
         )}
 
-        {live ? (
+        {open ? (
           <BuyerEmailStep
             action="/api/billing/checkout"
             productId={p.id}
@@ -134,7 +136,7 @@ export default async function CheckoutPage({
       </main>
 
       {/* A gated (draft) product hides the buyer legal links, the same rule as the product page. */}
-      <StorefrontFooter showBuyerLegal={live} />
+      <StorefrontFooter showBuyerLegal={open} />
     </BrandFrame>
   );
 }

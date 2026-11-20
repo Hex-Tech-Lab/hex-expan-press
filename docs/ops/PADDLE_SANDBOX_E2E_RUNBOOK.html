@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Paddle Sandbox Option A E2E Runbook</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; color: #1a1a1a; background: #fdfdfd; max-width: 56rem; margin: 2rem auto; padding: 0 1.5rem; line-height: 1.6; }
+    h1, h2, h3 { line-height: 1.25; margin-top: 1.6em; }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.9em; background: #f3f1ed; padding: 0.1em 0.35em; border-radius: 4px; }
+    pre { background: #f3f1ed; padding: 1rem; overflow-x: auto; border-radius: 6px; }
+    pre code { background: transparent; padding: 0; }
+    table { border-collapse: collapse; width: 100%; margin: 1rem 0; font-size: 0.92em; }
+    th, td { border: 1px solid #d8d3ca; padding: 0.5rem 0.7rem; text-align: left; vertical-align: top; }
+    th { background: #f5f2ec; }
+  </style>
+</head>
+<body>
+<h1>Paddle Sandbox Option A E2E Runbook</h1>
+<p><strong>Owner:</strong> ExpanPress ops · <strong>Branch:</strong> <code>test/paddle-sandbox-e2e</code> · <strong>Scope:</strong> Local / CI sandbox verification only. Never run against production <code>expanpress.com</code> or with <code>PADDLE_API_KEY</code> (<code>pdl_live_*</code>).</p>
+<h2>1. Purpose</h2>
+<p>I use this runbook to provision the sample book in Paddle sandbox and run the Playwright Option A checkout, thank-you copy, signed webhook, and PDF delivery test (<code>web/e2e/paddle-sandbox-overlay.spec.ts</code>) without touching production Supabase, Resend, Dub, Upstash, or live Paddle.</p>
+<h2>2. Preconditions and Safety Rules</h2>
+<ul>
+<li><strong>Sandbox credentials only:</strong> Read only <code>PADDLE_SANDBOX_API_KEY</code> (<code>pdl_sdbx_*</code>) and fetch an active <code>test_*</code> client token from <code>https://sandbox-api.paddle.com/client-tokens?status=active</code>. Never load the full <code>.env</code> file and never print any credential.</li>
+<li><strong>Fail-closed guards:</strong></li>
+</ul>
+<p>   - <code>scripts/paddle_sandbox_sample_product.ts</code> refuses <code>pdl_live_*</code> keys, non-<code>pdl_sdbx_*</code> keys, any base URL other than <code>https://sandbox-api.paddle.com</code>, and <code>PADDLE_ENVIRONMENT=production</code>, <code>VERCEL_ENV=production</code>, or <code>NODE_ENV=production</code>.</p>
+<p>   - <code>web/playwright.config.ts</code> refuses <code>live_*</code> client tokens and <code>pdl_live_*</code> API keys when <code>E2E_PADDLE_SANDBOX=1</code>.</p>
+<p>   - <code>web/e2e/paddle-sandbox-overlay.spec.ts</code> aborts requests to <code>https://api.paddle.com/<strong></code> and <code>https://checkout.paddle.com/</strong></code>, and intercepts <code>https://expanpress.com/books/**</code> locally via <code>APP_URL</code>.</p>
+<ul>
+<li><strong>Registry sandbox opt-in (gitignored):</strong> <code>DEFAULT_GLOBAL.payments.sandbox_checkout_enabled</code> stays <code>false</code> in code. For a sandbox E2E run, write a temporary gitignored <code>data/settings/global.json</code> in the worktree root with <code>{&quot;payments&quot;:{&quot;sandbox_checkout_enabled&quot;:true}}</code>, then delete <code>data/</code> when finished.</li>
+</ul>
+<h2>3. Step 1 — Provision or Verify the Sandbox Product and Price</h2>
+<p>Run a dry run first (zero network calls):</p>
+<pre><code>
+pnpm exec tsx scripts/paddle_sandbox_sample_product.ts --dry-run
+</code></pre>
+<p>Then run against Paddle sandbox, passing <strong>only</strong> <code>PADDLE_SANDBOX_API_KEY</code> in the subshell environment:</p>
+<pre><code>
+python3 -c &#x27;
+import os, subprocess
+val = next(
+    line.split(&quot;=&quot;, 1)[1].strip().strip(&quot;\&quot;&quot;).strip(&quot;\x27&quot;)
+    for line in open(&quot;.env&quot;, encoding=&quot;utf-8&quot;)
+    if line.strip().startswith(&quot;PADDLE_SANDBOX_API_KEY=&quot;)
+)
+env = os.environ.copy()
+env[&quot;PADDLE_SANDBOX_API_KEY&quot;] = val
+raise SystemExit(subprocess.run([&quot;pnpm&quot;, &quot;exec&quot;, &quot;tsx&quot;, &quot;scripts/paddle_sandbox_sample_product.ts&quot;], env=env).returncode)
+&#x27;
+</code></pre>
+<p>Expected result:</p>
+<ul>
+<li><code>GET /products</code> (<code>200 OK</code>) checks for an existing <code>house_sample_the_quiet_workshop_v1</code> product.</li>
+<li>If absent, <code>POST /products</code> returns <code>201 Created</code> (<code>tax_category</code> starts at <code>GLOBAL.payments.paddle.product_tax_category</code>; if Paddle returns <code>400 Bad Request</code> with <code>product_tax_category_not_approved</code>, the script tries <code>GLOBAL.payments.paddle.sandbox_tax_category_fallbacks</code>).</li>
+<li><code>POST /prices</code> returns <code>201 Created</code> (or reuses the existing <code>$9.00 USD</code> one-time price).</li>
+<li>Readbacks <code>GET /products/&lt;pro_id&gt;</code> and <code>GET /prices/&lt;pri_id&gt;</code> return <code>200 OK</code>.</li>
+</ul>
+<h2>4. Step 2 — Run the Hermetic Offline Playwright Suite</h2>
+<p>With <code>E2E_PADDLE_SANDBOX</code> unset, <code>web/e2e/paddle-sandbox-overlay.spec.ts</code> skips cleanly and all offline specs run against <code>web/e2e/mock-supabase.ts</code>:</p>
+<pre><code>
+E2E_MOCK_PORT=54429 E2E_FIRMA_TLS_PORT=54430 E2E_APP_PORT=3111 pnpm --dir web test:e2e
+</code></pre>
+<h2>5. Step 3 — Run the Live Sandbox Option A E2E Spec</h2>
+<p>Use isolated ports if another worktree owns <code>3100</code>/<code>54399</code>/<code>54400</code>:</p>
+<ul>
+<li>Fetch the active <code>test_*</code> client token in memory from <code>https://sandbox-api.paddle.com/client-tokens?status=active</code>.</li>
+<li>Write <code>data/settings/global.json</code> (<code>{&quot;payments&quot;:{&quot;sandbox_checkout_enabled&quot;:true}}</code>).</li>
+<li>Run:</li>
+</ul>
+<p>   <code>E2E_PADDLE_SANDBOX=1</code> <code>E2E_PADDLE_SANDBOX_PRICE_ID=&lt;pri_id&gt;</code> <code>E2E_MOCK_PORT=54419</code> <code>E2E_FIRMA_TLS_PORT=54420</code> <code>E2E_APP_PORT=3110</code> <code>pnpm --dir web exec playwright test e2e/paddle-sandbox-overlay.spec.ts</code>.</p>
+<ul>
+<li>Remove <code>data/</code> immediately in a <code>finally</code> block so the worktree stays clean.</li>
+</ul>
+<h3>What the Spec Asserts</h3>
+<ul>
+<li><code>GET /checkout/&lt;sandboxSampleProductId&gt;</code> returns <code>200 OK</code> and displays <code>&quot;The Quiet Workshop (Sample)&quot;</code>, <code>&quot;$9.00&quot;</code>, <code>&quot;USD · one-time&quot;</code>, <code>&quot;Merchant of Record&quot;</code>, and the <code>2 minutes</code> / <code>1 hour</code> / <code>support@expanpress.com</code> consent text.</li>
+<li>Submitting <code>BuyerEmailStep</code> sends <code>POST /api/billing/checkout</code> and receives <code>200 OK</code> <code>{ ok: true, kind: &quot;paddle_overlay&quot;, payload }</code>.</li>
+<li>Paddle.js opens the sandbox overlay iframe; the spec completes payment using Paddle&#x27;s published test card (<code>4242 4242 4242 4242</code>, <code>12/35</code>, <code>100</code>, <code>&quot;Test Buyer&quot;</code>, US ZIP <code>10021</code>).</li>
+<li><code>successUrl</code> (<code>https://expanpress.com/books/expanpress_house/thanks</code>) is intercepted locally and asserts the thank-you heading, delivery promise copy, and back link.</li>
+<li>The real <code>txn_*</code> transaction is fetched from <code>sandbox-api.paddle.com</code>, signed with <code>Paddle-Signature</code>, and posted to <code>/api/billing/webhook</code>, returning <code>200 OK</code> <code>{ ok: true }</code>.</li>
+<li><code>/__deliveries</code> confirms the <code>orders</code> row (<code>buyer_email_consent: true</code>, <code>amount_usd</code> matching total cents), 1 captured local Resend email (no outbound send), and 1 captured Dub target URL (<code>/books/d/&lt;token&gt;</code>).</li>
+<li><code>HEAD /books/d/&lt;token&gt;</code> returns <code>200 OK</code>; <code>GET /books/d/&lt;token&gt;</code> returns <code>302 Found</code> to the signed PDF URL; fetching that URL returns <code>200 OK</code> (<code>application/pdf</code>, <code>%PDF-</code>), and <code>download_events</code> logs <code>link_issued</code> followed by <code>download_completed</code>.</li>
+</ul>
+</body>
+</html>

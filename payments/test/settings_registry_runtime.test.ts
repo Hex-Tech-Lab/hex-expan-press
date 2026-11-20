@@ -19,6 +19,8 @@ describe("settings registry: payments section", () => {
     expect(p.paddle.api_base.production).toBe("https://api.paddle.com");
     expect(p.paddle.api_base.sandbox).toBe("https://sandbox-api.paddle.com");
     expect(p.paddle.js_cdn_url).toMatch(/^https:\/\/cdn\.paddle\.com\//);
+    expect(p.paddle.sandbox_api_key_env).toBe("PADDLE_SANDBOX_API_KEY");
+    expect(p.paddle.product_tax_category).toBe("ebooks");
   });
 
   it("honours valid registry values", () => {

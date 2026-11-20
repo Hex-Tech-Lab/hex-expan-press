@@ -2,6 +2,11 @@ import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+export interface BookPrice {
+  usd: number;
+  currency: string;
+}
+
 export interface BookIdentity {
   id: string;
   title: string;
@@ -13,7 +18,7 @@ export interface BookIdentity {
   product_id?: string;
   product_slug?: string;
   store_product_id?: string;
-  price?: { usd: number; currency: string };
+  price?: BookPrice;
   cover_image?: string | null;
   preview_pdf?: string | null;
   release_pdf?: string;
@@ -74,11 +79,19 @@ export function loadBookIdentity(bookFile: string = defaultBookFile): BookIdenti
   if (typeof b.release_bytes === "number" && Number.isInteger(b.release_bytes) && b.release_bytes > 0) {
     out.release_bytes = b.release_bytes;
   }
-  if (b.price && typeof b.price === "object" && !Array.isArray(b.price)) {
-    const p = b.price as Record<string, unknown>;
-    if (typeof p.usd === "number" && Number.isFinite(p.usd) && p.usd > 0 && typeof p.currency === "string" && p.currency.trim() !== "") {
-      out.price = { usd: p.usd, currency: p.currency.trim().toUpperCase() };
+  if ("price" in b && b.price !== undefined) {
+    if (typeof b.price !== "object" || b.price === null || Array.isArray(b.price)) {
+      throw new Error(`book_identity: ${bookFile} "price" must be an object`);
     }
+    const p = b.price as Record<string, unknown>;
+    if (typeof p.usd !== "number" || !Number.isFinite(p.usd) || p.usd <= 0) {
+      throw new Error(`book_identity: ${bookFile} "price.usd" must be a positive finite number`);
+    }
+    const currency = needNonEmpty(p.currency, "price.currency", bookFile).toUpperCase();
+    if (!/^[A-Z]{3}$/.test(currency)) {
+      throw new Error(`book_identity: ${bookFile} "price.currency" must be a 3-letter ISO currency code`);
+    }
+    out.price = { usd: p.usd, currency };
   }
   if ("cover_image" in b && (b.cover_image === null || typeof b.cover_image === "string")) {
     out.cover_image = b.cover_image;

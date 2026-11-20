@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { fetchCheckoutProduct } from "../../../../src/components/storefront/storefront";
 import { ATTRIBUTION_KEYS } from "../../../../src/lib/attribution";
 import { GLOBAL } from "../../../../../payments/src/settings_registry";
+import * as checkoutHelpers from "../../../api/billing/checkout/checkout-helpers";
 import CheckoutPage from "../page";
 
 // Money-path branches of the pay-domain checkout page: a live product renders the single-hop
@@ -228,5 +229,38 @@ describe("checkout page: Paddle Option A client config, MoR provider line, and h
     const creatorHtml = renderToStaticMarkup(await render("p1"));
     expect(stripTags(creatorHtml)).toContain("A creator-collaboration publication with Ada");
     expect(stripTags(creatorHtml)).not.toContain("publication · with");
+  });
+
+  it("sandbox product stays gated by default and opens BuyerEmailStep with sandbox paddleClient when sandboxAllowed() is true", async () => {
+    const o = GLOBAL.payments.paddle.overlay;
+    vi.stubEnv(o.client_token_env, "test_tok_123");
+    vi.stubEnv(o.environment_env, "sandbox");
+    vi.stubEnv("NODE_ENV", "test");
+    vi.mocked(fetchCheckoutProduct).mockResolvedValue(
+      product({ checkout_mode: "sandbox", paddle_price_id: "pri_sdbx_1" }) as never,
+    );
+
+    const closedTree = await render("p1");
+    let closedSteps = 0;
+    let gatedNotices = 0;
+    walk(closedTree as unknown as Node, (el) => {
+      if (el.type === "BuyerEmailStep") closedSteps += 1;
+      if (el.props["data-checkout-mode"] === "gated") gatedNotices += 1;
+    });
+    expect(closedSteps).toBe(0);
+    expect(gatedNotices).toBe(1);
+
+    const spy = vi.spyOn(checkoutHelpers, "sandboxAllowed").mockReturnValue(true);
+    try {
+      const openTree = await render("p1");
+      const openSteps: Array<Record<string, unknown>> = [];
+      walk(openTree as unknown as Node, (el) => {
+        if (el.type === "BuyerEmailStep") openSteps.push(el.props);
+      });
+      expect(openSteps).toHaveLength(1);
+      expect(openSteps[0].paddleClient).toEqual({ token: "test_tok_123", environment: "sandbox" });
+    } finally {
+      spy.mockRestore();
+    }
   });
 });

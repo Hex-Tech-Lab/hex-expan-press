@@ -145,7 +145,14 @@ export interface GlobalSettings {
     review_queue_page_size: number; // listManualReviewRefunds default page/limit
     /** Retry-After seconds sent on 503 webhook responses (in-flight AND generic 503 paths). */
     retry_after_seconds: number;
-    paddle: { api_base: { production: string; sandbox: string }; js_cdn_url: string; overlay: PaddleOverlaySettings };
+    paddle: {
+      api_base: { production: string; sandbox: string };
+      js_cdn_url: string;
+      sandbox_api_key_env: string;
+      product_tax_category: string;
+      sandbox_tax_category_fallbacks: string[];
+      overlay: PaddleOverlaySettings;
+    };
     routing: PaymentRoutingSettings;
     /** Creem TEST mode is accepted only when this is true, creem_test_database_ref is non-empty,
      *  AND new URL(SUPABASE_URL).hostname equals `${creem_test_database_ref}.supabase.co`.
@@ -326,6 +333,9 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     paddle: {
       api_base: { production: "https://api.paddle.com", sandbox: "https://sandbox-api.paddle.com" },
       js_cdn_url: "https://cdn.paddle.com/paddle/v2/paddle.js",
+      sandbox_api_key_env: "PADDLE_SANDBOX_API_KEY",
+      product_tax_category: "ebooks",
+      sandbox_tax_category_fallbacks: ["digital-goods", "standard"],
       overlay: {
         client_token_env: "NEXT_PUBLIC_PADDLE_CLIENT_TOKEN",
         environment_env: "NEXT_PUBLIC_PADDLE_ENVIRONMENT",
@@ -651,6 +661,31 @@ export function loadPaymentsSection(raw: Record<string, unknown> | undefined): G
     (x) => isCanonicalPaddleApiUrl(x, "https://sandbox-api.paddle.com") ? (x as string).replace(/\/+$/, "") : null,
   );
   const jsCdn = paddleUrl(paddle.js_cdn_url, defaults.paddle.js_cdn_url, "paddle.js_cdn_url", (x) => (isPaddleJsCdnUrl(x) ? (x as string) : null));
+  let sandboxApiKeyEnv = defaults.paddle.sandbox_api_key_env;
+  if ("sandbox_api_key_env" in paddle) {
+    if (typeof paddle.sandbox_api_key_env === "string" && /^[A-Z][A-Z0-9_]{0,63}$/.test(paddle.sandbox_api_key_env)) {
+      sandboxApiKeyEnv = paddle.sandbox_api_key_env;
+    } else {
+      fallbacks.push("paddle.sandbox_api_key_env");
+    }
+  }
+  let productTaxCategory = defaults.paddle.product_tax_category;
+  if ("product_tax_category" in paddle) {
+    if (typeof paddle.product_tax_category === "string" && /^[a-z][a-z0-9-]{1,63}$/.test(paddle.product_tax_category)) {
+      productTaxCategory = paddle.product_tax_category;
+    } else {
+      fallbacks.push("paddle.product_tax_category");
+    }
+  }
+  let sandboxTaxCategoryFallbacks = defaults.paddle.sandbox_tax_category_fallbacks;
+  if ("sandbox_tax_category_fallbacks" in paddle) {
+    const rawFallbacks = paddle.sandbox_tax_category_fallbacks;
+    if (Array.isArray(rawFallbacks) && rawFallbacks.every((c) => typeof c === "string" && /^[a-z][a-z0-9-]{1,63}$/.test(c))) {
+      sandboxTaxCategoryFallbacks = rawFallbacks;
+    } else {
+      fallbacks.push("paddle.sandbox_tax_category_fallbacks");
+    }
+  }
   const overlay = loadPaddleOverlay(paddle.overlay as Record<string, unknown> | undefined, fallbacks);
   let currencies = defaults.allowed_currencies;
   if (p.allowed_currencies !== undefined) {
@@ -737,7 +772,14 @@ export function loadPaymentsSection(raw: Record<string, unknown> | undefined): G
     sync_http_timeout_ms: syncHttpTimeout,
     review_queue_page_size: reviewQueuePageSize,
     retry_after_seconds: retryAfterSeconds,
-    paddle: { api_base: { production: apiProduction, sandbox: apiSandbox }, js_cdn_url: jsCdn, overlay },
+    paddle: {
+      api_base: { production: apiProduction, sandbox: apiSandbox },
+      js_cdn_url: jsCdn,
+      sandbox_api_key_env: sandboxApiKeyEnv,
+      product_tax_category: productTaxCategory,
+      sandbox_tax_category_fallbacks: sandboxTaxCategoryFallbacks,
+      overlay,
+    },
     routing,
     creem_accept_test_mode: p.creem_accept_test_mode === true,
     creem_test_database_ref: typeof p.creem_test_database_ref === "string" ? p.creem_test_database_ref.trim() : "",

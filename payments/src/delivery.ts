@@ -630,8 +630,17 @@ export async function createDubShortLink(
 ): Promise<string> {
   const key = process.env.DUB_API_KEY;
   if (!key) throw new Error("DUB_API_KEY is missing — cannot create the download short link");
+  // Non-production loopback override for hermetic/sandbox E2E only; production always calls api.dub.co.
+  let dubBase = "https://api.dub.co";
+  const override = process.env.DUB_API_BASE_URL?.trim();
+  if (override && process.env.NODE_ENV !== "production" && process.env.VERCEL_ENV !== "production") {
+    const parsed = new URL(override);
+    if (parsed.hostname === "127.0.0.1" || parsed.hostname === "localhost") {
+      dubBase = override.replace(/\/+$/, "");
+    }
+  }
   // Bounded by the webhook-internal budget: this call runs while the sale's idempotency lock is held.
-  const res = await fetchImpl("https://api.dub.co/links", {
+  const res = await fetchImpl(`${dubBase}/links`, {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
     body: JSON.stringify({ url: targetUrl, domain: GLOBAL.delivery.short_domain }),
