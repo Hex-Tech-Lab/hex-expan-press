@@ -13,8 +13,8 @@
  * containers (neu-card), peach accents, sans-serif headings (font-sans).
  */
 import { useEffect, useEffectEvent, useRef, useState } from "react";
-import Link from "next/link";
 import { m, useReducedMotion } from "framer-motion";
+import { BrandButton, BrandFooter, BrandFrame, BrandWordmark } from "../../../src/components/brand/brand";
 import { submitReviewAnswerAction } from "./actions";
 import type { ReviewItemView } from "./page";
 import { viewerPageFor } from "../../../src/lib/review-anchor";
@@ -31,6 +31,7 @@ export interface ReviewClientProps {
   saved: Record<string, SavedAnswer>;
   pdfUrl: string | null;
   bookTitle: string;
+  supportEmail?: string;
 }
 
 type PdfDoc = {
@@ -53,7 +54,7 @@ const KIND_LABEL: Record<string, string> = {
   premise: "Premise",
 };
 
-export default function ReviewClient({ items, saved, pdfUrl, bookTitle }: ReviewClientProps) {
+export default function ReviewClient({ items, saved, pdfUrl, bookTitle, supportEmail }: ReviewClientProps) {
   const reduced = useReducedMotion();
 
   const firstOpen = items.findIndex((it) => !saved[it.id]);
@@ -336,259 +337,290 @@ export default function ReviewClient({ items, saved, pdfUrl, bookTitle }: Review
 
   if (allAnswered) {
     return (
-      <div className="mx-auto max-w-[680px] px-5 py-16 text-center">
-        <m.div
-          initial={reduced ? { opacity: 0 } : { opacity: 0, y: 24 }}
-          animate={reduced ? { opacity: 1 } : { opacity: 1, y: 0, transition: { duration: 0.5, ease: EASE } }}
-          className="neu-card rounded-[14px] p-(--space-6)"
-        >
-          <p className="text-[length:var(--font-size-2xs)] font-bold uppercase tracking-[0.08em] text-[#296E50]">Review complete</p>
-          <h1 className="mt-2 font-sans text-[length:var(--text-heading-1-size)] font-bold text-[#2B2520]">Every answer is saved and logged</h1>
-          <p className="mt-3 text-[length:var(--font-size-base)] text-[#6E5F53]">
-            Thank you — your manuscript review is done. Continue to the legal consents to move your book toward release.
-          </p>
-          <Link
-            href="/creator/consents"
-            className="mt-5 inline-flex min-h-11 items-center rounded-[10px] bg-[#2B2520] px-6 text-[length:var(--font-size-base)] font-semibold text-[#FAF7F2] no-underline transition-colors hover:bg-[#3d352d]"
+      <BrandFrame outerClassName="justify-between">
+        <header className="flex items-center justify-between">
+          <BrandWordmark href="/creator/dashboard" label="Creator dashboard" />
+        </header>
+        <main className="mx-auto w-full max-w-[680px] text-center">
+          <m.div
+            initial={reduced ? { opacity: 0 } : { opacity: 0, y: 24 }}
+            animate={reduced ? { opacity: 1 } : { opacity: 1, y: 0, transition: { duration: 0.5, ease: EASE } }}
+            className="neu-card rounded-[32px] p-6 sm:p-8"
           >
-            Continue to consents →
-          </Link>
-        </m.div>
-      </div>
+            <p className="text-[11px] font-mono font-bold uppercase tracking-[0.12em] text-[#296E50]">Review complete</p>
+            <h1 className="mt-2 text-2xl sm:text-3xl font-bold tracking-tight text-gray-900">
+              Every answer is saved and logged
+            </h1>
+            <p className="mt-3 text-base text-gray-700">
+              Thank you — your manuscript review is done. Continue to the legal consents to move your book toward release.
+            </p>
+            <BrandButton href="/creator/consents" className="mt-6 mx-auto">
+              Continue to consents →
+            </BrandButton>
+          </m.div>
+        </main>
+        <BrandFooter>
+          <a href="/privacy.html" className="hover:text-gray-700 transition-colors">Privacy Policy</a>
+          <a href="/terms.html" className="hover:text-gray-700 transition-colors">Terms of Service</a>
+          {supportEmail ? <span>{supportEmail}</span> : null}
+        </BrandFooter>
+      </BrandFrame>
     );
   }
 
   return (
-    <div className="mx-auto max-w-[1100px] px-5 pb-16 pt-10">
-      <p className="mb-1 text-[length:var(--font-size-xs)] font-semibold uppercase tracking-[0.14em] text-[#B3401E]">Creator Portal</p>
-      <h1 className="font-sans text-[length:var(--text-heading-1-size)] font-bold leading-[1.15] text-[#2B2520]">Manuscript review</h1>
-      <p className="mt-1 mb-4 text-[length:var(--font-size-sm)] text-[#6E5F53]">{bookTitle} — confirm quotes and facts, then sign off.</p>
-
-      {/* Progress */}
-      <p className="mb-1 text-[length:var(--font-size-sm)] font-medium text-[#6E5F53]" aria-live="polite">
-        {answeredCount} of {items.length} confirmed
-      </p>
-      <div className="mb-6 h-1.5 w-full overflow-hidden rounded-full bg-[#EADFD1]" aria-hidden>
-        <div
-          className="h-full rounded-full bg-[#E8622C] transition-[width] duration-500"
-          style={{ width: `${items.length ? (answeredCount / items.length) * 100 : 0}%` }}
-        />
-      </div>
-
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[380px_1fr]">
-        {/* Question card */}
-        <m.section
-          initial={reduced ? { opacity: 0 } : { opacity: 0, y: 32 }}
-          animate={reduced ? { opacity: 1 } : { opacity: 1, y: 0, transition: { duration: 0.5, ease: EASE, delay: 0.06 } }}
-          className="neu-card self-start rounded-[14px] p-(--space-5)"
-          aria-label="Review question"
+    <BrandFrame outerClassName="justify-between">
+      <header className="flex flex-wrap items-center justify-between gap-3">
+        <BrandWordmark href="/creator/dashboard" label="Creator dashboard" />
+        <BrandButton
+          variant="secondary"
+          href="/creator/dashboard"
+          data-testid="review-back-to-dashboard"
+          className="min-h-11 px-4 py-2"
         >
-          <div className="mb-2 flex items-center justify-between gap-2">
-            <span className="text-[length:var(--font-size-2xs)] font-bold uppercase tracking-[0.08em] text-[#B3401E]">{item.code}</span>
-            <span className="text-[length:var(--font-size-2xs)] font-semibold text-[#6E5F53]">{KIND_LABEL[item.kind] ?? item.kind}</span>
-          </div>
-          <h2
-            id="review-question-text"
-            ref={questionRef}
-            tabIndex={-1}
-            className="text-[length:var(--font-size-base)] font-medium leading-relaxed text-[#2B2520] rounded-md focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#E8622C]"
-          >
-            {item.question}
-          </h2>
+          ← Back to dashboard
+        </BrandButton>
+      </header>
 
-          {hasBlank && (
-            <p className="mt-3 rounded-lg bg-[#F3ECDF] p-3 text-[length:var(--font-size-sm)] text-[#6E5F53]">
-              Some choices have a blank (<b>____</b>) for a figure. Pick the closest one, then complete it in the <b>Other / the correct fact</b> box below —
-              write amounts in full, e.g. &ldquo;about $12,000 a year, covered by dividends&rdquo;.
-            </p>
-          )}
-          {item.options.length === 0 && !isNoAnswerNeeded && (
-            <p className="mt-3 rounded-lg bg-[#F3ECDF] p-3 text-[length:var(--font-size-sm)] text-[#6E5F53]">
-              This one has <b>no preset choices</b> on purpose — write the actual figure or fact in the box below.
-            </p>
-          )}
-          {isNoAnswerNeeded && (
-            <p className="mt-3 rounded-lg bg-[#F3ECDF] p-3 text-[length:var(--font-size-sm)] text-[#6E5F53]">
-              <b>No answer is needed</b> — the editor already resolved this. Just type <b>OK</b> below to confirm you understand.
-            </p>
-          )}
+      <main className="mx-auto w-full max-w-[1100px]">
+        <p className="mb-2 text-[11px] sm:text-xs font-mono font-medium uppercase tracking-[0.16em] text-gray-600">
+          Creator Portal
+        </p>
+        <h1 className="text-3xl sm:text-4xl font-bold leading-[1.15] tracking-tight text-gray-900">Manuscript review</h1>
+        <p className="mt-2 mb-4 text-sm text-gray-700">{bookTitle} — confirm quotes and facts, then sign off.</p>
 
-          {item.options.length > 0 && (
-            <div
-              className="mt-4 flex flex-col gap-2"
-              role="radiogroup"
-              // AGY audit 3.1 (sprint 12 B2): the group's accessible name is the
-              // QUESTION itself — a screen reader announcing any radio option
-              // must carry the question context, not just the option label.
-              aria-labelledby="review-question-text"
-            >
-              {item.options.map((opt) => (
-                <label
-                  key={opt.key}
-                  className="flex cursor-pointer items-start gap-2.5 rounded-lg border border-[#EADFD1] bg-[#FFFDF9] p-3 text-[length:var(--font-size-sm)] text-[#2B2520] transition-colors has-[:checked]:border-[#E8622C] has-[:checked]:bg-[#FDF1EA]"
-                >
-                  <input
-                    type="radio"
-                    name={`opt-${item.id}`}
-                    value={opt.key}
-                    checked={choice === opt.key}
-                    onChange={() => setChoice(opt.key)}
-                    className="mt-0.5 accent-[#E8622C]"
-                  />
-                  <span>{opt.label}</span>
-                </label>
-              ))}
-            </div>
-          )}
-
-          <label htmlFor="freetext" className="mt-4 block text-[length:var(--font-size-sm)] font-semibold text-[#2B2520]">
-            Other / the correct fact
-          </label>
-          <p className="mt-1 text-[length:var(--font-size-xs)] text-[#6E5F53]">
-            Use this box for anything the choices don&apos;t cover — especially blanks: write the dollar figure and the reason in full.
-          </p>
-          <textarea
-            id="freetext"
-            value={freeText}
-            onChange={(e) => setFreeText(e.target.value)}
-            rows={3}
-            // AGY audit 3.1 (sprint 12 B2): the question heading is the field's
-            // description — tabbing into this textarea announces the question.
-            aria-describedby="review-question-text"
-            className="mt-2 w-full rounded-lg border border-[#EADFD1] bg-[#FFFDF9] p-3 text-[length:var(--font-size-base)] text-[#2B2520] outline-none focus:border-[#E8622C] focus-visible:ring-2 focus-visible:ring-[#B3401E] focus-visible:ring-offset-2 focus-visible:ring-offset-[#FFFDF9]"
-            placeholder="Write the correct fact here…"
+        {/* Progress */}
+        <p className="mb-1 text-sm font-medium text-gray-700" aria-live="polite">
+          {answeredCount} of {items.length} confirmed
+        </p>
+        <div className="mb-6 h-1.5 w-full overflow-hidden rounded-full bg-[#dcc7b4]/50" aria-hidden>
+          <div
+            className="h-full rounded-full bg-[#E8622C] transition-[width] duration-500"
+            style={{ width: `${items.length ? (answeredCount / items.length) * 100 : 0}%` }}
           />
+        </div>
 
-          {error && (
-            <p className="mt-3 text-[length:var(--font-size-sm)] font-medium text-[#B3401E]" role="alert">
-              {error}
-            </p>
-          )}
-          {justSaved && !error && (
-            <p className="mt-3 text-[length:var(--font-size-sm)] text-[#296E50]" aria-live="polite">
-              Saved — you can safely stop here and continue later; your answer is already recorded.
-            </p>
-          )}
-
-          <div className="mt-4 flex items-center justify-between gap-3">
-            <button
-              type="button"
-              onClick={() => index > 0 && showItem(index - 1)}
-              disabled={index === 0 || busy}
-              className="min-h-11 rounded-[10px] border border-[#EADFD1] px-5 text-[length:var(--font-size-sm)] font-semibold text-[#6E5F53] transition-colors hover:bg-[#F3ECDF] disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              ← Back
-            </button>
-            <m.button
-              type="button"
-              onClick={() => void saveAndNext()}
-              disabled={busy}
-              whileTap={reduced ? undefined : { scale: 1.015 }}
-              className="min-h-11 rounded-[10px] bg-[#2B2520] px-6 text-[length:var(--font-size-sm)] font-semibold text-[#FAF7F2] transition-colors hover:bg-[#3d352d] disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {busy ? "Saving…" : "Save & next"}
-            </m.button>
-          </div>
-        </m.section>
-
-        {/* PDF reader */}
-        <m.section
-          initial={reduced ? { opacity: 0 } : { opacity: 0, y: 32 }}
-          animate={reduced ? { opacity: 1 } : { opacity: 1, y: 0, transition: { duration: 0.5, ease: EASE, delay: 0.12 } }}
-          className="neu-card flex min-h-[70vh] flex-col rounded-[14px] p-(--space-5)"
-          aria-label="Book excerpt"
-        >
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <span className="min-w-0 flex-1 truncate text-[length:var(--font-size-xs)] font-bold uppercase tracking-[0.04em] text-[#6E5F53]">
-              The book — review copy
-            </span>
-            <span className="flex items-center gap-1.5">
-              <button
-                type="button"
-                onClick={() => setZoom((z) => Math.max(0.5, +(z - 0.15).toFixed(2)))}
-                aria-label="Zoom out"
-                className="min-h-8 rounded-md border border-[#EADFD1] px-2.5 text-[#6E5F53] transition-colors hover:bg-[#F3ECDF]"
-              >
-                −
-              </button>
-              <button
-                type="button"
-                onClick={() => setZoom(1)}
-                className="min-h-8 rounded-md border border-[#EADFD1] px-2.5 text-[length:var(--font-size-xs)] font-semibold text-[#6E5F53] transition-colors hover:bg-[#F3ECDF]"
-              >
-                Reset
-              </button>
-              <button
-                type="button"
-                onClick={() => setZoom((z) => Math.min(3, +(z + 0.15).toFixed(2)))}
-                aria-label="Zoom in"
-                className="min-h-8 rounded-md border border-[#EADFD1] px-2.5 text-[#6E5F53] transition-colors hover:bg-[#F3ECDF]"
-              >
-                +
-              </button>
-            </span>
-          </div>
-
-          <div className="flex flex-1 items-center justify-center overflow-auto rounded-xl bg-[#FFFDF9] p-3">
-            {!pdfUrl ? (
-              <p className="max-w-[420px] text-center text-[length:var(--font-size-sm)] text-[#6E5F53]">
-                No review PDF was attached to your product yet. You can still answer from the questions shown.
-              </p>
-            ) : viewerError ? (
-              <p className="max-w-[420px] text-center text-[length:var(--font-size-sm)] text-[#B3401E]">{viewerError}</p>
-            ) : !viewerReady ? (
-              <p className="text-[length:var(--font-size-sm)] text-[#6E5F53]">Loading the book…</p>
-            ) : (
-              <>
-                <canvas
-                  ref={canvasRef}
-                  role="img"
-                  aria-label={`Book page ${printed(page)} of ${printed(total)}, shown for question ${item.code}`}
-                  aria-describedby="review-page-text review-question-text"
-                  className="max-w-full rounded-lg shadow-[0_2px_10px_rgba(43,37,32,0.08)]"
-                />
-                <div id="review-page-text" className="sr-only">
-                  {pageText?.page !== page
-                    ? `Loading the text of book page ${printed(page)}…`
-                    : pageText.text
-                      ? `Text of book page ${printed(page)}: ${pageText.text}`
-                      : `Book page ${printed(page)} has no extractable text.`}
-                </div>
-              </>
-            )}
-          </div>
-
-          {anchorNotice && (
-            <p role="status" className="mt-3 text-center text-[length:var(--font-size-sm)] text-[#B3401E]">
-              {anchorNotice}
-            </p>
-          )}
-
-          {viewerReady && (
-            <div className="mt-3 flex items-center justify-center gap-3">
-              <button
-                type="button"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                disabled={page <= 1}
-                className="min-h-9 rounded-md border border-[#EADFD1] px-3 text-[length:var(--font-size-sm)] font-semibold text-[#6E5F53] transition-colors hover:bg-[#F3ECDF] disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                ‹ Prev
-              </button>
-              <span className="text-[length:var(--font-size-sm)] text-[#6E5F53]">
-                book page <b className="text-[#2B2520]">{printed(page)}</b> of <span>{printed(total)}</span>
-              </span>
-              <button
-                type="button"
-                onClick={() => setPage((p) => Math.min(total, p + 1))}
-                disabled={page >= total}
-                className="min-h-9 rounded-md border border-[#EADFD1] px-3 text-[length:var(--font-size-sm)] font-semibold text-[#6E5F53] transition-colors hover:bg-[#F3ECDF] disabled:cursor-not-allowed disabled:opacity-40"
-              >
-                Next ›
-              </button>
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-[380px_1fr]">
+          {/* Question card */}
+          <m.section
+            initial={reduced ? { opacity: 0 } : { opacity: 0, y: 32 }}
+            animate={reduced ? { opacity: 1 } : { opacity: 1, y: 0, transition: { duration: 0.5, ease: EASE, delay: 0.06 } }}
+            className="neu-card self-start rounded-[32px] p-6"
+            aria-label="Review question"
+          >
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <span className="text-[11px] font-mono font-bold uppercase tracking-[0.12em] text-[#b3401e]">{item.code}</span>
+              <span className="text-xs font-semibold text-gray-600">{KIND_LABEL[item.kind] ?? item.kind}</span>
             </div>
-          )}
-        </m.section>
-      </div>
-    </div>
+            <h2
+              id="review-question-text"
+              ref={questionRef}
+              tabIndex={-1}
+              className="text-base font-medium leading-relaxed text-gray-900 rounded-md focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#E8622C]"
+            >
+              {item.question}
+            </h2>
+
+            {hasBlank && (
+              <p className="mt-3 rounded-2xl bg-[#fff2e4]/60 p-3 text-sm text-gray-700">
+                Some choices have a blank (<b>____</b>) for a figure. Pick the closest one, then complete it in the <b>Other / the correct fact</b> box below —
+                write amounts in full, e.g. &ldquo;about $12,000 a year, covered by dividends&rdquo;.
+              </p>
+            )}
+            {item.options.length === 0 && !isNoAnswerNeeded && (
+              <p className="mt-3 rounded-2xl bg-[#fff2e4]/60 p-3 text-sm text-gray-700">
+                This one has <b>no preset choices</b> on purpose — write the actual figure or fact in the box below.
+              </p>
+            )}
+            {isNoAnswerNeeded && (
+              <p className="mt-3 rounded-2xl bg-[#fff2e4]/60 p-3 text-sm text-gray-700">
+                <b>No answer is needed</b> — the editor already resolved this. Just type <b>OK</b> below to confirm you understand.
+              </p>
+            )}
+
+            {item.options.length > 0 && (
+              <div
+                className="mt-4 flex flex-col gap-2"
+                role="radiogroup"
+                aria-labelledby="review-question-text"
+              >
+                {item.options.map((opt) => (
+                  <label
+                    key={opt.key}
+                    className="flex cursor-pointer items-start gap-2.5 rounded-2xl border border-[#dcc7b4] bg-white p-3 text-sm text-gray-900 transition-colors has-[:checked]:border-[#E8622C] has-[:checked]:bg-[#fff2e4]/60"
+                  >
+                    <input
+                      type="radio"
+                      name={`opt-${item.id}`}
+                      value={opt.key}
+                      checked={choice === opt.key}
+                      onChange={() => setChoice(opt.key)}
+                      className="mt-0.5 accent-[#E8622C]"
+                    />
+                    <span>{opt.label}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+
+            <label htmlFor="freetext" className="mt-4 block text-sm font-semibold text-gray-900">
+              Other / the correct fact
+            </label>
+            <p className="mt-1 text-xs text-gray-600">
+              Use this box for anything the choices don&apos;t cover — especially blanks: write the dollar figure and the reason in full.
+            </p>
+            <textarea
+              id="freetext"
+              value={freeText}
+              onChange={(e) => setFreeText(e.target.value)}
+              rows={3}
+              aria-describedby="review-question-text"
+              className="mt-2 w-full rounded-2xl border border-[#dcc7b4] bg-white px-4 py-3 text-base text-gray-900 placeholder:text-gray-500 hover:border-[#bfa48b] transition-colors focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#E8622C]"
+              placeholder="Write the correct fact here…"
+            />
+
+            {error && (
+              <p className="mt-3 text-sm font-medium text-[#b3401e]" role="alert">
+                {error}
+              </p>
+            )}
+            {justSaved && !error && (
+              <p className="mt-3 text-sm text-[#296E50]" aria-live="polite">
+                Saved — you can safely stop here and continue later; your answer is already recorded.
+              </p>
+            )}
+
+            <div className="mt-4 flex items-center justify-between gap-3">
+              <BrandButton
+                variant="secondary"
+                type="button"
+                onClick={() => index > 0 && showItem(index - 1)}
+                disabled={index === 0 || busy}
+                className="min-h-11 px-5"
+              >
+                ← Back
+              </BrandButton>
+              <BrandButton
+                type="button"
+                onClick={() => void saveAndNext()}
+                disabled={busy}
+                className="min-h-11 self-auto px-6"
+              >
+                {busy ? "Saving…" : "Save & next"}
+              </BrandButton>
+            </div>
+          </m.section>
+
+          {/* PDF reader */}
+          <m.section
+            initial={reduced ? { opacity: 0 } : { opacity: 0, y: 32 }}
+            animate={reduced ? { opacity: 1 } : { opacity: 1, y: 0, transition: { duration: 0.5, ease: EASE, delay: 0.12 } }}
+            className="neu-card flex min-h-[70vh] flex-col rounded-[32px] p-6"
+            aria-label="Book excerpt"
+          >
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <span className="min-w-0 flex-1 truncate text-xs font-mono font-semibold uppercase tracking-[0.08em] text-gray-600">
+                The book — review copy
+              </span>
+              <span className="flex items-center gap-1.5">
+                <BrandButton
+                  variant="secondary"
+                  type="button"
+                  onClick={() => setZoom((z) => Math.max(0.5, +(z - 0.15).toFixed(2)))}
+                  aria-label="Zoom out"
+                  className="min-h-8 px-2.5 py-1"
+                >
+                  −
+                </BrandButton>
+                <BrandButton
+                  variant="secondary"
+                  type="button"
+                  onClick={() => setZoom(1)}
+                  className="min-h-8 px-2.5 py-1 text-xs"
+                >
+                  Reset
+                </BrandButton>
+                <BrandButton
+                  variant="secondary"
+                  type="button"
+                  onClick={() => setZoom((z) => Math.min(3, +(z + 0.15).toFixed(2)))}
+                  aria-label="Zoom in"
+                  className="min-h-8 px-2.5 py-1"
+                >
+                  +
+                </BrandButton>
+              </span>
+            </div>
+
+            <div className="flex flex-1 items-center justify-center overflow-auto rounded-2xl bg-white/80 p-3">
+              {!pdfUrl ? (
+                <p className="max-w-[420px] text-center text-sm text-gray-600">
+                  No review PDF was attached to your product yet. You can still answer from the questions shown.
+                </p>
+              ) : viewerError ? (
+                <p className="max-w-[420px] text-center text-sm text-[#b3401e]">{viewerError}</p>
+              ) : !viewerReady ? (
+                <p className="text-sm text-gray-600">Loading the book…</p>
+              ) : (
+                <>
+                  <canvas
+                    ref={canvasRef}
+                    role="img"
+                    aria-label={`Book page ${printed(page)} of ${printed(total)}, shown for question ${item.code}`}
+                    aria-describedby="review-page-text review-question-text"
+                    className="max-w-full rounded-lg shadow-[0_2px_10px_rgba(43,37,32,0.08)]"
+                  />
+                  <div id="review-page-text" className="sr-only">
+                    {pageText?.page !== page
+                      ? `Loading the text of book page ${printed(page)}…`
+                      : pageText.text
+                        ? `Text of book page ${printed(page)}: ${pageText.text}`
+                        : `Book page ${printed(page)} has no extractable text.`}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {anchorNotice && (
+              <p role="status" className="mt-3 text-center text-sm text-[#b3401e]">
+                {anchorNotice}
+              </p>
+            )}
+
+            {viewerReady && (
+              <div className="mt-3 flex items-center justify-center gap-3">
+                <BrandButton
+                  variant="secondary"
+                  type="button"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page <= 1}
+                  className="min-h-9 px-3 py-1"
+                >
+                  ‹ Prev
+                </BrandButton>
+                <span className="text-sm text-gray-600">
+                  book page <b className="text-gray-900">{printed(page)}</b> of <span>{printed(total)}</span>
+                </span>
+                <BrandButton
+                  variant="secondary"
+                  type="button"
+                  onClick={() => setPage((p) => Math.min(total, p + 1))}
+                  disabled={page >= total}
+                  className="min-h-9 px-3 py-1"
+                >
+                  Next ›
+                </BrandButton>
+              </div>
+            )}
+          </m.section>
+        </div>
+      </main>
+
+      <BrandFooter>
+        <a href="/privacy.html" className="hover:text-gray-700 transition-colors">Privacy Policy</a>
+        <a href="/terms.html" className="hover:text-gray-700 transition-colors">Terms of Service</a>
+        {supportEmail ? <span>{supportEmail}</span> : null}
+      </BrandFooter>
+    </BrandFrame>
   );
 }

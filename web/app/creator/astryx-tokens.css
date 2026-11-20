@@ -2,6 +2,13 @@
    build-time extraction; regenerate via scripts/extract_astryx_tokens.mjs.
    Consumed by the creator portal via Tailwind v4 var syntax. */
 :root {
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
   --font-size-4xs: 0.375rem;
   --font-size-3xs: 0.4375rem;
   --font-size-2xs: 0.5rem;

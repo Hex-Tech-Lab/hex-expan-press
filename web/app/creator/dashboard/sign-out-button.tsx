@@ -8,6 +8,7 @@
  */
 import { useState } from "react";
 import { Icon } from "@iconify/react";
+import { BrandButton } from "../../../src/components/brand/brand";
 import { signOutAction } from "./actions";
 
 export default function SignOutButton({ iconsReady }: { iconsReady: boolean }) {
@@ -29,17 +30,18 @@ export default function SignOutButton({ iconsReady }: { iconsReady: boolean }) {
 
   return (
     <div className="flex flex-wrap items-center gap-3">
-      <button
+      <BrandButton
+        variant="secondary"
         type="button"
         onClick={handleSignOut}
         disabled={busy}
-        className="inline-flex items-center gap-2 rounded-lg border border-[#EADFD1] px-4 py-2 text-[length:var(--font-size-sm)] font-semibold text-[#6E5F53] transition-colors hover:bg-[#F3ECDF] hover:text-[#2B2520] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-[#E8622C] disabled:opacity-60"
+        className="px-4 py-2"
       >
         {iconsReady && <Icon icon="lucide:log-out" width={16} height={16} aria-hidden />}
         {busy ? "Signing out…" : "Sign out"}
-      </button>
+      </BrandButton>
       {error && (
-        <span role="alert" className="text-[length:var(--font-size-sm)] font-medium text-[#B3401E]">
+        <span role="alert" className="text-sm font-medium text-[#B3401E]">
           {error}
         </span>
       )}

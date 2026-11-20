@@ -1,3 +1,4 @@
+import { GLOBAL } from "../../../../payments/src/settings_registry";
 import { readMarketingOptIn } from "../../../src/lib/marketing-optin";
 import SignInClient from "./signin-client";
 import type { Metadata } from "next";
@@ -18,15 +19,16 @@ function firstValue(value: string | string[] | undefined): string | undefined {
 export default async function SignInPage({ searchParams }: SignInPageProps) {
   const params = await searchParams;
   const optinCookie = await readMarketingOptIn();
+  const supportEmail = GLOBAL.email.support;
 
   if (firstValue(params.sent) === "1") {
-    return <SignInClient mode="sent" optinDefault={optinCookie ?? false} />;
+    return <SignInClient mode="sent" optinDefault={optinCookie ?? false} supportEmail={supportEmail} />;
   }
   if (firstValue(params.error) === "invalid_email") {
-    return <SignInClient mode="error" message="Please enter a valid email address." optinDefault={optinCookie ?? false} />;
+    return <SignInClient mode="error" message="Please enter a valid email address." optinDefault={optinCookie ?? false} supportEmail={supportEmail} />;
   }
   if (firstValue(params.error) === "otp") {
-    return <SignInClient mode="error" message="Could not send the email. Please try again." optinDefault={optinCookie ?? false} />;
+    return <SignInClient mode="error" message="Could not send the email. Please try again." optinDefault={optinCookie ?? false} supportEmail={supportEmail} />;
   }
   if (firstValue(params.error) === "rate_limited") {
     return (
@@ -34,6 +36,7 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
         mode="error"
         message="Too many sign-in emails were requested. Please wait a minute and try again."
         optinDefault={optinCookie ?? false}
+        supportEmail={supportEmail}
       />
     );
   }
@@ -43,6 +46,7 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
         mode="error"
         message="Google sign-in could not start. Please try again, or use the email link below."
         optinDefault={optinCookie ?? false}
+        supportEmail={supportEmail}
       />
     );
   }
@@ -52,8 +56,9 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
         mode="error"
         message="Sign-in link expired or was already used. Please request a new one."
         optinDefault={optinCookie ?? false}
+        supportEmail={supportEmail}
       />
     );
   }
-  return <SignInClient mode="form" optinDefault={optinCookie ?? false} />;
+  return <SignInClient mode="form" optinDefault={optinCookie ?? false} supportEmail={supportEmail} />;
 }

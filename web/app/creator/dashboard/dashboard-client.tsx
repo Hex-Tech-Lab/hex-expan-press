@@ -14,7 +14,9 @@
 import { useEffect, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { AnimatePresence, m, useReducedMotion } from "framer-motion";
-import { Icon, addCollection } from "@iconify/react";
+import { Icon } from "@iconify/react";
+import { BrandFooter, BrandFrame, BrandWordmark } from "../../../src/components/brand/brand";
+import { loadLucideIcons } from "../../../src/lib/iconify-lucide";
 import JourneyDots from "../../../src/components/journey/journey-dots";
 import SignOutButton from "./sign-out-button";
 import { startPublisherAgreementAction } from "./actions";
@@ -51,6 +53,7 @@ export interface DashboardClientProps {
   journeyActive: number;
   /** Dashboard ?error= param from a failed Step 3 Server Action redirect. */
   actionError?: "credits" | "esign" | "no_product" | "load_failed";
+  c2RequiredBanner?: boolean;
 }
 
 function actionErrorCopy(
@@ -93,6 +96,7 @@ export default function DashboardClient({
   hasC3,
   journeyActive,
   actionError,
+  c2RequiredBanner,
 }: DashboardClientProps) {
   const [iconsReady, setIconsReady] = useState(false);
   const reduced = useReducedMotion();
@@ -101,9 +105,7 @@ export default function DashboardClient({
   // main bundle (bundle-* rules); icons resolve right after hydration.
   useEffect(() => {
     let mounted = true;
-    void import("@iconify-json/lucide/icons.json").then((m) => {
-      const data = (m as { default?: object }).default ?? (m as object);
-      addCollection(data as Parameters<typeof addCollection>[0]);
+    void loadLucideIcons().then(() => {
       if (mounted) setIconsReady(true);
     });
     return () => {
@@ -155,171 +157,182 @@ export default function DashboardClient({
   ];
 
   return (
-    <div className="mx-auto max-w-[680px] px-5 pb-16 pt-12">
-      <m.p
-        initial={{ opacity: 0, y: 24 }}
-        animate={{ opacity: 1, y: 0, transition: { duration: 0.5, ease: EASE } }}
-        className="mb-3 text-[length:var(--font-size-xs)] font-semibold uppercase tracking-[0.14em] text-[#B3401E]"
-      >
-        Creator Portal
-      </m.p>
-      <m.h1
-        initial={{ opacity: 0, y: 28 }}
-        animate={{ opacity: 1, y: 0, transition: { duration: 0.5, ease: EASE, delay: 0.06 } }}
-        className="font-sans text-[length:var(--text-heading-1-size)] font-bold leading-[1.15] tracking-[-0.015em] text-[#2B2520]"
-      >
-        Your creator dashboard
-      </m.h1>
+    <BrandFrame outerClassName="justify-between">
+      <header className="flex items-center justify-between">
+        <BrandWordmark href="/" label="ExpanPress home" />
+      </header>
 
-      {/* Publication status badge */}
-      <m.div
-        initial={{ opacity: 0, y: 28 }}
-        animate={{ opacity: 1, y: 0, transition: { duration: 0.5, ease: EASE, delay: 0.12 } }}
-        className="mt-5 mb-6 inline-flex items-center gap-2 rounded-full border border-[#EADFD1] bg-[#F3ECDF] px-3 py-1.5 text-[length:var(--font-size-xs)] font-semibold text-[#6E5F53]"
-        role="status"
-      >
-        <m.span
-          aria-hidden
-          className="h-2 w-2 rounded-full"
-          style={{ background: hasC3 ? "#2E7D5B" : "#E8622C" }}
-          animate={{ scale: [1, 1.3, 1], opacity: [1, 0.7, 1] }}
-          transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
-        />
-        <span>{hasC3 ? "Publication Status: Agreement Signed — Ready for Release" : "Publication Status: Pending Review & Release"}</span>
-      </m.div>
+      <main className="mx-auto w-full max-w-[680px]">
+        {c2RequiredBanner && (
+          <p
+            className="mb-4 rounded-2xl border border-[#dcc7b4] bg-[#fff2e4]/60 p-4 text-sm font-medium text-[#8A4B2D]"
+            role="alert"
+          >
+            Please approve the release (step 2) before signing the publisher agreement.
+          </p>
+        )}
 
-      {/* Account card */}
-      <m.section
-        initial={{ opacity: 0, y: 32 }}
-        animate={{ opacity: 1, y: 0, transition: { duration: 0.5, ease: EASE, delay: 0.18 } }}
-        className="neu-card mb-5 rounded-[14px] p-(--space-5)"
-        aria-label="Account"
-      >
-        <p className="text-[length:var(--font-size-base)] text-[#2B2520]">
-          Signed in as <b className="font-semibold">{name}</b>
-        </p>
-        <p className="mt-1 mb-4 text-[length:var(--font-size-sm)] text-[#6E5F53]">{email}</p>
-        <SignOutButton iconsReady={iconsReady} />
-      </m.section>
-
-      {/* Journey tracker — the creator's live status bar (Wave 4) */}
-      <m.section
-        initial={{ opacity: 0, y: 32 }}
-        animate={{ opacity: 1, y: 0, transition: { duration: 0.5, ease: EASE, delay: 0.24 } }}
-        className="neu-card mb-7 rounded-[14px] p-(--space-5)"
-        aria-label="Your journey"
-      >
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <p className="text-[length:var(--font-size-2xs)] font-bold uppercase tracking-[0.08em] text-[#B3401E]">Your journey</p>
-            <p className="mt-0.5 text-[length:var(--font-size-sm)] font-medium text-[#6E5F53]">
-              {JOURNEY_LABELS[journeyActive]} — you are here
-            </p>
-          </div>
-          <JourneyDots active={journeyActive} reduced={Boolean(reduced)} className="shrink-0" />
-        </div>
-      </m.section>
-
-      <m.h2
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1, transition: { duration: 0.4, ease: EASE, delay: 0.3 } }}
-        className="mb-4 mt-7 font-sans text-[length:var(--text-heading-2-size)] font-bold text-[#2B2520]"
-      >
-        Required Release Steps
-      </m.h2>
-
-      {/* Staggered spring entrance for the step cards (Wave 4 mandate).
-          Pending Step 3 (Wave 6) renders as a Server-Action form — the card
-          is the submit button (320/12 paper wobble on press); the consents
-          page stays reachable as a secondary "review documents" link, since
-          a link cannot live inside a button. */}
-      {actionError && (
         <m.p
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0, transition: { duration: 0.4, ease: EASE } }}
-          className="mb-3.5 rounded-xl border border-[#EADFD1] bg-[#F3ECDF] p-(--space-4) text-[length:var(--font-size-sm)] font-medium text-[#8A4B2D]"
-          role="alert"
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0, transition: { duration: 0.5, ease: EASE } }}
+          className="mb-2 text-[11px] sm:text-xs font-mono font-medium uppercase tracking-[0.16em] text-gray-600"
         >
-          {actionErrorCopy(actionError, supportEmail)}
+          Creator Portal
         </m.p>
-      )}
-      <AnimatePresence>
-        {steps.map((step, i) => {
-          const body = (
-            <>
-              <div className="mb-2.5 flex items-center justify-between">
-                <span className="text-[length:var(--font-size-2xs)] font-bold uppercase tracking-[0.08em] text-[#B3401E]">
-                  {step.num}
-                </span>
-                <span
-                  className="inline-flex items-center gap-1.5 text-[length:var(--font-size-2xs)] font-semibold"
-                  style={{ color: step.done ? "#2E7D5B" : "#6E5F53" }}
-                >
-                  {iconsReady && (
-                    <Icon icon={step.done ? "lucide:check-circle" : step.icon} width={14} height={14} aria-hidden />
-                  )}
-                  {step.status}
-                </span>
-              </div>
-              <p className="font-sans text-[length:var(--text-heading-3-size)] font-bold text-[#2B2520]">{step.title}</p>
-              <p className="mt-1 text-[length:var(--font-size-sm)] leading-relaxed text-[#6E5F53]">{step.desc}</p>
-              <p className="mt-2 inline-flex items-center gap-1 text-[length:var(--font-size-sm)] font-semibold text-[#296E50]">
-                {step.cta}
-              </p>
-            </>
-          );
+        <m.h1
+          initial={{ opacity: 0, y: 28 }}
+          animate={{ opacity: 1, y: 0, transition: { duration: 0.5, ease: EASE, delay: 0.06 } }}
+          className="text-3xl sm:text-4xl font-bold leading-[1.15] tracking-tight text-gray-900"
+        >
+          Your creator dashboard
+        </m.h1>
 
-          if (i === 2 && !step.done) {
+        {/* Publication status badge */}
+        <m.div
+          initial={{ opacity: 0, y: 28 }}
+          animate={{ opacity: 1, y: 0, transition: { duration: 0.5, ease: EASE, delay: 0.12 } }}
+          className="mt-5 mb-6 inline-flex items-center gap-2 rounded-full border border-[#dcc7b4] bg-white/80 px-3.5 py-1.5 text-xs font-semibold text-gray-700"
+          role="status"
+        >
+          <m.span
+            aria-hidden
+            className="h-2 w-2 rounded-full"
+            style={{ background: hasC3 ? "#2E7D5B" : "#E8622C" }}
+            animate={{ scale: [1, 1.3, 1], opacity: [1, 0.7, 1] }}
+            transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
+          />
+          <span>{hasC3 ? "Publication Status: Agreement Signed — Ready for Release" : "Publication Status: Pending Review & Release"}</span>
+        </m.div>
+
+        {/* Account card */}
+        <m.section
+          initial={{ opacity: 0, y: 32 }}
+          animate={{ opacity: 1, y: 0, transition: { duration: 0.5, ease: EASE, delay: 0.18 } }}
+          className="neu-card mb-5 rounded-[32px] p-6"
+          aria-label="Account"
+        >
+          <p className="text-base text-gray-900">
+            Signed in as <b className="font-semibold">{name}</b>
+          </p>
+          <p className="mt-1 mb-4 text-sm text-gray-600">{email}</p>
+          <SignOutButton iconsReady={iconsReady} />
+        </m.section>
+
+        {/* Journey tracker — the creator's live status bar (Wave 4) */}
+        <m.section
+          initial={{ opacity: 0, y: 32 }}
+          animate={{ opacity: 1, y: 0, transition: { duration: 0.5, ease: EASE, delay: 0.24 } }}
+          className="neu-card mb-7 rounded-[32px] p-6"
+          aria-label="Your journey"
+        >
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-[11px] font-mono font-bold uppercase tracking-[0.12em] text-[#b3401e]">Your journey</p>
+              <p className="mt-0.5 text-sm font-medium text-gray-700">
+                {JOURNEY_LABELS[journeyActive]} — you are here
+              </p>
+            </div>
+            <JourneyDots active={journeyActive} reduced={Boolean(reduced)} className="shrink-0" />
+          </div>
+        </m.section>
+
+        <m.h2
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1, transition: { duration: 0.4, ease: EASE, delay: 0.3 } }}
+          className="mb-4 mt-7 text-xl sm:text-2xl font-bold tracking-tight text-gray-900"
+        >
+          Required Release Steps
+        </m.h2>
+
+        {/* Staggered spring entrance for the step cards (Wave 4 mandate).
+            Pending Step 3 (Wave 6) renders as a Server-Action form — the card
+            is the submit button (320/12 paper wobble on press); the consents
+            page stays reachable as a secondary "review documents" link, since
+            a link cannot live inside a button. */}
+        {actionError && (
+          <m.p
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0, transition: { duration: 0.4, ease: EASE } }}
+            className="mb-3.5 rounded-2xl border border-[#dcc7b4] bg-[#fff2e4]/60 p-4 text-sm font-medium text-[#8A4B2D]"
+            role="alert"
+          >
+            {actionErrorCopy(actionError, supportEmail)}
+          </m.p>
+        )}
+        <AnimatePresence>
+          {steps.map((step, idx) => {
+            const body = (
+              <>
+                <div className="mb-2.5 flex items-center justify-between">
+                  <span className="text-[11px] font-mono font-bold uppercase tracking-[0.12em] text-[#b3401e]">
+                    {step.num}
+                  </span>
+                  <span
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold"
+                    style={{ color: step.done ? "#2E7D5B" : "#4b5563" }}
+                  >
+                    {iconsReady && (
+                      <Icon icon={step.done ? "lucide:check-circle" : step.icon} width={14} height={14} aria-hidden />
+                    )}
+                    {step.status}
+                  </span>
+                </div>
+                <p className="text-lg font-bold text-gray-900">{step.title}</p>
+                <p className="mt-1 text-sm leading-relaxed text-gray-700">{step.desc}</p>
+                <p className="mt-2.5 inline-flex items-center gap-1 text-sm font-semibold text-[#296E50]">
+                  {step.cta}
+                </p>
+              </>
+            );
+
+            if (idx === 2 && !step.done) {
+              return (
+                <m.form
+                  key={step.num}
+                  action={startPublisherAgreementAction}
+                  initial={{ opacity: 0, y: 40, scale: 0.97 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.5, ease: EASE, delay: 0.34 + idx * 0.09 }}
+                  className="neu-card mb-4 block rounded-[32px] p-6 transition-shadow hover:shadow-[0_4px_12px_rgba(43,37,32,0.05)]"
+                >
+                  <Step3SubmitButton>{body}</Step3SubmitButton>
+                  <a
+                    href={step.href}
+                    className="mt-2 inline-flex items-center gap-1 text-sm text-gray-600 no-underline hover:text-gray-900 hover:underline"
+                  >
+                    Review documents first →
+                  </a>
+                </m.form>
+              );
+            }
+
             return (
-              <m.form
+              <m.a
                 key={step.num}
-                action={startPublisherAgreementAction}
+                href={step.done && idx === 2 ? undefined : step.href}
                 initial={{ opacity: 0, y: 40, scale: 0.97 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0 }}
-                transition={{ duration: 0.5, ease: EASE, delay: 0.34 + i * 0.09 }}
-                className="neu-card mb-3.5 block rounded-xl p-(--space-5) transition-shadow hover:shadow-[0_4px_12px_rgba(43,37,32,0.05)]"
+                transition={{ duration: 0.5, ease: EASE, delay: 0.34 + idx * 0.09 }}
+                whileTap={{ scale: 1.01, transition: WOBBLE }}
+                aria-disabled={step.done && idx === 2}
+                className={`neu-card mb-4 block rounded-[32px] p-6 no-underline text-inherit transition-shadow ${
+                  step.done ? "hover:shadow-none" : "hover:shadow-[0_4px_12px_rgba(43,37,32,0.05)]"
+                } ${step.done && idx === 2 ? "cursor-default" : ""}`}
               >
-                <Step3SubmitButton>{body}</Step3SubmitButton>
-                <a
-                  href={step.href}
-                  className="mt-2 inline-flex items-center gap-1 text-[length:var(--font-size-sm)] text-[#6E5F53] no-underline hover:underline"
-                >
-                  Review documents first →
-                </a>
-              </m.form>
+                {body}
+              </m.a>
             );
-          }
+          })}
+        </AnimatePresence>
+      </main>
 
-          return (
-            <m.a
-              key={step.num}
-              href={step.done && i === 2 ? undefined : step.href}
-              initial={{ opacity: 0, y: 40, scale: 0.97 }}
-              // Full opacity even when complete: whole-card dimming (was 0.85) dropped the
-              // step text under WCAG AA 4.5:1; the done check icon/label carry the state.
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.5, ease: EASE, delay: 0.34 + i * 0.09 }}
-              whileTap={{ scale: 1.01, transition: WOBBLE }}
-              aria-disabled={step.done && i === 2}
-              className={`neu-card mb-3.5 block rounded-xl p-(--space-5) no-underline text-inherit transition-shadow ${
-                step.done ? "hover:shadow-none" : "hover:shadow-[0_4px_12px_rgba(43,37,32,0.05)]"
-              } ${step.done && i === 2 ? "cursor-default" : ""}`}
-            >
-              {body}
-            </m.a>
-          );
-        })}
-      </AnimatePresence>
-
-      <footer className="mt-9 flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-[#EADFD1] pt-5 text-[length:var(--font-size-sm)] text-[#6E5F53]">
-        <a href="/privacy.html" className="text-[#296E50] no-underline hover:underline">Privacy Policy</a>
-        <a href="/terms.html" className="text-[#296E50] no-underline hover:underline">Terms of Service</a>
-        <span>
-          Support: <a href={`mailto:${supportEmail}`} className="text-[#296E50] hover:underline">{supportEmail}</a>
-        </span>
-      </footer>
-    </div>
+      <BrandFooter>
+        <a href="/privacy.html" className="hover:text-gray-700 transition-colors">Privacy Policy</a>
+        <a href="/terms.html" className="hover:text-gray-700 transition-colors">Terms of Service</a>
+        <a href={`mailto:${supportEmail}`} className="hover:text-gray-700 transition-colors">{supportEmail}</a>
+      </BrandFooter>
+    </BrandFrame>
   );
 }

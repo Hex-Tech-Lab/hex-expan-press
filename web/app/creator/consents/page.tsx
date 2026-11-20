@@ -7,6 +7,7 @@ import { resolvePrimaryProduct } from "../../../src/lib/primary-product";
 import { portalConsentState } from "../../../src/lib/consent-chain";
 import { loadCreatorConsentRows } from "../../../src/lib/creator-consents";
 import { toError } from "../../../src/lib/error-reporting";
+import { BrandButton, BrandFooter, BrandFrame, BrandWordmark } from "../../../src/components/brand/brand";
 import ConsentCards from "./consent-cards";
 
 export const metadata: Metadata = {
@@ -69,21 +70,29 @@ export default async function ConsentsPage() {
       hasC1={state.hasC1}
       hasC2={state.hasC2}
       hasC3={state.hasC3}
+      supportEmail={GLOBAL.email.support}
     />
   );
 }
 
 function ConsentNotice({ title, body }: { title: string; body: string }) {
   return (
-    <div className="mx-auto max-w-[680px] px-5 py-16" role="alert">
-      <h1 className="font-sans text-[length:var(--text-heading-1-size)] font-bold text-[#2B2520]">{title}</h1>
-      <p className="mt-2 text-[length:var(--font-size-base)] text-[#6E5F53]">{body}</p>
-      <a
-        href="/creator/dashboard"
-        className="mt-5 inline-block rounded-lg border border-[#EADFD1] px-4 py-2 text-[length:var(--font-size-sm)] font-semibold text-[#6E5F53] hover:bg-[#F3ECDF]"
-      >
-        Back to dashboard
-      </a>
-    </div>
+    <BrandFrame outerClassName="justify-between">
+      <header className="flex items-center justify-between">
+        <BrandWordmark href="/creator/dashboard" label="Creator dashboard" />
+      </header>
+      <main className="mx-auto w-full max-w-[680px] glass-card card-shadow rounded-[32px] border-[1.5px] border-[#fff2e4] p-6 sm:p-8" role="alert">
+        <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
+        <p className="mt-2 text-base text-gray-700">{body}</p>
+        <BrandButton variant="secondary" href="/creator/dashboard" className="mt-5 px-4 py-2">
+          Back to dashboard
+        </BrandButton>
+      </main>
+      <BrandFooter>
+        <a href="/privacy.html" className="hover:text-gray-700 transition-colors">Privacy Policy</a>
+        <a href="/terms.html" className="hover:text-gray-700 transition-colors">Terms of Service</a>
+        <span>{GLOBAL.email.support}</span>
+      </BrandFooter>
+    </BrandFrame>
   );
 }

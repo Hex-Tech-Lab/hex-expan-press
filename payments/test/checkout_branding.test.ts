@@ -25,7 +25,11 @@ describe("GLOBAL.branding versioned spec", () => {
       button_hover: "#383838",
       button_text: "#FFFFFF",
       border: "#dcc7b4",
+      surface: "#FFFFFF",
+      muted: "#4b5563",
+      subtle: "#6b7280",
     });
+    expect(GLOBAL.branding.email_font_stack).toContain("ui-sans-serif");
     expect(GLOBAL.branding.button_border_radius_px).toBe(24);
   });
 

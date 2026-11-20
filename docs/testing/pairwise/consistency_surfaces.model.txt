@@ -1,0 +1,14 @@
+# PICT pairwise model for consistency-high fixes:
+#   1. Checkout geo-gate (403 Forbidden) & download error landings (404 Not Found / 410 Gone / 500 Internal Server Error)
+#   2. Creator hub bio fallback (house vs external) & delivery email HTML branding
+# Run: /usr/local/bin/pict docs/testing/pairwise/consistency_surfaces.model.txt > docs/testing/pairwise/consistency_surfaces.rows.tsv
+
+checkout_method: GET, HEAD
+checkout_path: page, api
+buyer_country: US, DE, missing
+accept_header: html, json, none
+download_state: invalid_token, missing_row, expired, missing_expiry, valid
+hub_creator_kind: house, external
+hub_has_bio: true, false
+delivery_billing: same, distinct, omitted
+delivery_title: plain, xss

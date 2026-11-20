@@ -77,6 +77,8 @@ export interface BrandCheckoutSettings {
   version: string;
   theme_mode: "light" | "dark";
   font_family: string;
+  /** Font stack for transactional HTML email (buyer delivery). Email clients need system fonts, not web fonts. */
+  email_font_stack: string;
   logo_url: string;
   logo_square_url: string;
   colors: {
@@ -88,6 +90,12 @@ export interface BrandCheckoutSettings {
     button_hover: string;
     button_text: string;
     border: string;
+    /** Email card surface (white card on the canvas). */
+    surface: string;
+    /** Email secondary text (wordmark braces, body detail). */
+    muted: string;
+    /** Email footer text. */
+    subtle: string;
   };
   button_border_radius_px: number;
 }
@@ -170,6 +178,7 @@ export interface GlobalSettings {
     publisher_label: string;
     thanks_path_template: string;
     house_title_note: string;
+    house_creator_bio: string;
     digital_pdf_kicker: string;
     sample_badge_label: string;
     show_non_live_samples: boolean;
@@ -426,6 +435,8 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     publisher_label: STOREFRONT_BRAND,
     thanks_path_template: "/books/{handle}/thanks",
     house_title_note: `House title. Published by ${STOREFRONT_BRAND}. No creator revenue split.`,
+    // founder-approved 2026-11-20 (option A, may revisit before KYC)
+    house_creator_bio: `${STOREFRONT_BRAND} is a done-for-you e-book publisher for creators in every field. Each book is built from the creator's own work, voice and experience. The titles on this page are published by ${STOREFRONT_BRAND} under its own name.`,
     digital_pdf_kicker: "DIGITAL PDF",
     sample_badge_label: "(Sample)",
     show_non_live_samples: true,
@@ -552,8 +563,8 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
   landing: {
     fallbacks: { title: "Product", creator: "the creator" },
     disclaimers: [
-      "This is a digital product (PDF); no physical item will be shipped.",
-      "Educational content only — nothing in this document is financial advice. Do your own research.",
+      "Educational and informational content only. Nothing in these publications is professional advice of any kind, including financial, legal, medical, or tax advice. See each publication's page for its full disclaimer.",
+      "Digital products: all items are downloadable PDFs; no physical items are shipped.",
     ],
   },
   // Buyer delivery (download_events, delivery_sends). The bucket holds release files only, never review copies.
@@ -611,6 +622,7 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     version: "2026-11-v1",
     theme_mode: "light",
     font_family: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+    email_font_stack: "ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif",
     logo_url: "https://expanpress.com/assets/expanpress-logo.svg",
     logo_square_url: "https://expanpress.com/assets/expanpress-logo.webp",
     colors: {
@@ -622,6 +634,9 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
       button_hover: "#383838",
       button_text: "#FFFFFF",
       border: "#dcc7b4",
+      surface: "#FFFFFF",
+      muted: "#4b5563",
+      subtle: "#6b7280",
     },
     button_border_radius_px: 24,
   },
@@ -680,16 +695,16 @@ export const PAYMENTS_LIMITS = {
   retry_after_seconds: { min: 1, max: 600 },
 } as const;
 
-function intInRange(v: unknown, min: number, max: number): v is number {
-  return typeof v === "number" && Number.isInteger(v) && v >= min && v <= max;
+function intInRange(value: unknown, min: number, max: number): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value >= min && value <= max;
 }
 
 // Accepts only the exact canonical Paddle host after stripping trailing slashes.
 // Rejects credentials, non-default port, any path/query/fragment — Bearer tokens
 // must never be sent to another host.
-function isCanonicalPaddleApiUrl(v: unknown, expected: string): v is string {
-  if (typeof v !== "string") return false;
-  const s = v.replace(/\/+$/, "");
+function isCanonicalPaddleApiUrl(value: unknown, expected: string): value is string {
+  if (typeof value !== "string") return false;
+  const s = value.replace(/\/+$/, "");
   if (s !== expected) return false;
   try {
     const u = new URL(s);
@@ -701,8 +716,8 @@ function isCanonicalPaddleApiUrl(v: unknown, expected: string): v is string {
   }
 }
 
-function isPaddleJsCdnUrl(v: unknown): v is string {
-  return v === "https://cdn.paddle.com/paddle/v2/paddle.js";
+function isPaddleJsCdnUrl(value: unknown): value is string {
+  return value === "https://cdn.paddle.com/paddle/v2/paddle.js";
 }
 
 // ISO 4217 codes our providers settle. Membership is explicit — shape checks
@@ -714,10 +729,10 @@ export const SUPPORTED_ISO_4217: ReadonlySet<string> = new Set([
   "PHP", "THB", "TWD", "UAH", "RUB",
 ] as const);
 
-function isHttpsUrl(v: unknown): v is string {
-  if (typeof v !== "string" || !v.startsWith("https://")) return false;
+function isHttpsUrl(value: unknown): value is string {
+  if (typeof value !== "string" || !value.startsWith("https://")) return false;
   try {
-    new URL(v);
+    new URL(value);
     return true;
   } catch {
     return false;
@@ -970,6 +985,7 @@ export function loadStorefrontSection(raw: Record<string, unknown> | undefined):
       | "digital_pdf_kicker"
       | "sample_badge_label"
       | "house_title_note"
+      | "house_creator_bio"
       | "coming_soon_badge"
       | "sample_preview_cta"
       | "browse_books_label"
@@ -1070,6 +1086,7 @@ export function loadStorefrontSection(raw: Record<string, unknown> | undefined):
     publisher_label: brandName,
     thanks_path_template: thanksTpl,
     house_title_note: houseNote,
+    house_creator_bio: strField("house_creator_bio"),
     digital_pdf_kicker: strField("digital_pdf_kicker"),
     sample_badge_label: strField("sample_badge_label"),
     show_non_live_samples: showNonLiveSamples,
@@ -1129,6 +1146,7 @@ export function loadBrandingSection(raw: Record<string, unknown> | undefined): B
     version: str(raw.version, defaults.version, "version"),
     theme_mode: themeMode,
     font_family: str(raw.font_family, defaults.font_family, "font_family"),
+    email_font_stack: str(raw.email_font_stack, defaults.email_font_stack, "email_font_stack"),
     logo_url: httpsVal(raw.logo_url, defaults.logo_url, "logo_url"),
     logo_square_url: httpsVal(raw.logo_square_url, defaults.logo_square_url, "logo_square_url"),
     colors: {
@@ -1140,6 +1158,9 @@ export function loadBrandingSection(raw: Record<string, unknown> | undefined): B
       button_hover: hex("button_hover"),
       button_text: hex("button_text"),
       border: hex("border"),
+      surface: hex("surface"),
+      muted: hex("muted"),
+      subtle: hex("subtle"),
     },
     button_border_radius_px: radius,
   };

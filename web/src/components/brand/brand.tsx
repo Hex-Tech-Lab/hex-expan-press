@@ -36,6 +36,20 @@ export function BrandWordmark({ href, label }: { href: string; label?: string })
   );
 }
 
+/** Compact {ep} brand mark matching app/icon.svg, used inside navigation docks and compact chrome. */
+export function BrandCompactMark({ className = "" }: { className?: string }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={`inline-flex items-center font-bold tracking-tight whitespace-nowrap leading-none ${className}`.trim()}
+    >
+      <span className="text-gray-600 font-light">{"{"}</span>
+      <span className="text-gray-900">ep</span>
+      <span className="text-gray-600 font-light">{"}"}</span>
+    </span>
+  );
+}
+
 /** Footer rule: the copyright line on the left, the caller's links on the right. */
 export function BrandFooter({ tagline, children }: { tagline?: string; children: React.ReactNode }) {
   return (

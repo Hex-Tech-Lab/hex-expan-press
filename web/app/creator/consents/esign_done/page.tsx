@@ -1,5 +1,6 @@
-import Link from "next/link";
 import * as Sentry from "@sentry/nextjs";
+import { GLOBAL } from "../../../../../payments/src/settings_registry";
+import { BrandButton, BrandFooter, BrandFrame, BrandWordmark } from "../../../../src/components/brand/brand";
 import { getPortalSession } from "../../../../src/lib/supabase-server";
 import { resolvePrimaryProduct } from "../../../../src/lib/primary-product";
 import { portalConsentState } from "../../../../src/lib/consent-chain";
@@ -70,47 +71,54 @@ export default async function EsignDonePage() {
   const recorded = status === "recorded";
   const failed = status === "failed";
   return (
-    <div className="mx-auto max-w-[640px] px-5 py-20">
-      <div className="neu-card rounded-[14px] p-(--space-6) text-center">
-        <p
-          className={`text-[40px] leading-none ${failed ? "text-[#8A4B2D]" : "text-[#2E7D5B]"}`}
-          aria-hidden
-        >
-          {recorded ? "✓" : failed ? "!" : "…"}
-        </p>
-        <h1 className="mt-3 font-sans text-[length:var(--text-heading-1-size)] font-bold text-[#2B2520]">
-          {recorded
-            ? "Revenue-split agreement signed"
-            : failed
-              ? "We couldn't verify your signature status"
-              : "Finalising your signature"}
-        </h1>
-        {failed ? (
-          <p className="mt-3 text-[length:var(--font-size-base)] text-[#8A4B2D]" role="alert">
-            This looks like a temporary problem on our side — please reload this page in a moment to check again, or return to your dashboard.
+    <BrandFrame outerClassName="justify-between">
+      <header className="flex items-center justify-between">
+        <BrandWordmark href="/creator/dashboard" label="Creator dashboard" />
+      </header>
+      <main className="mx-auto w-full max-w-[640px]">
+        <div className="neu-card rounded-[32px] p-6 sm:p-8 text-center">
+          <p
+            className={`text-[40px] leading-none ${failed ? "text-[#8A4B2D]" : "text-[#2E7D5B]"}`}
+            aria-hidden
+          >
+            {recorded ? "✓" : failed ? "!" : "…"}
           </p>
-        ) : (
-          <>
-            <p className="mt-3 text-[length:var(--font-size-base)] text-[#4A4136]">
-              {recorded
-                ? "Thank you — your signature and the completion certificate have been recorded."
-                : "Thank you — we're confirming your signature with the signing service. This usually takes under a minute; your dashboard shows it as signed once it's recorded."}
+          <h1 className="mt-3 text-2xl sm:text-3xl font-bold tracking-tight text-gray-900">
+            {recorded
+              ? "Revenue-split agreement signed"
+              : failed
+                ? "We couldn't verify your signature status"
+                : "Finalising your signature"}
+          </h1>
+          {failed ? (
+            <p className="mt-3 text-base text-[#8A4B2D]" role="alert">
+              This looks like a temporary problem on our side — please reload this page in a moment to check again, or return to your dashboard.
             </p>
-            <p className="mt-2 text-[length:var(--font-size-base)] text-[#4A4136]">
-              A copy of the signed agreement and its audit-trail certificate will arrive in your inbox within a few minutes. Keep both for your records.
-            </p>
-          </>
-        )}
-        <Link
-          href="/creator/dashboard"
-          className="mt-5 inline-flex min-h-11 items-center rounded-[10px] bg-[#2B2520] px-6 text-[length:var(--font-size-base)] font-semibold text-[#FAF7F2] no-underline transition-colors hover:bg-[#3d352d]"
-        >
-          Back to your dashboard
-        </Link>
-        <p className="mt-6 border-t border-[#EADFD1] pt-4 text-left text-[length:var(--font-size-sm)] text-[#6E5F53]">
-          <b>Confidentiality.</b> This agreement contains confidential commercial and financial terms. Please keep it private.
-        </p>
-      </div>
-    </div>
+          ) : (
+            <>
+              <p className="mt-3 text-base text-gray-700">
+                {recorded
+                  ? "Thank you — your signature and the completion certificate have been recorded."
+                  : "Thank you — we're confirming your signature with the signing service. This usually takes under a minute; your dashboard shows it as signed once it's recorded."}
+              </p>
+              <p className="mt-2 text-base text-gray-700">
+                A copy of the signed agreement and its audit-trail certificate will arrive in your inbox within a few minutes. Keep both for your records.
+              </p>
+            </>
+          )}
+          <BrandButton href="/creator/dashboard" className="mt-6 mx-auto">
+            Back to your dashboard
+          </BrandButton>
+          <p className="mt-6 border-t border-[#dcc7b4] pt-4 text-left text-sm text-gray-600">
+            <b className="text-gray-900">Confidentiality.</b> This agreement contains confidential commercial and financial terms. Please keep it private.
+          </p>
+        </div>
+      </main>
+      <BrandFooter>
+        <a href="/privacy.html" className="hover:text-gray-700 transition-colors">Privacy Policy</a>
+        <a href="/terms.html" className="hover:text-gray-700 transition-colors">Terms of Service</a>
+        <span>{GLOBAL.email.support}</span>
+      </BrandFooter>
+    </BrandFrame>
   );
 }
