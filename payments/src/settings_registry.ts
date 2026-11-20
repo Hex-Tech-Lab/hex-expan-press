@@ -435,8 +435,8 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     publisher_label: STOREFRONT_BRAND,
     thanks_path_template: "/books/{handle}/thanks",
     house_title_note: `House title. Published by ${STOREFRONT_BRAND}. No creator revenue split.`,
-    // PENDING FOUNDER APPROVAL: neutral, claim-free copy (solo founder; no "we"; no claims about contributors or fields).
-    house_creator_bio: `${STOREFRONT_BRAND} is an independent digital publisher of practical, plain-language house editions.`,
+    // founder-approved 2026-11-20 (option A, may revisit before KYC)
+    house_creator_bio: `${STOREFRONT_BRAND} is a done-for-you e-book publisher for creators in every field. Each book is built from the creator's own work, voice and experience. The titles on this page are published by ${STOREFRONT_BRAND} under its own name.`,
     digital_pdf_kicker: "DIGITAL PDF",
     sample_badge_label: "(Sample)",
     show_non_live_samples: true,
@@ -563,7 +563,7 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
   landing: {
     fallbacks: { title: "Product", creator: "the creator" },
     disclaimers: [
-      "Educational content only — the publications listed on this page are educational and informational, not professional advice. See each publication's page for full disclaimers.",
+      "Educational and informational content only. Nothing in these publications is professional advice of any kind, including financial, legal, medical, or tax advice. See each publication's page for its full disclaimer.",
       "Digital products: all items are downloadable PDFs; no physical items are shipped.",
     ],
   },
