@@ -51,4 +51,22 @@ describe("B2B home browse-books links (storefront.browse_books_enabled)", () => 
     expect(html.match(/href="\/books"/g)?.length).toBe(2);
     expect(html).toContain("Tap to begin");
   });
+
+  it("uses the supplied label and path for both links (no hard-coded copy or route)", () => {
+    const html = renderToStaticMarkup(
+      createElement(
+        MaxMotionProvider,
+        null,
+        createElement(LandingPage, {
+          onboarding: true,
+          supportEmail: "support@example.test",
+          browseBooks: { label: "Explore titles", path: "/catalogue" },
+        }),
+      ),
+    );
+    expect(html.match(/href="\/catalogue"/g)?.length).toBe(2);
+    expect(html.match(/>Explore titles</g)?.length).toBe(2);
+    expect(html).not.toContain('href="/books"');
+    expect(html).not.toContain(">Browse books<");
+  });
 });
