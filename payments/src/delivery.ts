@@ -285,6 +285,39 @@ function buildBuyerMessage(args: {
   const { to, title, link, days, replyTo, billingEmail, tokenHash: hash } = args;
   const billingNote = billingEmail && billingEmail !== replyTo ? ` (billing or refund questions: ${billingEmail})` : "";
   const billingHtml = billingEmail && billingEmail !== replyTo ? ` (billing or refund questions: ${esc(billingEmail)})` : "";
+  const brand = GLOBAL.storefront.brand_name;
+  const wordmark = brand.toLowerCase();
+  const colors = GLOBAL.branding.colors;
+  const fontStack = "ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+  const safeTitle = esc(title);
+  const safeLink = esc(link);
+  const safeReplyTo = esc(replyTo);
+  const safeBrand = esc(brand);
+  const safeWordmark = esc(wordmark);
+  const html =
+    `<!doctype html><html lang="en"><body style="margin:0;padding:0;background:${colors.canvas};font-family:${fontStack};color:${colors.charcoal};">` +
+    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${colors.canvas};padding:32px 16px;">` +
+    `<tr><td align="center">` +
+    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border:1px solid ${colors.border};border-radius:24px;padding:32px;">` +
+    `<tr><td style="padding-bottom:20px;font-size:20px;font-weight:700;letter-spacing:-0.025em;color:${colors.charcoal};">` +
+    `<span style="color:#4b5563;font-weight:300;">{</span>${safeWordmark}<span style="color:#4b5563;font-weight:300;">}</span>` +
+    `</td></tr>` +
+    `<tr><td style="font-size:16px;line-height:1.6;color:${colors.charcoal};padding-bottom:16px;">` +
+    `Thank you for your purchase of <strong>${safeTitle}</strong>.` +
+    `</td></tr>` +
+    `<tr><td style="padding-bottom:20px;">` +
+    `<a href="${safeLink}" style="display:inline-block;background:${colors.button_primary};color:${colors.button_text};text-decoration:none;font-size:14px;font-weight:600;padding:14px 24px;border-radius:9999px;">Download your book</a>` +
+    `</td></tr>` +
+    `<tr><td style="font-size:13px;line-height:1.5;color:#4b5563;padding-bottom:16px;word-break:break-all;">` +
+    `Download your copy here (the link is valid for ${days} days):<br>` +
+    `<a href="${safeLink}" style="color:${colors.charcoal};text-decoration:underline;">${safeLink}</a>` +
+    `</td></tr>` +
+    `<tr><td style="border-top:1px solid ${colors.border};padding-top:16px;font-size:12px;line-height:1.5;color:#6b7280;">` +
+    `Questions? Reply to this email or write to ${safeReplyTo}${billingHtml}.<br>` +
+    `&copy; 2026 ${safeBrand}` +
+    `</td></tr>` +
+    `</table>` +
+    `</td></tr></table></body></html>`;
   return {
     to,
     subject: `Your download: ${title}`,
@@ -292,10 +325,7 @@ function buildBuyerMessage(args: {
       `Thank you for your purchase of ${title}.\n\n` +
       `Download your copy here (the link is valid for ${days} days):\n${link}\n\n` +
       `Questions? Reply to this email or write to ${replyTo}${billingNote}.\n`,
-    html:
-      `<p>Thank you for your purchase of <strong>${esc(title)}</strong>.</p>` +
-      `<p>Download your copy here (the link is valid for ${days} days):<br><a href="${esc(link)}">${esc(link)}</a></p>` +
-      `<p>Questions? Reply to this email or write to ${esc(replyTo)}${billingHtml}.</p>`,
+    html,
     replyTo,
     tokenHash: hash,
   };
