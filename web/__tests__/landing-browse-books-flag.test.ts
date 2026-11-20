@@ -24,7 +24,7 @@ function renderLanding(browseBooksEnabled: boolean): string {
   );
 }
 
-describe("B2B home browse-books links (landing.browse_books.enabled)", () => {
+describe("B2B home browse-books links (storefront.browse_books_enabled)", () => {
   it("registry default is off, so no browse-books link ships", () => {
     expect(DEFAULT_GLOBAL.storefront.browse_books_enabled).toBe(false);
     expect(GLOBAL.storefront.browse_books_enabled).toBe(false);

@@ -16,7 +16,7 @@ afterEach(() => {
   }
 });
 
-describe("landing.browse_books.enabled (storefront flag)", () => {
+describe("storefront.browse_books_enabled (storefront flag)", () => {
   it("defaults to false so the home browse-books links stay hidden", () => {
     expect(DEFAULT_GLOBAL.storefront.browse_books_enabled).toBe(false);
     expect(loadStorefrontSection(undefined).browse_books_enabled).toBe(false);

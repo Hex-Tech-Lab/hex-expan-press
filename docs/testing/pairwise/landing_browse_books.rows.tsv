@@ -1,0 +1,6 @@
+browse_books_enabled	viewport	link_surface
+true	desktop	header
+false	mobile	hero
+true	mobile	header
+false	desktop	header
+true	desktop	hero

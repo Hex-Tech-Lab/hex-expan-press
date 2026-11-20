@@ -12,7 +12,7 @@ for (const viewport of [
   test.describe(`KYC live-verification gates (${viewport.width}px)`, () => {
     test.use({ viewport });
 
-    test("LV-02: home page hides both browse-books links while landing.browse_books.enabled is off (default), and /books still loads", async ({ page }) => {
+    test("LV-02: home page hides both browse-books links while storefront.browse_books_enabled is off (default), and /books still loads", async ({ page }) => {
       const res = await page.goto("/");
       expect(res?.status(), "GET / status").toBe(200);
 
