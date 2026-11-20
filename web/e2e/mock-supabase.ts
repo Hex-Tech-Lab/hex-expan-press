@@ -113,7 +113,7 @@ function seed(): Record<string, Row[]> {
             working_note: null,
             description: "Sample: Chapter 1, \"Setting Up the Bench\", of a 12-project book in progress.",
             disclaimers: [],
-            checkout_mode: "live",
+            checkout_mode: "gated",
             book_registry: "books/sample_the_quiet_workshop.json",
             inside: [{ label: "Chapter 1", text: "Setting Up the Bench — choosing a corner, good light, and a starter kit." }],
           },
@@ -192,6 +192,13 @@ function embeddedTest(value: string): ((x: unknown) => boolean) | null {
   if (value.startsWith("neq.")) {
     const want = value.slice(4);
     return (x) => String(x) !== want;
+  }
+  if (value.startsWith("in.(") && value.endsWith(")")) {
+    const items = value
+      .slice(4, -1)
+      .split(",")
+      .map((s) => s.trim().replace(/^"|"$/g, ""));
+    return (x) => items.includes(String(x));
   }
   if (value === "not.is.null") return (x) => x !== null && x !== undefined;
   return null;

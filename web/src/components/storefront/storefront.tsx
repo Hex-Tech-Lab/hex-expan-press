@@ -142,6 +142,32 @@ function withResolvedAssets<T extends { slug: string | null; title: string | nul
   };
 }
 
+/** Storefront checkout modes queried on /books: always "live", plus registry-allowed non-live modes when sample listing is enabled. */
+export function allowedStorefrontCheckoutModes(
+  storefront: Pick<typeof GLOBAL.storefront, "show_non_live_samples" | "allowed_non_live_sample_modes"> = GLOBAL.storefront,
+): string[] {
+  if (!storefront.show_non_live_samples || storefront.allowed_non_live_sample_modes.length === 0) {
+    return ["live"];
+  }
+  return Array.from(new Set(["live", ...storefront.allowed_non_live_sample_modes]));
+}
+
+/** Shared storefront shelf visibility rule for /books and /books/[handle]: live products are always listed;
+ *  non-live products appear ONLY when storefront.show_non_live_samples is enabled, checkout_mode is in
+ *  allowed_non_live_sample_modes, AND book_registry marks is_sample === true. Non-sample gated books stay hidden. */
+export function isVisibleStorefrontProduct(
+  product: Pick<StoreProduct, "checkout_mode" | "is_sample">,
+  storefront: Pick<typeof GLOBAL.storefront, "show_non_live_samples" | "allowed_non_live_sample_modes"> = GLOBAL.storefront,
+): boolean {
+  if (product.checkout_mode === "live") return true;
+  return (
+    storefront.show_non_live_samples === true &&
+    product.is_sample === true &&
+    typeof product.checkout_mode === "string" &&
+    storefront.allowed_non_live_sample_modes.includes(product.checkout_mode)
+  );
+}
+
 // cache(): generateMetadata and the page share one query set per request.
 export const fetchCreatorHub = cache(async function fetchCreatorHub(handle: string): Promise<{ creator: HubCreator; origin: string } | null> {
   if (!handle) return null;
@@ -161,9 +187,9 @@ export const fetchCreatorHub = cache(async function fetchCreatorHub(handle: stri
   const commercial = commercialProducts(creator?.products);
   if (!creator || commercial.length === 0) return null;
   const origin = await fetchSiteOrigin(supabase);
-  // Only live (published) products are rendered or linked from the hub. A gated product keeps its own page.
-  // storefrontRobots depends only on whether a live product exists, so its result is unchanged.
-  const products = commercial.filter((p) => p.checkout_mode === "live").map(withResolvedAssets);
+  // Keep creator hubs consistent with /books: live products plus allowed non-live SAMPLE products only.
+  // storefrontRobots depends only on whether a live product exists, so its result stays NOINDEX for sample-only hubs.
+  const products = commercial.map(withResolvedAssets).filter((p) => isVisibleStorefrontProduct(p));
   return { creator: { ...creator, products }, origin };
 });
 
@@ -178,18 +204,23 @@ export interface LandingCreator {
   products: LandingProduct[];
 }
 
-/** B2C landing (/books): every creator with at least one live, commercial product. Same data rule as the hub.
- * The filter runs in PostgREST: `!inner` keeps only creators with a matching product, and the embed returns only
- * those products, so catalog growth does not grow the transfer. The JS filter below is a guard, not the gate. */
+/** B2C landing (/books): every creator with at least one live or allowed non-live SAMPLE commercial product.
+ * The filter runs in PostgREST (`!inner`) and JS enforces `isVisibleStorefrontProduct` after resolving `is_sample`
+ * from `books/*.json`, ensuring non-sample gated books stay hidden. */
 export const fetchB2cLanding = cache(async function fetchB2cLanding(): Promise<LandingCreator[]> {
   const supabase = await getSupabaseAdmin();
   if (!supabase) {
     throw new Error("storefront: Supabase admin client unavailable — B2C landing cannot render (fail closed)");
   }
-  const { data, error } = await supabase
+  const modes = allowedStorefrontCheckoutModes();
+  const baseQuery = supabase
     .from("creators")
-    .select("handle, display_name, products!inner(id, store_product_id, slug, title, price_usd, checkout_mode, book_registry)")
-    .eq("products.checkout_mode", "live")
+    .select("handle, display_name, products!inner(id, store_product_id, slug, title, price_usd, checkout_mode, book_registry)");
+  const filteredQuery =
+    modes.length === 1
+      ? baseQuery.eq("products.checkout_mode", modes[0])
+      : baseQuery.in("products.checkout_mode", modes);
+  const { data, error } = await filteredQuery
     .not("products.store_product_id", "is", null)
     .neq("products.store_product_id", "");
   if (error) throw new Error(`storefront: B2C landing query failed: ${error.message}`);
@@ -198,8 +229,8 @@ export const fetchB2cLanding = cache(async function fetchB2cLanding(): Promise<L
     .map((c) => ({
       ...c,
       products: commercialProducts(c.products)
-        .filter((p) => p.checkout_mode === "live")
-        .map(withResolvedAssets),
+        .map(withResolvedAssets)
+        .filter((p) => isVisibleStorefrontProduct(p)),
     }))
     .filter((c) => c.products.length > 0);
 });
@@ -427,14 +458,17 @@ export function BookCover({
   );
 }
 
-/** One book in a grid: cover, title, creator, price. Used by /books and the creator shelf. */
+/** One book in a grid: cover, title, creator, price, and coming-soon/preview CTA for non-live samples. Used by /books and the creator shelf. */
 export function BookCard({
   product,
   creatorHandle,
   creatorName,
   headingLevel = 2,
 }: {
-  product: Pick<StoreProduct, "slug" | "title" | "price_usd" | "cover_image" | "is_sample"> & { currency?: string | null };
+  product: Pick<StoreProduct, "slug" | "title" | "price_usd" | "cover_image" | "is_sample"> & {
+    currency?: string | null;
+    checkout_mode?: string | null;
+  };
   creatorHandle: string;
   creatorName: string;
   headingLevel?: 2 | 3;
@@ -444,12 +478,14 @@ export function BookCard({
   const price = priceOf(product);
   const { formatted, currency } = formatProductPrice(price, product.currency);
   const Heading = headingLevel === 3 ? "h3" : "h2";
+  const isNonLive = typeof product.checkout_mode === "string" && product.checkout_mode !== "live";
+  const productHref = `/books/${creatorHandle}/${slug}`;
   return (
     <article className="glass-card card-shadow rounded-[32px] border-[1.5px] border-[#fff2e4] p-5 sm:p-6 h-full flex flex-col gap-5">
       <BookCover title={title} coverImage={product.cover_image ?? null} isSample={product.is_sample ?? false} />
       <div className="flex flex-col gap-1.5">
         <Heading className="text-lg sm:text-xl font-bold tracking-tight text-gray-900 leading-snug">
-          <Link href={`/books/${creatorHandle}/${slug}`} className="hover:underline underline-offset-4">
+          <Link href={productHref} className="hover:underline underline-offset-4">
             {title}
           </Link>
         </Heading>
@@ -460,10 +496,28 @@ export function BookCard({
           </Link>
         </p>
       </div>
-      <p className="mt-auto text-lg font-bold text-gray-900">
-        {formatted}{" "}
-        <span className="text-xs font-normal text-gray-600">{`${currency} · one-time`}</span>
-      </p>
+      <div className="mt-auto flex flex-col gap-3">
+        <p className="text-lg font-bold text-gray-900">
+          {formatted}{" "}
+          <span className="text-xs font-normal text-gray-600">{`${currency} · one-time`}</span>
+        </p>
+        {isNonLive && (
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+            <span
+              data-checkout-mode={product.checkout_mode ?? undefined}
+              className="inline-flex items-center rounded-full border border-[#dcc7b4] bg-white/75 px-3 py-1 text-xs font-semibold text-gray-700"
+            >
+              {GLOBAL.storefront.coming_soon_badge}
+            </span>
+            <Link
+              href={productHref}
+              className="text-xs font-semibold text-gray-900 underline underline-offset-4 hover:text-gray-700"
+            >
+              {GLOBAL.storefront.sample_preview_cta}
+            </Link>
+          </div>
+        )}
+      </div>
     </article>
   );
 }
