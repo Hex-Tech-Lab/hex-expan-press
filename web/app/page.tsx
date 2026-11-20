@@ -30,9 +30,11 @@ export default function Home() {
       <LandingPage
         onboarding={onboarding}
         supportEmail={GLOBAL.email.support}
-        browseBooksEnabled={GLOBAL.storefront.browse_books_enabled}
-        browseBooksLabel={GLOBAL.storefront.browse_books_label}
-        browseBooksPath={GLOBAL.storefront.browse_books_path}
+        browseBooks={
+          GLOBAL.storefront.browse_books_enabled
+            ? { label: GLOBAL.storefront.browse_books_label, path: GLOBAL.storefront.browse_books_path }
+            : null
+        }
       />
     </MaxMotionProvider>
   );

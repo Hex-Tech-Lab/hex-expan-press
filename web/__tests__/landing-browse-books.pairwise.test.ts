@@ -45,9 +45,9 @@ function render(row: Row): string {
       createElement(LandingPage, {
         onboarding: true,
         supportEmail: "support@example.test",
-        browseBooksEnabled: row.browse_books_enabled,
-        browseBooksLabel: GLOBAL.storefront.browse_books_label,
-        browseBooksPath: GLOBAL.storefront.browse_books_path,
+        browseBooks: row.browse_books_enabled
+          ? { label: GLOBAL.storefront.browse_books_label, path: GLOBAL.storefront.browse_books_path }
+          : null,
       }),
     ),
   );

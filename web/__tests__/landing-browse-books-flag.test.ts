@@ -16,9 +16,7 @@ function renderLanding(browseBooksEnabled: boolean): string {
       createElement(LandingPage, {
         onboarding: true,
         supportEmail: "support@example.test",
-        browseBooksEnabled,
-        browseBooksLabel: "Browse books",
-        browseBooksPath: "/books",
+        browseBooks: browseBooksEnabled ? { label: "Browse books", path: "/books" } : null,
       }),
     ),
   );

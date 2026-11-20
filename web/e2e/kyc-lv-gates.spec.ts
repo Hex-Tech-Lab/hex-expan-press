@@ -25,6 +25,13 @@ for (const viewport of [
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
       expect(overflow, `home horizontal overflow at ${viewport.width}px`).toBe(false);
 
+      // Mobile header: with the browse link hidden, the wordmark must stay on the right (it is alone in its row).
+      if (viewport.width < 640) {
+        const wordmarkBox = await page.locator("header").first().locator('a[href="/"]').first().boundingBox();
+        expect(wordmarkBox, "wordmark rendered in header").not.toBeNull();
+        expect(wordmarkBox!.x + wordmarkBox!.width, `header wordmark right-aligned at ${viewport.width}px`).toBeGreaterThan(viewport.width - 48);
+      }
+
       const booksRes = await page.goto("/books");
       expect(booksRes?.status(), "GET /books status").toBe(200);
       await expect(page.getByRole("heading", { name: "Find a book from a creator" })).toBeVisible();
