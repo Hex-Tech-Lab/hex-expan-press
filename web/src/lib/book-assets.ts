@@ -120,6 +120,12 @@ export function resolveProductBookAssets(product: {
   if (houseCreator && !registryPath && !registryOverride) {
     warnOnce(`no-registry:${warnKey}`, `[book-assets] house product ${warnKey} has no book_registry or override; no assets`);
   }
+  if (!houseCreator && bookJson && bookJson.product_id !== undefined && typeof bookJson.product_id !== "string") {
+    warnOnce(`malformed-id:${warnKey}`, `[book-assets] books json for ${registryPath} has a non-string product_id; identity ignored`);
+  }
+  if (houseCreator && bookJson && typeof bookJson.product_id === "string" && bookJson.product_id !== product.id) {
+    warnOnce(`house-id:${warnKey}`, `[book-assets] house product ${warnKey} resolves to ${registryPath}, which names another product`);
+  }
   if (!houseCreator && !identityMatch) {
     return { book_registry: null, cover_image: null, preview_pdf: null, is_sample: false, overview: null };
   }
@@ -127,6 +133,9 @@ export function resolveProductBookAssets(product: {
   const rawCover = registryOverride?.cover_image !== undefined ? registryOverride.cover_image : bookJson?.cover_image;
   const rawPreview = registryOverride?.preview_pdf !== undefined ? registryOverride.preview_pdf : bookJson?.preview_pdf;
 
+  if (houseCreator && bookJson && rawCover == null) {
+    warnOnce(`no-cover:${warnKey}`, `[book-assets] house product ${warnKey} has no cover_image in ${registryPath}`);
+  }
   if (rawCover != null && !isSafeCoverPath(rawCover)) console.error(`[book-assets] rejected cover_image for slug ${slug}`);
   if (rawPreview != null && !isSafePreviewPdfPath(rawPreview)) console.error(`[book-assets] rejected preview_pdf for slug ${slug}`);
   const cover_image = isSafeCoverPath(rawCover) ? rawCover.trim() : null;

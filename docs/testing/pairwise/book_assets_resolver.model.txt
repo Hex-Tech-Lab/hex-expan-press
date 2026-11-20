@@ -1,0 +1,17 @@
+# PICT pairwise model for resolveProductBookAssets (web/src/lib/book-assets.ts).
+# Factors:
+#   house: creator is the house (creator_is_house true). Only house products may use registry overrides or
+#          a books json that names their own product.
+#   override: GLOBAL.storefront.book_assets entry keyed by slug (slug) or no entry (none). The resolver does not
+#          key overrides by product id: that rekey was declined by the founder (2026-11-21), so no id value here.
+#   book_registry: the product row carries a books/*.json path (present) or none (absent).
+#   is_sample: the override entry's is_sample flag true, false, or absent. Inert when override is none.
+# Constraint: without an override entry, is_sample cannot be set.
+# Run: /usr/local/bin/pict docs/testing/pairwise/book_assets_resolver.model.txt > docs/testing/pairwise/book_assets_resolver.rows.tsv
+
+house: yes, no
+override: slug, none
+book_registry: present, absent
+is_sample: true, false, absent
+
+IF [override] = "none" THEN [is_sample] = "absent";

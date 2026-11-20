@@ -82,4 +82,35 @@ describe("book-assets warnings for impersonation and missing assets", () => {
       delete overrides.override_probe_slug;
     }
   });
+
+  it("warns for a house product whose registry file names another product id", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    resolveProductBookAssets({
+      id: "dddddddd-0000-4000-8000-000000000004",
+      slug: "house_wrong_identity",
+      book_registry: "books/duane.json",
+      creator_is_house: true,
+    });
+    const hits = warn.mock.calls.map((c) => String(c[0])).filter((m) => m.includes("dddddddd-0000-4000-8000-000000000004"));
+    expect(hits.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("warns for a house product whose books json resolves with no cover_image", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const overrides = GLOBAL.storefront.book_assets as Record<string, { book_registry?: string; cover_image?: string | null }>;
+    overrides.house_no_cover_probe = { book_registry: "books/smoke.json", cover_image: null };
+    try {
+      const resolved = resolveProductBookAssets({
+        id: "eeeeeeee-0000-4000-8000-000000000005",
+        slug: "house_no_cover_probe",
+        book_registry: null,
+        creator_is_house: true,
+      });
+      expect(resolved.cover_image).toBeNull();
+      const hits = warn.mock.calls.map((c) => String(c[0])).filter((m) => m.includes("house_no_cover_probe") || m.includes("eeeeeeee-0000-4000-8000-000000000005"));
+      expect(hits.some((m) => m.includes("no cover_image"))).toBe(true);
+    } finally {
+      delete overrides.house_no_cover_probe;
+    }
+  });
 });
