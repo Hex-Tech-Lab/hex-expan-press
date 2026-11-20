@@ -1,0 +1,12 @@
+# PICT pairwise model for BookPreviewer toolbar inputs (zoom level x page x viewport).
+# Covers zoom_in (2 levels above 100%), zoom_out, reset, and go-to-page clamping across viewports.
+# Run: /usr/local/bin/pict docs/testing/pairwise/book_previewer_toolbar.model.txt > docs/testing/pairwise/book_previewer_toolbar.rows.tsv
+
+viewport: mobile_390, desktop_1560
+zoom_level: z100, z135, z175
+zoom_action: zoom_in, zoom_out, reset
+target_page: first, middle, last, below_min, above_max, non_numeric
+orientation: portrait, landscape
+
+IF [viewport] = "mobile_390" THEN [orientation] = "portrait";
+IF [viewport] = "desktop_1560" THEN [orientation] = "landscape";

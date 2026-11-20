@@ -29,3 +29,46 @@ describe("providers page service-provider table", () => {
     expect(row?.[2]).toMatch(/download bandwidth/i);
   });
 });
+
+describe("service providers de-indexing and buyer legal navigation", () => {
+  const readPublic = (rel: string) => readFileSync(new URL(`../public/${rel}`, import.meta.url), "utf8");
+
+  it("removes providers.html from every footer and keeps it linked only inside Privacy Policy body text", () => {
+    for (const rel of ["books/legal/terms.html", "books/legal/privacy.html", "books/legal/refund-policy.html"]) {
+      const doc = readPublic(rel);
+      const footerMatch = doc.match(/<footer>([\s\S]*?)<\/footer>/);
+      expect(footerMatch?.[1] ?? "", `${rel} footer`).not.toContain("providers.html");
+    }
+    const privacyMain = readPublic("books/legal/privacy.html").match(/<main>([\s\S]*?)<\/main>/)?.[1] ?? "";
+    expect(privacyMain).toContain('href="/books/legal/providers.html"');
+  });
+
+  it("marks both providers pages noindex,nofollow and disallows them in robots.txt and vercel.json", () => {
+    expect(readPublic("books/legal/providers.html")).toContain('<meta name="robots" content="noindex,nofollow">');
+    expect(readPublic("legal/providers.html")).toContain('<meta name="robots" content="noindex,nofollow">');
+    const robots = readPublic("robots.txt");
+    expect(robots).toContain("Disallow: /books/legal/providers.html");
+    expect(robots).toContain("Disallow: /legal/providers.html");
+    const vercelJson = readFileSync(new URL("../vercel.json", import.meta.url), "utf8");
+    expect(vercelJson).toContain("/books/legal/providers.html");
+    expect(vercelJson).toContain("/legal/providers.html");
+    expect(vercelJson).toContain("noindex, nofollow");
+  });
+
+  it("replaces circular referrer backlinks on buyer legal pages with direct Back to books links", () => {
+    for (const rel of [
+      "books/legal/terms.html",
+      "books/legal/privacy.html",
+      "books/legal/refund-policy.html",
+      "books/legal/providers.html",
+    ]) {
+      const doc = readPublic(rel);
+      expect(doc, rel).toContain('class="back" href="https://expanpress.com/books" data-books-link');
+      expect(doc, rel).toContain("Back to books</a>");
+      expect(doc, rel).not.toContain("data-backlink");
+    }
+    const backlinkJs = readPublic("assets/backlink.js");
+    expect(backlinkJs).not.toContain("document.referrer");
+    expect(backlinkJs).not.toContain("history.back");
+  });
+});

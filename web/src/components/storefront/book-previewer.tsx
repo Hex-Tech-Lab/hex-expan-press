@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import type { Orientation, PageFlip } from "page-flip";
 import type { BookPreviewSettings } from "../../../../payments/src/settings_registry";
 import { ArrowIcon } from "../brand/brand";
@@ -26,6 +26,32 @@ export interface BookPreviewerProps {
   coverImageUrl?: string | null;
   bookTitle: string;
   settings: BookPreviewSettings;
+}
+
+export type PreviewZoomAction = "zoom_in" | "zoom_out" | "reset";
+
+/** Compute the next zoom index within `zoomLevels`, clamped cleanly at bounds. */
+export function resolveZoomIndex(
+  currentIndex: number,
+  action: PreviewZoomAction,
+  zoomLevels: ReadonlyArray<number>,
+): number {
+  const maxIndex = Math.max(0, zoomLevels.length - 1);
+  const clamped = Math.min(Math.max(0, currentIndex), maxIndex);
+  if (action === "zoom_in") return Math.min(clamped + 1, maxIndex);
+  if (action === "zoom_out") return Math.max(clamped - 1, 0);
+  return 0;
+}
+
+/** Parse a 1-based page string into a clamped 0-based page index, or null when invalid. */
+export function parseTargetPageInput(raw: string, totalPages: number): number | null {
+  if (totalPages <= 0) return null;
+  const trimmed = raw.trim();
+  if (!/^-?\d+$/.test(trimmed)) return null;
+  const parsedPage = Number.parseInt(trimmed, 10);
+  if (!Number.isFinite(parsedPage)) return null;
+  const clamped = Math.min(Math.max(1, parsedPage), totalPages);
+  return clamped - 1;
 }
 
 /** Build StPageFlip spread groups matching PageCollection.createSpread(). */
@@ -132,6 +158,27 @@ async function rasterizePreview(
   }
 }
 
+const ZoomInIcon = () => (
+  <svg aria-hidden="true" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="11" cy="11" r="7" />
+    <path d="m21 21-4.35-4.35M11 8v6M8 11h6" />
+  </svg>
+);
+
+const ZoomOutIcon = () => (
+  <svg aria-hidden="true" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="11" cy="11" r="7" />
+    <path d="m21 21-4.35-4.35M8 11h6" />
+  </svg>
+);
+
+const ResetZoomIcon = () => (
+  <svg aria-hidden="true" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+    <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
+    <path d="M3 3v5h5" />
+  </svg>
+);
+
 export default function BookPreviewer({
   id,
   previewPdfUrl,
@@ -141,17 +188,30 @@ export default function BookPreviewer({
 }: BookPreviewerProps) {
   const hostRef = useRef<HTMLDivElement>(null);
   const flipRef = useRef<PageFlip | null>(null);
+  const goToInputId = useId();
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [totalPages, setTotalPages] = useState(0);
   const [pageIndex, setPageIndex] = useState(0);
+  const [draftPageInput, setDraftPageInput] = useState<string | null>(null);
   const [orientation, setOrientation] = useState<Orientation>("landscape");
   const [pageTexts, setPageTexts] = useState<string[]>([]);
+  const [zoomIndex, setZoomIndex] = useState(0);
+  const [stageSize, setStageSize] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
   const sectionRef = useRef<HTMLElement>(null);
   // Mount on first view; without IntersectionObserver (old browsers, jsdom) mount at once. Afterwards, pause the page-flip
   // redraw while the section is out of view and resume it when the section returns.
   const [seen, setSeen] = useState(() => typeof IntersectionObserver === "undefined");
   const visibleRef = useRef(true);
+
+  const zoomLevels = useMemo(
+    () => (settings.zoom_levels.length > 0 ? settings.zoom_levels : [1]),
+    [settings.zoom_levels],
+  );
+  const labels = settings.toolbar_labels;
+  const safeZoomIndex = Math.min(Math.max(0, zoomIndex), zoomLevels.length - 1);
+  const zoom = zoomLevels[safeZoomIndex] ?? 1;
+  const pageInput = draftPageInput ?? String(pageIndex + 1);
 
   useEffect(() => {
     const el = sectionRef.current;
@@ -168,6 +228,22 @@ export default function BookPreviewer({
     observer.observe(el);
     return () => observer.disconnect();
   }, [settings.visibility_margin_px]);
+
+  useEffect(() => {
+    if (status !== "ready" || !hostRef.current) return;
+    const node = hostRef.current;
+    const measure = () => {
+      if (safeZoomIndex !== 0) return;
+      const w = node.offsetWidth;
+      const h = node.offsetHeight;
+      if (w > 0 && h > 0) setStageSize({ w, h });
+    };
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(measure);
+    ro.observe(node);
+    return () => ro.disconnect();
+  }, [status, safeZoomIndex, orientation]);
 
   useEffect(() => {
     if (!seen) return;
@@ -217,7 +293,10 @@ export default function BookPreviewer({
         pf.on("init", (e) => {
           if (disposed) return;
           const payload = e.data as { page?: number; mode?: Orientation };
-          if (typeof payload?.page === "number") setPageIndex(payload.page);
+          if (typeof payload?.page === "number") {
+            setPageIndex(payload.page);
+            setDraftPageInput(null);
+          }
           if (payload?.mode === "portrait" || payload?.mode === "landscape") setOrientation(payload.mode);
           else if (pf) setOrientation(pf.getOrientation());
         });
@@ -226,6 +305,7 @@ export default function BookPreviewer({
           if (disposed) return;
           if (typeof e.data === "number") setPageIndex(e.data);
           else if (pf) setPageIndex(pf.getCurrentPageIndex());
+          setDraftPageInput(null);
         });
 
         pf.on("changeOrientation", (e) => {
@@ -266,6 +346,9 @@ export default function BookPreviewer({
   const currentSpread = spreads[spreadIdx] ?? [];
   const canFlipPrev = status === "ready" && spreadIdx > 0;
   const canFlipNext = status === "ready" && spreadIdx < spreads.length - 1;
+  const canZoomIn = status === "ready" && safeZoomIndex < zoomLevels.length - 1;
+  const canZoomOut = status === "ready" && safeZoomIndex > 0;
+  const canResetZoom = status === "ready" && safeZoomIndex > 0;
   const spreadLabel = formatSpreadLabel(currentSpread, totalPages, settings.show_cover);
 
   const flipPrev = useCallback(() => {
@@ -278,8 +361,48 @@ export default function BookPreviewer({
     flipRef.current.flipNext();
   }, [canFlipNext]);
 
+  const turnToPage = useCallback(
+    (targetIdx: number) => {
+      if (!flipRef.current || status !== "ready" || totalPages <= 0) return;
+      const clamped = Math.min(Math.max(0, targetIdx), totalPages - 1);
+      flipRef.current.turnToPage(clamped);
+      setPageIndex(clamped);
+      setDraftPageInput(null);
+    },
+    [status, totalPages],
+  );
+
+  const applyZoomAction = useCallback(
+    (action: PreviewZoomAction) => {
+      if (status !== "ready") return;
+      setZoomIndex((cur) => resolveZoomIndex(cur, action, zoomLevels));
+    },
+    [status, zoomLevels],
+  );
+
+  const handleGoToPageSubmit = useCallback(
+    (e: FormEvent<HTMLFormElement>) => {
+      e.preventDefault();
+      const target = parseTargetPageInput(pageInput, totalPages);
+      if (target === null) {
+        setDraftPageInput(null);
+        return;
+      }
+      turnToPage(target);
+      setDraftPageInput(null);
+    },
+    [pageInput, totalPages, turnToPage],
+  );
+
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLElement>) => {
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        e.target instanceof HTMLSelectElement
+      ) {
+        return;
+      }
       if (status !== "ready" || !flipRef.current) return;
       if (e.key === "ArrowLeft") {
         e.preventDefault();
@@ -289,21 +412,43 @@ export default function BookPreviewer({
         flipNext();
       } else if (e.key === "Home") {
         e.preventDefault();
-        flipRef.current.turnToPage(0);
-        setPageIndex(0);
+        turnToPage(0);
       } else if (e.key === "End" && totalPages > 0) {
         e.preventDefault();
-        flipRef.current.turnToPage(totalPages - 1);
-        setPageIndex(totalPages - 1);
+        turnToPage(totalPages - 1);
+      } else if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+        if (e.key === "+" || e.key === "=") {
+          e.preventDefault();
+          applyZoomAction("zoom_in");
+        } else if (e.key === "-") {
+          e.preventDefault();
+          applyZoomAction("zoom_out");
+        } else if (e.key === "0") {
+          e.preventDefault();
+          applyZoomAction("reset");
+        }
       }
     },
-    [status, flipPrev, flipNext, totalPages],
+    [status, flipPrev, flipNext, totalPages, turnToPage, applyZoomAction],
   );
 
   const visibleExcerpt = currentSpread
     .map((idx) => pageTexts[idx] ?? "")
     .filter(Boolean)
     .join(" — ");
+
+  const isZoomed = zoom > 1;
+  const scaledSpacerStyle =
+    isZoomed && stageSize.w > 0 && stageSize.h > 0
+      ? { width: `${Math.round(stageSize.w * zoom)}px`, height: `${Math.round(stageSize.h * zoom)}px` }
+      : undefined;
+  const scaledInnerStyle = isZoomed
+    ? {
+        transform: `scale(${zoom})`,
+        transformOrigin: "top left",
+        ...(stageSize.w > 0 && stageSize.h > 0 ? { width: `${stageSize.w}px`, height: `${stageSize.h}px` } : {}),
+      }
+    : undefined;
 
   return (
     <section
@@ -314,7 +459,7 @@ export default function BookPreviewer({
       data-testid="book-preview-section"
       className="glass-card card-shadow rounded-[32px] border-[1.5px] border-[#fff2e4] p-5 sm:p-8 flex flex-col gap-5 scroll-mt-6"
     >
-      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+      <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
         <div className="flex flex-col gap-1">
           <p className="text-[11px] font-mono font-medium tracking-[0.16em] uppercase text-gray-600">
             Free sample preview
@@ -325,27 +470,116 @@ export default function BookPreviewer({
           <p className="text-xs sm:text-sm text-gray-600">{settings.subheading}</p>
         </div>
 
-        <div className="flex items-center gap-2 self-start sm:self-auto" role="group" aria-label={`Preview navigation for ${bookTitle}`}>
-          <button
-            type="button"
-            onClick={flipPrev}
-            disabled={!canFlipPrev}
-            aria-label="Previous preview page"
-            className="inline-flex items-center gap-2 min-h-[44px] px-4 py-2.5 rounded-full border border-[#dcc7b4] bg-white text-sm font-semibold text-gray-900 hover:bg-[#faf5ee] disabled:opacity-45 disabled:cursor-not-allowed transition-colors"
+        <div className="flex flex-wrap items-center gap-2 self-start lg:self-auto">
+          <div
+            role="toolbar"
+            aria-label={labels.toolbar_aria_label}
+            data-testid="book-preview-toolbar"
+            className="flex flex-wrap items-center gap-1.5"
           >
-            <ArrowIcon className="w-3.5 h-3.5 rotate-180" />
-            <span>Prev</span>
-          </button>
-          <button
-            type="button"
-            onClick={flipNext}
-            disabled={!canFlipNext}
-            aria-label="Next preview page"
-            className="inline-flex items-center gap-2 min-h-[44px] px-4 py-2.5 rounded-full bg-charcoal hover:bg-[#2a2a2a] text-sm font-semibold text-white disabled:opacity-45 disabled:cursor-not-allowed transition-colors"
-          >
-            <span>Next</span>
-            <ArrowIcon />
-          </button>
+            <button
+              type="button"
+              onClick={() => applyZoomAction("zoom_out")}
+              disabled={!canZoomOut}
+              aria-label={labels.zoom_out}
+              title={labels.zoom_out}
+              data-testid="book-preview-zoom-out"
+              className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] rounded-full border border-[#dcc7b4] bg-white text-gray-900 hover:bg-[#faf5ee] disabled:opacity-45 disabled:cursor-not-allowed transition-colors"
+            >
+              <ZoomOutIcon />
+            </button>
+            <span
+              data-testid="book-preview-zoom-label"
+              aria-live="polite"
+              className="min-w-[3rem] text-center font-mono text-xs font-medium text-gray-700 select-none"
+            >
+              {`${Math.round(zoom * 100)}%`}
+            </span>
+            <button
+              type="button"
+              onClick={() => applyZoomAction("zoom_in")}
+              disabled={!canZoomIn}
+              aria-label={labels.zoom_in}
+              title={labels.zoom_in}
+              data-testid="book-preview-zoom-in"
+              className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] rounded-full border border-[#dcc7b4] bg-white text-gray-900 hover:bg-[#faf5ee] disabled:opacity-45 disabled:cursor-not-allowed transition-colors"
+            >
+              <ZoomInIcon />
+            </button>
+            <button
+              type="button"
+              onClick={() => applyZoomAction("reset")}
+              disabled={!canResetZoom}
+              aria-label={labels.reset_zoom}
+              title={labels.reset_zoom}
+              data-testid="book-preview-zoom-reset"
+              className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] rounded-full border border-[#dcc7b4] bg-white text-gray-900 hover:bg-[#faf5ee] disabled:opacity-45 disabled:cursor-not-allowed transition-colors"
+            >
+              <ResetZoomIcon />
+            </button>
+            <form
+              onSubmit={handleGoToPageSubmit}
+              className="inline-flex items-center gap-1 rounded-full border border-[#dcc7b4] bg-white pl-3 min-h-[44px]"
+            >
+              <label htmlFor={goToInputId} className="sr-only">
+                {labels.go_to_page}
+              </label>
+              <input
+                id={goToInputId}
+                type="number"
+                min={1}
+                max={Math.max(1, totalPages)}
+                inputMode="numeric"
+                value={pageInput}
+                onChange={(e) => setDraftPageInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") setDraftPageInput(null);
+                }}
+                disabled={status !== "ready" || totalPages <= 0}
+                title={labels.go_to_page}
+                data-testid="book-preview-goto-input"
+                className="w-11 bg-transparent text-center font-mono text-xs font-medium text-gray-900 focus:outline-none disabled:opacity-45"
+              />
+              <span className="font-mono text-xs text-gray-500 select-none pr-1" aria-hidden="true">
+                {`/ ${totalPages || "—"}`}
+              </span>
+              <button
+                type="submit"
+                disabled={status !== "ready" || totalPages <= 0}
+                aria-label={labels.go_to_page_submit}
+                title={labels.go_to_page_submit}
+                data-testid="book-preview-goto-submit"
+                className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] px-3 rounded-full bg-charcoal hover:bg-[#2a2a2a] text-xs font-semibold text-white disabled:opacity-45 disabled:cursor-not-allowed transition-colors"
+              >
+                {labels.go_to_page_submit}
+              </button>
+            </form>
+          </div>
+
+          <div className="flex items-center gap-2" role="group" aria-label={`Preview navigation for ${bookTitle}`}>
+            <button
+              type="button"
+              onClick={flipPrev}
+              disabled={!canFlipPrev}
+              aria-label="Previous preview page"
+              title="Previous preview page"
+              className="inline-flex items-center gap-2 min-h-[44px] px-4 py-2.5 rounded-full border border-[#dcc7b4] bg-white text-sm font-semibold text-gray-900 hover:bg-[#faf5ee] disabled:opacity-45 disabled:cursor-not-allowed transition-colors"
+            >
+              <ArrowIcon className="w-3.5 h-3.5 rotate-180" />
+              <span>Prev</span>
+            </button>
+            <button
+              type="button"
+              onClick={flipNext}
+              disabled={!canFlipNext}
+              aria-label="Next preview page"
+              title="Next preview page"
+              className="inline-flex items-center gap-2 min-h-[44px] px-4 py-2.5 rounded-full bg-charcoal hover:bg-[#2a2a2a] text-sm font-semibold text-white disabled:opacity-45 disabled:cursor-not-allowed transition-colors"
+            >
+              <span>Next</span>
+              <ArrowIcon />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -355,20 +589,31 @@ export default function BookPreviewer({
           <p className="mt-1 text-gray-300">{errorMessage ?? "Could not render the preview PDF."}</p>
         </div>
       ) : (
-        <div className="relative rounded-[24px] bg-charcoal/95 p-4 sm:p-6 flex flex-col items-center justify-center overflow-hidden min-h-[380px]">
+        <div
+          data-testid="book-preview-viewport"
+          data-zoom={String(zoom)}
+          data-zoom-level={String(safeZoomIndex)}
+          className={`relative rounded-[24px] bg-charcoal/95 p-4 sm:p-6 min-h-[380px] ${
+            isZoomed ? "max-h-[75vh] overflow-auto thin-scrollbar" : "flex flex-col items-center justify-center overflow-hidden"
+          }`}
+        >
           {status === "loading" && (
             <p className="text-sm font-mono text-gray-300 py-16" role="status">
               Loading book preview&hellip;
             </p>
           )}
-          <div
-            ref={hostRef}
-            tabIndex={status === "ready" ? 0 : -1}
-            role="region"
-            aria-label={`Interactive page-turning preview of ${bookTitle}. Use Left and Right arrow keys or Prev and Next buttons to turn pages.`}
-            data-orientation={orientation}
-            className={`w-full flex justify-center ${status === "loading" ? "sr-only" : ""}`}
-          />
+          <div style={scaledSpacerStyle} className={isZoomed ? "mx-auto" : "w-full"}>
+            <div style={scaledInnerStyle}>
+              <div
+                ref={hostRef}
+                tabIndex={status === "ready" ? 0 : -1}
+                role="region"
+                aria-label={`Interactive page-turning preview of ${bookTitle}. Use Left and Right arrow keys or Prev and Next buttons to turn pages.`}
+                data-orientation={orientation}
+                className={`w-full flex justify-center ${status === "loading" ? "sr-only" : ""}`}
+              />
+            </div>
+          </div>
         </div>
       )}
 

@@ -417,6 +417,7 @@ export function BookCover({
   coverImage = null,
   isSample = false,
   sampleLabel = GLOBAL.storefront.sample_badge_label,
+  className = "",
 }: {
   title: string;
   kicker?: string;
@@ -424,15 +425,19 @@ export function BookCover({
   coverImage?: string | null;
   isSample?: boolean;
   sampleLabel?: string;
+  className?: string;
 }) {
   const { baseTitle, sampleBadge } = formatCoverFooterTitle(title, isSample, sampleLabel);
   return (
-    <div className="relative overflow-hidden rounded-[24px] bg-charcoal text-white flex flex-col shadow-[0_20px_50px_rgba(0,0,0,0.12)]">
+    <div
+      data-testid="book-cover-card"
+      className={`relative overflow-hidden rounded-[24px] bg-charcoal text-white flex flex-col shadow-[0_20px_50px_rgba(0,0,0,0.12)] ${className}`.trim()}
+    >
       <div className="relative z-10 bg-charcoal px-5 py-3 border-b border-white/10">
         <p className="text-[10px] font-mono font-medium tracking-[0.16em] uppercase text-gray-300">{kicker}</p>
       </div>
 
-      <div className="relative aspect-[2/3] w-full bg-[#121212] flex items-center justify-center p-3 overflow-hidden">
+      <div className="relative aspect-[2/3] w-full flex-1 bg-[#121212] flex items-center justify-center p-3 overflow-hidden">
         {coverImage ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img

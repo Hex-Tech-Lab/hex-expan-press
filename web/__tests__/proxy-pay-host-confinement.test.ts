@@ -32,15 +32,33 @@ describe("pay host confinement (b2c-confinement spec, test d)", () => {
     expect(html).toContain("/books/legal/refund-policy.html");
     expect(html).toContain(GLOBAL.email.support);
     expect(html).not.toContain("/creator/");
-    // Legal links and brand come from the registry (no duplicated literals); brand is plain text, not braces.
+    // Legal links and {expanpress} wordmark come from the registry and design tokens (no plain-text brand box).
     for (const link of GLOBAL.storefront.buyer_legal_links) {
       expect(html).toContain(`<a href="${link.path}">${link.label}</a>`);
     }
-    expect(html).toContain(`<div class="brand">${GLOBAL.storefront.brand_name}</div>`);
+    expect(html).toContain(`<span class="brace">{</span><span class="name">${GLOBAL.storefront.brand_name.toLowerCase()}</span><span class="brace">}</span>`);
+    expect(html).toContain(GLOBAL.storefront.pay_root_kicker);
+    expect(html).not.toContain('<div class="brand">');
+    expect(html).not.toContain("ExpanPress Checkout");
 
     const headRes = await proxy(hostRequest("https://pay.expanpress.com/", {}, "HEAD") as never);
     expect(headRes.status).toBe(200);
     expect(await headRes.text()).toBe("");
+  });
+
+  it("sets X-Robots-Tag noindex, nofollow on service-provider pages across hosts", async () => {
+    const { proxy } = await import("../proxy");
+    const payProviders = await proxy(hostRequest("https://pay.expanpress.com/books/legal/providers.html") as never);
+    expect(payProviders.status).toBe(200);
+    expect(payProviders.headers.get("x-robots-tag")).toBe("noindex, nofollow");
+
+    const mainBuyerProviders = await proxy(hostRequest("https://expanpress.com/books/legal/providers.html") as never);
+    expect(mainBuyerProviders.status).toBe(200);
+    expect(mainBuyerProviders.headers.get("x-robots-tag")).toBe("noindex, nofollow");
+
+    const mainCreatorProviders = await proxy(hostRequest("https://expanpress.com/legal/providers.html") as never);
+    expect(mainCreatorProviders.status).toBe(200);
+    expect(mainCreatorProviders.headers.get("x-robots-tag")).toBe("noindex, nofollow");
   });
 
   it("E2E_PROXY_HOST_OVERRIDE is ignored in production builds and on non-localhost URLs", async () => {
