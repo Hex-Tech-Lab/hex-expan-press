@@ -631,14 +631,18 @@ describe("PaddleAdapter buyer-email fallback (customer lookup)", () => {
   });
 
   it("reads custom_data.order_ref ahead of reference_id and parses custom_data.buyer_consent without gating the sale", async () => {
-    for (const [consentRaw, want] of [
-      ["true", true],
-      ["false", false],
-      [true, true],
-      [false, false],
-      ["yes", undefined],
-      [undefined, undefined],
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    for (const [consentRaw, want, shouldWarn] of [
+      ["true", true, false],
+      ["false", false, false],
+      [true, true, false],
+      [false, false, false],
+      ["yes", undefined, true],
+      [123, undefined, true],
+      [null, undefined, false],
+      [undefined, undefined, false],
     ] as const) {
+      warnSpy.mockClear();
       const custom_data: Record<string, unknown> = {
         product_id: "test_product_basic",
         email: "buyer@example.com",
@@ -652,7 +656,14 @@ describe("PaddleAdapter buyer-email fallback (customer lookup)", () => {
       const ev = (res as { event: SaleCompletedEvent }).event;
       expect(ev.attributionId).toBe("ig:dub_42");
       expect(ev.buyerEmailConsent).toBe(want);
+      if (shouldWarn) {
+        expect(warnSpy).toHaveBeenCalledTimes(1);
+        expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("buyer_consent"));
+      } else {
+        expect(warnSpy).not.toHaveBeenCalled();
+      }
     }
+    warnSpy.mockRestore();
 
     // Forged order_ref falls back cleanly to reference_id without rejecting the sale.
     const fallbackBody = validBody({

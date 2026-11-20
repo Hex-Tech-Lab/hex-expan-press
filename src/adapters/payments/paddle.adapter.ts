@@ -76,10 +76,18 @@ const PaddleWebhookSchema = z.object({
 export const PADDLE_WEBHOOK_TOLERANCE_SECONDS = GLOBAL.payments.webhook_tolerance_seconds;
 
 /** Buyer consent from custom_data: a boolean or the strings "true"/"false" (the overlay sends strings). Anything else is absent
- *  (undefined), which the order stores as NULL. The value is buyer-supplied: it is recorded, never used as a decision. */
-export function parseBuyerConsent(raw: unknown): boolean | undefined {
+ *  (undefined), which the order stores as NULL (malformed non-null values are logged). The value is buyer-supplied: recorded, never a decision. */
+export function parseBuyerConsent(
+  raw: unknown,
+  context?: { key?: string; transactionId?: string },
+): boolean | undefined {
   if (raw === true || raw === "true") return true;
   if (raw === false || raw === "false") return false;
+  if (raw !== undefined && raw !== null) {
+    const key = context?.key ?? GLOBAL.payments.paddle.overlay.buyer_consent_key;
+    const tx = context?.transactionId ? ` transaction_id=${context.transactionId}` : "";
+    console.warn(`[paddle.adapter] ignoring non-boolean ${key} value (type=${typeof raw})${tx}; storing NULL`);
+  }
   return undefined;
 }
 
@@ -358,7 +366,10 @@ export class PaddleAdapter implements PaymentProviderPort {
         occurredAt: validated.data.changed_at || new Date().toISOString(),
         // order_ref leads (the overlay's key); a value that is not a clean id falls through to the legacy reference_id.
         attributionId: [rawCustom[overlay.order_ref_key], validated.data.custom_data?.reference_id].map(cleanAttributionId).find((v) => v !== undefined),
-        buyerEmailConsent: parseBuyerConsent(rawCustom[overlay.buyer_consent_key]),
+        buyerEmailConsent: parseBuyerConsent(rawCustom[overlay.buyer_consent_key], {
+          key: overlay.buyer_consent_key,
+          transactionId: validated.data.id,
+        }),
         // Paddle's payload carries no live/test field. The environment comes from the verified server environment:
         // each Paddle environment has its own webhook secret, and this adapter already refused a sandbox environment on production.
         providerMode: serverEnv === "production" ? "live" : "sandbox",

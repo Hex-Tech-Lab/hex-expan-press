@@ -27,6 +27,9 @@ def load_book_cfg(book_id: str) -> dict:
 
 
 def build_preview_pdf(source_pdf: Path, pages_spec: str, out_pdf: Path, gs_preset: str = "/ebook") -> int:
+    if not isinstance(pages_spec, str) or not pages_spec.strip():
+        raise ValueError("Empty or missing preview page spec; refusing to build preview PDF with all pages")
+
     import pdfplumber
     import pikepdf
 
@@ -104,6 +107,9 @@ def main() -> None:
     ap.add_argument("--out-cover", type=Path, help="Optional output cover image path rendered from page 1")
     ap.add_argument("--gs-preset", default="/ebook", choices=["/screen", "/ebook", "/printer", "/prepress"])
     args = ap.parse_args()
+
+    if not isinstance(args.pages, str) or not args.pages.strip():
+        raise SystemExit("Missing or empty preview page spec (--pages or preview_pages in book config); refusing to build preview PDF")
 
     source = args.source
     if source is None:
