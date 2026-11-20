@@ -335,6 +335,8 @@ export interface BookPreviewReadAloudVoiceGuideSettings {
   premium_markers: ReadonlyArray<string>;
   /** sessionStorage key for "Not now" (this visit only). */
   storage_key: string;
+  /** Value written under storage_key when the reader chooses "Not now". */
+  dismissed_value: string;
   message: string;
   show_steps_label: string;
   hide_steps_label: string;
@@ -572,6 +574,7 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
         ipados_platform: "MacIntel",
         premium_markers: ["Enhanced", "Premium"],
         storage_key: "read_aloud_voice_guide_dismissed",
+        dismissed_value: "1",
         message: "Your device is using a basic voice. Apple offers a natural-sounding voice for free. Want to switch? It takes about 30 seconds.",
         show_steps_label: "Show me how",
         hide_steps_label: "Hide the steps",
@@ -1664,6 +1667,7 @@ function parseReadAloudVoiceGuide(
     ipados_platform: pick("ipados_platform", nonEmptyString),
     premium_markers: pick("premium_markers", (value) => stringList(value, 1, 10)),
     storage_key: pick("storage_key", nonEmptyString),
+    dismissed_value: pick("dismissed_value", nonEmptyString),
     message: pick("message", nonEmptyString),
     show_steps_label: pick("show_steps_label", nonEmptyString),
     hide_steps_label: pick("hide_steps_label", nonEmptyString),

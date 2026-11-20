@@ -308,3 +308,19 @@ describe("loadBookIdentity optional media fields", () => {
     expect(loadBookIdentity(p)).toEqual({ id: "m", title: "T", subtitle: "S", author: "A" });
   });
 });
+
+describe("read_aloud.voice_guide.dismissed_value (settings_registry)", () => {
+  it("defaults to the value the basic-voice guide has always stored", () => {
+    expect(DEFAULT_GLOBAL.book_preview.read_aloud.voice_guide.dismissed_value).toBe("1");
+  });
+
+  it("takes a registry override for the Not now sessionStorage value", () => {
+    const out = loadBookPreviewSection({ read_aloud: { voice_guide: { dismissed_value: "hidden" } } });
+    expect(out.read_aloud.voice_guide.dismissed_value).toBe("hidden");
+  });
+
+  it("keeps the default when the override is blank", () => {
+    const out = loadBookPreviewSection({ read_aloud: { voice_guide: { dismissed_value: "   " } } });
+    expect(out.read_aloud.voice_guide.dismissed_value).toBe("1");
+  });
+});

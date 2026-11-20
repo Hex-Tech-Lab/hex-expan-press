@@ -28,17 +28,17 @@ function readDevice(): DeviceSignals {
 }
 
 /** "Not now" is kept in sessionStorage, so it lasts for this visit only. Storage can be blocked; then the card shows again. */
-function readDismissed(key: string): boolean {
+function readDismissed(key: string, dismissedValue: string): boolean {
   try {
-    return window.sessionStorage.getItem(key) === "1";
+    return window.sessionStorage.getItem(key) === dismissedValue;
   } catch {
     return false;
   }
 }
 
-function writeDismissed(key: string): void {
+function writeDismissed(key: string, dismissedValue: string): void {
   try {
-    window.sessionStorage.setItem(key, "1");
+    window.sessionStorage.setItem(key, dismissedValue);
   } catch {
     // Storage blocked: the card hides for this render only.
   }
@@ -56,7 +56,7 @@ export function useBasicVoiceGuide({ guide, voiceSettings, onRefreshVoice }: Use
   const speechSupported = useSyncExternalStore(subscribeNoop, detectSpeechSynthesisSupport, () => false);
   const storedDismissed = useSyncExternalStore(
     subscribeNoop,
-    () => readDismissed(guide.storage_key),
+    () => readDismissed(guide.storage_key, guide.dismissed_value),
     () => false,
   );
   // Null on the server and until the client snapshot is read, so the server render shows no card.
@@ -95,9 +95,9 @@ export function useBasicVoiceGuide({ guide, voiceSettings, onRefreshVoice }: Use
   }, [onRefreshVoice]);
 
   const dismiss = useCallback(() => {
-    writeDismissed(guide.storage_key);
+    writeDismissed(guide.storage_key, guide.dismissed_value);
     setDismissedNow(true);
-  }, [guide.storage_key]);
+  }, [guide.storage_key, guide.dismissed_value]);
 
   return { visible, platform, retried, retry, dismiss };
 }
