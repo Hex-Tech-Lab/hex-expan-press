@@ -1,0 +1,28 @@
+web/app/page.tsx
+  s_0e99959cd74c50::t_7fa46ba12baab6 33
+  s_0e99959cd74c50::t_b2b9a217c0a8c6 34-37
+web/__tests__/landing-browse-books-flag.test.ts
+  s_0e99959cd74c50::t_2111fb021d9c9e 19
+web/__tests__/landing-browse-books.pairwise.test.ts
+  s_0e99959cd74c50::t_7789bfc2ae36fc 48-50
+web/e2e/kyc-lv-gates.spec.ts
+  s_0e99959cd74c50::t_1137fafafae16b 28-34
+web/src/components/landing/landing-page.tsx
+  s_0e99959cd74c50::t_7b97d75bb9f612 473-474,478,482,511-512,515,519,571,677,683,726,728,732
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "62fe652beb1ca31c97fb8a984038cb9c3491629f",
+  "prompts": {},
+  "sessions": {
+    "s_0e99959cd74c50": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "21b00acc-7513-46d6-9a35-038af7845be2",
+        "model": "unknown"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
