@@ -35,6 +35,9 @@ describe("B2B home browse-books links (storefront.browse_books_enabled)", () => 
     expect(html).not.toContain('aria-label="Storefront navigation"');
     expect(html).not.toContain('href="/books"');
     expect(html).not.toContain(">Browse books<");
+    // Header controls row: the wordmark is alone, so it must right-align (justify-end) on every width.
+    expect(html).toContain("flex items-center justify-end sm:justify-end");
+    expect(html).not.toContain("flex items-center justify-between sm:justify-end");
   });
 
   it("keeps the hero pitch and the Tap to begin CTA when the flag is false", () => {
@@ -50,6 +53,8 @@ describe("B2B home browse-books links (storefront.browse_books_enabled)", () => 
     expect(html).toContain('aria-label="Storefront navigation"');
     expect(html.match(/href="\/books"/g)?.length).toBe(2);
     expect(html).toContain("Tap to begin");
+    // Header controls row: with the link shown, nav and wordmark split across the row on mobile (justify-between).
+    expect(html).toContain("flex items-center justify-between sm:justify-end");
   });
 
   it("uses the supplied label and path for both links (no hard-coded copy or route)", () => {
