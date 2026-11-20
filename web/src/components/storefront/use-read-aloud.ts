@@ -87,6 +87,8 @@ export function useReadAloud(
       }
       const session = ++speechSessionRef.current;
       window.speechSynthesis.cancel?.();
+      // Chrome keeps the paused flag across cancel(); clear it or speak() stays silent.
+      if (window.speechSynthesis.paused) window.speechSynthesis.resume?.();
       pausedAtRateRef.current = null;
       setSpeechAnnouncement("");
       setPlaybackState("playing");
