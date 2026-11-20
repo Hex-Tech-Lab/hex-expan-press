@@ -146,7 +146,7 @@ for (const viewport of [
     await expect(card).toBeVisible();
     await expect(toggle).toHaveAttribute("aria-expanded", "false");
     await expect(controls).toBeVisible();
-    await expect(playBtn).toHaveAttribute("aria-label", "Read preview text aloud");
+    await expect(playBtn).toHaveAttribute("aria-label", "Read aloud: preview text");
     await expect(speedBtn).toHaveText("1×");
 
     // Verify no horizontal overflow and clean header alignment inside card
@@ -199,7 +199,7 @@ for (const viewport of [
     await expect(speedBtn).toHaveText("1×");
 
     await page.getByTestId("read-aloud-stop").click();
-    await expect(playBtn).toHaveAttribute("aria-label", "Read preview text aloud");
+    await expect(playBtn).toHaveAttribute("aria-label", "Read aloud: preview text");
     await expect(page.getByTestId("read-aloud-stop")).toHaveCount(0);
 
     // Reduced-motion verification: highlight transition collapses under prefers-reduced-motion: reduce
@@ -213,13 +213,13 @@ for (const viewport of [
     // Collapsing stops playback
     await toggle.click();
     await expect(toggle).toHaveAttribute("aria-expanded", "false");
-    await expect(playBtn).toHaveAttribute("aria-label", "Read preview text aloud");
+    await expect(playBtn).toHaveAttribute("aria-label", "Read aloud: preview text");
 
     // pagehide stops playback
     await playBtn.click();
     await expect(playBtn).toHaveAttribute("aria-label", "Pause reading aloud");
     await page.evaluate(() => window.dispatchEvent(new Event("pagehide")));
-    await expect(playBtn).toHaveAttribute("aria-label", "Read preview text aloud");
+    await expect(playBtn).toHaveAttribute("aria-label", "Read aloud: preview text");
 
     expect(errors).toEqual([]);
   });

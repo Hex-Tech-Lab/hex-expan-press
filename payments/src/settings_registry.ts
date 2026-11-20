@@ -495,7 +495,7 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
       max_chunk_chars: 180,
       labels: {
         group_aria_label: "Read aloud controls",
-        play: "Read preview text aloud",
+        play: "Read aloud: preview text",
         pause: "Pause reading aloud",
         resume: "Resume reading aloud",
         stop: "Stop reading aloud",
