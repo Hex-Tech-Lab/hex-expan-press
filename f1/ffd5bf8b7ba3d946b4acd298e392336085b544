@@ -1,0 +1,31 @@
+web/__tests__/landing-browse-books-page-wiring.test.ts
+  s_0e99959cd74c50::t_d2f71abe45ceef 1-36
+docs/testing/pairwise/landing_browse_books.model.txt
+  s_0e99959cd74c50::t_9110762f592d81 1-9
+docs/testing/pairwise/landing_browse_books.rows.tsv
+  s_0e99959cd74c50::t_6457a2d7f6d8df 1-6
+payments/src/settings_registry.ts
+  s_0e99959cd74c50::t_db97704f14c144 190
+payments/test/book_preview_settings.test.ts
+  s_0e99959cd74c50::t_61b557b2ee088e 19
+web/__tests__/landing-browse-books-flag.test.ts
+  s_0e99959cd74c50::t_16ab37bd421788 27
+web/e2e/kyc-lv-gates.spec.ts
+  s_0e99959cd74c50::t_ee0df68174b822 15
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f1ffd5bf8b7ba3d946b4acd298e392336085b544",
+  "prompts": {},
+  "sessions": {
+    "s_0e99959cd74c50": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "21b00acc-7513-46d6-9a35-038af7845be2",
+        "model": "unknown"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
