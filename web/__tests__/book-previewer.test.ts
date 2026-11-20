@@ -12,6 +12,8 @@ const pdfMocks = vi.hoisted(() => ({
   docUrl: "",
   numPages: 6,
   getDocumentShouldFail: false,
+  holdLoad: false,
+  release: null as null | (() => void),
   getPage: vi.fn(),
 }));
 
@@ -45,6 +47,13 @@ vi.mock("pdfjs-dist", () => ({
     pdfMocks.docUrl = url;
     if (pdfMocks.getDocumentShouldFail) {
       return { promise: Promise.reject(new Error("404 Not Found")) };
+    }
+    if (pdfMocks.holdLoad) {
+      return {
+        promise: new Promise((resolve) => {
+          pdfMocks.release = () => resolve({ numPages: pdfMocks.numPages, getPage: pdfMocks.getPage });
+        }),
+      };
     }
     return {
       promise: Promise.resolve({
@@ -589,6 +598,29 @@ describe("BookPreviewer container resize re-sync", () => {
   function fireResize() {
     for (const cb of [...callbacks]) cb();
   }
+
+  it("keeps the page-flip host laid out but invisible while loading, never sr-only, and visible once ready", async () => {
+    pdfMocks.holdLoad = true;
+    try {
+      await mountPreviewer();
+      await flush();
+      const regionWhileLoading = container!.querySelector('[role="region"][data-orientation]') as HTMLElement | null;
+      expect(regionWhileLoading).not.toBeNull();
+      expect(regionWhileLoading!.className).toContain("invisible");
+      expect(regionWhileLoading!.className).not.toContain("sr-only");
+    } finally {
+      pdfMocks.holdLoad = false;
+    }
+    await act(async () => {
+      pdfMocks.release?.();
+    });
+    await flush();
+    await flush();
+    const regionReady = container!.querySelector('[role="region"][data-orientation]') as HTMLElement | null;
+    expect(regionReady).not.toBeNull();
+    expect(regionReady!.className).not.toContain("invisible");
+    expect(regionReady!.className).not.toContain("sr-only");
+  });
 
   it("calls getUI().update() when the container width changes with no window resize", async () => {
     await mountPreviewer();
