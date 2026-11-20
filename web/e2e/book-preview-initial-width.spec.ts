@@ -116,6 +116,8 @@ for (const vp of VIEWPORTS) {
       timeout: 30_000,
     });
     await settleFrames(page);
+    const before = await readCanvas(page);
+    expect(before).not.toBeNull();
 
     await page.evaluate(() => {
       const host = document.querySelector<HTMLElement>('[data-testid="book-preview-viewport"] [data-orientation]');
@@ -127,6 +129,8 @@ for (const vp of VIEWPORTS) {
     const pageAspect = await pdfPageAspect(page, baseURL);
     const settled = await readCanvas(page);
     expect(settled).not.toBeNull();
+    // Without the container observer, page-flip keeps the bitmap it sized at load: this width would not change.
+    expect(settled!.bitmapW).not.toBe(before!.bitmapW);
     const want = expectedAspect(settled!.orientation, pageAspect);
     expect(relativeError(settled!.bitmapW / settled!.bitmapH, want)).toBeLessThan(ASPECT_TOLERANCE);
     expect(relativeError(settled!.cssW / settled!.cssH, want)).toBeLessThan(ASPECT_TOLERANCE);

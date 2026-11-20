@@ -564,14 +564,20 @@ describe("BookPreviewer container resize re-sync", () => {
   const observed: Element[] = [];
   const callbacks: Array<() => void> = [];
   class MockResizeObserver {
+    cb: () => void;
     constructor(cb: () => void) {
+      this.cb = cb;
       callbacks.push(cb);
     }
     observe(el: Element) {
       observed.push(el);
     }
     unobserve() {}
-    disconnect() {}
+    disconnect() {
+      // Drop this observer's callback so a torn-down observer cannot satisfy a later assertion.
+      const idx = callbacks.indexOf(this.cb);
+      if (idx >= 0) callbacks.splice(idx, 1);
+    }
   }
 
   beforeEach(() => {
