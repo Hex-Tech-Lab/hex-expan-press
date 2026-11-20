@@ -24,7 +24,7 @@ import {
 } from "framer-motion";
 import Link from "next/link";
 import JourneyDots from "../journey/journey-dots";
-import { ArrowIcon, BrandFooter, BrandFrame, BrandWordmark } from "../brand/brand";
+import { ArrowIcon, BrandCompactMark, BrandFooter, BrandFrame, BrandWordmark } from "../brand/brand";
 import { memo, useCallback, useRef, useState, useSyncExternalStore, useTransition } from "react";
 
 /** True only when the device has a fine pointer (hover-capable mouse) — tilt
@@ -533,11 +533,12 @@ export default function LandingPage({
         >
           {DOCK_ITEMS.slice(0, 2).map((it) => <DockLink key={it.title} {...it} />)}
           <motion.div
+            data-testid="desktop-dock-brand-mark"
             className="w-11 h-11 rounded-2xl bg-white border border-peach/50 flex items-center justify-center text-gray-900 font-bold text-sm"
             animate={reduced ? undefined : { boxShadow: ["0 2px 14px rgba(255,158,128,0.35)", "0 2px 22px rgba(255,158,128,0.6)", "0 2px 14px rgba(255,158,128,0.35)"] }}
             transition={{ duration: 2.6, repeat: Infinity, ease: "easeInOut" }}
           >
-            {"{ }"}
+            <BrandCompactMark />
           </motion.div>
           {DOCK_ITEMS.slice(2).map((it) => <DockLink key={it.title} {...it} />)}
         </motion.nav>
@@ -550,8 +551,11 @@ export default function LandingPage({
           aria-label="Quick Navigation"
         >
           {DOCK_ITEMS.slice(0, 2).map((it) => <DockLink key={it.title} {...it} />)}
-          <div className="w-10 h-10 rounded-2xl bg-white border border-peach/50 flex items-center justify-center text-gray-900 font-bold text-sm shrink-0">
-            {"{" }
+          <div
+            data-testid="mobile-dock-brand-mark"
+            className="w-10 h-10 rounded-2xl bg-white border border-peach/50 flex items-center justify-center text-gray-900 font-bold text-xs shrink-0"
+          >
+            <BrandCompactMark />
           </div>
           {DOCK_ITEMS.slice(2).map((it) => <DockLink key={it.title} {...it} />)}
         </motion.nav>

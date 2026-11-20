@@ -170,6 +170,7 @@ export interface GlobalSettings {
     publisher_label: string;
     thanks_path_template: string;
     house_title_note: string;
+    house_creator_bio: string;
     digital_pdf_kicker: string;
     sample_badge_label: string;
     show_non_live_samples: boolean;
@@ -426,6 +427,7 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     publisher_label: STOREFRONT_BRAND,
     thanks_path_template: "/books/{handle}/thanks",
     house_title_note: `House title. Published by ${STOREFRONT_BRAND}. No creator revenue split.`,
+    house_creator_bio: `${STOREFRONT_BRAND} is an independent digital publisher. We collaborate with practitioners and publish house editions across craft, finance, and everyday skills.`,
     digital_pdf_kicker: "DIGITAL PDF",
     sample_badge_label: "(Sample)",
     show_non_live_samples: true,
@@ -552,8 +554,8 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
   landing: {
     fallbacks: { title: "Product", creator: "the creator" },
     disclaimers: [
-      "This is a digital product (PDF); no physical item will be shipped.",
-      "Educational content only — nothing in this document is financial advice. Do your own research.",
+      "Educational content only — the publications listed on this page are educational and informational, not professional advice. See each publication's page for full disclaimers.",
+      "Digital products: all items are downloadable PDFs; no physical items are shipped.",
     ],
   },
   // Buyer delivery (download_events, delivery_sends). The bucket holds release files only, never review copies.
@@ -970,6 +972,7 @@ export function loadStorefrontSection(raw: Record<string, unknown> | undefined):
       | "digital_pdf_kicker"
       | "sample_badge_label"
       | "house_title_note"
+      | "house_creator_bio"
       | "coming_soon_badge"
       | "sample_preview_cta"
       | "browse_books_label"
@@ -1070,6 +1073,7 @@ export function loadStorefrontSection(raw: Record<string, unknown> | undefined):
     publisher_label: brandName,
     thanks_path_template: thanksTpl,
     house_title_note: houseNote,
+    house_creator_bio: strField("house_creator_bio"),
     digital_pdf_kicker: strField("digital_pdf_kicker"),
     sample_badge_label: strField("sample_badge_label"),
     show_non_live_samples: showNonLiveSamples,

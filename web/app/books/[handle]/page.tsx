@@ -7,6 +7,7 @@ import {
   StorefrontFooter,
   storefrontRobots,
   fetchCreatorHub,
+  isHouseCreator,
   platformLink,
   resolveCreatorOr404,
 } from "../../../src/components/storefront/storefront";
@@ -44,6 +45,7 @@ export async function generateMetadata({ params }: { params: Promise<{ handle: s
 export default async function CreatorHubPage({ params }: { params: Promise<{ handle: string }> }) {
   const { handle } = await params;
   const { creator } = resolveCreatorOr404(await fetchCreatorHub(handle));
+  const houseCreator = isHouseCreator(creator.display_name, GLOBAL.storefront.brand_name);
 
   const initial = creator.display_name.trim().charAt(0).toUpperCase();
   const bioParas = creator.bio
@@ -97,14 +99,14 @@ export default async function CreatorHubPage({ params }: { params: Promise<{ han
               })}
             </p>
             {bioParas.length > 0 ? (
-              bioParas.map((p, i) => (
-                <p key={i} className="text-sm sm:text-base text-gray-700 leading-relaxed">
-                  {p}
+              bioParas.map((para, idx) => (
+                <p key={idx} className="text-sm sm:text-base text-gray-700 leading-relaxed">
+                  {para}
                 </p>
               ))
-            ) : (
-              <p className="text-sm sm:text-base text-gray-600">Creator bio coming soon.</p>
-            )}
+            ) : houseCreator ? (
+              <p className="text-sm sm:text-base text-gray-700 leading-relaxed">{GLOBAL.storefront.house_creator_bio}</p>
+            ) : null}
           </div>
         </section>
 
@@ -118,9 +120,9 @@ export default async function CreatorHubPage({ params }: { params: Promise<{ han
             </div>
           ) : (
             <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5">
-              {creator.products.map((p) => (
-                <li key={p.id} className="list-none">
-                  <BookCard product={p} creatorHandle={creator.handle} creatorName={creator.display_name} headingLevel={3} />
+              {creator.products.map((prod) => (
+                <li key={prod.id} className="list-none">
+                  <BookCard product={prod} creatorHandle={creator.handle} creatorName={creator.display_name} headingLevel={3} />
                 </li>
               ))}
             </ul>
@@ -128,14 +130,9 @@ export default async function CreatorHubPage({ params }: { params: Promise<{ han
         </section>
 
         <section className="flex flex-col gap-2 text-xs text-gray-600 leading-relaxed px-2">
-          <p>
-            <b className="text-gray-700">Educational content only &mdash; not financial advice.</b> The publications listed on this page are
-            educational; nothing in them is a recommendation to buy, sell, or hold any security. See each
-            publication&rsquo;s page for full disclaimers.
-          </p>
-          <p>
-            <b className="text-gray-700">Digital products:</b> all items are downloadable PDFs; no physical items are shipped.
-          </p>
+          {GLOBAL.landing.disclaimers.map((disclaimer, idx) => (
+            <p key={idx}>{disclaimer}</p>
+          ))}
         </section>
       </main>
 
