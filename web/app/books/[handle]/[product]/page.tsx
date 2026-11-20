@@ -1,14 +1,18 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { BuyLink } from "../../../../src/components/storefront/buy-link";
+import BookPreviewer from "../../../../src/components/storefront/book-previewer";
 import { ArrowIcon, BrandFrame, BrandWordmark } from "../../../../src/components/brand/brand";
 import {
   BookCover,
   NOINDEX,
   PAY_ORIGIN,
+  PublicationByline,
   StorefrontFooter,
   storefrontRobots,
   fetchStoreProduct,
+  formatProductPrice,
+  isHouseCreator,
   isWorkingTitle,
   priceOf,
   productSlugOf,
@@ -34,18 +38,22 @@ export async function generateMetadata({
   params: Promise<{ handle: string; product: string }>;
 }): Promise<Metadata> {
   const { handle, product } = await params;
+  const brand = GLOBAL.storefront.brand_name;
   const result = await fetchStoreProduct(handle, product);
-  if (!result) return { title: "Publication · ExpanPress", robots: NOINDEX };
+  if (!result) return { title: `Publication · ${brand}`, robots: NOINDEX };
   const { creator, product: p, origin } = result;
-  const title = `${p.title ?? p.slug} · ${creator.display_name} · ExpanPress`;
-  const description = (p.description ?? `A publication by ${creator.display_name} on ExpanPress.`).slice(0, 155);
+  const productTitle = p.title ?? p.slug;
+  const title = isHouseCreator(creator.display_name, brand)
+    ? `${productTitle} · ${brand}`
+    : `${productTitle} · ${creator.display_name} · ${brand}`;
+  const description = (p.description ?? `A publication by ${creator.display_name} on ${brand}.`).slice(0, 155);
   const canonical = `${origin}/books/${creator.handle}/${product}`;
   return {
     robots: storefrontRobots([p]),
     title,
     description,
     alternates: { canonical },
-    openGraph: { type: "website", siteName: "ExpanPress", title, description, url: canonical },
+    openGraph: { type: "website", siteName: brand, title, description, url: canonical },
     twitter: { card: "summary", title, description },
   };
 }
@@ -59,6 +67,7 @@ export default async function StoreProductPage({
   const { creator, product: p } = resolveCreatorOr404(await fetchStoreProduct(handle, product));
 
   const price = priceOf(p);
+  const priceDisplay = formatProductPrice(price, p.currency, "—");
   const live = p.checkout_mode === "live";
   const title = p.title ?? productSlugOf(p);
   const buyUrl = `${PAY_ORIGIN}/checkout/${p.id}`;
@@ -69,12 +78,13 @@ export default async function StoreProductPage({
         <BrandWordmark href={GLOBAL.storefront.b2c_landing_url} label="ExpanPress home" />
       </header>
 
-      <main className="grid gap-6 md:grid-cols-2 md:gap-8 md:items-start">
-        <div className="w-full max-w-sm mx-auto md:mx-0">
-          <BookCover title={title} />
-        </div>
+      <main className="flex flex-col gap-6 md:gap-8">
+        <div className="grid gap-6 md:grid-cols-2 md:gap-8 md:items-start">
+          <div className="w-full max-w-sm mx-auto md:mx-0">
+            <BookCover title={title} coverImage={p.cover_image ?? null} isSample={p.is_sample ?? false} />
+          </div>
 
-        <section className="glass-card card-shadow rounded-[32px] border-[1.5px] border-[#fff2e4] p-6 sm:p-8 flex flex-col gap-5">
+          <section className="glass-card card-shadow rounded-[32px] border-[1.5px] border-[#fff2e4] p-6 sm:p-8 flex flex-col gap-5">
           <Link
             href={`/books/${creator.handle}`}
             className="self-start text-sm font-semibold text-gray-700 hover:text-gray-900 hover:underline underline-offset-4"
@@ -87,15 +97,7 @@ export default async function StoreProductPage({
               Digital PDF &middot; Download link by email
             </p>
             <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-gray-900 leading-[1.12]">{title}</h1>
-            <p className="text-sm text-gray-600">
-              A creator-collaboration publication with{" "}
-              <Link
-                href={`/books/${creator.handle}`}
-                className="font-medium text-gray-800 hover:underline underline-offset-4"
-              >
-                {creator.display_name}
-              </Link>
-            </p>
+            <PublicationByline creatorHandle={creator.handle} creatorDisplayName={creator.display_name} linkCreator />
             {isWorkingTitle(p) && (
               <p className="text-xs italic text-gray-600">
                 Product shown under a working title &mdash; final title may change before publication.
@@ -106,13 +108,12 @@ export default async function StoreProductPage({
           {p.description && <p className="text-base text-gray-700 leading-relaxed">{p.description}</p>}
 
           <p className="text-2xl font-bold tracking-tight text-gray-900">
-            {price !== null ? `$${price.toFixed(2)}` : "—"}{" "}
-            <span className="text-xs font-normal text-gray-600">{`${p.currency ?? "USD"} · one-time`}</span>
+            {priceDisplay.formatted}{" "}
+            <span className="text-xs font-normal text-gray-600">{`${priceDisplay.currency} · one-time`}</span>
           </p>
 
           {live ? (
             <BuyLink
-              className="self-start inline-flex items-center gap-3 rounded-full bg-[#2A2A2A] hover:bg-[#383838] text-white px-6 py-3.5 text-sm font-semibold transition-colors"
               href={buyUrl}
               data-checkout-slot="primary"
               data-checkout-mode="live"
@@ -139,7 +140,17 @@ export default async function StoreProductPage({
               {d}
             </p>
           ))}
-        </section>
+          </section>
+        </div>
+
+        {p.preview_pdf && (
+          <BookPreviewer
+            previewPdfUrl={p.preview_pdf}
+            coverImageUrl={p.cover_image ?? null}
+            bookTitle={title}
+            settings={GLOBAL.book_preview}
+          />
+        )}
       </main>
 
       <StorefrontFooter showBuyerLegal={live} />

@@ -53,3 +53,53 @@ export function BrandFooter({ tagline, children }: { tagline?: string; children:
     </footer>
   );
 }
+
+export type BrandButtonVariant = "primary" | "secondary";
+
+const BRAND_BUTTON_BASE =
+  "inline-flex items-center justify-center gap-3 rounded-full text-sm font-semibold transition-colors focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#E8622C]";
+
+const BRAND_BUTTON_VARIANT: Record<BrandButtonVariant, string> = {
+  primary:
+    "self-start bg-[#2A2A2A] hover:bg-[#383838] disabled:bg-[#9a9a9a] disabled:cursor-not-allowed text-white px-6 py-3.5",
+  secondary:
+    "border border-[#dcc7b4] bg-white hover:bg-[#fff2e4] disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed text-gray-900 px-3 py-1",
+};
+
+type BrandButtonAsButton = React.ButtonHTMLAttributes<HTMLButtonElement> & {
+  href?: undefined;
+  variant?: BrandButtonVariant;
+};
+
+type BrandButtonAsLink = React.AnchorHTMLAttributes<HTMLAnchorElement> & {
+  href: string;
+  variant?: BrandButtonVariant;
+};
+
+/** Shared brand CTA / secondary button (one source for focus ring, disabled, and hover states across product and checkout). */
+export function BrandButton(props: BrandButtonAsButton | BrandButtonAsLink) {
+  const { variant = "primary", className = "", children, ...rest } = props;
+  const cls = `${BRAND_BUTTON_BASE} ${BRAND_BUTTON_VARIANT[variant]}${className ? ` ${className}` : ""}`;
+  if ("href" in props && props.href !== undefined) {
+    const anchorProps = rest as React.AnchorHTMLAttributes<HTMLAnchorElement>;
+    return (
+      <a className={cls} {...anchorProps}>
+        {children}
+      </a>
+    );
+  }
+  const { type = "button", ...buttonProps } = rest as React.ButtonHTMLAttributes<HTMLButtonElement>;
+  return (
+    <button type={type} className={cls} {...buttonProps}>
+      {children}
+    </button>
+  );
+}
+
+const BRAND_FIELD_CLASS =
+  "w-full rounded-2xl border border-[#dcc7b4] bg-white px-4 py-3 text-base text-gray-900 placeholder:text-gray-500 hover:border-[#bfa48b] disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed transition-colors focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#E8622C]";
+
+/** Shared text input primitive (one source for border, hover, disabled, and focus ring). */
+export function BrandField({ className = "", ...props }: React.InputHTMLAttributes<HTMLInputElement>) {
+  return <input className={`${BRAND_FIELD_CLASS}${className ? ` ${className}` : ""}`} {...props} />;
+}

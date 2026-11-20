@@ -7,6 +7,20 @@ export interface BookIdentity {
   title: string;
   subtitle: string;
   author: string;
+  description?: string;
+  byline?: string;
+  data_dir?: string;
+  product_id?: string;
+  product_slug?: string;
+  store_product_id?: string;
+  price?: { usd: number; currency: string };
+  cover_image?: string | null;
+  preview_pdf?: string | null;
+  release_pdf?: string;
+  release_path?: string;
+  release_sha256?: string;
+  release_bytes?: number;
+  is_sample?: boolean;
 }
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -21,6 +35,9 @@ const needNonEmpty = (v: unknown, key: string, source: string): string => {
   return v.trim();
 };
 
+const optionalNonEmpty = (v: unknown): string | undefined =>
+  typeof v === "string" && v.trim() !== "" ? v.trim() : undefined;
+
 /** Single source of truth for a book's identity. Throws if title/subtitle are
  *  missing or blank so identity drift can never ship silently. */
 export function loadBookIdentity(bookFile: string = defaultBookFile): BookIdentity {
@@ -34,10 +51,43 @@ export function loadBookIdentity(bookFile: string = defaultBookFile): BookIdenti
     throw new Error(`book_identity: ${bookFile} must contain a single JSON object`);
   }
   const b = parsed as Record<string, unknown>;
-  return {
+  const out: BookIdentity = {
     id: needNonEmpty(b.id, "id", bookFile),
     title: needNonEmpty(b.title, "title", bookFile),
     subtitle: needNonEmpty(b.subtitle, "subtitle", bookFile),
     author: needNonEmpty(b.author, "author", bookFile),
   };
+  for (const key of [
+    "description",
+    "byline",
+    "data_dir",
+    "product_id",
+    "product_slug",
+    "store_product_id",
+    "release_pdf",
+    "release_path",
+    "release_sha256",
+  ] as const) {
+    const val = optionalNonEmpty(b[key]);
+    if (val !== undefined) out[key] = val;
+  }
+  if (typeof b.release_bytes === "number" && Number.isInteger(b.release_bytes) && b.release_bytes > 0) {
+    out.release_bytes = b.release_bytes;
+  }
+  if (b.price && typeof b.price === "object" && !Array.isArray(b.price)) {
+    const p = b.price as Record<string, unknown>;
+    if (typeof p.usd === "number" && Number.isFinite(p.usd) && p.usd > 0 && typeof p.currency === "string" && p.currency.trim() !== "") {
+      out.price = { usd: p.usd, currency: p.currency.trim().toUpperCase() };
+    }
+  }
+  if ("cover_image" in b && (b.cover_image === null || typeof b.cover_image === "string")) {
+    out.cover_image = b.cover_image;
+  }
+  if ("preview_pdf" in b && (b.preview_pdf === null || typeof b.preview_pdf === "string")) {
+    out.preview_pdf = b.preview_pdf;
+  }
+  if (typeof b.is_sample === "boolean") {
+    out.is_sample = b.is_sample;
+  }
+  return out;
 }

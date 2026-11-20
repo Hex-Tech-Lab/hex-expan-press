@@ -4,6 +4,7 @@ import { processBillingWebhookUseCase } from "../../../../../src/use_cases/billi
 import { WebhookValidationError } from "../../../../../src/domain/webhook/webhook_errors";
 import { OrderSchemaError } from "../../../../../payments/src/ledger";
 import { GLOBAL } from "../../../../../payments/src/settings_registry";
+import { budgetLeftMs, webhookDeadlineAt } from "../../../../../payments/src/webhook_budget";
 
 /**
  * Best-effort audit trail for 503 retry responses (event WEBHOOK_503_RETRYING).
@@ -30,21 +31,32 @@ async function record503Audit(details: { provider?: string; sale_id?: string; re
   }
 }
 
-/** Run the 503 audit for at most payments.http_timeout_ms (the webhook's short internal-call
- *  budget), then abort the insert so a stalled Supabase can't pile up open requests. The race
- *  keeps the response bounded even if the abort doesn't settle promptly. */
+/** Run the 503 audit for at most `timeoutMs` (default payments.http_timeout_ms), then abort the insert so a stalled Supabase
+ *  can't pile up open requests. The race keeps the response bounded even if the abort doesn't settle promptly. */
 export async function auditBounded(
   details: { provider?: string; sale_id?: string; reason: string },
   run: typeof record503Audit = record503Audit,
+  timeoutMs: number = GLOBAL.payments.http_timeout_ms,
 ): Promise<void> {
   const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<void>((resolve) => {
-    timer = setTimeout(() => { controller.abort(); resolve(); }, GLOBAL.payments.http_timeout_ms);
+    timer = setTimeout(() => { controller.abort(); resolve(); }, timeoutMs);
   });
   // .finally, not try/finally: eslint-plugin-security-node crashes on a TryStatement with no catch.
   // The async wrapper turns a synchronous throw from run into a rejection, so .finally still clears the timer.
   await Promise.race([(async () => run(details, controller.signal))(), timeout]).finally(() => clearTimeout(timer));
+}
+
+/** The 503 audit, bounded by what is left of the request budget (payments.webhook_total_budget_ms). The answer goes out first:
+ *  once the budget is spent the audit is skipped, and the held delivery claim is what an operator reconciles. */
+async function audit503(details: { provider?: string; sale_id?: string; reason: string }, deadlineAt: number): Promise<void> {
+  const left = budgetLeftMs(deadlineAt);
+  if (left <= 0) {
+    console.error(`[billing-webhook] 503 audit skipped: webhook budget spent (event=WEBHOOK_503_RETRYING reason=${details.reason})`);
+    return;
+  }
+  await auditBounded(details, record503Audit, Math.min(GLOBAL.payments.http_timeout_ms, left));
 }
 
 // Webhooks are small JSON bodies (KBs) — cap buffering at 1 MiB (the Wave 4
@@ -100,6 +112,9 @@ export function createWebhookHandler(
 }
 
 async function handleWebhook(request: NextRequest, adapters: WebhookAdapters, switchedOffAdapters: WebhookAdapters): Promise<NextResponse> {
+  // One overall deadline for this request, counted from its start (payments.webhook_total_budget_ms). The sale write is never cut
+  // short; the lookup, link and receipt take only what is left, and past it the answer is a 503 with Retry-After.
+  const deadlineAt = webhookDeadlineAt();
   const bodyBuffer = await readBodyCapped(request);
   if (bodyBuffer === null) {
     return NextResponse.json({ ok: false, error: "Payload Too Large" }, { status: 413 });
@@ -108,11 +123,12 @@ async function handleWebhook(request: NextRequest, adapters: WebhookAdapters, sw
   const headers = Object.fromEntries(request.headers);
 
   try {
-    const outcome = await processBillingWebhookUseCase({ headers, body }, adapters);
-    // Adjustment-id collision stored in the reconciliation inbox: 202 stops the provider's retry loop (any 2xx
-    // is delivered) while the event waits for an operator in public.webhook_conflicts.
-    if (outcome?.status === 202) {
-      return NextResponse.json(outcome.payload, { status: 202 });
+    const outcome = await processBillingWebhookUseCase({ headers, body, deadlineAt }, adapters);
+    // Adjustment-id collision, already stored in the reconciliation inbox (public.webhook_conflicts, with the audit flag):
+    // answer 200. Paddle documents 200 as success and retries any other status, so 202 would redeliver a recorded conflict
+    // for about 42 h. 503 is wrong too: the event is already durable, so a retry adds nothing. The operator resolves it.
+    if (outcome) {
+      return NextResponse.json(outcome.payload, { status: 200 });
     }
     return NextResponse.json({ ok: true });
   } catch (err) {
@@ -120,7 +136,7 @@ async function handleWebhook(request: NextRequest, adapters: WebhookAdapters, sw
     // persisted yet — never 200 here (the holder may still fail). 503 +
     // Retry-After makes the provider redeliver.
     if (err instanceof Error && err.name === "WebhookInFlightError") {
-      await auditBounded({ ...auditContext(headers, body), reason: "idempotency_lock_in_flight" });
+      await audit503({ ...auditContext(headers, body), reason: "idempotency_lock_in_flight" }, deadlineAt);
       return NextResponse.json(
         { ok: false, error: "In flight — retry" },
         { status: 503, headers: retryAfterHeaders() },
@@ -157,7 +173,7 @@ async function handleWebhook(request: NextRequest, adapters: WebhookAdapters, sw
     const error = status === 401 ? "Unauthorized" : status === 503 ? "Temporarily unavailable — retry" : status === 500 ? "Internal Server Error" : "Bad Request";
     if (status === 503) {
       // Error name only: messages can carry buyer data (e.g. an email lookup failure).
-      await auditBounded({ ...auditContext(headers, body), reason: err instanceof Error ? err.name : "unknown" });
+      await audit503({ ...auditContext(headers, body), reason: err instanceof Error ? err.name : "unknown" }, deadlineAt);
     }
     // Post-authentication terminal 4xx (validation 400s, semantic 422s —
     // everything except a 401 unauthenticated reject) is final for this

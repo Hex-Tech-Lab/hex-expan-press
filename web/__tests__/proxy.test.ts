@@ -748,4 +748,23 @@ describe("B2C/B2B routing matrix: host x path", () => {
       expect(res.headers.get("location")).toMatch(/^https:\/\/pay\.expanpress\.com\//);
     }
   });
+
+  it("blocks non-US x-vercel-ip-country on checkout routes with 403 while permitting US", async () => {
+    const { proxy } = await import("../proxy");
+    const blocked = await proxy({
+      cookies: { getAll: () => [], set: () => {} },
+      url: "https://pay.expanpress.com/checkout/abc",
+      method: "GET",
+      headers: new Headers({ "x-vercel-ip-country": "DE" }),
+    } as never);
+    expect(blocked.status).toBe(403);
+
+    const allowed = await proxy({
+      cookies: { getAll: () => [], set: () => {} },
+      url: "https://pay.expanpress.com/checkout/abc",
+      method: "GET",
+      headers: new Headers({ "x-vercel-ip-country": "US" }),
+    } as never);
+    expect(allowed.status).toBe(200);
+  });
 });

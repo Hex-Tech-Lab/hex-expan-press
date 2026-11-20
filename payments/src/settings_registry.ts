@@ -53,6 +53,70 @@ function warnFallback(file: string, why: string): void {
   console.error(`[settings-registry] ${file} ${why} — inline fallbacks in effect (expected at ${CANDIDATE_DIRS[0]})`);
 }
 
+/** Paddle.js overlay checkout on pay.expanpress.com (the buyer email step opens it). The two *_env fields are the NAMES of
+ *  environment variables, never values. The client token and the environment are read on the server with these names, because
+ *  a NEXT_PUBLIC_* value is only inlined into the client bundle when it is referenced by its literal name. */
+export interface PaddleOverlaySettings {
+  client_token_env: string;
+  environment_env: string;
+  theme: "light" | "dark";
+  locale: string;
+  /** customData key carrying the attribution reference. The webhook reads it as the sale's attribution id. */
+  order_ref_key: string;
+  /** customData key carrying the buyer's consent ("true" or "false"). Buyer-supplied: recorded on the order, never a trust decision. */
+  buyer_consent_key: string;
+}
+
+export interface PaymentRoutingSettings {
+  mode: "single" | "distribute" | "cascade" | "2d";
+  distribution: Array<{ provider: string; weight: number }>;
+  fallbacks: string[];
+}
+
+export interface BrandCheckoutSettings {
+  version: string;
+  theme_mode: "light" | "dark";
+  font_family: string;
+  logo_url: string;
+  logo_square_url: string;
+  colors: {
+    canvas: string;
+    charcoal: string;
+    peach: string;
+    accent: string;
+    button_primary: string;
+    button_hover: string;
+    button_text: string;
+    border: string;
+  };
+  button_border_radius_px: number;
+}
+
+export interface EmailRolesSettings {
+  /** General customer support and creator portal assistance. */
+  support: string;
+  /** Refund requests, receipt questions, MoR dispute handling. */
+  billing: string;
+  /** GDPR, CCPA, DSAR, and statutory privacy requests. */
+  privacy: string;
+  /** Terms of service, DMCA, contract, and IP compliance. */
+  legal: string;
+  /** Outbound transactional sender display name and address. */
+  sender: string;
+  /** Alias kept in sync with `sender` for existing callers/tests. */
+  from: string;
+  reply_to: string;
+  sending_domain: string;
+  retryable_error_names: string[];
+  /** Resend HTTP status for a concurrent request with the same idempotency key: the original may still be accepted, so the outcome is unconfirmed. */
+  concurrent_request_status: number;
+  /** Resend error name that goes with concurrent_request_status. */
+  concurrent_request_error_name: string;
+  /** Resend HTTP status for a definite refusal of the message itself (a validation error, in practice the buyer address).
+   *  No retry can succeed, so the sale is answered 422 and quarantined, not retried. Config refusals (401, 403) stay retryable. */
+  address_rejected_status: number;
+}
+
 // ---------------------------------------------------------------------------
 // global.json — paths, endpoints, tool paths, server, shared defaults
 // ---------------------------------------------------------------------------
@@ -72,11 +136,17 @@ export interface GlobalSettings {
     webhook_lock_refund_prefix: string;
     webhook_lock_fence_suffix: string;
     http_timeout_ms: number; // webhook-internal call budget: Paddle customer-email lookup AND the 503 audit insert (must stay short)
+    /** One overall deadline per webhook request, in ms, counted from the request start. The sale write is never cut short;
+     *  the buyer lookup, the download link and the receipt send get only what is left. Past it, delivery answers 503
+     *  (Retry-After) and the provider's retry resends the stored receipt under the same idempotency key. Paddle answers
+     *  within 5 s, so the default is 3000 (2 s headroom for cold start and the response). Set in the registry, not in code. */
+    webhook_total_budget_ms: number;
     sync_http_timeout_ms: number; // operator CLI (sync_book_identity) calls to Supabase/Paddle
     review_queue_page_size: number; // listManualReviewRefunds default page/limit
     /** Retry-After seconds sent on 503 webhook responses (in-flight AND generic 503 paths). */
     retry_after_seconds: number;
-    paddle: { api_base: { production: string; sandbox: string }; js_cdn_url: string };
+    paddle: { api_base: { production: string; sandbox: string }; js_cdn_url: string; overlay: PaddleOverlaySettings };
+    routing: PaymentRoutingSettings;
     /** Creem TEST mode is accepted only when this is true, creem_test_database_ref is non-empty,
      *  AND new URL(SUPABASE_URL).hostname equals `${creem_test_database_ref}.supabase.co`.
      *  Production has no global.json, so this stays false there. Test-only; see creem.adapter.ts. */
@@ -86,16 +156,39 @@ export interface GlobalSettings {
     /** Explicit opt-in for sandbox checkout acceptance (sandbox checkout_mode and sandbox.* rail hosts)
      *  on non-production runtimes. Default false (fail closed); production always refuses regardless. */
     sandbox_checkout_enabled: boolean;
+    /** ISO 3166-1 alpha-2 buyer country codes permitted at checkout (launch: US + DC/territories). */
+    allowed_buyer_countries: string[];
   };
-  /** Buyer-facing storefront links. `b2c_landing_url` is the logo target on the thank-you page. */
-  storefront: { b2c_landing_url: string };
+  /** Buyer-facing storefront links, publisher name, card copy, and registry-driven asset paths. `b2c_landing_url` is the logo
+   *  target on the thank-you page. `brand_name` is the publisher's name: a creator whose display name equals it is the house, and
+   *  the page names it as publisher. `publisher_label` is not set separately; it always equals `brand_name` (one source).
+   *  `thanks_path_template` is the thank-you page a checkout returns to ({handle} is replaced with the creator handle).
+   *  `house_title_note` is the one-line note on a house title (creators.is_house): published by ExpanPress, no creator split. */
+  storefront: {
+    b2c_landing_url: string;
+    brand_name: string;
+    publisher_label: string;
+    thanks_path_template: string;
+    house_title_note: string;
+    digital_pdf_kicker: string;
+    sample_badge_label: string;
+    covers_base_path: string;
+    previews_base_path: string;
+    book_assets: Record<
+      string,
+      { book_registry?: string; cover_image?: string | null; preview_pdf?: string | null; is_sample?: boolean }
+    >;
+  };
+  /** Product-page PDF previewer tunables (PDF.js + StPageFlip). */
+  book_preview: BookPreviewSettings;
   /** Creator handle policy (web/src/lib/handle-policy.ts). Set once at account creation; immutable after. */
   handles: { min_length: number; max_length: number; separator: string; reserved: string[]; profanity_whitelist: string[] };
   /** Product slug rule (ADR 0065): same shape as handles. Unique per creator (products_creator_id_slug_key);
    *  platform-wide products_slug_key was reverted and is dropped by supabase/migrations/20261117110000_products_slug_convergence.sql. */
 product_slug: { min_length: number; max_length: number; separator: string };
   /** Sign-in email length ceiling (O5). 254 is the RFC 5321 address limit; zod's email check supplies the shape. */
-  email_address: { max_length: number };
+  /** `typo_domains` is the list the buyer email step checks a typo against. A close miss is suggested, never applied silently. */
+  email_address: { max_length: number; typo_domains: string[] };
   landing: { fallbacks: { title: string; creator: string }; disclaimers: string[] };
   /** Admin API allowlist + pagination (admin audit-log route). */
   admin: {
@@ -136,26 +229,47 @@ product_slug: { min_length: number; max_length: number; separator: string };
      * Resend keeps idempotency keys for 24 hours, so the loader caps this at 24: a later resend could be a second email.
      */
     stored_message_resend_max_age_hours: number;
+    /** Buyer delivery promise shown in the consent line: the usual delay in minutes. */
+    buyer_typical_minutes: number;
+    /**
+     * Buyer support promise shown in the consent line: after this many hours without the e-book, the buyer is asked to write to
+     * the support address (email.reply_to), and support sends it by hand. Replaces the retired six-hour delivery promise.
+     */
+    buyer_support_after_hours: number;
+    /** Checkout metadata key that carries the buyer's consent (true or false) on a provider whose checkout link documents metadata. */
+    buyer_consent_metadata_key: string;
   };
-  /** Transactional email (Resend). `from` must be on `sending_domain` (DKIM-verified in Resend). */
-  email: {
-    from: string;
-    reply_to: string;
-    sending_domain: string;
-    retryable_error_names: string[];
-    /** Resend HTTP status for a concurrent request with the same idempotency key: the original may still be accepted, so the outcome is unconfirmed. */
-    concurrent_request_status: number;
-    /** Resend error name that goes with concurrent_request_status. */
-    concurrent_request_error_name: string;
-    /** Resend HTTP status for a definite refusal of the message itself (a validation error, in practice the buyer address).
-     *  No retry can succeed, so the sale is answered 422 and quarantined, not retried. Config refusals (401, 403) stay retryable. */
-    address_rejected_status: number;
-  };
+  /** Transactional email & role routing (Resend). `sender`/`from` must be on `sending_domain` (DKIM-verified in Resend). */
+  email: EmailRolesSettings;
+  /** Versioned MoR checkout branding tokens (PROVIDER_CHECKOUT_BRANDING.md). */
+  branding: BrandCheckoutSettings;
   portal: { jwt_clock_skew_retry_delay_ms: number };
   consent: { text_version: string; evidence_path: { user_id_pattern: string; envelope_id_pattern: string } };
   /** Daily usage watch (scripts/ops/usage_watch.ts). Limits are the plan limits we are on (Vercel Hobby, Supabase Free org,
    *  Upstash pay-as-you-go); warn_ratio is the fraction of a limit at which the watch reports WARN and exits non-zero. */
   usage_watch: UsageWatchSettings;
+}
+
+export interface BookPreviewSettings {
+  pdf_worker_src: string;
+  render_scale: number;
+  max_preview_pages: number;
+  page_width_px: number;
+  page_height_px: number;
+  min_width_px: number;
+  max_width_px: number;
+  min_height_px: number;
+  max_height_px: number;
+  flipping_time_ms: number;
+  max_shadow_opacity: number;
+  swipe_distance_px: number;
+  /** Distance (px) outside the viewport at which the preview starts loading and stops when it is further away.
+   *  The page-flip loop redraws every animation frame while mounted, so the book is mounted only near the viewport. */
+  visibility_margin_px: number;
+  show_cover: boolean;
+  use_portrait: boolean;
+  heading: string;
+  subheading: string;
 }
 
 export interface UsageWatchSettings {
@@ -167,6 +281,9 @@ export interface UsageWatchSettings {
   supabase: { db_size_bytes: number; egress_bytes: number; file_storage_bytes: number };
   upstash: { monthly_commands: number; monthly_bandwidth_bytes: number; memory_bytes: number };
 }
+
+/** The publisher name, one literal. storefront.brand_name and storefront.publisher_label both read it. */
+const STOREFRONT_BRAND = "ExpanPress";
 
 export const DEFAULT_GLOBAL: GlobalSettings = {
   paths: {
@@ -198,20 +315,68 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     webhook_lock_refund_prefix: "lock:refund:",
     webhook_lock_fence_suffix: ":fence",
     http_timeout_ms: 5000,
+    webhook_total_budget_ms: 3000,
     sync_http_timeout_ms: 30000,
     review_queue_page_size: 200,
     retry_after_seconds: 30,
     creem_accept_test_mode: false,
     creem_test_database_ref: "",
     sandbox_checkout_enabled: false,
+    allowed_buyer_countries: ["US", "PR", "VI", "GU", "AS", "MP"],
     paddle: {
       api_base: { production: "https://api.paddle.com", sandbox: "https://sandbox-api.paddle.com" },
       js_cdn_url: "https://cdn.paddle.com/paddle/v2/paddle.js",
+      overlay: {
+        client_token_env: "NEXT_PUBLIC_PADDLE_CLIENT_TOKEN",
+        environment_env: "NEXT_PUBLIC_PADDLE_ENVIRONMENT",
+        theme: "light",
+        locale: "en",
+        order_ref_key: "order_ref",
+        buyer_consent_key: "buyer_consent",
+      },
+    },
+    routing: {
+      mode: "2d",
+      distribution: [{ provider: "paddle", weight: 100 }],
+      fallbacks: ["lemonsqueezy", "fastspring"],
     },
   },
   // Home target for every buyer-side logo and home link (thank-you page, checkout). Absolute, so a buyer on
   // pay.expanpress.com also lands on the B2C landing, never on the B2B root. The B2C landing is /books on the main site.
-  storefront: { b2c_landing_url: "https://expanpress.com/books" },
+  storefront: {
+    b2c_landing_url: "https://expanpress.com/books",
+    brand_name: STOREFRONT_BRAND,
+    publisher_label: STOREFRONT_BRAND,
+    thanks_path_template: "/books/{handle}/thanks",
+    house_title_note: `House title. Published by ${STOREFRONT_BRAND}. No creator revenue split.`,
+    digital_pdf_kicker: "DIGITAL PDF",
+    sample_badge_label: "(Sample)",
+    covers_base_path: "/books/covers",
+    previews_base_path: "/books/previews",
+    book_assets: {
+      "500k_playbook": { book_registry: "books/duane.json" },
+      sample_the_quiet_workshop: { book_registry: "books/sample_the_quiet_workshop.json" },
+    },
+  },
+  book_preview: {
+    pdf_worker_src: "/pdfjs/pdf.worker.min.mjs",
+    render_scale: 2,
+    max_preview_pages: 16,
+    page_width_px: 400,
+    page_height_px: 600,
+    min_width_px: 260,
+    max_width_px: 460,
+    min_height_px: 390,
+    max_height_px: 690,
+    flipping_time_ms: 600,
+    max_shadow_opacity: 0.25,
+    swipe_distance_px: 30,
+    visibility_margin_px: 200,
+    show_cover: true,
+    use_portrait: true,
+    heading: "Preview inside the book",
+    subheading: "Turn pages to inspect the cover, Chapter 1, an interior chapter opener, and back cover.",
+  },
   // Our handle rules, not a platform's (Instagram allows 1-30, Facebook requires 5). Reserved words are never assignable.
   handles: {
     min_length: 3,
@@ -230,7 +395,14 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
   // Product slug rule (ADR 0065). Same shape as handles. Unique per creator (products_creator_id_slug_key);
   // platform-wide products_slug_key was reverted and is dropped by supabase/migrations/20261117110000_products_slug_convergence.sql.
   product_slug: { min_length: 3, max_length: 30, separator: "_" },
-  email_address: { max_length: 254 },
+  email_address: {
+    max_length: 254,
+    // US consumer mail domains (the plan is US sales only). Used by the buyer email typo check.
+    typo_domains: [
+      "gmail.com", "googlemail.com", "yahoo.com", "ymail.com", "outlook.com", "hotmail.com", "live.com", "msn.com",
+      "icloud.com", "me.com", "aol.com", "comcast.net", "verizon.net", "att.net", "sbcglobal.net", "protonmail.com", "proton.me",
+    ],
+  },
   landing: {
     fallbacks: { title: "Product", creator: "the creator" },
     disclaimers: [
@@ -265,9 +437,18 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     stored_message_since: "2026-11-19T05:00:00Z",
     // Resend keeps idempotency keys for 24 hours (email.ts). A shorter window only resends less often.
     stored_message_resend_max_age_hours: 24,
+    // The buyer consent line promises a usual delay of 2 minutes, and a support route after 1 hour without the e-book.
+    buyer_typical_minutes: 2,
+    buyer_support_after_hours: 1,
+    buyer_consent_metadata_key: "buyer_email_consent",
   },
   email: {
-    from: "ExpanPress <support@esign.expanpress.com>",
+    support: "support@expanpress.com",
+    billing: "billing@expanpress.com",
+    privacy: "privacy@expanpress.com",
+    legal: "legal@expanpress.com",
+    sender: "ExpanPress <delivery@expanpress.com>",
+    from: "ExpanPress <delivery@expanpress.com>",
     reply_to: "support@expanpress.com", // has MX (registrar forwarding); the esign/ops subdomains do not
     sending_domain: "expanpress.com",
     retryable_error_names: [
@@ -279,6 +460,24 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     concurrent_request_status: 409,
     concurrent_request_error_name: "concurrent_idempotent_requests",
     address_rejected_status: 422,
+  },
+  branding: {
+    version: "2026-11-v1",
+    theme_mode: "light",
+    font_family: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+    logo_url: "https://expanpress.com/assets/expanpress-logo.svg",
+    logo_square_url: "https://expanpress.com/assets/expanpress-logo.webp",
+    colors: {
+      canvas: "#F9F6F0",
+      charcoal: "#181818",
+      peach: "#FF9E80",
+      accent: "#E8622C",
+      button_primary: "#2A2A2A",
+      button_hover: "#383838",
+      button_text: "#FFFFFF",
+      border: "#dcc7b4",
+    },
+    button_border_radius_px: 24,
   },
   portal: { jwt_clock_skew_retry_delay_ms: 350 },
   admin: { admin_user_ids: [], audit_log_page_size: 50 },
@@ -328,6 +527,8 @@ export const PAYMENTS_LIMITS = {
   webhook_lock_ttl_seconds: { min: 60, max: 3600 },
   webhook_lock_fence_ttl_seconds: { min: 300, max: 2592000 },
   http_timeout_ms: { min: 1000, max: 30000 },
+  // Paddle needs an answer within 5 s; the max leaves 500 ms headroom. The default is 3000 (see GlobalSettings).
+  webhook_total_budget_ms: { min: 1000, max: 4500 },
   sync_http_timeout_ms: { min: 1000, max: 120000 },
   review_queue_page_size: { min: 1, max: 1000 },
   retry_after_seconds: { min: 1, max: 600 },
@@ -377,6 +578,29 @@ function isHttpsUrl(v: unknown): v is string {
   }
 }
 
+/** paddle.overlay: each value is checked against its own shape. An invalid value falls back to its default and is reported. */
+function loadPaddleOverlay(raw: Record<string, unknown> | undefined, fallbacks: string[]): PaddleOverlaySettings {
+  const defaults = DEFAULT_GLOBAL.payments.paddle.overlay;
+  if (!raw) return defaults;
+  const pick = <K extends keyof PaddleOverlaySettings>(key: K, valid: (v: unknown) => boolean): PaddleOverlaySettings[K] => {
+    if (!(key in raw)) return defaults[key];
+    const candidate = raw[key];
+    if (valid(candidate)) return candidate as PaddleOverlaySettings[K];
+    fallbacks.push(`paddle.overlay.${key}`);
+    return defaults[key];
+  };
+  const envName = (v: unknown): boolean => typeof v === "string" && /^[A-Z][A-Z0-9_]{0,63}$/.test(v);
+  const keyName = (v: unknown): boolean => typeof v === "string" && /^[a-z][a-z0-9_]{0,63}$/.test(v);
+  return {
+    client_token_env: pick("client_token_env", envName),
+    environment_env: pick("environment_env", envName),
+    theme: pick("theme", (v) => v === "light" || v === "dark"),
+    locale: pick("locale", (v) => typeof v === "string" && /^[a-z]{2}(-[A-Z]{2})?$/.test(v)),
+    order_ref_key: pick("order_ref_key", keyName),
+    buyer_consent_key: pick("buyer_consent_key", keyName),
+  };
+}
+
 export function loadPaymentsSection(raw: Record<string, unknown> | undefined): GlobalSettings["payments"] {
   const defaults = DEFAULT_GLOBAL.payments;
   if (!raw) return defaults;
@@ -407,6 +631,7 @@ export function loadPaymentsSection(raw: Record<string, unknown> | undefined): G
   const webhookLockRefundPrefix = keyToken("webhook_lock_refund_prefix");
   const webhookLockFenceSuffix = keyToken("webhook_lock_fence_suffix");
   const httpTimeout = num("http_timeout_ms");
+  const webhookTotalBudget = num("webhook_total_budget_ms");
   const syncHttpTimeout = num("sync_http_timeout_ms");
   // Validate BEFORE the fallback warning below, so an invalid value is reported, not silently defaulted.
   const reviewQueuePageSize = num("review_queue_page_size");
@@ -426,6 +651,7 @@ export function loadPaymentsSection(raw: Record<string, unknown> | undefined): G
     (x) => isCanonicalPaddleApiUrl(x, "https://sandbox-api.paddle.com") ? (x as string).replace(/\/+$/, "") : null,
   );
   const jsCdn = paddleUrl(paddle.js_cdn_url, defaults.paddle.js_cdn_url, "paddle.js_cdn_url", (x) => (isPaddleJsCdnUrl(x) ? (x as string) : null));
+  const overlay = loadPaddleOverlay(paddle.overlay as Record<string, unknown> | undefined, fallbacks);
   let currencies = defaults.allowed_currencies;
   if (p.allowed_currencies !== undefined) {
     const list = Array.isArray(p.allowed_currencies)
@@ -445,6 +671,58 @@ export function loadPaymentsSection(raw: Record<string, unknown> | undefined): G
       fallbacks.push("sandbox_checkout_enabled");
     }
   }
+  let allowedBuyerCountries = defaults.allowed_buyer_countries;
+  if (p.allowed_buyer_countries !== undefined) {
+    const list = Array.isArray(p.allowed_buyer_countries)
+      ? p.allowed_buyer_countries.map((c) => String(c).trim().toUpperCase())
+      : null;
+    if (list && list.length > 0 && list.every((c) => /^[A-Z]{2}$/.test(c))) {
+      allowedBuyerCountries = list;
+    } else {
+      fallbacks.push("allowed_buyer_countries");
+    }
+  }
+  let routing = defaults.routing;
+  if (p.routing !== undefined) {
+    const rawRouting = p.routing as unknown as Record<string, unknown> | null;
+    const modes = new Set(["single", "distribute", "cascade", "2d"]);
+    const modeOk =
+      rawRouting &&
+      typeof rawRouting === "object" &&
+      !Array.isArray(rawRouting) &&
+      typeof rawRouting.mode === "string" &&
+      modes.has(rawRouting.mode);
+    const distOk =
+      rawRouting &&
+      Array.isArray(rawRouting.distribution) &&
+      rawRouting.distribution.length > 0 &&
+      rawRouting.distribution.every(
+        (distItem) =>
+          distItem &&
+          typeof distItem === "object" &&
+          typeof (distItem as { provider?: unknown }).provider === "string" &&
+          (distItem as { provider: string }).provider.trim() !== "" &&
+          typeof (distItem as { weight?: unknown }).weight === "number" &&
+          Number.isFinite((distItem as { weight: number }).weight) &&
+          (distItem as { weight: number }).weight >= 0,
+      );
+    const fbOk =
+      rawRouting &&
+      Array.isArray(rawRouting.fallbacks) &&
+      rawRouting.fallbacks.every((fbItem) => typeof fbItem === "string" && fbItem.trim() !== "");
+    if (modeOk && distOk && fbOk) {
+      routing = {
+        mode: rawRouting.mode as PaymentRoutingSettings["mode"],
+        distribution: (rawRouting.distribution as Array<{ provider: string; weight: number }>).map((distItem) => ({
+          provider: distItem.provider.trim(),
+          weight: distItem.weight,
+        })),
+        fallbacks: (rawRouting.fallbacks as string[]).map((fbItem) => fbItem.trim()),
+      };
+    } else {
+      fallbacks.push("routing");
+    }
+  }
   if (fallbacks.length > 0) warnFallback("global.json", `invalid payments values for ${fallbacks.join(", ")}`);
   return {
     allowed_currencies: currencies,
@@ -455,13 +733,146 @@ export function loadPaymentsSection(raw: Record<string, unknown> | undefined): G
     webhook_lock_refund_prefix: webhookLockRefundPrefix,
     webhook_lock_fence_suffix: webhookLockFenceSuffix,
     http_timeout_ms: httpTimeout,
+    webhook_total_budget_ms: webhookTotalBudget,
     sync_http_timeout_ms: syncHttpTimeout,
     review_queue_page_size: reviewQueuePageSize,
     retry_after_seconds: retryAfterSeconds,
-    paddle: { api_base: { production: apiProduction, sandbox: apiSandbox }, js_cdn_url: jsCdn },
+    paddle: { api_base: { production: apiProduction, sandbox: apiSandbox }, js_cdn_url: jsCdn, overlay },
+    routing,
     creem_accept_test_mode: p.creem_accept_test_mode === true,
     creem_test_database_ref: typeof p.creem_test_database_ref === "string" ? p.creem_test_database_ref.trim() : "",
     sandbox_checkout_enabled: sandboxCheckoutEnabled,
+    allowed_buyer_countries: allowedBuyerCountries,
+  };
+}
+
+/** storefront: validates b2c_landing_url, brand_name, thanks_path_template, house_title_note, card copy and asset paths;
+ *  falls back per key on invalid input. publisher_label is derived from brand_name (one source), so a raw publisher_label is not read. */
+export function loadStorefrontSection(raw: Record<string, unknown> | undefined): GlobalSettings["storefront"] {
+  const defaults = DEFAULT_GLOBAL.storefront;
+  if (!raw) return defaults;
+  const fallbacks: string[] = [];
+  const strField = (key: "digital_pdf_kicker" | "sample_badge_label" | "house_title_note"): string => {
+    if (raw[key] === undefined) return defaults[key];
+    const v = raw[key];
+    if (typeof v === "string" && v.trim() !== "") return v.trim();
+    fallbacks.push(key);
+    return defaults[key];
+  };
+  const b2cLanding = isHttpsUrl(raw.b2c_landing_url) ? raw.b2c_landing_url : defaults.b2c_landing_url;
+  if (raw.b2c_landing_url !== undefined && !isHttpsUrl(raw.b2c_landing_url)) fallbacks.push("b2c_landing_url");
+  const brandName =
+    typeof raw.brand_name === "string" && raw.brand_name.trim() !== ""
+      ? raw.brand_name.trim()
+      : defaults.brand_name;
+  if (raw.brand_name !== undefined && !(typeof raw.brand_name === "string" && raw.brand_name.trim() !== "")) {
+    fallbacks.push("brand_name");
+  }
+  const tplOk =
+    typeof raw.thanks_path_template === "string" &&
+    raw.thanks_path_template.startsWith("/") &&
+    raw.thanks_path_template.includes("{handle}");
+  const thanksTpl = tplOk ? (raw.thanks_path_template as string) : defaults.thanks_path_template;
+  if (raw.thanks_path_template !== undefined && !tplOk) fallbacks.push("thanks_path_template");
+  let coversBasePath = defaults.covers_base_path;
+  if ("covers_base_path" in raw) {
+    if (isSafeBooksPrefix(raw.covers_base_path)) coversBasePath = raw.covers_base_path;
+    else fallbacks.push("covers_base_path");
+  }
+  let previewsBasePath = defaults.previews_base_path;
+  if ("previews_base_path" in raw) {
+    if (isSafeBooksPrefix(raw.previews_base_path)) previewsBasePath = raw.previews_base_path;
+    else fallbacks.push("previews_base_path");
+  }
+  let bookAssets = defaults.book_assets;
+  if ("book_assets" in raw) {
+    if (raw.book_assets && typeof raw.book_assets === "object" && !Array.isArray(raw.book_assets)) {
+      const merged: GlobalSettings["storefront"]["book_assets"] = { ...defaults.book_assets };
+      for (const [slug, entry] of Object.entries(raw.book_assets as Record<string, unknown>)) {
+        if (!/^[a-z0-9_]+$/.test(slug) || !entry || typeof entry !== "object" || Array.isArray(entry)) {
+          fallbacks.push(`book_assets.${slug}`);
+          continue;
+        }
+        const e = entry as Record<string, unknown>;
+        merged[slug] = {
+          ...(typeof e.book_registry === "string" ? { book_registry: e.book_registry } : {}),
+          ...(e.cover_image === null || typeof e.cover_image === "string" ? { cover_image: e.cover_image } : {}),
+          ...(e.preview_pdf === null || typeof e.preview_pdf === "string" ? { preview_pdf: e.preview_pdf } : {}),
+          ...(typeof e.is_sample === "boolean" ? { is_sample: e.is_sample } : {}),
+        };
+      }
+      bookAssets = merged;
+    } else {
+      fallbacks.push("book_assets");
+    }
+  }
+  const houseNote = strField("house_title_note");
+  if (fallbacks.length > 0) warnFallback("global.json", `invalid storefront values for ${fallbacks.join(", ")}`);
+  return {
+    b2c_landing_url: b2cLanding,
+    brand_name: brandName,
+    publisher_label: brandName,
+    thanks_path_template: thanksTpl,
+    house_title_note: houseNote,
+    digital_pdf_kicker: strField("digital_pdf_kicker"),
+    sample_badge_label: strField("sample_badge_label"),
+    covers_base_path: coversBasePath,
+    previews_base_path: previewsBasePath,
+    book_assets: bookAssets,
+  };
+}
+
+/** branding: validates version, theme_mode, font_family, logo URLs, hex colours, and button radius. */
+export function loadBrandingSection(raw: Record<string, unknown> | undefined): BrandCheckoutSettings {
+  const defaults = DEFAULT_GLOBAL.branding;
+  if (!raw) return defaults;
+  const fallbacks: string[] = [];
+  const str = (value: unknown, fallback: string, key: string): string => {
+    if (typeof value === "string" && value.trim() !== "") return value.trim();
+    if (value !== undefined) fallbacks.push(key);
+    return fallback;
+  };
+  const httpsVal = (value: unknown, fallback: string, key: string): string => {
+    if (isHttpsUrl(value)) return value;
+    if (value !== undefined) fallbacks.push(key);
+    return fallback;
+  };
+  const isHex = (value: unknown): value is string => typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value.trim());
+  const rawColors = (raw.colors && typeof raw.colors === "object" && !Array.isArray(raw.colors)
+    ? raw.colors
+    : {}) as Record<string, unknown>;
+  const hex = (key: keyof BrandCheckoutSettings["colors"]): string => {
+    const candidate = rawColors[key];
+    if (isHex(candidate)) return candidate.trim();
+    if (candidate !== undefined) fallbacks.push(`colors.${key}`);
+    return defaults.colors[key];
+  };
+  const themeMode =
+    raw.theme_mode === "light" || raw.theme_mode === "dark"
+      ? raw.theme_mode
+      : (raw.theme_mode !== undefined && fallbacks.push("theme_mode"), defaults.theme_mode);
+  const radius =
+    intInRange(raw.button_border_radius_px, 0, 100)
+      ? raw.button_border_radius_px
+      : (raw.button_border_radius_px !== undefined && fallbacks.push("button_border_radius_px"), defaults.button_border_radius_px);
+  if (fallbacks.length > 0) warnFallback("global.json", `invalid branding values for ${fallbacks.join(", ")}`);
+  return {
+    version: str(raw.version, defaults.version, "version"),
+    theme_mode: themeMode,
+    font_family: str(raw.font_family, defaults.font_family, "font_family"),
+    logo_url: httpsVal(raw.logo_url, defaults.logo_url, "logo_url"),
+    logo_square_url: httpsVal(raw.logo_square_url, defaults.logo_square_url, "logo_square_url"),
+    colors: {
+      canvas: hex("canvas"),
+      charcoal: hex("charcoal"),
+      peach: hex("peach"),
+      accent: hex("accent"),
+      button_primary: hex("button_primary"),
+      button_hover: hex("button_hover"),
+      button_text: hex("button_text"),
+      border: hex("border"),
+    },
+    button_border_radius_px: radius,
   };
 }
 
@@ -470,7 +881,12 @@ function loadGlobal(): GlobalSettings {
   if (!raw) {
     warnFallback("global.json", "missing/unreadable");
     // Production deploys no global.json: env overrides (ADMIN_USER_IDS) must still apply.
-    return { ...DEFAULT_GLOBAL, payments: loadPaymentsSection(undefined), admin: loadAdminSection(undefined) };
+    return {
+      ...DEFAULT_GLOBAL,
+      payments: loadPaymentsSection(undefined),
+      branding: loadBrandingSection(undefined),
+      admin: loadAdminSection(undefined),
+    };
   }
   const g = raw as Partial<GlobalSettings> & Record<string, unknown>;
   return {
@@ -484,11 +900,13 @@ function loadGlobal(): GlobalSettings {
     payments: loadPaymentsSection(g.payments as Record<string, unknown> | undefined),
     delivery: loadDeliverySection(g.delivery as Record<string, unknown> | undefined),
     landing: { ...DEFAULT_GLOBAL.landing, ...(g.landing ?? {}) },
-    storefront: { ...DEFAULT_GLOBAL.storefront, ...(g.storefront ?? {}) },
+    storefront: loadStorefrontSection(g.storefront as Record<string, unknown> | undefined),
+    book_preview: loadBookPreviewSection(g.book_preview as Record<string, unknown> | undefined),
     handles: { ...DEFAULT_GLOBAL.handles, ...(g.handles ?? {}) },
     product_slug: { ...DEFAULT_GLOBAL.product_slug, ...(g.product_slug ?? {}) },
-    email_address: { ...DEFAULT_GLOBAL.email_address, ...(g.email_address ?? {}) },
+    email_address: loadEmailAddressSection(g.email_address as Record<string, unknown> | undefined),
     email: loadEmailSection(g.email as Record<string, unknown> | undefined),
+    branding: loadBrandingSection(g.branding as Record<string, unknown> | undefined),
     portal: { ...DEFAULT_GLOBAL.portal, ...(g.portal ?? {}) },
     admin: loadAdminSection(g.admin as Record<string, unknown> | undefined),
     consent: { ...DEFAULT_GLOBAL.consent, ...(g.consent ?? {}) },
@@ -663,7 +1081,17 @@ export function loadDeliverySection(raw: Record<string, unknown> | undefined): G
   if (!raw) return defaults;
   const record = raw as Partial<GlobalSettings["delivery"]> & Record<string, unknown>;
   const fallbacks: string[] = [];
-  const str = (key: "bucket" | "short_domain" | "send_kind" | "link_key_env" | "link_key_id" | "download_origin" | "stored_message_since"): string => {
+  const str = (
+    key:
+      | "bucket"
+      | "short_domain"
+      | "send_kind"
+      | "link_key_env"
+      | "link_key_id"
+      | "download_origin"
+      | "stored_message_since"
+      | "buyer_consent_metadata_key",
+  ): string => {
     if (!(key in record)) return defaults[key];
     const candidate = record[key];
     if (typeof candidate === "string" && candidate.trim() !== "" && candidate === candidate.trim()) return candidate;
@@ -677,6 +1105,8 @@ export function loadDeliverySection(raw: Record<string, unknown> | undefined): G
       | "stuck_claim_after_seconds"
       | "stuck_claim_list_limit"
       | "stored_message_resend_max_age_hours"
+      | "buyer_typical_minutes"
+      | "buyer_support_after_hours"
       | "terminal_reject_lookback_hours"
       | "terminal_reject_list_limit",
     min: number,
@@ -718,16 +1148,62 @@ export function loadDeliverySection(raw: Record<string, unknown> | undefined): G
     download_origin: validDownloadOrigin ? downloadOrigin : defaults.download_origin,
     stored_message_since: validStoredSince ? storedSince : defaults.stored_message_since,
     stored_message_resend_max_age_hours: posInt("stored_message_resend_max_age_hours", 1, 24),
+    buyer_typical_minutes: posInt("buyer_typical_minutes", 1, 60),
+    buyer_support_after_hours: posInt("buyer_support_after_hours", 1, 24),
+    // A metadata key name, not a value: the charset keeps it a plain key in a checkout link query. Invalid falls back.
+    buyer_consent_metadata_key: /^[a-z][a-z0-9_]{0,63}$/.test(str("buyer_consent_metadata_key"))
+      ? str("buyer_consent_metadata_key")
+      : defaults.buyer_consent_metadata_key,
   };
   if (fallbacks.length > 0) warnFallback("global.json", `invalid delivery values for ${fallbacks.join(", ")}`);
   return out;
 }
 
+/** email_address: shallow merge, but typo_domains must be a non-empty list of hostnames (else the default, with a warning). */
+function loadEmailAddressSection(raw: Record<string, unknown> | undefined): GlobalSettings["email_address"] {
+  const base = DEFAULT_GLOBAL.email_address;
+  if (!raw) return base;
+  const domains = raw.typo_domains;
+  const valid =
+    Array.isArray(domains) &&
+    domains.length > 0 &&
+    domains.every((d) => typeof d === "string" && /^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(d));
+  if (raw.typo_domains !== undefined && !valid) warnFallback("global.json", "invalid email_address values for typo_domains");
+  return { ...base, ...raw, typo_domains: valid ? (domains as string[]) : base.typo_domains };
+}
+
 /** email: shallow merge, but retryable_error_names must be a non-empty string[] (a string would make
  *  `.includes` a substring match; a number would throw inside sendEmail's error path). */
 export function loadEmailSection(raw: Record<string, unknown> | undefined): GlobalSettings["email"] {
-  const merged = { ...DEFAULT_GLOBAL.email, ...(raw ?? {}) } as GlobalSettings["email"];
-  const names = (raw ?? {}).retryable_error_names;
+  const defaults = DEFAULT_GLOBAL.email;
+  const rawEmail = raw ?? {};
+  const merged = { ...defaults, ...rawEmail } as GlobalSettings["email"];
+  const isAddr = (value: unknown): value is string => typeof value === "string" && value.trim() !== "" && value.includes("@");
+  for (const roleKey of ["support", "billing", "privacy", "legal"] as const) {
+    if (!isAddr(merged[roleKey])) {
+      warnFallback("global.json", `invalid email values for ${roleKey}`);
+      merged[roleKey] = defaults[roleKey];
+    } else {
+      merged[roleKey] = merged[roleKey].trim();
+    }
+  }
+  // Keep sender and from aligned when only one is overridden.
+  const rawSender = rawEmail.sender;
+  const rawFrom = rawEmail.from;
+  if (rawSender !== undefined && !isAddr(rawSender)) {
+    warnFallback("global.json", "invalid email values for sender");
+    merged.sender = defaults.sender;
+  }
+  if (rawFrom !== undefined && !isAddr(rawFrom)) {
+    warnFallback("global.json", "invalid email values for from");
+    merged.from = defaults.from;
+  }
+  if (rawSender !== undefined && rawFrom === undefined && isAddr(merged.sender)) {
+    merged.from = merged.sender;
+  } else if (rawFrom !== undefined && rawSender === undefined && isAddr(merged.from)) {
+    merged.sender = merged.from;
+  }
+  const names = rawEmail.retryable_error_names;
   if (names !== undefined && !(Array.isArray(names) && names.length > 0 && names.every((entry) => typeof entry === "string" && entry !== "" && entry === entry.trim()))) {
     warnFallback("global.json", "invalid email values for retryable_error_names");
     merged.retryable_error_names = DEFAULT_GLOBAL.email.retryable_error_names;
@@ -746,6 +1222,105 @@ export function loadEmailSection(raw: Record<string, unknown> | undefined): Glob
     merged.address_rejected_status = DEFAULT_GLOBAL.email.address_rejected_status;
   }
   return merged;
+}
+
+export const BOOK_PREVIEW_LIMITS = {
+  render_scale: { min: 1, max: 3 },
+  max_preview_pages: { min: 2, max: 32 },
+  page_width_px: { min: 200, max: 800 },
+  page_height_px: { min: 300, max: 1200 },
+  min_width_px: { min: 180, max: 600 },
+  max_width_px: { min: 280, max: 900 },
+  min_height_px: { min: 240, max: 900 },
+  max_height_px: { min: 360, max: 1400 },
+  flipping_time_ms: { min: 150, max: 2000 },
+  max_shadow_opacity: { min: 0, max: 1 },
+  swipe_distance_px: { min: 10, max: 120 },
+  visibility_margin_px: { min: 0, max: 1000 },
+} as const;
+
+function isSafeBooksPrefix(v: unknown): v is string {
+  return typeof v === "string" && /^\/books\/[a-z0-9_-]+$/.test(v);
+}
+
+export function loadBookPreviewSection(raw: Record<string, unknown> | undefined): BookPreviewSettings {
+  const defaults = DEFAULT_GLOBAL.book_preview;
+  if (!raw) return defaults;
+  const fallbacks: string[] = [];
+  const intField = (
+    key:
+      | "max_preview_pages"
+      | "page_width_px"
+      | "page_height_px"
+      | "min_width_px"
+      | "max_width_px"
+      | "min_height_px"
+      | "max_height_px"
+      | "flipping_time_ms"
+      | "swipe_distance_px"
+      | "visibility_margin_px",
+  ): number => {
+    if (!(key in raw)) return defaults[key];
+    const v = raw[key];
+    const { min, max } = BOOK_PREVIEW_LIMITS[key];
+    if (intInRange(v, min, max)) return v;
+    fallbacks.push(key);
+    return defaults[key];
+  };
+  const floatField = (key: "render_scale" | "max_shadow_opacity"): number => {
+    if (!(key in raw)) return defaults[key];
+    const v = raw[key];
+    const { min, max } = BOOK_PREVIEW_LIMITS[key];
+    if (typeof v === "number" && Number.isFinite(v) && v >= min && v <= max) return v;
+    fallbacks.push(key);
+    return defaults[key];
+  };
+  const boolField = (key: "show_cover" | "use_portrait"): boolean => {
+    if (!(key in raw)) return defaults[key];
+    const v = raw[key];
+    if (typeof v === "boolean") return v;
+    fallbacks.push(key);
+    return defaults[key];
+  };
+  const strField = (key: "heading" | "subheading"): string => {
+    if (!(key in raw)) return defaults[key];
+    const v = raw[key];
+    if (typeof v === "string" && v.trim() !== "") return v.trim();
+    fallbacks.push(key);
+    return defaults[key];
+  };
+  let pdfWorkerSrc = defaults.pdf_worker_src;
+  if ("pdf_worker_src" in raw) {
+    if (typeof raw.pdf_worker_src === "string" && /^\/[a-z0-9/_.-]+\.mjs$/.test(raw.pdf_worker_src) && !raw.pdf_worker_src.includes("..")) {
+      pdfWorkerSrc = raw.pdf_worker_src;
+    } else {
+      fallbacks.push("pdf_worker_src");
+    }
+  }
+  const minW = intField("min_width_px");
+  const maxW = Math.max(minW, intField("max_width_px"));
+  const minH = intField("min_height_px");
+  const maxH = Math.max(minH, intField("max_height_px"));
+  if (fallbacks.length > 0) warnFallback("global.json", `invalid book_preview values for ${fallbacks.join(", ")}`);
+  return {
+    pdf_worker_src: pdfWorkerSrc,
+    render_scale: floatField("render_scale"),
+    max_preview_pages: intField("max_preview_pages"),
+    page_width_px: intField("page_width_px"),
+    page_height_px: intField("page_height_px"),
+    min_width_px: minW,
+    max_width_px: maxW,
+    min_height_px: minH,
+    max_height_px: maxH,
+    flipping_time_ms: intField("flipping_time_ms"),
+    max_shadow_opacity: floatField("max_shadow_opacity"),
+    swipe_distance_px: intField("swipe_distance_px"),
+    visibility_margin_px: intField("visibility_margin_px"),
+    show_cover: boolField("show_cover"),
+    use_portrait: boolField("use_portrait"),
+    heading: strField("heading"),
+    subheading: strField("subheading"),
+  };
 }
 
 export const GLOBAL: GlobalSettings = loadGlobal();
@@ -774,6 +1349,8 @@ export function isMoneyPath(): boolean {
 // providers.json — payment providers (route tokens, signature, events, secrets)
 // ---------------------------------------------------------------------------
 export interface PaymentProviderSetting {
+  /** The processor's name as a buyer reads it (the merchant-of-record line on checkout). Falls back to the provider key. */
+  display_name?: string;
   route: string;
   signature_header?: string | null;
   signature_scheme?: string;
@@ -789,6 +1366,26 @@ export interface PaymentProviderSetting {
   base_urls_note?: string;
   field_map?: Record<string, unknown> | null;
   status?: string;
+  /** Checkout link capability: appends `reference_id=<attribution>` on redirect links (Polar). */
+  supports_reference_id?: boolean;
+  /** Checkout link capability: query param carrying the attribution reference when not `reference_id` (e.g. Creem `metadata[order_ref]`). */
+  order_ref_param?: string | null;
+  /** Checkout link capability: query param carrying buyer email prefill (`customer_email`, `user_email`, or null). */
+  buyer_email_param?: string | null;
+  /** Checkout link capability: appends `metadata[<buyer_consent_metadata_key>]=true|false`. */
+  supports_consent_metadata?: boolean;
+  /** Checkout link capability: query param carrying internal product id metadata (`metadata[product_id]`). */
+  metadata_product_id_param?: string | null;
+  /** Checkout link capability: query param carrying the thank-you `success_url` when not already present. */
+  success_url_param?: string | null;
+  /** Checkout link capability: query param carrying checkout theme mode (`theme=light|dark`). */
+  theme_param?: string | null;
+  /** Provider-owned external product ID column on `public.products` (e.g. `paddle_product_id`), matched only for this provider. */
+  product_id_column?: string | null;
+  /** Additional provider-specific alias columns on `public.products` (e.g. Polar sandbox/live columns). */
+  extra_product_id_columns?: string[];
+  /** Webhook capability: true when a sale event may arrive without inline buyerEmail and resolve it via API/customer lookup. */
+  allows_deferred_buyer_email?: boolean;
   /**
    * Launch switch. A provider is fully defined and its code is kept; this flag decides whether it takes sales.
    * Missing or false = off (fail closed). Off providers keep their config and verifier, and the webhook route refuses them.
@@ -797,14 +1394,24 @@ export interface PaymentProviderSetting {
 }
 
 // Inline mirror of data/settings/providers.json "payments" section (fallback contract).
-export const DEFAULT_PAYMENT_PROVIDERS: Record<string, PaymentProviderSetting> = {
+export const DEFAULT_PAYMENT_PROVIDERS = {
   lemonsqueezy: {
     enabled: false,
+    display_name: "Lemon Squeezy",
     route: "lemonsqueezy",
     signature_header: "x-signature",
     sale_event: "order_created",
     checkout_param: "checkout[custom][product_id]",
     secret_env: "LEMONSQUEEZY_WEBHOOK_SECRET",
+    supports_reference_id: false,
+    order_ref_param: null,
+    buyer_email_param: null,
+    supports_consent_metadata: false,
+    metadata_product_id_param: null,
+    success_url_param: null,
+    theme_param: null,
+    product_id_column: null,
+    allows_deferred_buyer_email: false,
     base_urls: { live: "https://api.lemonsqueezy.com/v1", sandbox: null },
     field_map: {
       product_id: "meta.custom_data.product_id",
@@ -817,6 +1424,7 @@ export const DEFAULT_PAYMENT_PROVIDERS: Record<string, PaymentProviderSetting> =
   },
   payhip: {
     enabled: false,
+    display_name: "Payhip",
     route: "payhip",
     signature_header: null,
     signature_field: "signature",
@@ -824,6 +1432,15 @@ export const DEFAULT_PAYMENT_PROVIDERS: Record<string, PaymentProviderSetting> =
     sale_events: ["paid"],
     refund_events: ["refunded"],
     secret_env: "PAYHIP_WEBHOOK_SECRET",
+    supports_reference_id: false,
+    order_ref_param: null,
+    buyer_email_param: null,
+    supports_consent_metadata: false,
+    metadata_product_id_param: null,
+    success_url_param: null,
+    theme_param: null,
+    product_id_column: null,
+    allows_deferred_buyer_email: false,
     base_urls: { live: "https://payhip.com", sandbox: null },
     field_map: {
       sale_id: "id",
@@ -839,10 +1456,20 @@ export const DEFAULT_PAYMENT_PROVIDERS: Record<string, PaymentProviderSetting> =
   },
   paddle: {
     enabled: true,
+    display_name: "Paddle.com",
     route: "paddle",
     signature_header: "paddle-signature",
     sale_event: "transaction.completed",
     secret_env: "PADDLE_WEBHOOK_SECRET",
+    supports_reference_id: false,
+    order_ref_param: null,
+    buyer_email_param: "user_email",
+    supports_consent_metadata: false,
+    metadata_product_id_param: null,
+    success_url_param: null,
+    theme_param: null,
+    product_id_column: "paddle_product_id",
+    allows_deferred_buyer_email: true,
     base_urls: { sandbox: "https://sandbox-api.paddle.com", live: "https://api.paddle.com" },
     field_map: {
       product_id: "data.custom_data.product_id",
@@ -855,6 +1482,7 @@ export const DEFAULT_PAYMENT_PROVIDERS: Record<string, PaymentProviderSetting> =
   },
   fastspring: {
     enabled: false,
+    display_name: "FastSpring",
     route: "fastspring",
     signature_header: "x-fs-signature",
     signature_scheme: "hmac-sha256-base64: `x-fs-signature` = base64(HMAC-SHA256(raw_body, secret)) (developer.fastspring.com/reference/message-security)",
@@ -862,6 +1490,15 @@ export const DEFAULT_PAYMENT_PROVIDERS: Record<string, PaymentProviderSetting> =
     refund_events: ["return.created"],
     live_gate: "data.live",
     secret_env: "FASTSPRING_WEBHOOK_SECRET",
+    supports_reference_id: false,
+    order_ref_param: null,
+    buyer_email_param: null,
+    supports_consent_metadata: false,
+    metadata_product_id_param: null,
+    success_url_param: null,
+    theme_param: null,
+    product_id_column: null,
+    allows_deferred_buyer_email: false,
     base_urls: { live: "https://api.fastspring.com", sandbox: null },
     field_map: {
       sale_id: "data.id",
@@ -880,6 +1517,7 @@ export const DEFAULT_PAYMENT_PROVIDERS: Record<string, PaymentProviderSetting> =
   },
   polar: {
     enabled: false,
+    display_name: "Polar",
     route: "polar",
     signature_header: "webhook-signature",
     signature_scheme: "standard-webhooks: HMAC-SHA256 over `${webhook-id}.${webhook-timestamp}.${raw_body}`, base64; whsec_ secrets created on/after 2026-09-08 = base64-decoded, older = UTF-8 bytes of full string",
@@ -887,6 +1525,16 @@ export const DEFAULT_PAYMENT_PROVIDERS: Record<string, PaymentProviderSetting> =
     refund_events: ["refund.created"],
     secret_env: "POLAR_WEBHOOK_SECRET",
     token_env: "POLAR_ACCESS_TOKEN",
+    supports_reference_id: true,
+    order_ref_param: null,
+    buyer_email_param: "customer_email",
+    supports_consent_metadata: false,
+    metadata_product_id_param: null,
+    success_url_param: null,
+    theme_param: "theme",
+    product_id_column: null,
+    extra_product_id_columns: ["polar_product_id_sandbox", "polar_product_id_live"],
+    allows_deferred_buyer_email: false,
     base_urls: { sandbox: "https://sandbox-api.polar.sh/v1", live: "https://api.polar.sh/v1" },
     field_map: {
       product_id: "data.product_id",
@@ -900,15 +1548,53 @@ export const DEFAULT_PAYMENT_PROVIDERS: Record<string, PaymentProviderSetting> =
       attribution_id: "data.metadata.reference_id",
     },
   },
+  creem: {
+    display_name: "Creem",
+    // Defined so the registry knows Creem, but off until the founder approves it as a launch rail (Paddle-only launch).
+    // Production has no providers.json, so this entry is the only switch; flip it to route Creem checkout and webhooks.
+    enabled: false,
+    route: "creem",
+    signature_header: "creem-signature",
+    sale_event: "checkout.completed",
+    secret_env: "CREEM_WEBHOOK_SECRET",
+    supports_reference_id: false,
+    order_ref_param: "metadata[order_ref]",
+    buyer_email_param: null,
+    supports_consent_metadata: true,
+    metadata_product_id_param: "metadata[product_id]",
+    success_url_param: "success_url",
+    theme_param: "theme",
+    product_id_column: null,
+    allows_deferred_buyer_email: false,
+    field_map: {
+      product_id: "data.order.product",
+      sale_id: "data.order.id",
+      total_cents: "data.order.amount_paid",
+      total_cents_fallback: "data.order.amount",
+      currency: "data.order.currency",
+      email: "data.customer.email",
+      attribution_id: "data.metadata.order_ref",
+    },
+  },
   fungies: {
     // Off until the founder approves Fungies as a launch rail. Its verifier stays wired so it can be switched on.
     enabled: false,
+    display_name: "Fungies",
     route: "fungies",
     signature_header: "x-fngs-signature",
     signature_scheme:
       "hmac-sha256-hex: `x-fngs-signature: sha256_<hex>` = HMAC-SHA256(raw_body, webhook_secret) hex (docs.fungies.io/developers/webhooks/setup, verified 2026-09-15)",
     sale_events: ["payment_success"],
     secret_env: "FUNGIES_WEBHOOK_SECRET",
+    supports_reference_id: false,
+    order_ref_param: null,
+    buyer_email_param: null,
+    supports_consent_metadata: false,
+    metadata_product_id_param: null,
+    success_url_param: null,
+    theme_param: null,
+    product_id_column: null,
+    allows_deferred_buyer_email: false,
     base_urls: { sandbox: "https://api.stage.fungies.net/v0", live: "https://api.fungies.io/v0" },
     base_urls_note: "TLD split verified 2026-09-15: prod api.fungies.io vs sandbox api.stage.fungies.NET (docs.fungies.io/api-reference/introduction + stage-hosted OpenAPI)",
     field_map: {
@@ -922,7 +1608,7 @@ export const DEFAULT_PAYMENT_PROVIDERS: Record<string, PaymentProviderSetting> =
       product_id: "items[].product.id",
     },
   },
-};
+} satisfies Record<string, PaymentProviderSetting>;
 
 /** Every provider in the inline defaults, switched off. Used when providers.json exists but cannot be used. */
 export function allProvidersOff(): Record<string, PaymentProviderSetting> {
@@ -971,6 +1657,59 @@ export const PAYMENT_PROVIDERS: Record<string, PaymentProviderSetting> = loadPay
 
 export function paymentProviderSetting(name: string): PaymentProviderSetting | undefined {
   return PAYMENT_PROVIDERS[name];
+}
+
+/** Buyer-facing processor name for the Merchant of Record line on checkout (registry display_name, falling back to default or key). */
+export function paymentProviderDisplayName(name: string): string {
+  const defaults = DEFAULT_PAYMENT_PROVIDERS as Record<string, PaymentProviderSetting>;
+  const raw = paymentProviderSetting(name)?.display_name ?? defaults[name]?.display_name;
+  return typeof raw === "string" && raw.trim() !== "" ? raw.trim() : name;
+}
+
+const SAFE_COLUMN_RE = /^[a-z][a-z0-9_]{0,63}$/;
+
+/** Provider-specific external product-id column on `public.products` (`product_id_column`), if any. */
+export function paymentProviderProductIdColumn(name: string): string | null {
+  const defaults = DEFAULT_PAYMENT_PROVIDERS as Record<string, PaymentProviderSetting>;
+  const col = paymentProviderSetting(name)?.product_id_column ?? defaults[name]?.product_id_column;
+  return typeof col === "string" && SAFE_COLUMN_RE.test(col) ? col : null;
+}
+
+/** Provider-specific external product-id columns (primary `product_id_column` + any `extra_product_id_columns`). */
+export function paymentProviderProductIdColumns(name: string): string[] {
+  const defaults = DEFAULT_PAYMENT_PROVIDERS as Record<string, PaymentProviderSetting>;
+  const primary = paymentProviderProductIdColumn(name);
+  const extra = paymentProviderSetting(name)?.extra_product_id_columns ?? defaults[name]?.extra_product_id_columns ?? [];
+  const out: string[] = [];
+  if (primary) out.push(primary);
+  for (const col of extra) {
+    if (typeof col === "string" && SAFE_COLUMN_RE.test(col) && !out.includes(col)) out.push(col);
+  }
+  return out;
+}
+
+/** True when a provider may send sale webhooks without an inline buyerEmail (resolved later via API/lookup). */
+export function allowsDeferredBuyerEmail(name: string): boolean {
+  const defaults = DEFAULT_PAYMENT_PROVIDERS as Record<string, PaymentProviderSetting>;
+  const setting = paymentProviderSetting(name) ?? defaults[name];
+  return setting?.allows_deferred_buyer_email === true;
+}
+
+/** Field map for a provider (registry `field_map` with inline default fallback). */
+export function paymentProviderFieldMap(name: string): Record<string, string | undefined> {
+  const defaults = DEFAULT_PAYMENT_PROVIDERS as Record<string, PaymentProviderSetting>;
+  const fm = paymentProviderSetting(name)?.field_map ?? defaults[name]?.field_map;
+  return (fm && typeof fm === "object" && !Array.isArray(fm) ? fm : {}) as Record<string, string | undefined>;
+}
+
+/** Reads a configured field from a webhook payload using `PAYMENT_PROVIDERS[provider].field_map[fieldKey]`. */
+export function readProviderField(payload: unknown, provider: string, fieldKey: string): unknown {
+  return getPath(payload, paymentProviderFieldMap(provider)[fieldKey]);
+}
+
+/** First enabled payment provider in the registry, or null when all providers are switched off. */
+export function defaultEnabledPaymentProvider(): string | null {
+  return Object.keys(PAYMENT_PROVIDERS).find((name) => isEnabledPaymentProvider(name)) ?? null;
 }
 
 /** True only for a provider that is defined AND switched on. Use this for anything that takes or routes a sale. */

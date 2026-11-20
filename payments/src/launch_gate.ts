@@ -80,6 +80,24 @@ export const assertLaunchConsents = async (
   const ownerId = productRow?.creator_id;
   if (!ownerId) blocked("product has no owner");
 
+  // House title (founder decision, 2026-11-19): no creator consents C1-C3 and no C2 approval. The release file must still
+  // match the digest the operator pinned in house_release_pins. Mirrors launch_block_reason (migration 20261119130000).
+  const creatorRows = await getJson<Array<{ is_house?: boolean | null }>>(
+    `${base}/rest/v1/creators?id=eq.${encodeURIComponent(ownerId!)}&select=is_house`,
+    "creator",
+  );
+  if (creatorRows?.[0]?.is_house === true) {
+    const pinRows = await getJson<Array<{ sha256?: string | null }>>(
+      `${base}/rest/v1/house_release_pins?product_id=eq.${encodeURIComponent(dbProductId)}&select=sha256`,
+      "house pin",
+    );
+    const pinnedSha = normalizeSha256(pinRows?.[0]?.sha256);
+    if (pinnedSha !== releaseSha) {
+      blocked(`house release hash does not match the pinned release file (pinned ${pinnedSha ?? "none"}, current ${releaseSha})`);
+    }
+    return;
+  }
+
   const rows = await getJson<ConsentRow[]>(
     `${base}/rest/v1/consents?creator_id=eq.${encodeURIComponent(ownerId!)}` +
       `&select=id,kind,decision,product_id,signed_at,supersedes,supersedes_ids,document_sha256` +

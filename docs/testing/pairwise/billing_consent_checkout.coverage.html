@@ -1,38 +1,1065 @@
-<!doctype html>
-<html lang="en">
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="" xml:lang="">
 <head>
-<meta charset="utf-8">
-<title>Pairwise Coverage Mapping: Billing / Consent / Checkout (HEAD 0498dfe)</title>
-<style>
-  body { font-family: system-ui, -apple-system, sans-serif; margin: 24px; background: #0d1117; color: #e6edf3; }
-  h1, h2 { color: #58a6ff; }
-  .meta { background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 12px 16px; margin-bottom: 20px; line-height: 1.6; }
-  table { border-collapse: collapse; width: 100%; font-size: 13px; }
-  th, td { border: 1px solid #30363d; padding: 6px 8px; text-align: left; }
-  th { background: #161b22; position: sticky; top: 0; }
-  tr:nth-child(even) { background: #161b22; }
-  code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: #79c0ff; }
-  .uncov { color: #f0883e; }
-  .cov { color: #3fb950; font-weight: 600; }
-</style>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>Pairwise Coverage: Billing / Consent / Checkout (rev 3)</title>
+  <style>
+    html {
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 12px;
+      }
+      h1 {
+        font-size: 1.8em;
+      }
+    }
+    @media print {
+      html {
+        background-color: white;
+      }
+      body {
+        background-color: transparent;
+        color: black;
+        font-size: 12pt;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    svg {
+      height: auto;
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li > ol, li > ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+      font-size: 85%;
+      margin: 0;
+      hyphens: manual;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      border: none;
+      border-top: 1px solid #1a1a1a;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC ul {
+      padding-left: 1.3em;
+    }
+    #TOC > ul {
+      padding-left: 0;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
 </head>
 <body>
-<h1>Pairwise Coverage Mapping: Billing / Consent / Checkout (snapshot at <code>0498dfe</code>)</h1>
-<div class="meta">
-  <div><strong>Snapshot scope:</strong> the results below were measured at <code>0498dfe</code> only. This file was not regenerated for later commits (<code>66c162f</code> is 21 commits after <code>0498dfe</code>), so it is not evidence for the current head.</div>
-  <div><strong>Snapshot Commit:</strong> <code>0498dfe1d94e267409a41f532dddd0795e1696b9</code></div>
-  <div><strong>Scope Commits:</strong> <code>9dfcc5e</code>, <code>e378f18</code>, <code>0498dfe</code></div>
-  <div><strong>PICT Binary:</strong> <code>/usr/local/bin/pict</code> (sha256 <code>afd1311c603897c963ebf9781b8405519e1a0a96262a2f7054e7e204b55b0934</code>)</div>
-  <div><strong>Model / Rows:</strong> <code>docs/testing/pairwise/billing_consent_checkout.model.txt</code> &rarr; <code>docs/testing/pairwise/billing_consent_checkout.rows.tsv</code> (34 rows, 330 pairs)</div>
-  <div><strong>Before:</strong> 0 / 34 exact 7-tuple rows covered (34 UNCOVERED) &nbsp;|&nbsp; <strong>After:</strong> 34 / 34 PICT rows + 3 explicit paths covered (38 / 38 passing)</div>
-</div>
-<table>
+<header id="title-block-header">
+<h1 class="title">Pairwise Coverage: Billing / Consent / Checkout (rev
+3)</h1>
+</header>
+<h1 id="pairwise-coverage-billing-consent-checkout-rev-3">Pairwise
+Coverage: Billing / Consent / Checkout (rev 3)</h1>
+<ul>
+<li><strong>Branch:</strong> <code>fix/funnel-kyc-buildable</code> (rev
+3 adds <code>provider_path</code> (<code>overlay</code> vs
+<code>redirect</code>) and webhook <code>buyer_consent</code>
+persistence to rev 2)</li>
+<li><strong>Model:</strong>
+<code>docs/testing/pairwise/billing_consent_checkout.model.txt</code></li>
+<li><strong>Generated rows:</strong>
+<code>docs/testing/pairwise/billing_consent_checkout.rows.tsv</code>
+(<strong>45 rows</strong>, order 2, 12 factors)</li>
+<li><strong>PICT binary:</strong> <code>/usr/local/bin/pict</code></li>
+<li><strong>Asserted by:</strong>
+<code>web/app/api/billing/checkout/__tests__/billing_consent_checkout.pairwise.test.ts</code>,
+one test per row, against
+<code>billing_consent_checkout.oracle.ts</code></li>
+<li><strong>Outcomes across the 45 rows:</strong> 12 x 400 Bad Request;
+29 x 403 Forbidden; 1 x 404 Not Found; 3 x 409 Conflict</li>
+</ul>
+<h2 id="factors-added-in-rev-3">Factors added in rev 3</h2>
+<ul>
+<li><code>provider_path</code>: <code>overlay</code> (Paddle.js overlay
+JSON via <code>POST /api/billing/checkout</code>
+<code>Accept: application/json</code>) vs <code>redirect</code>
+(<code>GET /api/billing/checkout</code> 302). Constrained to
+<code>redirect</code> for non-Paddle providers and non-rail error
+states.</li>
+<li><code>buyer_consent</code> end-to-end verification:
+<code>checked</code> (<code>"true"</code>) and <code>unchecked</code>
+(<code>"false"</code>) carried in Paddle overlay
+<code>customData.buyer_consent</code>, verified through signed
+<code>transaction.completed</code> webhook parsing
+(<code>PaddleAdapter</code>) and <code>orders.buyer_email_consent</code>
+persistence (with <code>redirect</code> / absent consent remaining
+<code>NULL</code>).</li>
+</ul>
+<h2 id="row-mapping">Row mapping</h2>
+<table style="width:100%;">
+<colgroup>
+<col style="width: 8%" />
+<col style="width: 6%" />
+<col style="width: 6%" />
+<col style="width: 6%" />
+<col style="width: 6%" />
+<col style="width: 6%" />
+<col style="width: 6%" />
+<col style="width: 6%" />
+<col style="width: 6%" />
+<col style="width: 6%" />
+<col style="width: 6%" />
+<col style="width: 6%" />
+<col style="width: 6%" />
+<col style="width: 6%" />
+<col style="width: 6%" />
+</colgroup>
 <thead>
-<tr><th>#</th><th>consent_kind</th><th>decision</th><th>provider</th><th>checkout_mode</th><th>sandbox_flag</th><th>vercel_env</th><th>product_state</th><th>Expected HTTP</th><th>Before</th><th>After</th></tr>
+<tr>
+<th style="text-align: right;">#</th>
+<th>consent_kind</th>
+<th>decision</th>
+<th>provider</th>
+<th>provider_path</th>
+<th>checkout_mode</th>
+<th>sandbox_flag</th>
+<th>vercel_env</th>
+<th>product_state</th>
+<th>rail_mode</th>
+<th>buyer_email</th>
+<th>buyer_consent</th>
+<th>buyer_country</th>
+<th>Expected HTTP</th>
+<th>Asserted by</th>
+</tr>
 </thead>
 <tbody>
-<tr><td>1</td><td><code>C2_release_approval</code></td><td><code>given</code></td><td><code>fungies</code></td><td><code>live</code></td><td><code>false</code></td><td><code>preview</code></td><td><code>no_rails</code></td><td><code>404 rails disabled/none</code></td><td class="uncov">UNCOVERED (no exact or route-level combo)</td><td class="cov">COVERED (billing_consent_checkout.pairwise.test.ts row #1)</td></tr><tr><td>2</td><td><code>C3_revenue_split</code></td><td><code>refused</code></td><td><code>lemonsqueezy</code></td><td><code>gated</code></td><td><code>true</code></td><td><code>unset_node_test</code></td><td><code>bare_slug_ambiguous</code></td><td><code>409 product_slug_ambiguous</code></td><td class="uncov">UNCOVERED (partial in route.test.ts (preview/live); partial in route.test.ts:272)</td><td class="cov">COVERED (billing_consent_checkout.pairwise.test.ts row #2)</td></tr><tr><td>3</td><td><code>C1_data_accuracy</code></td><td><code>forked</code></td><td><code>fungies</code></td><td><code>sandbox</code></td><td><code>true</code></td><td><code>development</code></td><td><code>bare_slug_single</code></td><td><code>400 product_ref_requires_handle</code></td><td class="uncov">UNCOVERED (partial in route.test.ts (preview/live))</td><td class="cov">COVERED (billing_consent_checkout.pairwise.test.ts row #3)</td></tr><tr><td>4</td><td><code>C1_data_accuracy</code></td><td><code>resolved_by_set</code></td><td><code>creem</code></td><td><code>sandbox</code></td><td><code>false</code></td><td><code>unset_node_test</code></td><td><code>no_rails</code></td><td><code>403 not launched</code></td><td class="uncov">UNCOVERED (unit only: consent-chain-set-supersession.test.ts)</td><td class="cov">COVERED (billing_consent_checkout.pairwise.test.ts row #4)</td></tr><tr><td>5</td><td><code>C3_revenue_split</code></td><td><code>forked</code></td><td><code>polar</code></td><td><code>live</code></td><td><code>false</code></td><td><code>production</code></td><td><code>bare_slug_ambiguous</code></td><td><code>409 product_slug_ambiguous</code></td><td class="uncov">UNCOVERED (partial in route.test.ts (preview/live); partial in route.test.ts:1073)</td><td class="cov">COVERED (billing_consent_checkout.pairwise.test.ts row #5)</td></tr><tr><td>6</td><td><code>C2_release_approval</code></td><td><code>given</code></td><td><code>paddle</code></td><td><code>gated</code></td><td><code>true</code></td><td><code>production</code></td><td><code>bare_slug_single</code></td><td><code>400 product_ref_requires_handle</code></td><td class="uncov">UNCOVERED (partial in route.test.ts (preview/live))</td><td class="cov">COVERED (billing_consent_checkout.pairwise.test.ts row #6)</td></tr><tr><td>7</td><td><code>C2_release_approval</code></td><td><code>refused</code></td><td><code>polar</code></td><td><code>sandbox</code></td><td><code>true</code></td><td><code>unset_node_prod</code></td><td><code>valid_live_rail</code></td><td><code>403 not launched</code></td><td class="uncov">UNCOVERED (partial in route.test.ts:1073)</td><td class="cov">COVERED (billing_consent_checkout.pairwise.test.ts row #7)</td></tr><tr><td>8</td><td><code>C3_revenue_split</code></td><td><code>resolved_by_set</code></td><td><code>paddle</code></td><td><code>gated</code></td><td><code>false</code></td><td><code>development</code></td><td><code>sandbox_rail_host</code></td><td><code>403 not launched</code></td><td class="uncov">UNCOVERED (unit only: consent-chain-set-supersession.test.ts)</td><td class="cov">COVERED (billing_consent_checkout.pairwise.test.ts row #8)</td></tr><tr><td>9</td><td><code>C1_data_accuracy</code></td><td><code>given</code></td><td><code>creem</code></td><td><code>live</code></td><td><code>true</code></td><td><code>unset_node_prod</code></td><td><code>sandbox_rail_host</code></td><td><code>404 rails disabled/none</code></td><td class="uncov">UNCOVERED (no exact or route-level combo)</td><td class="cov">COVERED (billing_consent_checkout.pairwise.test.ts row #9)</td></tr><tr><td>10</td><td><code>C1_data_accuracy</code></td><td><code>forked</code></td><td><code>creem</code></td><td><code>gated</code></td><td><code>false</code></td><td><code>preview</code></td><td><code>valid_live_rail</code></td><td><code>403 not launched</code></td><td class="uncov">UNCOVERED (no exact or route-level combo)</td><td class="cov">COVERED (billing_consent_checkout.pairwise.test.ts row #10)</td></tr><tr><td>11</td><td><code>C3_revenue_split</code></td><td><code>resolved_by_set</code></td><td><code>polar</code></td><td><code>sandbox</code></td><td><code>true</code></td><td><code>preview</code></td><td><code>release_hash_mismatch</code></td><td><code>403 release hash mismatch</code></td><td class="uncov">UNCOVERED (unit only: consent-chain-set-supersession.test.ts; partial in route.test.ts:1073)</td><td class="cov">COVERED (billing_consent_checkout.pairwise.test.ts row #11)</td></tr><tr><td>12</td><td><code>C2_release_approval</code></td><td><code>refused</code></td><td><code>lemonsqueezy</code></td><td><code>live</code></td><td><code>false</code></td><td><code>unset_node_test</code></td><td><code>sandbox_rail_host</code></td><td><code>403 consents inactive</code></td><td class="uncov">UNCOVERED (partial in route.test.ts:272)</td><td class="cov">COVERED (billing_consent_checkout.pairwise.test.ts row #12)</td></tr><tr><td>13</td><td><code>C1_data_accuracy</code></td><td><code>resolved_by_set</code></td><td><code>lemonsqueezy</code></td><td><code>sandbox</code></td><td><code>true</code></td><td><code>production</code></td><td><code>valid_live_rail</code></td><td><code>403 not launched</code></td><td class="uncov">UNCOVERED (unit only: consent-chain-set-supersession.test.ts; partial in route.test.ts:272)</td><td class="cov">COVERED (billing_consent_checkout.pairwise.test.ts row #13)</td></tr><tr><td>14</td><td><code>C3_revenue_split</code></td><td><code>resolved_by_set</code></td><td><code>fungies</code></td><td><code>gated</code></td><td><code>true</code></td><td><code>unset_node_prod</code></td><td><code>no_rails</code></td><td><code>403 not launched</code></td><td class="uncov">UNCOVERED (unit only: consent-chain-set-supersession.test.ts)</td><td class="cov">COVERED (billing_consent_checkout.pairwise.test.ts row #14)</td></tr><tr><td>15</td><td><code>C2_release_approval</code></td><td><code>given</code></td><td><code>lemonsqueezy</code></td><td><code>live</code></td><td><code>false</code></td><td><code>development</code></td><td><code>release_hash_mismatch</code></td><td><code>403 release hash mismatch</code></td><td class="uncov">UNCOVERED (partial in route.test.ts / portal-consent-state.test.ts; partial in route.test.ts:272)</td><td class="cov">COVERED (billing_consent_checkout.pairwise.test.ts row #15)</td></tr><tr><td>16</td><td><code>C3_revenue_split</code></td><td><code>given</code></td><td><code>paddle</code></td><td><code>live</code></td><td><code>true</code></td><td><code>unset_node_test</code></td><td><code>valid_live_rail</code></td><td><code>302 redirect (live)</code></td><td class="uncov">UNCOVERED (no exact or route-level combo)</td><td class="cov">COVERED (billing_consent_checkout.pairwise.test.ts row #16)</td></tr><tr><td>17</td><td><code>C2_release_approval</code></td><td><code>resolved_by_set</code></td><td><code>polar</code></td><td><code>live</code></td><td><code>false</code></td><td><code>unset_node_test</code></td><td><code>bare_slug_single</code></td><td><code>400 product_ref_requires_handle</code></td><td class="uncov">UNCOVERED (unit only: consent-chain-set-supersession.test.ts; partial in route.test.ts (preview/live); partial in route.test.ts:1073)</td><td class="cov">COVERED (billing_consent_checkout.pairwise.test.ts row #17)</td></tr><tr><td>18</td><td><code>C2_release_approval</code></td><td><code>forked</code></td><td><code>lemonsqueezy</code></td><td><code>sandbox</code></td><td><code>false</code></td><td><code>unset_node_prod</code></td><td><code>no_rails</code></td><td><code>403 not launched</code></td><td class="uncov">UNCOVERED (partial in route.test.ts:272)</td><td class="cov">COVERED (billing_consent_checkout.pairwise.test.ts row #18)</td></tr><tr><td>19</td><td><code>C1_data_accuracy</code></td><td><code>refused</code></td><td><code>paddle</code></td><td><code>sandbox</code></td><td><code>true</code></td><td><code>development</code></td><td><code>no_rails</code></td><td><code>403 consents inactive</code></td><td class="uncov">UNCOVERED (no exact or route-level combo)</td><td class="cov">COVERED (billing_consent_checkout.pairwise.test.ts row #19)</td></tr><tr><td>20</td><td><code>C1_data_accuracy</code></td><td><code>forked</code></td><td><code>fungies</code></td><td><code>gated</code></td><td><code>false</code></td><td><code>unset_node_test</code></td><td><code>release_hash_mismatch</code></td><td><code>403 not launched</code></td><td class="uncov">UNCOVERED (no exact or route-level combo)</td><td class="cov">COVERED (billing_consent_checkout.pairwise.test.ts row #20)</td></tr><tr><td>21</td><td><code>C2_release_approval</code></td><td><code>given</code></td><td><code>creem</code></td><td><code>sandbox</code></td><td><code>false</code></td><td><code>development</code></td><td><code>bare_slug_ambiguous</code></td><td><code>409 product_slug_ambiguous</code></td><td class="uncov">UNCOVERED (partial in route.test.ts (preview/live))</td><td class="cov">COVERED (billing_consent_checkout.pairwise.test.ts row #21)</td></tr><tr><td>22</td><td><code>C1_data_accuracy</code></td><td><code>refused</code></td><td><code>paddle</code></td><td><code>gated</code></td><td><code>true</code></td><td><code>unset_node_prod</code></td><td><code>release_hash_mismatch</code></td><td><code>403 not launched</code></td><td class="uncov">UNCOVERED (no exact or route-level combo)</td><td class="cov">COVERED (billing_consent_checkout.pairwise.test.ts row #22)</td></tr><tr><td>23</td><td><code>C1_data_accuracy</code></td><td><code>refused</code></td><td><code>polar</code></td><td><code>gated</code></td><td><code>true</code></td><td><code>production</code></td><td><code>no_rails</code></td><td><code>403 not launched</code></td><td class="uncov">UNCOVERED (partial in route.test.ts:1073)</td><td class="cov">COVERED (billing_consent_checkout.pairwise.test.ts row #23)</td></tr><tr><td>24</td><td><code>C1_data_accuracy</code></td><td><code>refused</code></td><td><code>fungies</code></td><td><code>sandbox</code></td><td><code>false</code></td><td><code>preview</code></td><td><code>sandbox_rail_host</code></td><td><code>403 not launched</code></td><td class="uncov">UNCOVERED (no exact or route-level combo)</td><td class="cov">COVERED (billing_consent_checkout.pairwise.test.ts row #24)</td></tr><tr><td>25</td><td><code>C1_data_accuracy</code></td><td><code>resolved_by_set</code></td><td><code>paddle</code></td><td><code>sandbox</code></td><td><code>true</code></td><td><code>preview</code></td><td><code>bare_slug_ambiguous</code></td><td><code>409 product_slug_ambiguous</code></td><td class="uncov">UNCOVERED (unit only: consent-chain-set-supersession.test.ts; partial in route.test.ts (preview/live))</td><td class="cov">COVERED (billing_consent_checkout.pairwise.test.ts row #25)</td></tr><tr><td>26</td><td><code>C3_revenue_split</code></td><td><code>forked</code></td><td><code>creem</code></td><td><code>sandbox</code></td><td><code>false</code></td><td><code>production</code></td><td><code>sandbox_rail_host</code></td><td><code>403 not launched</code></td><td class="uncov">UNCOVERED (no exact or route-level combo)</td><td class="cov">COVERED (billing_consent_checkout.pairwise.test.ts row #26)</td></tr><tr><td>27</td><td><code>C1_data_accuracy</code></td><td><code>refused</code></td><td><code>creem</code></td><td><code>live</code></td><td><code>true</code></td><td><code>production</code></td><td><code>release_hash_mismatch</code></td><td><code>403 consents inactive</code></td><td class="uncov">UNCOVERED (no exact or route-level combo)</td><td class="cov">COVERED (billing_consent_checkout.pairwise.test.ts row #27)</td></tr><tr><td>28</td><td><code>C3_revenue_split</code></td><td><code>refused</code></td><td><code>lemonsqueezy</code></td><td><code>sandbox</code></td><td><code>false</code></td><td><code>preview</code></td><td><code>bare_slug_single</code></td><td><code>400 product_ref_requires_handle</code></td><td class="uncov">UNCOVERED (partial in route.test.ts (preview/live); partial in route.test.ts:272)</td><td class="cov">COVERED (billing_consent_checkout.pairwise.test.ts row #28)</td></tr><tr><td>29</td><td><code>C2_release_approval</code></td><td><code>resolved_by_set</code></td><td><code>fungies</code></td><td><code>live</code></td><td><code>false</code></td><td><code>production</code></td><td><code>bare_slug_ambiguous</code></td><td><code>409 product_slug_ambiguous</code></td><td class="uncov">UNCOVERED (unit only: consent-chain-set-supersession.test.ts; partial in route.test.ts (preview/live))</td><td class="cov">COVERED (billing_consent_checkout.pairwise.test.ts row #29)</td></tr><tr><td>30</td><td><code>C3_revenue_split</code></td><td><code>given</code></td><td><code>polar</code></td><td><code>sandbox</code></td><td><code>true</code></td><td><code>unset_node_prod</code></td><td><code>bare_slug_ambiguous</code></td><td><code>409 product_slug_ambiguous</code></td><td class="uncov">UNCOVERED (partial in route.test.ts (preview/live); partial in route.test.ts:1073)</td><td class="cov">COVERED (billing_consent_checkout.pairwise.test.ts row #30)</td></tr><tr><td>31</td><td><code>C1_data_accuracy</code></td><td><code>resolved_by_set</code></td><td><code>fungies</code></td><td><code>live</code></td><td><code>false</code></td><td><code>development</code></td><td><code>valid_live_rail</code></td><td><code>404 rails disabled/none</code></td><td class="uncov">UNCOVERED (unit only: consent-chain-set-supersession.test.ts)</td><td class="cov">COVERED (billing_consent_checkout.pairwise.test.ts row #31)</td></tr><tr><td>32</td><td><code>C2_release_approval</code></td><td><code>refused</code></td><td><code>polar</code></td><td><code>gated</code></td><td><code>true</code></td><td><code>development</code></td><td><code>sandbox_rail_host</code></td><td><code>403 not launched</code></td><td class="uncov">UNCOVERED (partial in route.test.ts:1073)</td><td class="cov">COVERED (billing_consent_checkout.pairwise.test.ts row #32)</td></tr><tr><td>33</td><td><code>C2_release_approval</code></td><td><code>forked</code></td><td><code>creem</code></td><td><code>gated</code></td><td><code>true</code></td><td><code>unset_node_prod</code></td><td><code>bare_slug_single</code></td><td><code>400 product_ref_requires_handle</code></td><td class="uncov">UNCOVERED (partial in route.test.ts (preview/live))</td><td class="cov">COVERED (billing_consent_checkout.pairwise.test.ts row #33)</td></tr><tr><td>34</td><td><code>C3_revenue_split</code></td><td><code>forked</code></td><td><code>paddle</code></td><td><code>live</code></td><td><code>true</code></td><td><code>unset_node_test</code></td><td><code>no_rails</code></td><td><code>403 consents inactive</code></td><td class="uncov">UNCOVERED (no exact or route-level combo)</td><td class="cov">COVERED (billing_consent_checkout.pairwise.test.ts row #34)</td></tr>
+<tr>
+<td style="text-align: right;">1</td>
+<td><code>C2_release_approval</code></td>
+<td><code>forked</code></td>
+<td><code>paddle</code></td>
+<td><code>redirect</code></td>
+<td><code>live</code></td>
+<td><code>true</code></td>
+<td><code>production</code></td>
+<td><code>release_hash_mismatch</code></td>
+<td><code>live</code></td>
+<td><code>absent</code></td>
+<td><code>checked</code></td>
+<td><code>non_us</code></td>
+<td>403 (country_not_supported)</td>
+<td>billing_consent_checkout.pairwise.test.ts row #1</td>
+</tr>
+<tr>
+<td style="text-align: right;">2</td>
+<td><code>C3_revenue_split</code></td>
+<td><code>resolved_by_set</code></td>
+<td><code>fungies</code></td>
+<td><code>redirect</code></td>
+<td><code>sandbox</code></td>
+<td><code>false</code></td>
+<td><code>production</code></td>
+<td><code>active_rail</code></td>
+<td><code>sandbox</code></td>
+<td><code>valid</code></td>
+<td><code>unchecked</code></td>
+<td><code>us_territory</code></td>
+<td>403</td>
+<td>billing_consent_checkout.pairwise.test.ts row #2</td>
+</tr>
+<tr>
+<td style="text-align: right;">3</td>
+<td><code>C1_data_accuracy</code></td>
+<td><code>given</code></td>
+<td><code>polar</code></td>
+<td><code>redirect</code></td>
+<td><code>gated</code></td>
+<td><code>true</code></td>
+<td><code>production</code></td>
+<td><code>active_rail</code></td>
+<td><code>live</code></td>
+<td><code>invalid</code></td>
+<td><code>unchecked</code></td>
+<td><code>us</code></td>
+<td>400 (buyer_email_invalid)</td>
+<td>billing_consent_checkout.pairwise.test.ts row #3</td>
+</tr>
+<tr>
+<td style="text-align: right;">4</td>
+<td><code>C3_revenue_split</code></td>
+<td><code>refused</code></td>
+<td><code>paddle</code></td>
+<td><code>redirect</code></td>
+<td><code>live</code></td>
+<td><code>false</code></td>
+<td><code>development</code></td>
+<td><code>bare_slug_single</code></td>
+<td><code>live</code></td>
+<td><code>typo_suggested</code></td>
+<td><code>unchecked</code></td>
+<td><code>non_us</code></td>
+<td>403 (country_not_supported)</td>
+<td>billing_consent_checkout.pairwise.test.ts row #4</td>
+</tr>
+<tr>
+<td style="text-align: right;">5</td>
+<td><code>C2_release_approval</code></td>
+<td><code>given</code></td>
+<td><code>paddle</code></td>
+<td><code>redirect</code></td>
+<td><code>sandbox</code></td>
+<td><code>false</code></td>
+<td><code>unset_node_prod</code></td>
+<td><code>bare_slug_ambiguous</code></td>
+<td><code>live</code></td>
+<td><code>valid</code></td>
+<td><code>checked</code></td>
+<td><code>us</code></td>
+<td>409 (product_slug_ambiguous)</td>
+<td>billing_consent_checkout.pairwise.test.ts row #5</td>
+</tr>
+<tr>
+<td style="text-align: right;">6</td>
+<td><code>C1_data_accuracy</code></td>
+<td><code>resolved_by_set</code></td>
+<td><code>paddle</code></td>
+<td><code>redirect</code></td>
+<td><code>gated</code></td>
+<td><code>true</code></td>
+<td><code>unset_node_prod</code></td>
+<td><code>bare_slug_single</code></td>
+<td><code>live</code></td>
+<td><code>invalid</code></td>
+<td><code>checked</code></td>
+<td><code>us_territory</code></td>
+<td>400 (buyer_email_invalid)</td>
+<td>billing_consent_checkout.pairwise.test.ts row #6</td>
+</tr>
+<tr>
+<td style="text-align: right;">7</td>
+<td><code>C2_release_approval</code></td>
+<td><code>refused</code></td>
+<td><code>paddle</code></td>
+<td><code>overlay</code></td>
+<td><code>gated</code></td>
+<td><code>true</code></td>
+<td><code>unset_node_test</code></td>
+<td><code>active_rail</code></td>
+<td><code>sandbox</code></td>
+<td><code>typo_suggested</code></td>
+<td><code>checked</code></td>
+<td><code>non_us</code></td>
+<td>403 (country_not_supported)</td>
+<td>billing_consent_checkout.pairwise.test.ts row #7</td>
+</tr>
+<tr>
+<td style="text-align: right;">8</td>
+<td><code>C1_data_accuracy</code></td>
+<td><code>forked</code></td>
+<td><code>lemonsqueezy</code></td>
+<td><code>redirect</code></td>
+<td><code>live</code></td>
+<td><code>false</code></td>
+<td><code>production</code></td>
+<td><code>active_rail</code></td>
+<td><code>sandbox</code></td>
+<td><code>absent</code></td>
+<td><code>unchecked</code></td>
+<td><code>us</code></td>
+<td>403</td>
+<td>billing_consent_checkout.pairwise.test.ts row #8</td>
+</tr>
+<tr>
+<td style="text-align: right;">9</td>
+<td><code>C3_revenue_split</code></td>
+<td><code>refused</code></td>
+<td><code>paddle</code></td>
+<td><code>redirect</code></td>
+<td><code>sandbox</code></td>
+<td><code>true</code></td>
+<td><code>preview</code></td>
+<td><code>bare_slug_ambiguous</code></td>
+<td><code>live</code></td>
+<td><code>absent</code></td>
+<td><code>unchecked</code></td>
+<td><code>us_territory</code></td>
+<td>409 (product_slug_ambiguous)</td>
+<td>billing_consent_checkout.pairwise.test.ts row #9</td>
+</tr>
+<tr>
+<td style="text-align: right;">10</td>
+<td><code>C1_data_accuracy</code></td>
+<td><code>forked</code></td>
+<td><code>paddle</code></td>
+<td><code>redirect</code></td>
+<td><code>sandbox</code></td>
+<td><code>false</code></td>
+<td><code>unset_node_test</code></td>
+<td><code>bare_slug_ambiguous</code></td>
+<td><code>live</code></td>
+<td><code>invalid</code></td>
+<td><code>unchecked</code></td>
+<td><code>non_us</code></td>
+<td>403 (country_not_supported)</td>
+<td>billing_consent_checkout.pairwise.test.ts row #10</td>
+</tr>
+<tr>
+<td style="text-align: right;">11</td>
+<td><code>C3_revenue_split</code></td>
+<td><code>given</code></td>
+<td><code>paddle</code></td>
+<td><code>redirect</code></td>
+<td><code>live</code></td>
+<td><code>true</code></td>
+<td><code>development</code></td>
+<td><code>no_rails</code></td>
+<td><code>live</code></td>
+<td><code>valid</code></td>
+<td><code>checked</code></td>
+<td><code>us_territory</code></td>
+<td>404</td>
+<td>billing_consent_checkout.pairwise.test.ts row #11</td>
+</tr>
+<tr>
+<td style="text-align: right;">12</td>
+<td><code>C3_revenue_split</code></td>
+<td><code>forked</code></td>
+<td><code>creem</code></td>
+<td><code>redirect</code></td>
+<td><code>gated</code></td>
+<td><code>false</code></td>
+<td><code>preview</code></td>
+<td><code>active_rail</code></td>
+<td><code>sandbox</code></td>
+<td><code>typo_suggested</code></td>
+<td><code>checked</code></td>
+<td><code>us</code></td>
+<td>403</td>
+<td>billing_consent_checkout.pairwise.test.ts row #12</td>
+</tr>
+<tr>
+<td style="text-align: right;">13</td>
+<td><code>C1_data_accuracy</code></td>
+<td><code>given</code></td>
+<td><code>fungies</code></td>
+<td><code>redirect</code></td>
+<td><code>live</code></td>
+<td><code>true</code></td>
+<td><code>unset_node_prod</code></td>
+<td><code>active_rail</code></td>
+<td><code>sandbox</code></td>
+<td><code>typo_suggested</code></td>
+<td><code>unchecked</code></td>
+<td><code>non_us</code></td>
+<td>403 (country_not_supported)</td>
+<td>billing_consent_checkout.pairwise.test.ts row #13</td>
+</tr>
+<tr>
+<td style="text-align: right;">14</td>
+<td><code>C2_release_approval</code></td>
+<td><code>refused</code></td>
+<td><code>lemonsqueezy</code></td>
+<td><code>redirect</code></td>
+<td><code>sandbox</code></td>
+<td><code>true</code></td>
+<td><code>unset_node_prod</code></td>
+<td><code>active_rail</code></td>
+<td><code>live</code></td>
+<td><code>typo_suggested</code></td>
+<td><code>checked</code></td>
+<td><code>us_territory</code></td>
+<td>403</td>
+<td>billing_consent_checkout.pairwise.test.ts row #14</td>
+</tr>
+<tr>
+<td style="text-align: right;">15</td>
+<td><code>C2_release_approval</code></td>
+<td><code>resolved_by_set</code></td>
+<td><code>paddle</code></td>
+<td><code>redirect</code></td>
+<td><code>sandbox</code></td>
+<td><code>false</code></td>
+<td><code>development</code></td>
+<td><code>release_hash_mismatch</code></td>
+<td><code>live</code></td>
+<td><code>invalid</code></td>
+<td><code>unchecked</code></td>
+<td><code>us</code></td>
+<td>400 (buyer_email_invalid)</td>
+<td>billing_consent_checkout.pairwise.test.ts row #15</td>
+</tr>
+<tr>
+<td style="text-align: right;">16</td>
+<td><code>C3_revenue_split</code></td>
+<td><code>forked</code></td>
+<td><code>polar</code></td>
+<td><code>redirect</code></td>
+<td><code>live</code></td>
+<td><code>false</code></td>
+<td><code>unset_node_prod</code></td>
+<td><code>active_rail</code></td>
+<td><code>sandbox</code></td>
+<td><code>absent</code></td>
+<td><code>checked</code></td>
+<td><code>us_territory</code></td>
+<td>403</td>
+<td>billing_consent_checkout.pairwise.test.ts row #16</td>
+</tr>
+<tr>
+<td style="text-align: right;">17</td>
+<td><code>C1_data_accuracy</code></td>
+<td><code>resolved_by_set</code></td>
+<td><code>paddle</code></td>
+<td><code>redirect</code></td>
+<td><code>live</code></td>
+<td><code>false</code></td>
+<td><code>production</code></td>
+<td><code>bare_slug_ambiguous</code></td>
+<td><code>live</code></td>
+<td><code>typo_suggested</code></td>
+<td><code>unchecked</code></td>
+<td><code>non_us</code></td>
+<td>403 (country_not_supported)</td>
+<td>billing_consent_checkout.pairwise.test.ts row #17</td>
+</tr>
+<tr>
+<td style="text-align: right;">18</td>
+<td><code>C3_revenue_split</code></td>
+<td><code>refused</code></td>
+<td><code>fungies</code></td>
+<td><code>redirect</code></td>
+<td><code>gated</code></td>
+<td><code>false</code></td>
+<td><code>unset_node_test</code></td>
+<td><code>active_rail</code></td>
+<td><code>live</code></td>
+<td><code>absent</code></td>
+<td><code>checked</code></td>
+<td><code>us</code></td>
+<td>403</td>
+<td>billing_consent_checkout.pairwise.test.ts row #18</td>
+</tr>
+<tr>
+<td style="text-align: right;">19</td>
+<td><code>C1_data_accuracy</code></td>
+<td><code>refused</code></td>
+<td><code>paddle</code></td>
+<td><code>redirect</code></td>
+<td><code>sandbox</code></td>
+<td><code>false</code></td>
+<td><code>production</code></td>
+<td><code>bare_slug_single</code></td>
+<td><code>live</code></td>
+<td><code>valid</code></td>
+<td><code>unchecked</code></td>
+<td><code>us</code></td>
+<td>400 (product_ref_requires_handle)</td>
+<td>billing_consent_checkout.pairwise.test.ts row #19</td>
+</tr>
+<tr>
+<td style="text-align: right;">20</td>
+<td><code>C3_revenue_split</code></td>
+<td><code>given</code></td>
+<td><code>lemonsqueezy</code></td>
+<td><code>redirect</code></td>
+<td><code>gated</code></td>
+<td><code>false</code></td>
+<td><code>unset_node_test</code></td>
+<td><code>active_rail</code></td>
+<td><code>live</code></td>
+<td><code>valid</code></td>
+<td><code>unchecked</code></td>
+<td><code>non_us</code></td>
+<td>403 (country_not_supported)</td>
+<td>billing_consent_checkout.pairwise.test.ts row #20</td>
+</tr>
+<tr>
+<td style="text-align: right;">21</td>
+<td><code>C2_release_approval</code></td>
+<td><code>resolved_by_set</code></td>
+<td><code>lemonsqueezy</code></td>
+<td><code>redirect</code></td>
+<td><code>live</code></td>
+<td><code>false</code></td>
+<td><code>preview</code></td>
+<td><code>active_rail</code></td>
+<td><code>sandbox</code></td>
+<td><code>invalid</code></td>
+<td><code>unchecked</code></td>
+<td><code>non_us</code></td>
+<td>403 (country_not_supported)</td>
+<td>billing_consent_checkout.pairwise.test.ts row #21</td>
+</tr>
+<tr>
+<td style="text-align: right;">22</td>
+<td><code>C1_data_accuracy</code></td>
+<td><code>refused</code></td>
+<td><code>paddle</code></td>
+<td><code>redirect</code></td>
+<td><code>live</code></td>
+<td><code>false</code></td>
+<td><code>unset_node_test</code></td>
+<td><code>release_hash_mismatch</code></td>
+<td><code>live</code></td>
+<td><code>valid</code></td>
+<td><code>unchecked</code></td>
+<td><code>us_territory</code></td>
+<td>403</td>
+<td>billing_consent_checkout.pairwise.test.ts row #22</td>
+</tr>
+<tr>
+<td style="text-align: right;">23</td>
+<td><code>C1_data_accuracy</code></td>
+<td><code>given</code></td>
+<td><code>creem</code></td>
+<td><code>redirect</code></td>
+<td><code>live</code></td>
+<td><code>true</code></td>
+<td><code>development</code></td>
+<td><code>active_rail</code></td>
+<td><code>live</code></td>
+<td><code>absent</code></td>
+<td><code>unchecked</code></td>
+<td><code>non_us</code></td>
+<td>403 (country_not_supported)</td>
+<td>billing_consent_checkout.pairwise.test.ts row #23</td>
+</tr>
+<tr>
+<td style="text-align: right;">24</td>
+<td><code>C1_data_accuracy</code></td>
+<td><code>forked</code></td>
+<td><code>paddle</code></td>
+<td><code>redirect</code></td>
+<td><code>sandbox</code></td>
+<td><code>false</code></td>
+<td><code>preview</code></td>
+<td><code>bare_slug_single</code></td>
+<td><code>live</code></td>
+<td><code>valid</code></td>
+<td><code>unchecked</code></td>
+<td><code>us_territory</code></td>
+<td>400 (product_ref_requires_handle)</td>
+<td>billing_consent_checkout.pairwise.test.ts row #24</td>
+</tr>
+<tr>
+<td style="text-align: right;">25</td>
+<td><code>C3_revenue_split</code></td>
+<td><code>refused</code></td>
+<td><code>creem</code></td>
+<td><code>redirect</code></td>
+<td><code>sandbox</code></td>
+<td><code>false</code></td>
+<td><code>unset_node_test</code></td>
+<td><code>active_rail</code></td>
+<td><code>live</code></td>
+<td><code>invalid</code></td>
+<td><code>unchecked</code></td>
+<td><code>us_territory</code></td>
+<td>400 (buyer_email_invalid)</td>
+<td>billing_consent_checkout.pairwise.test.ts row #25</td>
+</tr>
+<tr>
+<td style="text-align: right;">26</td>
+<td><code>C2_release_approval</code></td>
+<td><code>forked</code></td>
+<td><code>paddle</code></td>
+<td><code>redirect</code></td>
+<td><code>sandbox</code></td>
+<td><code>false</code></td>
+<td><code>production</code></td>
+<td><code>no_rails</code></td>
+<td><code>live</code></td>
+<td><code>invalid</code></td>
+<td><code>unchecked</code></td>
+<td><code>us</code></td>
+<td>400 (buyer_email_invalid)</td>
+<td>billing_consent_checkout.pairwise.test.ts row #26</td>
+</tr>
+<tr>
+<td style="text-align: right;">27</td>
+<td><code>C2_release_approval</code></td>
+<td><code>forked</code></td>
+<td><code>fungies</code></td>
+<td><code>redirect</code></td>
+<td><code>live</code></td>
+<td><code>false</code></td>
+<td><code>preview</code></td>
+<td><code>active_rail</code></td>
+<td><code>live</code></td>
+<td><code>invalid</code></td>
+<td><code>unchecked</code></td>
+<td><code>non_us</code></td>
+<td>403 (country_not_supported)</td>
+<td>billing_consent_checkout.pairwise.test.ts row #27</td>
+</tr>
+<tr>
+<td style="text-align: right;">28</td>
+<td><code>C2_release_approval</code></td>
+<td><code>resolved_by_set</code></td>
+<td><code>polar</code></td>
+<td><code>redirect</code></td>
+<td><code>sandbox</code></td>
+<td><code>false</code></td>
+<td><code>preview</code></td>
+<td><code>active_rail</code></td>
+<td><code>live</code></td>
+<td><code>typo_suggested</code></td>
+<td><code>unchecked</code></td>
+<td><code>non_us</code></td>
+<td>403 (country_not_supported)</td>
+<td>billing_consent_checkout.pairwise.test.ts row #28</td>
+</tr>
+<tr>
+<td style="text-align: right;">29</td>
+<td><code>C1_data_accuracy</code></td>
+<td><code>resolved_by_set</code></td>
+<td><code>paddle</code></td>
+<td><code>redirect</code></td>
+<td><code>gated</code></td>
+<td><code>false</code></td>
+<td><code>unset_node_test</code></td>
+<td><code>no_rails</code></td>
+<td><code>live</code></td>
+<td><code>absent</code></td>
+<td><code>unchecked</code></td>
+<td><code>non_us</code></td>
+<td>403 (country_not_supported)</td>
+<td>billing_consent_checkout.pairwise.test.ts row #29</td>
+</tr>
+<tr>
+<td style="text-align: right;">30</td>
+<td><code>C2_release_approval</code></td>
+<td><code>forked</code></td>
+<td><code>paddle</code></td>
+<td><code>redirect</code></td>
+<td><code>gated</code></td>
+<td><code>false</code></td>
+<td><code>development</code></td>
+<td><code>bare_slug_ambiguous</code></td>
+<td><code>live</code></td>
+<td><code>valid</code></td>
+<td><code>unchecked</code></td>
+<td><code>us_territory</code></td>
+<td>409 (product_slug_ambiguous)</td>
+<td>billing_consent_checkout.pairwise.test.ts row #30</td>
+</tr>
+<tr>
+<td style="text-align: right;">31</td>
+<td><code>C2_release_approval</code></td>
+<td><code>forked</code></td>
+<td><code>lemonsqueezy</code></td>
+<td><code>redirect</code></td>
+<td><code>live</code></td>
+<td><code>false</code></td>
+<td><code>development</code></td>
+<td><code>active_rail</code></td>
+<td><code>sandbox</code></td>
+<td><code>typo_suggested</code></td>
+<td><code>unchecked</code></td>
+<td><code>us</code></td>
+<td>403</td>
+<td>billing_consent_checkout.pairwise.test.ts row #31</td>
+</tr>
+<tr>
+<td style="text-align: right;">32</td>
+<td><code>C3_revenue_split</code></td>
+<td><code>refused</code></td>
+<td><code>fungies</code></td>
+<td><code>redirect</code></td>
+<td><code>sandbox</code></td>
+<td><code>false</code></td>
+<td><code>development</code></td>
+<td><code>active_rail</code></td>
+<td><code>live</code></td>
+<td><code>typo_suggested</code></td>
+<td><code>unchecked</code></td>
+<td><code>us_territory</code></td>
+<td>403</td>
+<td>billing_consent_checkout.pairwise.test.ts row #32</td>
+</tr>
+<tr>
+<td style="text-align: right;">33</td>
+<td><code>C2_release_approval</code></td>
+<td><code>given</code></td>
+<td><code>paddle</code></td>
+<td><code>redirect</code></td>
+<td><code>live</code></td>
+<td><code>false</code></td>
+<td><code>unset_node_test</code></td>
+<td><code>bare_slug_single</code></td>
+<td><code>live</code></td>
+<td><code>absent</code></td>
+<td><code>unchecked</code></td>
+<td><code>us_territory</code></td>
+<td>400 (product_ref_requires_handle)</td>
+<td>billing_consent_checkout.pairwise.test.ts row #33</td>
+</tr>
+<tr>
+<td style="text-align: right;">34</td>
+<td><code>C2_release_approval</code></td>
+<td><code>resolved_by_set</code></td>
+<td><code>creem</code></td>
+<td><code>redirect</code></td>
+<td><code>sandbox</code></td>
+<td><code>false</code></td>
+<td><code>unset_node_prod</code></td>
+<td><code>active_rail</code></td>
+<td><code>live</code></td>
+<td><code>valid</code></td>
+<td><code>unchecked</code></td>
+<td><code>us</code></td>
+<td>403</td>
+<td>billing_consent_checkout.pairwise.test.ts row #34</td>
+</tr>
+<tr>
+<td style="text-align: right;">35</td>
+<td><code>C1_data_accuracy</code></td>
+<td><code>refused</code></td>
+<td><code>paddle</code></td>
+<td><code>redirect</code></td>
+<td><code>live</code></td>
+<td><code>false</code></td>
+<td><code>preview</code></td>
+<td><code>no_rails</code></td>
+<td><code>live</code></td>
+<td><code>typo_suggested</code></td>
+<td><code>unchecked</code></td>
+<td><code>us</code></td>
+<td>403</td>
+<td>billing_consent_checkout.pairwise.test.ts row #35</td>
+</tr>
+<tr>
+<td style="text-align: right;">36</td>
+<td><code>C1_data_accuracy</code></td>
+<td><code>given</code></td>
+<td><code>paddle</code></td>
+<td><code>overlay</code></td>
+<td><code>sandbox</code></td>
+<td><code>false</code></td>
+<td><code>unset_node_prod</code></td>
+<td><code>active_rail</code></td>
+<td><code>live</code></td>
+<td><code>valid</code></td>
+<td><code>unchecked</code></td>
+<td><code>us_territory</code></td>
+<td>403</td>
+<td>billing_consent_checkout.pairwise.test.ts row #36</td>
+</tr>
+<tr>
+<td style="text-align: right;">37</td>
+<td><code>C3_revenue_split</code></td>
+<td><code>given</code></td>
+<td><code>paddle</code></td>
+<td><code>redirect</code></td>
+<td><code>gated</code></td>
+<td><code>true</code></td>
+<td><code>unset_node_prod</code></td>
+<td><code>release_hash_mismatch</code></td>
+<td><code>live</code></td>
+<td><code>typo_suggested</code></td>
+<td><code>checked</code></td>
+<td><code>us</code></td>
+<td>403</td>
+<td>billing_consent_checkout.pairwise.test.ts row #37</td>
+</tr>
+<tr>
+<td style="text-align: right;">38</td>
+<td><code>C2_release_approval</code></td>
+<td><code>refused</code></td>
+<td><code>polar</code></td>
+<td><code>redirect</code></td>
+<td><code>live</code></td>
+<td><code>true</code></td>
+<td><code>unset_node_test</code></td>
+<td><code>active_rail</code></td>
+<td><code>sandbox</code></td>
+<td><code>valid</code></td>
+<td><code>unchecked</code></td>
+<td><code>us</code></td>
+<td>403</td>
+<td>billing_consent_checkout.pairwise.test.ts row #38</td>
+</tr>
+<tr>
+<td style="text-align: right;">39</td>
+<td><code>C3_revenue_split</code></td>
+<td><code>forked</code></td>
+<td><code>paddle</code></td>
+<td><code>overlay</code></td>
+<td><code>live</code></td>
+<td><code>true</code></td>
+<td><code>production</code></td>
+<td><code>active_rail</code></td>
+<td><code>sandbox</code></td>
+<td><code>absent</code></td>
+<td><code>checked</code></td>
+<td><code>us</code></td>
+<td>400 (buyer_email_invalid)</td>
+<td>billing_consent_checkout.pairwise.test.ts row #39</td>
+</tr>
+<tr>
+<td style="text-align: right;">40</td>
+<td><code>C3_revenue_split</code></td>
+<td><code>given</code></td>
+<td><code>paddle</code></td>
+<td><code>redirect</code></td>
+<td><code>sandbox</code></td>
+<td><code>true</code></td>
+<td><code>preview</code></td>
+<td><code>release_hash_mismatch</code></td>
+<td><code>live</code></td>
+<td><code>invalid</code></td>
+<td><code>checked</code></td>
+<td><code>us</code></td>
+<td>400 (buyer_email_invalid)</td>
+<td>billing_consent_checkout.pairwise.test.ts row #40</td>
+</tr>
+<tr>
+<td style="text-align: right;">41</td>
+<td><code>C1_data_accuracy</code></td>
+<td><code>given</code></td>
+<td><code>creem</code></td>
+<td><code>redirect</code></td>
+<td><code>gated</code></td>
+<td><code>true</code></td>
+<td><code>production</code></td>
+<td><code>active_rail</code></td>
+<td><code>sandbox</code></td>
+<td><code>invalid</code></td>
+<td><code>checked</code></td>
+<td><code>us</code></td>
+<td>400 (buyer_email_invalid)</td>
+<td>billing_consent_checkout.pairwise.test.ts row #41</td>
+</tr>
+<tr>
+<td style="text-align: right;">42</td>
+<td><code>C1_data_accuracy</code></td>
+<td><code>resolved_by_set</code></td>
+<td><code>paddle</code></td>
+<td><code>overlay</code></td>
+<td><code>sandbox</code></td>
+<td><code>true</code></td>
+<td><code>preview</code></td>
+<td><code>active_rail</code></td>
+<td><code>live</code></td>
+<td><code>invalid</code></td>
+<td><code>checked</code></td>
+<td><code>us</code></td>
+<td>400 (buyer_email_invalid)</td>
+<td>billing_consent_checkout.pairwise.test.ts row #42</td>
+</tr>
+<tr>
+<td style="text-align: right;">43</td>
+<td><code>C1_data_accuracy</code></td>
+<td><code>refused</code></td>
+<td><code>paddle</code></td>
+<td><code>redirect</code></td>
+<td><code>live</code></td>
+<td><code>true</code></td>
+<td><code>unset_node_prod</code></td>
+<td><code>no_rails</code></td>
+<td><code>live</code></td>
+<td><code>typo_suggested</code></td>
+<td><code>checked</code></td>
+<td><code>us</code></td>
+<td>403</td>
+<td>billing_consent_checkout.pairwise.test.ts row #43</td>
+</tr>
+<tr>
+<td style="text-align: right;">44</td>
+<td><code>C1_data_accuracy</code></td>
+<td><code>forked</code></td>
+<td><code>paddle</code></td>
+<td><code>overlay</code></td>
+<td><code>live</code></td>
+<td><code>false</code></td>
+<td><code>development</code></td>
+<td><code>active_rail</code></td>
+<td><code>live</code></td>
+<td><code>typo_suggested</code></td>
+<td><code>unchecked</code></td>
+<td><code>non_us</code></td>
+<td>403 (country_not_supported)</td>
+<td>billing_consent_checkout.pairwise.test.ts row #44</td>
+</tr>
+<tr>
+<td style="text-align: right;">45</td>
+<td><code>C3_revenue_split</code></td>
+<td><code>forked</code></td>
+<td><code>polar</code></td>
+<td><code>redirect</code></td>
+<td><code>live</code></td>
+<td><code>true</code></td>
+<td><code>development</code></td>
+<td><code>active_rail</code></td>
+<td><code>live</code></td>
+<td><code>valid</code></td>
+<td><code>unchecked</code></td>
+<td><code>non_us</code></td>
+<td>403 (country_not_supported)</td>
+<td>billing_consent_checkout.pairwise.test.ts row #45</td>
+</tr>
 </tbody>
 </table>
+<h2 id="explicit-paths-outside-the-pict-rows">Explicit paths (outside
+the PICT rows)</h2>
+<p>Nine named cases in the same test file, outside the PICT rows:</p>
+<ul>
+<li><code>resolved_by_set</code> + <code>paddle</code> +
+<code>redirect</code> + <code>live</code> + <code>production</code> +
+live rail: 302 Found.</li>
+<li><code>resolved_by_set</code> + <code>paddle</code> +
+<code>redirect</code> + <code>sandbox</code> + sandbox flag on +
+<code>development</code> + sandbox rail: 302 Found.</li>
+<li><code>given</code> + <code>paddle</code> + <code>redirect</code> +
+<code>sandbox</code> without the sandbox flag + <code>development</code>
++ sandbox rail: 403 Forbidden.</li>
+<li><code>given</code> + <code>paddle</code> + <code>redirect</code> +
+<code>live</code> + sandbox flag on + <code>preview</code> + sandbox
+rail (rail mode mismatch): 500 Internal Server Error.</li>
+<li><code>given</code> + <code>paddle</code> + <code>redirect</code> +
+<code>sandbox</code> + sandbox flag on + <code>development</code> + live
+rail (rail mode mismatch): 500 Internal Server Error.</li>
+<li><code>given</code> + <code>creem</code> + <code>redirect</code> +
+<code>live</code> + <code>production</code> + live rail with buyer
+consent checked: 302 Found, consent carried as creem metadata.</li>
+<li><code>given</code> + <code>paddle</code> + <code>redirect</code> +
+<code>live</code> + <code>production</code> + live rail with buyer
+consent checked: 302 Found, <code>user_email</code> prefilled, no
+consent parameter (webhook stores <code>NULL</code>).</li>
+<li><code>given</code> + <code>paddle</code> + <code>overlay</code> +
+<code>live</code> + <code>production</code> + live rail with
+<code>buyer_consent = checked</code>: 200 OK overlay payload
+(<code>customData.buyer_consent = "true"</code>), verified through
+<code>PaddleAdapter</code> <code>transaction.completed</code> webhook
+-&gt; <code>buyerEmailConsent === true</code>.</li>
+<li><code>given</code> + <code>paddle</code> + <code>overlay</code> +
+<code>live</code> + <code>production</code> + live rail with
+<code>buyer_consent = unchecked</code>: 200 OK overlay payload
+(<code>customData.buyer_consent = "false"</code>), verified through
+<code>PaddleAdapter</code> <code>transaction.completed</code> webhook
+-&gt; <code>buyerEmailConsent === false</code>.</li>
+</ul>
+<p><strong>Why these exist.</strong> Masking gates (refused heads, gated
+launch, bare slugs, non-US geo) hide the reachable 200 overlay, 302
+redirect, and 500 rail-mode mismatch outcomes in the generated rows.
+Pairwise coverage counts pairs, not reachable outcomes, so those paths
+and the overlay-to-webhook <code>buyer_consent</code> chain are asserted
+explicitly.</p>
 </body>
 </html>

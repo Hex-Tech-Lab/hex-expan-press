@@ -122,6 +122,9 @@ export interface SaleCompletedEvent {
   buyerEmailHash: HashedEmail;   // sha256 of trim+lowercase email
   // Transient, for the receipt email only. Never persisted; the ledger keeps buyerEmailHash.
   buyerEmail?: string;
+  /** Buyer-supplied consent to email delivery, as the checkout carried it (custom_data). Recorded on the order; never a trust
+   *  decision. Absent when the provider sent no value (NULL on the order). */
+  buyerEmailConsent?: boolean;
 
   // --- Time ---
   occurredAt: IsoTimestamp;      // Provider event timestamp, not our receipt timestamp
@@ -273,7 +276,8 @@ export interface PaymentProviderPort {
    */
   parseAndValidateWebhook(
     headers: Record<string, string | string[] | undefined>,
-    body: string
+    body: string,
+    options?: { deadlineAt?: number }
   ): Promise<WebhookParseResult>;
 
   /**

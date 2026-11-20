@@ -17,7 +17,8 @@
 import crypto from "node:crypto";
 import { z } from "zod";
 import { cleanAttributionId, hashEmail, safeEqualBytes } from "../../../payments/src/provider.ts";
-import { GLOBAL } from "../../../payments/src/settings_registry.ts";
+import { GLOBAL, paymentProviderSetting } from "../../../payments/src/settings_registry.ts";
+import { applyCheckoutUrlTheme } from "../../../payments/src/checkout_branding.ts";
 import type { PaymentProviderPort, WebhookParseResult, CheckoutCommand, CheckoutResult, SaleCompletedEvent, RefundIssuedEvent } from "../../domain/payments/payments.port.ts";
 
 // --- SSOT Schema (Zod) ---
@@ -185,8 +186,11 @@ export class PolarAdapter implements PaymentProviderPort {
   }
 
   async createCheckout(command: CheckoutCommand): Promise<CheckoutResult> {
+    const url = new URL(`https://polar.sh/checkout/${command.productId}`);
+    url.searchParams.set("email", command.buyerEmail);
+    applyCheckoutUrlTheme(url, paymentProviderSetting(this.providerName)?.theme_param ?? "theme", GLOBAL.branding);
     return {
-      checkoutUrl: `https://polar.sh/checkout/${command.productId}?email=${encodeURIComponent(command.buyerEmail)}`,
+      checkoutUrl: url.toString(),
       providerName: this.providerName
     };
   }

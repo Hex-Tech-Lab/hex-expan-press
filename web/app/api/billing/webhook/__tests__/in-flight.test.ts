@@ -46,12 +46,12 @@ describe("billing webhook — HTTP status contract (Wave 7 / 7.2)", () => {
     expect(res.status).toBe(500);
   });
 
-  it("conflict stored in the reconciliation inbox → 202 with the conflict payload, no Retry-After", async () => {
+  it("conflict stored in the reconciliation inbox → 200 with the conflict payload, no Retry-After", async () => {
     useCase.error = null;
-    useCase.outcome = { status: 202, payload: { ok: true, recorded: false, reason: "conflict_pending", conflict_id: 7, event_type: "refund", sale_id: "s1" } };
+    useCase.outcome = { status: 200, payload: { ok: true, recorded: false, reason: "conflict_pending", conflict_id: 7, event_type: "refund", sale_id: "s1" } };
     try {
       const res = await post();
-      expect(res.status).toBe(202);
+      expect(res.status).toBe(200);
       expect(res.headers.get("Retry-After")).toBeNull();
       expect(await res.json()).toEqual({ ok: true, recorded: false, reason: "conflict_pending", conflict_id: 7, event_type: "refund", sale_id: "s1" });
     } finally {

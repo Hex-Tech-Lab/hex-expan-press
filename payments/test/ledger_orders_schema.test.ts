@@ -56,8 +56,15 @@ describe("orders upsert Zod boundary", () => {
       provider: "polar", sale_id: "sale_zod_1", product_id: "p1", creator_id: "c1",
       amount_usd: 39, creator_split_pct: 50, creator_split_usd: 19.5, our_split_usd: 19.5,
       currency: "USD", event_type: "sale", email_hash: null, attribution_id: null,
-      provider_adjustment_id: null, occurred_at: "2026-10-04T00:00:00.000Z",
+      buyer_email_consent: null, provider_adjustment_id: null, occurred_at: "2026-10-04T00:00:00.000Z",
     });
+  });
+
+  it("persists buyer_email_consent true and false verbatim without coercing false to null", async () => {
+    await appendSale({ ...sale, sale_id: "sale_consent_true", buyer_email_consent: true }, join(dir, "sales_t.jsonl"));
+    await appendSale({ ...sale, sale_id: "sale_consent_false", buyer_email_consent: false }, join(dir, "sales_f.jsonl"));
+    expect(db.upserts[0]!.row.buyer_email_consent).toBe(true);
+    expect(db.upserts[1]!.row.buyer_email_consent).toBe(false);
   });
 
   it.each([
@@ -105,14 +112,14 @@ describe("orders upsert Zod boundary", () => {
   });
 
   it("refund rows carry negated splits; positive splits on a refund row are rejected", () => {
-    const rest: Record<string, unknown> = { ...sale, event_type: "refund", email_hash: null, attribution_id: null, provider_adjustment_id: null, occurred_at: sale.ts };
+    const rest: Record<string, unknown> = { ...sale, event_type: "refund", email_hash: null, attribution_id: null, buyer_email_consent: null, provider_adjustment_id: null, occurred_at: sale.ts };
     delete rest.ts;
     expect(OrderUpsertSchema.safeParse({ ...rest, creator_split_usd: -19.5, our_split_usd: -19.5 }).success).toBe(true);
     expect(OrderUpsertSchema.safeParse(rest).success).toBe(false);
   });
 
   it.each([0.1 + 0.2, 1.15, 4.35, 1.005 * 1000, 99_999_999.99])("accepts float-noisy cent value %s as cent-exact", (amount) => {
-    const row = { ...sale, amount_usd: amount, event_type: "sale", email_hash: null, attribution_id: null, provider_adjustment_id: null, occurred_at: sale.ts };
+    const row = { ...sale, amount_usd: amount, event_type: "sale", email_hash: null, attribution_id: null, buyer_email_consent: null, provider_adjustment_id: null, occurred_at: sale.ts };
     const rest: Record<string, unknown> = { ...row };
     delete rest.ts;
     expect(OrderUpsertSchema.safeParse(rest).success).toBe(true);
@@ -126,7 +133,7 @@ describe("orders upsert Zod boundary", () => {
     return f[0]!;
   };
   const parseAmount = (amount: number) => {
-    const rest: Record<string, unknown> = { ...sale, amount_usd: amount, event_type: "sale", email_hash: null, attribution_id: null, provider_adjustment_id: null, occurred_at: sale.ts };
+    const rest: Record<string, unknown> = { ...sale, amount_usd: amount, event_type: "sale", email_hash: null, attribution_id: null, buyer_email_consent: null, provider_adjustment_id: null, occurred_at: sale.ts };
     delete rest.ts;
     return OrderUpsertSchema.safeParse(rest).success;
   };
@@ -138,7 +145,7 @@ describe("orders upsert Zod boundary", () => {
   });
 
   it("strict: an unknown column is rejected", () => {
-    const rest: Record<string, unknown> = { ...sale, event_type: "sale", email_hash: null, attribution_id: null, provider_adjustment_id: null, occurred_at: sale.ts };
+    const rest: Record<string, unknown> = { ...sale, event_type: "sale", email_hash: null, attribution_id: null, buyer_email_consent: null, provider_adjustment_id: null, occurred_at: sale.ts };
     delete rest.ts;
     expect(OrderUpsertSchema.safeParse({ ...rest, amount_cents: 3900 }).success).toBe(false);
   });
@@ -152,6 +159,9 @@ describe("orders upsert Zod boundary", () => {
       const sql = readFileSync(join(migrationsDir, f), "utf8");
       expect(sql).not.toMatch(/drop\s+(?:constraint|index)\b[\s\S]*orders_provider_sale_id_event_type/i);
     }
+    const consentSql = readFileSync(join(migrationsDir, "20261119120000_orders_buyer_email_consent.sql"), "utf8");
+    expect(consentSql).toMatch(/alter\s+table\s+public\.orders\s+add\s+column\s+if\s+not\s+exists\s+buyer_email_consent\s+boolean\s*;/i);
+    expect(consentSql).not.toMatch(/default\s+(true|false)/i);
   });
 
   it("duplicate sale write (e.g. TTL race) cannot double-record in orders and fails closed on 23505 without writing locally", async () => {

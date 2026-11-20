@@ -1,9 +1,17 @@
 import { randomUUID } from "node:crypto";
-import { isEnabledPaymentProvider, paymentProviderSetting, isMoneyPath, GLOBAL } from "./settings_registry.ts";
+import { bounded } from "./webhook_budget.ts";
+import {
+  isEnabledPaymentProvider,
+  paymentProviderProductIdColumns,
+  paymentProviderSetting,
+  isMoneyPath,
+  GLOBAL,
+} from "./settings_registry.ts";
 import { getSupabaseAdmin } from "./supabase_admin.ts";
 import { expanRedis, isRedisRestConfigured } from "../../src/infrastructure/redis/redis.client.ts";
 import { WebhookValidationError } from "../../src/domain/webhook/webhook_errors.ts";
 import type { ProviderName } from "./provider.ts";
+import { DeliveryPendingError } from "./delivery_errors.ts";
 
 // Polar is not routable (PR 102), so it has no fallback secret. Partial because "polar" stays in ProviderName for historical rows.
 const FALLBACK_SECRET_ENV: Partial<Record<ProviderName, string>> = {
@@ -65,31 +73,58 @@ export interface ResolvedProduct {
 }
 
 /**
- * Resolves a sale's product alias. paddle_product_id is Paddle's own column, so only a Paddle sale may match it.
- * Any other provider matching it would book a sale that delivery then cannot deliver (the delivery lookup applies the same rule).
+ * Builds the PostgREST `.or(...)` filter arms for `resolveProductByAlias`, adding only the
+ * provider-owned product-id columns configured on `PAYMENT_PROVIDERS[provider]`.
  */
-export async function resolveProductByAlias(alias: string, providerName: string): Promise<ResolvedProduct | null> {
+export function resolveProductByProviderId(alias: string, providerName: string, isUuid: boolean): string {
+  const providerCols = paymentProviderProductIdColumns(providerName);
+  const conditions = [
+    `store_product_id.eq.${alias}`,
+    ...providerCols.map((col) => `${col}.eq.${alias}`),
+    ...(isUuid ? [`id.eq.${alias}`] : []),
+  ];
+  return conditions.join(",");
+}
+
+/**
+ * Resolves a sale's product alias. Provider-specific product-id columns come from the provider
+ * registry (`product_id_column` / `extra_product_id_columns`) so one provider never matches
+ * another provider's external product column.
+ */
+export async function resolveProductByAlias(alias: string, providerName: string, signal?: AbortSignal): Promise<ResolvedProduct | null> {
   if (typeof alias !== "string" || !PRODUCT_ALIAS_RE.test(alias)) return null;
   const supabase = await getSupabaseAdmin();
   if (!supabase) {
     throw new Error("webhook: Supabase admin client unavailable — product resolution cannot run (fail closed)");
   }
   const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(alias);
-  const conditions = [
-    `store_product_id.eq.${alias}`,
-    ...(providerName === "paddle" ? [`paddle_product_id.eq.${alias}`] : []),
-    `polar_product_id_sandbox.eq.${alias}`,
-    `polar_product_id_live.eq.${alias}`,
-    ...(isUuid ? [`id.eq.${alias}`] : []),
-  ];
-  const { data, error } = await supabase
+  const filter = resolveProductByProviderId(alias, providerName, isUuid);
+  const primary = await bounded(supabase
     .from("products")
     .select("store_product_id, currency, provider, checkout_mode, creators(handle)")
-    .or(conditions.join(","))
-    .eq("provider", providerName)
+    .or(filter)
+    .eq("provider", providerName), signal)
     .maybeSingle();
-  if (error) {
-    throw new Error(`webhook: product lookup failed for '${alias}': ${error.message}`);
+  if (primary.error) {
+    throw new Error(`webhook: product lookup failed for '${alias}': ${primary.error.message}`);
+  }
+  let data = primary.data;
+  let viaRailMatch = false;
+  if (!data) {
+    // Secondary and failover rails: the product's scalar provider is another provider, but it has an ACTIVE product_rails row
+    // for the sender. The inner join keeps only products with that rail.
+    const viaRail = await bounded(supabase
+      .from("products")
+      .select("store_product_id, currency, provider, checkout_mode, creators(handle), product_rails!inner(provider, active)")
+      .or(filter)
+      .eq("product_rails.provider", providerName)
+      .eq("product_rails.active", true), signal)
+      .maybeSingle();
+    if (viaRail.error) {
+      throw new Error(`webhook: product rail lookup failed for '${alias}': ${viaRail.error.message}`);
+    }
+    data = viaRail.data;
+    viaRailMatch = data !== null;
   }
   if (!data) return null;
   const row = data as {
@@ -102,7 +137,7 @@ export async function resolveProductByAlias(alias: string, providerName: string)
   // F-18: the product must belong to the provider that sent the sale. Another provider's product row is no match, so
   // the caller answers its terminal "unknown product" (422). Checked before the retryable branch below: a foreign row
   // must never loop on 503.
-  if (row.provider !== providerName) return null;
+  if (!viaRailMatch && row.provider !== providerName) return null;
   // The row exists but cannot sell yet: its provider is not enabled, or it lacks a store id or creator handle.
   // That is retryable on purpose. A re-enabled provider or a repaired row makes the next delivery succeed, and
   // the sale stays unrecorded until then. Returning null here would quarantine it permanently (422).
@@ -212,7 +247,11 @@ export async function withIdempotencyLock(
     console.error(`[webhook] locked fn threw (lock=${lockKey}) — releasing lock:`, err);
     // The caller's error must reach the handler unchanged. A failed release is logged; the lock TTL bounds it.
     if (stillOwned) {
-      await releaseLock(lockKey, token);
+      // A send cut at the request deadline is still running: hold the lock until it settles (the TTL bounds it), so a retry
+      // cannot start a second send. The caller's error is not delayed.
+      const background = err instanceof DeliveryPendingError ? err.backgroundWork : undefined;
+      if (background) void background.then(() => releaseLock(lockKey, token));
+      else await releaseLock(lockKey, token);
     }
     throw err;
   }

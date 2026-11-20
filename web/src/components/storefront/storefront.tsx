@@ -3,8 +3,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import "server-only";
 import { getSupabaseAdmin } from "../../../../payments/src/supabase_admin";
-import { GLOBAL } from "../../../../payments/src/settings_registry";
+import { GLOBAL, isEnabledPaymentProvider } from "../../../../payments/src/settings_registry";
 import { guidSchema, productSlugSchema } from "../../lib/zod-rules";
+import { resolveProductBookAssets } from "../../lib/book-assets";
 import { BrandFooter } from "../brand/brand";
 
 /**
@@ -44,6 +45,13 @@ export interface StoreProduct {
   inside: unknown;
   /** Only 'live' sells (the launch trigger guards that transition). */
   checkout_mode: string | null;
+  /** Paddle price id used by the pay.expanpress.com Paddle.js overlay (products.paddle_price_id). */
+  paddle_price_id?: string | null;
+  /** Existing DB pointer to books/<id>.json; resolves cover_image, preview_pdf, is_sample without a DB migration. */
+  book_registry?: string | null;
+  cover_image?: string | null;
+  preview_pdf?: string | null;
+  is_sample?: boolean;
 }
 
 export interface HubCreator {
@@ -71,6 +79,34 @@ export function priceOf(p: Pick<StoreProduct, "price_usd">): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+/**
+ * Formats a product price and ISO currency code from the product row (falling back to `GLOBAL.defaults.currency`).
+ * Replaces hard-coded `$${price.toFixed(2)}` and `"USD · one-time"` literals on buyer surfaces.
+ */
+export function formatProductPrice(
+  price: number | null,
+  currency?: string | null,
+  emptyLabel: string = "-",
+): { formatted: string; currency: string } {
+  const code = (typeof currency === "string" && currency.trim() !== "" ? currency.trim() : GLOBAL.defaults.currency).toUpperCase();
+  if (price === null) return { formatted: emptyLabel, currency: code };
+  try {
+    const formatted = new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: code,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(price);
+    return { formatted, currency: code };
+  } catch (err) {
+    console.error("[storefront] currency format fallback", {
+      currency: code,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return { formatted: `${code} ${price.toFixed(2)}`, currency: code };
+  }
+}
+
 export function isWorkingTitle(p: StoreProduct): boolean {
   return typeof p.working_note === "string" && p.working_note.toUpperCase().startsWith("WORKING");
 }
@@ -87,6 +123,22 @@ async function fetchSiteOrigin(supabase: NonNullable<Awaited<ReturnType<typeof g
   return origin;
 }
 
+function withResolvedAssets<T extends { slug: string | null; title: string | null; book_registry?: string | null }>(p: T): T & {
+  book_registry: string | null;
+  cover_image: string | null;
+  preview_pdf: string | null;
+  is_sample: boolean;
+} {
+  const assets = resolveProductBookAssets(p);
+  return {
+    ...p,
+    book_registry: assets.book_registry,
+    cover_image: assets.cover_image,
+    preview_pdf: assets.preview_pdf,
+    is_sample: assets.is_sample,
+  };
+}
+
 // cache(): generateMetadata and the page share one query set per request.
 export const fetchCreatorHub = cache(async function fetchCreatorHub(handle: string): Promise<{ creator: HubCreator; origin: string } | null> {
   if (!handle) return null;
@@ -97,7 +149,7 @@ export const fetchCreatorHub = cache(async function fetchCreatorHub(handle: stri
   const { data, error } = await supabase
     .from("creators")
     .select(
-      "handle, display_name, platform_handles, bio, photo, products(id, store_product_id, slug, title, price_usd, currency, working_note, description, disclaimers, checkout_mode, inside)",
+      "handle, display_name, platform_handles, bio, photo, products(id, store_product_id, slug, title, price_usd, currency, working_note, description, disclaimers, checkout_mode, inside, book_registry)",
     )
     .eq("handle", handle)
     .maybeSingle();
@@ -108,12 +160,15 @@ export const fetchCreatorHub = cache(async function fetchCreatorHub(handle: stri
   const origin = await fetchSiteOrigin(supabase);
   // Only live (published) products are rendered or linked from the hub. A gated product keeps its own page.
   // storefrontRobots depends only on whether a live product exists, so its result is unchanged.
-  const products = commercial.filter((p) => p.checkout_mode === "live");
+  const products = commercial.filter((p) => p.checkout_mode === "live").map(withResolvedAssets);
   return { creator: { ...creator, products }, origin };
 });
 
-/** The fields /books renders (price, title, link). Nothing else is transferred for the landing. */
-export type LandingProduct = Pick<StoreProduct, "id" | "store_product_id" | "slug" | "title" | "price_usd" | "checkout_mode">;
+/** The fields /books renders (price, title, link, cover). No heavy detail columns are transferred for the landing. */
+export type LandingProduct = Pick<
+  StoreProduct,
+  "id" | "store_product_id" | "slug" | "title" | "price_usd" | "checkout_mode" | "book_registry" | "cover_image" | "is_sample"
+>;
 export interface LandingCreator {
   handle: string;
   display_name: string;
@@ -130,14 +185,19 @@ export const fetchB2cLanding = cache(async function fetchB2cLanding(): Promise<L
   }
   const { data, error } = await supabase
     .from("creators")
-    .select("handle, display_name, products!inner(id, store_product_id, slug, title, price_usd, checkout_mode)")
+    .select("handle, display_name, products!inner(id, store_product_id, slug, title, price_usd, checkout_mode, book_registry)")
     .eq("products.checkout_mode", "live")
     .not("products.store_product_id", "is", null)
     .neq("products.store_product_id", "");
   if (error) throw new Error(`storefront: B2C landing query failed: ${error.message}`);
   const rows = (data ?? []) as LandingCreator[];
   return rows
-    .map((c) => ({ ...c, products: commercialProducts(c.products).filter((p) => p.checkout_mode === "live") }))
+    .map((c) => ({
+      ...c,
+      products: commercialProducts(c.products)
+        .filter((p) => p.checkout_mode === "live")
+        .map(withResolvedAssets),
+    }))
     .filter((c) => c.products.length > 0);
 });
 
@@ -153,7 +213,7 @@ export const fetchStoreProduct = cache(async function fetchStoreProduct(
   const { data, error } = await supabase
     .from("creators")
     .select(
-      "handle, display_name, platform_handles, bio, photo, products(id, store_product_id, slug, title, price_usd, currency, working_note, description, disclaimers, checkout_mode, inside)",
+      "handle, display_name, platform_handles, bio, photo, products(id, store_product_id, slug, title, price_usd, currency, working_note, description, disclaimers, checkout_mode, inside, book_registry)",
     )
     .eq("handle", handle)
     .maybeSingle();
@@ -163,7 +223,7 @@ export const fetchStoreProduct = cache(async function fetchStoreProduct(
   const product = commercialProducts(creator.products).find((p) => productSlugOf(p) === productSlug);
   if (!product) return null;
   const origin = await fetchSiteOrigin(supabase);
-  return { creator, product, origin };
+  return { creator, product: withResolvedAssets(product), origin };
 });
 
 /** The single provider-agnostic checkout origin (ADR 0061). Buy links and the checkout page live here. */
@@ -173,7 +233,7 @@ export const PAY_ORIGIN = "https://pay.expanpress.com";
 /** Checkout page lookup by product UUID (ADR 0061). Commercial products only, same rule as the storefront. */
 export const fetchCheckoutProduct = cache(async function fetchCheckoutProduct(
   productId: string,
-): Promise<{ creator: { handle: string; display_name: string }; product: StoreProduct } | null> {
+): Promise<{ creator: { handle: string; display_name: string }; product: StoreProduct; railProvider: string | null } | null> {
   if (!guidSchema.safeParse(productId).success) return null;
   const supabase = await getSupabaseAdmin();
   if (!supabase) {
@@ -181,7 +241,9 @@ export const fetchCheckoutProduct = cache(async function fetchCheckoutProduct(
   }
   const { data, error } = await supabase
     .from("products")
-    .select("id, store_product_id, slug, title, price_usd, currency, working_note, description, disclaimers, checkout_mode, inside, creators(handle, display_name)")
+    .select(
+      "id, store_product_id, slug, title, price_usd, currency, working_note, description, disclaimers, checkout_mode, paddle_price_id, inside, creators(handle, display_name)",
+    )
     .eq("id", productId)
     .maybeSingle();
   if (error) throw new Error(`storefront: checkout product query failed for '${productId}': ${error.message}`);
@@ -189,8 +251,60 @@ export const fetchCheckoutProduct = cache(async function fetchCheckoutProduct(
   const row = data as unknown as StoreProduct & { creators: { handle: string; display_name: string } | Array<{ handle: string; display_name: string }> | null };
   const creator = Array.isArray(row.creators) ? row.creators[0] : row.creators;
   if (!creator || commercialProducts([row]).length === 0) return null;
-  return { creator, product: row };
+  const { data: railRows, error: railErr } = await supabase
+    .from("product_rails")
+    .select("provider, weight, active")
+    .eq("product_id", productId)
+    .order("weight", { ascending: false });
+  if (railErr) throw new Error(`storefront: checkout rails query failed for '${productId}': ${railErr.message}`);
+  const activeRail = (railRows ?? []).find(
+    (r) =>
+      r !== null &&
+      typeof r === "object" &&
+      ((r as { active?: unknown }).active === true || (r as { active?: unknown }).active === "true") &&
+      typeof (r as { provider?: unknown }).provider === "string" &&
+      isEnabledPaymentProvider((r as { provider: string }).provider),
+  ) as { provider: string } | undefined;
+  return { creator, product: row, railProvider: activeRail?.provider ?? null };
 });
+
+/** True when the creator display name equals the house brand (settings: storefront.brand_name). */
+export function isHouseCreator(displayName: string, brandName: string = GLOBAL.storefront.brand_name): boolean {
+  return displayName.trim() === brandName.trim();
+}
+
+/** Shared publication attribution sentence used identically on the product and checkout pages. */
+export function PublicationByline({
+  creatorHandle,
+  creatorDisplayName,
+  linkCreator = false,
+}: {
+  creatorHandle: string;
+  creatorDisplayName: string;
+  linkCreator?: boolean;
+}) {
+  const brand = GLOBAL.storefront.brand_name;
+  if (isHouseCreator(creatorDisplayName, brand)) {
+    return (
+      <p className="text-sm text-gray-600">
+        {`Published by `}
+        <span className="font-medium text-gray-800">{brand}</span>
+      </p>
+    );
+  }
+  return (
+    <p className="text-sm text-gray-600">
+      {`A creator-collaboration publication with `}
+      {linkCreator ? (
+        <Link href={`/books/${creatorHandle}`} className="font-medium text-gray-800 hover:underline underline-offset-4">
+          {creatorDisplayName}
+        </Link>
+      ) : (
+        <span className="font-medium text-gray-800">{creatorDisplayName}</span>
+      )}
+    </p>
+  );
+}
 
 /** Well-formed {label, text} entries from products.inside, others dropped. */
 export function insideItems(raw: unknown): Array<{ label: string; text: string }> {
@@ -228,7 +342,7 @@ export function platformLink(platform: string, handle: string): { label: string;
 }
 
 /** Buyer legal links are hidden on a gated (draft) product page, which shows a "Coming soon" banner instead of a sale.
- * The support address comes from the registry (email.reply_to), the same address the buyer emails use. It is plain
+ * The support address comes from the registry (email.support), the same address the buyer emails use. It is plain
  * text, not a mailto link: the B2C confinement rule (e2e/b2c-confinement.spec.ts) allows only /books, the B2C home and checkout. */
 export function StorefrontFooter({ showBuyerLegal = true }: { showBuyerLegal?: boolean }) {
   return (
@@ -240,23 +354,72 @@ export function StorefrontFooter({ showBuyerLegal = true }: { showBuyerLegal?: b
           <a href="/books/legal/refund-policy.html" className="hover:text-gray-700 transition-colors">Refund Policy</a>
         </>
       )}
-      <span>{`Support: ${GLOBAL.email.reply_to}`}</span>
+      <span>{GLOBAL.email.support}</span>
     </BrandFooter>
   );
 }
 
-/** Typographic cover. The catalog has no cover image yet, so the cover is the B2B hero slab with the title on it.
- * Decorative: the card heading announces the title. */
-export function BookCover({ title, kicker = "Digital PDF" }: { title: string; kicker?: string }) {
+/** Strip any trailing "(Sample)" suffix when rendering a separate sample badge so "(Sample)" never doubles. */
+export function formatCoverFooterTitle(
+  title: string,
+  isSample: boolean,
+  sampleLabel: string = GLOBAL.storefront.sample_badge_label,
+): { baseTitle: string; sampleBadge: string | null } {
+  if (!isSample) return { baseTitle: title, sampleBadge: null };
+  const stripped = title.replace(/\s*\(sample\)\s*$/i, "").trim();
+  return { baseTitle: stripped || title, sampleBadge: sampleLabel };
+}
+
+/** Book cover card frame: deep-charcoal DIGITAL PDF header strip, middle area showing the book's actual cover
+ *  image keeping its true aspect ratio (or typographic fallback), and deep-charcoal footer strip with title,
+ *  "(Sample)" where it applies, and the publisher name (storefront.publisher_label). */
+export function BookCover({
+  title,
+  kicker = GLOBAL.storefront.digital_pdf_kicker,
+  publisher = GLOBAL.storefront.publisher_label,
+  coverImage = null,
+  isSample = false,
+  sampleLabel = GLOBAL.storefront.sample_badge_label,
+}: {
+  title: string;
+  kicker?: string;
+  publisher?: string;
+  coverImage?: string | null;
+  isSample?: boolean;
+  sampleLabel?: string;
+}) {
+  const { baseTitle, sampleBadge } = formatCoverFooterTitle(title, isSample, sampleLabel);
   return (
-    <div
-      aria-hidden="true"
-      className="relative aspect-[3/4] overflow-hidden rounded-[24px] bg-charcoal text-white p-6 flex flex-col justify-between shadow-[0_20px_50px_rgba(0,0,0,0.12)]"
-    >
-      <div className="absolute -right-10 -top-10 w-40 h-40 rounded-full bg-peach/20 blur-3xl pointer-events-none" />
-      <p className="relative text-[10px] font-mono font-medium tracking-[0.16em] uppercase text-gray-400">{kicker}</p>
-      <p className="relative text-xl sm:text-2xl font-bold tracking-tight leading-[1.15] text-white">{title}</p>
-      <p className="relative text-[10px] font-mono font-medium tracking-[0.16em] uppercase text-peach">ExpanPress</p>
+    <div className="relative overflow-hidden rounded-[24px] bg-charcoal text-white flex flex-col shadow-[0_20px_50px_rgba(0,0,0,0.12)]">
+      <div className="relative z-10 bg-charcoal px-5 py-3 border-b border-white/10">
+        <p className="text-[10px] font-mono font-medium tracking-[0.16em] uppercase text-gray-300">{kicker}</p>
+      </div>
+
+      <div className="relative aspect-[2/3] w-full bg-[#121212] flex items-center justify-center p-3 overflow-hidden">
+        {coverImage ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={coverImage}
+            alt={`${baseTitle}${sampleBadge ? ` ${sampleBadge}` : ""} book cover`}
+            className="max-h-full max-w-full w-auto h-auto object-contain rounded-[6px] shadow-[0_12px_30px_rgba(0,0,0,0.45)]"
+          />
+        ) : (
+          <div aria-hidden="true" className="relative w-full h-full flex items-center justify-center p-4 text-center">
+            <div className="absolute -right-10 -top-10 w-40 h-40 rounded-full bg-peach/20 blur-3xl pointer-events-none" />
+            <p className="relative text-xl sm:text-2xl font-bold tracking-tight leading-[1.15] text-white">{baseTitle}</p>
+          </div>
+        )}
+      </div>
+
+      <div className="relative z-10 bg-charcoal px-5 py-3.5 border-t border-white/10 flex flex-col gap-1">
+        <p className="text-sm font-semibold tracking-tight leading-snug text-white line-clamp-2">
+          {baseTitle}
+          {sampleBadge && (
+            <span className="ml-1.5 font-mono text-[11px] font-medium text-peach">{sampleBadge}</span>
+          )}
+        </p>
+        <p className="text-[10px] font-mono font-medium tracking-[0.16em] uppercase text-peach">{publisher}</p>
+      </div>
     </div>
   );
 }
@@ -268,7 +431,7 @@ export function BookCard({
   creatorName,
   headingLevel = 2,
 }: {
-  product: Pick<StoreProduct, "slug" | "title" | "price_usd">;
+  product: Pick<StoreProduct, "slug" | "title" | "price_usd" | "cover_image" | "is_sample"> & { currency?: string | null };
   creatorHandle: string;
   creatorName: string;
   headingLevel?: 2 | 3;
@@ -276,10 +439,11 @@ export function BookCard({
   const slug = productSlugOf(product);
   const title = product.title ?? slug;
   const price = priceOf(product);
+  const { formatted, currency } = formatProductPrice(price, product.currency);
   const Heading = headingLevel === 3 ? "h3" : "h2";
   return (
     <article className="glass-card card-shadow rounded-[32px] border-[1.5px] border-[#fff2e4] p-5 sm:p-6 h-full flex flex-col gap-5">
-      <BookCover title={title} />
+      <BookCover title={title} coverImage={product.cover_image ?? null} isSample={product.is_sample ?? false} />
       <div className="flex flex-col gap-1.5">
         <Heading className="text-lg sm:text-xl font-bold tracking-tight text-gray-900 leading-snug">
           <Link href={`/books/${creatorHandle}/${slug}`} className="hover:underline underline-offset-4">
@@ -294,8 +458,8 @@ export function BookCard({
         </p>
       </div>
       <p className="mt-auto text-lg font-bold text-gray-900">
-        {price !== null ? `$${price.toFixed(2)}` : "-"}{" "}
-        <span className="text-xs font-normal text-gray-600">USD &middot; one-time</span>
+        {formatted}{" "}
+        <span className="text-xs font-normal text-gray-600">{`${currency} · one-time`}</span>
       </p>
     </article>
   );

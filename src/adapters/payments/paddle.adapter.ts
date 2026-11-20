@@ -17,7 +17,8 @@
  * Timestamp source: data.changed_at (ISO-8601)
  * Email path: data.custom_data.email
  * Product ID path: mapped server-side via PADDLE_PRICE_MAP (items[].price.id)
- * Attribution ID path: data.custom_data.reference_id (set by PaddleCheckoutButton)
+ * Attribution ID path: data.custom_data[paddle.overlay.order_ref_key] (order_ref); the legacy reference_id is the fallback.
+ * Buyer consent path: data.custom_data[paddle.overlay.buyer_consent_key] ("true" / "false"). Buyer-supplied: recorded on the order.
  *
  * STATUS: PENDING-KYC — adapter is wired and type-checked but cannot be live-tested
  * until the Paddle account KYC is complete. All field paths are from Paddle's official
@@ -28,6 +29,7 @@ import { z } from "zod";
 import crypto from "crypto";
 import { cleanAttributionId, hashEmail } from "../../../payments/src/provider.ts";
 import { GLOBAL } from "../../../payments/src/settings_registry.ts";
+import { budgetLeftMs } from "../../../payments/src/webhook_budget.ts";
 
 // Minimal schema to inspect event_type before strict validation
 const MinimalPaddleEventSchema = z.object({
@@ -73,6 +75,28 @@ const PaddleWebhookSchema = z.object({
 
 export const PADDLE_WEBHOOK_TOLERANCE_SECONDS = GLOBAL.payments.webhook_tolerance_seconds;
 
+/** Buyer consent from custom_data: a boolean or the strings "true"/"false" (the overlay sends strings). Anything else is absent
+ *  (undefined), which the order stores as NULL (malformed non-null values are logged). The value is buyer-supplied: recorded, never a decision. */
+export function parseBuyerConsent(
+  raw: unknown,
+  context?: { key?: string; transactionId?: string },
+): boolean | undefined {
+  if (raw === true || raw === "true") return true;
+  if (raw === false || raw === "false") return false;
+  if (raw !== undefined && raw !== null) {
+    const key = context?.key ?? GLOBAL.payments.paddle.overlay.buyer_consent_key;
+    const tx = context?.transactionId ? ` transaction_id=${context.transactionId}` : "";
+    console.warn(`[paddle.adapter] ignoring non-boolean ${key} value (type=${typeof raw})${tx}; storing NULL`);
+  }
+  return undefined;
+}
+
+/** The raw custom_data object as Paddle sent it. The zod schema strips keys it does not name, so the overlay's keys are read here. */
+function rawCustomData(body: unknown): Record<string, unknown> {
+  const custom = (body as { data?: { custom_data?: unknown } } | null)?.data?.custom_data;
+  return custom !== null && typeof custom === "object" && !Array.isArray(custom) ? (custom as Record<string, unknown>) : {};
+}
+
 export function loadPaddlePriceMap(
   raw: string | undefined = process.env.PADDLE_PRICE_MAP
 ): Record<string, string> | null {
@@ -111,7 +135,11 @@ export class PaddleAdapter implements PaymentProviderPort {
     return Boolean(headers["paddle-signature"]);
   }
 
-  async parseAndValidateWebhook(headers: Record<string, string | string[] | undefined>, body: string): Promise<WebhookParseResult> {
+  async parseAndValidateWebhook(
+    headers: Record<string, string | string[] | undefined>,
+    body: string,
+    options?: { deadlineAt?: number },
+  ): Promise<WebhookParseResult> {
     const secret = process.env.PADDLE_WEBHOOK_SECRET;
     if (!secret) return { isValid: false, error: "PADDLE_WEBHOOK_SECRET not configured", httpStatus: 500 };
 
@@ -292,11 +320,15 @@ export class PaddleAdapter implements PaymentProviderPort {
             ? GLOBAL.payments.paddle.api_base.production
             : GLOBAL.payments.paddle.api_base.sandbox;
         const apiKey = process.env.PADDLE_API_KEY;
+        // The lookup takes only the time left in this request's budget (payments.webhook_total_budget_ms); with no deadline
+        // from the caller it keeps the call-level timeout.
+        const lookupMs = options?.deadlineAt === undefined ? GLOBAL.payments.http_timeout_ms : budgetLeftMs(options.deadlineAt);
         try {
+          if (lookupMs <= 0) throw new Error("webhook budget exhausted before the customer email lookup");
           if (!apiKey) throw new Error("PADDLE_API_KEY not configured");
           const resp = await fetch(`${base}/customers/${encodeURIComponent(customerId)}`, {
             headers: { Authorization: `Bearer ${apiKey}` },
-            signal: AbortSignal.timeout(GLOBAL.payments.http_timeout_ms)
+            signal: AbortSignal.timeout(lookupMs)
           });
           const fetched = ((await resp.json()) as { data?: { email?: unknown } }).data;
           if (typeof fetched?.email === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(fetched.email)) {
@@ -320,6 +352,8 @@ export class PaddleAdapter implements PaymentProviderPort {
         return { isValid: false, error: "Paddle transaction missing totals", httpStatus: 400 };
       }
 
+      const overlay = GLOBAL.payments.paddle.overlay;
+      const rawCustom = rawCustomData(parsedJson);
       const event: SaleCompletedEvent = {
         eventType: "sale_completed",
         providerName: this.providerName,
@@ -330,7 +364,12 @@ export class PaddleAdapter implements PaymentProviderPort {
         buyerEmailHash: hashEmail(email),
         buyerEmail: email,
         occurredAt: validated.data.changed_at || new Date().toISOString(),
-        attributionId: cleanAttributionId(validated.data.custom_data?.reference_id),
+        // order_ref leads (the overlay's key); a value that is not a clean id falls through to the legacy reference_id.
+        attributionId: [rawCustom[overlay.order_ref_key], validated.data.custom_data?.reference_id].map(cleanAttributionId).find((v) => v !== undefined),
+        buyerEmailConsent: parseBuyerConsent(rawCustom[overlay.buyer_consent_key], {
+          key: overlay.buyer_consent_key,
+          transactionId: validated.data.id,
+        }),
         // Paddle's payload carries no live/test field. The environment comes from the verified server environment:
         // each Paddle environment has its own webhook secret, and this adapter already refused a sandbox environment on production.
         providerMode: serverEnv === "production" ? "live" : "sandbox",

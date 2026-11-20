@@ -291,6 +291,7 @@ const ORDERS_ADJ_SQL = readFileSync(join(import.meta.dirname, "../../supabase/mi
   .replace(/notify pgrst[\s\S]*?;/gi, "");
 const ORDERS_ADJ2_SQL = readFileSync(join(import.meta.dirname, "../../supabase/migrations/20261004000100_orders_adjustment_id_per_event.sql"), "utf8")
   .replace(/notify pgrst[\s\S]*?;/gi, "");
+const ORDERS_CONSENT_SQL = readFileSync(join(import.meta.dirname, "../../supabase/migrations/20261119120000_orders_buyer_email_consent.sql"), "utf8");
 const DL_EVENTS_SQL = readFileSync(join(import.meta.dirname, "../../supabase/migrations/20261015120000_download_events.sql"), "utf8")
   .replace(/insert into storage\.buckets[\s\S]*?;/gi, "");
 const DL_GEN_SQL = readFileSync(join(import.meta.dirname, "../../supabase/migrations/20261019180000_download_events_generation_key.sql"), "utf8");
@@ -312,6 +313,7 @@ beforeAll(async () => {
   await pg.exec(ORDERS_REV_SQL);
   await pg.exec(ORDERS_ADJ_SQL);
   await pg.exec(ORDERS_ADJ2_SQL);
+  await pg.exec(ORDERS_CONSENT_SQL);
   await pg.exec(DL_EVENTS_SQL);
   await pg.exec(DL_GEN_SQL);
   await pg.exec(DL_SEQ_SQL);

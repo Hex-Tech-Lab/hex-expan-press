@@ -417,6 +417,18 @@ describe("PaddleAdapter buyer-email fallback (customer lookup)", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("the lookup gets only the budget left: a spent budget makes no Paddle call and answers 503", async () => {
+    vi.stubEnv("PADDLE_API_KEY", KEY);
+    vi.stubEnv("PADDLE_WEBHOOK_SECRET", SECRET);
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const body = bodyWithCustomer("ctm_test_0001");
+    const res = await new PaddleAdapter().parseAndValidateWebhook(headersFor(freshSig(body)), body, { deadlineAt: Date.now() - 1 });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(res.isValid).toBe(false);
+    expect((res as { httpStatus?: number }).httpStatus).toBe(503);
+  });
+
   it("invalid signature → fetch NOT called (never call Paddle for unverified payloads)", async () => {
     vi.stubEnv("PADDLE_API_KEY", KEY);
     const fetchMock = vi.fn();
@@ -616,6 +628,55 @@ describe("PaddleAdapter buyer-email fallback (customer lookup)", () => {
     expect((res as { error?: string }).error).toBe("Paddle transaction missing totals");
     expect(errSpy).toHaveBeenCalledWith(expect.stringContaining("txn_test_null_details"));
     errSpy.mockRestore();
+  });
+
+  it("reads custom_data.order_ref ahead of reference_id and parses custom_data.buyer_consent without gating the sale", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    for (const [consentRaw, want, shouldWarn] of [
+      ["true", true, false],
+      ["false", false, false],
+      [true, true, false],
+      [false, false, false],
+      ["yes", undefined, true],
+      [123, undefined, true],
+      [null, undefined, false],
+      [undefined, undefined, false],
+    ] as const) {
+      warnSpy.mockClear();
+      const custom_data: Record<string, unknown> = {
+        product_id: "test_product_basic",
+        email: "buyer@example.com",
+        order_ref: "ig:dub_42",
+        reference_id: "legacy_ref",
+      };
+      if (consentRaw !== undefined) custom_data.buyer_consent = consentRaw;
+      const body = validBody({ custom_data: custom_data as never });
+      const res = await parse(body, freshSig(body));
+      expect(res.isValid).toBe(true);
+      const ev = (res as { event: SaleCompletedEvent }).event;
+      expect(ev.attributionId).toBe("ig:dub_42");
+      expect(ev.buyerEmailConsent).toBe(want);
+      if (shouldWarn) {
+        expect(warnSpy).toHaveBeenCalledTimes(1);
+        expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("buyer_consent"));
+      } else {
+        expect(warnSpy).not.toHaveBeenCalled();
+      }
+    }
+    warnSpy.mockRestore();
+
+    // Forged order_ref falls back cleanly to reference_id without rejecting the sale.
+    const fallbackBody = validBody({
+      custom_data: {
+        product_id: "test_product_basic",
+        email: "buyer@example.com",
+        order_ref: "<script>",
+        reference_id: "yt_desc",
+      } as never,
+    });
+    const fallbackRes = await parse(fallbackBody, freshSig(fallbackBody));
+    expect(fallbackRes.isValid).toBe(true);
+    expect((fallbackRes as { event: SaleCompletedEvent }).event.attributionId).toBe("yt_desc");
   });
 });
 

@@ -42,6 +42,7 @@ function Step3SubmitButton({ children }: { children: React.ReactNode }) {
 export interface DashboardClientProps {
   name: string;
   email: string;
+  supportEmail: string;
   answersCount: number;
   answersTarget: number;
   hasC1: boolean;
@@ -52,12 +53,21 @@ export interface DashboardClientProps {
   actionError?: "credits" | "esign" | "no_product" | "load_failed";
 }
 
-const ACTION_ERROR_COPY: Record<NonNullable<DashboardClientProps["actionError"]>, string> = {
-  credits: "The signing service is awaiting credit activation — please try again shortly.",
-  esign: "Something went wrong starting your agreement — please try again.",
-  no_product: "No product is linked to your account yet — contact support@expanpress.com.",
-  load_failed: "We could not load your agreement status. Please reload. If it keeps happening, contact support.",
-};
+function actionErrorCopy(
+  code: NonNullable<DashboardClientProps["actionError"]>,
+  supportEmail: string,
+): string {
+  switch (code) {
+    case "credits":
+      return "The signing service is awaiting credit activation — please try again shortly.";
+    case "esign":
+      return "Something went wrong starting your agreement — please try again.";
+    case "no_product":
+      return `No product is linked to your account yet — contact ${supportEmail}.`;
+    case "load_failed":
+      return "We could not load your agreement status. Please reload. If it keeps happening, contact support.";
+  }
+}
 
 const JOURNEY_LABELS = ["Bio & Content", "Legal & Assets", "Revenue & Publish"];
 
@@ -75,6 +85,7 @@ interface StepCard {
 export default function DashboardClient({
   name,
   email,
+  supportEmail,
   answersCount,
   answersTarget,
   hasC1,
@@ -229,7 +240,7 @@ export default function DashboardClient({
           className="mb-3.5 rounded-xl border border-[#EADFD1] bg-[#F3ECDF] p-(--space-4) text-[length:var(--font-size-sm)] font-medium text-[#8A4B2D]"
           role="alert"
         >
-          {ACTION_ERROR_COPY[actionError]}
+          {actionErrorCopy(actionError, supportEmail)}
         </m.p>
       )}
       <AnimatePresence>
@@ -306,7 +317,7 @@ export default function DashboardClient({
         <a href="/privacy.html" className="text-[#296E50] no-underline hover:underline">Privacy Policy</a>
         <a href="/terms.html" className="text-[#296E50] no-underline hover:underline">Terms of Service</a>
         <span>
-          Support: <a href="mailto:support@expanpress.com" className="text-[#296E50] hover:underline">support@expanpress.com</a>
+          Support: <a href={`mailto:${supportEmail}`} className="text-[#296E50] hover:underline">{supportEmail}</a>
         </span>
       </footer>
     </div>

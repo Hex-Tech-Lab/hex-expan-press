@@ -81,25 +81,18 @@ vi.mock("../../../../../../payments/src/terms.ts", () => ({
 const salesFileDir = vi.hoisted(() => `/tmp/polar-partial-${Date.now()}-${crypto.randomUUID()}`);
 const salesFilePath = vi.hoisted(() => `${salesFileDir}/sales.jsonl`);
 
-vi.mock("../../../../../../payments/src/settings_registry.ts", () => ({
-  GLOBAL: {
-    paths: { sales_ledger: salesFilePath },
-    payments: {
-      webhook_tolerance_seconds: 300,
-      webhook_lock_ttl_seconds: 300,
-      webhook_lock_fence_ttl_seconds: 604800,
-      webhook_lock_sale_prefix: "lock:sale:",
-      webhook_lock_refund_prefix: "lock:refund:",
-      webhook_lock_fence_suffix: ":fence",
-      http_timeout_ms: 5000,
-      sync_http_timeout_ms: 30000,
+vi.mock("../../../../../../payments/src/settings_registry.ts", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../../../../../payments/src/settings_registry")>();
+  return {
+    ...actual,
+    GLOBAL: {
+      ...actual.GLOBAL,
+      paths: { ...actual.GLOBAL.paths, sales_ledger: salesFilePath },
     },
-  },
-  expandHome: (p: string, home: string) => (home && (p === "~" || p.startsWith("~/")) ? p : p),
-  isRegisteredPaymentProvider: (name: unknown) => typeof name === "string",
-  isEnabledPaymentProvider: (name: unknown) => typeof name === "string",
-  paymentProviderSetting: () => undefined,
-}));
+    isRegisteredPaymentProvider: (name: unknown) => typeof name === "string",
+    isEnabledPaymentProvider: (name: unknown) => typeof name === "string",
+  };
+});
 
 const BASE_SALE: SaleRecord = {
   ts: "2026-09-29T00:00:00.000Z",

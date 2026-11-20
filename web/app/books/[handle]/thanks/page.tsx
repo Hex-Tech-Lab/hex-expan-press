@@ -2,27 +2,42 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { GLOBAL } from "../../../../../payments/src/settings_registry";
 import { BrandFrame, BrandWordmark } from "../../../../src/components/brand/brand";
-import { NOINDEX, StorefrontFooter, fetchCreatorHub, resolveCreatorOr404 } from "../../../../src/components/storefront/storefront";
+import {
+  NOINDEX,
+  StorefrontFooter,
+  fetchCreatorHub,
+  isHouseCreator,
+  resolveCreatorOr404,
+} from "../../../../src/components/storefront/storefront";
+import { buyerDeliveryPromiseText } from "../../../../src/lib/buyer-email";
 
 /**
  * Thank-you return page. Checkout sends the buyer here (success URL = /books/{handle}/thanks).
  * The logo goes to the B2C landing (registry storefront.b2c_landing_url). The back link goes to the
- * creator's books (/books/{handle}). The support address comes from the registry (email.reply_to).
+ * creator's books (/books/{handle}). The delivery promise and support address come from the registry.
  * Never indexed.
  */
 export const revalidate = 60;
 
 export async function generateMetadata({ params }: { params: Promise<{ handle: string }> }): Promise<Metadata> {
   const { handle } = await params;
+  const brand = GLOBAL.storefront.brand_name;
   const result = await fetchCreatorHub(handle);
-  const title = result ? `Thank you · ${result.creator.display_name} · ExpanPress` : "Thank you · ExpanPress";
+  const title =
+    result && !isHouseCreator(result.creator.display_name, brand)
+      ? `Thank you · ${result.creator.display_name} · ${brand}`
+      : `Thank you · ${brand}`;
   return { title, robots: NOINDEX };
 }
 
 export default async function ThankYouPage({ params }: { params: Promise<{ handle: string }> }) {
   const { handle } = await params;
   const { creator } = resolveCreatorOr404(await fetchCreatorHub(handle));
-  const support = GLOBAL.email.reply_to;
+  const body = buyerDeliveryPromiseText(
+    GLOBAL.delivery.buyer_typical_minutes,
+    GLOBAL.delivery.buyer_support_after_hours,
+    GLOBAL.email.support,
+  );
 
   return (
     <BrandFrame>
@@ -41,13 +56,13 @@ export default async function ThankYouPage({ params }: { params: Promise<{ handl
               Thank you, your download link is on its way by email
             </h1>
             <p className="mt-5 text-sm sm:text-base text-gray-300 leading-relaxed">
-              {`It is sent to the email you used at checkout. If it does not arrive, check your spam folder or contact ${support}.`}
+              {body}
             </p>
             <Link
               href={`/books/${creator.handle}`}
               className="group mt-8 inline-flex items-center gap-4 text-sm font-semibold text-white hover:text-peach transition-colors"
             >
-              <span>{`Back to ${creator.display_name}'s books`}</span>
+              <span>{`Back to ${creator.display_name}\u2019s books`}</span>
               <span className="group-hover:translate-x-1 transition-transform">&rarr;</span>
             </Link>
           </div>

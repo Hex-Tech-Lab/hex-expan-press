@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import crypto from "node:crypto";
 import { CreemAdapter } from "../creem.adapter.ts";
+import { PAYMENT_PROVIDERS } from "../../../../payments/src/settings_registry.ts";
 
 const SECRET = "whsec_test_creem_fixture";
 
@@ -66,6 +67,16 @@ describe("CreemAdapter", () => {
     const body = checkoutCompleted();
     const r = await adapter.parseAndValidateWebhook(headersFor(body, "wrong-secret"), body);
     expect(r).toMatchObject({ isValid: false, httpStatus: 401 });
+  });
+
+  // The product must come from the provider's own order.product (the price Creem charged), never from metadata. Metadata
+  // travels on the checkout link, where the buyer can edit it: a forged product_id must not pick the product that is released.
+  it("takes the product only from order.product: a forged metadata.product_id is ignored (F-04c)", async () => {
+    const body = checkoutCompleted({ metadata: { order_ref: "order-ref-123", product_id: "forged_other_product" } });
+    const r = await adapter.parseAndValidateWebhook(headersFor(body), body);
+    expect(r.isValid).toBe(true);
+    if (!r.isValid || r.event.eventType !== "sale_completed") throw new Error("expected a sale_completed event");
+    expect(r.event.productId).toBe("prod_test_1");
   });
 
   it("maps a paid live checkout.completed to sale_completed with our reference", async () => {
@@ -201,5 +212,24 @@ describe("CreemAdapter", () => {
 
   it("refuses to create checkouts on the buy path (product_rails serves static links)", async () => {
     await expect(adapter.createCheckout({ productId: "p", userId: "u", buyerEmail: "a@b.co", successUrl: "https://x.y" })).rejects.toThrow();
+  });
+
+  it("reads field extraction paths from PAYMENT_PROVIDERS.creem.field_map (B-09)", async () => {
+    const fm = PAYMENT_PROVIDERS.creem.field_map as Record<string, string>;
+    const origProduct = fm.product_id;
+    const origAttr = fm.attribution_id;
+    fm.product_id = "data.metadata.custom_prod";
+    fm.attribution_id = "data.metadata.custom_ref";
+    try {
+      const body = checkoutCompleted({ metadata: { order_ref: "ignored", custom_prod: "prod_mapped_1", custom_ref: "yt:mapped" } });
+      const r = await adapter.parseAndValidateWebhook(headersFor(body), body);
+      expect(r.isValid).toBe(true);
+      if (!r.isValid || r.event.eventType !== "sale_completed") throw new Error("expected sale_completed");
+      expect(r.event.productId).toBe("prod_mapped_1");
+      expect(r.event.attributionId).toBe("yt:mapped");
+    } finally {
+      fm.product_id = origProduct;
+      fm.attribution_id = origAttr;
+    }
   });
 });

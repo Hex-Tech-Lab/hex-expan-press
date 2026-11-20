@@ -2,6 +2,7 @@ import { closeSync, fsyncSync, mkdirSync, openSync, readFileSync, writeSync } fr
 import { dirname, join, basename } from "node:path";
 import { createHash } from "node:crypto";
 import { z } from "zod";
+import { bounded } from "./webhook_budget.ts";
 import { GLOBAL, isMoneyPath } from "./settings_registry.ts";
 import { getSupabaseAdmin } from "./supabase_admin.ts";
 import { StaleFenceError } from "./delivery_errors.ts";
@@ -23,6 +24,8 @@ export interface SaleRecord {
   currency: string;
   event_type?: LedgerEventType; // absent = "sale" (legacy records predate the field)
   email_hash?: string; // buyer-email sha256 from the webhook event (optional; never raw email)
+  /** Buyer-supplied consent to email delivery (custom_data.buyer_consent). Recorded only; absent = not supplied (stored as NULL). */
+  buyer_email_consent?: boolean;
   attribution_id?: string; // our own canonical cross-provider attribution ID (see provider.ts SaleEvent)
   provider_adjustment_id?: string; // provider's own adjustment id on refund/refund_reversal rows (replay dedupe); absent on sale rows
 }
@@ -104,6 +107,7 @@ export const OrderUpsertSchema = z.strictObject({
   event_type: z.enum(["sale", "refund", "refund_reversal"]),
   email_hash: z.string().min(1).nullable(),
   attribution_id: z.string().min(1).nullable(),
+  buyer_email_consent: z.boolean().nullable(),
   provider_adjustment_id: z.string().min(1).nullable(),
   occurred_at: z.string().refine((v) => !Number.isNaN(Date.parse(v)), { message: "occurred_at must be a parseable timestamp" }),
 }).superRefine((row, ctx) => {
@@ -175,6 +179,8 @@ async function persistToSupabaseOrder(record: SaleRecord, fence?: number): Promi
       event_type: record.event_type || "sale",
       email_hash: record.email_hash || null,
       attribution_id: record.attribution_id || null,
+      // ?? not ||: a recorded false must stay false, not become NULL.
+      buyer_email_consent: record.buyer_email_consent ?? null,
       provider_adjustment_id: record.provider_adjustment_id || null,
       occurred_at: record.ts,
     });
@@ -195,12 +201,23 @@ async function persistToSupabaseOrder(record: SaleRecord, fence?: number): Promi
     // An existing key takes only the fence. The financial fields of the committed row are never rewritten, so a duplicate or
     // conflicting payload cannot change what was booked. The full row is inserted only when the key is absent.
     const runFenceUpdate = async (): Promise<boolean> => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("orders")
         .update({ fence })
         .eq("provider", parsed.data.provider)
         .eq("sale_id", parsed.data.sale_id)
-        .eq("event_type", parsed.data.event_type)
+        .eq("event_type", parsed.data.event_type);
+      if (parsed.data.provider_adjustment_id !== null) {
+        query = query
+          .eq("provider_adjustment_id", parsed.data.provider_adjustment_id)
+          .eq("amount_usd", parsed.data.amount_usd)
+          .eq("currency", parsed.data.currency);
+      } else if (parsed.data.event_type !== "sale") {
+        query = query
+          .eq("amount_usd", parsed.data.amount_usd)
+          .eq("currency", parsed.data.currency);
+      }
+      const { data, error } = await query
         .lte("fence", fence)
         .select("sale_id");
       if (error) {
@@ -322,6 +339,7 @@ export function findSale(provider: string, saleId: string, salesFile: string = S
 async function queryOrderRowFromSupabase(
   filters: Record<string, string>,
   errorContext: string,
+  signal?: AbortSignal,
 ): Promise<SaleRecord | null> {
   try {
     // Client construction inside the lookup error boundary (Cubic P3, PR #80
@@ -338,7 +356,7 @@ async function queryOrderRowFromSupabase(
     for (const [col, val] of Object.entries(filters)) {
       query = query.eq(col, val);
     }
-    const { data, error } = await query.maybeSingle();
+    const { data, error } = await bounded(query, signal).maybeSingle();
     // Fail CLOSED: a lookup error is not "not found" — treating it as such would
     // let a duplicate delivery through. The route 500s and the provider retries.
     if (error) throw new Error(`ledger: Supabase ${errorContext} failed: ${error.message}`);
@@ -353,13 +371,14 @@ async function queryOrderRowFromSupabase(
 }
 
 /** Asynchronously finds a sale, falling back to Supabase public.orders if not found in local file. */
-export async function findSaleAsync(provider: string, saleId: string, salesFile: string = SALES_FILE): Promise<SaleRecord | null> {
+export async function findSaleAsync(provider: string, saleId: string, salesFile: string = SALES_FILE, signal?: AbortSignal): Promise<SaleRecord | null> {
   const local = findSale(provider, saleId, salesFile);
   if (local) return local;
 
   return queryOrderRowFromSupabase(
     { provider, sale_id: saleId, event_type: "sale" },
     "sale lookup",
+    signal,
   );
 }
 
@@ -690,6 +709,7 @@ export async function persistSale(sale: SaleRecord, fence?: number): Promise<Sal
   };
   if (typeof sale.email_hash === "string" && sale.email_hash !== "") record.email_hash = sale.email_hash;
   if (typeof sale.attribution_id === "string" && sale.attribution_id !== "") record.attribution_id = sale.attribution_id;
+  if (typeof sale.buyer_email_consent === "boolean") record.buyer_email_consent = sale.buyer_email_consent;
   // Durable store FIRST: if Supabase fails the route 500s and the provider retries;
   // writing the local file first would make that retry look like a duplicate.
   await persistToSupabaseOrder(record, fence);

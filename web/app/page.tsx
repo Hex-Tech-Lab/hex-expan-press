@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { GLOBAL } from "../../payments/src/settings_registry";
 import LandingPage from "../src/components/landing/landing-page";
 import MaxMotionProvider from "../src/components/motion/max-motion-provider";
 
@@ -26,7 +27,7 @@ export default function Home() {
   // domMax: the landing page uses layout animations (card expand); JourneyDots renders m.*.
   return (
     <MaxMotionProvider>
-      <LandingPage onboarding={onboarding} />
+      <LandingPage onboarding={onboarding} supportEmail={GLOBAL.email.support} />
     </MaxMotionProvider>
   );
 }

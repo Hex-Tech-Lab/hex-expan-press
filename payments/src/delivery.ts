@@ -38,12 +38,13 @@
  * A store that failed and was read back as landed nowhere releases its claim, so the retry starts clean.
  */
 import { createHash, randomBytes } from "node:crypto";
-import { GLOBAL } from "./settings_registry.ts";
+import { GLOBAL, paymentProviderProductIdColumn } from "./settings_registry.ts";
 import { EmailSendError, sendEmail as realSendEmail } from "./email.ts";
 import { DeliveryBlockedError, DeliveryPendingError, StaleFenceError } from "./delivery_errors.ts";
 import { createDeliverySendsStore, type DeliverySendClaim } from "./delivery_sends_store.ts";
 import { claimMessageKeyId, decryptClaimMessage, encryptClaimMessage, loadDeliveryLinkKey } from "./delivery_link_crypto.ts";
 import { getSupabaseAdmin } from "./supabase_admin.ts";
+import { bounded, budgetLeftMs, requestSignal, webhookDeadlineAt } from "./webhook_budget.ts";
 
 export { StaleFenceError, DeliveryPendingError, type DeliverySendClaim };
 
@@ -156,12 +157,15 @@ export interface DeliveryDeps {
     replyTo?: string;
     idempotencyKey?: string;
   }) => Promise<unknown>;
-  createShortLink: (targetUrl: string) => Promise<string>;
+  /** `timeoutMs` is the time left in the request budget: the link call must not outlast it. */
+  createShortLink: (targetUrl: string, timeoutMs?: number) => Promise<string>;
   origin: string;
   replyTo: string;
+  /** Dedicated billing/refund inquiry address (`GLOBAL.email.billing`), shown when distinct from `replyTo`. */
+  billingEmail?: string;
   now?: () => Date;
   newToken?: () => string;
-  /** Deadline for the mail send, which runs while the sale lock is held. Defaults to payments.http_timeout_ms. */
+  /** Optional cap on each send, below the request budget. Tests and operator tools only; the request budget always applies. */
   timeoutMs?: number;
   /**
    * AES-256-GCM key for the stored claim message. Defaults to the key named by delivery.link_key_env. A missing or malformed
@@ -170,13 +174,45 @@ export interface DeliveryDeps {
   linkKey?: Buffer;
 }
 
-/** Rejects if the promise has not settled within ms. The send may still complete after a timeout. */
-function withDeadline<T>(work: Promise<T>, ms: number, label: string): Promise<T> {
+/**
+ * The send's own timer fired before the provider answered. The send is not aborted and may still complete. `settled` resolves
+ * when the send ends and never rejects: the sale lock holder waits on it, so a retry cannot start a second send on the same claim.
+ */
+class SendTimedOutError extends Error {
+  constructor(
+    readonly ms: number,
+    readonly settled: Promise<void>,
+  ) {
+    super(`email send timed out after ${ms}ms`);
+    this.name = "SendTimedOutError";
+  }
+}
+
+/** The settlement of a send that is still running after its timer answered. Undefined for any other failure: that send has ended. */
+function sendBackgroundOf(err: unknown): Promise<void> | undefined {
+  return err instanceof SendTimedOutError ? err.settled : undefined;
+}
+
+/** Rejects with onTimeout() if the promise has not settled within ms. The work is not aborted and may still complete. */
+function withDeadline<T>(work: Promise<T>, ms: number, onTimeout: () => Error): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   const deadline = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms);
+    timer = setTimeout(() => reject(onTimeout()), ms);
   });
   return Promise.race([work, deadline]).finally(() => clearTimeout(timer));
+}
+
+/** Time left for one send: the request budget, capped by the optional dependency cap (`deps.timeoutMs`). */
+function sendBudgetMs(deps: DeliveryDeps, deadlineAt: number): number {
+  const left = budgetLeftMs(deadlineAt);
+  return deps.timeoutMs === undefined ? left : Math.min(left, deps.timeoutMs);
+}
+
+/** Throws the budget 503 (DeliveryPendingError) when the request budget is spent. Called before each step that starts an external call. */
+function assertBudget(deadlineAt: number, saleId: string): void {
+  if (budgetLeftMs(deadlineAt) <= 0) {
+    throw new DeliveryPendingError(saleId, new Error("webhook budget exhausted (payments.webhook_total_budget_ms)"));
+  }
 }
 
 /**
@@ -237,19 +273,29 @@ interface BuyerMessage {
   tokenHash: string;
 }
 
-function buildBuyerMessage(args: { to: string; title: string; link: string; days: number; replyTo: string; tokenHash: string }): BuyerMessage {
-  const { to, title, link, days, replyTo, tokenHash: hash } = args;
+function buildBuyerMessage(args: {
+  to: string;
+  title: string;
+  link: string;
+  days: number;
+  replyTo: string;
+  billingEmail?: string;
+  tokenHash: string;
+}): BuyerMessage {
+  const { to, title, link, days, replyTo, billingEmail, tokenHash: hash } = args;
+  const billingNote = billingEmail && billingEmail !== replyTo ? ` (billing or refund questions: ${billingEmail})` : "";
+  const billingHtml = billingEmail && billingEmail !== replyTo ? ` (billing or refund questions: ${esc(billingEmail)})` : "";
   return {
     to,
     subject: `Your download: ${title}`,
     text:
       `Thank you for your purchase of ${title}.\n\n` +
       `Download your copy here (the link is valid for ${days} days):\n${link}\n\n` +
-      `Questions? Reply to this email or write to ${replyTo}.\n`,
+      `Questions? Reply to this email or write to ${replyTo}${billingNote}.\n`,
     html:
       `<p>Thank you for your purchase of <strong>${esc(title)}</strong>.</p>` +
       `<p>Download your copy here (the link is valid for ${days} days):<br><a href="${esc(link)}">${esc(link)}</a></p>` +
-      `<p>Questions? Reply to this email or write to ${esc(replyTo)}.</p>`,
+      `<p>Questions? Reply to this email or write to ${esc(replyTo)}${billingHtml}.</p>`,
     replyTo,
     tokenHash: hash,
   };
@@ -270,24 +316,24 @@ function claimKey(provider: string, saleId: string, sendKind: string): string {
 }
 
 async function sendBuyerMessage(deps: DeliveryDeps, message: BuyerMessage, idempotencyKey: string, deadlineMs: number): Promise<void> {
-  await withDeadline(
-    deps.sendEmail({
-      to: message.to,
-      subject: message.subject,
-      text: message.text,
-      html: message.html,
-      replyTo: message.replyTo,
-      idempotencyKey,
-    }),
-    deadlineMs,
-    "email send",
-  );
+  const send = deps.sendEmail({
+    to: message.to,
+    subject: message.subject,
+    text: message.text,
+    html: message.html,
+    replyTo: message.replyTo,
+    idempotencyKey,
+  });
+  // Never rejects. If the timer answers first, the caller hands this to the lock holder (see sendBackgroundOf).
+  const settled = send.then(() => undefined, () => undefined);
+  await withDeadline(send, deadlineMs, () => new SendTimedOutError(deadlineMs, settled));
 }
 
 /**
  * Resends the identical stored message under the same idempotency key. A failure to decrypt the message, to confirm its link
- * is still issued and unexpired, to check the resend window, or to send (unless the fence is stale) answers 503
- * (DeliveryPendingError), and the stored message is kept, so the next retry sends the same bytes again. Nothing is sent
+ * is still issued and unexpired, to check the resend window, or to send answers 503 (DeliveryPendingError), and the stored
+ * message is kept, so the next retry sends the same bytes again. A stale fence is rethrown. A definite refusal of the buyer
+ * address is rethrown unchanged: 422, terminal, as on the first send. Nothing is sent
  * unless the message decrypts and its link is still issued and unexpired; otherwise the buyer would get a dead link marked
  * as delivered. The receipt is re-checked right before the send, and the claim must be inside the resend window. The receipt
  * re-check runs outside the send's try: a database failure there throws its own error, which the webhook answers 500.
@@ -298,7 +344,7 @@ async function resendStoredMessage(
   stored: string,
   claim: DeliverySendClaim,
   deps: DeliveryDeps,
-  deadlineMs: number,
+  deadlineAt: number,
 ): Promise<DeliveryOutcome> {
   const idempotencyKey = claimKey(key.provider, key.saleId, key.sendKind);
   let message: BuyerMessage;
@@ -349,13 +395,19 @@ async function resendStoredMessage(
     flagForManualReconciliation(key.provider, input.saleId, key.sendKind, reason);
     throw new DeliveryPendingError(input.saleId, new Error(reason));
   }
+  // No send without time left in the request budget: the stored message stays, and the next retry resends it.
+  assertBudget(deadlineAt, input.saleId);
   try {
-    await sendBuyerMessage(deps, message, idempotencyKey, deadlineMs);
+    await sendBuyerMessage(deps, message, idempotencyKey, sendBudgetMs(deps, deadlineAt));
     await deps.db.confirmDelivery({ provider: key.provider, saleId: key.saleId, tokenHash: message.tokenHash });
     await deps.db.markDeliverySent({ provider: key.provider, saleId: key.saleId, sendKind: key.sendKind, fence: input.fence });
   } catch (err) {
     if (err instanceof StaleFenceError) throw err;
-    throw new DeliveryPendingError(input.saleId, err);
+    // A definite refusal of the buyer address is terminal, as on the first send. It is rethrown unchanged, so
+    // deliverSaleForWebhook answers 422 and flags the sale. The claim and the stored message are kept: an earlier send under
+    // this key may have been accepted, so nothing here releases them.
+    if (isBuyerAddressRejection(err)) throw err;
+    throw new DeliveryPendingError(input.saleId, err, sendBackgroundOf(err));
   }
   return "sent";
 }
@@ -368,6 +420,8 @@ export async function deliverSale(
     buyerEmail?: string;
     sendKind?: string;
     fence?: number;
+    /** Absolute epoch-ms answer deadline for this request. Defaults to the webhook total budget counted from now. */
+    deadlineAt?: number;
   },
   deps: DeliveryDeps,
 ): Promise<DeliveryOutcome> {
@@ -379,35 +433,51 @@ export async function deliverSale(
     throw new Error("delivery: delivery.send_kind is missing in settings registry");
   }
   if (!input.buyerEmail) return "no_email";
-  const product = await deps.db.productForAlias(input.provider, input.productAlias);
-  // Fail closed on a product with no release file: a buyer must never get a link to nothing.
-  if (!product || !product.releasePath) return "no_release_file";
-
   const key = { provider: input.provider, saleId: input.saleId, sendKind };
   const idempotencyKey = claimKey(input.provider, input.saleId, sendKind);
   if (idempotencyKey.length > RESEND_IDEMPOTENCY_KEY_MAX_CHARS) {
     throw new Error(`delivery: idempotency key for sale ${input.saleId} exceeds ${RESEND_IDEMPOTENCY_KEY_MAX_CHARS} characters`);
   }
-  const deadlineMs = deps.timeoutMs ?? GLOBAL.payments.http_timeout_ms;
+  const deadlineAt = input.deadlineAt ?? webhookDeadlineAt();
+  assertBudget(deadlineAt, input.saleId);
+  const runPreSendStep = async <T>(op: () => Promise<T>): Promise<T> => {
+    try {
+      return await op();
+    } catch (err) {
+      if (budgetLeftMs(deadlineAt) <= 0 && !(err instanceof StaleFenceError)) {
+        throw new DeliveryPendingError(input.saleId, err);
+      }
+      throw err;
+    }
+  };
+  const product = await runPreSendStep(() => deps.db.productForAlias(input.provider, input.productAlias));
+  // Fail closed on a product with no release file: a buyer must never get a link to nothing.
+  if (!product || !product.releasePath) return "no_release_file";
 
   // Option A + Option B: claim the single-send row BEFORE creating any download link or sending email
   // (and before deliveryConfirmed so stale-fence workers are rejected even after completion).
-  const claim = await deps.db.claimDeliverySend({
-    provider: input.provider,
-    saleId: input.saleId,
-    sendKind,
-    fence: input.fence,
-  });
+  const claim = await runPreSendStep(() =>
+    deps.db.claimDeliverySend({
+      provider: input.provider,
+      saleId: input.saleId,
+      sendKind,
+      fence: input.fence,
+    }),
+  );
   if (claim.outcome !== "claimed") {
     const held = claim.outcome === "already_claimed";
-    if (await deps.db.deliveryConfirmed(input.provider, input.saleId)) {
+    if (await runPreSendStep(() => deps.db.deliveryConfirmed(input.provider, input.saleId))) {
       // Confirmed before this attempt: the buyer already has the receipt. A legacy held row is closed here.
-      if (held) await deps.db.markDeliverySent({ provider: input.provider, saleId: input.saleId, sendKind, fence: input.fence });
+      if (held) {
+        await runPreSendStep(() =>
+          deps.db.markDeliverySent({ provider: input.provider, saleId: input.saleId, sendKind, fence: input.fence }),
+        );
+      }
       return "duplicate";
     }
     // Held or sent-but-unconfirmed with a stored message: resend the identical bytes under the same key.
-    const stored = await deps.db.readClaimMessage(key);
-    if (stored !== null) return await resendStoredMessage(input, key, stored, claim, deps, deadlineMs);
+    const stored = await runPreSendStep(() => deps.db.readClaimMessage(key));
+    if (stored !== null) return await resendStoredMessage(input, key, stored, claim, deps, deadlineAt);
     // No stored message. A held claim created after the change was never sent (the message is stored before any send), so it is
     // minted below. Every other case may already have been sent: nothing is sent or re-minted. The 503 path keeps the claim for
     // an operator to reconcile.
@@ -460,7 +530,8 @@ export async function deliverSale(
       throw new Error(`delivery blocked: sale ${input.saleId} link generation collision`);
     }
 
-    const link = await deps.createShortLink(`${deps.origin}/books/d/${token}`);
+    assertBudget(deadlineAt, input.saleId);
+    const link = await deps.createShortLink(`${deps.origin}/books/d/${token}`, budgetLeftMs(deadlineAt));
     if (input.fence !== undefined) {
       await deps.db.assertSendFence({
         provider: input.provider,
@@ -475,6 +546,7 @@ export async function deliverSale(
       link,
       days: GLOBAL.delivery.link_ttl_days,
       replyTo: deps.replyTo,
+      billingEmail: deps.billingEmail,
       tokenHash: hash,
     });
     // The exact bytes are stored BEFORE the send. A fenced write: a newer worker that owns the claim makes this stale, and
@@ -488,8 +560,9 @@ export async function deliverSale(
       fence: input.fence,
       ciphertext,
     });
+    assertBudget(deadlineAt, input.saleId);
     sendAttempted = true;
-    await sendBuyerMessage(deps, message, idempotencyKey, deadlineMs);
+    await sendBuyerMessage(deps, message, idempotencyKey, sendBudgetMs(deps, deadlineAt));
   } catch (err) {
     if (!sendAttempted && storeAttempted) {
       // The store may have landed (lost response), or another worker already holds the message. A newer fence owner keeps its claim.
@@ -515,7 +588,7 @@ export async function deliverSale(
     // rejection (409 concurrent_idempotent_requests is not definite). On an ambiguous send failure keep BOTH rows so the retry
     // resends the stored message.
     const definiteNonSend = !sendAttempted || (err instanceof EmailSendError && err.definite);
-    if (!definiteNonSend) throw new DeliveryPendingError(input.saleId, err);
+    if (!definiteNonSend) throw new DeliveryPendingError(input.saleId, err, sendBackgroundOf(err));
     try {
       await releaseVerifiedNonSend(
         { ...key, fence: input.fence, releaseClaim: !(err instanceof StaleFenceError), linkInserted, tokenHash: hash },
@@ -525,6 +598,10 @@ export async function deliverSale(
       // The claim could not be released, so it keeps its state, and its link stays with it. The retry is safe: it resends the
       // stored message against a live link, or flags the claim if it was created before the change.
       console.error(`[delivery] sale ${input.saleId}: could not release send claim: ${errorText(releaseErr)}`);
+    }
+    // A pre-send step cut by the request budget is a retryable 503, not a raw 500 with no Retry-After.
+    if (budgetLeftMs(deadlineAt) <= 0 && !(err instanceof StaleFenceError) && !(err instanceof EmailSendError)) {
+      throw new DeliveryPendingError(input.saleId, err);
     }
     throw err;
   }
@@ -546,7 +623,11 @@ export async function deliverSale(
 }
 
 /** Dub short link for a target URL. Needs DUB_API_KEY in the environment. */
-export async function createDubShortLink(targetUrl: string, fetchImpl: typeof fetch = fetch): Promise<string> {
+export async function createDubShortLink(
+  targetUrl: string,
+  fetchImpl: typeof fetch = fetch,
+  timeoutMs: number = GLOBAL.payments.http_timeout_ms,
+): Promise<string> {
   const key = process.env.DUB_API_KEY;
   if (!key) throw new Error("DUB_API_KEY is missing — cannot create the download short link");
   // Bounded by the webhook-internal budget: this call runs while the sale's idempotency lock is held.
@@ -554,7 +635,7 @@ export async function createDubShortLink(targetUrl: string, fetchImpl: typeof fe
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
     body: JSON.stringify({ url: targetUrl, domain: GLOBAL.delivery.short_domain }),
-    signal: AbortSignal.timeout(GLOBAL.payments.http_timeout_ms),
+    signal: AbortSignal.timeout(timeoutMs),
   });
   if (!res.ok) throw new Error(`Dub link create failed: HTTP ${res.status}`);
   const body = (await res.json()) as { shortLink?: unknown };
@@ -569,26 +650,45 @@ export async function createDubShortLink(targetUrl: string, fetchImpl: typeof fe
  * this to decide whether a contended, already-recorded sale can be acknowledged: a recorded sale alone is not delivered.
  * A lookup failure throws, so the caller answers retryable.
  */
-export function saleDeliveryConfirmed(provider: string, saleId: string): Promise<boolean> {
-  return supabaseDeliveryDb().deliveryConfirmed(provider, saleId);
+export function saleDeliveryConfirmed(provider: string, saleId: string, deadlineAt?: number): Promise<boolean> {
+  return supabaseDeliveryDb(requestSignal(deadlineAt)).deliveryConfirmed(provider, saleId);
+}
+
+/**
+ * Cleanup and post-send confirmation writes must still land after the request deadline: aborting them strands a claim
+ * with no stored link, or leaves an accepted email unconfirmed. Each runs on a fresh signal bounded by
+ * payments.http_timeout_ms instead of the expiring request signal.
+ */
+function withFreshCleanupSignals(budgeted: DeliveryDb): DeliveryDb {
+  const fresh = (): DeliveryDb => supabaseDeliveryDb(AbortSignal.timeout(GLOBAL.payments.http_timeout_ms));
+  return {
+    ...budgeted,
+    releaseLinkIssued: (row) => fresh().releaseLinkIssued(row),
+    confirmDelivery: (row) => fresh().confirmDelivery(row),
+    markDeliverySent: (row) => fresh().markDeliverySent(row),
+    releaseDeliverySend: (row) => fresh().releaseDeliverySend(row),
+    readClaimMessage: (row) => fresh().readClaimMessage(row),
+  };
 }
 
 /** Production wiring: Supabase for persistence, Resend for mail, Dub for the short link. */
-export function productionDeps(): DeliveryDeps {
+export function productionDeps(deadlineAt?: number): DeliveryDeps {
   const origin = GLOBAL.delivery.download_origin;
-  const replyTo = GLOBAL.email.reply_to;
+  const replyTo = GLOBAL.email.support;
+  const billingEmail = GLOBAL.email.billing;
   return {
-    db: supabaseDeliveryDb(),
+    db: deadlineAt === undefined ? supabaseDeliveryDb() : withFreshCleanupSignals(supabaseDeliveryDb(requestSignal(deadlineAt))),
     sendEmail: realSendEmail,
-    createShortLink: (u) => createDubShortLink(u),
+    createShortLink: (u, timeoutMs) => createDubShortLink(u, fetch, timeoutMs),
     origin,
     replyTo,
+    billingEmail,
   };
 }
 
 /**
  * A definite refusal of the message by the mail provider at GLOBAL.email.address_rejected_status. In practice this is the
- * buyer address. No email was accepted, so there is nothing to resend.
+ * buyer address. The refused send was not accepted, and a retry with the same address cannot succeed.
  */
 function isBuyerAddressRejection(err: unknown): err is EmailSendError {
   return err instanceof EmailSendError && err.definite && err.statusCode === GLOBAL.email.address_rejected_status;
@@ -608,22 +708,25 @@ export async function deliverSaleForWebhook(
     buyerEmail?: string;
     sendKind?: string;
     fence?: number;
+    /** Absolute epoch-ms answer deadline for this request (payments.webhook_total_budget_ms). */
+    deadlineAt?: number;
   },
-  deps: DeliveryDeps = productionDeps(),
+  deps: DeliveryDeps = productionDeps(input.deadlineAt ?? webhookDeadlineAt()),
 ): Promise<void> {
   let outcome: DeliveryOutcome;
   try {
     outcome = await deliverSale(input, deps);
   } catch (err) {
-    // deliverSale has already released the claim and the link (a definite rejection is a verified non-send). The 500 that a raw
-    // error would answer is retried by the provider forever against the same refused address, so the sale is refused with a
+    // On a first send, deliverSale has released the claim and the link (a definite rejection is a verified non-send). On a held
+    // resend it keeps them, since an earlier send under the key may have been accepted. Either way the 500 that a raw error
+    // would answer is retried by the provider forever against the same refused address, so the sale is refused with a
     // terminal 422 instead. A config refusal is not this case: it is rethrown unchanged and stays retryable.
     if (!isBuyerAddressRejection(err)) throw err;
     flagForManualReconciliation(
       input.provider,
       input.saleId,
       input.sendKind ?? GLOBAL.delivery.send_kind,
-      `the mail provider refused the buyer address (HTTP ${err.statusCode}); no email was accepted and a retry cannot succeed`,
+      `the mail provider refused the buyer address (HTTP ${err.statusCode}) on this send; a retry with the same address cannot succeed`,
     );
     throw new DeliveryBlockedError("no_email", input.saleId);
   }
@@ -632,7 +735,7 @@ export async function deliverSaleForWebhook(
   if (outcome !== "sent") console.warn(`[delivery] sale ${input.saleId}: ${outcome}`);
 }
 
-function supabaseDeliveryDb(): DeliveryDb {
+function supabaseDeliveryDb(signal?: AbortSignal): DeliveryDb {
   return {
     async productForAlias(provider, alias) {
       const sb = await getSupabaseAdmin();
@@ -641,13 +744,14 @@ function supabaseDeliveryDb(): DeliveryDb {
       // store_product_id is the internal key every provider carries. paddle_product_id is Paddle's own column, so only
       // a Paddle sale may match it; any other provider matching it would resolve a sale through another provider's ID.
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(alias);
+      const providerColumn = paymentProviderProductIdColumn(provider);
       const columns = [
         "store_product_id",
-        ...(provider === "paddle" ? ["paddle_product_id"] : []),
+        ...(providerColumn ? [providerColumn] : []),
         ...(isUuid ? ["id"] : []),
       ];
       for (const column of columns) {
-        const { data, error } = await sb.from("products").select("id, title, release_path").eq(column, alias).maybeSingle();
+        const { data, error } = await bounded(sb.from("products").select("id, title, release_path").eq(column, alias), signal).maybeSingle();
         if (error) throw new Error(`product lookup failed: ${error.message}`);
         if (!data) continue;
         return { id: data.id as string, title: (data.title as string | null) ?? "your ExpanPress title", releasePath: (data.release_path as string | null) ?? null };
@@ -667,7 +771,7 @@ function supabaseDeliveryDb(): DeliveryDb {
       if (row.linkGeneration !== undefined) {
         insertPayload.link_generation = row.linkGeneration;
       }
-      const { error } = await sb.from("download_events").insert(insertPayload);
+      const { error } = await bounded(sb.from("download_events").insert(insertPayload), signal);
       if (!error) return true;
       if (error.code === "23505") return false; // generation collision: a webhook retry is a no-op
       throw new Error(`link insert failed: ${error.message}`);
@@ -675,26 +779,26 @@ function supabaseDeliveryDb(): DeliveryDb {
     async releaseLinkIssued(row) {
       const sb = await getSupabaseAdmin();
       if (!sb) throw new Error("Supabase admin client unavailable");
-      const { error } = await sb
+      const { error } = await bounded(sb
         .from("download_events")
         .delete()
         .eq("sale_id", row.saleId)
         .eq("token_hash", row.tokenHash)
-        .eq("event_type", "link_issued");
+        .eq("event_type", "link_issued"), signal);
       if (error) throw new Error(`link release failed: ${error.message}`);
     },
     async linkStillIssued(row) {
       const sb = await getSupabaseAdmin();
       if (!sb) throw new Error("Supabase admin client unavailable");
       // expires_at NULL never matches the gt filter, so a link with no expiry is refused (fail closed).
-      const { data, error } = await sb
+      const { data, error } = await bounded(sb
         .from("download_events")
         .select("token_hash")
         .eq("sale_id", row.saleId)
         .eq("token_hash", row.tokenHash)
         .eq("event_type", "link_issued")
         .gt("expires_at", row.now.toISOString())
-        .limit(1);
+        .limit(1), signal);
       if (error) throw new Error(`link lookup failed: ${error.message}`);
       return (data ?? []).length > 0;
     },
@@ -704,24 +808,24 @@ function supabaseDeliveryDb(): DeliveryDb {
       // Provider-scoped: the same sale ID from another provider must not count as delivered. Confirmations
       // written before details.provider was recorded have no provider, so they never match and the link is re-sent
       // (a duplicate email, which is the safer failure than a buyer with no link).
-      const { data, error } = await sb
+      const { data, error } = await bounded(sb
         .from("audit_log")
         .select("id")
         .eq("event", DELIVERY_CONFIRMED_EVENT)
         .eq("details->>sale_id", saleId)
         .eq("details->>provider", provider)
         .order("id", { ascending: true })
-        .limit(1);
+        .limit(1), signal);
       if (error) throw new Error(`delivery confirmation lookup failed: ${error.message}`);
       if ((data ?? []).length > 0) return true;
       // A sale confirmed before details.provider existed is re-sent, so surface it: the buyer gets a second email.
-      const { data: legacy, error: legacyError } = await sb
+      const { data: legacy, error: legacyError } = await bounded(sb
         .from("audit_log")
         .select("id")
         .eq("event", DELIVERY_CONFIRMED_EVENT)
         .eq("details->>sale_id", saleId)
         .is("details->>provider", null)
-        .limit(1);
+        .limit(1), signal);
       if (legacyError) throw new Error(`delivery confirmation lookup failed: ${legacyError.message}`);
       if ((legacy ?? []).length > 0) {
         console.warn(`[delivery] legacy confirmation without provider for sale ${saleId}; re-sending (a second buyer email)`);
@@ -731,14 +835,14 @@ function supabaseDeliveryDb(): DeliveryDb {
     async confirmDelivery(row) {
       const sb = await getSupabaseAdmin();
       if (!sb) throw new Error("Supabase admin client unavailable");
-      const { error } = await sb
+      const { error } = await bounded(sb
         .from("audit_log")
         .insert({
           event: DELIVERY_CONFIRMED_EVENT,
           details: { provider: row.provider, sale_id: row.saleId, token_hash: row.tokenHash },
-        });
+        }), signal);
       if (error) throw new Error(`delivery confirmation write failed: ${error.message}`);
     },
-    ...createDeliverySendsStore(),
+    ...createDeliverySendsStore(signal),
   };
 }

@@ -211,40 +211,26 @@ vi.mock("../../../../payments/src/terms.ts", () => ({
 const salesFileDir = vi.hoisted(() => `/tmp/hook-settings-${Date.now()}-${crypto.randomUUID()}`);
 const salesFilePath = vi.hoisted(() => `${salesFileDir}/sales.jsonl`);
 
-vi.mock("../../../../payments/src/settings_registry.ts", () => ({
-  GLOBAL: {
-    paths: { sales_ledger: salesFilePath },
-    defaults: { currency: "USD" },
-    payments: {
-      webhook_tolerance_seconds: 300,
-      webhook_lock_ttl_seconds: 300,
-      webhook_lock_fence_ttl_seconds: 604800,
-      webhook_lock_sale_prefix: "lock:sale:",
-      webhook_lock_refund_prefix: "lock:refund:",
-      webhook_lock_fence_suffix: ":fence",
-      http_timeout_ms: 5000,
-      sync_http_timeout_ms: 30000,
+const deferredEmailOverride = vi.hoisted(() => ({ map: {} as Record<string, boolean> }));
+
+vi.mock("../../../../payments/src/settings_registry.ts", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../../../payments/src/settings_registry.ts")>();
+  return {
+    ...actual,
+    GLOBAL: {
+      ...actual.GLOBAL,
+      paths: { ...actual.GLOBAL.paths, sales_ledger: salesFilePath },
     },
-    delivery: {
-      bucket: "release-files",
-      link_ttl_days: 7,
-      signed_url_seconds: 300,
-      short_domain: "go.expanpress.com",
-      send_kind: "buyer_receipt",
-    },
-  },
-  expandHome: (p: string, home: string) => (home && (p === "~" || p.startsWith("~/")) ? p : p),
-  isRegisteredPaymentProvider: (name: unknown) => typeof name === "string",
-  isEnabledPaymentProvider: (name: unknown) => typeof name === "string",
-  paymentProviderSetting: () => undefined,
-  // Used by the real legacy provider parsers in the end-to-end tests (registry fallbacks: USD only).
-  getPath: (obj: unknown, dotted: string | undefined) =>
-    typeof dotted === "string" && dotted !== ""
-      ? dotted.split(".").reduce<unknown>((cur, k) => (cur && typeof cur === "object" ? (cur as Record<string, unknown>)[k] : undefined), obj)
-      : undefined,
-  isAllowedCurrency: (c: string) => String(c).toUpperCase() === "USD",
-  isMoneyPath: () => process.env.NODE_ENV === "production" || process.env.VERCEL_ENV !== undefined || !!process.env.AWS_LAMBDA_FUNCTION_NAME,
-}));
+    isRegisteredPaymentProvider: (name: unknown) => typeof name === "string",
+    isEnabledPaymentProvider: (name: unknown) => typeof name === "string",
+    paymentProviderSetting: () => undefined,
+    allowsDeferredBuyerEmail: (name: string) =>
+      Object.prototype.hasOwnProperty.call(deferredEmailOverride.map, name)
+        ? deferredEmailOverride.map[name]
+        : name === "paddle",
+    isMoneyPath: () => process.env.NODE_ENV === "production" || process.env.VERCEL_ENV !== undefined || !!process.env.AWS_LAMBDA_FUNCTION_NAME,
+  };
+});
 
 describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
   it("a sale whose alias resolves to no product is a terminal 422, and the lookup uses the sale's provider", async () => {
@@ -1309,7 +1295,7 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
   };
 
   const expectConflictPending = (out: unknown, sale = CB_SALE.sale_id) => {
-    expect(out).toMatchObject({ status: 202, payload: { ok: true, recorded: false, reason: "conflict_pending", sale_id: sale } });
+    expect(out).toMatchObject({ status: 200, payload: { ok: true, recorded: false, reason: "conflict_pending", sale_id: sale } });
     expect((out as { payload: { conflict_id: number } }).payload.conflict_id).toBeGreaterThanOrEqual(1);
   };
 
@@ -1375,7 +1361,7 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
       }
     });
 
-    it("refund: 23505 + conflicting row with a DIFFERENT sale_id -> 202 conflict_pending + inbox row + adjustment_id_collision flag", async () => {
+    it("refund: 23505 + conflicting row with a DIFFERENT sale_id -> 200 conflict_pending + inbox row + adjustment_id_collision flag", async () => {
       race23505();
       supa.adjLookupResult = conflicts("sale_OTHER");
       try {
@@ -1396,7 +1382,7 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
       }
     });
 
-    it("refund: 23505 + conflicting row with a different amount -> 202 conflict_pending + inbox row", async () => {
+    it("refund: 23505 + conflicting row with a different amount -> 200 conflict_pending + inbox row", async () => {
       race23505();
       supa.adjLookupResult = conflicts(CB_SALE.sale_id, 12.5);
       try {
@@ -1411,7 +1397,7 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
       }
     });
 
-    it("refund: 23505 + same sale/amount but different currency -> 202 conflict_pending + inbox row + collision flag", async () => {
+    it("refund: 23505 + same sale/amount but different currency -> 200 conflict_pending + inbox row + collision flag", async () => {
       race23505();
       supa.adjLookupResult = conflicts(CB_SALE.sale_id, 39, "EUR");
       try {
@@ -1426,7 +1412,7 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
       }
     });
 
-    it("redelivery: two identical refund collisions -> 202 both times, ONE inbox row (delivery_count 2), exactly ONE flag row, forensic context recorded", async () => {
+    it("redelivery: two identical refund collisions -> 200 both times, ONE inbox row (delivery_count 2), exactly ONE flag row, forensic context recorded", async () => {
       race23505();
       supa.adjLookupResult = conflicts("sale_OTHER", 12.5, "EUR");
       try {
@@ -1492,7 +1478,7 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
       }
     });
 
-    it("refund: mismatch but the inbox write fails -> 503 retryable, never 202", async () => {
+    it("refund: mismatch but the inbox write fails -> 503 retryable, never 200", async () => {
       race23505();
       supa.adjLookupResult = conflicts("sale_OTHER");
       supa.rpcError = { message: "rpc down" };
@@ -1567,7 +1553,7 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
       }
     });
 
-    it("reversal: 23505 + conflicting row with a DIFFERENT sale_id -> 202 conflict_pending + inbox row + adjustment_id_collision flag", async () => {
+    it("reversal: 23505 + conflicting row with a DIFFERENT sale_id -> 200 conflict_pending + inbox row + adjustment_id_collision flag", async () => {
       await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_rev_refund2"))]);
       race23505();
       supa.adjLookupResult = conflicts("sale_OTHER");
@@ -1583,7 +1569,7 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
       }
     });
 
-    it("reversal: 23505 + conflicting row with a different amount -> 202 conflict_pending + inbox row", async () => {
+    it("reversal: 23505 + conflicting row with a different amount -> 200 conflict_pending + inbox row", async () => {
       await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_rev_refund3"))]);
       race23505();
       supa.adjLookupResult = conflicts(CB_SALE.sale_id, 12.5);
@@ -1599,7 +1585,7 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
       }
     });
 
-    it("reversal: 23505 + same sale/amount but different currency -> 202 conflict_pending + inbox row + collision flag", async () => {
+    it("reversal: 23505 + same sale/amount but different currency -> 200 conflict_pending + inbox row + collision flag", async () => {
       await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_rev_refund_cur"))]);
       race23505();
       supa.adjLookupResult = conflicts(CB_SALE.sale_id, 39, "EUR");
@@ -1615,7 +1601,7 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
       }
     });
 
-    it("refund: 23505 + conflicting row with a NULL stored currency -> empty string treated as non-matching -> 202 conflict_pending", async () => {
+    it("refund: 23505 + conflicting row with a NULL stored currency -> empty string treated as non-matching -> 200 conflict_pending", async () => {
       race23505();
       supa.adjLookupResult = conflicts();
       (supa.adjLookupResult.data as { currency: string | null }).currency = null;
@@ -1631,7 +1617,7 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
       }
     });
 
-    it("reversal: 23505 + conflicting row with a NULL stored currency -> empty string treated as non-matching -> 202 conflict_pending", async () => {
+    it("reversal: 23505 + conflicting row with a NULL stored currency -> empty string treated as non-matching -> 200 conflict_pending", async () => {
       await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter(cbRefund("adj_rev_nullc_refund"))]);
       race23505();
       supa.adjLookupResult = conflicts();
@@ -2005,5 +1991,177 @@ describe("sale mirror order: delivery runs before the local mirror (mirror-order
     });
     expect(sentSaleIds).toEqual(new Set(["sale_first_1"]));
     expect(localRows()).toHaveLength(0);
+  });
+});
+
+describe("F-05 duplicate identity checks on refund_issued and refund_reversed", () => {
+  beforeEach(() => {
+    setnx.mockReset();
+    setnx.mockResolvedValue(1);
+    mockFenceSeq = 0;
+    mkdirSync(salesFileDir, { recursive: true });
+    vi.stubEnv("UPSTASH_REDIS_REST_URL", "https://unit.test.redis.example");
+    vi.stubEnv("UPSTASH_REDIS_REST_TOKEN", "unit-test-token");
+    vi.stubEnv("SUPABASE_URL", "https://unit.test.supabase.co");
+    vi.stubEnv("SUPABASE_SECRET_KEY", "unit-test-key");
+    supa.lookupResult = { data: null, error: null };
+    supa.adjLookupResult = null;
+    supa.auditInserts.length = 0;
+    supa.collisionKeys.clear();
+    supa.conflicts.clear();
+    supa.upsertError = null;
+    delivery.deliverSaleForWebhook.mockResolvedValue(undefined);
+    delivery.saleDeliveryConfirmed.mockResolvedValue(false);
+  });
+
+  afterEach(() => {
+    rmSync(salesFileDir, { recursive: true, force: true });
+    vi.unstubAllEnvs();
+  });
+
+  const adapter = (event: unknown): PaymentProviderPort => ({
+    providerName: "paddle",
+    canHandleWebhook: () => true,
+    parseAndValidateWebhook: async () => ({ isValid: true, event: event as never }),
+    createCheckout: async () => {
+      throw new Error("unused");
+    },
+  });
+
+  it("refund_issued: existingRefund + cross-sale providerAdjustmentId collision -> 200 conflict_pending (never silent 200 duplicate)", async () => {
+    await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter({
+      eventType: "sale_completed", providerName: "paddle", saleId: "sale_f05_1", productId: "p1", totalCents: 3900, currency: "USD", buyerEmailHash: "h", occurredAt: "2026-11-18T00:00:00Z", providerMode: "live", rawPayload: null,
+    })]);
+    await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter({
+      eventType: "refund_issued", providerName: "paddle", saleId: "sale_f05_1", totalCents: 3900, currency: "USD", refundId: "adj_f05_1", providerAdjustmentId: "adj_f05_1", occurredAt: "2026-11-18T00:01:00Z", rawPayload: null,
+    })]);
+    await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter({
+      eventType: "sale_completed", providerName: "paddle", saleId: "sale_f05_2", productId: "p1", totalCents: 3900, currency: "USD", buyerEmailHash: "h", occurredAt: "2026-11-18T00:02:00Z", providerMode: "live", rawPayload: null,
+    })]);
+    await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter({
+      eventType: "refund_issued", providerName: "paddle", saleId: "sale_f05_2", totalCents: 3900, currency: "USD", refundId: "adj_f05_2", providerAdjustmentId: "adj_f05_2", occurredAt: "2026-11-18T00:03:00Z", rawPayload: null,
+    })]);
+
+    const res = await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter({
+      eventType: "refund_issued", providerName: "paddle", saleId: "sale_f05_2", totalCents: 3900, currency: "USD", refundId: "adj_f05_1", providerAdjustmentId: "adj_f05_1", occurredAt: "2026-11-18T00:04:00Z", rawPayload: null,
+    })]);
+    expect(res).toMatchObject({ status: 200, payload: { reason: "conflict_pending", event_type: "refund", sale_id: "sale_f05_2" } });
+    expect(supa.auditInserts).toHaveLength(1);
+    expect(supa.auditInserts[0]).toMatchObject({
+      event: "MANUAL_REVIEW_REQUIRED_REFUND",
+      details: expect.objectContaining({ reason: "adjustment_id_collision", conflicting_sale_id: "sale_f05_1" }),
+    });
+  });
+
+  it("refund_reversed: existingReversal with mismatched providerAdjustmentId or cross-sale collision -> 200 conflict_pending", async () => {
+    await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter({
+      eventType: "sale_completed", providerName: "paddle", saleId: "sale_rev_1", productId: "p1", totalCents: 3900, currency: "USD", buyerEmailHash: "h", occurredAt: "2026-11-18T00:00:00Z", providerMode: "live", rawPayload: null,
+    })]);
+    await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter({
+      eventType: "refund_issued", providerName: "paddle", saleId: "sale_rev_1", totalCents: 3900, currency: "USD", refundId: "adj_r1", providerAdjustmentId: "adj_r1", occurredAt: "2026-11-18T00:01:00Z", rawPayload: null,
+    })]);
+    await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter({
+      eventType: "refund_reversed", providerName: "paddle", saleId: "sale_rev_1", totalCents: 3900, currency: "USD", refundId: "adj_win_1", providerAdjustmentId: "adj_win_1", occurredAt: "2026-11-18T00:02:00Z", rawPayload: null,
+    })]);
+
+    // Same reversal adjustment_id -> clean 200 duplicate (void outcome) with no audit flag.
+    const dup = await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter({
+      eventType: "refund_reversed", providerName: "paddle", saleId: "sale_rev_1", totalCents: 3900, currency: "USD", refundId: "adj_win_1", providerAdjustmentId: "adj_win_1", occurredAt: "2026-11-18T00:02:30Z", rawPayload: null,
+    })]);
+    expect(dup).toBeUndefined();
+    expect(supa.auditInserts).toHaveLength(0);
+
+    // Different adjustment_id on the already-reversed sale -> recorded as conflict_pending.
+    const diffAdj = await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter({
+      eventType: "refund_reversed", providerName: "paddle", saleId: "sale_rev_1", totalCents: 3900, currency: "USD", refundId: "adj_win_2", providerAdjustmentId: "adj_win_2", occurredAt: "2026-11-18T00:03:00Z", rawPayload: null,
+    })]);
+    expect(diffAdj).toMatchObject({ status: 200, payload: { reason: "conflict_pending", event_type: "refund_reversal", sale_id: "sale_rev_1" } });
+    expect(supa.auditInserts).toHaveLength(1);
+    expect(supa.auditInserts[0]).toMatchObject({
+      event: "MANUAL_REVIEW_REQUIRED_REFUND",
+      details: expect.objectContaining({ reason: "adjustment_id_collision", adjustment_id: "adj_win_2" }),
+    });
+  });
+
+  it("refund_reversed: contended lock does NOT acknowledge when amount or currency mismatches", async () => {
+    await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter({
+      eventType: "sale_completed", providerName: "paddle", saleId: "sale_rev_lock", productId: "p1", totalCents: 3900, currency: "USD", buyerEmailHash: "h", occurredAt: "2026-11-18T00:00:00Z", providerMode: "live", rawPayload: null,
+    })]);
+    await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter({
+      eventType: "refund_issued", providerName: "paddle", saleId: "sale_rev_lock", totalCents: 3900, currency: "USD", refundId: "adj_rl1", providerAdjustmentId: "adj_rl1", occurredAt: "2026-11-18T00:01:00Z", rawPayload: null,
+    })]);
+    await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter({
+      eventType: "refund_reversed", providerName: "paddle", saleId: "sale_rev_lock", totalCents: 3900, currency: "USD", refundId: "adj_rl_win", providerAdjustmentId: "adj_rl_win", occurredAt: "2026-11-18T00:02:00Z", rawPayload: null,
+    })]);
+
+    // Simulate lock held by another worker.
+    setnx.mockResolvedValueOnce(0);
+    await expect(
+      processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter({
+        eventType: "refund_reversed", providerName: "paddle", saleId: "sale_rev_lock", totalCents: 1000, currency: "USD", refundId: "adj_rl_win", providerAdjustmentId: "adj_rl_win", occurredAt: "2026-11-18T00:03:00Z", rawPayload: null,
+      })]),
+    ).rejects.toThrow(/in flight/);
+  });
+
+  it("persists buyer_email_consent (true, false, or NULL when absent) and delivers regardless of buyer consent", async () => {
+    for (const [suffix, consent, expectedRowVal] of [
+      ["t", true, true],
+      ["f", false, false],
+      ["n", undefined, null],
+    ] as const) {
+      delivery.deliverSaleForWebhook.mockClear();
+      await expect(
+        processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter({
+          eventType: "sale_completed",
+          providerName: "paddle",
+          saleId: `sale_consent_${suffix}`,
+          productId: "p1",
+          totalCents: 3900,
+          currency: "USD",
+          buyerEmailHash: "h",
+          buyerEmail: "buyer@example.com",
+          ...(consent !== undefined ? { buyerEmailConsent: consent } : {}),
+          occurredAt: "2026-11-19T12:00:00Z",
+          providerMode: "live",
+          rawPayload: null,
+        })]),
+      ).resolves.toBeUndefined();
+      expect(delivery.deliverSaleForWebhook).toHaveBeenCalledTimes(1);
+      const row = readFileSync(salesFilePath, "utf8")
+        .split(/\r?\n/)
+        .filter(Boolean)
+        .map((l) => JSON.parse(l) as { sale_id: string; buyer_email_consent?: boolean })
+        .find((r) => r.sale_id === `sale_consent_${suffix}`);
+      if (expectedRowVal === null) {
+        expect("buyer_email_consent" in (row ?? {})).toBe(false);
+      } else {
+        expect(row?.buyer_email_consent).toBe(expectedRowVal);
+      }
+    }
+  });
+
+  it("honours allows_deferred_buyer_email capability flag instead of hard-coding paddle (B-07)", async () => {
+    deferredEmailOverride.map = { polar: true, paddle: false };
+    try {
+      await expect(
+        processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter({
+          ...SALE,
+          providerName: "polar",
+          saleId: "sale_deferred_polar_1",
+          buyerEmail: undefined,
+        })]),
+      ).resolves.toBeUndefined();
+
+      const paddleErr = await processBillingWebhookUseCase({ headers: {}, body: "" }, [adapter({
+        ...SALE,
+        providerName: "paddle",
+        saleId: "sale_no_deferred_paddle_1",
+        buyerEmail: undefined,
+      })]).catch((e: unknown) => e);
+      expect(paddleErr).toBeInstanceOf(WebhookValidationError);
+      expect((paddleErr as WebhookValidationError).httpStatus).toBe(422);
+    } finally {
+      deferredEmailOverride.map = {};
+    }
   });
 });

@@ -3,7 +3,7 @@
 // pure loader directly — they must NEVER move, rename or delete the real data/settings
 // directory (an earlier version renamed it and left it stranded on 2026-10-01).
 import { describe, expect, it, vi, afterEach } from "vitest";
-import { GLOBAL, loadPaymentsSection, loadDeliverySection, loadEmailSection, getPath } from "../src/settings_registry.ts";
+import { DEFAULT_GLOBAL, GLOBAL, loadPaymentsSection, loadDeliverySection, loadEmailSection, loadStorefrontSection, paymentProviderDisplayName, getPath } from "../src/settings_registry.ts";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -276,5 +276,127 @@ describe("settings registry: lock fencing & delivery send_kind", () => {
     const invalidDelivery = loadDeliverySection({ send_kind: "  ", link_ttl_days: 0 });
     expect(invalidDelivery.send_kind).toBe("buyer_receipt");
     expect(invalidDelivery.link_ttl_days).toBe(7);
+  });
+});
+
+describe("settings registry: webhook_total_budget_ms (payments.webhook_total_budget_ms)", () => {
+  it("defaults to 3000 ms, leaving 2 s inside Paddle's 5 s answer limit", () => {
+    expect(GLOBAL.payments.webhook_total_budget_ms).toBe(3000);
+    expect(loadPaymentsSection(undefined).webhook_total_budget_ms).toBe(3000);
+  });
+
+  it("accepts any in-range value, including the 4500 ms ceiling", () => {
+    expect(loadPaymentsSection({ webhook_total_budget_ms: 2500 }).webhook_total_budget_ms).toBe(2500);
+    expect(loadPaymentsSection({ webhook_total_budget_ms: 4500 }).webhook_total_budget_ms).toBe(4500);
+  });
+
+  it("falls back to the default for a value that would breach the 5 s limit, or is not an integer", () => {
+    expect(loadPaymentsSection({ webhook_total_budget_ms: 4501 }).webhook_total_budget_ms).toBe(3000);
+    expect(loadPaymentsSection({ webhook_total_budget_ms: 999 }).webhook_total_budget_ms).toBe(3000);
+    expect(loadPaymentsSection({ webhook_total_budget_ms: 3000.5 }).webhook_total_budget_ms).toBe(3000);
+  });
+});
+
+describe("settings registry: allowed_buyer_countries (payments.allowed_buyer_countries)", () => {
+  it("defaults to US + DC + US territories and rejects invalid values", () => {
+    expect(GLOBAL.payments.allowed_buyer_countries).toEqual(["US", "PR", "VI", "GU", "AS", "MP"]);
+    expect(loadPaymentsSection(undefined).allowed_buyer_countries).toEqual(["US", "PR", "VI", "GU", "AS", "MP"]);
+    expect(loadPaymentsSection({ allowed_buyer_countries: ["us", " pr "] }).allowed_buyer_countries).toEqual(["US", "PR"]);
+    expect(loadPaymentsSection({ allowed_buyer_countries: [] }).allowed_buyer_countries).toEqual(["US", "PR", "VI", "GU", "AS", "MP"]);
+    expect(loadPaymentsSection({ allowed_buyer_countries: ["USA"] }).allowed_buyer_countries).toEqual(["US", "PR", "VI", "GU", "AS", "MP"]);
+  });
+});
+
+describe("settings registry: paddle.overlay, storefront, and provider display names", () => {
+  it("validates paddle.overlay fields and rejects invalid env/key/theme/locale values", () => {
+    const warn = vi.spyOn(console, "error").mockImplementation(() => {});
+    const valid = loadPaymentsSection({
+      paddle: {
+        overlay: {
+          client_token_env: "CUSTOM_PADDLE_TOKEN",
+          environment_env: "CUSTOM_PADDLE_ENV",
+          theme: "dark",
+          locale: "en-US",
+          order_ref_key: "ref_id",
+          buyer_consent_key: "consent_flag",
+        },
+      },
+    }).paddle.overlay;
+    expect(valid).toEqual({
+      client_token_env: "CUSTOM_PADDLE_TOKEN",
+      environment_env: "CUSTOM_PADDLE_ENV",
+      theme: "dark",
+      locale: "en-US",
+      order_ref_key: "ref_id",
+      buyer_consent_key: "consent_flag",
+    });
+
+    const invalid = loadPaymentsSection({
+      paddle: {
+        overlay: {
+          client_token_env: "lowercase_bad",
+          theme: "neon",
+          locale: "english",
+          order_ref_key: "Bad-Key",
+        },
+      },
+    }).paddle.overlay;
+    expect(invalid.client_token_env).toBe("NEXT_PUBLIC_PADDLE_CLIENT_TOKEN");
+    expect(invalid.theme).toBe("light");
+    expect(invalid.locale).toBe("en");
+    expect(invalid.order_ref_key).toBe("order_ref");
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it("validates storefront brand_name and thanks_path_template, and exposes provider display names", () => {
+    const warn = vi.spyOn(console, "error").mockImplementation(() => {});
+    const HOUSE_NOTE = "House title. Published by ExpanPress. No creator revenue split.";
+    expect(loadStorefrontSection(undefined)).toEqual(DEFAULT_GLOBAL.storefront);
+    expect(DEFAULT_GLOBAL.storefront.brand_name).toBe("ExpanPress");
+    expect(DEFAULT_GLOBAL.storefront.publisher_label).toBe(DEFAULT_GLOBAL.storefront.brand_name);
+    expect(DEFAULT_GLOBAL.storefront.thanks_path_template).toBe("/books/{handle}/thanks");
+    expect(DEFAULT_GLOBAL.storefront.house_title_note).toBe(HOUSE_NOTE);
+    const invalid = loadStorefrontSection({
+      b2c_landing_url: "http://bad",
+      brand_name: " ",
+      thanks_path_template: "no-handle",
+      house_title_note: "  ",
+    });
+    expect(invalid).toEqual(DEFAULT_GLOBAL.storefront);
+    expect(loadStorefrontSection({ house_title_note: " Edited note. " }).house_title_note).toBe("Edited note.");
+    expect(paymentProviderDisplayName("paddle")).toBe("Paddle.com");
+    expect(paymentProviderDisplayName("creem")).toBe("Creem");
+    expect(paymentProviderDisplayName("unknown_rail")).toBe("unknown_rail");
+    warn.mockRestore();
+  });
+
+  it("validates payments.routing and email role keys", () => {
+    const warn = vi.spyOn(console, "error").mockImplementation(() => {});
+    const p = loadPaymentsSection({
+      routing: { mode: "cascade", distribution: [{ provider: "creem", weight: 50 }], fallbacks: ["paddle"] },
+    });
+    expect(p.routing).toEqual({
+      mode: "cascade",
+      distribution: [{ provider: "creem", weight: 50 }],
+      fallbacks: ["paddle"],
+    });
+    const badP = loadPaymentsSection({ routing: { mode: "invalid", distribution: [], fallbacks: [] } });
+    expect(badP.routing).toEqual({
+      mode: "2d",
+      distribution: [{ provider: "paddle", weight: 100 }],
+      fallbacks: ["lemonsqueezy", "fastspring"],
+    });
+
+    const e = loadEmailSection({
+      support: "help@expanpress.com",
+      billing: "invalid-no-at",
+      sender: "ExpanPress <mailer@expanpress.com>",
+    });
+    expect(e.support).toBe("help@expanpress.com");
+    expect(e.billing).toBe("billing@expanpress.com");
+    expect(e.sender).toBe("ExpanPress <mailer@expanpress.com>");
+    expect(e.from).toBe("ExpanPress <mailer@expanpress.com>");
+    warn.mockRestore();
   });
 });

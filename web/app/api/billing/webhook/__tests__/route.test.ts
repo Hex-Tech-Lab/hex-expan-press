@@ -1,9 +1,10 @@
 // Polar ships switched off (payments/src/settings_registry.ts, enabled: false). The
 // Polar verifier is what these tests exercise, so this file switches it on. The
 // switched-off behaviour is pinned separately in polar-switched-off.test.ts.
+const polarFlag = vi.hoisted(() => ({ on: true }));
 vi.mock("../../../../../../payments/src/settings_registry", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../../../../../payments/src/settings_registry")>();
-  return { ...actual, isEnabledPaymentProvider: (name: string) => name === "polar" || actual.isEnabledPaymentProvider(name) };
+  return { ...actual, isEnabledPaymentProvider: (name: string) => (polarFlag.on && name === "polar") || actual.isEnabledPaymentProvider(name) };
 });
 
 // Regression test for the NATIVE billing webhook route handler (Wave 6 —
@@ -136,5 +137,49 @@ describe("billing webhook native route (Wave 6)", () => {
     );
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ ok: true });
+  });
+});
+
+// F-10: default production registry (Polar/Creem switched off, Paddle enabled) through the real route.
+describe("billing webhook route with the DEFAULT registry (no Polar override)", () => {
+  afterEach(() => {
+    polarFlag.on = true;
+    vi.unstubAllEnvs();
+  });
+
+  it("rejects an unsigned POST (no provider headers) with a 4xx, never 200/5xx", async () => {
+    polarFlag.on = false;
+    vi.stubEnv("NODE_ENV", "production");
+    const res = await billingPost(
+      asNextRequest(new Request(WEBHOOK_URL, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" })),
+    );
+    expect(res.status).toBeGreaterThanOrEqual(400);
+    expect(res.status).toBeLessThan(500);
+  });
+
+  it("rejects a Paddle-shaped POST with a bogus Paddle-Signature (401/400)", async () => {
+    polarFlag.on = false;
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("PADDLE_WEBHOOK_SECRET", "pdl_ntfset_default_registry_test");
+    vi.stubEnv("PADDLE_ENVIRONMENT", "production");
+    const body = JSON.stringify({ event_type: "transaction.completed", data: { id: "txn_x" } });
+    const res = await billingPost(
+      asNextRequest(new Request(WEBHOOK_URL, {
+        method: "POST",
+        headers: { "content-type": "application/json", "paddle-signature": "ts=1700000000;h1=deadbeef" },
+        body,
+      })),
+    );
+    expect([400, 401]).toContain(res.status);
+  });
+
+  it("does not accept a correctly Polar-signed delivery while Polar is switched off", async () => {
+    polarFlag.on = false;
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("POLAR_WEBHOOK_SECRET", HMAC_TEST_KEY);
+    const res = await billingPost(
+      asNextRequest(new Request(WEBHOOK_URL, { method: "POST", headers: signedHeaders(IGNORED_PAYLOAD), body: IGNORED_PAYLOAD })),
+    );
+    expect(res.status).not.toBe(200);
   });
 });

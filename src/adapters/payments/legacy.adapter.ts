@@ -23,15 +23,16 @@
 import { PaymentProviderPort, WebhookParseResult, CheckoutResult, BillingEvent } from "../../domain/payments/payments.port.ts";
 import { cleanAttributionId, type CheckoutProvider, type SaleEvent, type RefundEvent } from "../../../payments/src/provider.ts";
 import { getSecret } from "../../../payments/src/webhook_core.ts";
-import { paymentProviderSetting } from "../../../payments/src/settings_registry.ts";
+import { DEFAULT_PAYMENT_PROVIDERS, paymentProviderSetting, type PaymentProviderSetting } from "../../../payments/src/settings_registry.ts";
 
-// Payhip signs in the payload (a top-level signature property), never in a header.
-const PAYHIP_SIG_FIELD = String(paymentProviderSetting("payhip")?.signature_field ?? "signature");
+function providerSetting(name: string): PaymentProviderSetting | undefined {
+  return paymentProviderSetting(name) ?? (DEFAULT_PAYMENT_PROVIDERS as Record<string, PaymentProviderSetting>)[name];
+}
 
-function hasBodySignature(body: string): boolean {
+function hasBodySignature(body: string, sigField: string): boolean {
   try {
     const parsed: unknown = JSON.parse(body);
-    return typeof parsed === "object" && parsed !== null && typeof (parsed as Record<string, unknown>)[PAYHIP_SIG_FIELD] === "string";
+    return typeof parsed === "object" && parsed !== null && typeof (parsed as Record<string, unknown>)[sigField] === "string";
   } catch {
     return false;
   }
@@ -47,13 +48,11 @@ export class LegacyPaymentAdapterWrapper implements PaymentProviderPort {
   }
 
   canHandleWebhook(headers: Record<string, string | string[] | undefined>, body: string): boolean {
-    if (this.providerName === "payhip") return hasBodySignature(body);
-    const knownSignatureHeaders: Record<string, string> = {
-      lemonsqueezy: "x-signature",
-      fastspring: "x-fs-signature",
-      fungies: "x-fngs-signature"
-    };
-    const expectedHeader = knownSignatureHeaders[this.providerName];
+    const setting = providerSetting(this.providerName);
+    if (setting?.signature_header === null && setting?.signature_field) {
+      return hasBodySignature(body, setting.signature_field);
+    }
+    const expectedHeader = setting?.signature_header;
     if (!expectedHeader) return true;
     return Boolean(headers[expectedHeader] || headers[expectedHeader.toLowerCase()]);
   }

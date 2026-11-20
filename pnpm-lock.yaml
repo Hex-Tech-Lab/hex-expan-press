@@ -194,6 +194,9 @@ importers:
       '@supabase/supabase-js':
         specifier: ^2.117.1
         version: 2.117.1(@opentelemetry/api@1.9.1)
+      '@zootools/email-spell-checker':
+        specifier: 1.13.0
+        version: 1.13.0
       framer-motion:
         specifier: 12.40.0
         version: 12.40.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -203,6 +206,9 @@ importers:
       obscenity:
         specifier: 0.4.6
         version: 0.4.6
+      page-flip:
+        specifier: 2.0.7
+        version: 2.0.7
       pdfjs-dist:
         specifier: 4.10.38
         version: 4.10.38
@@ -2843,6 +2849,10 @@ packages:
   '@workflow/serde@4.1.0-beta.2':
     resolution: {integrity: sha512-8kkeoQKLDaKXefjV5dbhBj2aErfKp1Mc4pb6tj8144cF+Em5SPbyMbyLCHp+BVrFfFVCBluCtMx+jjvaFVZGww==}
 
+  '@zootools/email-spell-checker@1.13.0':
+    resolution: {integrity: sha512-Xd+O8ZoR2/fKopJzA8p8lGRKFruGtVYuf/s1z8QV1ztZ/8QyzvCod/m2PShM/yse8QIstdHxL/jK/zrqQKUcAA==}
+    engines: {node: '>=12.0'}
+
   abbrev@3.0.1:
     resolution: {integrity: sha512-AO2ac6pjRB3SJmGJo+v5/aK6Omggp6fsLrs6wN9bd35ulu4cCwaAU9+7ZhXjeqHVkaHThLuzH0nZr0YpCDhygg==}
     engines: {node: ^18.17.0 || >=20.5.0}
@@ -4577,6 +4587,9 @@ packages:
   p-locate@5.0.0:
     resolution: {integrity: sha512-LaNjtRWUBY++zB5nE/NwcaoMylSPk+S+ZHNB1TzdbMJMny6dynpAGt7X/tl/QYq3TIeE6nxHppbo2LGymrG5Pw==}
     engines: {node: '>=10'}
+
+  page-flip@2.0.7:
+    resolution: {integrity: sha512-96lQFUUz7r/LZzEUZJ3yBIMEKU9+m8HMFDzTvTdD6P7Ag/wXINjp9n0W7b4wanwnDbQETo4uNUoL3zMqpFxwGA==}
 
   parent-module@1.0.1:
     resolution: {integrity: sha512-GQ2EWRpQV8/o+Aw8YqtfZZPfNRWZYkbidE9k5rpl/hC3vtHHBfGm2Ifi6qWV+coDGkrUKZAxE3Lot5kcsRlh+g==}
@@ -7673,6 +7686,8 @@ snapshots:
 
   '@workflow/serde@4.1.0-beta.2': {}
 
+  '@zootools/email-spell-checker@1.13.0': {}
+
   abbrev@3.0.1: {}
 
   accepts@2.0.0:
@@ -9704,6 +9719,8 @@ snapshots:
   p-locate@5.0.0:
     dependencies:
       p-limit: 3.1.0
+
+  page-flip@2.0.7: {}
 
   parent-module@1.0.1:
     dependencies:

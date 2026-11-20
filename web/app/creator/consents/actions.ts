@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 import { getVerifiedPortalSession } from "../../../src/lib/supabase-server";
 import { resolvePrimaryProduct } from "../../../src/lib/primary-product";
 import { clientIp } from "../../../src/lib/client-ip";
-import { consentTextVersion } from "../../../../payments/src/settings_registry.ts";
+import { consentTextVersion, GLOBAL } from "../../../../payments/src/settings_registry.ts";
 
 export interface ConsentFormState {
   ok?: boolean;
@@ -47,7 +47,7 @@ export async function signConsentAction(_prev: ConsentFormState, formData: FormD
     session.supabase,
     "id, release_sha256",
   );
-  if (productError || !product) return { error: "No product is linked to your account yet — contact support@expanpress.com." };
+  if (productError || !product) return { error: `No product is linked to your account yet — contact ${GLOBAL.email.support}.` };
 
   // C2 approves a specific release PDF — it must bind to that file's real hash
   // (the submit_consent RPC enforces the same rule). C1 has no document.

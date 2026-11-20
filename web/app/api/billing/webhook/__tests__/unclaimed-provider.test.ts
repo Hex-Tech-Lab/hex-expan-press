@@ -22,7 +22,7 @@ vi.mock("../../../../../../payments/src/settings_registry.ts", () => ({
   GLOBAL: {
     paths: { sales_ledger: "/tmp/unclaimed-provider-ledger/sales.jsonl" },
     defaults: { currency: "USD" },
-    payments: { webhook_tolerance_seconds: 300, webhook_lock_ttl_seconds: 300, http_timeout_ms: 5000, sync_http_timeout_ms: 30000, retry_after_seconds: 30 },
+    payments: { webhook_tolerance_seconds: 300, webhook_lock_ttl_seconds: 300, http_timeout_ms: 5000, webhook_total_budget_ms: 3000, sync_http_timeout_ms: 30000, retry_after_seconds: 30 },
   },
   expandHome: (p: string) => p,
   isRegisteredPaymentProvider: (name: unknown) => typeof name === "string",

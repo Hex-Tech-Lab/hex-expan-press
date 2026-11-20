@@ -28,7 +28,7 @@ beforeEach(async () => {
   }
   await db.exec("grant usage on schema public to anon, authenticated;");
   for (const t of TABLES) await db.exec(`grant select on public.${t} to anon, authenticated;`);
-});
+}, 60_000); // PGlite WASM startup per test; the 10s default hook timeout is exceeded under full-suite load.
 
 afterEach(async () => {
   await db.close();

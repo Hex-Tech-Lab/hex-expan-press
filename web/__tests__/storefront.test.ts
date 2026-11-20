@@ -1,12 +1,22 @@
 import { describe, expect, it, vi } from "vitest";
+import { GLOBAL } from "../../payments/src/settings_registry";
 
 vi.mock("server-only", () => ({}));
 const supa = vi.hoisted(() => ({ client: null as null | { from: (table: string) => unknown } }));
 vi.mock("../../payments/src/supabase_admin", () => ({ getSupabaseAdmin: vi.fn(async () => supa.client) }));
 
-const { NOINDEX, fetchB2cLanding, fetchCreatorHub, fetchStoreProduct, insideItems, productSlugOf, storefrontRobots } = await import(
-  "../src/components/storefront/storefront"
-);
+const {
+  BookCard,
+  BookCover,
+  NOINDEX,
+  fetchB2cLanding,
+  fetchCreatorHub,
+  fetchStoreProduct,
+  formatCoverFooterTitle,
+  insideItems,
+  productSlugOf,
+  storefrontRobots,
+} = await import("../src/components/storefront/storefront");
 
 describe("StorefrontFooter buyer legal links", () => {
   it("shows the buyer legal links by default and hides them on a gated (draft) product page", async () => {
@@ -20,7 +30,30 @@ describe("StorefrontFooter buyer legal links", () => {
 
     const gated = renderToStaticMarkup(createElement(StorefrontFooter, { showBuyerLegal: false }));
     expect(gated).not.toContain("/books/legal/");
-    expect(gated).toContain("Support: support@expanpress.com");
+    expect(gated).toContain(GLOBAL.email.support);
+    expect(gated).not.toContain("Support:");
+  });
+});
+
+describe("BookCard and formatProductPrice currency formatting (B-10)", () => {
+  it("formats non-USD product currency instead of hard-coding $ and USD", async () => {
+    const { createElement } = await import("react");
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    const { BookCard, formatProductPrice } = await import("../src/components/storefront/storefront");
+
+    expect(formatProductPrice(19, "EUR")).toEqual({ formatted: "€19.00", currency: "EUR" });
+    expect(formatProductPrice(19, null)).toEqual({ formatted: "$19.00", currency: GLOBAL.defaults.currency });
+
+    const html = renderToStaticMarkup(
+      createElement(BookCard, {
+        product: { slug: "euro_book", title: "Euro Book", price_usd: "19", currency: "EUR" },
+        creatorHandle: "ada",
+        creatorName: "Ada",
+      }),
+    );
+    expect(html).toContain("€19.00");
+    expect(html).toContain("EUR · one-time");
+    expect(html).not.toContain("USD · one-time");
   });
 });
 
@@ -179,5 +212,92 @@ describe("insideItems (Sprint 17 P3)", () => {
     expect(insideItems([null, "s", { label: "" , text: "t" }, { label: "L" }, { label: "L", text: 1 }, { label: "ok", text: "yes" }])).toEqual([
       { label: "ok", text: "yes" },
     ]);
+  });
+});
+
+describe("BookCover and BookCard layout, cover aspect ratio, and (Sample) footer", () => {
+  it("strips any trailing (Sample) from title when rendering the sample badge so it never duplicates", () => {
+    expect(formatCoverFooterTitle("The Quiet Workshop (Sample)", true, "(Sample)")).toEqual({
+      baseTitle: "The Quiet Workshop",
+      sampleBadge: "(Sample)",
+    });
+    expect(formatCoverFooterTitle("The Quiet Workshop", true, "(Sample)")).toEqual({
+      baseTitle: "The Quiet Workshop",
+      sampleBadge: "(Sample)",
+    });
+    expect(formatCoverFooterTitle("Full Book", false, "(Sample)")).toEqual({
+      baseTitle: "Full Book",
+      sampleBadge: null,
+    });
+  });
+
+  it("renders DIGITAL PDF header strip, aspect-preserving cover image (object-contain), and footer strip", async () => {
+    const { createElement } = await import("react");
+    const { renderToStaticMarkup } = await import("react-dom/server");
+
+    const html = renderToStaticMarkup(
+      createElement(BookCover, {
+        title: "The Quiet Workshop (Sample)",
+        coverImage: "/books/covers/sample_the_quiet_workshop.webp",
+        isSample: true,
+      }),
+    );
+    expect(html).toContain("DIGITAL PDF");
+    expect(html).toContain('src="/books/covers/sample_the_quiet_workshop.webp"');
+    expect(html).toContain("object-contain");
+    expect(html).not.toContain("object-cover");
+    expect(html).toContain("The Quiet Workshop");
+    expect(html).toContain("(Sample)");
+    expect(html).not.toContain("(Sample) (Sample)");
+    const imgStart = html.lastIndexOf("<img");
+    const footerSlice = html.slice(html.indexOf(">", imgStart) + 1);
+    expect(footerSlice.match(/\(Sample\)/g)?.length).toBe(1);
+    expect(html).toContain("ExpanPress");
+  });
+
+  it("renders BookCard with typographic fallback when no cover image is present", async () => {
+    const { createElement } = await import("react");
+    const { renderToStaticMarkup } = await import("react-dom/server");
+
+    const html = renderToStaticMarkup(
+      createElement(BookCard, {
+        product: {
+          slug: "e2e_live_book",
+          title: "E2E Live Book",
+          price_usd: "29",
+          cover_image: null,
+          is_sample: false,
+        },
+        creatorHandle: "e2e_live_creator",
+        creatorName: "E2E Live Creator",
+      }),
+    );
+    expect(html).toContain("DIGITAL PDF");
+    expect(html).not.toContain("<img");
+    expect(html).toContain("E2E Live Book");
+    expect(html).not.toContain("(Sample)");
+    expect(html).toContain("ExpanPress");
+    expect(html).toContain("$29.00");
+  });
+
+  it("fetchB2cLanding and fetchStoreProduct enrich products with cover_image, preview_pdf, and is_sample", async () => {
+    supa.client = hubClient({
+      handle: "expanpress_house",
+      display_name: "ExpanPress",
+      platform_handles: null,
+      bio: null,
+      photo: null,
+      products: [
+        {
+          ...product("sample_the_quiet_workshop", "live"),
+          title: "The Quiet Workshop (Sample)",
+          book_registry: "books/sample_the_quiet_workshop.json",
+        },
+      ],
+    });
+    const found = await fetchStoreProduct("expanpress_house", "sample_the_quiet_workshop");
+    expect(found?.product.cover_image).toBe("/books/covers/sample_the_quiet_workshop.webp");
+    expect(found?.product.preview_pdf).toBe("/books/previews/sample_the_quiet_workshop.pdf");
+    expect(found?.product.is_sample).toBe(true);
   });
 });

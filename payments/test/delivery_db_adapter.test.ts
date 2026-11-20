@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { getSupabaseAdmin } from "../src/supabase_admin";
 import { productionDeps, saleDeliveryConfirmed, StaleFenceError } from "../src/delivery";
+import { PAYMENT_PROVIDERS } from "../src/settings_registry";
 
 // The production DB adapter, reached through productionDeps().db. A fake Supabase client records every
 // table call and returns queued results, so each money-path branch can be driven directly.
@@ -118,6 +119,26 @@ describe("supabaseDeliveryDb: productForAlias", () => {
     results = [{ data: null, error: null }];
     expect(await db().productForAlias("fungies", "shared-alias")).toBeNull();
     expect(calls.map((c) => c.ops.find(([op]) => op === "eq")![1])).toEqual([["store_product_id", "shared-alias"]]);
+  });
+
+  it("reads product_id_column capability from PAYMENT_PROVIDERS during delivery lookup (B-08)", async () => {
+    useClient();
+    const orig = PAYMENT_PROVIDERS.fungies.product_id_column;
+    PAYMENT_PROVIDERS.fungies.product_id_column = "fungies_product_id";
+    try {
+      results = [
+        { data: null, error: null },
+        { data: { id: "p-f1", title: "Fungies Book", release_path: "r/f.pdf" }, error: null },
+      ];
+      const product = await db().productForAlias("fungies", "f-alias");
+      expect(product).toEqual({ id: "p-f1", title: "Fungies Book", releasePath: "r/f.pdf" });
+      expect(calls.map((c) => c.ops.find(([op]) => op === "eq")![1])).toEqual([
+        ["store_product_id", "f-alias"],
+        ["fungies_product_id", "f-alias"],
+      ]);
+    } finally {
+      PAYMENT_PROVIDERS.fungies.product_id_column = orig;
+    }
   });
 
   it("also matches a UUID alias on id", async () => {
