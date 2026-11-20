@@ -1,0 +1,14 @@
+# PICT pairwise model for BookPreviewer Read Aloud + accessible text disclosure.
+# Covers browser support x playback state x speed rate x panel collapsed x spread size x user action.
+# Run: /usr/local/bin/pict docs/testing/pairwise/book_previewer_read_aloud.model.txt > docs/testing/pairwise/book_previewer_read_aloud.rows.tsv
+
+browser_support: supported, unsupported
+playback_state: idle, playing, paused
+speed_rate: r075, r100, r125, r150
+panel_collapsed: collapsed, expanded
+spread_size: single_page, two_page
+action: play_pause, stop, speed_cycle, toggle_panel, page_flip, page_hide
+
+IF [browser_support] = "unsupported" THEN [playback_state] = "idle" AND [speed_rate] = "r100" AND [action] = "toggle_panel";
+IF [playback_state] IN {"playing", "paused"} THEN [panel_collapsed] = "expanded";
+IF [playback_state] = "idle" THEN [action] <> "stop";

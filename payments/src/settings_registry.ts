@@ -282,6 +282,44 @@ export interface BookPreviewToolbarLabels {
   reset_zoom: string;
   go_to_page: string;
   go_to_page_submit: string;
+  prev_page: string;
+  next_page: string;
+  navigation_aria_label: string;
+  region_aria_label: string;
+}
+
+export interface BookPreviewReadAloudLabels {
+  group_aria_label: string;
+  play: string;
+  pause: string;
+  resume: string;
+  stop: string;
+  play_text: string;
+  pause_text: string;
+  resume_text: string;
+  stop_text: string;
+  speed_aria_label: string;
+  rate_suffix: string;
+  finished_announcement: string;
+}
+
+export interface BookPreviewReadAloudSettings {
+  enabled: boolean;
+  rates: ReadonlyArray<number>;
+  default_rate: number;
+  max_chunk_chars: number;
+  labels: BookPreviewReadAloudLabels;
+}
+
+export interface BookPreviewTextStructureSettings {
+  line_y_tolerance: number;
+  heading_scale_ratio: number;
+  major_heading_scale_ratio: number;
+  paragraph_gap_ratio: number;
+  max_heading_chars: number;
+  toggle_single: string;
+  toggle_plural: string;
+  page_label_prefix: string;
 }
 
 export interface BookPreviewSettings {
@@ -307,6 +345,8 @@ export interface BookPreviewSettings {
   /** Ordered zoom multipliers starting at 1 (default 100%, then 2 zoom-in levels). */
   zoom_levels: ReadonlyArray<number>;
   toolbar_labels: BookPreviewToolbarLabels;
+  read_aloud: BookPreviewReadAloudSettings;
+  text_structure: BookPreviewTextStructureSettings;
 }
 
 export interface UsageWatchSettings {
@@ -447,6 +487,40 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
       reset_zoom: "Reset zoom",
       go_to_page: "Go to page",
       go_to_page_submit: "Go",
+      prev_page: "Previous preview page",
+      next_page: "Next preview page",
+      navigation_aria_label: "Preview navigation for {title}",
+      region_aria_label: "Interactive page-turning preview of {title}. Use Left and Right arrow keys or Prev and Next buttons to turn pages.",
+    },
+    read_aloud: {
+      enabled: true,
+      rates: [0.75, 1, 1.25, 1.5],
+      default_rate: 1,
+      max_chunk_chars: 180,
+      labels: {
+        group_aria_label: "Read aloud controls",
+        play: "Read aloud: preview text",
+        pause: "Pause reading aloud",
+        resume: "Resume reading aloud",
+        stop: "Stop reading aloud",
+        play_text: "Read aloud",
+        pause_text: "Pause",
+        resume_text: "Resume",
+        stop_text: "Stop",
+        speed_aria_label: "Reading speed",
+        rate_suffix: "×",
+        finished_announcement: "Finished reading preview pages.",
+      },
+    },
+    text_structure: {
+      line_y_tolerance: 2,
+      heading_scale_ratio: 1.2,
+      major_heading_scale_ratio: 1.45,
+      paragraph_gap_ratio: 1.7,
+      max_heading_chars: 120,
+      toggle_single: "Accessible text for visible preview page",
+      toggle_plural: "Accessible text for visible preview pages",
+      page_label_prefix: "Page",
     },
   },
   // Our handle rules, not a platform's (Instagram allows 1-30, Facebook requires 5). Reserved words are never assignable.
@@ -1434,10 +1508,18 @@ export const BOOK_PREVIEW_LIMITS = {
   visibility_margin_px: { min: 0, max: 1000 },
   zoom_level: { min: 1, max: 3 },
   zoom_levels_length: { min: 2, max: 5 },
+  read_aloud_rate: { min: 0.5, max: 3 },
+  read_aloud_rates_length: { min: 1, max: 8 },
+  read_aloud_max_chunk_chars: { min: 60, max: 500 },
+  text_line_y_tolerance: { min: 0.5, max: 12 },
+  text_heading_scale_ratio: { min: 1.05, max: 2.5 },
+  text_major_heading_scale_ratio: { min: 1.1, max: 3.0 },
+  text_paragraph_gap_ratio: { min: 1.1, max: 4.0 },
+  text_max_heading_chars: { min: 20, max: 240 },
 } as const;
 
-function isSafeBooksPrefix(v: unknown): v is string {
-  return typeof v === "string" && /^\/books\/[a-z0-9_-]+$/.test(v);
+function isSafeBooksPrefix(prefixValue: unknown): prefixValue is string {
+  return typeof prefixValue === "string" && /^\/books\/[a-z0-9_-]+$/.test(prefixValue);
 }
 
 export function loadBookPreviewSection(raw: Record<string, unknown> | undefined): BookPreviewSettings {
@@ -1458,31 +1540,31 @@ export function loadBookPreviewSection(raw: Record<string, unknown> | undefined)
       | "visibility_margin_px",
   ): number => {
     if (!(key in raw)) return defaults[key];
-    const v = raw[key];
+    const rawValue = raw[key];
     const { min, max } = BOOK_PREVIEW_LIMITS[key];
-    if (intInRange(v, min, max)) return v;
+    if (intInRange(rawValue, min, max)) return rawValue;
     fallbacks.push(key);
     return defaults[key];
   };
   const floatField = (key: "render_scale" | "max_shadow_opacity"): number => {
     if (!(key in raw)) return defaults[key];
-    const v = raw[key];
+    const rawValue = raw[key];
     const { min, max } = BOOK_PREVIEW_LIMITS[key];
-    if (typeof v === "number" && Number.isFinite(v) && v >= min && v <= max) return v;
+    if (typeof rawValue === "number" && Number.isFinite(rawValue) && rawValue >= min && rawValue <= max) return rawValue;
     fallbacks.push(key);
     return defaults[key];
   };
   const boolField = (key: "show_cover" | "use_portrait"): boolean => {
     if (!(key in raw)) return defaults[key];
-    const v = raw[key];
-    if (typeof v === "boolean") return v;
+    const rawValue = raw[key];
+    if (typeof rawValue === "boolean") return rawValue;
     fallbacks.push(key);
     return defaults[key];
   };
   const strField = (key: "heading" | "subheading"): string => {
     if (!(key in raw)) return defaults[key];
-    const v = raw[key];
-    if (typeof v === "string" && v.trim() !== "") return v.trim();
+    const rawValue = raw[key];
+    if (typeof rawValue === "string" && rawValue.trim() !== "") return rawValue.trim();
     fallbacks.push(key);
     return defaults[key];
   };
@@ -1536,9 +1618,165 @@ export function loadBookPreviewSection(raw: Record<string, unknown> | undefined)
         reset_zoom: labelField("reset_zoom"),
         go_to_page: labelField("go_to_page"),
         go_to_page_submit: labelField("go_to_page_submit"),
+        prev_page: labelField("prev_page"),
+        next_page: labelField("next_page"),
+        navigation_aria_label: labelField("navigation_aria_label"),
+        region_aria_label: labelField("region_aria_label"),
       };
     } else {
       fallbacks.push("toolbar_labels");
+    }
+  }
+
+  let readAloud: BookPreviewReadAloudSettings = defaults.read_aloud;
+  if ("read_aloud" in raw) {
+    const raRaw = raw.read_aloud;
+    if (raRaw && typeof raRaw === "object" && !Array.isArray(raRaw)) {
+      const rec = raRaw as Record<string, unknown>;
+      let enabled = defaults.read_aloud.enabled;
+      if ("enabled" in rec) {
+        if (typeof rec.enabled === "boolean") enabled = rec.enabled;
+        else fallbacks.push("read_aloud.enabled");
+      }
+
+      let rates: ReadonlyArray<number> = defaults.read_aloud.rates;
+      if ("rates" in rec) {
+        const candidate = rec.rates;
+        const validRates =
+          Array.isArray(candidate) &&
+          candidate.length >= BOOK_PREVIEW_LIMITS.read_aloud_rates_length.min &&
+          candidate.length <= BOOK_PREVIEW_LIMITS.read_aloud_rates_length.max &&
+          candidate.every(
+            (rate, idx) =>
+              typeof rate === "number" &&
+              Number.isFinite(rate) &&
+              rate >= BOOK_PREVIEW_LIMITS.read_aloud_rate.min &&
+              rate <= BOOK_PREVIEW_LIMITS.read_aloud_rate.max &&
+              (idx === 0 || rate > (candidate[idx - 1] as number)),
+          );
+        if (validRates) rates = [...(candidate as number[])];
+        else fallbacks.push("read_aloud.rates");
+      }
+
+      let defaultRate = rates.includes(defaults.read_aloud.default_rate)
+        ? defaults.read_aloud.default_rate
+        : (rates[0] ?? defaults.read_aloud.default_rate);
+      if ("default_rate" in rec) {
+        const dr = rec.default_rate;
+        if (typeof dr === "number" && Number.isFinite(dr) && rates.includes(dr)) {
+          defaultRate = dr;
+        } else {
+          fallbacks.push("read_aloud.default_rate");
+        }
+      }
+
+      let maxChunkChars = defaults.read_aloud.max_chunk_chars;
+      if ("max_chunk_chars" in rec) {
+        if (
+          intInRange(
+            rec.max_chunk_chars,
+            BOOK_PREVIEW_LIMITS.read_aloud_max_chunk_chars.min,
+            BOOK_PREVIEW_LIMITS.read_aloud_max_chunk_chars.max,
+          )
+        ) {
+          maxChunkChars = rec.max_chunk_chars;
+        } else {
+          fallbacks.push("read_aloud.max_chunk_chars");
+        }
+      }
+
+      let raLabels: BookPreviewReadAloudLabels = defaults.read_aloud.labels;
+      if ("labels" in rec) {
+        const lRaw = rec.labels;
+        if (lRaw && typeof lRaw === "object" && !Array.isArray(lRaw)) {
+          const lRec = lRaw as Record<string, unknown>;
+          const raLabelField = (labelKey: keyof BookPreviewReadAloudLabels): string => {
+            if (!(labelKey in lRec)) return defaults.read_aloud.labels[labelKey];
+            const rawLabel = lRec[labelKey];
+            if (typeof rawLabel === "string" && rawLabel.trim() !== "") return rawLabel.trim();
+            fallbacks.push(`read_aloud.labels.${labelKey}`);
+            return defaults.read_aloud.labels[labelKey];
+          };
+          raLabels = {
+            group_aria_label: raLabelField("group_aria_label"),
+            play: raLabelField("play"),
+            pause: raLabelField("pause"),
+            resume: raLabelField("resume"),
+            stop: raLabelField("stop"),
+            play_text: raLabelField("play_text"),
+            pause_text: raLabelField("pause_text"),
+            resume_text: raLabelField("resume_text"),
+            stop_text: raLabelField("stop_text"),
+            speed_aria_label: raLabelField("speed_aria_label"),
+            rate_suffix: raLabelField("rate_suffix"),
+            finished_announcement: raLabelField("finished_announcement"),
+          };
+        } else {
+          fallbacks.push("read_aloud.labels");
+        }
+      }
+
+      readAloud = {
+        enabled,
+        rates,
+        default_rate: defaultRate,
+        max_chunk_chars: maxChunkChars,
+        labels: raLabels,
+      };
+    } else {
+      fallbacks.push("read_aloud");
+    }
+  }
+
+  let textStructure: BookPreviewTextStructureSettings = defaults.text_structure;
+  if ("text_structure" in raw) {
+    const tsRaw = raw.text_structure;
+    if (tsRaw && typeof tsRaw === "object" && !Array.isArray(tsRaw)) {
+      const rec = tsRaw as Record<string, unknown>;
+      const tsFloat = (
+        fieldKey: "line_y_tolerance" | "heading_scale_ratio" | "major_heading_scale_ratio" | "paragraph_gap_ratio",
+        limitKey: "text_line_y_tolerance" | "text_heading_scale_ratio" | "text_major_heading_scale_ratio" | "text_paragraph_gap_ratio",
+      ): number => {
+        if (!(fieldKey in rec)) return defaults.text_structure[fieldKey];
+        const rawValue = rec[fieldKey];
+        const { min, max } = BOOK_PREVIEW_LIMITS[limitKey];
+        if (typeof rawValue === "number" && Number.isFinite(rawValue) && rawValue >= min && rawValue <= max) return rawValue;
+        fallbacks.push(`text_structure.${fieldKey}`);
+        return defaults.text_structure[fieldKey];
+      };
+      const tsStr = (fieldKey: "toggle_single" | "toggle_plural" | "page_label_prefix"): string => {
+        if (!(fieldKey in rec)) return defaults.text_structure[fieldKey];
+        const rawLabel = rec[fieldKey];
+        if (typeof rawLabel === "string" && rawLabel.trim() !== "") return rawLabel.trim();
+        fallbacks.push(`text_structure.${fieldKey}`);
+        return defaults.text_structure[fieldKey];
+      };
+      const headingRatio = tsFloat("heading_scale_ratio", "text_heading_scale_ratio");
+      const majorRatioRaw = tsFloat("major_heading_scale_ratio", "text_major_heading_scale_ratio");
+      const majorRatio = majorRatioRaw >= headingRatio ? majorRatioRaw : Math.max(headingRatio, defaults.text_structure.major_heading_scale_ratio);
+      if (majorRatioRaw < headingRatio) fallbacks.push("text_structure.major_heading_scale_ratio");
+
+      let maxHeadingChars = defaults.text_structure.max_heading_chars;
+      if ("max_heading_chars" in rec) {
+        if (intInRange(rec.max_heading_chars, BOOK_PREVIEW_LIMITS.text_max_heading_chars.min, BOOK_PREVIEW_LIMITS.text_max_heading_chars.max)) {
+          maxHeadingChars = rec.max_heading_chars;
+        } else {
+          fallbacks.push("text_structure.max_heading_chars");
+        }
+      }
+
+      textStructure = {
+        line_y_tolerance: tsFloat("line_y_tolerance", "text_line_y_tolerance"),
+        heading_scale_ratio: headingRatio,
+        major_heading_scale_ratio: majorRatio,
+        paragraph_gap_ratio: tsFloat("paragraph_gap_ratio", "text_paragraph_gap_ratio"),
+        max_heading_chars: maxHeadingChars,
+        toggle_single: tsStr("toggle_single"),
+        toggle_plural: tsStr("toggle_plural"),
+        page_label_prefix: tsStr("page_label_prefix"),
+      };
+    } else {
+      fallbacks.push("text_structure");
     }
   }
 
@@ -1563,6 +1801,8 @@ export function loadBookPreviewSection(raw: Record<string, unknown> | undefined)
     subheading: strField("subheading"),
     zoom_levels: zoomLevels,
     toolbar_labels: toolbarLabels,
+    read_aloud: readAloud,
+    text_structure: textStructure,
   };
 }
 

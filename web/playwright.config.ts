@@ -41,9 +41,24 @@ export default defineConfig({
   use: {
     baseURL: APP_URL,
     headless: true,
-    launchOptions: { args: ["--disable-dev-shm-usage", "--no-sandbox"] },
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  projects: [
+    {
+      name: "chromium",
+      use: {
+        ...devices["Desktop Chrome"],
+        launchOptions: { args: ["--disable-dev-shm-usage", "--no-sandbox"] },
+      },
+    },
+    {
+      name: "webkit",
+      use: { ...devices["Desktop Safari"] },
+    },
+    {
+      name: "firefox",
+      use: { ...devices["Desktop Firefox"] },
+    },
+  ],
   webServer: [
     {
       command: "pnpm exec tsx e2e/tls-cert.ts && pnpm exec tsx e2e/mock-supabase.ts",
