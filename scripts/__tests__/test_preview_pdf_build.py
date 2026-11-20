@@ -177,6 +177,45 @@ class PreviewPdfBuildSpecTests(unittest.TestCase):
             self.assertEqual(appended_pages, [1, 3])
             self.assertTrue(out_pdf.exists())
 
+    def test_render_cover_image_saves_webp_format(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            source_pdf = Path(tmp) / "full.pdf"
+            source_pdf.write_bytes(b"%PDF-1.4\n")
+            out_webp = Path(tmp) / "cover.webp"
+
+            saved_calls: list[tuple[Path, str]] = []
+
+            class FakeImage:
+                def convert(self, _mode: str):
+                    return self
+
+                def save(self, path: Path, fmt: str, **_kwargs) -> None:
+                    saved_calls.append((Path(path), fmt))
+                    Path(path).write_bytes(b"RIFF....WEBP")
+
+            class FakePage:
+                width = 432.0
+
+                def to_image(self, resolution: int):
+                    self.resolution = resolution
+                    return types.SimpleNamespace(original=FakeImage())
+
+            class FakePdf:
+                pages = [FakePage()]
+
+                def __enter__(self):
+                    return self
+
+                def __exit__(self, *args):
+                    return False
+
+            fake_pdfplumber = types.SimpleNamespace(open=lambda _p: FakePdf())
+            with mock.patch.dict(sys.modules, {"pdfplumber": fake_pdfplumber}):
+                preview_pdf_build.render_cover_image(source_pdf, out_webp, width_px=900)
+
+            self.assertEqual(saved_calls, [(out_webp, "WEBP")])
+            self.assertTrue(out_webp.exists())
+
 
 if __name__ == "__main__":
     unittest.main()
