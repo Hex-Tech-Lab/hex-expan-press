@@ -23,6 +23,14 @@ function findRepoRoot(): string {
   return cwd;
 }
 
+// Warn at most once per product per process: a resolver call runs on every landing render.
+const warnedKeys = new Set<string>();
+function warnOnce(key: string, message: string): void {
+  if (warnedKeys.has(key)) return;
+  warnedKeys.add(key);
+  console.warn(message);
+}
+
 function isSafeHttpsUrl(candidate: string): boolean {
   if (!URL.canParse(candidate)) return false;
   const u = new URL(candidate);
@@ -72,7 +80,9 @@ function readBookJsonSafe(bookRegistryPath: string): Record<string, unknown> | n
     }
     return parsed as Record<string, unknown>;
   } catch (err) {
-    console.error(`[book-assets] books json unreadable for ${bookRegistryPath}: ${err instanceof Error ? err.name : "unknown"}`);
+    const code = (err as { code?: unknown } | null)?.code;
+    const reason = typeof code === "string" ? code : err instanceof Error ? err.name : "unknown";
+    console.error(`[book-assets] books json unreadable for ${bookRegistryPath}: ${reason}`);
     return null;
   }
 }
@@ -101,6 +111,15 @@ export function resolveProductBookAssets(product: {
   const bookJson = registryPath ? readBookJsonSafe(registryPath) : null;
   // A non-house product takes house assets only when its id is the exact product_id of the books/*.json identity.
   const identityMatch = typeof product.id === "string" && product.id !== "" && bookJson?.product_id === product.id;
+  const warnKey = String(product.id ?? slug);
+  // Impersonation signal: a non-house product whose registry file names a different product id.
+  // A non-house product whose file has no product_id, or its own matching id, stays silent.
+  if (!houseCreator && bookJson && typeof bookJson.product_id === "string" && bookJson.product_id !== product.id) {
+    warnOnce(`identity:${warnKey}`, `[book-assets] non-house product ${warnKey} resolves to ${registryPath}, which names another product; assets withheld`);
+  }
+  if (houseCreator && !registryPath && !registryOverride) {
+    warnOnce(`no-registry:${warnKey}`, `[book-assets] house product ${warnKey} has no book_registry or override; no assets`);
+  }
   if (!houseCreator && !identityMatch) {
     return { book_registry: null, cover_image: null, preview_pdf: null, is_sample: false, overview: null };
   }
@@ -117,6 +136,9 @@ export function resolveProductBookAssets(product: {
   // so a non-sample gated book with a sample-like slug or "(Sample)" title stays hidden from the shelf.
   if (bookJson?.is_sample !== undefined && typeof bookJson.is_sample !== "boolean") {
     console.error(`[book-assets] non-boolean is_sample in ${registryPath} treated as not sample`);
+  }
+  if (registryOverride?.is_sample !== undefined && typeof registryOverride.is_sample !== "boolean") {
+    console.error(`[book-assets] non-boolean override is_sample for slug ${slug} treated as not sample`);
   }
   const is_sample = registryOverride?.is_sample === true || bookJson?.is_sample === true;
 
