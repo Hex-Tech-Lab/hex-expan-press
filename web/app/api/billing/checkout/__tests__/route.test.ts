@@ -542,6 +542,32 @@ describe("billing/checkout active consent gate (P1)", () => {
     expect(body.error).toMatch(/required creator consents are not active/);
   });
 
+  it.each([
+    ["GET", (r: NextRequest) => GET(r)],
+    ["POST", () => POST(new NextRequest(CHECKOUT_URL, {
+      method: "POST",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ product: PID, buyer_email: "ann@example.com", buyer_email_confirm: "ann@example.com", buyer_consent: "true" }).toString(),
+    }))],
+  ])("%s: a gated product (the sample) is refused 403 before any consent, rail, router, or provider call", async (_method, call) => {
+    vi.mocked(MatrixRouter.getNextProvider).mockClear();
+    // Any read past the products lookup throws, so the route's catch would answer 500. A 403 proves nothing else ran.
+    adminModule.mockAdminClient = {
+      from: (table: string) => {
+        if (table === "products") {
+          return productTableMock({ data: { id: PID, creator_id: OWNER_ID, release_sha256: RELEASE_SHA, checkout_mode: "gated" }, error: null });
+        }
+        throw new Error(`unexpected read of ${table} for a gated product`);
+      },
+    };
+
+    const res = await call(request());
+    expect(res.status).toBe(403);
+    expect(res.headers.get("location")).toBeNull();
+    expect(await res.json()).toMatchObject({ error: "Checkout forbidden: product is not launched" });
+    expect(MatrixRouter.getNextProvider).not.toHaveBeenCalled();
+  });
+
   it("returns 403 when a required kind has AMBIGUOUS heads (given + refused race leftover) — strict single-head gate", async () => {
     // Pre-lock concurrent submissions can fork a kind into two heads: the
     // permissive display resolver would count C2 as active off the given
