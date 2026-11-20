@@ -172,12 +172,24 @@ export interface GlobalSettings {
     house_title_note: string;
     digital_pdf_kicker: string;
     sample_badge_label: string;
+    show_non_live_samples: boolean;
+    allowed_non_live_sample_modes: string[];
+    coming_soon_badge: string;
+    sample_preview_cta: string;
+    browse_books_label: string;
+    browse_books_path: string;
+    always_show_buyer_legal: boolean;
+    /** Buyer legal links (label and path) shown in the storefront footer and on the pay root page. Fixed copy and paths. */
+    buyer_legal_links: ReadonlyArray<{ label: string; path: string }>;
+    pay_root_heading: string;
+    pay_root_description: string;
     covers_base_path: string;
     previews_base_path: string;
     book_assets: Record<
       string,
       { book_registry?: string; cover_image?: string | null; preview_pdf?: string | null; is_sample?: boolean }
     >;
+    product_layout: StorefrontProductLayoutSettings;
   };
   /** Product-page PDF previewer tunables (PDF.js + StPageFlip). */
   book_preview: BookPreviewSettings;
@@ -248,6 +260,18 @@ product_slug: { min_length: number; max_length: number; separator: string };
   /** Daily usage watch (scripts/ops/usage_watch.ts). Limits are the plan limits we are on (Vercel Hobby, Supabase Free org,
    *  Upstash pay-as-you-go); warn_ratio is the fraction of a limit at which the watch reports WARN and exits non-zero. */
   usage_watch: UsageWatchSettings;
+}
+
+export interface StorefrontProductLayoutSettings {
+  cover_max_width_px: number;
+  cover_max_width_pct: number;
+  gap_mobile_px: number;
+  gap_desktop_px: number;
+  preview_section_id: string;
+  preview_cue_label: string;
+  cue_bounce_distance_px: number;
+  cue_bounce_duration_s: number;
+  cue_bounce_repeat_delay_s: number;
 }
 
 export interface BookPreviewSettings {
@@ -351,11 +375,36 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     house_title_note: `House title. Published by ${STOREFRONT_BRAND}. No creator revenue split.`,
     digital_pdf_kicker: "DIGITAL PDF",
     sample_badge_label: "(Sample)",
+    show_non_live_samples: true,
+    allowed_non_live_sample_modes: ["gated"],
+    coming_soon_badge: "Coming soon",
+    sample_preview_cta: "Preview sample",
+    browse_books_label: "Browse books",
+    browse_books_path: "/books",
+    always_show_buyer_legal: true,
+    buyer_legal_links: [
+      { label: "Privacy Policy", path: "/books/legal/privacy.html" },
+      { label: "Terms of Sale", path: "/books/legal/terms.html" },
+      { label: "Refund Policy", path: "/books/legal/refund-policy.html" },
+    ],
+    pay_root_heading: `${STOREFRONT_BRAND} Checkout`,
+    pay_root_description: "Secure digital book checkout. Browse published titles or review buyer legal policies below.",
     covers_base_path: "/books/covers",
     previews_base_path: "/books/previews",
     book_assets: {
       "500k_playbook": { book_registry: "books/duane.json" },
       sample_the_quiet_workshop: { book_registry: "books/sample_the_quiet_workshop.json" },
+    },
+    product_layout: {
+      cover_max_width_px: 384,
+      cover_max_width_pct: 36,
+      gap_mobile_px: 24,
+      gap_desktop_px: 56,
+      preview_section_id: "book-preview",
+      preview_cue_label: "Have a look inside",
+      cue_bounce_distance_px: 5,
+      cue_bounce_duration_s: 1.8,
+      cue_bounce_repeat_delay_s: 0.4,
     },
   },
   book_preview: {
@@ -746,19 +795,127 @@ export function loadPaymentsSection(raw: Record<string, unknown> | undefined): G
   };
 }
 
-/** storefront: validates b2c_landing_url, brand_name, thanks_path_template, house_title_note, card copy and asset paths;
- *  falls back per key on invalid input. publisher_label is derived from brand_name (one source), so a raw publisher_label is not read. */
+export const STOREFRONT_PRODUCT_LAYOUT_LIMITS = {
+  cover_max_width_px: { min: 240, max: 600 },
+  cover_max_width_pct: { min: 25, max: 50 },
+  gap_mobile_px: { min: 8, max: 64 },
+  gap_desktop_px: { min: 40, max: 72 },
+  cue_bounce_distance_px: { min: 1, max: 16 },
+  cue_bounce_duration_s: { min: 0.4, max: 5 },
+  cue_bounce_repeat_delay_s: { min: 0, max: 5 },
+} as const;
+
+function loadStorefrontProductLayout(
+  raw: unknown,
+  fallbacks: string[],
+): StorefrontProductLayoutSettings {
+  const defaults = DEFAULT_GLOBAL.storefront.product_layout;
+  if (raw === undefined) return defaults;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    fallbacks.push("product_layout");
+    return defaults;
+  }
+  const layoutRaw = raw as Record<string, unknown>;
+  const intField = (
+    key: "cover_max_width_px" | "cover_max_width_pct" | "gap_mobile_px" | "gap_desktop_px" | "cue_bounce_distance_px",
+  ): number => {
+    if (!(key in layoutRaw)) return defaults[key];
+    const { min, max } = STOREFRONT_PRODUCT_LAYOUT_LIMITS[key];
+    if (intInRange(layoutRaw[key], min, max)) return layoutRaw[key];
+    fallbacks.push(`product_layout.${key}`);
+    return defaults[key];
+  };
+  const floatField = (key: "cue_bounce_duration_s" | "cue_bounce_repeat_delay_s"): number => {
+    if (!(key in layoutRaw)) return defaults[key];
+    const candidate = layoutRaw[key];
+    const { min, max } = STOREFRONT_PRODUCT_LAYOUT_LIMITS[key];
+    if (typeof candidate === "number" && Number.isFinite(candidate) && candidate >= min && candidate <= max) return candidate;
+    fallbacks.push(`product_layout.${key}`);
+    return defaults[key];
+  };
+  let previewSectionId = defaults.preview_section_id;
+  if ("preview_section_id" in layoutRaw) {
+    if (typeof layoutRaw.preview_section_id === "string" && /^[a-z][a-z0-9_-]{1,63}$/.test(layoutRaw.preview_section_id)) {
+      previewSectionId = layoutRaw.preview_section_id;
+    } else {
+      fallbacks.push("product_layout.preview_section_id");
+    }
+  }
+  let previewCueLabel = defaults.preview_cue_label;
+  if ("preview_cue_label" in layoutRaw) {
+    if (typeof layoutRaw.preview_cue_label === "string" && layoutRaw.preview_cue_label.trim() !== "") {
+      previewCueLabel = layoutRaw.preview_cue_label.trim();
+    } else {
+      fallbacks.push("product_layout.preview_cue_label");
+    }
+  }
+  return {
+    cover_max_width_px: intField("cover_max_width_px"),
+    cover_max_width_pct: intField("cover_max_width_pct"),
+    gap_mobile_px: intField("gap_mobile_px"),
+    gap_desktop_px: intField("gap_desktop_px"),
+    preview_section_id: previewSectionId,
+    preview_cue_label: previewCueLabel,
+    cue_bounce_distance_px: intField("cue_bounce_distance_px"),
+    cue_bounce_duration_s: floatField("cue_bounce_duration_s"),
+    cue_bounce_repeat_delay_s: floatField("cue_bounce_repeat_delay_s"),
+  };
+}
+
+/** storefront: validates b2c_landing_url, brand_name, thanks_path_template, house_title_note, card copy, sample listing flags,
+ *  asset paths, and product_layout; falls back per key on invalid input. publisher_label is derived from brand_name (one source). */
 export function loadStorefrontSection(raw: Record<string, unknown> | undefined): GlobalSettings["storefront"] {
   const defaults = DEFAULT_GLOBAL.storefront;
   if (!raw) return defaults;
   const fallbacks: string[] = [];
-  const strField = (key: "digital_pdf_kicker" | "sample_badge_label" | "house_title_note"): string => {
+  const strField = (
+    key:
+      | "digital_pdf_kicker"
+      | "sample_badge_label"
+      | "house_title_note"
+      | "coming_soon_badge"
+      | "sample_preview_cta"
+      | "browse_books_label"
+      | "pay_root_heading"
+      | "pay_root_description",
+  ): string => {
     if (raw[key] === undefined) return defaults[key];
     const v = raw[key];
     if (typeof v === "string" && v.trim() !== "") return v.trim();
     fallbacks.push(key);
     return defaults[key];
   };
+  let browseBooksPath = defaults.browse_books_path;
+  if ("browse_books_path" in raw) {
+    if (raw.browse_books_path === "/books" || isSafeBooksPrefix(raw.browse_books_path)) {
+      browseBooksPath = raw.browse_books_path;
+    } else {
+      fallbacks.push("browse_books_path");
+    }
+  }
+  let alwaysShowBuyerLegal = defaults.always_show_buyer_legal;
+  if ("always_show_buyer_legal" in raw) {
+    if (typeof raw.always_show_buyer_legal === "boolean") alwaysShowBuyerLegal = raw.always_show_buyer_legal;
+    else fallbacks.push("always_show_buyer_legal");
+  }
+  let showNonLiveSamples = defaults.show_non_live_samples;
+  if ("show_non_live_samples" in raw) {
+    if (typeof raw.show_non_live_samples === "boolean") showNonLiveSamples = raw.show_non_live_samples;
+    else fallbacks.push("show_non_live_samples");
+  }
+  const NON_LIVE_MODES = new Set(["gated", "sandbox", "paddle"]);
+  let allowedNonLiveSampleModes = defaults.allowed_non_live_sample_modes;
+  if ("allowed_non_live_sample_modes" in raw) {
+    const rawModes = raw.allowed_non_live_sample_modes;
+    if (
+      Array.isArray(rawModes) &&
+      rawModes.every((m) => typeof m === "string" && NON_LIVE_MODES.has(m.trim()))
+    ) {
+      allowedNonLiveSampleModes = Array.from(new Set(rawModes.map((m) => m.trim())));
+    } else {
+      fallbacks.push("allowed_non_live_sample_modes");
+    }
+  }
   const b2cLanding = isHttpsUrl(raw.b2c_landing_url) ? raw.b2c_landing_url : defaults.b2c_landing_url;
   if (raw.b2c_landing_url !== undefined && !isHttpsUrl(raw.b2c_landing_url)) fallbacks.push("b2c_landing_url");
   const brandName =
@@ -807,6 +964,7 @@ export function loadStorefrontSection(raw: Record<string, unknown> | undefined):
     }
   }
   const houseNote = strField("house_title_note");
+  const productLayout = loadStorefrontProductLayout(raw.product_layout, fallbacks);
   if (fallbacks.length > 0) warnFallback("global.json", `invalid storefront values for ${fallbacks.join(", ")}`);
   return {
     b2c_landing_url: b2cLanding,
@@ -816,9 +974,21 @@ export function loadStorefrontSection(raw: Record<string, unknown> | undefined):
     house_title_note: houseNote,
     digital_pdf_kicker: strField("digital_pdf_kicker"),
     sample_badge_label: strField("sample_badge_label"),
+    show_non_live_samples: showNonLiveSamples,
+    allowed_non_live_sample_modes: allowedNonLiveSampleModes,
+    coming_soon_badge: strField("coming_soon_badge"),
+    sample_preview_cta: strField("sample_preview_cta"),
+    browse_books_label: strField("browse_books_label"),
+    browse_books_path: browseBooksPath,
+    always_show_buyer_legal: alwaysShowBuyerLegal,
+    // Fixed legal set (reviewed copy): not overridable from global.json, so the wording cannot drift from the defaults.
+    buyer_legal_links: defaults.buyer_legal_links,
+    pay_root_heading: strField("pay_root_heading"),
+    pay_root_description: strField("pay_root_description"),
     covers_base_path: coversBasePath,
     previews_base_path: previewsBasePath,
     book_assets: bookAssets,
+    product_layout: productLayout,
   };
 }
 

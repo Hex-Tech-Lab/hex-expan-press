@@ -17,17 +17,42 @@ afterEach(() => {
 });
 
 describe("loadStorefrontSection (settings_registry)", () => {
-  it("returns defaults when section is omitted", () => {
-    expect(loadStorefrontSection(undefined)).toEqual(DEFAULT_GLOBAL.storefront);
+  it("returns defaults when section is omitted (including non-live sample launch flags and LV-02/03/05 keys)", () => {
+    const out = loadStorefrontSection(undefined);
+    expect(out).toEqual(DEFAULT_GLOBAL.storefront);
+    expect(out.show_non_live_samples).toBe(true);
+    expect(out.allowed_non_live_sample_modes).toEqual(["gated"]);
+    expect(out.coming_soon_badge).toBe("Coming soon");
+    expect(out.sample_preview_cta).toBe("Preview sample");
+    expect(out.browse_books_label).toBe("Browse books");
+    expect(out.browse_books_path).toBe("/books");
+    expect(out.always_show_buyer_legal).toBe(true);
+    expect(out.pay_root_heading).toBe("ExpanPress Checkout");
+    expect(out.pay_root_description.length).toBeGreaterThan(0);
+    expect(out.buyer_legal_links.map((l) => l.label)).toEqual(["Privacy Policy", "Terms of Sale", "Refund Policy"]);
+    expect(out.buyer_legal_links.map((l) => l.path)).toEqual([
+      "/books/legal/privacy.html",
+      "/books/legal/terms.html",
+      "/books/legal/refund-policy.html",
+    ]);
   });
 
-  it("accepts valid overrides for card labels, safe /books/* base paths, and slug asset map", () => {
+  it("accepts valid overrides for card labels, sample listing toggles, safe /books/* base paths, and slug asset map", () => {
     const out = loadStorefrontSection({
       b2c_landing_url: "https://staging.expanpress.com/books",
       digital_pdf_kicker: "E-BOOK PDF",
       brand_name: "ExpanPress Books",
       publisher_label: "Ignored: publisher_label is derived from brand_name",
       sample_badge_label: "(Preview)",
+      show_non_live_samples: false,
+      allowed_non_live_sample_modes: ["gated", "sandbox"],
+      coming_soon_badge: "Launching soon",
+      sample_preview_cta: "Read Chapter 1",
+      browse_books_label: "Explore catalog",
+      browse_books_path: "/books/catalog",
+      always_show_buyer_legal: false,
+      pay_root_heading: "Pay ExpanPress",
+      pay_root_description: "Secure hosted checkout.",
       covers_base_path: "/books/cover_art",
       previews_base_path: "/books/preview_pdfs",
       book_assets: {
@@ -44,6 +69,15 @@ describe("loadStorefrontSection (settings_registry)", () => {
     expect(out.brand_name).toBe("ExpanPress Books");
     expect(out.publisher_label).toBe("ExpanPress Books");
     expect(out.sample_badge_label).toBe("(Preview)");
+    expect(out.show_non_live_samples).toBe(false);
+    expect(out.allowed_non_live_sample_modes).toEqual(["gated", "sandbox"]);
+    expect(out.coming_soon_badge).toBe("Launching soon");
+    expect(out.sample_preview_cta).toBe("Read Chapter 1");
+    expect(out.browse_books_label).toBe("Explore catalog");
+    expect(out.browse_books_path).toBe("/books/catalog");
+    expect(out.always_show_buyer_legal).toBe(false);
+    expect(out.pay_root_heading).toBe("Pay ExpanPress");
+    expect(out.pay_root_description).toBe("Secure hosted checkout.");
     expect(out.covers_base_path).toBe("/books/cover_art");
     expect(out.previews_base_path).toBe("/books/preview_pdfs");
     expect(out.book_assets.custom_slug).toEqual({
@@ -54,20 +88,83 @@ describe("loadStorefrontSection (settings_registry)", () => {
     });
   });
 
-  it("falls back to defaults for unsafe paths, non-https landing url, or blank labels", () => {
+  it("falls back to defaults for unsafe paths, non-https landing url, invalid sample modes, or blank labels", () => {
     const warn = vi.spyOn(console, "error").mockImplementation(() => undefined);
     const out = loadStorefrontSection({
       b2c_landing_url: "http://expanpress.com/books",
       digital_pdf_kicker: "   ",
+      show_non_live_samples: "yes",
+      allowed_non_live_sample_modes: ["live"],
+      coming_soon_badge: "",
+      sample_preview_cta: "   ",
+      browse_books_label: "   ",
+      browse_books_path: "/creator",
+      always_show_buyer_legal: "true",
+      pay_root_heading: "",
+      pay_root_description: "   ",
       covers_base_path: "/etc/passwd",
       previews_base_path: "/books/../secret",
       book_assets: { "bad-slug": { cover_image: "/x" } },
     });
     expect(out.b2c_landing_url).toBe(DEFAULT_GLOBAL.storefront.b2c_landing_url);
     expect(out.digital_pdf_kicker).toBe(DEFAULT_GLOBAL.storefront.digital_pdf_kicker);
+    expect(out.show_non_live_samples).toBe(DEFAULT_GLOBAL.storefront.show_non_live_samples);
+    expect(out.allowed_non_live_sample_modes).toEqual(DEFAULT_GLOBAL.storefront.allowed_non_live_sample_modes);
+    expect(out.coming_soon_badge).toBe(DEFAULT_GLOBAL.storefront.coming_soon_badge);
+    expect(out.sample_preview_cta).toBe(DEFAULT_GLOBAL.storefront.sample_preview_cta);
+    expect(out.browse_books_label).toBe(DEFAULT_GLOBAL.storefront.browse_books_label);
+    expect(out.browse_books_path).toBe(DEFAULT_GLOBAL.storefront.browse_books_path);
+    expect(out.always_show_buyer_legal).toBe(DEFAULT_GLOBAL.storefront.always_show_buyer_legal);
+    expect(out.pay_root_heading).toBe(DEFAULT_GLOBAL.storefront.pay_root_heading);
+    expect(out.pay_root_description).toBe(DEFAULT_GLOBAL.storefront.pay_root_description);
     expect(out.covers_base_path).toBe(DEFAULT_GLOBAL.storefront.covers_base_path);
     expect(out.previews_base_path).toBe(DEFAULT_GLOBAL.storefront.previews_base_path);
     expect(out.book_assets["bad-slug"]).toBeUndefined();
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it("validates storefront.product_layout overrides and falls back when out of range or malformed", () => {
+    const valid = loadStorefrontSection({
+      product_layout: {
+        cover_max_width_px: 360,
+        cover_max_width_pct: 34,
+        gap_mobile_px: 20,
+        gap_desktop_px: 48,
+        preview_section_id: "sample-preview",
+        preview_cue_label: "Peek inside",
+        cue_bounce_distance_px: 6,
+        cue_bounce_duration_s: 1.5,
+        cue_bounce_repeat_delay_s: 0.25,
+      },
+    });
+    expect(valid.product_layout).toEqual({
+      cover_max_width_px: 360,
+      cover_max_width_pct: 34,
+      gap_mobile_px: 20,
+      gap_desktop_px: 48,
+      preview_section_id: "sample-preview",
+      preview_cue_label: "Peek inside",
+      cue_bounce_distance_px: 6,
+      cue_bounce_duration_s: 1.5,
+      cue_bounce_repeat_delay_s: 0.25,
+    });
+
+    const warn = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const invalid = loadStorefrontSection({
+      product_layout: {
+        cover_max_width_px: 9999,
+        cover_max_width_pct: 90,
+        gap_mobile_px: 2,
+        gap_desktop_px: 200,
+        preview_section_id: "Bad Id!",
+        preview_cue_label: "   ",
+        cue_bounce_distance_px: 0,
+        cue_bounce_duration_s: 20,
+        cue_bounce_repeat_delay_s: -1,
+      },
+    });
+    expect(invalid.product_layout).toEqual(DEFAULT_GLOBAL.storefront.product_layout);
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();
   });
@@ -131,6 +228,9 @@ describe("loadBookIdentity optional media fields", () => {
     expect(sample.cover_image).toBe("/books/covers/sample_the_quiet_workshop.webp");
     expect(sample.preview_pdf).toBe("/books/previews/sample_the_quiet_workshop.pdf");
     expect(sample.is_sample).toBe(true);
+    expect(sample.overview).toBeDefined();
+    expect(sample.overview).toContain("Setting Up the Bench");
+    expect(sample.overview?.toLowerCase()).toContain("sample");
   });
 
   it("omits optional keys when not present in a book JSON", () => {

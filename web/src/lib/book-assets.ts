@@ -8,6 +8,7 @@ export interface ResolvedBookAssets {
   cover_image: string | null;
   preview_pdf: string | null;
   is_sample: boolean;
+  overview: string | null;
 }
 
 const SAFE_BOOK_REGISTRY_RE = /^books\/[a-z0-9_]+\.json$/;
@@ -104,5 +105,8 @@ export function resolveProductBookAssets(product: {
       isSampleTitle(product.title),
   );
 
-  return { book_registry: registryPath, cover_image, preview_pdf, is_sample };
+  const overview =
+    typeof bookJson?.overview === "string" && bookJson.overview.trim() !== "" ? bookJson.overview.trim() : null;
+
+  return { book_registry: registryPath, cover_image, preview_pdf, is_sample, overview };
 }

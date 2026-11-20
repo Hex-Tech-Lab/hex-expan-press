@@ -26,6 +26,7 @@ const appEnv: Record<string, string> = {
   POLAR_CHECKOUT_URL: "",
   ALLOWED_AUTH_HOSTS: "localhost",
   NEXT_PUBLIC_ONBOARDING_ACTIVE: "true",
+  E2E_PROXY_HOST_OVERRIDE: "1",
   // The app's server-side fetches reach the HTTPS mock; trust only this run's throwaway certificate.
   NODE_EXTRA_CA_CERTS: join(E2E.tlsDir, "cert.pem"),
 };

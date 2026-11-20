@@ -1,15 +1,19 @@
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+const mockPort = Number(process.env.E2E_MOCK_PORT || 54399);
+const firmaTlsPort = Number(process.env.E2E_FIRMA_TLS_PORT || 54400);
+const appPort = Number(process.env.E2E_APP_PORT || 3100);
+
 /** Single source for every E2E port, id and timeout (no scattered magic numbers). */
 export const E2E = {
-  mockPort: 54399,
+  mockPort,
   /** HTTPS twin of the mock, for Firma: the app's fetchWithRelease refuses http (sealed contract). */
-  firmaTlsPort: 54400,
+  firmaTlsPort,
   /** Throwaway self-signed cert, regenerated per run; trusted only by the test processes via NODE_EXTRA_CA_CERTS.
    *  Outside test-results/: Playwright wipes that directory at the start of every run. */
-  tlsDir: join(tmpdir(), "expan-e2e-tls"),
-  appPort: 3100,
+  tlsDir: join(tmpdir(), appPort === 3100 ? "expan-e2e-tls" : `expan-e2e-tls-${appPort}`),
+  appPort,
   userId: "00000000-0000-4000-8000-0000000000e2",
   /** Creator that owns the E2E test product (products.creator_id, consents.creator_id). */
   creatorId: "00000000-0000-4000-8000-0000000000c1",
