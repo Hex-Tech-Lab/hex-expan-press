@@ -1,0 +1,14 @@
+# PICT pairwise model for the buyer download link (web/app/books/d/[token]/route.ts): token state x method x release x referrer.
+# Factors: token state x method x release present x referrer.
+# "used-up" is not a state on main (no download limit exists on main), so it is not modelled.
+# Run: /usr/local/bin/pict docs/testing/pairwise/download_link.model.txt > docs/testing/pairwise/download_link.rows.tsv
+
+token_state: valid, expired, unknown, malformed, no_expiry
+method: GET, HEAD
+release_present: yes, no
+referrer: none, external, same_origin
+
+# HEAD never reads products.release_path (it is a non-logging probe), so the release factor does not apply to HEAD.
+IF [method] = "HEAD" THEN [release_present] = "yes";
+# The release is only looked up after the link row validates, so it does not vary for the other token states.
+IF [token_state] <> "valid" THEN [release_present] = "yes";

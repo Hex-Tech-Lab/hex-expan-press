@@ -1,0 +1,17 @@
+# PICT pairwise model for pay. root branding and host confinement routing
+# (web/proxy.ts: payRootHtml, E2E_PROXY_HOST_OVERRIDE, buyerCountryBlocked, host redirects, noindex).
+# Run: /usr/local/bin/pict docs/testing/pairwise/pay_root.model.txt > docs/testing/pairwise/pay_root.rows.tsv
+
+url_host: pay_host, main_host, www_host, localhost
+host_header: pay_host, main_host, www_host, localhost
+node_env: development, production
+host_override: enabled, disabled
+path: root, root_empty, checkout_page, checkout_api, buyer_legal, buyer_providers, creator_legal, books, favicon, robots
+method: GET, HEAD
+country: US, DE, empty
+
+IF [url_host] = "pay_host" THEN [host_header] = "pay_host";
+IF [url_host] = "main_host" THEN [host_header] = "main_host";
+IF [url_host] = "www_host" THEN [host_header] = "www_host";
+IF [url_host] <> "localhost" THEN [host_override] = "disabled" AND [node_env] = "production";
+IF [path] <> "checkout_page" AND [path] <> "checkout_api" THEN [country] = "empty";

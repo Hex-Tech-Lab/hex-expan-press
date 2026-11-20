@@ -1,0 +1,12 @@
+# PICT pairwise model for webhook buyer consent parsing (buyer-supplied, recorded only).
+# Paddle reads custom_data.buyer_consent; Creem metadata key is buyer_email_consent.
+# Paddle: src/adapters/payments/paddle.adapter.ts parseBuyerConsent, via PaddleAdapter.parseAndValidateWebhook.
+# Creem: checkout sends metadata[buyer_email_consent] (supports_consent_metadata), but the Creem adapter never reads it.
+# Run: /usr/local/bin/pict docs/testing/pairwise/consent_parser.model.txt > docs/testing/pairwise/consent_parser.rows.tsv
+
+provider: paddle, creem
+field: absent, null, present
+value: true, false, "true", "false", 1, "yes", not_applicable
+
+IF [field] <> "present" THEN [value] = "not_applicable";
+IF [field] = "present" THEN [value] <> "not_applicable";

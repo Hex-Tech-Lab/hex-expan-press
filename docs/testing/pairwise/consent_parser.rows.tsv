@@ -1,0 +1,17 @@
+provider	field	value
+creem	present	true
+paddle	present	"yes"
+creem	present	"yes"
+paddle	present	false
+creem	present	"false"
+creem	present	false
+paddle	present	"true"
+paddle	present	1
+paddle	present	"false"
+paddle	present	true
+paddle	null	not_applicable
+creem	absent	not_applicable
+creem	null	not_applicable
+creem	present	1
+paddle	absent	not_applicable
+creem	present	"true"
