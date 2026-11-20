@@ -1,0 +1,37 @@
+payments/test/book_preview_settings.test.ts
+  s_0e99959cd74c50::t_c202001b34bd6b 74-118,179-181
+web/__tests__/book-assets.test.ts
+  s_0e99959cd74c50::t_750381c5a032a4 47,50-55,61-62,77,92
+web/__tests__/storefront.test.ts
+  s_0e99959cd74c50::t_d0430f664f406a 302
+web/src/components/storefront/storefront.tsx
+  s_0e99959cd74c50::t_9fde14c61da110 55,132,141
+books/sample_the_quiet_workshop.json
+  s_0e99959cd74c50::t_2e48c53575d9ae 8
+payments/book_identity.ts
+  s_0e99959cd74c50::t_b9cc491f721b13 11,63
+web/app/books/[handle]/[product]/__tests__/page.test.ts
+  s_0e99959cd74c50::t_1adecbe62bdc47 28-29,83-134
+web/app/books/[handle]/[product]/page.tsx
+  s_0e99959cd74c50::t_97e538ea5c88d3 3,6,8,77-89,98-103,128-133,168-177,183
+web/src/components/storefront/book-previewer.tsx
+  s_0e99959cd74c50::t_fba3d98c9bb504 24,136,310,315
+web/src/lib/book-assets.ts
+  s_0e99959cd74c50::t_dc9532b001bd29 11,108-111
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e8efdbaaffab8696f08878098efac9297afd7f0f",
+  "prompts": {},
+  "sessions": {
+    "s_0e99959cd74c50": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "21b00acc-7513-46d6-9a35-038af7845be2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
