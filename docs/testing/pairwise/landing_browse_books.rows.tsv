@@ -1,0 +1,5 @@
+browse_books_enabled	render_entry
+false	app_page
+false	landing_component
+true	app_page
+true	landing_component

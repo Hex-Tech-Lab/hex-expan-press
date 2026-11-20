@@ -470,16 +470,16 @@ function TiltCard({
 
 /* --------------------------------------------------------------- landing */
 
+type BrowseBooksLink = { label: string; path: string };
+
 export default function LandingPage({
   onboarding,
   supportEmail,
-  browseBooksLabel,
-  browseBooksPath,
+  browseBooks,
 }: {
   onboarding: boolean;
   supportEmail: string;
-  browseBooksLabel: string;
-  browseBooksPath: string;
+  browseBooks: BrowseBooksLink | null;
 }) {
   const reduced = useReducedMotion();
   const fine = useFinePointer();
@@ -508,16 +508,18 @@ export default function LandingPage({
             <b className="text-gray-700 font-medium">lasting legacy</b>.
           </p>
         </div>
-        <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-4 shrink-0">
-          <nav aria-label="Storefront navigation">
-            <Link
-              href={browseBooksPath}
-              data-testid="header-browse-books"
-              className="inline-flex items-center min-h-[44px] rounded-full border border-[#dcc7b4] bg-white/75 hover:bg-[#fff2e4] px-4 py-2 text-xs sm:text-sm font-semibold text-gray-900 transition-colors focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#E8622C]"
-            >
-              {browseBooksLabel}
-            </Link>
-          </nav>
+        <div className={`flex items-center ${browseBooks ? "justify-between" : "justify-end"} sm:justify-end gap-3 sm:gap-4 shrink-0`}>
+          {browseBooks && (
+            <nav aria-label="Storefront navigation">
+              <Link
+                href={browseBooks.path}
+                data-testid="header-browse-books"
+                className="inline-flex items-center min-h-[44px] rounded-full border border-[#dcc7b4] bg-white/75 hover:bg-[#fff2e4] px-4 py-2 text-xs sm:text-sm font-semibold text-gray-900 transition-colors focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#E8622C]"
+              >
+                {browseBooks.label}
+              </Link>
+            </nav>
+          )}
           <BrandWordmark href="/" />
         </div>
       </motion.header>
@@ -566,8 +568,7 @@ export default function LandingPage({
           reduced={Boolean(reduced)}
           blobY={blobY}
           blobY2={blobY2}
-          browseBooksLabel={browseBooksLabel}
-          browseBooksPath={browseBooksPath}
+          browseBooks={browseBooks}
         />
 
         {/* Bento — pointer-3D cards; click splits the page */}
@@ -673,15 +674,13 @@ function HeroCard({
   reduced,
   blobY,
   blobY2,
-  browseBooksLabel,
-  browseBooksPath,
+  browseBooks,
 }: {
   heroRef: React.RefObject<HTMLDivElement | null>;
   reduced: boolean;
   blobY: ReturnType<typeof useTransform<number, number>>;
   blobY2: ReturnType<typeof useTransform<number, number>>;
-  browseBooksLabel: string;
-  browseBooksPath: string;
+  browseBooks: BrowseBooksLink | null;
 }) {
   return (
     <motion.div
@@ -724,13 +723,15 @@ function HeroCard({
             <span>Tap to begin</span>
             <span className="group-hover:translate-x-1 transition-transform">&rarr;</span>
           </a>
-          <Link
-            href={browseBooksPath}
-            data-testid="hero-browse-books"
-            className="inline-flex items-center min-h-[44px] text-sm font-semibold text-peach hover:text-white underline underline-offset-4 transition-colors focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#E8622C]"
-          >
-            {browseBooksLabel}
-          </Link>
+          {browseBooks && (
+            <Link
+              href={browseBooks.path}
+              data-testid="hero-browse-books"
+              className="inline-flex items-center min-h-[44px] text-sm font-semibold text-peach hover:text-white underline underline-offset-4 transition-colors focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#E8622C]"
+            >
+              {browseBooks.label}
+            </Link>
+          )}
         </div>
         {/* Living CTA: breathing peach aura + magnetic press */}
         <motion.a

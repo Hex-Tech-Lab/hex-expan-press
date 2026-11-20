@@ -187,6 +187,10 @@ export interface GlobalSettings {
     sample_preview_cta: string;
     browse_books_label: string;
     browse_books_path: string;
+    /** `storefront.browse_books_enabled`: shows the "browse books" links on the B2B home (header top-right and hero card).
+     *  Off by default because the links expose how few titles exist. Re-enable once several creators and house books
+     *  are live. If re-enabled, the header top-right is the founder-approved placement. */
+    browse_books_enabled: boolean;
     always_show_buyer_legal: boolean;
     /** Buyer legal links (label and path) shown in the storefront footer and on the pay root page. Fixed copy and paths. */
     buyer_legal_links: ReadonlyArray<{ label: string; path: string }>;
@@ -462,6 +466,7 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     sample_preview_cta: "Preview sample",
     browse_books_label: "Browse books",
     browse_books_path: "/books",
+    browse_books_enabled: false,
     always_show_buyer_legal: true,
     buyer_legal_links: [
       { label: "Privacy Policy", path: "/books/legal/privacy.html" },
@@ -1034,6 +1039,11 @@ export function loadStorefrontSection(raw: Record<string, unknown> | undefined):
       fallbacks.push("browse_books_path");
     }
   }
+  let browseBooksEnabled = defaults.browse_books_enabled;
+  if ("browse_books_enabled" in raw) {
+    if (typeof raw.browse_books_enabled === "boolean") browseBooksEnabled = raw.browse_books_enabled;
+    else fallbacks.push("browse_books_enabled");
+  }
   let alwaysShowBuyerLegal = defaults.always_show_buyer_legal;
   if ("always_show_buyer_legal" in raw) {
     if (typeof raw.always_show_buyer_legal === "boolean") alwaysShowBuyerLegal = raw.always_show_buyer_legal;
@@ -1122,6 +1132,7 @@ export function loadStorefrontSection(raw: Record<string, unknown> | undefined):
     sample_preview_cta: strField("sample_preview_cta"),
     browse_books_label: strField("browse_books_label"),
     browse_books_path: browseBooksPath,
+    browse_books_enabled: browseBooksEnabled,
     always_show_buyer_legal: alwaysShowBuyerLegal,
     // Fixed legal set (reviewed copy): not overridable from global.json, so the wording cannot drift from the defaults.
     buyer_legal_links: defaults.buyer_legal_links,
