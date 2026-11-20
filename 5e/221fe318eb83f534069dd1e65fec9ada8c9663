@@ -1,0 +1,37 @@
+web/e2e/books-sample-listing.spec.ts
+  s_7e539dcf78d9db::t_62aab5025f96db 71,73-75
+web/app/books/[handle]/__tests__/house-bio.test.ts
+  s_7e539dcf78d9db::t_450d8c56281ef5 66-67
+  s_7e539dcf78d9db::t_e265992d00d6ab 39-54
+web/src/components/storefront/storefront.tsx
+  s_7e539dcf78d9db::t_53320eccd42e9b 174-182
+payments/src/settings_registry.ts
+  s_7e539dcf78d9db::t_95e0a521f21b5f 1146
+  s_7e539dcf78d9db::t_ad89eadb528a13 1052-1056
+  s_7e539dcf78d9db::t_36033d4d56d6ad 474
+  s_7e539dcf78d9db::t_29265040c7c7d7 194-197
+web/app/books/[handle]/page.tsx
+  s_7e539dcf78d9db::t_56b01ba464d83a 2,11
+  s_7e539dcf78d9db::t_5923526253aeb0 50-51
+  s_7e539dcf78d9db::t_ded318c5abbeb9 29-30
+payments/test/hide_empty_creator_hubs.test.ts
+  s_7e539dcf78d9db::t_79c573ce9282e2 1-24
+web/app/books/[handle]/__tests__/empty-hub-404.test.ts
+  s_7e539dcf78d9db::t_c0bd8a56a33c15 1-123
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5e221fe318eb83f534069dd1e65fec9ada8c9663",
+  "prompts": {},
+  "sessions": {
+    "s_7e539dcf78d9db": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7aec794a-3e95-4ace-bf8d-7a1962c629d9",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
