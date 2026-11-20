@@ -1,0 +1,23 @@
+web/__tests__/landing-browse-books.pairwise.test.ts
+  s_0e99959cd74c50::t_77ce3b8b498051 1-72
+docs/testing/pairwise/landing_browse_books.model.txt
+  s_0e99959cd74c50::t_561468ee252a49 2-6,10
+docs/testing/pairwise/landing_browse_books.rows.tsv
+  s_0e99959cd74c50::t_0d88ae05147fe5 1-5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f2cf650608eae95376ddab35f1c3597735d62799",
+  "prompts": {},
+  "sessions": {
+    "s_0e99959cd74c50": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "21b00acc-7513-46d6-9a35-038af7845be2",
+        "model": "unknown"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
