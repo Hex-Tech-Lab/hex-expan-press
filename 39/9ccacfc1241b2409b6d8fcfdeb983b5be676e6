@@ -1,0 +1,30 @@
+books/sample_the_quiet_workshop.json
+  h_e6b68dcbbd0983 3-4,13-16,20-23
+docs/agent_ledger.jsonl
+  h_e6b68dcbbd0983 985-986
+docs/handover/SAMPLE_PROD_LISTING_READY_2026-11-20.html
+  h_e6b68dcbbd0983 1-193
+docs/handover/SAMPLE_PROD_LISTING_READY_2026-11-20.md
+  h_e6b68dcbbd0983 1-89
+payments/book_identity.ts
+  h_e6b68dcbbd0983 10-16,19-22,38-40,60-82
+payments/test/sample_listing_prod_sql.test.ts
+  h_e6b68dcbbd0983 1-144
+payments/test/upload_sample_release.test.ts
+  h_e6b68dcbbd0983 1-225
+scripts/upload_sample_release.ts
+  h_e6b68dcbbd0983 1-370
+supabase/manual/sample_listing_prod.sql
+  h_e6b68dcbbd0983 1-139
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "399ccacfc1241b2409b6d8fcfdeb983b5be676e6",
+  "prompts": {},
+  "humans": {
+    "h_e6b68dcbbd0983": {
+      "author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
