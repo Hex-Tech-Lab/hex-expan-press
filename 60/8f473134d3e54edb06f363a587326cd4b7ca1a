@@ -1,0 +1,36 @@
+web/app/books/d/[token]/__tests__/route.test.ts
+  s_0e99959cd74c50::t_21f273b70b912b 269-345
+  s_0e99959cd74c50::t_d86ce810f5896d 3
+  s_0e99959cd74c50::t_d11bdf22ed26db 266
+web/__tests__/consistency_surfaces.pairwise.test.ts
+  s_0e99959cd74c50::t_94f91a02cd1503 87
+web/src/components/storefront/storefront.tsx
+  s_0e99959cd74c50::t_aa638f88ff6b4e 252
+  s_0e99959cd74c50::t_70f0ea365990a0 183
+  s_0e99959cd74c50::t_c43819e51d8ff6 64-65
+web/app/books/[handle]/__tests__/house-bio.test.ts
+  s_0e99959cd74c50::t_94284575e0c230 1-79
+web/app/books/[handle]/page.tsx
+  s_0e99959cd74c50::t_b5b09c9987245d 47-48
+web/app/books/d/[token]/route.ts
+  s_0e99959cd74c50::t_acfc7757a1095f 169
+  s_0e99959cd74c50::t_1b15363e86ac44 42,45,50
+  s_0e99959cd74c50::t_74dc174a657e4e 158
+  s_0e99959cd74c50::t_5d90e270cf4ffd 10-18
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "608f473134d3e54edb06f363a587326cd4b7ca1a",
+  "prompts": {},
+  "sessions": {
+    "s_0e99959cd74c50": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "21b00acc-7513-46d6-9a35-038af7845be2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
