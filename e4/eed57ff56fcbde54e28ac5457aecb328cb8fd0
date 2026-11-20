@@ -1,0 +1,27 @@
+docs/testing/pairwise/consent_parser.model.txt
+  s_0e99959cd74c50::t_8ab7c1f32e36b4 1-2
+web/__tests__/download_link.pairwise.test.ts
+  s_0e99959cd74c50::t_600abda07770e6 1-2
+web/__tests__/consent_parser.pairwise.test.ts
+  s_0e99959cd74c50::t_8bf267ba2fc05b 182-184
+  s_0e99959cd74c50::t_9fface80a60495 1-2
+  s_0e99959cd74c50::t_b5d4eb8aa01c23 172-173
+docs/testing/pairwise/download_link.model.txt
+  s_0e99959cd74c50::t_c1ab1ce0d8f8e7 1
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e4eed57ff56fcbde54e28ac5457aecb328cb8fd0",
+  "prompts": {},
+  "sessions": {
+    "s_0e99959cd74c50": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "21b00acc-7513-46d6-9a35-038af7845be2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
