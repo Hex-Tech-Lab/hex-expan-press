@@ -766,6 +766,18 @@ describe("B2C/B2B routing matrix: host x path", () => {
       headers: new Headers({ "x-vercel-ip-country": "US" }),
     } as never);
     expect(allowed.status).toBe(200);
+
+    const blockedHtml = await proxy({
+      cookies: { getAll: () => [], set: () => {} },
+      url: "https://pay.expanpress.com/checkout/abc",
+      method: "GET",
+      headers: new Headers({ "x-vercel-ip-country": "DE", accept: "text/html,application/xhtml+xml" }),
+    } as never);
+    expect(blockedHtml.status).toBe(403);
+    expect(blockedHtml.headers.get("content-type")).toContain("text/html");
+    const htmlBody = await blockedHtml.text();
+    expect(htmlBody).toContain("403 Forbidden");
+    expect(htmlBody).toContain('<span class="brace">{</span><span class="name">expanpress</span><span class="brace">}</span>');
   });
 
   it("sets X-Robots-Tag noindex, nofollow on service-provider pages", async () => {

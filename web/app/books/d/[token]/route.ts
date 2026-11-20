@@ -3,8 +3,79 @@ import { getSupabaseAdmin } from "../../../../../payments/src/supabase_admin";
 import { GLOBAL } from "../../../../../payments/src/settings_registry";
 import { TOKEN_RE, tokenHash } from "../../../../../payments/src/delivery";
 import { getDeliveryStorageAdapter } from "../../../../../src/adapters/storage/r2.adapter";
+import { acceptsHtml, renderBrandedB2cHtml } from "../../../../src/lib/branded-html";
 
 export const runtime = "nodejs";
+
+function downloadErrorResponse(
+  request: NextRequest,
+  opts: {
+    status: 404 | 410 | 500;
+    kicker: string;
+    title: string;
+    heading: string;
+    body: string;
+    plainText: string;
+    referenceId?: string;
+  },
+): NextResponse {
+  if (acceptsHtml(request.headers)) {
+    const html = renderBrandedB2cHtml({
+      title: opts.title,
+      kicker: opts.kicker,
+      heading: opts.heading,
+      body: opts.body,
+      referenceId: opts.referenceId,
+      includeSupportLink: true,
+    });
+    return new NextResponse(html, {
+      status: opts.status,
+      headers: {
+        "content-type": "text/html; charset=utf-8",
+        "cache-control": "no-store",
+        "x-robots-tag": "noindex, nofollow",
+      },
+    });
+  }
+  return new NextResponse(opts.plainText, {
+    status: opts.status,
+    headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" },
+  });
+}
+
+function notFoundDownload(request: NextRequest): NextResponse {
+  return downloadErrorResponse(request, {
+    status: 404,
+    title: "404 Not Found · Download link",
+    kicker: "404 Not Found",
+    heading: "Download link not found",
+    body: "This download link is invalid or does not exist. Check your receipt email or contact support.",
+    plainText: "Not found",
+  });
+}
+
+function expiredDownload(request: NextRequest): NextResponse {
+  return downloadErrorResponse(request, {
+    status: 410,
+    title: "410 Gone · Download link expired",
+    kicker: "410 Gone",
+    heading: "This download link has expired",
+    body: "This download link has expired. Reply to your receipt email or write to support for a new one.",
+    plainText: "This download link has expired. Reply to your receipt email for a new one.",
+  });
+}
+
+function unavailableDownload(request: NextRequest, errorId?: string): NextResponse {
+  return downloadErrorResponse(request, {
+    status: 500,
+    title: "500 Internal Server Error · Download unavailable",
+    kicker: "500 Internal Server Error",
+    heading: "Download temporarily unavailable",
+    body: "We could not prepare your download right now. Please try again shortly or contact support.",
+    plainText: errorId ? `Download unavailable. Please try again shortly (ref ${errorId}).` : "Download unavailable",
+    referenceId: errorId,
+  });
+}
 
 /**
  * GET /books/d/{token} (buyer delivery, ADR 0061 origin expanpress.com). Validates the hash and expiry of an
@@ -12,12 +83,12 @@ export const runtime = "nodejs";
  * Fail closed: the redirect happens only after the server-side log row is written, so an unlogged
  * download is never served. The token is never logged.
  */
-export async function GET(_request: NextRequest, ctx: { params: Promise<{ token: string }> }): Promise<NextResponse> {
+export async function GET(request: NextRequest, ctx: { params: Promise<{ token: string }> }): Promise<NextResponse> {
   const { token } = await ctx.params;
-  if (!TOKEN_RE.test(token)) return new NextResponse("Not found", { status: 404 });
+  if (!TOKEN_RE.test(token)) return notFoundDownload(request);
 
   const sb = await getSupabaseAdmin();
-  if (!sb) return new NextResponse("Download unavailable", { status: 500 });
+  if (!sb) return unavailableDownload(request);
 
   const hash = tokenHash(token);
   const { data: link, error: linkErr } = await sb
@@ -28,17 +99,17 @@ export async function GET(_request: NextRequest, ctx: { params: Promise<{ token:
     .maybeSingle();
   if (linkErr) {
     console.error(`[delivery] link lookup failed: ${linkErr.message}`);
-    return new NextResponse("Download unavailable", { status: 500 });
+    return unavailableDownload(request);
   }
-  if (!link) return new NextResponse("Not found", { status: 404 });
+  if (!link) return notFoundDownload(request);
   // Every issued link carries an expiry. A row without one is a data fault: fail closed, never serve it.
   // (Before this guard, new Date(null) read as epoch and the row was refused only as "expired".)
   if (!link.expires_at) {
     console.error(`[delivery] link row for sale ${link.sale_id as string} has no expiry`);
-    return new NextResponse("Download unavailable", { status: 500 });
+    return unavailableDownload(request);
   }
   if (new Date(link.expires_at as string).getTime() <= Date.now()) {
-    return new NextResponse("This download link has expired. Reply to your receipt email for a new one.", { status: 410 });
+    return expiredDownload(request);
   }
 
   const { data: product, error: prodErr } = await sb
@@ -48,7 +119,7 @@ export async function GET(_request: NextRequest, ctx: { params: Promise<{ token:
     .maybeSingle();
   if (prodErr || !product?.release_path) {
     console.error(`[delivery] release file missing for sale ${link.sale_id as string}`);
-    return new NextResponse("Download unavailable", { status: 500 });
+    return unavailableDownload(request);
   }
 
   const storage = getDeliveryStorageAdapter(sb, GLOBAL.delivery.bucket);
@@ -60,7 +131,7 @@ export async function GET(_request: NextRequest, ctx: { params: Promise<{ token:
     // The id is quoted in the server log so a buyer report can be matched to this failure.
     const errorId = globalThis.crypto.randomUUID().slice(0, 8);
     console.error(`[delivery] error=${errorId} signed URL failed for sale ${link.sale_id as string}`);
-    return new NextResponse(`Download unavailable. Please try again shortly (ref ${errorId}).`, { status: 500 });
+    return unavailableDownload(request, errorId);
   }
 
   const { error: logErr } = await sb.from("download_events").insert({
@@ -72,7 +143,7 @@ export async function GET(_request: NextRequest, ctx: { params: Promise<{ token:
   });
   if (logErr) {
     console.error(`[delivery] download log failed: ${logErr.message}`);
-    return new NextResponse("Download unavailable", { status: 500 });
+    return unavailableDownload(request);
   }
 
   const res = NextResponse.redirect(signedUrl, 302);
