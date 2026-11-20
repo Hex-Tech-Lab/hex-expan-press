@@ -281,14 +281,16 @@ function buildBuyerMessage(args: {
   replyTo: string;
   billingEmail?: string;
   tokenHash: string;
+  /** Calendar year for the footer copyright, resolved by the caller at send time. */
+  year: number;
 }): BuyerMessage {
-  const { to, title, link, days, replyTo, billingEmail, tokenHash: hash } = args;
+  const { to, title, link, days, replyTo, billingEmail, tokenHash: hash, year } = args;
   const billingNote = billingEmail && billingEmail !== replyTo ? ` (billing or refund questions: ${billingEmail})` : "";
   const billingHtml = billingEmail && billingEmail !== replyTo ? ` (billing or refund questions: ${esc(billingEmail)})` : "";
   const brand = GLOBAL.storefront.brand_name;
   const wordmark = brand.toLowerCase();
   const colors = GLOBAL.branding.colors;
-  const fontStack = "ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+  const fontStack = GLOBAL.branding.email_font_stack;
   const safeTitle = esc(title);
   const safeLink = esc(link);
   const safeReplyTo = esc(replyTo);
@@ -298,9 +300,9 @@ function buildBuyerMessage(args: {
     `<!doctype html><html lang="en"><body style="margin:0;padding:0;background:${colors.canvas};font-family:${fontStack};color:${colors.charcoal};">` +
     `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${colors.canvas};padding:32px 16px;">` +
     `<tr><td align="center">` +
-    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border:1px solid ${colors.border};border-radius:24px;padding:32px;">` +
+    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:${colors.surface};border:1px solid ${colors.border};border-radius:24px;padding:32px;">` +
     `<tr><td style="padding-bottom:20px;font-size:20px;font-weight:700;letter-spacing:-0.025em;color:${colors.charcoal};">` +
-    `<span style="color:#4b5563;font-weight:300;">{</span>${safeWordmark}<span style="color:#4b5563;font-weight:300;">}</span>` +
+    `<span style="color:${colors.muted};font-weight:300;">{</span>${safeWordmark}<span style="color:${colors.muted};font-weight:300;">}</span>` +
     `</td></tr>` +
     `<tr><td style="font-size:16px;line-height:1.6;color:${colors.charcoal};padding-bottom:16px;">` +
     `Thank you for your purchase of <strong>${safeTitle}</strong>.` +
@@ -308,13 +310,13 @@ function buildBuyerMessage(args: {
     `<tr><td style="padding-bottom:20px;">` +
     `<a href="${safeLink}" style="display:inline-block;background:${colors.button_primary};color:${colors.button_text};text-decoration:none;font-size:14px;font-weight:600;padding:14px 24px;border-radius:9999px;">Download your book</a>` +
     `</td></tr>` +
-    `<tr><td style="font-size:13px;line-height:1.5;color:#4b5563;padding-bottom:16px;word-break:break-all;">` +
+    `<tr><td style="font-size:13px;line-height:1.5;color:${colors.muted};padding-bottom:16px;word-break:break-all;">` +
     `Download your copy here (the link is valid for ${days} days):<br>` +
     `<a href="${safeLink}" style="color:${colors.charcoal};text-decoration:underline;">${safeLink}</a>` +
     `</td></tr>` +
-    `<tr><td style="border-top:1px solid ${colors.border};padding-top:16px;font-size:12px;line-height:1.5;color:#6b7280;">` +
+    `<tr><td style="border-top:1px solid ${colors.border};padding-top:16px;font-size:12px;line-height:1.5;color:${colors.subtle};">` +
     `Questions? Reply to this email or write to ${safeReplyTo}${billingHtml}.<br>` +
-    `&copy; 2026 ${safeBrand}` +
+    `&copy; ${year} ${safeBrand}` +
     `</td></tr>` +
     `</table>` +
     `</td></tr></table></body></html>`;
@@ -578,6 +580,7 @@ export async function deliverSale(
       replyTo: deps.replyTo,
       billingEmail: deps.billingEmail,
       tokenHash: hash,
+      year: new Date().getUTCFullYear(),
     });
     // The exact bytes are stored BEFORE the send. A fenced write: a newer worker that owns the claim makes this stale, and
     // nothing is sent. A missing link key throws here, before any write, so the claim is released below.

@@ -351,7 +351,9 @@ describe("consistency surfaces: PICT pairwise", () => {
       expect(sent.html).toContain(`{</span>${GLOBAL.storefront.brand_name.toLowerCase()}<span`);
       expect(sent.html).toContain("Download your book");
       expect(sent.html).toContain(GLOBAL.email.support);
-      expect(sent.html).toContain(`&copy; 2026 ${GLOBAL.storefront.brand_name}`);
+      expect(sent.html).toContain(`&copy; ${new Date().getUTCFullYear()} ${GLOBAL.storefront.brand_name}`);
+      expect(sent.html).toContain(GLOBAL.branding.colors.surface);
+      expect(sent.html).toContain(GLOBAL.branding.email_font_stack);
       if (row.delivery_title === "xss") {
         expect(sent.html).not.toContain("<img");
         expect(sent.html).toContain("&#60;img");
