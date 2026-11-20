@@ -115,7 +115,7 @@ describe("checkout page: single-hop BuyerEmailStep branch", () => {
   });
 });
 
-describe("checkout page: buyer legal links follow the checkout mode", () => {
+describe("checkout page: buyer legal links visibility (LV-03)", () => {
   function footerProps(tree: unknown): Array<Record<string, unknown>> {
     const found: Array<Record<string, unknown>> = [];
     walk(tree as Node, (el) => {
@@ -124,11 +124,24 @@ describe("checkout page: buyer legal links follow the checkout mode", () => {
     return found;
   }
 
-  it("hides the buyer legal links on a gated (draft) product", async () => {
+  it("shows the buyer legal links on a gated (draft) product by default (always_show_buyer_legal=true)", async () => {
     vi.mocked(fetchCheckoutProduct).mockResolvedValue(product({ checkout_mode: "gated" }) as never);
     const footers = footerProps(await render("p1"));
     expect(footers).toHaveLength(1);
-    expect(footers[0].showBuyerLegal).toBe(false);
+    expect(footers[0].showBuyerLegal).toBe(true);
+  });
+
+  it("hides the buyer legal links on a gated product only when always_show_buyer_legal is false", async () => {
+    const orig = GLOBAL.storefront.always_show_buyer_legal;
+    GLOBAL.storefront.always_show_buyer_legal = false;
+    try {
+      vi.mocked(fetchCheckoutProduct).mockResolvedValue(product({ checkout_mode: "gated" }) as never);
+      const footers = footerProps(await render("p1"));
+      expect(footers).toHaveLength(1);
+      expect(footers[0].showBuyerLegal).toBe(false);
+    } finally {
+      GLOBAL.storefront.always_show_buyer_legal = orig;
+    }
   });
 
   it("shows the buyer legal links on a live product", async () => {

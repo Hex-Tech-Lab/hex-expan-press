@@ -616,9 +616,9 @@ describe("proxy host boundary (ADR 0061)", () => {
     expect(res.headers.get("x-middleware-rewrite")).toContain("/robots-pay.txt");
   });
 
-  it("pay host returns 404 with no location for paths outside checkout and legal pages", async () => {
+  it("pay host returns 404 with no location for paths outside root, checkout, and legal pages", async () => {
     const { proxy } = await import("../proxy");
-    for (const p of ["/", "/books/retirearly500k/500k-playbook", "/creator/dashboard", "/checkoutevil", "//evil.example/x"]) {
+    for (const p of ["/unknown", "/books/retirearly500k/500k-playbook", "/creator/dashboard", "/checkoutevil", "//evil.example/x"]) {
       const res = await proxy(hostRequest(`https://pay.expanpress.com${p}`) as never);
       expect(res.status, p).toBe(404);
       expect(res.headers.get("location"), p).toBeNull();
@@ -732,7 +732,7 @@ describe("B2C/B2B routing matrix: host x path", () => {
     ["/api/billing/checkout", { pay: "pass", main: "redirect", www: "redirect" }],
     ["/books/d/tok", { pay: "404", main: "pass", www: "pass" }],
     ["/creator/signin", { pay: "404", main: "pass", www: "pass" }],
-    ["/", { pay: "404", main: "pass", www: "pass" }],
+    ["/", { pay: "pass", main: "pass", www: "pass" }],
   ];
   const req = (url: string) => ({ cookies: { getAll: () => [], set: () => {} }, url, headers: new Headers() });
 

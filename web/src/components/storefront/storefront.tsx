@@ -375,17 +375,20 @@ export function platformLink(platform: string, handle: string): { label: string;
   return { label: `${platform.charAt(0).toUpperCase()}${platform.slice(1)} @${handle}`, url: null };
 }
 
-/** Buyer legal links are hidden on a gated (draft) product page, which shows a "Coming soon" banner instead of a sale.
- * The support address comes from the registry (email.support), the same address the buyer emails use. It is plain
- * text, not a mailto link: the B2C confinement rule (e2e/b2c-confinement.spec.ts) allows only /books, the B2C home and checkout. */
-export function StorefrontFooter({ showBuyerLegal = true }: { showBuyerLegal?: boolean }) {
+/** Buyer legal links (privacy, terms, refund) show on every buyer page when `storefront.always_show_buyer_legal` is true
+ *  (default, KYC requirement), including gated samples. The support address comes from the registry (email.support),
+ *  the same address the buyer emails use. It is plain text, not a mailto link: the B2C confinement rule
+ *  (e2e/b2c-confinement.spec.ts) allows only /books, the B2C home and checkout. */
+export function StorefrontFooter({ showBuyerLegal = GLOBAL.storefront.always_show_buyer_legal }: { showBuyerLegal?: boolean }) {
   return (
     <BrandFooter>
       {showBuyerLegal && (
         <>
-          <a href="/books/legal/privacy.html" className="hover:text-gray-700 transition-colors">Privacy Policy</a>
-          <a href="/books/legal/terms.html" className="hover:text-gray-700 transition-colors">Terms of Sale</a>
-          <a href="/books/legal/refund-policy.html" className="hover:text-gray-700 transition-colors">Refund Policy</a>
+          {GLOBAL.storefront.buyer_legal_links.map((link) => (
+            <a key={link.path} href={link.path} className="hover:text-gray-700 transition-colors">
+              {link.label}
+            </a>
+          ))}
         </>
       )}
       <span>{GLOBAL.email.support}</span>

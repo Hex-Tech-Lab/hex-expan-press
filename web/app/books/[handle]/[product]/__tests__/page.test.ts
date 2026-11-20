@@ -132,4 +132,29 @@ describe("store product page (/books/{handle}/{product})", () => {
     expect(withPreview).toContain(`--product-cover-max-w:${layout.cover_max_width_px}px`);
     productMock.product.preview_pdf = null;
   });
+
+  it("always shows buyer legal links (privacy, terms, refund) on gated sample pages when always_show_buyer_legal is true (LV-03)", async () => {
+    const origMode = productMock.product.checkout_mode;
+    const origHandle = productMock.creator.handle;
+    const origName = productMock.creator.display_name;
+    productMock.creator.handle = "expanpress_house";
+    productMock.creator.display_name = GLOBAL.storefront.brand_name;
+    productMock.product.checkout_mode = "gated";
+    try {
+      const html = renderToStaticMarkup(
+        await StoreProductPage({
+          params: Promise.resolve({ handle: "expanpress_house", product: "sample_the_quiet_workshop" }),
+        }),
+      );
+      expect(html).toContain('data-checkout-mode="gated"');
+      expect(html).toContain('/books/legal/privacy.html');
+      expect(html).toContain('/books/legal/terms.html');
+      expect(html).toContain('/books/legal/refund-policy.html');
+      expect(html).toContain(GLOBAL.email.support);
+    } finally {
+      productMock.product.checkout_mode = origMode;
+      productMock.creator.handle = origHandle;
+      productMock.creator.display_name = origName;
+    }
+  });
 });

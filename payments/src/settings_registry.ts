@@ -176,6 +176,13 @@ export interface GlobalSettings {
     allowed_non_live_sample_modes: string[];
     coming_soon_badge: string;
     sample_preview_cta: string;
+    browse_books_label: string;
+    browse_books_path: string;
+    always_show_buyer_legal: boolean;
+    /** Buyer legal links (label and path) shown in the storefront footer and on the pay root page. Fixed copy and paths. */
+    buyer_legal_links: ReadonlyArray<{ label: string; path: string }>;
+    pay_root_heading: string;
+    pay_root_description: string;
     covers_base_path: string;
     previews_base_path: string;
     book_assets: Record<
@@ -372,6 +379,16 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     allowed_non_live_sample_modes: ["gated"],
     coming_soon_badge: "Coming soon",
     sample_preview_cta: "Preview sample",
+    browse_books_label: "Browse books",
+    browse_books_path: "/books",
+    always_show_buyer_legal: true,
+    buyer_legal_links: [
+      { label: "Privacy Policy", path: "/books/legal/privacy.html" },
+      { label: "Terms of Sale", path: "/books/legal/terms.html" },
+      { label: "Refund Policy", path: "/books/legal/refund-policy.html" },
+    ],
+    pay_root_heading: `${STOREFRONT_BRAND} Checkout`,
+    pay_root_description: "Secure digital book checkout. Browse published titles or review buyer legal policies below.",
     covers_base_path: "/books/covers",
     previews_base_path: "/books/previews",
     book_assets: {
@@ -852,7 +869,15 @@ export function loadStorefrontSection(raw: Record<string, unknown> | undefined):
   if (!raw) return defaults;
   const fallbacks: string[] = [];
   const strField = (
-    key: "digital_pdf_kicker" | "sample_badge_label" | "house_title_note" | "coming_soon_badge" | "sample_preview_cta",
+    key:
+      | "digital_pdf_kicker"
+      | "sample_badge_label"
+      | "house_title_note"
+      | "coming_soon_badge"
+      | "sample_preview_cta"
+      | "browse_books_label"
+      | "pay_root_heading"
+      | "pay_root_description",
   ): string => {
     if (raw[key] === undefined) return defaults[key];
     const v = raw[key];
@@ -860,6 +885,19 @@ export function loadStorefrontSection(raw: Record<string, unknown> | undefined):
     fallbacks.push(key);
     return defaults[key];
   };
+  let browseBooksPath = defaults.browse_books_path;
+  if ("browse_books_path" in raw) {
+    if (raw.browse_books_path === "/books" || isSafeBooksPrefix(raw.browse_books_path)) {
+      browseBooksPath = raw.browse_books_path;
+    } else {
+      fallbacks.push("browse_books_path");
+    }
+  }
+  let alwaysShowBuyerLegal = defaults.always_show_buyer_legal;
+  if ("always_show_buyer_legal" in raw) {
+    if (typeof raw.always_show_buyer_legal === "boolean") alwaysShowBuyerLegal = raw.always_show_buyer_legal;
+    else fallbacks.push("always_show_buyer_legal");
+  }
   let showNonLiveSamples = defaults.show_non_live_samples;
   if ("show_non_live_samples" in raw) {
     if (typeof raw.show_non_live_samples === "boolean") showNonLiveSamples = raw.show_non_live_samples;
@@ -940,6 +978,13 @@ export function loadStorefrontSection(raw: Record<string, unknown> | undefined):
     allowed_non_live_sample_modes: allowedNonLiveSampleModes,
     coming_soon_badge: strField("coming_soon_badge"),
     sample_preview_cta: strField("sample_preview_cta"),
+    browse_books_label: strField("browse_books_label"),
+    browse_books_path: browseBooksPath,
+    always_show_buyer_legal: alwaysShowBuyerLegal,
+    // Fixed legal set (reviewed copy): not overridable from global.json, so the wording cannot drift from the defaults.
+    buyer_legal_links: defaults.buyer_legal_links,
+    pay_root_heading: strField("pay_root_heading"),
+    pay_root_description: strField("pay_root_description"),
     covers_base_path: coversBasePath,
     previews_base_path: previewsBasePath,
     book_assets: bookAssets,

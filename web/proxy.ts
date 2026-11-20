@@ -55,12 +55,70 @@ function buyerCountryBlocked(request: NextRequest, path: string): NextResponse |
   return new NextResponse(msg, { status: 403, headers: { "content-type": "text/plain; charset=utf-8" } });
 }
 
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
+/** Small 200 OK landing page for bare pay.expanpress.com/ (LV-05). Stays strictly on-brand and B2C-confined:
+ *  links only to the registry B2C catalog and the buyer legal set on pay, never to creator/B2B pages. */
+function payRootHtml(): string {
+  const brand = escapeHtml(GLOBAL.storefront.brand_name);
+  const heading = escapeHtml(GLOBAL.storefront.pay_root_heading);
+  const description = escapeHtml(GLOBAL.storefront.pay_root_description);
+  const catalogUrl = escapeHtml(GLOBAL.storefront.b2c_landing_url);
+  const catalogLabel = escapeHtml(GLOBAL.storefront.browse_books_label);
+  const supportEmail = escapeHtml(GLOBAL.email.support);
+  const legalLinks = GLOBAL.storefront.buyer_legal_links
+    .map((link) => `<a href="${escapeHtml(link.path)}">${escapeHtml(link.label)}</a>`)
+    .join("\n      ");
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>${heading}</title>
+  <style>
+    body{margin:0;font-family:system-ui,-apple-system,sans-serif;background:#faf6f1;color:#1a1a1a;display:flex;min-height:100vh;align-items:center;justify-content:center;padding:24px}
+    main{max-width:520px;width:100%;background:#fff;border:1.5px solid #e6d7c8;border-radius:24px;padding:32px;box-shadow:0 20px 50px rgba(0,0,0,.06)}
+    .brand{font-weight:700;font-size:18px;margin-bottom:20px}
+    h1{font-size:26px;line-height:1.2;margin:0 0 12px}
+    p{font-size:15px;line-height:1.6;color:#4a4a4a;margin:0 0 24px}
+    .cta{display:inline-block;background:#2a2a2a;color:#fff;text-decoration:none;font-weight:600;font-size:14px;padding:12px 22px;border-radius:999px}
+    footer{margin-top:28px;padding-top:16px;border-top:1px solid #efe4d6;display:flex;flex-wrap:wrap;gap:16px;font-size:12px;color:#555}
+    footer a{color:inherit;text-decoration:underline}
+  </style>
+</head>
+<body>
+  <main>
+    <div class="brand">${brand}</div>
+    <h1>${heading}</h1>
+    <p>${description}</p>
+    <a class="cta" href="${catalogUrl}">${catalogLabel}</a>
+    <footer>
+      ${legalLinks}
+      <span>${supportEmail}</span>
+    </footer>
+  </main>
+</body>
+</html>`;
+}
+
 import { decodeAndVerifyJwt } from "./src/lib/jwt-verify";
 export { decodeAndVerifyJwt };
 
 export async function proxy(request: NextRequest): Promise<NextResponse> {
   const url = new URL(request.url);
-  const host = url.hostname.toLowerCase();
+  let host = url.hostname.toLowerCase();
+  // Local E2E only: next dev sets request.url to localhost regardless of Host header. Never active in production.
+  if (
+    process.env.NODE_ENV !== "production" &&
+    process.env.E2E_PROXY_HOST_OVERRIDE === "1" &&
+    (host === "localhost" || host === "127.0.0.1")
+  ) {
+    const hdrHost = request.headers.get("host")?.split(":")[0]?.trim().toLowerCase();
+    if (hdrHost === PAY_HOST) host = PAY_HOST;
+  }
   const path = url.pathname;
   // Test-only probe for the cross-origin E2E: reports the hostname the proxy sees. Off in production builds
   // and unless the flag is explicitly set.
@@ -69,8 +127,16 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   }
   if (host === PAY_HOST) {
     if (path === "/robots.txt") return NextResponse.rewrite(new URL("/robots-pay.txt", request.url));
+    if (path === "/" || path === "") {
+      const headers = {
+        "content-type": "text/html; charset=utf-8",
+        "x-robots-tag": "noindex, nofollow",
+        "cache-control": "public, max-age=300",
+      };
+      return new NextResponse(request.method === "HEAD" ? null : payRootHtml(), { status: 200, headers });
+    }
     const allowed = PAY_ALLOWED_EXACT.includes(path) || isPayCheckoutApi(path) || PAY_ALLOWED_PREFIXES.some((p) => path.startsWith(p));
-    // Pay serves checkout, legal pages and their assets only. Everything else is a hard 404: no redirect
+    // Pay serves /, checkout, legal pages and their assets only. Everything else is a hard 404: no redirect
     // to the main site, so a pay URL never bounces to the apex or www.
     if (!allowed) return new NextResponse(null, { status: 404 });
     const blocked = buyerCountryBlocked(request, path);

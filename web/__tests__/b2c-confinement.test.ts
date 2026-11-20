@@ -82,13 +82,20 @@ describe("B2C side never links into B2B", () => {
   });
 });
 
-describe("B2B side never links into B2C", () => {
-  it("the landing page does not link to /books or the pay host", () => {
+describe("B2B landing isolation and LV-02 catalog link", () => {
+  it("the landing page does not hard-code /books or link to the pay host, and receives registry browse_books props", async () => {
+    const { GLOBAL } = await import("../../payments/src/settings_registry");
     const text = readFileSync(join(WEB, "src/components/landing/landing-page.tsx"), "utf8");
     for (const t of linkTargets(text)) {
-      expect(t.startsWith("/books"), `landing links to ${t}`).toBe(false);
+      expect(t.startsWith("/books"), `landing hard-codes ${t}`).toBe(false);
       expect(t.includes("pay.expanpress.com"), `landing links to ${t}`).toBe(false);
+      expect(t.startsWith("/checkout"), `landing links to ${t}`).toBe(false);
     }
+    const homeSource = readFileSync(join(WEB, "app/page.tsx"), "utf8");
+    expect(homeSource).toContain("GLOBAL.storefront.browse_books_label");
+    expect(homeSource).toContain("GLOBAL.storefront.browse_books_path");
+    expect(GLOBAL.storefront.browse_books_path).toBe("/books");
+    expect(GLOBAL.storefront.browse_books_label).toBe("Browse books");
   });
 });
 

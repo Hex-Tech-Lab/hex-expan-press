@@ -151,6 +151,7 @@ test("(d) pay host: /terms.html and /books are 404, /books/legal/terms.html is 2
     expect((await main.get("/terms.html")).status(), "control: main /terms.html").toBe(200);
     expect((await main.get("/books/legal/terms.html")).status(), "control: main /books/legal/terms.html").toBe(200);
 
+    expect((await pay.get("/")).status(), "pay /").toBe(200);
     expect((await pay.get("/terms.html")).status(), "pay /terms.html").toBe(404);
     expect((await pay.get("/books")).status(), "pay /books").toBe(404);
     expect((await pay.get("/books/legal/terms.html")).status(), "pay /books/legal/terms.html").toBe(200);

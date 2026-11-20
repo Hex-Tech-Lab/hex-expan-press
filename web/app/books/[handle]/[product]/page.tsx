@@ -189,7 +189,7 @@ export default async function StoreProductPage({
         )}
       </main>
 
-      <StorefrontFooter showBuyerLegal={live} />
+      <StorefrontFooter showBuyerLegal={GLOBAL.storefront.always_show_buyer_legal || live} />
     </BrandFrame>
   );
 }

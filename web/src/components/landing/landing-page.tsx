@@ -470,7 +470,17 @@ function TiltCard({
 
 /* --------------------------------------------------------------- landing */
 
-export default function LandingPage({ onboarding, supportEmail }: { onboarding: boolean; supportEmail: string }) {
+export default function LandingPage({
+  onboarding,
+  supportEmail,
+  browseBooksLabel,
+  browseBooksPath,
+}: {
+  onboarding: boolean;
+  supportEmail: string;
+  browseBooksLabel: string;
+  browseBooksPath: string;
+}) {
   const reduced = useReducedMotion();
   const fine = useFinePointer();
   const [active, setActive] = useState<number | null>(null);
@@ -488,7 +498,7 @@ export default function LandingPage({ onboarding, supportEmail }: { onboarding: 
   return (
     <BrandFrame outerClassName="justify-between pb-32 lg:pb-12">
       {/* Header — words construct upward */}
-      <motion.header variants={rise} initial="hidden" animate="show" className="flex items-start justify-between">
+      <motion.header variants={rise} initial="hidden" animate="show" className="flex flex-col-reverse sm:flex-row sm:items-start sm:justify-between gap-4">
         <div>
           <h1 className="text-3xl sm:text-4xl md:text-5xl tracking-tight text-gray-900 font-normal">
             Hello, <span className="font-bold">creator</span>
@@ -498,7 +508,18 @@ export default function LandingPage({ onboarding, supportEmail }: { onboarding: 
             <b className="text-gray-700 font-medium">lasting legacy</b>.
           </p>
         </div>
-        <BrandWordmark href="/" />
+        <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-4 shrink-0">
+          <nav aria-label="Storefront navigation">
+            <Link
+              href={browseBooksPath}
+              data-testid="header-browse-books"
+              className="inline-flex items-center min-h-[44px] rounded-full border border-[#dcc7b4] bg-white/75 hover:bg-[#fff2e4] px-4 py-2 text-xs sm:text-sm font-semibold text-gray-900 transition-colors focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#E8622C]"
+            >
+              {browseBooksLabel}
+            </Link>
+          </nav>
+          <BrandWordmark href="/" />
+        </div>
       </motion.header>
 
       <div className="flex flex-col lg:flex-row gap-5 md:gap-7 items-stretch">
@@ -536,7 +557,14 @@ export default function LandingPage({ onboarding, supportEmail }: { onboarding: 
         </motion.nav>
 
         {/* Hero — the charcoal slab; blobs drift on scroll, aura breathes */}
-        <HeroCard heroRef={heroRef} reduced={Boolean(reduced)} blobY={blobY} blobY2={blobY2} />
+        <HeroCard
+          heroRef={heroRef}
+          reduced={Boolean(reduced)}
+          blobY={blobY}
+          blobY2={blobY2}
+          browseBooksLabel={browseBooksLabel}
+          browseBooksPath={browseBooksPath}
+        />
 
         {/* Bento — pointer-3D cards; click splits the page */}
         <motion.div
@@ -641,11 +669,15 @@ function HeroCard({
   reduced,
   blobY,
   blobY2,
+  browseBooksLabel,
+  browseBooksPath,
 }: {
   heroRef: React.RefObject<HTMLDivElement | null>;
   reduced: boolean;
   blobY: ReturnType<typeof useTransform<number, number>>;
   blobY2: ReturnType<typeof useTransform<number, number>>;
+  browseBooksLabel: string;
+  browseBooksPath: string;
 }) {
   return (
     <motion.div
@@ -682,11 +714,20 @@ function HeroCard({
         </p>
       </div>
 
-      <div className="mt-8 flex items-center justify-between z-10">
-        <a href={SIGNIN} className="group inline-flex items-center gap-4 text-sm font-semibold text-white hover:text-peach transition-colors">
-          <span>Tap to begin</span>
-          <span className="group-hover:translate-x-1 transition-transform">&rarr;</span>
-        </a>
+      <div className="mt-8 flex items-center justify-between gap-4 z-10">
+        <div className="flex flex-wrap items-center gap-5">
+          <a href={SIGNIN} className="group inline-flex items-center gap-4 text-sm font-semibold text-white hover:text-peach transition-colors">
+            <span>Tap to begin</span>
+            <span className="group-hover:translate-x-1 transition-transform">&rarr;</span>
+          </a>
+          <Link
+            href={browseBooksPath}
+            data-testid="hero-browse-books"
+            className="inline-flex items-center min-h-[44px] text-sm font-semibold text-peach hover:text-white underline underline-offset-4 transition-colors focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-offset-2 focus-visible:outline-[#E8622C]"
+          >
+            {browseBooksLabel}
+          </Link>
+        </div>
         {/* Living CTA: breathing peach aura + magnetic press */}
         <motion.a
           href={SIGNIN}

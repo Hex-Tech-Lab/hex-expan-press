@@ -133,8 +133,8 @@ export default async function CheckoutPage({
         <p className="text-xs text-gray-600">A download link is emailed after purchase</p>
       </main>
 
-      {/* A gated (draft) product hides the buyer legal links, the same rule as the product page. */}
-      <StorefrontFooter showBuyerLegal={live} />
+      {/* Buyer legal links always show when storefront.always_show_buyer_legal is enabled (KYC requirement). */}
+      <StorefrontFooter showBuyerLegal={GLOBAL.storefront.always_show_buyer_legal || live} />
     </BrandFrame>
   );
 }

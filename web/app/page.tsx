@@ -27,7 +27,12 @@ export default function Home() {
   // domMax: the landing page uses layout animations (card expand); JourneyDots renders m.*.
   return (
     <MaxMotionProvider>
-      <LandingPage onboarding={onboarding} supportEmail={GLOBAL.email.support} />
+      <LandingPage
+        onboarding={onboarding}
+        supportEmail={GLOBAL.email.support}
+        browseBooksLabel={GLOBAL.storefront.browse_books_label}
+        browseBooksPath={GLOBAL.storefront.browse_books_path}
+      />
     </MaxMotionProvider>
   );
 }
