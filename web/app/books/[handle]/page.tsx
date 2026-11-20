@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import { AttributionCapture } from "../../../src/components/storefront/buy-link";
 import { BrandFrame, BrandWordmark } from "../../../src/components/brand/brand";
 import {
@@ -7,6 +8,7 @@ import {
   StorefrontFooter,
   storefrontRobots,
   fetchCreatorHub,
+  isPublishedCreatorHub,
   platformLink,
   resolveCreatorOr404,
 } from "../../../src/components/storefront/storefront";
@@ -24,6 +26,8 @@ export async function generateMetadata({ params }: { params: Promise<{ handle: s
   const { handle } = await params;
   const brand = GLOBAL.storefront.brand_name;
   const result = await fetchCreatorHub(handle);
+  // A hidden hub 404s before any title is built, so the creator's name never reaches <title> or og:title.
+  if (result && !isPublishedCreatorHub(result)) notFound();
   if (!result) return { title: `Creator page · ${brand}`, robots: NOINDEX };
   const { creator, origin } = result;
   const title = `${creator.display_name} — Creator page · ${brand}`;
@@ -43,7 +47,8 @@ export async function generateMetadata({ params }: { params: Promise<{ handle: s
 
 export default async function CreatorHubPage({ params }: { params: Promise<{ handle: string }> }) {
   const { handle } = await params;
-  const { creator } = resolveCreatorOr404(await fetchCreatorHub(handle));
+  const hub = await fetchCreatorHub(handle);
+  const { creator } = resolveCreatorOr404(hub && isPublishedCreatorHub(hub) ? hub : null);
   // Operator-controlled flag, not the display name: a creator who types "ExpanPress" must not get the house bio.
   const houseCreator = creator.is_house === true;
 

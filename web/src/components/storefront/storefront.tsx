@@ -171,6 +171,15 @@ export function isVisibleStorefrontProduct(
   );
 }
 
+/** A creator hub is published when it is the house hub, or when at least one product passes isVisibleStorefrontProduct
+ *  (the same rule the shelf and /books use). Under storefront.hide_empty_creator_hubs (default true), a hub with nothing
+ *  visible is 404 Not Found instead of an empty shelf that exposes the creator's name. false restores the empty shelf. */
+export function isPublishedCreatorHub(hub: { creator: Pick<HubCreator, "is_house" | "products"> }): boolean {
+  if (!GLOBAL.storefront.hide_empty_creator_hubs) return true;
+  if (hub.creator.is_house === true) return true;
+  return hub.creator.products.some((storeProduct) => isVisibleStorefrontProduct(storeProduct));
+}
+
 // cache(): generateMetadata and the page share one query set per request.
 export const fetchCreatorHub = cache(async function fetchCreatorHub(handle: string): Promise<{ creator: HubCreator; origin: string } | null> {
   if (!handle) return null;

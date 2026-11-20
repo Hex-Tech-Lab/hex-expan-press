@@ -36,6 +36,22 @@ vi.mock("../../../../../payments/src/supabase_admin", () => ({
 }));
 
 const brand = GLOBAL.storefront.brand_name;
+const LIVE_PRODUCT_FOR_HUB = {
+  id: "00000000-0000-4000-8000-0000000000c2",
+  store_product_id: "prod_hub_live",
+  slug: "hub_live_book",
+  title: "Hub Live Book",
+  price_usd: "39",
+  currency: "USD",
+  working_note: null,
+  description: null,
+  disclaimers: null,
+  checkout_mode: "live",
+  inside: null,
+  book_registry: null,
+  cover_image: null,
+  is_sample: false,
+};
 const CHECKOUT_ID = "00000000-0000-4000-8000-0000000000c1";
 
 function hubFor(overrides: { display_name: string; is_house: boolean }) {
@@ -47,7 +63,8 @@ function hubFor(overrides: { display_name: string; is_house: boolean }) {
       bio: null,
       photo: null,
       is_house: overrides.is_house,
-      products: [],
+      // One live product so the hub is published (a hub with no visible product is 404 under hide_empty_creator_hubs).
+      products: [LIVE_PRODUCT_FOR_HUB],
     },
     origin: "https://expanpress.com",
   };

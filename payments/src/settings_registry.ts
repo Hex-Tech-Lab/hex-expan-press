@@ -191,6 +191,10 @@ export interface GlobalSettings {
      *  Off by default because the links expose how few titles exist. Re-enable once several creators and house books
      *  are live. If re-enabled, the header top-right is the founder-approved placement. */
     browse_books_enabled: boolean;
+    /** `storefront.hide_empty_creator_hubs`: a creator hub with no visible storefront product (per isVisibleStorefrontProduct)
+     *  returns 404 Not Found instead of an empty shelf. The house hub (creators.is_house) is never 404'd by this rule.
+     *  false restores the empty-shelf render. */
+    hide_empty_creator_hubs: boolean;
     always_show_buyer_legal: boolean;
     /** Buyer legal links (label and path) shown in the storefront footer and on the pay root page. Fixed copy and paths. */
     buyer_legal_links: ReadonlyArray<{ label: string; path: string }>;
@@ -467,6 +471,7 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     browse_books_label: "Browse books",
     browse_books_path: "/books",
     browse_books_enabled: false,
+    hide_empty_creator_hubs: true,
     always_show_buyer_legal: true,
     buyer_legal_links: [
       { label: "Privacy Policy", path: "/books/legal/privacy.html" },
@@ -1044,6 +1049,11 @@ export function loadStorefrontSection(raw: Record<string, unknown> | undefined):
     if (typeof raw.browse_books_enabled === "boolean") browseBooksEnabled = raw.browse_books_enabled;
     else fallbacks.push("browse_books_enabled");
   }
+  let hideEmptyCreatorHubs = defaults.hide_empty_creator_hubs;
+  if ("hide_empty_creator_hubs" in raw) {
+    if (typeof raw.hide_empty_creator_hubs === "boolean") hideEmptyCreatorHubs = raw.hide_empty_creator_hubs;
+    else fallbacks.push("hide_empty_creator_hubs");
+  }
   let alwaysShowBuyerLegal = defaults.always_show_buyer_legal;
   if ("always_show_buyer_legal" in raw) {
     if (typeof raw.always_show_buyer_legal === "boolean") alwaysShowBuyerLegal = raw.always_show_buyer_legal;
@@ -1133,6 +1143,7 @@ export function loadStorefrontSection(raw: Record<string, unknown> | undefined):
     browse_books_label: strField("browse_books_label"),
     browse_books_path: browseBooksPath,
     browse_books_enabled: browseBooksEnabled,
+    hide_empty_creator_hubs: hideEmptyCreatorHubs,
     always_show_buyer_legal: alwaysShowBuyerLegal,
     // Fixed legal set (reviewed copy): not overridable from global.json, so the wording cannot drift from the defaults.
     buyer_legal_links: defaults.buyer_legal_links,
