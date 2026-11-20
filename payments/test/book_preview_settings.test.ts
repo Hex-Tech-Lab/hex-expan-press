@@ -184,6 +184,7 @@ describe("loadBookPreviewSection (settings_registry)", () => {
       page_height_px: 540,
       flipping_time_ms: 450,
       max_shadow_opacity: 0.35,
+      resize_min_delta_px: 4,
       show_cover: false,
       use_portrait: true,
       heading: "Look inside",
@@ -223,6 +224,7 @@ describe("loadBookPreviewSection (settings_registry)", () => {
     expect(out.page_height_px).toBe(540);
     expect(out.flipping_time_ms).toBe(450);
     expect(out.max_shadow_opacity).toBe(0.35);
+    expect(out.resize_min_delta_px).toBe(4);
     expect(out.show_cover).toBe(false);
     expect(out.heading).toBe("Look inside");
     expect(out.zoom_levels).toEqual([1, 1.5, 2]);
@@ -244,6 +246,7 @@ describe("loadBookPreviewSection (settings_registry)", () => {
       max_preview_pages: 1,
       flipping_time_ms: 10,
       max_shadow_opacity: 2,
+      resize_min_delta_px: 51,
       pdf_worker_src: "/pdfjs/../evil.mjs",
       show_cover: "yes",
       zoom_levels: [1, 1],
@@ -265,6 +268,7 @@ describe("loadBookPreviewSection (settings_registry)", () => {
       },
     });
     expect(out.render_scale).toBe(DEFAULT_GLOBAL.book_preview.render_scale);
+    expect(out.resize_min_delta_px).toBe(1);
     expect(out.max_preview_pages).toBe(DEFAULT_GLOBAL.book_preview.max_preview_pages);
     expect(out.flipping_time_ms).toBe(DEFAULT_GLOBAL.book_preview.flipping_time_ms);
     expect(out.max_shadow_opacity).toBe(DEFAULT_GLOBAL.book_preview.max_shadow_opacity);

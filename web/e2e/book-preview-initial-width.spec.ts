@@ -106,4 +106,29 @@ for (const vp of VIEWPORTS) {
     expect(relativeError(settled!.bitmapW / settled!.bitmapH, want)).toBeLessThan(ASPECT_TOLERANCE);
     expect(relativeError(settled!.cssW / settled!.cssH, want)).toBeLessThan(ASPECT_TOLERANCE);
   });
+
+  // Container-only resize: the host width changes after ready with no window resize. page-flip re-syncs on window
+  // resize itself, so only the container observer (ResizeObserver in book-previewer.tsx) can pass this case.
+  test(`flipbook bitmap re-syncs when its container width changes without a window resize (${vp.name})`, async ({ page, baseURL }) => {
+    await page.setViewportSize({ width: vp.width, height: vp.height });
+    await page.goto(SAMPLE_URL);
+    await expect(page.getByTestId("book-preview-page-label")).toHaveText("Front cover · Page 1 of 8", {
+      timeout: 30_000,
+    });
+    await settleFrames(page);
+
+    await page.evaluate(() => {
+      const host = document.querySelector<HTMLElement>('[data-testid="book-preview-viewport"] [data-orientation]');
+      if (host) host.style.width = "70%";
+    });
+    await settleFrames(page);
+    await settleFrames(page);
+
+    const pageAspect = await pdfPageAspect(page, baseURL);
+    const settled = await readCanvas(page);
+    expect(settled).not.toBeNull();
+    const want = expectedAspect(settled!.orientation, pageAspect);
+    expect(relativeError(settled!.bitmapW / settled!.bitmapH, want)).toBeLessThan(ASPECT_TOLERANCE);
+    expect(relativeError(settled!.cssW / settled!.cssH, want)).toBeLessThan(ASPECT_TOLERANCE);
+  });
 }
