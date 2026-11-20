@@ -1,0 +1,24 @@
+docs/agent_ledger.jsonl
+  h_e6b68dcbbd0983 987-990
+scripts/__tests__/test_preview_pdf_build.py
+  h_e6b68dcbbd0983 1-182
+scripts/preview_pdf_build.py
+  h_e6b68dcbbd0983 30-32,111-113
+src/adapters/payments/__tests__/paddle.adapter.test.ts
+  h_e6b68dcbbd0983 634-643,645,659-664,666
+src/adapters/payments/paddle.adapter.ts
+  h_e6b68dcbbd0983 79-83,86-90,369-372
+web/app/api/billing/webhook/__tests__/paddle_consent_webhook.test.ts
+  h_e6b68dcbbd0983 1-159
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2c26ab7c472066f1abce6721b6446a236c2a431b",
+  "prompts": {},
+  "humans": {
+    "h_e6b68dcbbd0983": {
+      "author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
