@@ -8,6 +8,7 @@ import {
   StorefrontFooter,
   fetchCheckoutProduct,
   formatProductPrice,
+  isHouseCreator,
   isWorkingTitle,
   priceOf,
 } from "../../../src/components/storefront/storefront";
@@ -90,7 +91,7 @@ export default async function CheckoutPage({
             {`Secure checkout · ${brand}`}
           </p>
           <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-gray-900 leading-[1.12]">{p.title ?? p.slug}</h1>
-          <PublicationByline creatorHandle={creator.handle} creatorDisplayName={creator.display_name} />
+          <PublicationByline creatorHandle={creator.handle} creatorDisplayName={creator.display_name} creatorIsHouse={isHouseCreator(creator)} />
           {isWorkingTitle(p) && (
             <p className="text-xs italic text-gray-600">Product shown under a working title &mdash; final title may change before publication.</p>
           )}

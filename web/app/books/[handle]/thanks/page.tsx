@@ -24,7 +24,7 @@ export async function generateMetadata({ params }: { params: Promise<{ handle: s
   const brand = GLOBAL.storefront.brand_name;
   const result = await fetchCreatorHub(handle);
   const title =
-    result && !isHouseCreator(result.creator.display_name, brand)
+    result && !isHouseCreator(result.creator)
       ? `Thank you · ${result.creator.display_name} · ${brand}`
       : `Thank you · ${brand}`;
   return { title, robots: NOINDEX };

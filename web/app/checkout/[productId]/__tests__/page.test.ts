@@ -43,9 +43,9 @@ function walk(node: Node, visit: (el: { type?: unknown; props: Record<string, un
   walk(el.props.children as Node, visit);
 }
 
-function product(over: Record<string, unknown> = {}, extra: { displayName?: string; railProvider?: string | null } = {}) {
+function product(over: Record<string, unknown> = {}, extra: { displayName?: string; isHouse?: boolean; railProvider?: string | null } = {}) {
   return {
-    creator: { handle: "ada", display_name: extra.displayName ?? "Ada" },
+    creator: { handle: "ada", display_name: extra.displayName ?? "Ada", is_house: extra.isHouse ?? false },
     railProvider: "railProvider" in extra ? extra.railProvider : "paddle",
     product: {
       id: "p1",
@@ -232,7 +232,7 @@ describe("checkout page: Paddle Option A client config, MoR provider line, and h
 
   it("renders 'Published by ExpanPress' for house products and 'A creator-collaboration publication with <creator>' without middle dot", async () => {
     const stripTags = (html: string) => html.replace(/<[^>]+>/g, "");
-    vi.mocked(fetchCheckoutProduct).mockResolvedValue(product({}, { displayName: GLOBAL.storefront.brand_name }) as never);
+    vi.mocked(fetchCheckoutProduct).mockResolvedValue(product({}, { displayName: GLOBAL.storefront.brand_name, isHouse: true }) as never);
     const houseHtml = renderToStaticMarkup(await render("p1"));
     expect(stripTags(houseHtml)).toContain("Published by ExpanPress");
     expect(houseHtml).not.toContain("creator-collaboration");

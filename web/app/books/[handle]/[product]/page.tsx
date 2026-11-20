@@ -46,7 +46,7 @@ export async function generateMetadata({
   if (!result) return { title: `Publication · ${brand}`, robots: NOINDEX };
   const { creator, product: p, origin } = result;
   const productTitle = p.title ?? p.slug;
-  const title = isHouseCreator(creator.display_name, brand)
+  const title = isHouseCreator(creator)
     ? `${productTitle} · ${brand}`
     : `${productTitle} · ${creator.display_name} · ${brand}`;
   const description = (p.description ?? `A publication by ${creator.display_name} on ${brand}.`).slice(0, 155);
@@ -128,7 +128,12 @@ export default async function StoreProductPage({
               Digital PDF &middot; Download link by email
             </p>
             <h1 className="text-3xl sm:text-4xl font-bold tracking-tight text-gray-900 leading-[1.12]">{title}</h1>
-            <PublicationByline creatorHandle={creator.handle} creatorDisplayName={creator.display_name} linkCreator />
+            <PublicationByline
+              creatorHandle={creator.handle}
+              creatorDisplayName={creator.display_name}
+              creatorIsHouse={isHouseCreator(creator)}
+              linkCreator
+            />
             {isWorkingTitle(p) && (
               <p className="text-xs italic text-gray-600">
                 Product shown under a working title &mdash; final title may change before publication.

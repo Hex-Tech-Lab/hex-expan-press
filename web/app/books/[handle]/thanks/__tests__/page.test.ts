@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 vi.mock("../../../../../../payments/src/supabase_admin", () => ({ getSupabaseAdmin: vi.fn(async () => null) }));
 const hubMock = vi.hoisted(() => ({
-  creator: { handle: "e2e_live_creator", display_name: "E2E Live Creator", products: [] },
+  creator: { handle: "e2e_live_creator", display_name: "E2E Live Creator", is_house: false, products: [] },
   origin: "https://expanpress.com",
 }));
 vi.mock("../../../../../src/components/storefront/storefront", async (importOriginal) => ({
@@ -47,14 +47,14 @@ describe("thank-you page (/books/{handle}/thanks)", () => {
   });
 
   it("drops the trailing brand suffix in generateMetadata when creator display name is the brand itself", async () => {
-    hubMock.creator = { handle: "e2e_live_creator", display_name: "E2E Live Creator", products: [] };
+    hubMock.creator = { handle: "e2e_live_creator", display_name: "E2E Live Creator", is_house: false, products: [] };
     const creatorMeta = await generateMetadata({ params: Promise.resolve({ handle: "e2e_live_creator" }) });
     expect(creatorMeta.title).toBe("Thank you · E2E Live Creator · ExpanPress");
 
-    hubMock.creator = { handle: "expanpress_house", display_name: GLOBAL.storefront.brand_name, products: [] };
+    hubMock.creator = { handle: "expanpress_house", display_name: GLOBAL.storefront.brand_name, is_house: true, products: [] };
     const houseMeta = await generateMetadata({ params: Promise.resolve({ handle: "expanpress_house" }) });
     expect(houseMeta.title).toBe("Thank you · ExpanPress");
-    hubMock.creator = { handle: "e2e_live_creator", display_name: "E2E Live Creator", products: [] };
+    hubMock.creator = { handle: "e2e_live_creator", display_name: "E2E Live Creator", is_house: false, products: [] };
   });
 
   it("sends the logo to the B2C landing, not the B2B root", async () => {

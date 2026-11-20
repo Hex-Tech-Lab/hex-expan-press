@@ -71,14 +71,15 @@ export interface HubCreator {
 /** The product slug in storefront URLs is products.slug, the agreed rule (ADR 0065, DB CHECK).
  * A product is identified by its creator handle and products.slug only; no stored derived
  * identifier is read. Every product link and the product lookup go through this one function. */
-export function productSlugOf(p: Pick<StoreProduct, "slug">): string {
-  return p.slug ?? "";
+export function productSlugOf(storeProduct: Pick<StoreProduct, "slug">): string {
+  return storeProduct.slug ?? "";
 }
 
 /** numeric-as-string coercion with a finite guard (Sprint 15 money-path rule). */
-export function priceOf(p: Pick<StoreProduct, "price_usd">): number | null {
-  if (p.price_usd == null) return null;
-  const n = Number(p.price_usd);
+export function priceOf(storeProduct: Pick<StoreProduct, "price_usd">): number | null {
+  const raw = storeProduct.price_usd;
+  // Type-narrow before coercing: Number(null) is 0 and Number(true) is 1, so only strings and numbers convert.
+  const n = typeof raw === "string" || typeof raw === "number" ? Number(raw) : NaN;
   return Number.isFinite(n) ? n : null;
 }
 
@@ -110,13 +111,13 @@ export function formatProductPrice(
   }
 }
 
-export function isWorkingTitle(p: StoreProduct): boolean {
-  return typeof p.working_note === "string" && p.working_note.toUpperCase().startsWith("WORKING");
+export function isWorkingTitle(storeProduct: StoreProduct): boolean {
+  return typeof storeProduct.working_note === "string" && storeProduct.working_note.toUpperCase().startsWith("WORKING");
 }
 
 /** Only commercial products (store_product_id) belong on a storefront. */
 export function commercialProducts<T extends { store_product_id: string | null }>(products: T[] | null | undefined): T[] {
-  return (products ?? []).filter((p) => typeof p.store_product_id === "string" && p.store_product_id !== "");
+  return (products ?? []).filter((storeProduct) => typeof storeProduct.store_product_id === "string" && storeProduct.store_product_id !== "");
 }
 
 async function fetchSiteOrigin(supabase: NonNullable<Awaited<ReturnType<typeof getSupabaseAdmin>>>): Promise<string> {
@@ -126,16 +127,16 @@ async function fetchSiteOrigin(supabase: NonNullable<Awaited<ReturnType<typeof g
   return origin;
 }
 
-function withResolvedAssets<T extends { slug: string | null; title: string | null; book_registry?: string | null }>(p: T): T & {
+function withResolvedAssets<T extends { slug: string | null; title: string | null; book_registry?: string | null }>(storeProduct: T): T & {
   book_registry: string | null;
   cover_image: string | null;
   preview_pdf: string | null;
   is_sample: boolean;
   overview: string | null;
 } {
-  const assets = resolveProductBookAssets(p);
+  const assets = resolveProductBookAssets(storeProduct);
   return {
-    ...p,
+    ...storeProduct,
     book_registry: assets.book_registry,
     cover_image: assets.cover_image,
     preview_pdf: assets.preview_pdf,
@@ -191,7 +192,7 @@ export const fetchCreatorHub = cache(async function fetchCreatorHub(handle: stri
   const origin = await fetchSiteOrigin(supabase);
   // Keep creator hubs consistent with /books: live products plus allowed non-live SAMPLE products only.
   // storefrontRobots depends only on whether a live product exists, so its result stays NOINDEX for sample-only hubs.
-  const products = commercial.map(withResolvedAssets).filter((p) => isVisibleStorefrontProduct(p));
+  const products = commercial.map(withResolvedAssets).filter((storeProduct) => isVisibleStorefrontProduct(storeProduct));
   return { creator: { ...creator, products }, origin };
 });
 
@@ -232,7 +233,7 @@ export const fetchB2cLanding = cache(async function fetchB2cLanding(): Promise<L
       ...c,
       products: commercialProducts(c.products)
         .map(withResolvedAssets)
-        .filter((p) => isVisibleStorefrontProduct(p)),
+        .filter((storeProduct) => isVisibleStorefrontProduct(storeProduct)),
     }))
     .filter((c) => c.products.length > 0);
 });
@@ -256,7 +257,7 @@ export const fetchStoreProduct = cache(async function fetchStoreProduct(
   if (error) throw new Error(`storefront: product page query failed for '${handle}/${productSlug}': ${error.message}`);
   const creator = data as HubCreator | null;
   if (!creator) return null;
-  const product = commercialProducts(creator.products).find((p) => productSlugOf(p) === productSlug);
+  const product = commercialProducts(creator.products).find((storeProduct) => productSlugOf(storeProduct) === productSlug);
   if (!product) return null;
   const origin = await fetchSiteOrigin(supabase);
   return { creator, product: withResolvedAssets(product), origin };
@@ -269,7 +270,7 @@ export const PAY_ORIGIN = "https://pay.expanpress.com";
 /** Checkout page lookup by product UUID (ADR 0061). Commercial products only, same rule as the storefront. */
 export const fetchCheckoutProduct = cache(async function fetchCheckoutProduct(
   productId: string,
-): Promise<{ creator: { handle: string; display_name: string }; product: StoreProduct; railProvider: string | null } | null> {
+): Promise<{ creator: { handle: string; display_name: string; is_house: boolean }; product: StoreProduct; railProvider: string | null } | null> {
   if (!guidSchema.safeParse(productId).success) return null;
   const supabase = await getSupabaseAdmin();
   if (!supabase) {
@@ -278,13 +279,15 @@ export const fetchCheckoutProduct = cache(async function fetchCheckoutProduct(
   const { data, error } = await supabase
     .from("products")
     .select(
-      "id, store_product_id, slug, title, price_usd, currency, working_note, description, disclaimers, checkout_mode, paddle_price_id, inside, creators(handle, display_name)",
+      "id, store_product_id, slug, title, price_usd, currency, working_note, description, disclaimers, checkout_mode, paddle_price_id, inside, creators(handle, display_name, is_house)",
     )
     .eq("id", productId)
     .maybeSingle();
   if (error) throw new Error(`storefront: checkout product query failed for '${productId}': ${error.message}`);
   if (!data) return null;
-  const row = data as unknown as StoreProduct & { creators: { handle: string; display_name: string } | Array<{ handle: string; display_name: string }> | null };
+  const row = data as unknown as StoreProduct & {
+    creators: { handle: string; display_name: string; is_house: boolean } | Array<{ handle: string; display_name: string; is_house: boolean }> | null;
+  };
   const creator = Array.isArray(row.creators) ? row.creators[0] : row.creators;
   if (!creator || commercialProducts([row]).length === 0) return null;
   const { data: railRows, error: railErr } = await supabase
@@ -304,23 +307,28 @@ export const fetchCheckoutProduct = cache(async function fetchCheckoutProduct(
   return { creator, product: row, railProvider: activeRail?.provider ?? null };
 });
 
-/** True when the creator display name equals the house brand (settings: storefront.brand_name). */
-export function isHouseCreator(displayName: string, brandName: string = GLOBAL.storefront.brand_name): boolean {
-  return displayName.trim() === brandName.trim();
+/**
+ * The one house check for every storefront surface. Reads the operator-set creators.is_house column
+ * (creators_is_house_guard), never the display name: a creator who types the brand name is not the house.
+ */
+export function isHouseCreator(creator: { is_house: boolean }): boolean {
+  return creator.is_house === true;
 }
 
 /** Shared publication attribution sentence used identically on the product and checkout pages. */
 export function PublicationByline({
   creatorHandle,
   creatorDisplayName,
+  creatorIsHouse,
   linkCreator = false,
 }: {
   creatorHandle: string;
   creatorDisplayName: string;
+  creatorIsHouse: boolean;
   linkCreator?: boolean;
 }) {
   const brand = GLOBAL.storefront.brand_name;
-  if (isHouseCreator(creatorDisplayName, brand)) {
+  if (creatorIsHouse) {
     return (
       <p className="text-sm text-gray-600">
         {`Published by `}
@@ -355,7 +363,7 @@ export function insideItems(raw: unknown): Array<{ label: string; text: string }
  *  static pages did); only a page with something actually for sale indexes. */
 export const NOINDEX = { index: false, follow: false } as const;
 export function storefrontRobots(products: Array<Pick<StoreProduct, "checkout_mode">>) {
-  return products.some((p) => p.checkout_mode === "live") ? undefined : NOINDEX;
+  return products.some((storeProduct) => storeProduct.checkout_mode === "live") ? undefined : NOINDEX;
 }
 
 export function resolveCreatorOr404<T>(result: T | null): T {
