@@ -130,6 +130,12 @@ describe("store product page (/books/{handle}/{product})", () => {
     expect(withPreview).toContain(`id="${layout.preview_section_id}"`);
     expect(withPreview).toContain(`--product-gap-desktop:${layout.gap_desktop_px}px`);
     expect(withPreview).toContain(`--product-cover-max-w:${layout.cover_max_width_px}px`);
+    expect(withPreview).toContain('data-testid="product-cover-col"');
+    expect(withPreview).toContain('data-testid="product-details-card"');
+    expect(withPreview).toContain("md:h-0 md:min-h-full");
+    expect(withPreview).toContain('data-testid="book-overview-scroll"');
+    expect(withPreview).toContain("thin-scrollbar");
+    expect(withPreview).toContain('tabindex="0"');
     productMock.product.preview_pdf = null;
   });
 

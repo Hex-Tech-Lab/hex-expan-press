@@ -100,19 +100,30 @@ export default async function StoreProductPage({
           data-testid="product-hero-grid"
           className="grid grid-cols-1 gap-[var(--product-gap-mobile)] md:gap-[var(--product-gap-desktop)] md:grid-cols-[minmax(0,min(var(--product-cover-max-pct),var(--product-cover-max-w)))_minmax(0,1fr)] md:items-stretch"
         >
-          <div className="w-full max-w-[var(--product-cover-max-w)] mx-auto md:max-w-none md:mx-0">
-            <BookCover title={title} coverImage={p.cover_image ?? null} isSample={p.is_sample ?? false} />
+          <div
+            data-testid="product-cover-col"
+            className="w-full max-w-[var(--product-cover-max-w)] mx-auto md:max-w-none md:mx-0 md:h-full"
+          >
+            <BookCover
+              title={title}
+              coverImage={p.cover_image ?? null}
+              isSample={p.is_sample ?? false}
+              className="md:h-full"
+            />
           </div>
 
-          <section className="glass-card card-shadow rounded-[32px] border-[1.5px] border-[#fff2e4] p-6 sm:p-8 flex flex-col gap-5">
+          <section
+            data-testid="product-details-card"
+            className="glass-card card-shadow rounded-[32px] border-[1.5px] border-[#fff2e4] p-6 sm:p-8 flex flex-col gap-3.5 md:h-0 md:min-h-full"
+          >
           <Link
             href={`/books/${creator.handle}`}
-            className="self-start text-sm font-semibold text-gray-700 hover:text-gray-900 hover:underline underline-offset-4"
+            className="shrink-0 self-start text-sm font-semibold text-gray-700 hover:text-gray-900 hover:underline underline-offset-4"
           >
             &larr; Back to {creator.display_name}&rsquo;s books
           </Link>
 
-          <div className="flex flex-col gap-3">
+          <div className="shrink-0 flex flex-col gap-3">
             <p className="text-[11px] sm:text-xs font-mono font-medium tracking-[0.16em] uppercase text-gray-600">
               Digital PDF &middot; Download link by email
             </p>
@@ -125,14 +136,22 @@ export default async function StoreProductPage({
             )}
           </div>
 
-          {p.description && <p className="text-base font-medium text-gray-800 leading-relaxed">{p.description}</p>}
+          {p.description && <p className="shrink-0 text-base font-medium text-gray-800 leading-relaxed">{p.description}</p>}
           {overview && (
-            <p className="text-sm sm:text-base text-gray-700 leading-relaxed" data-testid="book-overview">
-              {overview}
-            </p>
+            <div
+              tabIndex={0}
+              role="region"
+              aria-label="Book overview"
+              data-testid="book-overview-scroll"
+              className="md:flex-1 md:min-h-0 md:overflow-y-auto md:pr-2 md:pb-1 thin-scrollbar focus-visible:rounded-lg"
+            >
+              <p className="text-sm sm:text-base text-gray-700 leading-relaxed" data-testid="book-overview">
+                {overview}
+              </p>
+            </div>
           )}
 
-          <p className="text-2xl font-bold tracking-tight text-gray-900">
+          <p className="shrink-0 text-2xl font-bold tracking-tight text-gray-900">
             {priceDisplay.formatted}{" "}
             <span className="text-xs font-normal text-gray-600">{`${priceDisplay.currency} · one-time`}</span>
           </p>
@@ -140,6 +159,7 @@ export default async function StoreProductPage({
           {live ? (
             <BuyLink
               href={buyUrl}
+              className="shrink-0"
               data-checkout-slot="primary"
               data-checkout-mode="live"
             >
@@ -148,7 +168,7 @@ export default async function StoreProductPage({
             </BuyLink>
           ) : (
             <p
-              className="self-start rounded-full border border-[#dcc7b4] bg-white/60 px-6 py-3.5 text-sm font-semibold text-gray-700"
+              className="shrink-0 self-start rounded-full border border-[#dcc7b4] bg-white/60 px-6 py-3.5 text-sm font-semibold text-gray-700"
               aria-disabled="true"
               data-checkout-slot="primary"
               data-checkout-mode="gated"
@@ -157,11 +177,11 @@ export default async function StoreProductPage({
             </p>
           )}
 
-          <p className="text-xs text-gray-600">Secure checkout hosted by our payment partners &middot; A download link is emailed after purchase</p>
-          <p className="text-xs text-gray-600">Sales tax / VAT is calculated and collected at checkout by our payment partners.</p>
+          <p className="shrink-0 text-xs text-gray-600">Secure checkout hosted by our payment partners &middot; A download link is emailed after purchase</p>
+          <p className="shrink-0 text-xs text-gray-600">Sales tax / VAT is calculated and collected at checkout by our payment partners.</p>
 
           {(p.disclaimers ?? []).map((d, i) => (
-            <p key={i} className="text-xs text-gray-600 leading-relaxed">
+            <p key={i} className="shrink-0 text-xs text-gray-600 leading-relaxed">
               {d}
             </p>
           ))}

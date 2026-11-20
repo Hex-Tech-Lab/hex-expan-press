@@ -83,3 +83,23 @@ html {
     outline-color: #faf5ee;
   }
 }
+
+/* Thin styled scrollbar for scrollable product overview and zoomed previewer stages. */
+.thin-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(196, 148, 118, 0.55) transparent;
+}
+.thin-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.thin-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.thin-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgba(196, 148, 118, 0.55);
+  border-radius: 9999px;
+}
+.thin-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(179, 64, 30, 0.72);
+}

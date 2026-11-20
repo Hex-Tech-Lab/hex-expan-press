@@ -767,4 +767,15 @@ describe("B2C/B2B routing matrix: host x path", () => {
     } as never);
     expect(allowed.status).toBe(200);
   });
+
+  it("sets X-Robots-Tag noindex, nofollow on service-provider pages", async () => {
+    const { proxy } = await import("../proxy");
+    const payProviders = await proxy(req("https://pay.expanpress.com/books/legal/providers.html") as never);
+    expect(payProviders.status).toBe(200);
+    expect(payProviders.headers.get("x-robots-tag")).toBe("noindex, nofollow");
+
+    const mainProviders = await proxy(req("https://expanpress.com/legal/providers.html") as never);
+    expect(mainProviders.status).toBe(200);
+    expect(mainProviders.headers.get("x-robots-tag")).toBe("noindex, nofollow");
+  });
 });

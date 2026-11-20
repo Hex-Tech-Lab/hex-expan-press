@@ -181,6 +181,7 @@ export interface GlobalSettings {
     always_show_buyer_legal: boolean;
     /** Buyer legal links (label and path) shown in the storefront footer and on the pay root page. Fixed copy and paths. */
     buyer_legal_links: ReadonlyArray<{ label: string; path: string }>;
+    pay_root_kicker: string;
     pay_root_heading: string;
     pay_root_description: string;
     covers_base_path: string;
@@ -274,6 +275,15 @@ export interface StorefrontProductLayoutSettings {
   cue_bounce_repeat_delay_s: number;
 }
 
+export interface BookPreviewToolbarLabels {
+  toolbar_aria_label: string;
+  zoom_in: string;
+  zoom_out: string;
+  reset_zoom: string;
+  go_to_page: string;
+  go_to_page_submit: string;
+}
+
 export interface BookPreviewSettings {
   pdf_worker_src: string;
   render_scale: number;
@@ -294,6 +304,9 @@ export interface BookPreviewSettings {
   use_portrait: boolean;
   heading: string;
   subheading: string;
+  /** Ordered zoom multipliers starting at 1 (default 100%, then 2 zoom-in levels). */
+  zoom_levels: ReadonlyArray<number>;
+  toolbar_labels: BookPreviewToolbarLabels;
 }
 
 export interface UsageWatchSettings {
@@ -387,7 +400,8 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
       { label: "Terms of Sale", path: "/books/legal/terms.html" },
       { label: "Refund Policy", path: "/books/legal/refund-policy.html" },
     ],
-    pay_root_heading: `${STOREFRONT_BRAND} Checkout`,
+    pay_root_kicker: "Secure checkout",
+    pay_root_heading: "Digital book checkout",
     pay_root_description: "Secure digital book checkout. Browse published titles or review buyer legal policies below.",
     covers_base_path: "/books/covers",
     previews_base_path: "/books/previews",
@@ -425,6 +439,15 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     use_portrait: true,
     heading: "Preview inside the book",
     subheading: "Turn pages to inspect the cover, Chapter 1, an interior chapter opener, and back cover.",
+    zoom_levels: [1, 1.35, 1.75],
+    toolbar_labels: {
+      toolbar_aria_label: "Preview controls",
+      zoom_in: "Zoom in",
+      zoom_out: "Zoom out",
+      reset_zoom: "Reset zoom",
+      go_to_page: "Go to page",
+      go_to_page_submit: "Go",
+    },
   },
   // Our handle rules, not a platform's (Instagram allows 1-30, Facebook requires 5). Reserved words are never assignable.
   handles: {
@@ -876,6 +899,7 @@ export function loadStorefrontSection(raw: Record<string, unknown> | undefined):
       | "coming_soon_badge"
       | "sample_preview_cta"
       | "browse_books_label"
+      | "pay_root_kicker"
       | "pay_root_heading"
       | "pay_root_description",
   ): string => {
@@ -983,6 +1007,7 @@ export function loadStorefrontSection(raw: Record<string, unknown> | undefined):
     always_show_buyer_legal: alwaysShowBuyerLegal,
     // Fixed legal set (reviewed copy): not overridable from global.json, so the wording cannot drift from the defaults.
     buyer_legal_links: defaults.buyer_legal_links,
+    pay_root_kicker: strField("pay_root_kicker"),
     pay_root_heading: strField("pay_root_heading"),
     pay_root_description: strField("pay_root_description"),
     covers_base_path: coversBasePath,
@@ -1407,6 +1432,8 @@ export const BOOK_PREVIEW_LIMITS = {
   max_shadow_opacity: { min: 0, max: 1 },
   swipe_distance_px: { min: 10, max: 120 },
   visibility_margin_px: { min: 0, max: 1000 },
+  zoom_level: { min: 1, max: 3 },
+  zoom_levels_length: { min: 2, max: 5 },
 } as const;
 
 function isSafeBooksPrefix(v: unknown): v is string {
@@ -1471,6 +1498,50 @@ export function loadBookPreviewSection(raw: Record<string, unknown> | undefined)
   const maxW = Math.max(minW, intField("max_width_px"));
   const minH = intField("min_height_px");
   const maxH = Math.max(minH, intField("max_height_px"));
+
+  let zoomLevels: ReadonlyArray<number> = defaults.zoom_levels;
+  if ("zoom_levels" in raw) {
+    const candidate = raw.zoom_levels;
+    const validZoomArray =
+      Array.isArray(candidate) &&
+      candidate.length >= BOOK_PREVIEW_LIMITS.zoom_levels_length.min &&
+      candidate.length <= BOOK_PREVIEW_LIMITS.zoom_levels_length.max &&
+      candidate.every(
+        (zoomFactor, idx) =>
+          typeof zoomFactor === "number" &&
+          Number.isFinite(zoomFactor) &&
+          zoomFactor >= BOOK_PREVIEW_LIMITS.zoom_level.min &&
+          zoomFactor <= BOOK_PREVIEW_LIMITS.zoom_level.max &&
+          (idx === 0 ? zoomFactor === 1 : zoomFactor > (candidate[idx - 1] as number)),
+      );
+    if (validZoomArray) zoomLevels = [...(candidate as number[])];
+    else fallbacks.push("zoom_levels");
+  }
+
+  let toolbarLabels: BookPreviewToolbarLabels = defaults.toolbar_labels;
+  if ("toolbar_labels" in raw) {
+    const tlRaw = raw.toolbar_labels;
+    if (tlRaw && typeof tlRaw === "object" && !Array.isArray(tlRaw)) {
+      const rec = tlRaw as Record<string, unknown>;
+      const labelField = (labelKey: keyof BookPreviewToolbarLabels): string => {
+        if (!(labelKey in rec)) return defaults.toolbar_labels[labelKey];
+        if (typeof rec[labelKey] === "string" && rec[labelKey].trim() !== "") return rec[labelKey].trim();
+        fallbacks.push(`toolbar_labels.${labelKey}`);
+        return defaults.toolbar_labels[labelKey];
+      };
+      toolbarLabels = {
+        toolbar_aria_label: labelField("toolbar_aria_label"),
+        zoom_in: labelField("zoom_in"),
+        zoom_out: labelField("zoom_out"),
+        reset_zoom: labelField("reset_zoom"),
+        go_to_page: labelField("go_to_page"),
+        go_to_page_submit: labelField("go_to_page_submit"),
+      };
+    } else {
+      fallbacks.push("toolbar_labels");
+    }
+  }
+
   if (fallbacks.length > 0) warnFallback("global.json", `invalid book_preview values for ${fallbacks.join(", ")}`);
   return {
     pdf_worker_src: pdfWorkerSrc,
@@ -1490,6 +1561,8 @@ export function loadBookPreviewSection(raw: Record<string, unknown> | undefined)
     use_portrait: boolField("use_portrait"),
     heading: strField("heading"),
     subheading: strField("subheading"),
+    zoom_levels: zoomLevels,
+    toolbar_labels: toolbarLabels,
   };
 }
 

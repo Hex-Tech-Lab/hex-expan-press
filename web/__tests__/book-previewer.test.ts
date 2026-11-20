@@ -122,6 +122,8 @@ vi.mock("page-flip", () => {
 import BookPreviewer, {
   buildSpreadGroups,
   formatSpreadLabel,
+  parseTargetPageInput,
+  resolveZoomIndex,
   spreadIndexForPage,
 } from "../src/components/storefront/book-previewer";
 
@@ -268,6 +270,74 @@ describe("BookPreviewer component", () => {
       root = null;
     });
     expect(inst.destroy).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders accessible toolbar with 2 zoom-in levels, zoom out, reset, and go-to-page driven by settings", async () => {
+    expect(resolveZoomIndex(0, "zoom_in", [1, 1.35, 1.75])).toBe(1);
+    expect(resolveZoomIndex(2, "zoom_in", [1, 1.35, 1.75])).toBe(2);
+    expect(resolveZoomIndex(1, "zoom_out", [1, 1.35, 1.75])).toBe(0);
+    expect(resolveZoomIndex(2, "reset", [1, 1.35, 1.75])).toBe(0);
+    expect(parseTargetPageInput("4", 6)).toBe(3);
+    expect(parseTargetPageInput("99", 6)).toBe(5);
+    expect(parseTargetPageInput("0", 6)).toBe(0);
+    expect(parseTargetPageInput("abc", 6)).toBeNull();
+
+    await mountPreviewer();
+    const labels = DEFAULT_GLOBAL.book_preview.toolbar_labels;
+    const toolbar = container!.querySelector(`[role="toolbar"][aria-label="${labels.toolbar_aria_label}"]`);
+    expect(toolbar).not.toBeNull();
+
+    const zoomIn = container!.querySelector(`button[aria-label="${labels.zoom_in}"]`) as HTMLButtonElement;
+    const zoomOut = container!.querySelector(`button[aria-label="${labels.zoom_out}"]`) as HTMLButtonElement;
+    const reset = container!.querySelector(`button[aria-label="${labels.reset_zoom}"]`) as HTMLButtonElement;
+    const zoomLabel = container!.querySelector('[data-testid="book-preview-zoom-label"]')!;
+    const viewport = container!.querySelector('[data-testid="book-preview-viewport"]')!;
+
+    expect(zoomIn.getAttribute("title")).toBe(labels.zoom_in);
+    expect(zoomOut.getAttribute("title")).toBe(labels.zoom_out);
+    expect(reset.getAttribute("title")).toBe(labels.reset_zoom);
+    expect(zoomOut.disabled).toBe(true);
+    expect(reset.disabled).toBe(true);
+    expect(zoomIn.disabled).toBe(false);
+    expect(zoomLabel.textContent).toBe("100%");
+
+    await act(async () => { zoomIn.click(); });
+    expect(zoomLabel.textContent).toBe("135%");
+    expect(viewport.getAttribute("data-zoom")).toBe("1.35");
+    expect(zoomOut.disabled).toBe(false);
+    expect(reset.disabled).toBe(false);
+
+    await act(async () => { zoomIn.click(); });
+    expect(zoomLabel.textContent).toBe("175%");
+    expect(viewport.getAttribute("data-zoom")).toBe("1.75");
+    expect(zoomIn.disabled).toBe(true);
+
+    await act(async () => { zoomOut.click(); });
+    expect(zoomLabel.textContent).toBe("135%");
+    expect(zoomIn.disabled).toBe(false);
+
+    await act(async () => { reset.click(); });
+    expect(zoomLabel.textContent).toBe("100%");
+    expect(reset.disabled).toBe(true);
+
+    // Go to page input and keyboard guard (ArrowLeft inside input does not flip page)
+    const input = container!.querySelector('[data-testid="book-preview-goto-input"]') as HTMLInputElement;
+    expect(input.getAttribute("title")).toBe(labels.go_to_page);
+    await act(async () => {
+      input.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true }));
+    });
+    expect(flipMocks.instances[0].flipPrev).not.toHaveBeenCalled();
+
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!;
+    await act(async () => {
+      setter.call(input, "4");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await act(async () => {
+      input.closest("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+    expect(flipMocks.instances[0].turnToPage).toHaveBeenCalledWith(3);
+    expect(container!.querySelector('[data-testid="book-preview-page-label"]')?.textContent).toBe("Pages 4–5 of 6");
   });
 });
 

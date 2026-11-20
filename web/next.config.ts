@@ -68,6 +68,14 @@ const nextConfig: NextConfig = {
           },
         ],
       },
+      {
+        source: "/books/legal/providers.html",
+        headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }],
+      },
+      {
+        source: "/legal/providers.html",
+        headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }],
+      },
     ];
   },
   // Sprint 15: the webhook resolves products from Supabase (resolveProductByAlias)

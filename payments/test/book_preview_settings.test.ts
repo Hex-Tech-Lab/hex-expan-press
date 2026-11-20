@@ -27,7 +27,8 @@ describe("loadStorefrontSection (settings_registry)", () => {
     expect(out.browse_books_label).toBe("Browse books");
     expect(out.browse_books_path).toBe("/books");
     expect(out.always_show_buyer_legal).toBe(true);
-    expect(out.pay_root_heading).toBe("ExpanPress Checkout");
+    expect(out.pay_root_kicker).toBe("Secure checkout");
+    expect(out.pay_root_heading).toBe("Digital book checkout");
     expect(out.pay_root_description.length).toBeGreaterThan(0);
     expect(out.buyer_legal_links.map((l) => l.label)).toEqual(["Privacy Policy", "Terms of Sale", "Refund Policy"]);
     expect(out.buyer_legal_links.map((l) => l.path)).toEqual([
@@ -186,6 +187,15 @@ describe("loadBookPreviewSection (settings_registry)", () => {
       show_cover: false,
       use_portrait: true,
       heading: "Look inside",
+      zoom_levels: [1, 1.5, 2],
+      toolbar_labels: {
+        toolbar_aria_label: "Reader tools",
+        zoom_in: "Larger",
+        zoom_out: "Smaller",
+        reset_zoom: "Actual size",
+        go_to_page: "Jump to page",
+        go_to_page_submit: "Jump",
+      },
     });
     expect(out.render_scale).toBe(1.5);
     expect(out.max_preview_pages).toBe(10);
@@ -195,9 +205,11 @@ describe("loadBookPreviewSection (settings_registry)", () => {
     expect(out.max_shadow_opacity).toBe(0.35);
     expect(out.show_cover).toBe(false);
     expect(out.heading).toBe("Look inside");
+    expect(out.zoom_levels).toEqual([1, 1.5, 2]);
+    expect(out.toolbar_labels.zoom_in).toBe("Larger");
   });
 
-  it("falls back for out-of-range numbers and traversal worker paths", () => {
+  it("falls back for out-of-range numbers, invalid zoom_levels/toolbar_labels, and traversal worker paths", () => {
     const warn = vi.spyOn(console, "error").mockImplementation(() => undefined);
     const out = loadBookPreviewSection({
       render_scale: 10,
@@ -206,6 +218,8 @@ describe("loadBookPreviewSection (settings_registry)", () => {
       max_shadow_opacity: 2,
       pdf_worker_src: "/pdfjs/../evil.mjs",
       show_cover: "yes",
+      zoom_levels: [1, 1],
+      toolbar_labels: { zoom_in: "  " },
     });
     expect(out.render_scale).toBe(DEFAULT_GLOBAL.book_preview.render_scale);
     expect(out.max_preview_pages).toBe(DEFAULT_GLOBAL.book_preview.max_preview_pages);
@@ -213,6 +227,8 @@ describe("loadBookPreviewSection (settings_registry)", () => {
     expect(out.max_shadow_opacity).toBe(DEFAULT_GLOBAL.book_preview.max_shadow_opacity);
     expect(out.pdf_worker_src).toBe(DEFAULT_GLOBAL.book_preview.pdf_worker_src);
     expect(out.show_cover).toBe(DEFAULT_GLOBAL.book_preview.show_cover);
+    expect(out.zoom_levels).toEqual(DEFAULT_GLOBAL.book_preview.zoom_levels);
+    expect(out.toolbar_labels).toEqual(DEFAULT_GLOBAL.book_preview.toolbar_labels);
     warn.mockRestore();
   });
 });
