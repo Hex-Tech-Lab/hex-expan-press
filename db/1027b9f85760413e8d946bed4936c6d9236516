@@ -1,0 +1,20 @@
+web/__tests__/landing-browse-books-flag.test.ts
+  s_0e99959cd74c50::t_b0d4cb95591788 38-40
+  s_0e99959cd74c50::t_185fd569f158fd 56-57
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "db1027b9f85760413e8d946bed4936c6d9236516",
+  "prompts": {},
+  "sessions": {
+    "s_0e99959cd74c50": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "21b00acc-7513-46d6-9a35-038af7845be2",
+        "model": "unknown"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
