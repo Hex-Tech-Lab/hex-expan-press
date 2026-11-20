@@ -1,5 +1,5 @@
 // PICT pairwise test for webhook buyer consent parsing (provider x field x value).
-// Paddle reads custom_data.buyer_consent; Creem metadata key is buyer_email_consent (never read by the Creem adapter).
+// Paddle reads custom_data.buyer_consent; Creem reads metadata[buyer_consent_metadata_key]. Both use parseBuyerConsent.
 // Model: docs/testing/pairwise/consent_parser.model.txt
 // Rows:  docs/testing/pairwise/consent_parser.rows.tsv (16 generated PICT rows)
 // Paddle drives PaddleAdapter.parseAndValidateWebhook; Creem drives CreemAdapter.parseAndValidateWebhook. No network.
@@ -128,12 +128,11 @@ async function parsedConsent(row: ConsentRow): Promise<{ ok: boolean; consent: u
     body,
   );
   if (!res.isValid) return { ok: false, consent: undefined };
-  return { ok: true, consent: (res.event as { buyerEmailConsent?: unknown }).buyerEmailConsent };
+  return { ok: true, consent: res.event.eventType === "sale_completed" ? res.event.buyerEmailConsent : undefined };
 }
 
-/** The expected buyerEmailConsent, from the parser contract. Creem never reads the metadata key, so it is always undefined. */
+/** The expected buyerEmailConsent, from the parser contract. Both providers share one rule: only a boolean or "true"/"false" is recorded. */
 function expectedConsent(row: ConsentRow): unknown {
-  if (row.provider === "creem") return undefined;
   if (row.field !== "present") return undefined;
   const value = VALUE_OF[row.value];
   if (value === true || value === "true") return true;
@@ -169,20 +168,16 @@ describe("buyer consent parsing: PICT pairwise rows", () => {
     expect(result.ok).toBe(true);
     expect(result.consent).toBe(expectedConsent(row));
 
-    // Only Paddle logs, and only a non-null value that is not true, "true", false or "false" (e.g. 1 or "yes").
-    // Absent, null and the accepted strings stay silent. Creem never calls the parser, so it never logs.
-    const malformed = row.field === "present" && VALUE_OF[row.value] !== undefined && expectedConsent(row) === undefined && row.provider === "paddle";
+    // Both providers log, and only for a non-null value that is not true, "true", false or "false" (e.g. 1 or "yes").
+    // Absent, null and the accepted strings stay silent.
+    const malformed = row.field === "present" && VALUE_OF[row.value] !== undefined && expectedConsent(row) === undefined;
     if (malformed) expect(warn).toHaveBeenCalled();
     else expect(warn).not.toHaveBeenCalled();
   });
 });
 
-describe("buyer consent parsing: known gap", () => {
-  // Documents the gap rather than locking it in. It passes while Creem drops metadata[buyer_email_consent].
-  // When the Creem adapter starts recording consent, this flips to a failure. To switch it on: remove .fails here,
-  // change expectedConsent() so Creem rows expect the parsed value (not undefined), and update the Paddle-only
-  // warn condition in the per-row test so Creem malformed values are checked too.
-  it.fails("Creem records metadata buyer_email_consent \"true\" as buyerEmailConsent true", async () => {
+describe("buyer consent parsing: Creem metadata", () => {
+  it("records metadata buyer_email_consent \"true\" as buyerEmailConsent true", async () => {
     vi.stubEnv("CREEM_WEBHOOK_SECRET", CREEM_SECRET);
     const body = creemBody("present", "true");
     const res = await new CreemAdapter().parseAndValidateWebhook(
@@ -190,6 +185,6 @@ describe("buyer consent parsing: known gap", () => {
       body,
     );
     expect(res.isValid).toBe(true);
-    expect((res as { event: { buyerEmailConsent?: unknown } }).event.buyerEmailConsent).toBe(true);
+    expect(res.isValid && res.event.eventType === "sale_completed" ? res.event.buyerEmailConsent : undefined).toBe(true);
   });
 });

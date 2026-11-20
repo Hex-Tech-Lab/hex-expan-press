@@ -9,6 +9,8 @@ import { appendSale, SaleRecord } from "../../../../payments/src/ledger.ts";
 import { processBillingWebhookUseCase } from "../process_billing_webhook.ts";
 import { createHmac, randomBytes } from "node:crypto";
 import { LegacyPaymentAdapterWrapper } from "../../../adapters/payments/legacy.adapter.ts";
+import { CreemAdapter } from "../../../adapters/payments/creem.adapter.ts";
+import { GLOBAL } from "../../../../payments/src/settings_registry.ts";
 import { fungiesProvider } from "../../../../payments/src/providers/fungies.ts";
 import { fastspringProvider } from "../../../../payments/src/providers/fastspring.ts";
 import type { PaymentProviderPort, SaleCompletedEvent, RefundIssuedEvent } from "../../../../src/domain/payments/payments.port.ts";
@@ -2101,6 +2103,51 @@ describe("F-05 duplicate identity checks on refund_issued and refund_reversed", 
         eventType: "refund_reversed", providerName: "paddle", saleId: "sale_rev_lock", totalCents: 1000, currency: "USD", refundId: "adj_rl_win", providerAdjustmentId: "adj_rl_win", occurredAt: "2026-11-18T00:03:00Z", rawPayload: null,
       })]),
     ).rejects.toThrow(/in flight/);
+  });
+
+  it("Creem: only an explicit metadata true is stored as buyer_email_consent true; absent or false never opts in", async () => {
+    const creemSecret = "whsec_test_consent_consumer";
+    const prevSecret = process.env.CREEM_WEBHOOK_SECRET;
+    process.env.CREEM_WEBHOOK_SECRET = creemSecret;
+    const key = GLOBAL.delivery.buyer_consent_metadata_key;
+    try {
+      for (const [suffix, metadataValue, omit, expectedRowVal] of [
+        ["absent", undefined, true, null],
+        ["false", false, false, false],
+        ["true", true, false, true],
+      ] as const) {
+        const metadata: Record<string, unknown> = { order_ref: `ref_${suffix}` };
+        if (!omit) metadata[key] = metadataValue;
+        const body = JSON.stringify({
+          id: `evt_cs_${suffix}`,
+          eventType: "checkout.completed",
+          created_at: 1728734325927,
+          object: {
+            id: `ch_cs_${suffix}`,
+            mode: "live",
+            metadata,
+            order: { id: `ord_cs_${suffix}`, status: "paid", amount: 3900, amount_paid: 3900, currency: "usd", product: "p1", mode: "live" },
+            customer: { email: "buyer@example.com" },
+          },
+        });
+        const sig = createHmac("sha256", creemSecret).update(body).digest("hex");
+        delivery.deliverSaleForWebhook.mockClear();
+        await expect(
+          processBillingWebhookUseCase({ headers: { "creem-signature": sig, "content-type": "application/json" }, body }, [new CreemAdapter()]),
+        ).resolves.toBeUndefined();
+        const row = readFileSync(salesFilePath, "utf8")
+          .split(/\r?\n/)
+          .filter(Boolean)
+          .map((l) => JSON.parse(l) as { sale_id: string; buyer_email_consent?: boolean })
+          .find((r) => r.sale_id === `ord_cs_${suffix}`);
+        if (expectedRowVal === null) expect("buyer_email_consent" in (row ?? {})).toBe(false);
+        else expect(row?.buyer_email_consent).toBe(expectedRowVal);
+        expect(row?.buyer_email_consent === true).toBe(suffix === "true");
+      }
+    } finally {
+      if (prevSecret === undefined) delete process.env.CREEM_WEBHOOK_SECRET;
+      else process.env.CREEM_WEBHOOK_SECRET = prevSecret;
+    }
   });
 
   it("persists buyer_email_consent (true, false, or NULL when absent) and delivers regardless of buyer consent", async () => {
