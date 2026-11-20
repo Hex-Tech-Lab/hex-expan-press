@@ -154,7 +154,7 @@ export default function BookPreviewer({
       if (frame) cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
         frame = 0;
-        // Same call page-flip makes on window resize (UI.onResize): re-syncs the canvas bitmap.
+        // Same call page-flip makes on window resize (UI.onResize): re-syncs the rendered bitmap.
         flipRef.current?.getUI().update();
       });
     });
