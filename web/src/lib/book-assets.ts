@@ -22,9 +22,9 @@ function findRepoRoot(): string {
   return cwd;
 }
 
-function isSafeHttpsUrl(v: string): boolean {
-  if (!URL.canParse(v)) return false;
-  const u = new URL(v);
+function isSafeHttpsUrl(candidate: string): boolean {
+  if (!URL.canParse(candidate)) return false;
+  const u = new URL(candidate);
   return u.protocol === "https:" && !u.username && !u.password;
 }
 
