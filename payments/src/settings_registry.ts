@@ -368,6 +368,9 @@ export interface BookPreviewSettings {
   /** Distance (px) outside the viewport at which the preview starts loading and stops when it is further away.
    *  The page-flip loop redraws every animation frame while mounted, so the book is mounted only near the viewport. */
   visibility_margin_px: number;
+  /** Smallest change (px) in the flipbook container width that re-syncs the page-flip canvas.
+   *  Filters sub-pixel ResizeObserver noise; any real layout change is above it. */
+  resize_min_delta_px: number;
   show_cover: boolean;
   use_portrait: boolean;
   heading: string;
@@ -508,6 +511,7 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     max_shadow_opacity: 0.25,
     swipe_distance_px: 30,
     visibility_margin_px: 200,
+    resize_min_delta_px: 1,
     show_cover: true,
     use_portrait: true,
     heading: "Preview inside the book",
@@ -1565,6 +1569,7 @@ export const BOOK_PREVIEW_LIMITS = {
   max_shadow_opacity: { min: 0, max: 1 },
   swipe_distance_px: { min: 10, max: 120 },
   visibility_margin_px: { min: 0, max: 1000 },
+  resize_min_delta_px: { min: 0, max: 50 },
   zoom_level: { min: 1, max: 3 },
   zoom_levels_length: { min: 2, max: 5 },
   read_aloud_rate: { min: 0.5, max: 3 },
@@ -1640,7 +1645,8 @@ export function loadBookPreviewSection(raw: Record<string, unknown> | undefined)
       | "max_height_px"
       | "flipping_time_ms"
       | "swipe_distance_px"
-      | "visibility_margin_px",
+      | "visibility_margin_px"
+      | "resize_min_delta_px",
   ): number => {
     if (!(key in raw)) return defaults[key];
     const rawValue = raw[key];
@@ -1917,6 +1923,7 @@ export function loadBookPreviewSection(raw: Record<string, unknown> | undefined)
     max_shadow_opacity: floatField("max_shadow_opacity"),
     swipe_distance_px: intField("swipe_distance_px"),
     visibility_margin_px: intField("visibility_margin_px"),
+    resize_min_delta_px: intField("resize_min_delta_px"),
     show_cover: boolField("show_cover"),
     use_portrait: boolField("use_portrait"),
     heading: strField("heading"),
