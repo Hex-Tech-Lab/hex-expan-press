@@ -92,6 +92,8 @@ def render_cover_image(source_pdf: Path, out_image: Path, width_px: int = 600) -
         im = page.to_image(resolution=dpi).original.convert("RGB")
         if out_image.suffix.lower() in {".jpg", ".jpeg"}:
             im.save(out_image, "JPEG", quality=88, optimize=True)
+        elif out_image.suffix.lower() == ".webp":
+            im.save(out_image, "WEBP", quality=75, method=6)
         else:
             im.save(out_image, "PNG", optimize=True)
 
