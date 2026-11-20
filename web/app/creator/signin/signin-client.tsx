@@ -2,6 +2,7 @@
 
 import { useFormStatus } from "react-dom";
 import { Icon } from "@iconify/react";
+import { BrandButton, BrandField, BrandFooter, BrandFrame, BrandWordmark } from "../../../src/components/brand/brand";
 import { AppleIcon, GoogleIcon } from "./icons";
 import { signInWithGoogleAction, signInWithOtpAction, setMarketingOptInAction } from "./actions";
 
@@ -10,138 +11,144 @@ export type SignInMode = "form" | "sent" | "error";
 function GoogleSubmitButton() {
   const { pending } = useFormStatus();
   return (
-    <button
-      type="submit"
-      disabled={pending}
-      className="mb-3 flex min-h-11 w-full items-center justify-center gap-2.5 rounded-[10px] border border-[#2B2520] bg-[#2B2520] px-5 py-2.5 text-lg font-semibold text-[#FAF5EE] hover:bg-[#3d352d] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-[#E8622C] focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
-    >
+    <BrandButton type="submit" disabled={pending} className="mb-3 min-h-11 w-full justify-center text-base">
       <GoogleIcon />
       {pending ? "Connecting to Google…" : "Continue with Google"}
-    </button>
+    </BrandButton>
   );
 }
 
 function OtpSubmitButton() {
   const { pending } = useFormStatus();
   return (
-    <button
-      type="submit"
-      disabled={pending}
-      className="flex-[0_0_auto] rounded-[10px] border border-[#2B2520] bg-[#2B2520] px-[22px] py-2.5 text-lg font-semibold text-[#FAF5EE] hover:bg-[#3d352d] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-[#E8622C] focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
-    >
+    <BrandButton type="submit" disabled={pending} className="min-h-11 shrink-0 self-auto text-base">
       {pending ? "Sending…" : "Send link"}
-    </button>
+    </BrandButton>
   );
 }
 
 /**
- * Client surface for the creator sign-in page (Wave 5). Mirrors the legacy
- * static signin HTML (Google button, Apple "coming soon" dialog, email-OTP
- * form, marketing opt-in). All auth submits go through Server Actions —
- * no token ever touches client JS.
+ * Client surface for the creator sign-in page (Wave 5, unified with BrandFrame/BrandButton/BrandField).
+ * All auth submits go through Server Actions — no token ever touches client JS.
  */
 export default function SignInClient({
   mode,
   message,
   optinDefault,
+  supportEmail,
 }: {
   mode: SignInMode;
   message?: string;
   optinDefault: boolean;
+  supportEmail?: string;
 }) {
   return (
-    <div className="mx-auto max-w-[640px] px-5 pb-10 pt-14 font-sans text-[#2B2520]">
-      <p className="mb-4 text-[12px] font-semibold uppercase tracking-[0.14em] text-[#B3401E]">Account</p>
-      <h1 className="font-sans text-[34px] font-bold leading-[1.15] tracking-[-0.015em] max-md:text-[27px]">
-        Sign in
-      </h1>
-      <p className="mb-7 mt-2.5 text-[16.5px] text-[#6E5F53]">Access your guides and account details.</p>
+    <BrandFrame outerClassName="justify-between">
+      <header className="flex items-center justify-between">
+        <BrandWordmark href="/" label="ExpanPress home" />
+      </header>
 
-      {mode === "sent" ? (
-        <div className="rounded-[14px] border border-[#EADFD1] bg-[#FFFDF9] p-[26px]">
-          <p className="text-[16.5px] font-semibold text-[#296E50]" role="status">
-            Check your inbox — we sent you a sign-in link. It expires shortly, so use it soon.
+      <main className="mx-auto w-full max-w-[580px] flex flex-col gap-6">
+        <div>
+          <p className="mb-2 text-[11px] sm:text-xs font-mono font-medium uppercase tracking-[0.16em] text-gray-600">
+            Account
           </p>
+          <h1 className="text-3xl sm:text-4xl font-bold leading-[1.15] tracking-tight text-gray-900">
+            Sign in
+          </h1>
+          <p className="mt-2 text-base text-gray-700">Access your books and account details.</p>
         </div>
-      ) : (
-        <div className="rounded-[14px] border border-[#EADFD1] bg-[#FFFDF9] px-[26px] pb-[22px] pt-[26px] max-md:px-[18px] max-md:py-[16px]">
-          <form action={signInWithGoogleAction}>
-            <GoogleSubmitButton />
-          </form>
 
-          <button
-            type="button"
-            aria-haspopup="dialog"
-            aria-label="Continue with Apple — coming soon"
-            className="mb-0 flex min-h-11 w-full items-center justify-center gap-2.5 rounded-[10px] border border-[#2B2520] bg-[#FFFDF9] px-5 py-2.5 text-lg font-semibold text-[#2B2520] hover:bg-[#F3ECDF] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-[#E8622C] focus-visible:outline-offset-2"
-          >
-            <AppleIcon />
-            Continue with Apple
-          </button>
-          <p className="mt-2 text-[13px] text-[#6E5F53]">Sign in with Apple is coming soon — use Google or an email link for now.</p>
-
-          <div className="my-[18px] flex items-center gap-3 text-[13px] text-[#6E5F53] before:flex-1 before:border-t before:border-[#EADFD1] after:flex-1 after:border-t after:border-[#EADFD1]" aria-hidden>
-            or
-          </div>
-
-          <form action={signInWithOtpAction} className="contents">
-            <label htmlFor="email" className="mb-2 block text-base font-semibold">
-              Email me a sign-in link
-            </label>
-            <div className="flex flex-wrap gap-2.5">
-              <input
-                type="email"
-                id="email"
-                name="email"
-                autoComplete="email"
-                inputMode="email"
-                placeholder="you@example.com"
-                required
-                className="min-h-11 min-w-0 flex-[1_1_240px] rounded-[10px] border border-[#EADFD1] bg-white px-3.5 py-2.5 text-lg text-[#2B2520] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-[#E8622C] focus-visible:outline-offset-2"
-              />
-              <OtpSubmitButton />
-            </div>
-          </form>
-
-          {mode === "error" && message ? (
-            <p className="mt-3.5 text-[16.5px] font-semibold text-[#B3401E]" role="alert">
-              {message}
+        {mode === "sent" ? (
+          <div className="glass-card card-shadow rounded-[32px] border-[1.5px] border-[#fff2e4] p-6 sm:p-8">
+            <p className="text-base font-semibold text-[#296E50]" role="status">
+              Check your inbox — we sent you a sign-in link. It expires shortly, so use it soon.
             </p>
-          ) : null}
+          </div>
+        ) : (
+          <div className="glass-card card-shadow rounded-[32px] border-[1.5px] border-[#fff2e4] p-6 sm:p-8">
+            <form action={signInWithGoogleAction}>
+              <GoogleSubmitButton />
+            </form>
 
-          <form action={setMarketingOptInAction}>
-            <div className="mb-1.5 mt-[18px] flex items-start gap-3">
-              <input
-                type="checkbox"
-                id="optin"
-                name="optin"
-                defaultChecked={optinDefault}
-                className="mt-1 h-[26px] w-[26px] flex-[0_0_auto] accent-[#E8622C]"
-              />
-              <label htmlFor="optin" className="text-base font-normal">
-                Remember my preference for updates (stored in a cookie on this device; no marketing emails are sent yet)
-              </label>
-            </div>
-            <button
-              type="submit"
-              className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-[#6E5F53] hover:bg-[#F3ECDF] hover:text-[#2B2520] focus-visible:outline focus-visible:outline-[3px] focus-visible:outline-[#E8622C] focus-visible:outline-offset-2"
+            <BrandButton
+              variant="secondary"
+              type="button"
+              disabled
+              aria-disabled="true"
+              aria-label="Continue with Apple — coming soon"
+              className="min-h-11 w-full justify-center py-3 text-base"
             >
-              <Icon icon="lucide:check" width={16} height={16} aria-hidden />
-              Save preference
-            </button>
-          </form>
-        </div>
-      )}
+              <AppleIcon />
+              Continue with Apple
+            </BrandButton>
+            <p className="mt-2 text-xs text-gray-600">
+              Sign in with Apple is coming soon — use Google or an email link for now.
+            </p>
 
-      <footer className="mt-7 flex flex-wrap items-center gap-x-[22px] gap-y-2 border-t border-[#EADFD1] pt-[22px] text-[13px] text-[#6E5F53]">
-        <a href="/privacy.html" className="text-[#296E50] hover:underline">
+            <div
+              className="my-5 flex items-center gap-3 text-xs text-gray-600 before:flex-1 before:border-t before:border-[#dcc7b4] after:flex-1 after:border-t after:border-[#dcc7b4]"
+              aria-hidden
+            >
+              or
+            </div>
+
+            <form action={signInWithOtpAction} className="contents">
+              <label htmlFor="email" className="mb-2 block text-sm font-semibold text-gray-900">
+                Email me a sign-in link
+              </label>
+              <div className="flex flex-wrap gap-2.5">
+                <BrandField
+                  type="email"
+                  id="email"
+                  name="email"
+                  autoComplete="email"
+                  inputMode="email"
+                  placeholder="you@example.com"
+                  required
+                  className="min-h-11 min-w-0 flex-[1_1_240px]"
+                />
+                <OtpSubmitButton />
+              </div>
+            </form>
+
+            {mode === "error" && message ? (
+              <p className="mt-3.5 text-sm font-semibold text-[#b3401e]" role="alert">
+                {message}
+              </p>
+            ) : null}
+
+            <form action={setMarketingOptInAction}>
+              <div className="mb-2 mt-5 flex items-start gap-3">
+                <input
+                  type="checkbox"
+                  id="optin"
+                  name="optin"
+                  defaultChecked={optinDefault}
+                  className="mt-0.5 h-6 w-6 flex-[0_0_auto] accent-[#E8622C]"
+                />
+                <label htmlFor="optin" className="text-sm font-normal text-gray-700">
+                  Remember my preference for updates (stored in a cookie on this device; no marketing emails are sent yet)
+                </label>
+              </div>
+              <BrandButton variant="secondary" type="submit" className="px-4 py-2 text-xs">
+                <Icon icon="lucide:check" width={16} height={16} aria-hidden />
+                Save preference
+              </BrandButton>
+            </form>
+          </div>
+        )}
+      </main>
+
+      <BrandFooter>
+        <a href="/privacy.html" className="hover:text-gray-700 transition-colors">
           Privacy Policy
         </a>
-        <span className="text-[#CBB3A7]">&middot;</span>
-        <a href="/terms.html" className="text-[#296E50] hover:underline">
+        <a href="/terms.html" className="hover:text-gray-700 transition-colors">
           Terms of Service
         </a>
-      </footer>
-    </div>
+        {supportEmail ? <span>{supportEmail}</span> : null}
+      </BrandFooter>
+    </BrandFrame>
   );
 }
