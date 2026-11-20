@@ -203,13 +203,13 @@ test("LV-05 & LV-07: pay. root uses storefront wordmark/tokens, providers header
     expect((await pay.get("/terms.html")).status(), "pay /terms.html status").toBe(404);
     expect((await pay.get(`/checkout/${E2E.liveProductId}`)).status(), "pay /checkout/{id} status").toBe(200);
 
-    // Service providers noindex header + robots.txt disallow.
+    // Service providers noindex header; robots.txt must NOT disallow them, so crawlers can read the noindex.
     const providersRes = await main.get("/books/legal/providers.html");
     expect(providersRes.status()).toBe(200);
     expect(providersRes.headers()["x-robots-tag"]).toBe("noindex, nofollow");
     const robotsTxt = await (await main.get("/robots.txt")).text();
-    expect(robotsTxt).toContain("Disallow: /books/legal/providers.html");
-    expect(robotsTxt).toContain("Disallow: /legal/providers.html");
+    expect(robotsTxt).not.toContain("/books/legal/providers.html");
+    expect(robotsTxt).not.toContain("/legal/providers.html");
 
     // LV-07: favicon.ico returns 200 OK on both main host and pay host.
     const mainFavicon = await main.get("/favicon.ico");
