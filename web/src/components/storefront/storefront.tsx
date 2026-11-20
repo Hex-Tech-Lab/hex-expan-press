@@ -127,14 +127,17 @@ async function fetchSiteOrigin(supabase: NonNullable<Awaited<ReturnType<typeof g
   return origin;
 }
 
-function withResolvedAssets<T extends { slug: string | null; title: string | null; book_registry?: string | null }>(storeProduct: T): T & {
+function withResolvedAssets<T extends { id?: string | null; slug: string | null; title: string | null; book_registry?: string | null }>(
+  storeProduct: T,
+  creatorIsHouse: boolean | null | undefined,
+): T & {
   book_registry: string | null;
   cover_image: string | null;
   preview_pdf: string | null;
   is_sample: boolean;
   overview: string | null;
 } {
-  const assets = resolveProductBookAssets(storeProduct);
+  const assets = resolveProductBookAssets({ ...storeProduct, creator_is_house: creatorIsHouse });
   return {
     ...storeProduct,
     book_registry: assets.book_registry,
@@ -192,7 +195,9 @@ export const fetchCreatorHub = cache(async function fetchCreatorHub(handle: stri
   const origin = await fetchSiteOrigin(supabase);
   // Keep creator hubs consistent with /books: live products plus allowed non-live SAMPLE products only.
   // storefrontRobots depends only on whether a live product exists, so its result stays NOINDEX for sample-only hubs.
-  const products = commercial.map(withResolvedAssets).filter((storeProduct) => isVisibleStorefrontProduct(storeProduct));
+  const products = commercial
+    .map((storeProduct) => withResolvedAssets(storeProduct, creator.is_house))
+    .filter((storeProduct) => isVisibleStorefrontProduct(storeProduct));
   return { creator: { ...creator, products }, origin };
 });
 
@@ -204,6 +209,7 @@ export type LandingProduct = Pick<
 export interface LandingCreator {
   handle: string;
   display_name: string;
+  is_house?: boolean | null;
   products: LandingProduct[];
 }
 
@@ -218,7 +224,7 @@ export const fetchB2cLanding = cache(async function fetchB2cLanding(): Promise<L
   const modes = allowedStorefrontCheckoutModes();
   const baseQuery = supabase
     .from("creators")
-    .select("handle, display_name, products!inner(id, store_product_id, slug, title, price_usd, checkout_mode, book_registry)");
+    .select("handle, display_name, is_house, products!inner(id, store_product_id, slug, title, price_usd, checkout_mode, book_registry)");
   const filteredQuery =
     modes.length === 1
       ? baseQuery.eq("products.checkout_mode", modes[0])
@@ -232,7 +238,7 @@ export const fetchB2cLanding = cache(async function fetchB2cLanding(): Promise<L
     .map((c) => ({
       ...c,
       products: commercialProducts(c.products)
-        .map(withResolvedAssets)
+        .map((storeProduct) => withResolvedAssets(storeProduct, c.is_house))
         .filter((storeProduct) => isVisibleStorefrontProduct(storeProduct)),
     }))
     .filter((c) => c.products.length > 0);
@@ -260,7 +266,7 @@ export const fetchStoreProduct = cache(async function fetchStoreProduct(
   const product = commercialProducts(creator.products).find((storeProduct) => productSlugOf(storeProduct) === productSlug);
   if (!product) return null;
   const origin = await fetchSiteOrigin(supabase);
-  return { creator, product: withResolvedAssets(product), origin };
+  return { creator, product: withResolvedAssets(product, creator.is_house), origin };
 });
 
 /** The single provider-agnostic checkout origin (ADR 0061). Buy links and the checkout page live here. */

@@ -68,18 +68,27 @@ function readBookJsonSafe(bookRegistryPath: string): Record<string, unknown> | n
 /** Resolve cover image, public preview PDF, and sample flag from products.book_registry -> books/*.json
  *  with GLOBAL.storefront.book_assets[slug] fallback (no DB migration required). */
 export function resolveProductBookAssets(product: {
+  id?: string | null;
   slug?: string | null;
   title?: string | null;
   book_registry?: string | null;
+  creator_is_house?: boolean | null;
 }): ResolvedBookAssets {
   const slug = typeof product.slug === "string" ? product.slug : "";
-  const registryOverride = slug ? GLOBAL.storefront.book_assets[slug] : undefined;
+  const houseCreator = product.creator_is_house === true;
+  // Slug-keyed registry overrides are house-only: a creator product whose slug matches must not inherit house assets.
+  const registryOverride = houseCreator && slug ? GLOBAL.storefront.book_assets[slug] : undefined;
   const registryPath =
     typeof product.book_registry === "string" && SAFE_BOOK_REGISTRY_RE.test(product.book_registry)
       ? product.book_registry
       : registryOverride?.book_registry ?? null;
 
   const bookJson = registryPath ? readBookJsonSafe(registryPath) : null;
+  // A non-house product takes house assets only when its id is the exact product_id of the books/*.json identity.
+  const identityMatch = typeof product.id === "string" && product.id !== "" && bookJson?.product_id === product.id;
+  if (!houseCreator && !identityMatch) {
+    return { book_registry: null, cover_image: null, preview_pdf: null, is_sample: false, overview: null };
+  }
 
   const rawCover = registryOverride?.cover_image !== undefined ? registryOverride.cover_image : bookJson?.cover_image;
   const rawPreview = registryOverride?.preview_pdf !== undefined ? registryOverride.preview_pdf : bookJson?.preview_pdf;

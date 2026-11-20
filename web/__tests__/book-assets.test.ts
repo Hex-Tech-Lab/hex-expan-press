@@ -5,6 +5,10 @@ import {
   resolveProductBookAssets,
 } from "../src/lib/book-assets";
 
+/** books/sample_the_quiet_workshop.json identity: product_id is the house sample product's id. */
+const HOUSE_SAMPLE_PRODUCT_ID = "9a3b37eb-3aca-4bb9-b320-bafa3efdfbbc";
+const UNRELATED_PRODUCT_ID = "00000000-0000-4000-8000-0000000000ff";
+
 describe("book-assets path safety", () => {
   it("accepts valid /books/covers/* and https:// cover URLs and rejects traversal or non-image paths", () => {
     expect(isSafeCoverPath("/books/covers/duane.jpg")).toBe(true);
@@ -30,13 +34,14 @@ describe("book-assets path safety", () => {
   });
 });
 
-describe("resolveProductBookAssets", () => {
+describe("resolveProductBookAssets for house products (creator_is_house true)", () => {
   it("resolves cover_image, preview_pdf, and is_sample from products.book_registry -> books/*.json", () => {
     expect(
       resolveProductBookAssets({
         slug: "500k_playbook",
         title: "You Don't Need a Million Dollars to Retire",
         book_registry: "books/duane.json",
+        creator_is_house: true,
       }),
     ).toEqual({
       book_registry: "books/duane.json",
@@ -50,6 +55,7 @@ describe("resolveProductBookAssets", () => {
       slug: "sample_the_quiet_workshop",
       title: "The Quiet Workshop (Sample)",
       book_registry: "books/sample_the_quiet_workshop.json",
+      creator_is_house: true,
     });
     expect(sampleAssets).toMatchObject({
       book_registry: "books/sample_the_quiet_workshop.json",
@@ -66,6 +72,7 @@ describe("resolveProductBookAssets", () => {
       slug: "sample_the_quiet_workshop",
       title: "The Quiet Workshop (Sample)",
       book_registry: "books/sample_the_quiet_workshop.json",
+      creator_is_house: true,
     }).overview;
     expect(overview).toMatch(/preview sample/i);
     expect(overview).toMatch(/coming soon/i);
@@ -81,6 +88,7 @@ describe("resolveProductBookAssets", () => {
         slug: "500k_playbook",
         title: "500k Playbook",
         book_registry: null,
+        creator_is_house: true,
       }),
     ).toEqual({
       book_registry: "books/duane.json",
@@ -96,6 +104,7 @@ describe("resolveProductBookAssets", () => {
       slug: "unknown_book",
       title: "Some Book",
       book_registry: "../../etc/passwd",
+      creator_is_house: true,
     });
     expect(resolved).toEqual({
       book_registry: null,
@@ -112,6 +121,7 @@ describe("resolveProductBookAssets", () => {
         slug: "sample_another_book",
         title: "Another Book",
         book_registry: null,
+        creator_is_house: true,
       }).is_sample,
     ).toBe(false);
     expect(
@@ -119,14 +129,62 @@ describe("resolveProductBookAssets", () => {
         slug: "sample_duane",
         title: "Duane Playbook (Sample)",
         book_registry: "books/duane.json",
+        creator_is_house: true,
       }).is_sample,
     ).toBe(false);
+  });
+});
+
+describe("resolveProductBookAssets never lets a non-house product claim house assets", () => {
+  it("gives a non-house product with the house sample slug and (Sample) title no cover, no preview, and is_sample false", () => {
     expect(
       resolveProductBookAssets({
+        id: UNRELATED_PRODUCT_ID,
         slug: "sample_the_quiet_workshop",
         title: "The Quiet Workshop (Sample)",
         book_registry: "books/sample_the_quiet_workshop.json",
-      }).is_sample,
-    ).toBe(true);
+        creator_is_house: false,
+      }),
+    ).toEqual({
+      book_registry: null,
+      cover_image: null,
+      preview_pdf: null,
+      is_sample: false,
+      overview: null,
+    });
+  });
+
+  it("gives a non-house product with the registry slug and no books/*.json identity nothing from the house registry", () => {
+    expect(
+      resolveProductBookAssets({
+        id: UNRELATED_PRODUCT_ID,
+        slug: "500k_playbook",
+        title: "500k Playbook",
+        book_registry: null,
+        creator_is_house: false,
+      }),
+    ).toEqual({
+      book_registry: null,
+      cover_image: null,
+      preview_pdf: null,
+      is_sample: false,
+      overview: null,
+    });
+  });
+
+  it("honours a non-house product only when its id is the books/*.json product_id (exact identity match)", () => {
+    const resolved = resolveProductBookAssets({
+      id: HOUSE_SAMPLE_PRODUCT_ID,
+      slug: "any_slug",
+      title: "Any Title",
+      book_registry: "books/sample_the_quiet_workshop.json",
+      creator_is_house: false,
+    });
+    expect(resolved).toMatchObject({
+      book_registry: "books/sample_the_quiet_workshop.json",
+      cover_image: "/books/covers/sample_the_quiet_workshop.webp",
+      preview_pdf: "/books/previews/sample_the_quiet_workshop.pdf",
+      is_sample: true,
+    });
   });
 });

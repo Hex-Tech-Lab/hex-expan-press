@@ -80,7 +80,7 @@ export default async function StoreProductPage({
       ? p.overview.trim()
       : p.overview === null
         ? null
-        : resolveProductBookAssets(p).overview;
+        : resolveProductBookAssets({ ...p, creator_is_house: creator.is_house }).overview;
   const gridStyle = {
     "--product-cover-max-w": `${layout.cover_max_width_px}px`,
     "--product-cover-max-pct": `${layout.cover_max_width_pct}%`,
