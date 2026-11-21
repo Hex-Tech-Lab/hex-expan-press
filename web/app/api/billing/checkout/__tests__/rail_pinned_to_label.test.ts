@@ -195,7 +195,7 @@ describe("checkout route: the charged rail must be the rail the buyer was shown"
     expect(sentry.captureException).toHaveBeenCalledTimes(1);
   });
 
-  it("a product_rails query error: 500 and the outage is reported to Sentry", async () => {
+  it("a product_rails query error: 503 with Retry-After and the outage is reported to Sentry", async () => {
     sentry.captureException.mockClear();
     adminModule.mockAdminClient = {
       from: (table: string) => {
@@ -208,7 +208,8 @@ describe("checkout route: the charged rail must be the rail the buyer was shown"
       },
     };
     const res = await GET(checkoutRequest("paddle"));
-    expect(res.status).toBe(500);
+    expect(res.status).toBe(503);
+    expect(res.headers.get("retry-after")).toBe(String(GLOBAL.payments.checkout_db_retry_after_seconds));
     expect(sentry.captureException).toHaveBeenCalledTimes(1);
   });
 
@@ -278,7 +279,7 @@ describe("checkout route: the charged rail must be the rail the buyer was shown"
     expect(sentry.captureException).toHaveBeenCalledTimes(1);
   });
 
-  it("a product lookup error: 500 and reported to Sentry", async () => {
+  it("a product lookup error: 503 with Retry-After and reported to Sentry", async () => {
     sentry.captureException.mockClear();
     adminModule.mockAdminClient = {
       from: (table: string) => {
@@ -287,7 +288,8 @@ describe("checkout route: the charged rail must be the rail the buyer was shown"
       },
     };
     const res = await GET(checkoutRequest("paddle"));
-    expect(res.status).toBe(500);
+    expect(res.status).toBe(503);
+    expect(res.headers.get("retry-after")).toBe(String(GLOBAL.payments.checkout_db_retry_after_seconds));
     expect(sentry.captureException).toHaveBeenCalledTimes(1);
   });
 

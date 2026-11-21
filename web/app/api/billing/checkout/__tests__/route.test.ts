@@ -599,10 +599,12 @@ describe("billing/checkout consent gate fails closed (CR remediation)", () => {
     expect(body.error).toMatch(/consent verification failed/);
   });
 
-  it("returns 500 when the product lookup errors (e.g. PostgREST uuid cast failure)", async () => {
+  it("returns 503 with registry Retry-After when the product lookup errors (transient database read)", async () => {
     adminModule.mockAdminClient = gateAdminClient({ data: null, error: { message: "invalid input syntax for type uuid" } });
     const res = await GET(request());
-    expect(res.status).toBe(500);
+    expect(res.status).toBe(503);
+    expect(res.headers.get("retry-after")).toBe(String(GLOBAL.payments.checkout_db_retry_after_seconds));
+    expect(await res.json()).toMatchObject({ ok: false, code: "lookup_unavailable" });
     expect(res.headers.get("location")).toBeNull();
   });
 
@@ -811,14 +813,15 @@ describe("billing/checkout DB-driven rails (Sprint 15 heritage eradication)", ()
     expect(res.headers.get("location")).toBe("https://buy.paddle.com/live-from-db");
   });
 
-  it("returns 500 when the product_rails query errors (fail closed)", async () => {
+  it("returns 503 with registry Retry-After when the product_rails query errors (transient database read, fail closed)", async () => {
     vi.stubEnv("VERCEL_ENV", "production");
     adminModule.mockAdminClient = gateAdminClient(undefined, undefined, {
       data: null,
       error: { message: "rails query failed" },
     });
     const res = await GET(request());
-    expect(res.status).toBe(500);
+    expect(res.status).toBe(503);
+    expect(res.headers.get("retry-after")).toBe(String(GLOBAL.payments.checkout_db_retry_after_seconds));
     expect(res.headers.get("location")).toBeNull();
   });
 
@@ -1326,14 +1329,14 @@ describe("billing/checkout additional defensive and lookup branches", () => {
     expect(await res.json()).toMatchObject({ ok: false, code: "product_not_found" });
   });
 
-  it("returns 500 when <handle>/<slug> product lookup errors", async () => {
+  it("returns 503 lookup_unavailable when <handle>/<slug> product lookup errors", async () => {
     adminModule.mockAdminClient = gateAdminClient({ data: null, error: { message: "handle lookup failed" } });
     const res = await GET(new NextRequest("http://localhost:3000/api/billing/checkout?product=creator_handle%2Fsome_book"));
-    expect(res.status).toBe(500);
-    expect(await res.json()).toMatchObject({ ok: false, error: "Checkout consent verification failed" });
+    expect(res.status).toBe(503);
+    expect(await res.json()).toMatchObject({ ok: false, code: "lookup_unavailable" });
   });
 
-  it("returns 500 when bare slug lookup errors", async () => {
+  it("returns 503 lookup_unavailable when bare slug lookup errors", async () => {
     adminModule.mockAdminClient = {
       from: (table: string) => {
         if (table === "products") {
@@ -1343,8 +1346,8 @@ describe("billing/checkout additional defensive and lookup branches", () => {
       },
     };
     const res = await GET(new NextRequest("http://localhost:3000/api/billing/checkout?product=some_book"));
-    expect(res.status).toBe(500);
-    expect(await res.json()).toMatchObject({ ok: false, error: "Checkout consent verification failed" });
+    expect(res.status).toBe(503);
+    expect(await res.json()).toMatchObject({ ok: false, code: "lookup_unavailable" });
   });
 
   it("returns 404 product_not_found when bare slug lookup returns null matches", async () => {

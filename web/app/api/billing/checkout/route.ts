@@ -36,18 +36,27 @@ const PRODUCT_COLUMNS = "id, store_product_id, creator_id, release_sha256, check
 const GATE_CONSENT_KINDS = ["C1_data_accuracy", "C2_release_approval", "C3_revenue_split"] as const;
 const CONSENT_VERIFICATION_FAILED = "Checkout consent verification failed";
 
-function lookupFailed(product: string, message: string): ProductLookup {
-  console.warn(`[billing/checkout] product lookup warning for '${product}': ${message}`);
-  // A failed product lookup on a revenue path is an incident: report it.
-  Sentry.captureException(new Error(`checkout: product lookup failed: ${message}`), { tags: { surface: "checkout_route", reason: "product_lookup_failed" } });
-  return { response: jsonError(500, CONSENT_VERIFICATION_FAILED) };
-}
-
 /** 503 Service Unavailable with a Retry-After header (seconds come from the registry). Callers fail closed before any order or provider label is written. */
 function retryAfterUnavailable(error: string, code: string, retryAfterSeconds: number): NextResponse {
   const res = jsonError(503, error, code);
   res.headers.set("Retry-After", String(retryAfterSeconds));
   return res;
+}
+
+/** A failed product lookup is a transient database read: 503 with Retry-After, reported to Sentry, no order or provider label written. */
+function lookupFailed(product: string, message: string): ProductLookup {
+  console.warn(`[billing/checkout] product lookup warning for '${product}': ${message}`);
+  // A failed product lookup on a revenue path is an incident: report it.
+  Sentry.captureException(new Error(`checkout: product lookup failed: ${message}`), { tags: { surface: "checkout_route", reason: "product_lookup_failed" } });
+  return { response: transientLookupUnavailable() };
+}
+
+function transientLookupUnavailable(): NextResponse {
+  return retryAfterUnavailable(
+    "Checkout is temporarily unavailable. Please try again shortly.",
+    "lookup_unavailable",
+    GLOBAL.payments.checkout_db_retry_after_seconds,
+  );
 }
 
 /** No active payment rail, so the buyer is never sent to a default provider. */
@@ -239,9 +248,9 @@ async function handleCheckout(
       .order("weight", { ascending: false });
     if (railErr) {
       console.error(`[billing/checkout] rails query failed for '${product}': ${railErr.message}`);
-      // A rails-table outage on a paid product is an incident: report it.
+      // A rails-table outage on a paid product is a transient database read: report it, and answer 503 with Retry-After.
       Sentry.captureException(new Error(`checkout: rails query failed: ${railErr.message}`), { tags: { surface: "checkout_route", reason: "rails_query_failed" } });
-      return jsonError(500, CONSENT_VERIFICATION_FAILED);
+      return transientLookupUnavailable();
     }
     // Shared resolver (web/src/lib/checkout-rails.ts): the same verified-provider filter the checkout page counts with.
     const resolution = resolveCheckoutRails(railRows, {
@@ -324,6 +333,8 @@ async function handleCheckout(
     // unexpected failure: log it with its stack and answer 500. Never fall back to the highest-weight rail.
     if (err instanceof MatrixRouterUnavailableError) {
       console.error(`[billing/checkout] every rail is marked down for '${product}' — answering 503`);
+      // Every rail is down on a revenue path: report it, so it pages through Sentry as well as the console.
+      Sentry.captureException(err, { tags: { surface: "checkout_route", reason: "rails_unavailable" } });
       return retryAfterUnavailable(
         "Checkout is temporarily unavailable. No payment rail is accepting orders.",
         "rails_unavailable",
