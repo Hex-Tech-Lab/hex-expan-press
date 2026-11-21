@@ -74,7 +74,7 @@ export default async function StoreProductPage({
   const title = p.title ?? productSlugOf(p);
   const buyUrl = `${PAY_ORIGIN}/checkout/${p.id}`;
   const layout = GLOBAL.storefront.product_layout;
-  // withResolvedAssets already resolved overview (trimmed string or null) through the house-only gate.
+  // withResolvedAssets already resolved overview (trimmed string or null) through the house-or-product_id identity gate.
   const overview = p.overview;
   const gridStyle = {
     "--product-cover-max-w": `${layout.cover_max_width_px}px`,

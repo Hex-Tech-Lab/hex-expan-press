@@ -100,8 +100,10 @@ function readBookJsonSafe(bookRegistryPath: string): Record<string, unknown> | n
   }
 }
 
-/** Resolve cover image, public preview PDF, and sample flag from products.book_registry -> books/*.json
- *  with GLOBAL.storefront.book_assets[slug] fallback (no DB migration required). */
+/** Resolve cover image, public preview PDF, overview and sample flag from products.book_registry -> books/*.json.
+ *  Gates: (1) the slug-keyed GLOBAL.storefront.book_assets override applies only to house creators;
+ *  (2) a non-house product takes books/*.json assets only when its id equals that file's product_id;
+ *  (3) sample status is explicit (registry or override flag), never inferred from slug or title. */
 export function resolveProductBookAssets(product: {
   id?: string | null;
   slug?: string | null;

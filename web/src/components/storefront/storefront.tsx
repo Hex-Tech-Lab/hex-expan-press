@@ -93,10 +93,7 @@ export function formatProductPrice(
   emptyLabel: string = "-",
 ): { formatted: string; currency: string } {
   const code = (typeof currency === "string" && currency.trim() !== "" ? currency.trim() : GLOBAL.defaults.currency).toUpperCase();
-  if (price === null) {
-    console.warn("[storefront] product price missing; placeholder shown", { currency: code });
-    return { formatted: emptyLabel, currency: code };
-  }
+  if (price === null) return { formatted: emptyLabel, currency: code };
   try {
     const formatted = new Intl.NumberFormat("en-US", {
       style: "currency",
