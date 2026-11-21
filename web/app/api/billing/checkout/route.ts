@@ -116,6 +116,9 @@ async function checkCreatorConsents(
 
   if (consentErr) {
     console.error(`[billing/checkout] failed to query consents for '${product}': ${consentErr.message}`);
+    // A 500 on a revenue path is an incident: report it so it shows in Sentry, not only in the console.
+    Sentry.captureException(new Error(`checkout: consents query failed: ${consentErr.message}`), { tags: { surface: "checkout_route", reason: "consents_query_failed" } });
+    // A 500 on a revenue path is an incident: report it so it shows in Sentry, not only in the console.
     return jsonError(500, CONSENT_VERIFICATION_FAILED);
   }
   if (typeof consentCount !== "number" || consentCount !== (consentRows ?? []).length) {
@@ -227,6 +230,9 @@ async function handleCheckout(
       .order("weight", { ascending: false });
     if (railErr) {
       console.error(`[billing/checkout] rails query failed for '${product}': ${railErr.message}`);
+      // A rails-table outage on a paid product is an incident: report it.
+      Sentry.captureException(new Error(`checkout: rails query failed: ${railErr.message}`), { tags: { surface: "checkout_route", reason: "rails_query_failed" } });
+      // A rails-table outage on a paid product is an incident: report it.
       return jsonError(500, CONSENT_VERIFICATION_FAILED);
     }
     // Shared resolver (web/src/lib/checkout-rails.ts): the same verified-provider filter the checkout page counts with.
@@ -242,7 +248,9 @@ async function handleCheckout(
           ? "has a malformed product_rails row"
           : resolution.reason === "invalid_checkout_url"
             ? "has a usable rail with an invalid checkout_url"
-            : "has an active rail with a missing provider or non-string checkout_url";
+            : resolution.reason === "invalid_weight"
+              ? "has an active rail with a weight that is not greater than 0"
+              : "has an active rail with a missing provider or non-string checkout_url";
       console.error(`[billing/checkout] product '${product}' ${detail} — failing closed`);
       // A 500 is an incident on a revenue path: report it, like the other failure branches of this handler.
       Sentry.captureException(new Error(`checkout: malformed product_rails (${resolution.reason})`), { tags: { surface: "checkout_route", reason: resolution.reason } });
@@ -310,6 +318,7 @@ async function handleCheckout(
     // A rejection can be any value (including null or undefined), so read .stack only from a real Error.
     const detail = err instanceof Error ? (err.stack ?? err.message) : String(err);
     console.error(`[billing/checkout] MatrixRouter unexpected failure for '${product}': ${detail} — answering 500, no default provider`);
+    Sentry.captureException(err, { tags: { surface: "checkout_route", reason: "router_unexpected_error" } });
     return jsonError(500, "Checkout failed unexpectedly", "router_unexpected_error");
   }
 

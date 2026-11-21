@@ -159,8 +159,9 @@ export interface GlobalSettings {
     /** Retry-After seconds on a 503 checkout response (rails_unavailable) when the router's circuit breaker has every rail marked
      *  down (MatrixRouterUnavailableError). Fail closed, no provider label, no order written. */
     checkout_router_error_retry_after_seconds: number;
-    /** Maximum characters of the buyer-supplied rail label written to the rail_changed (409) log line. The value is JSON-encoded
-     *  and cut to this length, so a crafted label cannot forge log lines or flood the log. */
+    /** Maximum characters of the buyer-supplied rail label written to the rail_changed (409) log line. The label is JSON-encoded
+     *  first, then the encoded text (quotes included) is cut to this length, so the logged value is bounded. JSON encoding escapes
+     *  CR, LF and control characters; it does not escape U+2028 or U+2029, so the line is bounded but not guaranteed to be one line. */
     rail_label_log_max_chars: number;
     paddle: { api_base: { production: string; sandbox: string }; js_cdn_url: string; overlay: PaddleOverlaySettings };
     routing: PaymentRoutingSettings;

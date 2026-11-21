@@ -29,7 +29,8 @@ import { BrandFooter } from "../brand/brand";
  * authenticated-only, so the publishable client would read an empty set;
  * these pages render public marketing content (profile, title, price, description)
  * and read product_rails only to count usable rails and name the single rail's provider.
- * Rail rows, checkout URLs, terms and consent state never reach the rendered output.
+ * Rail rows and checkout URLs never reach the rendered output. The checkout page renders only the single usable rail's
+ * provider display name, as the merchant of record.
  *
  * On a transient DB failure during ISR revalidation Next serves the last good
  * page (stale-while-error) — availability for a marketing surface, while the

@@ -28,7 +28,7 @@ export interface UsableRail {
  * The route answers 500 "Checkout is not configured"; the page treats it as zero usable rails (no buy form).
  */
 export type RailResolution =
-  | { kind: "malformed"; reason: "non_object_row" | "invalid_active_row" | "invalid_checkout_url" }
+  | { kind: "malformed"; reason: "non_object_row" | "invalid_active_row" | "invalid_weight" | "invalid_checkout_url" }
   | { kind: "ok"; configuredCount: number; usable: UsableRail[] };
 
 export interface RailPolicy {
@@ -55,9 +55,11 @@ export function resolveCheckoutRails(rows: ReadonlyArray<unknown> | null | undef
     // valid rail. Anything but a number or a non-blank numeric string is malformed (fails closed).
     const blankString = typeof row.weight === "string" && row.weight.trim() === "";
     const weight = typeof row.weight === "number" || (typeof row.weight === "string" && !blankString) ? Number(row.weight) : Number.NaN;
-    if (typeof row.provider !== "string" || row.provider === "" || typeof row.checkout_url !== "string" || !Number.isFinite(weight) || weight <= 0) {
+    if (typeof row.provider !== "string" || row.provider === "" || typeof row.checkout_url !== "string" || !Number.isFinite(weight)) {
       return { kind: "malformed", reason: "invalid_active_row" };
     }
+    // The routing contract is weight > 0 (the DB CHECK matches). Named separately so the operator log names the real field.
+    if (weight <= 0) return { kind: "malformed", reason: "invalid_weight" };
     if (policy.isEnabledProvider(row.provider) && policy.verifiedProviders.has(row.provider)) {
       // Only a rail that would be usable is URL-checked, as the route checks only the rails it selects from.
       if (policy.checkoutUrlProblem(row.checkout_url, policy.checkoutMode)) return { kind: "malformed", reason: "invalid_checkout_url" };

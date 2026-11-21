@@ -167,6 +167,47 @@ describe("checkout route: the charged rail must be the rail the buyer was shown"
     expect(sentry.captureException).toHaveBeenCalledTimes(1);
   });
 
+  it("a product_rails query error: 500 and the outage is reported to Sentry", async () => {
+    sentry.captureException.mockClear();
+    adminModule.mockAdminClient = {
+      from: (table: string) => {
+        if (table === "products") return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: PRODUCT, error: null }) }) }) };
+        if (table === "consents") {
+          const consents = givenConsents();
+          return { select: () => ({ eq: () => ({ in: async () => ({ data: consents, error: null, count: consents.length }) }) }) };
+        }
+        return { select: () => ({ eq: () => ({ order: async () => ({ data: null, error: { message: "rails table down" } }) }) }) };
+      },
+    };
+    const res = await GET(checkoutRequest("paddle"));
+    expect(res.status).toBe(500);
+    expect(sentry.captureException).toHaveBeenCalledTimes(1);
+  });
+
+  it("a consents query error: 500 and the outage is reported to Sentry", async () => {
+    sentry.captureException.mockClear();
+    adminModule.mockAdminClient = {
+      from: (table: string) => {
+        if (table === "products") return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: PRODUCT, error: null }) }) }) };
+        if (table === "consents") return { select: () => ({ eq: () => ({ in: async () => ({ data: null, error: { message: "consents table down" }, count: null }) }) }) };
+        return { select: () => ({ eq: () => ({ order: async () => ({ data: [paddleRail], error: null }) }) }) };
+      },
+    };
+    const res = await GET(checkoutRequest("paddle"));
+    expect(res.status).toBe(500);
+    expect(sentry.captureException).toHaveBeenCalledTimes(1);
+  });
+
+  it("an unexpected MatrixRouter failure: 500 and reported to Sentry, no default provider", async () => {
+    sentry.captureException.mockClear();
+    adminModule.mockAdminClient = adminClient([paddleRail, creemRail]);
+    vi.mocked(MatrixRouter.getNextProvider).mockRejectedValueOnce(new Error("router state corrupt"));
+    const res = await GET(checkoutRequest("paddle"));
+    expect(res.status).toBe(500);
+    expect(res.headers.get("location")).toBeNull();
+    expect(sentry.captureException).toHaveBeenCalledTimes(1);
+  });
+
   it("zero configured rail rows is a designed state: 503 with no Sentry report", async () => {
     sentry.captureException.mockClear();
     adminModule.mockAdminClient = adminClient([]);

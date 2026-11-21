@@ -48,7 +48,7 @@ describe("resolveCheckoutRails", () => {
   it("is malformed for an active row with a missing provider, a non-string checkout_url, or a bad weight", () => {
     expect(resolveCheckoutRails([rail("")], ALL_ON)).toEqual({ kind: "malformed", reason: "invalid_active_row" });
     expect(resolveCheckoutRails([rail("paddle", true, { checkout_url: 7 })], ALL_ON)).toEqual({ kind: "malformed", reason: "invalid_active_row" });
-    expect(resolveCheckoutRails([rail("paddle", true, { weight: -1 })], ALL_ON)).toEqual({ kind: "malformed", reason: "invalid_active_row" });
+    expect(resolveCheckoutRails([rail("paddle", true, { weight: -1 })], ALL_ON)).toEqual({ kind: "malformed", reason: "invalid_weight" });
     // Number(null) is 0: a null weight must not pass as a valid rail.
     expect(resolveCheckoutRails([rail("paddle", true, { weight: null })], ALL_ON)).toEqual({ kind: "malformed", reason: "invalid_active_row" });
   });
@@ -59,8 +59,9 @@ describe("resolveCheckoutRails", () => {
   });
 
   it("is malformed for a zero weight: the routing contract is weight > 0, so a zero-weight rail is never usable", () => {
-    expect(resolveCheckoutRails([rail("paddle", true, { weight: 0 })], ALL_ON)).toEqual({ kind: "malformed", reason: "invalid_active_row" });
-    expect(resolveCheckoutRails([rail("paddle", true, { weight: "0" })], ALL_ON)).toEqual({ kind: "malformed", reason: "invalid_active_row" });
+    // Named invalid_weight, not invalid_active_row: the operator log must point at the weight, not the provider or URL.
+    expect(resolveCheckoutRails([rail("paddle", true, { weight: 0 })], ALL_ON)).toEqual({ kind: "malformed", reason: "invalid_weight" });
+    expect(resolveCheckoutRails([rail("paddle", true, { weight: "0" })], ALL_ON)).toEqual({ kind: "malformed", reason: "invalid_weight" });
   });
 
   it("is malformed for a blank weight string, which Number('') would read as 0", () => {

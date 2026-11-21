@@ -128,8 +128,9 @@ test("(d) pay host: /terms.html and /books are 404, /books/legal/terms.html is 2
   // (KNOWN HARNESS GAP below). The live boundary is verified against the real pay hostname with curl.
   // Skipped until the precondition below can pass. Root cause (verified 2026-11-21, chromium/webkit/firefox with PAY_HOST_LIVE=1):
   // the /__e2e/proxy-host probe (web/proxy.ts:115) reports url.hostname, which next dev sets to "localhost" for the pay
-  // context. E2E_PROXY_HOST_OVERRIDE=1 rewrites only the routing host (proxy.ts:106), after the probe, so the probe never
-  // sees pay.expanpress.com. Fix: report the effective host from the probe, or assert on the Host header instead.
+  // context. E2E_PROXY_HOST_OVERRIDE=1 rewrites only the routing host variable (proxy.ts:106). The probe reports
+  // url.hostname (proxy.ts:116), which the override never changes, so it never sees pay.expanpress.com.
+  // Fix: report the effective host from the probe, or assert on the Host header instead.
   test.skip(!process.env.PAY_HOST_LIVE, "blocked: /__e2e/proxy-host reports localhost for the pay Host header; the E2E host override rewrites routing only (proxy.ts:106, probe at :115)");
   const main = await apiRequest.newContext({ baseURL: APP_URL, maxRedirects: 0 });
   const pay = await apiRequest.newContext({
