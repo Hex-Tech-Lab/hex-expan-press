@@ -8,6 +8,7 @@ import {
 import { applyCheckoutUrlTheme } from "../../../../../payments/src/checkout_branding";
 import { attributionRef } from "../../../../src/lib/attribution";
 import { buyerEmailsMatch, isValidBuyerEmail } from "../../../../src/lib/buyer-email";
+import { isHouse } from "../../../../src/lib/house";
 import type { PaddleOverlayPayload } from "../../../../src/lib/paddle-overlay";
 import { buildPaddleOverlayPayload, paddleOverlayConfig, paddleOverlayUsable } from "../../../../src/lib/paddle-overlay-server";
 
@@ -36,7 +37,7 @@ export type ProductRow = {
 export function isHouseProduct(product: ProductRow): boolean {
   const embedded = product.creators;
   const creator = Array.isArray(embedded) ? embedded[0] : embedded;
-  return creator?.is_house === true;
+  return isHouse(creator?.is_house);
 }
 
 export interface BuyerFields {

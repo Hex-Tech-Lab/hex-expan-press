@@ -5,7 +5,6 @@ import { BuyLink } from "../../../../src/components/storefront/buy-link";
 import BookPreviewer from "../../../../src/components/storefront/book-previewer";
 import { PreviewScrollCue } from "../../../../src/components/storefront/preview-scroll-cue";
 import { ArrowIcon, BrandFrame, BrandWordmark } from "../../../../src/components/brand/brand";
-import { resolveProductBookAssets } from "../../../../src/lib/book-assets";
 import {
   BookCover,
   NOINDEX,
@@ -75,12 +74,8 @@ export default async function StoreProductPage({
   const title = p.title ?? productSlugOf(p);
   const buyUrl = `${PAY_ORIGIN}/checkout/${p.id}`;
   const layout = GLOBAL.storefront.product_layout;
-  const overview =
-    typeof p.overview === "string" && p.overview.trim() !== ""
-      ? p.overview.trim()
-      : p.overview === null
-        ? null
-        : resolveProductBookAssets(p).overview;
+  // withResolvedAssets already resolved overview (trimmed string or null) through the house-or-product_id identity gate.
+  const overview = p.overview;
   const gridStyle = {
     "--product-cover-max-w": `${layout.cover_max_width_px}px`,
     "--product-cover-max-pct": `${layout.cover_max_width_pct}%`,

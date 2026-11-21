@@ -58,7 +58,7 @@ function seed(): Record<string, Row[]> {
         photo: null,
         products: [
           {
-            id: "22222222-0000-4000-8000-000000000001",
+            id: "57596c19-c550-4bde-b17a-e87b86d005c5",
             store_product_id: "prod_retire_500k",
             slug: "500k_playbook",
             title: "You Don't Need a Million Dollars to Retire",
@@ -102,6 +102,7 @@ function seed(): Record<string, Row[]> {
         platform_handles: null,
         bio: "ExpanPress house publications and sample chapters.",
         photo: null,
+        is_house: true,
         products: [
           {
             id: "33333333-0000-4000-8000-000000000001",

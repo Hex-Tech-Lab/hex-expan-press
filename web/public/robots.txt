@@ -1,4 +1,2 @@
 User-agent: *
 Disallow: /checkout/
-Disallow: /books/legal/providers.html
-Disallow: /legal/providers.html

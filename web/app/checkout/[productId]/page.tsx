@@ -66,9 +66,15 @@ export default async function CheckoutPage({
   const priceDisplay = formatProductPrice(price, p.currency, "—");
   const live = p.checkout_mode === "live";
   const brand = GLOBAL.storefront.brand_name;
+  if (railProvider === null) {
+    console.error("[checkout] no active enabled rail for product; falling back to default provider label", { productId });
+  }
   const activeProvider = railProvider ?? defaultEnabledPaymentProvider();
   const morName = activeProvider ? paymentProviderDisplayName(activeProvider) : null;
   const overlayCfg = paddleOverlayConfig();
+  if (live && !overlayCfg.ok) {
+    console.error("[checkout] paddle overlay unavailable; buyer gets the POST fallback", { productId, reason: overlayCfg.reason });
+  }
   const hasPaddlePrice = typeof p.paddle_price_id === "string" && p.paddle_price_id.trim() !== "";
   const paddleClient =
     live &&
