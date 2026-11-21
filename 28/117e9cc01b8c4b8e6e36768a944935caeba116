@@ -1,0 +1,82 @@
+web/__tests__/checkout-rails.test.ts
+  s_7e539dcf78d9db::t_f482304b78eebe 61-65
+docs/testing/pairwise/checkout_rails_resolver.rows.tsv
+  s_7e539dcf78d9db::t_bc2a527ea8e830 2-13
+web/__tests__/checkout_rails_resolver.pairwise.test.ts
+  s_7e539dcf78d9db::t_36b6a708d498c5 11,18
+  s_7e539dcf78d9db::t_3e91643e5d8138 40
+  s_7e539dcf78d9db::t_ef69a3dd6107e0 68-70
+  s_7e539dcf78d9db::t_9548908341aabc 63-67,71-73
+web/src/lib/checkout-rails.ts
+  s_7e539dcf78d9db::t_748f2bb67e32d8 58
+web/src/components/storefront/storefront.tsx
+  s_7e539dcf78d9db::t_e669d4363dc859 30-32
+  s_7e539dcf78d9db::t_154444037d293a 323-324
+  s_7e539dcf78d9db::t_5303d1f55770fc 354
+  s_7e539dcf78d9db::t_0f1714de014b2e 584
+web/__tests__/storefront.test.ts
+  s_7e539dcf78d9db::t_7688ca6376aef7 5-6
+  s_7e539dcf78d9db::t_a8fc1d5480decc 303-339
+  s_7e539dcf78d9db::t_356c934fb14f50 21
+web/src/lib/product-purchasable.ts
+  s_7e539dcf78d9db::t_454e8acc55e43b 7-8
+docs/testing/pairwise/checkout_rails_resolver.seed.tsv
+  s_7e539dcf78d9db::t_38c97b76209ba1 1-2
+web/app/api/billing/checkout/route.ts
+  s_7e539dcf78d9db::t_f9f7662a91f7ec 317-319
+  s_7e539dcf78d9db::t_97a01d8cbbc720 254-255
+  s_7e539dcf78d9db::t_963d6121676dbf 260-261
+  s_7e539dcf78d9db::t_09717a42660f6a 1
+web/__tests__/buyer-email-step.client.test.ts
+  s_7e539dcf78d9db::t_1dfd76b6e4f992 27
+  s_7e539dcf78d9db::t_6070f3c465affa 45
+  s_7e539dcf78d9db::t_dc0101c6dbe0b5 73-123
+web/app/checkout/[productId]/page.tsx
+  s_7e539dcf78d9db::t_2469a8bc14651a 60
+  s_7e539dcf78d9db::t_c0be84b1d81d0a 160
+  s_7e539dcf78d9db::t_4e2daec1fd4163 19
+  s_7e539dcf78d9db::t_bd9330a2ffca26 77-80
+docs/testing/pairwise/checkout_rails_resolver.model.txt
+  s_7e539dcf78d9db::t_d83b0194200f18 12-13,16
+  s_7e539dcf78d9db::t_d58b48cc95fc74 25
+  s_7e539dcf78d9db::t_04e1475c41e835 3-4
+web/app/api/billing/checkout/checkout-helpers.ts
+  s_7e539dcf78d9db::t_5f2910a0d95a53 286-289
+web/app/checkout/[productId]/__tests__/page.test.ts
+  s_7e539dcf78d9db::t_14df344c64daf3 7
+  s_7e539dcf78d9db::t_a8a0045ad5bad1 256,265
+  s_7e539dcf78d9db::t_5d0b2c75ad33dc 221-254
+  s_7e539dcf78d9db::t_4325d7aed204c5 255,257-264,266-267
+  s_7e539dcf78d9db::t_a5b92366da59fd 13-15
+  s_7e539dcf78d9db::t_b24fd254fbfe43 66,72
+web/app/api/billing/checkout/__tests__/rail_pinned_to_label.test.ts
+  s_7e539dcf78d9db::t_e9e1371c396c2e 127-141
+  s_7e539dcf78d9db::t_23d4503d55b546 119-126,142-149
+  s_7e539dcf78d9db::t_e50aa55335a076 18-20
+  s_7e539dcf78d9db::t_337c217279b6aa 8
+  s_7e539dcf78d9db::t_95af69d851297d 98-116
+  s_7e539dcf78d9db::t_c309c429556202 117,190-208
+  s_7e539dcf78d9db::t_936e94d327fc83 118
+payments/src/settings_registry.ts
+  s_7e539dcf78d9db::t_edaf0c1683ccf9 853
+  s_7e539dcf78d9db::t_96c49a45a097ef 957
+  s_7e539dcf78d9db::t_a9a55e7280ceac 162-164
+  s_7e539dcf78d9db::t_f5b383d27a4584 443
+  s_7e539dcf78d9db::t_e4c6040825bfda 746
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "28117e9cc01b8c4b8e6e36768a944935caeba116",
+  "prompts": {},
+  "sessions": {
+    "s_7e539dcf78d9db": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7aec794a-3e95-4ace-bf8d-7a1962c629d9",
+        "model": "unknown"
+      },
+      "human_author": null
+    }
+  }
+}
