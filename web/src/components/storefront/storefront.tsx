@@ -6,6 +6,7 @@ import { getSupabaseAdmin } from "../../../../payments/src/supabase_admin";
 import { GLOBAL, isEnabledPaymentProvider } from "../../../../payments/src/settings_registry";
 import { guidSchema, productSlugSchema } from "../../lib/zod-rules";
 import { resolveProductBookAssets } from "../../lib/book-assets";
+import { productPriceUsd } from "../../lib/product-purchasable";
 import { BrandFooter } from "../brand/brand";
 
 /**
@@ -75,12 +76,9 @@ export function productSlugOf(storeProduct: Pick<StoreProduct, "slug">): string 
   return storeProduct.slug ?? "";
 }
 
-/** numeric-as-string coercion with a finite guard (Sprint 15 money-path rule). */
+/** numeric-as-string coercion with a finite guard (Sprint 15 money-path rule). Shared rule: lib/product-purchasable. */
 export function priceOf(storeProduct: Pick<StoreProduct, "price_usd">): number | null {
-  const raw = storeProduct.price_usd;
-  // Type-narrow before coercing: Number(null) is 0 and Number(true) is 1, so only strings and numbers convert.
-  const n = typeof raw === "string" || typeof raw === "number" ? Number(raw) : NaN;
-  return Number.isFinite(n) ? n : null;
+  return productPriceUsd(storeProduct.price_usd);
 }
 
 /**
@@ -276,7 +274,12 @@ export const PAY_ORIGIN = "https://pay.expanpress.com";
 /** Checkout page lookup by product UUID (ADR 0061). Commercial products only, same rule as the storefront. */
 export const fetchCheckoutProduct = cache(async function fetchCheckoutProduct(
   productId: string,
-): Promise<{ creator: { handle: string; display_name: string; is_house: boolean }; product: StoreProduct; railProvider: string | null } | null> {
+): Promise<{
+  creator: { handle: string; display_name: string; is_house: boolean };
+  product: StoreProduct;
+  railProvider: string | null;
+  activeRailCount: number;
+} | null> {
   if (!guidSchema.safeParse(productId).success) return null;
   const supabase = await getSupabaseAdmin();
   if (!supabase) {
@@ -302,15 +305,22 @@ export const fetchCheckoutProduct = cache(async function fetchCheckoutProduct(
     .eq("product_id", productId)
     .order("weight", { ascending: false });
   if (railErr) throw new Error(`storefront: checkout rails query failed for '${productId}': ${railErr.message}`);
-  const activeRail = (railRows ?? []).find(
+  // Active, enabled rails in weight order. The first is the rail the page names; the count drives the fail-closed rule
+  // on the checkout page (more than one active rail: no merchant of record, no overlay).
+  const activeRails = (railRows ?? []).filter(
     (r) =>
       r !== null &&
       typeof r === "object" &&
       ((r as { active?: unknown }).active === true || (r as { active?: unknown }).active === "true") &&
       typeof (r as { provider?: unknown }).provider === "string" &&
       isEnabledPaymentProvider((r as { provider: string }).provider),
-  ) as { provider: string } | undefined;
-  return { creator, product: row, railProvider: activeRail?.provider ?? null };
+  ) as Array<{ provider: string }>;
+  return {
+    creator,
+    product: row,
+    railProvider: activeRails[0]?.provider ?? null,
+    activeRailCount: activeRails.length,
+  };
 });
 
 export { isHouseCreator } from "../../lib/house";

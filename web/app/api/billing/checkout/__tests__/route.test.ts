@@ -60,6 +60,8 @@ const CHECKOUT_URL = "http://localhost:3000/api/billing/checkout?product=57596c1
 const PID = "57596c19-c550-4bde-b17a-e87b86d005c5";
 const OWNER_ID = "c0a80101-0000-4000-8000-000000000001";
 const RELEASE_SHA = "a".repeat(64);
+// Fixture price for a priced product (products.price_usd). Test data only: the price source of truth is the products row, not the registry.
+const PRICE_USD = "39.00";
 
 interface DbResult {
   data: unknown;
@@ -118,7 +120,7 @@ function railsTableMock(rails: DbResult) {
 }
 
 function gateAdminClient(
-  products: DbResult = { data: { id: PID, creator_id: OWNER_ID, release_sha256: RELEASE_SHA, checkout_mode: "live" }, error: null },
+  products: DbResult = { data: { id: PID, creator_id: OWNER_ID, release_sha256: RELEASE_SHA, price_usd: PRICE_USD, checkout_mode: "live" }, error: null },
   consents: DbResult = { data: givenConsents(), error: null },
   rails: DbResult = { data: [{ provider: "paddle", weight: 100, checkout_url: "https://buy.paddle.com/live-rail", active: true }], error: null },
 ) {
@@ -165,7 +167,7 @@ beforeEach(() => {
 describe("billing/checkout DB rail in production, fail-closed without rails", () => {
   beforeEach(() => {
     // Gate must pass. DB rails start EMPTY so the no-rail case reaches the
-    // 404 fail-closed branch; the production cases install their own rail
+    // 503 no_active_rail fail-closed branch; the production cases install their own rail
     // with setLiveRail, which replaces this fixture.
     adminModule.mockAdminClient = gateAdminClient(undefined, undefined, { data: [], error: null });
   });
@@ -190,10 +192,10 @@ describe("billing/checkout DB rail in production, fail-closed without rails", ()
     expect(res.headers.get("location")).toBe("https://buy.paddle.com/live-test-link");
   });
 
-  it("does not serve a fallback link outside production (no rails -> 404)", async () => {
+  it("does not serve a fallback link outside production (no rails -> 503)", async () => {
     vi.stubEnv("VERCEL_ENV", "preview");
     const res = await GET(request());
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(503);
     expect(res.headers.get("location")).toBeNull();
   });
 });
@@ -209,18 +211,18 @@ describe("billing/checkout unified checkout_url policy", () => {
     vi.unstubAllEnvs();
   });
 
-  it("production with no rails and no override returns 404 without a location", async () => {
+  it("production with no rails and no override returns 503 without a location", async () => {
     vi.stubEnv("VERCEL_ENV", "production");
     const res = await GET(request());
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(503);
     expect(res.headers.get("location")).toBeNull();
   });
 
-  it("VERCEL_ENV unset with NODE_ENV=production and no rails or override returns 404", async () => {
+  it("VERCEL_ENV unset with NODE_ENV=production and no rails or override returns 503", async () => {
     vi.stubEnv("VERCEL_ENV", undefined as unknown as string);
     vi.stubEnv("NODE_ENV", "production");
     const res = await GET(request());
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(503);
     expect(res.headers.get("location")).toBeNull();
   });
 
@@ -283,7 +285,7 @@ describe("billing/checkout unified checkout_url policy", () => {
       error: null,
     });
     const res = await GET(request());
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(503);
     expect(res.headers.get("location")).toBeNull();
   });
 });
@@ -305,19 +307,19 @@ describe("billing/checkout wave85 sandbox + raw-URL fail-closed", () => {
     vi.mocked(MatrixRouter.getNextProvider).mockResolvedValue("paddle");
   });
 
-  it("VERCEL_ENV unset + NODE_ENV unset + no override returns 404 (absent signals fail closed)", async () => {
+  it("VERCEL_ENV unset + NODE_ENV unset + no override returns 503 (absent signals fail closed)", async () => {
     vi.stubEnv("VERCEL_ENV", undefined as unknown as string);
     vi.stubEnv("NODE_ENV", undefined as unknown as string);
     const res = await GET(request());
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(503);
     expect(res.headers.get("location")).toBeNull();
   });
 
-  it("VERCEL_ENV unset + NODE_ENV=staging + no override returns 404", async () => {
+  it("VERCEL_ENV unset + NODE_ENV=staging + no override returns 503", async () => {
     vi.stubEnv("VERCEL_ENV", undefined as unknown as string);
     vi.stubEnv("NODE_ENV", "staging");
     const res = await GET(request());
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(503);
     expect(res.headers.get("location")).toBeNull();
   });
 
@@ -335,7 +337,7 @@ describe("billing/checkout wave85 sandbox + raw-URL fail-closed", () => {
     vi.stubEnv("NODE_ENV", "test");
     registryOverride.sandboxCheckoutEnabled = true;
     adminModule.mockAdminClient = gateAdminClient(
-      { data: { id: PID, creator_id: OWNER_ID, release_sha256: RELEASE_SHA, checkout_mode: "sandbox" }, error: null },
+      { data: { id: PID, creator_id: OWNER_ID, release_sha256: RELEASE_SHA, price_usd: PRICE_USD, checkout_mode: "sandbox" }, error: null },
       undefined,
       { data: [{ provider: "paddle", weight: 100, checkout_url: "https://sandbox-api.polar.sh/v1/checkout-links/x/redirect", active: true }], error: null },
     );
@@ -389,16 +391,46 @@ describe("billing/checkout wave85 sandbox + raw-URL fail-closed", () => {
     }
   });
 
-  it("production with rejecting MatrixRouter and valid live rails falls back 302 to the live url", async () => {
+  it("production with a null MatrixRouter rejection still answers the fail-closed 500 JSON, no Retry-After, no redirect", async () => {
     vi.stubEnv("VERCEL_ENV", "production");
     adminModule.mockAdminClient = gateAdminClient(undefined, undefined, {
       data: [{ provider: "paddle", weight: 100, checkout_url: "https://buy.paddle.com/live-rail", active: true }],
       error: null,
     });
-    vi.mocked(MatrixRouter.getNextProvider).mockRejectedValueOnce(new Error("router down"));
-    const res = await GET(request());
-    expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toBe("https://buy.paddle.com/live-rail");
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      vi.mocked(MatrixRouter.getNextProvider).mockRejectedValueOnce(null);
+      const res = await GET(request());
+      expect(res.status).toBe(500);
+      expect(await res.json()).toMatchObject({ ok: false, code: "router_unexpected_error" });
+      expect(res.headers.get("retry-after")).toBeNull();
+      expect(res.headers.get("location")).toBeNull();
+      const unexpectedLogs = errorSpy.mock.calls.filter((args: unknown[]) => String(args[0]).includes("unexpected failure"));
+      expect(unexpectedLogs).toHaveLength(1);
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
+
+  it("production with an unknown MatrixRouter error answers 500 router_unexpected_error, logs the stack, no Retry-After, no redirect", async () => {
+    vi.stubEnv("VERCEL_ENV", "production");
+    adminModule.mockAdminClient = gateAdminClient(undefined, undefined, {
+      data: [{ provider: "paddle", weight: 100, checkout_url: "https://buy.paddle.com/live-rail", active: true }],
+      error: null,
+    });
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      vi.mocked(MatrixRouter.getNextProvider).mockRejectedValueOnce(new Error("router down"));
+      const res = await GET(request());
+      expect(res.status).toBe(500);
+      expect(await res.json()).toMatchObject({ ok: false, code: "router_unexpected_error" });
+      expect(res.headers.get("retry-after")).toBeNull();
+      expect(res.headers.get("location")).toBeNull();
+      const stackLogs = errorSpy.mock.calls.filter((args: unknown[]) => String(args[0]).includes("unexpected failure") && String(args[0]).includes("Error: router down"));
+      expect(stackLogs).toHaveLength(1);
+    } finally {
+      errorSpy.mockRestore();
+    }
   });
 
   it("production with rejecting MatrixRouter and a null-url rail fails closed 500 before the router", async () => {
@@ -431,7 +463,7 @@ describe("billing/checkout strict rail flags (item 5, 2026-10-15)", () => {
       error: null,
     });
     const res = await GET(request());
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(503);
     expect(res.headers.get("location")).toBeNull();
   });
 
@@ -442,7 +474,7 @@ describe("billing/checkout strict rail flags (item 5, 2026-10-15)", () => {
         error: null,
       });
       const res = await GET(request());
-      expect(res.status, `active=${JSON.stringify(active)}`).toBe(404);
+      expect(res.status, `active=${JSON.stringify(active)}`).toBe(503);
       expect(res.headers.get("location")).toBeNull();
     }
   });
@@ -650,7 +682,7 @@ describe("billing/checkout consent gate fails closed (CR remediation)", () => {
     adminModule.mockAdminClient = {
       from: (table: string) => {
         if (table === "products") {
-          return productTableMock({ data: { id: PID, creator_id: OWNER_ID, release_sha256: RELEASE_SHA, checkout_mode: "live" }, error: null }, { data: [{ id: PID }], error: null });
+          return productTableMock({ data: { id: PID, creator_id: OWNER_ID, release_sha256: RELEASE_SHA, price_usd: PRICE_USD, checkout_mode: "live" }, error: null }, { data: [{ id: PID }], error: null });
         }
         return consentsTableMock({ data: givenConsents(), error: null });
       },
@@ -675,7 +707,7 @@ describe("billing/checkout consent gate fails closed (CR remediation)", () => {
     adminModule.mockAdminClient = {
       from: (table: string) => {
         if (table === "products") {
-          return productTableMock({ data: { id: PID, creator_id: OWNER_ID, release_sha256: RELEASE_SHA, checkout_mode: "live" }, error: null }, undefined, eqCalls);
+          return productTableMock({ data: { id: PID, creator_id: OWNER_ID, release_sha256: RELEASE_SHA, price_usd: PRICE_USD, checkout_mode: "live" }, error: null }, undefined, eqCalls);
         }
         if (table === "product_rails") {
           return railsTableMock({ data: [{ provider: "paddle", weight: 100, checkout_url: "https://buy.paddle.com/live-rail", active: true }], error: null });
@@ -698,7 +730,7 @@ describe("billing/checkout consent gate fails closed (CR remediation)", () => {
   });
 
   it("fails closed with 500 when the resolved product has no owner", async () => {
-    adminModule.mockAdminClient = gateAdminClient({ data: { id: PID, creator_id: null, release_sha256: RELEASE_SHA, checkout_mode: "live" }, error: null });
+    adminModule.mockAdminClient = gateAdminClient({ data: { id: PID, creator_id: null, release_sha256: RELEASE_SHA, price_usd: PRICE_USD, checkout_mode: "live" }, error: null });
     const res = await GET(request());
     expect(res.status).toBe(500);
     expect(res.headers.get("location")).toBeNull();
@@ -728,7 +760,7 @@ describe("billing/checkout consent gate fails closed (CR remediation)", () => {
         if (table === "product_rails") {
           return railsTableMock({ data: [{ provider: "paddle", weight: 100, checkout_url: "https://buy.paddle.com/live-rail", active: true }], error: null });
         }
-        return productTableMock({ data: { id: PID, creator_id: OWNER_ID, release_sha256: RELEASE_SHA, checkout_mode: "live" }, error: null });
+        return productTableMock({ data: { id: PID, creator_id: OWNER_ID, release_sha256: RELEASE_SHA, price_usd: PRICE_USD, checkout_mode: "live" }, error: null });
       },
     };
     vi.stubEnv("VERCEL_ENV", "preview");
@@ -754,14 +786,14 @@ describe("billing/checkout DB-driven rails (Sprint 15 heritage eradication)", ()
     expect(res.headers.get("location")).toBe("https://buy.paddle.com/from-db");
   });
 
-  it("returns 404 when rails are configured but ALL inactive — the database disable defeats env/legacy fallback", async () => {
+  it("returns 503 when rails are configured but ALL inactive — the database disable defeats env/legacy fallback", async () => {
     vi.stubEnv("VERCEL_ENV", "production");
     adminModule.mockAdminClient = gateAdminClient(undefined, undefined, {
       data: [{ provider: "paddle", weight: 100, checkout_url: "https://buy.paddle.com/from-db", active: false }],
       error: null,
     });
     const res = await GET(request());
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(503);
     expect(res.headers.get("location")).toBeNull();
   });
 
@@ -790,11 +822,11 @@ describe("billing/checkout DB-driven rails (Sprint 15 heritage eradication)", ()
     expect(res.headers.get("location")).toBeNull();
   });
 
-  it("returns 404 when the DB has no rails rows (no env fallback)", async () => {
+  it("returns 503 when the DB has no rails rows (no env fallback)", async () => {
     vi.stubEnv("VERCEL_ENV", "production");
     adminModule.mockAdminClient = gateAdminClient(undefined, undefined, { data: [], error: null });
     const res = await GET(request());
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(503);
     expect(res.headers.get("location")).toBeNull();
   });
 
@@ -804,7 +836,7 @@ describe("billing/checkout DB-driven rails (Sprint 15 heritage eradication)", ()
     adminModule.mockAdminClient = {
       from: (table: string) => {
         if (table === "products") {
-          return productTableMock({ data: { id: "11111111-1111-1111-1111-111111111111", creator_id: OWNER_ID, release_sha256: RELEASE_SHA, checkout_mode: "live" }, error: null });
+          return productTableMock({ data: { id: "11111111-1111-1111-1111-111111111111", creator_id: OWNER_ID, release_sha256: RELEASE_SHA, price_usd: PRICE_USD, checkout_mode: "live" }, error: null });
         }
         if (table === "product_rails") {
           return railsTableMock({ data: [], error: null });
@@ -826,7 +858,7 @@ describe("billing/checkout sandbox-rail purge regression (Sprint 17)", () => {
     vi.unstubAllEnvs();
   });
 
-  it("importer skips a sandbox rail, leaving 0 rows, so checkout is 404 (no CHECKOUT_URL_<PRODUCT> fallback)", async () => {
+  it("importer skips a sandbox rail, leaving 0 rows, so checkout is 503 (no CHECKOUT_URL_<PRODUCT> fallback)", async () => {
     // In-memory product_rails, shared by the importer and the route.
     const railRows: Array<Record<string, unknown>> = [];
     const store = {
@@ -840,7 +872,7 @@ describe("billing/checkout sandbox-rail purge regression (Sprint 17)", () => {
             select: () => ({ eq: () => ({ order: async () => ({ data: railRows, error: null }) }) }),
           };
         }
-        if (table === "products") return productTableMock({ data: { id: PID, creator_id: OWNER_ID, release_sha256: RELEASE_SHA, checkout_mode: "live" }, error: null });
+        if (table === "products") return productTableMock({ data: { id: PID, creator_id: OWNER_ID, release_sha256: RELEASE_SHA, price_usd: PRICE_USD, checkout_mode: "live" }, error: null });
         return consentsTableMock({ data: givenConsents(), error: null });
       },
     };
@@ -858,7 +890,7 @@ describe("billing/checkout sandbox-rail purge regression (Sprint 17)", () => {
     vi.stubEnv("CHECKOUT_URL_SANDBOXED_BOOK", "https://buy.paddle.com/live-sandboxed-book");
     adminModule.mockAdminClient = store;
     const res = await GET(new NextRequest("http://localhost:3000/api/billing/checkout?product=57596c19-c550-4bde-b17a-e87b86d005c5"));
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(503);
     expect(res.headers.get("location")).toBeNull();
   });
 
@@ -888,7 +920,7 @@ describe("billing/checkout release hash gate (Sprint 17)", () => {
 
   const withHashes = (release: unknown, approved: unknown) =>
     gateAdminClient(
-      { data: { id: PID, creator_id: OWNER_ID, release_sha256: release, checkout_mode: "live" }, error: null },
+      { data: { id: PID, creator_id: OWNER_ID, release_sha256: release, price_usd: PRICE_USD, checkout_mode: "live" }, error: null },
       { data: givenConsents().map((c) => (c.kind === "C2_release_approval" ? { ...c, document_sha256: approved } : c)), error: null },
     );
 
@@ -944,7 +976,7 @@ describe("billing/checkout launch state + complete consent history (Sprint 17)",
   });
 
   const withMode = (mode: unknown) =>
-    gateAdminClient({ data: { id: PID, creator_id: OWNER_ID, release_sha256: RELEASE_SHA, checkout_mode: mode }, error: null });
+    gateAdminClient({ data: { id: PID, creator_id: OWNER_ID, release_sha256: RELEASE_SHA, price_usd: PRICE_USD, checkout_mode: mode }, error: null });
 
   it.each(["gated", "paddle", null, undefined, "LIVE"])("fails closed with 403 when checkout_mode is %s", async (mode) => {
     vi.stubEnv("VERCEL_ENV", "preview");
@@ -1002,7 +1034,7 @@ describe("billing/checkout launch state + complete consent history (Sprint 17)",
     expect(modeRes.headers.get("location")).toBeNull();
 
     adminModule.mockAdminClient = gateAdminClient(
-      { data: { id: PID, creator_id: OWNER_ID, release_sha256: RELEASE_SHA, checkout_mode: "sandbox" }, error: null },
+      { data: { id: PID, creator_id: OWNER_ID, release_sha256: RELEASE_SHA, price_usd: PRICE_USD, checkout_mode: "sandbox" }, error: null },
       undefined,
       { data: [{ provider: "paddle", weight: 100, checkout_url: "https://sandbox-api.polar.sh/v1/checkout-links/x/redirect", active: true }], error: null },
     );
@@ -1109,24 +1141,24 @@ describe("billing/checkout fail-closed without rails, and Polar never routes (PR
     vi.unstubAllEnvs();
   });
 
-  it("returns 404 with no location when there are no rails, even with a CHECKOUT_URL override set", async () => {
+  it("returns 503 with no location when there are no rails, even with a CHECKOUT_URL override set", async () => {
     vi.stubEnv("VERCEL_ENV", "production");
     vi.stubEnv("CHECKOUT_URL_DUANE_RETIREMENT_PLAYBOOK_V1", "https://buy.paddle.com/override-must-not-route");
     adminModule.mockAdminClient = gateAdminClient(undefined, undefined, { data: [], error: null });
     const res = await GET(request());
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(503);
     expect(res.headers.get("location")).toBeNull();
     expect(MatrixRouter.getNextProvider).not.toHaveBeenCalled();
   });
 
-  it("returns 404 and never calls the router when the only active rail is Polar", async () => {
+  it("returns 503 and never calls the router when the only active rail is Polar", async () => {
     vi.stubEnv("VERCEL_ENV", "production");
     adminModule.mockAdminClient = gateAdminClient(undefined, undefined, {
       data: [{ provider: "polar", weight: 100, checkout_url: "https://buy.polar.sh/live-only-polar", active: true }],
       error: null,
     });
     const res = await GET(request());
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(503);
     expect(res.headers.get("location")).toBeNull();
     expect(MatrixRouter.getNextProvider).not.toHaveBeenCalled();
   });
@@ -1159,11 +1191,12 @@ describe("billing/checkout matrix router: every rail marked down (Argon F-16)", 
     vi.unstubAllEnvs();
   });
 
-  it("answers 503 rails_unavailable and never redirects to a rail the breaker has taken out", async () => {
+  it("answers 503 rails_unavailable with Retry-After and never redirects to a rail the breaker has taken out", async () => {
     vi.mocked(MatrixRouter.getNextProvider).mockRejectedValueOnce(new MatrixRouterUnavailableError("payments", PID));
     const res = await GET(request());
     expect(res.status).toBe(503);
     expect(await res.json()).toMatchObject({ ok: false, code: "rails_unavailable" });
+    expect(res.headers.get("retry-after")).toBe(String(GLOBAL.payments.checkout_router_error_retry_after_seconds));
     expect(res.headers.get("location")).toBeNull();
   });
 
@@ -1214,7 +1247,7 @@ describe("billing/checkout HEAD handler", () => {
     expect(blockedCountryRes.status).toBe(403);
     expect(await blockedCountryRes.text()).toBe("");
 
-    adminModule.mockAdminClient = gateAdminClient({ data: { id: PID, creator_id: OWNER_ID, release_sha256: RELEASE_SHA, checkout_mode: "gated" }, error: null });
+    adminModule.mockAdminClient = gateAdminClient({ data: { id: PID, creator_id: OWNER_ID, release_sha256: RELEASE_SHA, price_usd: PRICE_USD, checkout_mode: "gated" }, error: null });
     const gatedRes = await HEAD(new NextRequest(CHECKOUT_URL, { method: "HEAD" }));
     expect(gatedRes.status).toBe(403);
     expect(await gatedRes.text()).toBe("");
@@ -1254,7 +1287,7 @@ describe("billing/checkout HEAD handler", () => {
     registryOverride.creemEnabled = true;
     vi.mocked(MatrixRouter.getNextProvider).mockResolvedValueOnce("creem");
     adminModule.mockAdminClient = gateAdminClient(
-      { data: { id: PID, store_product_id: "store_book_1", creator_id: OWNER_ID, release_sha256: RELEASE_SHA, checkout_mode: "live", creators: { handle: "duane" } }, error: null },
+      { data: { id: PID, store_product_id: "store_book_1", creator_id: OWNER_ID, release_sha256: RELEASE_SHA, price_usd: PRICE_USD, checkout_mode: "live", creators: { handle: "duane" } }, error: null },
       undefined,
       { data: [{ provider: "creem", weight: 100, checkout_url: "https://creem.io/payment/prod_live", active: true }], error: null },
     );
@@ -1361,10 +1394,10 @@ describe("billing/checkout additional defensive and lookup branches", () => {
     expect(await res.json()).toEqual({ ok: false, error: "Checkout forbidden: required creator consents are not active" });
   });
 
-  it("returns 404 when product_rails query returns null data", async () => {
+  it("returns 503 when product_rails query returns null data", async () => {
     adminModule.mockAdminClient = gateAdminClient(undefined, undefined, { data: null, error: null });
     const res = await GET(request());
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(503);
     expect(res.headers.get("location")).toBeNull();
   });
 
@@ -1379,7 +1412,7 @@ describe("billing/checkout additional defensive and lookup branches", () => {
     expect(await res.json()).toEqual({ ok: false, error: "Checkout consent verification failed" });
   });
 
-  it("sorts multiple rails by weight descending when MatrixRouter throws a generic error", async () => {
+  it("answers 500 router_unexpected_error and never picks a rail by weight when MatrixRouter throws an unknown error", async () => {
     adminModule.mockAdminClient = gateAdminClient(undefined, undefined, {
       data: [
         { provider: "paddle", weight: 10, checkout_url: "https://buy.paddle.com/low-weight", active: true },
@@ -1389,8 +1422,10 @@ describe("billing/checkout additional defensive and lookup branches", () => {
     });
     vi.mocked(MatrixRouter.getNextProvider).mockRejectedValueOnce(new Error("router down"));
     const res = await GET(request());
-    expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toBe("https://buy.paddle.com/high-weight");
+    expect(res.status).toBe(500);
+    expect(await res.json()).toMatchObject({ ok: false, code: "router_unexpected_error" });
+    expect(res.headers.get("location")).toBeNull();
+    expect(res.headers.get("retry-after")).toBeNull();
   });
 
   it("appends reference_id when a Polar rail is enabled in settings and selected", async () => {
@@ -1447,7 +1482,7 @@ describe("billing/checkout buyer email and consent (product page email step)", (
     expect(parsed.searchParams.get("customer_email")).toBe("ann@example.com");
   });
 
-  it("prefills the same Polar email on the router fallback redirect", async () => {
+  it("an unknown router error on a Polar rail answers 500 router_unexpected_error: no redirect and no buyer email is sent to a provider", async () => {
     registryOverride.polarEnabled = true;
     vi.mocked(MatrixRouter.getNextProvider).mockRejectedValueOnce(new Error("router down"));
     adminModule.mockAdminClient = gateAdminClient(undefined, undefined, {
@@ -1455,8 +1490,9 @@ describe("billing/checkout buyer email and consent (product page email step)", (
       error: null,
     });
     const res = await GET(new NextRequest(`${CHECKOUT_URL}&${BUYER}`));
-    expect(res.status).toBe(302);
-    expect(new URL(res.headers.get("location")!).searchParams.get("customer_email")).toBe("ann@example.com");
+    expect(res.status).toBe(500);
+    expect(await res.json()).toMatchObject({ code: "router_unexpected_error" });
+    expect(res.headers.get("location")).toBeNull();
   });
 
   it("records consent as checkout metadata on a Creem link and sends no email there", async () => {
@@ -1493,7 +1529,7 @@ describe("billing/checkout buyer email and consent (product page email step)", (
     registryOverride.creemEnabled = true;
     vi.mocked(MatrixRouter.getNextProvider).mockResolvedValue("creem");
     adminModule.mockAdminClient = gateAdminClient(
-      { data: { id: PID, store_product_id: "store_book_1", creator_id: OWNER_ID, release_sha256: RELEASE_SHA, checkout_mode: "live", creators: { handle: "duane" } }, error: null },
+      { data: { id: PID, store_product_id: "store_book_1", creator_id: OWNER_ID, release_sha256: RELEASE_SHA, price_usd: PRICE_USD, checkout_mode: "live", creators: { handle: "duane" } }, error: null },
       undefined,
       { data: [{ provider: "creem", weight: 100, checkout_url: "https://creem.io/payment/prod_live", active: true }], error: null },
     );
@@ -1505,7 +1541,7 @@ describe("billing/checkout buyer email and consent (product page email step)", (
     expect(parsed.searchParams.get("success_url")).toBe(`${GLOBAL.delivery.download_origin}/books/duane/thanks`);
 
     adminModule.mockAdminClient = gateAdminClient(
-      { data: { id: PID, store_product_id: null, creator_id: OWNER_ID, release_sha256: RELEASE_SHA, checkout_mode: "live", creators: { handle: "duane" } }, error: null },
+      { data: { id: PID, store_product_id: null, creator_id: OWNER_ID, release_sha256: RELEASE_SHA, price_usd: PRICE_USD, checkout_mode: "live", creators: { handle: "duane" } }, error: null },
       undefined,
       { data: [{ provider: "creem", weight: 100, checkout_url: "https://creem.io/payment/prod_live?success_url=https%3A%2F%2Fexpanpress.com%2Fbooks%2Fcustom", active: true }], error: null },
     );
@@ -1555,7 +1591,7 @@ describe("billing/checkout POST single-hop form & JSON (F-07 Option A)", () => {
     registryOverride.creemEnabled = true;
     vi.mocked(MatrixRouter.getNextProvider).mockResolvedValueOnce("creem");
     adminModule.mockAdminClient = gateAdminClient(
-      { data: { id: PID, store_product_id: "sp_1", creator_id: OWNER_ID, release_sha256: RELEASE_SHA, checkout_mode: "live", creators: { handle: "duane" } }, error: null },
+      { data: { id: PID, store_product_id: "sp_1", creator_id: OWNER_ID, release_sha256: RELEASE_SHA, price_usd: PRICE_USD, checkout_mode: "live", creators: { handle: "duane" } }, error: null },
       undefined,
       { data: [{ provider: "creem", weight: 100, checkout_url: "https://creem.io/payment/prod_live", active: true }], error: null },
     );
@@ -1626,7 +1662,7 @@ describe("billing/checkout POST single-hop form & JSON (F-07 Option A)", () => {
           id: PID,
           store_product_id: "store_book_1",
           creator_id: OWNER_ID,
-          release_sha256: RELEASE_SHA,
+          release_sha256: RELEASE_SHA, price_usd: PRICE_USD,
           checkout_mode: "live",
           paddle_price_id: "pri_live_99",
           creators: { handle: "duane" },
@@ -1680,7 +1716,7 @@ describe("billing/checkout POST single-hop form & JSON (F-07 Option A)", () => {
           id: PID,
           store_product_id: "sp_creem",
           creator_id: OWNER_ID,
-          release_sha256: RELEASE_SHA,
+          release_sha256: RELEASE_SHA, price_usd: PRICE_USD,
           checkout_mode: "live",
           paddle_price_id: "pri_ignored",
           creators: { handle: "duane" },
@@ -1749,13 +1785,28 @@ describe("billing/checkout F-03 test/stage/path-based sandbox guard & F-06 US-on
     vi.stubEnv("VERCEL_ENV", "preview");
     registryOverride.sandboxCheckoutEnabled = true;
     adminModule.mockAdminClient = gateAdminClient(
-      { data: { id: PID, creator_id: OWNER_ID, release_sha256: RELEASE_SHA, checkout_mode: "sandbox" }, error: null },
+      { data: { id: PID, creator_id: OWNER_ID, release_sha256: RELEASE_SHA, price_usd: PRICE_USD, checkout_mode: "sandbox" }, error: null },
       undefined,
       { data: [{ provider: "paddle", weight: 100, checkout_url: "https://creem.io/test/payment/prod_123", active: true }], error: null },
     );
     const res = await GET(request());
     expect(res.status).toBe(302);
     expect(res.headers.get("location")).toBe("https://creem.io/test/payment/prod_123");
+  });
+
+  it("returns 409 product_unpriced for a sandbox product with a null price on VERCEL_ENV=preview when sandbox is enabled, with no location and no router call", async () => {
+    vi.stubEnv("VERCEL_ENV", "preview");
+    registryOverride.sandboxCheckoutEnabled = true;
+    adminModule.mockAdminClient = gateAdminClient(
+      { data: { id: PID, creator_id: OWNER_ID, release_sha256: RELEASE_SHA, price_usd: null, checkout_mode: "sandbox" }, error: null },
+      undefined,
+      { data: [{ provider: "paddle", weight: 100, checkout_url: "https://creem.io/test/payment/prod_123", active: true }], error: null },
+    );
+    const res = await GET(request());
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ ok: false, code: "product_unpriced" });
+    expect(res.headers.get("location")).toBeNull();
+    expect(MatrixRouter.getNextProvider).not.toHaveBeenCalled();
   });
 
   it("blocks non-US countries with 403 country_not_supported on GET and POST, and allows US + territories", async () => {

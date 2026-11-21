@@ -6,8 +6,8 @@
  * Components, Server Actions), so page.route() cannot intercept it — Next is
  * started with SUPABASE_URL / FIRMA_API_BASE pointing here instead.
  *
- * In-memory state, throwaway creator + "E2E Test Book" only. Consents start
- * empty. GET /__calls lists recorded RPC calls; POST /__reset clears state.
+ * In-memory state, throwaway creator + "E2E Test Book" only. Consents are seeded
+ * only for the test-only control and no-rail products. GET /__calls lists recorded RPC calls; POST /__reset clears state.
  */
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { createServer as createHttpsServer } from "node:https";
@@ -42,13 +42,58 @@ function seed(): Record<string, Row[]> {
         release_sha256: RELEASE_SHA,
         created_at: "2026-10-01T00:00:00Z",
       },
+      // Test-only: live, unpriced (price_usd null), no product_rails row. Probes the 409 product_unpriced gate.
+      {
+        id: "7d1f3c2a-9b4e-4f6a-8c1d-2e5b7a9f0a11",
+        slug: "e2e_unpriced_book",
+        title: "E2E Unpriced Book",
+        store_product_id: "prod_e2e_unpriced",
+        price_usd: null,
+        checkout_mode: "live",
+      },
+      // Test-only: live, priced at 19.00, no product_rails row, creator set so the route reaches the consent gate.
+      {
+        id: "7d1f3c2a-9b4e-4f6a-8c1d-2e5b7a9f0a12",
+        creator_id: E2E.creatorId,
+        release_sha256: RELEASE_SHA,
+        slug: "e2e_norail_book",
+        title: "E2E No-Rail Book",
+        store_product_id: "prod_e2e_norail",
+        price_usd: "19.00",
+        checkout_mode: "live",
+      },
+      // Test-only: live, priced at 29.00, active paddle rail, consents seeded. Probes the 302 routable path.
+      {
+        id: "7d1f3c2a-9b4e-4f6a-8c1d-2e5b7a9f0a13",
+        creator_id: E2E.creatorId,
+        release_sha256: RELEASE_SHA,
+        slug: "e2e_control_book",
+        title: "E2E Control Book",
+        store_product_id: "prod_e2e_control",
+        price_usd: "29.00",
+        checkout_mode: "live",
+      },
     ],
     review_items: [
       { id: "11111111-0000-4000-8000-000000000001", code: "Q1", kind: "choice", question: "Is the retirement age on p.12 correct?", options: [{ key: "yes", label: "Yes" }, { key: "no", label: "No" }], anchor: { page: 12 }, product_id: E2E.productId },
       { id: "11111111-0000-4000-8000-000000000002", code: "Q2", kind: "choice", question: "Is the savings figure on p.30 correct?", options: [{ key: "yes", label: "Yes" }, { key: "no", label: "No" }], anchor: { page: 30 }, product_id: E2E.productId },
     ],
     review_answers: [],
-    consents: [],
+    // Test-only: C1/C2/C3 "given" for the no-rail and control products under E2E.creatorId. C2 hash = release hash.
+    consents: [
+      ...["7d1f3c2a-9b4e-4f6a-8c1d-2e5b7a9f0a12", "7d1f3c2a-9b4e-4f6a-8c1d-2e5b7a9f0a13"].flatMap((productId, i) =>
+        (["C1_data_accuracy", "C2_release_approval", "C3_revenue_split"] as const).map((kind, j) => ({
+          id: `22222222-0000-4000-8000-00000000000${i * 3 + j + 1}`,
+          creator_id: E2E.creatorId,
+          product_id: productId,
+          kind,
+          decision: "given",
+          document_sha256: kind === "C2_release_approval" ? RELEASE_SHA : null,
+          signed_at: "2026-10-01T00:00:00Z",
+          supersedes: null,
+        })),
+      ),
+    ],
     creators: [
       {
         handle: "retirearly500k",
@@ -126,6 +171,8 @@ function seed(): Record<string, Row[]> {
     ],
     product_rails: [
       { product_id: E2E.liveProductId, provider: "paddle", weight: 100, checkout_url: "https://buy.paddle.com/e2e-live", active: true },
+      // Test-only: the control product's only rail. The no-rail product (0a12) deliberately has none.
+      { product_id: "7d1f3c2a-9b4e-4f6a-8c1d-2e5b7a9f0a13", provider: "paddle", weight: 100, checkout_url: "https://buy.paddle.com/e2e-control", active: true },
     ],
   };
 }
@@ -171,6 +218,11 @@ function query(table: string, params: URLSearchParams): Row[] {
       continue;
     }
     if (value.startsWith("eq.")) rows = rows.filter((r) => String(r[k]) === value.slice(3));
+    // Top-level `in.(a,b)` (e.g. consents.kind), the same quoting as embeddedTest.
+    else if (value.startsWith("in.(") && value.endsWith(")")) {
+      const items = value.slice(4, -1).split(",").map((s) => s.trim().replace(/^"|"$/g, ""));
+      rows = rows.filter((r) => items.includes(String(r[k])));
+    }
   }
   for (const [relation, conds] of embedded) {
     const inner = select.includes(`${relation}!inner(`);
@@ -268,6 +320,10 @@ const handle = async (req: IncomingMessage, res: ServerResponse) => {
     const tableMatch = path.match(/^\/rest\/v1\/([a-z_]+)$/);
     if (tableMatch && req.method === "GET") {
       const rows = query(tableMatch[1], url.searchParams);
+      // PostgREST `Prefer: count=exact` answers with the total in Content-Range (`0-N/TOTAL`, or `*/0` when empty).
+      if ((req.headers.prefer ?? "").includes("count=exact")) {
+        res.setHeader("Content-Range", rows.length === 0 ? "*/0" : `0-${rows.length - 1}/${rows.length}`);
+      }
       if ((req.headers.accept ?? "").includes("vnd.pgrst.object")) {
         return rows.length === 1 ? send(res, 200, rows[0]) : send(res, 406, { code: "PGRST116", message: "not one row" });
       }

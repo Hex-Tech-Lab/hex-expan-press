@@ -113,9 +113,9 @@ export function expectedOutcome(row: PairwiseRow): Outcome {
   // 6. Release hash: the creator's approved C2 document, or for a house title its pinned digest, must match the release hash.
   if (row.product_state === "release_hash_mismatch") return { status: 403 };
 
-  // 7. Rails: none configured, or none routable (switched-off or unverified provider).
-  if (row.product_state === "no_rails") return { status: 404 };
-  if (row.provider !== "paddle" && row.provider !== "creem") return { status: 404 };
+  // 7. Rails: none configured, or none routable (switched-off or unverified provider). No active rail is 503 + Retry-After.
+  if (row.product_state === "no_rails") return { status: 503 };
+  if (row.provider !== "paddle" && row.provider !== "creem") return { status: 503 };
 
   // 8. Rail host class must match the product's mode. A sandbox host is refused unless sandbox checkout may open.
   const railSandbox = row.rail_mode === "sandbox";

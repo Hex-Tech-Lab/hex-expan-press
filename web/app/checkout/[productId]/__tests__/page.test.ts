@@ -2,8 +2,12 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { fetchCheckoutProduct } from "../../../../src/components/storefront/storefront";
 import { ATTRIBUTION_KEYS } from "../../../../src/lib/attribution";
+import { paddleOverlayConfig } from "../../../../src/lib/paddle-overlay-server";
 import { GLOBAL } from "../../../../../payments/src/settings_registry";
 import CheckoutPage from "../page";
+
+// "server-only" throws outside the react-server condition; stub it so this file loads under any runner (as the sibling page tests do).
+vi.mock("server-only", () => ({}));
 
 // Money-path branches of the pay-domain checkout page: a live product renders the single-hop
 // BuyerEmailStep POST form, a gated product gets the disabled notice and no form, and an
@@ -43,10 +47,15 @@ function walk(node: Node, visit: (el: { type?: unknown; props: Record<string, un
   walk(el.props.children as Node, visit);
 }
 
-function product(over: Record<string, unknown> = {}, extra: { displayName?: string; isHouse?: boolean; railProvider?: string | null } = {}) {
+function product(
+  over: Record<string, unknown> = {},
+  extra: { displayName?: string; isHouse?: boolean; railProvider?: string | null; activeRailCount?: number } = {},
+) {
+  const railProvider = "railProvider" in extra ? extra.railProvider : "paddle";
   return {
     creator: { handle: "ada", display_name: extra.displayName ?? "Ada", is_house: extra.isHouse ?? false },
-    railProvider: "railProvider" in extra ? extra.railProvider : "paddle",
+    railProvider,
+    activeRailCount: extra.activeRailCount ?? (railProvider === null ? 0 : 1),
     product: {
       id: "p1",
       title: "Book",
@@ -55,6 +64,7 @@ function product(over: Record<string, unknown> = {}, extra: { displayName?: stri
       currency: "USD",
       checkout_mode: "live",
       paddle_price_id: null,
+      price_usd: "39.00",
       ...over,
     },
   };
@@ -177,6 +187,135 @@ describe("checkout page: gated branch", () => {
   });
 });
 
+describe("checkout page: unpriced product (price_usd null) has no buy form", () => {
+  it.each([
+    ["null", null],
+    ["blank", "  "],
+  ])("live product with price_usd %s renders no BuyerEmailStep and the unpriced non-purchasable notice", async (_label, price_usd) => {
+    vi.mocked(fetchCheckoutProduct).mockResolvedValue(product({ price_usd }) as never);
+    const tree = await render("p1");
+    let emailSteps = 0;
+    let unpriced = 0;
+    walk(tree as unknown as Node, (el) => {
+      if (el.type === "BuyerEmailStep") emailSteps += 1;
+      if (el.props["data-checkout-mode"] === "unpriced") unpriced += 1;
+    });
+    expect(emailSteps).toBe(0);
+    expect(unpriced).toBe(1);
+  });
+
+  it("live product with a set price keeps the BuyerEmailStep form (control)", async () => {
+    vi.mocked(fetchCheckoutProduct).mockResolvedValue(product({ price_usd: "39.00" }) as never);
+    const tree = await render("p1");
+    let emailSteps = 0;
+    walk(tree as unknown as Node, (el) => {
+      if (el.type === "BuyerEmailStep") emailSteps += 1;
+    });
+    expect(emailSteps).toBe(1);
+  });
+});
+
+describe("checkout page: paddle overlay error log is gated to Paddle-overlay checkouts", () => {
+  const OVERLAY_LOG = "[checkout] paddle overlay unavailable";
+  const MISSING_PRICE_LOG = "[checkout] paddle rail has no paddle_price_id";
+  let errorSpy: ReturnType<typeof vi.spyOn>;
+  const overlayLogs = () => errorSpy.mock.calls.filter((args: unknown[]) => String(args[0]).startsWith(OVERLAY_LOG)).length;
+
+  beforeEach(() => {
+    errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    errorSpy.mockRestore();
+  });
+
+  it("a live product on a non-Paddle rail never logs the Paddle overlay error", async () => {
+    vi.mocked(fetchCheckoutProduct).mockResolvedValue(product({ paddle_price_id: "pri_1" }, { railProvider: "creem" }) as never);
+    await render("p1");
+    expect(overlayLogs()).toBe(0);
+  });
+
+  it("a Paddle rail with no paddle_price_id never logs the Paddle overlay error and logs the missing price once", async () => {
+    vi.mocked(fetchCheckoutProduct).mockResolvedValue(product({ paddle_price_id: null }, { railProvider: "paddle" }) as never);
+    await render("p1");
+    expect(overlayLogs()).toBe(0);
+    const missingPriceLogs = errorSpy.mock.calls.filter((args: unknown[]) => String(args[0]).startsWith(MISSING_PRICE_LOG));
+    expect(missingPriceLogs).toHaveLength(1);
+  });
+
+  it("a live Paddle checkout with a usable overlay config logs no overlay error", async () => {
+    const o = GLOBAL.payments.paddle.overlay;
+    vi.stubEnv(o.client_token_env, "live_tok_123");
+    vi.stubEnv(o.environment_env, "production");
+    vi.mocked(fetchCheckoutProduct).mockResolvedValue(product({ paddle_price_id: "pri_1" }, { railProvider: "paddle" }) as never);
+    await render("p1");
+    expect(paddleOverlayConfig().ok).toBe(true);
+    expect(overlayLogs()).toBe(0);
+  });
+
+  it("a live Paddle checkout with no overlay token logs the overlay error exactly once", async () => {
+    const o = GLOBAL.payments.paddle.overlay;
+    vi.stubEnv(o.client_token_env, "");
+    vi.stubEnv(o.environment_env, "production");
+    vi.mocked(fetchCheckoutProduct).mockResolvedValue(product({ paddle_price_id: "pri_1" }, { railProvider: "paddle" }) as never);
+    await render("p1");
+    expect(paddleOverlayConfig().ok).toBe(false);
+    expect(overlayLogs()).toBe(1);
+  });
+});
+
+describe("checkout page: more than one active rail fails closed", () => {
+  let warnSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    warnSpy.mockRestore();
+  });
+
+  it("1 active rail: names the merchant of record and attempts the Paddle overlay (unchanged)", async () => {
+    const o = GLOBAL.payments.paddle.overlay;
+    vi.stubEnv(o.client_token_env, "live_tok_123");
+    vi.stubEnv(o.environment_env, "production");
+    vi.mocked(fetchCheckoutProduct).mockResolvedValue(
+      product({ paddle_price_id: "pri_live_1" }, { railProvider: "paddle", activeRailCount: 1 }) as never,
+    );
+    const tree = await render("p1");
+    const html = renderToStaticMarkup(tree);
+    expect(html).toContain("Your order is processed by Paddle.com, which acts as Merchant of Record.");
+    const steps: Array<Record<string, unknown>> = [];
+    walk(tree as unknown as Node, (el) => {
+      if (el.type === "BuyerEmailStep") steps.push(el.props);
+    });
+    expect(steps[0].paddleClient).toEqual({ token: "live_tok_123", environment: "production" });
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  it("2 active rails: names no merchant of record, skips the overlay, and warns exactly once", async () => {
+    const o = GLOBAL.payments.paddle.overlay;
+    vi.stubEnv(o.client_token_env, "live_tok_123");
+    vi.stubEnv(o.environment_env, "production");
+    vi.mocked(fetchCheckoutProduct).mockResolvedValue(
+      product({ paddle_price_id: "pri_live_1" }, { railProvider: "paddle", activeRailCount: 2 }) as never,
+    );
+    const tree = await render("p1");
+    const html = renderToStaticMarkup(tree);
+    expect(html).not.toContain("Merchant of Record");
+    expect(html).not.toContain("Paddle.com");
+    const steps: Array<Record<string, unknown>> = [];
+    walk(tree as unknown as Node, (el) => {
+      if (el.type === "BuyerEmailStep") steps.push(el.props);
+    });
+    expect(steps[0].paddleClient).toBeNull();
+    const multiRailWarns = warnSpy.mock.calls.filter((args: unknown[]) =>
+      String(args[0]).startsWith("[checkout] more than one active rail"),
+    );
+    expect(multiRailWarns).toHaveLength(1);
+  });
+});
+
 describe("checkout page: unknown product", () => {
   it("does not render a checkout when the product is not found", async () => {
     vi.mocked(fetchCheckoutProduct).mockResolvedValue(null as never);
@@ -196,6 +335,45 @@ describe("checkout page: Paddle Option A client config, MoR provider line, and h
       if (el.type === "BuyerEmailStep") steps.push(el.props);
     });
     expect(steps[0].paddleClient).toEqual({ token: "live_tok_123", environment: "production" });
+  });
+
+  it("logs an environment mismatch and sets paddleClient to null when the overlay is sandbox but the product is live", async () => {
+    const o = GLOBAL.payments.paddle.overlay;
+    vi.stubEnv(o.client_token_env, "sandbox_tok_123");
+    vi.stubEnv(o.environment_env, "sandbox");
+    vi.mocked(fetchCheckoutProduct).mockResolvedValue(product({ paddle_price_id: "pri_live_1" }) as never);
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const tree = await render("p1");
+      const steps: Array<Record<string, unknown>> = [];
+      walk(tree as unknown as Node, (el) => {
+        if (el.type === "BuyerEmailStep") steps.push(el.props);
+      });
+      expect(steps[0].paddleClient).toBeNull();
+      const mismatchLogs = errorSpy.mock.calls.filter((args) => String(args[0]).includes("does not match checkout mode"));
+      expect(mismatchLogs).toHaveLength(1);
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
+
+  it.each([
+    ["an unpriced live Paddle product", product({ price_usd: null, paddle_price_id: "pri_live_1" }, { railProvider: "paddle" })],
+    ["a Paddle rail with no paddle_price_id", product({ paddle_price_id: null }, { railProvider: "paddle" })],
+    ["a Creem rail", product({ paddle_price_id: "pri_live_1" }, { railProvider: "creem" })],
+  ])("never logs the overlay environment mismatch for %s", async (_label, fixture) => {
+    const o = GLOBAL.payments.paddle.overlay;
+    vi.stubEnv(o.client_token_env, "sandbox_tok_123");
+    vi.stubEnv(o.environment_env, "sandbox");
+    vi.mocked(fetchCheckoutProduct).mockResolvedValue(fixture as never);
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      await render("p1");
+      const mismatchLogs = errorSpy.mock.calls.filter((args) => String(args[0]).includes("does not match checkout mode"));
+      expect(mismatchLogs).toHaveLength(0);
+    } finally {
+      errorSpy.mockRestore();
+    }
   });
 
   it("sets paddleClient to null when rail is non-paddle or paddle_price_id is missing", async () => {
@@ -228,6 +406,14 @@ describe("checkout page: Paddle Option A client config, MoR provider line, and h
     const creemHtml = renderToStaticMarkup(await render("p1"));
     expect(creemHtml).toContain("Your order is processed by Creem, which acts as Merchant of Record.");
     expect(creemHtml).not.toContain("Paddle.com");
+  });
+
+  it("with no active rail the page names no merchant of record and no default provider", async () => {
+    vi.mocked(fetchCheckoutProduct).mockResolvedValue(product({}, { railProvider: null }) as never);
+    const html = renderToStaticMarkup(await render("p1"));
+    expect(html).not.toContain("Merchant of Record");
+    expect(html).not.toContain("Paddle.com");
+    expect(html).not.toContain("Creem");
   });
 
   it("renders 'Published by ExpanPress' for house products and 'A creator-collaboration publication with <creator>' without middle dot", async () => {

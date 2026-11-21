@@ -55,7 +55,7 @@ function buildClient(s: Scenario) {
             data: {
               id: PID,
               creator_id: OWNER,
-              release_sha256: RELEASE_SHA,
+              release_sha256: RELEASE_SHA, price_usd: "39.00",
               checkout_mode: "live",
               paddle_price_id: null,
               creators: { handle: "house_handle", is_house: s.isHouse },

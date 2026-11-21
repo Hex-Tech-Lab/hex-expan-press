@@ -19,7 +19,7 @@ const productMock = vi.hoisted(() => ({
     store_product_id: "prod_sample",
     slug: "sample_the_quiet_workshop",
     title: "The Quiet Workshop (Sample)",
-    price_usd: "9",
+    price_usd: "9" as string | null,
     currency: "USD",
     working_note: null,
     description: "Sample chapter.",
@@ -182,5 +182,35 @@ describe("store product page (/books/{handle}/{product})", () => {
       productMock.creator.display_name = origName;
       productMock.creator.is_house = true;
     }
+  });
+
+  it("a live product with price_usd null renders no buy link and the non-purchasable state (no buy form)", async () => {
+    const origPrice = productMock.product.price_usd;
+    productMock.product.price_usd = null;
+    try {
+      const html = renderToStaticMarkup(
+        await StoreProductPage({
+          params: Promise.resolve({ handle: "expanpress_house", product: "sample_the_quiet_workshop" }),
+        }),
+      );
+      expect(html).not.toContain('data-checkout-mode="live"');
+      expect(html).not.toContain("Buy now");
+      expect(html).not.toContain("/checkout/00000000-0000-4000-8000-0000000000b3");
+      expect(html).toContain('data-checkout-mode="unpriced"');
+      expect(html).toContain("Coming soon");
+    } finally {
+      productMock.product.price_usd = origPrice;
+    }
+  });
+
+  it("a live product with a set price still renders the buy link (control)", async () => {
+    const html = renderToStaticMarkup(
+      await StoreProductPage({
+        params: Promise.resolve({ handle: "expanpress_house", product: "sample_the_quiet_workshop" }),
+      }),
+    );
+    expect(html).toContain('data-checkout-mode="live"');
+    expect(html).toContain("Buy now");
+    expect(html).not.toContain('data-checkout-mode="unpriced"');
   });
 });

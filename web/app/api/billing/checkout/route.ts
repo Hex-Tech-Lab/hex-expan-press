@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { MatrixRouter } from "../../../../../src/infrastructure/matrix_router/matrix_router";
 import { getSupabaseAdmin } from "../../../../../payments/src/supabase_admin";
-import { isEnabledPaymentProvider } from "../../../../../payments/src/settings_registry";
+import { GLOBAL, isEnabledPaymentProvider } from "../../../../../payments/src/settings_registry";
+import { productPriceUsd } from "../../../../src/lib/product-purchasable";
 import { verifiedProviderNames } from "../webhook/verifiers";
 import { normalizeSha256, strictActiveConsentKinds, strictChainHead } from "../../../../src/lib/consent-chain";
 import { guidSchema, productRefSchema } from "../../../../src/lib/zod-rules";
@@ -17,6 +18,7 @@ import {
   parseBuyerQuery,
   parsePostBody,
   resolvePaddleOverlay,
+  sandboxAllowed,
   wantsCheckoutOverlayJson,
   type CheckoutRail,
   type ParsedCheckoutRequest,
@@ -28,13 +30,29 @@ export const runtime = "nodejs";
 type SupabaseAdmin = NonNullable<Awaited<ReturnType<typeof getSupabaseAdmin>>>;
 type ProductLookup = { product: ProductRow } | { response: NextResponse };
 
-const PRODUCT_COLUMNS = "id, store_product_id, creator_id, release_sha256, checkout_mode, paddle_price_id";
+const PRODUCT_COLUMNS = "id, store_product_id, creator_id, release_sha256, checkout_mode, paddle_price_id, price_usd";
 const GATE_CONSENT_KINDS = ["C1_data_accuracy", "C2_release_approval", "C3_revenue_split"] as const;
 const CONSENT_VERIFICATION_FAILED = "Checkout consent verification failed";
 
 function lookupFailed(product: string, message: string): ProductLookup {
   console.warn(`[billing/checkout] product lookup warning for '${product}': ${message}`);
   return { response: jsonError(500, CONSENT_VERIFICATION_FAILED) };
+}
+
+/** 503 Service Unavailable with a Retry-After header (seconds come from the registry). Callers fail closed before any order or provider label is written. */
+function retryAfterUnavailable(error: string, code: string, retryAfterSeconds: number): NextResponse {
+  const res = jsonError(503, error, code);
+  res.headers.set("Retry-After", String(retryAfterSeconds));
+  return res;
+}
+
+/** No active payment rail, so the buyer is never sent to a default provider. */
+function noActiveRailResponse(): NextResponse {
+  return retryAfterUnavailable(
+    "Checkout is temporarily unavailable. No payment rail is accepting orders.",
+    "no_active_rail",
+    GLOBAL.payments.checkout_no_rail_retry_after_seconds,
+  );
 }
 
 function productNotFound(product: string): ProductLookup {
@@ -178,10 +196,15 @@ async function handleCheckout(
     resolvedProduct = lookup.product;
 
     const mode = resolvedProduct.checkout_mode;
-    const { sandboxAllowed } = await import("./checkout-helpers");
     if (mode !== "live" && !(mode === "sandbox" && sandboxAllowed())) {
       console.error(`[billing/checkout] product '${product}' is not launched (checkout_mode=${mode ?? "null"})`);
       return jsonError(403, "Checkout forbidden: product is not launched");
+    }
+
+    // Fail closed on a null price before any consent or rail work: an unpriced product is not for sale (409 Conflict).
+    if (productPriceUsd(resolvedProduct.price_usd) === null) {
+      console.error(`[billing/checkout] product '${product}' has no usable price (null, blank or non-numeric) — refusing checkout`);
+      return jsonError(409, "Product has no price and is not available for purchase", "product_unpriced");
     }
 
     const ownerId = resolvedProduct.creator_id;
@@ -242,7 +265,7 @@ async function handleCheckout(
 
     if (configuredRowCount > 0 && dbRails.length === 0) {
       console.error(`[billing/checkout] product '${product}' has ${configuredRowCount} configured rail(s) but none usable (not active, or provider switched off) — refusing checkout`);
-      return jsonError(404, `Checkout is disabled for product '${product}'`);
+      return noActiveRailResponse();
     }
   } catch (err) {
     console.error(`[billing/checkout] consent verification exception for '${product}': ${(err as Error).message}`);
@@ -250,7 +273,8 @@ async function handleCheckout(
   }
 
   if (dbRails.length === 0) {
-    return jsonError(404, `No rails configuration found for product '${product}'`);
+    console.error(`[billing/checkout] product '${product}' has no active payment rail — answering 503, no order and no provider label`);
+    return noActiveRailResponse();
   }
   const rails: CheckoutRail[] = dbRails;
 
@@ -271,16 +295,30 @@ async function handleCheckout(
     const providerName = await MatrixRouter.getNextProvider("payments", resolvedProduct.id, rails);
     selectedRail = rails.find((r) => r.provider === providerName);
     if (!selectedRail?.checkout_url) {
-      console.error(`[billing/checkout] selected rail '${providerName}' has no checkout_url`);
-      return jsonError(503, "Checkout is temporarily unavailable");
+      // The router named a rail that is not among the usable rails (or it has no checkout URL). Fail closed with a
+      // retryable 503 and the registry Retry-After, and never send the buyer to another provider.
+      console.error(`[billing/checkout] selected rail '${providerName}' is missing or has no checkout_url — answering 503 rail_misconfigured`);
+      return retryAfterUnavailable(
+        "Checkout is temporarily unavailable. Please try again shortly.",
+        "rail_misconfigured",
+        GLOBAL.payments.checkout_no_rail_retry_after_seconds,
+      );
     }
   } catch (err) {
+    // Only the known router outage (every rail marked down by the breaker) is a 503. Anything else is a bug or an
+    // unexpected failure: log it with its stack and answer 500. Never fall back to the highest-weight rail.
     if (err instanceof MatrixRouterUnavailableError) {
       console.error(`[billing/checkout] every rail is marked down for '${product}' — answering 503`);
-      return jsonError(503, "Checkout is temporarily unavailable. No payment rail is accepting orders.", "rails_unavailable");
+      return retryAfterUnavailable(
+        "Checkout is temporarily unavailable. No payment rail is accepting orders.",
+        "rails_unavailable",
+        GLOBAL.payments.checkout_router_error_retry_after_seconds,
+      );
     }
-    console.error(`checkout: MatrixRouter failed, falling back to default rail: ${(err as Error).message}`);
-    selectedRail = [...rails].sort((lhs, rhs) => rhs.weight - lhs.weight)[0];
+    // A rejection can be any value (including null or undefined), so read .stack only from a real Error.
+    const detail = err instanceof Error ? (err.stack ?? err.message) : String(err);
+    console.error(`[billing/checkout] MatrixRouter unexpected failure for '${product}': ${detail} — answering 500, no default provider`);
+    return jsonError(500, "Checkout failed unexpectedly", "router_unexpected_error");
   }
 
   const redirectUrl = buildCheckoutRedirectUrl(selectedRail, resolvedProduct, creatorHandle, attribution, buyer.value);

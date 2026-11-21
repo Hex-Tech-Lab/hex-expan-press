@@ -14,8 +14,9 @@ import {
 } from "../../../src/components/storefront/storefront";
 import { ATTRIBUTION_KEYS } from "../../../src/lib/attribution";
 import { buyerConsentText } from "../../../src/lib/buyer-email";
+import { isPurchasableProduct } from "../../../src/lib/product-purchasable";
 import { paddleOverlayConfig, paddleOverlayUsable } from "../../../src/lib/paddle-overlay-server";
-import { GLOBAL, defaultEnabledPaymentProvider, paymentProviderDisplayName } from "../../../../payments/src/settings_registry";
+import { GLOBAL, paymentProviderDisplayName } from "../../../../payments/src/settings_registry";
 
 /**
  * Checkout page on pay.expanpress.com (ADR 0061). The only origin that starts a
@@ -54,7 +55,7 @@ export default async function CheckoutPage({
   const { productId } = await params;
   const found = await fetchCheckoutProduct(productId);
   if (!found) notFound();
-  const { creator, product: p, railProvider } = found;
+  const { creator, product: p, railProvider, activeRailCount } = found;
 
   const sp = await searchParams;
   const initialAttribution: Record<string, string> = {};
@@ -65,21 +66,42 @@ export default async function CheckoutPage({
   const price = priceOf(p);
   const priceDisplay = formatProductPrice(price, p.currency, "—");
   const live = p.checkout_mode === "live";
+  // No price means no buy form: the email step (which opens the overlay) is not rendered for an unpriced product.
+  const purchasable = isPurchasableProduct(p);
   const brand = GLOBAL.storefront.brand_name;
   if (railProvider === null) {
-    console.error("[checkout] no active enabled rail for product; falling back to default provider label", { productId });
+    console.error("[checkout] no active enabled rail for product; no provider is named on the page", { productId });
   }
-  const activeProvider = railProvider ?? defaultEnabledPaymentProvider();
+  // Fail closed on ambiguity: with more than one active rail the page cannot know which rail the router will pick, so it
+  // names no merchant of record and skips the Paddle overlay. The buyer gets the POST fallback, logged once.
+  const multiRail = activeRailCount > 1;
+  if (multiRail) {
+    console.warn(
+      "[checkout] more than one active rail; no merchant of record is named and the overlay is skipped, buyer gets the POST fallback",
+      { productId, activeRailCount },
+    );
+  }
+  // Name the merchant of record only for a real selected rail. With no rail there is no provider to name (the route 503s).
+  const activeProvider = multiRail ? null : railProvider;
   const morName = activeProvider ? paymentProviderDisplayName(activeProvider) : null;
   const overlayCfg = paddleOverlayConfig();
-  if (live && !overlayCfg.ok) {
+  const hasPaddlePrice = typeof p.paddle_price_id === "string" && p.paddle_price_id.trim() !== "";
+  // A purchasable (live and priced) Paddle checkout with a Paddle price: the only case where the overlay is attempted.
+  // An unpriced product renders no buy form, so it attempts nothing (shared by the log and paddleClient).
+  const paddleOverlayAttempted = purchasable && activeProvider === "paddle" && hasPaddlePrice;
+  // A purchasable Paddle rail with no Paddle price: the overlay is not attempted, so the buyer gets the POST fallback. Log it.
+  if (purchasable && activeProvider === "paddle" && !hasPaddlePrice) {
+    console.error("[checkout] paddle rail has no paddle_price_id; buyer gets the POST fallback", { productId });
+  }
+  if (paddleOverlayAttempted && !overlayCfg.ok) {
     console.error("[checkout] paddle overlay unavailable; buyer gets the POST fallback", { productId, reason: overlayCfg.reason });
   }
-  const hasPaddlePrice = typeof p.paddle_price_id === "string" && p.paddle_price_id.trim() !== "";
+  // The overlay config loads but its Paddle environment does not match this product's checkout mode: the buyer gets the POST fallback.
+  if (paddleOverlayAttempted && overlayCfg.ok && !paddleOverlayUsable(overlayCfg.client, p.checkout_mode)) {
+    console.error("[checkout] paddle overlay environment does not match checkout mode; buyer gets the POST fallback", { productId, checkoutMode: p.checkout_mode });
+  }
   const paddleClient =
-    live &&
-    activeProvider === "paddle" &&
-    hasPaddlePrice &&
+    paddleOverlayAttempted &&
     overlayCfg.ok &&
     paddleOverlayUsable(overlayCfg.client, p.checkout_mode)
       ? overlayCfg.client
@@ -116,7 +138,7 @@ export default async function CheckoutPage({
           </p>
         )}
 
-        {live ? (
+        {purchasable ? (
           <BuyerEmailStep
             action="/api/billing/checkout"
             productId={p.id}
@@ -131,7 +153,7 @@ export default async function CheckoutPage({
             className="self-start rounded-full border border-[#dcc7b4] bg-white/60 px-6 py-3.5 text-sm font-semibold text-gray-700"
             aria-disabled="true"
             data-checkout-slot="primary"
-            data-checkout-mode="gated"
+            data-checkout-mode={live ? "unpriced" : "gated"}
           >
             Coming soon &mdash; not yet available for purchase
           </p>
