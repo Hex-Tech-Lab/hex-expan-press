@@ -108,7 +108,7 @@ export function resolveProductBookAssets(product: {
   id?: string | null;
   slug?: string | null;
   book_registry?: string | null;
-  creator_is_house?: boolean | null;
+  creator_is_house: boolean | null | undefined;
 }): ResolvedBookAssets {
   if (product.slug != null && typeof product.slug !== "string") logOnce(`[book-assets] non-string slug ignored`);
   const slug = typeof product.slug === "string" ? product.slug : "";
