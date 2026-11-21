@@ -1,0 +1,80 @@
+web/__tests__/book-assets-resolver.pairwise.test.ts
+  s_7e539dcf78d9db::t_8908bd1816f1c8 2,13-29,46-51,54-63,65,68,73-89,95-98,101,104-105,108-110,112,117-118,127,129,131-134,137-139,141,143
+web/app/checkout/[productId]/__tests__/page.test.ts
+  s_7e539dcf78d9db::t_74a34540730e5a 213
+  s_7e539dcf78d9db::t_62c3c21b8c8563 5
+  s_7e539dcf78d9db::t_5ad97946dee1a2 197,207-208,210-212,214-241
+  s_0e99959cd74c50::t_8d0370b86cd7ee 59,182-196,198-206,209
+web/app/api/billing/checkout/__tests__/route.test.ts
+  s_7e539dcf78d9db::t_c2c557689412ae 63-64
+  s_7e539dcf78d9db::t_fc12d62e503d95 123,195,198,214,217,221,225,288,310,314,318,322,340,436,447,655,680,703,733,759,766,795,799,809,831,845,863,893,949,1007,1114,1119,1124,1131,1219,1259,1366,1369,1498,1510,1560,1631,1685,1754
+web/app/checkout/[productId]/page.tsx
+  s_7e539dcf78d9db::t_444bf362998828 78-80
+  s_3607934bc4afea::t_a7e9a3805191a6 17,69-70,123,138
+docs/testing/pairwise/book_assets_resolver.model.txt
+  s_7e539dcf78d9db::t_f76bc3b6536b9a 3-4,7-15,20-22,24-26
+docs/testing/pairwise/book_assets_resolver.rows.tsv
+  s_7e539dcf78d9db::t_6a1d4727918404 1-14
+docs/testing/pairwise/unpriced_checkout.model.txt
+  s_7e539dcf78d9db::t_0a3a633672bb1f 1-18
+docs/testing/pairwise/unpriced_checkout.rows.tsv
+  s_7e539dcf78d9db::t_e43c795125b64a 1-6
+payments/src/settings_registry.ts
+  s_7e539dcf78d9db::t_19cbac371d0d7a 156-157,434,735,840,942
+web/app/api/billing/checkout/__tests__/billing_consent_checkout.oracle.ts
+  s_7e539dcf78d9db::t_e774dfc4ac8abb 116-118
+web/app/api/billing/checkout/__tests__/billing_consent_checkout.pairwise.test.ts
+  s_7e539dcf78d9db::t_a45e1178270817 168
+web/app/api/billing/checkout/__tests__/house-title.test.ts
+  s_7e539dcf78d9db::t_119f7d4c3f3b8d 58
+web/app/api/billing/checkout/__tests__/route.unavailable.test.ts
+  s_7e539dcf78d9db::t_cadb767ded0182 62
+web/app/api/billing/checkout/__tests__/unpriced-and-no-rail.test.ts
+  s_7e539dcf78d9db::t_f4a29d19e1a066 1-143
+web/app/api/billing/checkout/__tests__/unpriced_checkout.pairwise.test.ts
+  s_7e539dcf78d9db::t_2b0a4b8301c91a 1-136
+web/app/api/billing/checkout/checkout-helpers.ts
+  s_7e539dcf78d9db::t_72d4fca438d5c5 25-26
+web/app/api/billing/checkout/route.ts
+  s_7e539dcf78d9db::t_1612bab59357e4 4-5,32,41-50,198-203,262,270-271
+web/app/books/[handle]/[product]/__tests__/page.test.ts
+  s_7e539dcf78d9db::t_8b149679fd301e 22,186-215
+web/app/books/[handle]/[product]/page.tsx
+  s_7e539dcf78d9db::t_f54d249672106e 24,75-76,162,177
+web/src/components/storefront/storefront.tsx
+  s_7e539dcf78d9db::t_b973aada475ae1 9,79,81
+web/src/lib/product-purchasable.ts
+  s_7e539dcf78d9db::t_a0263773bb6ca3 1-19
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "604a78866ffd127cfdb09e192467db70587807ca",
+  "prompts": {},
+  "sessions": {
+    "s_0e99959cd74c50": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "21b00acc-7513-46d6-9a35-038af7845be2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    },
+    "s_3607934bc4afea": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "agent-a4ebf036fa65a0794",
+        "model": "unknown"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    },
+    "s_7e539dcf78d9db": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7aec794a-3e95-4ace-bf8d-7a1962c629d9",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
