@@ -47,7 +47,9 @@ export function resolveCheckoutRails(rows: ReadonlyArray<unknown> | null | undef
     const row = raw as RailRowInput;
     const active = row.active === true || row.active === "true";
     if (!active) continue;
-    const weight = Number(row.weight);
+    // Type-narrow before coercing: Number(null) is 0, which would turn a null weight into a valid rail. Anything but a
+    // number or a numeric string is malformed (fails closed). The column is integer not null with weight > 0.
+    const weight = typeof row.weight === "number" || typeof row.weight === "string" ? Number(row.weight) : Number.NaN;
     if (typeof row.provider !== "string" || row.provider === "" || typeof row.checkout_url !== "string" || !Number.isFinite(weight) || weight < 0) {
       return { kind: "malformed", reason: "invalid_active_row" };
     }

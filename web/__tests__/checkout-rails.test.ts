@@ -43,6 +43,8 @@ describe("resolveCheckoutRails", () => {
     expect(resolveCheckoutRails([rail("")], ALL_ON)).toEqual({ kind: "malformed", reason: "invalid_active_row" });
     expect(resolveCheckoutRails([rail("paddle", true, { checkout_url: 7 })], ALL_ON)).toEqual({ kind: "malformed", reason: "invalid_active_row" });
     expect(resolveCheckoutRails([rail("paddle", true, { weight: -1 })], ALL_ON)).toEqual({ kind: "malformed", reason: "invalid_active_row" });
+    // Number(null) is 0: a null weight must not pass as a valid rail.
+    expect(resolveCheckoutRails([rail("paddle", true, { weight: null })], ALL_ON)).toEqual({ kind: "malformed", reason: "invalid_active_row" });
   });
 
   it("ignores the fields of an inactive row, as the route always did", () => {

@@ -193,11 +193,11 @@ async function readBody(req: IncomingMessage): Promise<string> {
 
 /** A product with its `product_rails` foreign-key embed, as PostgREST returns `products(..., product_rails(...))`.
  * A product with no rail row gets an empty array, the same as PostgREST. */
-function withRails(p: Row): Row {
+function withRails(product: Row): Row {
   const rails = (db.product_rails ?? [])
-    .filter((r) => r.product_id === p.id)
+    .filter((r) => r.product_id === product.id)
     .map((r) => ({ provider: r.provider, weight: r.weight, checkout_url: r.checkout_url, active: r.active }));
-  return { ...p, product_rails: rails };
+  return { ...product, product_rails: rails };
 }
 
 /** The `products` table as PostgREST serves it. Fixture live products are nested under their creator (creators[].products),
