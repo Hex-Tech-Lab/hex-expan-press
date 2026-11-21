@@ -2331,11 +2331,6 @@ export function readProviderField(payload: unknown, provider: string, fieldKey: 
   return getPath(payload, paymentProviderFieldMap(provider)[fieldKey]);
 }
 
-/** First enabled payment provider in the registry, or null when all providers are switched off. */
-export function defaultEnabledPaymentProvider(): string | null {
-  return Object.keys(PAYMENT_PROVIDERS).find((name) => isEnabledPaymentProvider(name)) ?? null;
-}
-
 /** True only for a provider that is defined AND switched on. Use this for anything that takes or routes a sale. */
 export function isEnabledPaymentProvider(name: string): boolean {
   return isRegisteredPaymentProvider(name) && PAYMENT_PROVIDERS[name]?.enabled === true;

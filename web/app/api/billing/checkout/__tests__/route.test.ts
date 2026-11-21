@@ -1764,6 +1764,21 @@ describe("billing/checkout F-03 test/stage/path-based sandbox guard & F-06 US-on
     expect(res.headers.get("location")).toBe("https://creem.io/test/payment/prod_123");
   });
 
+  it("returns 409 product_unpriced for a sandbox product with a null price on VERCEL_ENV=preview when sandbox is enabled, with no location and no router call", async () => {
+    vi.stubEnv("VERCEL_ENV", "preview");
+    registryOverride.sandboxCheckoutEnabled = true;
+    adminModule.mockAdminClient = gateAdminClient(
+      { data: { id: PID, creator_id: OWNER_ID, release_sha256: RELEASE_SHA, price_usd: null, checkout_mode: "sandbox" }, error: null },
+      undefined,
+      { data: [{ provider: "paddle", weight: 100, checkout_url: "https://creem.io/test/payment/prod_123", active: true }], error: null },
+    );
+    const res = await GET(request());
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ ok: false, code: "product_unpriced" });
+    expect(res.headers.get("location")).toBeNull();
+    expect(MatrixRouter.getNextProvider).not.toHaveBeenCalled();
+  });
+
   it("blocks non-US countries with 403 country_not_supported on GET and POST, and allows US + territories", async () => {
     vi.stubEnv("VERCEL_ENV", "production");
     const getBlocked = await GET(new NextRequest(CHECKOUT_URL, { headers: { "x-vercel-ip-country": "DE" } }));
