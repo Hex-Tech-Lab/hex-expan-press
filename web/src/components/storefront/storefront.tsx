@@ -315,8 +315,8 @@ export const fetchCheckoutProduct = cache(async function fetchCheckoutProduct(
 ): Promise<{
   creator: { handle: string; display_name: string; is_house: boolean };
   product: StoreProduct;
-  railProvider: string | null;
-  activeRailCount: number;
+  /** Usable rails in weight order, from the shared resolver. The page derives purchasable, MoR and overlay from these. */
+  usableRails: UsableRail[];
 } | null> {
   if (!guidSchema.safeParse(productId).success) return null;
   const supabase = await getSupabaseAdmin();
@@ -346,12 +346,7 @@ export const fetchCheckoutProduct = cache(async function fetchCheckoutProduct(
   // The same usable rails the checkout route counts (shared resolver). The first is the rail the page names; the count
   // drives the rail-aware rule: none is "Coming soon", more than one is no merchant of record and no overlay.
   const usable = usableRailsForRows(railRows, row.checkout_mode);
-  return {
-    creator,
-    product: row,
-    railProvider: usable[0]?.provider ?? null,
-    activeRailCount: usable.length,
-  };
+  return { creator, product: row, usableRails: usable };
 });
 
 export { isHouseCreator } from "../../lib/house";

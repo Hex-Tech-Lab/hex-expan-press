@@ -62,8 +62,10 @@ function walk(node: Node, visit: (el: { type?: unknown; props: Record<string, un
 function product(provider: Provider, rails: Rails) {
   return {
     creator: { handle: "ada", display_name: "Ada", is_house: false },
-    railProvider: provider,
-    activeRailCount: rails === "one" ? 1 : 2,
+    usableRails: [
+      { provider, weight: 100, checkout_url: "https://buy.example/rail" },
+      ...(rails === "two" ? [{ provider: provider === "paddle" ? "creem" : "paddle", weight: 50, checkout_url: "https://buy.example/rail-2" }] : []),
+    ],
     product: {
       id: "p1",
       title: "Book",
