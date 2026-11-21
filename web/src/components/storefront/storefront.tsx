@@ -1,5 +1,6 @@
 import { cache } from "react";
 import Link from "next/link";
+import * as Sentry from "@sentry/nextjs";
 import { notFound } from "next/navigation";
 import "server-only";
 import { getSupabaseAdmin } from "../../../../payments/src/supabase_admin";
@@ -101,6 +102,7 @@ export function usableRailsForRows(rows: ReadonlyArray<unknown> | null | undefin
   // A malformed rail set is shown as Coming soon, but never silently: the reason is logged for operators.
   if (resolution.kind === "malformed") {
     console.error(`[storefront] product_rails malformed (${resolution.reason}) — product shown as Coming soon`);
+    Sentry.captureException(new Error(`product_rails malformed: ${resolution.reason}`), { tags: { surface: "storefront_rails", reason: resolution.reason } });
   }
   return usableRailsOf(resolution);
 }

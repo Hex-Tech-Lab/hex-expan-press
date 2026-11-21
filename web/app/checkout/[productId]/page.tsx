@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import * as Sentry from "@sentry/nextjs";
 import { notFound } from "next/navigation";
 import { BrandFrame, BrandWordmark } from "../../../src/components/brand/brand";
 import { BuyerEmailStep } from "../../../src/components/storefront/buyer-email-step";
@@ -72,6 +73,7 @@ export default async function CheckoutPage({
   const brand = GLOBAL.storefront.brand_name;
   if (usableRails.length === 0) {
     console.error("[checkout] no active enabled rail for product; no provider is named on the page", { productId });
+    Sentry.captureException(new Error("checkout page: no usable rail"), { tags: { surface: "checkout_page", reason: "no_usable_rail" } });
   }
   // More than one usable rail: no merchant of record is named and the overlay is skipped, so the buyer gets the POST fallback.
   if (usableRails.length > 1) {
