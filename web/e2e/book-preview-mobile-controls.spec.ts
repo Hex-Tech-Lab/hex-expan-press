@@ -5,7 +5,7 @@ test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true
 
 const PRODUCT_URL = "/books/expanpress_house/sample_the_quiet_workshop";
 
-async function rowCount(page: import("@playwright/test").Page, testId: string): Promise<number> {
+function rowCount(page: import("@playwright/test").Page, testId: string): Promise<number> {
   return page.getByTestId(testId).evaluate((el) => {
     const tops = new Set<number>();
     for (const c of Array.from(el.querySelectorAll("button, input"))) {
@@ -41,8 +41,43 @@ test("flipbook toolbar fits one row with >=44px targets at 390px", async ({ page
 });
 
 test("read-aloud controls fit one row at 390px", async ({ page }) => {
+  // Headless Chromium has no speechSynthesis, so the controls never render and the row check
+  // would skip. A minimal stub makes the controls render; the row geometry is what is asserted.
+  await page.addInitScript(() => {
+    class StubUtterance {
+      text: string;
+      rate = 1;
+      constructor(text: string) {
+        this.text = text;
+      }
+    }
+    Object.defineProperty(window, "SpeechSynthesisUtterance", { configurable: true, value: StubUtterance });
+    Object.defineProperty(window, "speechSynthesis", {
+      configurable: true,
+      value: {
+        speaking: false,
+        paused: false,
+        pending: false,
+        speak() {},
+        cancel() {},
+        pause() {},
+        resume() {},
+        getVoices: () => [],
+        addEventListener() {},
+        removeEventListener() {},
+      },
+    });
+  });
   await page.goto(PRODUCT_URL);
-  const ra = page.getByTestId("read-aloud-controls");
-  if (!(await ra.isVisible())) test.skip(true, "read-aloud not offered in this browser");
+  await page.getByTestId("book-preview-section").scrollIntoViewIfNeeded();
+  await expect(page.getByTestId("book-preview-page-label")).toHaveText("Front cover · Page 1 of 8", { timeout: 30_000 });
+  // Read-aloud controls render for the structured page 2 (the read-aloud spec turns to it the same way).
+  await page.getByRole("button", { name: "Next preview page" }).click();
+  await expect(page.getByTestId("book-preview-page-label")).toHaveText("Page 2 of 8");
+  await expect(page.getByTestId("read-aloud-controls")).toBeVisible();
+  // Start playback so the stop button renders too: that is the three-control state that used to wrap.
+  await page.getByTestId("read-aloud-toggle").click();
+  await expect(page.getByTestId("read-aloud-toggle")).toHaveAttribute("data-playback-state", "playing");
+  await expect(page.getByTestId("read-aloud-stop")).toBeVisible();
   expect(await rowCount(page, "read-aloud-controls")).toBe(1);
 });
