@@ -1,0 +1,23 @@
+web/playwright.config.ts
+  s_7e539dcf78d9db::t_50fcd517b1142c 77-79
+web/__tests__/proxy.test.ts
+  s_7e539dcf78d9db::t_b1f72867d3c3cc 710-717
+web/e2e/b2c-confinement.spec.ts
+  s_7e539dcf78d9db::t_3a719142cde1f9 129-133
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "234aa720a7359f7fb7fc26d47456eb0f64d0e228",
+  "prompts": {},
+  "sessions": {
+    "s_7e539dcf78d9db": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7aec794a-3e95-4ace-bf8d-7a1962c629d9",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
