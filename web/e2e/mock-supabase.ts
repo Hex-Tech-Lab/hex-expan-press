@@ -191,13 +191,30 @@ async function readBody(req: IncomingMessage): Promise<string> {
   return Buffer.concat(chunks).toString("utf8");
 }
 
+/** A product with its `product_rails` foreign-key embed, as PostgREST returns `products(..., product_rails(...))`.
+ * A product with no rail row gets an empty array, the same as PostgREST. */
+function withRails(p: Row): Row {
+  const rails = (db.product_rails ?? [])
+    .filter((r) => r.product_id === p.id)
+    .map((r) => ({ provider: r.provider, weight: r.weight, checkout_url: r.checkout_url, active: r.active }));
+  return { ...p, product_rails: rails };
+}
+
 /** The `products` table as PostgREST serves it. Fixture live products are nested under their creator (creators[].products),
  * so each is also exposed as a flat row with its many-to-one `creators` object, the shape the checkout lookup embeds. */
 function productRows(): Row[] {
   const nested = (db.creators ?? []).flatMap((c) =>
-    (Array.isArray(c.products) ? (c.products as Row[]) : []).map((p) => ({ ...p, creators: { handle: c.handle, display_name: c.display_name } })),
+    (Array.isArray(c.products) ? (c.products as Row[]) : []).map((p) => withRails({ ...p, creators: { handle: c.handle, display_name: c.display_name } })),
   );
-  return [...(db.products ?? []), ...nested];
+  return [...(db.products ?? []).map(withRails), ...nested];
+}
+
+/** The `creators` table with each nested `products` array carrying its `product_rails` embed (creators select products(...)). */
+function creatorRows(): Row[] {
+  return (db.creators ?? []).map((c) => ({
+    ...c,
+    products: Array.isArray(c.products) ? (c.products as Row[]).map(withRails) : c.products,
+  }));
 }
 
 /** Minimal PostgREST: `col=eq.value` filters, `limit`; order/select ignored.
@@ -205,7 +222,7 @@ function productRows(): Row[] {
  * rows. An inner embed (`relation!inner(` in select) also drops a parent left with no embedded row. Only eq, neq and
  * not.is.null are modelled, the operators the storefront uses; other operators are ignored, as at top level. */
 function query(table: string, params: URLSearchParams): Row[] {
-  let rows = table === "products" ? productRows() : (db[table] ?? []);
+  let rows = table === "products" ? productRows() : table === "creators" ? creatorRows() : (db[table] ?? []);
   const select = params.get("select") ?? "";
   const embedded = new Map<string, Array<{ col: string; test: (x: unknown) => boolean }>>();
   for (const [k, value] of params) {

@@ -384,6 +384,8 @@ describe("BookCover and BookCard layout, cover aspect ratio, and (Sample) footer
           price_usd: "29",
           cover_image: null,
           is_sample: false,
+          checkout_mode: "live",
+          usable_rail_count: 1,
         },
         creatorHandle: "e2e_live_creator",
         creatorName: "E2E Live Creator",

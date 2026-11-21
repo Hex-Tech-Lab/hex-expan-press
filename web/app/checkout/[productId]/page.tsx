@@ -66,8 +66,8 @@ export default async function CheckoutPage({
   const price = priceOf(p);
   const priceDisplay = formatProductPrice(price, p.currency, "—");
   const live = p.checkout_mode === "live";
-  // No price means no buy form: the email step (which opens the overlay) is not rendered for an unpriced product.
-  const purchasable = isPurchasableProduct(p);
+  // Buy form only for live, priced, with at least one usable rail (shared resolver count). Zero rails is "Coming soon".
+  const purchasable = isPurchasableProduct(p, activeRailCount);
   const brand = GLOBAL.storefront.brand_name;
   if (railProvider === null) {
     console.error("[checkout] no active enabled rail for product; no provider is named on the page", { productId });

@@ -73,7 +73,7 @@ export default async function StoreProductPage({
   const priceDisplay = formatProductPrice(price, p.currency, "—");
   const live = p.checkout_mode === "live";
   // A live product with no price is not for sale: no buy form, the same non-purchasable state as a gated product.
-  const purchasable = isPurchasableProduct(p);
+  const purchasable = isPurchasableProduct(p, p.usable_rail_count ?? 0);
   const title = p.title ?? productSlugOf(p);
   const buyUrl = `${PAY_ORIGIN}/checkout/${p.id}`;
   const layout = GLOBAL.storefront.product_layout;

@@ -3,6 +3,7 @@ import { MatrixRouter } from "../../../../../src/infrastructure/matrix_router/ma
 import { getSupabaseAdmin } from "../../../../../payments/src/supabase_admin";
 import { GLOBAL, isEnabledPaymentProvider } from "../../../../../payments/src/settings_registry";
 import { productPriceUsd } from "../../../../src/lib/product-purchasable";
+import { resolveCheckoutRails } from "../../../../src/lib/checkout-rails";
 import { verifiedProviderNames } from "../webhook/verifiers";
 import { normalizeSha256, strictActiveConsentKinds, strictChainHead } from "../../../../src/lib/consent-chain";
 import { guidSchema, productRefSchema } from "../../../../src/lib/zod-rules";
@@ -227,41 +228,21 @@ async function handleCheckout(
       console.error(`[billing/checkout] rails query failed for '${product}': ${railErr.message}`);
       return jsonError(500, CONSENT_VERIFICATION_FAILED);
     }
-    if ((railRows ?? []).some((r) => r === null || typeof r !== "object")) {
-      console.error(`[billing/checkout] product '${product}' has a malformed product_rails row — failing closed`);
+    // Shared resolver (web/src/lib/checkout-rails.ts): the same verified-provider filter the checkout page counts with.
+    const resolution = resolveCheckoutRails(railRows, {
+      isEnabledProvider: isEnabledPaymentProvider,
+      verifiedProviders: verifiedProviderNames(),
+    });
+    if (resolution.kind === "malformed") {
+      const detail =
+        resolution.reason === "non_object_row"
+          ? "has a malformed product_rails row"
+          : "has an active rail with a missing provider or non-string checkout_url";
+      console.error(`[billing/checkout] product '${product}' ${detail} — failing closed`);
       return jsonError(500, "Checkout is not configured");
     }
-    const allRails = (railRows ?? []).map((r) => {
-      const row = r as { provider: unknown; weight: unknown; checkout_url: unknown; active: unknown };
-      return {
-        provider: row.provider,
-        weight: Number(row.weight),
-        checkout_url: row.checkout_url,
-        active: row.active === true || row.active === "true",
-      };
-    });
-    const activeRaw = allRails.filter((r) => r.active);
-    const activeValid: CheckoutRail[] = [];
-    for (const r of activeRaw) {
-      if (
-        typeof r.provider !== "string" ||
-        r.provider === "" ||
-        typeof r.checkout_url !== "string" ||
-        !Number.isFinite(r.weight) ||
-        r.weight < 0
-      ) {
-        console.error(`[billing/checkout] product '${product}' has an active rail with a missing provider or non-string checkout_url — failing closed`);
-        return jsonError(500, "Checkout is not configured");
-      }
-      activeValid.push({
-        provider: r.provider,
-        weight: r.weight,
-        checkout_url: r.checkout_url,
-      });
-    }
-    const verified = verifiedProviderNames();
-    dbRails = activeValid.filter((r) => isEnabledPaymentProvider(r.provider) && verified.has(r.provider));
-    const configuredRowCount = (railRows ?? []).length;
+    dbRails = resolution.usable;
+    const configuredRowCount = resolution.configuredCount;
 
     if (configuredRowCount > 0 && dbRails.length === 0) {
       console.error(`[billing/checkout] product '${product}' has ${configuredRowCount} configured rail(s) but none usable (not active, or provider switched off) — refusing checkout`);

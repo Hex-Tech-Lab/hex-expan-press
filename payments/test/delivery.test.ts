@@ -88,6 +88,14 @@ function fakes(over: Partial<DeliveryDeps> & { product?: unknown; inserted?: boo
 const sale = { provider: "paddle", saleId: "s-1", productAlias: "alias-1", buyerEmail: "buyer@example.com" };
 
 describe("deliverSale", () => {
+  it("delivers a 100%-off Creem sale (a $0 order): the total is not a delivery input, so the buyer still gets the email", async () => {
+    // KYC P1: the discount code takes the order to $0 at Creem. Delivery never refuses on the amount.
+    const f = fakes();
+    expect(await deliverSale({ ...sale, provider: "creem", saleId: "ord_zero_discount" }, f.deps)).toBe("sent");
+    expect(f.recordLinkIssued).toHaveBeenCalledTimes(1);
+    expect(f.sendEmail).toHaveBeenCalledTimes(1);
+  });
+
   it("does nothing without a buyer email (no grant, no mail)", async () => {
     const f = fakes();
     expect(await deliverSale({ ...sale, buyerEmail: undefined }, f.deps)).toBe("no_email");
