@@ -63,7 +63,7 @@ export function BookPreviewToolbar({
           aria-label={labels.zoom_out}
           title={labels.zoom_out}
           data-testid="book-preview-zoom-out"
-          className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] touch-manipulation rounded-full border border-[#dcc7b4] bg-white text-gray-900 hover:bg-[#faf5ee] disabled:opacity-45 disabled:cursor-not-allowed transition-colors"
+          className="hidden sm:inline-flex items-center justify-center min-h-[44px] min-w-[44px] touch-manipulation rounded-full border border-[#dcc7b4] bg-white text-gray-900 hover:bg-[#faf5ee] disabled:opacity-45 disabled:cursor-not-allowed transition-colors"
         >
           <ZoomOutIcon />
         </button>
@@ -81,7 +81,7 @@ export function BookPreviewToolbar({
           aria-label={labels.zoom_in}
           title={labels.zoom_in}
           data-testid="book-preview-zoom-in"
-          className="inline-flex items-center justify-center min-h-[44px] min-w-[44px] touch-manipulation rounded-full border border-[#dcc7b4] bg-white text-gray-900 hover:bg-[#faf5ee] disabled:opacity-45 disabled:cursor-not-allowed transition-colors"
+          className="hidden sm:inline-flex items-center justify-center min-h-[44px] min-w-[44px] touch-manipulation rounded-full border border-[#dcc7b4] bg-white text-gray-900 hover:bg-[#faf5ee] disabled:opacity-45 disabled:cursor-not-allowed transition-colors"
         >
           <ZoomInIcon />
         </button>
