@@ -155,6 +155,8 @@ export interface GlobalSettings {
     retry_after_seconds: number;
     /** Retry-After seconds on a 503 checkout response when a product has no active payment rail (fail closed, no provider label). */
     checkout_no_rail_retry_after_seconds: number;
+    /** Retry-After seconds on a 503 checkout response when the payment router fails (not a breaker outage). Fail closed, no provider label. */
+    checkout_router_error_retry_after_seconds: number;
     paddle: { api_base: { production: string; sandbox: string }; js_cdn_url: string; overlay: PaddleOverlaySettings };
     routing: PaymentRoutingSettings;
     /** Creem TEST mode is accepted only when this is true, creem_test_database_ref is non-empty,
@@ -432,6 +434,7 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     review_queue_page_size: 200,
     retry_after_seconds: 30,
     checkout_no_rail_retry_after_seconds: 30,
+    checkout_router_error_retry_after_seconds: 30,
     creem_accept_test_mode: false,
     creem_test_database_ref: "",
     sandbox_checkout_enabled: false,
@@ -733,6 +736,7 @@ export const PAYMENTS_LIMITS = {
   review_queue_page_size: { min: 1, max: 1000 },
   retry_after_seconds: { min: 1, max: 600 },
   checkout_no_rail_retry_after_seconds: { min: 1, max: 600 },
+  checkout_router_error_retry_after_seconds: { min: 1, max: 600 },
 } as const;
 
 function intInRange(value: unknown, min: number, max: number): value is number {
@@ -838,6 +842,7 @@ export function loadPaymentsSection(raw: Record<string, unknown> | undefined): G
   const reviewQueuePageSize = num("review_queue_page_size");
   const retryAfterSeconds = num("retry_after_seconds");
   const checkoutNoRailRetryAfterSeconds = num("checkout_no_rail_retry_after_seconds");
+  const checkoutRouterErrorRetryAfterSeconds = num("checkout_router_error_retry_after_seconds");
   const paddleUrl = (v: unknown, expected: string, label: string, validateAndNormalize: (x: unknown) => string | null): string => {
     const normalized = v === undefined ? null : validateAndNormalize(v);
     if (normalized !== null) return normalized;
@@ -940,6 +945,7 @@ export function loadPaymentsSection(raw: Record<string, unknown> | undefined): G
     review_queue_page_size: reviewQueuePageSize,
     retry_after_seconds: retryAfterSeconds,
     checkout_no_rail_retry_after_seconds: checkoutNoRailRetryAfterSeconds,
+    checkout_router_error_retry_after_seconds: checkoutRouterErrorRetryAfterSeconds,
     paddle: { api_base: { production: apiProduction, sandbox: apiSandbox }, js_cdn_url: jsCdn, overlay },
     routing,
     creem_accept_test_mode: p.creem_accept_test_mode === true,

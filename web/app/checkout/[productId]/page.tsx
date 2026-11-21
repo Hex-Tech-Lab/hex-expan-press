@@ -76,14 +76,13 @@ export default async function CheckoutPage({
   const morName = activeProvider ? paymentProviderDisplayName(activeProvider) : null;
   const overlayCfg = paddleOverlayConfig();
   const hasPaddlePrice = typeof p.paddle_price_id === "string" && p.paddle_price_id.trim() !== "";
-  // Log only where the Paddle overlay could have been used (same gate as paddleClient below), not for every non-Paddle rail.
-  if (live && activeProvider === "paddle" && hasPaddlePrice && !overlayCfg.ok) {
+  // A live Paddle checkout with a Paddle price: the only case where the overlay is attempted (shared by the log and paddleClient).
+  const paddleOverlayAttempted = live && activeProvider === "paddle" && hasPaddlePrice;
+  if (paddleOverlayAttempted && !overlayCfg.ok) {
     console.error("[checkout] paddle overlay unavailable; buyer gets the POST fallback", { productId, reason: overlayCfg.reason });
   }
   const paddleClient =
-    live &&
-    activeProvider === "paddle" &&
-    hasPaddlePrice &&
+    paddleOverlayAttempted &&
     overlayCfg.ok &&
     paddleOverlayUsable(overlayCfg.client, p.checkout_mode)
       ? overlayCfg.client

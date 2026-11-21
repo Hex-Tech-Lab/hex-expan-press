@@ -391,7 +391,7 @@ describe("billing/checkout wave85 sandbox + raw-URL fail-closed", () => {
     }
   });
 
-  it("production with rejecting MatrixRouter and valid live rails falls back 302 to the live url", async () => {
+  it("production with rejecting MatrixRouter and valid live rails answers 503 router_error with Retry-After, no redirect", async () => {
     vi.stubEnv("VERCEL_ENV", "production");
     adminModule.mockAdminClient = gateAdminClient(undefined, undefined, {
       data: [{ provider: "paddle", weight: 100, checkout_url: "https://buy.paddle.com/live-rail", active: true }],
@@ -399,8 +399,10 @@ describe("billing/checkout wave85 sandbox + raw-URL fail-closed", () => {
     });
     vi.mocked(MatrixRouter.getNextProvider).mockRejectedValueOnce(new Error("router down"));
     const res = await GET(request());
-    expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toBe("https://buy.paddle.com/live-rail");
+    expect(res.status).toBe(503);
+    expect(await res.json()).toMatchObject({ ok: false, code: "router_error" });
+    expect(res.headers.get("retry-after")).toBe(String(GLOBAL.payments.checkout_router_error_retry_after_seconds));
+    expect(res.headers.get("location")).toBeNull();
   });
 
   it("production with rejecting MatrixRouter and a null-url rail fails closed 500 before the router", async () => {
@@ -1381,7 +1383,7 @@ describe("billing/checkout additional defensive and lookup branches", () => {
     expect(await res.json()).toEqual({ ok: false, error: "Checkout consent verification failed" });
   });
 
-  it("sorts multiple rails by weight descending when MatrixRouter throws a generic error", async () => {
+  it("answers 503 router_error and never picks a rail by weight when MatrixRouter throws a generic error", async () => {
     adminModule.mockAdminClient = gateAdminClient(undefined, undefined, {
       data: [
         { provider: "paddle", weight: 10, checkout_url: "https://buy.paddle.com/low-weight", active: true },
@@ -1391,8 +1393,9 @@ describe("billing/checkout additional defensive and lookup branches", () => {
     });
     vi.mocked(MatrixRouter.getNextProvider).mockRejectedValueOnce(new Error("router down"));
     const res = await GET(request());
-    expect(res.status).toBe(302);
-    expect(res.headers.get("location")).toBe("https://buy.paddle.com/high-weight");
+    expect(res.status).toBe(503);
+    expect(res.headers.get("location")).toBeNull();
+    expect(res.headers.get("retry-after")).toBe(String(GLOBAL.payments.checkout_router_error_retry_after_seconds));
   });
 
   it("appends reference_id when a Polar rail is enabled in settings and selected", async () => {
@@ -1449,7 +1452,7 @@ describe("billing/checkout buyer email and consent (product page email step)", (
     expect(parsed.searchParams.get("customer_email")).toBe("ann@example.com");
   });
 
-  it("prefills the same Polar email on the router fallback redirect", async () => {
+  it("a router error on a Polar rail answers 503 router_error: no redirect and no buyer email is sent to a provider", async () => {
     registryOverride.polarEnabled = true;
     vi.mocked(MatrixRouter.getNextProvider).mockRejectedValueOnce(new Error("router down"));
     adminModule.mockAdminClient = gateAdminClient(undefined, undefined, {
@@ -1457,8 +1460,9 @@ describe("billing/checkout buyer email and consent (product page email step)", (
       error: null,
     });
     const res = await GET(new NextRequest(`${CHECKOUT_URL}&${BUYER}`));
-    expect(res.status).toBe(302);
-    expect(new URL(res.headers.get("location")!).searchParams.get("customer_email")).toBe("ann@example.com");
+    expect(res.status).toBe(503);
+    expect(await res.json()).toMatchObject({ code: "router_error" });
+    expect(res.headers.get("location")).toBeNull();
   });
 
   it("records consent as checkout metadata on a Creem link and sends no email there", async () => {

@@ -26,7 +26,7 @@ vi.mock("../../../../../../src/infrastructure/matrix_router/matrix_router", () =
 const MODEL_PATH = fileURLToPath(new URL("../../../../../../docs/testing/pairwise/unpriced_checkout.model.txt", import.meta.url));
 const ROWS_PATH = fileURLToPath(new URL("../../../../../../docs/testing/pairwise/unpriced_checkout.rows.tsv", import.meta.url));
 const PICT_BIN = "/usr/local/bin/pict";
-const EXPECTED_ROW_COUNT = 5;
+const EXPECTED_ROW_COUNT = 6;
 const ROWS_TSV = readFileSync(ROWS_PATH, "utf8");
 
 const PID = "57596c19-c550-4bde-b17a-e87b86d005c5";
@@ -34,25 +34,31 @@ const OWNER_ID = "c0a80101-0000-4000-8000-000000000001";
 const RELEASE_SHA = "a".repeat(64);
 const RAIL_URL = "https://buy.paddle.com/live-rail";
 
-type Row = { price: "set" | "null"; rail: "present" | "absent"; checkout_mode: "live" | "gated" };
+type Row = { price: "set" | "null"; rail: "present" | "absent" | "router_error"; checkout_mode: "live" | "gated" };
 
 interface Expected {
   status: number;
   code?: string;
-  retryAfter?: boolean;
+  retryAfter?: "no_active_rail" | "router_error";
   location: boolean;
   tables: string[];
+  routerCalled: boolean;
 }
 
-// Spec: the mode gate runs first (gated is refused), then the price gate (null is 409), then rails (none active is 503 + Retry-After).
-// Only a priced live product with an active rail is routed (302). Tables are the reads the route makes before it answers.
+// Spec: the mode gate runs first (gated is refused), then the price gate (null is 409), then rails (none active is 503 + Retry-After),
+// then the router (a router error is 503 + Retry-After, never a default-rail fallback). Only a priced live product on a routed
+// rail is redirected (302). Tables are the reads the route makes before it answers.
 function expectedOutcome(row: Row): Expected {
-  if (row.checkout_mode === "gated") return { status: 403, location: false, tables: ["products"] };
-  if (row.price === "null") return { status: 409, code: "product_unpriced", location: false, tables: ["products"] };
+  const reads = ["products", "consents", "product_rails"];
+  if (row.checkout_mode === "gated") return { status: 403, location: false, tables: ["products"], routerCalled: false };
+  if (row.price === "null") return { status: 409, code: "product_unpriced", location: false, tables: ["products"], routerCalled: false };
   if (row.rail === "absent") {
-    return { status: 503, code: "no_active_rail", retryAfter: true, location: false, tables: ["products", "consents", "product_rails"] };
+    return { status: 503, code: "no_active_rail", retryAfter: "no_active_rail", location: false, tables: reads, routerCalled: false };
   }
-  return { status: 302, location: true, tables: ["products", "consents", "product_rails"] };
+  if (row.rail === "router_error") {
+    return { status: 503, code: "router_error", retryAfter: "router_error", location: false, tables: reads, routerCalled: true };
+  }
+  return { status: 302, location: true, tables: reads, routerCalled: true };
 }
 
 function parseRows(tsv: string): Row[] {
@@ -85,7 +91,8 @@ function clientFor(row: Row) {
     checkout_mode: row.checkout_mode,
     price_usd: row.price === "set" ? "39.00" : null,
   };
-  const rails = row.rail === "present" ? [{ provider: "paddle", weight: 100, checkout_url: RAIL_URL, active: true }] : [];
+  const rails = row.rail === "absent" ? [] : [{ provider: "paddle", weight: 100, checkout_url: RAIL_URL, active: true }];
+  if (row.rail === "router_error") vi.mocked(MatrixRouter.getNextProvider).mockRejectedValueOnce(new Error("router down"));
   return {
     from: (table: string) => {
       touched.push(table);
@@ -128,9 +135,10 @@ describe(`billing / checkout: ${EXPECTED_ROW_COUNT} PICT pairwise rows (price x 
     const res = await GET(new NextRequest(`http://localhost:3000/api/billing/checkout?product=${PID}`));
     expect(res.status).toBe(want.status);
     if (want.code) expect(await res.json()).toMatchObject({ code: want.code });
-    if (want.retryAfter) expect(res.headers.get("retry-after")).toBe(String(GLOBAL.payments.checkout_no_rail_retry_after_seconds));
+    if (want.retryAfter === "no_active_rail") expect(res.headers.get("retry-after")).toBe(String(GLOBAL.payments.checkout_no_rail_retry_after_seconds));
+    if (want.retryAfter === "router_error") expect(res.headers.get("retry-after")).toBe(String(GLOBAL.payments.checkout_router_error_retry_after_seconds));
     expect(res.headers.get("location") !== null).toBe(want.location);
     expect(touched).toEqual(want.tables);
-    if (want.status !== 302) expect(MatrixRouter.getNextProvider).not.toHaveBeenCalled();
+    expect(vi.mocked(MatrixRouter.getNextProvider).mock.calls.length > 0).toBe(want.routerCalled);
   });
 });

@@ -18,6 +18,7 @@ import {
   parseBuyerQuery,
   parsePostBody,
   resolvePaddleOverlay,
+  sandboxAllowed,
   wantsCheckoutOverlayJson,
   type CheckoutRail,
   type ParsedCheckoutRequest,
@@ -38,14 +39,20 @@ function lookupFailed(product: string, message: string): ProductLookup {
   return { response: jsonError(500, CONSENT_VERIFICATION_FAILED) };
 }
 
-/**
- * No active payment rail: 503 Service Unavailable with Retry-After (registry value). Fails closed before any order or
- * provider label is written, so the buyer is never sent to a default provider.
- */
-function noActiveRailResponse(): NextResponse {
-  const res = jsonError(503, "Checkout is temporarily unavailable. No payment rail is accepting orders.", "no_active_rail");
-  res.headers.set("Retry-After", String(GLOBAL.payments.checkout_no_rail_retry_after_seconds));
+/** 503 Service Unavailable with a Retry-After header (seconds come from the registry). Callers fail closed before any order or provider label is written. */
+function retryAfterUnavailable(error: string, code: string, retryAfterSeconds: number): NextResponse {
+  const res = jsonError(503, error, code);
+  res.headers.set("Retry-After", String(retryAfterSeconds));
   return res;
+}
+
+/** No active payment rail, so the buyer is never sent to a default provider. */
+function noActiveRailResponse(): NextResponse {
+  return retryAfterUnavailable(
+    "Checkout is temporarily unavailable. No payment rail is accepting orders.",
+    "no_active_rail",
+    GLOBAL.payments.checkout_no_rail_retry_after_seconds,
+  );
 }
 
 function productNotFound(product: string): ProductLookup {
@@ -189,7 +196,6 @@ async function handleCheckout(
     resolvedProduct = lookup.product;
 
     const mode = resolvedProduct.checkout_mode;
-    const { sandboxAllowed } = await import("./checkout-helpers");
     if (mode !== "live" && !(mode === "sandbox" && sandboxAllowed())) {
       console.error(`[billing/checkout] product '${product}' is not launched (checkout_mode=${mode ?? "null"})`);
       return jsonError(403, "Checkout forbidden: product is not launched");
@@ -297,8 +303,14 @@ async function handleCheckout(
       console.error(`[billing/checkout] every rail is marked down for '${product}' — answering 503`);
       return jsonError(503, "Checkout is temporarily unavailable. No payment rail is accepting orders.", "rails_unavailable");
     }
-    console.error(`checkout: MatrixRouter failed, falling back to default rail: ${(err as Error).message}`);
-    selectedRail = [...rails].sort((lhs, rhs) => rhs.weight - lhs.weight)[0];
+    // A router error is not a rail choice: never fall back to the highest-weight rail (that labels the sale with a
+    // default provider). Fail closed with 503 + Retry-After, no order and no provider label.
+    console.error(`[billing/checkout] MatrixRouter failed for '${product}': ${(err as Error).message} — answering 503, no default provider`);
+    return retryAfterUnavailable(
+      "Checkout is temporarily unavailable. Please try again shortly.",
+      "router_error",
+      GLOBAL.payments.checkout_router_error_retry_after_seconds,
+    );
   }
 
   const redirectUrl = buildCheckoutRedirectUrl(selectedRail, resolvedProduct, creatorHandle, attribution, buyer.value);

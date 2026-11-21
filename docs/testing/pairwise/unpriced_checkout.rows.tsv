@@ -1,6 +1,7 @@
 price	rail	checkout_mode
-set	absent	live
 null	present	gated
-set	present	live
 null	absent	live
+null	router_error	live
 set	absent	gated
+set	present	live
+set	router_error	live

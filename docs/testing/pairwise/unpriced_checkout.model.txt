@@ -4,15 +4,20 @@
 #
 # Parameters:
 #   price        : products.price_usd (set = a numeric price; null = no price, the product is not for sale)
-#   rail         : an active product_rails row exists (present = a routable paddle rail; absent = none active)
+#   rail         : active product_rails rows and the router. present = a routable paddle rail and the router answers;
+#                  absent = no active rail; router_error = a routable rail but MatrixRouter throws
 #   checkout_mode: products.checkout_mode (live = sold; gated = not launched, refused by the mode gate before the price gate)
 
 price: set, null
-rail: present, absent
+rail: present, absent, router_error
 checkout_mode: live, gated
 
+# router_error needs a routable rail, and only a live product reaches the router.
+IF [rail] = "router_error" THEN [checkout_mode] = "live";
+
 # Expected outcome (oracle in unpriced_checkout.pairwise.test.ts, written from the specification):
-#   gated                      -> 403 (mode gate runs before the price gate)
-#   live, price null           -> 409 product_unpriced (price gate runs before rails)
-#   live, price set, rail absent -> 503 no_active_rail + Retry-After
-#   live, price set, rail present -> 302 redirect to the rail
+#   gated                          -> 403 (mode gate runs before the price gate)
+#   live, price null               -> 409 product_unpriced (price gate runs before rails)
+#   live, price set, rail absent   -> 503 no_active_rail + Retry-After
+#   live, price set, router_error  -> 503 router_error + Retry-After (never a default-rail fallback)
+#   live, price set, rail present  -> 302 redirect to the rail
