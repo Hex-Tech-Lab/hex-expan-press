@@ -2,7 +2,7 @@
 // as `rail`; the route answers 409 rail_changed, with no redirect and no order, when the router would pick a different rail.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
-import { GET } from "../route";
+import { GET, POST } from "../route";
 import { parsePostBody } from "../checkout-helpers";
 import { MatrixRouter } from "../../../../../../src/infrastructure/matrix_router/matrix_router";
 import { GLOBAL } from "../../../../../../payments/src/settings_registry";
@@ -303,6 +303,30 @@ describe("checkout route: the charged rail must be the rail the buyer was shown"
     const res = await GET(checkoutRequest());
     expect(res.status).toBe(503);
     expect(sentry.captureException).not.toHaveBeenCalled();
+  });
+
+  // The buyer's real request is a POST (BuyerEmailStep sends the labelled rail in the body), so the pin must hold over POST too.
+  function checkoutPost(rail: string): NextRequest {
+    return new NextRequest("http://localhost:3000/api/billing/checkout", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ product: PID, rail, buyer_email: "buyer@example.com", buyer_email_confirm: "buyer@example.com" }),
+    });
+  }
+
+  it("POST: a labelled rail the router would not charge is refused with 409 rail_changed, no redirect", async () => {
+    adminModule.mockAdminClient = adminClient([paddleRail, creemRail]);
+    const res = await POST(checkoutPost("creem"));
+    expect(res.status).toBe(409);
+    expect(res.headers.get("location")).toBeNull();
+    expect(await res.json()).toMatchObject({ ok: false, code: "rail_changed" });
+  });
+
+  it("POST control: the labelled rail is the one the router picks: redirect to that rail", async () => {
+    adminModule.mockAdminClient = adminClient([paddleRail, creemRail]);
+    const res = await POST(checkoutPost("paddle"));
+    expect(res.status).toBe(303);
+    expect(res.headers.get("location")).toContain("buy.paddle.com");
   });
 
   it("control: page labelled paddle and router picks paddle: redirect to the paddle rail", async () => {

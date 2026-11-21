@@ -10,7 +10,7 @@ import CheckoutPage from "../page";
 // "server-only" throws outside the react-server condition; stub it so this file loads under any runner (as the sibling page tests do).
 vi.mock("server-only", () => ({}));
 
-// The designed "Coming soon" state (zero usable rails) is not an error: the page must not report it to Sentry.
+// Zero configured rail rows is the designed "Coming soon" state and is not reported to Sentry. Configured rails with none usable is an outage and is reported.
 vi.mock("@sentry/nextjs", () => ({ captureException: vi.fn() }));
 
 // Money-path branches of the pay-domain checkout page: a live product renders the single-hop

@@ -336,7 +336,7 @@ async function handleCheckout(
   // The label the buyer saw must be the rail that is charged. A rail set that changed since the page rendered (a rail added,
   // switched off, or re-weighted) makes the router pick another provider: refuse before any order or provider label.
   if (expectedRail && selectedRail.provider !== expectedRail) {
-    // The label is buyer-supplied: JSON-encode it (escapes CR/LF and control characters), then cap the ENCODED text, so the
+    // The label is buyer-supplied: cut it to the cap, JSON-encode it (escapes CR/LF and control characters), then cut the ENCODED text to the cap again, so the
     // logged length never exceeds rail_label_log_max_chars even when escapes expand the label.
     const shownRail = JSON.stringify(expectedRail.slice(0, GLOBAL.payments.rail_label_log_max_chars)).slice(0, GLOBAL.payments.rail_label_log_max_chars);
     console.error(`[billing/checkout] rail changed for '${product}': page showed ${shownRail}, router selected '${selectedRail.provider}' — answering 409 rail_changed`);
