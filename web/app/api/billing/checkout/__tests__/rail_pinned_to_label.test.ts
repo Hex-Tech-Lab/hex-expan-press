@@ -157,7 +157,7 @@ describe("checkout route: the charged rail must be the rail the buyer was shown"
     expect(res.status).toBe(500);
     expect(sentry.captureException).toHaveBeenCalledWith(
       boom,
-      expect.objectContaining({ tags: expect.objectContaining({ reason: "consent_gate_unexpected" }) }),
+      expect.objectContaining({ tags: expect.objectContaining({ reason: "checkout_gate_unexpected" }) }),
     );
   });
 

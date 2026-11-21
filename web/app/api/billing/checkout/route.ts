@@ -276,8 +276,8 @@ async function handleCheckout(
   } catch (err) {
     // A thrown value need not be an Error (a thrown null would make (err as Error).message throw here and skip the report).
     console.error(`[billing/checkout] consent verification exception for '${product}': ${err instanceof Error ? err.message : String(err)}`);
-    // A 500 here is an incident, so it is reported under the consent_gate_unexpected tag.
-    Sentry.captureException(err, { tags: { surface: "checkout_route", reason: "consent_gate_unexpected" } });
+    // A 500 here is an incident, so it is reported under the checkout_gate_unexpected tag.
+    Sentry.captureException(err, { tags: { surface: "checkout_route", reason: "checkout_gate_unexpected" } });
     return jsonError(500, CONSENT_VERIFICATION_FAILED);
   }
 
@@ -338,7 +338,7 @@ async function handleCheckout(
   if (expectedRail && selectedRail.provider !== expectedRail) {
     // The label is buyer-supplied: JSON-encode it (escapes CR/LF and control characters), then cap the ENCODED text, so the
     // logged length never exceeds rail_label_log_max_chars even when escapes expand the label.
-    const shownRail = JSON.stringify(expectedRail).slice(0, GLOBAL.payments.rail_label_log_max_chars);
+    const shownRail = JSON.stringify(expectedRail.slice(0, GLOBAL.payments.rail_label_log_max_chars)).slice(0, GLOBAL.payments.rail_label_log_max_chars);
     console.error(`[billing/checkout] rail changed for '${product}': page showed ${shownRail}, router selected '${selectedRail.provider}' — answering 409 rail_changed`);
     return jsonError(409, "The payment provider for this product has changed. Reload the page and try again.", "rail_changed");
   }
