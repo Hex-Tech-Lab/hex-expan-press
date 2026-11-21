@@ -57,7 +57,7 @@ export default async function CheckoutPage({
   const { productId } = await params;
   const found = await fetchCheckoutProduct(productId);
   if (!found) notFound();
-  const { creator, product: p, usableRails, activeRailCount } = found;
+  const { creator, product: p, usableRails, activeRailCount, railKind } = found;
 
   const sp = await searchParams;
   const initialAttribution: Record<string, string> = {};
@@ -75,8 +75,8 @@ export default async function CheckoutPage({
   if (usableRails.length === 0) {
     console.error("[checkout] no active enabled rail for product; no provider is named on the page", { productId });
     // No active rail is a designed state (not reported), and so is a switched-off rail. Only an active, enabled rail that is
-    // not usable is a revenue outage: report it.
-    if (activeRailCount > 0) {
+    // not usable is a revenue outage: report it. Malformed rows are already reported once by the storefront, so skip them here.
+    if (activeRailCount > 0 && railKind !== "malformed") {
       Sentry.captureException(new Error("checkout page: configured rails, none usable"), { tags: { surface: "checkout_page", reason: "no_active_rail" } });
     }
   }

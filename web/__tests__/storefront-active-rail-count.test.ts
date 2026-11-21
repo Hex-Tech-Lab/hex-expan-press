@@ -24,6 +24,7 @@ vi.mock("../app/api/billing/webhook/verifiers", async (importOriginal) => {
   };
 });
 
+import * as Sentry from "@sentry/nextjs";
 import { fetchCheckoutProduct } from "../src/components/storefront/storefront";
 
 const PID = "57596c19-c550-4bde-b17a-e87b86d005c5";
@@ -97,10 +98,16 @@ describe("fetchCheckoutProduct activeRailCount mapping (activeCount, not the usa
     expect(found?.usableRails).toHaveLength(0);
   });
 
-  it("a malformed active row (weight 0) answers activeRailCount 0 because the resolution is malformed, not ok", async () => {
+  it("a malformed active row (weight 0) answers activeRailCount 0, railKind malformed, and exactly one storefront report", async () => {
+    vi.mocked(Sentry.captureException).mockClear();
     adminModule.mockAdminClient = clientWithRails([{ ...PADDLE, weight: 0 }]);
     const found = await fetchCheckoutProduct(PID);
     expect(found?.activeRailCount).toBe(0);
     expect(found?.usableRails).toHaveLength(0);
+    expect(found?.railKind).toBe("malformed");
+    // The one report for a malformed rail set: storefront_rails. The page does not add a second no_active_rail report.
+    expect(Sentry.captureException).toHaveBeenCalledTimes(1);
+    const [, options] = vi.mocked(Sentry.captureException).mock.calls[0] as unknown as [unknown, { tags: Record<string, string> }];
+    expect(options.tags).toEqual({ surface: "storefront_rails", reason: "invalid_weight" });
   });
 });

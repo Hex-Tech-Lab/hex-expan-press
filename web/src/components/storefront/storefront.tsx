@@ -327,6 +327,8 @@ export const fetchCheckoutProduct = cache(async function fetchCheckoutProduct(
   usableRails: UsableRail[];
   /** Active rails whose provider is switched on (malformed sets count 0; they report on their own). Switched-off rails are not counted. Zero is a designed state; more than zero with no usable rail is an outage. */
   activeRailCount: number;
+  /** The shared resolver's verdict. "malformed" was already reported once by resolveRailsForRows (storefront_rails), so the page must not report it again. */
+  railKind: RailResolution["kind"];
 } | null> {
   if (!guidSchema.safeParse(productId).success) return null;
   const supabase = await getSupabaseAdmin();
@@ -361,6 +363,7 @@ export const fetchCheckoutProduct = cache(async function fetchCheckoutProduct(
     product: row,
     usableRails: usableRailsOf(resolution),
     activeRailCount: resolution.kind === "ok" ? resolution.activeCount : 0,
+    railKind: resolution.kind,
   };
 });
 

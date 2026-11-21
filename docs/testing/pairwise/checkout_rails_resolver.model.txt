@@ -9,11 +9,12 @@
 #                   overlay eligible); two = more than one (POST fallback, no merchant of record, no overlay).
 #   provider      : provider of the single usable rail (paddle or creem). Only read when rails = one.
 #   price         : products.price_usd (set = a numeric price; null = not for sale).
-#   checkout_mode : products.checkout_mode (live = sold; gated, sandbox and paddle = not sold on the buy form). The DB CHECK
-#                   constraint allows exactly these four values (migration 20261007000000_commercial_heritage.sql).
+#   checkout_mode : products.checkout_mode (live = sold; gated, sandbox, paddle and null = not sold on the buy form). The column is
+#                   nullable: the migration's CHECK (checkout_mode in (...)) passes on NULL (migration 20261007000000_commercial_heritage.sql),
+#                   so null is a database-allowed state and is modelled.
 #
 # Expected outcome (oracle in checkout_rails_resolver.pairwise.test.ts, written from the specification):
-#   gated, sandbox or paddle, any rails, any price -> not purchasable, no merchant of record
+#   gated, sandbox, paddle or null, any rails, any price -> not purchasable, no merchant of record
 #   live, price null, any rails        -> not purchasable ("Coming soon"), no merchant of record
 #   live, price set, rails zero        -> not purchasable ("Coming soon"), no merchant of record
 #   live, price set, rails one         -> purchasable, merchant of record = the single rail's provider
@@ -22,4 +23,4 @@
 rails: zero, one, two
 provider: paddle, creem
 price: set, null
-checkout_mode: live, gated, sandbox, paddle
+checkout_mode: live, gated, sandbox, paddle, null

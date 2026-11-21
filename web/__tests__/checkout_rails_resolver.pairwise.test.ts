@@ -8,15 +8,20 @@ import { describe, expect, it } from "vitest";
 import { checkoutRailView, resolveCheckoutRails, usableRailsOf } from "../src/lib/checkout-rails";
 
 const ROWS_PATH = fileURLToPath(new URL("../../docs/testing/pairwise/checkout_rails_resolver.rows.tsv", import.meta.url));
-const EXPECTED_ROW_COUNT = 12;
+const EXPECTED_ROW_COUNT = 15;
 const ROWS_TSV = readFileSync(ROWS_PATH, "utf8");
 
 type Row = {
   rails: "zero" | "one" | "two";
   provider: "paddle" | "creem";
   price: "set" | "null";
-  checkout_mode: "live" | "gated" | "sandbox" | "paddle";
+  checkout_mode: "live" | "gated" | "sandbox" | "paddle" | "null";
 };
+
+// PICT writes the NULL value as the token "null"; the product column is nullable, so it maps to a real null.
+function modeOf(row: Row): string | null {
+  return row.checkout_mode === "null" ? null : row.checkout_mode;
+}
 
 // Every provider in the model is enabled and verified, so the rail count is decided by the rows, not by the policy.
 const POLICY = {
@@ -60,8 +65,8 @@ describe("checkout rails pairwise (PICT model)", () => {
     expect(new Set(ROWS.map((r) => r.rails))).toEqual(new Set(["zero", "one", "two"]));
   });
 
-  it("covers every checkout_mode the DB constraint allows", () => {
-    expect(new Set(ROWS.map((r) => r.checkout_mode))).toEqual(new Set(["live", "gated", "sandbox", "paddle"]));
+  it("covers every checkout_mode the DB allows, including the nullable NULL", () => {
+    expect(new Set(ROWS.map((r) => r.checkout_mode))).toEqual(new Set(["live", "gated", "sandbox", "paddle", "null"]));
   });
 
   it("pins the one-rail Creem live row (merchant of record is Creem, not Paddle)", () => {
@@ -77,7 +82,7 @@ describe("checkout rails pairwise (PICT model)", () => {
       const resolved = resolveCheckoutRails(railRowsFor(row), POLICY);
       expect(resolved.kind).toBe("ok");
       const view = checkoutRailView(
-        { checkout_mode: row.checkout_mode, price_usd: row.price === "set" ? "39.00" : null },
+        { checkout_mode: modeOf(row), price_usd: row.price === "set" ? "39.00" : null },
         usableRailsOf(resolved),
       );
       expect(view).toEqual(expectedOutcome(row));

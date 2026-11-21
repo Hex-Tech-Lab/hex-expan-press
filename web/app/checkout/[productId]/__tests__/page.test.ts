@@ -63,13 +63,14 @@ function usableRailsFixture(provider: string | null | undefined, count: number) 
 
 function product(
   over: Record<string, unknown> = {},
-  extra: { displayName?: string; isHouse?: boolean; railProvider?: string | null; activeRailCount?: number } = {},
+  extra: { displayName?: string; isHouse?: boolean; railProvider?: string | null; activeRailCount?: number; railKind?: "ok" | "malformed" } = {},
 ) {
   const railProvider = "railProvider" in extra ? extra.railProvider : "paddle";
   return {
     creator: { handle: "ada", display_name: extra.displayName ?? "Ada", is_house: extra.isHouse ?? false },
     usableRails: usableRailsFixture(railProvider, extra.activeRailCount ?? (railProvider === null ? 0 : 1)),
     activeRailCount: extra.activeRailCount ?? (railProvider === null ? 0 : 1),
+    railKind: extra.railKind ?? "ok",
     product: {
       id: "p1",
       title: "Book",
@@ -248,6 +249,15 @@ describe("checkout page: unpriced product (price_usd null) has no buy form", () 
 
     vi.mocked(Sentry.captureException).mockClear();
     vi.mocked(fetchCheckoutProduct).mockResolvedValue(product({ price_usd: "39.00" }, { railProvider: null, activeRailCount: 0 }) as never);
+    await render("p1");
+    expect(Sentry.captureException).not.toHaveBeenCalled();
+  });
+
+  it("a malformed rail set is not reported again by the page: no no_active_rail capture even with activeRailCount above zero", async () => {
+    vi.mocked(Sentry.captureException).mockClear();
+    vi.mocked(fetchCheckoutProduct).mockResolvedValue(
+      product({ price_usd: "39.00" }, { railProvider: null, activeRailCount: 1, railKind: "malformed" }) as never,
+    );
     await render("p1");
     expect(Sentry.captureException).not.toHaveBeenCalled();
   });
