@@ -116,6 +116,21 @@ describe("checkout route: the charged rail must be the rail the buyer was shown"
     }
   });
 
+  it("escapes U+2028 and U+2029 in the logged label, so the log line stays one line", async () => {
+    adminModule.mockAdminClient = adminClient([paddleRail, creemRail]);
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const res = await GET(checkoutRequest("creem\u2028FORGED\u2029line"));
+      expect(res.status).toBe(409);
+      const mismatchLine = errorSpy.mock.calls.map((c) => String(c[0])).find((m) => m.includes("rail changed"));
+      expect(mismatchLine).toBeDefined();
+      expect(mismatchLine).not.toMatch(/[\u2028\u2029]/);
+      expect(mismatchLine).toContain("\\u2028FORGED\\u2029line");
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
+
   it("caps the JSON-encoded label, so escapes cannot expand the logged value past rail_label_log_max_chars", async () => {
     adminModule.mockAdminClient = adminClient([paddleRail, creemRail]);
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});

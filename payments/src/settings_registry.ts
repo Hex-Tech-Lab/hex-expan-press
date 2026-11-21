@@ -160,8 +160,8 @@ export interface GlobalSettings {
      *  down (MatrixRouterUnavailableError). Fail closed, no provider label, no order written. */
     checkout_router_error_retry_after_seconds: number;
     /** Maximum characters of the buyer-supplied rail label written to the rail_changed (409) log line. The label is JSON-encoded
-     *  the raw label is cut to this length, JSON-encoded, and the encoded text (quotes included) is cut to this length again, so the logged value is bounded. JSON encoding escapes
-     *  CR, LF and control characters; it does not escape U+2028 or U+2029, so the line is bounded but not guaranteed to be one line. */
+     *  the label is JSON-encoded, U+2028 and U+2029 are escaped, and the encoded text (quotes included) is cut to this length, so the logged value is bounded. JSON encoding escapes
+     *  CR, LF and control characters; the route also escapes U+2028 and U+2029 (JSON leaves them raw), so the logged line is one line and its length is bounded. */
     rail_label_log_max_chars: number;
     paddle: { api_base: { production: string; sandbox: string }; js_cdn_url: string; overlay: PaddleOverlaySettings };
     routing: PaymentRoutingSettings;
