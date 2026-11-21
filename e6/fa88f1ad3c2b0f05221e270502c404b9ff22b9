@@ -1,0 +1,44 @@
+web/src/components/storefront/buyer-email-step.tsx
+  s_7e539dcf78d9db::t_581201bd3885c7 23-24
+  s_7e539dcf78d9db::t_db985e4d601c1e 75
+  s_7e539dcf78d9db::t_8411756ec6049b 146
+  s_7e539dcf78d9db::t_12e9e2e6b3fbca 112
+web/src/lib/product-purchasable.ts
+  s_7e539dcf78d9db::t_febc7efad7f75d 30
+  s_7e539dcf78d9db::t_45f4f479960088 13-22,24-29,31
+web/app/api/billing/checkout/route.ts
+  s_7e539dcf78d9db::t_461527ab291ffa 309-315
+  s_7e539dcf78d9db::t_424f007933daef 177
+  s_7e539dcf78d9db::t_8a701469146476 339
+web/app/checkout/[productId]/page.tsx
+  s_7e539dcf78d9db::t_283f051e7975d9 144
+web/app/api/billing/checkout/__tests__/rail_pinned_to_label.test.ts
+  s_7e539dcf78d9db::t_3fb723de2df587 1-144
+payments/src/settings_registry.ts
+  s_7e539dcf78d9db::t_32e0f2b93c7e7c 156-157,159-160
+web/app/api/billing/checkout/__tests__/unpriced_checkout.pairwise.test.ts
+  s_7e539dcf78d9db::t_5f151286075888 134-137
+  s_7e539dcf78d9db::t_da5e57aed24539 6
+web/__tests__/product-purchasable.test.ts
+  s_7e539dcf78d9db::t_868099f3fe8a4a 1-60
+web/app/api/billing/checkout/checkout-helpers.ts
+  s_7e539dcf78d9db::t_fb4eff4d84069b 324,329
+  s_7e539dcf78d9db::t_8aec3a783ac989 54-55
+  s_7e539dcf78d9db::t_2b9ba9101daf8b 285,290
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e6fa88f1ad3c2b0f05221e270502c404b9ff22b9",
+  "prompts": {},
+  "sessions": {
+    "s_7e539dcf78d9db": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7aec794a-3e95-4ace-bf8d-7a1962c629d9",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
