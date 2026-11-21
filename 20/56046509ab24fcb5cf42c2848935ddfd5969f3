@@ -1,0 +1,19 @@
+web/app/checkout/[productId]/__tests__/page.test.ts
+  s_7e539dcf78d9db::t_2a9ce27de6bd66 238-251,254-255
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2056046509ab24fcb5cf42c2848935ddfd5969f3",
+  "prompts": {},
+  "sessions": {
+    "s_7e539dcf78d9db": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7aec794a-3e95-4ace-bf8d-7a1962c629d9",
+        "model": "unknown"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
