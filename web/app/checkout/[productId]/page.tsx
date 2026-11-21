@@ -83,6 +83,10 @@ export default async function CheckoutPage({
   if (paddleOverlayAttempted && !overlayCfg.ok) {
     console.error("[checkout] paddle overlay unavailable; buyer gets the POST fallback", { productId, reason: overlayCfg.reason });
   }
+  // The overlay config loads but its Paddle environment does not match this product's checkout mode: the buyer gets the POST fallback.
+  if (paddleOverlayAttempted && overlayCfg.ok && !paddleOverlayUsable(overlayCfg.client, p.checkout_mode)) {
+    console.error("[checkout] paddle overlay environment does not match checkout mode; buyer gets the POST fallback", { productId, checkoutMode: p.checkout_mode });
+  }
   const paddleClient =
     paddleOverlayAttempted &&
     overlayCfg.ok &&

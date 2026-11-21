@@ -260,6 +260,26 @@ describe("checkout page: Paddle Option A client config, MoR provider line, and h
     expect(steps[0].paddleClient).toEqual({ token: "live_tok_123", environment: "production" });
   });
 
+  it("logs an environment mismatch and sets paddleClient to null when the overlay is sandbox but the product is live", async () => {
+    const o = GLOBAL.payments.paddle.overlay;
+    vi.stubEnv(o.client_token_env, "sandbox_tok_123");
+    vi.stubEnv(o.environment_env, "sandbox");
+    vi.mocked(fetchCheckoutProduct).mockResolvedValue(product({ paddle_price_id: "pri_live_1" }) as never);
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const tree = await render("p1");
+      const steps: Array<Record<string, unknown>> = [];
+      walk(tree as unknown as Node, (el) => {
+        if (el.type === "BuyerEmailStep") steps.push(el.props);
+      });
+      expect(steps[0].paddleClient).toBeNull();
+      const mismatchLogs = errorSpy.mock.calls.filter((args) => String(args[0]).includes("does not match checkout mode"));
+      expect(mismatchLogs).toHaveLength(1);
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
+
   it("sets paddleClient to null when rail is non-paddle or paddle_price_id is missing", async () => {
     const o = GLOBAL.payments.paddle.overlay;
     vi.stubEnv(o.client_token_env, "live_tok_123");
