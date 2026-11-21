@@ -309,6 +309,7 @@ async function handleCheckout(
       // The router named a rail that is not among the usable rails (or it has no checkout URL). Fail closed with a
       // retryable 503 and the registry Retry-After, and never send the buyer to another provider.
       console.error(`[billing/checkout] selected rail '${providerName}' is missing or has no checkout_url — answering 503 rail_misconfigured`);
+      Sentry.captureException(new Error(`checkout: selected rail missing or has no checkout_url (${providerName})`), { tags: { surface: "checkout_route", reason: "rail_misconfigured" } });
       return retryAfterUnavailable(
         "Checkout is temporarily unavailable. Please try again shortly.",
         "rail_misconfigured",

@@ -127,10 +127,10 @@ for (const page_ of ["terms", "privacy", "refund-policy", "providers"]) {
 test("(d) pay host: /terms.html and /books are 404, /books/legal/terms.html is 200", async () => {
   // Local harness cannot prove the pay boundary: without E2E_PROXY_HOST_OVERRIDE, the proxy keys on the listen address, not the Host header
   // (KNOWN HARNESS GAP below). The live boundary is verified against the real pay hostname with curl.
-  // Skipped until the precondition below can pass. Root cause (reproduced with PAY_HOST_LIVE=1):
-  // the /__e2e/proxy-host probe (web/proxy.ts:115) reports url.hostname, which next dev sets to "localhost" for the pay
-  // context. E2E_PROXY_HOST_OVERRIDE=1 rewrites only the routing host variable (proxy.ts:110). The probe reports
-  // url.hostname (proxy.ts:116), which the override never changes, so it never sees pay.expanpress.com.
+  // Gate: skipped unless PAY_HOST_LIVE=1. With PAY_HOST_LIVE=1 the test runs, and the precondition below fails.
+  // Root cause (reproduced with PAY_HOST_LIVE=1): the /__e2e/proxy-host probe (proxy.ts:116) reports url.hostname, which
+  // next dev sets to "localhost" for the pay context (proxy.ts:102 reads the same value). E2E_PROXY_HOST_OVERRIDE=1 rewrites
+  // only the routing host (proxy.ts:106), so the probe never sees pay.expanpress.com.
   // Fix: report the effective host from the probe, or assert on the Host header instead.
   test.skip(!process.env.PAY_HOST_LIVE, "blocked: /__e2e/proxy-host reports localhost for the pay Host header; the E2E host override rewrites routing only (proxy.ts:106, probe at :115)");
   const main = await apiRequest.newContext({ baseURL: APP_URL, maxRedirects: 0 });
