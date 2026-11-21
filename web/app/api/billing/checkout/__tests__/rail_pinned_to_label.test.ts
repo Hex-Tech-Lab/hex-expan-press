@@ -206,6 +206,20 @@ describe("parsePostBody: the labelled rail is read from the POST body", () => {
     }
   });
 
+  it("refuses a multipart file part as rail with 400 rail_invalid, not a silent null", async () => {
+    // A urlencoded body is always strings, so the only non-string rail that reaches the form branch is a multipart File part.
+    const form = new FormData();
+    form.append("product", PID);
+    form.append("rail", new File(["paddle"], "rail.txt", { type: "text/plain" }));
+    const req = new NextRequest(postUrl, { method: "POST", body: form });
+    const parsed = await parsePostBody(req);
+    expect(parsed.ok).toBe(false);
+    if (!parsed.ok) {
+      expect(parsed.response.status).toBe(400);
+      expect(await parsed.response.json()).toMatchObject({ ok: false, code: "rail_invalid" });
+    }
+  });
+
   it("is null when no rail is sent", async () => {
     const req = new NextRequest(postUrl, {
       method: "POST",

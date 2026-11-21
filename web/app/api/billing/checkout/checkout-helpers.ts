@@ -324,6 +324,12 @@ export async function parsePostBody(
     const v = formMap.get(key);
     return typeof v === "string" ? v : null;
   };
+  // Same contract as the JSON path: a multipart file part under `rail` is not a label. getField would read it as null
+  // and skip the rail_changed pin, so refuse it. (A urlencoded body is always strings, so this only fires for multipart.)
+  const rawRail = formMap.get("rail");
+  if (rawRail !== null && rawRail !== undefined && typeof rawRail !== "string") {
+    return { ok: false, response: jsonError(400, "Invalid rail", "rail_invalid") };
+  }
   const product = getField("product") ?? qp.get("product") ?? "";
   const railField = getField("rail")?.trim() ?? "";
   return {
