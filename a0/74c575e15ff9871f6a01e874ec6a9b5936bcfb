@@ -1,0 +1,38 @@
+web/app/api/billing/checkout/route.ts
+  s_7e539dcf78d9db::t_f58fe8066087d8 234-235
+  s_7e539dcf78d9db::t_3293da5cb9a19f 119
+  s_7e539dcf78d9db::t_b2289388972863 120-121
+  s_7e539dcf78d9db::t_b478521901b4bb 233
+  s_7e539dcf78d9db::t_d6c35aa88a1f43 251-253
+  s_7e539dcf78d9db::t_650363d5f4b900 321
+payments/src/settings_registry.ts
+  s_7e539dcf78d9db::t_3e72d9ede94637 162-164
+web/e2e/b2c-confinement.spec.ts
+  s_7e539dcf78d9db::t_cc8901c4d07994 131-133
+web/app/api/billing/checkout/__tests__/rail_pinned_to_label.test.ts
+  s_7e539dcf78d9db::t_f5b05811b4c11c 170-210
+web/src/components/storefront/storefront.tsx
+  s_7e539dcf78d9db::t_480662454b1135 32-33
+web/__tests__/checkout-rails.test.ts
+  s_7e539dcf78d9db::t_2ac5cfb5fb8fa3 62-64
+  s_7e539dcf78d9db::t_69ff176f170838 51
+web/src/lib/checkout-rails.ts
+  s_7e539dcf78d9db::t_f0d7719c566f49 31
+  s_7e539dcf78d9db::t_fc00b9198c3a4c 58,61-62
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a074c575e15ff9871f6a01e874ec6a9b5936bcfb",
+  "prompts": {},
+  "sessions": {
+    "s_7e539dcf78d9db": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7aec794a-3e95-4ace-bf8d-7a1962c629d9",
+        "model": "unknown"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
