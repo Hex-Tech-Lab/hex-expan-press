@@ -92,7 +92,7 @@ export function BookPreviewToolbar({
           aria-label={labels.reset_zoom}
           title={labels.reset_zoom}
           data-testid="book-preview-zoom-reset"
-          className="hidden sm:inline-flex items-center justify-center min-h-[44px] min-w-[44px] touch-manipulation rounded-full border border-[#dcc7b4] bg-white text-gray-900 hover:bg-[#faf5ee] disabled:opacity-45 disabled:cursor-not-allowed transition-colors"
+          className={`${canResetZoom ? "inline-flex" : "hidden"} sm:inline-flex items-center justify-center min-h-[44px] min-w-[44px] touch-manipulation rounded-full border border-[#dcc7b4] bg-white text-gray-900 hover:bg-[#faf5ee] disabled:opacity-45 disabled:cursor-not-allowed transition-colors`}
         >
           <ResetZoomIcon />
         </button>
@@ -117,7 +117,7 @@ export function BookPreviewToolbar({
             disabled={status !== "ready" || totalPages <= 0}
             title={labels.go_to_page}
             data-testid="book-preview-goto-input"
-            className="w-9 sm:w-11 bg-transparent text-center font-mono text-base sm:text-xs tabular-nums font-medium text-gray-900 focus:outline-none disabled:opacity-45"
+            className="min-h-[44px] min-w-[44px] w-11 sm:min-h-0 sm:min-w-0 bg-transparent text-center font-mono text-base sm:text-xs tabular-nums font-medium text-gray-900 focus:outline-none disabled:opacity-45"
           />
           <span className="whitespace-nowrap font-mono text-xs tabular-nums text-gray-500 select-none pr-1" aria-hidden="true">
             {`/ ${totalPages || "—"}`}

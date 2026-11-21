@@ -45,6 +45,14 @@ test("flipbook toolbar fits one row with >=44px targets at 390px", async ({ page
   await expect(bar.locator("xpath=..").getByText("Next", { exact: true })).toBeHidden();
   await expect(page.getByTestId("book-preview-zoom-label")).toHaveAttribute("aria-live", "polite");
   await expect(page.getByTestId("book-preview-goto-submit")).toBeVisible();
+  // Page field is a finger-sized target too.
+  const input = (await page.getByTestId("book-preview-goto-input").boundingBox())!;
+  expect(input.width).toBeGreaterThanOrEqual(44);
+  expect(input.height).toBeGreaterThanOrEqual(44);
+  // Phones zoom by native pinch: the page-flip stage must allow pinch-zoom (page-flip's CSS default is pan-y only).
+  await page.getByTestId("book-preview-section").scrollIntoViewIfNeeded();
+  await expect(page.getByTestId("book-preview-stage")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByTestId("book-preview-stage")).toHaveCSS("touch-action", "pan-y pinch-zoom");
   // iOS Safari zooms the whole page on focus of any input under 16px, so the page field must be >= 16px below sm.
   const gotoFontPx = await page
     .getByTestId("book-preview-goto-input")
@@ -101,6 +109,21 @@ test("read-aloud controls fit one row at 390px", async ({ page }) => {
     expect(box.height).toBeGreaterThanOrEqual(44);
     expect(box.x + box.width).toBeLessThanOrEqual(card.x + card.width + 0.5);
   }
+});
+
+test("reset stays reachable after rotating a zoomed preview to phone width", async ({ page }) => {
+  await page.setViewportSize({ width: 844, height: 390 });
+  await page.goto(PRODUCT_URL);
+  await page.getByTestId("book-preview-section").scrollIntoViewIfNeeded();
+  await expect(page.getByTestId("book-preview-stage")).toBeVisible({ timeout: 30_000 });
+  await page.getByTestId("book-preview-zoom-in").click();
+  await expect(page.getByTestId("book-preview-zoom-label")).toHaveText("135%");
+  await page.setViewportSize({ width: 390, height: 844 });
+  const reset = page.getByTestId("book-preview-zoom-reset");
+  await expect(reset).toBeVisible();
+  await reset.click();
+  await expect(page.getByTestId("book-preview-zoom-label")).toHaveText("100%");
+  await expect(reset).toBeHidden();
 });
 
 test.describe("desktop keeps text labels", () => {
