@@ -38,6 +38,8 @@ const CONSENT_VERIFICATION_FAILED = "Checkout consent verification failed";
 
 function lookupFailed(product: string, message: string): ProductLookup {
   console.warn(`[billing/checkout] product lookup warning for '${product}': ${message}`);
+  // A failed product lookup on a revenue path is an incident: report it.
+  Sentry.captureException(new Error(`checkout: product lookup failed: ${message}`), { tags: { surface: "checkout_route", reason: "product_lookup_failed" } });
   return { response: jsonError(500, CONSENT_VERIFICATION_FAILED) };
 }
 
@@ -292,6 +294,8 @@ async function handleCheckout(
     const problem = checkoutUrlProblem(rail.checkout_url, resolvedProduct.checkout_mode);
     if (problem) {
       console.error(`[billing/checkout] rejected checkout_url for '${product}' (${rail.provider}): ${problem}`);
+      // A configured rail with an unusable checkout URL is a misconfiguration on a revenue path: report it.
+      Sentry.captureException(new Error(`checkout: rejected checkout_url (${problem})`), { tags: { surface: "checkout_route", reason: "checkout_url_rejected" } });
       return jsonError(500, "Checkout is not configured");
     }
   }

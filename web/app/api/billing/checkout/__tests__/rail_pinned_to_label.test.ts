@@ -253,6 +253,28 @@ describe("checkout route: the charged rail must be the rail the buyer was shown"
     expect(sentry.captureException).toHaveBeenCalledTimes(1);
   });
 
+  it("a product lookup error: 500 and reported to Sentry", async () => {
+    sentry.captureException.mockClear();
+    adminModule.mockAdminClient = {
+      from: (table: string) => {
+        if (table === "products") return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null, error: { message: "products table down" } }) }) }) };
+        return { select: () => ({ eq: () => ({ order: async () => ({ data: [paddleRail], error: null }) }) }) };
+      },
+    };
+    const res = await GET(checkoutRequest("paddle"));
+    expect(res.status).toBe(500);
+    expect(sentry.captureException).toHaveBeenCalledTimes(1);
+  });
+
+  it("a live rail with an insecure checkout URL: 500 and reported to Sentry, no redirect", async () => {
+    sentry.captureException.mockClear();
+    adminModule.mockAdminClient = adminClient([{ ...paddleRail, checkout_url: "http://buy.paddle.com/insecure" }]);
+    const res = await GET(checkoutRequest("paddle"));
+    expect(res.status).toBe(500);
+    expect(res.headers.get("location")).toBeNull();
+    expect(sentry.captureException).toHaveBeenCalledTimes(1);
+  });
+
   it("a missing service-role client: 500 and reported to Sentry (deploy misconfiguration)", async () => {
     sentry.captureException.mockClear();
     adminModule.mockAdminClient = null;
