@@ -14,6 +14,7 @@ import {
 } from "../../../src/components/storefront/storefront";
 import { ATTRIBUTION_KEYS } from "../../../src/lib/attribution";
 import { buyerConsentText } from "../../../src/lib/buyer-email";
+import { isPurchasableProduct } from "../../../src/lib/product-purchasable";
 import { paddleOverlayConfig, paddleOverlayUsable } from "../../../src/lib/paddle-overlay-server";
 import { GLOBAL, defaultEnabledPaymentProvider, paymentProviderDisplayName } from "../../../../payments/src/settings_registry";
 
@@ -65,6 +66,8 @@ export default async function CheckoutPage({
   const price = priceOf(p);
   const priceDisplay = formatProductPrice(price, p.currency, "—");
   const live = p.checkout_mode === "live";
+  // No price means no buy form: the email step (which opens the overlay) is not rendered for an unpriced product.
+  const purchasable = isPurchasableProduct(p);
   const brand = GLOBAL.storefront.brand_name;
   if (railProvider === null) {
     console.error("[checkout] no active enabled rail for product; falling back to default provider label", { productId });
@@ -72,10 +75,11 @@ export default async function CheckoutPage({
   const activeProvider = railProvider ?? defaultEnabledPaymentProvider();
   const morName = activeProvider ? paymentProviderDisplayName(activeProvider) : null;
   const overlayCfg = paddleOverlayConfig();
-  if (live && !overlayCfg.ok) {
+  const hasPaddlePrice = typeof p.paddle_price_id === "string" && p.paddle_price_id.trim() !== "";
+  // Log only where the Paddle overlay could have been used (same gate as paddleClient below), not for every non-Paddle rail.
+  if (live && activeProvider === "paddle" && hasPaddlePrice && !overlayCfg.ok) {
     console.error("[checkout] paddle overlay unavailable; buyer gets the POST fallback", { productId, reason: overlayCfg.reason });
   }
-  const hasPaddlePrice = typeof p.paddle_price_id === "string" && p.paddle_price_id.trim() !== "";
   const paddleClient =
     live &&
     activeProvider === "paddle" &&
@@ -116,7 +120,7 @@ export default async function CheckoutPage({
           </p>
         )}
 
-        {live ? (
+        {purchasable ? (
           <BuyerEmailStep
             action="/api/billing/checkout"
             productId={p.id}
@@ -131,7 +135,7 @@ export default async function CheckoutPage({
             className="self-start rounded-full border border-[#dcc7b4] bg-white/60 px-6 py-3.5 text-sm font-semibold text-gray-700"
             aria-disabled="true"
             data-checkout-slot="primary"
-            data-checkout-mode="gated"
+            data-checkout-mode={live ? "unpriced" : "gated"}
           >
             Coming soon &mdash; not yet available for purchase
           </p>

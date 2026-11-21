@@ -59,7 +59,7 @@ function makeAdminClient(
         const chain = {
           eq: () => chain,
           maybeSingle: async () => ({
-            data: { id: PID, creator_id: OWNER_ID, release_sha256: RELEASE_SHA, checkout_mode: checkoutMode },
+            data: { id: PID, creator_id: OWNER_ID, release_sha256: RELEASE_SHA, price_usd: "39.00", checkout_mode: checkoutMode },
             error: null,
           }),
         };

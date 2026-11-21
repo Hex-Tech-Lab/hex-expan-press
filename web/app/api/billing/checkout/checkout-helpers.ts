@@ -22,6 +22,8 @@ export type ProductRow = {
   id: string;
   store_product_id?: string | null;
   creator_id: string | null;
+  /** products.price_usd. Null means the product has no price and cannot be sold (checkout answers 409). */
+  price_usd?: string | number | null;
   release_sha256?: string | null;
   checkout_mode?: string | null;
   /** The Paddle price the overlay sells (products.paddle_price_id). Null until the price is set up at Paddle. */

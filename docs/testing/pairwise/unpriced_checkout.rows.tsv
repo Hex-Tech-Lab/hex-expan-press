@@ -1,0 +1,6 @@
+price	rail	checkout_mode
+set	absent	live
+null	present	gated
+set	present	live
+null	absent	live
+set	absent	gated

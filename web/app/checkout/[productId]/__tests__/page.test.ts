@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { fetchCheckoutProduct } from "../../../../src/components/storefront/storefront";
 import { ATTRIBUTION_KEYS } from "../../../../src/lib/attribution";
+import { paddleOverlayConfig } from "../../../../src/lib/paddle-overlay-server";
 import { GLOBAL } from "../../../../../payments/src/settings_registry";
 import CheckoutPage from "../page";
 
@@ -55,6 +56,7 @@ function product(over: Record<string, unknown> = {}, extra: { displayName?: stri
       currency: "USD",
       checkout_mode: "live",
       paddle_price_id: null,
+      price_usd: "39.00",
       ...over,
     },
   };
@@ -174,6 +176,66 @@ describe("checkout page: gated branch", () => {
       if (el.type === "BuyerEmailStep") emailSteps += 1;
     });
     expect(emailSteps).toBe(0);
+  });
+});
+
+describe("checkout page: unpriced product (price_usd null) has no buy form", () => {
+  it.each([
+    ["null", null],
+    ["blank", "  "],
+  ])("live product with price_usd %s renders no BuyerEmailStep and the unpriced non-purchasable notice", async (_label, price_usd) => {
+    vi.mocked(fetchCheckoutProduct).mockResolvedValue(product({ price_usd }) as never);
+    const tree = await render("p1");
+    let emailSteps = 0;
+    let unpriced = 0;
+    walk(tree as unknown as Node, (el) => {
+      if (el.type === "BuyerEmailStep") emailSteps += 1;
+      if (el.props["data-checkout-mode"] === "unpriced") unpriced += 1;
+    });
+    expect(emailSteps).toBe(0);
+    expect(unpriced).toBe(1);
+  });
+
+  it("live product with a set price keeps the BuyerEmailStep form (control)", async () => {
+    vi.mocked(fetchCheckoutProduct).mockResolvedValue(product({ price_usd: "39.00" }) as never);
+    const tree = await render("p1");
+    let emailSteps = 0;
+    walk(tree as unknown as Node, (el) => {
+      if (el.type === "BuyerEmailStep") emailSteps += 1;
+    });
+    expect(emailSteps).toBe(1);
+  });
+});
+
+describe("checkout page: paddle overlay error log is gated to Paddle-overlay checkouts", () => {
+  const OVERLAY_LOG = "[checkout] paddle overlay unavailable";
+  let errorSpy: ReturnType<typeof vi.spyOn>;
+  const overlayLogs = () => errorSpy.mock.calls.filter((args: unknown[]) => String(args[0]).startsWith(OVERLAY_LOG)).length;
+
+  beforeEach(() => {
+    errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    errorSpy.mockRestore();
+  });
+
+  it("a live product on a non-Paddle rail never logs the Paddle overlay error", async () => {
+    vi.mocked(fetchCheckoutProduct).mockResolvedValue(product({ paddle_price_id: "pri_1" }, { railProvider: "creem" }) as never);
+    await render("p1");
+    expect(overlayLogs()).toBe(0);
+  });
+
+  it("a Paddle rail with no paddle_price_id never logs the Paddle overlay error", async () => {
+    vi.mocked(fetchCheckoutProduct).mockResolvedValue(product({ paddle_price_id: null }, { railProvider: "paddle" }) as never);
+    await render("p1");
+    expect(overlayLogs()).toBe(0);
+  });
+
+  it("a live Paddle checkout logs the overlay error exactly when the overlay config is not usable", async () => {
+    vi.mocked(fetchCheckoutProduct).mockResolvedValue(product({ paddle_price_id: "pri_1" }, { railProvider: "paddle" }) as never);
+    await render("p1");
+    expect(overlayLogs()).toBe(paddleOverlayConfig().ok ? 0 : 1);
   });
 });
 

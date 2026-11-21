@@ -1,8 +1,14 @@
-house	override	book_registry	is_sample
-yes	slug	present	absent
-no	slug	present	true
-yes	slug	absent	true
-no	slug	absent	false
-no	none	absent	absent
-yes	none	present	absent
-yes	slug	present	false
+house	override	book_file	identity	sample_source
+yes	none	sample_book	mismatch	registry_true
+yes	slug	duane_book	missing	override_true
+no	slug	sample_book	missing	registry_true
+no	none	duane_book	match	absent
+yes	slug	sample_book	match	registry_true
+yes	slug	sample_book	mismatch	absent
+no	slug	none	missing	override_false
+no	slug	none	missing	override_true
+yes	slug	sample_book	match	override_false
+no	slug	duane_book	mismatch	override_false
+no	slug	sample_book	mismatch	override_true
+yes	slug	sample_book	match	override_true
+yes	none	none	missing	absent

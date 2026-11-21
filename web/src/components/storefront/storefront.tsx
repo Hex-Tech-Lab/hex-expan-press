@@ -6,6 +6,7 @@ import { getSupabaseAdmin } from "../../../../payments/src/supabase_admin";
 import { GLOBAL, isEnabledPaymentProvider } from "../../../../payments/src/settings_registry";
 import { guidSchema, productSlugSchema } from "../../lib/zod-rules";
 import { resolveProductBookAssets } from "../../lib/book-assets";
+import { productPriceUsd } from "../../lib/product-purchasable";
 import { BrandFooter } from "../brand/brand";
 
 /**
@@ -75,12 +76,9 @@ export function productSlugOf(storeProduct: Pick<StoreProduct, "slug">): string 
   return storeProduct.slug ?? "";
 }
 
-/** numeric-as-string coercion with a finite guard (Sprint 15 money-path rule). */
+/** numeric-as-string coercion with a finite guard (Sprint 15 money-path rule). Shared rule: lib/product-purchasable. */
 export function priceOf(storeProduct: Pick<StoreProduct, "price_usd">): number | null {
-  const raw = storeProduct.price_usd;
-  // Type-narrow before coercing: Number(null) is 0 and Number(true) is 1, so only strings and numbers convert.
-  const n = typeof raw === "string" || typeof raw === "number" ? Number(raw) : NaN;
-  return Number.isFinite(n) ? n : null;
+  return productPriceUsd(storeProduct.price_usd);
 }
 
 /**

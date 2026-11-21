@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { MatrixRouter } from "../../../../../src/infrastructure/matrix_router/matrix_router";
 import { getSupabaseAdmin } from "../../../../../payments/src/supabase_admin";
-import { isEnabledPaymentProvider } from "../../../../../payments/src/settings_registry";
+import { GLOBAL, isEnabledPaymentProvider } from "../../../../../payments/src/settings_registry";
+import { productPriceUsd } from "../../../../src/lib/product-purchasable";
 import { verifiedProviderNames } from "../webhook/verifiers";
 import { normalizeSha256, strictActiveConsentKinds, strictChainHead } from "../../../../src/lib/consent-chain";
 import { guidSchema, productRefSchema } from "../../../../src/lib/zod-rules";
@@ -28,13 +29,23 @@ export const runtime = "nodejs";
 type SupabaseAdmin = NonNullable<Awaited<ReturnType<typeof getSupabaseAdmin>>>;
 type ProductLookup = { product: ProductRow } | { response: NextResponse };
 
-const PRODUCT_COLUMNS = "id, store_product_id, creator_id, release_sha256, checkout_mode, paddle_price_id";
+const PRODUCT_COLUMNS = "id, store_product_id, creator_id, release_sha256, checkout_mode, paddle_price_id, price_usd";
 const GATE_CONSENT_KINDS = ["C1_data_accuracy", "C2_release_approval", "C3_revenue_split"] as const;
 const CONSENT_VERIFICATION_FAILED = "Checkout consent verification failed";
 
 function lookupFailed(product: string, message: string): ProductLookup {
   console.warn(`[billing/checkout] product lookup warning for '${product}': ${message}`);
   return { response: jsonError(500, CONSENT_VERIFICATION_FAILED) };
+}
+
+/**
+ * No active payment rail: 503 Service Unavailable with Retry-After (registry value). Fails closed before any order or
+ * provider label is written, so the buyer is never sent to a default provider.
+ */
+function noActiveRailResponse(): NextResponse {
+  const res = jsonError(503, "Checkout is temporarily unavailable. No payment rail is accepting orders.", "no_active_rail");
+  res.headers.set("Retry-After", String(GLOBAL.payments.checkout_no_rail_retry_after_seconds));
+  return res;
 }
 
 function productNotFound(product: string): ProductLookup {
@@ -184,6 +195,12 @@ async function handleCheckout(
       return jsonError(403, "Checkout forbidden: product is not launched");
     }
 
+    // Fail closed on a null price before any consent or rail work: an unpriced product is not for sale (409 Conflict).
+    if (productPriceUsd(resolvedProduct.price_usd) === null) {
+      console.error(`[billing/checkout] product '${product}' has no price (price_usd is null) — refusing checkout`);
+      return jsonError(409, "Product has no price and is not available for purchase", "product_unpriced");
+    }
+
     const ownerId = resolvedProduct.creator_id;
     if (!ownerId) {
       console.error(`[billing/checkout] product owner unresolvable for '${product}' — failing closed`);
@@ -242,7 +259,7 @@ async function handleCheckout(
 
     if (configuredRowCount > 0 && dbRails.length === 0) {
       console.error(`[billing/checkout] product '${product}' has ${configuredRowCount} configured rail(s) but none usable (not active, or provider switched off) — refusing checkout`);
-      return jsonError(404, `Checkout is disabled for product '${product}'`);
+      return noActiveRailResponse();
     }
   } catch (err) {
     console.error(`[billing/checkout] consent verification exception for '${product}': ${(err as Error).message}`);
@@ -250,7 +267,8 @@ async function handleCheckout(
   }
 
   if (dbRails.length === 0) {
-    return jsonError(404, `No rails configuration found for product '${product}'`);
+    console.error(`[billing/checkout] product '${product}' has no active payment rail — answering 503, no order and no provider label`);
+    return noActiveRailResponse();
   }
   const rails: CheckoutRail[] = dbRails;
 
