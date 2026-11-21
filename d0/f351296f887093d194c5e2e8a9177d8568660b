@@ -1,0 +1,32 @@
+payments/src/settings_registry.ts
+  s_7e539dcf78d9db::t_c9218f7ded019c 163
+web/app/api/billing/checkout/route.ts
+  s_7e539dcf78d9db::t_700c161127eaaa 339
+web/playwright.config.ts
+  s_7e539dcf78d9db::t_76597ec812c091 77
+web/app/checkout/[productId]/__tests__/page.test.ts
+  s_7e539dcf78d9db::t_e717c03664e1be 13
+web/e2e/b2c-confinement.spec.ts
+  s_7e539dcf78d9db::t_55d556b8e97567 130
+  s_7e539dcf78d9db::t_37e8996b9ac9e9 10
+  s_7e539dcf78d9db::t_3f2dbb6ec77375 132
+web/app/api/billing/checkout/__tests__/rail_pinned_to_label.test.ts
+  s_7e539dcf78d9db::t_7c416d4fae4f6d 308-331
+  s_7e539dcf78d9db::t_db0adab4055df7 5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d0f351296f887093d194c5e2e8a9177d8568660b",
+  "prompts": {},
+  "sessions": {
+    "s_7e539dcf78d9db": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7aec794a-3e95-4ace-bf8d-7a1962c629d9",
+        "model": "unknown"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
