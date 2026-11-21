@@ -16,7 +16,7 @@ import { ATTRIBUTION_KEYS } from "../../../src/lib/attribution";
 import { buyerConsentText } from "../../../src/lib/buyer-email";
 import { isPurchasableProduct } from "../../../src/lib/product-purchasable";
 import { paddleOverlayConfig, paddleOverlayUsable } from "../../../src/lib/paddle-overlay-server";
-import { GLOBAL, defaultEnabledPaymentProvider, paymentProviderDisplayName } from "../../../../payments/src/settings_registry";
+import { GLOBAL, paymentProviderDisplayName } from "../../../../payments/src/settings_registry";
 
 /**
  * Checkout page on pay.expanpress.com (ADR 0061). The only origin that starts a
@@ -70,9 +70,10 @@ export default async function CheckoutPage({
   const purchasable = isPurchasableProduct(p);
   const brand = GLOBAL.storefront.brand_name;
   if (railProvider === null) {
-    console.error("[checkout] no active enabled rail for product; falling back to default provider label", { productId });
+    console.error("[checkout] no active enabled rail for product; no provider is named on the page", { productId });
   }
-  const activeProvider = railProvider ?? defaultEnabledPaymentProvider();
+  // Name the merchant of record only for a real selected rail. With no rail there is no provider to name (the route 503s).
+  const activeProvider = railProvider;
   const morName = activeProvider ? paymentProviderDisplayName(activeProvider) : null;
   const overlayCfg = paddleOverlayConfig();
   const hasPaddlePrice = typeof p.paddle_price_id === "string" && p.paddle_price_id.trim() !== "";

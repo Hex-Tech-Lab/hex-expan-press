@@ -292,6 +292,14 @@ describe("checkout page: Paddle Option A client config, MoR provider line, and h
     expect(creemHtml).not.toContain("Paddle.com");
   });
 
+  it("with no active rail the page names no merchant of record and no default provider", async () => {
+    vi.mocked(fetchCheckoutProduct).mockResolvedValue(product({}, { railProvider: null }) as never);
+    const html = renderToStaticMarkup(await render("p1"));
+    expect(html).not.toContain("Merchant of Record");
+    expect(html).not.toContain("Paddle.com");
+    expect(html).not.toContain("Creem");
+  });
+
   it("renders 'Published by ExpanPress' for house products and 'A creator-collaboration publication with <creator>' without middle dot", async () => {
     const stripTags = (html: string) => html.replace(/<[^>]+>/g, "");
     vi.mocked(fetchCheckoutProduct).mockResolvedValue(product({}, { displayName: GLOBAL.storefront.brand_name, isHouse: true }) as never);
