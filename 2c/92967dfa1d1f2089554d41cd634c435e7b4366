@@ -1,0 +1,21 @@
+web/src/lib/product-purchasable.ts
+  s_7e539dcf78d9db::t_1a51113526173c 2,4-6
+web/app/api/billing/checkout/__tests__/route.test.ts
+  s_7e539dcf78d9db::t_2e93f693cb0db1 170
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "2c92967dfa1d1f2089554d41cd634c435e7b4366",
+  "prompts": {},
+  "sessions": {
+    "s_7e539dcf78d9db": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7aec794a-3e95-4ace-bf8d-7a1962c629d9",
+        "model": "unknown"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
