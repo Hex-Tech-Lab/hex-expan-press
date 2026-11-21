@@ -1,0 +1,72 @@
+web/app/books/[handle]/[product]/__tests__/page.test.ts
+  s_7e539dcf78d9db::t_0ce6612a591ec2 31
+  s_7e539dcf78d9db::t_5ba1734208cdd5 207-224
+web/src/lib/checkout-rails.ts
+  s_7e539dcf78d9db::t_a2175dea8c1d6f 44,52
+  s_7e539dcf78d9db::t_e8ac2f77be75cc 1-30,32-43,45-51,53-78
+  s_7e539dcf78d9db::t_31a2084be2dff9 31
+web/app/books/[handle]/[product]/page.tsx
+  s_7e539dcf78d9db::t_ff3bfb01f06d7c 76
+docs/testing/pairwise/checkout_rails_resolver.model.txt
+  s_7e539dcf78d9db::t_50dda4521cc891 1-23
+web/src/lib/product-purchasable.ts
+  s_7e539dcf78d9db::t_4b62c318dbb493 4-9,21-26
+web/app/api/billing/checkout/route.ts
+  s_7e539dcf78d9db::t_c6fea1cb655685 237-241
+  s_7e539dcf78d9db::t_6d660a6b13459e 6
+  s_7e539dcf78d9db::t_38a2a5730dae05 231-234,236,244-245
+  s_7e539dcf78d9db::t_1d9c63e4046be2 242
+web/__tests__/checkout_rails_resolver.pairwise.test.ts
+  s_7e539dcf78d9db::t_d3af69cfbd1013 1-69
+payments/test/delivery.test.ts
+  s_7e539dcf78d9db::t_1b49454fbdbf22 91-98
+web/__tests__/checkout-rails.test.ts
+  s_7e539dcf78d9db::t_ce42d63b99298c 39
+  s_7e539dcf78d9db::t_8c94ac17a1d412 43-45
+  s_7e539dcf78d9db::t_2dcab18918db1e 1-38,40-42,46-57,59-87
+  s_7e539dcf78d9db::t_462bf8780be241 58
+web/app/checkout/[productId]/page.tsx
+  s_7e539dcf78d9db::t_046230be8998ae 69-70
+web/e2e/mock-supabase.ts
+  s_7e539dcf78d9db::t_8ab597ac854354 197-199
+  s_7e539dcf78d9db::t_d92c154430909a 225
+  s_7e539dcf78d9db::t_f86e881b38b804 194-196,200-202,207,209-217
+src/adapters/payments/__tests__/creem.adapter.test.ts
+  s_7e539dcf78d9db::t_c8959545d0c44a 103-118
+web/__tests__/storefront.test.ts
+  s_7e539dcf78d9db::t_3799a8f4f07dfb 388
+  s_7e539dcf78d9db::t_6a2e507a5010da 387
+web/src/components/storefront/storefront.tsx
+  s_7e539dcf78d9db::t_efe64c3b5d09c3 59-60
+  s_7e539dcf78d9db::t_3c3884a8938b07 528-529
+  s_7e539dcf78d9db::t_b6861ba20e16ac 220
+  s_7e539dcf78d9db::t_0c94358eb70dc3 248-250
+  s_7e539dcf78d9db::t_ba8d2318464119 292
+  s_7e539dcf78d9db::t_faabd9cf6ee7af 264
+  s_7e539dcf78d9db::t_3a6428dcfb71ce 9-11
+  s_7e539dcf78d9db::t_7b0b2caa62db58 228
+  s_7e539dcf78d9db::t_c78c81e30c3846 88-89,92,94,96-106
+  s_7e539dcf78d9db::t_ff65b31e96e7c2 90-91,93,95
+  s_7e539dcf78d9db::t_c9881ceab081bd 329,333-335,339-340
+  s_7e539dcf78d9db::t_124d71f6400aa7 514
+  s_7e539dcf78d9db::t_75426d7c15e4ff 568-577
+  s_7e539dcf78d9db::t_9929a48d1752e1 208,282
+docs/testing/pairwise/checkout_rails_resolver.rows.tsv
+  s_7e539dcf78d9db::t_e3c19a158844d7 1-8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7833632527551d760ee8548fb775c16811bbcac2",
+  "prompts": {},
+  "sessions": {
+    "s_7e539dcf78d9db": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7aec794a-3e95-4ace-bf8d-7a1962c629d9",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
