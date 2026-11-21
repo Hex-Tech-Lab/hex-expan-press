@@ -1,0 +1,36 @@
+web/app/api/billing/checkout/route.ts
+  s_7e539dcf78d9db::t_3a091f7d0ec003 298-305,308-309,312-316,318-319
+web/app/api/billing/checkout/__tests__/route.test.ts
+  s_7e539dcf78d9db::t_7b1c922c1685a3 1173,1178
+  s_7e539dcf78d9db::t_455756f2e29342 1394
+  s_7e539dcf78d9db::t_4ca7e2d547d3b2 394,400-412
+  s_7e539dcf78d9db::t_3db8f0e2b5003a 1404-1405,1407
+  s_7e539dcf78d9db::t_6639190707b208 1464,1472-1473
+web/app/api/billing/checkout/__tests__/route.unavailable.test.ts
+  s_7e539dcf78d9db::t_8fb0751c3247b9 104,106-109,111-123
+  s_7e539dcf78d9db::t_ff1446f78512f4 5
+web/app/api/billing/checkout/__tests__/unpriced_checkout.pairwise.test.ts
+  s_7e539dcf78d9db::t_48f55cf354ea8c 62-66
+  s_7e539dcf78d9db::t_2342f1a6f2c286 44
+  s_7e539dcf78d9db::t_748fd3a2781fab 51-53
+  s_7e539dcf78d9db::t_8e6a7d400fddbe 148
+docs/testing/pairwise/unpriced_checkout.model.txt
+  s_7e539dcf78d9db::t_a5aa6413919572 8
+  s_7e539dcf78d9db::t_55f5d8080d6c1e 24-25
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a6d20a9d6c24b9d780dbd315829d42e5682787b1",
+  "prompts": {},
+  "sessions": {
+    "s_7e539dcf78d9db": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7aec794a-3e95-4ace-bf8d-7a1962c629d9",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
