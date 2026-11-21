@@ -315,7 +315,9 @@ async function handleCheckout(
         GLOBAL.payments.checkout_router_error_retry_after_seconds,
       );
     }
-    console.error(`[billing/checkout] MatrixRouter unexpected failure for '${product}': ${(err as Error).stack ?? String(err)} — answering 500, no default provider`);
+    // A rejection can be any value (including null or undefined), so read .stack only from a real Error.
+    const detail = err instanceof Error ? (err.stack ?? err.message) : String(err);
+    console.error(`[billing/checkout] MatrixRouter unexpected failure for '${product}': ${detail} — answering 500, no default provider`);
     return jsonError(500, "Checkout failed unexpectedly", "router_unexpected_error");
   }
 

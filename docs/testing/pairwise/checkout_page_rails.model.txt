@@ -16,3 +16,6 @@
 rails: one, two
 provider: paddle, creem
 overlay: usable, unusable
+
+# Seeded row (not a PICT output, appended to the generated rows): "one	paddle	unusable". PICT covers every pair
+# without it, but it is the case the page test asserts explicitly (single Paddle rail, overlay unusable), so it is committed.

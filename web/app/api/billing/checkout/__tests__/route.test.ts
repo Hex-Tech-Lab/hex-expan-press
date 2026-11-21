@@ -391,6 +391,27 @@ describe("billing/checkout wave85 sandbox + raw-URL fail-closed", () => {
     }
   });
 
+  it("production with a null MatrixRouter rejection still answers the fail-closed 500 JSON, no Retry-After, no redirect", async () => {
+    vi.stubEnv("VERCEL_ENV", "production");
+    adminModule.mockAdminClient = gateAdminClient(undefined, undefined, {
+      data: [{ provider: "paddle", weight: 100, checkout_url: "https://buy.paddle.com/live-rail", active: true }],
+      error: null,
+    });
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      vi.mocked(MatrixRouter.getNextProvider).mockRejectedValueOnce(null);
+      const res = await GET(request());
+      expect(res.status).toBe(500);
+      expect(await res.json()).toMatchObject({ ok: false, code: "router_unexpected_error" });
+      expect(res.headers.get("retry-after")).toBeNull();
+      expect(res.headers.get("location")).toBeNull();
+      const unexpectedLogs = errorSpy.mock.calls.filter((args: unknown[]) => String(args[0]).includes("unexpected failure"));
+      expect(unexpectedLogs).toHaveLength(1);
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
+
   it("production with an unknown MatrixRouter error answers 500 router_unexpected_error, logs the stack, no Retry-After, no redirect", async () => {
     vi.stubEnv("VERCEL_ENV", "production");
     adminModule.mockAdminClient = gateAdminClient(undefined, undefined, {

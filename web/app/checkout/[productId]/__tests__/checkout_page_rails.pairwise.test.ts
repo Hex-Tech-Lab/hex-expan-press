@@ -33,7 +33,9 @@ vi.mock("next/navigation", () => ({
 }));
 
 const ROWS_PATH = fileURLToPath(new URL("../../../../../docs/testing/pairwise/checkout_page_rails.rows.tsv", import.meta.url));
-const EXPECTED_ROW_COUNT = 5;
+const EXPECTED_ROW_COUNT = 6;
+// The seeded row, appended to the generated rows: a single Paddle rail whose overlay is unusable.
+const SEEDED_ROW: Row = { rails: "one", provider: "paddle", overlay: "unusable" };
 const OVERLAY_LOG = "[checkout] paddle overlay unavailable";
 const MULTI_RAIL_WARN = "[checkout] more than one active rail";
 const TOKEN = "live_tok_123";
@@ -132,6 +134,10 @@ describe("checkout page: active rail count, provider and overlay (PICT pairwise)
 
   it(`the committed rows match the generated count (${EXPECTED_ROW_COUNT})`, () => {
     expect(ROWS).toHaveLength(EXPECTED_ROW_COUNT);
+  });
+
+  it("the committed rows include the seeded single-Paddle, overlay-unusable row", () => {
+    expect(ROWS).toContainEqual(SEEDED_ROW);
   });
 
   it.each(ROWS.map((r) => [`${r.rails} rail(s), ${r.provider}, overlay ${r.overlay}`, r] as const))("%s", async (_label, row) => {
