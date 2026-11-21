@@ -68,6 +68,12 @@ describe("resolveCheckoutRails", () => {
     expect(r).toEqual({ kind: "malformed", reason: "invalid_checkout_url" });
   });
 
+  it("is malformed for a live product whose usable rail points at a sandbox host (the route answers 500)", () => {
+    const withRealCheck = { ...ALL_ON, checkoutUrlProblem: checkoutUrlProblem };
+    const r = resolveCheckoutRails([rail("paddle", true, { checkout_url: "https://sandbox-buy.paddle.com/x" })], withRealCheck);
+    expect(r).toEqual({ kind: "malformed", reason: "invalid_checkout_url" });
+  });
+
   it("does not URL-check an inactive or unverified rail, as the route only checks the rails it selects", () => {
     const withRealCheck = { ...ALL_ON, checkoutUrlProblem: checkoutUrlProblem, verifiedProviders: new Set(["paddle"]) };
     const r = resolveCheckoutRails(

@@ -120,7 +120,8 @@ describe("checkout page and route agree on rails (PICT rails axis: zero, one, tw
       // Buy form (POST fallback), no merchant of record, and the route still redirects to one of the usable rails.
       expect(page).toEqual({ purchasable: true, merchantOfRecordProvider: null });
       expect(res.status).toBe(302);
-      expect([PADDLE_URL, CREEM_URL]).toContain(res.headers.get("location"));
+      // MatrixRouter is mocked to pick paddle, so the redirect must be exactly the paddle rail (not creem).
+      expect(res.headers.get("location")).toBe(PADDLE_URL);
     }
   });
 });
