@@ -150,12 +150,22 @@ describe("checkout route: the charged rail must be the rail the buyer was shown"
     }
   });
 
-  it("configured rails but none usable (switched off): 503, and the outage is reported to Sentry", async () => {
+  it("a switched-off rail (active=false) refuses with 503 and is NOT reported to Sentry", async () => {
     sentry.captureException.mockClear();
     adminModule.mockAdminClient = adminClient([{ ...paddleRail, active: false }]);
     const res = await GET(checkoutRequest("paddle"));
     expect(res.status).toBe(503);
+    expect(sentry.captureException).not.toHaveBeenCalled();
+  });
+
+  it("an active rail that is malformed (non-string checkout_url) fails closed with 500 and is reported exactly once", async () => {
+    sentry.captureException.mockClear();
+    adminModule.mockAdminClient = adminClient([{ ...paddleRail, checkout_url: 42 }]);
+    const res = await GET(checkoutRequest("paddle"));
+    expect(res.status).toBe(500);
     expect(sentry.captureException).toHaveBeenCalledTimes(1);
+    const [, options] = sentry.captureException.mock.calls[0] as [unknown, { tags: Record<string, string> }];
+    expect(options.tags).toEqual({ surface: "checkout_route", reason: "invalid_active_row" });
   });
 
   it("a consent read that throws: 500 and the exception is reported to Sentry", async () => {

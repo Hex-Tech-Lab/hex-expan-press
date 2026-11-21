@@ -8,7 +8,7 @@ import { GLOBAL, isEnabledPaymentProvider } from "../../../../payments/src/setti
 import { guidSchema, productSlugSchema } from "../../lib/zod-rules";
 import { resolveProductBookAssets } from "../../lib/book-assets";
 import { isPurchasableProduct, productPriceUsd } from "../../lib/product-purchasable";
-import { resolveCheckoutRails, usableRailsOf, type UsableRail } from "../../lib/checkout-rails";
+import { resolveCheckoutRails, usableRailsOf, type RailResolution, type UsableRail } from "../../lib/checkout-rails";
 import { verifiedProviderNames } from "../../../app/api/billing/webhook/verifiers";
 import { checkoutUrlProblem } from "../../../app/api/billing/checkout/checkout-helpers";
 import { BrandFooter } from "../brand/brand";
@@ -93,7 +93,7 @@ export function priceOf(storeProduct: Pick<StoreProduct, "price_usd">): number |
  *  Malformed rows yield no usable rails, so nothing malformed can take a buyer. */
 // The verifier set is fixed by the code and the registry, so it is built once per process, not once per product row.
 let verifiedNamesCache: ReadonlySet<string> | undefined;
-export function usableRailsForRows(rows: ReadonlyArray<unknown> | null | undefined, checkoutMode?: string | null): UsableRail[] {
+export function resolveRailsForRows(rows: ReadonlyArray<unknown> | null | undefined, checkoutMode?: string | null): RailResolution {
   verifiedNamesCache ??= verifiedProviderNames();
   const resolution = resolveCheckoutRails(rows, {
     isEnabledProvider: isEnabledPaymentProvider,
@@ -106,7 +106,11 @@ export function usableRailsForRows(rows: ReadonlyArray<unknown> | null | undefin
     console.error(`[storefront] product_rails malformed (${resolution.reason}) — product shown as Coming soon`);
     Sentry.captureException(new Error(`product_rails malformed: ${resolution.reason}`), { tags: { surface: "storefront_rails", reason: resolution.reason } });
   }
-  return usableRailsOf(resolution);
+  return resolution;
+}
+
+export function usableRailsForRows(rows: ReadonlyArray<unknown> | null | undefined, checkoutMode?: string | null): UsableRail[] {
+  return usableRailsOf(resolveRailsForRows(rows, checkoutMode));
 }
 
 /** Replaces the embedded product_rails rows with usable_rail_count, so the rail rows never reach a card or a page. */
@@ -321,8 +325,8 @@ export const fetchCheckoutProduct = cache(async function fetchCheckoutProduct(
   product: StoreProduct;
   /** Usable rails in weight order, from the shared resolver. The page derives purchasable, MoR and overlay from these. */
   usableRails: UsableRail[];
-  /** product_rails rows configured for this product, active or not. Zero is a designed state; more than zero with no usable rail is an outage. */
-  configuredRailCount: number;
+  /** Active rails whose provider is switched on (malformed sets count 0; they report on their own). Switched-off rails are not counted. Zero is a designed state; more than zero with no usable rail is an outage. */
+  activeRailCount: number;
 } | null> {
   if (!guidSchema.safeParse(productId).success) return null;
   const supabase = await getSupabaseAdmin();
@@ -351,8 +355,13 @@ export const fetchCheckoutProduct = cache(async function fetchCheckoutProduct(
   if (railErr) throw new Error(`storefront: checkout rails query failed for '${productId}': ${railErr.message}`);
   // The same usable rails the checkout route counts (shared resolver). The first is the highest-weight usable rail (the page names it only when exactly one is usable); the count
   // drives the rail-aware rule: none is "Coming soon", more than one is no merchant of record and no overlay.
-  const usable = usableRailsForRows(railRows, row.checkout_mode);
-  return { creator, product: row, usableRails: usable, configuredRailCount: Array.isArray(railRows) ? railRows.length : 0 };
+  const resolution = resolveRailsForRows(railRows, row.checkout_mode);
+  return {
+    creator,
+    product: row,
+    usableRails: usableRailsOf(resolution),
+    activeRailCount: resolution.kind === "ok" ? resolution.activeCount : 0,
+  };
 });
 
 export { isHouseCreator } from "../../lib/house";

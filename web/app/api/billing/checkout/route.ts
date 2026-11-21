@@ -265,12 +265,15 @@ async function handleCheckout(
       return jsonError(500, "Checkout is not configured");
     }
     dbRails = resolution.usable;
-    const configuredRowCount = resolution.configuredCount;
+    const activeRailCount = resolution.activeCount;
 
-    if (configuredRowCount > 0 && dbRails.length === 0) {
-      console.error(`[billing/checkout] product '${product}' has ${configuredRowCount} configured rail(s) but none usable (not active, or provider switched off) — refusing checkout`);
-      // Revenue outage for a paid product: report it. Zero configured rows is a designed state and is not reported.
-      Sentry.captureException(new Error("checkout: configured rails, none usable"), { tags: { surface: "checkout_route", reason: "no_active_rail" } });
+    if (dbRails.length === 0) {
+      console.error(`[billing/checkout] product '${product}' has ${activeRailCount} active enabled rail(s) and none usable — refusing checkout`);
+      // Report only when an active, enabled rail exists and none is usable. A switched-off rail and a product with no rail
+      // are designed states and are not reported.
+      if (activeRailCount > 0) {
+        Sentry.captureException(new Error("checkout: active enabled rails, none usable"), { tags: { surface: "checkout_route", reason: "no_active_rail" } });
+      }
       return noActiveRailResponse();
     }
   } catch (err) {

@@ -10,7 +10,7 @@ import CheckoutPage from "../page";
 // "server-only" throws outside the react-server condition; stub it so this file loads under any runner (as the sibling page tests do).
 vi.mock("server-only", () => ({}));
 
-// Zero configured rail rows is the designed "Coming soon" state and is not reported to Sentry. Configured rails with none usable is an outage and is reported.
+// No active rail, or only switched-off rails, is the designed "Coming soon" state and is not reported to Sentry. An active enabled rail that is not usable is an outage and is reported.
 vi.mock("@sentry/nextjs", () => ({ captureException: vi.fn() }));
 
 // Money-path branches of the pay-domain checkout page: a live product renders the single-hop
@@ -63,13 +63,13 @@ function usableRailsFixture(provider: string | null | undefined, count: number) 
 
 function product(
   over: Record<string, unknown> = {},
-  extra: { displayName?: string; isHouse?: boolean; railProvider?: string | null; activeRailCount?: number; configuredRailCount?: number } = {},
+  extra: { displayName?: string; isHouse?: boolean; railProvider?: string | null; activeRailCount?: number } = {},
 ) {
   const railProvider = "railProvider" in extra ? extra.railProvider : "paddle";
   return {
     creator: { handle: "ada", display_name: extra.displayName ?? "Ada", is_house: extra.isHouse ?? false },
     usableRails: usableRailsFixture(railProvider, extra.activeRailCount ?? (railProvider === null ? 0 : 1)),
-    configuredRailCount: extra.configuredRailCount ?? (railProvider === null ? 0 : 1),
+    activeRailCount: extra.activeRailCount ?? (railProvider === null ? 0 : 1),
     product: {
       id: "p1",
       title: "Book",
@@ -240,14 +240,14 @@ describe("checkout page: unpriced product (price_usd null) has no buy form", () 
     expect(steps[0]!.railProvider ?? null).toBeNull();
   });
 
-  it("configured rails that are all off (an outage) are reported to Sentry; zero configured rows are not", async () => {
+  it("an active enabled rail that is not usable is reported to Sentry; a switched-off or absent rail is not", async () => {
     vi.mocked(Sentry.captureException).mockClear();
-    vi.mocked(fetchCheckoutProduct).mockResolvedValue(product({ price_usd: "39.00" }, { railProvider: null, configuredRailCount: 1 }) as never);
+    vi.mocked(fetchCheckoutProduct).mockResolvedValue(product({ price_usd: "39.00" }, { railProvider: null, activeRailCount: 1 }) as never);
     await render("p1");
     expect(Sentry.captureException).toHaveBeenCalledTimes(1);
 
     vi.mocked(Sentry.captureException).mockClear();
-    vi.mocked(fetchCheckoutProduct).mockResolvedValue(product({ price_usd: "39.00" }, { railProvider: null, configuredRailCount: 0 }) as never);
+    vi.mocked(fetchCheckoutProduct).mockResolvedValue(product({ price_usd: "39.00" }, { railProvider: null, activeRailCount: 0 }) as never);
     await render("p1");
     expect(Sentry.captureException).not.toHaveBeenCalled();
   });

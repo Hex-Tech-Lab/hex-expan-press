@@ -21,13 +21,26 @@ const rail = (provider: unknown, active: unknown = true, extra: Record<string, u
 describe("resolveCheckoutRails", () => {
   it("counts only active rails, and accepts the string 'true' as active", () => {
     const r = resolveCheckoutRails([rail("paddle", "true"), rail("creem", false)], ALL_ON);
-    expect(r).toMatchObject({ kind: "ok", configuredCount: 2 });
+    expect(r).toMatchObject({ kind: "ok", activeCount: 1 });
     expect(usableRailsOf(r).map((u) => u.provider)).toEqual(["paddle"]);
   });
 
   it("drops a rail whose provider is switched off in the registry", () => {
     const r = resolveCheckoutRails([rail("paddle"), rail("creem")], { ...ALL_ON, isEnabledProvider: (p) => p !== "creem" });
     expect(usableRailsOf(r).map((u) => u.provider)).toEqual(["paddle"]);
+    expect(r).toMatchObject({ kind: "ok", activeCount: 1 });
+  });
+
+  it("a switched-off rail (inactive or provider disabled) is not counted as active, so it cannot report an outage", () => {
+    const inactive = resolveCheckoutRails([rail("paddle", false)], ALL_ON);
+    expect(inactive).toMatchObject({ kind: "ok", activeCount: 0, usable: [] });
+    const providerOff = resolveCheckoutRails([rail("creem")], { ...ALL_ON, isEnabledProvider: () => false });
+    expect(providerOff).toMatchObject({ kind: "ok", activeCount: 0, usable: [] });
+  });
+
+  it("an active, enabled rail that cannot be used (no verifier) is counted as active, so it does report", () => {
+    const r = resolveCheckoutRails([rail("creem")], { ...ALL_ON, verifiedProviders: new Set(["paddle"]) });
+    expect(r).toMatchObject({ kind: "ok", activeCount: 1, usable: [] });
   });
 
   it("drops a rail whose provider has no webhook verifier, so an unverifiable rail cannot take a buyer", () => {
@@ -37,7 +50,7 @@ describe("resolveCheckoutRails", () => {
 
   it("answers no usable rails when every configured rail is inactive, which the route turns into 503", () => {
     const r = resolveCheckoutRails([rail("paddle", false)], ALL_ON);
-    expect(r).toMatchObject({ kind: "ok", configuredCount: 1 });
+    expect(r).toMatchObject({ kind: "ok", activeCount: 0 });
     expect(usableRailsOf(r)).toEqual([]);
   });
 
@@ -98,7 +111,7 @@ describe("resolveCheckoutRails", () => {
   });
 
   it("treats a missing row list as zero configured rails", () => {
-    expect(resolveCheckoutRails(null, ALL_ON)).toEqual({ kind: "ok", configuredCount: 0, usable: [] });
+    expect(resolveCheckoutRails(null, ALL_ON)).toEqual({ kind: "ok", activeCount: 0, usable: [] });
   });
 
   it("counts a malformed result as zero usable rails for buyer surfaces", () => {
