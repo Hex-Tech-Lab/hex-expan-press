@@ -1,0 +1,23 @@
+web/src/lib/checkout-rails.ts
+  s_7e539dcf78d9db::t_387713c0d8705f 50-52
+web/__tests__/checkout-rails.test.ts
+  s_7e539dcf78d9db::t_2921b2706832d6 46-47
+web/e2e/mock-supabase.ts
+  s_7e539dcf78d9db::t_f4a0478a2fbc04 196,198,200
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a66033de0808b602d99ea2840b95cac0af004577",
+  "prompts": {},
+  "sessions": {
+    "s_7e539dcf78d9db": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7aec794a-3e95-4ace-bf8d-7a1962c629d9",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
