@@ -74,7 +74,9 @@ export default defineConfig({
       url: `${APP_URL}/creator/signin`,
       reuseExistingServer: false,
       timeout: E2E.serverStartTimeoutMs,
-      env: appEnv,
+      // Test-only: enables the /__e2e/proxy-host probe that test (d) in e2e/b2c-confinement.spec.ts needs. proxy.ts also
+      // requires NODE_ENV !== "production", so this flag is inert in the E2E_PROD=1 build.
+      env: { ...appEnv, E2E_PROXY_HOST_DIAGNOSTIC: "1" },
     },
   ],
 });
