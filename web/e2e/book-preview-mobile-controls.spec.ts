@@ -37,6 +37,12 @@ test("flipbook toolbar fits one row with >=44px targets at 390px", async ({ page
   await expect(page.getByTestId("book-preview-zoom-reset")).toBeHidden();
   // Zoom label is visually hidden below sm but must stay in the DOM as the polite live region.
   await expect(page.getByTestId("book-preview-zoom-label")).not.toHaveCSS("display", "none");
+  // Visually hidden (sr-only = 1x1 clipped), not merely present.
+  const zoomBox = (await page.getByTestId("book-preview-zoom-label").boundingBox())!;
+  expect(zoomBox.width).toBeLessThanOrEqual(1);
+  // Icon-only below sm: the Prev/Next text spans are not rendered visibly.
+  await expect(bar.locator("xpath=..").getByText("Prev", { exact: true })).toBeHidden();
+  await expect(bar.locator("xpath=..").getByText("Next", { exact: true })).toBeHidden();
   await expect(page.getByTestId("book-preview-zoom-label")).toHaveAttribute("aria-live", "polite");
   await expect(page.getByTestId("book-preview-goto-submit")).toBeVisible();
   await parent.scrollIntoViewIfNeeded();
@@ -83,4 +89,23 @@ test("read-aloud controls fit one row at 390px", async ({ page }) => {
   await expect(page.getByTestId("read-aloud-toggle")).toHaveAttribute("data-playback-state", "playing");
   await expect(page.getByTestId("read-aloud-stop")).toBeVisible();
   expect(await rowCount(page, "read-aloud-controls")).toBe(1);
+  const card = (await page.getByTestId("book-preview-accessible-card").boundingBox())!;
+  for (const b of await page.getByTestId("read-aloud-controls").locator("button:visible").all()) {
+    const box = (await b.boundingBox())!;
+    expect(box.width).toBeGreaterThanOrEqual(44);
+    expect(box.height).toBeGreaterThanOrEqual(44);
+    expect(box.x + box.width).toBeLessThanOrEqual(card.x + card.width + 0.5);
+  }
+});
+
+test.describe("desktop keeps text labels", () => {
+  test.use({ viewport: { width: 1280, height: 900 }, hasTouch: false, isMobile: false });
+  test("Prev/Next/Go text and zoom reset visible at 1280px", async ({ page }) => {
+    await page.goto(PRODUCT_URL);
+    const row = page.getByTestId("book-preview-toolbar").locator("xpath=..");
+    await expect(row.getByText("Prev", { exact: true })).toBeVisible();
+    await expect(row.getByText("Next", { exact: true })).toBeVisible();
+    await expect(page.getByTestId("book-preview-zoom-reset")).toBeVisible();
+    await expect(page.getByTestId("book-preview-zoom-label")).toBeVisible();
+  });
 });

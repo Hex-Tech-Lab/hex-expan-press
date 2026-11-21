@@ -70,7 +70,7 @@ export function BookPreviewToolbar({
         <span
           data-testid="book-preview-zoom-label"
           aria-live="polite"
-          className="sr-only sm:not-sr-only min-w-[3rem] text-center font-mono text-xs font-medium text-gray-700 select-none"
+          className="sr-only sm:not-sr-only sm:min-w-[3rem] text-center font-mono text-xs font-medium text-gray-700 select-none"
         >
           {`${Math.round(zoom * 100)}%`}
         </span>
