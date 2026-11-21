@@ -139,6 +139,15 @@ describe("checkout route: the charged rail must be the rail the buyer was shown"
     expect(sentry.captureException).toHaveBeenCalledWith(boom);
   });
 
+  it("an active zero-weight rail is malformed: 500, and the fail-closed 500 is reported to Sentry", async () => {
+    sentry.captureException.mockClear();
+    adminModule.mockAdminClient = adminClient([{ ...paddleRail, weight: 0 }]);
+    const res = await GET(checkoutRequest("paddle"));
+    expect(res.status).toBe(500);
+    expect(res.headers.get("location")).toBeNull();
+    expect(sentry.captureException).toHaveBeenCalledTimes(1);
+  });
+
   it("zero configured rail rows is a designed state: 503 with no Sentry report", async () => {
     sentry.captureException.mockClear();
     adminModule.mockAdminClient = adminClient([]);

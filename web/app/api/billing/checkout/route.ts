@@ -244,6 +244,8 @@ async function handleCheckout(
             ? "has a usable rail with an invalid checkout_url"
             : "has an active rail with a missing provider or non-string checkout_url";
       console.error(`[billing/checkout] product '${product}' ${detail} — failing closed`);
+      // A 500 is an incident on a revenue path: report it, like the other failure branches of this handler.
+      Sentry.captureException(new Error(`checkout: malformed product_rails (${resolution.reason})`), { tags: { surface: "checkout_route", reason: resolution.reason } });
       return jsonError(500, "Checkout is not configured");
     }
     dbRails = resolution.usable;
