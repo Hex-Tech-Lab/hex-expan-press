@@ -106,11 +106,30 @@ describe("checkout route: the charged rail must be the rail the buyer was shown"
       expect(mismatchLine).toBeDefined();
       // Raw CR/LF from the label never reach the log line.
       expect(mismatchLine).not.toMatch(/[\r\n]/);
-      // The label appears JSON-encoded (escaped), and only its first rail_label_log_max_chars characters are written.
+      // The label appears JSON-encoded (escaped), and only its first rail_label_log_max_chars characters of the ENCODED text.
       const cap = GLOBAL.payments.rail_label_log_max_chars;
-      const shown = JSON.stringify(forged.slice(0, cap));
+      const shown = JSON.stringify(forged).slice(0, cap);
       expect(mismatchLine).toContain(`page showed ${shown}`);
       expect(mismatchLine).not.toContain("x".repeat(cap + 1));
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
+
+  it("caps the JSON-encoded label, so escapes cannot expand the logged value past rail_label_log_max_chars", async () => {
+    adminModule.mockAdminClient = adminClient([paddleRail, creemRail]);
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      // 64 NUL characters: 64 characters raw, but each one encodes to a 6-character escape (\u0000).
+      const res = await GET(checkoutRequest("\u0000".repeat(64)));
+      expect(res.status).toBe(409);
+      const mismatchLine = errorSpy.mock.calls.map((c) => String(c[0])).find((m) => m.includes("rail changed"));
+      expect(mismatchLine).toBeDefined();
+      const cap = GLOBAL.payments.rail_label_log_max_chars;
+      const logged = /page showed (.*), router selected/.exec(mismatchLine ?? "")?.[1] ?? "";
+      expect(logged.length).toBeLessThanOrEqual(cap);
+      expect(logged.length).toBeGreaterThan(0);
+      expect(mismatchLine).not.toMatch(/\u0000/);
     } finally {
       errorSpy.mockRestore();
     }
