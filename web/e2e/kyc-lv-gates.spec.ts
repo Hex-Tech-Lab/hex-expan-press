@@ -90,6 +90,11 @@ for (const viewport of [
       const zoomLabel = page.getByTestId("book-preview-zoom-label");
       const previewViewport = page.getByTestId("book-preview-viewport");
 
+      // Below sm (640px) zoom is native pinch (industry norm for phone readers); the buttons are hidden.
+      if (viewport.width < 640) {
+        for (const btn of [zoomIn, zoomOut, resetZoom]) await expect(btn).toBeHidden();
+        await expect(zoomLabel).toHaveText("100%");
+      } else {
       for (const btn of [zoomIn, zoomOut, resetZoom]) {
         const aria = await btn.getAttribute("aria-label");
         expect(aria).toBeTruthy();
@@ -116,6 +121,7 @@ for (const viewport of [
       await expect(zoomLabel).toHaveText("135%");
       await resetZoom.click();
       await expect(zoomLabel).toHaveText("100%");
+      }
 
       // Go to page 4
       const goToInput = page.getByTestId("book-preview-goto-input");
