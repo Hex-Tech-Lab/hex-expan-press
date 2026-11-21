@@ -49,7 +49,7 @@ export function BookPreviewToolbar({
   onFlipNext,
 }: BookPreviewToolbarProps) {
   return (
-    <div className="flex w-full flex-nowrap items-center justify-between gap-1.5 sm:w-auto sm:flex-wrap sm:justify-start sm:gap-2 self-start lg:self-auto">
+    <div className="flex w-full flex-nowrap items-center justify-between gap-1 sm:w-auto sm:flex-wrap sm:justify-start sm:gap-2 self-start lg:self-auto">
       <div
         role="toolbar"
         aria-label={labels.toolbar_aria_label}
@@ -98,7 +98,7 @@ export function BookPreviewToolbar({
         </button>
         <form
           onSubmit={onGoToPageSubmit}
-          className="inline-flex items-center gap-1 rounded-full border border-[#dcc7b4] bg-white pl-2 pr-1 sm:pl-3 sm:pr-0 min-h-[44px]"
+          className="inline-flex items-center gap-0.5 sm:gap-1 rounded-full border border-[#dcc7b4] bg-white pl-2 pr-0.5 sm:pl-3 sm:pr-0 min-h-[44px]"
         >
           <label htmlFor={goToInputId} className="sr-only">
             {labels.go_to_page}
@@ -117,9 +117,9 @@ export function BookPreviewToolbar({
             disabled={status !== "ready" || totalPages <= 0}
             title={labels.go_to_page}
             data-testid="book-preview-goto-input"
-            className="w-9 sm:w-11 bg-transparent text-center font-mono text-sm sm:text-xs tabular-nums font-medium text-gray-900 focus:outline-none disabled:opacity-45"
+            className="w-7 sm:w-11 bg-transparent text-center font-mono text-sm sm:text-xs tabular-nums font-medium text-gray-900 focus:outline-none disabled:opacity-45"
           />
-          <span className="font-mono text-xs text-gray-500 select-none pr-1" aria-hidden="true">
+          <span className="whitespace-nowrap font-mono text-xs tabular-nums text-gray-500 select-none pr-1" aria-hidden="true">
             {`/ ${totalPages || "—"}`}
           </span>
           <button
