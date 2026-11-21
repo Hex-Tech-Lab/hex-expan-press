@@ -167,7 +167,7 @@ beforeEach(() => {
 describe("billing/checkout DB rail in production, fail-closed without rails", () => {
   beforeEach(() => {
     // Gate must pass. DB rails start EMPTY so the no-rail case reaches the
-    // 404 fail-closed branch; the production cases install their own rail
+    // 503 no_active_rail fail-closed branch; the production cases install their own rail
     // with setLiveRail, which replaces this fixture.
     adminModule.mockAdminClient = gateAdminClient(undefined, undefined, { data: [], error: null });
   });

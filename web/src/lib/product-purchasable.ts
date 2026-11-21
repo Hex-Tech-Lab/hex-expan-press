@@ -1,8 +1,9 @@
 /**
- * Purchasability rule shared by the product page, the checkout page, and the checkout route.
+ * Price and purchasability rules for buyer surfaces.
  *
- * A product is purchasable only when it is live AND has a usable price. A null (or blank, or non-numeric) price_usd
- * means "not for sale yet": buyer surfaces show a non-purchasable state and the checkout route fails closed with 409.
+ * isPurchasableProduct (live AND priced) gates the product and checkout pages. The checkout route shares only
+ * productPriceUsd: it fails closed with 409 on a null price, and its own launch gate (live, or sandbox when allowed)
+ * still decides the rest. A null (or blank, or non-numeric) price_usd means "not for sale yet".
  * Pure function, no imports, so server routes and React components can both use it.
  */
 
