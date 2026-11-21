@@ -181,7 +181,7 @@ export function BookPreviewAccessibleCard({
             role="group"
             aria-label={raLabels.group_aria_label}
             data-testid="read-aloud-controls"
-            className="flex flex-wrap items-center gap-1.5"
+            className="flex flex-nowrap items-center gap-1.5"
           >
             <button
               type="button"
@@ -190,14 +190,14 @@ export function BookPreviewAccessibleCard({
               title={readAloudActionLabel}
               data-testid="read-aloud-toggle"
               data-playback-state={playbackState}
-              className={`inline-flex items-center gap-1.5 min-h-[44px] px-3.5 py-2 rounded-full text-xs font-semibold transition-colors cursor-pointer ${
+              className={`inline-flex items-center justify-center gap-1.5 min-h-[44px] min-w-[44px] touch-manipulation px-0 sm:px-3.5 py-2 rounded-full text-xs font-semibold transition-colors cursor-pointer ${
                 playbackState === "playing"
                   ? "bg-charcoal text-white hover:bg-[#2a2a2a]"
                   : "border border-[#dcc7b4] bg-white text-gray-900 hover:bg-[#faf5ee]"
               }`}
             >
               {playbackState === "playing" ? <PauseIcon /> : <SpeakerIcon />}
-              <span>{readAloudActionText}</span>
+              <span className="hidden sm:inline">{readAloudActionText}</span>
             </button>
 
             {playbackState !== "idle" && (
@@ -207,10 +207,10 @@ export function BookPreviewAccessibleCard({
                 aria-label={raLabels.stop}
                 title={raLabels.stop}
                 data-testid="read-aloud-stop"
-                className="inline-flex items-center gap-1.5 min-h-[44px] px-3 py-2 rounded-full border border-[#dcc7b4] bg-white text-xs font-semibold text-gray-900 hover:bg-[#faf5ee] transition-colors cursor-pointer"
+                className="inline-flex items-center justify-center gap-1.5 min-h-[44px] min-w-[44px] touch-manipulation px-0 sm:px-3 py-2 rounded-full border border-[#dcc7b4] bg-white text-xs font-semibold text-gray-900 hover:bg-[#faf5ee] transition-colors cursor-pointer"
               >
                 <StopIcon />
-                <span>{raLabels.stop_text}</span>
+                <span className="hidden sm:inline">{raLabels.stop_text}</span>
               </button>
             )}
 
@@ -221,7 +221,7 @@ export function BookPreviewAccessibleCard({
               title={raLabels.speed_aria_label}
               data-testid="read-aloud-speed"
               data-rate={String(currentRate)}
-              className="inline-flex items-center justify-center min-h-[44px] min-w-[48px] px-3 py-2 rounded-full border border-[#dcc7b4] bg-white font-mono text-xs font-semibold text-gray-900 hover:bg-[#faf5ee] transition-colors cursor-pointer"
+              className="inline-flex items-center justify-center min-h-[44px] min-w-[48px] touch-manipulation px-3 py-2 rounded-full border border-[#dcc7b4] bg-white font-mono text-xs font-semibold text-gray-900 hover:bg-[#faf5ee] transition-colors cursor-pointer"
             >
               {`${currentRate}${raLabels.rate_suffix}`}
             </button>
