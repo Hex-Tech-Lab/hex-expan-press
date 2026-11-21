@@ -1,0 +1,22 @@
+web/e2e/book-preview-mobile-controls.spec.ts
+  s_0e99959cd74c50::t_dbcdef73e7d0ef 78-81
+  s_0e99959cd74c50::t_87d1f466526d5c 44-70,77
+  s_0e99959cd74c50::t_b6cffae6786368 8
+  s_0e99959cd74c50::t_98415c58c0467b 72-76
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e61ed0e714a42111e199175dcf9395995cc8ce15",
+  "prompts": {},
+  "sessions": {
+    "s_0e99959cd74c50": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "21b00acc-7513-46d6-9a35-038af7845be2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
