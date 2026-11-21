@@ -1,0 +1,23 @@
+web/app/books/[handle]/[product]/page.tsx
+  s_7e539dcf78d9db::t_820917f6b82bde 77
+web/src/components/storefront/storefront.tsx
+  s_7e539dcf78d9db::t_84ebf1e1d8a617 96
+web/src/lib/book-assets.ts
+  s_7e539dcf78d9db::t_46026a5da78d6a 103-106
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "aada39088a514845890f6282a3c8cecbc10b195b",
+  "prompts": {},
+  "sessions": {
+    "s_7e539dcf78d9db": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7aec794a-3e95-4ace-bf8d-7a1962c629d9",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
