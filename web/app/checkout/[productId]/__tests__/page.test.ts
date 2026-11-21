@@ -4,10 +4,14 @@ import { fetchCheckoutProduct } from "../../../../src/components/storefront/stor
 import { ATTRIBUTION_KEYS } from "../../../../src/lib/attribution";
 import { paddleOverlayConfig } from "../../../../src/lib/paddle-overlay-server";
 import { GLOBAL } from "../../../../../payments/src/settings_registry";
+import * as Sentry from "@sentry/nextjs";
 import CheckoutPage from "../page";
 
 // "server-only" throws outside the react-server condition; stub it so this file loads under any runner (as the sibling page tests do).
 vi.mock("server-only", () => ({}));
+
+// The designed "Coming soon" state (zero usable rails) is not an error: the page must not report it to Sentry.
+vi.mock("@sentry/nextjs", () => ({ captureException: vi.fn() }));
 
 // Money-path branches of the pay-domain checkout page: a live product renders the single-hop
 // BuyerEmailStep POST form, a gated product gets the disabled notice and no form, and an
@@ -59,12 +63,13 @@ function usableRailsFixture(provider: string | null | undefined, count: number) 
 
 function product(
   over: Record<string, unknown> = {},
-  extra: { displayName?: string; isHouse?: boolean; railProvider?: string | null; activeRailCount?: number } = {},
+  extra: { displayName?: string; isHouse?: boolean; railProvider?: string | null; activeRailCount?: number; configuredRailCount?: number } = {},
 ) {
   const railProvider = "railProvider" in extra ? extra.railProvider : "paddle";
   return {
     creator: { handle: "ada", display_name: extra.displayName ?? "Ada", is_house: extra.isHouse ?? false },
     usableRails: usableRailsFixture(railProvider, extra.activeRailCount ?? (railProvider === null ? 0 : 1)),
+    configuredRailCount: extra.configuredRailCount ?? (railProvider === null ? 0 : 1),
     product: {
       id: "p1",
       title: "Book",
@@ -211,6 +216,53 @@ describe("checkout page: unpriced product (price_usd null) has no buy form", () 
     });
     expect(emailSteps).toBe(0);
     expect(unpriced).toBe(1);
+  });
+
+  it("hands the single usable rail's provider to BuyerEmailStep as railProvider (the label the route pins)", async () => {
+    vi.mocked(fetchCheckoutProduct).mockResolvedValue(product({ paddle_price_id: null }, { railProvider: "creem", activeRailCount: 1 }) as never);
+    const tree = await render("p1");
+    const steps: Array<Record<string, unknown>> = [];
+    walk(tree as unknown as Node, (el) => {
+      if (el.type === "BuyerEmailStep") steps.push(el.props);
+    });
+    expect(steps).toHaveLength(1);
+    expect(steps[0]!.railProvider).toBe("creem");
+  });
+
+  it("two usable rails: BuyerEmailStep gets no railProvider (no merchant of record to pin)", async () => {
+    vi.mocked(fetchCheckoutProduct).mockResolvedValue(product({ paddle_price_id: null }, { railProvider: "paddle", activeRailCount: 2 }) as never);
+    const tree = await render("p1");
+    const steps: Array<Record<string, unknown>> = [];
+    walk(tree as unknown as Node, (el) => {
+      if (el.type === "BuyerEmailStep") steps.push(el.props);
+    });
+    expect(steps).toHaveLength(1);
+    expect(steps[0]!.railProvider ?? null).toBeNull();
+  });
+
+  it("configured rails that are all off (an outage) are reported to Sentry; zero configured rows are not", async () => {
+    vi.mocked(Sentry.captureException).mockClear();
+    vi.mocked(fetchCheckoutProduct).mockResolvedValue(product({ price_usd: "39.00" }, { railProvider: null, configuredRailCount: 1 }) as never);
+    await render("p1");
+    expect(Sentry.captureException).toHaveBeenCalledTimes(1);
+
+    vi.mocked(Sentry.captureException).mockClear();
+    vi.mocked(fetchCheckoutProduct).mockResolvedValue(product({ price_usd: "39.00" }, { railProvider: null, configuredRailCount: 0 }) as never);
+    await render("p1");
+    expect(Sentry.captureException).not.toHaveBeenCalled();
+  });
+
+  it("live product with a set price but no usable rail is labelled no_rail, not unpriced", async () => {
+    vi.mocked(Sentry.captureException).mockClear();
+    vi.mocked(fetchCheckoutProduct).mockResolvedValue(product({ price_usd: "39.00" }, { railProvider: null }) as never);
+    const tree = await render("p1");
+    const modes: string[] = [];
+    walk(tree as unknown as Node, (el) => {
+      if (typeof el.props["data-checkout-mode"] === "string") modes.push(el.props["data-checkout-mode"]);
+    });
+    expect(modes).toContain("no_rail");
+    expect(modes).not.toContain("unpriced");
+    expect(Sentry.captureException).not.toHaveBeenCalled();
   });
 
   it("live product with a set price keeps the BuyerEmailStep form (control)", async () => {

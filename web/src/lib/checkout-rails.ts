@@ -55,7 +55,7 @@ export function resolveCheckoutRails(rows: ReadonlyArray<unknown> | null | undef
     // valid rail. Anything but a number or a non-blank numeric string is malformed (fails closed).
     const blankString = typeof row.weight === "string" && row.weight.trim() === "";
     const weight = typeof row.weight === "number" || (typeof row.weight === "string" && !blankString) ? Number(row.weight) : Number.NaN;
-    if (typeof row.provider !== "string" || row.provider === "" || typeof row.checkout_url !== "string" || !Number.isFinite(weight) || weight < 0) {
+    if (typeof row.provider !== "string" || row.provider === "" || typeof row.checkout_url !== "string" || !Number.isFinite(weight) || weight <= 0) {
       return { kind: "malformed", reason: "invalid_active_row" };
     }
     if (policy.isEnabledProvider(row.provider) && policy.verifiedProviders.has(row.provider)) {

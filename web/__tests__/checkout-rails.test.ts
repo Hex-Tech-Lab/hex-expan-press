@@ -58,6 +58,11 @@ describe("resolveCheckoutRails", () => {
     expect(usableRailsOf(r).map((u) => u.provider)).toEqual(["paddle"]);
   });
 
+  it("is malformed for a zero weight: the routing contract is weight > 0, so a zero-weight rail is never usable", () => {
+    expect(resolveCheckoutRails([rail("paddle", true, { weight: 0 })], ALL_ON)).toEqual({ kind: "malformed", reason: "invalid_active_row" });
+    expect(resolveCheckoutRails([rail("paddle", true, { weight: "0" })], ALL_ON)).toEqual({ kind: "malformed", reason: "invalid_active_row" });
+  });
+
   it("is malformed for a blank weight string, which Number('') would read as 0", () => {
     expect(resolveCheckoutRails([rail("paddle", true, { weight: "  " })], ALL_ON)).toEqual({ kind: "malformed", reason: "invalid_active_row" });
   });

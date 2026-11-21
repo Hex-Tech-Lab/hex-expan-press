@@ -24,7 +24,7 @@ const PADDLE_CLIENT = { token: "test_tok_client", environment: "sandbox" as cons
 let container: HTMLDivElement | null = null;
 let root: Root | null = null;
 
-function mount(paddleClient: typeof PADDLE_CLIENT | null = PADDLE_CLIENT) {
+function mount(paddleClient: typeof PADDLE_CLIENT | null = PADDLE_CLIENT, railProvider: string | null = null) {
   container = document.createElement("div");
   document.body.appendChild(container);
   root = createRoot(container);
@@ -42,6 +42,7 @@ function mount(paddleClient: typeof PADDLE_CLIENT | null = PADDLE_CLIENT) {
         ),
         initialAttribution: { src: "ig" },
         paddleClient,
+        railProvider,
       }),
     );
   });
@@ -67,6 +68,57 @@ afterEach(() => {
   overlayMock.openPaddleOverlay.mockReset();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
+});
+
+describe("BuyerEmailStep carries the labelled rail to the route (merchant-of-record pin)", () => {
+  it("native POST form (no Paddle overlay) carries the labelled rail as a hidden input", () => {
+    const el = mount(null, "creem");
+    const input = el.querySelector('input[name="rail"]') as HTMLInputElement | null;
+    expect(input?.value).toBe("creem");
+  });
+
+  it("no hidden rail input when no rail is labelled (multi-rail page)", () => {
+    const el = mount(null, null);
+    expect(el.querySelector('input[name="rail"]')).toBeNull();
+  });
+
+  it("JSON submit sends the labelled rail in the body, so the route can pin it", async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ ok: true, kind: "redirect", redirectUrl: "https://creem.io/payment/prod_1" }),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    Object.defineProperty(window, "location", { value: { ...window.location, assign: vi.fn() }, writable: true });
+
+    const el = mount(PADDLE_CLIENT, "creem");
+    setInput(el.querySelector("#buyer-email")!, "buyer@example.com");
+    setInput(el.querySelector("#buyer-email-confirm")!, "buyer@example.com");
+    await act(async () => {
+      el.querySelector("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+
+    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(JSON.parse(init.body as string)).toMatchObject({ rail: "creem" });
+  });
+
+  it("JSON submit omits the rail key when no rail is labelled", async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ ok: true, kind: "redirect", redirectUrl: "https://paddle.com/x" }),
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+    Object.defineProperty(window, "location", { value: { ...window.location, assign: vi.fn() }, writable: true });
+
+    const el = mount(PADDLE_CLIENT, null);
+    setInput(el.querySelector("#buyer-email")!, "buyer@example.com");
+    setInput(el.querySelector("#buyer-email-confirm")!, "buyer@example.com");
+    await act(async () => {
+      el.querySelector("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+
+    const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(JSON.parse(init.body as string)).not.toHaveProperty("rail");
+  });
 });
 
 describe("BuyerEmailStep client overlay & redirect flows", () => {

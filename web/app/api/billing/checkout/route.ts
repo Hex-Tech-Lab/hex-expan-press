@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/nextjs";
 import { NextRequest, NextResponse } from "next/server";
 import { MatrixRouter } from "../../../../../src/infrastructure/matrix_router/matrix_router";
 import { getSupabaseAdmin } from "../../../../../payments/src/supabase_admin";
@@ -250,10 +251,14 @@ async function handleCheckout(
 
     if (configuredRowCount > 0 && dbRails.length === 0) {
       console.error(`[billing/checkout] product '${product}' has ${configuredRowCount} configured rail(s) but none usable (not active, or provider switched off) — refusing checkout`);
+      // Revenue outage for a paid product: report it. Zero configured rows is a designed state and is not reported.
+      Sentry.captureException(new Error("checkout: configured rails, none usable"), { tags: { surface: "checkout_route", reason: "no_active_rail" } });
       return noActiveRailResponse();
     }
   } catch (err) {
     console.error(`[billing/checkout] consent verification exception for '${product}': ${(err as Error).message}`);
+    // Same signal as the other failure branches of this handler: a 500 here is an incident, so it is reported.
+    Sentry.captureException(err);
     return jsonError(500, CONSENT_VERIFICATION_FAILED);
   }
 
@@ -309,7 +314,9 @@ async function handleCheckout(
   // The label the buyer saw must be the rail that is charged. A rail set that changed since the page rendered (a rail added,
   // switched off, or re-weighted) makes the router pick another provider: refuse before any order or provider label.
   if (expectedRail && selectedRail.provider !== expectedRail) {
-    console.error(`[billing/checkout] rail changed for '${product}': page showed '${expectedRail}', router selected '${selectedRail.provider}' — answering 409 rail_changed`);
+    // The label is buyer-supplied: JSON-encode it (escapes CR/LF and control characters) and cap its length before logging.
+    const shownRail = JSON.stringify(expectedRail.slice(0, GLOBAL.payments.rail_label_log_max_chars));
+    console.error(`[billing/checkout] rail changed for '${product}': page showed ${shownRail}, router selected '${selectedRail.provider}' — answering 409 rail_changed`);
     return jsonError(409, "The payment provider for this product has changed. Reload the page and try again.", "rail_changed");
   }
 

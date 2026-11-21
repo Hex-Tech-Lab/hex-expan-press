@@ -283,6 +283,10 @@ export async function parsePostBody(
     const productVal = obj.product;
     const product = typeof productVal === "string" ? productVal : (qp.get("product") ?? "");
     const railVal = obj.rail;
+    // The label is a string or null. Anything else would read as "no label" and skip the rail_changed pin, so refuse it.
+    if (railVal !== undefined && railVal !== null && typeof railVal !== "string") {
+      return { ok: false, response: jsonError(400, "Invalid rail", "rail_invalid") };
+    }
     return {
       ok: true,
       value: {

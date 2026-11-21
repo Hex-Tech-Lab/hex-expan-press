@@ -5,6 +5,7 @@ import { NextRequest } from "next/server";
 import { GET } from "../route";
 import { parsePostBody } from "../checkout-helpers";
 import { MatrixRouter } from "../../../../../../src/infrastructure/matrix_router/matrix_router";
+import { GLOBAL } from "../../../../../../payments/src/settings_registry";
 
 const adminModule = vi.hoisted(() => ({
   mockAdminClient: null as unknown,
@@ -13,6 +14,9 @@ const adminModule = vi.hoisted(() => ({
 vi.mock("../../../../../../payments/src/supabase_admin", () => ({
   getSupabaseAdmin: vi.fn(async () => adminModule.mockAdminClient),
 }));
+
+const sentry = vi.hoisted(() => ({ captureException: vi.fn() }));
+vi.mock("@sentry/nextjs", () => ({ captureException: sentry.captureException }));
 
 vi.mock("../../../../../../src/infrastructure/matrix_router/matrix_router", () => ({
   MatrixRouter: { getNextProvider: vi.fn().mockResolvedValue("paddle") },
@@ -91,6 +95,58 @@ describe("checkout route: the charged rail must be the rail the buyer was shown"
     expect(res.headers.get("location")).toBeNull();
   });
 
+  it("logs a buyer-supplied rail label JSON-encoded and capped: no raw CR/LF, no forged line, bounded length", async () => {
+    adminModule.mockAdminClient = adminClient([paddleRail, creemRail]);
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const forged = `creem\r\n[billing/checkout] FORGED ${"x".repeat(200)}`;
+      const res = await GET(checkoutRequest(forged));
+      expect(res.status).toBe(409);
+      const mismatchLine = errorSpy.mock.calls.map((c) => String(c[0])).find((m) => m.includes("rail changed"));
+      expect(mismatchLine).toBeDefined();
+      // Raw CR/LF from the label never reach the log line.
+      expect(mismatchLine).not.toMatch(/[\r\n]/);
+      // The label appears JSON-encoded (escaped), and only its first rail_label_log_max_chars characters are written.
+      const cap = GLOBAL.payments.rail_label_log_max_chars;
+      const shown = JSON.stringify(forged.slice(0, cap));
+      expect(mismatchLine).toContain(`page showed ${shown}`);
+      expect(mismatchLine).not.toContain("x".repeat(cap + 1));
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
+
+  it("configured rails but none usable (switched off): 503, and the outage is reported to Sentry", async () => {
+    sentry.captureException.mockClear();
+    adminModule.mockAdminClient = adminClient([{ ...paddleRail, active: false }]);
+    const res = await GET(checkoutRequest("paddle"));
+    expect(res.status).toBe(503);
+    expect(sentry.captureException).toHaveBeenCalledTimes(1);
+  });
+
+  it("a consent read that throws: 500 and the exception is reported to Sentry", async () => {
+    sentry.captureException.mockClear();
+    const boom = new Error("consents read failed");
+    adminModule.mockAdminClient = {
+      from: (table: string) => {
+        if (table === "products") return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: PRODUCT, error: null }) }) }) };
+        if (table === "consents") return { select: () => ({ eq: () => ({ in: async () => { throw boom; } }) }) };
+        return { select: () => ({ eq: () => ({ order: async () => ({ data: paddleRail ? [paddleRail] : [], error: null }) }) }) };
+      },
+    };
+    const res = await GET(checkoutRequest("paddle"));
+    expect(res.status).toBe(500);
+    expect(sentry.captureException).toHaveBeenCalledWith(boom);
+  });
+
+  it("zero configured rail rows is a designed state: 503 with no Sentry report", async () => {
+    sentry.captureException.mockClear();
+    adminModule.mockAdminClient = adminClient([]);
+    const res = await GET(checkoutRequest());
+    expect(res.status).toBe(503);
+    expect(sentry.captureException).not.toHaveBeenCalled();
+  });
+
   it("control: page labelled paddle and router picks paddle: redirect to the paddle rail", async () => {
     adminModule.mockAdminClient = adminClient([paddleRail, creemRail]);
     const res = await GET(checkoutRequest("paddle"));
@@ -129,6 +185,25 @@ describe("parsePostBody: the labelled rail is read from the POST body", () => {
     const parsed = await parsePostBody(req);
     expect(parsed.ok).toBe(true);
     if (parsed.ok) expect(parsed.value.expectedRail).toBe("paddle");
+  });
+
+  it.each([
+    ["a number", 42],
+    ["a boolean", true],
+    ["an array", ["creem"]],
+    ["an object", { provider: "creem" }],
+  ])("refuses a rail that is %s with 400 rail_invalid, not a silent null", async (_label, rail) => {
+    const req = new NextRequest(postUrl, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ product: PID, rail }),
+    });
+    const parsed = await parsePostBody(req);
+    expect(parsed.ok).toBe(false);
+    if (!parsed.ok) {
+      expect(parsed.response.status).toBe(400);
+      expect(await parsed.response.json()).toMatchObject({ ok: false, code: "rail_invalid" });
+    }
   });
 
   it("is null when no rail is sent", async () => {

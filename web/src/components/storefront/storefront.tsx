@@ -27,8 +27,9 @@ import { BrandFooter } from "../brand/brand";
  * Data access: `getSupabaseAdmin()` — the checkout route's established
  * server-side seam. The anon RLS policies on creators/products are
  * authenticated-only, so the publishable client would read an empty set;
- * these pages render public marketing content only (profile, title, price,
- * description), never terms/consent/rails state.
+ * these pages render public marketing content (profile, title, price, description)
+ * and read product_rails only to count usable rails and name the single rail's provider.
+ * Rail rows, checkout URLs, terms and consent state never reach the rendered output.
  *
  * On a transient DB failure during ISR revalidation Next serves the last good
  * page (stale-while-error) — availability for a marketing surface, while the
@@ -319,6 +320,8 @@ export const fetchCheckoutProduct = cache(async function fetchCheckoutProduct(
   product: StoreProduct;
   /** Usable rails in weight order, from the shared resolver. The page derives purchasable, MoR and overlay from these. */
   usableRails: UsableRail[];
+  /** product_rails rows configured for this product, active or not. Zero is a designed state; more than zero with no usable rail is an outage. */
+  configuredRailCount: number;
 } | null> {
   if (!guidSchema.safeParse(productId).success) return null;
   const supabase = await getSupabaseAdmin();
@@ -348,7 +351,7 @@ export const fetchCheckoutProduct = cache(async function fetchCheckoutProduct(
   // The same usable rails the checkout route counts (shared resolver). The first is the rail the page names; the count
   // drives the rail-aware rule: none is "Coming soon", more than one is no merchant of record and no overlay.
   const usable = usableRailsForRows(railRows, row.checkout_mode);
-  return { creator, product: row, usableRails: usable };
+  return { creator, product: row, usableRails: usable, configuredRailCount: Array.isArray(railRows) ? railRows.length : 0 };
 });
 
 export { isHouseCreator } from "../../lib/house";
@@ -578,7 +581,7 @@ export function BookCard({
         {!isNonLive && !purchasable && (
           <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
             <span
-              data-checkout-mode="unpriced"
+              data-checkout-mode={priceOf(product) === null ? "unpriced" : "no_rail"}
               className="inline-flex items-center rounded-full border border-[#dcc7b4] bg-white/75 px-3 py-1 text-xs font-semibold text-gray-700"
             >
               {GLOBAL.storefront.coming_soon_badge}

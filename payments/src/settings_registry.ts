@@ -159,6 +159,9 @@ export interface GlobalSettings {
     /** Retry-After seconds on a 503 checkout response (rails_unavailable) when the router's circuit breaker has every rail marked
      *  down (MatrixRouterUnavailableError). Fail closed, no provider label, no order written. */
     checkout_router_error_retry_after_seconds: number;
+    /** Maximum characters of the buyer-supplied rail label written to the rail_changed (409) log line. The value is JSON-encoded
+     *  and cut to this length, so a crafted label cannot forge log lines or flood the log. */
+    rail_label_log_max_chars: number;
     paddle: { api_base: { production: string; sandbox: string }; js_cdn_url: string; overlay: PaddleOverlaySettings };
     routing: PaymentRoutingSettings;
     /** Creem TEST mode is accepted only when this is true, creem_test_database_ref is non-empty,
@@ -437,6 +440,7 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     retry_after_seconds: 30,
     checkout_no_rail_retry_after_seconds: 30,
     checkout_router_error_retry_after_seconds: 30,
+    rail_label_log_max_chars: 64,
     creem_accept_test_mode: false,
     creem_test_database_ref: "",
     sandbox_checkout_enabled: false,
@@ -739,6 +743,7 @@ export const PAYMENTS_LIMITS = {
   retry_after_seconds: { min: 1, max: 600 },
   checkout_no_rail_retry_after_seconds: { min: 1, max: 600 },
   checkout_router_error_retry_after_seconds: { min: 1, max: 600 },
+  rail_label_log_max_chars: { min: 8, max: 512 },
 } as const;
 
 function intInRange(value: unknown, min: number, max: number): value is number {
@@ -845,6 +850,7 @@ export function loadPaymentsSection(raw: Record<string, unknown> | undefined): G
   const retryAfterSeconds = num("retry_after_seconds");
   const checkoutNoRailRetryAfterSeconds = num("checkout_no_rail_retry_after_seconds");
   const checkoutRouterErrorRetryAfterSeconds = num("checkout_router_error_retry_after_seconds");
+  const railLabelLogMaxChars = num("rail_label_log_max_chars");
   const paddleUrl = (v: unknown, expected: string, label: string, validateAndNormalize: (x: unknown) => string | null): string => {
     const normalized = v === undefined ? null : validateAndNormalize(v);
     if (normalized !== null) return normalized;
@@ -948,6 +954,7 @@ export function loadPaymentsSection(raw: Record<string, unknown> | undefined): G
     retry_after_seconds: retryAfterSeconds,
     checkout_no_rail_retry_after_seconds: checkoutNoRailRetryAfterSeconds,
     checkout_router_error_retry_after_seconds: checkoutRouterErrorRetryAfterSeconds,
+    rail_label_log_max_chars: railLabelLogMaxChars,
     paddle: { api_base: { production: apiProduction, sandbox: apiSandbox }, js_cdn_url: jsCdn, overlay },
     routing,
     creem_accept_test_mode: p.creem_accept_test_mode === true,
