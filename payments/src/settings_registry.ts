@@ -153,9 +153,11 @@ export interface GlobalSettings {
     review_queue_page_size: number; // listManualReviewRefunds default page/limit
     /** Retry-After seconds sent on 503 webhook responses (in-flight AND generic 503 paths). */
     retry_after_seconds: number;
-    /** Retry-After seconds on a 503 checkout response when a product has no active payment rail (fail closed, no provider label). */
+    /** Retry-After seconds on a 503 checkout response (no_active_rail: no usable payment rail; rail_misconfigured: the router
+     *  picked a rail with no usable checkout_url). Fail closed, no provider label, no order written. */
     checkout_no_rail_retry_after_seconds: number;
-    /** Retry-After seconds on a 503 checkout response when the payment router fails (not a breaker outage). Fail closed, no provider label. */
+    /** Retry-After seconds on a 503 checkout response (rails_unavailable) when the router's circuit breaker has every rail marked
+     *  down (MatrixRouterUnavailableError). Fail closed, no provider label, no order written. */
     checkout_router_error_retry_after_seconds: number;
     paddle: { api_base: { production: string; sandbox: string }; js_cdn_url: string; overlay: PaddleOverlaySettings };
     routing: PaymentRoutingSettings;

@@ -10,12 +10,25 @@
  * Pure function, no imports, so server routes and React components can both use it.
  */
 
-/** Numeric-as-string coercion with a finite guard (Sprint 15 money-path rule). Null means no usable price. */
+/**
+ * A plain decimal: digits with an optional fraction ("39", "39.00", ".5"). Hex ("0x10"), exponent ("1e3"), signs, separators and
+ * words are refused, because Number() reads them as values a buyer never typed.
+ */
+const PLAIN_DECIMAL = /^(?:\d+\.?\d*|\.\d+)$/;
+
+/**
+ * Money-path price rule (Sprint 15). Accepts only a finite, strictly positive plain decimal, matching the prod DB CHECK
+ * (price_usd IS NULL OR price_usd > 0). Null means "not for sale yet": no price, zero, negative, NaN, Infinity, or non-decimal.
+ */
 export function productPriceUsd(raw: unknown): number | null {
-  if (typeof raw === "string" && raw.trim() === "") return null;
-  // Type-narrow before coercing: Number(null) is 0 and Number(true) is 1, so only strings and numbers convert.
-  const n = typeof raw === "string" || typeof raw === "number" ? Number(raw) : NaN;
-  return Number.isFinite(n) ? n : null;
+  // Type-narrow before coercing: only strings and finite numbers are candidates; null, booleans and objects are refused.
+  let text: string;
+  if (typeof raw === "string") text = raw.trim();
+  else if (typeof raw === "number" && Number.isFinite(raw)) text = String(raw);
+  else return null;
+  if (!PLAIN_DECIMAL.test(text)) return null;
+  const n = typeof text === "string" ? Number(text) : Number.NaN;
+  return Number.isFinite(n) && n > 0 ? n : null;
 }
 
 /** Buy form only for a live, priced product with at least one usable active rail (0 rails is "Coming soon"). */

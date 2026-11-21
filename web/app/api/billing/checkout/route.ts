@@ -174,7 +174,7 @@ async function handleCheckout(
   const geoErr = buyerCountryError(request);
   if (geoErr) return geoErr;
 
-  const { product, buyer, getAttr } = parsed;
+  const { product, buyer, getAttr, expectedRail } = parsed;
   if (!product) return jsonError(400, "Missing product parameter in URL");
 
   if (!productRefSchema.safeParse(product).success) {
@@ -306,6 +306,13 @@ async function handleCheckout(
     return jsonError(500, "Checkout failed unexpectedly", "router_unexpected_error");
   }
 
+  // The label the buyer saw must be the rail that is charged. A rail set that changed since the page rendered (a rail added,
+  // switched off, or re-weighted) makes the router pick another provider: refuse before any order or provider label.
+  if (expectedRail && selectedRail.provider !== expectedRail) {
+    console.error(`[billing/checkout] rail changed for '${product}': page showed '${expectedRail}', router selected '${selectedRail.provider}' — answering 409 rail_changed`);
+    return jsonError(409, "The payment provider for this product has changed. Reload the page and try again.", "rail_changed");
+  }
+
   const redirectUrl = buildCheckoutRedirectUrl(selectedRail, resolvedProduct, creatorHandle, attribution, buyer.value);
   if (redirectStatus === 303 && wantsCheckoutOverlayJson(request)) {
     const overlayPayload = resolvePaddleOverlay(selectedRail, resolvedProduct, creatorHandle, attribution, buyer.value);
@@ -329,6 +336,7 @@ export function GET(request: NextRequest): Promise<NextResponse> {
       product: sp.get("product") ?? "",
       buyer: parseBuyerQuery(sp),
       getAttr: (p) => sp.get(p),
+      expectedRail: sp.get("rail")?.trim() || null,
     },
     302,
   );

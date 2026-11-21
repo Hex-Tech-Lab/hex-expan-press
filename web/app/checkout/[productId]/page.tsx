@@ -141,6 +141,7 @@ export default async function CheckoutPage({
           <BuyerEmailStep
             action="/api/billing/checkout"
             productId={p.id}
+            railProvider={activeProvider}
             domains={[...GLOBAL.email_address.typo_domains]}
             maxEmailLength={GLOBAL.email_address.max_length}
             consentText={buyerConsentText(GLOBAL.delivery.buyer_typical_minutes, GLOBAL.delivery.buyer_support_after_hours, GLOBAL.email.support)}
