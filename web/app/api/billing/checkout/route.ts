@@ -118,11 +118,13 @@ async function checkCreatorConsents(
     console.error(`[billing/checkout] failed to query consents for '${product}': ${consentErr.message}`);
     // A 500 on a revenue path is an incident: report it so it shows in Sentry, not only in the console.
     Sentry.captureException(new Error(`checkout: consents query failed: ${consentErr.message}`), { tags: { surface: "checkout_route", reason: "consents_query_failed" } });
-    // A 500 on a revenue path is an incident: report it so it shows in Sentry, not only in the console.
     return jsonError(500, CONSENT_VERIFICATION_FAILED);
   }
   if (typeof consentCount !== "number" || consentCount !== (consentRows ?? []).length) {
     console.error(`[billing/checkout] incomplete consent history for '${product}': got ${(consentRows ?? []).length} of ${consentCount ?? "unknown"}`);
+    // A consent-count mismatch is a data-integrity signal on a revenue path: report it.
+    Sentry.captureException(new Error(`checkout: incomplete consent history for '${product}'`), { tags: { surface: "checkout_route", reason: "consent_history_incomplete" } });
+    // A consent-count mismatch is a data-integrity signal on a revenue path: report it.
     return jsonError(500, CONSENT_VERIFICATION_FAILED);
   }
 
@@ -160,6 +162,9 @@ async function checkHousePin(supabase: SupabaseAdmin, product: string, resolvedP
     .maybeSingle();
   if (pinErr) {
     console.error(`[billing/checkout] failed to read the house release pin for '${product}': ${pinErr.message}`);
+    // A failed house-pin read is a database outage on a revenue path: report it.
+    Sentry.captureException(new Error(`checkout: house pin read failed: ${pinErr.message}`), { tags: { surface: "checkout_route", reason: "house_pin_read_failed" } });
+    // A failed house-pin read is a database outage on a revenue path: report it.
     return jsonError(500, CONSENT_VERIFICATION_FAILED);
   }
   const pinnedSha = normalizeSha256((pinRow as { sha256?: unknown } | null)?.sha256);
@@ -217,6 +222,9 @@ async function handleCheckout(
     const ownerId = resolvedProduct.creator_id;
     if (!ownerId) {
       console.error(`[billing/checkout] product owner unresolvable for '${product}' — failing closed`);
+      // A product with no owner is a data-integrity fault on a revenue path: report it.
+      Sentry.captureException(new Error("checkout: product owner unresolvable"), { tags: { surface: "checkout_route", reason: "owner_unresolvable" } });
+      // A product with no owner is a data-integrity fault on a revenue path: report it.
       return jsonError(500, CONSENT_VERIFICATION_FAILED);
     }
 
@@ -234,7 +242,6 @@ async function handleCheckout(
       console.error(`[billing/checkout] rails query failed for '${product}': ${railErr.message}`);
       // A rails-table outage on a paid product is an incident: report it.
       Sentry.captureException(new Error(`checkout: rails query failed: ${railErr.message}`), { tags: { surface: "checkout_route", reason: "rails_query_failed" } });
-      // A rails-table outage on a paid product is an incident: report it.
       return jsonError(500, CONSENT_VERIFICATION_FAILED);
     }
     // Shared resolver (web/src/lib/checkout-rails.ts): the same verified-provider filter the checkout page counts with.

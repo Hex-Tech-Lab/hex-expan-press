@@ -211,6 +211,48 @@ describe("checkout route: the charged rail must be the rail the buyer was shown"
     expect(sentry.captureException).toHaveBeenCalledTimes(1);
   });
 
+  it("an incomplete consent history (count mismatch): 500 and reported to Sentry", async () => {
+    sentry.captureException.mockClear();
+    adminModule.mockAdminClient = {
+      from: (table: string) => {
+        if (table === "products") return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: PRODUCT, error: null }) }) }) };
+        if (table === "consents") return { select: () => ({ eq: () => ({ in: async () => ({ data: givenConsents(), error: null, count: 99 }) }) }) };
+        return { select: () => ({ eq: () => ({ order: async () => ({ data: [paddleRail], error: null }) }) }) };
+      },
+    };
+    const res = await GET(checkoutRequest("paddle"));
+    expect(res.status).toBe(500);
+    expect(sentry.captureException).toHaveBeenCalledTimes(1);
+  });
+
+  it("an unresolvable product owner: 500 and reported to Sentry", async () => {
+    sentry.captureException.mockClear();
+    adminModule.mockAdminClient = {
+      from: (table: string) => {
+        if (table === "products") return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { ...PRODUCT, creator_id: null }, error: null }) }) }) };
+        return { select: () => ({ eq: () => ({ order: async () => ({ data: [paddleRail], error: null }) }) }) };
+      },
+    };
+    const res = await GET(checkoutRequest("paddle"));
+    expect(res.status).toBe(500);
+    expect(sentry.captureException).toHaveBeenCalledTimes(1);
+  });
+
+  it("a failed house release-pin read: 500 and reported to Sentry", async () => {
+    sentry.captureException.mockClear();
+    adminModule.mockAdminClient = {
+      from: (table: string) => {
+        if (table === "products") {
+          return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { ...PRODUCT, creators: { handle: "house", display_name: "House", is_house: true } }, error: null }) }) }) };
+        }
+        return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null, error: { message: "pin table down" } }) }) }) };
+      },
+    };
+    const res = await GET(checkoutRequest("paddle"));
+    expect(res.status).toBe(500);
+    expect(sentry.captureException).toHaveBeenCalledTimes(1);
+  });
+
   it("a missing service-role client: 500 and reported to Sentry (deploy misconfiguration)", async () => {
     sentry.captureException.mockClear();
     adminModule.mockAdminClient = null;
