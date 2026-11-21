@@ -340,7 +340,7 @@ async function handleCheckout(
   if (expectedRail && selectedRail.provider !== expectedRail) {
     // The label is buyer-supplied: JSON-encode it (escapes CR/LF and control characters), then cap the ENCODED text, so the
     // logged length never exceeds rail_label_log_max_chars even when escapes expand the label.
-    const shownRail = JSON.stringify(expectedRail).slice(0, GLOBAL.payments.rail_label_log_max_chars);
+    const shownRail = JSON.stringify(expectedRail.slice(0, GLOBAL.payments.rail_label_log_max_chars)).slice(0, GLOBAL.payments.rail_label_log_max_chars);
     console.error(`[billing/checkout] rail changed for '${product}': page showed ${shownRail}, router selected '${selectedRail.provider}' — answering 409 rail_changed`);
     return jsonError(409, "The payment provider for this product has changed. Reload the page and try again.", "rail_changed");
   }
