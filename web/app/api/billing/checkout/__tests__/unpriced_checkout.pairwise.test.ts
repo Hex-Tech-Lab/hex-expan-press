@@ -41,14 +41,16 @@ interface Expected {
   status: number;
   code?: string;
   retryAfter?: "no_active_rail" | "router_error";
+  // 500 rows carry no Retry-After; the code is the only contract on that path.
   location: boolean;
   tables: string[];
   routerCalled: boolean;
 }
 
 // Spec: the mode gate runs first (gated is refused), then the price gate (null is 409), then rails (none active is 503 + Retry-After),
-// then the router (a router error is 503 + Retry-After, never a default-rail fallback). Only a priced live product on a routed
-// rail is redirected (302). Tables are the reads the route makes before it answers.
+// then the router: only the known breaker outage is 503 + Retry-After; any other router error is 500 router_unexpected_error
+// with no Retry-After, and never a default-rail fallback. Only a priced live product on a routed rail is redirected (302).
+// Tables are the reads the route makes before it answers.
 function expectedOutcome(row: Row): Expected {
   const reads = ["products", "consents", "product_rails"];
   if (row.checkout_mode === "gated") return { status: 403, location: false, tables: ["products"], routerCalled: false };
@@ -57,10 +59,12 @@ function expectedOutcome(row: Row): Expected {
     return { status: 503, code: "no_active_rail", retryAfter: "no_active_rail", location: false, tables: reads, routerCalled: false };
   }
   if (row.rail === "router_error") {
-    return { status: 503, code: "router_error", retryAfter: "router_error", location: false, tables: reads, routerCalled: true };
+    return { status: 500, code: "router_unexpected_error", location: false, tables: reads, routerCalled: true };
   }
-  // The breaker (every rail marked down) keeps its existing answer. It has no Retry-After on this path.
-  if (row.rail === "breaker") return { status: 503, code: "rails_unavailable", location: false, tables: reads, routerCalled: true };
+  // The breaker (every rail marked down) is the known outage: 503 with the router Retry-After.
+  if (row.rail === "breaker") {
+    return { status: 503, code: "rails_unavailable", retryAfter: "router_error", location: false, tables: reads, routerCalled: true };
+  }
   return { status: 302, location: true, tables: reads, routerCalled: true };
 }
 
@@ -141,6 +145,7 @@ describe(`billing / checkout: ${EXPECTED_ROW_COUNT} PICT pairwise rows (price x 
     if (want.code) expect(await res.json()).toMatchObject({ code: want.code });
     if (want.retryAfter === "no_active_rail") expect(res.headers.get("retry-after")).toBe(String(GLOBAL.payments.checkout_no_rail_retry_after_seconds));
     if (want.retryAfter === "router_error") expect(res.headers.get("retry-after")).toBe(String(GLOBAL.payments.checkout_router_error_retry_after_seconds));
+    if (!want.retryAfter && want.status >= 500) expect(res.headers.get("retry-after")).toBeNull();
     // A redirect must go to the configured rail exactly; every other outcome must have no Location.
     if (want.location) expect(res.headers.get("location")).toBe(RAIL_URL);
     else expect(res.headers.get("location")).toBeNull();

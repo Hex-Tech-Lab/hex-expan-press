@@ -391,18 +391,25 @@ describe("billing/checkout wave85 sandbox + raw-URL fail-closed", () => {
     }
   });
 
-  it("production with rejecting MatrixRouter and valid live rails answers 503 router_error with Retry-After, no redirect", async () => {
+  it("production with an unknown MatrixRouter error answers 500 router_unexpected_error, logs the stack, no Retry-After, no redirect", async () => {
     vi.stubEnv("VERCEL_ENV", "production");
     adminModule.mockAdminClient = gateAdminClient(undefined, undefined, {
       data: [{ provider: "paddle", weight: 100, checkout_url: "https://buy.paddle.com/live-rail", active: true }],
       error: null,
     });
-    vi.mocked(MatrixRouter.getNextProvider).mockRejectedValueOnce(new Error("router down"));
-    const res = await GET(request());
-    expect(res.status).toBe(503);
-    expect(await res.json()).toMatchObject({ ok: false, code: "router_error" });
-    expect(res.headers.get("retry-after")).toBe(String(GLOBAL.payments.checkout_router_error_retry_after_seconds));
-    expect(res.headers.get("location")).toBeNull();
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      vi.mocked(MatrixRouter.getNextProvider).mockRejectedValueOnce(new Error("router down"));
+      const res = await GET(request());
+      expect(res.status).toBe(500);
+      expect(await res.json()).toMatchObject({ ok: false, code: "router_unexpected_error" });
+      expect(res.headers.get("retry-after")).toBeNull();
+      expect(res.headers.get("location")).toBeNull();
+      const stackLogs = errorSpy.mock.calls.filter((args: unknown[]) => String(args[0]).includes("unexpected failure") && String(args[0]).includes("Error: router down"));
+      expect(stackLogs).toHaveLength(1);
+    } finally {
+      errorSpy.mockRestore();
+    }
   });
 
   it("production with rejecting MatrixRouter and a null-url rail fails closed 500 before the router", async () => {
@@ -1163,11 +1170,12 @@ describe("billing/checkout matrix router: every rail marked down (Argon F-16)", 
     vi.unstubAllEnvs();
   });
 
-  it("answers 503 rails_unavailable and never redirects to a rail the breaker has taken out", async () => {
+  it("answers 503 rails_unavailable with Retry-After and never redirects to a rail the breaker has taken out", async () => {
     vi.mocked(MatrixRouter.getNextProvider).mockRejectedValueOnce(new MatrixRouterUnavailableError("payments", PID));
     const res = await GET(request());
     expect(res.status).toBe(503);
     expect(await res.json()).toMatchObject({ ok: false, code: "rails_unavailable" });
+    expect(res.headers.get("retry-after")).toBe(String(GLOBAL.payments.checkout_router_error_retry_after_seconds));
     expect(res.headers.get("location")).toBeNull();
   });
 
@@ -1383,7 +1391,7 @@ describe("billing/checkout additional defensive and lookup branches", () => {
     expect(await res.json()).toEqual({ ok: false, error: "Checkout consent verification failed" });
   });
 
-  it("answers 503 router_error and never picks a rail by weight when MatrixRouter throws a generic error", async () => {
+  it("answers 500 router_unexpected_error and never picks a rail by weight when MatrixRouter throws an unknown error", async () => {
     adminModule.mockAdminClient = gateAdminClient(undefined, undefined, {
       data: [
         { provider: "paddle", weight: 10, checkout_url: "https://buy.paddle.com/low-weight", active: true },
@@ -1393,9 +1401,10 @@ describe("billing/checkout additional defensive and lookup branches", () => {
     });
     vi.mocked(MatrixRouter.getNextProvider).mockRejectedValueOnce(new Error("router down"));
     const res = await GET(request());
-    expect(res.status).toBe(503);
+    expect(res.status).toBe(500);
+    expect(await res.json()).toMatchObject({ ok: false, code: "router_unexpected_error" });
     expect(res.headers.get("location")).toBeNull();
-    expect(res.headers.get("retry-after")).toBe(String(GLOBAL.payments.checkout_router_error_retry_after_seconds));
+    expect(res.headers.get("retry-after")).toBeNull();
   });
 
   it("appends reference_id when a Polar rail is enabled in settings and selected", async () => {
@@ -1452,7 +1461,7 @@ describe("billing/checkout buyer email and consent (product page email step)", (
     expect(parsed.searchParams.get("customer_email")).toBe("ann@example.com");
   });
 
-  it("a router error on a Polar rail answers 503 router_error: no redirect and no buyer email is sent to a provider", async () => {
+  it("an unknown router error on a Polar rail answers 500 router_unexpected_error: no redirect and no buyer email is sent to a provider", async () => {
     registryOverride.polarEnabled = true;
     vi.mocked(MatrixRouter.getNextProvider).mockRejectedValueOnce(new Error("router down"));
     adminModule.mockAdminClient = gateAdminClient(undefined, undefined, {
@@ -1460,8 +1469,8 @@ describe("billing/checkout buyer email and consent (product page email step)", (
       error: null,
     });
     const res = await GET(new NextRequest(`${CHECKOUT_URL}&${BUYER}`));
-    expect(res.status).toBe(503);
-    expect(await res.json()).toMatchObject({ code: "router_error" });
+    expect(res.status).toBe(500);
+    expect(await res.json()).toMatchObject({ code: "router_unexpected_error" });
     expect(res.headers.get("location")).toBeNull();
   });
 

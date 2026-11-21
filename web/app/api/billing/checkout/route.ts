@@ -295,22 +295,28 @@ async function handleCheckout(
     const providerName = await MatrixRouter.getNextProvider("payments", resolvedProduct.id, rails);
     selectedRail = rails.find((r) => r.provider === providerName);
     if (!selectedRail?.checkout_url) {
-      console.error(`[billing/checkout] selected rail '${providerName}' has no checkout_url`);
-      return jsonError(503, "Checkout is temporarily unavailable");
+      // The router named a rail that is not among the usable rails (or it has no checkout URL). Fail closed with a
+      // retryable 503 and the registry Retry-After, and never send the buyer to another provider.
+      console.error(`[billing/checkout] selected rail '${providerName}' is missing or has no checkout_url — answering 503 rail_misconfigured`);
+      return retryAfterUnavailable(
+        "Checkout is temporarily unavailable. Please try again shortly.",
+        "rail_misconfigured",
+        GLOBAL.payments.checkout_no_rail_retry_after_seconds,
+      );
     }
   } catch (err) {
+    // Only the known router outage (every rail marked down by the breaker) is a 503. Anything else is a bug or an
+    // unexpected failure: log it with its stack and answer 500. Never fall back to the highest-weight rail.
     if (err instanceof MatrixRouterUnavailableError) {
       console.error(`[billing/checkout] every rail is marked down for '${product}' — answering 503`);
-      return jsonError(503, "Checkout is temporarily unavailable. No payment rail is accepting orders.", "rails_unavailable");
+      return retryAfterUnavailable(
+        "Checkout is temporarily unavailable. No payment rail is accepting orders.",
+        "rails_unavailable",
+        GLOBAL.payments.checkout_router_error_retry_after_seconds,
+      );
     }
-    // A router error is not a rail choice: never fall back to the highest-weight rail (that labels the sale with a
-    // default provider). Fail closed with 503 + Retry-After, no order and no provider label.
-    console.error(`[billing/checkout] MatrixRouter failed for '${product}': ${(err as Error).message} — answering 503, no default provider`);
-    return retryAfterUnavailable(
-      "Checkout is temporarily unavailable. Please try again shortly.",
-      "router_error",
-      GLOBAL.payments.checkout_router_error_retry_after_seconds,
-    );
+    console.error(`[billing/checkout] MatrixRouter unexpected failure for '${product}': ${(err as Error).stack ?? String(err)} — answering 500, no default provider`);
+    return jsonError(500, "Checkout failed unexpectedly", "router_unexpected_error");
   }
 
   const redirectUrl = buildCheckoutRedirectUrl(selectedRail, resolvedProduct, creatorHandle, attribution, buyer.value);
