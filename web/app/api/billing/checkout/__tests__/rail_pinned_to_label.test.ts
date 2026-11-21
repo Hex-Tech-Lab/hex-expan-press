@@ -155,7 +155,10 @@ describe("checkout route: the charged rail must be the rail the buyer was shown"
     };
     const res = await GET(checkoutRequest("paddle"));
     expect(res.status).toBe(500);
-    expect(sentry.captureException).toHaveBeenCalledWith(boom);
+    expect(sentry.captureException).toHaveBeenCalledWith(
+      boom,
+      expect.objectContaining({ tags: expect.objectContaining({ reason: "consent_gate_unexpected" }) }),
+    );
   });
 
   it("an active zero-weight rail is malformed: 500, and the fail-closed 500 is reported to Sentry", async () => {
@@ -205,6 +208,14 @@ describe("checkout route: the charged rail must be the rail the buyer was shown"
     const res = await GET(checkoutRequest("paddle"));
     expect(res.status).toBe(500);
     expect(res.headers.get("location")).toBeNull();
+    expect(sentry.captureException).toHaveBeenCalledTimes(1);
+  });
+
+  it("a missing service-role client: 500 and reported to Sentry (deploy misconfiguration)", async () => {
+    sentry.captureException.mockClear();
+    adminModule.mockAdminClient = null;
+    const res = await GET(checkoutRequest("paddle"));
+    expect(res.status).toBe(500);
     expect(sentry.captureException).toHaveBeenCalledTimes(1);
   });
 

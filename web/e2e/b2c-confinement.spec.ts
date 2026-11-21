@@ -7,7 +7,8 @@
  *
  * Backend = e2e/mock-supabase.ts (server-side Supabase calls; see playwright.config.ts).
  * Test (d), the pay-host boundary, needs a real pay hostname (PAY_HOST_LIVE): `next dev` builds
- * request.url from its listen address, so a Host header cannot reach the proxy's host check locally.
+ * request.url from its listen address. The proxy routes on the Host header only when E2E_PROXY_HOST_OVERRIDE=1 rewrites
+ * the routing host, and the probe still reports localhost (see test (d)).
  */
 import { mkdirSync } from "node:fs";
 import path from "node:path";
@@ -126,7 +127,7 @@ for (const page_ of ["terms", "privacy", "refund-policy", "providers"]) {
 test("(d) pay host: /terms.html and /books are 404, /books/legal/terms.html is 200", async () => {
   // Local harness cannot prove the pay boundary: the proxy keys on the listen address, not the Host header
   // (KNOWN HARNESS GAP below). The live boundary is verified against the real pay hostname with curl.
-  // Skipped until the precondition below can pass. Root cause (verified 2026-11-21, chromium/webkit/firefox with PAY_HOST_LIVE=1):
+  // Skipped until the precondition below can pass. Root cause (reproduced with PAY_HOST_LIVE=1 on chromium, webkit and firefox):
   // the /__e2e/proxy-host probe (web/proxy.ts:115) reports url.hostname, which next dev sets to "localhost" for the pay
   // context. E2E_PROXY_HOST_OVERRIDE=1 rewrites only the routing host variable (proxy.ts:106). The probe reports
   // url.hostname (proxy.ts:116), which the override never changes, so it never sees pay.expanpress.com.

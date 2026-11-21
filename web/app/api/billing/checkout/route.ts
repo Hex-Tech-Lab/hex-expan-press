@@ -193,6 +193,8 @@ async function handleCheckout(
     const supabase = await getSupabaseAdmin();
     if (!supabase) {
       console.error("[billing/checkout] Supabase admin client unavailable — consent gate cannot run, failing closed");
+      // A missing service-role client on the revenue path is a deploy misconfiguration: report it.
+      Sentry.captureException(new Error("checkout: admin client unavailable"), { tags: { surface: "checkout_route", reason: "admin_client_unavailable" } });
       return jsonError(500, CONSENT_VERIFICATION_FAILED);
     }
 
@@ -267,8 +269,8 @@ async function handleCheckout(
     }
   } catch (err) {
     console.error(`[billing/checkout] consent verification exception for '${product}': ${(err as Error).message}`);
-    // Same signal as the other failure branches of this handler: a 500 here is an incident, so it is reported.
-    Sentry.captureException(err);
+    // A 500 here is an incident, so it is reported. Tagged so triage does not read every failure as a consent problem.
+    Sentry.captureException(err, { tags: { surface: "checkout_route", reason: "consent_gate_unexpected" } });
     return jsonError(500, CONSENT_VERIFICATION_FAILED);
   }
 
