@@ -1,0 +1,31 @@
+web/app/api/billing/checkout/route.ts
+  s_7e539dcf78d9db::t_087fc040c9c1ee 277,279
+  s_7e539dcf78d9db::t_534962515108d3 278
+web/src/components/storefront/storefront.tsx
+  s_7e539dcf78d9db::t_021c0f0b61a341 352
+web/playwright.config.ts
+  s_7e539dcf78d9db::t_0ce085bfb2b7e0 77
+web/app/api/billing/checkout/__tests__/rail_pinned_to_label.test.ts
+  s_7e539dcf78d9db::t_06404c0bc3ab04 278-289
+  s_7e539dcf78d9db::t_9efcb04df81224 276-277
+web/e2e/b2c-confinement.spec.ts
+  s_7e539dcf78d9db::t_fa889b3f6c957b 128
+web/__tests__/checkout-rails.test.ts
+  s_7e539dcf78d9db::t_5fb500607ff4f1 67-73
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d82a0c85e40a0a149bbd80d58351afaa2a66bb3f",
+  "prompts": {},
+  "sessions": {
+    "s_7e539dcf78d9db": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7aec794a-3e95-4ace-bf8d-7a1962c629d9",
+        "model": "unknown"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
