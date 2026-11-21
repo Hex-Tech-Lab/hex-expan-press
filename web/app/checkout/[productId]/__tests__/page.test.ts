@@ -47,6 +47,16 @@ function walk(node: Node, visit: (el: { type?: unknown; props: Record<string, un
   walk(el.props.children as Node, visit);
 }
 
+/** Usable rails as the shared resolver returns them: the named provider first, then a second provider for count two. */
+function usableRailsFixture(provider: string | null | undefined, count: number) {
+  if (!provider) return [];
+  return Array.from({ length: count }, (_, i) => ({
+    provider: i === 0 ? provider : "creem",
+    weight: 100 - i,
+    checkout_url: "https://buy.example/rail",
+  }));
+}
+
 function product(
   over: Record<string, unknown> = {},
   extra: { displayName?: string; isHouse?: boolean; railProvider?: string | null; activeRailCount?: number } = {},
@@ -54,8 +64,7 @@ function product(
   const railProvider = "railProvider" in extra ? extra.railProvider : "paddle";
   return {
     creator: { handle: "ada", display_name: extra.displayName ?? "Ada", is_house: extra.isHouse ?? false },
-    railProvider,
-    activeRailCount: extra.activeRailCount ?? (railProvider === null ? 0 : 1),
+    usableRails: usableRailsFixture(railProvider, extra.activeRailCount ?? (railProvider === null ? 0 : 1)),
     product: {
       id: "p1",
       title: "Book",

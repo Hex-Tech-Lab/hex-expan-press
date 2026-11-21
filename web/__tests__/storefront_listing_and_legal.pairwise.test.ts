@@ -54,7 +54,7 @@ vi.mock("../src/components/storefront/storefront", async (importOriginal) => {
     })),
     fetchCheckoutProduct: vi.fn(async () => ({
       creator: { handle: "expanpress_house", display_name: "ExpanPress" },
-      railProvider: "paddle",
+      usableRails: [{ provider: "paddle", weight: 100, checkout_url: "https://buy.paddle.com/pw-rail" }],
       product: {
         id: "00000000-0000-4000-8000-0000000000b3",
         store_product_id: "prod_pw",

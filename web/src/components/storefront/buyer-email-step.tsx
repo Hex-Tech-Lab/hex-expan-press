@@ -20,6 +20,8 @@ interface BuyerEmailStepProps {
   consentText: string;
   /** Server-read attribution parameters from searchParams so SSR / no-JS POST preserves attribution. */
   initialAttribution?: Record<string, string>;
+  /** The single rail the page labelled as merchant of record. Sent so the route charges that rail or answers 409 rail_changed. */
+  railProvider?: string | null;
   /** Non-null on pay.expanpress.com when the product's Paddle overlay configuration is ready; null falls back to form POST redirect. */
   paddleClient?: PaddleOverlayClient | null;
 }
@@ -70,6 +72,7 @@ export function BuyerEmailStep({
   maxEmailLength,
   consentText,
   initialAttribution = EMPTY_ATTRIBUTION,
+  railProvider = null,
   paddleClient = null,
 }: BuyerEmailStepProps) {
   const [email, setEmail] = useState("");
@@ -106,6 +109,7 @@ export function BuyerEmailStep({
         headers: { "content-type": "application/json", accept: "application/json" },
         body: JSON.stringify({
           product: productId,
+          ...(railProvider ? { rail: railProvider } : {}),
           buyer_email: email.trim(),
           buyer_email_confirm: confirm.trim(),
           buyer_consent: consent,
@@ -139,6 +143,7 @@ export function BuyerEmailStep({
       <AttributionCapture />
       <form method="post" action={action} onSubmit={onSubmit} className="flex flex-col gap-4" noValidate={hydrated}>
         <input type="hidden" name="product" value={productId} />
+        {railProvider ? <input type="hidden" name="rail" value={railProvider} /> : null}
         {Object.entries(attribution).map(([param, value]) => (
           <input key={param} type="hidden" name={param} value={value} />
         ))}

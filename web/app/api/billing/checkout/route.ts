@@ -3,6 +3,7 @@ import { MatrixRouter } from "../../../../../src/infrastructure/matrix_router/ma
 import { getSupabaseAdmin } from "../../../../../payments/src/supabase_admin";
 import { GLOBAL, isEnabledPaymentProvider } from "../../../../../payments/src/settings_registry";
 import { productPriceUsd } from "../../../../src/lib/product-purchasable";
+import { resolveCheckoutRails } from "../../../../src/lib/checkout-rails";
 import { verifiedProviderNames } from "../webhook/verifiers";
 import { normalizeSha256, strictActiveConsentKinds, strictChainHead } from "../../../../src/lib/consent-chain";
 import { guidSchema, productRefSchema } from "../../../../src/lib/zod-rules";
@@ -173,7 +174,7 @@ async function handleCheckout(
   const geoErr = buyerCountryError(request);
   if (geoErr) return geoErr;
 
-  const { product, buyer, getAttr } = parsed;
+  const { product, buyer, getAttr, expectedRail } = parsed;
   if (!product) return jsonError(400, "Missing product parameter in URL");
 
   if (!productRefSchema.safeParse(product).success) {
@@ -227,41 +228,25 @@ async function handleCheckout(
       console.error(`[billing/checkout] rails query failed for '${product}': ${railErr.message}`);
       return jsonError(500, CONSENT_VERIFICATION_FAILED);
     }
-    if ((railRows ?? []).some((r) => r === null || typeof r !== "object")) {
-      console.error(`[billing/checkout] product '${product}' has a malformed product_rails row — failing closed`);
+    // Shared resolver (web/src/lib/checkout-rails.ts): the same verified-provider filter the checkout page counts with.
+    const resolution = resolveCheckoutRails(railRows, {
+      isEnabledProvider: isEnabledPaymentProvider,
+      verifiedProviders: verifiedProviderNames(),
+      checkoutMode: resolvedProduct.checkout_mode,
+      checkoutUrlProblem: checkoutUrlProblem,
+    });
+    if (resolution.kind === "malformed") {
+      const detail =
+        resolution.reason === "non_object_row"
+          ? "has a malformed product_rails row"
+          : resolution.reason === "invalid_checkout_url"
+            ? "has a usable rail with an invalid checkout_url"
+            : "has an active rail with a missing provider or non-string checkout_url";
+      console.error(`[billing/checkout] product '${product}' ${detail} — failing closed`);
       return jsonError(500, "Checkout is not configured");
     }
-    const allRails = (railRows ?? []).map((r) => {
-      const row = r as { provider: unknown; weight: unknown; checkout_url: unknown; active: unknown };
-      return {
-        provider: row.provider,
-        weight: Number(row.weight),
-        checkout_url: row.checkout_url,
-        active: row.active === true || row.active === "true",
-      };
-    });
-    const activeRaw = allRails.filter((r) => r.active);
-    const activeValid: CheckoutRail[] = [];
-    for (const r of activeRaw) {
-      if (
-        typeof r.provider !== "string" ||
-        r.provider === "" ||
-        typeof r.checkout_url !== "string" ||
-        !Number.isFinite(r.weight) ||
-        r.weight < 0
-      ) {
-        console.error(`[billing/checkout] product '${product}' has an active rail with a missing provider or non-string checkout_url — failing closed`);
-        return jsonError(500, "Checkout is not configured");
-      }
-      activeValid.push({
-        provider: r.provider,
-        weight: r.weight,
-        checkout_url: r.checkout_url,
-      });
-    }
-    const verified = verifiedProviderNames();
-    dbRails = activeValid.filter((r) => isEnabledPaymentProvider(r.provider) && verified.has(r.provider));
-    const configuredRowCount = (railRows ?? []).length;
+    dbRails = resolution.usable;
+    const configuredRowCount = resolution.configuredCount;
 
     if (configuredRowCount > 0 && dbRails.length === 0) {
       console.error(`[billing/checkout] product '${product}' has ${configuredRowCount} configured rail(s) but none usable (not active, or provider switched off) — refusing checkout`);
@@ -321,6 +306,13 @@ async function handleCheckout(
     return jsonError(500, "Checkout failed unexpectedly", "router_unexpected_error");
   }
 
+  // The label the buyer saw must be the rail that is charged. A rail set that changed since the page rendered (a rail added,
+  // switched off, or re-weighted) makes the router pick another provider: refuse before any order or provider label.
+  if (expectedRail && selectedRail.provider !== expectedRail) {
+    console.error(`[billing/checkout] rail changed for '${product}': page showed '${expectedRail}', router selected '${selectedRail.provider}' — answering 409 rail_changed`);
+    return jsonError(409, "The payment provider for this product has changed. Reload the page and try again.", "rail_changed");
+  }
+
   const redirectUrl = buildCheckoutRedirectUrl(selectedRail, resolvedProduct, creatorHandle, attribution, buyer.value);
   if (redirectStatus === 303 && wantsCheckoutOverlayJson(request)) {
     const overlayPayload = resolvePaddleOverlay(selectedRail, resolvedProduct, creatorHandle, attribution, buyer.value);
@@ -344,6 +336,7 @@ export function GET(request: NextRequest): Promise<NextResponse> {
       product: sp.get("product") ?? "",
       buyer: parseBuyerQuery(sp),
       getAttr: (p) => sp.get(p),
+      expectedRail: sp.get("rail")?.trim() || null,
     },
     302,
   );

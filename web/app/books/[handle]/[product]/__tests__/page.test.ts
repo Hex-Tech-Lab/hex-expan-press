@@ -28,6 +28,7 @@ const productMock = vi.hoisted(() => ({
     inside: null,
     preview_pdf: null as string | null,
     overview: undefined as string | null | undefined,
+    usable_rail_count: 1,
   },
   origin: "https://expanpress.com",
 }));
@@ -200,6 +201,24 @@ describe("store product page (/books/{handle}/{product})", () => {
       expect(html).toContain("Coming soon");
     } finally {
       productMock.product.price_usd = origPrice;
+    }
+  });
+
+  it("a live, priced product with zero usable rails renders no buy link and the Coming soon state, not an error", async () => {
+    const origRails = productMock.product.usable_rail_count;
+    productMock.product.usable_rail_count = 0;
+    try {
+      const html = renderToStaticMarkup(
+        await StoreProductPage({
+          params: Promise.resolve({ handle: "expanpress_house", product: "sample_the_quiet_workshop" }),
+        }),
+      );
+      expect(html).not.toContain("Buy now");
+      expect(html).not.toContain("/checkout/00000000-0000-4000-8000-0000000000b3");
+      expect(html).toContain('data-checkout-mode="unpriced"');
+      expect(html).toContain("Coming soon");
+    } finally {
+      productMock.product.usable_rail_count = origRails;
     }
   });
 

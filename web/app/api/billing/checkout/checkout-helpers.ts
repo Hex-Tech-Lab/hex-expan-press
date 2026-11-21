@@ -51,6 +51,8 @@ export interface ParsedCheckoutRequest {
   product: string;
   buyer: { ok: true; value: BuyerFields } | { ok: false; error: string; code: string };
   getAttr: (param: "src" | "dub_id") => string | null;
+  /** The rail the buyer was shown (the merchant of record label), sent as `rail`. The route charges only this rail or answers 409. */
+  expectedRail: string | null;
 }
 
 export function jsonError(status: number, error: string, code?: string): NextResponse {
@@ -280,10 +282,12 @@ export async function parsePostBody(
     };
     const productVal = obj.product;
     const product = typeof productVal === "string" ? productVal : (qp.get("product") ?? "");
+    const railVal = obj.rail;
     return {
       ok: true,
       value: {
         product,
+        expectedRail: typeof railVal === "string" && railVal.trim() !== "" ? railVal.trim() : null,
         buyer: parseBuyerPost(getRaw),
         getAttr: (param) => {
           const v = obj[param];
@@ -317,10 +321,12 @@ export async function parsePostBody(
     return typeof v === "string" ? v : null;
   };
   const product = getField("product") ?? qp.get("product") ?? "";
+  const railField = getField("rail")?.trim() ?? "";
   return {
     ok: true,
     value: {
       product,
+      expectedRail: railField !== "" ? railField : null,
       buyer: parseBuyerPost(getField),
       getAttr: (param) => getField(param) ?? qp.get(param),
     },

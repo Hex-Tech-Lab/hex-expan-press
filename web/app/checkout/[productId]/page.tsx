@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import * as Sentry from "@sentry/nextjs";
 import { notFound } from "next/navigation";
 import { BrandFrame, BrandWordmark } from "../../../src/components/brand/brand";
 import { BuyerEmailStep } from "../../../src/components/storefront/buyer-email-step";
@@ -14,7 +15,7 @@ import {
 } from "../../../src/components/storefront/storefront";
 import { ATTRIBUTION_KEYS } from "../../../src/lib/attribution";
 import { buyerConsentText } from "../../../src/lib/buyer-email";
-import { isPurchasableProduct } from "../../../src/lib/product-purchasable";
+import { checkoutRailView } from "../../../src/lib/checkout-rails";
 import { paddleOverlayConfig, paddleOverlayUsable } from "../../../src/lib/paddle-overlay-server";
 import { GLOBAL, paymentProviderDisplayName } from "../../../../payments/src/settings_registry";
 
@@ -55,7 +56,7 @@ export default async function CheckoutPage({
   const { productId } = await params;
   const found = await fetchCheckoutProduct(productId);
   if (!found) notFound();
-  const { creator, product: p, railProvider, activeRailCount } = found;
+  const { creator, product: p, usableRails } = found;
 
   const sp = await searchParams;
   const initialAttribution: Record<string, string> = {};
@@ -66,23 +67,21 @@ export default async function CheckoutPage({
   const price = priceOf(p);
   const priceDisplay = formatProductPrice(price, p.currency, "—");
   const live = p.checkout_mode === "live";
-  // No price means no buy form: the email step (which opens the overlay) is not rendered for an unpriced product.
-  const purchasable = isPurchasableProduct(p);
+  // The one buyer rule (checkoutRailView, shared with the route's rails): the buy form needs at least one usable rail, and the
+  // merchant of record (and so the overlay) only with exactly one. No selection logic lives on this page.
+  const { purchasable, merchantOfRecordProvider: activeProvider } = checkoutRailView(p, usableRails);
   const brand = GLOBAL.storefront.brand_name;
-  if (railProvider === null) {
+  if (usableRails.length === 0) {
     console.error("[checkout] no active enabled rail for product; no provider is named on the page", { productId });
+    Sentry.captureException(new Error("checkout page: no usable rail"), { tags: { surface: "checkout_page", reason: "no_usable_rail" } });
   }
-  // Fail closed on ambiguity: with more than one active rail the page cannot know which rail the router will pick, so it
-  // names no merchant of record and skips the Paddle overlay. The buyer gets the POST fallback, logged once.
-  const multiRail = activeRailCount > 1;
-  if (multiRail) {
+  // More than one usable rail: no merchant of record is named and the overlay is skipped, so the buyer gets the POST fallback.
+  if (usableRails.length > 1) {
     console.warn(
       "[checkout] more than one active rail; no merchant of record is named and the overlay is skipped, buyer gets the POST fallback",
-      { productId, activeRailCount },
+      { productId, activeRailCount: usableRails.length },
     );
   }
-  // Name the merchant of record only for a real selected rail. With no rail there is no provider to name (the route 503s).
-  const activeProvider = multiRail ? null : railProvider;
   const morName = activeProvider ? paymentProviderDisplayName(activeProvider) : null;
   const overlayCfg = paddleOverlayConfig();
   const hasPaddlePrice = typeof p.paddle_price_id === "string" && p.paddle_price_id.trim() !== "";
@@ -142,6 +141,7 @@ export default async function CheckoutPage({
           <BuyerEmailStep
             action="/api/billing/checkout"
             productId={p.id}
+            railProvider={activeProvider}
             domains={[...GLOBAL.email_address.typo_domains]}
             maxEmailLength={GLOBAL.email_address.max_length}
             consentText={buyerConsentText(GLOBAL.delivery.buyer_typical_minutes, GLOBAL.delivery.buyer_support_after_hours, GLOBAL.email.support)}
