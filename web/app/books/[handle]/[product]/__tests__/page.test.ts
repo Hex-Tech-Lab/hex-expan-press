@@ -19,7 +19,7 @@ const productMock = vi.hoisted(() => ({
     store_product_id: "prod_sample",
     slug: "sample_the_quiet_workshop",
     title: "The Quiet Workshop (Sample)",
-    price_usd: "9",
+    price_usd: "9" as string | null,
     currency: "USD",
     working_note: null,
     description: "Sample chapter.",
@@ -28,6 +28,7 @@ const productMock = vi.hoisted(() => ({
     inside: null,
     preview_pdf: null as string | null,
     overview: undefined as string | null | undefined,
+    usable_rail_count: 1,
   },
   origin: "https://expanpress.com",
 }));
@@ -39,6 +40,14 @@ vi.mock("../../../../../src/components/storefront/storefront", async (importOrig
 
 import { GLOBAL } from "../../../../../../payments/src/settings_registry";
 import StoreProductPage, { generateMetadata } from "../page";
+import { resolveProductBookAssets } from "../../../../../src/lib/book-assets";
+
+// fetchStoreProduct always runs withResolvedAssets, so its product arrives with overview already resolved.
+const SAMPLE_OVERVIEW = resolveProductBookAssets({
+  slug: "sample_the_quiet_workshop",
+  book_registry: "books/sample_the_quiet_workshop.json",
+  creator_is_house: true,
+}).overview;
 
 const stripTags = (html: string) => html.replace(/<[^>]+>/g, "");
 
@@ -92,7 +101,7 @@ describe("store product page (/books/{handle}/{product})", () => {
     productMock.creator.display_name = GLOBAL.storefront.brand_name;
     productMock.creator.is_house = true;
     productMock.creator.handle = "expanpress_house";
-    productMock.product.overview = undefined;
+    productMock.product.overview = SAMPLE_OVERVIEW;
     const sampleHtml = renderToStaticMarkup(
       await StoreProductPage({
         params: Promise.resolve({ handle: "expanpress_house", product: "sample_the_quiet_workshop" }),
@@ -116,6 +125,7 @@ describe("store product page (/books/{handle}/{product})", () => {
     productMock.creator.display_name = GLOBAL.storefront.brand_name;
     productMock.creator.is_house = true;
     productMock.creator.handle = "expanpress_house";
+    productMock.product.overview = SAMPLE_OVERVIEW;
     const layout = GLOBAL.storefront.product_layout;
 
     productMock.product.preview_pdf = null;
@@ -173,5 +183,53 @@ describe("store product page (/books/{handle}/{product})", () => {
       productMock.creator.display_name = origName;
       productMock.creator.is_house = true;
     }
+  });
+
+  it("a live product with price_usd null renders no buy link and the non-purchasable state (no buy form)", async () => {
+    const origPrice = productMock.product.price_usd;
+    productMock.product.price_usd = null;
+    try {
+      const html = renderToStaticMarkup(
+        await StoreProductPage({
+          params: Promise.resolve({ handle: "expanpress_house", product: "sample_the_quiet_workshop" }),
+        }),
+      );
+      expect(html).not.toContain('data-checkout-mode="live"');
+      expect(html).not.toContain("Buy now");
+      expect(html).not.toContain("/checkout/00000000-0000-4000-8000-0000000000b3");
+      expect(html).toContain('data-checkout-mode="unpriced"');
+      expect(html).toContain("Coming soon");
+    } finally {
+      productMock.product.price_usd = origPrice;
+    }
+  });
+
+  it("a live, priced product with zero usable rails renders no buy link and the Coming soon state, not an error", async () => {
+    const origRails = productMock.product.usable_rail_count;
+    productMock.product.usable_rail_count = 0;
+    try {
+      const html = renderToStaticMarkup(
+        await StoreProductPage({
+          params: Promise.resolve({ handle: "expanpress_house", product: "sample_the_quiet_workshop" }),
+        }),
+      );
+      expect(html).not.toContain("Buy now");
+      expect(html).not.toContain("/checkout/00000000-0000-4000-8000-0000000000b3");
+      expect(html).toContain('data-checkout-mode="unpriced"');
+      expect(html).toContain("Coming soon");
+    } finally {
+      productMock.product.usable_rail_count = origRails;
+    }
+  });
+
+  it("a live product with a set price still renders the buy link (control)", async () => {
+    const html = renderToStaticMarkup(
+      await StoreProductPage({
+        params: Promise.resolve({ handle: "expanpress_house", product: "sample_the_quiet_workshop" }),
+      }),
+    );
+    expect(html).toContain('data-checkout-mode="live"');
+    expect(html).toContain("Buy now");
+    expect(html).not.toContain('data-checkout-mode="unpriced"');
   });
 });

@@ -107,6 +107,7 @@ describe("fetchCreatorHub lists published (live) products + allowed non-live sam
       platform_handles: null,
       bio: null,
       photo: null,
+      is_house: true,
       products: [
         {
           ...product("sample_the_quiet_workshop", "gated"),
@@ -129,6 +130,47 @@ describe("fetchCreatorHub lists published (live) products + allowed non-live sam
     supa.client = hubClient({ handle: "hublive", display_name: "Duane", platform_handles: null, bio: null, photo: null, products: [product("live", "live")] });
     const liveHub = await fetchCreatorHub("hublive");
     expect(storefrontRobots(liveHub!.creator.products)).toBeUndefined();
+  });
+});
+
+describe("house assets only for house creators: a non-house product cannot claim the house sample", () => {
+  it("hides a non-house gated product that copies the house sample slug, title and registry", async () => {
+    supa.client = hubClient({
+      handle: "hubimpostor",
+      display_name: "Impostor",
+      platform_handles: null,
+      bio: null,
+      photo: null,
+      is_house: false,
+      products: [
+        {
+          ...product("sample_the_quiet_workshop", "gated"),
+          title: "The Quiet Workshop (Sample)",
+          book_registry: "books/sample_the_quiet_workshop.json",
+        },
+      ],
+    });
+    const hub = await fetchCreatorHub("hubimpostor");
+    expect(hub).not.toBeNull();
+    expect(hub?.creator.products.map((p) => p.id)).toEqual([]);
+  });
+});
+
+describe("is_sample is explicit: a non-sample with a sample-like slug and title is never listed", () => {
+  it("hides a gated product whose slug starts with sample_ and title ends (Sample) when books/*.json says is_sample false", async () => {
+    supa.client = hubClient({
+      handle: "hublookalike",
+      display_name: "Duane",
+      platform_handles: null,
+      bio: null,
+      photo: null,
+      products: [
+        { ...product("sample_lookalike", "gated"), title: "Lookalike (Sample)", book_registry: "books/duane.json" },
+      ],
+    });
+    const hub = await fetchCreatorHub("hublookalike");
+    expect(hub).not.toBeNull();
+    expect(hub?.creator.products.map((p) => p.id)).toEqual([]);
   });
 });
 
@@ -192,6 +234,7 @@ describe("B2C landing query filters live + allowed non-live sample products only
       {
         handle: "expanpress_house",
         display_name: "ExpanPress",
+        is_house: true,
         products: [
           {
             ...product("sample_the_quiet_workshop", "gated"),
@@ -216,6 +259,7 @@ describe("B2C landing query filters live + allowed non-live sample products only
         {
           handle: "expanpress_house",
           display_name: "ExpanPress",
+          is_house: true,
           products: [
             {
               ...product("sample_the_quiet_workshop", "gated"),
@@ -340,6 +384,8 @@ describe("BookCover and BookCard layout, cover aspect ratio, and (Sample) footer
           price_usd: "29",
           cover_image: null,
           is_sample: false,
+          checkout_mode: "live",
+          usable_rail_count: 1,
         },
         creatorHandle: "e2e_live_creator",
         creatorName: "E2E Live Creator",
@@ -385,6 +431,7 @@ describe("BookCover and BookCard layout, cover aspect ratio, and (Sample) footer
       platform_handles: null,
       bio: null,
       photo: null,
+      is_house: true,
       products: [
         {
           ...product("sample_the_quiet_workshop", "live"),

@@ -153,6 +153,12 @@ export interface GlobalSettings {
     review_queue_page_size: number; // listManualReviewRefunds default page/limit
     /** Retry-After seconds sent on 503 webhook responses (in-flight AND generic 503 paths). */
     retry_after_seconds: number;
+    /** Retry-After seconds on a 503 checkout response (no_active_rail: no usable payment rail; rail_misconfigured: the router
+     *  picked a rail with no usable checkout_url). Fail closed, no provider label, no order written. */
+    checkout_no_rail_retry_after_seconds: number;
+    /** Retry-After seconds on a 503 checkout response (rails_unavailable) when the router's circuit breaker has every rail marked
+     *  down (MatrixRouterUnavailableError). Fail closed, no provider label, no order written. */
+    checkout_router_error_retry_after_seconds: number;
     paddle: { api_base: { production: string; sandbox: string }; js_cdn_url: string; overlay: PaddleOverlaySettings };
     routing: PaymentRoutingSettings;
     /** Creem TEST mode is accepted only when this is true, creem_test_database_ref is non-empty,
@@ -187,7 +193,7 @@ export interface GlobalSettings {
     sample_preview_cta: string;
     browse_books_label: string;
     browse_books_path: string;
-    /** `storefront.browse_books_enabled`: shows the "browse books" links on the B2B home (header top-right and hero card).
+    /** `storefront.browse_books_enabled`: shows the "browse books" links on the B2B home (header top-right only; the hero link was removed).
      *  Off by default because the links expose how few titles exist. Re-enable once several creators and house books
      *  are live. If re-enabled, the header top-right is the founder-approved placement. */
     browse_books_enabled: boolean;
@@ -368,6 +374,9 @@ export interface BookPreviewSettings {
   /** Distance (px) outside the viewport at which the preview starts loading and stops when it is further away.
    *  The page-flip loop redraws every animation frame while mounted, so the book is mounted only near the viewport. */
   visibility_margin_px: number;
+  /** Smallest change (px) in the flipbook container width that re-syncs the page-flip canvas.
+   *  Filters sub-pixel ResizeObserver noise; any real layout change is above it. */
+  resize_min_delta_px: number;
   show_cover: boolean;
   use_portrait: boolean;
   heading: string;
@@ -426,6 +435,8 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     sync_http_timeout_ms: 30000,
     review_queue_page_size: 200,
     retry_after_seconds: 30,
+    checkout_no_rail_retry_after_seconds: 30,
+    checkout_router_error_retry_after_seconds: 30,
     creem_accept_test_mode: false,
     creem_test_database_ref: "",
     sandbox_checkout_enabled: false,
@@ -508,6 +519,7 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     max_shadow_opacity: 0.25,
     swipe_distance_px: 30,
     visibility_margin_px: 200,
+    resize_min_delta_px: 1,
     show_cover: true,
     use_portrait: true,
     heading: "Preview inside the book",
@@ -725,6 +737,8 @@ export const PAYMENTS_LIMITS = {
   sync_http_timeout_ms: { min: 1000, max: 120000 },
   review_queue_page_size: { min: 1, max: 1000 },
   retry_after_seconds: { min: 1, max: 600 },
+  checkout_no_rail_retry_after_seconds: { min: 1, max: 600 },
+  checkout_router_error_retry_after_seconds: { min: 1, max: 600 },
 } as const;
 
 function intInRange(value: unknown, min: number, max: number): value is number {
@@ -829,6 +843,8 @@ export function loadPaymentsSection(raw: Record<string, unknown> | undefined): G
   // Validate BEFORE the fallback warning below, so an invalid value is reported, not silently defaulted.
   const reviewQueuePageSize = num("review_queue_page_size");
   const retryAfterSeconds = num("retry_after_seconds");
+  const checkoutNoRailRetryAfterSeconds = num("checkout_no_rail_retry_after_seconds");
+  const checkoutRouterErrorRetryAfterSeconds = num("checkout_router_error_retry_after_seconds");
   const paddleUrl = (v: unknown, expected: string, label: string, validateAndNormalize: (x: unknown) => string | null): string => {
     const normalized = v === undefined ? null : validateAndNormalize(v);
     if (normalized !== null) return normalized;
@@ -930,6 +946,8 @@ export function loadPaymentsSection(raw: Record<string, unknown> | undefined): G
     sync_http_timeout_ms: syncHttpTimeout,
     review_queue_page_size: reviewQueuePageSize,
     retry_after_seconds: retryAfterSeconds,
+    checkout_no_rail_retry_after_seconds: checkoutNoRailRetryAfterSeconds,
+    checkout_router_error_retry_after_seconds: checkoutRouterErrorRetryAfterSeconds,
     paddle: { api_base: { production: apiProduction, sandbox: apiSandbox }, js_cdn_url: jsCdn, overlay },
     routing,
     creem_accept_test_mode: p.creem_accept_test_mode === true,
@@ -1565,6 +1583,7 @@ export const BOOK_PREVIEW_LIMITS = {
   max_shadow_opacity: { min: 0, max: 1 },
   swipe_distance_px: { min: 10, max: 120 },
   visibility_margin_px: { min: 0, max: 1000 },
+  resize_min_delta_px: { min: 0, max: 50 },
   zoom_level: { min: 1, max: 3 },
   zoom_levels_length: { min: 2, max: 5 },
   read_aloud_rate: { min: 0.5, max: 3 },
@@ -1640,7 +1659,8 @@ export function loadBookPreviewSection(raw: Record<string, unknown> | undefined)
       | "max_height_px"
       | "flipping_time_ms"
       | "swipe_distance_px"
-      | "visibility_margin_px",
+      | "visibility_margin_px"
+      | "resize_min_delta_px",
   ): number => {
     if (!(key in raw)) return defaults[key];
     const rawValue = raw[key];
@@ -1917,6 +1937,7 @@ export function loadBookPreviewSection(raw: Record<string, unknown> | undefined)
     max_shadow_opacity: floatField("max_shadow_opacity"),
     swipe_distance_px: intField("swipe_distance_px"),
     visibility_margin_px: intField("visibility_margin_px"),
+    resize_min_delta_px: intField("resize_min_delta_px"),
     show_cover: boolField("show_cover"),
     use_portrait: boolField("use_portrait"),
     heading: strField("heading"),
@@ -2310,11 +2331,6 @@ export function paymentProviderFieldMap(name: string): Record<string, string | u
 /** Reads a configured field from a webhook payload using `PAYMENT_PROVIDERS[provider].field_map[fieldKey]`. */
 export function readProviderField(payload: unknown, provider: string, fieldKey: string): unknown {
   return getPath(payload, paymentProviderFieldMap(provider)[fieldKey]);
-}
-
-/** First enabled payment provider in the registry, or null when all providers are switched off. */
-export function defaultEnabledPaymentProvider(): string | null {
-  return Object.keys(PAYMENT_PROVIDERS).find((name) => isEnabledPaymentProvider(name)) ?? null;
 }
 
 /** True only for a provider that is defined AND switched on. Use this for anything that takes or routes a sale. */

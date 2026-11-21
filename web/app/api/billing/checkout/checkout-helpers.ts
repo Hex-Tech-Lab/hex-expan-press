@@ -8,6 +8,7 @@ import {
 import { applyCheckoutUrlTheme } from "../../../../../payments/src/checkout_branding";
 import { attributionRef } from "../../../../src/lib/attribution";
 import { buyerEmailsMatch, isValidBuyerEmail } from "../../../../src/lib/buyer-email";
+import { isHouse } from "../../../../src/lib/house";
 import type { PaddleOverlayPayload } from "../../../../src/lib/paddle-overlay";
 import { buildPaddleOverlayPayload, paddleOverlayConfig, paddleOverlayUsable } from "../../../../src/lib/paddle-overlay-server";
 
@@ -21,6 +22,8 @@ export type ProductRow = {
   id: string;
   store_product_id?: string | null;
   creator_id: string | null;
+  /** products.price_usd. Null means the product has no price and cannot be sold (checkout answers 409). */
+  price_usd?: string | number | null;
   release_sha256?: string | null;
   checkout_mode?: string | null;
   /** The Paddle price the overlay sells (products.paddle_price_id). Null until the price is set up at Paddle. */
@@ -36,7 +39,7 @@ export type ProductRow = {
 export function isHouseProduct(product: ProductRow): boolean {
   const embedded = product.creators;
   const creator = Array.isArray(embedded) ? embedded[0] : embedded;
-  return creator?.is_house === true;
+  return isHouse(creator?.is_house);
 }
 
 export interface BuyerFields {
@@ -48,6 +51,8 @@ export interface ParsedCheckoutRequest {
   product: string;
   buyer: { ok: true; value: BuyerFields } | { ok: false; error: string; code: string };
   getAttr: (param: "src" | "dub_id") => string | null;
+  /** The rail the buyer was shown (the merchant of record label), sent as `rail`. The route charges only this rail or answers 409. */
+  expectedRail: string | null;
 }
 
 export function jsonError(status: number, error: string, code?: string): NextResponse {
@@ -277,10 +282,12 @@ export async function parsePostBody(
     };
     const productVal = obj.product;
     const product = typeof productVal === "string" ? productVal : (qp.get("product") ?? "");
+    const railVal = obj.rail;
     return {
       ok: true,
       value: {
         product,
+        expectedRail: typeof railVal === "string" && railVal.trim() !== "" ? railVal.trim() : null,
         buyer: parseBuyerPost(getRaw),
         getAttr: (param) => {
           const v = obj[param];
@@ -314,10 +321,12 @@ export async function parsePostBody(
     return typeof v === "string" ? v : null;
   };
   const product = getField("product") ?? qp.get("product") ?? "";
+  const railField = getField("rail")?.trim() ?? "";
   return {
     ok: true,
     value: {
       product,
+      expectedRail: railField !== "" ? railField : null,
       buyer: parseBuyerPost(getField),
       getAttr: (param) => getField(param) ?? qp.get(param),
     },

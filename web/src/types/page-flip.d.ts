@@ -47,6 +47,8 @@ declare module "page-flip" {
     getPageCount(): number;
     getOrientation(): Orientation;
     getCurrentPageIndex(): number;
+    /** The DOM UI layer. Its `update()` re-syncs the canvas bitmap to the container's CSS box. */
+    getUI(): { update(): void };
     on(eventName: "flip" | "changeOrientation" | "changeState" | "init" | "update", callback: (e: PageFlipEvent) => void): void;
     destroy(): void;
   }

@@ -1,0 +1,9 @@
+price	rail	checkout_mode
+null	breaker	live
+set	router_error	live
+null	absent	gated
+set	present	gated
+set	absent	live
+null	router_error	live
+null	present	live
+set	breaker	live

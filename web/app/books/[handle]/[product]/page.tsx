@@ -5,7 +5,6 @@ import { BuyLink } from "../../../../src/components/storefront/buy-link";
 import BookPreviewer from "../../../../src/components/storefront/book-previewer";
 import { PreviewScrollCue } from "../../../../src/components/storefront/preview-scroll-cue";
 import { ArrowIcon, BrandFrame, BrandWordmark } from "../../../../src/components/brand/brand";
-import { resolveProductBookAssets } from "../../../../src/lib/book-assets";
 import {
   BookCover,
   NOINDEX,
@@ -22,6 +21,7 @@ import {
   resolveCreatorOr404,
 } from "../../../../src/components/storefront/storefront";
 import { GLOBAL } from "../../../../../payments/src/settings_registry";
+import { isPurchasableProduct } from "../../../../src/lib/product-purchasable";
 
 /**
  * Product page — SSR (Sprint 16). Replaces the frozen baked
@@ -72,15 +72,13 @@ export default async function StoreProductPage({
   const price = priceOf(p);
   const priceDisplay = formatProductPrice(price, p.currency, "—");
   const live = p.checkout_mode === "live";
+  // A live product with no price is not for sale: no buy form, the same non-purchasable state as a gated product.
+  const purchasable = isPurchasableProduct(p, p.usable_rail_count ?? 0);
   const title = p.title ?? productSlugOf(p);
   const buyUrl = `${PAY_ORIGIN}/checkout/${p.id}`;
   const layout = GLOBAL.storefront.product_layout;
-  const overview =
-    typeof p.overview === "string" && p.overview.trim() !== ""
-      ? p.overview.trim()
-      : p.overview === null
-        ? null
-        : resolveProductBookAssets(p).overview;
+  // withResolvedAssets already resolved overview (trimmed string or null) through the house-or-product_id identity gate.
+  const overview = p.overview;
   const gridStyle = {
     "--product-cover-max-w": `${layout.cover_max_width_px}px`,
     "--product-cover-max-pct": `${layout.cover_max_width_pct}%`,
@@ -161,7 +159,7 @@ export default async function StoreProductPage({
             <span className="text-xs font-normal text-gray-600">{`${priceDisplay.currency} · one-time`}</span>
           </p>
 
-          {live ? (
+          {purchasable ? (
             <BuyLink
               href={buyUrl}
               className="shrink-0"
@@ -176,7 +174,7 @@ export default async function StoreProductPage({
               className="shrink-0 self-start rounded-full border border-[#dcc7b4] bg-white/60 px-6 py-3.5 text-sm font-semibold text-gray-700"
               aria-disabled="true"
               data-checkout-slot="primary"
-              data-checkout-mode="gated"
+              data-checkout-mode={live ? "unpriced" : "gated"}
             >
               Coming soon &mdash; not yet available for purchase
             </p>

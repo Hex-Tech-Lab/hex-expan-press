@@ -139,6 +139,32 @@ export default function BookPreviewer({
     return () => ro.disconnect();
   }, [status, safeZoomIndex, orientation]);
 
+  // page-flip sizes its canvas bitmap once, from the container's CSS box, and re-syncs only on window
+  // resize. A container that settles after mount (the text panel, late layout, Safari's first layout)
+  // left the bitmap squeezed. Observe the container and re-sync on the next frame, one pending frame at a time.
+  useEffect(() => {
+    const node = hostRef.current;
+    if (!node || typeof ResizeObserver === "undefined") return;
+    let frame = 0;
+    let lastWidth = -1;
+    const ro = new ResizeObserver(() => {
+      const width = node.clientWidth;
+      if (Math.abs(width - lastWidth) < settings.resize_min_delta_px) return;
+      lastWidth = width;
+      if (frame) cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        // Same call page-flip makes on window resize (UI.onResize): re-syncs the rendered bitmap.
+        flipRef.current?.getUI().update();
+      });
+    });
+    ro.observe(node);
+    return () => {
+      ro.disconnect();
+      if (frame) cancelAnimationFrame(frame);
+    };
+  }, [status, settings.resize_min_delta_px]);
+
   useEffect(() => {
     if (!seen) return;
     let disposed = false;
@@ -157,6 +183,9 @@ export default function BookPreviewer({
 
         const stage = document.createElement("div");
         stage.setAttribute("data-testid", "book-preview-stage");
+        // page-flip's injected stylesheet sets touch-action: pan-y on .stf__parent, which blocks native pinch.
+        // Phones zoom by pinch (no zoom buttons below sm), so keep page-flip's vertical pan and allow pinch-zoom.
+        stage.style.touchAction = "pan-y pinch-zoom";
         hostRef.current.replaceChildren(stage);
 
         const reducedMotion =
@@ -424,7 +453,7 @@ export default function BookPreviewer({
                 role="region"
                 aria-label={settings.toolbar_labels.region_aria_label.replace("{title}", bookTitle)}
                 data-orientation={orientation}
-                className={`w-full flex justify-center ${status === "loading" ? "sr-only" : ""}`}
+                className={`w-full flex justify-center ${status === "loading" ? "invisible" : ""}`}
               />
             </div>
           </div>

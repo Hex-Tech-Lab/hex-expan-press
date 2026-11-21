@@ -1,0 +1,14 @@
+house	override	book_file	identity	sample_source
+yes	slug	sample_book	mismatch	absent
+no	slug	none	missing	true
+no	slug	duane_book	mismatch	false
+yes	slug	duane_book	match	true
+yes	none	none	missing	absent
+no	slug	sample_book	match	true
+yes	slug	sample_book	mismatch	true
+no	none	duane_book	match	absent
+yes	slug	sample_book	missing	false
+yes	slug	duane_book	missing	true
+no	slug	sample_book	match	false
+no	slug	none	missing	false
+yes	none	sample_book	mismatch	absent

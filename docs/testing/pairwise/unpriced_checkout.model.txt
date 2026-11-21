@@ -1,0 +1,26 @@
+# PICT pairwise model: product price and payment rail for /api/billing/checkout (KYC P1, unpriced-no-buy, 2026-11-21).
+# Rail is the active product_rails presence; rail absent means no active rail, which answers 503 Service Unavailable + Retry-After.
+# Run: /usr/local/bin/pict docs/testing/pairwise/unpriced_checkout.model.txt > docs/testing/pairwise/unpriced_checkout.rows.tsv
+#
+# Parameters:
+#   price        : products.price_usd (set = a numeric price; null = no price, the product is not for sale)
+#   rail         : active product_rails rows and the router. present = a routable paddle rail and the router answers;
+#                  absent = no active rail; router_error = a routable rail and MatrixRouter throws an unknown (non-breaker)
+#                  error; breaker = a routable rail and MatrixRouterUnavailableError (every rail marked down)
+#   checkout_mode: products.checkout_mode (live = sold; gated = not launched, refused by the mode gate before the price gate)
+
+price: set, null
+rail: present, absent, router_error, breaker
+checkout_mode: live, gated
+
+# router_error and breaker need a routable rail, and only a live product reaches the router.
+IF [rail] = "router_error" THEN [checkout_mode] = "live";
+IF [rail] = "breaker" THEN [checkout_mode] = "live";
+
+# Expected outcome (oracle in unpriced_checkout.pairwise.test.ts, written from the specification):
+#   gated                          -> 403 (mode gate runs before the price gate)
+#   live, price null               -> 409 product_unpriced (price gate runs before rails)
+#   live, price set, rail absent   -> 503 no_active_rail + Retry-After
+#   live, price set, router_error  -> 500 router_unexpected_error, no Retry-After (unknown error: logged with stack, never a default-rail fallback)
+#   live, price set, breaker       -> 503 rails_unavailable + Retry-After (the known breaker outage)
+#   live, price set, rail present  -> 302 redirect to the rail

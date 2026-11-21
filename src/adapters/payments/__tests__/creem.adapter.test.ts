@@ -100,6 +100,22 @@ describe("CreemAdapter", () => {
     }
   });
 
+  it("books a 100%-off discounted checkout.completed (order and amount_paid 0) as a $0 sale_completed, not as invalid", async () => {
+    // KYC P1: a Creem discount code that takes the order to $0 is a real, deliverable sale. A zero total is not a rejection.
+    const body = checkoutCompleted({}, { amount: 0, amount_paid: 0 });
+    const r = await adapter.parseAndValidateWebhook(headersFor(body), body);
+    expect(r.isValid).toBe(true);
+    if (!r.isValid) return;
+    expect(r.event).toMatchObject({
+      eventType: "sale_completed",
+      providerName: "creem",
+      saleId: "ord_test_1",
+      totalCents: 0,
+      currency: "USD",
+      buyerEmail: "buyer@example.com",
+    });
+  });
+
   it("accepts and books a paid checkout.completed whose buyer email is not RFC-valid (no sale is refused on email format)", async () => {
     const oddEmail = "buyer name@example.com";
     const body = checkoutCompleted({ customer: { email: oddEmail } });
