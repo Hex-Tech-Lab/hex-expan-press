@@ -212,6 +212,7 @@ describe("checkout page: unpriced product (price_usd null) has no buy form", () 
 
 describe("checkout page: paddle overlay error log is gated to Paddle-overlay checkouts", () => {
   const OVERLAY_LOG = "[checkout] paddle overlay unavailable";
+  const MISSING_PRICE_LOG = "[checkout] paddle rail has no paddle_price_id";
   let errorSpy: ReturnType<typeof vi.spyOn>;
   const overlayLogs = () => errorSpy.mock.calls.filter((args: unknown[]) => String(args[0]).startsWith(OVERLAY_LOG)).length;
 
@@ -229,10 +230,12 @@ describe("checkout page: paddle overlay error log is gated to Paddle-overlay che
     expect(overlayLogs()).toBe(0);
   });
 
-  it("a Paddle rail with no paddle_price_id never logs the Paddle overlay error", async () => {
+  it("a Paddle rail with no paddle_price_id never logs the Paddle overlay error and logs the missing price once", async () => {
     vi.mocked(fetchCheckoutProduct).mockResolvedValue(product({ paddle_price_id: null }, { railProvider: "paddle" }) as never);
     await render("p1");
     expect(overlayLogs()).toBe(0);
+    const missingPriceLogs = errorSpy.mock.calls.filter((args: unknown[]) => String(args[0]).startsWith(MISSING_PRICE_LOG));
+    expect(missingPriceLogs).toHaveLength(1);
   });
 
   it("a live Paddle checkout with a usable overlay config logs no overlay error", async () => {
