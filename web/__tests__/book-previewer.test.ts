@@ -12,6 +12,8 @@ const pdfMocks = vi.hoisted(() => ({
   docUrl: "",
   numPages: 6,
   getDocumentShouldFail: false,
+  holdLoad: false,
+  release: null as null | (() => void),
   getPage: vi.fn(),
 }));
 
@@ -25,6 +27,7 @@ const flipMocks = vi.hoisted(() => ({
     flipPrev: ReturnType<typeof vi.fn>;
     turnToPage: ReturnType<typeof vi.fn>;
     destroy: ReturnType<typeof vi.fn>;
+    uiUpdate: ReturnType<typeof vi.fn>;
     orientation: "portrait" | "landscape";
     currentPage: number;
   }>,
@@ -44,6 +47,13 @@ vi.mock("pdfjs-dist", () => ({
     pdfMocks.docUrl = url;
     if (pdfMocks.getDocumentShouldFail) {
       return { promise: Promise.reject(new Error("404 Not Found")) };
+    }
+    if (pdfMocks.holdLoad) {
+      return {
+        promise: new Promise((resolve) => {
+          pdfMocks.release = () => resolve({ numPages: pdfMocks.numPages, getPage: pdfMocks.getPage });
+        }),
+      };
     }
     return {
       promise: Promise.resolve({
@@ -79,6 +89,7 @@ vi.mock("page-flip", () => {
         destroy: vi.fn(() => {
           host.remove();
         }),
+        uiUpdate: vi.fn(),
         orientation: "landscape",
         currentPage: 0,
       };
@@ -114,6 +125,9 @@ vi.mock("page-flip", () => {
     }
     destroy() {
       this.state.destroy();
+    }
+    getUI() {
+      return { update: this.state.uiUpdate };
     }
   }
   return { PageFlip: MockPageFlip };
@@ -543,6 +557,116 @@ function installSpeechMock(): MockSpeechState {
   });
   return state;
 }
+
+describe("BookPreviewer container resize re-sync", () => {
+  // Stub ResizeObserver so the test can drive the callback directly. The component observes its host node;
+  // jsdom reports clientWidth 0, so each observed element gets a width set here before the callback fires.
+  const observed: Element[] = [];
+  const callbacks: Array<() => void> = [];
+  class MockResizeObserver {
+    cb: () => void;
+    constructor(cb: () => void) {
+      this.cb = cb;
+      callbacks.push(cb);
+    }
+    observe(el: Element) {
+      observed.push(el);
+    }
+    unobserve() {}
+    disconnect() {
+      // Drop this observer's callback so a torn-down observer cannot satisfy a later assertion.
+      const idx = callbacks.indexOf(this.cb);
+      if (idx >= 0) callbacks.splice(idx, 1);
+    }
+  }
+
+  beforeEach(() => {
+    observed.length = 0;
+    callbacks.length = 0;
+    vi.stubGlobal("ResizeObserver", MockResizeObserver);
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) => {
+      cb(0);
+      return 1;
+    });
+    vi.stubGlobal("cancelAnimationFrame", () => {});
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function setObservedWidth(px: number) {
+    for (const el of observed) {
+      Object.defineProperty(el, "clientWidth", { configurable: true, value: px });
+    }
+  }
+
+  function fireResize() {
+    for (const cb of [...callbacks]) cb();
+  }
+
+  it("keeps the page-flip host laid out but invisible while loading, never sr-only, and visible once ready", async () => {
+    pdfMocks.holdLoad = true;
+    try {
+      await mountPreviewer();
+      await flush();
+      const regionWhileLoading = container!.querySelector('[role="region"][data-orientation]') as HTMLElement | null;
+      expect(regionWhileLoading).not.toBeNull();
+      expect(regionWhileLoading!.className).toContain("invisible");
+      expect(regionWhileLoading!.className).not.toContain("sr-only");
+    } finally {
+      pdfMocks.holdLoad = false;
+    }
+    await act(async () => {
+      pdfMocks.release?.();
+    });
+    await flush();
+    await flush();
+    const regionReady = container!.querySelector('[role="region"][data-orientation]') as HTMLElement | null;
+    expect(regionReady).not.toBeNull();
+    expect(regionReady!.className).not.toContain("invisible");
+    expect(regionReady!.className).not.toContain("sr-only");
+  });
+
+  it("calls getUI().update() when the container width changes with no window resize", async () => {
+    await mountPreviewer();
+    await flush();
+    await flush();
+    const inst = flipMocks.instances[0];
+    expect(inst).toBeDefined();
+    inst.uiUpdate.mockClear();
+
+    await act(async () => {
+      setObservedWidth(720);
+      fireResize();
+      await flush();
+    });
+    expect(inst.uiUpdate).toHaveBeenCalled();
+  });
+
+  it("ignores container resizes smaller than resize_min_delta_px", async () => {
+    await mountPreviewer({ settings: { ...DEFAULT_GLOBAL.book_preview, resize_min_delta_px: 10 } });
+    await flush();
+    await flush();
+    const inst = flipMocks.instances[0];
+    inst.uiUpdate.mockClear();
+
+    await act(async () => {
+      setObservedWidth(720);
+      fireResize();
+      await flush();
+    });
+    const callsAfterFirst = inst.uiUpdate.mock.calls.length;
+    expect(callsAfterFirst).toBeGreaterThan(0);
+
+    await act(async () => {
+      setObservedWidth(725);
+      fireResize();
+      await flush();
+    });
+    expect(inst.uiUpdate.mock.calls.length).toBe(callsAfterFirst);
+  });
+});
 
 describe("structured accessible text extraction and chunking", () => {
   it("extracts headings, drop-caps, list items, and paragraphs from pdf.js text items", () => {
