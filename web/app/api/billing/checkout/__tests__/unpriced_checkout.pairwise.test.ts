@@ -9,6 +9,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import { GET } from "../route";
 import { MatrixRouter } from "../../../../../../src/infrastructure/matrix_router/matrix_router";
+import { MatrixRouterUnavailableError } from "../../../../../../src/infrastructure/matrix_router/matrix_router_errors";
 import { GLOBAL } from "../../../../../../payments/src/settings_registry";
 
 const adminModule = vi.hoisted(() => ({
@@ -26,7 +27,7 @@ vi.mock("../../../../../../src/infrastructure/matrix_router/matrix_router", () =
 const MODEL_PATH = fileURLToPath(new URL("../../../../../../docs/testing/pairwise/unpriced_checkout.model.txt", import.meta.url));
 const ROWS_PATH = fileURLToPath(new URL("../../../../../../docs/testing/pairwise/unpriced_checkout.rows.tsv", import.meta.url));
 const PICT_BIN = "/usr/local/bin/pict";
-const EXPECTED_ROW_COUNT = 6;
+const EXPECTED_ROW_COUNT = 8;
 const ROWS_TSV = readFileSync(ROWS_PATH, "utf8");
 
 const PID = "57596c19-c550-4bde-b17a-e87b86d005c5";
@@ -34,7 +35,7 @@ const OWNER_ID = "c0a80101-0000-4000-8000-000000000001";
 const RELEASE_SHA = "a".repeat(64);
 const RAIL_URL = "https://buy.paddle.com/live-rail";
 
-type Row = { price: "set" | "null"; rail: "present" | "absent" | "router_error"; checkout_mode: "live" | "gated" };
+type Row = { price: "set" | "null"; rail: "present" | "absent" | "router_error" | "breaker"; checkout_mode: "live" | "gated" };
 
 interface Expected {
   status: number;
@@ -58,6 +59,8 @@ function expectedOutcome(row: Row): Expected {
   if (row.rail === "router_error") {
     return { status: 503, code: "router_error", retryAfter: "router_error", location: false, tables: reads, routerCalled: true };
   }
+  // The breaker (every rail marked down) keeps its existing answer. It has no Retry-After on this path.
+  if (row.rail === "breaker") return { status: 503, code: "rails_unavailable", location: false, tables: reads, routerCalled: true };
   return { status: 302, location: true, tables: reads, routerCalled: true };
 }
 
@@ -93,6 +96,7 @@ function clientFor(row: Row) {
   };
   const rails = row.rail === "absent" ? [] : [{ provider: "paddle", weight: 100, checkout_url: RAIL_URL, active: true }];
   if (row.rail === "router_error") vi.mocked(MatrixRouter.getNextProvider).mockRejectedValueOnce(new Error("router down"));
+  if (row.rail === "breaker") vi.mocked(MatrixRouter.getNextProvider).mockRejectedValueOnce(new MatrixRouterUnavailableError("payments", PID));
   return {
     from: (table: string) => {
       touched.push(table);
@@ -137,7 +141,9 @@ describe(`billing / checkout: ${EXPECTED_ROW_COUNT} PICT pairwise rows (price x 
     if (want.code) expect(await res.json()).toMatchObject({ code: want.code });
     if (want.retryAfter === "no_active_rail") expect(res.headers.get("retry-after")).toBe(String(GLOBAL.payments.checkout_no_rail_retry_after_seconds));
     if (want.retryAfter === "router_error") expect(res.headers.get("retry-after")).toBe(String(GLOBAL.payments.checkout_router_error_retry_after_seconds));
-    expect(res.headers.get("location") !== null).toBe(want.location);
+    // A redirect must go to the configured rail exactly; every other outcome must have no Location.
+    if (want.location) expect(res.headers.get("location")).toBe(RAIL_URL);
+    else expect(res.headers.get("location")).toBeNull();
     expect(touched).toEqual(want.tables);
     expect(vi.mocked(MatrixRouter.getNextProvider).mock.calls.length > 0).toBe(want.routerCalled);
   });

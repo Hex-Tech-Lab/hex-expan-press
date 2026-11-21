@@ -25,7 +25,7 @@ type Row = {
   override: "slug" | "none";
   book_file: "sample_book" | "duane_book" | "none";
   identity: "match" | "mismatch" | "missing";
-  sample_source: "override_true" | "override_false" | "registry_true" | "absent";
+  sample_source: "true" | "false" | "absent";
 };
 
 afterEach(() => {
@@ -60,7 +60,8 @@ function oracle(row: Row) {
   const cover = isSafeCoverPath(book.cover_image) ? (book.cover_image as string).trim() : null;
   const preview = isSafePreviewPdfPath(book.preview_pdf) ? (book.preview_pdf as string).trim() : null;
   const overview = typeof book.overview === "string" && book.overview.trim() !== "" ? book.overview.trim() : null;
-  const overrideSample = overrideApplies && row.sample_source === "override_true";
+  // The override flag applies only to a house product with a slug override. The registry file's own flag always applies.
+  const overrideSample = overrideApplies && row.sample_source === "true";
   return {
     book_registry: FILES[file].path,
     cover_image: cover,
@@ -79,10 +80,8 @@ function excludedPair(a: [string, string], b: [string, string]): boolean {
   const forbidden: Array<[string, string, string, string]> = [
     ["book_file", "identity", "none", "match"],
     ["book_file", "identity", "none", "mismatch"],
-    ["sample_source", "override", "override_true", "none"],
-    ["sample_source", "override", "override_false", "none"],
-    ["sample_source", "book_file", "registry_true", "duane_book"],
-    ["sample_source", "book_file", "registry_true", "none"],
+    ["sample_source", "override", "true", "none"],
+    ["sample_source", "override", "false", "none"],
   ];
   return forbidden.some(([x, y, vx, vy]) => pair(x, y, vx, vy) || mirror(x, y, vx, vy));
 }
@@ -107,7 +106,7 @@ describe("book-assets resolver pairwise rows", () => {
       override: ["slug", "none"],
       book_file: ["sample_book", "duane_book", "none"],
       identity: ["match", "mismatch", "missing"],
-      sample_source: ["override_true", "override_false", "registry_true", "absent"],
+      sample_source: ["true", "false", "absent"],
     };
     const factors = Object.keys(values);
     for (let i = 0; i < factors.length; i++) {
@@ -129,8 +128,8 @@ describe("book-assets resolver pairwise rows", () => {
       const file = fileOf(row);
       if (row.override === "slug") {
         const entry: { book_registry: string; is_sample?: boolean } = { book_registry: FILES.duane_book.path };
-        if (row.sample_source === "override_true" || row.sample_source === "override_false") {
-          entry.is_sample = row.sample_source === "override_true";
+        if (row.sample_source === "true" || row.sample_source === "false") {
+          entry.is_sample = row.sample_source === "true";
         }
         (GLOBAL.storefront.book_assets as Record<string, unknown>)[slug] = entry;
       }

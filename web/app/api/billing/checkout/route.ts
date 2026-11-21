@@ -203,7 +203,7 @@ async function handleCheckout(
 
     // Fail closed on a null price before any consent or rail work: an unpriced product is not for sale (409 Conflict).
     if (productPriceUsd(resolvedProduct.price_usd) === null) {
-      console.error(`[billing/checkout] product '${product}' has no price (price_usd is null) — refusing checkout`);
+      console.error(`[billing/checkout] product '${product}' has no usable price (null, blank or non-numeric) — refusing checkout`);
       return jsonError(409, "Product has no price and is not available for purchase", "product_unpriced");
     }
 

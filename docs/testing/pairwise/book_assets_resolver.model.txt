@@ -7,20 +7,19 @@
 #   book_file: the product row's book_registry: the sample registry file (sample_book, is_sample true), the non-sample
 #          registry file (duane_book, is_sample false), or none. With none and a slug override the override's file applies.
 #   identity: product.id against the resolved file's product_id: match (equal), mismatch (another id), missing (no id).
-#   sample_source: where an explicit is_sample flag comes from: the override entry (override_true / override_false),
-#          the registry file (registry_true), or neither (absent).
+#   sample_source: the override entry's is_sample flag only: true, false, or absent (no flag in the entry). The registry
+#          file's own is_sample is NOT a factor here: book_file already determines it (sample_book true, duane_book false),
+#          so the registry flag can never contradict book_file.
 # Constraints:
 #   no file (book_file none) gives no identity to check, so identity is missing.
-#   an override flag needs a slug override entry, so override_true / override_false need override = slug.
-#   a registry flag needs the sample registry file.
+#   an override flag needs a slug override entry, so true / false need override = slug.
 # Run: /usr/local/bin/pict docs/testing/pairwise/book_assets_resolver.model.txt > docs/testing/pairwise/book_assets_resolver.rows.tsv
 
 house: yes, no
 override: slug, none
 book_file: sample_book, duane_book, none
 identity: match, mismatch, missing
-sample_source: override_true, override_false, registry_true, absent
+sample_source: true, false, absent
 
 IF [book_file] = "none" THEN [identity] = "missing";
-IF [sample_source] IN {"override_true", "override_false"} THEN [override] = "slug";
-IF [sample_source] = "registry_true" THEN [book_file] = "sample_book";
+IF [sample_source] IN {"true", "false"} THEN [override] = "slug";
