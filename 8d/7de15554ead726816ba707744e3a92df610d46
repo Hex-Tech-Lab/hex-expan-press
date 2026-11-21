@@ -1,0 +1,27 @@
+web/app/api/billing/checkout/route.ts
+  s_7e539dcf78d9db::t_3251805744fedf 125
+  s_7e539dcf78d9db::t_3caae289c4bb53 165
+  s_7e539dcf78d9db::t_0aebb7fcd4381b 225
+  s_7e539dcf78d9db::t_a240376c1cf050 226-227
+  s_7e539dcf78d9db::t_ea97ae997d8b27 166-167
+  s_7e539dcf78d9db::t_6401a385b86859 126-127
+web/app/api/billing/checkout/__tests__/rail_pinned_to_label.test.ts
+  s_7e539dcf78d9db::t_e084b234506fa0 212,214-253
+  s_7e539dcf78d9db::t_07f1efce5792ac 213
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8d7de15554ead726816ba707744e3a92df610d46",
+  "prompts": {},
+  "sessions": {
+    "s_7e539dcf78d9db": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7aec794a-3e95-4ace-bf8d-7a1962c629d9",
+        "model": "unknown"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
