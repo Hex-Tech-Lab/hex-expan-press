@@ -187,7 +187,7 @@ export interface GlobalSettings {
     sample_preview_cta: string;
     browse_books_label: string;
     browse_books_path: string;
-    /** `storefront.browse_books_enabled`: shows the "browse books" links on the B2B home (header top-right and hero card).
+    /** `storefront.browse_books_enabled`: shows the "browse books" links on the B2B home (header top-right only; the hero link was removed).
      *  Off by default because the links expose how few titles exist. Re-enable once several creators and house books
      *  are live. If re-enabled, the header top-right is the founder-approved placement. */
     browse_books_enabled: boolean;
