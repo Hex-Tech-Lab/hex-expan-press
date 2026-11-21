@@ -1,0 +1,26 @@
+web/app/api/billing/checkout/__tests__/route.unavailable.test.ts
+  s_7e539dcf78d9db::t_9b9dd89733e304 124-129,132
+  s_7e539dcf78d9db::t_485a0a99edc590 11-13
+web/app/api/billing/checkout/route.ts
+  s_7e539dcf78d9db::t_95c22c498a5872 312
+web/src/components/storefront/storefront.tsx
+  s_7e539dcf78d9db::t_c72ed0aeb412b9 32-33
+web/e2e/b2c-confinement.spec.ts
+  s_7e539dcf78d9db::t_d0777c7e1dad60 130-133
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "db8cdfb0878c43316785a0d0c83c5d6ec56e988c",
+  "prompts": {},
+  "sessions": {
+    "s_7e539dcf78d9db": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7aec794a-3e95-4ace-bf8d-7a1962c629d9",
+        "model": "unknown"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
