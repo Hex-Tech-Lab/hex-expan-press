@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/nextjs";
 import { NextRequest, NextResponse } from "next/server";
 import { MatrixRouter } from "../../../../../src/infrastructure/matrix_router/matrix_router";
 import { getSupabaseAdmin } from "../../../../../payments/src/supabase_admin";
@@ -35,16 +36,27 @@ const PRODUCT_COLUMNS = "id, store_product_id, creator_id, release_sha256, check
 const GATE_CONSENT_KINDS = ["C1_data_accuracy", "C2_release_approval", "C3_revenue_split"] as const;
 const CONSENT_VERIFICATION_FAILED = "Checkout consent verification failed";
 
-function lookupFailed(product: string, message: string): ProductLookup {
-  console.warn(`[billing/checkout] product lookup warning for '${product}': ${message}`);
-  return { response: jsonError(500, CONSENT_VERIFICATION_FAILED) };
-}
-
 /** 503 Service Unavailable with a Retry-After header (seconds come from the registry). Callers fail closed before any order or provider label is written. */
 function retryAfterUnavailable(error: string, code: string, retryAfterSeconds: number): NextResponse {
   const res = jsonError(503, error, code);
   res.headers.set("Retry-After", String(retryAfterSeconds));
   return res;
+}
+
+/** A failed product lookup is a transient database read: 503 with Retry-After, reported to Sentry, no order or provider label written. */
+function lookupFailed(product: string, message: string): ProductLookup {
+  console.warn(`[billing/checkout] product lookup warning for '${product}': ${message}`);
+  // A failed product lookup on a revenue path is an incident: report it.
+  Sentry.captureException(new Error(`checkout: product lookup failed: ${message}`), { tags: { surface: "checkout_route", reason: "product_lookup_failed" } });
+  return { response: transientLookupUnavailable() };
+}
+
+function transientLookupUnavailable(): NextResponse {
+  return retryAfterUnavailable(
+    "Checkout is temporarily unavailable. Please try again shortly.",
+    "lookup_unavailable",
+    GLOBAL.payments.checkout_db_retry_after_seconds,
+  );
 }
 
 /** No active payment rail, so the buyer is never sent to a default provider. */
@@ -115,10 +127,14 @@ async function checkCreatorConsents(
 
   if (consentErr) {
     console.error(`[billing/checkout] failed to query consents for '${product}': ${consentErr.message}`);
+    // A 500 on a revenue path is an incident: report it so it shows in Sentry, not only in the console.
+    Sentry.captureException(new Error(`checkout: consents query failed: ${consentErr.message}`), { tags: { surface: "checkout_route", reason: "consents_query_failed" } });
     return jsonError(500, CONSENT_VERIFICATION_FAILED);
   }
   if (typeof consentCount !== "number" || consentCount !== (consentRows ?? []).length) {
     console.error(`[billing/checkout] incomplete consent history for '${product}': got ${(consentRows ?? []).length} of ${consentCount ?? "unknown"}`);
+    // A consent-count mismatch is a data-integrity signal on a revenue path: report it.
+    Sentry.captureException(new Error(`checkout: incomplete consent history for '${product}'`), { tags: { surface: "checkout_route", reason: "consent_history_incomplete" } });
     return jsonError(500, CONSENT_VERIFICATION_FAILED);
   }
 
@@ -156,6 +172,8 @@ async function checkHousePin(supabase: SupabaseAdmin, product: string, resolvedP
     .maybeSingle();
   if (pinErr) {
     console.error(`[billing/checkout] failed to read the house release pin for '${product}': ${pinErr.message}`);
+    // A failed house-pin read is a database outage on a revenue path: report it.
+    Sentry.captureException(new Error(`checkout: house pin read failed: ${pinErr.message}`), { tags: { surface: "checkout_route", reason: "house_pin_read_failed" } });
     return jsonError(500, CONSENT_VERIFICATION_FAILED);
   }
   const pinnedSha = normalizeSha256((pinRow as { sha256?: unknown } | null)?.sha256);
@@ -189,6 +207,8 @@ async function handleCheckout(
     const supabase = await getSupabaseAdmin();
     if (!supabase) {
       console.error("[billing/checkout] Supabase admin client unavailable — consent gate cannot run, failing closed");
+      // A missing service-role client on the revenue path is a deploy misconfiguration: report it.
+      Sentry.captureException(new Error("checkout: admin client unavailable"), { tags: { surface: "checkout_route", reason: "admin_client_unavailable" } });
       return jsonError(500, CONSENT_VERIFICATION_FAILED);
     }
 
@@ -211,6 +231,8 @@ async function handleCheckout(
     const ownerId = resolvedProduct.creator_id;
     if (!ownerId) {
       console.error(`[billing/checkout] product owner unresolvable for '${product}' — failing closed`);
+      // A product with no owner is a data-integrity fault on a revenue path: report it.
+      Sentry.captureException(new Error("checkout: product owner unresolvable"), { tags: { surface: "checkout_route", reason: "owner_unresolvable" } });
       return jsonError(500, CONSENT_VERIFICATION_FAILED);
     }
 
@@ -226,7 +248,9 @@ async function handleCheckout(
       .order("weight", { ascending: false });
     if (railErr) {
       console.error(`[billing/checkout] rails query failed for '${product}': ${railErr.message}`);
-      return jsonError(500, CONSENT_VERIFICATION_FAILED);
+      // A rails-table outage on a paid product is a transient database read: report it, and answer 503 with Retry-After.
+      Sentry.captureException(new Error(`checkout: rails query failed: ${railErr.message}`), { tags: { surface: "checkout_route", reason: "rails_query_failed" } });
+      return transientLookupUnavailable();
     }
     // Shared resolver (web/src/lib/checkout-rails.ts): the same verified-provider filter the checkout page counts with.
     const resolution = resolveCheckoutRails(railRows, {
@@ -241,19 +265,31 @@ async function handleCheckout(
           ? "has a malformed product_rails row"
           : resolution.reason === "invalid_checkout_url"
             ? "has a usable rail with an invalid checkout_url"
-            : "has an active rail with a missing provider or non-string checkout_url";
+            : resolution.reason === "invalid_weight"
+              ? "has an active rail with a weight that is not greater than 0"
+              : "has an active rail with a missing provider or non-string checkout_url";
       console.error(`[billing/checkout] product '${product}' ${detail} — failing closed`);
+      // A 500 is an incident on a revenue path: report it, like the other failure branches of this handler.
+      Sentry.captureException(new Error(`checkout: malformed product_rails (${resolution.reason})`), { tags: { surface: "checkout_route", reason: resolution.reason } });
       return jsonError(500, "Checkout is not configured");
     }
     dbRails = resolution.usable;
-    const configuredRowCount = resolution.configuredCount;
+    const activeRailCount = resolution.activeCount;
 
-    if (configuredRowCount > 0 && dbRails.length === 0) {
-      console.error(`[billing/checkout] product '${product}' has ${configuredRowCount} configured rail(s) but none usable (not active, or provider switched off) — refusing checkout`);
+    if (dbRails.length === 0) {
+      console.error(`[billing/checkout] product '${product}' has ${activeRailCount} active enabled rail(s) and none usable — refusing checkout`);
+      // Report only when an active, enabled rail exists and none is usable. A switched-off rail and a product with no rail
+      // are designed states and are not reported.
+      if (activeRailCount > 0) {
+        Sentry.captureException(new Error("checkout: active enabled rails, none usable"), { tags: { surface: "checkout_route", reason: "no_active_rail" } });
+      }
       return noActiveRailResponse();
     }
   } catch (err) {
-    console.error(`[billing/checkout] consent verification exception for '${product}': ${(err as Error).message}`);
+    // A thrown value need not be an Error (a thrown null would make (err as Error).message throw here and skip the report).
+    console.error(`[billing/checkout] consent verification exception for '${product}': ${err instanceof Error ? err.message : String(err)}`);
+    // A 500 here is an incident, so it is reported under the checkout_gate_unexpected tag.
+    Sentry.captureException(err, { tags: { surface: "checkout_route", reason: "checkout_gate_unexpected" } });
     return jsonError(500, CONSENT_VERIFICATION_FAILED);
   }
 
@@ -268,6 +304,8 @@ async function handleCheckout(
     const problem = checkoutUrlProblem(rail.checkout_url, resolvedProduct.checkout_mode);
     if (problem) {
       console.error(`[billing/checkout] rejected checkout_url for '${product}' (${rail.provider}): ${problem}`);
+      // A configured rail with an unusable checkout URL is a misconfiguration on a revenue path: report it.
+      Sentry.captureException(new Error(`checkout: rejected checkout_url (${problem})`), { tags: { surface: "checkout_route", reason: "checkout_url_rejected" } });
       return jsonError(500, "Checkout is not configured");
     }
   }
@@ -283,6 +321,7 @@ async function handleCheckout(
       // The router named a rail that is not among the usable rails (or it has no checkout URL). Fail closed with a
       // retryable 503 and the registry Retry-After, and never send the buyer to another provider.
       console.error(`[billing/checkout] selected rail '${providerName}' is missing or has no checkout_url — answering 503 rail_misconfigured`);
+      Sentry.captureException(new Error(`checkout: selected rail missing or has no checkout_url (${providerName})`), { tags: { surface: "checkout_route", reason: "rail_misconfigured" } });
       return retryAfterUnavailable(
         "Checkout is temporarily unavailable. Please try again shortly.",
         "rail_misconfigured",
@@ -294,6 +333,8 @@ async function handleCheckout(
     // unexpected failure: log it with its stack and answer 500. Never fall back to the highest-weight rail.
     if (err instanceof MatrixRouterUnavailableError) {
       console.error(`[billing/checkout] every rail is marked down for '${product}' — answering 503`);
+      // Every rail is down on a revenue path: report it, so it pages through Sentry as well as the console.
+      Sentry.captureException(err, { tags: { surface: "checkout_route", reason: "rails_unavailable" } });
       return retryAfterUnavailable(
         "Checkout is temporarily unavailable. No payment rail is accepting orders.",
         "rails_unavailable",
@@ -303,13 +344,19 @@ async function handleCheckout(
     // A rejection can be any value (including null or undefined), so read .stack only from a real Error.
     const detail = err instanceof Error ? (err.stack ?? err.message) : String(err);
     console.error(`[billing/checkout] MatrixRouter unexpected failure for '${product}': ${detail} — answering 500, no default provider`);
+    Sentry.captureException(err, { tags: { surface: "checkout_route", reason: "router_unexpected_error" } });
     return jsonError(500, "Checkout failed unexpectedly", "router_unexpected_error");
   }
 
   // The label the buyer saw must be the rail that is charged. A rail set that changed since the page rendered (a rail added,
   // switched off, or re-weighted) makes the router pick another provider: refuse before any order or provider label.
   if (expectedRail && selectedRail.provider !== expectedRail) {
-    console.error(`[billing/checkout] rail changed for '${product}': page showed '${expectedRail}', router selected '${selectedRail.provider}' — answering 409 rail_changed`);
+    // The label is buyer-supplied: JSON-encode it (escapes CR/LF and control characters), escape the line separators U+2028 and
+    // U+2029 (JSON leaves them raw), then cut the ENCODED text, so the logged length never exceeds rail_label_log_max_chars.
+    const shownRail = JSON.stringify(expectedRail)
+      .replace(/[\u2028\u2029]/g, (char) => (char === "\u2028" ? "\\u2028" : "\\u2029"))
+      .slice(0, GLOBAL.payments.rail_label_log_max_chars);
+    console.error(`[billing/checkout] rail changed for '${product}': page showed ${shownRail}, router selected '${selectedRail.provider}' — answering 409 rail_changed`);
     return jsonError(409, "The payment provider for this product has changed. Reload the page and try again.", "rail_changed");
   }
 

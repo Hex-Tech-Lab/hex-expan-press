@@ -1,6 +1,7 @@
 # PICT pairwise model: rail-aware buyer purchasability and merchant-of-record view (KYC P1, mor-label-shared-resolver, 2026-11-21).
 # Covers the shared resolver (web/src/lib/checkout-rails.ts) used by the checkout route and the checkout and product pages.
-# Run: /usr/local/bin/pict docs/testing/pairwise/checkout_rails_resolver.model.txt > docs/testing/pairwise/checkout_rails_resolver.rows.tsv
+# Run: /usr/local/bin/pict docs/testing/pairwise/checkout_rails_resolver.model.txt /e:docs/testing/pairwise/checkout_rails_resolver.seed.tsv > docs/testing/pairwise/checkout_rails_resolver.rows.tsv
+# The seed file pins the one-rail Creem live row (the merchant-of-record case for a non-Paddle provider), which pairwise alone does not force.
 #
 # Parameters:
 #   rails         : usable rails after the shared resolver (active, provider enabled, provider verified).
@@ -8,10 +9,12 @@
 #                   overlay eligible); two = more than one (POST fallback, no merchant of record, no overlay).
 #   provider      : provider of the single usable rail (paddle or creem). Only read when rails = one.
 #   price         : products.price_usd (set = a numeric price; null = not for sale).
-#   checkout_mode : products.checkout_mode (live = sold; gated = not launched).
+#   checkout_mode : products.checkout_mode (live = sold; gated, sandbox, paddle and null = not sold on the buy form). The column is
+#                   nullable: the migration's CHECK (checkout_mode in (...)) passes on NULL (migration 20261007000000_commercial_heritage.sql),
+#                   so null is a database-allowed state and is modelled.
 #
 # Expected outcome (oracle in checkout_rails_resolver.pairwise.test.ts, written from the specification):
-#   gated, any rails, any price        -> not purchasable, no merchant of record
+#   gated, sandbox, paddle or null, any rails, any price -> not purchasable, no merchant of record
 #   live, price null, any rails        -> not purchasable ("Coming soon"), no merchant of record
 #   live, price set, rails zero        -> not purchasable ("Coming soon"), no merchant of record
 #   live, price set, rails one         -> purchasable, merchant of record = the single rail's provider
@@ -20,4 +23,4 @@
 rails: zero, one, two
 provider: paddle, creem
 price: set, null
-checkout_mode: live, gated
+checkout_mode: live, gated, sandbox, paddle, null
