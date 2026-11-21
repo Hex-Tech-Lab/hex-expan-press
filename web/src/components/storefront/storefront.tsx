@@ -349,7 +349,7 @@ export const fetchCheckoutProduct = cache(async function fetchCheckoutProduct(
     .eq("product_id", productId)
     .order("weight", { ascending: false });
   if (railErr) throw new Error(`storefront: checkout rails query failed for '${productId}': ${railErr.message}`);
-  // The same usable rails the checkout route counts (shared resolver). The first is the rail the page names; the count
+  // The same usable rails the checkout route counts (shared resolver). The first is the highest-weight usable rail (the page names it only when exactly one is usable); the count
   // drives the rail-aware rule: none is "Coming soon", more than one is no merchant of record and no overlay.
   const usable = usableRailsForRows(railRows, row.checkout_mode);
   return { creator, product: row, usableRails: usable, configuredRailCount: Array.isArray(railRows) ? railRows.length : 0 };

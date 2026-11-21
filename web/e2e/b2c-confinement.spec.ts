@@ -125,7 +125,7 @@ for (const page_ of ["terms", "privacy", "refund-policy", "providers"]) {
 }
 
 test("(d) pay host: /terms.html and /books are 404, /books/legal/terms.html is 200", async () => {
-  // Local harness cannot prove the pay boundary: the proxy keys on the listen address, not the Host header
+  // Local harness cannot prove the pay boundary: without E2E_PROXY_HOST_OVERRIDE, the proxy keys on the listen address, not the Host header
   // (KNOWN HARNESS GAP below). The live boundary is verified against the real pay hostname with curl.
   // Skipped until the precondition below can pass. Root cause (reproduced with PAY_HOST_LIVE=1 on chromium, webkit and firefox):
   // the /__e2e/proxy-host probe (web/proxy.ts:115) reports url.hostname, which next dev sets to "localhost" for the pay

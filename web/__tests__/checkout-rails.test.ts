@@ -64,6 +64,13 @@ describe("resolveCheckoutRails", () => {
     expect(resolveCheckoutRails([rail("paddle", true, { weight: "0" })], ALL_ON)).toEqual({ kind: "malformed", reason: "invalid_weight" });
   });
 
+  it("a zero-weight row next to a healthy rail fails the whole set closed (the documented contract, not a skip)", () => {
+    expect(resolveCheckoutRails([rail("paddle", true, { weight: 100 }), rail("creem", true, { weight: 0 })], ALL_ON)).toEqual({
+      kind: "malformed",
+      reason: "invalid_weight",
+    });
+  });
+
   it("is malformed for a blank weight string, which Number('') would read as 0", () => {
     expect(resolveCheckoutRails([rail("paddle", true, { weight: "  " })], ALL_ON)).toEqual({ kind: "malformed", reason: "invalid_active_row" });
   });

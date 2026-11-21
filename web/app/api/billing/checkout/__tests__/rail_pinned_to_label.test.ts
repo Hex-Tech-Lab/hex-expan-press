@@ -275,6 +275,20 @@ describe("checkout route: the charged rail must be the rail the buyer was shown"
     expect(sentry.captureException).toHaveBeenCalledTimes(1);
   });
 
+  it("a consent read that throws a non-Error (null): still 500 and reported to Sentry, not a crash in the catch", async () => {
+    sentry.captureException.mockClear();
+    adminModule.mockAdminClient = {
+      from: (table: string) => {
+        if (table === "products") return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: PRODUCT, error: null }) }) }) };
+        if (table === "consents") return { select: () => ({ eq: () => ({ in: async () => { throw null; } }) }) };
+        return { select: () => ({ eq: () => ({ order: async () => ({ data: [paddleRail], error: null }) }) }) };
+      },
+    };
+    const res = await GET(checkoutRequest("paddle"));
+    expect(res.status).toBe(500);
+    expect(sentry.captureException).toHaveBeenCalledTimes(1);
+  });
+
   it("a missing service-role client: 500 and reported to Sentry (deploy misconfiguration)", async () => {
     sentry.captureException.mockClear();
     adminModule.mockAdminClient = null;

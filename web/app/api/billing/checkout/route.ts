@@ -126,7 +126,6 @@ async function checkCreatorConsents(
     console.error(`[billing/checkout] incomplete consent history for '${product}': got ${(consentRows ?? []).length} of ${consentCount ?? "unknown"}`);
     // A consent-count mismatch is a data-integrity signal on a revenue path: report it.
     Sentry.captureException(new Error(`checkout: incomplete consent history for '${product}'`), { tags: { surface: "checkout_route", reason: "consent_history_incomplete" } });
-    // A consent-count mismatch is a data-integrity signal on a revenue path: report it.
     return jsonError(500, CONSENT_VERIFICATION_FAILED);
   }
 
@@ -166,7 +165,6 @@ async function checkHousePin(supabase: SupabaseAdmin, product: string, resolvedP
     console.error(`[billing/checkout] failed to read the house release pin for '${product}': ${pinErr.message}`);
     // A failed house-pin read is a database outage on a revenue path: report it.
     Sentry.captureException(new Error(`checkout: house pin read failed: ${pinErr.message}`), { tags: { surface: "checkout_route", reason: "house_pin_read_failed" } });
-    // A failed house-pin read is a database outage on a revenue path: report it.
     return jsonError(500, CONSENT_VERIFICATION_FAILED);
   }
   const pinnedSha = normalizeSha256((pinRow as { sha256?: unknown } | null)?.sha256);
@@ -226,7 +224,6 @@ async function handleCheckout(
       console.error(`[billing/checkout] product owner unresolvable for '${product}' — failing closed`);
       // A product with no owner is a data-integrity fault on a revenue path: report it.
       Sentry.captureException(new Error("checkout: product owner unresolvable"), { tags: { surface: "checkout_route", reason: "owner_unresolvable" } });
-      // A product with no owner is a data-integrity fault on a revenue path: report it.
       return jsonError(500, CONSENT_VERIFICATION_FAILED);
     }
 
@@ -277,8 +274,9 @@ async function handleCheckout(
       return noActiveRailResponse();
     }
   } catch (err) {
-    console.error(`[billing/checkout] consent verification exception for '${product}': ${(err as Error).message}`);
-    // A 500 here is an incident, so it is reported. Tagged so triage does not read every failure as a consent problem.
+    // A thrown value need not be an Error (a thrown null would make (err as Error).message throw here and skip the report).
+    console.error(`[billing/checkout] consent verification exception for '${product}': ${err instanceof Error ? err.message : String(err)}`);
+    // A 500 here is an incident, so it is reported under the consent_gate_unexpected tag.
     Sentry.captureException(err, { tags: { surface: "checkout_route", reason: "consent_gate_unexpected" } });
     return jsonError(500, CONSENT_VERIFICATION_FAILED);
   }
