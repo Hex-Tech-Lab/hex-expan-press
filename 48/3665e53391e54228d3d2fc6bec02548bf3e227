@@ -1,0 +1,25 @@
+web/e2e/mock-supabase.ts
+  s_7e539dcf78d9db::t_de57127963f1ba 323-326
+  s_7e539dcf78d9db::t_169c03fd98d6ce 45-57,59-62,74-75
+  s_7e539dcf78d9db::t_e51835e7ad0be0 58,63-73
+  s_7e539dcf78d9db::t_576bd75bfe51ea 82-96
+  s_7e539dcf78d9db::t_08d2870617457d 174-175
+  s_7e539dcf78d9db::t_b5a31f347190b2 9-10
+  s_7e539dcf78d9db::t_fd06aa04f7148c 221-225
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "483665e53391e54228d3d2fc6bec02548bf3e227",
+  "prompts": {},
+  "sessions": {
+    "s_7e539dcf78d9db": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7aec794a-3e95-4ace-bf8d-7a1962c629d9",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
