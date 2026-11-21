@@ -279,7 +279,7 @@ async function handleCheckout(
   } catch (err) {
     console.error(`[billing/checkout] consent verification exception for '${product}': ${(err as Error).message}`);
     // A 500 here is an incident, so it is reported. Tagged so triage does not read every failure as a consent problem.
-    Sentry.captureException(err, { tags: { surface: "checkout_route", reason: "consent_gate_unexpected" } });
+    Sentry.captureException(err, { tags: { surface: "checkout_route", reason: "checkout_gate_unexpected" } });
     return jsonError(500, CONSENT_VERIFICATION_FAILED);
   }
 
