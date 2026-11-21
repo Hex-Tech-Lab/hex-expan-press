@@ -45,6 +45,11 @@ test("flipbook toolbar fits one row with >=44px targets at 390px", async ({ page
   await expect(bar.locator("xpath=..").getByText("Next", { exact: true })).toBeHidden();
   await expect(page.getByTestId("book-preview-zoom-label")).toHaveAttribute("aria-live", "polite");
   await expect(page.getByTestId("book-preview-goto-submit")).toBeVisible();
+  // iOS Safari zooms the whole page on focus of any input under 16px, so the page field must be >= 16px below sm.
+  const gotoFontPx = await page
+    .getByTestId("book-preview-goto-input")
+    .evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+  expect(gotoFontPx).toBeGreaterThanOrEqual(16);
   await parent.scrollIntoViewIfNeeded();
   await page.screenshot({ path: "test-results/mobile-reader-controls.png" });
 });

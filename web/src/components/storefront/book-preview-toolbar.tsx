@@ -117,7 +117,7 @@ export function BookPreviewToolbar({
             disabled={status !== "ready" || totalPages <= 0}
             title={labels.go_to_page}
             data-testid="book-preview-goto-input"
-            className="w-7 sm:w-11 bg-transparent text-center font-mono text-sm sm:text-xs tabular-nums font-medium text-gray-900 focus:outline-none disabled:opacity-45"
+            className="w-9 sm:w-11 bg-transparent text-center font-mono text-base sm:text-xs tabular-nums font-medium text-gray-900 focus:outline-none disabled:opacity-45"
           />
           <span className="whitespace-nowrap font-mono text-xs tabular-nums text-gray-500 select-none pr-1" aria-hidden="true">
             {`/ ${totalPages || "—"}`}
