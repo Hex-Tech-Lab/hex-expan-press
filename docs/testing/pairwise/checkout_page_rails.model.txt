@@ -1,0 +1,18 @@
+# PICT pairwise model: active rail count, rail provider and Paddle overlay on the checkout page (option B, fail closed on ambiguity, 2026-11-21).
+# Run: /usr/local/bin/pict docs/testing/pairwise/checkout_page_rails.model.txt > docs/testing/pairwise/checkout_page_rails.rows.tsv
+#
+# Parameters:
+#   rails    : active enabled product_rails count for the product (storefront fetchCheckoutProduct activeRailCount)
+#              one = exactly one active rail (the page names it); two = more than one (ambiguous: fail closed)
+#   provider : provider of the highest-weight active rail (paddle or creem)
+#   overlay  : Paddle overlay config. usable = live token and production environment; unusable = empty token (overlay not ok)
+#
+# Expected outcome (oracle in checkout_page_rails.pairwise.test.ts, written from the specification):
+#   two rails                          -> no merchant of record named, no overlay (paddleClient null), one warn
+#   one rail, creem                    -> merchant of record "Creem", no overlay
+#   one rail, paddle, overlay usable   -> merchant of record "Paddle.com", overlay client passed
+#   one rail, paddle, overlay unusable -> merchant of record "Paddle.com", no overlay client, one overlay-unavailable error log
+
+rails: one, two
+provider: paddle, creem
+overlay: usable, unusable

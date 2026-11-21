@@ -274,7 +274,12 @@ export const PAY_ORIGIN = "https://pay.expanpress.com";
 /** Checkout page lookup by product UUID (ADR 0061). Commercial products only, same rule as the storefront. */
 export const fetchCheckoutProduct = cache(async function fetchCheckoutProduct(
   productId: string,
-): Promise<{ creator: { handle: string; display_name: string; is_house: boolean }; product: StoreProduct; railProvider: string | null } | null> {
+): Promise<{
+  creator: { handle: string; display_name: string; is_house: boolean };
+  product: StoreProduct;
+  railProvider: string | null;
+  activeRailCount: number;
+} | null> {
   if (!guidSchema.safeParse(productId).success) return null;
   const supabase = await getSupabaseAdmin();
   if (!supabase) {
@@ -300,15 +305,22 @@ export const fetchCheckoutProduct = cache(async function fetchCheckoutProduct(
     .eq("product_id", productId)
     .order("weight", { ascending: false });
   if (railErr) throw new Error(`storefront: checkout rails query failed for '${productId}': ${railErr.message}`);
-  const activeRail = (railRows ?? []).find(
+  // Active, enabled rails in weight order. The first is the rail the page names; the count drives the fail-closed rule
+  // on the checkout page (more than one active rail: no merchant of record, no overlay).
+  const activeRails = (railRows ?? []).filter(
     (r) =>
       r !== null &&
       typeof r === "object" &&
       ((r as { active?: unknown }).active === true || (r as { active?: unknown }).active === "true") &&
       typeof (r as { provider?: unknown }).provider === "string" &&
       isEnabledPaymentProvider((r as { provider: string }).provider),
-  ) as { provider: string } | undefined;
-  return { creator, product: row, railProvider: activeRail?.provider ?? null };
+  ) as Array<{ provider: string }>;
+  return {
+    creator,
+    product: row,
+    railProvider: activeRails[0]?.provider ?? null,
+    activeRailCount: activeRails.length,
+  };
 });
 
 export { isHouseCreator } from "../../lib/house";

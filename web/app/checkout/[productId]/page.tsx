@@ -55,7 +55,7 @@ export default async function CheckoutPage({
   const { productId } = await params;
   const found = await fetchCheckoutProduct(productId);
   if (!found) notFound();
-  const { creator, product: p, railProvider } = found;
+  const { creator, product: p, railProvider, activeRailCount } = found;
 
   const sp = await searchParams;
   const initialAttribution: Record<string, string> = {};
@@ -72,8 +72,17 @@ export default async function CheckoutPage({
   if (railProvider === null) {
     console.error("[checkout] no active enabled rail for product; no provider is named on the page", { productId });
   }
+  // Fail closed on ambiguity: with more than one active rail the page cannot know which rail the router will pick, so it
+  // names no merchant of record and skips the Paddle overlay. The buyer gets the POST fallback, logged once.
+  const multiRail = activeRailCount > 1;
+  if (multiRail) {
+    console.warn(
+      "[checkout] more than one active rail; no merchant of record is named and the overlay is skipped, buyer gets the POST fallback",
+      { productId, activeRailCount },
+    );
+  }
   // Name the merchant of record only for a real selected rail. With no rail there is no provider to name (the route 503s).
-  const activeProvider = railProvider;
+  const activeProvider = multiRail ? null : railProvider;
   const morName = activeProvider ? paymentProviderDisplayName(activeProvider) : null;
   const overlayCfg = paddleOverlayConfig();
   const hasPaddlePrice = typeof p.paddle_price_id === "string" && p.paddle_price_id.trim() !== "";

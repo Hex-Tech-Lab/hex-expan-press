@@ -47,10 +47,15 @@ function walk(node: Node, visit: (el: { type?: unknown; props: Record<string, un
   walk(el.props.children as Node, visit);
 }
 
-function product(over: Record<string, unknown> = {}, extra: { displayName?: string; isHouse?: boolean; railProvider?: string | null } = {}) {
+function product(
+  over: Record<string, unknown> = {},
+  extra: { displayName?: string; isHouse?: boolean; railProvider?: string | null; activeRailCount?: number } = {},
+) {
+  const railProvider = "railProvider" in extra ? extra.railProvider : "paddle";
   return {
     creator: { handle: "ada", display_name: extra.displayName ?? "Ada", is_house: extra.isHouse ?? false },
-    railProvider: "railProvider" in extra ? extra.railProvider : "paddle",
+    railProvider,
+    activeRailCount: extra.activeRailCount ?? (railProvider === null ? 0 : 1),
     product: {
       id: "p1",
       title: "Book",
@@ -256,6 +261,58 @@ describe("checkout page: paddle overlay error log is gated to Paddle-overlay che
     await render("p1");
     expect(paddleOverlayConfig().ok).toBe(false);
     expect(overlayLogs()).toBe(1);
+  });
+});
+
+describe("checkout page: more than one active rail fails closed", () => {
+  let warnSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    warnSpy.mockRestore();
+  });
+
+  it("1 active rail: names the merchant of record and attempts the Paddle overlay (unchanged)", async () => {
+    const o = GLOBAL.payments.paddle.overlay;
+    vi.stubEnv(o.client_token_env, "live_tok_123");
+    vi.stubEnv(o.environment_env, "production");
+    vi.mocked(fetchCheckoutProduct).mockResolvedValue(
+      product({ paddle_price_id: "pri_live_1" }, { railProvider: "paddle", activeRailCount: 1 }) as never,
+    );
+    const tree = await render("p1");
+    const html = renderToStaticMarkup(tree);
+    expect(html).toContain("Your order is processed by Paddle.com, which acts as Merchant of Record.");
+    const steps: Array<Record<string, unknown>> = [];
+    walk(tree as unknown as Node, (el) => {
+      if (el.type === "BuyerEmailStep") steps.push(el.props);
+    });
+    expect(steps[0].paddleClient).toEqual({ token: "live_tok_123", environment: "production" });
+    expect(warnSpy).not.toHaveBeenCalled();
+  });
+
+  it("2 active rails: names no merchant of record, skips the overlay, and warns exactly once", async () => {
+    const o = GLOBAL.payments.paddle.overlay;
+    vi.stubEnv(o.client_token_env, "live_tok_123");
+    vi.stubEnv(o.environment_env, "production");
+    vi.mocked(fetchCheckoutProduct).mockResolvedValue(
+      product({ paddle_price_id: "pri_live_1" }, { railProvider: "paddle", activeRailCount: 2 }) as never,
+    );
+    const tree = await render("p1");
+    const html = renderToStaticMarkup(tree);
+    expect(html).not.toContain("Merchant of Record");
+    expect(html).not.toContain("Paddle.com");
+    const steps: Array<Record<string, unknown>> = [];
+    walk(tree as unknown as Node, (el) => {
+      if (el.type === "BuyerEmailStep") steps.push(el.props);
+    });
+    expect(steps[0].paddleClient).toBeNull();
+    const multiRailWarns = warnSpy.mock.calls.filter((args: unknown[]) =>
+      String(args[0]).startsWith("[checkout] more than one active rail"),
+    );
+    expect(multiRailWarns).toHaveLength(1);
   });
 });
 
