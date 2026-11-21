@@ -6,6 +6,9 @@ import { paddleOverlayConfig } from "../../../../src/lib/paddle-overlay-server";
 import { GLOBAL } from "../../../../../payments/src/settings_registry";
 import CheckoutPage from "../page";
 
+// "server-only" throws outside the react-server condition; stub it so this file loads under any runner (as the sibling page tests do).
+vi.mock("server-only", () => ({}));
+
 // Money-path branches of the pay-domain checkout page: a live product renders the single-hop
 // BuyerEmailStep POST form, a gated product gets the disabled notice and no form, and an
 // unknown product must not render a checkout at all.
