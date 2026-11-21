@@ -153,6 +153,12 @@ export interface GlobalSettings {
     review_queue_page_size: number; // listManualReviewRefunds default page/limit
     /** Retry-After seconds sent on 503 webhook responses (in-flight AND generic 503 paths). */
     retry_after_seconds: number;
+    /** Retry-After seconds on a 503 checkout response (no_active_rail: no usable payment rail; rail_misconfigured: the router
+     *  picked a rail with no usable checkout_url). Fail closed, no provider label, no order written. */
+    checkout_no_rail_retry_after_seconds: number;
+    /** Retry-After seconds on a 503 checkout response (rails_unavailable) when the router's circuit breaker has every rail marked
+     *  down (MatrixRouterUnavailableError). Fail closed, no provider label, no order written. */
+    checkout_router_error_retry_after_seconds: number;
     paddle: { api_base: { production: string; sandbox: string }; js_cdn_url: string; overlay: PaddleOverlaySettings };
     routing: PaymentRoutingSettings;
     /** Creem TEST mode is accepted only when this is true, creem_test_database_ref is non-empty,
@@ -429,6 +435,8 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     sync_http_timeout_ms: 30000,
     review_queue_page_size: 200,
     retry_after_seconds: 30,
+    checkout_no_rail_retry_after_seconds: 30,
+    checkout_router_error_retry_after_seconds: 30,
     creem_accept_test_mode: false,
     creem_test_database_ref: "",
     sandbox_checkout_enabled: false,
@@ -729,6 +737,8 @@ export const PAYMENTS_LIMITS = {
   sync_http_timeout_ms: { min: 1000, max: 120000 },
   review_queue_page_size: { min: 1, max: 1000 },
   retry_after_seconds: { min: 1, max: 600 },
+  checkout_no_rail_retry_after_seconds: { min: 1, max: 600 },
+  checkout_router_error_retry_after_seconds: { min: 1, max: 600 },
 } as const;
 
 function intInRange(value: unknown, min: number, max: number): value is number {
@@ -833,6 +843,8 @@ export function loadPaymentsSection(raw: Record<string, unknown> | undefined): G
   // Validate BEFORE the fallback warning below, so an invalid value is reported, not silently defaulted.
   const reviewQueuePageSize = num("review_queue_page_size");
   const retryAfterSeconds = num("retry_after_seconds");
+  const checkoutNoRailRetryAfterSeconds = num("checkout_no_rail_retry_after_seconds");
+  const checkoutRouterErrorRetryAfterSeconds = num("checkout_router_error_retry_after_seconds");
   const paddleUrl = (v: unknown, expected: string, label: string, validateAndNormalize: (x: unknown) => string | null): string => {
     const normalized = v === undefined ? null : validateAndNormalize(v);
     if (normalized !== null) return normalized;
@@ -934,6 +946,8 @@ export function loadPaymentsSection(raw: Record<string, unknown> | undefined): G
     sync_http_timeout_ms: syncHttpTimeout,
     review_queue_page_size: reviewQueuePageSize,
     retry_after_seconds: retryAfterSeconds,
+    checkout_no_rail_retry_after_seconds: checkoutNoRailRetryAfterSeconds,
+    checkout_router_error_retry_after_seconds: checkoutRouterErrorRetryAfterSeconds,
     paddle: { api_base: { production: apiProduction, sandbox: apiSandbox }, js_cdn_url: jsCdn, overlay },
     routing,
     creem_accept_test_mode: p.creem_accept_test_mode === true,
@@ -2317,11 +2331,6 @@ export function paymentProviderFieldMap(name: string): Record<string, string | u
 /** Reads a configured field from a webhook payload using `PAYMENT_PROVIDERS[provider].field_map[fieldKey]`. */
 export function readProviderField(payload: unknown, provider: string, fieldKey: string): unknown {
   return getPath(payload, paymentProviderFieldMap(provider)[fieldKey]);
-}
-
-/** First enabled payment provider in the registry, or null when all providers are switched off. */
-export function defaultEnabledPaymentProvider(): string | null {
-  return Object.keys(PAYMENT_PROVIDERS).find((name) => isEnabledPaymentProvider(name)) ?? null;
 }
 
 /** True only for a provider that is defined AND switched on. Use this for anything that takes or routes a sale. */

@@ -165,7 +165,7 @@ function buildAdminMock(row: PairwiseRow) {
             data: {
               id: PID,
               creator_id: "c0a80101-0000-4000-8000-000000000001",
-              release_sha256: RELEASE_SHA,
+              release_sha256: RELEASE_SHA, price_usd: "39.00",
               checkout_mode: row.checkout_mode,
               paddle_price_id: row.provider === "paddle" ? PADDLE_PRICE_ID : null,
               creators: { handle: "pw_creator", is_house: row.creator_kind === "house" },

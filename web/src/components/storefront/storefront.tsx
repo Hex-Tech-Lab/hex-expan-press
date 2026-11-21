@@ -1,11 +1,16 @@
 import { cache } from "react";
 import Link from "next/link";
+import * as Sentry from "@sentry/nextjs";
 import { notFound } from "next/navigation";
 import "server-only";
 import { getSupabaseAdmin } from "../../../../payments/src/supabase_admin";
 import { GLOBAL, isEnabledPaymentProvider } from "../../../../payments/src/settings_registry";
 import { guidSchema, productSlugSchema } from "../../lib/zod-rules";
 import { resolveProductBookAssets } from "../../lib/book-assets";
+import { isPurchasableProduct, productPriceUsd } from "../../lib/product-purchasable";
+import { resolveCheckoutRails, usableRailsOf, type UsableRail } from "../../lib/checkout-rails";
+import { verifiedProviderNames } from "../../../app/api/billing/webhook/verifiers";
+import { checkoutUrlProblem } from "../../../app/api/billing/checkout/checkout-helpers";
 import { BrandFooter } from "../brand/brand";
 
 /**
@@ -53,6 +58,8 @@ export interface StoreProduct {
   preview_pdf?: string | null;
   is_sample?: boolean;
   overview?: string | null;
+  /** Usable rail count from the shared resolver (checkout-rails.ts). Buyer purchasability needs at least one. */
+  usable_rail_count?: number;
 }
 
 export interface HubCreator {
@@ -75,12 +82,41 @@ export function productSlugOf(storeProduct: Pick<StoreProduct, "slug">): string 
   return storeProduct.slug ?? "";
 }
 
-/** numeric-as-string coercion with a finite guard (Sprint 15 money-path rule). */
+/** numeric-as-string coercion with a finite guard (Sprint 15 money-path rule). Shared rule: lib/product-purchasable. */
 export function priceOf(storeProduct: Pick<StoreProduct, "price_usd">): number | null {
-  const raw = storeProduct.price_usd;
-  // Type-narrow before coercing: Number(null) is 0 and Number(true) is 1, so only strings and numbers convert.
-  const n = typeof raw === "string" || typeof raw === "number" ? Number(raw) : NaN;
-  return Number.isFinite(n) ? n : null;
+  return productPriceUsd(storeProduct.price_usd);
+}
+
+/** Usable rails for a product's product_rails rows: the shared resolver with the route's verified-provider filter.
+ *  Malformed rows yield no usable rails, so nothing malformed can take a buyer. */
+// The verifier set is fixed by the code and the registry, so it is built once per process, not once per product row.
+let verifiedNamesCache: ReadonlySet<string> | undefined;
+export function usableRailsForRows(rows: ReadonlyArray<unknown> | null | undefined, checkoutMode?: string | null): UsableRail[] {
+  verifiedNamesCache ??= verifiedProviderNames();
+  const resolution = resolveCheckoutRails(rows, {
+    isEnabledProvider: isEnabledPaymentProvider,
+    verifiedProviders: verifiedNamesCache,
+    checkoutMode,
+    checkoutUrlProblem,
+  });
+  // A malformed rail set is shown as Coming soon, but never silently: the reason is logged for operators.
+  if (resolution.kind === "malformed") {
+    console.error(`[storefront] product_rails malformed (${resolution.reason}) — product shown as Coming soon`);
+    Sentry.captureException(new Error(`product_rails malformed: ${resolution.reason}`), { tags: { surface: "storefront_rails", reason: resolution.reason } });
+  }
+  return usableRailsOf(resolution);
+}
+
+/** Replaces the embedded product_rails rows with usable_rail_count, so the rail rows never reach a card or a page. */
+function withRailCount<T extends object>(row: T & { product_rails?: unknown }): T & { usable_rail_count: number } {
+  const { product_rails: railRows, ...rest } = row;
+  const mode = (row as { checkout_mode?: string | null }).checkout_mode;
+  if (!Array.isArray(railRows)) {
+    console.error("[storefront] product_rails embed missing or not an array — product shown as Coming soon");
+  }
+  return { ...rest, usable_rail_count: usableRailsForRows(Array.isArray(railRows) ? railRows : [], mode).length } as T & {
+    usable_rail_count: number;
+  };
 }
 
 /**
@@ -184,7 +220,7 @@ export const fetchCreatorHub = cache(async function fetchCreatorHub(handle: stri
   const { data, error } = await supabase
     .from("creators")
     .select(
-      "handle, display_name, platform_handles, bio, photo, is_house, products(id, store_product_id, slug, title, price_usd, currency, working_note, description, disclaimers, checkout_mode, inside, book_registry)",
+      "handle, display_name, platform_handles, bio, photo, is_house, products(id, store_product_id, slug, title, price_usd, currency, working_note, description, disclaimers, checkout_mode, inside, book_registry, product_rails(provider, weight, checkout_url, active))",
     )
     .eq("handle", handle)
     .maybeSingle();
@@ -196,7 +232,7 @@ export const fetchCreatorHub = cache(async function fetchCreatorHub(handle: stri
   // Keep creator hubs consistent with /books: live products plus allowed non-live SAMPLE products only.
   // storefrontRobots depends only on whether a live product exists, so its result stays NOINDEX for sample-only hubs.
   const products = commercial
-    .map((storeProduct) => withResolvedAssets(storeProduct, creator.is_house))
+    .map((storeProduct) => withResolvedAssets(withRailCount(storeProduct), creator.is_house))
     .filter((storeProduct) => isVisibleStorefrontProduct(storeProduct));
   return { creator: { ...creator, products }, origin };
 });
@@ -204,7 +240,7 @@ export const fetchCreatorHub = cache(async function fetchCreatorHub(handle: stri
 /** The fields /books renders (price, title, link, cover). No heavy detail columns are transferred for the landing. */
 export type LandingProduct = Pick<
   StoreProduct,
-  "id" | "store_product_id" | "slug" | "title" | "price_usd" | "checkout_mode" | "book_registry" | "cover_image" | "is_sample"
+  "id" | "store_product_id" | "slug" | "title" | "price_usd" | "checkout_mode" | "book_registry" | "cover_image" | "is_sample" | "usable_rail_count"
 >;
 export interface LandingCreator {
   handle: string;
@@ -224,7 +260,9 @@ export const fetchB2cLanding = cache(async function fetchB2cLanding(): Promise<L
   const modes = allowedStorefrontCheckoutModes();
   const baseQuery = supabase
     .from("creators")
-    .select("handle, display_name, is_house, products!inner(id, store_product_id, slug, title, price_usd, checkout_mode, book_registry)");
+    .select(
+      "handle, display_name, is_house, products!inner(id, store_product_id, slug, title, price_usd, checkout_mode, book_registry, product_rails(provider, weight, checkout_url, active))",
+    );
   const filteredQuery =
     modes.length === 1
       ? baseQuery.eq("products.checkout_mode", modes[0])
@@ -238,7 +276,7 @@ export const fetchB2cLanding = cache(async function fetchB2cLanding(): Promise<L
     .map((c) => ({
       ...c,
       products: commercialProducts(c.products)
-        .map((storeProduct) => withResolvedAssets(storeProduct, c.is_house))
+        .map((storeProduct) => withResolvedAssets(withRailCount(storeProduct), c.is_house))
         .filter((storeProduct) => isVisibleStorefrontProduct(storeProduct)),
     }))
     .filter((c) => c.products.length > 0);
@@ -256,7 +294,7 @@ export const fetchStoreProduct = cache(async function fetchStoreProduct(
   const { data, error } = await supabase
     .from("creators")
     .select(
-      "handle, display_name, platform_handles, bio, photo, is_house, products(id, store_product_id, slug, title, price_usd, currency, working_note, description, disclaimers, checkout_mode, inside, book_registry)",
+      "handle, display_name, platform_handles, bio, photo, is_house, products(id, store_product_id, slug, title, price_usd, currency, working_note, description, disclaimers, checkout_mode, inside, book_registry, product_rails(provider, weight, checkout_url, active))",
     )
     .eq("handle", handle)
     .maybeSingle();
@@ -266,7 +304,7 @@ export const fetchStoreProduct = cache(async function fetchStoreProduct(
   const product = commercialProducts(creator.products).find((storeProduct) => productSlugOf(storeProduct) === productSlug);
   if (!product) return null;
   const origin = await fetchSiteOrigin(supabase);
-  return { creator, product: withResolvedAssets(product, creator.is_house), origin };
+  return { creator, product: withResolvedAssets(withRailCount(product), creator.is_house), origin };
 });
 
 /** The single provider-agnostic checkout origin (ADR 0061). Buy links and the checkout page live here. */
@@ -276,7 +314,12 @@ export const PAY_ORIGIN = "https://pay.expanpress.com";
 /** Checkout page lookup by product UUID (ADR 0061). Commercial products only, same rule as the storefront. */
 export const fetchCheckoutProduct = cache(async function fetchCheckoutProduct(
   productId: string,
-): Promise<{ creator: { handle: string; display_name: string; is_house: boolean }; product: StoreProduct; railProvider: string | null } | null> {
+): Promise<{
+  creator: { handle: string; display_name: string; is_house: boolean };
+  product: StoreProduct;
+  /** Usable rails in weight order, from the shared resolver. The page derives purchasable, MoR and overlay from these. */
+  usableRails: UsableRail[];
+} | null> {
   if (!guidSchema.safeParse(productId).success) return null;
   const supabase = await getSupabaseAdmin();
   if (!supabase) {
@@ -298,19 +341,14 @@ export const fetchCheckoutProduct = cache(async function fetchCheckoutProduct(
   if (!creator || commercialProducts([row]).length === 0) return null;
   const { data: railRows, error: railErr } = await supabase
     .from("product_rails")
-    .select("provider, weight, active")
+    .select("provider, weight, checkout_url, active")
     .eq("product_id", productId)
     .order("weight", { ascending: false });
   if (railErr) throw new Error(`storefront: checkout rails query failed for '${productId}': ${railErr.message}`);
-  const activeRail = (railRows ?? []).find(
-    (r) =>
-      r !== null &&
-      typeof r === "object" &&
-      ((r as { active?: unknown }).active === true || (r as { active?: unknown }).active === "true") &&
-      typeof (r as { provider?: unknown }).provider === "string" &&
-      isEnabledPaymentProvider((r as { provider: string }).provider),
-  ) as { provider: string } | undefined;
-  return { creator, product: row, railProvider: activeRail?.provider ?? null };
+  // The same usable rails the checkout route counts (shared resolver). The first is the rail the page names; the count
+  // drives the rail-aware rule: none is "Coming soon", more than one is no merchant of record and no overlay.
+  const usable = usableRailsForRows(railRows, row.checkout_mode);
+  return { creator, product: row, usableRails: usable };
 });
 
 export { isHouseCreator } from "../../lib/house";
@@ -483,7 +521,7 @@ export function BookCard({
   creatorName,
   headingLevel = 2,
 }: {
-  product: Pick<StoreProduct, "slug" | "title" | "price_usd" | "cover_image" | "is_sample"> & {
+  product: Pick<StoreProduct, "slug" | "title" | "price_usd" | "cover_image" | "is_sample" | "usable_rail_count"> & {
     currency?: string | null;
     checkout_mode?: string | null;
   };
@@ -497,6 +535,8 @@ export function BookCard({
   const { formatted, currency } = formatProductPrice(price, product.currency);
   const Heading = headingLevel === 3 ? "h3" : "h2";
   const isNonLive = typeof product.checkout_mode === "string" && product.checkout_mode !== "live";
+  // Same rule as the product and checkout pages: live, priced, and at least one usable rail. Otherwise "Coming soon".
+  const purchasable = isPurchasableProduct(product, product.usable_rail_count ?? 0);
   const productHref = `/books/${creatorHandle}/${slug}`;
   return (
     <article className="glass-card card-shadow rounded-[32px] border-[1.5px] border-[#fff2e4] p-5 sm:p-6 h-full flex flex-col gap-5">
@@ -533,6 +573,16 @@ export function BookCard({
             >
               {GLOBAL.storefront.sample_preview_cta}
             </Link>
+          </div>
+        )}
+        {!isNonLive && !purchasable && (
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+            <span
+              data-checkout-mode="unpriced"
+              className="inline-flex items-center rounded-full border border-[#dcc7b4] bg-white/75 px-3 py-1 text-xs font-semibold text-gray-700"
+            >
+              {GLOBAL.storefront.coming_soon_badge}
+            </span>
           </div>
         )}
       </div>
