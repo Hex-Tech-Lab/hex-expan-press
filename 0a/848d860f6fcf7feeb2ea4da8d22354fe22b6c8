@@ -1,0 +1,24 @@
+web/e2e/book-preview-mobile-controls.spec.ts
+  s_0e99959cd74c50::t_17d04ae13f92b8 31-36
+  s_0e99959cd74c50::t_1febed56c7fc44 28-30
+  s_0e99959cd74c50::t_5e9405fef5a6a7 37-39
+  s_0e99959cd74c50::t_6a70a14c91cee3 1-27,40-48
+web/src/components/storefront/book-preview-toolbar.tsx
+  s_0e99959cd74c50::t_5d0bc2dcebfc4d 52,101,120,122
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0a848d860f6fcf7feeb2ea4da8d22354fe22b6c8",
+  "prompts": {},
+  "sessions": {
+    "s_0e99959cd74c50": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "21b00acc-7513-46d6-9a35-038af7845be2",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
