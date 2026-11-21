@@ -66,6 +66,9 @@ export default async function CheckoutPage({
   const priceDisplay = formatProductPrice(price, p.currency, "—");
   const live = p.checkout_mode === "live";
   const brand = GLOBAL.storefront.brand_name;
+  if (railProvider === null) {
+    console.error("[checkout] no active enabled rail for product; falling back to default provider label", { productId });
+  }
   const activeProvider = railProvider ?? defaultEnabledPaymentProvider();
   const morName = activeProvider ? paymentProviderDisplayName(activeProvider) : null;
   const overlayCfg = paddleOverlayConfig();
