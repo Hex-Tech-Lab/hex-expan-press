@@ -35,6 +35,9 @@ test("flipbook toolbar fits one row with >=44px targets at 390px", async ({ page
     expect(box.x + box.width).toBeLessThanOrEqual(rowBox.x + rowBox.width + 0.5);
   }
   await expect(page.getByTestId("book-preview-zoom-reset")).toBeHidden();
+  // Zoom label is visually hidden below sm but must stay in the DOM as the polite live region.
+  await expect(page.getByTestId("book-preview-zoom-label")).not.toHaveCSS("display", "none");
+  await expect(page.getByTestId("book-preview-zoom-label")).toHaveAttribute("aria-live", "polite");
   await expect(page.getByTestId("book-preview-goto-submit")).toBeVisible();
   await parent.scrollIntoViewIfNeeded();
   await page.screenshot({ path: "test-results/mobile-reader-controls.png" });
