@@ -235,10 +235,24 @@ describe("checkout page: paddle overlay error log is gated to Paddle-overlay che
     expect(overlayLogs()).toBe(0);
   });
 
-  it("a live Paddle checkout logs the overlay error exactly when the overlay config is not usable", async () => {
+  it("a live Paddle checkout with a usable overlay config logs no overlay error", async () => {
+    const o = GLOBAL.payments.paddle.overlay;
+    vi.stubEnv(o.client_token_env, "live_tok_123");
+    vi.stubEnv(o.environment_env, "production");
     vi.mocked(fetchCheckoutProduct).mockResolvedValue(product({ paddle_price_id: "pri_1" }, { railProvider: "paddle" }) as never);
     await render("p1");
-    expect(overlayLogs()).toBe(paddleOverlayConfig().ok ? 0 : 1);
+    expect(paddleOverlayConfig().ok).toBe(true);
+    expect(overlayLogs()).toBe(0);
+  });
+
+  it("a live Paddle checkout with no overlay token logs the overlay error exactly once", async () => {
+    const o = GLOBAL.payments.paddle.overlay;
+    vi.stubEnv(o.client_token_env, "");
+    vi.stubEnv(o.environment_env, "production");
+    vi.mocked(fetchCheckoutProduct).mockResolvedValue(product({ paddle_price_id: "pri_1" }, { railProvider: "paddle" }) as never);
+    await render("p1");
+    expect(paddleOverlayConfig().ok).toBe(false);
+    expect(overlayLogs()).toBe(1);
   });
 });
 
