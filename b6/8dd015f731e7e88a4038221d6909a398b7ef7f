@@ -1,0 +1,65 @@
+web/src/components/storefront/storefront.tsx
+  s_7e539dcf78d9db::t_0f1714de014b2e 582
+  s_7e539dcf78d9db::t_e669d4363dc859 30-32
+web/app/checkout/[productId]/__tests__/page.test.ts
+  s_7e539dcf78d9db::t_4325d7aed204c5 220,222-229,231-232
+  s_7e539dcf78d9db::t_14df344c64daf3 7
+  s_7e539dcf78d9db::t_a8a0045ad5bad1 221,230
+  s_7e539dcf78d9db::t_a5b92366da59fd 13-15
+web/app/api/billing/checkout/__tests__/rail_pinned_to_label.test.ts
+  s_7e539dcf78d9db::t_95af69d851297d 95-115
+  s_7e539dcf78d9db::t_337c217279b6aa 8
+  s_7e539dcf78d9db::t_c309c429556202 156-174
+web/app/api/billing/checkout/route.ts
+  s_7e539dcf78d9db::t_f9f7662a91f7ec 312-314
+payments/src/settings_registry.ts
+  s_7e539dcf78d9db::t_f5b383d27a4584 443
+  s_7e539dcf78d9db::t_96c49a45a097ef 957
+  s_7e539dcf78d9db::t_edaf0c1683ccf9 853
+  s_7e539dcf78d9db::t_a9a55e7280ceac 162-164
+  s_7e539dcf78d9db::t_e4c6040825bfda 746
+web/app/api/billing/checkout/checkout-helpers.ts
+  s_7e539dcf78d9db::t_5f2910a0d95a53 286-289
+web/src/lib/product-purchasable.ts
+  s_7e539dcf78d9db::t_454e8acc55e43b 7-8
+docs/testing/pairwise/checkout_rails_resolver.model.txt
+  s_7e539dcf78d9db::t_d58b48cc95fc74 25
+  s_7e539dcf78d9db::t_04e1475c41e835 3-4
+  s_7e539dcf78d9db::t_d83b0194200f18 12-13,16
+web/src/lib/checkout-rails.ts
+  s_7e539dcf78d9db::t_748f2bb67e32d8 58
+web/app/checkout/[productId]/page.tsx
+  s_7e539dcf78d9db::t_c0be84b1d81d0a 155
+  s_7e539dcf78d9db::t_4e2daec1fd4163 18
+web/__tests__/checkout_rails_resolver.pairwise.test.ts
+  s_7e539dcf78d9db::t_36b6a708d498c5 11,18
+  s_7e539dcf78d9db::t_9548908341aabc 63-67,71-73
+  s_7e539dcf78d9db::t_3e91643e5d8138 40
+  s_7e539dcf78d9db::t_ef69a3dd6107e0 68-70
+web/__tests__/checkout-rails.test.ts
+  s_7e539dcf78d9db::t_f482304b78eebe 61-65
+web/__tests__/storefront.test.ts
+  s_7e539dcf78d9db::t_a8fc1d5480decc 303-339
+  s_7e539dcf78d9db::t_7688ca6376aef7 5-6
+  s_7e539dcf78d9db::t_356c934fb14f50 21
+docs/testing/pairwise/checkout_rails_resolver.rows.tsv
+  s_7e539dcf78d9db::t_bc2a527ea8e830 2-13
+docs/testing/pairwise/checkout_rails_resolver.seed.tsv
+  s_7e539dcf78d9db::t_38c97b76209ba1 1-2
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b68dd015f731e7e88a4038221d6909a398b7ef7f",
+  "prompts": {},
+  "sessions": {
+    "s_7e539dcf78d9db": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7aec794a-3e95-4ace-bf8d-7a1962c629d9",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
