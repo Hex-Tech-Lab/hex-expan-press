@@ -138,7 +138,7 @@ export function resolveProductBookAssets(product: {
     warnOnce(`no-registry:${warnKey}`, `[book-assets] house product ${warnKey} has no book_registry or override; no assets`);
   }
   if (!houseCreator && bookJson && bookJson.product_id !== undefined && typeof bookJson.product_id !== "string") {
-    warnOnce(`malformed-id:${warnKey}`, `[book-assets] books json for ${registryPath} has a non-string product_id; identity ignored`);
+    warnOnce(`malformed-id:${warnKey}`, `[book-assets] books json for ${registryPath} has a non-string product_id; assets withheld`);
   }
   if (houseCreator && bookJson && typeof bookJson.product_id !== "string") {
     warnOnce(`house-no-id:${warnKey}`, `[book-assets] house product ${warnKey}: ${registryPath} has no string product_id; identity unchecked`);

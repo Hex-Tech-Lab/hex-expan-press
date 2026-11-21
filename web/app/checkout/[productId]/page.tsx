@@ -72,6 +72,9 @@ export default async function CheckoutPage({
   const activeProvider = railProvider ?? defaultEnabledPaymentProvider();
   const morName = activeProvider ? paymentProviderDisplayName(activeProvider) : null;
   const overlayCfg = paddleOverlayConfig();
+  if (live && !overlayCfg.ok) {
+    console.error("[checkout] paddle overlay unavailable; buyer gets the POST fallback", { productId, reason: overlayCfg.reason });
+  }
   const hasPaddlePrice = typeof p.paddle_price_id === "string" && p.paddle_price_id.trim() !== "";
   const paddleClient =
     live &&
