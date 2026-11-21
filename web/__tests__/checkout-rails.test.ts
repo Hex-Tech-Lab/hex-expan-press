@@ -2,8 +2,14 @@
 import { describe, expect, it } from "vitest";
 import { checkoutRailView, resolveCheckoutRails, usableRailsOf } from "../src/lib/checkout-rails";
 import { isPurchasableProduct } from "../src/lib/product-purchasable";
+import { checkoutUrlProblem } from "../app/api/billing/checkout/checkout-helpers";
 
-const ALL_ON = { isEnabledProvider: () => true, verifiedProviders: new Set(["paddle", "creem"]) };
+const ALL_ON = {
+  isEnabledProvider: () => true,
+  verifiedProviders: new Set(["paddle", "creem"]),
+  checkoutMode: "live",
+  checkoutUrlProblem: () => null,
+};
 const rail = (provider: unknown, active: unknown = true, extra: Record<string, unknown> = {}) => ({
   provider,
   weight: 100,
@@ -49,6 +55,26 @@ describe("resolveCheckoutRails", () => {
 
   it("ignores the fields of an inactive row, as the route always did", () => {
     const r = resolveCheckoutRails([rail("", false), rail("paddle")], ALL_ON);
+    expect(usableRailsOf(r).map((u) => u.provider)).toEqual(["paddle"]);
+  });
+
+  it("is malformed for a blank weight string, which Number('') would read as 0", () => {
+    expect(resolveCheckoutRails([rail("paddle", true, { weight: "  " })], ALL_ON)).toEqual({ kind: "malformed", reason: "invalid_active_row" });
+  });
+
+  it("is malformed when a usable rail's checkout_url fails the route's check (route answers 500, so the page must not sell)", () => {
+    const withRealCheck = { ...ALL_ON, checkoutUrlProblem: checkoutUrlProblem };
+    const r = resolveCheckoutRails([rail("paddle", true, { checkout_url: "http://buy.paddle.com/x" })], withRealCheck);
+    expect(r).toEqual({ kind: "malformed", reason: "invalid_checkout_url" });
+  });
+
+  it("does not URL-check an inactive or unverified rail, as the route only checks the rails it selects", () => {
+    const withRealCheck = { ...ALL_ON, checkoutUrlProblem: checkoutUrlProblem, verifiedProviders: new Set(["paddle"]) };
+    const r = resolveCheckoutRails(
+      [rail("paddle", true), rail("creem", true, { checkout_url: "http://bad.example" }), rail("paddle", false, { checkout_url: "http://bad" })],
+      withRealCheck,
+    );
+    expect(r.kind).toBe("ok");
     expect(usableRailsOf(r).map((u) => u.provider)).toEqual(["paddle"]);
   });
 

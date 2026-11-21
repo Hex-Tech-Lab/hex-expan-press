@@ -9,6 +9,7 @@ import { resolveProductBookAssets } from "../../lib/book-assets";
 import { isPurchasableProduct, productPriceUsd } from "../../lib/product-purchasable";
 import { resolveCheckoutRails, usableRailsOf, type UsableRail } from "../../lib/checkout-rails";
 import { verifiedProviderNames } from "../../../app/api/billing/webhook/verifiers";
+import { checkoutUrlProblem } from "../../../app/api/billing/checkout/checkout-helpers";
 import { BrandFooter } from "../brand/brand";
 
 /**
@@ -89,17 +90,29 @@ export function priceOf(storeProduct: Pick<StoreProduct, "price_usd">): number |
  *  Malformed rows yield no usable rails, so nothing malformed can take a buyer. */
 // The verifier set is fixed by the code and the registry, so it is built once per process, not once per product row.
 let verifiedNamesCache: ReadonlySet<string> | undefined;
-export function usableRailsForRows(rows: ReadonlyArray<unknown> | null | undefined): UsableRail[] {
+export function usableRailsForRows(rows: ReadonlyArray<unknown> | null | undefined, checkoutMode?: string | null): UsableRail[] {
   verifiedNamesCache ??= verifiedProviderNames();
-  return usableRailsOf(
-    resolveCheckoutRails(rows, { isEnabledProvider: isEnabledPaymentProvider, verifiedProviders: verifiedNamesCache }),
-  );
+  const resolution = resolveCheckoutRails(rows, {
+    isEnabledProvider: isEnabledPaymentProvider,
+    verifiedProviders: verifiedNamesCache,
+    checkoutMode,
+    checkoutUrlProblem,
+  });
+  // A malformed rail set is shown as Coming soon, but never silently: the reason is logged for operators.
+  if (resolution.kind === "malformed") {
+    console.error(`[storefront] product_rails malformed (${resolution.reason}) — product shown as Coming soon`);
+  }
+  return usableRailsOf(resolution);
 }
 
 /** Replaces the embedded product_rails rows with usable_rail_count, so the rail rows never reach a card or a page. */
 function withRailCount<T extends object>(row: T & { product_rails?: unknown }): T & { usable_rail_count: number } {
   const { product_rails: railRows, ...rest } = row;
-  return { ...rest, usable_rail_count: usableRailsForRows(Array.isArray(railRows) ? railRows : null).length } as T & {
+  const mode = (row as { checkout_mode?: string | null }).checkout_mode;
+  if (!Array.isArray(railRows)) {
+    console.error("[storefront] product_rails embed missing or not an array — product shown as Coming soon");
+  }
+  return { ...rest, usable_rail_count: usableRailsForRows(Array.isArray(railRows) ? railRows : [], mode).length } as T & {
     usable_rail_count: number;
   };
 }
@@ -332,7 +345,7 @@ export const fetchCheckoutProduct = cache(async function fetchCheckoutProduct(
   if (railErr) throw new Error(`storefront: checkout rails query failed for '${productId}': ${railErr.message}`);
   // The same usable rails the checkout route counts (shared resolver). The first is the rail the page names; the count
   // drives the rail-aware rule: none is "Coming soon", more than one is no merchant of record and no overlay.
-  const usable = usableRailsForRows(railRows);
+  const usable = usableRailsForRows(railRows, row.checkout_mode);
   return {
     creator,
     product: row,

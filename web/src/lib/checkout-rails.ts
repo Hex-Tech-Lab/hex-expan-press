@@ -28,7 +28,7 @@ export interface UsableRail {
  * The route answers 500 "Checkout is not configured"; the page treats it as zero usable rails (no buy form).
  */
 export type RailResolution =
-  | { kind: "malformed"; reason: "non_object_row" | "invalid_active_row" }
+  | { kind: "malformed"; reason: "non_object_row" | "invalid_active_row" | "invalid_checkout_url" }
   | { kind: "ok"; configuredCount: number; usable: UsableRail[] };
 
 export interface RailPolicy {
@@ -36,6 +36,10 @@ export interface RailPolicy {
   isEnabledProvider: (provider: string) => boolean;
   /** Providers that have a webhook verifier. A rail for any other provider cannot be verified, so it must not take a buyer. */
   verifiedProviders: ReadonlySet<string>;
+  /** The product's checkout_mode, which the rail URL check depends on. */
+  checkoutMode: string | null | undefined;
+  /** The route's checkout_url check (checkout-helpers). A usable rail whose URL fails it would make the route answer 500. */
+  checkoutUrlProblem: (raw: unknown, expectedMode?: string | null) => string | null;
 }
 
 /** Resolve product_rails rows in the order given (the query orders by weight, highest first). */
@@ -47,13 +51,16 @@ export function resolveCheckoutRails(rows: ReadonlyArray<unknown> | null | undef
     const row = raw as RailRowInput;
     const active = row.active === true || row.active === "true";
     if (!active) continue;
-    // Type-narrow before coercing: Number(null) is 0, which would turn a null weight into a valid rail. Anything but a
-    // number or a numeric string is malformed (fails closed). The column is integer not null with weight > 0.
-    const weight = typeof row.weight === "number" || typeof row.weight === "string" ? Number(row.weight) : Number.NaN;
+    // Type-narrow before coercing: Number(null) is 0 and Number("") is 0, which would turn a null or blank weight into a
+    // valid rail. Anything but a number or a non-blank numeric string is malformed (fails closed).
+    const blankString = typeof row.weight === "string" && row.weight.trim() === "";
+    const weight = typeof row.weight === "number" || (typeof row.weight === "string" && !blankString) ? Number(row.weight) : Number.NaN;
     if (typeof row.provider !== "string" || row.provider === "" || typeof row.checkout_url !== "string" || !Number.isFinite(weight) || weight < 0) {
       return { kind: "malformed", reason: "invalid_active_row" };
     }
     if (policy.isEnabledProvider(row.provider) && policy.verifiedProviders.has(row.provider)) {
+      // Only a rail that would be usable is URL-checked, as the route checks only the rails it selects from.
+      if (policy.checkoutUrlProblem(row.checkout_url, policy.checkoutMode)) return { kind: "malformed", reason: "invalid_checkout_url" };
       usable.push({ provider: row.provider, weight, checkout_url: row.checkout_url });
     }
   }

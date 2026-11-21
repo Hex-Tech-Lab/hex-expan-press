@@ -232,12 +232,16 @@ async function handleCheckout(
     const resolution = resolveCheckoutRails(railRows, {
       isEnabledProvider: isEnabledPaymentProvider,
       verifiedProviders: verifiedProviderNames(),
+      checkoutMode: resolvedProduct.checkout_mode,
+      checkoutUrlProblem: checkoutUrlProblem,
     });
     if (resolution.kind === "malformed") {
       const detail =
         resolution.reason === "non_object_row"
           ? "has a malformed product_rails row"
-          : "has an active rail with a missing provider or non-string checkout_url";
+          : resolution.reason === "invalid_checkout_url"
+            ? "has a usable rail with an invalid checkout_url"
+            : "has an active rail with a missing provider or non-string checkout_url";
       console.error(`[billing/checkout] product '${product}' ${detail} — failing closed`);
       return jsonError(500, "Checkout is not configured");
     }

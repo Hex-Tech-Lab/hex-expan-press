@@ -19,7 +19,12 @@ type Row = {
 };
 
 // Every provider in the model is enabled and verified, so the rail count is decided by the rows, not by the policy.
-const POLICY = { isEnabledProvider: () => true, verifiedProviders: new Set(["paddle", "creem"]) };
+const POLICY = {
+  isEnabledProvider: () => true,
+  verifiedProviders: new Set(["paddle", "creem"]),
+  checkoutMode: "live",
+  checkoutUrlProblem: () => null,
+};
 
 function railRowsFor(row: Row) {
   const url = (p: string) => `https://buy.example/${p}-rail`;
