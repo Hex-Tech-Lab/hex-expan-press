@@ -44,6 +44,7 @@ export function useReadAloud(
   audioBasePath = "/books/audio",
 ) {
   const [playbackState, setPlaybackState] = useState<ReadAloudState>("idle");
+  const [usingFallbackVoice, setUsingFallbackVoice] = useState(false);
   const [activeChunk, setActiveChunk] = useState<{ idx: number; key: string } | null>(null);
   const chunkKey = useMemo(() => chunks.map((chunk) => chunk.id).join("|"), [chunks]);
   const activeChunkIdx = activeChunk && activeChunk.key === chunkKey ? activeChunk.idx : null;
@@ -113,6 +114,7 @@ export function useReadAloud(
       ? loadedManifest.manifest
       : null;
   const prebakedTracks = useMemo(() => resolveSpreadAudioTracks(manifest, chunks), [manifest, chunks]);
+  const preferredGender = manifest?.voiceGender ?? (audioManifestUrl ? "male" : null);
   const audioSupported = Boolean(audioElementSupported && prebakedTracks);
   const readAloudSupported = audioSupported || speechSupported;
   const activeChunkId = activeChunkIdx !== null ? (chunks[activeChunkIdx]?.id ?? null) : null;
@@ -141,6 +143,7 @@ export function useReadAloud(
     pausedAtRateRef.current = null;
     positionRef.current = null;
     activeEngineRef.current = "none";
+    setUsingFallbackVoice(false);
     stopAudioEngine(false);
     if (detectSpeechSynthesisSupport() && isSpeechEngineBusy(window.speechSynthesis)) {
       window.speechSynthesis.cancel?.();
@@ -149,6 +152,7 @@ export function useReadAloud(
 
   const stopReadAloud = useCallback(() => {
     cancelSpeechEngine();
+    setUsingFallbackVoice(false);
     setPlaybackState("idle");
     setActiveChunk(null);
     setActiveWord(null);
@@ -181,12 +185,12 @@ export function useReadAloud(
     if (!detectSpeechSynthesisSupport()) return;
     const synth = window.speechSynthesis;
     const chooseVoice = () => {
-      voiceRef.current = rankVoice(synth.getVoices?.() ?? [], raSettings.voice);
+      voiceRef.current = rankVoice(synth.getVoices?.() ?? [], raSettings.voice, preferredGender);
     };
     chooseVoice();
     synth.addEventListener?.("voiceschanged", chooseVoice);
     return () => synth.removeEventListener?.("voiceschanged", chooseVoice);
-  }, [raSettings.voice]);
+  }, [raSettings.voice, preferredGender]);
 
   const speakFromIndex = useCallback(
     (startIdx: number, startCharIndex: number, rate: number) => {
@@ -198,12 +202,13 @@ export function useReadAloud(
       const synth = window.speechSynthesis;
       const session = ++speechSessionRef.current;
       activeEngineRef.current = "speech";
+      setUsingFallbackVoice(Boolean(audioManifestUrl));
       if (isSpeechEngineBusy(synth)) synth.cancel?.();
       if (synth.paused) synth.resume?.();
       pausedAtRateRef.current = null;
       setSpeechAnnouncement("");
       setPlaybackState("playing");
-      const voice = voiceRef.current ?? rankVoice(synth.getVoices?.() ?? [], raSettings.voice);
+      const voice = voiceRef.current ?? rankVoice(synth.getVoices?.() ?? [], raSettings.voice, preferredGender);
       const stale = () => speechSessionRef.current !== session;
 
       const speakChunk = (idx: number, fromChar: number) => {
@@ -212,6 +217,7 @@ export function useReadAloud(
           pausedAtRateRef.current = null;
           positionRef.current = null;
           activeEngineRef.current = "none";
+          setUsingFallbackVoice(false);
           setPlaybackState("idle");
           setActiveChunk(null);
           setActiveWord(null);
@@ -248,6 +254,7 @@ export function useReadAloud(
           pausedAtRateRef.current = null;
           positionRef.current = null;
           activeEngineRef.current = "none";
+          setUsingFallbackVoice(false);
           setPlaybackState("idle");
           setActiveChunk(null);
           setActiveWord(null);
@@ -257,7 +264,7 @@ export function useReadAloud(
 
       speakChunk(startIdx, startCharIndex);
     },
-    [chunks, chunkKey, stopReadAloud, stopAudioEngine, raSettings.labels.finished_announcement, raSettings.voice, raSettings.highlight_words],
+    [chunks, chunkKey, stopReadAloud, stopAudioEngine, raSettings.labels.finished_announcement, raSettings.voice, raSettings.highlight_words, preferredGender, audioManifestUrl],
   );
 
   const playPrebakedTracks = useCallback(
@@ -306,6 +313,7 @@ export function useReadAloud(
           return;
         }
         activeEngineRef.current = "audio";
+        setUsingFallbackVoice(false);
         audioQueueRef.current = { tracks, trackIdx, candidates, candidateIdx };
         if (initialIdx !== null) setActiveChunk({ idx: initialIdx, key: chunkKey });
         const syncWordForTime = (timeSec: number) => {
@@ -332,9 +340,10 @@ export function useReadAloud(
             return;
           }
           console.warn("[read-aloud] Audio playback error, falling back to Web Speech:", reason);
+          const timedIdx = chunkIndexForTrackTime(track, audio.currentTime, chunks);
           const fallbackIdx = chunks.findIndex((chunk) => chunk.pageIndex === track.pageIndex);
           if (detectSpeechSynthesisSupport()) {
-            speakFromIndex(currentChunkIdx ?? (fallbackIdx >= 0 ? fallbackIdx : 0), 0, rateRef.current);
+            speakFromIndex(timedIdx ?? currentChunkIdx ?? (fallbackIdx >= 0 ? fallbackIdx : 0), 0, rateRef.current);
           } else {
             stopReadAloud();
           }
@@ -473,6 +482,7 @@ export function useReadAloud(
     speechSupported,
     audioSupported,
     readAloudSupported,
+    usingFallbackVoice,
     playbackState,
     activeChunkId,
     activeWord,

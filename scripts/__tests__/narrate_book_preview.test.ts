@@ -1,18 +1,24 @@
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, readdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_GLOBAL } from "../../payments/src/settings_registry";
 import {
   acquireNarrationLock,
+  applyNarrationLexicon,
   assemblePagePcm,
+  assertSelectedPagesCached,
+  buildChunkDecodeFilter,
   dedupeChunksByCachePath,
   formatChunkForSpeech,
   isMetadataBookPage,
   isValidWavFile,
   parsePageSelection,
+  replaceWholeTermInsensitive,
+  resolveTempoForVoice,
   resolveVoiceFromNarrationSettings,
+  selectPendingChunksToSynth,
   synthesizeVcpChunk,
   trimSilencePcm,
 } from "../narrate_book_preview";
@@ -39,9 +45,16 @@ describe("narrate_book_preview helpers", () => {
   it("normalizes sparse cover, metadata, tracked headings, and back cover details without altering prose pages", () => {
     expect(
       formatChunkForSpeech("ELIAS HARTWELL", "paragraph", { isMetadataPage: true, authorName: "Elias Hartwell" }),
-    ).toBe("By Elias Hartwell.");
+    ).toBe("By Ilaias Hartwell.");
     expect(
       formatChunkForSpeech("EXPANPRESS", "paragraph", { isMetadataPage: true, authorName: "Elias Hartwell" }),
+    ).toBe("Expan Press.");
+    expect(
+      formatChunkForSpeech("EXPANPRESS", "paragraph", {
+        isMetadataPage: true,
+        authorName: "Elias Hartwell",
+        lexicon: [],
+      }),
     ).toBe("ExpanPress.");
     expect(formatChunkForSpeech("D E TA I L S", "paragraph", { isMetadataPage: true })).toBe("Details.");
     expect(formatChunkForSpeech("A B O U T T H E A U T H O R", "paragraph", { isMetadataPage: true })).toBe(
@@ -51,7 +64,10 @@ describe("narrate_book_preview helpers", () => {
       "Trim: 6 by 9 inches. Language: English.",
     );
     expect(formatChunkForSpeech("ExpanPress | MMXXVI", "paragraph", { isMetadataPage: true })).toBe(
-      "ExpanPress, 2026.",
+      "Expan Press, 2026.",
+    );
+    expect(formatChunkForSpeech("Elias Hartwell is a pen name.", "paragraph", { isMetadataPage: true })).toBe(
+      "Ilaias Hartwell is a pen name.",
     );
     // Mid-sentence interior paragraph on page 8 of a longer book keeps open syntax without adding a synthetic period
     expect(
@@ -59,6 +75,23 @@ describe("narrate_book_preview helpers", () => {
         isMetadataPage: false,
       }),
     ).toBe("If you use a lamp, place it so that its light falls across the work from the side");
+  });
+
+  it("applies whole-term narration lexicon without dynamic RegExp and resolves per-voice tempos", () => {
+    expect(replaceWholeTermInsensitive("Elias, Elias's, and Eliasing.", "Elias", "Ilaias")).toBe(
+      "Ilaias, Ilaias's, and Eliasing.",
+    );
+    expect(replaceWholeTermInsensitive("İ Elias", "Elias", "Ilaias")).toBe("İ Ilaias");
+    expect(replaceWholeTermInsensitive("İİx", "x", "y")).toBe("İİy");
+    expect(
+      applyNarrationLexicon("Published by ExpanPress and Elias.", DEFAULT_GLOBAL.voice_narration.lexicon),
+    ).toBe("Published by Expan Press and Ilaias.");
+    expect(buildChunkDecodeFilter({ masterFilter: "highpass=f=80", tempo: 1.18 })).toBe("highpass=f=80,atempo=1.18");
+    expect(buildChunkDecodeFilter({ masterFilter: "", tempo: 1.0 })).toBeNull();
+    expect(resolveTempoForVoice(DEFAULT_GLOBAL.voice_narration, "c9f39b88-235b-4c2a-851c-3734ce1203be")).toBe(1.18);
+    expect(resolveTempoForVoice(DEFAULT_GLOBAL.voice_narration, "3e5cd61a-bacf-4fe3-94b9-751bd1597ae9")).toBe(1.0);
+    expect(resolveTempoForVoice(DEFAULT_GLOBAL.voice_narration, "unlisted-voice")).toBe(1.0);
+    expect(resolveTempoForVoice(DEFAULT_GLOBAL.voice_narration, "3e5cd61a-bacf-4fe3-94b9-751bd1597ae9", 1.12)).toBe(1.12);
   });
 
   it("derives metadata page roles from extracted blocks and selects male/female presets from settings", () => {
@@ -117,25 +150,30 @@ describe("narrate_book_preview helpers", () => {
     expect(Math.abs(trimmed[1200])).toBe(5000);
   });
 
-  it("assembles page PCM with sample-exact startMs/endMs chunk timings and distinct sentence/paragraph gaps", () => {
+  it("assembles page PCM with sample-exact startMs/endMs chunk timings and distinct sentence/paragraph/section gaps", () => {
     const sr = 24000;
     const a = new Int16Array(12000).fill(1000); // 500ms
     const b = new Int16Array(24000).fill(1000); // 1000ms
     const c = new Int16Array(12000).fill(1000); // 500ms
+    const d = new Int16Array(12000).fill(1000); // 500ms
     const out = assemblePagePcm(
       [
-        { id: "p0-b0-s0", blockIndex: 0, text: "Sentence one.", spokenText: "Sentence one.", tokensCharged: 40, pcm: a },
-        { id: "p0-b0-s1", blockIndex: 0, text: "Sentence two.", spokenText: "Sentence two.", tokensCharged: 50, pcm: b },
-        { id: "p0-b1-s0", blockIndex: 1, text: "Next block.", spokenText: "Next block.", tokensCharged: 35, pcm: c },
+        { id: "p0-b0-s0", blockIndex: 0, blockKind: "heading", text: "Title", spokenText: "Title.", tokensCharged: 40, pcm: a },
+        { id: "p0-b1-s0", blockIndex: 1, blockKind: "paragraph", text: "Sentence one.", spokenText: "Sentence one.", tokensCharged: 40, pcm: a },
+        { id: "p0-b1-s1", blockIndex: 1, blockKind: "paragraph", text: "Sentence two.", spokenText: "Sentence two.", tokensCharged: 50, pcm: b },
+        { id: "p0-b2-s0", blockIndex: 2, blockKind: "paragraph", text: "Next block.", spokenText: "Next block.", tokensCharged: 35, pcm: c },
+        { id: "p0-b3-s0", blockIndex: 3, blockKind: "heading", text: "Section Two", spokenText: "Section Two.", tokensCharged: 30, pcm: d },
       ],
-      { sampleRate: sr, pageLeadMs: 100, pageTailMs: 150, sentenceGapMs: 250, paragraphGapMs: 450 },
+      { sampleRate: sr, pageLeadMs: 100, pageTailMs: 150, sentenceGapMs: 220, paragraphGapMs: 680, sectionGapMs: 1200 },
     );
     expect(out.chunks).toEqual([
-      { id: "p0-b0-s0", blockIndex: 0, text: "Sentence one.", spokenText: "Sentence one.", tokensCharged: 40, startMs: 100, endMs: 600 },
-      { id: "p0-b0-s1", blockIndex: 0, text: "Sentence two.", spokenText: "Sentence two.", tokensCharged: 50, startMs: 850, endMs: 1850 },
-      { id: "p0-b1-s0", blockIndex: 1, text: "Next block.", spokenText: "Next block.", tokensCharged: 35, startMs: 2300, endMs: 2800 },
+      { id: "p0-b0-s0", blockIndex: 0, text: "Title", spokenText: "Title.", tokensCharged: 40, startMs: 100, endMs: 600 },
+      { id: "p0-b1-s0", blockIndex: 1, text: "Sentence one.", spokenText: "Sentence one.", tokensCharged: 40, startMs: 1800, endMs: 2300 },
+      { id: "p0-b1-s1", blockIndex: 1, text: "Sentence two.", spokenText: "Sentence two.", tokensCharged: 50, startMs: 2520, endMs: 3520 },
+      { id: "p0-b2-s0", blockIndex: 2, text: "Next block.", spokenText: "Next block.", tokensCharged: 35, startMs: 4200, endMs: 4700 },
+      { id: "p0-b3-s0", blockIndex: 3, text: "Section Two", spokenText: "Section Two.", tokensCharged: 30, startMs: 5900, endMs: 6400 },
     ]);
-    expect(out.rawDurationMs).toBe(2950);
+    expect(out.rawDurationMs).toBe(6550);
   });
 });
 
@@ -189,18 +227,111 @@ describe("narrate_book_preview cache integrity, locking, and atomic synthesis", 
     const reacquired = acquireNarrationLock(dir);
     reacquired.release();
 
-    // Dead PID stale lock is reclaimed cleanly
+    // Dead PID stale lock is reclaimed cleanly with fresh unique token
     const exited = spawnSync(process.execPath, ["-e", ""], { stdio: "ignore" });
     expect(typeof exited.pid).toBe("number");
     writeFileSync(
       lock.lockPath,
-      JSON.stringify({ pid: exited.pid, startedAt: new Date(Date.now() - 60_000).toISOString() }),
+      JSON.stringify({ pid: exited.pid, token: "stale-token", startedAt: new Date(Date.now() - 60_000).toISOString() }),
       "utf8",
     );
     const reclaimed = acquireNarrationLock(dir);
-    const reclaimedJson = JSON.parse(readFileSync(reclaimed.lockPath, "utf8")) as { pid: number };
+    const reclaimedJson = JSON.parse(readFileSync(reclaimed.lockPath, "utf8")) as { pid: number; token: string };
     expect(reclaimedJson.pid).toBe(process.pid);
+    expect(typeof reclaimedJson.token).toBe("string");
+    expect(reclaimedJson.token).not.toBe("stale-token");
+
+    // F1: release() verifies token ownership so an old owner never unlinks a successor's lock
+    writeFileSync(
+      reclaimed.lockPath,
+      JSON.stringify({ pid: process.pid, token: "successor-token", startedAt: new Date().toISOString() }),
+      "utf8",
+    );
     reclaimed.release();
+    expect((JSON.parse(readFileSync(reclaimed.lockPath, "utf8")) as { token: string }).token).toBe("successor-token");
+    rmSync(reclaimed.lockPath, { force: true });
+
+    // F1: 2-contender stale lock reclamation — live-PID or fresh .reclaim mutex fails closed non-destructively
+    const stalePayload = JSON.stringify({
+      pid: exited.pid,
+      token: "race-stale-token",
+      startedAt: new Date(Date.now() - 60_000).toISOString(),
+    });
+    writeFileSync(lock.lockPath, stalePayload, "utf8");
+    const reclaimMutexPath = `${lock.lockPath}.reclaim`;
+    writeFileSync(reclaimMutexPath, "held-by-winner", "utf8");
+    expect(() => acquireNarrationLock(dir)).toThrow(/reclamation already in progress/);
+    expect(readFileSync(lock.lockPath, "utf8")).toBe(stalePayload);
+    writeFileSync(
+      reclaimMutexPath,
+      JSON.stringify({ pid: process.pid, token: "live-reclaimer", startedAt: new Date().toISOString() }),
+      "utf8",
+    );
+    expect(() => acquireNarrationLock(dir)).toThrow(/reclamation already in progress/);
+    expect(readFileSync(lock.lockPath, "utf8")).toBe(stalePayload);
+
+    // Dead-PID stale .reclaim mutex recovers safely and cleans .reclaim up
+    writeFileSync(
+      reclaimMutexPath,
+      JSON.stringify({ pid: exited.pid, token: "dead-reclaimer", startedAt: new Date(Date.now() - 60_000).toISOString() }),
+      "utf8",
+    );
+    const recoveredDeadReclaim = acquireNarrationLock(dir);
+    expect(readdirSync(dir)).not.toContain(".narration.lock.reclaim");
+    recoveredDeadReclaim.release();
+
+    // Unparseable .reclaim mutex older than 2000ms also recovers safely
+    writeFileSync(lock.lockPath, stalePayload, "utf8");
+    writeFileSync(reclaimMutexPath, "corrupt-stale-reclaim", "utf8");
+    const staleTime = new Date(Date.now() - 5000);
+    utimesSync(reclaimMutexPath, staleTime, staleTime);
+    const recoveredOldReclaim = acquireNarrationLock(dir);
+    expect(readdirSync(dir)).not.toContain(".narration.lock.reclaim");
+    recoveredOldReclaim.release();
+
+    // Non-ENOENT lock read errors (e.g. EACCES) propagate loudly rather than deleting the lockfile
+    if (process.getuid?.() !== 0) {
+      writeFileSync(lock.lockPath, stalePayload, "utf8");
+      chmodSync(lock.lockPath, 0o000);
+      try {
+        expect(() => acquireNarrationLock(dir)).toThrow(/EACCES|permission denied/i);
+        expect(readdirSync(dir)).toContain(".narration.lock");
+      } finally {
+        chmodSync(lock.lockPath, 0o600);
+        rmSync(lock.lockPath, { force: true });
+      }
+    }
+  });
+
+  it("validates selected page caches unconditionally, preserves full page siblings under --chunks, and throws loudly on incomplete pages (F2)", () => {
+    const dir = makeTempDir();
+    const validWav = path.join(dir, "ok.wav");
+    const siblingWav = path.join(dir, "sibling.wav");
+    const badWav = path.join(dir, "bad.wav");
+    writeFileSync(validWav, makeValidWavBuffer());
+    writeFileSync(siblingWav, makeValidWavBuffer());
+    writeFileSync(badWav, Buffer.from("corrupt"));
+
+    const plans = [
+      { pdfPageNumber: 1, chunks: [{ id: "p0-b0-s0" }, { id: "p0-b1-s0" }] },
+      { pdfPageNumber: 2, chunks: [{ id: "p1-b0-s0" }] },
+    ];
+    const wavMap = (chunk: { id: string }) => {
+      if (chunk.id === "p0-b0-s0") return validWav;
+      if (chunk.id === "p0-b1-s0") return badWav;
+      return badWav;
+    };
+    const pendingPartial = selectPendingChunksToSynth(plans, new Set([1]), ["p0-b1"], false, wavMap, isValidWavFile);
+    expect(pendingPartial.map((c) => c.id)).toEqual(["p0-b1-s0"]);
+    // Sibling chunk p0-b0-s0 remains in pagePlans, so missing p0-b1-s0 still fails page 1 assembly even with --chunks=p0-b0
+    expect(() => assertSelectedPagesCached(plans, new Set([1]), wavMap, isValidWavFile)).toThrow(
+      /Cannot assemble selected page 1: missing or invalid WAV cache for chunk\(s\) p0-b1-s0/,
+    );
+    const completeMap = (chunk: { id: string }) => (chunk.id === "p0-b0-s0" ? validWav : chunk.id === "p0-b1-s0" ? siblingWav : badWav);
+    expect(() => assertSelectedPagesCached(plans, new Set([1]), completeMap, isValidWavFile)).not.toThrow();
+    expect(() => assertSelectedPagesCached(plans, new Set([1, 2]), completeMap, isValidWavFile)).toThrow(
+      /Cannot assemble selected page 2: missing or invalid WAV cache for chunk\(s\) p1-b0-s0/,
+    );
   });
 
   it("deduplicates pending chunks by WAV cache path while preserving order", () => {
@@ -230,14 +361,14 @@ describe("narrate_book_preview cache integrity, locking, and atomic synthesis", 
           JSON.stringify({
             status: "succeeded",
             tokens_charged: 12,
-            result: { audio_url: "https://cdn.vcp.test/out.wav" },
+            result: { audio_url: "https://cdn.vcp.test/download/opaque-blob" },
           }),
           { status: 200 },
         );
       }
       return new Response(Buffer.from("not-a-wav"), {
         status: 200,
-        headers: { "content-type": "audio/wav" },
+        headers: { "content-type": "application/octet-stream" },
       });
     });
     vi.stubGlobal("fetch", fetchMock);

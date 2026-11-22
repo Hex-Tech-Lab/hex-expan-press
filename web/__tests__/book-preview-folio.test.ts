@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import * as pdfjs from "../node_modules/pdfjs-dist/legacy/build/pdf.mjs";
 import { describe, expect, it } from "vitest";
@@ -101,12 +101,13 @@ describe("F-folio: margin page number stripping on real preview PDFs", () => {
     expect(spreadModel.chunks.map((c) => c.id)).toContain("p2-b1-s0");
     expect(spreadModel.chunks.every((c) => !folioTargets.has(c.text.trim()))).toBe(true);
 
-    // Pre-baked timings.json and MP3 assets align 1:1 with folio-stripped extracted chunks across all 8 pages
+    // Pre-baked timings.json and Opus .webm assets (no duplicate MP3s) align 1:1 with folio-stripped extracted chunks across all 8 pages
     const repoRoot = resolve(__dirname, "..", "..");
-    const timingsRaw = JSON.parse(
-      readFileSync(resolve(repoRoot, "web/public/books/audio/sample_the_quiet_workshop/timings.json"), "utf8"),
-    ) as {
+    const audioDir = resolve(repoRoot, "web/public/books/audio/sample_the_quiet_workshop");
+    expect(readdirSync(audioDir).some((name) => name.endsWith(".mp3"))).toBe(false);
+    const timingsRaw = JSON.parse(readFileSync(resolve(audioDir, "timings.json"), "utf8")) as {
       voiceId: string;
+      voiceGender?: "male" | "female";
       pages: Record<
         string,
         {
@@ -118,6 +119,7 @@ describe("F-folio: margin page number stripping on real preview PDFs", () => {
       >;
     };
     expect(timingsRaw.voiceId).toBe(DEFAULT_GLOBAL.voice_narration.default_voice_id);
+    expect(timingsRaw.voiceGender).toBe("male");
     for (let idx = 0; idx < pages.length; idx++) {
       const pdfPage = idx + 1;
       const pageModel = buildSpreadAccessibleModel(
@@ -127,10 +129,9 @@ describe("F-folio: margin page number stripping on real preview PDFs", () => {
       );
       const track = timingsRaw.pages[String(pdfPage)];
       expect(track, `missing timings track for PDF page ${pdfPage}`).toBeDefined();
-      expect(track.audioUrl).toBe(`/books/audio/sample_the_quiet_workshop/page-0${pdfPage}.mp3`);
-      expect(track.opusUrl).toBe(`/books/audio/sample_the_quiet_workshop/page-0${pdfPage}.webm`);
-      expect(readFileSync(resolve(repoRoot, "web/public", track.audioUrl.replace(/^\//, ""))).length).toBeGreaterThan(10_000);
-      expect(readFileSync(resolve(repoRoot, "web/public", track.opusUrl!.replace(/^\//, ""))).length).toBeGreaterThan(5_000);
+      expect(track.audioUrl).toBe(`/books/audio/sample_the_quiet_workshop/page-0${pdfPage}.webm`);
+      expect(track.opusUrl).toBeUndefined();
+      expect(readFileSync(resolve(repoRoot, "web/public", track.audioUrl.replace(/^\//, ""))).length).toBeGreaterThan(5_000);
       expect(track.chunks.map((c) => ({ id: c.id, text: c.text }))).toEqual(
         pageModel.chunks.map((c) => ({ id: c.id, text: c.text })),
       );

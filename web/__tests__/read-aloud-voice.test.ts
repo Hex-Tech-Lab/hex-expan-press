@@ -83,4 +83,18 @@ describe("rankVoice: quality, language and gender", () => {
     // Same quality tier: the registry gender order (female first) decides.
     expect(rankVoice([edgeGuy, ARIA], voiceSettings)).toBe(ARIA);
   });
+
+  it("gender-matched fallback (preferredGender) never picks an opposite-gender voice when a same-gender voice exists", () => {
+    const edgeGuy = v("Microsoft Guy Online (Natural) - English (United States)");
+    const edgeAndrew = v("Microsoft Andrew Online (Natural) - English (United States)");
+    // Male narrator: even legacy David MUST beat female Online (Natural) Aria
+    expect(rankVoice([ARIA, DAVID], voiceSettings, "male")).toBe(DAVID);
+    // Male narrator: among male voices, quality markers still rank Guy Online (Natural) above legacy David
+    expect(rankVoice([ARIA, DAVID, edgeGuy], voiceSettings, "male")).toBe(edgeGuy);
+    expect(rankVoice([ARIA, DAVID, edgeAndrew], voiceSettings, "male")).toBe(edgeAndrew);
+    // Female narrator: female Zira beats male Guy Online (Natural)
+    expect(rankVoice([edgeGuy, ZIRA], voiceSettings, "female")).toBe(ZIRA);
+    // Only opposite-gender voices exist: still returns best opposite-gender voice rather than muting playback
+    expect(rankVoice([ARIA], voiceSettings, "male")).toBe(ARIA);
+  });
 });

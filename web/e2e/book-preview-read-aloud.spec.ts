@@ -14,7 +14,8 @@ interface MockSpeechOptions {
   boundaries: boolean;
 }
 
-const NATURAL_VOICE: MockVoice = { name: "Microsoft Aria Online (Natural) - English (United States)", lang: "en-US" };
+const NATURAL_VOICE: MockVoice = { name: "Microsoft Guy Online (Natural) - English (United States)", lang: "en-US" };
+const FEMALE_NATURAL_VOICE: MockVoice = { name: "Microsoft Aria Online (Natural) - English (United States)", lang: "en-US" };
 const LEGACY_VOICE: MockVoice = { name: "Microsoft David - English (United States)", lang: "en-US" };
 const NO_BOUNDARY_VOICES: MockSpeechOptions = { voices: [], boundaries: false };
 
@@ -316,9 +317,9 @@ for (const viewport of [
     await expect(page.getByTestId("read-aloud-toggle")).toHaveAttribute("data-playback-state", "playing");
   });
 
-  test(`browser voice ranking picks the natural voice over the legacy one at ${viewport.width}px`, async ({ page }) => {
+  test(`browser voice ranking picks the gender-matched natural voice over legacy and opposite-gender voices at ${viewport.width}px`, async ({ page }) => {
     await page.route("**/timings.json", (route) => route.abort());
-    await installMockSpeechSynthesis(page, { voices: [LEGACY_VOICE, NATURAL_VOICE], boundaries: false });
+    await installMockSpeechSynthesis(page, { voices: [FEMALE_NATURAL_VOICE, LEGACY_VOICE, NATURAL_VOICE], boundaries: false });
     await openPreviewSpread(page, viewport);
 
     await page.getByTestId("read-aloud-toggle").click();
@@ -326,6 +327,9 @@ for (const viewport of [
     const voices = await page.evaluate(() => (window as unknown as MockWindow).__speechMock.log.spoken.map((s) => s.voice));
     expect(voices.length).toBeGreaterThan(0);
     for (const voice of voices) expect(voice).toBe(NATURAL_VOICE.name);
+
+    await expect(page.getByTestId("read-aloud-fallback-advisory")).toBeVisible();
+    await expect(page.getByTestId("read-aloud-fallback-upgrade-link")).toHaveAttribute("href", "https://browsehappy.com/");
   });
 
   test(`speed change mid-sentence resumes from the last word boundary at ${viewport.width}px`, async ({ page }) => {
@@ -349,7 +353,29 @@ for (const viewport of [
   });
 }
 
-test("pre-baked Walter Opus/MP3 + timings.json pre-fetches manifest, downloads zero audio until tap, and updates playbackRate with preservesPitch=true", async ({
+test("Opus-unsupported browser falls back to male-matched Web Speech (never female natural) and shows upgrade advisory", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await installMockSpeechSynthesis(page, { voices: [FEMALE_NATURAL_VOICE, LEGACY_VOICE], boundaries: false });
+  await page.addInitScript(() => {
+    HTMLMediaElement.prototype.canPlayType = function () {
+      return "";
+    };
+  });
+  await openPreviewSpread(page, { width: 390, height: 844 });
+
+  await page.getByTestId("read-aloud-toggle").click();
+  await expect(page.getByTestId("read-aloud-toggle")).toHaveAttribute("data-playback-state", "playing");
+  const voices = await page.evaluate(() => (window as unknown as MockWindow).__speechMock.log.spoken.map((s) => s.voice));
+  expect(voices.length).toBeGreaterThan(0);
+  for (const voice of voices) expect(voice).toBe(LEGACY_VOICE.name);
+
+  await expect(page.getByTestId("read-aloud-fallback-advisory")).toBeVisible();
+  await expect(page.getByTestId("read-aloud-fallback-upgrade-link")).toHaveAttribute("href", "https://browsehappy.com/");
+});
+
+test("pre-baked Walter Opus .webm + timings.json pre-fetches manifest, downloads zero audio until tap, and updates playbackRate with preservesPitch=true", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1560, height: 940 });
@@ -404,6 +430,7 @@ test("pre-baked Walter Opus/MP3 + timings.json pre-fetches manifest, downloads z
 
   await page.getByTestId("read-aloud-toggle").click();
   await expect(page.getByTestId("read-aloud-toggle")).toHaveAttribute("data-playback-state", "playing");
+  await expect(page.getByTestId("read-aloud-fallback-advisory")).toHaveCount(0);
   await expect(page.getByTestId("book-preview-accessible-text").locator('[data-testid="read-aloud-sentence"][data-active="true"]')).toHaveCount(1);
 
   await page.getByTestId("read-aloud-speed").click();

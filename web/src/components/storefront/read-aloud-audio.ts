@@ -33,6 +33,7 @@ export interface PreviewAudioManifest {
   bookId: string;
   voiceId: string;
   voiceName: string;
+  voiceGender?: "male" | "female";
   model: string;
   sampleRateHz: number;
   loudnormLufs: number;
@@ -191,8 +192,9 @@ export function parsePreviewAudioManifest(raw: unknown, audioBasePath = "/books/
     bookId: typeof rec.bookId === "string" ? rec.bookId : "",
     voiceId: typeof rec.voiceId === "string" ? rec.voiceId : "",
     voiceName: typeof rec.voiceName === "string" ? rec.voiceName : "",
+    ...(rec.voiceGender === "male" || rec.voiceGender === "female" ? { voiceGender: rec.voiceGender } : {}),
     model: typeof rec.model === "string" ? rec.model : "",
-    sampleRateHz: typeof rec.sampleRateHz === "number" ? rec.sampleRateHz : 44100,
+    sampleRateHz: typeof rec.sampleRateHz === "number" ? rec.sampleRateHz : 48000,
     loudnormLufs: typeof rec.loudnormLufs === "number" ? rec.loudnormLufs : -16,
     generatedAt: typeof rec.generatedAt === "string" ? rec.generatedAt : "",
     pages,
@@ -310,20 +312,25 @@ export function resolveSpreadAudioTracks(
   return tracks.length > 0 ? tracks : null;
 }
 
+function supportsOpusWebm(audio: { canPlayType?: (mimeType: string) => string }): boolean {
+  if (typeof audio.canPlayType !== "function") return false;
+  const codecSupport = audio.canPlayType('audio/webm; codecs="opus"');
+  return codecSupport === "probably" || codecSupport === "maybe";
+}
+
 export function selectTrackAudioCandidates(
   track: PreviewAudioPageTrack,
   audio: { canPlayType?: (mimeType: string) => string },
 ): string[] {
   const candidates: string[] = [];
-  if (track.opusUrl && typeof audio.canPlayType === "function") {
-    const opusSupport = audio.canPlayType('audio/webm; codecs="opus"');
-    if (opusSupport === "probably" || opusSupport === "maybe") {
-      candidates.push(track.opusUrl);
-    }
-  }
-  if (!candidates.includes(track.audioUrl)) {
-    candidates.push(track.audioUrl);
-  }
+  const opusSupported = supportsOpusWebm(audio);
+  const addCandidate = (url: string | undefined) => {
+    if (!url || candidates.includes(url)) return;
+    if (/\.webm(?:$|\?)/i.test(url) && !opusSupported) return;
+    candidates.push(url);
+  };
+  addCandidate(track.opusUrl);
+  addCandidate(track.audioUrl);
   return candidates;
 }
 

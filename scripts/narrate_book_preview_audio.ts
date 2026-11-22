@@ -1,8 +1,14 @@
 import { execFileSync, spawnSync } from "node:child_process";
-import type { VoiceNarrationSettings } from "../payments/src/settings_registry";
+import { existsSync, unlinkSync } from "node:fs";
+import {
+  DEFAULT_GLOBAL,
+  type VoiceNarrationLexiconEntry,
+  type VoiceNarrationSettings,
+} from "../payments/src/settings_registry";
 import type { AccessibleBlock, PreviewAudioTimingChunk } from "../web/src/components/storefront/book-previewer-text";
 
 export const NATIVE_SAMPLE_RATE = 24000;
+export const OPUS_SAMPLE_RATE_HZ = 48000;
 
 const ROMAN_YEAR_MAP: Record<string, string> = {
   MMXXIV: "2024",
@@ -69,6 +75,53 @@ export function resolveVoiceFromNarrationSettings(
   };
 }
 
+/** Resolves effective tempo for a voice: explicit override -> per-voice map -> fallback default tempo. */
+export function resolveTempoForVoice(
+  narration: VoiceNarrationSettings,
+  voiceId: string,
+  explicitTempo?: number,
+): number {
+  if (explicitTempo !== undefined) return explicitTempo;
+  if (Object.prototype.hasOwnProperty.call(narration.voice_tempos, voiceId)) {
+    return narration.voice_tempos[voiceId];
+  }
+  return narration.tempo;
+}
+
+/** Fails loudly before assembly if any selected non-empty page still lacks valid cached WAV chunks. */
+export function assertSelectedPagesCached<T extends { id: string }>(
+  pagePlans: ReadonlyArray<{ pdfPageNumber: number; chunks: ReadonlyArray<T> }>,
+  selectedPages: ReadonlySet<number>,
+  getWavPath: (chunk: T) => string,
+  isValidWav: (wavPath: string) => boolean,
+): void {
+  for (const plan of pagePlans) {
+    if (!selectedPages.has(plan.pdfPageNumber) || plan.chunks.length === 0) continue;
+    const missing = plan.chunks.filter((chunk) => !isValidWav(getWavPath(chunk))).map((chunk) => chunk.id);
+    if (missing.length > 0) {
+      throw new Error(
+        `Cannot assemble selected page ${plan.pdfPageNumber}: missing or invalid WAV cache for chunk(s) ${missing.join(", ")}`,
+      );
+    }
+  }
+}
+
+/** Filters synthesis targets by selected pages and optional chunk prefixes without stripping sibling chunks from page plans. */
+export function selectPendingChunksToSynth<T extends { id: string }>(
+  pagePlans: ReadonlyArray<{ pdfPageNumber: number; chunks: ReadonlyArray<T> }>,
+  selectedPages: ReadonlySet<number>,
+  chunkPrefixes: ReadonlyArray<string> | null,
+  force: boolean,
+  getWavPath: (chunk: T) => string,
+  isValidWav: (wavPath: string) => boolean,
+): T[] {
+  return pagePlans
+    .filter((plan) => selectedPages.has(plan.pdfPageNumber))
+    .flatMap((plan) => plan.chunks)
+    .filter((chunk) => !chunkPrefixes || chunkPrefixes.some((prefix) => chunk.id.startsWith(prefix)))
+    .filter((chunk) => force || !isValidWav(getWavPath(chunk)));
+}
+
 /** Derives whether an extracted PDF page is discrete cover/TOC/back-cover metadata rather than flowing prose. */
 export function isMetadataBookPage(blocks: ReadonlyArray<AccessibleBlock>): boolean {
   if (blocks.length === 0) return false;
@@ -86,11 +139,69 @@ function toTitleCaseWords(input: string): string {
     .replace(/\b([a-z])/g, (match) => match.toUpperCase());
 }
 
+function isTermWordChar(char: string): boolean {
+  const code = char.charCodeAt(0);
+  return (code >= 48 && code <= 57) || (code >= 65 && code <= 90) || (code >= 97 && code <= 122) || code === 95;
+}
+
+/** Replaces whole-word/phrase occurrences without dynamic RegExp construction. */
+export function replaceWholeTermInsensitive(
+  text: string,
+  from: string,
+  replacement: string,
+  caseInsensitive = true,
+  replaceAll = true,
+): string {
+  if (!from || text.length < from.length) return text;
+  const needle = caseInsensitive ? from.toLowerCase() : from;
+  const needLeftBoundary = isTermWordChar(from[0]);
+  const needRightBoundary = isTermWordChar(from[from.length - 1]);
+
+  const parts: string[] = [];
+  let lastCopy = 0;
+  let cursor = 0;
+  while (cursor <= text.length - from.length) {
+    const slice = text.slice(cursor, cursor + from.length);
+    const matched = caseInsensitive ? slice.toLowerCase() === needle : slice === needle;
+    if (matched) {
+      const rightEnd = cursor + from.length;
+      const leftOk = !needLeftBoundary || cursor === 0 || !isTermWordChar(text[cursor - 1]);
+      const rightOk = !needRightBoundary || rightEnd === text.length || !isTermWordChar(text[rightEnd]);
+      if (leftOk && rightOk) {
+        parts.push(text.slice(lastCopy, cursor), replacement);
+        lastCopy = rightEnd;
+        cursor = rightEnd;
+        if (!replaceAll) break;
+        continue;
+      }
+    }
+    cursor += 1;
+  }
+  if (lastCopy === 0) return text;
+  parts.push(text.slice(lastCopy));
+  return parts.join("");
+}
+
+/** Applies configurable TTS pronunciation substitutions cleanly to spoken text only. */
+export function applyNarrationLexicon(
+  text: string,
+  lexicon: ReadonlyArray<VoiceNarrationLexiconEntry>,
+): string {
+  let out = text;
+  for (const entry of lexicon) {
+    const flags = entry.flags?.toLowerCase();
+    const caseInsensitive = flags === undefined || flags.includes("i");
+    const replaceAll = flags === undefined || flags.includes("g");
+    out = replaceWholeTermInsensitive(out, entry.pattern, entry.replacement, caseInsensitive, replaceAll);
+  }
+  return out;
+}
+
 /** Normalizes sparse cover/metadata typography into natural calm documentary phrasing without altering UI chunk text. */
 export function formatChunkForSpeech(
   text: string,
   blockKind: AccessibleBlock["kind"],
-  options: { isMetadataPage?: boolean; authorName?: string } = {},
+  options: { isMetadataPage?: boolean; authorName?: string; lexicon?: ReadonlyArray<VoiceNarrationLexiconEntry> } = {},
 ): string {
   let normalized = text.replace(/\s+/g, " ").trim();
   if (!normalized) return "";
@@ -135,6 +246,11 @@ export function formatChunkForSpeech(
   if (normalized.startsWith("“") && !normalized.includes("”")) normalized = normalized.slice(1).trim();
   if (normalized.endsWith("”") && !normalized.includes("“")) normalized = normalized.slice(0, -1).trim();
 
+  const activeLexicon = options.lexicon ?? DEFAULT_GLOBAL.voice_narration.lexicon;
+  if (activeLexicon.length > 0) {
+    normalized = applyNarrationLexicon(normalized, activeLexicon);
+  }
+
   const isMetadataOrDiscrete =
     blockKind === "heading" || blockKind === "list-item" || Boolean(options.isMetadataPage);
   if (isMetadataOrDiscrete && !/[.!?…]$/.test(normalized)) {
@@ -168,7 +284,7 @@ export function trimSilencePcm(
   const end = Math.min(samples.length, lastActive + padEndSamples);
   const out = new Int16Array(samples.slice(start, end));
 
-  const fadeSamples = Math.min(Math.round(((opts.fadeMs ?? 10) / 1000) * sampleRate), Math.floor(out.length / 4));
+  const fadeSamples = Math.min(Math.round(((opts.fadeMs ?? 18) / 1000) * sampleRate), Math.floor(out.length / 4));
   for (let i = 0; i < fadeSamples; i++) {
     const gainIn = i / fadeSamples;
     const gainOut = (fadeSamples - 1 - i) / fadeSamples;
@@ -178,11 +294,12 @@ export function trimSilencePcm(
   return out;
 }
 
-/** Concatenates trimmed chunk PCMs with breath gaps and records exact sample-derived chunk timings. */
+/** Concatenates trimmed chunk PCMs with breath/section gaps and records exact sample-derived chunk timings. */
 export function assemblePagePcm(
   entries: ReadonlyArray<{
     id: string;
     blockIndex: number;
+    blockKind?: AccessibleBlock["kind"];
     text: string;
     spokenText: string;
     tokensCharged?: number;
@@ -194,12 +311,14 @@ export function assemblePagePcm(
     pageTailMs: number;
     sentenceGapMs: number;
     paragraphGapMs: number;
+    sectionGapMs?: number;
   },
 ): { pcm: Int16Array; chunks: PreviewAudioTimingChunk[]; rawDurationMs: number } {
   const leadSamples = Math.round((opts.pageLeadMs / 1000) * opts.sampleRate);
   const tailSamples = Math.round((opts.pageTailMs / 1000) * opts.sampleRate);
   const sentenceGapSamples = Math.round((opts.sentenceGapMs / 1000) * opts.sampleRate);
   const paragraphGapSamples = Math.round((opts.paragraphGapMs / 1000) * opts.sampleRate);
+  const sectionGapSamples = Math.round(((opts.sectionGapMs ?? opts.paragraphGapMs) / 1000) * opts.sampleRate);
 
   const segments: Array<{ startSample: number; pcm: Int16Array }> = [];
   const chunks: PreviewAudioTimingChunk[] = [];
@@ -221,8 +340,14 @@ export function assemblePagePcm(
     });
     cursor = endSample;
     if (i + 1 < entries.length) {
-      const sameBlock = entries[i + 1].blockIndex === entry.blockIndex;
-      cursor += sameBlock ? sentenceGapSamples : paragraphGapSamples;
+      const next = entries[i + 1];
+      if (next.blockIndex === entry.blockIndex) {
+        cursor += sentenceGapSamples;
+      } else if (entry.blockKind === "heading" || next.blockKind === "heading") {
+        cursor += sectionGapSamples;
+      } else {
+        cursor += paragraphGapSamples;
+      }
     }
   }
 
@@ -238,99 +363,111 @@ export function assemblePagePcm(
   };
 }
 
-export function decodeAudioToNativePcm(ffmpegBin: string, inputPath: string): Int16Array {
-  const buf = execFileSync(
-    ffmpegBin,
-    ["-v", "error", "-i", inputPath, "-f", "s16le", "-ac", "1", "-ar", String(NATIVE_SAMPLE_RATE), "pipe:1"],
-    { maxBuffer: 64 * 1024 * 1024 },
-  );
+export function buildChunkDecodeFilter(opts?: { masterFilter?: string; tempo?: number }): string | null {
+  const parts: string[] = [];
+  const filter = opts?.masterFilter?.trim();
+  if (filter) parts.push(filter);
+  const tempo = opts?.tempo;
+  if (typeof tempo === "number" && Number.isFinite(tempo) && Math.abs(tempo - 1) > 1e-4) {
+    parts.push(`atempo=${tempo}`);
+  }
+  return parts.length > 0 ? parts.join(",") : null;
+}
+
+export function parseChunkPrefixes(raw: string | undefined): string[] | null {
+  if (raw === undefined) return null;
+  const items = raw
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (items.length === 0) {
+    throw new Error(`Invalid --chunks selector "${raw}": expected comma-separated chunk id prefixes`);
+  }
+  return items;
+}
+
+export function decodeAudioToNativePcm(
+  ffmpegBin: string,
+  inputPath: string,
+  opts?: { masterFilter?: string; tempo?: number },
+): Int16Array {
+  const filter = buildChunkDecodeFilter(opts);
+  const args = ["-v", "error", "-i", inputPath];
+  if (filter) args.push("-af", filter);
+  args.push("-f", "s16le", "-ac", "1", "-ar", String(NATIVE_SAMPLE_RATE), "pipe:1");
+  const buf = execFileSync(ffmpegBin, args, { maxBuffer: 64 * 1024 * 1024 });
   return new Int16Array(buf.buffer, buf.byteOffset, Math.floor(buf.byteLength / 2));
 }
 
-export function encodeLoudnormDualFormats(
+export function encodeLoudnormOpus(
   ffmpegBin: string,
   pcm: Int16Array,
-  outMp3Path: string,
   outOpusPath: string,
   opts: {
     targetLufs: number;
-    sampleRateHz: number;
-    mp3BitrateKbps: number;
     opusCodec: string;
     opusBitrateKbps: number;
     opusVbr: "on" | "off" | "constrained";
   },
 ): void {
-  const tmpWav = `${outMp3Path}.tmp.wav`;
+  const tmpWav = `${outOpusPath}.tmp.wav`;
   const pcmBuf = Buffer.from(pcm.buffer, pcm.byteOffset, pcm.byteLength);
-  execFileSync(
-    ffmpegBin,
-    ["-y", "-v", "error", "-f", "s16le", "-ar", String(NATIVE_SAMPLE_RATE), "-ac", "1", "-i", "pipe:0", tmpWav],
-    { input: pcmBuf },
-  );
-
-  let measuredFilter = `loudnorm=I=${opts.targetLufs}:TP=-1.5:LRA=11`;
   try {
-    const pass1 = spawnSync(
+    execFileSync(
       ffmpegBin,
-      ["-nostdin", "-y", "-i", tmpWav, "-af", `${measuredFilter}:print_format=json`, "-f", "null", "-"],
-      { encoding: "utf8" },
+      ["-y", "-v", "error", "-f", "s16le", "-ar", String(NATIVE_SAMPLE_RATE), "-ac", "1", "-i", "pipe:0", tmpWav],
+      { input: pcmBuf },
     );
-    const pass1Log = `${pass1.stdout ?? ""}\n${pass1.stderr ?? ""}`;
-    const jsonMatch = /\{[\s\S]*"input_i"[\s\S]*\}/.exec(pass1Log);
-    if (pass1.status === 0 && jsonMatch) {
-      const stats = JSON.parse(jsonMatch[0]) as Record<string, string>;
-      if (stats.input_i && stats.input_tp && stats.input_lra && stats.input_thresh && stats.target_offset) {
-        measuredFilter = `loudnorm=I=${opts.targetLufs}:TP=-1.5:LRA=11:measured_I=${stats.input_i}:measured_TP=${stats.input_tp}:measured_LRA=${stats.input_lra}:measured_thresh=${stats.input_thresh}:offset=${stats.target_offset}:linear=true`;
-      }
-    }
-  } catch (err) {
-    console.warn("[narrate_book_preview] loudnorm pass1 measurement failed; using single-pass fallback:", err);
-  }
 
-  execFileSync(
-    ffmpegBin,
-    [
-      "-y",
-      "-v",
-      "error",
-      "-i",
-      tmpWav,
-      "-af",
-      measuredFilter,
-      "-ar",
-      String(opts.sampleRateHz),
-      "-ac",
-      "1",
-      "-c:a",
-      "libmp3lame",
-      "-b:a",
-      `${opts.mp3BitrateKbps}k`,
-      outMp3Path,
-    ],
-  );
-  execFileSync(
-    ffmpegBin,
-    [
-      "-y",
-      "-v",
-      "error",
-      "-i",
-      tmpWav,
-      "-af",
-      measuredFilter,
-      "-ac",
-      "1",
-      "-c:a",
-      opts.opusCodec,
-      "-b:a",
-      `${opts.opusBitrateKbps}k`,
-      "-vbr",
-      opts.opusVbr,
-      outOpusPath,
-    ],
-  );
-  execFileSync("rm", ["-f", tmpWav]);
+    let measuredFilter = `loudnorm=I=${opts.targetLufs}:TP=-1.5:LRA=11`;
+    try {
+      const pass1 = spawnSync(
+        ffmpegBin,
+        ["-nostdin", "-y", "-i", tmpWav, "-af", `${measuredFilter}:print_format=json`, "-f", "null", "-"],
+        { encoding: "utf8" },
+      );
+      const pass1Log = `${pass1.stdout ?? ""}\n${pass1.stderr ?? ""}`;
+      const jsonMatch = /\{[\s\S]*"input_i"[\s\S]*\}/.exec(pass1Log);
+      if (pass1.status === 0 && jsonMatch) {
+        const stats = JSON.parse(jsonMatch[0]) as Record<string, string>;
+        if (stats.input_i && stats.input_tp && stats.input_lra && stats.input_thresh && stats.target_offset) {
+          measuredFilter = `loudnorm=I=${opts.targetLufs}:TP=-1.5:LRA=11:measured_I=${stats.input_i}:measured_TP=${stats.input_tp}:measured_LRA=${stats.input_lra}:measured_thresh=${stats.input_thresh}:offset=${stats.target_offset}:linear=true`;
+        }
+      }
+    } catch (err) {
+      console.warn("[narrate_book_preview] loudnorm pass1 measurement failed; using single-pass fallback:", err);
+    }
+
+    execFileSync(
+      ffmpegBin,
+      [
+        "-y",
+        "-v",
+        "error",
+        "-i",
+        tmpWav,
+        "-af",
+        measuredFilter,
+        "-ar",
+        String(OPUS_SAMPLE_RATE_HZ),
+        "-ac",
+        "1",
+        "-c:a",
+        opts.opusCodec,
+        "-b:a",
+        `${opts.opusBitrateKbps}k`,
+        "-vbr",
+        opts.opusVbr,
+        outOpusPath,
+      ],
+    );
+  } finally {
+    try {
+      if (existsSync(tmpWav)) unlinkSync(tmpWav);
+    } catch (cleanupErr) {
+      console.warn("[narrate_book_preview] Temp WAV cleanup failed:", cleanupErr);
+    }
+  }
 }
 
 export function probeDurationMs(ffprobeBin: string, mp3Path: string, fallbackMs: number): number {

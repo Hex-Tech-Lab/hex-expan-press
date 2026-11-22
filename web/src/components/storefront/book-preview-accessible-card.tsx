@@ -76,6 +76,7 @@ export interface BookPreviewAccessibleCardProps {
   playbackState: ReadAloudState;
   currentRate: number;
   showReadAloudControls: boolean;
+  usingFallbackVoice?: boolean;
   speechAnnouncement: string;
   readAloudSettings: BookPreviewReadAloudSettings;
   textStructureSettings: BookPreviewTextStructureSettings;
@@ -96,6 +97,7 @@ export function BookPreviewAccessibleCard({
   playbackState,
   currentRate,
   showReadAloudControls,
+  usingFallbackVoice = false,
   speechAnnouncement,
   readAloudSettings,
   textStructureSettings,
@@ -232,6 +234,25 @@ export function BookPreviewAccessibleCard({
       <span className="sr-only" aria-live="polite" data-testid="read-aloud-status">
         {speechAnnouncement}
       </span>
+
+      {usingFallbackVoice && (
+        <p
+          role="status"
+          data-testid="read-aloud-fallback-advisory"
+          className="mt-2.5 rounded-xl border border-[#e8dacb] bg-[#faf5ee] px-3 py-2 text-[11px] leading-relaxed text-gray-700"
+        >
+          {raLabels.fallback_advisory_text}{" "}
+          <a
+            href={raLabels.fallback_advisory_link_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            data-testid="read-aloud-fallback-upgrade-link"
+            className="font-semibold text-gray-900 underline underline-offset-2 hover:text-gray-700"
+          >
+            {raLabels.fallback_advisory_link_label}
+          </a>
+        </p>
+      )}
 
       <div
         id={panelId}

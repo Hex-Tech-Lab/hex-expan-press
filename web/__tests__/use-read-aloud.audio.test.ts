@@ -5,7 +5,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_GLOBAL, type BookPreviewReadAloudSettings } from "../../payments/src/settings_registry";
 import type { PreviewAudioManifest, ReadAloudChunk } from "../src/components/storefront/book-previewer-text";
-import { parsePreviewAudioManifest } from "../src/components/storefront/read-aloud-audio";
+import { parsePreviewAudioManifest, selectTrackAudioCandidates } from "../src/components/storefront/read-aloud-audio";
 import { useReadAloud } from "../src/components/storefront/use-read-aloud";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -28,16 +28,16 @@ const SAMPLE_MANIFEST: PreviewAudioManifest = {
   bookId: "sample_the_quiet_workshop",
   voiceId: "c9f39b88-235b-4c2a-851c-3734ce1203be",
   voiceName: "Walter - Calm documentary narrator",
+  voiceGender: "male",
   model: "qwen3-tts",
-  sampleRateHz: 44100,
+  sampleRateHz: 48000,
   loudnormLufs: -16,
   generatedAt: "2026-11-22T15:00:00.000Z",
   pages: {
     "2": {
       pageIndex: 1,
       pdfPageNumber: 2,
-      audioUrl: "/books/audio/sample_the_quiet_workshop/page-02.mp3",
-      opusUrl: "/books/audio/sample_the_quiet_workshop/page-02.webm",
+      audioUrl: "/books/audio/sample_the_quiet_workshop/page-02.webm",
       durationMs: 4200,
       chunks: [
         { id: "p1-b0-s0", blockIndex: 0, text: "The Quiet Workshop", startMs: 120, endMs: 1800 },
@@ -47,8 +47,7 @@ const SAMPLE_MANIFEST: PreviewAudioManifest = {
     "3": {
       pageIndex: 2,
       pdfPageNumber: 3,
-      audioUrl: "/books/audio/sample_the_quiet_workshop/page-03.mp3",
-      opusUrl: "/books/audio/sample_the_quiet_workshop/page-03.webm",
+      audioUrl: "/books/audio/sample_the_quiet_workshop/page-03.webm",
       durationMs: 5000,
       chunks: [
         { id: "p2-b0-s0", blockIndex: 0, text: "Contents", startMs: 120, endMs: 1200 },
@@ -58,8 +57,7 @@ const SAMPLE_MANIFEST: PreviewAudioManifest = {
     "4": {
       pageIndex: 3,
       pdfPageNumber: 4,
-      audioUrl: "/books/audio/sample_the_quiet_workshop/page-04.mp3",
-      opusUrl: "/books/audio/sample_the_quiet_workshop/page-04.webm",
+      audioUrl: "/books/audio/sample_the_quiet_workshop/page-04.webm",
       durationMs: 3000,
       chunks: [{ id: "p3-b0-s0", blockIndex: 0, text: "Chapter 1: Setting Up the Bench", startMs: 120, endMs: 2800 }],
     },
@@ -290,65 +288,142 @@ describe("useReadAloud pre-baked audio manifest + timings sync + Web Speech fall
     expect(MockAudioElement.instances).toHaveLength(0);
   });
 
-  it("keeps preload=none until Play, falls back from Opus webm decode error to MP3 before Web Speech, and selects MP3 directly when Opus is unsupported", async () => {
+  it("keeps preload=none until Play, sets usingFallbackVoice=true on Opus-unsupported browsers, and picks gender-matched male Web Speech over female natural voices", async () => {
     const speak = vi.fn();
     class FakeUtterance {
       text: string;
       rate = 1;
+      voice: { name: string } | null = null;
       constructor(text: string) {
         this.text = text;
       }
     }
+    const femaleNatural = { name: "Microsoft Aria Online (Natural) - English (United States)", lang: "en-US" };
+    const maleLegacy = { name: "Microsoft David - English (United States)", lang: "en-US" };
     Object.defineProperty(window, "SpeechSynthesisUtterance", { value: FakeUtterance, configurable: true });
     Object.defineProperty(window, "speechSynthesis", {
-      value: { paused: false, speaking: false, pending: false, speak, cancel: vi.fn(), pause: vi.fn(), resume: vi.fn(), getVoices: () => [] },
+      value: {
+        paused: false,
+        speaking: false,
+        pending: false,
+        speak,
+        cancel: vi.fn(),
+        pause: vi.fn(),
+        resume: vi.fn(),
+        getVoices: () => [femaleNatural, maleLegacy],
+      },
       configurable: true,
     });
 
     // (a) Zero Audio elements constructed on mount (timings.json pre-fetched, preload="none" until Play tap)
     await mount(true);
     expect(MockAudioElement.instances).toHaveLength(0);
+    expect(latest.usingFallbackVoice).toBe(false);
 
-    // (b) Opus-capable browser selects .webm first with preload="none"; .webm error switches cleanly to .mp3 without Web Speech
+    // (b) Opus-capable browser selects .webm with preload="none" and usingFallbackVoice=false; error falls back to male Web Speech
     await act(async () => latest.handlePlayPauseResume());
     expect(MockAudioElement.instances).toHaveLength(1);
     const audio = MockAudioElement.instances[0];
     expect(audio.preload).toBe("none");
     expect(audio.src).toBe("/books/audio/sample_the_quiet_workshop/page-02.webm");
+    expect(latest.usingFallbackVoice).toBe(false);
     expect(speak).not.toHaveBeenCalled();
 
-    await act(async () => {
-      audio.onerror?.();
-    });
-    expect(speak).not.toHaveBeenCalled();
-    expect(audio.src).toBe("/books/audio/sample_the_quiet_workshop/page-02.mp3");
-    expect(audio.srcHistory).toEqual([
-      "/books/audio/sample_the_quiet_workshop/page-02.webm",
-      "/books/audio/sample_the_quiet_workshop/page-02.mp3",
-    ]);
-
-    // (c) Web Speech triggers only when the .mp3 fallback also errors
     await act(async () => {
       audio.onerror?.();
     });
     expect(speak).toHaveBeenCalledTimes(1);
-    expect((speak.mock.calls[0][0] as FakeUtterance).text).toBe(spreadChunks[0].text);
+    const spokenUtt = speak.mock.calls[0][0] as FakeUtterance;
+    expect(spokenUtt.text).toBe(spreadChunks[0].text);
+    expect(spokenUtt.voice?.name).toBe(maleLegacy.name);
+    expect(latest.usingFallbackVoice).toBe(true);
 
     await act(async () => {
       root.unmount();
     });
     container.remove();
 
-    // (d) Safari/iOS (canPlayType === "") selects .mp3 directly without requesting .webm
+    // (c) Browser without Opus WebM support (canPlayType === "") skips .webm entirely, uses gender-matched Web Speech, and sets usingFallbackVoice=true
+    speak.mockClear();
     MockAudioElement.instances = [];
     MockAudioElement.nextCanPlayOpus = "";
     await mount(true);
     await act(async () => latest.handlePlayPauseResume());
     expect(MockAudioElement.instances).toHaveLength(1);
-    const safariAudio = MockAudioElement.instances[0];
-    expect(safariAudio.canPlayType).toHaveBeenCalledWith('audio/webm; codecs="opus"');
-    expect(safariAudio.src).toBe("/books/audio/sample_the_quiet_workshop/page-02.mp3");
-    expect(safariAudio.srcHistory).toEqual(["/books/audio/sample_the_quiet_workshop/page-02.mp3"]);
+    const nonOpusAudio = MockAudioElement.instances[0];
+    expect(nonOpusAudio.canPlayType).toHaveBeenCalledWith('audio/webm; codecs="opus"');
+    expect(nonOpusAudio.srcHistory).toEqual([]);
+    expect(speak).toHaveBeenCalledTimes(1);
+    expect((speak.mock.calls[0][0] as FakeUtterance).voice?.name).toBe(maleLegacy.name);
+    expect(latest.usingFallbackVoice).toBe(true);
+  });
+
+  it("keeps usingFallbackVoice=true while paused in fallback mode and clears it on Stop, natural end, and speech error", async () => {
+    const utterances: FakeUtterance[] = [];
+    class FakeUtterance {
+      text: string;
+      rate = 1;
+      onend: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      constructor(text: string) {
+        this.text = text;
+        utterances.push(this);
+      }
+    }
+    const pauseSpy = vi.fn();
+    Object.defineProperty(window, "SpeechSynthesisUtterance", { value: FakeUtterance, configurable: true });
+    Object.defineProperty(window, "speechSynthesis", {
+      value: {
+        paused: false,
+        speaking: false,
+        pending: false,
+        speak: vi.fn(),
+        cancel: vi.fn(),
+        pause: pauseSpy,
+        resume: vi.fn(),
+        getVoices: () => [],
+      },
+      configurable: true,
+    });
+    MockAudioElement.nextCanPlayOpus = "";
+
+    await mount(true);
+    await act(async () => latest.handlePlayPauseResume());
+    expect(latest.playbackState).toBe("playing");
+    expect(latest.usingFallbackVoice).toBe(true);
+
+    // Pausing keeps fallback notice visible
+    await act(async () => latest.handlePlayPauseResume());
+    expect(pauseSpy).toHaveBeenCalledTimes(1);
+    expect(latest.playbackState).toBe("paused");
+    expect(latest.usingFallbackVoice).toBe(true);
+
+    // Explicit Stop clears fallback notice
+    await act(async () => latest.stopReadAloud());
+    expect(latest.playbackState).toBe("idle");
+    expect(latest.usingFallbackVoice).toBe(false);
+
+    // Playing to natural completion clears fallback notice
+    utterances.length = 0;
+    await act(async () => latest.handlePlayPauseResume());
+    expect(latest.usingFallbackVoice).toBe(true);
+    for (let i = 0; i < spreadChunks.length; i++) {
+      await act(async () => {
+        utterances[i]?.onend?.();
+      });
+    }
+    expect(latest.playbackState).toBe("idle");
+    expect(latest.usingFallbackVoice).toBe(false);
+
+    // Terminal speech error clears fallback notice
+    utterances.length = 0;
+    await act(async () => latest.handlePlayPauseResume());
+    expect(latest.usingFallbackVoice).toBe(true);
+    await act(async () => {
+      utterances[0]?.onerror?.();
+    });
+    expect(latest.playbackState).toBe("idle");
+    expect(latest.usingFallbackVoice).toBe(false);
   });
 
   it("supports custom audioBasePath, rejects stale manifests with mismatched text, and updates activeWord when highlight_words=true", async () => {
@@ -361,13 +436,11 @@ describe("useReadAloud pre-baked audio manifest + timings sync + Web Speech fall
         ...SAMPLE_MANIFEST.pages,
         "2": {
           ...SAMPLE_MANIFEST.pages["2"],
-          audioUrl: "/books/audio_v2/sample/page-02.mp3",
-          opusUrl: "/books/audio_v2/sample/page-02.webm",
+          audioUrl: "/books/audio_v2/sample/page-02.webm",
         },
         "3": {
           ...SAMPLE_MANIFEST.pages["3"],
-          audioUrl: "/books/audio_v2/sample/page-03.mp3",
-          opusUrl: "/books/audio_v2/sample/page-03.webm",
+          audioUrl: "/books/audio_v2/sample/page-03.webm",
         },
       },
     };
@@ -483,6 +556,23 @@ describe("useReadAloud pre-baked audio manifest + timings sync + Web Speech fall
     expect(speak).toHaveBeenCalledTimes(1);
     expect((speak.mock.calls[0][0] as FakeUtterance).text).toBe("Third chunk on page.");
     expect(latest.activeChunkId).toBe("p1-b2-s0");
+
+    // P3: even if audio.onerror fires before the next ontimeupdate, error-time currentTime resolves the active chunk
+    speak.mockClear();
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+    MockAudioElement.instances = [];
+    await mount(true, threeChunkManifest);
+    await act(async () => latest.handlePlayPauseResume());
+    const audioP3 = MockAudioElement.instances[0];
+    await act(async () => {
+      audioP3.currentTime = 2.2; // inside chunk 1 (1700..3500ms) with NO ontimeupdate fired
+      audioP3.onerror?.();
+    });
+    expect(speak).toHaveBeenCalledTimes(1);
+    expect((speak.mock.calls[0][0] as FakeUtterance).text).toBe("Second chunk on page.");
   });
 
   it("rejects corrupt timing manifests (negative startMs, endMs <= startMs, durationMs <= 0, duplicate chunk ids, malformed words)", () => {
@@ -552,5 +642,20 @@ describe("useReadAloud pre-baked audio manifest + timings sync + Web Speech fall
     expect(parsedWithBadWords?.pages["2"].chunks[0].words).toEqual([
       { start: 6, end: 11, startMs: 400, endMs: 900 },
     ]);
+  });
+
+  it("rejects .webm candidates when only generic audio/webm container is supported without Opus codec (F2)", () => {
+    const track = SAMPLE_MANIFEST.pages["2"];
+    const vorbisOnlyAudio = {
+      canPlayType: vi.fn((mimeType: string) => (mimeType === "audio/webm" ? "maybe" : "")),
+    };
+    expect(selectTrackAudioCandidates(track, vorbisOnlyAudio)).toEqual([]);
+    expect(vorbisOnlyAudio.canPlayType).toHaveBeenCalledWith('audio/webm; codecs="opus"');
+    expect(vorbisOnlyAudio.canPlayType).not.toHaveBeenCalledWith("audio/webm");
+
+    const opusCapableAudio = {
+      canPlayType: vi.fn((mimeType: string) => (mimeType === 'audio/webm; codecs="opus"' ? "probably" : "")),
+    };
+    expect(selectTrackAudioCandidates(track, opusCapableAudio)).toEqual([track.audioUrl]);
   });
 });

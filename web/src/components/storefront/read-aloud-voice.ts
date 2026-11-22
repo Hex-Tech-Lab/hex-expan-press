@@ -35,13 +35,14 @@ function voiceGender(name: string, settings: BookPreviewReadAloudVoiceSettings):
 
 /**
  * Picks the best voice for the book language, or null so the browser default is used.
- * Order: exact book language, then same primary subtag (en-*); then quality markers
- * (earlier marker wins); then the configured gender order; then the browser's own order.
- * Only language-matching voices are eligible, so a non-English book never gets an English voice.
+ * When `preferredGender` is specified ("male" or "female"), matching gender outranks quality markers so a
+ * male-narrated audiobook fallback never jumps to a female "Online (Natural)" voice when a male voice exists.
+ * Otherwise: exact book language, same primary subtag (en-*), quality markers, configured gender order, browser order.
  */
 export function rankVoice<T extends VoiceCandidate>(
   voices: ReadonlyArray<T>,
   settings: BookPreviewReadAloudVoiceSettings,
+  preferredGender?: "female" | "male" | null,
 ): T | null {
   const wantedTag = normalizeTag(settings.lang);
   const wantedPrimary = primarySubtag(settings.lang);
@@ -51,9 +52,16 @@ export function rankVoice<T extends VoiceCandidate>(
     if (primarySubtag(voice.lang) !== wantedPrimary) continue;
     const langTier = normalizeTag(voice.lang) === wantedTag ? 0 : 1;
     const gender = voiceGender(voice.name, settings);
-    const genderIdx = gender ? settings.gender_order.indexOf(gender) : -1;
-    const genderRank = genderIdx >= 0 ? genderIdx : settings.gender_order.length;
-    const key: [number, number, number] = [langTier, markerRank(voice.name, settings.quality_markers), genderRank];
+    const quality = markerRank(voice.name, settings.quality_markers);
+    let key: [number, number, number];
+    if (preferredGender === "male" || preferredGender === "female") {
+      const genderTier = gender === preferredGender ? 0 : gender === null ? 1 : 2;
+      key = [langTier, genderTier, quality];
+    } else {
+      const genderIdx = gender ? settings.gender_order.indexOf(gender) : -1;
+      const genderRank = genderIdx >= 0 ? genderIdx : settings.gender_order.length;
+      key = [langTier, quality, genderRank];
+    }
     if (!best || compareKeys(key, best.key) < 0) best = { voice, key };
   }
   return best?.voice ?? null;

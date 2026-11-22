@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -303,6 +303,32 @@ describe("loadBookPreviewSection (settings_registry)", () => {
     expect(out.read_aloud).toEqual(DEFAULT_GLOBAL.book_preview.read_aloud);
     expect(out.text_structure).toEqual(DEFAULT_GLOBAL.book_preview.text_structure);
 
+    expect(
+      DEFAULT_GLOBAL.book_preview.read_aloud.labels.fallback_advisory_text,
+    ).toContain("isn't supported or couldn't load");
+
+    const advisoryCustom = loadBookPreviewSection({
+      read_aloud: {
+        labels: {
+          fallback_advisory_text: "Use a modern browser.",
+          fallback_advisory_link_label: "Update browser",
+          fallback_advisory_link_url: "https://example.org/browsers",
+        },
+      },
+    });
+    expect(advisoryCustom.read_aloud.labels.fallback_advisory_text).toBe("Use a modern browser.");
+    expect(advisoryCustom.read_aloud.labels.fallback_advisory_link_label).toBe("Update browser");
+    expect(advisoryCustom.read_aloud.labels.fallback_advisory_link_url).toBe("https://example.org/browsers");
+
+    for (const badUrl of ["http://insecure.example.com", "javascript:alert(1)", "not-a-url", "https://user:pass@evil.test"]) {
+      warn.mockClear();
+      const badAdv = loadBookPreviewSection({ read_aloud: { labels: { fallback_advisory_link_url: badUrl } } });
+      expect(badAdv.read_aloud.labels.fallback_advisory_link_url).toBe(
+        DEFAULT_GLOBAL.book_preview.read_aloud.labels.fallback_advisory_link_url,
+      );
+      expect(warn).toHaveBeenCalledTimes(1);
+    }
+
     const crossField = loadBookPreviewSection({
       text_structure: { heading_scale_ratio: 1.4, major_heading_scale_ratio: 1.2 },
     });
@@ -368,19 +394,72 @@ describe("loadBookIdentity optional media fields", () => {
     expect(DEFAULT_GLOBAL.voice_narration.opus_codec).toBe("libopus");
     expect(DEFAULT_GLOBAL.voice_narration.opus_bitrate_kbps).toBe(32);
     expect(DEFAULT_GLOBAL.voice_narration.opus_vbr).toBe("on");
+    expect(DEFAULT_GLOBAL.voice_narration.tempo).toBe(1.0);
+    expect(DEFAULT_GLOBAL.voice_narration.voice_tempos).toEqual({
+      "c9f39b88-235b-4c2a-851c-3734ce1203be": 1.18,
+      "3e5cd61a-bacf-4fe3-94b9-751bd1597ae9": 1.0,
+    });
+    expect(DEFAULT_GLOBAL.voice_narration.sentence_gap_ms).toBe(220);
+    expect(DEFAULT_GLOBAL.voice_narration.paragraph_gap_ms).toBe(680);
+    expect(DEFAULT_GLOBAL.voice_narration.section_gap_ms).toBe(1200);
+    expect(DEFAULT_GLOBAL.voice_narration.silence_threshold_db).toBe(-54);
+    expect(DEFAULT_GLOBAL.voice_narration.silence_pad_start_ms).toBe(70);
+    expect(DEFAULT_GLOBAL.voice_narration.silence_pad_end_ms).toBe(90);
+    expect(DEFAULT_GLOBAL.voice_narration.silence_fade_ms).toBe(18);
+    expect(DEFAULT_GLOBAL.voice_narration.lexicon).toEqual([
+      { pattern: "ExpanPress", flags: "gi", replacement: "Expan Press" },
+      { pattern: "Elias", flags: "gi", replacement: "Ilaias" },
+    ]);
     expect(loadVoiceNarrationSection(undefined)).toEqual(DEFAULT_GLOBAL.voice_narration);
-    const vnCustom = loadVoiceNarrationSection({ opus_bitrate_kbps: 48, opus_vbr: "constrained" });
+    const vnCustom = loadVoiceNarrationSection({
+      opus_bitrate_kbps: 48,
+      opus_vbr: "constrained",
+      tempo: 1.05,
+      voice_tempos: { "custom-voice": 1.12 },
+      section_gap_ms: 1500,
+      silence_fade_ms: 20,
+      master_filter: "",
+      lexicon: [],
+    });
     expect(vnCustom.opus_bitrate_kbps).toBe(48);
     expect(vnCustom.opus_vbr).toBe("constrained");
+    expect(vnCustom.tempo).toBe(1.05);
+    expect(vnCustom.voice_tempos).toEqual({ "custom-voice": 1.12 });
+    expect(vnCustom.section_gap_ms).toBe(1500);
+    expect(vnCustom.silence_fade_ms).toBe(20);
+    expect(vnCustom.master_filter).toBe("");
+    expect(vnCustom.lexicon).toEqual([]);
     warn.mockClear();
     const vnInvalid = loadVoiceNarrationSection({
       loudnorm_lufs: 5,
       mp3_bitrate_kbps: 9999,
       opus_bitrate_kbps: 500,
       opus_vbr: "invalid",
+      tempo: 2.5,
+      voice_tempos: { bad: 3.0 },
+      section_gap_ms: -50,
+      silence_fade_ms: 250,
+      master_filter: "highpass=f=80\nrm -rf /",
+      lexicon: [{ pattern: "", replacement: "bad" }],
     });
     expect(vnInvalid).toEqual(DEFAULT_GLOBAL.voice_narration);
     expect(warn).toHaveBeenCalledTimes(1);
+
+    for (const badFlags of ["z", "m", "gim"]) {
+      warn.mockClear();
+      expect(loadVoiceNarrationSection({ lexicon: [{ pattern: "a", flags: badFlags, replacement: "b" }] }).lexicon).toEqual(
+        DEFAULT_GLOBAL.voice_narration.lexicon,
+      );
+      expect(warn).toHaveBeenCalledTimes(1);
+    }
+
+    for (const badTempos of ["invalid", [], { "": 1.1 }, { v: Number.NaN }, JSON.parse('{"__proto__":1.1}')]) {
+      warn.mockClear();
+      expect(loadVoiceNarrationSection({ voice_tempos: badTempos }).voice_tempos).toEqual(
+        DEFAULT_GLOBAL.voice_narration.voice_tempos,
+      );
+      expect(warn).toHaveBeenCalledTimes(1);
+    }
 
     for (const badSection of ["invalid", 42, true, [], null]) {
       warn.mockClear();
@@ -413,5 +492,35 @@ describe("loadBookIdentity optional media fields", () => {
     const p = join(dir, "minimal.json");
     writeFileSync(p, JSON.stringify({ id: "m", title: "T", subtitle: "S", author: "A" }), "utf8");
     expect(loadBookIdentity(p)).toEqual({ id: "m", title: "T", subtitle: "S", author: "A" });
+  });
+
+  it("initializes VOICE_NARRATION_LIMITS before module-level loadGlobal() when global.json sets voice_tempos (TDZ guard)", async () => {
+    const rootDir = mkdtempSync(join(tmpdir(), "settings-tdz-"));
+    tmpDirs.push(rootDir);
+    const settingsDir = join(rootDir, "data", "settings");
+    mkdirSync(settingsDir, { recursive: true });
+    writeFileSync(
+      join(settingsDir, "global.json"),
+      JSON.stringify({
+        voice_narration: {
+          tempo: 1.05,
+          voice_tempos: { "walter-test-voice": 1.18 },
+        },
+      }),
+      "utf8",
+    );
+    const origCwd = process.cwd();
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    process.chdir(rootDir);
+    try {
+      vi.resetModules();
+      const freshMod = await import("../src/settings_registry");
+      expect(freshMod.GLOBAL.voice_narration.tempo).toBe(1.05);
+      expect(freshMod.GLOBAL.voice_narration.voice_tempos).toEqual({ "walter-test-voice": 1.18 });
+    } finally {
+      process.chdir(origCwd);
+      vi.resetModules();
+      errSpy.mockRestore();
+    }
   });
 });
