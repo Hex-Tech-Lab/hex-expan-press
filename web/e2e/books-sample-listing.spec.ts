@@ -68,10 +68,11 @@ test("/books lists the gated sample with coming-soon pill, hides non-sample gate
     fullPage: true,
   });
 
-  // 4. Non-sample gated creator hub keeps its gated book hidden
+  // 4. Creator hub with no visible product (only a non-sample gated book) is 404 Not Found, not an empty shelf
   const duaneRes = await page.goto("/books/retirearly500k");
-  expect(duaneRes?.status(), "GET /books/retirearly500k status").toBe(200);
-  await expect(page.getByText("No books are on sale yet. Please check back soon.")).toBeVisible();
+  expect(duaneRes?.status(), "GET /books/retirearly500k status").toBe(404);
+  await expect(page.getByText("No books are on sale yet. Please check back soon.")).toHaveCount(0);
+  await expect(page.getByText("You Don't Need a Million Dollars to Retire")).toHaveCount(0);
 
   // 5. Clicking Preview sample reaches the non-buyable sample product page with previewer
   await page.goto("/books");
