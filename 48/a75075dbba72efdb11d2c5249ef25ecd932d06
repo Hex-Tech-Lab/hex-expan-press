@@ -1,0 +1,52 @@
+books/sample_the_quiet_workshop.json
+  h_e6b68dcbbd0983 20
+payments/book_identity.ts
+  h_e6b68dcbbd0983 20,92-94
+payments/src/settings_registry.ts
+  h_e6b68dcbbd0983 133,215,218-224,297-320,394-403,462,543,628-632,768-788,1197-1201,1216-1218,1254,1335-1341,1359,1699-1702,1983-1998,2028-2054,2061-2065,2560-2628
+payments/test/book_preview_settings.test.ts
+  h_e6b68dcbbd0983 10,79,105,323,330-367
+scripts/__tests__/narrate_book_preview.test.ts
+  h_e6b68dcbbd0983 1-54
+scripts/narrate_book_preview.ts
+  h_e6b68dcbbd0983 1-470
+scripts/narrate_book_preview_audio.ts
+  h_e6b68dcbbd0983 1-252
+web/__tests__/book-assets-resolver.pairwise.test.ts
+  h_e6b68dcbbd0983 5-10,23-30,65-72,81-83,91
+web/__tests__/book-assets.test.ts
+  h_e6b68dcbbd0983 4,35-49,66,114,131,171,190,241
+web/__tests__/book-preview-folio.test.ts
+  h_e6b68dcbbd0983 1-170
+web/__tests__/use-read-aloud.audio.test.ts
+  h_e6b68dcbbd0983 1-306
+web/app/books/[handle]/[product]/page.tsx
+  h_e6b68dcbbd0983 209
+web/e2e/book-preview-read-aloud.spec.ts
+  h_e6b68dcbbd0983 251,253,303,320,332,351-420
+web/public/books/audio/sample_the_quiet_workshop/timings.json
+  h_e6b68dcbbd0983 1-768
+web/src/components/storefront/book-previewer-text.ts
+  h_e6b68dcbbd0983 129,162-167,188-215,363,367-378,404,420-434
+web/src/components/storefront/book-previewer.tsx
+  h_e6b68dcbbd0983 46,55,100,110,482
+web/src/components/storefront/read-aloud-audio.ts
+  h_e6b68dcbbd0983 1-201
+web/src/components/storefront/storefront.tsx
+  h_e6b68dcbbd0983 61,180,190
+web/src/components/storefront/use-read-aloud.ts
+  h_e6b68dcbbd0983 8-17,39,44,51-53,59,71-72,77-80,82,90-120,123-141,146-147,151,168,174-179,181,200,203,217,236,247,253,263-347,361,363,370-392,402,408-412,423,438-439
+web/src/lib/book-assets.ts
+  h_e6b68dcbbd0983 11,72-85,167,172-175,182-184,187,205
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "48a75075dbba72efdb11d2c5249ef25ecd932d06",
+  "prompts": {},
+  "humans": {
+    "h_e6b68dcbbd0983": {
+      "author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
