@@ -130,7 +130,7 @@ export interface EmailRolesSettings {
 // ---------------------------------------------------------------------------
 export interface GlobalSettings {
   paths: { sales_ledger: string; reports_dir: string; cache_dir: string; env_file: string };
-  endpoints: { openrouter_chat: string; openrouter_stt: string };
+  endpoints: { openrouter_chat: string; openrouter_stt: string; voicecreator_api: string };
   tool_paths: { ffmpeg: string; ffprobe: string; typst_font_dirs: string[] };
   server: { bind_host: string; bind_port: number; max_body_bytes: number };
   user_agent: string;
@@ -216,9 +216,16 @@ export interface GlobalSettings {
     pay_root_description: string;
     covers_base_path: string;
     previews_base_path: string;
+    audio_base_path: string;
     book_assets: Record<
       string,
-      { book_registry?: string; cover_image?: string | null; preview_pdf?: string | null; is_sample?: boolean }
+      {
+        book_registry?: string;
+        cover_image?: string | null;
+        preview_pdf?: string | null;
+        preview_audio_manifest?: string | null;
+        is_sample?: boolean;
+      }
     >;
     product_layout: StorefrontProductLayoutSettings;
   };
@@ -291,6 +298,30 @@ product_slug: { min_length: number; max_length: number; separator: string };
   /** Daily usage watch (scripts/ops/usage_watch.ts). Limits are the plan limits we are on (Vercel Hobby, Supabase Free org,
    *  Upstash pay-as-you-go); warn_ratio is the fraction of a limit at which the watch reports WARN and exits non-zero. */
   usage_watch: UsageWatchSettings;
+  /** Pre-baked preview narration settings for scripts/narrate_book_preview.ts (Voice Creator Pro Cloud API). */
+  voice_narration: VoiceNarrationSettings;
+}
+
+export interface VoiceNarrationSettings {
+  env_key_name: string;
+  model: string;
+  default_voice_id: string;
+  default_voice_name: string;
+  fallback_female_voice_id: string;
+  fallback_female_voice_name: string;
+  sample_rate_hz: number;
+  mp3_bitrate_kbps: number;
+  loudnorm_lufs: number;
+  sentence_gap_ms: number;
+  paragraph_gap_ms: number;
+  page_lead_ms: number;
+  page_tail_ms: number;
+  silence_threshold_db: number;
+  silence_pad_start_ms: number;
+  silence_pad_end_ms: number;
+  poll_wait_seconds: number;
+  max_poll_attempts: number;
+  request_timeout_ms: number;
 }
 
 export interface StorefrontProductLayoutSettings {
@@ -364,6 +395,16 @@ export interface BookPreviewTextStructureSettings {
   major_heading_scale_ratio: number;
   paragraph_gap_ratio: number;
   max_heading_chars: number;
+  /** Strip standalone page/folio numbers living in the PDF bottom margin before building accessible blocks or narration chunks. */
+  strip_margin_folios: boolean;
+  /** Fraction of page height from bottom edge considered footer margin in PDF bottom-up coordinates (e.g. 0.085 = bottom 8.5%). */
+  bottom_margin_ratio: number;
+  /** Fallback PDF height (points) used when callers pass items without viewport height. */
+  fallback_page_height_pt: number;
+  /** Maximum scale ratio relative to median body height for a bottom-margin folio line. */
+  folio_max_scale_ratio: number;
+  /** Case-insensitive regex matching standalone footer folio tokens (digits or roman numerals). */
+  folio_pattern: string;
   toggle_single: string;
   toggle_plural: string;
   page_label_prefix: string;
@@ -422,6 +463,7 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
   endpoints: {
     openrouter_chat: "https://openrouter.ai/api/v1/chat/completions",
     openrouter_stt: "https://openrouter.ai/api/v1/audio/transcriptions",
+    voicecreator_api: "https://api.vcp.name",
   },
   tool_paths: {
     ffmpeg: "~/.local/bin/ffmpeg",
@@ -503,6 +545,7 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     pay_root_description: "Secure digital book checkout. Browse published titles or review buyer legal policies below.",
     covers_base_path: "/books/covers",
     previews_base_path: "/books/previews",
+    audio_base_path: "/books/audio",
     book_assets: {
       "500k_playbook": { book_registry: "books/duane.json" },
       sample_the_quiet_workshop: { book_registry: "books/sample_the_quiet_workshop.json" },
@@ -587,6 +630,11 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
       major_heading_scale_ratio: 1.45,
       paragraph_gap_ratio: 1.7,
       max_heading_chars: 120,
+      strip_margin_folios: true,
+      bottom_margin_ratio: 0.085,
+      fallback_page_height_pt: 648,
+      folio_max_scale_ratio: 1.5,
+      folio_pattern: "^(?:\\d{1,4}|[ivxlcdm]{1,7})$",
       toggle_single: "Accessible text for visible preview page",
       toggle_plural: "Accessible text for visible preview pages",
       page_label_prefix: "Page",
@@ -723,6 +771,27 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     // Upstash pay-as-you-go (no hard cap). monthly_commands is the 500K Free-tier quota kept as a spend trip-wire;
     // monthly_bandwidth is the 200 GB PAYG free bandwidth (upstash.com/pricing/redis); memory is the API db_memory_threshold (3 GB).
     upstash: { monthly_commands: 500000, monthly_bandwidth_bytes: 214748364800, memory_bytes: 3221225472 },
+  },
+  voice_narration: {
+    env_key_name: "VOICECREATOR_API_KEY",
+    model: "qwen3-tts",
+    default_voice_id: "c9f39b88-235b-4c2a-851c-3734ce1203be",
+    default_voice_name: "Walter - Calm documentary narrator",
+    fallback_female_voice_id: "84394fa8-60a1-40d9-9a4e-f86738f6b12c",
+    fallback_female_voice_name: "Maya - Upbeat tutorial creator",
+    sample_rate_hz: 44100,
+    mp3_bitrate_kbps: 96,
+    loudnorm_lufs: -16,
+    sentence_gap_ms: 240,
+    paragraph_gap_ms: 420,
+    page_lead_ms: 120,
+    page_tail_ms: 180,
+    silence_threshold_db: -46,
+    silence_pad_start_ms: 40,
+    silence_pad_end_ms: 60,
+    poll_wait_seconds: 60,
+    max_poll_attempts: 6,
+    request_timeout_ms: 90000,
   },
 };
 
@@ -1137,6 +1206,11 @@ export function loadStorefrontSection(raw: Record<string, unknown> | undefined):
     if (isSafeBooksPrefix(raw.previews_base_path)) previewsBasePath = raw.previews_base_path;
     else fallbacks.push("previews_base_path");
   }
+  let audioBasePath = defaults.audio_base_path;
+  if ("audio_base_path" in raw) {
+    if (isSafeBooksPrefix(raw.audio_base_path)) audioBasePath = raw.audio_base_path;
+    else fallbacks.push("audio_base_path");
+  }
   let bookAssets = defaults.book_assets;
   if ("book_assets" in raw) {
     if (raw.book_assets && typeof raw.book_assets === "object" && !Array.isArray(raw.book_assets)) {
@@ -1151,6 +1225,9 @@ export function loadStorefrontSection(raw: Record<string, unknown> | undefined):
           ...(typeof e.book_registry === "string" ? { book_registry: e.book_registry } : {}),
           ...(e.cover_image === null || typeof e.cover_image === "string" ? { cover_image: e.cover_image } : {}),
           ...(e.preview_pdf === null || typeof e.preview_pdf === "string" ? { preview_pdf: e.preview_pdf } : {}),
+          ...(e.preview_audio_manifest === null || typeof e.preview_audio_manifest === "string"
+            ? { preview_audio_manifest: e.preview_audio_manifest }
+            : {}),
           ...(typeof e.is_sample === "boolean" ? { is_sample: e.is_sample } : {}),
         };
       }
@@ -1187,6 +1264,7 @@ export function loadStorefrontSection(raw: Record<string, unknown> | undefined):
     pay_root_description: strField("pay_root_description"),
     covers_base_path: coversBasePath,
     previews_base_path: previewsBasePath,
+    audio_base_path: audioBasePath,
     book_assets: bookAssets,
     product_layout: productLayout,
   };
@@ -1291,7 +1369,13 @@ function loadGlobal(): GlobalSettings {
     ...DEFAULT_GLOBAL,
     ...g,
     paths: { ...DEFAULT_GLOBAL.paths, ...(g.paths ?? {}) },
-    endpoints: { ...DEFAULT_GLOBAL.endpoints, ...(g.endpoints ?? {}) },
+    endpoints: {
+      ...DEFAULT_GLOBAL.endpoints,
+      ...(g.endpoints ?? {}),
+      voicecreator_api: isHttpsUrl((g.endpoints as Record<string, unknown> | undefined)?.voicecreator_api)
+        ? ((g.endpoints as Record<string, unknown>).voicecreator_api as string)
+        : DEFAULT_GLOBAL.endpoints.voicecreator_api,
+    },
     tool_paths: { ...DEFAULT_GLOBAL.tool_paths, ...(g.tool_paths ?? {}) },
     server: { ...DEFAULT_GLOBAL.server, ...(g.server ?? {}) },
     defaults: { ...DEFAULT_GLOBAL.defaults, ...(g.defaults ?? {}) },
@@ -1309,6 +1393,7 @@ function loadGlobal(): GlobalSettings {
     admin: loadAdminSection(g.admin as Record<string, unknown> | undefined),
     consent: { ...DEFAULT_GLOBAL.consent, ...(g.consent ?? {}) },
     usage_watch: loadUsageWatchSection(g.usage_watch as Record<string, unknown> | undefined),
+    voice_narration: loadVoiceNarrationSection(g.voice_narration as Record<string, unknown> | undefined),
   };
 }
 
@@ -1648,6 +1733,10 @@ export const BOOK_PREVIEW_LIMITS = {
   text_major_heading_scale_ratio: { min: 1.1, max: 3.0 },
   text_paragraph_gap_ratio: { min: 1.1, max: 4.0 },
   text_max_heading_chars: { min: 20, max: 240 },
+  text_bottom_margin_ratio: { min: 0.01, max: 0.25 },
+  text_fallback_page_height_pt: { min: 200, max: 2000 },
+  text_folio_max_scale_ratio: { min: 0.5, max: 3.0 },
+  text_folio_pattern_max_len: 120,
 } as const;
 
 /** BCP 47 primary subtag plus optional subtags, e.g. "en", "en-US", "zh-Hant-TW". Structural format check only. */
@@ -1928,8 +2017,22 @@ export function loadBookPreviewSection(raw: Record<string, unknown> | undefined)
     if (tsRaw && typeof tsRaw === "object" && !Array.isArray(tsRaw)) {
       const rec = tsRaw as Record<string, unknown>;
       const tsFloat = (
-        fieldKey: "line_y_tolerance" | "heading_scale_ratio" | "major_heading_scale_ratio" | "paragraph_gap_ratio",
-        limitKey: "text_line_y_tolerance" | "text_heading_scale_ratio" | "text_major_heading_scale_ratio" | "text_paragraph_gap_ratio",
+        fieldKey:
+          | "line_y_tolerance"
+          | "heading_scale_ratio"
+          | "major_heading_scale_ratio"
+          | "paragraph_gap_ratio"
+          | "bottom_margin_ratio"
+          | "fallback_page_height_pt"
+          | "folio_max_scale_ratio",
+        limitKey:
+          | "text_line_y_tolerance"
+          | "text_heading_scale_ratio"
+          | "text_major_heading_scale_ratio"
+          | "text_paragraph_gap_ratio"
+          | "text_bottom_margin_ratio"
+          | "text_fallback_page_height_pt"
+          | "text_folio_max_scale_ratio",
       ): number => {
         if (!(fieldKey in rec)) return defaults.text_structure[fieldKey];
         const rawValue = rec[fieldKey];
@@ -1959,12 +2062,44 @@ export function loadBookPreviewSection(raw: Record<string, unknown> | undefined)
         }
       }
 
+      let stripMarginFolios = defaults.text_structure.strip_margin_folios;
+      if ("strip_margin_folios" in rec) {
+        if (typeof rec.strip_margin_folios === "boolean") stripMarginFolios = rec.strip_margin_folios;
+        else fallbacks.push("text_structure.strip_margin_folios");
+      }
+
+      let folioPattern = defaults.text_structure.folio_pattern;
+      if ("folio_pattern" in rec) {
+        const candidate = rec.folio_pattern;
+        let validPattern = false;
+        if (
+          typeof candidate === "string" &&
+          candidate.trim() !== "" &&
+          candidate.trim().length <= BOOK_PREVIEW_LIMITS.text_folio_pattern_max_len
+        ) {
+          try {
+            new RegExp(candidate.trim(), "i");
+            validPattern = true;
+          } catch (err) {
+            console.warn("[settings-registry] invalid folio_pattern regex:", err instanceof Error ? err.message : String(err));
+            validPattern = false;
+          }
+        }
+        if (validPattern) folioPattern = (candidate as string).trim();
+        else fallbacks.push("text_structure.folio_pattern");
+      }
+
       textStructure = {
         line_y_tolerance: tsFloat("line_y_tolerance", "text_line_y_tolerance"),
         heading_scale_ratio: headingRatio,
         major_heading_scale_ratio: majorRatio,
         paragraph_gap_ratio: tsFloat("paragraph_gap_ratio", "text_paragraph_gap_ratio"),
         max_heading_chars: maxHeadingChars,
+        strip_margin_folios: stripMarginFolios,
+        bottom_margin_ratio: tsFloat("bottom_margin_ratio", "text_bottom_margin_ratio"),
+        fallback_page_height_pt: tsFloat("fallback_page_height_pt", "text_fallback_page_height_pt"),
+        folio_max_scale_ratio: tsFloat("folio_max_scale_ratio", "text_folio_max_scale_ratio"),
+        folio_pattern: folioPattern,
         toggle_single: tsStr("toggle_single"),
         toggle_plural: tsStr("toggle_plural"),
         page_label_prefix: tsStr("page_label_prefix"),
@@ -2457,6 +2592,75 @@ export function allowedCurrencies(): string[] {
 
 export function isAllowedCurrency(currency: string): boolean {
   return allowedCurrencies().map((c) => c.toUpperCase()).includes(String(currency).toUpperCase());
+}
+
+export const VOICE_NARRATION_LIMITS = {
+  sample_rate_hz: { min: 16000, max: 48000 },
+  mp3_bitrate_kbps: { min: 48, max: 320 },
+  loudnorm_lufs: { min: -30, max: -5 },
+  sentence_gap_ms: { min: 0, max: 2000 },
+  paragraph_gap_ms: { min: 0, max: 3000 },
+  page_lead_ms: { min: 0, max: 2000 },
+  page_tail_ms: { min: 0, max: 2000 },
+  silence_threshold_db: { min: -80, max: -20 },
+  silence_pad_start_ms: { min: 0, max: 300 },
+  silence_pad_end_ms: { min: 0, max: 500 },
+  poll_wait_seconds: { min: 1, max: 60 },
+  max_poll_attempts: { min: 1, max: 30 },
+  request_timeout_ms: { min: 5000, max: 180000 },
+} as const;
+
+export function loadVoiceNarrationSection(raw: Record<string, unknown> | undefined): VoiceNarrationSettings {
+  const defaults = DEFAULT_GLOBAL.voice_narration;
+  if (!raw) return defaults;
+  const fallbacks: string[] = [];
+  const strField = (
+    key:
+      | "env_key_name"
+      | "model"
+      | "default_voice_id"
+      | "default_voice_name"
+      | "fallback_female_voice_id"
+      | "fallback_female_voice_name",
+  ): string => {
+    if (!(key in raw)) return defaults[key];
+    const v = raw[key];
+    if (typeof v === "string" && v.trim() !== "") return v.trim();
+    fallbacks.push(key);
+    return defaults[key];
+  };
+  const numField = (key: keyof typeof VOICE_NARRATION_LIMITS, intOnly: boolean): number => {
+    if (!(key in raw)) return defaults[key];
+    const v = raw[key];
+    const { min, max } = VOICE_NARRATION_LIMITS[key];
+    const ok = intOnly ? intInRange(v, min, max) : typeof v === "number" && Number.isFinite(v) && v >= min && v <= max;
+    if (ok) return v as number;
+    fallbacks.push(key);
+    return defaults[key];
+  };
+  const out: VoiceNarrationSettings = {
+    env_key_name: strField("env_key_name"),
+    model: strField("model"),
+    default_voice_id: strField("default_voice_id"),
+    default_voice_name: strField("default_voice_name"),
+    fallback_female_voice_id: strField("fallback_female_voice_id"),
+    fallback_female_voice_name: strField("fallback_female_voice_name"),
+    sample_rate_hz: numField("sample_rate_hz", true),
+    mp3_bitrate_kbps: numField("mp3_bitrate_kbps", true),
+    loudnorm_lufs: numField("loudnorm_lufs", false),
+    sentence_gap_ms: numField("sentence_gap_ms", true),
+    paragraph_gap_ms: numField("paragraph_gap_ms", true),
+    page_lead_ms: numField("page_lead_ms", true),
+    page_tail_ms: numField("page_tail_ms", true),
+    silence_threshold_db: numField("silence_threshold_db", false),
+    silence_pad_start_ms: numField("silence_pad_start_ms", true),
+    silence_pad_end_ms: numField("silence_pad_end_ms", true),
+    poll_wait_seconds: numField("poll_wait_seconds", true),
+    max_poll_attempts: numField("max_poll_attempts", true),
+    request_timeout_ms: numField("request_timeout_ms", true),
+  };
+  if (fallbacks.length > 0) warnFallback("global.json", `invalid voice_narration values for ${fallbacks.join(", ")}`);
+  return out;
 }
 
 /** Resolve a dotted path (e.g. "meta.custom_data.product_id") against a parsed webhook body. */

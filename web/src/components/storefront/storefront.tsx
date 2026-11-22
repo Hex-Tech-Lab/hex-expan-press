@@ -59,6 +59,7 @@ export interface StoreProduct {
   book_registry?: string | null;
   cover_image?: string | null;
   preview_pdf?: string | null;
+  preview_audio_manifest?: string | null;
   is_sample?: boolean;
   overview?: string | null;
   /** Usable rail count from the shared resolver (checkout-rails.ts). Buyer purchasability needs at least one. */
@@ -177,6 +178,7 @@ function withResolvedAssets<T extends { id?: string | null; slug: string | null;
   book_registry: string | null;
   cover_image: string | null;
   preview_pdf: string | null;
+  preview_audio_manifest: string | null;
   is_sample: boolean;
   overview: string | null;
 } {
@@ -186,6 +188,7 @@ function withResolvedAssets<T extends { id?: string | null; slug: string | null;
     book_registry: assets.book_registry,
     cover_image: assets.cover_image,
     preview_pdf: assets.preview_pdf,
+    preview_audio_manifest: assets.preview_audio_manifest,
     is_sample: assets.is_sample,
     overview: assets.overview,
   };

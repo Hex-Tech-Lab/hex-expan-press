@@ -1,0 +1,768 @@
+{
+  "version": 1,
+  "bookId": "sample_the_quiet_workshop",
+  "voiceId": "c9f39b88-235b-4c2a-851c-3734ce1203be",
+  "voiceName": "Walter - Calm documentary narrator",
+  "model": "qwen3-tts",
+  "sampleRateHz": 44100,
+  "loudnormLufs": -16,
+  "generatedAt": "2026-11-22T15:32:56.634Z",
+  "pages": {
+    "1": {
+      "pageIndex": 0,
+      "pdfPageNumber": 1,
+      "bookPageLabel": "1",
+      "audioUrl": "/books/audio/sample_the_quiet_workshop/page-01.mp3",
+      "durationMs": 9169,
+      "chunks": [
+        {
+          "id": "p0-b0-s0",
+          "blockIndex": 0,
+          "text": "The Quiet Workshop",
+          "spokenText": "The Quiet Workshop.",
+          "startMs": 120,
+          "endMs": 1624,
+          "tokensCharged": 25
+        },
+        {
+          "id": "p0-b1-s0",
+          "blockIndex": 1,
+          "text": "Twelve practical projects for a small home bench",
+          "spokenText": "Twelve practical projects for a small home bench.",
+          "startMs": 2044,
+          "endMs": 5550,
+          "tokensCharged": 50
+        },
+        {
+          "id": "p0-b2-s0",
+          "blockIndex": 2,
+          "text": "ELIAS HARTWELL",
+          "spokenText": "By Elias Hartwell.",
+          "startMs": 5970,
+          "endMs": 7498,
+          "tokensCharged": 26
+        },
+        {
+          "id": "p0-b3-s0",
+          "blockIndex": 3,
+          "text": "EXPANPRESS",
+          "spokenText": "ExpanPress.",
+          "startMs": 7918,
+          "endMs": 8956,
+          "tokensCharged": 20
+        }
+      ]
+    },
+    "2": {
+      "pageIndex": 1,
+      "pdfPageNumber": 2,
+      "bookPageLabel": "2",
+      "audioUrl": "/books/audio/sample_the_quiet_workshop/page-02.mp3",
+      "durationMs": 16327,
+      "chunks": [
+        {
+          "id": "p1-b0-s0",
+          "blockIndex": 0,
+          "text": "The Quiet Workshop",
+          "spokenText": "The Quiet Workshop.",
+          "startMs": 120,
+          "endMs": 1619,
+          "tokensCharged": 30
+        },
+        {
+          "id": "p1-b1-s0",
+          "blockIndex": 1,
+          "text": "Twelve practical projects for a small home bench",
+          "spokenText": "Twelve practical projects for a small home bench.",
+          "startMs": 2039,
+          "endMs": 5750,
+          "tokensCharged": 54
+        },
+        {
+          "id": "p1-b2-s0",
+          "blockIndex": 2,
+          "text": "Elias Hartwell",
+          "spokenText": "By Elias Hartwell.",
+          "startMs": 6170,
+          "endMs": 7753,
+          "tokensCharged": 26
+        },
+        {
+          "id": "p1-b3-s0",
+          "blockIndex": 3,
+          "text": "Sample: Chapter 1 of 12",
+          "spokenText": "Sample: Chapter 1 of 12.",
+          "startMs": 8173,
+          "endMs": 10988,
+          "tokensCharged": 45
+        },
+        {
+          "id": "p1-b4-s0",
+          "blockIndex": 4,
+          "text": "Elias Hartwell is a pen name.",
+          "spokenText": "Elias Hartwell is a pen name.",
+          "startMs": 11408,
+          "endMs": 13764,
+          "tokensCharged": 38
+        },
+        {
+          "id": "p1-b4-s1",
+          "blockIndex": 4,
+          "text": "Published by ExpanPress.",
+          "spokenText": "Published by ExpanPress.",
+          "startMs": 14004,
+          "endMs": 16095,
+          "tokensCharged": 33
+        }
+      ]
+    },
+    "3": {
+      "pageIndex": 2,
+      "pdfPageNumber": 3,
+      "bookPageLabel": "3",
+      "audioUrl": "/books/audio/sample_the_quiet_workshop/page-03.mp3",
+      "durationMs": 92238,
+      "chunks": [
+        {
+          "id": "p2-b0-s0",
+          "blockIndex": 0,
+          "text": "Contents",
+          "spokenText": "Contents.",
+          "startMs": 120,
+          "endMs": 938,
+          "tokensCharged": 20
+        },
+        {
+          "id": "p2-b1-s0",
+          "blockIndex": 1,
+          "text": "1. Setting Up the Bench: choosing a corner, good light, and a basic starter kit.",
+          "spokenText": "1. Setting Up the Bench: choosing a corner, good light, and a basic starter kit.",
+          "startMs": 1358,
+          "endMs": 8170,
+          "tokensCharged": 90
+        },
+        {
+          "id": "p2-b2-s0",
+          "blockIndex": 2,
+          "text": "2. Measuring Twice, Marking Once: rules, squares and marking knives, and why accuracy starts before the first cut.",
+          "spokenText": "2. Measuring Twice, Marking Once: rules, squares and marking knives, and why accuracy starts before the first cut.",
+          "startMs": 8590,
+          "endMs": 17932,
+          "tokensCharged": 122
+        },
+        {
+          "id": "p2-b3-s0",
+          "blockIndex": 3,
+          "text": "3. Cutting Straight: hand saws, a simple miter guide, and how to cut to a line.",
+          "spokenText": "3. Cutting Straight: hand saws, a simple miter guide, and how to cut to a line.",
+          "startMs": 18352,
+          "endMs": 24514,
+          "tokensCharged": 89
+        },
+        {
+          "id": "p2-b4-s0",
+          "blockIndex": 4,
+          "text": "4. Joining Wood Without Fuss: glue, clamps, and the three joints that cover most small projects.",
+          "spokenText": "4. Joining Wood Without Fuss: glue, clamps, and the three joints that cover most small projects.",
+          "startMs": 24934,
+          "endMs": 32682,
+          "tokensCharged": 101
+        },
+        {
+          "id": "p2-b5-s0",
+          "blockIndex": 5,
+          "text": "5. The First Shelf: a complete build from a cut list to a finished wall shelf.",
+          "spokenText": "5. The First Shelf: a complete build from a cut list to a finished wall shelf.",
+          "startMs": 33102,
+          "endMs": 39397,
+          "tokensCharged": 84
+        },
+        {
+          "id": "p2-b6-s0",
+          "blockIndex": 6,
+          "text": "6. Finishing Surfaces: sanding in the right order, oils, and sealing for everyday use.",
+          "spokenText": "6. Finishing Surfaces: sanding in the right order, oils, and sealing for everyday use.",
+          "startMs": 39817,
+          "endMs": 47825,
+          "tokensCharged": 103
+        },
+        {
+          "id": "p2-b7-s0",
+          "blockIndex": 7,
+          "text": "7. Hardware and Fixings: screws, hinges, and anchoring to walls of different kinds.",
+          "spokenText": "7. Hardware and Fixings: screws, hinges, and anchoring to walls of different kinds.",
+          "startMs": 48245,
+          "endMs": 55749,
+          "tokensCharged": 100
+        },
+        {
+          "id": "p2-b8-s0",
+          "blockIndex": 8,
+          "text": "8. The Lidded Box: a small box with a hinged lid, built from one board.",
+          "spokenText": "8. The Lidded Box: a small box with a hinged lid, built from one board.",
+          "startMs": 56169,
+          "endMs": 62261,
+          "tokensCharged": 83
+        },
+        {
+          "id": "p2-b9-s0",
+          "blockIndex": 9,
+          "text": "9. Small Repairs: wobbly chairs, sticking drawers and cracked trim.",
+          "spokenText": "9. Small Repairs: wobbly chairs, sticking drawers and cracked trim.",
+          "startMs": 62681,
+          "endMs": 69201,
+          "tokensCharged": 88
+        },
+        {
+          "id": "p2-b10-s0",
+          "blockIndex": 10,
+          "text": "10. Tool Care: sharpening edges, cleaning, and storing tools so they stay ready.",
+          "spokenText": "10. Tool Care: sharpening edges, cleaning, and storing tools so they stay ready.",
+          "startMs": 69621,
+          "endMs": 76665,
+          "tokensCharged": 92
+        },
+        {
+          "id": "p2-b11-s0",
+          "blockIndex": 11,
+          "text": "11. Designing a Project: sketches, cut lists and material estimates.",
+          "spokenText": "11. Designing a Project: sketches, cut lists and material estimates.",
+          "startMs": 77085,
+          "endMs": 83797,
+          "tokensCharged": 89
+        },
+        {
+          "id": "p2-b12-s0",
+          "blockIndex": 12,
+          "text": "12. Keeping the Workshop Going: routines, safety habits and a log of finished projects.",
+          "spokenText": "12. Keeping the Workshop Going: routines, safety habits and a log of finished projects.",
+          "startMs": 84217,
+          "endMs": 92032,
+          "tokensCharged": 103
+        }
+      ]
+    },
+    "4": {
+      "pageIndex": 3,
+      "pdfPageNumber": 4,
+      "bookPageLabel": "4",
+      "audioUrl": "/books/audio/sample_the_quiet_workshop/page-04.mp3",
+      "durationMs": 9953,
+      "chunks": [
+        {
+          "id": "p3-b0-s0",
+          "blockIndex": 0,
+          "text": "Chapter 1: Setting Up the Bench",
+          "spokenText": "Chapter 1: Setting Up the Bench.",
+          "startMs": 120,
+          "endMs": 3191,
+          "tokensCharged": 47
+        },
+        {
+          "id": "p3-b1-s0",
+          "blockIndex": 1,
+          "text": "Figure 1: A quiet corner of a home workshop, with daylight and a bench of hand tools",
+          "spokenText": "Figure 1: A quiet corner of a home workshop, with daylight and a bench of hand tools",
+          "startMs": 3611,
+          "endMs": 9744,
+          "tokensCharged": 85
+        }
+      ]
+    },
+    "5": {
+      "pageIndex": 4,
+      "pdfPageNumber": 5,
+      "bookPageLabel": "5",
+      "audioUrl": "/books/audio/sample_the_quiet_workshop/page-05.mp3",
+      "durationMs": 88216,
+      "chunks": [
+        {
+          "id": "p4-b0-s0",
+          "blockIndex": 0,
+          "text": "A workshop does not need a room.",
+          "spokenText": "A workshop does not need a room.",
+          "startMs": 120,
+          "endMs": 2429,
+          "tokensCharged": 36
+        },
+        {
+          "id": "p4-b0-s1",
+          "blockIndex": 0,
+          "text": "It needs a place where you can leave a project half finished without losing it, and where the tools you use most are within reach.",
+          "spokenText": "It needs a place where you can leave a project half finished without losing it, and where the tools you use most are within reach.",
+          "startMs": 2669,
+          "endMs": 10080,
+          "tokensCharged": 94
+        },
+        {
+          "id": "p4-b0-s2",
+          "blockIndex": 0,
+          "text": "Most people who begin woodworking at home start with a kitchen table and a borrowed clamp, and that is a fine way to start.",
+          "spokenText": "Most people who begin woodworking at home start with a kitchen table and a borrowed clamp, and that is a fine way to start.",
+          "startMs": 10320,
+          "endMs": 17911,
+          "tokensCharged": 100
+        },
+        {
+          "id": "p4-b0-s3",
+          "blockIndex": 0,
+          "text": "This chapter is about making the small, sensible choices that will make every later project easier.",
+          "spokenText": "This chapter is about making the small, sensible choices that will make every later project easier.",
+          "startMs": 18151,
+          "endMs": 24316,
+          "tokensCharged": 88
+        },
+        {
+          "id": "p4-b1-s0",
+          "blockIndex": 1,
+          "text": "Choosing a Corner",
+          "spokenText": "Choosing a Corner.",
+          "startMs": 24736,
+          "endMs": 26010,
+          "tokensCharged": 20
+        },
+        {
+          "id": "p4-b2-s0",
+          "blockIndex": 2,
+          "text": "Look for a corner that gets steady light for most of the day.",
+          "spokenText": "Look for a corner that gets steady light for most of the day.",
+          "startMs": 26430,
+          "endMs": 30443,
+          "tokensCharged": 52
+        },
+        {
+          "id": "p4-b2-s1",
+          "blockIndex": 2,
+          "text": "Natural light is pleasant, but what matters more is that you can see the line you are cutting or sanding without moving your head into an awkward angle.",
+          "spokenText": "Natural light is pleasant, but what matters more is that you can see the line you are cutting or sanding without moving your head into an awkward angle.",
+          "startMs": 30683,
+          "endMs": 39256,
+          "tokensCharged": 115
+        },
+        {
+          "id": "p4-b2-s2",
+          "blockIndex": 2,
+          "text": "A sturdy bench at a comfortable height will do more for your accuracy than any single tool.",
+          "spokenText": "A sturdy bench at a comfortable height will do more for your accuracy than any single tool.",
+          "startMs": 39496,
+          "endMs": 45156,
+          "tokensCharged": 76
+        },
+        {
+          "id": "p4-b2-s3",
+          "blockIndex": 2,
+          "text": "If you stand to work, the bench top should sit a little below your elbow.",
+          "spokenText": "If you stand to work, the bench top should sit a little below your elbow.",
+          "startMs": 45396,
+          "endMs": 50053,
+          "tokensCharged": 66
+        },
+        {
+          "id": "p4-b2-s4",
+          "blockIndex": 2,
+          "text": "If you sit, it should be lower.",
+          "spokenText": "If you sit, it should be lower.",
+          "startMs": 50293,
+          "endMs": 52336,
+          "tokensCharged": 32
+        },
+        {
+          "id": "p4-b3-s0",
+          "blockIndex": 3,
+          "text": "The corner should also let you keep dust and offcuts in one place.",
+          "spokenText": "The corner should also let you keep dust and offcuts in one place.",
+          "startMs": 52756,
+          "endMs": 56927,
+          "tokensCharged": 59
+        },
+        {
+          "id": "p4-b3-s1",
+          "blockIndex": 3,
+          "text": "A fold-down bench or a simple plywood top on two trestles is enough.",
+          "spokenText": "A fold-down bench or a simple plywood top on two trestles is enough.",
+          "startMs": 57167,
+          "endMs": 61589,
+          "tokensCharged": 60
+        },
+        {
+          "id": "p4-b3-s2",
+          "blockIndex": 3,
+          "text": "Put a sheet of cheap hardboard or a moving blanket on the floor under it, so that spilled glue and sawdust are easy to sweep up.",
+          "spokenText": "Put a sheet of cheap hardboard or a moving blanket on the floor under it, so that spilled glue and sawdust are easy to sweep up.",
+          "startMs": 61829,
+          "endMs": 69978,
+          "tokensCharged": 108
+        },
+        {
+          "id": "p4-b4-s0",
+          "blockIndex": 4,
+          "text": "Plan for power as well as light.",
+          "spokenText": "Plan for power as well as light.",
+          "startMs": 70398,
+          "endMs": 72700,
+          "tokensCharged": 36
+        },
+        {
+          "id": "p4-b4-s1",
+          "blockIndex": 4,
+          "text": "Two or three sockets within a few steps of the bench will save you from running a long cable across the floor, which is both untidy and a tripping hazard.",
+          "spokenText": "Two or three sockets within a few steps of the bench will save you from running a long cable across the floor, which is both untidy and a tripping hazard.",
+          "startMs": 72940,
+          "endMs": 82743,
+          "tokensCharged": 130
+        },
+        {
+          "id": "p4-b4-s2",
+          "blockIndex": 4,
+          "text": "If you use a lamp, place it so that its light falls across the work from the side",
+          "spokenText": "If you use a lamp, place it so that its light falls across the work from the side",
+          "startMs": 82983,
+          "endMs": 88007,
+          "tokensCharged": 69
+        }
+      ]
+    },
+    "6": {
+      "pageIndex": 5,
+      "pdfPageNumber": 6,
+      "bookPageLabel": "6",
+      "audioUrl": "/books/audio/sample_the_quiet_workshop/page-06.mp3",
+      "durationMs": 69904,
+      "chunks": [
+        {
+          "id": "p5-b0-s0",
+          "blockIndex": 0,
+          "text": "opposite your dominant hand, which keeps your shadow off the cut.",
+          "spokenText": "opposite your dominant hand, which keeps your shadow off the cut.",
+          "startMs": 120,
+          "endMs": 4014,
+          "tokensCharged": 58
+        },
+        {
+          "id": "p5-b1-s0",
+          "blockIndex": 1,
+          "text": "A Starter Kit",
+          "spokenText": "A Starter Kit.",
+          "startMs": 4434,
+          "endMs": 5504,
+          "tokensCharged": 20
+        },
+        {
+          "id": "p5-b2-s0",
+          "blockIndex": 2,
+          "text": "You do not need everything at once.",
+          "spokenText": "You do not need everything at once.",
+          "startMs": 5924,
+          "endMs": 8151,
+          "tokensCharged": 35
+        },
+        {
+          "id": "p5-b2-s1",
+          "blockIndex": 2,
+          "text": "A useful starter kit fits in a single drawer and covers the work in the first four chapters of this book.",
+          "spokenText": "A useful starter kit fits in a single drawer and covers the work in the first four chapters of this book.",
+          "startMs": 8391,
+          "endMs": 15158,
+          "tokensCharged": 92
+        },
+        {
+          "id": "p5-b3-s0",
+          "blockIndex": 3,
+          "text": "A tape measure, preferably a steel rule as well",
+          "spokenText": "A tape measure, preferably a steel rule as well.",
+          "startMs": 15578,
+          "endMs": 19272,
+          "tokensCharged": 54
+        },
+        {
+          "id": "p5-b4-s0",
+          "blockIndex": 4,
+          "text": "A combination square, set to true at the factory and checked by you",
+          "spokenText": "A combination square, set to true at the factory and checked by you.",
+          "startMs": 19692,
+          "endMs": 24882,
+          "tokensCharged": 76
+        },
+        {
+          "id": "p5-b5-s0",
+          "blockIndex": 5,
+          "text": "A pencil that stays sharp and a marking knife for precise lines",
+          "spokenText": "A pencil that stays sharp and a marking knife for precise lines.",
+          "startMs": 25302,
+          "endMs": 30063,
+          "tokensCharged": 64
+        },
+        {
+          "id": "p5-b6-s0",
+          "blockIndex": 6,
+          "text": "A hand saw with fine teeth for crosscuts, and a shorter saw for detail work",
+          "spokenText": "A hand saw with fine teeth for crosscuts, and a shorter saw for detail work.",
+          "startMs": 30483,
+          "endMs": 36852,
+          "tokensCharged": 88
+        },
+        {
+          "id": "p5-b7-s0",
+          "blockIndex": 7,
+          "text": "Two or three bar clamps, or a set of F-clamps of mixed sizes",
+          "spokenText": "Two or three bar clamps, or a set of F-clamps of mixed sizes.",
+          "startMs": 37272,
+          "endMs": 42368,
+          "tokensCharged": 72
+        },
+        {
+          "id": "p5-b8-s0",
+          "blockIndex": 8,
+          "text": "A block plane for trimming edges",
+          "spokenText": "A block plane for trimming edges.",
+          "startMs": 42788,
+          "endMs": 45255,
+          "tokensCharged": 36
+        },
+        {
+          "id": "p5-b9-s0",
+          "blockIndex": 9,
+          "text": "Sandpaper in a few grits, a sanding block, and a dust mask",
+          "spokenText": "Sandpaper in a few grits, a sanding block, and a dust mask.",
+          "startMs": 45675,
+          "endMs": 50451,
+          "tokensCharged": 66
+        },
+        {
+          "id": "p5-b10-s0",
+          "blockIndex": 10,
+          "text": "Safety glasses, hearing protection for power tools, and a first-aid kit kept within reach",
+          "spokenText": "Safety glasses, hearing protection for power tools, and a first-aid kit kept within reach.",
+          "startMs": 50871,
+          "endMs": 56741,
+          "tokensCharged": 82
+        },
+        {
+          "id": "p5-b11-s0",
+          "blockIndex": 11,
+          "text": "Buy the best tool you can afford in each category, but buy one category at a time.",
+          "spokenText": "Buy the best tool you can afford in each category, but buy one category at a time.",
+          "startMs": 57161,
+          "endMs": 63145,
+          "tokensCharged": 76
+        },
+        {
+          "id": "p5-b11-s1",
+          "blockIndex": 11,
+          "text": "A good square that you trust will serve you longer than a set of cheap tools you have to second-guess.",
+          "spokenText": "A good square that you trust will serve you longer than a set of cheap tools you have to second-guess.",
+          "startMs": 63385,
+          "endMs": 69687,
+          "tokensCharged": 79
+        }
+      ]
+    },
+    "7": {
+      "pageIndex": 6,
+      "pdfPageNumber": 7,
+      "bookPageLabel": "8",
+      "audioUrl": "/books/audio/sample_the_quiet_workshop/page-07.mp3",
+      "durationMs": 52689,
+      "chunks": [
+        {
+          "id": "p6-b0-s0",
+          "blockIndex": 0,
+          "text": "Sweep the floor.",
+          "spokenText": "Sweep the floor.",
+          "startMs": 120,
+          "endMs": 1464,
+          "tokensCharged": 21
+        },
+        {
+          "id": "p6-b0-s1",
+          "blockIndex": 0,
+          "text": "Put a jar of offcuts beside the bench for small pieces, and a bin for shavings.",
+          "spokenText": "Put a jar of offcuts beside the bench for small pieces, and a bin for shavings.",
+          "startMs": 1704,
+          "endMs": 7359,
+          "tokensCharged": 76
+        },
+        {
+          "id": "p6-b0-s2",
+          "blockIndex": 0,
+          "text": "Find out where the light switch is, and where your phone can be charged without leaving the bench.",
+          "spokenText": "Find out where the light switch is, and where your phone can be charged without leaving the bench.",
+          "startMs": 7599,
+          "endMs": 13223,
+          "tokensCharged": 77
+        },
+        {
+          "id": "p6-b1-s0",
+          "blockIndex": 1,
+          "text": "This is the least exciting part of woodworking, and it is the part most beginners skip.",
+          "spokenText": "This is the least exciting part of woodworking, and it is the part most beginners skip.",
+          "startMs": 13643,
+          "endMs": 19262,
+          "tokensCharged": 77
+        },
+        {
+          "id": "p6-b1-s1",
+          "blockIndex": 1,
+          "text": "But a bench that is set up well makes every later chapter feel calmer.",
+          "spokenText": "But a bench that is set up well makes every later chapter feel calmer.",
+          "startMs": 19502,
+          "endMs": 24136,
+          "tokensCharged": 66
+        },
+        {
+          "id": "p6-b1-s2",
+          "blockIndex": 1,
+          "text": "You will know where things are, you will trust your tools, and you will not need to stop halfway through a cut to look for a clamp.",
+          "spokenText": "You will know where things are, you will trust your tools, and you will not need to stop halfway through a cut to look for a clamp.",
+          "startMs": 24376,
+          "endMs": 32173,
+          "tokensCharged": 105
+        },
+        {
+          "id": "p6-b2-s0",
+          "blockIndex": 2,
+          "text": "What to Do Next",
+          "spokenText": "What to Do Next.",
+          "startMs": 32593,
+          "endMs": 33941,
+          "tokensCharged": 26
+        },
+        {
+          "id": "p6-b3-s0",
+          "blockIndex": 3,
+          "text": "In the next chapter you will learn to measure and mark.",
+          "spokenText": "In the next chapter you will learn to measure and mark.",
+          "startMs": 34361,
+          "endMs": 37444,
+          "tokensCharged": 47
+        },
+        {
+          "id": "p6-b3-s1",
+          "blockIndex": 3,
+          "text": "Those two skills decide how well almost everything else turns out.",
+          "spokenText": "Those two skills decide how well almost everything else turns out.",
+          "startMs": 37684,
+          "endMs": 41573,
+          "tokensCharged": 56
+        },
+        {
+          "id": "p6-b3-s2",
+          "blockIndex": 3,
+          "text": "Before you turn the page, gather a scrap board, a square, a pencil and a marking knife.",
+          "spokenText": "Before you turn the page, gather a scrap board, a square, a pencil and a marking knife.",
+          "startMs": 41813,
+          "endMs": 49112,
+          "tokensCharged": 102
+        },
+        {
+          "id": "p6-b3-s3",
+          "blockIndex": 3,
+          "text": "You will use them all in the first exercise.",
+          "spokenText": "You will use them all in the first exercise.",
+          "startMs": 49352,
+          "endMs": 52468,
+          "tokensCharged": 45
+        }
+      ]
+    },
+    "8": {
+      "pageIndex": 7,
+      "pdfPageNumber": 8,
+      "bookPageLabel": "9",
+      "audioUrl": "/books/audio/sample_the_quiet_workshop/page-08.mp3",
+      "durationMs": 30589,
+      "chunks": [
+        {
+          "id": "p7-b0-s0",
+          "blockIndex": 0,
+          "text": "A calm, practical start to home woodworking",
+          "spokenText": "A calm, practical start to home woodworking.",
+          "startMs": 120,
+          "endMs": 3611,
+          "tokensCharged": 49
+        },
+        {
+          "id": "p7-b1-s0",
+          "blockIndex": 1,
+          "text": "Sample: Chapter 1 of 12",
+          "spokenText": "Sample: Chapter 1 of 12.",
+          "startMs": 4031,
+          "endMs": 7048,
+          "tokensCharged": 43
+        },
+        {
+          "id": "p7-b2-s0",
+          "blockIndex": 2,
+          "text": "“A workshop does not need a room.",
+          "spokenText": "A workshop does not need a room.",
+          "startMs": 7468,
+          "endMs": 9630,
+          "tokensCharged": 34
+        },
+        {
+          "id": "p7-b2-s1",
+          "blockIndex": 2,
+          "text": "It needs a place where you can leave a project half finished without losing it.”",
+          "spokenText": "It needs a place where you can leave a project half finished without losing it.",
+          "startMs": 9870,
+          "endMs": 13911,
+          "tokensCharged": 57
+        },
+        {
+          "id": "p7-b3-s0",
+          "blockIndex": 3,
+          "text": "D E TA I L S",
+          "spokenText": "Details.",
+          "startMs": 14331,
+          "endMs": 15209,
+          "tokensCharged": 19
+        },
+        {
+          "id": "p7-b4-s0",
+          "blockIndex": 4,
+          "text": "Trim 6 × 9 in Language English",
+          "spokenText": "Trim: 6 by 9 inches. Language: English.",
+          "startMs": 15629,
+          "endMs": 20398,
+          "tokensCharged": 63
+        },
+        {
+          "id": "p7-b5-s0",
+          "blockIndex": 5,
+          "text": "A B O U T T H E A U T H O R",
+          "spokenText": "About the author.",
+          "startMs": 20818,
+          "endMs": 21868,
+          "tokensCharged": 27
+        },
+        {
+          "id": "p7-b6-s0",
+          "blockIndex": 6,
+          "text": "Elias Hartwell is a pen name.",
+          "spokenText": "Elias Hartwell is a pen name.",
+          "startMs": 22288,
+          "endMs": 24940,
+          "tokensCharged": 39
+        },
+        {
+          "id": "p7-b6-s1",
+          "blockIndex": 6,
+          "text": "Published by ExpanPress.",
+          "spokenText": "Published by ExpanPress.",
+          "startMs": 25180,
+          "endMs": 27026,
+          "tokensCharged": 30
+        },
+        {
+          "id": "p7-b7-s0",
+          "blockIndex": 7,
+          "text": "ExpanPress | MMXXVI",
+          "spokenText": "ExpanPress, 2026.",
+          "startMs": 27446,
+          "endMs": 30362,
+          "tokensCharged": 49
+        }
+      ]
+    }
+  }
+}

@@ -7,6 +7,7 @@ import {
   DEFAULT_GLOBAL,
   loadBookPreviewSection,
   loadStorefrontSection,
+  loadVoiceNarrationSection,
 } from "../src/settings_registry";
 
 const tmpDirs: string[] = [];
@@ -75,6 +76,7 @@ describe("loadStorefrontSection (settings_registry)", () => {
       pay_root_description: "Secure hosted checkout.",
       covers_base_path: "/books/cover_art",
       previews_base_path: "/books/preview_pdfs",
+      audio_base_path: "/books/audio_tracks",
       book_assets: {
         custom_slug: {
           book_registry: "books/duane.json",
@@ -100,6 +102,7 @@ describe("loadStorefrontSection (settings_registry)", () => {
     expect(out.pay_root_description).toBe("Secure hosted checkout.");
     expect(out.covers_base_path).toBe("/books/cover_art");
     expect(out.previews_base_path).toBe("/books/preview_pdfs");
+    expect(out.audio_base_path).toBe("/books/audio_tracks");
     expect(out.book_assets.custom_slug).toEqual({
       book_registry: "books/duane.json",
       cover_image: "/books/cover_art/custom.png",
@@ -317,10 +320,49 @@ describe("loadBookIdentity optional media fields", () => {
     const sample = loadBookIdentity("books/sample_the_quiet_workshop.json");
     expect(sample.cover_image).toBe("/books/covers/sample_the_quiet_workshop.webp");
     expect(sample.preview_pdf).toBe("/books/previews/sample_the_quiet_workshop.pdf");
+    expect(sample.preview_audio_manifest).toBe("/books/audio/sample_the_quiet_workshop/timings.json");
     expect(sample.is_sample).toBe(true);
     expect(sample.overview).toBeDefined();
     expect(sample.overview).toContain("Setting Up the Bench");
     expect(sample.overview?.toLowerCase()).toContain("sample");
+  });
+
+  it("validates text_structure folio settings and voice_narration defaults/bounds", () => {
+    const warn = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const valid = loadBookPreviewSection({
+      text_structure: {
+        strip_margin_folios: false,
+        bottom_margin_ratio: 0.12,
+        fallback_page_height_pt: 792,
+        folio_max_scale_ratio: 1.8,
+        folio_pattern: "^\\d{1,3}$",
+      },
+    });
+    expect(valid.text_structure.strip_margin_folios).toBe(false);
+    expect(valid.text_structure.bottom_margin_ratio).toBe(0.12);
+    expect(valid.text_structure.fallback_page_height_pt).toBe(792);
+    expect(valid.text_structure.folio_max_scale_ratio).toBe(1.8);
+    expect(valid.text_structure.folio_pattern).toBe("^\\d{1,3}$");
+
+    const invalid = loadBookPreviewSection({
+      text_structure: {
+        strip_margin_folios: "no",
+        bottom_margin_ratio: 0.9,
+        fallback_page_height_pt: 10,
+        folio_max_scale_ratio: 99,
+        folio_pattern: "[unclosed(",
+      },
+    });
+    expect(invalid.text_structure).toEqual(DEFAULT_GLOBAL.book_preview.text_structure);
+
+    expect(DEFAULT_GLOBAL.voice_narration.default_voice_id).toBe("c9f39b88-235b-4c2a-851c-3734ce1203be");
+    expect(DEFAULT_GLOBAL.voice_narration.fallback_female_voice_id).toBe("84394fa8-60a1-40d9-9a4e-f86738f6b12c");
+    expect(loadVoiceNarrationSection(undefined)).toEqual(DEFAULT_GLOBAL.voice_narration);
+    warn.mockClear();
+    const vnInvalid = loadVoiceNarrationSection({ loudnorm_lufs: 5, mp3_bitrate_kbps: 9999 });
+    expect(vnInvalid).toEqual(DEFAULT_GLOBAL.voice_narration);
+    expect(warn).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
   });
 
   it("omits optional keys when not present in a book JSON", () => {

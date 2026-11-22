@@ -206,6 +206,7 @@ export default async function StoreProductPage({
             id={layout.preview_section_id}
             previewPdfUrl={p.preview_pdf}
             coverImageUrl={p.cover_image ?? null}
+            previewAudioManifestUrl={p.preview_audio_manifest ?? null}
             bookTitle={title}
             settings={GLOBAL.book_preview}
           />

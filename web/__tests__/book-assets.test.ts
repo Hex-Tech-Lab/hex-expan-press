@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   isSafeCoverPath,
+  isSafePreviewAudioManifestPath,
   isSafePreviewPdfPath,
   resolveProductBookAssets,
 } from "../src/lib/book-assets";
@@ -31,6 +32,21 @@ describe("book-assets path safety", () => {
     expect(isSafePreviewPdfPath("/books/previews/../paid.pdf")).toBe(false);
     expect(isSafePreviewPdfPath("/books/covers/duane.jpg")).toBe(false);
     expect(isSafePreviewPdfPath("http://insecure.example/preview.pdf")).toBe(false);
+
+    expect(isSafePreviewAudioManifestPath("/books/audio/sample_the_quiet_workshop/timings.json")).toBe(true);
+    expect(isSafePreviewAudioManifestPath("https://cdn.example.com/audio/timings.json")).toBe(true);
+    expect(isSafePreviewAudioManifestPath("/books/audio/../secret.json")).toBe(false);
+    expect(isSafePreviewAudioManifestPath("/books/previews/duane.pdf")).toBe(false);
+    expect(isSafePreviewAudioManifestPath("http://insecure.example/timings.json")).toBe(false);
+  });
+
+  it("resolves preview_audio_manifest for sample_the_quiet_workshop", () => {
+    const sample = resolveProductBookAssets({
+      slug: "sample_the_quiet_workshop",
+      book_registry: "books/sample_the_quiet_workshop.json",
+      creator_is_house: true,
+    });
+    expect(sample.preview_audio_manifest).toBe("/books/audio/sample_the_quiet_workshop/timings.json");
   });
 });
 
@@ -47,6 +63,7 @@ describe("resolveProductBookAssets for house products (creator_is_house true)", 
       book_registry: "books/duane.json",
       cover_image: "/books/covers/duane.jpg",
       preview_pdf: "/books/previews/duane.pdf",
+      preview_audio_manifest: null,
       is_sample: false,
       overview: null,
     });
@@ -94,6 +111,7 @@ describe("resolveProductBookAssets for house products (creator_is_house true)", 
       book_registry: "books/duane.json",
       cover_image: "/books/covers/duane.jpg",
       preview_pdf: "/books/previews/duane.pdf",
+      preview_audio_manifest: null,
       is_sample: false,
       overview: null,
     });
@@ -110,6 +128,7 @@ describe("resolveProductBookAssets for house products (creator_is_house true)", 
       book_registry: null,
       cover_image: null,
       preview_pdf: null,
+      preview_audio_manifest: null,
       is_sample: false,
       overview: null,
     });
@@ -149,6 +168,7 @@ describe("resolveProductBookAssets never lets a non-house product claim house as
       book_registry: null,
       cover_image: null,
       preview_pdf: null,
+      preview_audio_manifest: null,
       is_sample: false,
       overview: null,
     });
@@ -167,6 +187,7 @@ describe("resolveProductBookAssets never lets a non-house product claim house as
       book_registry: null,
       cover_image: null,
       preview_pdf: null,
+      preview_audio_manifest: null,
       is_sample: false,
       overview: null,
     });
@@ -217,6 +238,7 @@ describe("resolveProductBookAssets never lets a non-house product claim house as
       book_registry: null,
       cover_image: null,
       preview_pdf: null,
+      preview_audio_manifest: null,
       is_sample: false,
       overview: null,
     });

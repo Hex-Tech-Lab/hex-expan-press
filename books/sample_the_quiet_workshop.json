@@ -17,6 +17,7 @@
   },
   "cover_image": "/books/covers/sample_the_quiet_workshop.webp",
   "preview_pdf": "/books/previews/sample_the_quiet_workshop.pdf",
+  "preview_audio_manifest": "/books/audio/sample_the_quiet_workshop/timings.json",
   "preview_pages": "1,2,3,4,5,6,8,9",
   "release_pdf": "ExpanPress_Sample_TheQuietWorkshop_EliasHartwell_2026.pdf",
   "release_path": "release/9a3b37eb-3aca-4bb9-b320-bafa3efdfbbc_release.pdf",
