@@ -28,16 +28,16 @@ const SAMPLE_MANIFEST: PreviewAudioManifest = {
   bookId: "sample_the_quiet_workshop",
   voiceId: "c9f39b88-235b-4c2a-851c-3734ce1203be",
   voiceName: "Walter - Calm documentary narrator",
+  voiceGender: "male",
   model: "qwen3-tts",
-  sampleRateHz: 44100,
+  sampleRateHz: 48000,
   loudnormLufs: -16,
   generatedAt: "2026-11-22T15:00:00.000Z",
   pages: {
     "2": {
       pageIndex: 1,
       pdfPageNumber: 2,
-      audioUrl: "/books/audio/sample_the_quiet_workshop/page-02.mp3",
-      opusUrl: "/books/audio/sample_the_quiet_workshop/page-02.webm",
+      audioUrl: "/books/audio/sample_the_quiet_workshop/page-02.webm",
       durationMs: 4200,
       chunks: [
         { id: "p1-b0-s0", blockIndex: 0, text: "The Quiet Workshop", startMs: 120, endMs: 1800 },
@@ -47,8 +47,7 @@ const SAMPLE_MANIFEST: PreviewAudioManifest = {
     "3": {
       pageIndex: 2,
       pdfPageNumber: 3,
-      audioUrl: "/books/audio/sample_the_quiet_workshop/page-03.mp3",
-      opusUrl: "/books/audio/sample_the_quiet_workshop/page-03.webm",
+      audioUrl: "/books/audio/sample_the_quiet_workshop/page-03.webm",
       durationMs: 5000,
       chunks: [
         { id: "p2-b0-s0", blockIndex: 0, text: "Contents", startMs: 120, endMs: 1200 },
@@ -58,8 +57,7 @@ const SAMPLE_MANIFEST: PreviewAudioManifest = {
     "4": {
       pageIndex: 3,
       pdfPageNumber: 4,
-      audioUrl: "/books/audio/sample_the_quiet_workshop/page-04.mp3",
-      opusUrl: "/books/audio/sample_the_quiet_workshop/page-04.webm",
+      audioUrl: "/books/audio/sample_the_quiet_workshop/page-04.webm",
       durationMs: 3000,
       chunks: [{ id: "p3-b0-s0", blockIndex: 0, text: "Chapter 1: Setting Up the Bench", startMs: 120, endMs: 2800 }],
     },
@@ -290,65 +288,74 @@ describe("useReadAloud pre-baked audio manifest + timings sync + Web Speech fall
     expect(MockAudioElement.instances).toHaveLength(0);
   });
 
-  it("keeps preload=none until Play, falls back from Opus webm decode error to MP3 before Web Speech, and selects MP3 directly when Opus is unsupported", async () => {
+  it("keeps preload=none until Play, sets usingFallbackVoice=true on Opus-unsupported browsers, and picks gender-matched male Web Speech over female natural voices", async () => {
     const speak = vi.fn();
     class FakeUtterance {
       text: string;
       rate = 1;
+      voice: { name: string } | null = null;
       constructor(text: string) {
         this.text = text;
       }
     }
+    const femaleNatural = { name: "Microsoft Aria Online (Natural) - English (United States)", lang: "en-US" };
+    const maleLegacy = { name: "Microsoft David - English (United States)", lang: "en-US" };
     Object.defineProperty(window, "SpeechSynthesisUtterance", { value: FakeUtterance, configurable: true });
     Object.defineProperty(window, "speechSynthesis", {
-      value: { paused: false, speaking: false, pending: false, speak, cancel: vi.fn(), pause: vi.fn(), resume: vi.fn(), getVoices: () => [] },
+      value: {
+        paused: false,
+        speaking: false,
+        pending: false,
+        speak,
+        cancel: vi.fn(),
+        pause: vi.fn(),
+        resume: vi.fn(),
+        getVoices: () => [femaleNatural, maleLegacy],
+      },
       configurable: true,
     });
 
     // (a) Zero Audio elements constructed on mount (timings.json pre-fetched, preload="none" until Play tap)
     await mount(true);
     expect(MockAudioElement.instances).toHaveLength(0);
+    expect(latest.usingFallbackVoice).toBe(false);
 
-    // (b) Opus-capable browser selects .webm first with preload="none"; .webm error switches cleanly to .mp3 without Web Speech
+    // (b) Opus-capable browser selects .webm with preload="none" and usingFallbackVoice=false; error falls back to male Web Speech
     await act(async () => latest.handlePlayPauseResume());
     expect(MockAudioElement.instances).toHaveLength(1);
     const audio = MockAudioElement.instances[0];
     expect(audio.preload).toBe("none");
     expect(audio.src).toBe("/books/audio/sample_the_quiet_workshop/page-02.webm");
+    expect(latest.usingFallbackVoice).toBe(false);
     expect(speak).not.toHaveBeenCalled();
 
-    await act(async () => {
-      audio.onerror?.();
-    });
-    expect(speak).not.toHaveBeenCalled();
-    expect(audio.src).toBe("/books/audio/sample_the_quiet_workshop/page-02.mp3");
-    expect(audio.srcHistory).toEqual([
-      "/books/audio/sample_the_quiet_workshop/page-02.webm",
-      "/books/audio/sample_the_quiet_workshop/page-02.mp3",
-    ]);
-
-    // (c) Web Speech triggers only when the .mp3 fallback also errors
     await act(async () => {
       audio.onerror?.();
     });
     expect(speak).toHaveBeenCalledTimes(1);
-    expect((speak.mock.calls[0][0] as FakeUtterance).text).toBe(spreadChunks[0].text);
+    const spokenUtt = speak.mock.calls[0][0] as FakeUtterance;
+    expect(spokenUtt.text).toBe(spreadChunks[0].text);
+    expect(spokenUtt.voice?.name).toBe(maleLegacy.name);
+    expect(latest.usingFallbackVoice).toBe(true);
 
     await act(async () => {
       root.unmount();
     });
     container.remove();
 
-    // (d) Safari/iOS (canPlayType === "") selects .mp3 directly without requesting .webm
+    // (c) Browser without Opus WebM support (canPlayType === "") skips .webm entirely, uses gender-matched Web Speech, and sets usingFallbackVoice=true
+    speak.mockClear();
     MockAudioElement.instances = [];
     MockAudioElement.nextCanPlayOpus = "";
     await mount(true);
     await act(async () => latest.handlePlayPauseResume());
     expect(MockAudioElement.instances).toHaveLength(1);
-    const safariAudio = MockAudioElement.instances[0];
-    expect(safariAudio.canPlayType).toHaveBeenCalledWith('audio/webm; codecs="opus"');
-    expect(safariAudio.src).toBe("/books/audio/sample_the_quiet_workshop/page-02.mp3");
-    expect(safariAudio.srcHistory).toEqual(["/books/audio/sample_the_quiet_workshop/page-02.mp3"]);
+    const nonOpusAudio = MockAudioElement.instances[0];
+    expect(nonOpusAudio.canPlayType).toHaveBeenCalledWith('audio/webm; codecs="opus"');
+    expect(nonOpusAudio.srcHistory).toEqual([]);
+    expect(speak).toHaveBeenCalledTimes(1);
+    expect((speak.mock.calls[0][0] as FakeUtterance).voice?.name).toBe(maleLegacy.name);
+    expect(latest.usingFallbackVoice).toBe(true);
   });
 
   it("supports custom audioBasePath, rejects stale manifests with mismatched text, and updates activeWord when highlight_words=true", async () => {
@@ -361,13 +368,11 @@ describe("useReadAloud pre-baked audio manifest + timings sync + Web Speech fall
         ...SAMPLE_MANIFEST.pages,
         "2": {
           ...SAMPLE_MANIFEST.pages["2"],
-          audioUrl: "/books/audio_v2/sample/page-02.mp3",
-          opusUrl: "/books/audio_v2/sample/page-02.webm",
+          audioUrl: "/books/audio_v2/sample/page-02.webm",
         },
         "3": {
           ...SAMPLE_MANIFEST.pages["3"],
-          audioUrl: "/books/audio_v2/sample/page-03.mp3",
-          opusUrl: "/books/audio_v2/sample/page-03.webm",
+          audioUrl: "/books/audio_v2/sample/page-03.webm",
         },
       },
     };

@@ -83,9 +83,9 @@ describe("narrate_book_preview helpers", () => {
     expect(
       applyNarrationLexicon("Published by ExpanPress and Elias.", DEFAULT_GLOBAL.voice_narration.lexicon),
     ).toBe("Published by Expan Press and Ilaias.");
-    expect(buildChunkDecodeFilter({ masterFilter: "highpass=f=80", tempo: 1.16 })).toBe("highpass=f=80,atempo=1.16");
+    expect(buildChunkDecodeFilter({ masterFilter: "highpass=f=80", tempo: 1.18 })).toBe("highpass=f=80,atempo=1.18");
     expect(buildChunkDecodeFilter({ masterFilter: "", tempo: 1.0 })).toBeNull();
-    expect(resolveTempoForVoice(DEFAULT_GLOBAL.voice_narration, "c9f39b88-235b-4c2a-851c-3734ce1203be")).toBe(1.16);
+    expect(resolveTempoForVoice(DEFAULT_GLOBAL.voice_narration, "c9f39b88-235b-4c2a-851c-3734ce1203be")).toBe(1.18);
     expect(resolveTempoForVoice(DEFAULT_GLOBAL.voice_narration, "3e5cd61a-bacf-4fe3-94b9-751bd1597ae9")).toBe(1.0);
     expect(resolveTempoForVoice(DEFAULT_GLOBAL.voice_narration, "unlisted-voice")).toBe(1.0);
     expect(resolveTempoForVoice(DEFAULT_GLOBAL.voice_narration, "3e5cd61a-bacf-4fe3-94b9-751bd1597ae9", 1.12)).toBe(1.12);

@@ -20,10 +20,11 @@ import {
   assertSelectedPagesCached,
   buildChunkDecodeFilter,
   decodeAudioToNativePcm,
-  encodeLoudnormDualFormats,
+  encodeLoudnormOpus,
   formatChunkForSpeech,
   isMetadataBookPage,
   NATIVE_SAMPLE_RATE,
+  OPUS_SAMPLE_RATE_HZ,
   parseChunkPrefixes,
   parsePageSelection,
   probeDurationMs,
@@ -209,7 +210,7 @@ async function main(): Promise<void> {
   if (!book.preview_pdf) throw new Error(`Book ${book.id} has no preview_pdf`);
 
   const narration = GLOBAL.voice_narration;
-  const { voiceId, voiceName } = resolveVoiceFromNarrationSettings(narration, {
+  const { voiceId, voiceName, preset } = resolveVoiceFromNarrationSettings(narration, {
     preset: getArg("--voice-preset"),
     voiceId: getArg("--voice"),
     voiceName: getArg("--voice-name"),
@@ -442,32 +443,26 @@ async function main(): Promise<void> {
       });
 
       const fileBase = `page-${String(plan.pdfPageNumber).padStart(2, "0")}`;
-      const mp3FileName = `${fileBase}.mp3`;
       const opusFileName = `${fileBase}.webm`;
-      const outMp3Path = path.join(audioPublicDir, mp3FileName);
       const outOpusPath = path.join(audioPublicDir, opusFileName);
-      encodeLoudnormDualFormats(ffmpegBin, assembled.pcm, outMp3Path, outOpusPath, {
+      encodeLoudnormOpus(ffmpegBin, assembled.pcm, outOpusPath, {
         targetLufs: narration.loudnorm_lufs,
-        sampleRateHz: narration.sample_rate_hz,
-        mp3BitrateKbps: narration.mp3_bitrate_kbps,
         opusCodec: narration.opus_codec,
         opusBitrateKbps: narration.opus_bitrate_kbps,
         opusVbr: narration.opus_vbr,
       });
-      const durationMs = probeDurationMs(ffprobeBin, outMp3Path, assembled.rawDurationMs);
-      const audioUrl = `${audioUrlBase}/${mp3FileName}`;
-      const opusUrl = `${audioUrlBase}/${opusFileName}`;
+      const durationMs = probeDurationMs(ffprobeBin, outOpusPath, assembled.rawDurationMs);
+      const audioUrl = `${audioUrlBase}/${opusFileName}`;
 
       pagesManifest[String(plan.pdfPageNumber)] = {
         pageIndex: plan.pageIndex,
         pdfPageNumber: plan.pdfPageNumber,
         ...(plan.bookPageLabel ? { bookPageLabel: plan.bookPageLabel } : {}),
         audioUrl,
-        opusUrl,
         durationMs,
         chunks: assembled.chunks,
       };
-      console.log(`[assemble] Wrote ${mp3FileName} + ${opusFileName} (${durationMs} ms, ${assembled.chunks.length} chunks)`);
+      console.log(`[assemble] Wrote ${opusFileName} (${durationMs} ms, ${assembled.chunks.length} chunks)`);
     }
 
     const manifest: PreviewAudioManifest = {
@@ -475,8 +470,9 @@ async function main(): Promise<void> {
       bookId: book.id,
       voiceId,
       voiceName,
+      voiceGender: preset,
       model,
-      sampleRateHz: narration.sample_rate_hz,
+      sampleRateHz: OPUS_SAMPLE_RATE_HZ,
       loudnormLufs: narration.loudnorm_lufs,
       generatedAt: new Date().toISOString(),
       pages: pagesManifest,

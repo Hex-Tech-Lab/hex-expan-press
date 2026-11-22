@@ -1,4 +1,5 @@
 import { execFileSync, spawnSync } from "node:child_process";
+import { existsSync, unlinkSync } from "node:fs";
 import {
   DEFAULT_GLOBAL,
   type VoiceNarrationLexiconEntry,
@@ -381,92 +382,75 @@ export function decodeAudioToNativePcm(
   return new Int16Array(buf.buffer, buf.byteOffset, Math.floor(buf.byteLength / 2));
 }
 
-export function encodeLoudnormDualFormats(
+export function encodeLoudnormOpus(
   ffmpegBin: string,
   pcm: Int16Array,
-  outMp3Path: string,
   outOpusPath: string,
   opts: {
     targetLufs: number;
-    sampleRateHz: number;
-    mp3BitrateKbps: number;
     opusCodec: string;
     opusBitrateKbps: number;
     opusVbr: "on" | "off" | "constrained";
   },
 ): void {
-  const tmpWav = `${outMp3Path}.tmp.wav`;
+  const tmpWav = `${outOpusPath}.tmp.wav`;
   const pcmBuf = Buffer.from(pcm.buffer, pcm.byteOffset, pcm.byteLength);
-  execFileSync(
-    ffmpegBin,
-    ["-y", "-v", "error", "-f", "s16le", "-ar", String(NATIVE_SAMPLE_RATE), "-ac", "1", "-i", "pipe:0", tmpWav],
-    { input: pcmBuf },
-  );
-
-  let measuredFilter = `loudnorm=I=${opts.targetLufs}:TP=-1.5:LRA=11`;
   try {
-    const pass1 = spawnSync(
+    execFileSync(
       ffmpegBin,
-      ["-nostdin", "-y", "-i", tmpWav, "-af", `${measuredFilter}:print_format=json`, "-f", "null", "-"],
-      { encoding: "utf8" },
+      ["-y", "-v", "error", "-f", "s16le", "-ar", String(NATIVE_SAMPLE_RATE), "-ac", "1", "-i", "pipe:0", tmpWav],
+      { input: pcmBuf },
     );
-    const pass1Log = `${pass1.stdout ?? ""}\n${pass1.stderr ?? ""}`;
-    const jsonMatch = /\{[\s\S]*"input_i"[\s\S]*\}/.exec(pass1Log);
-    if (pass1.status === 0 && jsonMatch) {
-      const stats = JSON.parse(jsonMatch[0]) as Record<string, string>;
-      if (stats.input_i && stats.input_tp && stats.input_lra && stats.input_thresh && stats.target_offset) {
-        measuredFilter = `loudnorm=I=${opts.targetLufs}:TP=-1.5:LRA=11:measured_I=${stats.input_i}:measured_TP=${stats.input_tp}:measured_LRA=${stats.input_lra}:measured_thresh=${stats.input_thresh}:offset=${stats.target_offset}:linear=true`;
-      }
-    }
-  } catch (err) {
-    console.warn("[narrate_book_preview] loudnorm pass1 measurement failed; using single-pass fallback:", err);
-  }
 
-  execFileSync(
-    ffmpegBin,
-    [
-      "-y",
-      "-v",
-      "error",
-      "-i",
-      tmpWav,
-      "-af",
-      measuredFilter,
-      "-ar",
-      String(opts.sampleRateHz),
-      "-ac",
-      "1",
-      "-c:a",
-      "libmp3lame",
-      "-b:a",
-      `${opts.mp3BitrateKbps}k`,
-      outMp3Path,
-    ],
-  );
-  execFileSync(
-    ffmpegBin,
-    [
-      "-y",
-      "-v",
-      "error",
-      "-i",
-      tmpWav,
-      "-af",
-      measuredFilter,
-      "-ar",
-      String(OPUS_SAMPLE_RATE_HZ),
-      "-ac",
-      "1",
-      "-c:a",
-      opts.opusCodec,
-      "-b:a",
-      `${opts.opusBitrateKbps}k`,
-      "-vbr",
-      opts.opusVbr,
-      outOpusPath,
-    ],
-  );
-  execFileSync("rm", ["-f", tmpWav]);
+    let measuredFilter = `loudnorm=I=${opts.targetLufs}:TP=-1.5:LRA=11`;
+    try {
+      const pass1 = spawnSync(
+        ffmpegBin,
+        ["-nostdin", "-y", "-i", tmpWav, "-af", `${measuredFilter}:print_format=json`, "-f", "null", "-"],
+        { encoding: "utf8" },
+      );
+      const pass1Log = `${pass1.stdout ?? ""}\n${pass1.stderr ?? ""}`;
+      const jsonMatch = /\{[\s\S]*"input_i"[\s\S]*\}/.exec(pass1Log);
+      if (pass1.status === 0 && jsonMatch) {
+        const stats = JSON.parse(jsonMatch[0]) as Record<string, string>;
+        if (stats.input_i && stats.input_tp && stats.input_lra && stats.input_thresh && stats.target_offset) {
+          measuredFilter = `loudnorm=I=${opts.targetLufs}:TP=-1.5:LRA=11:measured_I=${stats.input_i}:measured_TP=${stats.input_tp}:measured_LRA=${stats.input_lra}:measured_thresh=${stats.input_thresh}:offset=${stats.target_offset}:linear=true`;
+        }
+      }
+    } catch (err) {
+      console.warn("[narrate_book_preview] loudnorm pass1 measurement failed; using single-pass fallback:", err);
+    }
+
+    execFileSync(
+      ffmpegBin,
+      [
+        "-y",
+        "-v",
+        "error",
+        "-i",
+        tmpWav,
+        "-af",
+        measuredFilter,
+        "-ar",
+        String(OPUS_SAMPLE_RATE_HZ),
+        "-ac",
+        "1",
+        "-c:a",
+        opts.opusCodec,
+        "-b:a",
+        `${opts.opusBitrateKbps}k`,
+        "-vbr",
+        opts.opusVbr,
+        outOpusPath,
+      ],
+    );
+  } finally {
+    try {
+      if (existsSync(tmpWav)) unlinkSync(tmpWav);
+    } catch (cleanupErr) {
+      console.warn("[narrate_book_preview] Temp WAV cleanup failed:", cleanupErr);
+    }
+  }
 }
 
 export function probeDurationMs(ffprobeBin: string, mp3Path: string, fallbackMs: number): number {

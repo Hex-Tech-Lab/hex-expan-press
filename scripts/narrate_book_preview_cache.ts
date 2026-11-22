@@ -192,6 +192,7 @@ export function acquireNarrationLock(cacheDir: string): NarrationLock {
   } catch (err) {
     const code = (err as NodeJS.ErrnoException | null)?.code;
     if (code !== "EEXIST") {
+      console.warn("[vcp] Lock acquisition failed:", err instanceof Error ? err.message : String(err));
       throw err instanceof Error ? err : new Error(String(err));
     }
 
@@ -200,6 +201,7 @@ export function acquireNarrationLock(cacheDir: string): NarrationLock {
       snapshot = readLockMetadata(lockPath);
     } catch (statErr) {
       const statCode = (statErr as NodeJS.ErrnoException | null)?.code;
+      console.warn("[vcp] Lock snapshot read:", statErr instanceof Error ? statErr.message : String(statErr));
       if (statCode === "ENOENT") {
         return writeExclusiveLock(lockPath, ownerToken);
       }
@@ -220,6 +222,7 @@ export function acquireNarrationLock(cacheDir: string): NarrationLock {
       reclaimFd = openSync(reclaimPath, "wx");
     } catch (reclaimErr) {
       const reclaimCode = (reclaimErr as NodeJS.ErrnoException | null)?.code;
+      console.warn("[vcp] Reclaim mutex contention:", reclaimErr instanceof Error ? reclaimErr.message : String(reclaimErr));
       if (reclaimCode === "EEXIST") {
         throw new Error(`Narration lock reclamation already in progress at ${lockPath}`);
       }
@@ -232,6 +235,7 @@ export function acquireNarrationLock(cacheDir: string): NarrationLock {
         current = readLockMetadata(lockPath);
       } catch (recheckErr) {
         const recheckCode = (recheckErr as NodeJS.ErrnoException | null)?.code;
+        console.warn("[vcp] Lock recheck:", recheckErr instanceof Error ? recheckErr.message : String(recheckErr));
         if (recheckCode === "ENOENT") {
           return writeExclusiveLock(lockPath, ownerToken);
         }

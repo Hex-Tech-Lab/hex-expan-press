@@ -303,6 +303,28 @@ describe("loadBookPreviewSection (settings_registry)", () => {
     expect(out.read_aloud).toEqual(DEFAULT_GLOBAL.book_preview.read_aloud);
     expect(out.text_structure).toEqual(DEFAULT_GLOBAL.book_preview.text_structure);
 
+    const advisoryCustom = loadBookPreviewSection({
+      read_aloud: {
+        labels: {
+          fallback_advisory_text: "Use a modern browser.",
+          fallback_advisory_link_label: "Update browser",
+          fallback_advisory_link_url: "https://example.org/browsers",
+        },
+      },
+    });
+    expect(advisoryCustom.read_aloud.labels.fallback_advisory_text).toBe("Use a modern browser.");
+    expect(advisoryCustom.read_aloud.labels.fallback_advisory_link_label).toBe("Update browser");
+    expect(advisoryCustom.read_aloud.labels.fallback_advisory_link_url).toBe("https://example.org/browsers");
+
+    for (const badUrl of ["http://insecure.example.com", "javascript:alert(1)", "not-a-url", "https://user:pass@evil.test"]) {
+      warn.mockClear();
+      const badAdv = loadBookPreviewSection({ read_aloud: { labels: { fallback_advisory_link_url: badUrl } } });
+      expect(badAdv.read_aloud.labels.fallback_advisory_link_url).toBe(
+        DEFAULT_GLOBAL.book_preview.read_aloud.labels.fallback_advisory_link_url,
+      );
+      expect(warn).toHaveBeenCalledTimes(1);
+    }
+
     const crossField = loadBookPreviewSection({
       text_structure: { heading_scale_ratio: 1.4, major_heading_scale_ratio: 1.2 },
     });
@@ -370,7 +392,7 @@ describe("loadBookIdentity optional media fields", () => {
     expect(DEFAULT_GLOBAL.voice_narration.opus_vbr).toBe("on");
     expect(DEFAULT_GLOBAL.voice_narration.tempo).toBe(1.0);
     expect(DEFAULT_GLOBAL.voice_narration.voice_tempos).toEqual({
-      "c9f39b88-235b-4c2a-851c-3734ce1203be": 1.16,
+      "c9f39b88-235b-4c2a-851c-3734ce1203be": 1.18,
       "3e5cd61a-bacf-4fe3-94b9-751bd1597ae9": 1.0,
     });
     expect(DEFAULT_GLOBAL.voice_narration.sentence_gap_ms).toBe(220);

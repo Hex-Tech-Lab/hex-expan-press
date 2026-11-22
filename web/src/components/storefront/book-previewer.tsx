@@ -98,7 +98,7 @@ export default function BookPreviewer({
 
   const expandTextPanel = useCallback(() => setTextOpen(true), []);
   const continueOnPageTurn = settings.read_aloud.continue_on_page_turn;
-  const { readAloudSupported, playbackState, activeChunkId, activeWord, currentRate, speechAnnouncement, stopReadAloud, clearAnnouncement, handlePlayPauseResume, handleCycleSpeed } =
+  const { readAloudSupported, usingFallbackVoice, playbackState, activeChunkId, activeWord, currentRate, speechAnnouncement, stopReadAloud, clearAnnouncement, handlePlayPauseResume, handleCycleSpeed } =
     useReadAloud(spreadAccessible.chunks, settings.read_aloud, expandTextPanel, previewAudioManifestUrl, audioBasePath);
 
   useEffect(() => {
@@ -472,6 +472,7 @@ export default function BookPreviewer({
           playbackState={playbackState}
           currentRate={currentRate}
           showReadAloudControls={settings.read_aloud.enabled && readAloudSupported && spreadAccessible.chunks.length > 0}
+          usingFallbackVoice={usingFallbackVoice}
           speechAnnouncement={speechAnnouncement}
           readAloudSettings={settings.read_aloud}
           textStructureSettings={settings.text_structure}

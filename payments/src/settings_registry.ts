@@ -377,6 +377,9 @@ export interface BookPreviewReadAloudLabels {
   speed_aria_label: string;
   rate_suffix: string;
   finished_announcement: string;
+  fallback_advisory_text: string;
+  fallback_advisory_link_label: string;
+  fallback_advisory_link_url: string;
 }
 
 export interface BookPreviewReadAloudVoiceSettings {
@@ -625,8 +628,14 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
         // Edge neural ("Online (Natural)"), Chrome network ("Google"), Apple ("Enhanced"/"Premium"/"Siri"), then legacy SAPI.
         quality_markers: ["Online (Natural)", "Natural", "Google", "Neural", "Enhanced", "Premium", "Siri"],
         gender_order: ["female", "male"],
-        female_name_hints: ["Aria", "Jenny", "Zira", "Ava", "Allison", "Susan", "Karen", "Samantha", "Victoria", "Female"],
-        male_name_hints: ["David", "Mark", "Guy", "Daniel", "Alex", "Fred", "Tom", "Male"],
+        female_name_hints: [
+          "Aria", "Jenny", "Zira", "Ava", "Emma", "Michelle", "Ana", "Sonia", "Libby", "Maisie",
+          "Allison", "Susan", "Karen", "Samantha", "Victoria", "Serena", "Moira", "Tessa", "female",
+        ],
+        male_name_hints: [
+          "Guy", "Andrew", "Brian", "Christopher", "Eric", "Roger", "Steffan", "Ryan", "Thomas", "George",
+          "Oliver", "Daniel", "David", "Mark", "Alex", "Fred", "Tom", "Aaron", "Arthur", "male",
+        ],
       },
       labels: {
         group_aria_label: "Read aloud controls",
@@ -641,6 +650,10 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
         speed_aria_label: "Reading speed",
         rate_suffix: "×",
         finished_announcement: "Finished reading preview pages.",
+        fallback_advisory_text:
+          "ExpanPress uses its own high-quality, context-aware voices. Your current browser does not support Opus audio, so playback switched to a simpler built-in browser voice. For the full studio narration experience, please use or update to a modern browser.",
+        fallback_advisory_link_label: "Browser upgrade options",
+        fallback_advisory_link_url: "https://browsehappy.com/",
       },
     },
     text_structure: {
@@ -808,7 +821,7 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     loudnorm_lufs: -16,
     tempo: 1.0,
     voice_tempos: {
-      "c9f39b88-235b-4c2a-851c-3734ce1203be": 1.16,
+      "c9f39b88-235b-4c2a-851c-3734ce1203be": 1.18,
       "3e5cd61a-bacf-4fe3-94b9-751bd1597ae9": 1.0,
     },
     master_filter:
@@ -2038,6 +2051,19 @@ export function loadBookPreviewSection(raw: Record<string, unknown> | undefined)
             fallbacks.push(`read_aloud.labels.${labelKey}`);
             return defaults.read_aloud.labels[labelKey];
           };
+          const raUrlField = (labelKey: "fallback_advisory_link_url"): string => {
+            if (!(labelKey in lRec)) return defaults.read_aloud.labels[labelKey];
+            const rawUrl = lRec[labelKey];
+            if (typeof rawUrl === "string") {
+              const trimmed = rawUrl.trim();
+              if (trimmed.startsWith("https://") && URL.canParse(trimmed)) {
+                const parsed = new URL(trimmed);
+                if (parsed.protocol === "https:" && !parsed.username && !parsed.password) return trimmed;
+              }
+            }
+            fallbacks.push(`read_aloud.labels.${labelKey}`);
+            return defaults.read_aloud.labels[labelKey];
+          };
           raLabels = {
             group_aria_label: raLabelField("group_aria_label"),
             play: raLabelField("play"),
@@ -2051,6 +2077,9 @@ export function loadBookPreviewSection(raw: Record<string, unknown> | undefined)
             speed_aria_label: raLabelField("speed_aria_label"),
             rate_suffix: raLabelField("rate_suffix"),
             finished_announcement: raLabelField("finished_announcement"),
+            fallback_advisory_text: raLabelField("fallback_advisory_text"),
+            fallback_advisory_link_label: raLabelField("fallback_advisory_link_label"),
+            fallback_advisory_link_url: raUrlField("fallback_advisory_link_url"),
           };
         } else {
           fallbacks.push("read_aloud.labels");
