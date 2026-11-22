@@ -1,0 +1,37 @@
+payments/src/delivery.ts
+  s_7e539dcf78d9db::t_34d94250feed17 41
+  s_7e539dcf78d9db::t_185949bed1300b 306
+  s_7e539dcf78d9db::t_fe338b6253603c 264-276
+payments/src/settings_registry.ts
+  s_7e539dcf78d9db::t_800a4666da52b9 627-628
+  s_7e539dcf78d9db::t_7a71e8237d8d90 1297
+  s_7e539dcf78d9db::t_0ad98dd79169a2 1195-1215
+  s_7e539dcf78d9db::t_d50ce200873509 235
+payments/test/landing_disclaimers.test.ts
+  s_7e539dcf78d9db::t_ac2eccc14735d3 1-31,64-68
+  s_7e539dcf78d9db::t_e61a4ec87c8259 32-63
+payments/test/email_font_stack.test.ts
+  s_7e539dcf78d9db::t_9d776a782f7a13 1-56,58-59
+  s_7e539dcf78d9db::t_e8c7ee93ba62dd 57
+web/app/api/billing/checkout/__tests__/route.test.ts
+  s_7e539dcf78d9db::t_5383c3e4c2fb25 545-546,552-570
+  s_7e539dcf78d9db::t_8f55773a87dae5 547-551
+web/__tests__/consistency_surfaces.pairwise.test.ts
+  s_7e539dcf78d9db::t_c4b3619cdacb7b 357-358
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e1f103535e3f4cf4062c8441009b99a8a8d71ed6",
+  "prompts": {},
+  "sessions": {
+    "s_7e539dcf78d9db": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7aec794a-3e95-4ace-bf8d-7a1962c629d9",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}

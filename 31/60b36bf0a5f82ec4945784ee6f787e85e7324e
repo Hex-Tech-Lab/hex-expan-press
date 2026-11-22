@@ -1,0 +1,18 @@
+payments/src/delivery.ts
+  h_e6b68dcbbd0983 264-268
+payments/src/settings_registry.ts
+  h_e6b68dcbbd0983 1201,1204-1208
+payments/test/email_font_stack.test.ts
+  h_e6b68dcbbd0983 17,51-52
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "3160b36bf0a5f82ec4945784ee6f787e85e7324e",
+  "prompts": {},
+  "humans": {
+    "h_e6b68dcbbd0983": {
+      "author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
