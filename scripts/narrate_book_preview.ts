@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -18,12 +19,22 @@ import {
   decodeAudioToNativePcm,
   encodeLoudnormMp3,
   formatChunkForSpeech,
+  isMetadataBookPage,
   NATIVE_SAMPLE_RATE,
+  parsePageSelection,
   probeDurationMs,
+  resolveVoiceFromNarrationSettings,
   trimSilencePcm,
 } from "./narrate_book_preview_audio";
 
-export { assemblePagePcm, formatChunkForSpeech, trimSilencePcm };
+export {
+  assemblePagePcm,
+  formatChunkForSpeech,
+  isMetadataBookPage,
+  parsePageSelection,
+  resolveVoiceFromNarrationSettings,
+  trimSilencePcm,
+};
 
 const MAX_AUDIO_DOWNLOAD_BYTES = 20 * 1024 * 1024;
 
@@ -36,37 +47,23 @@ export interface SpeechChunkPlan {
   spokenText: string;
 }
 
-function parsePageSelection(raw: string | undefined, maxPage: number): Set<number> {
-  if (!raw || !raw.trim()) {
-    return new Set(Array.from({ length: maxPage }, (_, i) => i + 1));
-  }
-  const out = new Set<number>();
-  for (const part of raw.split(",")) {
-    const trimmed = part.trim();
-    if (!trimmed) continue;
-    const rangeMatch = /^(\d+)\s*-\s*(\d+)$/.exec(trimmed);
-    if (rangeMatch) {
-      const startPage = Number.parseInt(rangeMatch[1], 10);
-      const endPage = Number.parseInt(rangeMatch[2], 10);
-      for (let page = Math.min(startPage, endPage); page <= Math.max(startPage, endPage); page++) {
-        if (page >= 1 && page <= maxPage) out.add(page);
-      }
-      continue;
-    }
-    const single = Number.parseInt(trimmed, 10);
-    if (Number.isInteger(single) && single >= 1 && single <= maxPage) {
-      out.add(single);
-    }
-  }
-  return out;
-}
-
 function resolveEnvPath(explicitPath: string | undefined, repoRoot: string): string | null {
-  const candidates = [
-    explicitPath,
-    path.join(repoRoot, GLOBAL.paths.env_file),
-    "/home/kellyb_dev/projects/hex-expan/.env",
-  ].filter((candidate): candidate is string => Boolean(candidate));
+  const candidates: string[] = [];
+  if (explicitPath) candidates.push(explicitPath);
+  candidates.push(path.join(repoRoot, GLOBAL.paths.env_file));
+  try {
+    const commonGitDir = execFileSync("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"], {
+      cwd: repoRoot,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+    if (commonGitDir) {
+      const sharedRoot = path.dirname(commonGitDir);
+      if (sharedRoot !== repoRoot) candidates.push(path.join(sharedRoot, GLOBAL.paths.env_file));
+    }
+  } catch (err) {
+    console.warn("[vcp] git common-dir discovery skipped:", err instanceof Error ? err.message : String(err));
+  }
   for (const candidate of candidates) {
     if (existsSync(candidate)) return candidate;
   }
@@ -83,6 +80,9 @@ async function fetchGetWithRetry(url: string, init: RequestInit, timeoutMs: numb
     try {
       const res = await fetch(url, { ...init, method, signal: AbortSignal.timeout(timeoutMs) });
       if ((res.status === 429 || res.status >= 500) && attempt < 5) {
+        await res.body?.cancel().catch((cancelErr: unknown) => {
+          console.warn("[vcp] retry response body cancel warning:", cancelErr instanceof Error ? cancelErr.message : String(cancelErr));
+        });
         await new Promise((resolve) => setTimeout(resolve, Math.min(2000 * (attempt + 1), 10000)));
         continue;
       }
@@ -239,8 +239,11 @@ async function main(): Promise<void> {
   if (!book.preview_pdf) throw new Error(`Book ${book.id} has no preview_pdf`);
 
   const narration = GLOBAL.voice_narration;
-  const voiceId = getArg("--voice") ?? narration.default_voice_id;
-  const voiceName = getArg("--voice-name") ?? narration.default_voice_name;
+  const { voiceId, voiceName } = resolveVoiceFromNarrationSettings(narration, {
+    preset: getArg("--voice-preset"),
+    voiceId: getArg("--voice"),
+    voiceName: getArg("--voice-name"),
+  });
   const model = getArg("--model") ?? narration.model;
   const concurrency = Math.min(Math.max(Number.parseInt(getArg("--concurrency") ?? "3", 10) || 3, 1), 3);
   const assembleOnly = hasFlag("--assemble-only");
@@ -281,6 +284,7 @@ async function main(): Promise<void> {
   }> = [];
 
   for (let pageIndex = 0; pageIndex < pageCount; pageIndex++) {
+    const isMetadataPage = isMetadataBookPage(pageBlocks[pageIndex] ?? []);
     const modelForPage = buildSpreadAccessibleModel([pageIndex], pageBlocks, GLOBAL.book_preview.read_aloud.max_chunk_chars);
     const pageGroup = modelForPage.pages.at(0);
     const chunks: SpeechChunkPlan[] = [];
@@ -293,7 +297,10 @@ async function main(): Promise<void> {
             blockIndex: chunk.blockIndex,
             blockKind: blockGroup.block.kind,
             text: chunk.text,
-            spokenText: formatChunkForSpeech(chunk.text, blockGroup.block.kind, pageIndex, book.author),
+            spokenText: formatChunkForSpeech(chunk.text, blockGroup.block.kind, {
+              isMetadataPage,
+              authorName: book.author,
+            }),
           });
         }
       }
@@ -346,6 +353,7 @@ async function main(): Promise<void> {
     }
     const usageRes = await fetch(`${GLOBAL.endpoints.voicecreator_api}/v1/usage`, {
       headers: { Authorization: `Bearer ${apiKey}` },
+      signal: AbortSignal.timeout(narration.request_timeout_ms),
     });
     if (usageRes.ok) {
       const usageBody = (await usageRes.json()) as { tokens_used?: number; allowance_remaining?: number };
@@ -373,6 +381,7 @@ async function main(): Promise<void> {
 
     const usageAfterRes = await fetch(`${GLOBAL.endpoints.voicecreator_api}/v1/usage`, {
       headers: { Authorization: `Bearer ${apiKey}` },
+      signal: AbortSignal.timeout(narration.request_timeout_ms),
     });
     if (usageAfterRes.ok) {
       const usageAfter = (await usageAfterRes.json()) as { tokens_used?: number; allowance_remaining?: number };

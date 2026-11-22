@@ -6,8 +6,10 @@ import { loadBookIdentity } from "../book_identity";
 import {
   DEFAULT_GLOBAL,
   loadBookPreviewSection,
+  loadEndpointsSection,
   loadStorefrontSection,
   loadVoiceNarrationSection,
+  VOICE_CREATOR_ALLOWED_ORIGINS,
 } from "../src/settings_registry";
 
 const tmpDirs: string[] = [];
@@ -335,14 +337,18 @@ describe("loadBookIdentity optional media fields", () => {
         bottom_margin_ratio: 0.12,
         fallback_page_height_pt: 792,
         folio_max_scale_ratio: 1.8,
-        folio_pattern: "^\\d{1,3}$",
+        folio_max_digits: 3,
+        allow_roman_folios: false,
+        folio_roman_max_length: 5,
       },
     });
     expect(valid.text_structure.strip_margin_folios).toBe(false);
     expect(valid.text_structure.bottom_margin_ratio).toBe(0.12);
     expect(valid.text_structure.fallback_page_height_pt).toBe(792);
     expect(valid.text_structure.folio_max_scale_ratio).toBe(1.8);
-    expect(valid.text_structure.folio_pattern).toBe("^\\d{1,3}$");
+    expect(valid.text_structure.folio_max_digits).toBe(3);
+    expect(valid.text_structure.allow_roman_folios).toBe(false);
+    expect(valid.text_structure.folio_roman_max_length).toBe(5);
 
     const invalid = loadBookPreviewSection({
       text_structure: {
@@ -350,7 +356,9 @@ describe("loadBookIdentity optional media fields", () => {
         bottom_margin_ratio: 0.9,
         fallback_page_height_pt: 10,
         folio_max_scale_ratio: 99,
-        folio_pattern: "[unclosed(",
+        folio_max_digits: 99,
+        allow_roman_folios: "yes",
+        folio_roman_max_length: 0,
       },
     });
     expect(invalid.text_structure).toEqual(DEFAULT_GLOBAL.book_preview.text_structure);
@@ -362,6 +370,29 @@ describe("loadBookIdentity optional media fields", () => {
     const vnInvalid = loadVoiceNarrationSection({ loudnorm_lufs: 5, mp3_bitrate_kbps: 9999 });
     expect(vnInvalid).toEqual(DEFAULT_GLOBAL.voice_narration);
     expect(warn).toHaveBeenCalledTimes(1);
+
+    for (const badSection of ["invalid", 42, true, [], null]) {
+      warn.mockClear();
+      expect(loadVoiceNarrationSection(badSection)).toEqual(DEFAULT_GLOBAL.voice_narration);
+      expect(warn).toHaveBeenCalledTimes(1);
+    }
+
+    expect(VOICE_CREATOR_ALLOWED_ORIGINS).toContain("https://api.vcp.name");
+    expect(loadEndpointsSection({ voicecreator_api: "https://api.vcp.name/" }).voicecreator_api).toBe(
+      "https://api.vcp.name",
+    );
+    for (const unapproved of [
+      "https://evil.example.com",
+      "http://api.vcp.name",
+      "https://user:pass@api.vcp.name",
+      "https://api.vcp.name/v1?x=1",
+    ]) {
+      warn.mockClear();
+      expect(loadEndpointsSection({ voicecreator_api: unapproved }).voicecreator_api).toBe(
+        DEFAULT_GLOBAL.endpoints.voicecreator_api,
+      );
+      expect(warn).toHaveBeenCalledTimes(1);
+    }
     warn.mockRestore();
   });
 

@@ -75,9 +75,10 @@ export function isSafePreviewAudioManifestPath(
 ): value is string {
   if (typeof value !== "string" || value.trim() === "") return false;
   const v = value.trim();
-  if (v.includes("..") || v.includes("\\")) return false;
-  if (v.startsWith(`${audioBasePath}/`)) {
-    return /^\/books\/[a-z0-9/_-]+\.json$/i.test(v);
+  const base = audioBasePath.replace(/\/+$/, "");
+  if (v.includes("..") || v.includes("\\") || !base.startsWith("/")) return false;
+  if (v.startsWith(`${base}/`)) {
+    return /^[a-z0-9/_-]+\.json$/i.test(v.slice(base.length + 1));
   }
   if (v.startsWith("https://")) return isSafeHttpsUrl(v);
   return false;

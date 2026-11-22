@@ -186,32 +186,25 @@ const SYMBOL_BULLET_RE = /^[•●◦▪▫*-]\s+(.+)$/;
 const NUMBERED_ITEM_RE = /^(\d{1,3}[.)]\s+.+)$/;
 const DOT_LEADER_RE = /(?:\s*\.\s*){4,}/g;
 const STANDALONE_ORDINAL_RE = /^\d{1,3}\.$/;
-
-const compiledFolioRegexCache = new Map<string, RegExp>();
-function getFolioRegex(pattern: string): RegExp | null {
-  let cached = compiledFolioRegexCache.get(pattern);
-  if (cached) return cached;
-  try {
-    cached = new RegExp(pattern, "i");
-    compiledFolioRegexCache.set(pattern, cached);
-    return cached;
-  } catch (err) {
-    console.warn("[book-previewer-text] invalid folio_pattern regex:", err instanceof Error ? err.message : String(err));
-    return null;
-  }
-}
+const FOLIO_DIGITS_RE = /^\d+$/;
+const FOLIO_ROMAN_RE = /^[ivxlcdm]+$/i;
 
 function isStandaloneMarginFolio(
   line: VisualLine,
   effectivePageHeight: number,
   contentBodyHeight: number,
   settings: BookPreviewTextStructureSettings,
-  folioRe: RegExp | null,
 ): boolean {
-  if (!settings.strip_margin_folios || !folioRe || line.y === null) return false;
+  if (!settings.strip_margin_folios || line.y === null) return false;
   if (line.y > effectivePageHeight * settings.bottom_margin_ratio) return false;
   if (line.height > 0 && line.height > contentBodyHeight * settings.folio_max_scale_ratio) return false;
-  return folioRe.test(line.text.trim());
+  const token = line.text.trim();
+  if (!token) return false;
+  if (FOLIO_DIGITS_RE.test(token)) return token.length <= settings.folio_max_digits;
+  if (settings.allow_roman_folios && FOLIO_ROMAN_RE.test(token)) {
+    return token.length <= settings.folio_roman_max_length;
+  }
+  return false;
 }
 
 function itemHeight(item: PdfTextItemLike): number {
@@ -364,7 +357,6 @@ export function extractStructuredPageBlocks(
 ): AccessibleBlock[] {
   const rawLines = groupItemsIntoLines(items, settings.line_y_tolerance);
   if (rawLines.length === 0) return [];
-  const folioRe = getFolioRegex(settings.folio_pattern);
   const maxItemY = rawLines.reduce((max, line) => (line.y !== null && line.y > max ? line.y : max), 0);
   const effectivePageHeight =
     typeof pageHeight === "number" && Number.isFinite(pageHeight) && pageHeight > 0
@@ -372,7 +364,7 @@ export function extractStructuredPageBlocks(
       : Math.max(settings.fallback_page_height_pt, maxItemY * 1.1);
   const nonMarginLines = rawLines.filter((line) => line.y === null || line.y > effectivePageHeight * settings.bottom_margin_ratio);
   const contentBodyHeight = Math.max(computeWeightedMedianHeight(nonMarginLines.length > 0 ? nonMarginLines : rawLines), 1);
-  const filteredLines = rawLines.filter((line) => !isStandaloneMarginFolio(line, effectivePageHeight, contentBodyHeight, settings, folioRe));
+  const filteredLines = rawLines.filter((line) => !isStandaloneMarginFolio(line, effectivePageHeight, contentBodyHeight, settings));
   if (filteredLines.length === 0) return [];
   const bodyHeight = Math.max(computeWeightedMedianHeight(filteredLines), 1);
   const lines = mergeDropCaps(filteredLines, bodyHeight, settings.heading_scale_ratio);

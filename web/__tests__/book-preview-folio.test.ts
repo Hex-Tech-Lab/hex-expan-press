@@ -166,5 +166,24 @@ describe("F-folio: margin page number stripping on real preview PDFs", () => {
 
     const unstripped = extractStructuredPageBlocks(items, { ...ts, strip_margin_folios: false }, 648);
     expect(unstripped.map((b) => b.text)).toEqual(["Main body line above margin.", "2", "5"]);
+
+    const marginWithLabeledNumbers = [
+      { str: "Body paragraph.", hasEOL: true, height: 11.5, transform: [11.5, 0, 0, 11.5, 68, 120] },
+      { str: "Figure 1", hasEOL: true, height: 9, transform: [9, 0, 0, 9, 68, 48] },
+      { str: "Chapter 1", hasEOL: true, height: 9, transform: [9, 0, 0, 9, 68, 36] },
+      { str: "iii", hasEOL: true, height: 9, transform: [9, 0, 0, 9, 220, 28] },
+      { str: "12000", hasEOL: true, height: 9, transform: [9, 0, 0, 9, 220, 6] },
+    ];
+    expect(extractStructuredPageBlocks(marginWithLabeledNumbers, ts, 648).map((b) => b.text)).toEqual([
+      "Body paragraph.",
+      "Figure 1",
+      "Chapter 1",
+      "12000",
+    ]);
+    expect(
+      extractStructuredPageBlocks(marginWithLabeledNumbers, { ...ts, allow_roman_folios: false }, 648).map(
+        (b) => b.text,
+      ),
+    ).toContain("iii");
   });
 });

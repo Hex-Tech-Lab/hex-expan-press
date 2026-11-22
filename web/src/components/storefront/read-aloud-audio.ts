@@ -1,5 +1,12 @@
 import type { ReadAloudChunk } from "./book-previewer-text";
 
+export interface PreviewAudioTimingWord {
+  start: number;
+  end: number;
+  startMs: number;
+  endMs: number;
+}
+
 export interface PreviewAudioTimingChunk {
   id: string;
   blockIndex: number;
@@ -8,6 +15,7 @@ export interface PreviewAudioTimingChunk {
   startMs: number;
   endMs: number;
   tokensCharged?: number;
+  words?: PreviewAudioTimingWord[];
 }
 
 export interface PreviewAudioPageTrack {
@@ -35,11 +43,14 @@ export function detectAudioSupport(): boolean {
   return typeof window !== "undefined" && typeof window.Audio === "function";
 }
 
-export function isSafeAudioTrackUrl(value: unknown): value is string {
+export function isSafeAudioTrackUrl(value: unknown, audioBasePath = "/books/audio"): value is string {
   if (typeof value !== "string" || value.trim() === "") return false;
   const trimmed = value.trim();
+  const base = audioBasePath.replace(/\/+$/, "");
   if (trimmed.includes("..") || trimmed.includes("\\")) return false;
-  if (/^\/books\/audio\/[a-z0-9/_-]+\.(?:mp3|wav|ogg|m4a)$/i.test(trimmed)) return true;
+  if (base.startsWith("/") && !base.includes("..") && !base.includes("\\") && trimmed.startsWith(`${base}/`)) {
+    return /^[a-z0-9/_-]+\.(?:mp3|wav|ogg|m4a)$/i.test(trimmed.slice(base.length + 1));
+  }
   if (trimmed.startsWith("https://") && URL.canParse(trimmed)) {
     const parsedUrl = new URL(trimmed);
     return parsedUrl.protocol === "https:" && !parsedUrl.username && !parsedUrl.password;
@@ -47,7 +58,34 @@ export function isSafeAudioTrackUrl(value: unknown): value is string {
   return false;
 }
 
-export function parsePreviewAudioManifest(raw: unknown): PreviewAudioManifest | null {
+function parseTimingWords(raw: unknown): PreviewAudioTimingWord[] | undefined {
+  if (!Array.isArray(raw) || raw.length === 0) return undefined;
+  const words: PreviewAudioTimingWord[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) continue;
+    const rec = item as Record<string, unknown>;
+    if (
+      typeof rec.start === "number" &&
+      Number.isInteger(rec.start) &&
+      rec.start >= 0 &&
+      typeof rec.end === "number" &&
+      Number.isInteger(rec.end) &&
+      rec.end > rec.start &&
+      typeof rec.startMs === "number" &&
+      Number.isFinite(rec.startMs) &&
+      typeof rec.endMs === "number" &&
+      Number.isFinite(rec.endMs) &&
+      rec.endMs >= rec.startMs
+    ) {
+      words.push({ start: rec.start, end: rec.end, startMs: rec.startMs, endMs: rec.endMs });
+    }
+  }
+  if (words.length === 0) return undefined;
+  words.sort((a, b) => a.startMs - b.startMs);
+  return words;
+}
+
+export function parsePreviewAudioManifest(raw: unknown, audioBasePath = "/books/audio"): PreviewAudioManifest | null {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
   const rec = raw as Record<string, unknown>;
   if (rec.version !== 1 || !rec.pages || typeof rec.pages !== "object" || Array.isArray(rec.pages)) {
@@ -62,7 +100,7 @@ export function parsePreviewAudioManifest(raw: unknown): PreviewAudioManifest | 
       !Number.isInteger(trackRec.pageIndex) ||
       typeof trackRec.pdfPageNumber !== "number" ||
       !Number.isInteger(trackRec.pdfPageNumber) ||
-      !isSafeAudioTrackUrl(trackRec.audioUrl) ||
+      !isSafeAudioTrackUrl(trackRec.audioUrl, audioBasePath) ||
       typeof trackRec.durationMs !== "number" ||
       !Number.isFinite(trackRec.durationMs) ||
       !Array.isArray(trackRec.chunks)
@@ -90,6 +128,7 @@ export function parsePreviewAudioManifest(raw: unknown): PreviewAudioManifest | 
         chunksOk = false;
         break;
       }
+      const words = parseTimingWords(chunkRec.words);
       validChunks.push({
         id: chunkRec.id,
         blockIndex: chunkRec.blockIndex,
@@ -98,6 +137,7 @@ export function parsePreviewAudioManifest(raw: unknown): PreviewAudioManifest | 
         startMs: chunkRec.startMs,
         endMs: chunkRec.endMs,
         ...(typeof chunkRec.tokensCharged === "number" ? { tokensCharged: chunkRec.tokensCharged } : {}),
+        ...(words ? { words } : {}),
       });
     }
     if (!chunksOk || validChunks.length === 0) continue;
@@ -134,11 +174,11 @@ export function applyAudioPlaybackRate(audio: HTMLAudioElement, rate: number): v
   if ("mozPreservesPitch" in ext) ext.mozPreservesPitch = true;
 }
 
-export function chunkIndexForTrackTime(
-  track: PreviewAudioPageTrack,
-  timeSec: number,
-  allChunks: ReadonlyArray<ReadAloudChunk>,
-): number | null {
+function normalizeChunkText(text: string): string {
+  return text.replace(/\s+/g, " ").trim();
+}
+
+function matchedTimingChunk(track: PreviewAudioPageTrack, timeSec: number): PreviewAudioTimingChunk | null {
   if (track.chunks.length === 0) return null;
   const posMs = Math.max(0, timeSec * 1000);
   let matched = track.chunks[0];
@@ -149,8 +189,54 @@ export function chunkIndexForTrackTime(
       break;
     }
   }
+  return matched;
+}
+
+export function chunkIndexForTrackTime(
+  track: PreviewAudioPageTrack,
+  timeSec: number,
+  allChunks: ReadonlyArray<ReadAloudChunk>,
+): number | null {
+  const matched = matchedTimingChunk(track, timeSec);
+  if (!matched) return null;
   const idx = allChunks.findIndex((chunk) => chunk.id === matched.id);
   return idx >= 0 ? idx : null;
+}
+
+export function activeWordForTrackTime(
+  track: PreviewAudioPageTrack,
+  timeSec: number,
+): { chunkId: string; start: number; end: number } | null {
+  const matched = matchedTimingChunk(track, timeSec);
+  if (!matched) return null;
+  const posMs = Math.max(0, timeSec * 1000);
+  if (posMs < matched.startMs || posMs > matched.endMs) return null;
+  if (matched.words && matched.words.length > 0) {
+    let picked = matched.words[0];
+    for (let i = 1; i < matched.words.length; i++) {
+      if (matched.words[i].startMs <= posMs) picked = matched.words[i];
+      else break;
+    }
+    const end = Math.min(picked.end, matched.text.length);
+    return end > picked.start ? { chunkId: matched.id, start: picked.start, end } : null;
+  }
+  const tokens: Array<{ start: number; end: number; weight: number }> = [];
+  let match: RegExpExecArray | null;
+  const wordRe = /\S+/g;
+  while ((match = wordRe.exec(matched.text)) !== null) {
+    tokens.push({ start: match.index, end: match.index + match[0].length, weight: Math.max(1, match[0].length) });
+  }
+  if (tokens.length === 0) return null;
+  const totalWeight = tokens.reduce((acc, token) => acc + token.weight, 0);
+  const progressRatio = (posMs - matched.startMs) / Math.max(1, matched.endMs - matched.startMs);
+  const targetWeight = progressRatio * totalWeight;
+  let running = 0;
+  for (const token of tokens) {
+    running += token.weight;
+    if (running >= targetWeight) return { chunkId: matched.id, start: token.start, end: token.end };
+  }
+  const lastToken = tokens[tokens.length - 1];
+  return { chunkId: matched.id, start: lastToken.start, end: lastToken.end };
 }
 
 export function resolveSpreadAudioTracks(
@@ -172,10 +258,19 @@ export function resolveSpreadAudioTracks(
   const tracks: PreviewAudioPageTrack[] = [];
   for (const pageIndex of pageOrder) {
     const track = manifest.pages[String(pageIndex + 1)];
-    if (!track || track.chunks.length === 0) return null;
-    const trackIds = new Set(track.chunks.map((tc) => tc.id));
     const pageChunks = byPage.get(pageIndex) ?? [];
-    if (!pageChunks.every((chunk) => trackIds.has(chunk.id))) return null;
+    if (!track || track.chunks.length === 0 || track.chunks.length !== pageChunks.length) return null;
+    for (let i = 0; i < pageChunks.length; i++) {
+      const expected = pageChunks[i];
+      const timed = track.chunks[i];
+      if (
+        timed.id !== expected.id ||
+        timed.blockIndex !== expected.blockIndex ||
+        normalizeChunkText(timed.text) !== normalizeChunkText(expected.text)
+      ) {
+        return null;
+      }
+    }
     tracks.push(track);
   }
   return tracks.length > 0 ? tracks : null;

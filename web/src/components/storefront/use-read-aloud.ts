@@ -6,6 +6,7 @@ import type { ReadAloudChunk } from "./book-previewer-text";
 import type { ReadAloudState } from "./book-preview-accessible-card";
 import { rankVoice } from "./read-aloud-voice";
 import {
+  activeWordForTrackTime,
   applyAudioPlaybackRate,
   chunkIndexForTrackTime,
   detectAudioSupport,
@@ -57,6 +58,7 @@ export function useReadAloud(
   raSettings: BookPreviewReadAloudSettings,
   onExpandPanel: () => void,
   audioManifestUrl?: string | null,
+  audioBasePath = "/books/audio",
 ) {
   const [playbackState, setPlaybackState] = useState<ReadAloudState>("idle");
   const [activeChunk, setActiveChunk] = useState<{ idx: number; key: string } | null>(null);
@@ -68,7 +70,11 @@ export function useReadAloud(
     return idx >= 0 ? idx : 0;
   });
   const [speechAnnouncement, setSpeechAnnouncement] = useState("");
-  const [loadedManifest, setLoadedManifest] = useState<{ url: string; manifest: PreviewAudioManifest } | null>(null);
+  const [loadedManifest, setLoadedManifest] = useState<{
+    url: string;
+    basePath: string;
+    manifest: PreviewAudioManifest;
+  } | null>(null);
 
   const speechSessionRef = useRef(0);
   const pausedAtRateRef = useRef<number | null>(null);
@@ -100,8 +106,8 @@ export function useReadAloud(
       .then((res) => (res.ok ? res.json() : null))
       .then((raw) => {
         if (cancelled) return;
-        const parsed = parsePreviewAudioManifest(raw);
-        if (parsed) setLoadedManifest({ url: audioManifestUrl, manifest: parsed });
+        const parsed = parsePreviewAudioManifest(raw, audioBasePath);
+        if (parsed) setLoadedManifest({ url: audioManifestUrl, basePath: audioBasePath, manifest: parsed });
       })
       .catch((err) => {
         if (!cancelled && (err as { name?: string } | null)?.name !== "AbortError") {
@@ -112,9 +118,12 @@ export function useReadAloud(
       cancelled = true;
       controller.abort();
     };
-  }, [raSettings.enabled, audioManifestUrl]);
+  }, [raSettings.enabled, audioManifestUrl, audioBasePath]);
 
-  const manifest = audioManifestUrl && loadedManifest?.url === audioManifestUrl ? loadedManifest.manifest : null;
+  const manifest =
+    audioManifestUrl && loadedManifest?.url === audioManifestUrl && loadedManifest.basePath === audioBasePath
+      ? loadedManifest.manifest
+      : null;
   const prebakedTracks = useMemo(() => resolveSpreadAudioTracks(manifest, chunks), [manifest, chunks]);
   const audioSupported = Boolean(audioElementSupported && prebakedTracks);
   const readAloudSupported = audioSupported || speechSupported;
@@ -299,6 +308,19 @@ export function useReadAloud(
         audioQueueRef.current = { tracks, trackIdx };
         const initialIdx = chunkIndexForTrackTime(track, 0, chunks);
         if (initialIdx !== null) setActiveChunk({ idx: initialIdx, key: chunkKey });
+        const syncWordForTime = (timeSec: number) => {
+          if (!raSettings.highlight_words) {
+            setActiveWord(null);
+            return;
+          }
+          const nextWord = activeWordForTrackTime(track, timeSec);
+          setActiveWord((prev) =>
+            prev?.chunkId === nextWord?.chunkId && prev?.start === nextWord?.start && prev?.end === nextWord?.end
+              ? prev
+              : nextWord,
+          );
+        };
+        syncWordForTime(0);
 
         const fallbackToSpeech = (reason: unknown) => {
           if (stale()) return;
@@ -317,6 +339,7 @@ export function useReadAloud(
           if (nextIdx !== null) {
             setActiveChunk((prev) => (prev?.key === chunkKey && prev.idx === nextIdx ? prev : { idx: nextIdx, key: chunkKey }));
           }
+          syncWordForTime(audio.currentTime);
         };
         audio.onended = () => {
           if (!stale()) startTrack(trackIdx + 1);
@@ -336,7 +359,7 @@ export function useReadAloud(
       rateRef.current = rate;
       startTrack(startTrackIdx);
     },
-    [chunks, chunkKey, raSettings.labels.finished_announcement, speakFromIndex, stopReadAloud],
+    [chunks, chunkKey, raSettings.highlight_words, raSettings.labels.finished_announcement, speakFromIndex, stopReadAloud],
   );
 
   const startFromTop = useCallback(

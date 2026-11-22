@@ -3,7 +3,7 @@ import * as React from "react";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { DEFAULT_GLOBAL } from "../../payments/src/settings_registry";
+import { DEFAULT_GLOBAL, type BookPreviewReadAloudSettings } from "../../payments/src/settings_registry";
 import type { PreviewAudioManifest, ReadAloudChunk } from "../src/components/storefront/book-previewer-text";
 import { useReadAloud } from "../src/components/storefront/use-read-aloud";
 
@@ -109,23 +109,26 @@ describe("useReadAloud pre-baked audio manifest + timings sync + Web Speech fall
   let onExpand: ReturnType<typeof vi.fn>;
   let currentChunks: ReadAloudChunk[] = spreadChunks;
   let currentManifestUrl: string | null = "/books/audio/sample_the_quiet_workshop/timings.json";
+  let currentAudioBasePath = "/books/audio";
+  let currentSettings: BookPreviewReadAloudSettings = DEFAULT_GLOBAL.book_preview.read_aloud;
 
   function Harness() {
     latest = useReadAloud(
       currentChunks,
-      DEFAULT_GLOBAL.book_preview.read_aloud,
+      currentSettings,
       () => onExpand(),
       currentManifestUrl,
+      currentAudioBasePath,
     );
     return null;
   }
 
-  async function mount(manifestOk = true) {
+  async function mount(manifestOk = true, manifestOverride: PreviewAudioManifest = SAMPLE_MANIFEST) {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () =>
         manifestOk
-          ? new Response(JSON.stringify(SAMPLE_MANIFEST), { status: 200, headers: { "Content-Type": "application/json" } })
+          ? new Response(JSON.stringify(manifestOverride), { status: 200, headers: { "Content-Type": "application/json" } })
           : new Response("Not Found", { status: 404 }),
       ),
     );
@@ -144,6 +147,8 @@ describe("useReadAloud pre-baked audio manifest + timings sync + Web Speech fall
     MockAudioElement.instances = [];
     currentChunks = spreadChunks;
     currentManifestUrl = "/books/audio/sample_the_quiet_workshop/timings.json";
+    currentAudioBasePath = "/books/audio";
+    currentSettings = DEFAULT_GLOBAL.book_preview.read_aloud;
     onExpand = vi.fn();
     delete (window as unknown as { speechSynthesis?: unknown }).speechSynthesis;
     delete (window as unknown as { SpeechSynthesisUtterance?: unknown }).SpeechSynthesisUtterance;
@@ -302,5 +307,75 @@ describe("useReadAloud pre-baked audio manifest + timings sync + Web Speech fall
     });
     expect(speak).toHaveBeenCalledTimes(1);
     expect((speak.mock.calls[0][0] as FakeUtterance).text).toBe(spreadChunks[0].text);
+  });
+
+  it("supports custom audioBasePath, rejects stale manifests with mismatched text, and updates activeWord when highlight_words=true", async () => {
+    // 1) Custom audioBasePath accepts matching track URLs and ignores mismatched prefixes
+    currentAudioBasePath = "/books/audio_v2";
+    currentManifestUrl = "/books/audio_v2/sample/timings.json";
+    const customManifest: PreviewAudioManifest = {
+      ...SAMPLE_MANIFEST,
+      pages: {
+        ...SAMPLE_MANIFEST.pages,
+        "2": { ...SAMPLE_MANIFEST.pages["2"], audioUrl: "/books/audio_v2/sample/page-02.mp3" },
+        "3": { ...SAMPLE_MANIFEST.pages["3"], audioUrl: "/books/audio_v2/sample/page-03.mp3" },
+      },
+    };
+    await mount(true, customManifest);
+    expect(latest.audioSupported).toBe(true);
+    await root.unmount();
+    container.remove();
+
+    // Default prefix inside customBasePath is rejected
+    await mount(true, SAMPLE_MANIFEST);
+    expect(latest.audioSupported).toBe(false);
+    await root.unmount();
+    container.remove();
+
+    // 2) Stale manifest matching IDs/blockIndex but different text is rejected
+    currentAudioBasePath = "/books/audio";
+    currentManifestUrl = "/books/audio/sample_the_quiet_workshop/timings.json";
+    const staleManifest: PreviewAudioManifest = {
+      ...SAMPLE_MANIFEST,
+      pages: {
+        ...SAMPLE_MANIFEST.pages,
+        "2": {
+          ...SAMPLE_MANIFEST.pages["2"],
+          chunks: [
+            { id: "p1-b0-s0", blockIndex: 0, text: "Stale outdated title", startMs: 120, endMs: 1800 },
+            SAMPLE_MANIFEST.pages["2"].chunks[1],
+          ],
+        },
+      },
+    };
+    await mount(true, staleManifest);
+    expect(latest.audioSupported).toBe(false);
+    await root.unmount();
+    container.remove();
+
+    // 3) highlight_words=true drives activeWord during timeupdate and stays null in silence gaps
+    currentSettings = { ...DEFAULT_GLOBAL.book_preview.read_aloud, highlight_words: true };
+    await mount(true, SAMPLE_MANIFEST);
+    await act(async () => latest.handlePlayPauseResume());
+    const audio = MockAudioElement.instances[0];
+    expect(latest.activeWord).toBeNull();
+
+    await act(async () => {
+      audio.currentTime = 0.2; // 200ms -> "The"
+      audio.ontimeupdate?.();
+    });
+    expect(latest.activeWord).toEqual({ chunkId: "p1-b0-s0", start: 0, end: 3 });
+
+    await act(async () => {
+      audio.currentTime = 1.5; // 1500ms -> "Workshop"
+      audio.ontimeupdate?.();
+    });
+    expect(latest.activeWord).toEqual({ chunkId: "p1-b0-s0", start: 10, end: 18 });
+
+    await act(async () => {
+      audio.currentTime = 2.0; // silence gap between chunks -> cleared
+      audio.ontimeupdate?.();
+    });
+    expect(latest.activeWord).toBeNull();
   });
 });

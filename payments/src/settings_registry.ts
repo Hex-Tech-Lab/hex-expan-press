@@ -403,8 +403,12 @@ export interface BookPreviewTextStructureSettings {
   fallback_page_height_pt: number;
   /** Maximum scale ratio relative to median body height for a bottom-margin folio line. */
   folio_max_scale_ratio: number;
-  /** Case-insensitive regex matching standalone footer folio tokens (digits or roman numerals). */
-  folio_pattern: string;
+  /** Maximum digit count matched for standalone arabic footer folios (1..8). */
+  folio_max_digits: number;
+  /** Whether lowercase/uppercase roman numeral folios (e.g. "iii") in the bottom margin are stripped. */
+  allow_roman_folios: boolean;
+  /** Maximum length matched for standalone roman footer folios (1..16). */
+  folio_roman_max_length: number;
   toggle_single: string;
   toggle_plural: string;
   page_label_prefix: string;
@@ -634,7 +638,9 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
       bottom_margin_ratio: 0.085,
       fallback_page_height_pt: 648,
       folio_max_scale_ratio: 1.5,
-      folio_pattern: "^(?:\\d{1,4}|[ivxlcdm]{1,7})$",
+      folio_max_digits: 4,
+      allow_roman_folios: true,
+      folio_roman_max_length: 7,
       toggle_single: "Accessible text for visible preview page",
       toggle_plural: "Accessible text for visible preview pages",
       page_label_prefix: "Page",
@@ -1352,6 +1358,51 @@ export function loadBrandingSection(raw: Record<string, unknown> | undefined): B
   };
 }
 
+export const VOICE_CREATOR_ALLOWED_ORIGINS = ["https://api.vcp.name"] as const;
+
+function parseApprovedHttpsOrigin(candidate: unknown, allowedOrigins: readonly string[]): string | null {
+  if (typeof candidate !== "string" || !URL.canParse(candidate)) return null;
+  const url = new URL(candidate);
+  const bare =
+    url.protocol === "https:" &&
+    allowedOrigins.includes(url.origin) &&
+    url.username === "" &&
+    url.password === "" &&
+    (url.pathname === "/" || url.pathname === "") &&
+    url.search === "" &&
+    url.hash === "";
+  return bare ? url.origin : null;
+}
+
+export function loadEndpointsSection(raw: unknown): GlobalSettings["endpoints"] {
+  const defaults = DEFAULT_GLOBAL.endpoints;
+  if (raw === undefined) return defaults;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    warnFallback("global.json", "invalid endpoints section (expected object)");
+    return defaults;
+  }
+  const rec = raw as Record<string, unknown>;
+  const fallbacks: string[] = [];
+  const httpsEndpoint = (key: "openrouter_chat" | "openrouter_stt"): string => {
+    if (!(key in rec)) return defaults[key];
+    if (isHttpsUrl(rec[key])) return (rec[key] as string).trim();
+    fallbacks.push(key);
+    return defaults[key];
+  };
+  let voicecreatorApi = defaults.voicecreator_api;
+  if ("voicecreator_api" in rec) {
+    const approved = parseApprovedHttpsOrigin(rec.voicecreator_api, VOICE_CREATOR_ALLOWED_ORIGINS);
+    if (approved) voicecreatorApi = approved;
+    else fallbacks.push("voicecreator_api");
+  }
+  if (fallbacks.length > 0) warnFallback("global.json", `invalid endpoints values for ${fallbacks.join(", ")}`);
+  return {
+    openrouter_chat: httpsEndpoint("openrouter_chat"),
+    openrouter_stt: httpsEndpoint("openrouter_stt"),
+    voicecreator_api: voicecreatorApi,
+  };
+}
+
 function loadGlobal(): GlobalSettings {
   const raw = readRegistryFile("global.json");
   if (!raw) {
@@ -1369,13 +1420,7 @@ function loadGlobal(): GlobalSettings {
     ...DEFAULT_GLOBAL,
     ...g,
     paths: { ...DEFAULT_GLOBAL.paths, ...(g.paths ?? {}) },
-    endpoints: {
-      ...DEFAULT_GLOBAL.endpoints,
-      ...(g.endpoints ?? {}),
-      voicecreator_api: isHttpsUrl((g.endpoints as Record<string, unknown> | undefined)?.voicecreator_api)
-        ? ((g.endpoints as Record<string, unknown>).voicecreator_api as string)
-        : DEFAULT_GLOBAL.endpoints.voicecreator_api,
-    },
+    endpoints: loadEndpointsSection(g.endpoints),
     tool_paths: { ...DEFAULT_GLOBAL.tool_paths, ...(g.tool_paths ?? {}) },
     server: { ...DEFAULT_GLOBAL.server, ...(g.server ?? {}) },
     defaults: { ...DEFAULT_GLOBAL.defaults, ...(g.defaults ?? {}) },
@@ -1736,7 +1781,8 @@ export const BOOK_PREVIEW_LIMITS = {
   text_bottom_margin_ratio: { min: 0.01, max: 0.25 },
   text_fallback_page_height_pt: { min: 200, max: 2000 },
   text_folio_max_scale_ratio: { min: 0.5, max: 3.0 },
-  text_folio_pattern_max_len: 120,
+  text_folio_max_digits: { min: 1, max: 8 },
+  text_folio_roman_max_length: { min: 1, max: 16 },
 } as const;
 
 /** BCP 47 primary subtag plus optional subtags, e.g. "en", "en-US", "zh-Hant-TW". Structural format check only. */
@@ -2068,25 +2114,40 @@ export function loadBookPreviewSection(raw: Record<string, unknown> | undefined)
         else fallbacks.push("text_structure.strip_margin_folios");
       }
 
-      let folioPattern = defaults.text_structure.folio_pattern;
-      if ("folio_pattern" in rec) {
-        const candidate = rec.folio_pattern;
-        let validPattern = false;
+      let folioMaxDigits = defaults.text_structure.folio_max_digits;
+      if ("folio_max_digits" in rec) {
         if (
-          typeof candidate === "string" &&
-          candidate.trim() !== "" &&
-          candidate.trim().length <= BOOK_PREVIEW_LIMITS.text_folio_pattern_max_len
+          intInRange(
+            rec.folio_max_digits,
+            BOOK_PREVIEW_LIMITS.text_folio_max_digits.min,
+            BOOK_PREVIEW_LIMITS.text_folio_max_digits.max,
+          )
         ) {
-          try {
-            new RegExp(candidate.trim(), "i");
-            validPattern = true;
-          } catch (err) {
-            console.warn("[settings-registry] invalid folio_pattern regex:", err instanceof Error ? err.message : String(err));
-            validPattern = false;
-          }
+          folioMaxDigits = rec.folio_max_digits;
+        } else {
+          fallbacks.push("text_structure.folio_max_digits");
         }
-        if (validPattern) folioPattern = (candidate as string).trim();
-        else fallbacks.push("text_structure.folio_pattern");
+      }
+
+      let allowRomanFolios = defaults.text_structure.allow_roman_folios;
+      if ("allow_roman_folios" in rec) {
+        if (typeof rec.allow_roman_folios === "boolean") allowRomanFolios = rec.allow_roman_folios;
+        else fallbacks.push("text_structure.allow_roman_folios");
+      }
+
+      let folioRomanMaxLength = defaults.text_structure.folio_roman_max_length;
+      if ("folio_roman_max_length" in rec) {
+        if (
+          intInRange(
+            rec.folio_roman_max_length,
+            BOOK_PREVIEW_LIMITS.text_folio_roman_max_length.min,
+            BOOK_PREVIEW_LIMITS.text_folio_roman_max_length.max,
+          )
+        ) {
+          folioRomanMaxLength = rec.folio_roman_max_length;
+        } else {
+          fallbacks.push("text_structure.folio_roman_max_length");
+        }
       }
 
       textStructure = {
@@ -2099,7 +2160,9 @@ export function loadBookPreviewSection(raw: Record<string, unknown> | undefined)
         bottom_margin_ratio: tsFloat("bottom_margin_ratio", "text_bottom_margin_ratio"),
         fallback_page_height_pt: tsFloat("fallback_page_height_pt", "text_fallback_page_height_pt"),
         folio_max_scale_ratio: tsFloat("folio_max_scale_ratio", "text_folio_max_scale_ratio"),
-        folio_pattern: folioPattern,
+        folio_max_digits: folioMaxDigits,
+        allow_roman_folios: allowRomanFolios,
+        folio_roman_max_length: folioRomanMaxLength,
         toggle_single: tsStr("toggle_single"),
         toggle_plural: tsStr("toggle_plural"),
         page_label_prefix: tsStr("page_label_prefix"),
@@ -2610,9 +2673,14 @@ export const VOICE_NARRATION_LIMITS = {
   request_timeout_ms: { min: 5000, max: 180000 },
 } as const;
 
-export function loadVoiceNarrationSection(raw: Record<string, unknown> | undefined): VoiceNarrationSettings {
+export function loadVoiceNarrationSection(raw: unknown): VoiceNarrationSettings {
   const defaults = DEFAULT_GLOBAL.voice_narration;
-  if (!raw) return defaults;
+  if (raw === undefined) return defaults;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    warnFallback("global.json", "invalid voice_narration section (expected object)");
+    return defaults;
+  }
+  const rec = raw as Record<string, unknown>;
   const fallbacks: string[] = [];
   const strField = (
     key:
@@ -2623,15 +2691,15 @@ export function loadVoiceNarrationSection(raw: Record<string, unknown> | undefin
       | "fallback_female_voice_id"
       | "fallback_female_voice_name",
   ): string => {
-    if (!(key in raw)) return defaults[key];
-    const v = raw[key];
+    if (!(key in rec)) return defaults[key];
+    const v = rec[key];
     if (typeof v === "string" && v.trim() !== "") return v.trim();
     fallbacks.push(key);
     return defaults[key];
   };
   const numField = (key: keyof typeof VOICE_NARRATION_LIMITS, intOnly: boolean): number => {
-    if (!(key in raw)) return defaults[key];
-    const v = raw[key];
+    if (!(key in rec)) return defaults[key];
+    const v = rec[key];
     const { min, max } = VOICE_NARRATION_LIMITS[key];
     const ok = intOnly ? intInRange(v, min, max) : typeof v === "number" && Number.isFinite(v) && v >= min && v <= max;
     if (ok) return v as number;

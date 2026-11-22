@@ -1,4 +1,5 @@
 import { execFileSync, spawnSync } from "node:child_process";
+import type { VoiceNarrationSettings } from "../payments/src/settings_registry";
 import type { AccessibleBlock, PreviewAudioTimingChunk } from "../web/src/components/storefront/book-previewer-text";
 
 export const NATIVE_SAMPLE_RATE = 24000;
@@ -9,6 +10,75 @@ const ROMAN_YEAR_MAP: Record<string, string> = {
   MMXXVI: "2026",
   MMXXVII: "2027",
 };
+const METADATA_CUES_RE =
+  /^(?:D\s+E\s+T\s*A\s+I\s+L\s+S|A\s+B\s+O\s+U\s+T\s+T\s+H\s+E\s+A\s+U\s+T\s+H\s+O\s+R|Sample:\s*Chapter\b|Trim\b.*\bLanguage\b)|\|\s*MMXX[IVX]+\b/i;
+
+export function parsePageSelection(raw: string | undefined, maxPage: number): Set<number> {
+  if (raw === undefined) {
+    return new Set(Array.from({ length: maxPage }, (_, i) => i + 1));
+  }
+  if (!raw.trim()) {
+    throw new Error(`Invalid --pages selector "${raw}": matched 0 valid pages in 1..${maxPage}`);
+  }
+  const out = new Set<number>();
+  for (const part of raw.split(",")) {
+    const trimmed = part.trim();
+    if (!trimmed) continue;
+    const rangeMatch = /^(\d+)\s*-\s*(\d+)$/.exec(trimmed);
+    if (rangeMatch) {
+      const startPage = Number.parseInt(rangeMatch[1], 10);
+      const endPage = Number.parseInt(rangeMatch[2], 10);
+      if (startPage < 1 || endPage < 1 || startPage > maxPage || endPage > maxPage) {
+        throw new Error(`Invalid --pages range "${trimmed}": must stay within 1..${maxPage}`);
+      }
+      for (let page = Math.min(startPage, endPage); page <= Math.max(startPage, endPage); page++) {
+        out.add(page);
+      }
+      continue;
+    }
+    if (!/^\d+$/.test(trimmed)) {
+      throw new Error(`Invalid --pages entry "${trimmed}": expected page number or range within 1..${maxPage}`);
+    }
+    const single = Number.parseInt(trimmed, 10);
+    if (single < 1 || single > maxPage) {
+      throw new Error(`Invalid --pages value ${single}: must stay within 1..${maxPage}`);
+    }
+    out.add(single);
+  }
+  if (out.size === 0) {
+    throw new Error(`Invalid --pages selector "${raw}": matched 0 valid pages in 1..${maxPage}`);
+  }
+  return out;
+}
+
+export function resolveVoiceFromNarrationSettings(
+  narration: VoiceNarrationSettings,
+  opts: { preset?: string; voiceId?: string; voiceName?: string } = {},
+): { voiceId: string; voiceName: string; preset: "male" | "female" } {
+  const rawPreset = opts.preset?.trim().toLowerCase();
+  if (rawPreset && rawPreset !== "male" && rawPreset !== "female") {
+    throw new Error(`Unsupported --voice-preset "${opts.preset}"; expected "male" or "female"`);
+  }
+  const preset: "male" | "female" = rawPreset === "female" ? "female" : "male";
+  const defaultId = preset === "female" ? narration.fallback_female_voice_id : narration.default_voice_id;
+  const defaultName = preset === "female" ? narration.fallback_female_voice_name : narration.default_voice_name;
+  return {
+    preset,
+    voiceId: opts.voiceId?.trim() || defaultId,
+    voiceName: opts.voiceName?.trim() || defaultName,
+  };
+}
+
+/** Derives whether an extracted PDF page is discrete cover/TOC/back-cover metadata rather than flowing prose. */
+export function isMetadataBookPage(blocks: ReadonlyArray<AccessibleBlock>): boolean {
+  if (blocks.length === 0) return false;
+  if (blocks.every((block) => block.kind !== "paragraph")) return true;
+  const paragraphBlocks = blocks.filter((block) => block.kind === "paragraph");
+  const maxParagraphLen = paragraphBlocks.reduce((max, block) => Math.max(max, block.text.trim().length), 0);
+  const hasMetadataCue = blocks.some((block) => METADATA_CUES_RE.test(block.text.trim()));
+  if (hasMetadataCue && maxParagraphLen <= 180) return true;
+  return blocks.length <= 6 && blocks.every((block) => block.text.trim().length <= 120);
+}
 
 function toTitleCaseWords(input: string): string {
   return input
@@ -20,8 +90,7 @@ function toTitleCaseWords(input: string): string {
 export function formatChunkForSpeech(
   text: string,
   blockKind: AccessibleBlock["kind"],
-  pageIndex: number,
-  authorName?: string,
+  options: { isMetadataPage?: boolean; authorName?: string } = {},
 ): string {
   let normalized = text.replace(/\s+/g, " ").trim();
   if (!normalized) return "";
@@ -48,17 +117,17 @@ export function formatChunkForSpeech(
     normalized = normalized.replace(/(\d)\s*×\s*(\d)/g, "$1 by $2");
   }
 
-  if (pageIndex <= 1) {
+  if (options.isMetadataPage) {
     if (normalized === normalized.toUpperCase() && /[A-Z]{2,}/.test(normalized)) {
       if (normalized === "EXPANPRESS") {
         normalized = "ExpanPress";
-      } else if (authorName && normalized === authorName.toUpperCase()) {
-        normalized = `By ${authorName}`;
+      } else if (options.authorName && normalized === options.authorName.toUpperCase()) {
+        normalized = `By ${options.authorName}`;
       } else {
         normalized = toTitleCaseWords(normalized);
       }
-    } else if (authorName && normalized === authorName) {
-      normalized = `By ${authorName}`;
+    } else if (options.authorName && normalized === options.authorName) {
+      normalized = `By ${options.authorName}`;
     }
   }
 
@@ -67,7 +136,7 @@ export function formatChunkForSpeech(
   if (normalized.endsWith("”") && !normalized.includes("“")) normalized = normalized.slice(0, -1).trim();
 
   const isMetadataOrDiscrete =
-    blockKind === "heading" || blockKind === "list-item" || pageIndex === 0 || pageIndex === 1 || pageIndex === 7;
+    blockKind === "heading" || blockKind === "list-item" || Boolean(options.isMetadataPage);
   if (isMetadataOrDiscrete && !/[.!?…]$/.test(normalized)) {
     normalized = `${normalized}.`;
   }

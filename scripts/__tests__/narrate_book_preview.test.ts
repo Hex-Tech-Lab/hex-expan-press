@@ -1,20 +1,80 @@
 import { describe, expect, it } from "vitest";
-import { assemblePagePcm, formatChunkForSpeech, trimSilencePcm } from "../narrate_book_preview";
+import { DEFAULT_GLOBAL } from "../../payments/src/settings_registry";
+import {
+  assemblePagePcm,
+  formatChunkForSpeech,
+  isMetadataBookPage,
+  parsePageSelection,
+  resolveVoiceFromNarrationSettings,
+  trimSilencePcm,
+} from "../narrate_book_preview";
 
 describe("narrate_book_preview helpers", () => {
-  it("normalizes sparse cover, metadata, tracked headings, and back cover details naturally", () => {
-    expect(formatChunkForSpeech("ELIAS HARTWELL", "paragraph", 0, "Elias Hartwell")).toBe("By Elias Hartwell.");
-    expect(formatChunkForSpeech("EXPANPRESS", "paragraph", 0, "Elias Hartwell")).toBe("ExpanPress.");
-    expect(formatChunkForSpeech("D E TA I L S", "paragraph", 7)).toBe("Details.");
-    expect(formatChunkForSpeech("A B O U T T H E A U T H O R", "paragraph", 7)).toBe("About the author.");
-    expect(formatChunkForSpeech("Trim 6 × 9 in Language English", "paragraph", 7)).toBe(
+  it("normalizes sparse cover, metadata, tracked headings, and back cover details without altering prose pages", () => {
+    expect(
+      formatChunkForSpeech("ELIAS HARTWELL", "paragraph", { isMetadataPage: true, authorName: "Elias Hartwell" }),
+    ).toBe("By Elias Hartwell.");
+    expect(
+      formatChunkForSpeech("EXPANPRESS", "paragraph", { isMetadataPage: true, authorName: "Elias Hartwell" }),
+    ).toBe("ExpanPress.");
+    expect(formatChunkForSpeech("D E TA I L S", "paragraph", { isMetadataPage: true })).toBe("Details.");
+    expect(formatChunkForSpeech("A B O U T T H E A U T H O R", "paragraph", { isMetadataPage: true })).toBe(
+      "About the author.",
+    );
+    expect(formatChunkForSpeech("Trim 6 × 9 in Language English", "paragraph", { isMetadataPage: true })).toBe(
       "Trim: 6 by 9 inches. Language: English.",
     );
-    expect(formatChunkForSpeech("ExpanPress | MMXXVI", "paragraph", 7)).toBe("ExpanPress, 2026.");
-    // Mid-sentence interior paragraph on page 5 keeps open syntax without adding a synthetic period
-    expect(formatChunkForSpeech("If you use a lamp, place it so that its light falls across the work from the side", "paragraph", 4)).toBe(
-      "If you use a lamp, place it so that its light falls across the work from the side",
+    expect(formatChunkForSpeech("ExpanPress | MMXXVI", "paragraph", { isMetadataPage: true })).toBe(
+      "ExpanPress, 2026.",
     );
+    // Mid-sentence interior paragraph on page 8 of a longer book keeps open syntax without adding a synthetic period
+    expect(
+      formatChunkForSpeech("If you use a lamp, place it so that its light falls across the work from the side", "paragraph", {
+        isMetadataPage: false,
+      }),
+    ).toBe("If you use a lamp, place it so that its light falls across the work from the side");
+  });
+
+  it("derives metadata page roles from extracted blocks and selects male/female presets from settings", () => {
+    expect(
+      isMetadataBookPage([
+        { kind: "heading", level: 3, text: "Contents" },
+        { kind: "list-item", text: "1. Setting Up the Bench" },
+      ]),
+    ).toBe(true);
+    expect(
+      isMetadataBookPage([
+        { kind: "paragraph", text: "A calm, practical start to home woodworking" },
+        { kind: "paragraph", text: "D E TA I L S" },
+        { kind: "paragraph", text: "Trim 6 × 9 in Language English" },
+        { kind: "paragraph", text: "ExpanPress | MMXXVI" },
+      ]),
+    ).toBe(true);
+    expect(
+      isMetadataBookPage([
+        {
+          kind: "paragraph",
+          text: "When I retired, my expenses were $2,800 a month and I spent years documenting the real withdrawals alongside long-form commentary across multiple full sentences exceeding any cover card.",
+        },
+      ]),
+    ).toBe(false);
+
+    expect(resolveVoiceFromNarrationSettings(DEFAULT_GLOBAL.voice_narration)).toEqual({
+      preset: "male",
+      voiceId: "c9f39b88-235b-4c2a-851c-3734ce1203be",
+      voiceName: "Walter - Calm documentary narrator",
+    });
+    expect(resolveVoiceFromNarrationSettings(DEFAULT_GLOBAL.voice_narration, { preset: "female" })).toEqual({
+      preset: "female",
+      voiceId: "84394fa8-60a1-40d9-9a4e-f86738f6b12c",
+      voiceName: "Maya - Upbeat tutorial creator",
+    });
+    expect(() => resolveVoiceFromNarrationSettings(DEFAULT_GLOBAL.voice_narration, { preset: "robot" })).toThrow();
+
+    expect(Array.from(parsePageSelection("1,3-4", 8))).toEqual([1, 3, 4]);
+    expect(() => parsePageSelection("99", 8)).toThrow();
+    expect(() => parsePageSelection("   ", 8)).toThrow();
+    expect(() => parsePageSelection("abc", 8)).toThrow();
   });
 
   it("trims leading/trailing silence while retaining pad margins and soft fade", () => {
