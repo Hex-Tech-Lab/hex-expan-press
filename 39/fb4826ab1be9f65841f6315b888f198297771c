@@ -1,0 +1,38 @@
+payments/test/hide_empty_creator_hubs.test.ts
+  s_7e539dcf78d9db::t_79c573ce9282e2 1-24
+web/e2e/books-sample-listing.spec.ts
+  s_7e539dcf78d9db::t_62aab5025f96db 71,73-75
+payments/src/settings_registry.ts
+  s_7e539dcf78d9db::t_36033d4d56d6ad 494
+  s_7e539dcf78d9db::t_29265040c7c7d7 207-210
+  s_7e539dcf78d9db::t_95e0a521f21b5f 1179
+  s_7e539dcf78d9db::t_ad89eadb528a13 1085-1089
+web/app/books/[handle]/__tests__/empty-hub-404.test.ts
+  s_7e539dcf78d9db::t_c0bd8a56a33c15 1-124
+web/app/books/[handle]/page.tsx
+  s_7e539dcf78d9db::t_ded318c5abbeb9 30-31
+  s_7e539dcf78d9db::t_5923526253aeb0 51-52
+  s_7e539dcf78d9db::t_56b01ba464d83a 2,12
+web/src/components/storefront/storefront.tsx
+  s_7e539dcf78d9db::t_53320eccd42e9b 220-228
+  s_7e539dcf78d9db::t_56aee46ecd78aa 10
+web/app/books/[handle]/__tests__/house-bio.test.ts
+  s_7e539dcf78d9db::t_450d8c56281ef5 66-67
+  s_7e539dcf78d9db::t_e265992d00d6ab 39-54
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "39fb4826ab1be9f65841f6315b888f198297771c",
+  "prompts": {},
+  "sessions": {
+    "s_7e539dcf78d9db": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7aec794a-3e95-4ace-bf8d-7a1962c629d9",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
