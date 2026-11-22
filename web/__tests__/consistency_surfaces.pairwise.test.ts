@@ -354,7 +354,8 @@ describe("consistency surfaces: PICT pairwise", () => {
       expect(sent.html).toContain(GLOBAL.email.support);
       expect(sent.html).toContain(`&copy; ${new Date().getUTCFullYear()} ${GLOBAL.storefront.brand_name}`);
       expect(sent.html).toContain(GLOBAL.branding.colors.surface);
-      expect(sent.html).toContain(GLOBAL.branding.email_font_stack);
+      // The stack is HTML-escaped inside the style attribute (' becomes &#39;); the escaped form decodes to the same CSS.
+      expect(sent.html).toContain(GLOBAL.branding.email_font_stack.replace(/'/g, "&#39;"));
       if (row.delivery_title === "xss") {
         expect(sent.html).not.toContain("<img");
         expect(sent.html).toContain("&#60;img");

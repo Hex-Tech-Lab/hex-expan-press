@@ -38,7 +38,7 @@
  * A store that failed and was read back as landed nowhere releases its claim, so the retry starts clean.
  */
 import { createHash, randomBytes } from "node:crypto";
-import { GLOBAL, paymentProviderProductIdColumn } from "./settings_registry.ts";
+import { DEFAULT_GLOBAL, GLOBAL, paymentProviderProductIdColumn } from "./settings_registry.ts";
 import { EmailSendError, sendEmail as realSendEmail } from "./email.ts";
 import { DeliveryBlockedError, DeliveryPendingError, StaleFenceError } from "./delivery_errors.ts";
 import { createDeliverySendsStore, type DeliverySendClaim } from "./delivery_sends_store.ts";
@@ -261,6 +261,20 @@ export type DeliveryOutcome = "sent" | "duplicate" | "no_email" | "no_release_fi
 
 const esc = (s: string): string => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
+// A font-family list for the buyer email's inline style: unquoted words start with an optional single leading hyphen + ASCII
+// letter (rejecting digit-led CSS tokens), or single/double-quoted font names, separated by commas. Nothing else (no ; { }
+// < > outside a quoted name, no parentheses, no backslashes).
+const EMAIL_FONT_STACK_RE =
+  /^(?:-?[A-Za-z][A-Za-z0-9-]*(?: -?[A-Za-z][A-Za-z0-9-]*)*|'[A-Za-z0-9 -]+'|"[A-Za-z0-9 -]+")(?:\s*,\s*(?:-?[A-Za-z][A-Za-z0-9-]*(?: -?[A-Za-z][A-Za-z0-9-]*)*|'[A-Za-z0-9 -]+'|"[A-Za-z0-9 -]+"))*$/;
+
+/** Returns the trimmed stack when it matches the grammar; otherwise the registry default, with a warning that names the key only. */
+export function safeEmailFontStack(value: string): string {
+  const candidate = value.trim();
+  if (EMAIL_FONT_STACK_RE.test(candidate)) return candidate;
+  console.warn("[delivery] email_font_stack is not a safe font stack; using the registry default");
+  return DEFAULT_GLOBAL.branding.email_font_stack;
+}
+
 const errorText = (err: unknown): string => (err instanceof Error ? err.message : String(err));
 
 /** The buyer email as rendered once. Stored encrypted on the claim, so a retry sends these exact bytes. */
@@ -290,7 +304,7 @@ function buildBuyerMessage(args: {
   const brand = GLOBAL.storefront.brand_name;
   const wordmark = brand.toLowerCase();
   const colors = GLOBAL.branding.colors;
-  const fontStack = GLOBAL.branding.email_font_stack;
+  const fontStack = esc(safeEmailFontStack(GLOBAL.branding.email_font_stack));
   const safeTitle = esc(title);
   const safeLink = esc(link);
   const safeReplyTo = esc(replyTo);
