@@ -1,0 +1,22 @@
+web/e2e/book-preview-mobile-controls.spec.ts
+  h_e6b68dcbbd0983 19,27-33,40-54,64-65,69-90,95,138-139,142-153,166,169-170,182-183
+web/e2e/kyc-lv-gates.spec.ts
+  h_e6b68dcbbd0983 94,121,123-133
+web/src/components/storefront/book-preview-accessible-card.tsx
+  h_e6b68dcbbd0983 193,210,224
+web/src/components/storefront/book-preview-toolbar.tsx
+  h_e6b68dcbbd0983 66,84,95,101,146,157
+web/src/components/storefront/book-previewer.tsx
+  h_e6b68dcbbd0983 187
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a5c62a1b204ff3a2d58aeedc61f6f82a88452745",
+  "prompts": {},
+  "humans": {
+    "h_e6b68dcbbd0983": {
+      "author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
