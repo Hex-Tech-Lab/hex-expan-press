@@ -190,7 +190,7 @@ export function BookPreviewAccessibleCard({
               title={readAloudActionLabel}
               data-testid="read-aloud-toggle"
               data-playback-state={playbackState}
-              className={`inline-flex items-center justify-center gap-1.5 min-h-[44px] min-w-[44px] touch-manipulation px-0 sm:px-3.5 py-2 rounded-full text-xs font-semibold transition-colors cursor-pointer ${
+              className={`inline-flex items-center justify-center gap-1.5 h-11 w-11 px-0 py-0 sm:h-auto sm:w-auto sm:min-h-[44px] sm:min-w-[44px] sm:px-3.5 sm:py-2 touch-manipulation rounded-full text-xs font-semibold transition-colors cursor-pointer ${
                 playbackState === "playing"
                   ? "bg-charcoal text-white hover:bg-[#2a2a2a]"
                   : "border border-[#dcc7b4] bg-white text-gray-900 hover:bg-[#faf5ee]"
@@ -207,7 +207,7 @@ export function BookPreviewAccessibleCard({
                 aria-label={raLabels.stop}
                 title={raLabels.stop}
                 data-testid="read-aloud-stop"
-                className="inline-flex items-center justify-center gap-1.5 min-h-[44px] min-w-[44px] touch-manipulation px-0 sm:px-3 py-2 rounded-full border border-[#dcc7b4] bg-white text-xs font-semibold text-gray-900 hover:bg-[#faf5ee] transition-colors cursor-pointer"
+                className="inline-flex items-center justify-center gap-1.5 h-11 w-11 px-0 py-0 sm:h-auto sm:w-auto sm:min-h-[44px] sm:min-w-[44px] sm:px-3 sm:py-2 touch-manipulation rounded-full border border-[#dcc7b4] bg-white text-xs font-semibold text-gray-900 hover:bg-[#faf5ee] transition-colors cursor-pointer"
               >
                 <StopIcon />
                 <span className="hidden sm:inline">{raLabels.stop_text}</span>
@@ -221,7 +221,7 @@ export function BookPreviewAccessibleCard({
               title={raLabels.speed_aria_label}
               data-testid="read-aloud-speed"
               data-rate={String(currentRate)}
-              className="inline-flex items-center justify-center min-h-[44px] min-w-[48px] touch-manipulation px-3 py-2 rounded-full border border-[#dcc7b4] bg-white font-mono text-xs font-semibold text-gray-900 hover:bg-[#faf5ee] transition-colors cursor-pointer"
+              className="inline-flex items-center justify-center h-11 w-11 px-0 py-0 sm:h-auto sm:w-auto sm:min-h-[44px] sm:min-w-[48px] sm:px-3 sm:py-2 touch-manipulation rounded-full border border-[#dcc7b4] bg-white font-mono text-[11px] leading-none sm:text-xs sm:leading-normal font-semibold whitespace-nowrap text-gray-900 hover:bg-[#faf5ee] transition-colors cursor-pointer"
             >
               {`${currentRate}${raLabels.rate_suffix}`}
             </button>

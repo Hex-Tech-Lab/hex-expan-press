@@ -90,12 +90,8 @@ for (const viewport of [
       const zoomLabel = page.getByTestId("book-preview-zoom-label");
       const previewViewport = page.getByTestId("book-preview-viewport");
 
-      // Below sm (640px) zoom is native pinch (industry norm for phone readers); the buttons are hidden.
-      if (viewport.width < 640) {
-        for (const btn of [zoomIn, zoomOut, resetZoom]) await expect(btn).toBeHidden();
-        await expect(zoomLabel).toHaveText("100%");
-      } else {
       for (const btn of [zoomIn, zoomOut, resetZoom]) {
+        await expect(btn).toBeVisible();
         const aria = await btn.getAttribute("aria-label");
         expect(aria).toBeTruthy();
         await expect(btn).toHaveAttribute("title", aria!);
@@ -121,13 +117,20 @@ for (const viewport of [
       await expect(zoomLabel).toHaveText("135%");
       await resetZoom.click();
       await expect(zoomLabel).toHaveText("100%");
-      }
 
-      // Go to page 4
+      // Go-to-page is desktop-only (>= 640px); below sm, Zoom Out / Zoom In / Reset replace it on the toolbar row.
       const goToInput = page.getByTestId("book-preview-goto-input");
-      await goToInput.fill("4");
-      await page.getByTestId("book-preview-goto-submit").click();
-      await expect(page.getByTestId("book-preview-page-label")).toContainText(/Page(s)? 4/);
+      const goToSubmit = page.getByTestId("book-preview-goto-submit");
+      if (viewport.width < 640) {
+        await expect(goToInput).toBeHidden();
+        await expect(goToSubmit).toBeHidden();
+      } else {
+        await expect(goToInput).toBeVisible();
+        await expect(goToSubmit).toBeVisible();
+        await goToInput.fill("4");
+        await goToSubmit.click();
+        await expect(page.getByTestId("book-preview-page-label")).toContainText(/Page(s)? 4/);
+      }
 
       const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
       expect(overflow, `sample product horizontal overflow at ${viewport.width}px`).toBe(false);

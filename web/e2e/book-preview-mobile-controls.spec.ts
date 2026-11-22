@@ -16,7 +16,7 @@ function rowCount(page: import("@playwright/test").Page, testId: string): Promis
   });
 }
 
-test("flipbook toolbar fits one row with >=44px targets at 390px", async ({ page }) => {
+test("flipbook toolbar fits one row with 44x44px targets and working zoom at 390px", async ({ page }) => {
   await page.goto(PRODUCT_URL);
   const bar = page.getByTestId("book-preview-toolbar");
   await expect(bar).toBeVisible();
@@ -24,17 +24,36 @@ test("flipbook toolbar fits one row with >=44px targets at 390px", async ({ page
   const testId = "book-preview-toolbar-row";
   await parent.evaluate((el, id) => el.setAttribute("data-testid", id), testId);
   expect(await rowCount(page, testId)).toBe(1);
-  for (const b of await parent.locator("button:visible").all()) {
-    const box = await b.boundingBox();
-    expect(box!.width).toBeGreaterThanOrEqual(44);
-    expect(box!.height).toBeGreaterThanOrEqual(44);
+
+  const visibleButtons = await parent.locator("button:visible").all();
+  expect(visibleButtons).toHaveLength(5);
+  for (const b of visibleButtons) {
+    const box = (await b.boundingBox())!;
+    expect(box.width).toBeGreaterThanOrEqual(44);
+    expect(box.width).toBeLessThanOrEqual(44.5);
+    expect(box.height).toBeGreaterThanOrEqual(44);
+    expect(box.height).toBeLessThanOrEqual(44.5);
   }
   const rowBox = (await bar.locator("xpath=../..").boundingBox())!;
   for (const c of await parent.locator("button:visible, input:visible").all()) {
     const box = (await c.boundingBox())!;
     expect(box.x + box.width).toBeLessThanOrEqual(rowBox.x + rowBox.width + 0.5);
   }
-  await expect(page.getByTestId("book-preview-zoom-reset")).toBeHidden();
+
+  // Below sm (640px), Go-to-page is hidden and the 3 zoom buttons + Prev/Next share the row.
+  await expect(page.getByTestId("book-preview-goto-input")).toBeHidden();
+  await expect(page.getByTestId("book-preview-goto-submit")).toBeHidden();
+  const zoomOut = page.getByTestId("book-preview-zoom-out");
+  const zoomIn = page.getByTestId("book-preview-zoom-in");
+  const zoomReset = page.getByTestId("book-preview-zoom-reset");
+  const prevBtn = page.getByRole("button", { name: "Previous preview page" });
+  const nextBtn = page.getByRole("button", { name: "Next preview page" });
+  for (const btn of [zoomOut, zoomIn, zoomReset, prevBtn, nextBtn]) {
+    await expect(btn).toBeVisible();
+  }
+  await expect(zoomOut).toBeDisabled();
+  await expect(zoomReset).toBeDisabled();
+
   // Zoom label is visually hidden below sm but must stay in the DOM as the polite live region.
   await expect(page.getByTestId("book-preview-zoom-label")).not.toHaveCSS("display", "none");
   // Visually hidden (sr-only = 1x1 clipped), not merely present.
@@ -44,25 +63,38 @@ test("flipbook toolbar fits one row with >=44px targets at 390px", async ({ page
   await expect(bar.locator("xpath=..").getByText("Prev", { exact: true })).toBeHidden();
   await expect(bar.locator("xpath=..").getByText("Next", { exact: true })).toBeHidden();
   await expect(page.getByTestId("book-preview-zoom-label")).toHaveAttribute("aria-live", "polite");
-  await expect(page.getByTestId("book-preview-goto-submit")).toBeVisible();
-  // Page field is a finger-sized target too.
-  const input = (await page.getByTestId("book-preview-goto-input").boundingBox())!;
-  expect(input.width).toBeGreaterThanOrEqual(44);
-  expect(input.height).toBeGreaterThanOrEqual(44);
-  // Phones zoom by native pinch: the page-flip stage must allow pinch-zoom (page-flip's CSS default is pan-y only).
+
+  // Phones keep native pinch-zoom alongside the zoom buttons.
   await page.getByTestId("book-preview-section").scrollIntoViewIfNeeded();
   await expect(page.getByTestId("book-preview-stage")).toBeVisible({ timeout: 30_000 });
   await expect(page.getByTestId("book-preview-stage")).toHaveCSS("touch-action", "pan-y pinch-zoom");
-  // iOS Safari zooms the whole page on focus of any input under 16px, so the page field must be >= 16px below sm.
-  const gotoFontPx = await page
-    .getByTestId("book-preview-goto-input")
-    .evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
-  expect(gotoFontPx).toBeGreaterThanOrEqual(16);
+
+  // Exercise mobile zoom buttons: Zoom In -> 135%, Zoom Out -> 100%, Zoom In -> Reset -> 100%.
+  const previewViewport = page.getByTestId("book-preview-viewport");
+  await zoomIn.click();
+  await expect(page.getByTestId("book-preview-zoom-label")).toHaveText("135%");
+  await expect(previewViewport).toHaveAttribute("data-zoom", "1.35");
+  await expect(zoomOut).toBeEnabled();
+  await expect(zoomReset).toBeEnabled();
+  const overflowZoomed = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+  expect(overflowZoomed).toBe(false);
+
+  await zoomOut.click();
+  await expect(page.getByTestId("book-preview-zoom-label")).toHaveText("100%");
+  await expect(previewViewport).toHaveAttribute("data-zoom", "1");
+
+  await zoomIn.click();
+  await expect(page.getByTestId("book-preview-zoom-label")).toHaveText("135%");
+  await zoomReset.click();
+  await expect(page.getByTestId("book-preview-zoom-label")).toHaveText("100%");
+  await expect(zoomReset).toBeVisible();
+  await expect(zoomReset).toBeDisabled();
+
   await parent.scrollIntoViewIfNeeded();
   await page.screenshot({ path: "test-results/mobile-reader-controls.png" });
 });
 
-test("read-aloud controls fit one row at 390px", async ({ page }) => {
+test("read-aloud controls fit one row with uniform 44x44px targets at 390px", async ({ page }) => {
   // Headless Chromium has no speechSynthesis, so the controls never render and the row check
   // would skip. A minimal stub makes the controls render; the row geometry is what is asserted.
   await page.addInitScript(() => {
@@ -106,9 +138,25 @@ test("read-aloud controls fit one row at 390px", async ({ page }) => {
   for (const b of await page.getByTestId("read-aloud-controls").locator("button:visible").all()) {
     const box = (await b.boundingBox())!;
     expect(box.width).toBeGreaterThanOrEqual(44);
+    expect(box.width).toBeLessThanOrEqual(44.5);
     expect(box.height).toBeGreaterThanOrEqual(44);
+    expect(box.height).toBeLessThanOrEqual(44.5);
     expect(box.x + box.width).toBeLessThanOrEqual(card.x + card.width + 0.5);
   }
+
+  // Wider rate label (e.g., 1.25×) keeps exact 44x44px dimensions without overflowing or clipping.
+  const speedBtn = page.getByTestId("read-aloud-speed");
+  await speedBtn.click();
+  await expect(speedBtn).toHaveText("1.25×");
+  const speedBox = (await speedBtn.boundingBox())!;
+  expect(speedBox.width).toBeGreaterThanOrEqual(44);
+  expect(speedBox.width).toBeLessThanOrEqual(44.5);
+  expect(speedBox.height).toBeGreaterThanOrEqual(44);
+  expect(speedBox.height).toBeLessThanOrEqual(44.5);
+  const speedClips = await speedBtn.evaluate((el) => el.scrollWidth > el.clientWidth);
+  expect(speedClips).toBe(false);
+  expect(await rowCount(page, "read-aloud-controls")).toBe(1);
+  await page.getByTestId("book-preview-accessible-card").screenshot({ path: "test-results/mobile-read-aloud-controls.png" });
 });
 
 test("reset stays reachable after rotating a zoomed preview to phone width", async ({ page }) => {
@@ -121,9 +169,11 @@ test("reset stays reachable after rotating a zoomed preview to phone width", asy
   await page.setViewportSize({ width: 390, height: 844 });
   const reset = page.getByTestId("book-preview-zoom-reset");
   await expect(reset).toBeVisible();
+  await expect(reset).toBeEnabled();
   await reset.click();
   await expect(page.getByTestId("book-preview-zoom-label")).toHaveText("100%");
-  await expect(reset).toBeHidden();
+  await expect(reset).toBeVisible();
+  await expect(reset).toBeDisabled();
 });
 
 test.describe("desktop keeps text labels", () => {
@@ -135,5 +185,7 @@ test.describe("desktop keeps text labels", () => {
     await expect(row.getByText("Next", { exact: true })).toBeVisible();
     await expect(page.getByTestId("book-preview-zoom-reset")).toBeVisible();
     await expect(page.getByTestId("book-preview-zoom-label")).toBeVisible();
+    await expect(page.getByTestId("book-preview-goto-input")).toBeVisible();
+    await expect(page.getByTestId("book-preview-goto-submit")).toBeVisible();
   });
 });
