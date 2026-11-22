@@ -51,7 +51,8 @@
           "endMs": 8956,
           "tokensCharged": 20
         }
-      ]
+      ],
+      "opusUrl": "/books/audio/sample_the_quiet_workshop/page-01.webm"
     },
     "2": {
       "pageIndex": 1,
@@ -114,7 +115,8 @@
           "endMs": 16095,
           "tokensCharged": 33
         }
-      ]
+      ],
+      "opusUrl": "/books/audio/sample_the_quiet_workshop/page-02.webm"
     },
     "3": {
       "pageIndex": 2,
@@ -240,7 +242,8 @@
           "endMs": 92032,
           "tokensCharged": 103
         }
-      ]
+      ],
+      "opusUrl": "/books/audio/sample_the_quiet_workshop/page-03.webm"
     },
     "4": {
       "pageIndex": 3,
@@ -267,7 +270,8 @@
           "endMs": 9744,
           "tokensCharged": 85
         }
-      ]
+      ],
+      "opusUrl": "/books/audio/sample_the_quiet_workshop/page-04.webm"
     },
     "5": {
       "pageIndex": 4,
@@ -420,7 +424,8 @@
           "endMs": 88007,
           "tokensCharged": 69
         }
-      ]
+      ],
+      "opusUrl": "/books/audio/sample_the_quiet_workshop/page-05.webm"
     },
     "6": {
       "pageIndex": 5,
@@ -555,7 +560,8 @@
           "endMs": 69687,
           "tokensCharged": 79
         }
-      ]
+      ],
+      "opusUrl": "/books/audio/sample_the_quiet_workshop/page-06.webm"
     },
     "7": {
       "pageIndex": 6,
@@ -663,7 +669,8 @@
           "endMs": 52468,
           "tokensCharged": 45
         }
-      ]
+      ],
+      "opusUrl": "/books/audio/sample_the_quiet_workshop/page-07.webm"
     },
     "8": {
       "pageIndex": 7,
@@ -762,7 +769,8 @@
           "endMs": 30362,
           "tokensCharged": 49
         }
-      ]
+      ],
+      "opusUrl": "/books/audio/sample_the_quiet_workshop/page-08.webm"
     }
   }
 }

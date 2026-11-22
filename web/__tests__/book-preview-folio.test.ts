@@ -109,7 +109,12 @@ describe("F-folio: margin page number stripping on real preview PDFs", () => {
       voiceId: string;
       pages: Record<
         string,
-        { audioUrl: string; durationMs: number; chunks: Array<{ id: string; text: string; startMs: number; endMs: number }> }
+        {
+          audioUrl: string;
+          opusUrl?: string;
+          durationMs: number;
+          chunks: Array<{ id: string; text: string; startMs: number; endMs: number }>;
+        }
       >;
     };
     expect(timingsRaw.voiceId).toBe(DEFAULT_GLOBAL.voice_narration.default_voice_id);
@@ -123,7 +128,9 @@ describe("F-folio: margin page number stripping on real preview PDFs", () => {
       const track = timingsRaw.pages[String(pdfPage)];
       expect(track, `missing timings track for PDF page ${pdfPage}`).toBeDefined();
       expect(track.audioUrl).toBe(`/books/audio/sample_the_quiet_workshop/page-0${pdfPage}.mp3`);
+      expect(track.opusUrl).toBe(`/books/audio/sample_the_quiet_workshop/page-0${pdfPage}.webm`);
       expect(readFileSync(resolve(repoRoot, "web/public", track.audioUrl.replace(/^\//, ""))).length).toBeGreaterThan(10_000);
+      expect(readFileSync(resolve(repoRoot, "web/public", track.opusUrl!.replace(/^\//, ""))).length).toBeGreaterThan(5_000);
       expect(track.chunks.map((c) => ({ id: c.id, text: c.text }))).toEqual(
         pageModel.chunks.map((c) => ({ id: c.id, text: c.text })),
       );

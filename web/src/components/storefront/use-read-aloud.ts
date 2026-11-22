@@ -13,6 +13,7 @@ import {
   parsePreviewAudioManifest,
   playAudioWithErrorHandler,
   resolveSpreadAudioTracks,
+  selectTrackAudioCandidates,
   type PreviewAudioManifest,
   type PreviewAudioPageTrack,
 } from "./read-aloud-audio";
@@ -82,7 +83,12 @@ export function useReadAloud(
   const voiceRef = useRef<SpeechSynthesisVoice | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const activeEngineRef = useRef<"none" | "audio" | "speech">("none");
-  const audioQueueRef = useRef<{ tracks: PreviewAudioPageTrack[]; trackIdx: number } | null>(null);
+  const audioQueueRef = useRef<{
+    tracks: PreviewAudioPageTrack[];
+    trackIdx: number;
+    candidates: string[];
+    candidateIdx: number;
+  } | null>(null);
 
   const speechSupported = useSyncExternalStore(subscribeNoop, detectSpeechSynthesisSupport, () => false);
   const audioElementSupported = useSyncExternalStore(subscribeNoop, detectAudioSupport, () => false);
@@ -292,7 +298,7 @@ export function useReadAloud(
       setActiveWord(null);
       const stale = () => speechSessionRef.current !== session;
 
-      const startTrack = (trackIdx: number) => {
+      const startTrack = (trackIdx: number, candidateIdx = 0) => {
         if (stale()) return;
         const track = tracks[trackIdx];
         if (!track) {
@@ -304,8 +310,16 @@ export function useReadAloud(
           setSpeechAnnouncement(raSettings.labels.finished_announcement);
           return;
         }
+        const candidates = selectTrackAudioCandidates(track, audio);
+        const sourceUrl = candidates[candidateIdx];
+        if (!sourceUrl) {
+          const fallbackIdx = chunks.findIndex((chunk) => chunk.pageIndex === track.pageIndex);
+          if (detectSpeechSynthesisSupport()) speakFromIndex(fallbackIdx >= 0 ? fallbackIdx : 0, 0, rateRef.current);
+          else stopReadAloud();
+          return;
+        }
         activeEngineRef.current = "audio";
-        audioQueueRef.current = { tracks, trackIdx };
+        audioQueueRef.current = { tracks, trackIdx, candidates, candidateIdx };
         const initialIdx = chunkIndexForTrackTime(track, 0, chunks);
         if (initialIdx !== null) setActiveChunk({ idx: initialIdx, key: chunkKey });
         const syncWordForTime = (timeSec: number) => {
@@ -322,8 +336,15 @@ export function useReadAloud(
         };
         syncWordForTime(0);
 
-        const fallbackToSpeech = (reason: unknown) => {
-          if (stale()) return;
+        let handledFailure = false;
+        const handleSourceFailure = (reason: unknown) => {
+          if (stale() || handledFailure) return;
+          handledFailure = true;
+          if (candidateIdx + 1 < candidates.length) {
+            console.warn("[read-aloud] Audio source failed, falling back to secondary codec:", sourceUrl, reason);
+            startTrack(trackIdx, candidateIdx + 1);
+            return;
+          }
           console.warn("[read-aloud] Audio playback error, falling back to Web Speech:", reason);
           const fallbackIdx = chunks.findIndex((chunk) => chunk.pageIndex === track.pageIndex);
           if (detectSpeechSynthesisSupport()) speakFromIndex(fallbackIdx >= 0 ? fallbackIdx : 0, 0, rateRef.current);
@@ -342,18 +363,16 @@ export function useReadAloud(
           syncWordForTime(audio.currentTime);
         };
         audio.onended = () => {
-          if (!stale()) startTrack(trackIdx + 1);
+          if (!stale()) startTrack(trackIdx + 1, 0);
         };
-        audio.onerror = () => fallbackToSpeech("HTMLAudioElement error event");
+        audio.onerror = () => handleSourceFailure("HTMLAudioElement error event");
 
-        audio.preload = "auto";
+        audio.preload = "none";
         applyAudioPlaybackRate(audio, rateRef.current);
-        audio.src = track.audioUrl;
+        audio.src = sourceUrl;
         applyAudioPlaybackRate(audio, rateRef.current);
 
-        playAudioWithErrorHandler(audio, (err) => {
-          if (!stale()) fallbackToSpeech(err);
-        });
+        playAudioWithErrorHandler(audio, (err) => handleSourceFailure(err));
       };
 
       rateRef.current = rate;

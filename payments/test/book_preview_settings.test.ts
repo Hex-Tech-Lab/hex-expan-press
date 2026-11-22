@@ -365,9 +365,20 @@ describe("loadBookIdentity optional media fields", () => {
 
     expect(DEFAULT_GLOBAL.voice_narration.default_voice_id).toBe("c9f39b88-235b-4c2a-851c-3734ce1203be");
     expect(DEFAULT_GLOBAL.voice_narration.fallback_female_voice_id).toBe("84394fa8-60a1-40d9-9a4e-f86738f6b12c");
+    expect(DEFAULT_GLOBAL.voice_narration.opus_codec).toBe("libopus");
+    expect(DEFAULT_GLOBAL.voice_narration.opus_bitrate_kbps).toBe(32);
+    expect(DEFAULT_GLOBAL.voice_narration.opus_vbr).toBe("on");
     expect(loadVoiceNarrationSection(undefined)).toEqual(DEFAULT_GLOBAL.voice_narration);
+    const vnCustom = loadVoiceNarrationSection({ opus_bitrate_kbps: 48, opus_vbr: "constrained" });
+    expect(vnCustom.opus_bitrate_kbps).toBe(48);
+    expect(vnCustom.opus_vbr).toBe("constrained");
     warn.mockClear();
-    const vnInvalid = loadVoiceNarrationSection({ loudnorm_lufs: 5, mp3_bitrate_kbps: 9999 });
+    const vnInvalid = loadVoiceNarrationSection({
+      loudnorm_lufs: 5,
+      mp3_bitrate_kbps: 9999,
+      opus_bitrate_kbps: 500,
+      opus_vbr: "invalid",
+    });
     expect(vnInvalid).toEqual(DEFAULT_GLOBAL.voice_narration);
     expect(warn).toHaveBeenCalledTimes(1);
 

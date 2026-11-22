@@ -247,11 +247,19 @@ export function decodeAudioToNativePcm(ffmpegBin: string, inputPath: string): In
   return new Int16Array(buf.buffer, buf.byteOffset, Math.floor(buf.byteLength / 2));
 }
 
-export function encodeLoudnormMp3(
+export function encodeLoudnormDualFormats(
   ffmpegBin: string,
   pcm: Int16Array,
   outMp3Path: string,
-  opts: { targetLufs: number; sampleRateHz: number; bitrateKbps: number },
+  outOpusPath: string,
+  opts: {
+    targetLufs: number;
+    sampleRateHz: number;
+    mp3BitrateKbps: number;
+    opusCodec: string;
+    opusBitrateKbps: number;
+    opusVbr: "on" | "off" | "constrained";
+  },
 ): void {
   const tmpWav = `${outMp3Path}.tmp.wav`;
   const pcmBuf = Buffer.from(pcm.buffer, pcm.byteOffset, pcm.byteLength);
@@ -297,8 +305,29 @@ export function encodeLoudnormMp3(
       "-c:a",
       "libmp3lame",
       "-b:a",
-      `${opts.bitrateKbps}k`,
+      `${opts.mp3BitrateKbps}k`,
       outMp3Path,
+    ],
+  );
+  execFileSync(
+    ffmpegBin,
+    [
+      "-y",
+      "-v",
+      "error",
+      "-i",
+      tmpWav,
+      "-af",
+      measuredFilter,
+      "-ac",
+      "1",
+      "-c:a",
+      opts.opusCodec,
+      "-b:a",
+      `${opts.opusBitrateKbps}k`,
+      "-vbr",
+      opts.opusVbr,
+      outOpusPath,
     ],
   );
   execFileSync("rm", ["-f", tmpWav]);

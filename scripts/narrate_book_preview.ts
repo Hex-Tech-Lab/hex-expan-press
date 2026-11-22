@@ -17,7 +17,7 @@ import {
 import {
   assemblePagePcm,
   decodeAudioToNativePcm,
-  encodeLoudnormMp3,
+  encodeLoudnormDualFormats,
   formatChunkForSpeech,
   isMetadataBookPage,
   NATIVE_SAMPLE_RATE,
@@ -433,25 +433,33 @@ async function main(): Promise<void> {
       paragraphGapMs: narration.paragraph_gap_ms,
     });
 
-    const fileName = `page-${String(plan.pdfPageNumber).padStart(2, "0")}.mp3`;
-    const outMp3Path = path.join(audioPublicDir, fileName);
-    encodeLoudnormMp3(ffmpegBin, assembled.pcm, outMp3Path, {
+    const fileBase = `page-${String(plan.pdfPageNumber).padStart(2, "0")}`;
+    const mp3FileName = `${fileBase}.mp3`;
+    const opusFileName = `${fileBase}.webm`;
+    const outMp3Path = path.join(audioPublicDir, mp3FileName);
+    const outOpusPath = path.join(audioPublicDir, opusFileName);
+    encodeLoudnormDualFormats(ffmpegBin, assembled.pcm, outMp3Path, outOpusPath, {
       targetLufs: narration.loudnorm_lufs,
       sampleRateHz: narration.sample_rate_hz,
-      bitrateKbps: narration.mp3_bitrate_kbps,
+      mp3BitrateKbps: narration.mp3_bitrate_kbps,
+      opusCodec: narration.opus_codec,
+      opusBitrateKbps: narration.opus_bitrate_kbps,
+      opusVbr: narration.opus_vbr,
     });
     const durationMs = probeDurationMs(ffprobeBin, outMp3Path, assembled.rawDurationMs);
-    const audioUrl = `${GLOBAL.storefront.audio_base_path}/${book.id}/${fileName}`;
+    const audioUrl = `${GLOBAL.storefront.audio_base_path}/${book.id}/${mp3FileName}`;
+    const opusUrl = `${GLOBAL.storefront.audio_base_path}/${book.id}/${opusFileName}`;
 
     pagesManifest[String(plan.pdfPageNumber)] = {
       pageIndex: plan.pageIndex,
       pdfPageNumber: plan.pdfPageNumber,
       ...(plan.bookPageLabel ? { bookPageLabel: plan.bookPageLabel } : {}),
       audioUrl,
+      opusUrl,
       durationMs,
       chunks: assembled.chunks,
     };
-    console.log(`[assemble] Wrote ${fileName} (${durationMs} ms, ${assembled.chunks.length} chunks)`);
+    console.log(`[assemble] Wrote ${mp3FileName} + ${opusFileName} (${durationMs} ms, ${assembled.chunks.length} chunks)`);
   }
 
   const manifest: PreviewAudioManifest = {

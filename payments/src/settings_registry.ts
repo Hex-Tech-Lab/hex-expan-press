@@ -311,6 +311,9 @@ export interface VoiceNarrationSettings {
   fallback_female_voice_name: string;
   sample_rate_hz: number;
   mp3_bitrate_kbps: number;
+  opus_codec: string;
+  opus_bitrate_kbps: number;
+  opus_vbr: "on" | "off" | "constrained";
   loudnorm_lufs: number;
   sentence_gap_ms: number;
   paragraph_gap_ms: number;
@@ -787,6 +790,9 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     fallback_female_voice_name: "Maya - Upbeat tutorial creator",
     sample_rate_hz: 44100,
     mp3_bitrate_kbps: 96,
+    opus_codec: "libopus",
+    opus_bitrate_kbps: 32,
+    opus_vbr: "on",
     loudnorm_lufs: -16,
     sentence_gap_ms: 240,
     paragraph_gap_ms: 420,
@@ -2660,6 +2666,7 @@ export function isAllowedCurrency(currency: string): boolean {
 export const VOICE_NARRATION_LIMITS = {
   sample_rate_hz: { min: 16000, max: 48000 },
   mp3_bitrate_kbps: { min: 48, max: 320 },
+  opus_bitrate_kbps: { min: 16, max: 192 },
   loudnorm_lufs: { min: -30, max: -5 },
   sentence_gap_ms: { min: 0, max: 2000 },
   paragraph_gap_ms: { min: 0, max: 3000 },
@@ -2689,7 +2696,8 @@ export function loadVoiceNarrationSection(raw: unknown): VoiceNarrationSettings 
       | "default_voice_id"
       | "default_voice_name"
       | "fallback_female_voice_id"
-      | "fallback_female_voice_name",
+      | "fallback_female_voice_name"
+      | "opus_codec",
   ): string => {
     if (!(key in rec)) return defaults[key];
     const v = rec[key];
@@ -2697,6 +2705,14 @@ export function loadVoiceNarrationSection(raw: unknown): VoiceNarrationSettings 
     fallbacks.push(key);
     return defaults[key];
   };
+  let opusVbr: VoiceNarrationSettings["opus_vbr"] = defaults.opus_vbr;
+  if ("opus_vbr" in rec) {
+    if (rec.opus_vbr === "on" || rec.opus_vbr === "off" || rec.opus_vbr === "constrained") {
+      opusVbr = rec.opus_vbr;
+    } else {
+      fallbacks.push("opus_vbr");
+    }
+  }
   const numField = (key: keyof typeof VOICE_NARRATION_LIMITS, intOnly: boolean): number => {
     if (!(key in rec)) return defaults[key];
     const v = rec[key];
@@ -2715,6 +2731,9 @@ export function loadVoiceNarrationSection(raw: unknown): VoiceNarrationSettings 
     fallback_female_voice_name: strField("fallback_female_voice_name"),
     sample_rate_hz: numField("sample_rate_hz", true),
     mp3_bitrate_kbps: numField("mp3_bitrate_kbps", true),
+    opus_codec: strField("opus_codec"),
+    opus_bitrate_kbps: numField("opus_bitrate_kbps", true),
+    opus_vbr: opusVbr,
     loudnorm_lufs: numField("loudnorm_lufs", false),
     sentence_gap_ms: numField("sentence_gap_ms", true),
     paragraph_gap_ms: numField("paragraph_gap_ms", true),

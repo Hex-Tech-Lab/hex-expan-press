@@ -349,13 +349,19 @@ for (const viewport of [
   });
 }
 
-test("pre-baked Walter MP3 + timings.json plays without Web Speech and updates playbackRate with preservesPitch=true", async ({
+test("pre-baked Walter Opus/MP3 + timings.json pre-fetches manifest, downloads zero audio until tap, and updates playbackRate with preservesPitch=true", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1560, height: 940 });
   await installUnsupportedSpeechSynthesis(page);
+  const audioByteRequests: string[] = [];
+  page.on("request", (req) => {
+    if (/\.(?:webm|mp3)(?:$|\?)/i.test(req.url())) {
+      audioByteRequests.push(req.url());
+    }
+  });
   await page.addInitScript(() => {
-    const audioEvents: Array<{ src: string; rate: number; preservesPitch: boolean; action: string }> = [];
+    const audioEvents: Array<{ src: string; preload: string; rate: number; preservesPitch: boolean; action: string }> = [];
     const createdAudios: HTMLAudioElement[] = [];
     const OrigAudio = window.Audio;
     window.Audio = function PatchedAudio(src?: string) {
@@ -367,6 +373,7 @@ test("pre-baked Walter MP3 + timings.json plays without Web Speech and updates p
     HTMLMediaElement.prototype.play = function patchedPlay(this: HTMLMediaElement) {
       audioEvents.push({
         src: this.currentSrc || this.getAttribute("src") || "",
+        preload: this.preload,
         rate: this.playbackRate,
         preservesPitch: Boolean(this.preservesPitch),
         action: "play",
@@ -392,6 +399,8 @@ test("pre-baked Walter MP3 + timings.json plays without Web Speech and updates p
 
   await page.getByRole("button", { name: "Next preview page" }).click();
   await expect(page.getByTestId("book-preview-page-label")).toHaveText("Pages 2–3 of 8");
+  // Zero audio bytes downloaded prior to clicking Play
+  expect(audioByteRequests).toEqual([]);
 
   await page.getByTestId("read-aloud-toggle").click();
   await expect(page.getByTestId("read-aloud-toggle")).toHaveAttribute("data-playback-state", "playing");
@@ -402,7 +411,7 @@ test("pre-baked Walter MP3 + timings.json plays without Web Speech and updates p
 
   const audioState = await page.evaluate(() => {
     const win = window as unknown as {
-      __audioEvents: Array<{ src: string; rate: number; preservesPitch: boolean; action: string }>;
+      __audioEvents: Array<{ src: string; preload: string; rate: number; preservesPitch: boolean; action: string }>;
       __createdAudios: HTMLAudioElement[];
     };
     const audio = win.__createdAudios[0];
@@ -410,11 +419,14 @@ test("pre-baked Walter MP3 + timings.json plays without Web Speech and updates p
       events: win.__audioEvents,
       currentRate: audio?.playbackRate ?? null,
       preservesPitch: Boolean(audio?.preservesPitch),
+      preload: audio?.preload ?? null,
     };
   });
   expect(audioState.events.length).toBe(1);
-  expect(audioState.events[0].src).toContain("/books/audio/sample_the_quiet_workshop/page-02.mp3");
+  expect(audioState.events[0].src).toContain("/books/audio/sample_the_quiet_workshop/page-02.webm");
+  expect(audioState.events[0].preload).toBe("none");
   expect(audioState.events[0].preservesPitch).toBe(true);
+  expect(audioState.preload).toBe("none");
   expect(audioState.currentRate).toBe(1.25);
   expect(audioState.preservesPitch).toBe(true);
 });

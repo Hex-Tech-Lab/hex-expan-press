@@ -23,6 +23,7 @@ export interface PreviewAudioPageTrack {
   pdfPageNumber: number;
   bookPageLabel?: string;
   audioUrl: string;
+  opusUrl?: string;
   durationMs: number;
   chunks: PreviewAudioTimingChunk[];
 }
@@ -49,7 +50,7 @@ export function isSafeAudioTrackUrl(value: unknown, audioBasePath = "/books/audi
   const base = audioBasePath.replace(/\/+$/, "");
   if (trimmed.includes("..") || trimmed.includes("\\")) return false;
   if (base.startsWith("/") && !base.includes("..") && !base.includes("\\") && trimmed.startsWith(`${base}/`)) {
-    return /^[a-z0-9/_-]+\.(?:mp3|wav|ogg|m4a)$/i.test(trimmed.slice(base.length + 1));
+    return /^[a-z0-9/_-]+\.(?:mp3|wav|ogg|m4a|webm)$/i.test(trimmed.slice(base.length + 1));
   }
   if (trimmed.startsWith("https://") && URL.canParse(trimmed)) {
     const parsedUrl = new URL(trimmed);
@@ -101,6 +102,7 @@ export function parsePreviewAudioManifest(raw: unknown, audioBasePath = "/books/
       typeof trackRec.pdfPageNumber !== "number" ||
       !Number.isInteger(trackRec.pdfPageNumber) ||
       !isSafeAudioTrackUrl(trackRec.audioUrl, audioBasePath) ||
+      (trackRec.opusUrl !== undefined && !isSafeAudioTrackUrl(trackRec.opusUrl, audioBasePath)) ||
       typeof trackRec.durationMs !== "number" ||
       !Number.isFinite(trackRec.durationMs) ||
       !Array.isArray(trackRec.chunks)
@@ -147,6 +149,7 @@ export function parsePreviewAudioManifest(raw: unknown, audioBasePath = "/books/
       pdfPageNumber: trackRec.pdfPageNumber,
       ...(typeof trackRec.bookPageLabel === "string" ? { bookPageLabel: trackRec.bookPageLabel } : {}),
       audioUrl: trackRec.audioUrl.trim(),
+      ...(typeof trackRec.opusUrl === "string" ? { opusUrl: trackRec.opusUrl.trim() } : {}),
       durationMs: trackRec.durationMs,
       chunks: validChunks,
     };
@@ -274,6 +277,23 @@ export function resolveSpreadAudioTracks(
     tracks.push(track);
   }
   return tracks.length > 0 ? tracks : null;
+}
+
+export function selectTrackAudioCandidates(
+  track: PreviewAudioPageTrack,
+  audio: { canPlayType?: (mimeType: string) => string },
+): string[] {
+  const candidates: string[] = [];
+  if (track.opusUrl && typeof audio.canPlayType === "function") {
+    const opusSupport = audio.canPlayType('audio/webm; codecs="opus"');
+    if (opusSupport === "probably" || opusSupport === "maybe") {
+      candidates.push(track.opusUrl);
+    }
+  }
+  if (!candidates.includes(track.audioUrl)) {
+    candidates.push(track.audioUrl);
+  }
+  return candidates;
 }
 
 export function playAudioWithErrorHandler(
