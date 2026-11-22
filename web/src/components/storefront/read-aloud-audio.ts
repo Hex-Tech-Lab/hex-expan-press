@@ -315,9 +315,7 @@ export function resolveSpreadAudioTracks(
 function supportsOpusWebm(audio: { canPlayType?: (mimeType: string) => string }): boolean {
   if (typeof audio.canPlayType !== "function") return false;
   const codecSupport = audio.canPlayType('audio/webm; codecs="opus"');
-  if (codecSupport === "probably" || codecSupport === "maybe") return true;
-  const containerSupport = audio.canPlayType("audio/webm");
-  return containerSupport === "probably" || containerSupport === "maybe";
+  return codecSupport === "probably" || codecSupport === "maybe";
 }
 
 export function selectTrackAudioCandidates(

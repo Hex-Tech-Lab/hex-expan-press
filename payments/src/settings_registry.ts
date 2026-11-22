@@ -2787,7 +2787,7 @@ function parseVoiceNarrationLexicon(
       return { entries: fallback, valid: false };
     }
     if ("flags" in entry && entry.flags !== undefined) {
-      if (typeof entry.flags !== "string" || !/^[gimsuy]*$/i.test(entry.flags)) {
+      if (typeof entry.flags !== "string" || !/^[gi]*$/i.test(entry.flags)) {
         return { entries: fallback, valid: false };
       }
       entries.push({ pattern: entry.pattern, flags: entry.flags, replacement: entry.replacement });

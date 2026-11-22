@@ -5,7 +5,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_GLOBAL, type BookPreviewReadAloudSettings } from "../../payments/src/settings_registry";
 import type { PreviewAudioManifest, ReadAloudChunk } from "../src/components/storefront/book-previewer-text";
-import { parsePreviewAudioManifest } from "../src/components/storefront/read-aloud-audio";
+import { parsePreviewAudioManifest, selectTrackAudioCandidates } from "../src/components/storefront/read-aloud-audio";
 import { useReadAloud } from "../src/components/storefront/use-read-aloud";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -642,5 +642,20 @@ describe("useReadAloud pre-baked audio manifest + timings sync + Web Speech fall
     expect(parsedWithBadWords?.pages["2"].chunks[0].words).toEqual([
       { start: 6, end: 11, startMs: 400, endMs: 900 },
     ]);
+  });
+
+  it("rejects .webm candidates when only generic audio/webm container is supported without Opus codec (F2)", () => {
+    const track = SAMPLE_MANIFEST.pages["2"];
+    const vorbisOnlyAudio = {
+      canPlayType: vi.fn((mimeType: string) => (mimeType === "audio/webm" ? "maybe" : "")),
+    };
+    expect(selectTrackAudioCandidates(track, vorbisOnlyAudio)).toEqual([]);
+    expect(vorbisOnlyAudio.canPlayType).toHaveBeenCalledWith('audio/webm; codecs="opus"');
+    expect(vorbisOnlyAudio.canPlayType).not.toHaveBeenCalledWith("audio/webm");
+
+    const opusCapableAudio = {
+      canPlayType: vi.fn((mimeType: string) => (mimeType === 'audio/webm; codecs="opus"' ? "probably" : "")),
+    };
+    expect(selectTrackAudioCandidates(track, opusCapableAudio)).toEqual([track.audioUrl]);
   });
 });

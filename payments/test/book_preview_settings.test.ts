@@ -445,11 +445,13 @@ describe("loadBookIdentity optional media fields", () => {
     expect(vnInvalid).toEqual(DEFAULT_GLOBAL.voice_narration);
     expect(warn).toHaveBeenCalledTimes(1);
 
-    warn.mockClear();
-    expect(loadVoiceNarrationSection({ lexicon: [{ pattern: "a", flags: "z", replacement: "b" }] }).lexicon).toEqual(
-      DEFAULT_GLOBAL.voice_narration.lexicon,
-    );
-    expect(warn).toHaveBeenCalledTimes(1);
+    for (const badFlags of ["z", "m", "gim"]) {
+      warn.mockClear();
+      expect(loadVoiceNarrationSection({ lexicon: [{ pattern: "a", flags: badFlags, replacement: "b" }] }).lexicon).toEqual(
+        DEFAULT_GLOBAL.voice_narration.lexicon,
+      );
+      expect(warn).toHaveBeenCalledTimes(1);
+    }
 
     for (const badTempos of ["invalid", [], { "": 1.1 }, { v: Number.NaN }, JSON.parse('{"__proto__":1.1}')]) {
       warn.mockClear();
