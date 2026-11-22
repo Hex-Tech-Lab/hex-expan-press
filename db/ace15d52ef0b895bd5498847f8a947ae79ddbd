@@ -1,0 +1,32 @@
+payments/src/settings_registry.ts
+  h_e6b68dcbbd0983 314-316,793-795,2669,2699-2700,2708-2715,2734-2736
+payments/test/book_preview_settings.test.ts
+  h_e6b68dcbbd0983 368-370,372-374,376-381
+scripts/narrate_book_preview.ts
+  h_e6b68dcbbd0983 20,436-441,444-447,450-451,458,462
+scripts/narrate_book_preview_audio.ts
+  h_e6b68dcbbd0983 250,254-262,308,312-332
+web/__tests__/book-preview-folio.test.ts
+  h_e6b68dcbbd0983 112-117,131,133
+web/__tests__/use-read-aloud.audio.test.ts
+  h_e6b68dcbbd0983 39,50,61,70,90,153,186-187,218,257,262,292,307,309-311,313,315-321,323-327,329,335-350,361-370
+web/e2e/book-preview-read-aloud.spec.ts
+  h_e6b68dcbbd0983 352,357-362,364,376,402-403,414,422,426-427,429
+web/public/books/audio/sample_the_quiet_workshop/timings.json
+  h_e6b68dcbbd0983 54-55,118-119,245-246,273-274,427-428,563-564,672-673,772-773
+web/src/components/storefront/read-aloud-audio.ts
+  h_e6b68dcbbd0983 26,53,105,152,282-298
+web/src/components/storefront/use-read-aloud.ts
+  h_e6b68dcbbd0983 16,86-91,301,313-320,322,339-347,366,368,370,372,375
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "dbace15d52ef0b895bd5498847f8a947ae79ddbd",
+  "prompts": {},
+  "humans": {
+    "h_e6b68dcbbd0983": {
+      "author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}

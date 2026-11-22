@@ -1,0 +1,38 @@
+payments/src/settings_registry.ts
+  h_e6b68dcbbd0983 406-411,641-643,1361-1405,1423,1784-1785,2117-2118,2120-2124,2126-2149,2163-2165,2676,2678-2683,2694-2695,2701-2702
+payments/test/book_preview_settings.test.ts
+  h_e6b68dcbbd0983 9,12,340-342,349-351,359-361,373-395
+scripts/__tests__/narrate_book_preview.test.ts
+  h_e6b68dcbbd0983 2-10,13-24,27-28,30-77
+scripts/narrate_book_preview.ts
+  h_e6b68dcbbd0983 1,22,24,26,30-37,50-62,64-65,83-85,242-246,287,300-303,356,384
+scripts/narrate_book_preview_audio.ts
+  h_e6b68dcbbd0983 2,13-81,93,120,124-125,129-130,139
+web/__tests__/book-preview-folio.test.ts
+  h_e6b68dcbbd0983 169-187
+web/__tests__/use-read-aloud.audio.test.ts
+  h_e6b68dcbbd0983 6,112-113,118,121,126,131,150-151,311-380
+web/app/books/[handle]/[product]/page.tsx
+  h_e6b68dcbbd0983 210
+web/src/components/storefront/book-previewer-text.ts
+  h_e6b68dcbbd0983 189-190,198,201-207,367
+web/src/components/storefront/book-previewer.tsx
+  h_e6b68dcbbd0983 47,57,101-102
+web/src/components/storefront/read-aloud-audio.ts
+  h_e6b68dcbbd0983 3-9,18,46,49,51-53,61-88,103,131,140,177-181,192-201,206-241,262-273
+web/src/components/storefront/use-read-aloud.ts
+  h_e6b68dcbbd0983 9,61,73-77,109-110,121,123-126,311-323,342,362
+web/src/lib/book-assets.ts
+  h_e6b68dcbbd0983 78-81
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8b61c363b365e7d26647cbc97dda4f874adc821b",
+  "prompts": {},
+  "humans": {
+    "h_e6b68dcbbd0983": {
+      "author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
