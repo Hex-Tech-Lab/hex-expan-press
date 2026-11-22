@@ -1,13 +1,39 @@
-import { describe, expect, it } from "vitest";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_GLOBAL } from "../../payments/src/settings_registry";
 import {
+  acquireNarrationLock,
   assemblePagePcm,
+  dedupeChunksByCachePath,
   formatChunkForSpeech,
   isMetadataBookPage,
+  isValidWavFile,
   parsePageSelection,
   resolveVoiceFromNarrationSettings,
+  synthesizeVcpChunk,
   trimSilencePcm,
 } from "../narrate_book_preview";
+
+function makeValidWavBuffer(payloadSize = 16): Buffer {
+  const buf = Buffer.alloc(44 + payloadSize);
+  buf.write("RIFF", 0, "ascii");
+  buf.writeUInt32LE(36 + payloadSize, 4);
+  buf.write("WAVE", 8, "ascii");
+  buf.write("fmt ", 12, "ascii");
+  buf.writeUInt32LE(16, 16);
+  buf.writeUInt16LE(1, 20);
+  buf.writeUInt16LE(1, 22);
+  buf.writeUInt32LE(24000, 24);
+  buf.writeUInt32LE(48000, 28);
+  buf.writeUInt16LE(2, 32);
+  buf.writeUInt16LE(16, 34);
+  buf.write("data", 36, "ascii");
+  buf.writeUInt32LE(payloadSize, 40);
+  return buf;
+}
 
 describe("narrate_book_preview helpers", () => {
   it("normalizes sparse cover, metadata, tracked headings, and back cover details without altering prose pages", () => {
@@ -110,5 +136,153 @@ describe("narrate_book_preview helpers", () => {
       { id: "p0-b1-s0", blockIndex: 1, text: "Next block.", spokenText: "Next block.", tokensCharged: 35, startMs: 2300, endMs: 2800 },
     ]);
     expect(out.rawDurationMs).toBe(2950);
+  });
+});
+
+describe("narrate_book_preview cache integrity, locking, and atomic synthesis", () => {
+  const tempDirs: string[] = [];
+
+  function makeTempDir(): string {
+    const dir = mkdtempSync(path.join(tmpdir(), "narrate-hardening-"));
+    tempDirs.push(dir);
+    return dir;
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    while (tempDirs.length > 0) {
+      const dir = tempDirs.pop();
+      if (dir) rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("validates WAV magic headers and rejects missing, truncated, or corrupt cache files", () => {
+    const dir = makeTempDir();
+    const missing = path.join(dir, "missing.wav");
+    const truncated = path.join(dir, "truncated.wav");
+    const corrupt = path.join(dir, "corrupt.wav");
+    const valid = path.join(dir, "valid.wav");
+
+    writeFileSync(truncated, Buffer.from("RIFF1234WAVE", "ascii"));
+    writeFileSync(corrupt, Buffer.alloc(64, 0x41));
+    writeFileSync(valid, makeValidWavBuffer());
+
+    expect(isValidWavFile(missing)).toBe(false);
+    expect(isValidWavFile(truncated)).toBe(false);
+    expect(isValidWavFile(corrupt)).toBe(false);
+    expect(isValidWavFile(valid)).toBe(true);
+  });
+
+  it("enforces exclusive per-cacheDir locking, cleans up on release, and reclaims dead-PID stale locks", () => {
+    const dir = makeTempDir();
+    const lock = acquireNarrationLock(dir);
+    const lockJson = JSON.parse(readFileSync(lock.lockPath, "utf8")) as { pid: number; startedAt: string };
+    expect(lockJson.pid).toBe(process.pid);
+    expect(typeof lockJson.startedAt).toBe("string");
+
+    // Live PID lock contention refuses loudly
+    expect(() => acquireNarrationLock(dir)).toThrow(/Narration lock already held/);
+
+    // Release cleans up lockfile and permits re-acquisition
+    lock.release();
+    lock.release(); // idempotent
+    const reacquired = acquireNarrationLock(dir);
+    reacquired.release();
+
+    // Dead PID stale lock is reclaimed cleanly
+    const exited = spawnSync(process.execPath, ["-e", ""], { stdio: "ignore" });
+    expect(typeof exited.pid).toBe("number");
+    writeFileSync(
+      lock.lockPath,
+      JSON.stringify({ pid: exited.pid, startedAt: new Date(Date.now() - 60_000).toISOString() }),
+      "utf8",
+    );
+    const reclaimed = acquireNarrationLock(dir);
+    const reclaimedJson = JSON.parse(readFileSync(reclaimed.lockPath, "utf8")) as { pid: number };
+    expect(reclaimedJson.pid).toBe(process.pid);
+    reclaimed.release();
+  });
+
+  it("deduplicates pending chunks by WAV cache path while preserving order", () => {
+    const chunks = [
+      { id: "c1", spokenText: "Hello." },
+      { id: "c2", spokenText: "World." },
+      { id: "c1", spokenText: "Hello." },
+    ];
+    const unique = dedupeChunksByCachePath(chunks, (c) => `/cache/${c.id}_${c.spokenText}.wav`);
+    expect(unique).toEqual([
+      { id: "c1", spokenText: "Hello." },
+      { id: "c2", spokenText: "World." },
+    ]);
+  });
+
+  it("rejects empty or corrupt WAV downloads and writes valid WAV payloads atomically with zero leftover temp files", async () => {
+    const dir = makeTempDir();
+    const badOut = path.join(dir, "bad.wav");
+    const goodOut = path.join(dir, "good.wav");
+
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.endsWith("/v1/speech")) {
+        return new Response(JSON.stringify({ id: "job-1" }), { status: 200 });
+      }
+      if (url.includes("/v1/jobs/")) {
+        return new Response(
+          JSON.stringify({
+            status: "succeeded",
+            tokens_charged: 12,
+            result: { audio_url: "https://cdn.vcp.test/out.wav" },
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response(Buffer.from("not-a-wav"), {
+        status: 200,
+        headers: { "content-type": "audio/wav" },
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(
+      synthesizeVcpChunk("https://api.vcp.test", "k", "v", "m", "Hi", badOut, {
+        poll_wait_seconds: 1,
+        max_poll_attempts: 1,
+        request_timeout_ms: 5000,
+      }),
+    ).rejects.toThrow(/not a valid WAV payload/);
+    expect(isValidWavFile(badOut)).toBe(false);
+    expect(readdirSync(dir)).toEqual([]);
+
+    const validWav = makeValidWavBuffer();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (url.endsWith("/v1/speech")) {
+          return new Response(JSON.stringify({ id: "job-2" }), { status: 200 });
+        }
+        if (url.includes("/v1/jobs/")) {
+          return new Response(
+            JSON.stringify({
+              status: "succeeded",
+              tokens_charged: 18,
+              result: { audio_url: "https://cdn.vcp.test/good.wav" },
+            }),
+            { status: 200 },
+          );
+        }
+        return new Response(new Uint8Array(validWav), {
+          status: 200,
+          headers: { "content-type": "audio/wav" },
+        });
+      }),
+    );
+
+    const result = await synthesizeVcpChunk("https://api.vcp.test", "k", "v", "m", "Hi", goodOut, {
+      poll_wait_seconds: 1,
+      max_poll_attempts: 1,
+      request_timeout_ms: 5000,
+    });
+    expect(result).toEqual({ billedUnits: 18 });
+    expect(isValidWavFile(goodOut)).toBe(true);
+    expect(readdirSync(dir)).toEqual(["good.wav"]);
   });
 });

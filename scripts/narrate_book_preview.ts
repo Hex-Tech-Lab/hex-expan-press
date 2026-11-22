@@ -26,17 +26,30 @@ import {
   resolveVoiceFromNarrationSettings,
   trimSilencePcm,
 } from "./narrate_book_preview_audio";
+import {
+  acquireNarrationLock,
+  dedupeChunksByCachePath,
+  fetchGetWithRetry,
+  isValidWavFile,
+  MAX_AUDIO_DOWNLOAD_BYTES,
+  MIN_WAV_HEADER_BYTES,
+  readBoundedBytes,
+  writeAudioBytesAtomically,
+  type NarrationLock,
+} from "./narrate_book_preview_cache";
 
 export {
+  acquireNarrationLock,
   assemblePagePcm,
+  dedupeChunksByCachePath,
   formatChunkForSpeech,
   isMetadataBookPage,
+  isValidWavFile,
   parsePageSelection,
   resolveVoiceFromNarrationSettings,
   trimSilencePcm,
+  type NarrationLock,
 };
-
-const MAX_AUDIO_DOWNLOAD_BYTES = 20 * 1024 * 1024;
 
 export interface SpeechChunkPlan {
   id: string;
@@ -70,68 +83,7 @@ function resolveEnvPath(explicitPath: string | undefined, repoRoot: string): str
   return null;
 }
 
-async function fetchGetWithRetry(url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
-  const method = (init.method ?? "GET").toUpperCase();
-  if (method !== "GET" && method !== "HEAD") {
-    throw new Error(`fetchGetWithRetry only permits GET/HEAD, got ${method}`);
-  }
-  let lastErr: unknown;
-  for (let attempt = 0; attempt < 6; attempt++) {
-    try {
-      const res = await fetch(url, { ...init, method, signal: AbortSignal.timeout(timeoutMs) });
-      if ((res.status === 429 || res.status >= 500) && attempt < 5) {
-        await res.body?.cancel().catch((cancelErr: unknown) => {
-          console.warn("[vcp] retry response body cancel warning:", cancelErr instanceof Error ? cancelErr.message : String(cancelErr));
-        });
-        await new Promise((resolve) => setTimeout(resolve, Math.min(2000 * (attempt + 1), 10000)));
-        continue;
-      }
-      return res;
-    } catch (err) {
-      lastErr = err;
-      console.warn(`[vcp] GET attempt ${attempt + 1}/6 failed:`, err instanceof Error ? err.message : String(err));
-      if (attempt < 5) {
-        await new Promise((resolve) => setTimeout(resolve, Math.min(2000 * (attempt + 1), 10000)));
-        continue;
-      }
-    }
-  }
-  throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
-}
-
-async function readBoundedBytes(res: Response, maxBytes: number): Promise<Buffer> {
-  const rawLen = res.headers.get("content-length");
-  if (rawLen) {
-    const parsedLen = Number.parseInt(rawLen, 10);
-    if (Number.isFinite(parsedLen) && parsedLen > maxBytes) {
-      throw new Error(`Audio response exceeds cap (${parsedLen} > ${maxBytes})`);
-    }
-  }
-  const reader = res.body?.getReader();
-  if (!reader) {
-    throw new Error("Audio response has no readable body stream");
-  }
-  const parts: Uint8Array[] = [];
-  let total = 0;
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      if (!value) continue;
-      total += value.byteLength;
-      if (total > maxBytes) {
-        await reader.cancel();
-        throw new Error(`Audio stream exceeded ${maxBytes} byte cap`);
-      }
-      parts.push(value);
-    }
-  } finally {
-    reader.releaseLock();
-  }
-  return Buffer.concat(parts, total);
-}
-
-async function synthesizeVcpChunk(
+export async function synthesizeVcpChunk(
   apiBase: string,
   apiKey: string,
   voiceId: string,
@@ -186,7 +138,23 @@ async function synthesizeVcpChunk(
         throw new Error(`VCP audio download failed (${audioRes.status}) for job ${jobId}`);
       }
       const bytes = await readBoundedBytes(audioRes, MAX_AUDIO_DOWNLOAD_BYTES);
-      writeFileSync(outWavPath, bytes);
+      if (bytes.length === 0) {
+        throw new Error(`VCP audio download returned 0 bytes for job ${jobId}`);
+      }
+      const contentType = (audioRes.headers.get("content-type") ?? "").toLowerCase();
+      const isWavResponse =
+        contentType.includes("wav") ||
+        /\.wav(?:$|\?)/i.test(audioUrl) ||
+        bytes.subarray(0, 4).toString("ascii") === "RIFF";
+      if (
+        isWavResponse &&
+        (bytes.length < MIN_WAV_HEADER_BYTES ||
+          bytes.subarray(0, 4).toString("ascii") !== "RIFF" ||
+          bytes.subarray(8, 12).toString("ascii") !== "WAVE")
+      ) {
+        throw new Error(`VCP audio download for job ${jobId} is not a valid WAV payload (${bytes.length} bytes)`);
+      }
+      writeAudioBytesAtomically(outWavPath, bytes);
       return { billedUnits: job.tokens_charged };
     }
   }
@@ -329,153 +297,161 @@ async function main(): Promise<void> {
   mkdirSync(cacheDir, { recursive: true });
   mkdirSync(audioPublicDir, { recursive: true });
 
-  const chunkCachePath = (chunk: SpeechChunkPlan) => {
-    const hash = createHash("sha256").update(`${voiceId}|${model}|${chunk.spokenText}`).digest("hex").slice(0, 16);
-    return {
-      wav: path.join(cacheDir, `${chunk.id}_${hash}.wav`),
-      meta: path.join(cacheDir, `${chunk.id}_${hash}.json`),
-    };
-  };
-
-  const pendingToSynth = pagePlans
-    .filter((plan) => selectedPages.has(plan.pdfPageNumber))
-    .flatMap((plan) => plan.chunks)
-    .filter((chunk) => force || !existsSync(chunkCachePath(chunk).wav));
-
-  let apiKey = "";
-  let usedBefore: number | undefined;
-  if (!assembleOnly && pendingToSynth.length > 0) {
-    const envPath = resolveEnvPath(getArg("--env"), repoRoot);
-    if (envPath) dotenv.config({ path: envPath, override: true });
-    apiKey = process.env[narration.env_key_name] ?? "";
-    if (!apiKey) {
-      throw new Error(`Missing ${narration.env_key_name} in environment or .env`);
-    }
-    const usageRes = await fetch(`${GLOBAL.endpoints.voicecreator_api}/v1/usage`, {
-      headers: { Authorization: `Bearer ${apiKey}` },
-      signal: AbortSignal.timeout(narration.request_timeout_ms),
-    });
-    if (usageRes.ok) {
-      const usageBody = (await usageRes.json()) as { tokens_used?: number; allowance_remaining?: number };
-      usedBefore = usageBody.tokens_used;
-      const remBefore = usageBody.allowance_remaining;
-      console.log(`[vcp] Allowance before: used=${usedBefore ?? "?"}, remaining=${remBefore ?? "?"}`);
-    }
-
-    console.log(`[vcp] Synthesizing ${pendingToSynth.length} chunks (concurrency=${concurrency}, voice=${voiceName})...`);
-    await runPool(pendingToSynth, concurrency, 1100, async (chunk, idx) => {
-      const paths = chunkCachePath(chunk);
-      const res = await synthesizeVcpChunk(
-        GLOBAL.endpoints.voicecreator_api,
-        apiKey,
-        voiceId,
-        model,
-        chunk.spokenText,
-        paths.wav,
-        narration,
-      );
-      writeFileSync(paths.meta, JSON.stringify({ id: chunk.id, tokensCharged: res.billedUnits ?? null }, null, 2));
-      const chargedCount = res.billedUnits;
-      console.log(`[vcp] [${idx + 1}/${pendingToSynth.length}] ${chunk.id} (${chargedCount ?? "?"} units)`);
-    });
-
-    const usageAfterRes = await fetch(`${GLOBAL.endpoints.voicecreator_api}/v1/usage`, {
-      headers: { Authorization: `Bearer ${apiKey}` },
-      signal: AbortSignal.timeout(narration.request_timeout_ms),
-    });
-    if (usageAfterRes.ok) {
-      const usageAfter = (await usageAfterRes.json()) as { tokens_used?: number; allowance_remaining?: number };
-      const usedAfter = usageAfter.tokens_used;
-      const remAfter = usageAfter.allowance_remaining;
-      const delta =
-        typeof usedAfter === "number" && typeof usedBefore === "number" ? usedAfter - usedBefore : undefined;
-      console.log(`[vcp] Allowance after: used=${usedAfter ?? "?"}, delta=${delta ?? "?"}, remaining=${remAfter ?? "?"}`);
-    }
-  } else {
-    console.log(`[vcp] 0 new chunks to synthesize (cached=${pagePlans.flatMap((plan) => plan.chunks).length}, assembleOnly=${assembleOnly}).`);
-  }
-
-  const pagesManifest: Record<string, PreviewAudioPageTrack> = {};
-  for (const plan of pagePlans) {
-    const allCached = plan.chunks.length > 0 && plan.chunks.every((chunk) => existsSync(chunkCachePath(chunk).wav));
-    if (!allCached) {
-      console.log(`[assemble] Skipping page ${plan.pdfPageNumber} (incomplete cache)`);
-      continue;
-    }
-    const entries = plan.chunks.map((chunk) => {
-      const paths = chunkCachePath(chunk);
-      const rawPcm = decodeAudioToNativePcm(ffmpegBin, paths.wav);
-      const trimmedPcm = trimSilencePcm(rawPcm, NATIVE_SAMPLE_RATE, {
-        thresholdDb: narration.silence_threshold_db,
-        padStartMs: narration.silence_pad_start_ms,
-        padEndMs: narration.silence_pad_end_ms,
-      });
-      let chargedUnits: number | undefined;
-      if (existsSync(paths.meta)) {
-        const meta = JSON.parse(readFileSync(paths.meta, "utf8")) as { tokensCharged?: number | null };
-        if (typeof meta.tokensCharged === "number") chargedUnits = meta.tokensCharged;
-      }
+  const lock = acquireNarrationLock(cacheDir);
+  try {
+    const chunkCachePath = (chunk: SpeechChunkPlan) => {
+      const hash = createHash("sha256").update(`${voiceId}|${model}|${chunk.spokenText}`).digest("hex").slice(0, 16);
       return {
-        id: chunk.id,
-        blockIndex: chunk.blockIndex,
-        text: chunk.text,
-        spokenText: chunk.spokenText,
-        tokensCharged: chargedUnits,
-        pcm: trimmedPcm,
+        wav: path.join(cacheDir, `${chunk.id}_${hash}.wav`),
+        meta: path.join(cacheDir, `${chunk.id}_${hash}.json`),
       };
-    });
-
-    const assembled = assemblePagePcm(entries, {
-      sampleRate: NATIVE_SAMPLE_RATE,
-      pageLeadMs: narration.page_lead_ms,
-      pageTailMs: narration.page_tail_ms,
-      sentenceGapMs: narration.sentence_gap_ms,
-      paragraphGapMs: narration.paragraph_gap_ms,
-    });
-
-    const fileBase = `page-${String(plan.pdfPageNumber).padStart(2, "0")}`;
-    const mp3FileName = `${fileBase}.mp3`;
-    const opusFileName = `${fileBase}.webm`;
-    const outMp3Path = path.join(audioPublicDir, mp3FileName);
-    const outOpusPath = path.join(audioPublicDir, opusFileName);
-    encodeLoudnormDualFormats(ffmpegBin, assembled.pcm, outMp3Path, outOpusPath, {
-      targetLufs: narration.loudnorm_lufs,
-      sampleRateHz: narration.sample_rate_hz,
-      mp3BitrateKbps: narration.mp3_bitrate_kbps,
-      opusCodec: narration.opus_codec,
-      opusBitrateKbps: narration.opus_bitrate_kbps,
-      opusVbr: narration.opus_vbr,
-    });
-    const durationMs = probeDurationMs(ffprobeBin, outMp3Path, assembled.rawDurationMs);
-    const audioUrl = `${GLOBAL.storefront.audio_base_path}/${book.id}/${mp3FileName}`;
-    const opusUrl = `${GLOBAL.storefront.audio_base_path}/${book.id}/${opusFileName}`;
-
-    pagesManifest[String(plan.pdfPageNumber)] = {
-      pageIndex: plan.pageIndex,
-      pdfPageNumber: plan.pdfPageNumber,
-      ...(plan.bookPageLabel ? { bookPageLabel: plan.bookPageLabel } : {}),
-      audioUrl,
-      opusUrl,
-      durationMs,
-      chunks: assembled.chunks,
     };
-    console.log(`[assemble] Wrote ${mp3FileName} + ${opusFileName} (${durationMs} ms, ${assembled.chunks.length} chunks)`);
-  }
 
-  const manifest: PreviewAudioManifest = {
-    version: 1,
-    bookId: book.id,
-    voiceId,
-    voiceName,
-    model,
-    sampleRateHz: narration.sample_rate_hz,
-    loudnormLufs: narration.loudnorm_lufs,
-    generatedAt: new Date().toISOString(),
-    pages: pagesManifest,
-  };
-  const timingsPath = path.join(audioPublicDir, "timings.json");
-  writeFileSync(timingsPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
-  console.log(`[assemble] Wrote ${timingsPath} (${Object.keys(pagesManifest).length} pages)`);
+    const pendingToSynth = dedupeChunksByCachePath(
+      pagePlans
+        .filter((plan) => selectedPages.has(plan.pdfPageNumber))
+        .flatMap((plan) => plan.chunks)
+        .filter((chunk) => force || !isValidWavFile(chunkCachePath(chunk).wav)),
+      (chunk) => chunkCachePath(chunk).wav,
+    );
+
+    let apiKey = "";
+    let usedBefore: number | undefined;
+    if (!assembleOnly && pendingToSynth.length > 0) {
+      const envPath = resolveEnvPath(getArg("--env"), repoRoot);
+      if (envPath) dotenv.config({ path: envPath, override: true });
+      apiKey = process.env[narration.env_key_name] ?? "";
+      if (!apiKey) {
+        throw new Error(`Missing ${narration.env_key_name} in environment or .env`);
+      }
+      const usageRes = await fetch(`${GLOBAL.endpoints.voicecreator_api}/v1/usage`, {
+        headers: { Authorization: `Bearer ${apiKey}` },
+        signal: AbortSignal.timeout(narration.request_timeout_ms),
+      });
+      if (usageRes.ok) {
+        const usageBody = (await usageRes.json()) as { tokens_used?: number; allowance_remaining?: number };
+        usedBefore = usageBody.tokens_used;
+        const remBefore = usageBody.allowance_remaining;
+        console.log(`[vcp] Allowance before: used=${usedBefore ?? "?"}, remaining=${remBefore ?? "?"}`);
+      }
+
+      console.log(`[vcp] Synthesizing ${pendingToSynth.length} chunks (concurrency=${concurrency}, voice=${voiceName})...`);
+      await runPool(pendingToSynth, concurrency, 1100, async (chunk, idx) => {
+        const paths = chunkCachePath(chunk);
+        const res = await synthesizeVcpChunk(
+          GLOBAL.endpoints.voicecreator_api,
+          apiKey,
+          voiceId,
+          model,
+          chunk.spokenText,
+          paths.wav,
+          narration,
+        );
+        writeFileSync(paths.meta, JSON.stringify({ id: chunk.id, tokensCharged: res.billedUnits ?? null }, null, 2));
+        const chargedCount = res.billedUnits;
+        console.log(`[vcp] [${idx + 1}/${pendingToSynth.length}] ${chunk.id} (${chargedCount ?? "?"} units)`);
+      });
+
+      const usageAfterRes = await fetch(`${GLOBAL.endpoints.voicecreator_api}/v1/usage`, {
+        headers: { Authorization: `Bearer ${apiKey}` },
+        signal: AbortSignal.timeout(narration.request_timeout_ms),
+      });
+      if (usageAfterRes.ok) {
+        const usageAfter = (await usageAfterRes.json()) as { tokens_used?: number; allowance_remaining?: number };
+        const usedAfter = usageAfter.tokens_used;
+        const remAfter = usageAfter.allowance_remaining;
+        const delta =
+          typeof usedAfter === "number" && typeof usedBefore === "number" ? usedAfter - usedBefore : undefined;
+        console.log(`[vcp] Allowance after: used=${usedAfter ?? "?"}, delta=${delta ?? "?"}, remaining=${remAfter ?? "?"}`);
+      }
+    } else {
+      console.log(`[vcp] 0 new chunks to synthesize (cached=${pagePlans.flatMap((plan) => plan.chunks).length}, assembleOnly=${assembleOnly}).`);
+    }
+
+    const pagesManifest: Record<string, PreviewAudioPageTrack> = {};
+    for (const plan of pagePlans) {
+      const allCached = plan.chunks.length > 0 && plan.chunks.every((chunk) => isValidWavFile(chunkCachePath(chunk).wav));
+      if (!allCached) {
+        console.log(`[assemble] Skipping page ${plan.pdfPageNumber} (incomplete cache)`);
+        continue;
+      }
+      const entries = plan.chunks.map((chunk) => {
+        const paths = chunkCachePath(chunk);
+        const rawPcm = decodeAudioToNativePcm(ffmpegBin, paths.wav);
+        const trimmedPcm = trimSilencePcm(rawPcm, NATIVE_SAMPLE_RATE, {
+          thresholdDb: narration.silence_threshold_db,
+          padStartMs: narration.silence_pad_start_ms,
+          padEndMs: narration.silence_pad_end_ms,
+        });
+        let chargedUnits: number | undefined;
+        if (existsSync(paths.meta)) {
+          const meta = JSON.parse(readFileSync(paths.meta, "utf8")) as { tokensCharged?: number | null };
+          if (typeof meta.tokensCharged === "number") chargedUnits = meta.tokensCharged;
+        }
+        return {
+          id: chunk.id,
+          blockIndex: chunk.blockIndex,
+          text: chunk.text,
+          spokenText: chunk.spokenText,
+          tokensCharged: chargedUnits,
+          pcm: trimmedPcm,
+        };
+      });
+
+      const assembled = assemblePagePcm(entries, {
+        sampleRate: NATIVE_SAMPLE_RATE,
+        pageLeadMs: narration.page_lead_ms,
+        pageTailMs: narration.page_tail_ms,
+        sentenceGapMs: narration.sentence_gap_ms,
+        paragraphGapMs: narration.paragraph_gap_ms,
+      });
+
+      const fileBase = `page-${String(plan.pdfPageNumber).padStart(2, "0")}`;
+      const mp3FileName = `${fileBase}.mp3`;
+      const opusFileName = `${fileBase}.webm`;
+      const outMp3Path = path.join(audioPublicDir, mp3FileName);
+      const outOpusPath = path.join(audioPublicDir, opusFileName);
+      encodeLoudnormDualFormats(ffmpegBin, assembled.pcm, outMp3Path, outOpusPath, {
+        targetLufs: narration.loudnorm_lufs,
+        sampleRateHz: narration.sample_rate_hz,
+        mp3BitrateKbps: narration.mp3_bitrate_kbps,
+        opusCodec: narration.opus_codec,
+        opusBitrateKbps: narration.opus_bitrate_kbps,
+        opusVbr: narration.opus_vbr,
+      });
+      const durationMs = probeDurationMs(ffprobeBin, outMp3Path, assembled.rawDurationMs);
+      const audioUrl = `${GLOBAL.storefront.audio_base_path}/${book.id}/${mp3FileName}`;
+      const opusUrl = `${GLOBAL.storefront.audio_base_path}/${book.id}/${opusFileName}`;
+
+      pagesManifest[String(plan.pdfPageNumber)] = {
+        pageIndex: plan.pageIndex,
+        pdfPageNumber: plan.pdfPageNumber,
+        ...(plan.bookPageLabel ? { bookPageLabel: plan.bookPageLabel } : {}),
+        audioUrl,
+        opusUrl,
+        durationMs,
+        chunks: assembled.chunks,
+      };
+      console.log(`[assemble] Wrote ${mp3FileName} + ${opusFileName} (${durationMs} ms, ${assembled.chunks.length} chunks)`);
+    }
+
+    const manifest: PreviewAudioManifest = {
+      version: 1,
+      bookId: book.id,
+      voiceId,
+      voiceName,
+      model,
+      sampleRateHz: narration.sample_rate_hz,
+      loudnormLufs: narration.loudnorm_lufs,
+      generatedAt: new Date().toISOString(),
+      pages: pagesManifest,
+    };
+    const timingsPath = path.join(audioPublicDir, "timings.json");
+    writeFileSync(timingsPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+    console.log(`[assemble] Wrote ${timingsPath} (${Object.keys(pagesManifest).length} pages)`);
+  } finally {
+    lock.release();
+  }
 }
 
 const isDirectRun = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
