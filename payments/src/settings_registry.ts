@@ -1204,7 +1204,7 @@ export function loadLandingSection(raw: Record<string, unknown> | undefined): Gl
     candidate.every((line) => typeof line === "string" && line.trim() !== "");
   // Check category-word presence against disclaimer_required_terms using tokenized lowercase words (no dynamic RegExp),
   // so legacy partial overrides (e.g. financial-only) fall back to the reviewed DEFAULT_GLOBAL.landing.disclaimers.
-  const tokens = hasStrings ? new Set((candidate as string[]).join(" ").toLowerCase().match(/[a-z]+/g) ?? []) : null;
+  const tokens = hasStrings ? new Set((candidate as string[]).join(" ").toLowerCase().match(/\b[a-z]+\b/g) ?? []) : null;
   const usable = Boolean(tokens && required.every((term) => tokens.has(term.toLowerCase())));
   if (candidate !== undefined && !usable) {
     warnFallback("global.json", `landing.disclaimers must be non-empty text naming every required category (${required.join(", ")})`);

@@ -54,6 +54,8 @@ describe("landing disclaimers: a stored override cannot keep financial-only copy
     ["a non-string entry", ["financial, legal, medical, tax", 42]],
     ["a blank entry", ["   "]],
     ["a non-array", "financial, legal, medical, tax"],
+    ["digit-suffixed terms without word boundaries", ["Not financial1, legal2, medical3, or tax4 advice."]],
+    ["underscore-joined terms without word boundaries", ["non_financial legal medical tax"]],
   ])("%s falls back to the default", (_label, bad) => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     expect(loadLandingSection({ disclaimers: bad as unknown as string[] }).disclaimers).toEqual(DEFAULT_GLOBAL.landing.disclaimers);
