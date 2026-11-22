@@ -10,43 +10,25 @@ import {
   applyAudioPlaybackRate,
   chunkIndexForTrackTime,
   detectAudioSupport,
+  detectSpeechSynthesisSupport,
+  isSpeechEngineBusy,
   parsePreviewAudioManifest,
   playAudioWithErrorHandler,
   resolveSpreadAudioTracks,
   selectTrackAudioCandidates,
+  subscribeNoop,
+  wordEndAt,
   type PreviewAudioManifest,
   type PreviewAudioPageTrack,
 } from "./read-aloud-audio";
+
+export { detectSpeechSynthesisSupport };
 
 /** The word being spoken, as char offsets into its sentence chunk. Only set when highlight_words is on. */
 export interface ReadAloudWord {
   chunkId: string;
   start: number;
   end: number;
-}
-
-function subscribeNoop(): () => void {
-  return () => {};
-}
-
-export function detectSpeechSynthesisSupport(): boolean {
-  return (
-    typeof window !== "undefined" &&
-    "speechSynthesis" in window &&
-    Boolean(window.speechSynthesis) &&
-    typeof window.SpeechSynthesisUtterance === "function"
-  );
-}
-
-/** True while Web Speech has speech queued, in flight, or paused. */
-function engineBusy(synth: SpeechSynthesis): boolean {
-  return Boolean(synth.speaking || synth.pending || synth.paused);
-}
-
-/** End offset of the word that starts at charIndex. */
-function wordEndAt(text: string, charIndex: number): number {
-  const match = /^\S+/.exec(text.slice(charIndex));
-  return charIndex + (match ? match[0].length : 0);
 }
 
 /**
@@ -160,7 +142,7 @@ export function useReadAloud(
     positionRef.current = null;
     activeEngineRef.current = "none";
     stopAudioEngine(false);
-    if (detectSpeechSynthesisSupport() && engineBusy(window.speechSynthesis)) {
+    if (detectSpeechSynthesisSupport() && isSpeechEngineBusy(window.speechSynthesis)) {
       window.speechSynthesis.cancel?.();
     }
   }, [stopAudioEngine]);
@@ -189,7 +171,7 @@ export function useReadAloud(
       speechSessionRef.current += 1;
       activeEngineRef.current = "none";
       stopAudioEngine(true);
-      if (detectSpeechSynthesisSupport() && engineBusy(window.speechSynthesis)) {
+      if (detectSpeechSynthesisSupport() && isSpeechEngineBusy(window.speechSynthesis)) {
         window.speechSynthesis.cancel?.();
       }
     };
@@ -216,7 +198,7 @@ export function useReadAloud(
       const synth = window.speechSynthesis;
       const session = ++speechSessionRef.current;
       activeEngineRef.current = "speech";
-      if (engineBusy(synth)) synth.cancel?.();
+      if (isSpeechEngineBusy(synth)) synth.cancel?.();
       if (synth.paused) synth.resume?.();
       pausedAtRateRef.current = null;
       setSpeechAnnouncement("");
@@ -285,7 +267,7 @@ export function useReadAloud(
         else stopReadAloud();
         return;
       }
-      if (detectSpeechSynthesisSupport() && engineBusy(window.speechSynthesis)) {
+      if (detectSpeechSynthesisSupport() && isSpeechEngineBusy(window.speechSynthesis)) {
         window.speechSynthesis.cancel?.();
       }
       const session = ++speechSessionRef.current;
@@ -312,15 +294,19 @@ export function useReadAloud(
         }
         const candidates = selectTrackAudioCandidates(track, audio);
         const sourceUrl = candidates[candidateIdx];
+        const initialIdx = chunkIndexForTrackTime(track, 0, chunks);
+        let currentChunkIdx: number | null = initialIdx;
         if (!sourceUrl) {
           const fallbackIdx = chunks.findIndex((chunk) => chunk.pageIndex === track.pageIndex);
-          if (detectSpeechSynthesisSupport()) speakFromIndex(fallbackIdx >= 0 ? fallbackIdx : 0, 0, rateRef.current);
-          else stopReadAloud();
+          if (detectSpeechSynthesisSupport()) {
+            speakFromIndex(currentChunkIdx ?? (fallbackIdx >= 0 ? fallbackIdx : 0), 0, rateRef.current);
+          } else {
+            stopReadAloud();
+          }
           return;
         }
         activeEngineRef.current = "audio";
         audioQueueRef.current = { tracks, trackIdx, candidates, candidateIdx };
-        const initialIdx = chunkIndexForTrackTime(track, 0, chunks);
         if (initialIdx !== null) setActiveChunk({ idx: initialIdx, key: chunkKey });
         const syncWordForTime = (timeSec: number) => {
           if (!raSettings.highlight_words) {
@@ -347,8 +333,11 @@ export function useReadAloud(
           }
           console.warn("[read-aloud] Audio playback error, falling back to Web Speech:", reason);
           const fallbackIdx = chunks.findIndex((chunk) => chunk.pageIndex === track.pageIndex);
-          if (detectSpeechSynthesisSupport()) speakFromIndex(fallbackIdx >= 0 ? fallbackIdx : 0, 0, rateRef.current);
-          else stopReadAloud();
+          if (detectSpeechSynthesisSupport()) {
+            speakFromIndex(currentChunkIdx ?? (fallbackIdx >= 0 ? fallbackIdx : 0), 0, rateRef.current);
+          } else {
+            stopReadAloud();
+          }
         };
 
         audio.onloadedmetadata = () => {
@@ -358,6 +347,7 @@ export function useReadAloud(
           if (stale()) return;
           const nextIdx = chunkIndexForTrackTime(track, audio.currentTime, chunks);
           if (nextIdx !== null) {
+            currentChunkIdx = nextIdx;
             setActiveChunk((prev) => (prev?.key === chunkKey && prev.idx === nextIdx ? prev : { idx: nextIdx, key: chunkKey }));
           }
           syncWordForTime(audio.currentTime);
@@ -424,9 +414,13 @@ export function useReadAloud(
       playAudioWithErrorHandler(audio, () => {
         if (speechSessionRef.current !== session) return;
         const track = queue.tracks[queue.trackIdx];
+        const timedIdx = track ? chunkIndexForTrackTime(track, audio.currentTime, chunks) : null;
         const fallbackIdx = track ? chunks.findIndex((chunk) => chunk.pageIndex === track.pageIndex) : 0;
-        if (detectSpeechSynthesisSupport()) speakFromIndex(fallbackIdx >= 0 ? fallbackIdx : 0, 0, currentRate);
-        else stopReadAloud();
+        if (detectSpeechSynthesisSupport()) {
+          speakFromIndex(timedIdx ?? (fallbackIdx >= 0 ? fallbackIdx : 0), 0, currentRate);
+        } else {
+          stopReadAloud();
+        }
       });
       return;
     }

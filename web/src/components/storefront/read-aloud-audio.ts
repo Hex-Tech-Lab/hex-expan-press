@@ -40,6 +40,30 @@ export interface PreviewAudioManifest {
   pages: Record<string, PreviewAudioPageTrack>;
 }
 
+export function subscribeNoop(): () => void {
+  return () => {};
+}
+
+export function detectSpeechSynthesisSupport(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    "speechSynthesis" in window &&
+    Boolean(window.speechSynthesis) &&
+    typeof window.SpeechSynthesisUtterance === "function"
+  );
+}
+
+/** True while Web Speech has speech queued, in flight, or paused. */
+export function isSpeechEngineBusy(synth: SpeechSynthesis): boolean {
+  return Boolean(synth.speaking || synth.pending || synth.paused);
+}
+
+/** End offset of the word that starts at charIndex. */
+export function wordEndAt(text: string, charIndex: number): number {
+  const match = /^\S+/.exec(text.slice(charIndex));
+  return charIndex + (match ? match[0].length : 0);
+}
+
 export function detectAudioSupport(): boolean {
   return typeof window !== "undefined" && typeof window.Audio === "function";
 }
@@ -74,9 +98,10 @@ function parseTimingWords(raw: unknown): PreviewAudioTimingWord[] | undefined {
       rec.end > rec.start &&
       typeof rec.startMs === "number" &&
       Number.isFinite(rec.startMs) &&
+      rec.startMs >= 0 &&
       typeof rec.endMs === "number" &&
       Number.isFinite(rec.endMs) &&
-      rec.endMs >= rec.startMs
+      rec.endMs > rec.startMs
     ) {
       words.push({ start: rec.start, end: rec.end, startMs: rec.startMs, endMs: rec.endMs });
     }
@@ -105,11 +130,13 @@ export function parsePreviewAudioManifest(raw: unknown, audioBasePath = "/books/
       (trackRec.opusUrl !== undefined && !isSafeAudioTrackUrl(trackRec.opusUrl, audioBasePath)) ||
       typeof trackRec.durationMs !== "number" ||
       !Number.isFinite(trackRec.durationMs) ||
+      trackRec.durationMs <= 0 ||
       !Array.isArray(trackRec.chunks)
     ) {
       continue;
     }
     const validChunks: PreviewAudioTimingChunk[] = [];
+    const seenIds = new Set<string>();
     let chunksOk = true;
     for (const chunkRaw of trackRec.chunks) {
       if (!chunkRaw || typeof chunkRaw !== "object" || Array.isArray(chunkRaw)) {
@@ -120,16 +147,20 @@ export function parsePreviewAudioManifest(raw: unknown, audioBasePath = "/books/
       if (
         typeof chunkRec.id !== "string" ||
         chunkRec.id === "" ||
+        seenIds.has(chunkRec.id) ||
         typeof chunkRec.blockIndex !== "number" ||
         typeof chunkRec.text !== "string" ||
         typeof chunkRec.startMs !== "number" ||
         !Number.isFinite(chunkRec.startMs) ||
+        chunkRec.startMs < 0 ||
         typeof chunkRec.endMs !== "number" ||
-        !Number.isFinite(chunkRec.endMs)
+        !Number.isFinite(chunkRec.endMs) ||
+        chunkRec.endMs <= chunkRec.startMs
       ) {
         chunksOk = false;
         break;
       }
+      seenIds.add(chunkRec.id);
       const words = parseTimingWords(chunkRec.words);
       validChunks.push({
         id: chunkRec.id,

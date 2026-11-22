@@ -5,6 +5,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_GLOBAL, type BookPreviewReadAloudSettings } from "../../payments/src/settings_registry";
 import type { PreviewAudioManifest, ReadAloudChunk } from "../src/components/storefront/book-previewer-text";
+import { parsePreviewAudioManifest } from "../src/components/storefront/read-aloud-audio";
 import { useReadAloud } from "../src/components/storefront/use-read-aloud";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -426,5 +427,130 @@ describe("useReadAloud pre-baked audio manifest + timings sync + Web Speech fall
       audio.ontimeupdate?.();
     });
     expect(latest.activeWord).toBeNull();
+  });
+
+  it("resumes Web Speech fallback from the active mid-page chunk rather than chunk 0 when audio.onerror fires (F-01)", async () => {
+    const speak = vi.fn();
+    class FakeUtterance {
+      text: string;
+      rate = 1;
+      constructor(text: string) {
+        this.text = text;
+      }
+    }
+    Object.defineProperty(window, "SpeechSynthesisUtterance", { value: FakeUtterance, configurable: true });
+    Object.defineProperty(window, "speechSynthesis", {
+      value: { paused: false, speaking: false, pending: false, speak, cancel: vi.fn(), pause: vi.fn(), resume: vi.fn(), getVoices: () => [] },
+      configurable: true,
+    });
+
+    currentChunks = [
+      { id: "p1-b0-s0", pageIndex: 1, blockIndex: 0, text: "First chunk on page." },
+      { id: "p1-b1-s0", pageIndex: 1, blockIndex: 1, text: "Second chunk on page." },
+      { id: "p1-b2-s0", pageIndex: 1, blockIndex: 2, text: "Third chunk on page." },
+    ];
+    const threeChunkManifest: PreviewAudioManifest = {
+      ...SAMPLE_MANIFEST,
+      pages: {
+        "2": {
+          pageIndex: 1,
+          pdfPageNumber: 2,
+          audioUrl: "/books/audio/sample_the_quiet_workshop/page-02.mp3",
+          durationMs: 6000,
+          chunks: [
+            { id: "p1-b0-s0", blockIndex: 0, text: "First chunk on page.", startMs: 100, endMs: 1500 },
+            { id: "p1-b1-s0", blockIndex: 1, text: "Second chunk on page.", startMs: 1700, endMs: 3500 },
+            { id: "p1-b2-s0", blockIndex: 2, text: "Third chunk on page.", startMs: 3700, endMs: 5800 },
+          ],
+        },
+      },
+    };
+
+    await mount(true, threeChunkManifest);
+    await act(async () => latest.handlePlayPauseResume());
+    const audio = MockAudioElement.instances[0];
+    expect(latest.activeChunkId).toBe("p1-b0-s0");
+
+    await act(async () => {
+      audio.currentTime = 4.0;
+      audio.ontimeupdate?.();
+    });
+    expect(latest.activeChunkId).toBe("p1-b2-s0");
+
+    await act(async () => {
+      audio.onerror?.();
+    });
+    expect(speak).toHaveBeenCalledTimes(1);
+    expect((speak.mock.calls[0][0] as FakeUtterance).text).toBe("Third chunk on page.");
+    expect(latest.activeChunkId).toBe("p1-b2-s0");
+  });
+
+  it("rejects corrupt timing manifests (negative startMs, endMs <= startMs, durationMs <= 0, duplicate chunk ids, malformed words)", () => {
+    const basePage = SAMPLE_MANIFEST.pages["2"];
+    const withPage2 = (override: Record<string, unknown>) => ({
+      ...SAMPLE_MANIFEST,
+      pages: { "2": { ...basePage, ...override } },
+    });
+
+    expect(
+      parsePreviewAudioManifest(
+        withPage2({
+          chunks: [{ id: "p1-b0-s0", blockIndex: 0, text: "Negative start", startMs: -10, endMs: 500 }],
+        }),
+      ),
+    ).toBeNull();
+
+    expect(
+      parsePreviewAudioManifest(
+        withPage2({
+          chunks: [{ id: "p1-b0-s0", blockIndex: 0, text: "Zero span", startMs: 500, endMs: 500 }],
+        }),
+      ),
+    ).toBeNull();
+
+    expect(
+      parsePreviewAudioManifest(
+        withPage2({
+          chunks: [{ id: "p1-b0-s0", blockIndex: 0, text: "Inverted span", startMs: 800, endMs: 400 }],
+        }),
+      ),
+    ).toBeNull();
+
+    expect(parsePreviewAudioManifest(withPage2({ durationMs: 0 }))).toBeNull();
+    expect(parsePreviewAudioManifest(withPage2({ durationMs: -1200 }))).toBeNull();
+
+    expect(
+      parsePreviewAudioManifest(
+        withPage2({
+          chunks: [
+            { id: "p1-b0-s0", blockIndex: 0, text: "Chunk A", startMs: 100, endMs: 800 },
+            { id: "p1-b0-s0", blockIndex: 1, text: "Duplicate ID", startMs: 900, endMs: 1500 },
+          ],
+        }),
+      ),
+    ).toBeNull();
+
+    const parsedWithBadWords = parsePreviewAudioManifest(
+      withPage2({
+        chunks: [
+          {
+            id: "p1-b0-s0",
+            blockIndex: 0,
+            text: "Hello world",
+            startMs: 100,
+            endMs: 1000,
+            words: [
+              { start: 0, end: 5, startMs: -5, endMs: 300 },
+              { start: 0, end: 5, startMs: 300, endMs: 300 },
+              { start: 6, end: 11, startMs: 400, endMs: 900 },
+            ],
+          },
+        ],
+      }),
+    );
+    expect(parsedWithBadWords).not.toBeNull();
+    expect(parsedWithBadWords?.pages["2"].chunks[0].words).toEqual([
+      { start: 6, end: 11, startMs: 400, endMs: 900 },
+    ]);
   });
 });
