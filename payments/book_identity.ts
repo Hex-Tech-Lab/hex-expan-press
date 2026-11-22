@@ -17,6 +17,7 @@ export interface BookIdentity {
   price?: { usd: number; currency: string };
   cover_image?: string | null;
   preview_pdf?: string | null;
+  preview_audio_manifest?: string | null;
   release_pdf?: string;
   release_path?: string;
   release_sha256?: string;
@@ -87,6 +88,9 @@ export function loadBookIdentity(bookFile: string = defaultBookFile): BookIdenti
   }
   if ("preview_pdf" in b && (b.preview_pdf === null || typeof b.preview_pdf === "string")) {
     out.preview_pdf = b.preview_pdf;
+  }
+  if ("preview_audio_manifest" in b && (b.preview_audio_manifest === null || typeof b.preview_audio_manifest === "string")) {
+    out.preview_audio_manifest = b.preview_audio_manifest;
   }
   if (typeof b.is_sample === "boolean") {
     out.is_sample = b.is_sample;

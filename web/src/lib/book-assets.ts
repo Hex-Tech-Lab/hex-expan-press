@@ -8,6 +8,7 @@ export interface ResolvedBookAssets {
   book_registry: string | null;
   cover_image: string | null;
   preview_pdf: string | null;
+  preview_audio_manifest: string | null;
   is_sample: boolean;
   overview: string | null;
 }
@@ -63,6 +64,21 @@ export function isSafePreviewPdfPath(value: unknown, previewsBasePath: string = 
   if (v.includes("..") || v.includes("\\")) return false;
   if (v.startsWith(`${previewsBasePath}/`)) {
     return /^\/books\/[a-z0-9/_-]+\.pdf$/i.test(v);
+  }
+  if (v.startsWith("https://")) return isSafeHttpsUrl(v);
+  return false;
+}
+
+export function isSafePreviewAudioManifestPath(
+  value: unknown,
+  audioBasePath: string = GLOBAL.storefront.audio_base_path,
+): value is string {
+  if (typeof value !== "string" || value.trim() === "") return false;
+  const v = value.trim();
+  const base = audioBasePath.replace(/\/+$/, "");
+  if (v.includes("..") || v.includes("\\") || !base.startsWith("/")) return false;
+  if (v.startsWith(`${base}/`)) {
+    return /^[a-z0-9/_-]+\.json$/i.test(v.slice(base.length + 1));
   }
   if (v.startsWith("https://")) return isSafeHttpsUrl(v);
   return false;
@@ -149,19 +165,27 @@ export function resolveProductBookAssets(product: {
     warnOnce(`house-id:${warnKey}`, `[book-assets] house product ${warnKey} resolves to ${registryPath}, which names another product`);
   }
   if (!houseCreator && !identityMatch) {
-    return { book_registry: null, cover_image: null, preview_pdf: null, is_sample: false, overview: null };
+    return { book_registry: null, cover_image: null, preview_pdf: null, preview_audio_manifest: null, is_sample: false, overview: null };
   }
 
   const rawCover = registryOverride?.cover_image !== undefined ? registryOverride.cover_image : bookJson?.cover_image;
   const rawPreview = registryOverride?.preview_pdf !== undefined ? registryOverride.preview_pdf : bookJson?.preview_pdf;
+  const rawAudioManifest =
+    registryOverride?.preview_audio_manifest !== undefined
+      ? registryOverride.preview_audio_manifest
+      : bookJson?.preview_audio_manifest;
 
   if (houseCreator && bookJson && rawCover == null) {
     warnOnce(`no-cover:${warnKey}`, `[book-assets] house product ${warnKey} has no cover_image in ${registryPath}`);
   }
   if (rawCover != null && !isSafeCoverPath(rawCover)) logOnce(`[book-assets] rejected cover_image for slug ${slug}`);
   if (rawPreview != null && !isSafePreviewPdfPath(rawPreview)) logOnce(`[book-assets] rejected preview_pdf for slug ${slug}`);
+  if (rawAudioManifest != null && !isSafePreviewAudioManifestPath(rawAudioManifest)) {
+    logOnce(`[book-assets] rejected preview_audio_manifest for slug ${slug}`);
+  }
   const cover_image = isSafeCoverPath(rawCover) ? rawCover.trim() : null;
   const preview_pdf = isSafePreviewPdfPath(rawPreview) ? rawPreview.trim() : null;
+  const preview_audio_manifest = isSafePreviewAudioManifestPath(rawAudioManifest) ? rawAudioManifest.trim() : null;
 
   // Explicit flags only (books/*.json identity or a registry flag). Never inferred from the slug or title,
   // so a non-sample gated book with a sample-like slug or "(Sample)" title stays hidden from the shelf.
@@ -179,5 +203,5 @@ export function resolveProductBookAssets(product: {
   const overview =
     typeof bookJson?.overview === "string" && bookJson.overview.trim() !== "" ? bookJson.overview.trim() : null;
 
-  return { book_registry: registryPath, cover_image, preview_pdf, is_sample, overview };
+  return { book_registry: registryPath, cover_image, preview_pdf, preview_audio_manifest, is_sample, overview };
 }

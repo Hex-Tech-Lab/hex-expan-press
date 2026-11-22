@@ -43,6 +43,8 @@ export interface BookPreviewerProps {
   id?: string;
   previewPdfUrl: string;
   coverImageUrl?: string | null;
+  previewAudioManifestUrl?: string | null;
+  audioBasePath?: string;
   bookTitle: string;
   settings: BookPreviewSettings;
 }
@@ -51,6 +53,8 @@ export default function BookPreviewer({
   id,
   previewPdfUrl,
   coverImageUrl = null,
+  previewAudioManifestUrl = null,
+  audioBasePath = "/books/audio",
   bookTitle,
   settings,
 }: BookPreviewerProps) {
@@ -94,18 +98,8 @@ export default function BookPreviewer({
 
   const expandTextPanel = useCallback(() => setTextOpen(true), []);
   const continueOnPageTurn = settings.read_aloud.continue_on_page_turn;
-  const {
-    speechSupported,
-    playbackState,
-    activeChunkId,
-    activeWord,
-    currentRate,
-    speechAnnouncement,
-    stopReadAloud,
-    clearAnnouncement,
-    handlePlayPauseResume,
-    handleCycleSpeed,
-  } = useReadAloud(spreadAccessible.chunks, settings.read_aloud, expandTextPanel);
+  const { readAloudSupported, playbackState, activeChunkId, activeWord, currentRate, speechAnnouncement, stopReadAloud, clearAnnouncement, handlePlayPauseResume, handleCycleSpeed } =
+    useReadAloud(spreadAccessible.chunks, settings.read_aloud, expandTextPanel, previewAudioManifestUrl, audioBasePath);
 
   useEffect(() => {
     const el = sectionRef.current;
@@ -477,7 +471,7 @@ export default function BookPreviewer({
           activeWord={activeWord}
           playbackState={playbackState}
           currentRate={currentRate}
-          showReadAloudControls={settings.read_aloud.enabled && speechSupported && spreadAccessible.chunks.length > 0}
+          showReadAloudControls={settings.read_aloud.enabled && readAloudSupported && spreadAccessible.chunks.length > 0}
           speechAnnouncement={speechAnnouncement}
           readAloudSettings={settings.read_aloud}
           textStructureSettings={settings.text_structure}

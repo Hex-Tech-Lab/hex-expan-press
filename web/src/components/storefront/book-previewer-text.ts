@@ -113,23 +113,20 @@ export async function rasterizePreview(
       const baseVp = pdfPage.getViewport({ scale: 1 });
       const targetScale = (settings.page_width_px * settings.render_scale) / Math.max(baseVp.width, 1);
       const vp = pdfPage.getViewport({ scale: targetScale });
-
       const canvas = document.createElement("canvas");
       canvas.width = Math.max(1, Math.floor(vp.width));
       canvas.height = Math.max(1, Math.floor(vp.height));
       const ctx = canvas.getContext("2d");
       if (!ctx) throw new Error("Canvas 2D context unavailable");
-
       if (i === 1 && coverImageUrl) {
         images.push(coverImageUrl);
       } else {
         await pdfPage.render({ canvasContext: ctx, viewport: vp }).promise;
         images.push(canvas.toDataURL("image/png"));
       }
-
       try {
         const tc = await pdfPage.getTextContent();
-        pageBlocks.push(extractStructuredPageBlocks(tc.items, settings.text_structure));
+        pageBlocks.push(extractStructuredPageBlocks(tc.items, settings.text_structure, baseVp.height));
       } catch (err) {
         console.warn("[book-previewer] Failed to extract page text:", err);
         pageBlocks.push([]);
@@ -162,6 +159,12 @@ export interface ReadAloudChunk {
   text: string;
 }
 
+export type {
+  PreviewAudioManifest,
+  PreviewAudioPageTrack,
+  PreviewAudioTimingChunk,
+} from "./read-aloud-audio";
+
 export interface AccessiblePageGroup {
   pageIndex: number;
   blocks: Array<{
@@ -182,6 +185,27 @@ const CHAPTER_LABEL_RE =
 const SYMBOL_BULLET_RE = /^[•●◦▪▫*-]\s+(.+)$/;
 const NUMBERED_ITEM_RE = /^(\d{1,3}[.)]\s+.+)$/;
 const DOT_LEADER_RE = /(?:\s*\.\s*){4,}/g;
+const STANDALONE_ORDINAL_RE = /^\d{1,3}\.$/;
+const FOLIO_DIGITS_RE = /^\d+$/;
+const FOLIO_ROMAN_RE = /^[ivxlcdm]+$/i;
+
+function isStandaloneMarginFolio(
+  line: VisualLine,
+  effectivePageHeight: number,
+  contentBodyHeight: number,
+  settings: BookPreviewTextStructureSettings,
+): boolean {
+  if (!settings.strip_margin_folios || line.y === null) return false;
+  if (line.y > effectivePageHeight * settings.bottom_margin_ratio) return false;
+  if (line.height > 0 && line.height > contentBodyHeight * settings.folio_max_scale_ratio) return false;
+  const token = line.text.trim();
+  if (!token) return false;
+  if (FOLIO_DIGITS_RE.test(token)) return token.length <= settings.folio_max_digits;
+  if (settings.allow_roman_folios && FOLIO_ROMAN_RE.test(token)) {
+    return token.length <= settings.folio_roman_max_length;
+  }
+  return false;
+}
 
 function itemHeight(item: PdfTextItemLike): number {
   if (typeof item.height === "number" && Number.isFinite(item.height) && item.height > 0) {
@@ -329,21 +353,27 @@ function parseListItemText(text: string): string | null {
 export function extractStructuredPageBlocks(
   items: ReadonlyArray<PdfTextItemLike>,
   settings: BookPreviewTextStructureSettings,
+  pageHeight?: number,
 ): AccessibleBlock[] {
   const rawLines = groupItemsIntoLines(items, settings.line_y_tolerance);
   if (rawLines.length === 0) return [];
-
-  const bodyHeight = Math.max(computeWeightedMedianHeight(rawLines), 1);
-  const lines = mergeDropCaps(rawLines, bodyHeight, settings.heading_scale_ratio);
-
+  const maxItemY = rawLines.reduce((max, line) => (line.y !== null && line.y > max ? line.y : max), 0);
+  const effectivePageHeight =
+    typeof pageHeight === "number" && Number.isFinite(pageHeight) && pageHeight > 0
+      ? pageHeight
+      : Math.max(settings.fallback_page_height_pt, maxItemY * 1.1);
+  const nonMarginLines = rawLines.filter((line) => line.y === null || line.y > effectivePageHeight * settings.bottom_margin_ratio);
+  const contentBodyHeight = Math.max(computeWeightedMedianHeight(nonMarginLines.length > 0 ? nonMarginLines : rawLines), 1);
+  const filteredLines = rawLines.filter((line) => !isStandaloneMarginFolio(line, effectivePageHeight, contentBodyHeight, settings));
+  if (filteredLines.length === 0) return [];
+  const bodyHeight = Math.max(computeWeightedMedianHeight(filteredLines), 1);
+  const lines = mergeDropCaps(filteredLines, bodyHeight, settings.heading_scale_ratio);
   const blocks: AccessibleBlock[] = [];
   let prevLine: VisualLine | null = null;
-
   for (const line of lines) {
     const yGap = prevLine && prevLine.y !== null && line.y !== null ? Math.abs(prevLine.y - line.y) : null;
     const headingLevel = classifyHeadingLevel(line, bodyHeight, settings);
     const prevBlock = blocks[blocks.length - 1];
-
     if (headingLevel !== null) {
       const sameHeadingLevel = prevBlock?.kind === "heading" && prevBlock.level === headingLevel;
       const refHeight = prevLine ? Math.min(prevLine.height || bodyHeight, line.height || bodyHeight) : bodyHeight;
@@ -356,26 +386,20 @@ export function extractStructuredPageBlocks(
       prevLine = line;
       continue;
     }
-
     const listText = parseListItemText(line.text);
     if (listText !== null) {
       blocks.push({ kind: "list-item", text: listText });
       prevLine = line;
       continue;
     }
-
     const normalLeading = yGap === null || yGap <= bodyHeight * settings.paragraph_gap_ratio;
-    if (prevBlock?.kind === "list-item" && normalLeading) {
-      prevBlock.text = `${prevBlock.text} ${line.text}`.replace(/\s+/g, " ").trim();
-    } else if (prevBlock?.kind === "paragraph" && normalLeading) {
+    if ((prevBlock?.kind === "list-item" || prevBlock?.kind === "paragraph") && normalLeading) {
       prevBlock.text = `${prevBlock.text} ${line.text}`.replace(/\s+/g, " ").trim();
     } else {
       blocks.push({ kind: "paragraph", text: line.text });
     }
-
     prevLine = line;
   }
-
   return blocks;
 }
 
@@ -385,7 +409,21 @@ export function splitIntoSentenceChunks(text: string, maxChunkChars: number): st
   if (!normalized) return [];
   const cap = Math.max(20, Math.floor(maxChunkChars));
 
-  const sentences = normalized.match(/[^.!?]+(?:[.!?]+["'”’)]*)?|.+$/g) ?? [normalized];
+  const rawSentences = normalized.match(/[^.!?]+(?:[.!?]+["'”’)]*)?|.+$/g) ?? [normalized];
+  const sentences: string[] = [];
+  for (let i = 0; i < rawSentences.length; i++) {
+    const cur = rawSentences[i].trim();
+    if (!cur) continue;
+    if (STANDALONE_ORDINAL_RE.test(cur) && i + 1 < rawSentences.length) {
+      const next = rawSentences[i + 1].trim();
+      if (next) {
+        sentences.push(`${cur} ${next}`);
+        i++;
+        continue;
+      }
+    }
+    sentences.push(cur);
+  }
   const chunks: string[] = [];
 
   for (const rawSentence of sentences) {

@@ -248,8 +248,9 @@ for (const viewport of [
   });
 }
 
-test("Read Aloud controls remain hidden when speechSynthesis is unsupported", async ({ page }) => {
+test("Read Aloud controls remain hidden when neither pre-baked audio nor speechSynthesis is supported", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
+  await page.route("**/timings.json", (route) => route.abort());
   await installUnsupportedSpeechSynthesis(page);
 
   const res = await page.goto(PRODUCT_PATH);
@@ -299,6 +300,7 @@ for (const viewport of [
   test(`first click starts speech synchronously with no voices loaded, without cancel, at ${viewport.width}px`, async ({
     page,
   }) => {
+    await page.route("**/timings.json", (route) => route.abort());
     await installMockSpeechSynthesis(page, NO_BOUNDARY_VOICES);
     await openPreviewSpread(page, viewport);
 
@@ -315,6 +317,7 @@ for (const viewport of [
   });
 
   test(`browser voice ranking picks the natural voice over the legacy one at ${viewport.width}px`, async ({ page }) => {
+    await page.route("**/timings.json", (route) => route.abort());
     await installMockSpeechSynthesis(page, { voices: [LEGACY_VOICE, NATURAL_VOICE], boundaries: false });
     await openPreviewSpread(page, viewport);
 
@@ -326,6 +329,7 @@ for (const viewport of [
   });
 
   test(`speed change mid-sentence resumes from the last word boundary at ${viewport.width}px`, async ({ page }) => {
+    await page.route("**/timings.json", (route) => route.abort());
     await installMockSpeechSynthesis(page, { voices: [NATURAL_VOICE], boundaries: true });
     await openPreviewSpread(page, viewport);
 
@@ -344,3 +348,85 @@ for (const viewport of [
     expect(spoken[1].text).not.toBe(before.text);
   });
 }
+
+test("pre-baked Walter Opus/MP3 + timings.json pre-fetches manifest, downloads zero audio until tap, and updates playbackRate with preservesPitch=true", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1560, height: 940 });
+  await installUnsupportedSpeechSynthesis(page);
+  const audioByteRequests: string[] = [];
+  page.on("request", (req) => {
+    if (/\.(?:webm|mp3)(?:$|\?)/i.test(req.url())) {
+      audioByteRequests.push(req.url());
+    }
+  });
+  await page.addInitScript(() => {
+    const audioEvents: Array<{ src: string; preload: string; rate: number; preservesPitch: boolean; action: string }> = [];
+    const createdAudios: HTMLAudioElement[] = [];
+    const OrigAudio = window.Audio;
+    window.Audio = function PatchedAudio(src?: string) {
+      const el = new OrigAudio(src);
+      createdAudios.push(el);
+      return el;
+    } as unknown as typeof Audio;
+    const origPlay = HTMLMediaElement.prototype.play;
+    HTMLMediaElement.prototype.play = function patchedPlay(this: HTMLMediaElement) {
+      audioEvents.push({
+        src: this.currentSrc || this.getAttribute("src") || "",
+        preload: this.preload,
+        rate: this.playbackRate,
+        preservesPitch: Boolean(this.preservesPitch),
+        action: "play",
+      });
+      return origPlay.call(this).catch((err) => {
+        console.warn("[e2e] audio.play suppressed in headless probe:", err);
+      });
+    };
+    (window as unknown as Record<string, unknown>).__audioEvents = audioEvents;
+    (window as unknown as Record<string, unknown>).__createdAudios = createdAudios;
+  });
+
+  const manifestPromise = page.waitForResponse((res) => res.url().endsWith("/timings.json") && res.status() === 200);
+  const res = await page.goto(PRODUCT_PATH);
+  expect(res?.status()).toBe(200);
+  await manifestPromise;
+
+  await page.getByTestId("book-preview-section").scrollIntoViewIfNeeded();
+  await expect(page.getByTestId("book-preview-page-label")).toHaveText("Front cover · Page 1 of 8", {
+    timeout: 30_000,
+  });
+  await expect(page.getByTestId("read-aloud-controls")).toBeVisible();
+
+  await page.getByRole("button", { name: "Next preview page" }).click();
+  await expect(page.getByTestId("book-preview-page-label")).toHaveText("Pages 2–3 of 8");
+  // Zero audio bytes downloaded prior to clicking Play
+  expect(audioByteRequests).toEqual([]);
+
+  await page.getByTestId("read-aloud-toggle").click();
+  await expect(page.getByTestId("read-aloud-toggle")).toHaveAttribute("data-playback-state", "playing");
+  await expect(page.getByTestId("book-preview-accessible-text").locator('[data-testid="read-aloud-sentence"][data-active="true"]')).toHaveCount(1);
+
+  await page.getByTestId("read-aloud-speed").click();
+  await expect(page.getByTestId("read-aloud-speed")).toHaveText("1.25×");
+
+  const audioState = await page.evaluate(() => {
+    const win = window as unknown as {
+      __audioEvents: Array<{ src: string; preload: string; rate: number; preservesPitch: boolean; action: string }>;
+      __createdAudios: HTMLAudioElement[];
+    };
+    const audio = win.__createdAudios[0];
+    return {
+      events: win.__audioEvents,
+      currentRate: audio?.playbackRate ?? null,
+      preservesPitch: Boolean(audio?.preservesPitch),
+      preload: audio?.preload ?? null,
+    };
+  });
+  expect(audioState.events.length).toBe(1);
+  expect(audioState.events[0].src).toContain("/books/audio/sample_the_quiet_workshop/page-02.webm");
+  expect(audioState.events[0].preload).toBe("none");
+  expect(audioState.events[0].preservesPitch).toBe(true);
+  expect(audioState.preload).toBe("none");
+  expect(audioState.currentRate).toBe(1.25);
+  expect(audioState.preservesPitch).toBe(true);
+});

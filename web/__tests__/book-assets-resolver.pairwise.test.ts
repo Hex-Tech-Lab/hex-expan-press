@@ -2,7 +2,12 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { afterEach, describe, expect, it } from "vitest";
 import { GLOBAL } from "../../payments/src/settings_registry";
-import { isSafeCoverPath, isSafePreviewPdfPath, resolveProductBookAssets } from "../src/lib/book-assets";
+import {
+  isSafeCoverPath,
+  isSafePreviewAudioManifestPath,
+  isSafePreviewPdfPath,
+  resolveProductBookAssets,
+} from "../src/lib/book-assets";
 
 // Oracle for docs/testing/pairwise/book_assets_resolver.rows.tsv (model: book_assets_resolver.model.txt).
 // The committed rows must equal PICT's output for the model, and each row must resolve as the oracle says.
@@ -15,7 +20,14 @@ const FILES = {
   sample_book: { path: "books/sample_the_quiet_workshop.json", url: "../../books/sample_the_quiet_workshop.json" },
   duane_book: { path: "books/duane.json", url: "../../books/duane.json" },
 } as const;
-type BookJson = { product_id?: unknown; is_sample?: unknown; cover_image?: unknown; preview_pdf?: unknown; overview?: unknown };
+type BookJson = {
+  product_id?: unknown;
+  is_sample?: unknown;
+  cover_image?: unknown;
+  preview_pdf?: unknown;
+  preview_audio_manifest?: unknown;
+  overview?: unknown;
+};
 const readBook = (url: string): BookJson => JSON.parse(readFileSync(new URL(url, import.meta.url), "utf8")) as BookJson;
 const BOOKS = { sample_book: readBook(FILES.sample_book.url), duane_book: readBook(FILES.duane_book.url) };
 const OTHER_ID = "ffffffff-0000-4000-8000-000000000001";
@@ -50,7 +62,14 @@ function fileOf(row: Row): keyof typeof BOOKS | null {
 }
 
 function oracle(row: Row) {
-  const none = { book_registry: null, cover_image: null, preview_pdf: null, is_sample: false, overview: null };
+  const none = {
+    book_registry: null,
+    cover_image: null,
+    preview_pdf: null,
+    preview_audio_manifest: null,
+    is_sample: false,
+    overview: null,
+  };
   const file = fileOf(row);
   if (file === null) return none;
   // Only a house creator uses the slug override. A non-house product takes the file only on exact product_id identity.
@@ -59,6 +78,9 @@ function oracle(row: Row) {
   const overrideApplies = row.house === "yes" && row.override === "slug";
   const cover = isSafeCoverPath(book.cover_image) ? (book.cover_image as string).trim() : null;
   const preview = isSafePreviewPdfPath(book.preview_pdf) ? (book.preview_pdf as string).trim() : null;
+  const audioManifest = isSafePreviewAudioManifestPath(book.preview_audio_manifest)
+    ? (book.preview_audio_manifest as string).trim()
+    : null;
   const overview = typeof book.overview === "string" && book.overview.trim() !== "" ? book.overview.trim() : null;
   // The override flag applies only to a house product with a slug override. The registry file's own flag always applies.
   const overrideSample = overrideApplies && row.sample_source === "true";
@@ -66,6 +88,7 @@ function oracle(row: Row) {
     book_registry: FILES[file].path,
     cover_image: cover,
     preview_pdf: preview,
+    preview_audio_manifest: audioManifest,
     is_sample: overrideSample || book.is_sample === true,
     overview,
   };

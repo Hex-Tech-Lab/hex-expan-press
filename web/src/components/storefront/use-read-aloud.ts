@@ -5,6 +5,18 @@ import type { BookPreviewReadAloudSettings } from "../../../../payments/src/sett
 import type { ReadAloudChunk } from "./book-previewer-text";
 import type { ReadAloudState } from "./book-preview-accessible-card";
 import { rankVoice } from "./read-aloud-voice";
+import {
+  activeWordForTrackTime,
+  applyAudioPlaybackRate,
+  chunkIndexForTrackTime,
+  detectAudioSupport,
+  parsePreviewAudioManifest,
+  playAudioWithErrorHandler,
+  resolveSpreadAudioTracks,
+  selectTrackAudioCandidates,
+  type PreviewAudioManifest,
+  type PreviewAudioPageTrack,
+} from "./read-aloud-audio";
 
 /** The word being spoken, as char offsets into its sentence chunk. Only set when highlight_words is on. */
 export interface ReadAloudWord {
@@ -26,38 +38,30 @@ export function detectSpeechSynthesisSupport(): boolean {
   );
 }
 
-/**
- * True while the engine has speech queued, in flight, or paused. cancel() is issued only then.
- * Firefox can drop a speak() that follows a cancel() of an idle engine, which is one cause of the
- * "first click does nothing" report. Chrome keeps the paused flag across cancel(), so paused counts.
- */
+/** True while Web Speech has speech queued, in flight, or paused. */
 function engineBusy(synth: SpeechSynthesis): boolean {
   return Boolean(synth.speaking || synth.pending || synth.paused);
 }
 
-/** End offset of the word that starts at charIndex. Measured from the text, since boundary events do not always carry charLength. */
+/** End offset of the word that starts at charIndex. */
 function wordEndAt(text: string, charIndex: number): number {
   const match = /^\S+/.exec(text.slice(charIndex));
   return charIndex + (match ? match[0].length : 0);
 }
 
 /**
- * Sentence-chunk Read Aloud over Web Speech.
- *
- * Speed changes: Web Speech cannot change rate mid-utterance, so a speed change cancels the
- * utterance and speaks the rest of the sentence from the last word boundary (onboundary charIndex).
- * A voice that sends no boundary events restarts the current sentence instead (documented fallback).
- *
- * Highlight: the sentence is highlighted on utterance start (onstart) and advances on end (onend).
- * The word is highlighted from boundary events only when highlight_words is on.
+ * Sentence-chunk Read Aloud: prefers pre-baked narrated MP3 + timing manifest when available
+ * (instant start, $0 runtime cost, pitch-preserved speed changes via HTML5 <audio>), and falls
+ * back transparently to browser Web Speech when no audio manifest is present or audio fails.
  */
 export function useReadAloud(
   chunks: ReadAloudChunk[],
   raSettings: BookPreviewReadAloudSettings,
   onExpandPanel: () => void,
+  audioManifestUrl?: string | null,
+  audioBasePath = "/books/audio",
 ) {
   const [playbackState, setPlaybackState] = useState<ReadAloudState>("idle");
-  // The active sentence is stored with the chunk set it belongs to, so a page turn clears it without a state write.
   const [activeChunk, setActiveChunk] = useState<{ idx: number; key: string } | null>(null);
   const chunkKey = useMemo(() => chunks.map((chunk) => chunk.id).join("|"), [chunks]);
   const activeChunkIdx = activeChunk && activeChunk.key === chunkKey ? activeChunk.idx : null;
@@ -67,13 +71,27 @@ export function useReadAloud(
     return idx >= 0 ? idx : 0;
   });
   const [speechAnnouncement, setSpeechAnnouncement] = useState("");
+  const [loadedManifest, setLoadedManifest] = useState<{
+    url: string;
+    basePath: string;
+    manifest: PreviewAudioManifest;
+  } | null>(null);
+
   const speechSessionRef = useRef(0);
   const pausedAtRateRef = useRef<number | null>(null);
-  /** Playback position: the chunk being spoken and the char offset of the last word boundary reached in it. */
   const positionRef = useRef<{ idx: number; charIndex: number } | null>(null);
-  /** Voice chosen by rankVoice. Null until voices load; speech then uses the browser default. */
   const voiceRef = useRef<SpeechSynthesisVoice | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const activeEngineRef = useRef<"none" | "audio" | "speech">("none");
+  const audioQueueRef = useRef<{
+    tracks: PreviewAudioPageTrack[];
+    trackIdx: number;
+    candidates: string[];
+    candidateIdx: number;
+  } | null>(null);
+
   const speechSupported = useSyncExternalStore(subscribeNoop, detectSpeechSynthesisSupport, () => false);
+  const audioElementSupported = useSyncExternalStore(subscribeNoop, detectAudioSupport, () => false);
 
   const raRates = useMemo(
     () => (raSettings.rates.length > 0 ? raSettings.rates : [raSettings.default_rate]),
@@ -81,16 +99,71 @@ export function useReadAloud(
   );
   const safeRateIdx = Math.min(Math.max(0, rateIdx), raRates.length - 1);
   const currentRate = raRates[safeRateIdx] ?? raSettings.default_rate;
+  const rateRef = useRef(currentRate);
+  useEffect(() => {
+    rateRef.current = currentRate;
+  }, [currentRate]);
+
+  useEffect(() => {
+    if (!raSettings.enabled || !audioManifestUrl || typeof fetch !== "function") return;
+    const controller = new AbortController();
+    let cancelled = false;
+    fetch(audioManifestUrl, { signal: controller.signal })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((raw) => {
+        if (cancelled) return;
+        const parsed = parsePreviewAudioManifest(raw, audioBasePath);
+        if (parsed) setLoadedManifest({ url: audioManifestUrl, basePath: audioBasePath, manifest: parsed });
+      })
+      .catch((err) => {
+        if (!cancelled && (err as { name?: string } | null)?.name !== "AbortError") {
+          console.warn("[read-aloud] Audio manifest fetch failed, using Web Speech fallback:", err);
+        }
+      });
+    return () => {
+      cancelled = true;
+      controller.abort();
+    };
+  }, [raSettings.enabled, audioManifestUrl, audioBasePath]);
+
+  const manifest =
+    audioManifestUrl && loadedManifest?.url === audioManifestUrl && loadedManifest.basePath === audioBasePath
+      ? loadedManifest.manifest
+      : null;
+  const prebakedTracks = useMemo(() => resolveSpreadAudioTracks(manifest, chunks), [manifest, chunks]);
+  const audioSupported = Boolean(audioElementSupported && prebakedTracks);
+  const readAloudSupported = audioSupported || speechSupported;
   const activeChunkId = activeChunkIdx !== null ? (chunks[activeChunkIdx]?.id ?? null) : null;
+
+  const stopAudioEngine = useCallback((clearSrc: boolean) => {
+    const audio = audioRef.current;
+    audioQueueRef.current = null;
+    if (!audio) return;
+    audio.onloadedmetadata = null;
+    audio.ontimeupdate = null;
+    audio.onended = null;
+    audio.onerror = null;
+    try {
+      audio.pause();
+      if (clearSrc) {
+        audio.removeAttribute("src");
+        audio.load?.();
+      }
+    } catch (err) {
+      console.warn("[read-aloud] Audio teardown warning:", err);
+    }
+  }, []);
 
   const cancelSpeechEngine = useCallback(() => {
     speechSessionRef.current += 1;
     pausedAtRateRef.current = null;
     positionRef.current = null;
+    activeEngineRef.current = "none";
+    stopAudioEngine(false);
     if (detectSpeechSynthesisSupport() && engineBusy(window.speechSynthesis)) {
       window.speechSynthesis.cancel?.();
     }
-  }, []);
+  }, [stopAudioEngine]);
 
   const stopReadAloud = useCallback(() => {
     cancelSpeechEngine();
@@ -107,19 +180,21 @@ export function useReadAloud(
     const onVisibilityChange = () => {
       if (document.visibilityState === "hidden") stopReadAloud();
     };
-    const onPageHide = () => {
-      stopReadAloud();
-    };
+    const onPageHide = () => stopReadAloud();
     document.addEventListener("visibilitychange", onVisibilityChange);
     window.addEventListener("pagehide", onPageHide);
     return () => {
       document.removeEventListener("visibilitychange", onVisibilityChange);
       window.removeEventListener("pagehide", onPageHide);
-      cancelSpeechEngine();
+      speechSessionRef.current += 1;
+      activeEngineRef.current = "none";
+      stopAudioEngine(true);
+      if (detectSpeechSynthesisSupport() && engineBusy(window.speechSynthesis)) {
+        window.speechSynthesis.cancel?.();
+      }
     };
-  }, [stopReadAloud, cancelSpeechEngine]);
+  }, [stopReadAloud, stopAudioEngine]);
 
-  // getVoices() is empty until the engine loads its list. Chrome and Edge fire voiceschanged when it arrives.
   useEffect(() => {
     if (!detectSpeechSynthesisSupport()) return;
     const synth = window.speechSynthesis;
@@ -131,25 +206,21 @@ export function useReadAloud(
     return () => synth.removeEventListener?.("voiceschanged", chooseVoice);
   }, [raSettings.voice]);
 
-  /**
-   * Speaks chunk startIdx from char offset startCharIndex, then every later chunk.
-   * Synchronous from start to speak(): it is called inside click handlers, where the user gesture is still valid.
-   */
   const speakFromIndex = useCallback(
     (startIdx: number, startCharIndex: number, rate: number) => {
       if (!detectSpeechSynthesisSupport() || startIdx < 0 || startIdx >= chunks.length) {
         stopReadAloud();
         return;
       }
+      stopAudioEngine(false);
       const synth = window.speechSynthesis;
       const session = ++speechSessionRef.current;
+      activeEngineRef.current = "speech";
       if (engineBusy(synth)) synth.cancel?.();
-      // Chrome keeps the paused flag across cancel(); clear it or speak() stays silent.
       if (synth.paused) synth.resume?.();
       pausedAtRateRef.current = null;
       setSpeechAnnouncement("");
       setPlaybackState("playing");
-      // Voices not loaded yet: speak with the browser default instead of waiting for voiceschanged.
       const voice = voiceRef.current ?? rankVoice(synth.getVoices?.() ?? [], raSettings.voice);
       const stale = () => speechSessionRef.current !== session;
 
@@ -158,6 +229,7 @@ export function useReadAloud(
         if (idx >= chunks.length) {
           pausedAtRateRef.current = null;
           positionRef.current = null;
+          activeEngineRef.current = "none";
           setPlaybackState("idle");
           setActiveChunk(null);
           setActiveWord(null);
@@ -176,8 +248,7 @@ export function useReadAloud(
         setActiveChunk({ idx, key: chunkKey });
         setActiveWord(null);
         utterance.onstart = () => {
-          if (stale()) return;
-          setActiveChunk({ idx, key: chunkKey });
+          if (!stale()) setActiveChunk({ idx, key: chunkKey });
         };
         utterance.onboundary = (event) => {
           if (stale() || typeof event.charIndex !== "number") return;
@@ -188,13 +259,13 @@ export function useReadAloud(
           }
         };
         utterance.onend = () => {
-          if (stale()) return;
-          speakChunk(idx + 1, 0);
+          if (!stale()) speakChunk(idx + 1, 0);
         };
         utterance.onerror = () => {
           if (stale()) return;
           pausedAtRateRef.current = null;
           positionRef.current = null;
+          activeEngineRef.current = "none";
           setPlaybackState("idle");
           setActiveChunk(null);
           setActiveWord(null);
@@ -204,10 +275,120 @@ export function useReadAloud(
 
       speakChunk(startIdx, startCharIndex);
     },
-    [chunks, chunkKey, stopReadAloud, raSettings.labels.finished_announcement, raSettings.voice, raSettings.highlight_words],
+    [chunks, chunkKey, stopReadAloud, stopAudioEngine, raSettings.labels.finished_announcement, raSettings.voice, raSettings.highlight_words],
   );
 
-  /** Continues from the last word reached, at the given rate. A chunk with no boundary events restarts from its start. */
+  const playPrebakedTracks = useCallback(
+    (tracks: PreviewAudioPageTrack[], startTrackIdx: number, rate: number) => {
+      if (!detectAudioSupport() || tracks.length === 0) {
+        if (detectSpeechSynthesisSupport()) speakFromIndex(0, 0, rate);
+        else stopReadAloud();
+        return;
+      }
+      if (detectSpeechSynthesisSupport() && engineBusy(window.speechSynthesis)) {
+        window.speechSynthesis.cancel?.();
+      }
+      const session = ++speechSessionRef.current;
+      const audio = audioRef.current ?? new window.Audio();
+      audioRef.current = audio;
+      pausedAtRateRef.current = null;
+      positionRef.current = null;
+      setSpeechAnnouncement("");
+      setPlaybackState("playing");
+      setActiveWord(null);
+      const stale = () => speechSessionRef.current !== session;
+
+      const startTrack = (trackIdx: number, candidateIdx = 0) => {
+        if (stale()) return;
+        const track = tracks[trackIdx];
+        if (!track) {
+          activeEngineRef.current = "none";
+          audioQueueRef.current = null;
+          setPlaybackState("idle");
+          setActiveChunk(null);
+          setActiveWord(null);
+          setSpeechAnnouncement(raSettings.labels.finished_announcement);
+          return;
+        }
+        const candidates = selectTrackAudioCandidates(track, audio);
+        const sourceUrl = candidates[candidateIdx];
+        if (!sourceUrl) {
+          const fallbackIdx = chunks.findIndex((chunk) => chunk.pageIndex === track.pageIndex);
+          if (detectSpeechSynthesisSupport()) speakFromIndex(fallbackIdx >= 0 ? fallbackIdx : 0, 0, rateRef.current);
+          else stopReadAloud();
+          return;
+        }
+        activeEngineRef.current = "audio";
+        audioQueueRef.current = { tracks, trackIdx, candidates, candidateIdx };
+        const initialIdx = chunkIndexForTrackTime(track, 0, chunks);
+        if (initialIdx !== null) setActiveChunk({ idx: initialIdx, key: chunkKey });
+        const syncWordForTime = (timeSec: number) => {
+          if (!raSettings.highlight_words) {
+            setActiveWord(null);
+            return;
+          }
+          const nextWord = activeWordForTrackTime(track, timeSec);
+          setActiveWord((prev) =>
+            prev?.chunkId === nextWord?.chunkId && prev?.start === nextWord?.start && prev?.end === nextWord?.end
+              ? prev
+              : nextWord,
+          );
+        };
+        syncWordForTime(0);
+
+        let handledFailure = false;
+        const handleSourceFailure = (reason: unknown) => {
+          if (stale() || handledFailure) return;
+          handledFailure = true;
+          if (candidateIdx + 1 < candidates.length) {
+            console.warn("[read-aloud] Audio source failed, falling back to secondary codec:", sourceUrl, reason);
+            startTrack(trackIdx, candidateIdx + 1);
+            return;
+          }
+          console.warn("[read-aloud] Audio playback error, falling back to Web Speech:", reason);
+          const fallbackIdx = chunks.findIndex((chunk) => chunk.pageIndex === track.pageIndex);
+          if (detectSpeechSynthesisSupport()) speakFromIndex(fallbackIdx >= 0 ? fallbackIdx : 0, 0, rateRef.current);
+          else stopReadAloud();
+        };
+
+        audio.onloadedmetadata = () => {
+          if (!stale()) applyAudioPlaybackRate(audio, rateRef.current);
+        };
+        audio.ontimeupdate = () => {
+          if (stale()) return;
+          const nextIdx = chunkIndexForTrackTime(track, audio.currentTime, chunks);
+          if (nextIdx !== null) {
+            setActiveChunk((prev) => (prev?.key === chunkKey && prev.idx === nextIdx ? prev : { idx: nextIdx, key: chunkKey }));
+          }
+          syncWordForTime(audio.currentTime);
+        };
+        audio.onended = () => {
+          if (!stale()) startTrack(trackIdx + 1, 0);
+        };
+        audio.onerror = () => handleSourceFailure("HTMLAudioElement error event");
+
+        audio.preload = "none";
+        applyAudioPlaybackRate(audio, rateRef.current);
+        audio.src = sourceUrl;
+        applyAudioPlaybackRate(audio, rateRef.current);
+
+        playAudioWithErrorHandler(audio, (err) => handleSourceFailure(err));
+      };
+
+      rateRef.current = rate;
+      startTrack(startTrackIdx);
+    },
+    [chunks, chunkKey, raSettings.highlight_words, raSettings.labels.finished_announcement, speakFromIndex, stopReadAloud],
+  );
+
+  const startFromTop = useCallback(
+    (rate: number) => {
+      if (prebakedTracks && detectAudioSupport()) playPrebakedTracks(prebakedTracks, 0, rate);
+      else speakFromIndex(0, 0, rate);
+    },
+    [prebakedTracks, playPrebakedTracks, speakFromIndex],
+  );
+
   const resumeFromPosition = useCallback(
     (rate: number) => {
       const pos = positionRef.current;
@@ -219,16 +400,38 @@ export function useReadAloud(
   );
 
   const handlePlayPauseResume = useCallback(() => {
-    if (!raSettings.enabled || !detectSpeechSynthesisSupport() || chunks.length === 0) return;
+    if (!raSettings.enabled || !readAloudSupported || chunks.length === 0) return;
     if (playbackState === "idle") {
-      speakFromIndex(0, 0, currentRate);
+      startFromTop(currentRate);
       onExpandPanel();
       return;
     }
     if (playbackState === "playing") {
       setPlaybackState("paused");
       pausedAtRateRef.current = currentRate;
-      window.speechSynthesis.pause?.();
+      if (activeEngineRef.current === "audio" && audioRef.current) audioRef.current.pause();
+      else window.speechSynthesis.pause?.();
+      return;
+    }
+    if (activeEngineRef.current === "audio" && audioRef.current && audioQueueRef.current) {
+      const audio = audioRef.current;
+      const session = speechSessionRef.current;
+      const queue = audioQueueRef.current;
+      setPlaybackState("playing");
+      pausedAtRateRef.current = null;
+      rateRef.current = currentRate;
+      applyAudioPlaybackRate(audio, currentRate);
+      playAudioWithErrorHandler(audio, () => {
+        if (speechSessionRef.current !== session) return;
+        const track = queue.tracks[queue.trackIdx];
+        const fallbackIdx = track ? chunks.findIndex((chunk) => chunk.pageIndex === track.pageIndex) : 0;
+        if (detectSpeechSynthesisSupport()) speakFromIndex(fallbackIdx >= 0 ? fallbackIdx : 0, 0, currentRate);
+        else stopReadAloud();
+      });
+      return;
+    }
+    if (activeEngineRef.current === "none") {
+      startFromTop(currentRate);
       return;
     }
     if (window.speechSynthesis.paused && pausedAtRateRef.current === currentRate) {
@@ -238,31 +441,30 @@ export function useReadAloud(
       return;
     }
     resumeFromPosition(currentRate);
-  }, [raSettings.enabled, chunks.length, playbackState, onExpandPanel, speakFromIndex, resumeFromPosition, currentRate]);
+  }, [raSettings.enabled, readAloudSupported, chunks, playbackState, startFromTop, currentRate, onExpandPanel, speakFromIndex, stopReadAloud, resumeFromPosition]);
 
   const handleCycleSpeed = useCallback(() => {
     const nextIdx = (safeRateIdx + 1) % raRates.length;
     const nextRate = raRates[nextIdx] ?? raSettings.default_rate;
     setRateIdx(nextIdx);
+    rateRef.current = nextRate;
+    if (activeEngineRef.current === "audio" && audioRef.current) {
+      applyAudioPlaybackRate(audioRef.current, nextRate);
+      return;
+    }
     if (playbackState === "playing") resumeFromPosition(nextRate);
   }, [safeRateIdx, raRates, raSettings.default_rate, playbackState, resumeFromPosition]);
 
-  // A new chunk set means the flipbook turned to another page or spread. With continue_on_page_turn on,
-  // playback continues from the top of the new page at the current rate and voice. A paused session stays
-  // paused, and its resume point moves to the top of the new page. With the flag off, the previewer stops playback on the turn.
-  // useEffectEvent: reads the latest state without re-running the effect, and may update state.
   const onChunkSetChanged = useEffectEvent(() => {
     if (!raSettings.continue_on_page_turn || playbackState === "idle") return;
     if (chunks.length === 0) {
-      // A page with no text: the controls are hidden, so only the engine needs cancelling here.
       cancelSpeechEngine();
       return;
     }
     if (playbackState === "playing") {
-      speakFromIndex(0, 0, currentRate);
+      startFromTop(rateRef.current);
       return;
     }
-    // Paused: drop the paused utterance so resume speaks the new page instead of the old text.
     cancelSpeechEngine();
     positionRef.current = { idx: 0, charIndex: 0 };
   });
@@ -275,6 +477,8 @@ export function useReadAloud(
 
   return {
     speechSupported,
+    audioSupported,
+    readAloudSupported,
     playbackState,
     activeChunkId,
     activeWord,
