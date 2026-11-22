@@ -1,0 +1,37 @@
+src/use_cases/billing/__tests__/process_billing_webhook.test.ts
+  s_7e539dcf78d9db::t_b24edd3ad97232 12-13
+  s_7e539dcf78d9db::t_907fcbf7d100fd 2108-2152
+src/adapters/payments/creem.adapter.ts
+  s_7e539dcf78d9db::t_080f1154097d12 11
+  s_7e539dcf78d9db::t_2917dd53207f63 161-165
+docs/testing/pairwise/consent_parser.model.txt
+  s_7e539dcf78d9db::t_30687a523c82dc 3-4
+src/adapters/payments/paddle.adapter.ts
+  s_7e539dcf78d9db::t_d88e993e654286 33
+web/__tests__/consent_parser.pairwise.test.ts
+  s_7e539dcf78d9db::t_e895400c5f0ed8 179-180,188
+  s_7e539dcf78d9db::t_cfce56bbfeb7c2 134
+  s_7e539dcf78d9db::t_cec9f59f6643cb 171-173
+  s_7e539dcf78d9db::t_be27a9f8eb2d12 131
+  s_7e539dcf78d9db::t_a3dfccb0fe6d5e 2
+src/adapters/payments/buyer_consent.ts
+  s_7e539dcf78d9db::t_e46c3a3352aeb5 1-16
+src/adapters/payments/__tests__/creem.adapter.test.ts
+  s_7e539dcf78d9db::t_b5cd446e32622c 1,4,252-305
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "76a16e52227dfb7f9d5be91b02bfdb83fc9653b5",
+  "prompts": {},
+  "sessions": {
+    "s_7e539dcf78d9db": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "7aec794a-3e95-4ace-bf8d-7a1962c629d9",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
