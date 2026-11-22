@@ -1,0 +1,20 @@
+payments/src/settings_registry.ts
+  h_e6b68dcbbd0983 2790
+payments/test/book_preview_settings.test.ts
+  h_e6b68dcbbd0983 448-454
+web/__tests__/use-read-aloud.audio.test.ts
+  h_e6b68dcbbd0983 8,646-660
+web/src/components/storefront/read-aloud-audio.ts
+  h_e6b68dcbbd0983 318
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "eb74f21f36a6b91cd4d152ae52d8cd73dc374c0b",
+  "prompts": {},
+  "humans": {
+    "h_e6b68dcbbd0983": {
+      "author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
