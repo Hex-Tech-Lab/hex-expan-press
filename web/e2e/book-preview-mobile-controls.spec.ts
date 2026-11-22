@@ -29,8 +29,10 @@ test("flipbook toolbar fits one row with 44x44px targets and working zoom at 390
   expect(visibleButtons).toHaveLength(5);
   for (const b of visibleButtons) {
     const box = (await b.boundingBox())!;
-    expect(Math.round(box.width)).toBe(44);
-    expect(Math.round(box.height)).toBe(44);
+    expect(box.width).toBeGreaterThanOrEqual(44);
+    expect(box.width).toBeLessThanOrEqual(44.5);
+    expect(box.height).toBeGreaterThanOrEqual(44);
+    expect(box.height).toBeLessThanOrEqual(44.5);
   }
   const rowBox = (await bar.locator("xpath=../..").boundingBox())!;
   for (const c of await parent.locator("button:visible, input:visible").all()) {
@@ -135,8 +137,10 @@ test("read-aloud controls fit one row with uniform 44x44px targets at 390px", as
   const card = (await page.getByTestId("book-preview-accessible-card").boundingBox())!;
   for (const b of await page.getByTestId("read-aloud-controls").locator("button:visible").all()) {
     const box = (await b.boundingBox())!;
-    expect(Math.round(box.width)).toBe(44);
-    expect(Math.round(box.height)).toBe(44);
+    expect(box.width).toBeGreaterThanOrEqual(44);
+    expect(box.width).toBeLessThanOrEqual(44.5);
+    expect(box.height).toBeGreaterThanOrEqual(44);
+    expect(box.height).toBeLessThanOrEqual(44.5);
     expect(box.x + box.width).toBeLessThanOrEqual(card.x + card.width + 0.5);
   }
 
@@ -145,8 +149,10 @@ test("read-aloud controls fit one row with uniform 44x44px targets at 390px", as
   await speedBtn.click();
   await expect(speedBtn).toHaveText("1.25×");
   const speedBox = (await speedBtn.boundingBox())!;
-  expect(Math.round(speedBox.width)).toBe(44);
-  expect(Math.round(speedBox.height)).toBe(44);
+  expect(speedBox.width).toBeGreaterThanOrEqual(44);
+  expect(speedBox.width).toBeLessThanOrEqual(44.5);
+  expect(speedBox.height).toBeGreaterThanOrEqual(44);
+  expect(speedBox.height).toBeLessThanOrEqual(44.5);
   const speedClips = await speedBtn.evaluate((el) => el.scrollWidth > el.clientWidth);
   expect(speedClips).toBe(false);
   expect(await rowCount(page, "read-aloud-controls")).toBe(1);
