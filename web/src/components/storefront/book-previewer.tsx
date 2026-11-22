@@ -184,7 +184,7 @@ export default function BookPreviewer({
         const stage = document.createElement("div");
         stage.setAttribute("data-testid", "book-preview-stage");
         // page-flip's injected stylesheet sets touch-action: pan-y on .stf__parent, which blocks native pinch.
-        // Phones zoom by pinch (no zoom buttons below sm), so keep page-flip's vertical pan and allow pinch-zoom.
+        // Keep page-flip's vertical pan and allow native pinch-zoom alongside the toolbar zoom buttons.
         stage.style.touchAction = "pan-y pinch-zoom";
         hostRef.current.replaceChildren(stage);
 

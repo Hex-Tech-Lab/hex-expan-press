@@ -63,7 +63,7 @@ export function BookPreviewToolbar({
           aria-label={labels.zoom_out}
           title={labels.zoom_out}
           data-testid="book-preview-zoom-out"
-          className="hidden sm:inline-flex items-center justify-center min-h-[44px] min-w-[44px] touch-manipulation rounded-full border border-[#dcc7b4] bg-white text-gray-900 hover:bg-[#faf5ee] disabled:opacity-45 disabled:cursor-not-allowed transition-colors"
+          className="inline-flex items-center justify-center h-11 w-11 px-0 py-0 sm:h-auto sm:w-auto sm:min-h-[44px] sm:min-w-[44px] touch-manipulation rounded-full border border-[#dcc7b4] bg-white text-gray-900 hover:bg-[#faf5ee] disabled:opacity-45 disabled:cursor-not-allowed transition-colors"
         >
           <ZoomOutIcon />
         </button>
@@ -81,7 +81,7 @@ export function BookPreviewToolbar({
           aria-label={labels.zoom_in}
           title={labels.zoom_in}
           data-testid="book-preview-zoom-in"
-          className="hidden sm:inline-flex items-center justify-center min-h-[44px] min-w-[44px] touch-manipulation rounded-full border border-[#dcc7b4] bg-white text-gray-900 hover:bg-[#faf5ee] disabled:opacity-45 disabled:cursor-not-allowed transition-colors"
+          className="inline-flex items-center justify-center h-11 w-11 px-0 py-0 sm:h-auto sm:w-auto sm:min-h-[44px] sm:min-w-[44px] touch-manipulation rounded-full border border-[#dcc7b4] bg-white text-gray-900 hover:bg-[#faf5ee] disabled:opacity-45 disabled:cursor-not-allowed transition-colors"
         >
           <ZoomInIcon />
         </button>
@@ -92,13 +92,13 @@ export function BookPreviewToolbar({
           aria-label={labels.reset_zoom}
           title={labels.reset_zoom}
           data-testid="book-preview-zoom-reset"
-          className={`${canResetZoom ? "inline-flex" : "hidden"} sm:inline-flex items-center justify-center min-h-[44px] min-w-[44px] touch-manipulation rounded-full border border-[#dcc7b4] bg-white text-gray-900 hover:bg-[#faf5ee] disabled:opacity-45 disabled:cursor-not-allowed transition-colors`}
+          className="inline-flex items-center justify-center h-11 w-11 px-0 py-0 sm:h-auto sm:w-auto sm:min-h-[44px] sm:min-w-[44px] touch-manipulation rounded-full border border-[#dcc7b4] bg-white text-gray-900 hover:bg-[#faf5ee] disabled:opacity-45 disabled:cursor-not-allowed transition-colors"
         >
           <ResetZoomIcon />
         </button>
         <form
           onSubmit={onGoToPageSubmit}
-          className="inline-flex items-center gap-0.5 sm:gap-1 rounded-full border border-[#dcc7b4] bg-white pl-2 pr-0.5 sm:pl-3 sm:pr-0 min-h-[44px]"
+          className="hidden sm:inline-flex items-center gap-0.5 sm:gap-1 rounded-full border border-[#dcc7b4] bg-white pl-2 pr-0.5 sm:pl-3 sm:pr-0 min-h-[44px]"
         >
           <label htmlFor={goToInputId} className="sr-only">
             {labels.go_to_page}
@@ -143,7 +143,7 @@ export function BookPreviewToolbar({
           disabled={!canFlipPrev}
           aria-label={labels.prev_page}
           title={labels.prev_page}
-          className="inline-flex items-center justify-center gap-2 min-h-[44px] min-w-[44px] touch-manipulation px-0 sm:px-4 py-2.5 rounded-full border border-[#dcc7b4] bg-white text-sm font-semibold text-gray-900 hover:bg-[#faf5ee] disabled:opacity-45 disabled:cursor-not-allowed transition-colors"
+          className="inline-flex items-center justify-center gap-2 h-11 w-11 px-0 py-0 sm:h-auto sm:w-auto sm:min-h-[44px] sm:min-w-[44px] sm:px-4 sm:py-2.5 touch-manipulation rounded-full border border-[#dcc7b4] bg-white text-sm font-semibold text-gray-900 hover:bg-[#faf5ee] disabled:opacity-45 disabled:cursor-not-allowed transition-colors"
         >
           <ArrowIcon className="w-3.5 h-3.5 rotate-180" />
           <span className="hidden sm:inline">Prev</span>
@@ -154,7 +154,7 @@ export function BookPreviewToolbar({
           disabled={!canFlipNext}
           aria-label={labels.next_page}
           title={labels.next_page}
-          className="inline-flex items-center justify-center gap-2 min-h-[44px] min-w-[44px] touch-manipulation px-0 sm:px-4 py-2.5 rounded-full bg-charcoal hover:bg-[#2a2a2a] text-sm font-semibold text-white disabled:opacity-45 disabled:cursor-not-allowed transition-colors"
+          className="inline-flex items-center justify-center gap-2 h-11 w-11 px-0 py-0 sm:h-auto sm:w-auto sm:min-h-[44px] sm:min-w-[44px] sm:px-4 sm:py-2.5 touch-manipulation rounded-full bg-charcoal hover:bg-[#2a2a2a] text-sm font-semibold text-white disabled:opacity-45 disabled:cursor-not-allowed transition-colors"
         >
           <span className="hidden sm:inline">Next</span>
           <ArrowIcon />
