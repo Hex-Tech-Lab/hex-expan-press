@@ -30,6 +30,7 @@ import crypto from "crypto";
 import { cleanAttributionId, hashEmail } from "../../../payments/src/provider.ts";
 import { GLOBAL } from "../../../payments/src/settings_registry.ts";
 import { budgetLeftMs } from "../../../payments/src/webhook_budget.ts";
+import { parseBuyerConsent } from "./buyer_consent.ts";
 
 // Minimal schema to inspect event_type before strict validation
 const MinimalPaddleEventSchema = z.object({
@@ -74,22 +75,6 @@ const PaddleWebhookSchema = z.object({
 });
 
 export const PADDLE_WEBHOOK_TOLERANCE_SECONDS = GLOBAL.payments.webhook_tolerance_seconds;
-
-/** Buyer consent from custom_data: a boolean or the strings "true"/"false" (the overlay sends strings). Anything else is absent
- *  (undefined), which the order stores as NULL (malformed non-null values are logged). The value is buyer-supplied: recorded, never a decision. */
-export function parseBuyerConsent(
-  raw: unknown,
-  context?: { key?: string; transactionId?: string },
-): boolean | undefined {
-  if (raw === true || raw === "true") return true;
-  if (raw === false || raw === "false") return false;
-  if (raw !== undefined && raw !== null) {
-    const key = context?.key ?? GLOBAL.payments.paddle.overlay.buyer_consent_key;
-    const tx = context?.transactionId ? ` transaction_id=${context.transactionId}` : "";
-    console.warn(`[paddle.adapter] ignoring non-boolean ${key} value (type=${typeof raw})${tx}; storing NULL`);
-  }
-  return undefined;
-}
 
 /** The raw custom_data object as Paddle sent it. The zod schema strips keys it does not name, so the overlay's keys are read here. */
 function rawCustomData(body: unknown): Record<string, unknown> {

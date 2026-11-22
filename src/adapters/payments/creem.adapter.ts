@@ -8,6 +8,7 @@ import { constructWebhookEvent, WebhookVerificationError } from "creem/webhooks"
 import { cleanAttributionId, hashEmail } from "../../../payments/src/provider.ts";
 import { GLOBAL, readProviderField } from "../../../payments/src/settings_registry.ts";
 import type { PaymentProviderPort, WebhookParseResult, CheckoutCommand, CheckoutResult, SaleCompletedEvent, ProviderMode } from "../../domain/payments/payments.port.ts";
+import { parseBuyerConsent } from "./buyer_consent.ts";
 
 /** Test-mode gate. Test events are accepted only when the flag is on AND the database they would write to is the
  *  configured test branch. Any other combination refuses. This is why the flag alone is never enough. */
@@ -157,6 +158,11 @@ export class CreemAdapter implements PaymentProviderPort {
       buyerEmail,
       occurredAt: occurred.toISOString(),
       attributionId: cleanAttributionId(mappedAttribution),
+      // Creem's checkout link sends metadata[buyer_consent_metadata_key]; same rules as Paddle (buyer_consent.ts).
+      buyerEmailConsent: parseBuyerConsent(data.metadata?.[GLOBAL.delivery.buyer_consent_metadata_key], {
+        key: GLOBAL.delivery.buyer_consent_metadata_key,
+        transactionId: saleId,
+      }),
       providerMode: creemProviderMode(data),
       rawPayload: verified.raw,
     };
