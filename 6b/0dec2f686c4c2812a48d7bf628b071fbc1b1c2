@@ -1,0 +1,24 @@
+scripts/__tests__/narrate_book_preview.test.ts
+  h_e6b68dcbbd0983 1-5,8,10,13,16,20-37,141-288
+scripts/narrate_book_preview.ts
+  h_e6b68dcbbd0983 29-39,42,44,47,51,86,141-157,300-307,310-316,318-336,338-353,355-368,371-376,378-399,401-407,409-436,438-447,449-453
+scripts/narrate_book_preview_cache.ts
+  h_e6b68dcbbd0983 1-241
+web/__tests__/use-read-aloud.audio.test.ts
+  h_e6b68dcbbd0983 8,431-555
+web/src/components/storefront/read-aloud-audio.ts
+  h_e6b68dcbbd0983 43-66,101,104,133,139,150,155,157-158,163
+web/src/components/storefront/use-read-aloud.ts
+  h_e6b68dcbbd0983 13-14,19-20,25-26,145,174,201,270,297-298,301-305,336-340,350,417,419-423
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "6b0dec2f686c4c2812a48d7bf628b071fbc1b1c2",
+  "prompts": {},
+  "humans": {
+    "h_e6b68dcbbd0983": {
+      "author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
