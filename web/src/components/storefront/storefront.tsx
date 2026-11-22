@@ -8,7 +8,7 @@ import { GLOBAL, isEnabledPaymentProvider } from "../../../../payments/src/setti
 import { guidSchema, productSlugSchema } from "../../lib/zod-rules";
 import { resolveProductBookAssets } from "../../lib/book-assets";
 import { isPurchasableProduct, productPriceUsd } from "../../lib/product-purchasable";
-import { resolveCheckoutRails, usableRailsOf, type UsableRail } from "../../lib/checkout-rails";
+import { resolveCheckoutRails, usableRailsOf, type RailResolution, type UsableRail } from "../../lib/checkout-rails";
 import { verifiedProviderNames } from "../../../app/api/billing/webhook/verifiers";
 import { checkoutUrlProblem } from "../../../app/api/billing/checkout/checkout-helpers";
 import { BrandFooter } from "../brand/brand";
@@ -27,8 +27,10 @@ import { BrandFooter } from "../brand/brand";
  * Data access: `getSupabaseAdmin()` — the checkout route's established
  * server-side seam. The anon RLS policies on creators/products are
  * authenticated-only, so the publishable client would read an empty set;
- * these pages render public marketing content only (profile, title, price,
- * description), never terms/consent/rails state.
+ * these pages render public marketing content (profile, title, price, description)
+ * and read product_rails only to count usable rails and name the single rail's provider.
+ * Rail rows and checkout URLs never reach the rendered output. The checkout page renders the single usable rail's
+ * provider key (a hidden `rail` field) and its display name as the merchant of record.
  *
  * On a transient DB failure during ISR revalidation Next serves the last good
  * page (stale-while-error) — availability for a marketing surface, while the
@@ -91,7 +93,7 @@ export function priceOf(storeProduct: Pick<StoreProduct, "price_usd">): number |
  *  Malformed rows yield no usable rails, so nothing malformed can take a buyer. */
 // The verifier set is fixed by the code and the registry, so it is built once per process, not once per product row.
 let verifiedNamesCache: ReadonlySet<string> | undefined;
-export function usableRailsForRows(rows: ReadonlyArray<unknown> | null | undefined, checkoutMode?: string | null): UsableRail[] {
+export function resolveRailsForRows(rows: ReadonlyArray<unknown> | null | undefined, checkoutMode?: string | null): RailResolution {
   verifiedNamesCache ??= verifiedProviderNames();
   const resolution = resolveCheckoutRails(rows, {
     isEnabledProvider: isEnabledPaymentProvider,
@@ -104,7 +106,11 @@ export function usableRailsForRows(rows: ReadonlyArray<unknown> | null | undefin
     console.error(`[storefront] product_rails malformed (${resolution.reason}) — product shown as Coming soon`);
     Sentry.captureException(new Error(`product_rails malformed: ${resolution.reason}`), { tags: { surface: "storefront_rails", reason: resolution.reason } });
   }
-  return usableRailsOf(resolution);
+  return resolution;
+}
+
+export function usableRailsForRows(rows: ReadonlyArray<unknown> | null | undefined, checkoutMode?: string | null): UsableRail[] {
+  return usableRailsOf(resolveRailsForRows(rows, checkoutMode));
 }
 
 /** Replaces the embedded product_rails rows with usable_rail_count, so the rail rows never reach a card or a page. */
@@ -319,6 +325,10 @@ export const fetchCheckoutProduct = cache(async function fetchCheckoutProduct(
   product: StoreProduct;
   /** Usable rails in weight order, from the shared resolver. The page derives purchasable, MoR and overlay from these. */
   usableRails: UsableRail[];
+  /** Active rails whose provider is switched on (malformed sets count 0; they report on their own). Switched-off rails are not counted. Zero is a designed state; more than zero with no usable rail is an outage. */
+  activeRailCount: number;
+  /** The shared resolver's verdict. "malformed" was already reported once by resolveRailsForRows (storefront_rails), so the page must not report it again. */
+  railKind: RailResolution["kind"];
 } | null> {
   if (!guidSchema.safeParse(productId).success) return null;
   const supabase = await getSupabaseAdmin();
@@ -345,10 +355,16 @@ export const fetchCheckoutProduct = cache(async function fetchCheckoutProduct(
     .eq("product_id", productId)
     .order("weight", { ascending: false });
   if (railErr) throw new Error(`storefront: checkout rails query failed for '${productId}': ${railErr.message}`);
-  // The same usable rails the checkout route counts (shared resolver). The first is the rail the page names; the count
+  // The same usable rails the checkout route counts (shared resolver). The first is the highest-weight usable rail (the page names it only when exactly one is usable); the count
   // drives the rail-aware rule: none is "Coming soon", more than one is no merchant of record and no overlay.
-  const usable = usableRailsForRows(railRows, row.checkout_mode);
-  return { creator, product: row, usableRails: usable };
+  const resolution = resolveRailsForRows(railRows, row.checkout_mode);
+  return {
+    creator,
+    product: row,
+    usableRails: usableRailsOf(resolution),
+    activeRailCount: resolution.kind === "ok" ? resolution.activeCount : 0,
+    railKind: resolution.kind,
+  };
 });
 
 export { isHouseCreator } from "../../lib/house";
@@ -578,7 +594,7 @@ export function BookCard({
         {!isNonLive && !purchasable && (
           <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
             <span
-              data-checkout-mode="unpriced"
+              data-checkout-mode={priceOf(product) === null ? "unpriced" : "no_rail"}
               className="inline-flex items-center rounded-full border border-[#dcc7b4] bg-white/75 px-3 py-1 text-xs font-semibold text-gray-700"
             >
               {GLOBAL.storefront.coming_soon_badge}

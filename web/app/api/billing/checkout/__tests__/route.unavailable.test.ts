@@ -8,6 +8,9 @@ const adminModule = vi.hoisted(() => ({
   mockAdminClient: null as unknown,
 }));
 
+const sentry = vi.hoisted(() => ({ captureException: vi.fn() }));
+vi.mock("@sentry/nextjs", () => ({ captureException: sentry.captureException }));
+
 const registryOverride = vi.hoisted(() => ({
   sandboxCheckoutEnabled: undefined as boolean | undefined,
 }));
@@ -118,8 +121,15 @@ describe("billing/checkout unavailable rail + staging runtime guards", () => {
       expect(JSON.stringify(body)).not.toContain("paddle");
       const misconfiguredLogs = errorSpy.mock.calls.filter((args: unknown[]) => String(args[0]).includes("answering 503 rail_misconfigured"));
       expect(misconfiguredLogs).toHaveLength(1);
+      // Operators are paged through Sentry, not only the console: the tag is what the alert rule matches on.
+      expect(sentry.captureException).toHaveBeenCalledTimes(1);
+      const [reported, options] = sentry.captureException.mock.calls[0] as [Error, { tags: Record<string, string> }];
+      expect(reported).toBeInstanceOf(Error);
+      expect(reported.message).toContain("creem");
+      expect(options.tags).toEqual({ surface: "checkout_route", reason: "rail_misconfigured" });
     } finally {
       errorSpy.mockRestore();
+      sentry.captureException.mockClear();
     }
   });
 

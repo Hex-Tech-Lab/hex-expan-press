@@ -4,8 +4,8 @@
  * isPurchasableProduct is the single buy-form rule: live AND priced AND at least one usable active rail. A product with
  * no usable rail is "Coming soon" on the product page, the checkout page and the storefront cards, never an error page.
  * The usable rail count comes from resolveCheckoutRails (web/src/lib/checkout-rails.ts), which the checkout route also
- * uses, so the buyer and the route always agree. The checkout route shares only productPriceUsd: it fails closed with
- * 409 on a null price, and its own launch gate (live, or sandbox when allowed) still decides the rest.
+ * uses, so the buyer and the route always agree. The checkout route also shares productPriceUsd: it fails closed with
+ * 409 on a null price. Its own launch gate (live, or sandbox when allowed) still decides the rest.
  * A null (or blank, or non-numeric) price_usd means "not for sale yet".
  * Pure function, no imports, so server routes and React components can both use it.
  */

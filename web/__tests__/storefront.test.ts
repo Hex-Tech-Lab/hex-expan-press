@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from "vitest";
 import { GLOBAL } from "../../payments/src/settings_registry";
 
 vi.mock("server-only", () => ({}));
+const sentry = vi.hoisted(() => ({ captureException: vi.fn() }));
+vi.mock("@sentry/nextjs", () => ({ captureException: sentry.captureException }));
 const supa = vi.hoisted(() => ({ client: null as null | { from: (table: string) => unknown } }));
 vi.mock("../../payments/src/supabase_admin", () => ({ getSupabaseAdmin: vi.fn(async () => supa.client) }));
 
@@ -16,6 +18,7 @@ const {
   insideItems,
   productSlugOf,
   storefrontRobots,
+  usableRailsForRows,
 } = await import("../src/components/storefront/storefront");
 
 describe("StorefrontFooter buyer legal links", () => {
@@ -294,6 +297,43 @@ describe("product slug comes from products.slug only (F-01)", () => {
     });
     const found = await fetchStoreProduct("retirearly500k", "500k_playbook");
     expect(found?.product.id).toBe("500k_playbook");
+  });
+});
+
+describe("buyer-facing 'Coming soon' state: data-checkout-mode names the reason, and Sentry fires only for malformed rails", () => {
+  const card = async (product: Record<string, unknown>) => {
+    const { createElement } = await import("react");
+    const { renderToStaticMarkup } = await import("react-dom/server");
+    return renderToStaticMarkup(
+      createElement(BookCard, {
+        product: { slug: "b", title: "B", cover_image: null, is_sample: false, ...product } as never,
+        creatorHandle: "h",
+        creatorName: "H",
+      }),
+    );
+  };
+
+  it("a priced live product with no usable rail is labelled no_rail (a designed state, not an unpriced one)", async () => {
+    const html = await card({ price_usd: "29", checkout_mode: "live", usable_rail_count: 0 });
+    expect(html).toContain('data-checkout-mode="no_rail"');
+    expect(html).not.toContain('data-checkout-mode="unpriced"');
+  });
+
+  it("a live product with no price is labelled unpriced", async () => {
+    const html = await card({ price_usd: null, checkout_mode: "live", usable_rail_count: 1 });
+    expect(html).toContain('data-checkout-mode="unpriced"');
+  });
+
+  it("zero usable rails is a designed state: no Sentry capture", () => {
+    sentry.captureException.mockClear();
+    expect(usableRailsForRows([], "live")).toEqual([]);
+    expect(sentry.captureException).not.toHaveBeenCalled();
+  });
+
+  it("malformed rails still report to Sentry (the one place the incident is counted)", () => {
+    sentry.captureException.mockClear();
+    expect(usableRailsForRows([null], "live")).toEqual([]);
+    expect(sentry.captureException).toHaveBeenCalledTimes(1);
   });
 });
 

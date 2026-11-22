@@ -16,6 +16,7 @@ import {
 import { ATTRIBUTION_KEYS } from "../../../src/lib/attribution";
 import { buyerConsentText } from "../../../src/lib/buyer-email";
 import { checkoutRailView } from "../../../src/lib/checkout-rails";
+import { productPriceUsd } from "../../../src/lib/product-purchasable";
 import { paddleOverlayConfig, paddleOverlayUsable } from "../../../src/lib/paddle-overlay-server";
 import { GLOBAL, paymentProviderDisplayName } from "../../../../payments/src/settings_registry";
 
@@ -56,7 +57,7 @@ export default async function CheckoutPage({
   const { productId } = await params;
   const found = await fetchCheckoutProduct(productId);
   if (!found) notFound();
-  const { creator, product: p, usableRails } = found;
+  const { creator, product: p, usableRails, activeRailCount, railKind } = found;
 
   const sp = await searchParams;
   const initialAttribution: Record<string, string> = {};
@@ -73,7 +74,11 @@ export default async function CheckoutPage({
   const brand = GLOBAL.storefront.brand_name;
   if (usableRails.length === 0) {
     console.error("[checkout] no active enabled rail for product; no provider is named on the page", { productId });
-    Sentry.captureException(new Error("checkout page: no usable rail"), { tags: { surface: "checkout_page", reason: "no_usable_rail" } });
+    // No active rail is a designed state (not reported), and so is a switched-off rail. Only an active, enabled rail that is
+    // not usable is a revenue outage: report it. Malformed rows are already reported once by the storefront, so skip them here.
+    if (activeRailCount > 0 && railKind !== "malformed") {
+      Sentry.captureException(new Error("checkout page: configured rails, none usable"), { tags: { surface: "checkout_page", reason: "no_active_rail" } });
+    }
   }
   // More than one usable rail: no merchant of record is named and the overlay is skipped, so the buyer gets the POST fallback.
   if (usableRails.length > 1) {
@@ -153,7 +158,7 @@ export default async function CheckoutPage({
             className="self-start rounded-full border border-[#dcc7b4] bg-white/60 px-6 py-3.5 text-sm font-semibold text-gray-700"
             aria-disabled="true"
             data-checkout-slot="primary"
-            data-checkout-mode={live ? "unpriced" : "gated"}
+            data-checkout-mode={!live ? "gated" : productPriceUsd(p.price_usd) === null ? "unpriced" : "no_rail"}
           >
             Coming soon &mdash; not yet available for purchase
           </p>

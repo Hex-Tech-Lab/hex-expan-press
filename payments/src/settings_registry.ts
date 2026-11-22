@@ -159,6 +159,13 @@ export interface GlobalSettings {
     /** Retry-After seconds on a 503 checkout response (rails_unavailable) when the router's circuit breaker has every rail marked
      *  down (MatrixRouterUnavailableError). Fail closed, no provider label, no order written. */
     checkout_router_error_retry_after_seconds: number;
+    /** Retry-After seconds on a 503 checkout response (lookup_unavailable) when the product or rails database read fails
+     *  (a transient Supabase or network error). Fail closed, no provider label, no order written. */
+    checkout_db_retry_after_seconds: number;
+    /** Maximum characters of the buyer-supplied rail label written to the rail_changed (409) log line. The label is JSON-encoded
+     *  the label is JSON-encoded, U+2028 and U+2029 are escaped, and the encoded text (quotes included) is cut to this length, so the logged value is bounded. JSON encoding escapes
+     *  CR, LF and control characters; the route also escapes U+2028 and U+2029 (JSON leaves them raw), so the logged line is one line and its length is bounded. */
+    rail_label_log_max_chars: number;
     paddle: { api_base: { production: string; sandbox: string }; js_cdn_url: string; overlay: PaddleOverlaySettings };
     routing: PaymentRoutingSettings;
     /** Creem TEST mode is accepted only when this is true, creem_test_database_ref is non-empty,
@@ -437,6 +444,8 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     retry_after_seconds: 30,
     checkout_no_rail_retry_after_seconds: 30,
     checkout_router_error_retry_after_seconds: 30,
+    checkout_db_retry_after_seconds: 30,
+    rail_label_log_max_chars: 64,
     creem_accept_test_mode: false,
     creem_test_database_ref: "",
     sandbox_checkout_enabled: false,
@@ -739,6 +748,8 @@ export const PAYMENTS_LIMITS = {
   retry_after_seconds: { min: 1, max: 600 },
   checkout_no_rail_retry_after_seconds: { min: 1, max: 600 },
   checkout_router_error_retry_after_seconds: { min: 1, max: 600 },
+  checkout_db_retry_after_seconds: { min: 1, max: 600 },
+  rail_label_log_max_chars: { min: 8, max: 512 },
 } as const;
 
 function intInRange(value: unknown, min: number, max: number): value is number {
@@ -845,6 +856,8 @@ export function loadPaymentsSection(raw: Record<string, unknown> | undefined): G
   const retryAfterSeconds = num("retry_after_seconds");
   const checkoutNoRailRetryAfterSeconds = num("checkout_no_rail_retry_after_seconds");
   const checkoutRouterErrorRetryAfterSeconds = num("checkout_router_error_retry_after_seconds");
+  const checkoutDbRetryAfterSeconds = num("checkout_db_retry_after_seconds");
+  const railLabelLogMaxChars = num("rail_label_log_max_chars");
   const paddleUrl = (v: unknown, expected: string, label: string, validateAndNormalize: (x: unknown) => string | null): string => {
     const normalized = v === undefined ? null : validateAndNormalize(v);
     if (normalized !== null) return normalized;
@@ -948,6 +961,8 @@ export function loadPaymentsSection(raw: Record<string, unknown> | undefined): G
     retry_after_seconds: retryAfterSeconds,
     checkout_no_rail_retry_after_seconds: checkoutNoRailRetryAfterSeconds,
     checkout_router_error_retry_after_seconds: checkoutRouterErrorRetryAfterSeconds,
+    checkout_db_retry_after_seconds: checkoutDbRetryAfterSeconds,
+    rail_label_log_max_chars: railLabelLogMaxChars,
     paddle: { api_base: { production: apiProduction, sandbox: apiSandbox }, js_cdn_url: jsCdn, overlay },
     routing,
     creem_accept_test_mode: p.creem_accept_test_mode === true,

@@ -707,6 +707,16 @@ describe("proxy E2E host probe is test-only", () => {
     const res = await proxy(req as never);
     expect(res.headers.get("content-type") ?? "").not.toContain("application/json");
   });
+
+  it("returns 404 Not Found for the probe path when the flag is unset", async () => {
+    const { proxy } = await import("../proxy");
+    // Stub the flag explicitly: unstubAllEnvs would restore whatever the test process inherited (a shell with the flag set
+    // would make this pass for the wrong reason). "" is the unset state the proxy reads (it requires exactly "1").
+    vi.stubEnv("E2E_PROXY_HOST_DIAGNOSTIC", "");
+    const req = { cookies: { getAll: () => [], set: cookiesSetSpy }, url: "https://pay.expanpress.com/__e2e/proxy-host", headers: new Headers({ host: "pay.expanpress.com" }) };
+    const res = await proxy(req as never);
+    expect(res.status).toBe(404);
+  });
 });
 
 // B2C/B2B routing matrix (founder, 2026-11-15). Host x path, enumerated in full: with two inputs a pairwise

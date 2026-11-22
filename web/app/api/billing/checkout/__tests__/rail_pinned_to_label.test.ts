@@ -2,9 +2,10 @@
 // as `rail`; the route answers 409 rail_changed, with no redirect and no order, when the router would pick a different rail.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
-import { GET } from "../route";
+import { GET, POST } from "../route";
 import { parsePostBody } from "../checkout-helpers";
 import { MatrixRouter } from "../../../../../../src/infrastructure/matrix_router/matrix_router";
+import { GLOBAL } from "../../../../../../payments/src/settings_registry";
 
 const adminModule = vi.hoisted(() => ({
   mockAdminClient: null as unknown,
@@ -13,6 +14,9 @@ const adminModule = vi.hoisted(() => ({
 vi.mock("../../../../../../payments/src/supabase_admin", () => ({
   getSupabaseAdmin: vi.fn(async () => adminModule.mockAdminClient),
 }));
+
+const sentry = vi.hoisted(() => ({ captureException: vi.fn() }));
+vi.mock("@sentry/nextjs", () => ({ captureException: sentry.captureException }));
 
 vi.mock("../../../../../../src/infrastructure/matrix_router/matrix_router", () => ({
   MatrixRouter: { getNextProvider: vi.fn().mockResolvedValue("paddle") },
@@ -91,6 +95,267 @@ describe("checkout route: the charged rail must be the rail the buyer was shown"
     expect(res.headers.get("location")).toBeNull();
   });
 
+  it("logs a buyer-supplied rail label JSON-encoded and capped: no raw CR/LF, no forged line, bounded length", async () => {
+    adminModule.mockAdminClient = adminClient([paddleRail, creemRail]);
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const forged = `creem\r\n[billing/checkout] FORGED ${"x".repeat(200)}`;
+      const res = await GET(checkoutRequest(forged));
+      expect(res.status).toBe(409);
+      const mismatchLine = errorSpy.mock.calls.map((c) => String(c[0])).find((m) => m.includes("rail changed"));
+      expect(mismatchLine).toBeDefined();
+      // Raw CR/LF from the label never reach the log line.
+      expect(mismatchLine).not.toMatch(/[\r\n]/);
+      // The label appears JSON-encoded (escaped), and only its first rail_label_log_max_chars characters of the ENCODED text.
+      const cap = GLOBAL.payments.rail_label_log_max_chars;
+      const shown = JSON.stringify(forged).slice(0, cap);
+      expect(mismatchLine).toContain(`page showed ${shown}`);
+      expect(mismatchLine).not.toContain("x".repeat(cap + 1));
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
+
+  it("escapes U+2028 and U+2029 in the logged label, so the log line stays one line", async () => {
+    adminModule.mockAdminClient = adminClient([paddleRail, creemRail]);
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const res = await GET(checkoutRequest("creem\u2028FORGED\u2029line"));
+      expect(res.status).toBe(409);
+      const mismatchLine = errorSpy.mock.calls.map((c) => String(c[0])).find((m) => m.includes("rail changed"));
+      expect(mismatchLine).toBeDefined();
+      expect(mismatchLine).not.toMatch(/[\u2028\u2029]/);
+      expect(mismatchLine).toContain("\\u2028FORGED\\u2029line");
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
+
+  it("caps the JSON-encoded label, so escapes cannot expand the logged value past rail_label_log_max_chars", async () => {
+    adminModule.mockAdminClient = adminClient([paddleRail, creemRail]);
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      // 64 NUL characters: 64 characters raw, but each one encodes to a 6-character escape (\u0000).
+      const res = await GET(checkoutRequest("\u0000".repeat(64)));
+      expect(res.status).toBe(409);
+      const mismatchLine = errorSpy.mock.calls.map((c) => String(c[0])).find((m) => m.includes("rail changed"));
+      expect(mismatchLine).toBeDefined();
+      const cap = GLOBAL.payments.rail_label_log_max_chars;
+      const logged = /page showed (.*), router selected/.exec(mismatchLine ?? "")?.[1] ?? "";
+      expect(logged.length).toBeLessThanOrEqual(cap);
+      expect(logged.length).toBeGreaterThan(0);
+      expect(mismatchLine).not.toMatch(/\u0000/);
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
+
+  it("a switched-off rail (active=false) refuses with 503 and is NOT reported to Sentry", async () => {
+    sentry.captureException.mockClear();
+    adminModule.mockAdminClient = adminClient([{ ...paddleRail, active: false }]);
+    const res = await GET(checkoutRequest("paddle"));
+    expect(res.status).toBe(503);
+    expect(sentry.captureException).not.toHaveBeenCalled();
+  });
+
+  it("an active rail that is malformed (non-string checkout_url) fails closed with 500 and is reported exactly once", async () => {
+    sentry.captureException.mockClear();
+    adminModule.mockAdminClient = adminClient([{ ...paddleRail, checkout_url: 42 }]);
+    const res = await GET(checkoutRequest("paddle"));
+    expect(res.status).toBe(500);
+    expect(sentry.captureException).toHaveBeenCalledTimes(1);
+    const [, options] = sentry.captureException.mock.calls[0] as [unknown, { tags: Record<string, string> }];
+    expect(options.tags).toEqual({ surface: "checkout_route", reason: "invalid_active_row" });
+  });
+
+  it("a consent read that throws: 500 and the exception is reported to Sentry", async () => {
+    sentry.captureException.mockClear();
+    const boom = new Error("consents read failed");
+    adminModule.mockAdminClient = {
+      from: (table: string) => {
+        if (table === "products") return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: PRODUCT, error: null }) }) }) };
+        if (table === "consents") return { select: () => ({ eq: () => ({ in: async () => { throw boom; } }) }) };
+        return { select: () => ({ eq: () => ({ order: async () => ({ data: paddleRail ? [paddleRail] : [], error: null }) }) }) };
+      },
+    };
+    const res = await GET(checkoutRequest("paddle"));
+    expect(res.status).toBe(500);
+    expect(sentry.captureException).toHaveBeenCalledWith(
+      boom,
+      expect.objectContaining({ tags: expect.objectContaining({ reason: "checkout_gate_unexpected" }) }),
+    );
+  });
+
+  it("an active zero-weight rail is malformed: 500, and the fail-closed 500 is reported to Sentry", async () => {
+    sentry.captureException.mockClear();
+    adminModule.mockAdminClient = adminClient([{ ...paddleRail, weight: 0 }]);
+    const res = await GET(checkoutRequest("paddle"));
+    expect(res.status).toBe(500);
+    expect(res.headers.get("location")).toBeNull();
+    expect(sentry.captureException).toHaveBeenCalledTimes(1);
+  });
+
+  it("a product_rails query error: 503 with Retry-After and the outage is reported to Sentry", async () => {
+    sentry.captureException.mockClear();
+    adminModule.mockAdminClient = {
+      from: (table: string) => {
+        if (table === "products") return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: PRODUCT, error: null }) }) }) };
+        if (table === "consents") {
+          const consents = givenConsents();
+          return { select: () => ({ eq: () => ({ in: async () => ({ data: consents, error: null, count: consents.length }) }) }) };
+        }
+        return { select: () => ({ eq: () => ({ order: async () => ({ data: null, error: { message: "rails table down" } }) }) }) };
+      },
+    };
+    const res = await GET(checkoutRequest("paddle"));
+    expect(res.status).toBe(503);
+    expect(res.headers.get("retry-after")).toBe(String(GLOBAL.payments.checkout_db_retry_after_seconds));
+    expect(sentry.captureException).toHaveBeenCalledTimes(1);
+  });
+
+  it("a consents query error: 500 and the outage is reported to Sentry", async () => {
+    sentry.captureException.mockClear();
+    adminModule.mockAdminClient = {
+      from: (table: string) => {
+        if (table === "products") return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: PRODUCT, error: null }) }) }) };
+        if (table === "consents") return { select: () => ({ eq: () => ({ in: async () => ({ data: null, error: { message: "consents table down" }, count: null }) }) }) };
+        return { select: () => ({ eq: () => ({ order: async () => ({ data: [paddleRail], error: null }) }) }) };
+      },
+    };
+    const res = await GET(checkoutRequest("paddle"));
+    expect(res.status).toBe(500);
+    expect(sentry.captureException).toHaveBeenCalledTimes(1);
+  });
+
+  it("an unexpected MatrixRouter failure: 500 and reported to Sentry, no default provider", async () => {
+    sentry.captureException.mockClear();
+    adminModule.mockAdminClient = adminClient([paddleRail, creemRail]);
+    vi.mocked(MatrixRouter.getNextProvider).mockRejectedValueOnce(new Error("router state corrupt"));
+    const res = await GET(checkoutRequest("paddle"));
+    expect(res.status).toBe(500);
+    expect(res.headers.get("location")).toBeNull();
+    expect(sentry.captureException).toHaveBeenCalledTimes(1);
+  });
+
+  it("an incomplete consent history (count mismatch): 500 and reported to Sentry", async () => {
+    sentry.captureException.mockClear();
+    adminModule.mockAdminClient = {
+      from: (table: string) => {
+        if (table === "products") return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: PRODUCT, error: null }) }) }) };
+        if (table === "consents") return { select: () => ({ eq: () => ({ in: async () => ({ data: givenConsents(), error: null, count: 99 }) }) }) };
+        return { select: () => ({ eq: () => ({ order: async () => ({ data: [paddleRail], error: null }) }) }) };
+      },
+    };
+    const res = await GET(checkoutRequest("paddle"));
+    expect(res.status).toBe(500);
+    expect(sentry.captureException).toHaveBeenCalledTimes(1);
+  });
+
+  it("an unresolvable product owner: 500 and reported to Sentry", async () => {
+    sentry.captureException.mockClear();
+    adminModule.mockAdminClient = {
+      from: (table: string) => {
+        if (table === "products") return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { ...PRODUCT, creator_id: null }, error: null }) }) }) };
+        return { select: () => ({ eq: () => ({ order: async () => ({ data: [paddleRail], error: null }) }) }) };
+      },
+    };
+    const res = await GET(checkoutRequest("paddle"));
+    expect(res.status).toBe(500);
+    expect(sentry.captureException).toHaveBeenCalledTimes(1);
+  });
+
+  it("a failed house release-pin read: 500 and reported to Sentry", async () => {
+    sentry.captureException.mockClear();
+    adminModule.mockAdminClient = {
+      from: (table: string) => {
+        if (table === "products") {
+          return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { ...PRODUCT, creators: { handle: "house", display_name: "House", is_house: true } }, error: null }) }) }) };
+        }
+        return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null, error: { message: "pin table down" } }) }) }) };
+      },
+    };
+    const res = await GET(checkoutRequest("paddle"));
+    expect(res.status).toBe(500);
+    expect(sentry.captureException).toHaveBeenCalledTimes(1);
+  });
+
+  it("a product lookup error: 503 with Retry-After and reported to Sentry", async () => {
+    sentry.captureException.mockClear();
+    adminModule.mockAdminClient = {
+      from: (table: string) => {
+        if (table === "products") return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null, error: { message: "products table down" } }) }) }) };
+        return { select: () => ({ eq: () => ({ order: async () => ({ data: [paddleRail], error: null }) }) }) };
+      },
+    };
+    const res = await GET(checkoutRequest("paddle"));
+    expect(res.status).toBe(503);
+    expect(res.headers.get("retry-after")).toBe(String(GLOBAL.payments.checkout_db_retry_after_seconds));
+    expect(sentry.captureException).toHaveBeenCalledTimes(1);
+  });
+
+  it("a live rail with an insecure checkout URL: 500 and reported to Sentry, no redirect", async () => {
+    sentry.captureException.mockClear();
+    adminModule.mockAdminClient = adminClient([{ ...paddleRail, checkout_url: "http://buy.paddle.com/insecure" }]);
+    const res = await GET(checkoutRequest("paddle"));
+    expect(res.status).toBe(500);
+    expect(res.headers.get("location")).toBeNull();
+    expect(sentry.captureException).toHaveBeenCalledTimes(1);
+  });
+
+  it("a consent read that throws a non-Error (null): still 500 and reported to Sentry, not a crash in the catch", async () => {
+    sentry.captureException.mockClear();
+    adminModule.mockAdminClient = {
+      from: (table: string) => {
+        if (table === "products") return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: PRODUCT, error: null }) }) }) };
+        if (table === "consents") return { select: () => ({ eq: () => ({ in: async () => { throw null; } }) }) };
+        return { select: () => ({ eq: () => ({ order: async () => ({ data: [paddleRail], error: null }) }) }) };
+      },
+    };
+    const res = await GET(checkoutRequest("paddle"));
+    expect(res.status).toBe(500);
+    expect(sentry.captureException).toHaveBeenCalledTimes(1);
+  });
+
+  it("a missing service-role client: 500 and reported to Sentry (deploy misconfiguration)", async () => {
+    sentry.captureException.mockClear();
+    adminModule.mockAdminClient = null;
+    const res = await GET(checkoutRequest("paddle"));
+    expect(res.status).toBe(500);
+    expect(sentry.captureException).toHaveBeenCalledTimes(1);
+  });
+
+  it("zero configured rail rows is a designed state: 503 with no Sentry report", async () => {
+    sentry.captureException.mockClear();
+    adminModule.mockAdminClient = adminClient([]);
+    const res = await GET(checkoutRequest());
+    expect(res.status).toBe(503);
+    expect(sentry.captureException).not.toHaveBeenCalled();
+  });
+
+  // The buyer's real request is a POST (BuyerEmailStep sends the labelled rail in the body), so the pin must hold over POST too.
+  function checkoutPost(rail: string): NextRequest {
+    return new NextRequest("http://localhost:3000/api/billing/checkout", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ product: PID, rail, buyer_email: "buyer@example.com", buyer_email_confirm: "buyer@example.com" }),
+    });
+  }
+
+  it("POST: a labelled rail the router would not charge is refused with 409 rail_changed, no redirect", async () => {
+    adminModule.mockAdminClient = adminClient([paddleRail, creemRail]);
+    const res = await POST(checkoutPost("creem"));
+    expect(res.status).toBe(409);
+    expect(res.headers.get("location")).toBeNull();
+    expect(await res.json()).toMatchObject({ ok: false, code: "rail_changed" });
+  });
+
+  it("POST control: the labelled rail is the one the router picks: redirect to that rail", async () => {
+    adminModule.mockAdminClient = adminClient([paddleRail, creemRail]);
+    const res = await POST(checkoutPost("paddle"));
+    expect(res.status).toBe(303);
+    expect(res.headers.get("location")).toContain("buy.paddle.com");
+  });
+
   it("control: page labelled paddle and router picks paddle: redirect to the paddle rail", async () => {
     adminModule.mockAdminClient = adminClient([paddleRail, creemRail]);
     const res = await GET(checkoutRequest("paddle"));
@@ -129,6 +394,39 @@ describe("parsePostBody: the labelled rail is read from the POST body", () => {
     const parsed = await parsePostBody(req);
     expect(parsed.ok).toBe(true);
     if (parsed.ok) expect(parsed.value.expectedRail).toBe("paddle");
+  });
+
+  it.each([
+    ["a number", 42],
+    ["a boolean", true],
+    ["an array", ["creem"]],
+    ["an object", { provider: "creem" }],
+  ])("refuses a rail that is %s with 400 rail_invalid, not a silent null", async (_label, rail) => {
+    const req = new NextRequest(postUrl, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ product: PID, rail }),
+    });
+    const parsed = await parsePostBody(req);
+    expect(parsed.ok).toBe(false);
+    if (!parsed.ok) {
+      expect(parsed.response.status).toBe(400);
+      expect(await parsed.response.json()).toMatchObject({ ok: false, code: "rail_invalid" });
+    }
+  });
+
+  it("refuses a multipart file part as rail with 400 rail_invalid, not a silent null", async () => {
+    // A urlencoded body is always strings, so the only non-string rail that reaches the form branch is a multipart File part.
+    const form = new FormData();
+    form.append("product", PID);
+    form.append("rail", new File(["paddle"], "rail.txt", { type: "text/plain" }));
+    const req = new NextRequest(postUrl, { method: "POST", body: form });
+    const parsed = await parsePostBody(req);
+    expect(parsed.ok).toBe(false);
+    if (!parsed.ok) {
+      expect(parsed.response.status).toBe(400);
+      expect(await parsed.response.json()).toMatchObject({ ok: false, code: "rail_invalid" });
+    }
   });
 
   it("is null when no rail is sent", async () => {
