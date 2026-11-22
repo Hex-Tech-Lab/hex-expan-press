@@ -5,7 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import dotenv from "dotenv";
 import * as pdfjs from "../web/node_modules/pdfjs-dist/legacy/build/pdf.mjs";
-import { expandHome, GLOBAL } from "../payments/src/settings_registry";
+import { expandHome, GLOBAL, VOICE_NARRATION_LIMITS } from "../payments/src/settings_registry";
 import {
   buildSpreadAccessibleModel,
   extractStructuredPageBlocks,
@@ -15,14 +15,18 @@ import {
   type PreviewAudioPageTrack,
 } from "../web/src/components/storefront/book-previewer-text";
 import {
+  applyNarrationLexicon,
   assemblePagePcm,
+  buildChunkDecodeFilter,
   decodeAudioToNativePcm,
   encodeLoudnormDualFormats,
   formatChunkForSpeech,
   isMetadataBookPage,
   NATIVE_SAMPLE_RATE,
+  parseChunkPrefixes,
   parsePageSelection,
   probeDurationMs,
+  replaceWholeTermInsensitive,
   resolveVoiceFromNarrationSettings,
   trimSilencePcm,
 } from "./narrate_book_preview_audio";
@@ -40,12 +44,15 @@ import {
 
 export {
   acquireNarrationLock,
+  applyNarrationLexicon,
   assemblePagePcm,
+  buildChunkDecodeFilter,
   dedupeChunksByCachePath,
   formatChunkForSpeech,
   isMetadataBookPage,
   isValidWavFile,
   parsePageSelection,
+  replaceWholeTermInsensitive,
   resolveVoiceFromNarrationSettings,
   trimSilencePcm,
   type NarrationLock,
@@ -213,6 +220,14 @@ async function main(): Promise<void> {
     voiceName: getArg("--voice-name"),
   });
   const model = getArg("--model") ?? narration.model;
+  const tempoArg = getArg("--tempo");
+  const tempo = tempoArg !== undefined ? Number.parseFloat(tempoArg) : narration.tempo;
+  if (!Number.isFinite(tempo) || tempo < VOICE_NARRATION_LIMITS.tempo.min || tempo > VOICE_NARRATION_LIMITS.tempo.max) {
+    throw new Error(
+      `Invalid --tempo "${tempoArg}": must be in [${VOICE_NARRATION_LIMITS.tempo.min}, ${VOICE_NARRATION_LIMITS.tempo.max}]`,
+    );
+  }
+  const chunkPrefixes = parseChunkPrefixes(getArg("--chunks"));
   const concurrency = Math.min(Math.max(Number.parseInt(getArg("--concurrency") ?? "3", 10) || 3, 1), 3);
   const assembleOnly = hasFlag("--assemble-only");
   const force = hasFlag("--force");
@@ -259,6 +274,7 @@ async function main(): Promise<void> {
     if (pageGroup) {
       for (const blockGroup of pageGroup.blocks) {
         for (const chunk of blockGroup.chunks) {
+          if (chunkPrefixes && !chunkPrefixes.some((prefix) => chunk.id.startsWith(prefix))) continue;
           chunks.push({
             id: chunk.id,
             pageIndex,
@@ -268,6 +284,7 @@ async function main(): Promise<void> {
             spokenText: formatChunkForSpeech(chunk.text, blockGroup.block.kind, {
               isMetadataPage,
               authorName: book.author,
+              lexicon: narration.lexicon,
             }),
           });
         }
@@ -292,8 +309,15 @@ async function main(): Promise<void> {
     return;
   }
 
-  const cacheDir = path.join(repoRoot, GLOBAL.paths.cache_dir, "vcp_narration", book.id, voiceId);
-  const audioPublicDir = path.join(repoRoot, "web", "public", GLOBAL.storefront.audio_base_path.replace(/^\//, ""), book.id);
+  const cacheDirArg = getArg("--cache-dir");
+  const outDirArg = getArg("--out-dir");
+  const audioUrlBase = getArg("--audio-url-base") ?? `${GLOBAL.storefront.audio_base_path}/${book.id}`;
+  const cacheDir = cacheDirArg
+    ? path.resolve(cacheDirArg)
+    : path.join(repoRoot, GLOBAL.paths.cache_dir, "vcp_narration", book.id, voiceId);
+  const audioPublicDir = outDirArg
+    ? path.resolve(outDirArg)
+    : path.join(repoRoot, "web", "public", GLOBAL.storefront.audio_base_path.replace(/^\//, ""), book.id);
   mkdirSync(cacheDir, { recursive: true });
   mkdirSync(audioPublicDir, { recursive: true });
 
@@ -377,11 +401,15 @@ async function main(): Promise<void> {
       }
       const entries = plan.chunks.map((chunk) => {
         const paths = chunkCachePath(chunk);
-        const rawPcm = decodeAudioToNativePcm(ffmpegBin, paths.wav);
+        const rawPcm = decodeAudioToNativePcm(ffmpegBin, paths.wav, {
+          masterFilter: narration.master_filter,
+          tempo,
+        });
         const trimmedPcm = trimSilencePcm(rawPcm, NATIVE_SAMPLE_RATE, {
           thresholdDb: narration.silence_threshold_db,
           padStartMs: narration.silence_pad_start_ms,
           padEndMs: narration.silence_pad_end_ms,
+          fadeMs: narration.silence_fade_ms,
         });
         let chargedUnits: number | undefined;
         if (existsSync(paths.meta)) {
@@ -391,6 +419,7 @@ async function main(): Promise<void> {
         return {
           id: chunk.id,
           blockIndex: chunk.blockIndex,
+          blockKind: chunk.blockKind,
           text: chunk.text,
           spokenText: chunk.spokenText,
           tokensCharged: chargedUnits,
@@ -404,6 +433,7 @@ async function main(): Promise<void> {
         pageTailMs: narration.page_tail_ms,
         sentenceGapMs: narration.sentence_gap_ms,
         paragraphGapMs: narration.paragraph_gap_ms,
+        sectionGapMs: narration.section_gap_ms,
       });
 
       const fileBase = `page-${String(plan.pdfPageNumber).padStart(2, "0")}`;
@@ -420,8 +450,8 @@ async function main(): Promise<void> {
         opusVbr: narration.opus_vbr,
       });
       const durationMs = probeDurationMs(ffprobeBin, outMp3Path, assembled.rawDurationMs);
-      const audioUrl = `${GLOBAL.storefront.audio_base_path}/${book.id}/${mp3FileName}`;
-      const opusUrl = `${GLOBAL.storefront.audio_base_path}/${book.id}/${opusFileName}`;
+      const audioUrl = `${audioUrlBase}/${mp3FileName}`;
+      const opusUrl = `${audioUrlBase}/${opusFileName}`;
 
       pagesManifest[String(plan.pdfPageNumber)] = {
         pageIndex: plan.pageIndex,

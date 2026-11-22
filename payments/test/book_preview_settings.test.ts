@@ -368,18 +368,54 @@ describe("loadBookIdentity optional media fields", () => {
     expect(DEFAULT_GLOBAL.voice_narration.opus_codec).toBe("libopus");
     expect(DEFAULT_GLOBAL.voice_narration.opus_bitrate_kbps).toBe(32);
     expect(DEFAULT_GLOBAL.voice_narration.opus_vbr).toBe("on");
+    expect(DEFAULT_GLOBAL.voice_narration.tempo).toBe(1.16);
+    expect(DEFAULT_GLOBAL.voice_narration.sentence_gap_ms).toBe(220);
+    expect(DEFAULT_GLOBAL.voice_narration.paragraph_gap_ms).toBe(680);
+    expect(DEFAULT_GLOBAL.voice_narration.section_gap_ms).toBe(1200);
+    expect(DEFAULT_GLOBAL.voice_narration.silence_threshold_db).toBe(-54);
+    expect(DEFAULT_GLOBAL.voice_narration.silence_pad_start_ms).toBe(70);
+    expect(DEFAULT_GLOBAL.voice_narration.silence_pad_end_ms).toBe(90);
+    expect(DEFAULT_GLOBAL.voice_narration.silence_fade_ms).toBe(18);
+    expect(DEFAULT_GLOBAL.voice_narration.lexicon).toEqual([
+      { pattern: "ExpanPress", flags: "gi", replacement: "Expan Press" },
+      { pattern: "Elias", flags: "gi", replacement: "Eliyas" },
+    ]);
     expect(loadVoiceNarrationSection(undefined)).toEqual(DEFAULT_GLOBAL.voice_narration);
-    const vnCustom = loadVoiceNarrationSection({ opus_bitrate_kbps: 48, opus_vbr: "constrained" });
+    const vnCustom = loadVoiceNarrationSection({
+      opus_bitrate_kbps: 48,
+      opus_vbr: "constrained",
+      tempo: 1.1,
+      section_gap_ms: 1500,
+      silence_fade_ms: 20,
+      master_filter: "",
+      lexicon: [],
+    });
     expect(vnCustom.opus_bitrate_kbps).toBe(48);
     expect(vnCustom.opus_vbr).toBe("constrained");
+    expect(vnCustom.tempo).toBe(1.1);
+    expect(vnCustom.section_gap_ms).toBe(1500);
+    expect(vnCustom.silence_fade_ms).toBe(20);
+    expect(vnCustom.master_filter).toBe("");
+    expect(vnCustom.lexicon).toEqual([]);
     warn.mockClear();
     const vnInvalid = loadVoiceNarrationSection({
       loudnorm_lufs: 5,
       mp3_bitrate_kbps: 9999,
       opus_bitrate_kbps: 500,
       opus_vbr: "invalid",
+      tempo: 2.5,
+      section_gap_ms: -50,
+      silence_fade_ms: 250,
+      master_filter: "highpass=f=80\nrm -rf /",
+      lexicon: [{ pattern: "", replacement: "bad" }],
     });
     expect(vnInvalid).toEqual(DEFAULT_GLOBAL.voice_narration);
+    expect(warn).toHaveBeenCalledTimes(1);
+
+    warn.mockClear();
+    expect(loadVoiceNarrationSection({ lexicon: [{ pattern: "a", flags: "z", replacement: "b" }] }).lexicon).toEqual(
+      DEFAULT_GLOBAL.voice_narration.lexicon,
+    );
     expect(warn).toHaveBeenCalledTimes(1);
 
     for (const badSection of ["invalid", 42, true, [], null]) {

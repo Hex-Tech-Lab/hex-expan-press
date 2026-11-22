@@ -302,6 +302,12 @@ product_slug: { min_length: number; max_length: number; separator: string };
   voice_narration: VoiceNarrationSettings;
 }
 
+export interface VoiceNarrationLexiconEntry {
+  pattern: string;
+  flags?: string;
+  replacement: string;
+}
+
 export interface VoiceNarrationSettings {
   env_key_name: string;
   model: string;
@@ -315,13 +321,18 @@ export interface VoiceNarrationSettings {
   opus_bitrate_kbps: number;
   opus_vbr: "on" | "off" | "constrained";
   loudnorm_lufs: number;
+  tempo: number;
+  master_filter: string;
   sentence_gap_ms: number;
   paragraph_gap_ms: number;
+  section_gap_ms: number;
   page_lead_ms: number;
   page_tail_ms: number;
   silence_threshold_db: number;
   silence_pad_start_ms: number;
   silence_pad_end_ms: number;
+  silence_fade_ms: number;
+  lexicon: VoiceNarrationLexiconEntry[];
   poll_wait_seconds: number;
   max_poll_attempts: number;
   request_timeout_ms: number;
@@ -794,13 +805,22 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     opus_bitrate_kbps: 32,
     opus_vbr: "on",
     loudnorm_lufs: -16,
-    sentence_gap_ms: 240,
-    paragraph_gap_ms: 420,
+    tempo: 1.16,
+    master_filter:
+      "highpass=f=80,equalizer=f=160:t=q:w=1.2:g=2,equalizer=f=3200:t=q:w=1.4:g=2.5,acompressor=threshold=-20dB:ratio=2.2:attack=12:release=140",
+    sentence_gap_ms: 220,
+    paragraph_gap_ms: 680,
+    section_gap_ms: 1200,
     page_lead_ms: 120,
     page_tail_ms: 180,
-    silence_threshold_db: -46,
-    silence_pad_start_ms: 40,
-    silence_pad_end_ms: 60,
+    silence_threshold_db: -54,
+    silence_pad_start_ms: 70,
+    silence_pad_end_ms: 90,
+    silence_fade_ms: 18,
+    lexicon: [
+      { pattern: "ExpanPress", flags: "gi", replacement: "Expan Press" },
+      { pattern: "Elias", flags: "gi", replacement: "Eliyas" },
+    ],
     poll_wait_seconds: 60,
     max_poll_attempts: 6,
     request_timeout_ms: 90000,
@@ -2668,17 +2688,51 @@ export const VOICE_NARRATION_LIMITS = {
   mp3_bitrate_kbps: { min: 48, max: 320 },
   opus_bitrate_kbps: { min: 16, max: 192 },
   loudnorm_lufs: { min: -30, max: -5 },
+  tempo: { min: 0.8, max: 1.4 },
   sentence_gap_ms: { min: 0, max: 2000 },
   paragraph_gap_ms: { min: 0, max: 3000 },
+  section_gap_ms: { min: 0, max: 5000 },
   page_lead_ms: { min: 0, max: 2000 },
   page_tail_ms: { min: 0, max: 2000 },
   silence_threshold_db: { min: -80, max: -20 },
   silence_pad_start_ms: { min: 0, max: 300 },
   silence_pad_end_ms: { min: 0, max: 500 },
+  silence_fade_ms: { min: 0, max: 100 },
+  lexicon_max_entries: 200,
   poll_wait_seconds: { min: 1, max: 60 },
   max_poll_attempts: { min: 1, max: 30 },
   request_timeout_ms: { min: 5000, max: 180000 },
 } as const;
+
+type VoiceNarrationNumericKey = Exclude<keyof typeof VOICE_NARRATION_LIMITS, "lexicon_max_entries">;
+
+function parseVoiceNarrationLexicon(
+  raw: unknown,
+  fallback: VoiceNarrationLexiconEntry[],
+): { entries: VoiceNarrationLexiconEntry[]; valid: boolean } {
+  if (!Array.isArray(raw) || raw.length > VOICE_NARRATION_LIMITS.lexicon_max_entries) {
+    return { entries: fallback, valid: false };
+  }
+  const entries: VoiceNarrationLexiconEntry[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) {
+      return { entries: fallback, valid: false };
+    }
+    const entry = item as Record<string, unknown>;
+    if (typeof entry.pattern !== "string" || entry.pattern.trim() === "" || typeof entry.replacement !== "string") {
+      return { entries: fallback, valid: false };
+    }
+    if ("flags" in entry && entry.flags !== undefined) {
+      if (typeof entry.flags !== "string" || !/^[gimsuy]*$/i.test(entry.flags)) {
+        return { entries: fallback, valid: false };
+      }
+      entries.push({ pattern: entry.pattern, flags: entry.flags, replacement: entry.replacement });
+    } else {
+      entries.push({ pattern: entry.pattern, replacement: entry.replacement });
+    }
+  }
+  return { entries, valid: true };
+}
 
 export function loadVoiceNarrationSection(raw: unknown): VoiceNarrationSettings {
   const defaults = DEFAULT_GLOBAL.voice_narration;
@@ -2713,7 +2767,25 @@ export function loadVoiceNarrationSection(raw: unknown): VoiceNarrationSettings 
       fallbacks.push("opus_vbr");
     }
   }
-  const numField = (key: keyof typeof VOICE_NARRATION_LIMITS, intOnly: boolean): number => {
+  let masterFilter = defaults.master_filter;
+  if ("master_filter" in rec) {
+    const rawFilter = rec.master_filter;
+    if (typeof rawFilter === "string" && !/[\r\n\0]/.test(rawFilter)) {
+      masterFilter = rawFilter.trim();
+    } else {
+      fallbacks.push("master_filter");
+    }
+  }
+  let lexicon = defaults.lexicon;
+  if ("lexicon" in rec) {
+    const parsedLexicon = parseVoiceNarrationLexicon(rec.lexicon, defaults.lexicon);
+    if (parsedLexicon.valid) {
+      lexicon = parsedLexicon.entries;
+    } else {
+      fallbacks.push("lexicon");
+    }
+  }
+  const numField = (key: VoiceNarrationNumericKey, intOnly: boolean): number => {
     if (!(key in rec)) return defaults[key];
     const v = rec[key];
     const { min, max } = VOICE_NARRATION_LIMITS[key];
@@ -2735,13 +2807,18 @@ export function loadVoiceNarrationSection(raw: unknown): VoiceNarrationSettings 
     opus_bitrate_kbps: numField("opus_bitrate_kbps", true),
     opus_vbr: opusVbr,
     loudnorm_lufs: numField("loudnorm_lufs", false),
+    tempo: numField("tempo", false),
+    master_filter: masterFilter,
     sentence_gap_ms: numField("sentence_gap_ms", true),
     paragraph_gap_ms: numField("paragraph_gap_ms", true),
+    section_gap_ms: numField("section_gap_ms", true),
     page_lead_ms: numField("page_lead_ms", true),
     page_tail_ms: numField("page_tail_ms", true),
     silence_threshold_db: numField("silence_threshold_db", false),
     silence_pad_start_ms: numField("silence_pad_start_ms", true),
     silence_pad_end_ms: numField("silence_pad_end_ms", true),
+    silence_fade_ms: numField("silence_fade_ms", true),
+    lexicon,
     poll_wait_seconds: numField("poll_wait_seconds", true),
     max_poll_attempts: numField("max_poll_attempts", true),
     request_timeout_ms: numField("request_timeout_ms", true),

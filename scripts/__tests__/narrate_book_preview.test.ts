@@ -6,12 +6,15 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_GLOBAL } from "../../payments/src/settings_registry";
 import {
   acquireNarrationLock,
+  applyNarrationLexicon,
   assemblePagePcm,
+  buildChunkDecodeFilter,
   dedupeChunksByCachePath,
   formatChunkForSpeech,
   isMetadataBookPage,
   isValidWavFile,
   parsePageSelection,
+  replaceWholeTermInsensitive,
   resolveVoiceFromNarrationSettings,
   synthesizeVcpChunk,
   trimSilencePcm,
@@ -39,9 +42,16 @@ describe("narrate_book_preview helpers", () => {
   it("normalizes sparse cover, metadata, tracked headings, and back cover details without altering prose pages", () => {
     expect(
       formatChunkForSpeech("ELIAS HARTWELL", "paragraph", { isMetadataPage: true, authorName: "Elias Hartwell" }),
-    ).toBe("By Elias Hartwell.");
+    ).toBe("By Eliyas Hartwell.");
     expect(
       formatChunkForSpeech("EXPANPRESS", "paragraph", { isMetadataPage: true, authorName: "Elias Hartwell" }),
+    ).toBe("Expan Press.");
+    expect(
+      formatChunkForSpeech("EXPANPRESS", "paragraph", {
+        isMetadataPage: true,
+        authorName: "Elias Hartwell",
+        lexicon: [],
+      }),
     ).toBe("ExpanPress.");
     expect(formatChunkForSpeech("D E TA I L S", "paragraph", { isMetadataPage: true })).toBe("Details.");
     expect(formatChunkForSpeech("A B O U T T H E A U T H O R", "paragraph", { isMetadataPage: true })).toBe(
@@ -51,7 +61,10 @@ describe("narrate_book_preview helpers", () => {
       "Trim: 6 by 9 inches. Language: English.",
     );
     expect(formatChunkForSpeech("ExpanPress | MMXXVI", "paragraph", { isMetadataPage: true })).toBe(
-      "ExpanPress, 2026.",
+      "Expan Press, 2026.",
+    );
+    expect(formatChunkForSpeech("Elias Hartwell is a pen name.", "paragraph", { isMetadataPage: true })).toBe(
+      "Eliyas Hartwell is a pen name.",
     );
     // Mid-sentence interior paragraph on page 8 of a longer book keeps open syntax without adding a synthetic period
     expect(
@@ -59,6 +72,17 @@ describe("narrate_book_preview helpers", () => {
         isMetadataPage: false,
       }),
     ).toBe("If you use a lamp, place it so that its light falls across the work from the side");
+  });
+
+  it("applies whole-term narration lexicon without dynamic RegExp and preserves non-matching words", () => {
+    expect(replaceWholeTermInsensitive("Elias, Elias's, and Eliasing.", "Elias", "Eliyas")).toBe(
+      "Eliyas, Eliyas's, and Eliasing.",
+    );
+    expect(
+      applyNarrationLexicon("Published by ExpanPress and Elias.", DEFAULT_GLOBAL.voice_narration.lexicon),
+    ).toBe("Published by Expan Press and Eliyas.");
+    expect(buildChunkDecodeFilter({ masterFilter: "highpass=f=80", tempo: 1.16 })).toBe("highpass=f=80,atempo=1.16");
+    expect(buildChunkDecodeFilter({ masterFilter: "", tempo: 1.0 })).toBeNull();
   });
 
   it("derives metadata page roles from extracted blocks and selects male/female presets from settings", () => {
@@ -117,25 +141,30 @@ describe("narrate_book_preview helpers", () => {
     expect(Math.abs(trimmed[1200])).toBe(5000);
   });
 
-  it("assembles page PCM with sample-exact startMs/endMs chunk timings and distinct sentence/paragraph gaps", () => {
+  it("assembles page PCM with sample-exact startMs/endMs chunk timings and distinct sentence/paragraph/section gaps", () => {
     const sr = 24000;
     const a = new Int16Array(12000).fill(1000); // 500ms
     const b = new Int16Array(24000).fill(1000); // 1000ms
     const c = new Int16Array(12000).fill(1000); // 500ms
+    const d = new Int16Array(12000).fill(1000); // 500ms
     const out = assemblePagePcm(
       [
-        { id: "p0-b0-s0", blockIndex: 0, text: "Sentence one.", spokenText: "Sentence one.", tokensCharged: 40, pcm: a },
-        { id: "p0-b0-s1", blockIndex: 0, text: "Sentence two.", spokenText: "Sentence two.", tokensCharged: 50, pcm: b },
-        { id: "p0-b1-s0", blockIndex: 1, text: "Next block.", spokenText: "Next block.", tokensCharged: 35, pcm: c },
+        { id: "p0-b0-s0", blockIndex: 0, blockKind: "heading", text: "Title", spokenText: "Title.", tokensCharged: 40, pcm: a },
+        { id: "p0-b1-s0", blockIndex: 1, blockKind: "paragraph", text: "Sentence one.", spokenText: "Sentence one.", tokensCharged: 40, pcm: a },
+        { id: "p0-b1-s1", blockIndex: 1, blockKind: "paragraph", text: "Sentence two.", spokenText: "Sentence two.", tokensCharged: 50, pcm: b },
+        { id: "p0-b2-s0", blockIndex: 2, blockKind: "paragraph", text: "Next block.", spokenText: "Next block.", tokensCharged: 35, pcm: c },
+        { id: "p0-b3-s0", blockIndex: 3, blockKind: "heading", text: "Section Two", spokenText: "Section Two.", tokensCharged: 30, pcm: d },
       ],
-      { sampleRate: sr, pageLeadMs: 100, pageTailMs: 150, sentenceGapMs: 250, paragraphGapMs: 450 },
+      { sampleRate: sr, pageLeadMs: 100, pageTailMs: 150, sentenceGapMs: 220, paragraphGapMs: 680, sectionGapMs: 1200 },
     );
     expect(out.chunks).toEqual([
-      { id: "p0-b0-s0", blockIndex: 0, text: "Sentence one.", spokenText: "Sentence one.", tokensCharged: 40, startMs: 100, endMs: 600 },
-      { id: "p0-b0-s1", blockIndex: 0, text: "Sentence two.", spokenText: "Sentence two.", tokensCharged: 50, startMs: 850, endMs: 1850 },
-      { id: "p0-b1-s0", blockIndex: 1, text: "Next block.", spokenText: "Next block.", tokensCharged: 35, startMs: 2300, endMs: 2800 },
+      { id: "p0-b0-s0", blockIndex: 0, text: "Title", spokenText: "Title.", tokensCharged: 40, startMs: 100, endMs: 600 },
+      { id: "p0-b1-s0", blockIndex: 1, text: "Sentence one.", spokenText: "Sentence one.", tokensCharged: 40, startMs: 1800, endMs: 2300 },
+      { id: "p0-b1-s1", blockIndex: 1, text: "Sentence two.", spokenText: "Sentence two.", tokensCharged: 50, startMs: 2520, endMs: 3520 },
+      { id: "p0-b2-s0", blockIndex: 2, text: "Next block.", spokenText: "Next block.", tokensCharged: 35, startMs: 4200, endMs: 4700 },
+      { id: "p0-b3-s0", blockIndex: 3, text: "Section Two", spokenText: "Section Two.", tokensCharged: 30, startMs: 5900, endMs: 6400 },
     ]);
-    expect(out.rawDurationMs).toBe(2950);
+    expect(out.rawDurationMs).toBe(6550);
   });
 });
 

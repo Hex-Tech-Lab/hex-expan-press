@@ -1,8 +1,13 @@
 import { execFileSync, spawnSync } from "node:child_process";
-import type { VoiceNarrationSettings } from "../payments/src/settings_registry";
+import {
+  DEFAULT_GLOBAL,
+  type VoiceNarrationLexiconEntry,
+  type VoiceNarrationSettings,
+} from "../payments/src/settings_registry";
 import type { AccessibleBlock, PreviewAudioTimingChunk } from "../web/src/components/storefront/book-previewer-text";
 
 export const NATIVE_SAMPLE_RATE = 24000;
+export const OPUS_SAMPLE_RATE_HZ = 48000;
 
 const ROMAN_YEAR_MAP: Record<string, string> = {
   MMXXIV: "2024",
@@ -86,11 +91,68 @@ function toTitleCaseWords(input: string): string {
     .replace(/\b([a-z])/g, (match) => match.toUpperCase());
 }
 
+function isTermWordChar(char: string): boolean {
+  const code = char.charCodeAt(0);
+  return (code >= 48 && code <= 57) || (code >= 65 && code <= 90) || (code >= 97 && code <= 122) || code === 95;
+}
+
+/** Replaces whole-word/phrase occurrences without dynamic RegExp construction. */
+export function replaceWholeTermInsensitive(
+  text: string,
+  from: string,
+  replacement: string,
+  caseInsensitive = true,
+  replaceAll = true,
+): string {
+  if (!from || text.length < from.length) return text;
+  const haystack = caseInsensitive ? text.toLowerCase() : text;
+  const needle = caseInsensitive ? from.toLowerCase() : from;
+  const needLeftBoundary = isTermWordChar(from[0]);
+  const needRightBoundary = isTermWordChar(from[from.length - 1]);
+
+  const parts: string[] = [];
+  let lastCopy = 0;
+  let cursor = 0;
+  while (cursor <= text.length - needle.length) {
+    const idx = haystack.indexOf(needle, cursor);
+    if (idx < 0) break;
+    const rightEnd = idx + needle.length;
+    const leftOk = !needLeftBoundary || idx === 0 || !isTermWordChar(text[idx - 1]);
+    const rightOk = !needRightBoundary || rightEnd === text.length || !isTermWordChar(text[rightEnd]);
+    if (leftOk && rightOk) {
+      parts.push(text.slice(lastCopy, idx), replacement);
+      lastCopy = rightEnd;
+      cursor = rightEnd;
+      if (!replaceAll) break;
+    } else {
+      cursor = idx + 1;
+    }
+  }
+  if (lastCopy === 0) return text;
+  parts.push(text.slice(lastCopy));
+  return parts.join("");
+}
+
+/** Applies configurable TTS pronunciation substitutions cleanly to spoken text only. */
+export function applyNarrationLexicon(
+  text: string,
+  lexicon: ReadonlyArray<VoiceNarrationLexiconEntry>,
+): string {
+  let out = text;
+  for (const entry of lexicon) {
+    const flags = entry.flags?.toLowerCase();
+    const caseInsensitive = flags === undefined || flags.includes("i");
+    const replaceAll = flags === undefined || flags.includes("g");
+    out = replaceWholeTermInsensitive(out, entry.pattern, entry.replacement, caseInsensitive, replaceAll);
+  }
+  return out;
+}
+
 /** Normalizes sparse cover/metadata typography into natural calm documentary phrasing without altering UI chunk text. */
 export function formatChunkForSpeech(
   text: string,
   blockKind: AccessibleBlock["kind"],
-  options: { isMetadataPage?: boolean; authorName?: string } = {},
+  options: { isMetadataPage?: boolean; authorName?: string; lexicon?: ReadonlyArray<VoiceNarrationLexiconEntry> } = {},
 ): string {
   let normalized = text.replace(/\s+/g, " ").trim();
   if (!normalized) return "";
@@ -135,6 +197,11 @@ export function formatChunkForSpeech(
   if (normalized.startsWith("“") && !normalized.includes("”")) normalized = normalized.slice(1).trim();
   if (normalized.endsWith("”") && !normalized.includes("“")) normalized = normalized.slice(0, -1).trim();
 
+  const activeLexicon = options.lexicon ?? DEFAULT_GLOBAL.voice_narration.lexicon;
+  if (activeLexicon.length > 0) {
+    normalized = applyNarrationLexicon(normalized, activeLexicon);
+  }
+
   const isMetadataOrDiscrete =
     blockKind === "heading" || blockKind === "list-item" || Boolean(options.isMetadataPage);
   if (isMetadataOrDiscrete && !/[.!?…]$/.test(normalized)) {
@@ -168,7 +235,7 @@ export function trimSilencePcm(
   const end = Math.min(samples.length, lastActive + padEndSamples);
   const out = new Int16Array(samples.slice(start, end));
 
-  const fadeSamples = Math.min(Math.round(((opts.fadeMs ?? 10) / 1000) * sampleRate), Math.floor(out.length / 4));
+  const fadeSamples = Math.min(Math.round(((opts.fadeMs ?? 18) / 1000) * sampleRate), Math.floor(out.length / 4));
   for (let i = 0; i < fadeSamples; i++) {
     const gainIn = i / fadeSamples;
     const gainOut = (fadeSamples - 1 - i) / fadeSamples;
@@ -178,11 +245,12 @@ export function trimSilencePcm(
   return out;
 }
 
-/** Concatenates trimmed chunk PCMs with breath gaps and records exact sample-derived chunk timings. */
+/** Concatenates trimmed chunk PCMs with breath/section gaps and records exact sample-derived chunk timings. */
 export function assemblePagePcm(
   entries: ReadonlyArray<{
     id: string;
     blockIndex: number;
+    blockKind?: AccessibleBlock["kind"];
     text: string;
     spokenText: string;
     tokensCharged?: number;
@@ -194,12 +262,14 @@ export function assemblePagePcm(
     pageTailMs: number;
     sentenceGapMs: number;
     paragraphGapMs: number;
+    sectionGapMs?: number;
   },
 ): { pcm: Int16Array; chunks: PreviewAudioTimingChunk[]; rawDurationMs: number } {
   const leadSamples = Math.round((opts.pageLeadMs / 1000) * opts.sampleRate);
   const tailSamples = Math.round((opts.pageTailMs / 1000) * opts.sampleRate);
   const sentenceGapSamples = Math.round((opts.sentenceGapMs / 1000) * opts.sampleRate);
   const paragraphGapSamples = Math.round((opts.paragraphGapMs / 1000) * opts.sampleRate);
+  const sectionGapSamples = Math.round(((opts.sectionGapMs ?? opts.paragraphGapMs) / 1000) * opts.sampleRate);
 
   const segments: Array<{ startSample: number; pcm: Int16Array }> = [];
   const chunks: PreviewAudioTimingChunk[] = [];
@@ -221,8 +291,14 @@ export function assemblePagePcm(
     });
     cursor = endSample;
     if (i + 1 < entries.length) {
-      const sameBlock = entries[i + 1].blockIndex === entry.blockIndex;
-      cursor += sameBlock ? sentenceGapSamples : paragraphGapSamples;
+      const next = entries[i + 1];
+      if (next.blockIndex === entry.blockIndex) {
+        cursor += sentenceGapSamples;
+      } else if (entry.blockKind === "heading" || next.blockKind === "heading") {
+        cursor += sectionGapSamples;
+      } else {
+        cursor += paragraphGapSamples;
+      }
     }
   }
 
@@ -238,12 +314,39 @@ export function assemblePagePcm(
   };
 }
 
-export function decodeAudioToNativePcm(ffmpegBin: string, inputPath: string): Int16Array {
-  const buf = execFileSync(
-    ffmpegBin,
-    ["-v", "error", "-i", inputPath, "-f", "s16le", "-ac", "1", "-ar", String(NATIVE_SAMPLE_RATE), "pipe:1"],
-    { maxBuffer: 64 * 1024 * 1024 },
-  );
+export function buildChunkDecodeFilter(opts?: { masterFilter?: string; tempo?: number }): string | null {
+  const parts: string[] = [];
+  const filter = opts?.masterFilter?.trim();
+  if (filter) parts.push(filter);
+  const tempo = opts?.tempo;
+  if (typeof tempo === "number" && Number.isFinite(tempo) && Math.abs(tempo - 1) > 1e-4) {
+    parts.push(`atempo=${tempo}`);
+  }
+  return parts.length > 0 ? parts.join(",") : null;
+}
+
+export function parseChunkPrefixes(raw: string | undefined): string[] | null {
+  if (raw === undefined) return null;
+  const items = raw
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (items.length === 0) {
+    throw new Error(`Invalid --chunks selector "${raw}": expected comma-separated chunk id prefixes`);
+  }
+  return items;
+}
+
+export function decodeAudioToNativePcm(
+  ffmpegBin: string,
+  inputPath: string,
+  opts?: { masterFilter?: string; tempo?: number },
+): Int16Array {
+  const filter = buildChunkDecodeFilter(opts);
+  const args = ["-v", "error", "-i", inputPath];
+  if (filter) args.push("-af", filter);
+  args.push("-f", "s16le", "-ac", "1", "-ar", String(NATIVE_SAMPLE_RATE), "pipe:1");
+  const buf = execFileSync(ffmpegBin, args, { maxBuffer: 64 * 1024 * 1024 });
   return new Int16Array(buf.buffer, buf.byteOffset, Math.floor(buf.byteLength / 2));
 }
 
@@ -319,6 +422,8 @@ export function encodeLoudnormDualFormats(
       tmpWav,
       "-af",
       measuredFilter,
+      "-ar",
+      String(OPUS_SAMPLE_RATE_HZ),
       "-ac",
       "1",
       "-c:a",
