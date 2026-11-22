@@ -1,0 +1,44 @@
+payments/src/settings_registry.ts
+  h_e6b68dcbbd0983 380-382,631-638,653-656,824,2054-2066,2080-2082
+payments/test/book_preview_settings.test.ts
+  h_e6b68dcbbd0983 306-327,395
+scripts/__tests__/narrate_book_preview.test.ts
+  h_e6b68dcbbd0983 86,88
+scripts/narrate_book_preview.ts
+  h_e6b68dcbbd0983 23,27,213,448,454-455,465,473,475
+scripts/narrate_book_preview_audio.ts
+  h_e6b68dcbbd0983 2,385,396,399,401-402,404-418,420-421,424-453
+scripts/narrate_book_preview_cache.ts
+  h_e6b68dcbbd0983 195,204,225,238
+web/__tests__/book-preview-folio.test.ts
+  h_e6b68dcbbd0983 1,104,106-108,110,122,132-134
+web/__tests__/read-aloud-voice.test.ts
+  h_e6b68dcbbd0983 86-99
+web/__tests__/use-read-aloud.audio.test.ts
+  h_e6b68dcbbd0983 31,33,40,50,60,291,296,301-302,305-314,321,323,329,336-339,346-347,353-358,371,375
+web/e2e/book-preview-read-aloud.spec.ts
+  h_e6b68dcbbd0983 17-18,320,322,330-332,356-378,433
+web/public/books/audio/sample_the_quiet_workshop/timings.json
+  h_e6b68dcbbd0983 6,8,10,16-17,25-26,33-34,41-44,50-53,55,61-62,70-71,78-80,86-89,96-98,104-107,113-115,118,124-125,133,141-142,150-151,159-160,168-169,177-178,186-187,195-196,204-205,213-214,222-223,231-232,240-241,244,250-251,259,266-269,271,277-278,286,294-296,303-305,312-314,321-322,330-331,339-340,348-349,357-358,366-367,375-376,384-385,393-394,402-403,411-412,420-421,424,430-431,439,447-448,456-457,465-466,474-475,483-484,492-493,501-502,510-511,519-520,528-529,537-538,546-547,555-556,559,565-566,574,582-583,591-592,600-601,609-610,618-619,627-628,636-637,645-646,654-655,663-664,667,673-674,682,690-692,699-701,708-709,717-718,726-727,735-736,743-746,752-755,761-764,766
+web/src/components/storefront/book-preview-accessible-card.tsx
+  h_e6b68dcbbd0983 79,100,238-256
+web/src/components/storefront/book-previewer.tsx
+  h_e6b68dcbbd0983 101,475
+web/src/components/storefront/read-aloud-audio.ts
+  h_e6b68dcbbd0983 36,195,197,315-322,328-335
+web/src/components/storefront/read-aloud-voice.ts
+  h_e6b68dcbbd0983 38-40,45,55-64
+web/src/components/storefront/use-read-aloud.ts
+  h_e6b68dcbbd0983 47,117,186,191,203,209,263,312,481
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1aeabe51a4af3618f844c8bc2ee5ed85caa36a0b",
+  "prompts": {},
+  "humans": {
+    "h_e6b68dcbbd0983": {
+      "author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
