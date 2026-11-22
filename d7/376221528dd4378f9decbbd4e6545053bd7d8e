@@ -1,0 +1,14 @@
+web/e2e/book-preview-mobile-controls.spec.ts
+  h_e6b68dcbbd0983 32-35,140-143,152-155
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d7376221528dd4378f9decbbd4e6545053bd7d8e",
+  "prompts": {},
+  "humans": {
+    "h_e6b68dcbbd0983": {
+      "author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
