@@ -108,6 +108,8 @@ const supa = vi.hoisted(() => ({
   // provider_adjustment_id lookup alone, so appendRefund still reaches the upsert.
   adjLookupResult: null as { data: unknown; error: unknown } | null,
   auditInserts: [] as Record<string, unknown>[],
+  orderInserts: [] as Record<string, unknown>[],
+  trackOrdersByKey: false,
   collisionKeys: new Set<string>(),
   auditError: null as unknown,
   upsertError: null as unknown,
@@ -159,6 +161,12 @@ vi.mock("@supabase/supabase-js", () => ({
         return { eq, in: eq, maybeSingle };
       };
       const maybeSingle = async () => {
+        if (supa.trackOrdersByKey && table === "orders") {
+          const hit = supa.orderInserts.find(
+            (r) => r.provider === filters.provider && r.sale_id === filters.sale_id && (filters.event_type === undefined || r.event_type === filters.event_type),
+          );
+          return { data: hit ?? null, error: null };
+        }
         if (supa.adjLookupResult === null) return supa.lookupResult;
         return "provider_adjustment_id" in filters ? supa.adjLookupResult : { data: null, error: null };
       };
@@ -169,10 +177,18 @@ vi.mock("@supabase/supabase-js", () => ({
       });
       return {
         select: () => ({ eq }),
-        upsert: async () => ({ error: supa.upsertError }),
+        upsert: async (row?: Record<string, unknown>) => {
+          if (table === "orders" && row && !supa.upsertError) supa.orderInserts.push(row);
+          return { error: supa.upsertError };
+        },
         update: () => makeUpdateChain(),
-        insert: async (row: Record<string, unknown>) =>
-          table === "orders" ? { error: supa.upsertError } : insertAudit(row),
+        insert: async (row: Record<string, unknown>) => {
+          if (table === "orders") {
+            if (!supa.upsertError) supa.orderInserts.push(row);
+            return { error: supa.upsertError };
+          }
+          return insertAudit(row);
+        },
       };
     },
   }),
@@ -261,6 +277,8 @@ describe("process_billing_webhook_use_case idempotency (Wave 6.2 P1)", () => {
     supa.lookupResult = { data: null, error: null };
     supa.adjLookupResult = null;
     supa.auditInserts = [];
+    supa.orderInserts = [];
+    supa.trackOrdersByKey = false;
     supa.collisionKeys.clear();
     supa.conflicts.clear();
     supa.rpcError = null;
@@ -2009,6 +2027,8 @@ describe("F-05 duplicate identity checks on refund_issued and refund_reversed", 
     supa.lookupResult = { data: null, error: null };
     supa.adjLookupResult = null;
     supa.auditInserts.length = 0;
+    supa.orderInserts.length = 0;
+    supa.trackOrdersByKey = false;
     supa.collisionKeys.clear();
     supa.conflicts.clear();
     supa.upsertError = null;
@@ -2147,6 +2167,86 @@ describe("F-05 duplicate identity checks on refund_issued and refund_reversed", 
     } finally {
       if (prevSecret === undefined) delete process.env.CREEM_WEBHOOK_SECRET;
       else process.env.CREEM_WEBHOOK_SECRET = prevSecret;
+    }
+  });
+
+  it("Creem: replaying the same checkout.completed confirmation (sale_id = data.order.id) creates 1 order and triggers 1 delivery", async () => {
+    const creemSecret = "whsec_test_creem_replay_unit";
+    vi.stubEnv("CREEM_WEBHOOK_SECRET", creemSecret);
+    vi.stubEnv("SUPABASE_URL", "https://unit.test.supabase.co");
+    vi.stubEnv("SUPABASE_SECRET_KEY", "unit-test-key");
+    supa.trackOrdersByKey = true;
+
+    const makeBody = (orderId: string, eventId: string) =>
+      JSON.stringify({
+        id: eventId,
+        eventType: "checkout.completed",
+        created_at: 1728734325927,
+        object: {
+          id: `ch_${orderId}`,
+          mode: "live",
+          metadata: { order_ref: `ref_${orderId}`, [GLOBAL.delivery.buyer_consent_metadata_key]: true },
+          order: { id: orderId, status: "paid", amount: 3900, amount_paid: 3900, currency: "usd", product: "p1", mode: "live" },
+          customer: { email: "buyer@example.com" },
+        },
+      });
+    const signCreem = (body: string) => createHmac("sha256", creemSecret).update(body).digest("hex");
+
+    // 1) Within-TTL replay: recorded=true keeps the lock held (setnx returns 1 then 0); confirmation check resolves cleanly.
+    const confirmedKeys = new Set<string>();
+    delivery.deliverSaleForWebhook.mockClear();
+    delivery.deliverSaleForWebhook.mockImplementation(async (input: unknown) => {
+      const { provider, saleId } = input as { provider: string; saleId: string };
+      confirmedKeys.add(`${provider}:${saleId}`);
+    });
+    delivery.saleDeliveryConfirmed.mockImplementation(async (provider: unknown, saleId: unknown) =>
+      confirmedKeys.has(`${String(provider)}:${String(saleId)}`),
+    );
+
+    try {
+      const ttlOrderId = "ord_creem_replay_ttl_1";
+      const ttlBody1 = makeBody(ttlOrderId, "evt_ttl_1");
+      const ttlBody2 = makeBody(ttlOrderId, "evt_ttl_2");
+      setnx.mockResolvedValueOnce(1).mockResolvedValueOnce(0);
+
+      await expect(
+        processBillingWebhookUseCase({ headers: { "creem-signature": signCreem(ttlBody1), "content-type": "application/json" }, body: ttlBody1 }, [new CreemAdapter()]),
+      ).resolves.toBeUndefined();
+      await expect(
+        processBillingWebhookUseCase({ headers: { "creem-signature": signCreem(ttlBody2), "content-type": "application/json" }, body: ttlBody2 }, [new CreemAdapter()]),
+      ).resolves.toBeUndefined();
+
+      expect(setnx).toHaveBeenNthCalledWith(1, `lock:sale:creem:${ttlOrderId}`, expect.any(String), expect.anything());
+      const ttlInserts = supa.orderInserts.filter((r) => r.sale_id === ttlOrderId);
+      expect(ttlInserts).toHaveLength(1);
+      expect(ttlInserts[0]).toMatchObject({ provider: "creem", sale_id: ttlOrderId, buyer_email_consent: true });
+      expect(delivery.deliverSaleForWebhook).toHaveBeenCalledTimes(1);
+
+      // 2) Post-TTL replay: lock expires (setnx returns 1 again); findSaleAsync skips persistSale (still 1 order insert).
+      const postOrderId = "ord_creem_replay_post_1";
+      const postBody1 = makeBody(postOrderId, "evt_post_1");
+      const postBody2 = makeBody(postOrderId, "evt_post_2");
+      delivery.deliverSaleForWebhook.mockClear();
+      setnx.mockResolvedValue(1);
+
+      await expect(
+        processBillingWebhookUseCase({ headers: { "creem-signature": signCreem(postBody1), "content-type": "application/json" }, body: postBody1 }, [new CreemAdapter()]),
+      ).resolves.toBeUndefined();
+      await expect(
+        processBillingWebhookUseCase({ headers: { "creem-signature": signCreem(postBody2), "content-type": "application/json" }, body: postBody2 }, [new CreemAdapter()]),
+      ).resolves.toBeUndefined();
+
+      expect(supa.orderInserts.filter((r) => r.sale_id === postOrderId)).toHaveLength(1);
+      const localRows = readFileSync(salesFilePath, "utf8")
+        .split(/\r?\n/)
+        .filter(Boolean)
+        .map((l) => JSON.parse(l) as { provider: string; sale_id: string });
+      expect(localRows.filter((r) => r.provider === "creem" && r.sale_id === ttlOrderId)).toHaveLength(1);
+      expect(localRows.filter((r) => r.provider === "creem" && r.sale_id === postOrderId)).toHaveLength(1);
+    } finally {
+      supa.trackOrdersByKey = false;
+      delivery.deliverSaleForWebhook.mockImplementation(async () => undefined);
+      delivery.saleDeliveryConfirmed.mockImplementation(async () => false);
     }
   });
 
