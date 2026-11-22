@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -303,6 +303,10 @@ describe("loadBookPreviewSection (settings_registry)", () => {
     expect(out.read_aloud).toEqual(DEFAULT_GLOBAL.book_preview.read_aloud);
     expect(out.text_structure).toEqual(DEFAULT_GLOBAL.book_preview.text_structure);
 
+    expect(
+      DEFAULT_GLOBAL.book_preview.read_aloud.labels.fallback_advisory_text,
+    ).toContain("isn't supported or couldn't load");
+
     const advisoryCustom = loadBookPreviewSection({
       read_aloud: {
         labels: {
@@ -486,5 +490,35 @@ describe("loadBookIdentity optional media fields", () => {
     const p = join(dir, "minimal.json");
     writeFileSync(p, JSON.stringify({ id: "m", title: "T", subtitle: "S", author: "A" }), "utf8");
     expect(loadBookIdentity(p)).toEqual({ id: "m", title: "T", subtitle: "S", author: "A" });
+  });
+
+  it("initializes VOICE_NARRATION_LIMITS before module-level loadGlobal() when global.json sets voice_tempos (TDZ guard)", async () => {
+    const rootDir = mkdtempSync(join(tmpdir(), "settings-tdz-"));
+    tmpDirs.push(rootDir);
+    const settingsDir = join(rootDir, "data", "settings");
+    mkdirSync(settingsDir, { recursive: true });
+    writeFileSync(
+      join(settingsDir, "global.json"),
+      JSON.stringify({
+        voice_narration: {
+          tempo: 1.05,
+          voice_tempos: { "walter-test-voice": 1.18 },
+        },
+      }),
+      "utf8",
+    );
+    const origCwd = process.cwd();
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    process.chdir(rootDir);
+    try {
+      vi.resetModules();
+      const freshMod = await import("../src/settings_registry");
+      expect(freshMod.GLOBAL.voice_narration.tempo).toBe(1.05);
+      expect(freshMod.GLOBAL.voice_narration.voice_tempos).toEqual({ "walter-test-voice": 1.18 });
+    } finally {
+      process.chdir(origCwd);
+      vi.resetModules();
+      errSpy.mockRestore();
+    }
   });
 });

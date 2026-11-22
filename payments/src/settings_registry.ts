@@ -475,6 +475,33 @@ export interface UsageWatchSettings {
 /** The publisher name, one literal. storefront.brand_name and storefront.publisher_label both read it. */
 const STOREFRONT_BRAND = "ExpanPress";
 
+export const VOICE_NARRATION_LIMITS = {
+  sample_rate_hz: { min: 16000, max: 48000 },
+  mp3_bitrate_kbps: { min: 48, max: 320 },
+  opus_bitrate_kbps: { min: 16, max: 192 },
+  loudnorm_lufs: { min: -30, max: -5 },
+  tempo: { min: 0.8, max: 1.4 },
+  sentence_gap_ms: { min: 0, max: 2000 },
+  paragraph_gap_ms: { min: 0, max: 3000 },
+  section_gap_ms: { min: 0, max: 5000 },
+  page_lead_ms: { min: 0, max: 2000 },
+  page_tail_ms: { min: 0, max: 2000 },
+  silence_threshold_db: { min: -80, max: -20 },
+  silence_pad_start_ms: { min: 0, max: 300 },
+  silence_pad_end_ms: { min: 0, max: 500 },
+  silence_fade_ms: { min: 0, max: 100 },
+  lexicon_max_entries: 200,
+  voice_tempos_max_entries: 100,
+  poll_wait_seconds: { min: 1, max: 60 },
+  max_poll_attempts: { min: 1, max: 30 },
+  request_timeout_ms: { min: 5000, max: 180000 },
+} as const;
+
+type VoiceNarrationNumericKey = Exclude<
+  keyof typeof VOICE_NARRATION_LIMITS,
+  "lexicon_max_entries" | "voice_tempos_max_entries"
+>;
+
 export const DEFAULT_GLOBAL: GlobalSettings = {
   paths: {
     sales_ledger: "data/db/sales.jsonl",
@@ -651,7 +678,7 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
         rate_suffix: "×",
         finished_announcement: "Finished reading preview pages.",
         fallback_advisory_text:
-          "ExpanPress uses its own high-quality, context-aware voices. Your current browser does not support Opus audio, so playback switched to a simpler built-in browser voice. For the full studio narration experience, please use or update to a modern browser.",
+          "ExpanPress uses its own high-quality, context-aware voices. Playback switched to your device's simpler built-in voice because studio audio isn't supported or couldn't load on this browser. For the full studio narration experience, please use or update to a modern browser.",
         fallback_advisory_link_label: "Browser upgrade options",
         fallback_advisory_link_url: "https://browsehappy.com/",
       },
@@ -2716,33 +2743,6 @@ export function allowedCurrencies(): string[] {
 export function isAllowedCurrency(currency: string): boolean {
   return allowedCurrencies().map((c) => c.toUpperCase()).includes(String(currency).toUpperCase());
 }
-
-export const VOICE_NARRATION_LIMITS = {
-  sample_rate_hz: { min: 16000, max: 48000 },
-  mp3_bitrate_kbps: { min: 48, max: 320 },
-  opus_bitrate_kbps: { min: 16, max: 192 },
-  loudnorm_lufs: { min: -30, max: -5 },
-  tempo: { min: 0.8, max: 1.4 },
-  sentence_gap_ms: { min: 0, max: 2000 },
-  paragraph_gap_ms: { min: 0, max: 3000 },
-  section_gap_ms: { min: 0, max: 5000 },
-  page_lead_ms: { min: 0, max: 2000 },
-  page_tail_ms: { min: 0, max: 2000 },
-  silence_threshold_db: { min: -80, max: -20 },
-  silence_pad_start_ms: { min: 0, max: 300 },
-  silence_pad_end_ms: { min: 0, max: 500 },
-  silence_fade_ms: { min: 0, max: 100 },
-  lexicon_max_entries: 200,
-  voice_tempos_max_entries: 100,
-  poll_wait_seconds: { min: 1, max: 60 },
-  max_poll_attempts: { min: 1, max: 30 },
-  request_timeout_ms: { min: 5000, max: 180000 },
-} as const;
-
-type VoiceNarrationNumericKey = Exclude<
-  keyof typeof VOICE_NARRATION_LIMITS,
-  "lexicon_max_entries" | "voice_tempos_max_entries"
->;
 
 function parseVoiceTempos(
   raw: unknown,

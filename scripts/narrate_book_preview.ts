@@ -31,6 +31,7 @@ import {
   replaceWholeTermInsensitive,
   resolveTempoForVoice,
   resolveVoiceFromNarrationSettings,
+  selectPendingChunksToSynth,
   trimSilencePcm,
 } from "./narrate_book_preview_audio";
 import {
@@ -41,6 +42,7 @@ import {
   MAX_AUDIO_DOWNLOAD_BYTES,
   MIN_WAV_HEADER_BYTES,
   readBoundedBytes,
+  runPool,
   writeAudioBytesAtomically,
   type NarrationLock,
 } from "./narrate_book_preview_cache";
@@ -59,6 +61,7 @@ export {
   replaceWholeTermInsensitive,
   resolveTempoForVoice,
   resolveVoiceFromNarrationSettings,
+  selectPendingChunksToSynth,
   trimSilencePcm,
   type NarrationLock,
 };
@@ -164,28 +167,6 @@ export async function synthesizeVcpChunk(
   throw new Error(`VCP job ${jobId} timed out after ${opts.max_poll_attempts} polls`);
 }
 
-async function runPool<T>(
-  items: ReadonlyArray<T>,
-  concurrency: number,
-  staggerMs: number,
-  worker: (item: T, idx: number) => Promise<void>,
-): Promise<void> {
-  let cursor = 0;
-  let lastStartAt = 0;
-  const runWorker = async () => {
-    while (true) {
-      const idx = cursor++;
-      if (idx >= items.length) return;
-      const now = Date.now();
-      const waitMs = Math.max(0, lastStartAt + staggerMs - now);
-      lastStartAt = now + waitMs;
-      if (waitMs > 0) await new Promise((resolve) => setTimeout(resolve, waitMs));
-      await worker(items[idx], idx);
-    }
-  };
-  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, () => runWorker()));
-}
-
 function getArg(flag: string): string | undefined {
   const prefix = `${flag}=`;
   const hit = process.argv.find((arg) => arg.startsWith(prefix));
@@ -278,7 +259,6 @@ async function main(): Promise<void> {
     if (pageGroup) {
       for (const blockGroup of pageGroup.blocks) {
         for (const chunk of blockGroup.chunks) {
-          if (chunkPrefixes && !chunkPrefixes.some((prefix) => chunk.id.startsWith(prefix))) continue;
           chunks.push({
             id: chunk.id,
             pageIndex,
@@ -305,8 +285,11 @@ async function main(): Promise<void> {
   if (dryRun) {
     for (const plan of pagePlans) {
       if (!selectedPages.has(plan.pdfPageNumber)) continue;
-      console.log(`Page ${plan.pdfPageNumber} (label=${plan.bookPageLabel ?? "-"}) -> ${plan.chunks.length} chunks`);
-      for (const chunk of plan.chunks) {
+      const visibleChunks = chunkPrefixes
+        ? plan.chunks.filter((chunk) => chunkPrefixes.some((prefix) => chunk.id.startsWith(prefix)))
+        : plan.chunks;
+      console.log(`Page ${plan.pdfPageNumber} (label=${plan.bookPageLabel ?? "-"}) -> ${visibleChunks.length} chunks`);
+      for (const chunk of visibleChunks) {
         console.log(`  ${chunk.id} | ${JSON.stringify(chunk.text)} -> ${JSON.stringify(chunk.spokenText)}`);
       }
     }
@@ -336,10 +319,14 @@ async function main(): Promise<void> {
     };
 
     const pendingToSynth = dedupeChunksByCachePath(
-      pagePlans
-        .filter((plan) => selectedPages.has(plan.pdfPageNumber))
-        .flatMap((plan) => plan.chunks)
-        .filter((chunk) => force || !isValidWavFile(chunkCachePath(chunk).wav)),
+      selectPendingChunksToSynth(
+        pagePlans,
+        selectedPages,
+        chunkPrefixes,
+        force,
+        (chunk) => chunkCachePath(chunk).wav,
+        isValidWavFile,
+      ),
       (chunk) => chunkCachePath(chunk).wav,
     );
 

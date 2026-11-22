@@ -106,6 +106,22 @@ export function assertSelectedPagesCached<T extends { id: string }>(
   }
 }
 
+/** Filters synthesis targets by selected pages and optional chunk prefixes without stripping sibling chunks from page plans. */
+export function selectPendingChunksToSynth<T extends { id: string }>(
+  pagePlans: ReadonlyArray<{ pdfPageNumber: number; chunks: ReadonlyArray<T> }>,
+  selectedPages: ReadonlySet<number>,
+  chunkPrefixes: ReadonlyArray<string> | null,
+  force: boolean,
+  getWavPath: (chunk: T) => string,
+  isValidWav: (wavPath: string) => boolean,
+): T[] {
+  return pagePlans
+    .filter((plan) => selectedPages.has(plan.pdfPageNumber))
+    .flatMap((plan) => plan.chunks)
+    .filter((chunk) => !chunkPrefixes || chunkPrefixes.some((prefix) => chunk.id.startsWith(prefix)))
+    .filter((chunk) => force || !isValidWav(getWavPath(chunk)));
+}
+
 /** Derives whether an extracted PDF page is discrete cover/TOC/back-cover metadata rather than flowing prose. */
 export function isMetadataBookPage(blocks: ReadonlyArray<AccessibleBlock>): boolean {
   if (blocks.length === 0) return false;
@@ -137,7 +153,6 @@ export function replaceWholeTermInsensitive(
   replaceAll = true,
 ): string {
   if (!from || text.length < from.length) return text;
-  const haystack = caseInsensitive ? text.toLowerCase() : text;
   const needle = caseInsensitive ? from.toLowerCase() : from;
   const needLeftBoundary = isTermWordChar(from[0]);
   const needRightBoundary = isTermWordChar(from[from.length - 1]);
@@ -145,20 +160,22 @@ export function replaceWholeTermInsensitive(
   const parts: string[] = [];
   let lastCopy = 0;
   let cursor = 0;
-  while (cursor <= text.length - needle.length) {
-    const idx = haystack.indexOf(needle, cursor);
-    if (idx < 0) break;
-    const rightEnd = idx + needle.length;
-    const leftOk = !needLeftBoundary || idx === 0 || !isTermWordChar(text[idx - 1]);
-    const rightOk = !needRightBoundary || rightEnd === text.length || !isTermWordChar(text[rightEnd]);
-    if (leftOk && rightOk) {
-      parts.push(text.slice(lastCopy, idx), replacement);
-      lastCopy = rightEnd;
-      cursor = rightEnd;
-      if (!replaceAll) break;
-    } else {
-      cursor = idx + 1;
+  while (cursor <= text.length - from.length) {
+    const slice = text.slice(cursor, cursor + from.length);
+    const matched = caseInsensitive ? slice.toLowerCase() === needle : slice === needle;
+    if (matched) {
+      const rightEnd = cursor + from.length;
+      const leftOk = !needLeftBoundary || cursor === 0 || !isTermWordChar(text[cursor - 1]);
+      const rightOk = !needRightBoundary || rightEnd === text.length || !isTermWordChar(text[rightEnd]);
+      if (leftOk && rightOk) {
+        parts.push(text.slice(lastCopy, cursor), replacement);
+        lastCopy = rightEnd;
+        cursor = rightEnd;
+        if (!replaceAll) break;
+        continue;
+      }
     }
+    cursor += 1;
   }
   if (lastCopy === 0) return text;
   parts.push(text.slice(lastCopy));

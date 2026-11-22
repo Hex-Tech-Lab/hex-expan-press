@@ -358,6 +358,74 @@ describe("useReadAloud pre-baked audio manifest + timings sync + Web Speech fall
     expect(latest.usingFallbackVoice).toBe(true);
   });
 
+  it("keeps usingFallbackVoice=true while paused in fallback mode and clears it on Stop, natural end, and speech error", async () => {
+    const utterances: FakeUtterance[] = [];
+    class FakeUtterance {
+      text: string;
+      rate = 1;
+      onend: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      constructor(text: string) {
+        this.text = text;
+        utterances.push(this);
+      }
+    }
+    const pauseSpy = vi.fn();
+    Object.defineProperty(window, "SpeechSynthesisUtterance", { value: FakeUtterance, configurable: true });
+    Object.defineProperty(window, "speechSynthesis", {
+      value: {
+        paused: false,
+        speaking: false,
+        pending: false,
+        speak: vi.fn(),
+        cancel: vi.fn(),
+        pause: pauseSpy,
+        resume: vi.fn(),
+        getVoices: () => [],
+      },
+      configurable: true,
+    });
+    MockAudioElement.nextCanPlayOpus = "";
+
+    await mount(true);
+    await act(async () => latest.handlePlayPauseResume());
+    expect(latest.playbackState).toBe("playing");
+    expect(latest.usingFallbackVoice).toBe(true);
+
+    // Pausing keeps fallback notice visible
+    await act(async () => latest.handlePlayPauseResume());
+    expect(pauseSpy).toHaveBeenCalledTimes(1);
+    expect(latest.playbackState).toBe("paused");
+    expect(latest.usingFallbackVoice).toBe(true);
+
+    // Explicit Stop clears fallback notice
+    await act(async () => latest.stopReadAloud());
+    expect(latest.playbackState).toBe("idle");
+    expect(latest.usingFallbackVoice).toBe(false);
+
+    // Playing to natural completion clears fallback notice
+    utterances.length = 0;
+    await act(async () => latest.handlePlayPauseResume());
+    expect(latest.usingFallbackVoice).toBe(true);
+    for (let i = 0; i < spreadChunks.length; i++) {
+      await act(async () => {
+        utterances[i]?.onend?.();
+      });
+    }
+    expect(latest.playbackState).toBe("idle");
+    expect(latest.usingFallbackVoice).toBe(false);
+
+    // Terminal speech error clears fallback notice
+    utterances.length = 0;
+    await act(async () => latest.handlePlayPauseResume());
+    expect(latest.usingFallbackVoice).toBe(true);
+    await act(async () => {
+      utterances[0]?.onerror?.();
+    });
+    expect(latest.playbackState).toBe("idle");
+    expect(latest.usingFallbackVoice).toBe(false);
+  });
+
   it("supports custom audioBasePath, rejects stale manifests with mismatched text, and updates activeWord when highlight_words=true", async () => {
     // 1) Custom audioBasePath accepts matching track URLs and ignores mismatched prefixes
     currentAudioBasePath = "/books/audio_v2";

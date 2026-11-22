@@ -143,6 +143,7 @@ export function useReadAloud(
     pausedAtRateRef.current = null;
     positionRef.current = null;
     activeEngineRef.current = "none";
+    setUsingFallbackVoice(false);
     stopAudioEngine(false);
     if (detectSpeechSynthesisSupport() && isSpeechEngineBusy(window.speechSynthesis)) {
       window.speechSynthesis.cancel?.();
@@ -151,6 +152,7 @@ export function useReadAloud(
 
   const stopReadAloud = useCallback(() => {
     cancelSpeechEngine();
+    setUsingFallbackVoice(false);
     setPlaybackState("idle");
     setActiveChunk(null);
     setActiveWord(null);
@@ -215,6 +217,7 @@ export function useReadAloud(
           pausedAtRateRef.current = null;
           positionRef.current = null;
           activeEngineRef.current = "none";
+          setUsingFallbackVoice(false);
           setPlaybackState("idle");
           setActiveChunk(null);
           setActiveWord(null);
@@ -251,6 +254,7 @@ export function useReadAloud(
           pausedAtRateRef.current = null;
           positionRef.current = null;
           activeEngineRef.current = "none";
+          setUsingFallbackVoice(false);
           setPlaybackState("idle");
           setActiveChunk(null);
           setActiveWord(null);

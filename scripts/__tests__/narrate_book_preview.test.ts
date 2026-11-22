@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, readdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -18,6 +18,7 @@ import {
   replaceWholeTermInsensitive,
   resolveTempoForVoice,
   resolveVoiceFromNarrationSettings,
+  selectPendingChunksToSynth,
   synthesizeVcpChunk,
   trimSilencePcm,
 } from "../narrate_book_preview";
@@ -80,6 +81,8 @@ describe("narrate_book_preview helpers", () => {
     expect(replaceWholeTermInsensitive("Elias, Elias's, and Eliasing.", "Elias", "Ilaias")).toBe(
       "Ilaias, Ilaias's, and Eliasing.",
     );
+    expect(replaceWholeTermInsensitive("İ Elias", "Elias", "Ilaias")).toBe("İ Ilaias");
+    expect(replaceWholeTermInsensitive("İİx", "x", "y")).toBe("İİy");
     expect(
       applyNarrationLexicon("Published by ExpanPress and Elias.", DEFAULT_GLOBAL.voice_narration.lexicon),
     ).toBe("Published by Expan Press and Ilaias.");
@@ -248,7 +251,7 @@ describe("narrate_book_preview cache integrity, locking, and atomic synthesis", 
     expect((JSON.parse(readFileSync(reclaimed.lockPath, "utf8")) as { token: string }).token).toBe("successor-token");
     rmSync(reclaimed.lockPath, { force: true });
 
-    // F1: 2-contender stale lock reclamation — if .reclaim mutex is already held, second contender fails closed non-destructively
+    // F1: 2-contender stale lock reclamation — live-PID or fresh .reclaim mutex fails closed non-destructively
     const stalePayload = JSON.stringify({
       pid: exited.pid,
       token: "race-stale-token",
@@ -259,28 +262,74 @@ describe("narrate_book_preview cache integrity, locking, and atomic synthesis", 
     writeFileSync(reclaimMutexPath, "held-by-winner", "utf8");
     expect(() => acquireNarrationLock(dir)).toThrow(/reclamation already in progress/);
     expect(readFileSync(lock.lockPath, "utf8")).toBe(stalePayload);
-    rmSync(reclaimMutexPath, { force: true });
+    writeFileSync(
+      reclaimMutexPath,
+      JSON.stringify({ pid: process.pid, token: "live-reclaimer", startedAt: new Date().toISOString() }),
+      "utf8",
+    );
+    expect(() => acquireNarrationLock(dir)).toThrow(/reclamation already in progress/);
+    expect(readFileSync(lock.lockPath, "utf8")).toBe(stalePayload);
 
-    // Once winner releases .reclaim mutex, single contender reclaims cleanly and cleans .reclaim up
-    const winner = acquireNarrationLock(dir);
+    // Dead-PID stale .reclaim mutex recovers safely and cleans .reclaim up
+    writeFileSync(
+      reclaimMutexPath,
+      JSON.stringify({ pid: exited.pid, token: "dead-reclaimer", startedAt: new Date(Date.now() - 60_000).toISOString() }),
+      "utf8",
+    );
+    const recoveredDeadReclaim = acquireNarrationLock(dir);
     expect(readdirSync(dir)).not.toContain(".narration.lock.reclaim");
-    winner.release();
+    recoveredDeadReclaim.release();
+
+    // Unparseable .reclaim mutex older than 2000ms also recovers safely
+    writeFileSync(lock.lockPath, stalePayload, "utf8");
+    writeFileSync(reclaimMutexPath, "corrupt-stale-reclaim", "utf8");
+    const staleTime = new Date(Date.now() - 5000);
+    utimesSync(reclaimMutexPath, staleTime, staleTime);
+    const recoveredOldReclaim = acquireNarrationLock(dir);
+    expect(readdirSync(dir)).not.toContain(".narration.lock.reclaim");
+    recoveredOldReclaim.release();
+
+    // Non-ENOENT lock read errors (e.g. EACCES) propagate loudly rather than deleting the lockfile
+    if (process.getuid?.() !== 0) {
+      writeFileSync(lock.lockPath, stalePayload, "utf8");
+      chmodSync(lock.lockPath, 0o000);
+      try {
+        expect(() => acquireNarrationLock(dir)).toThrow(/EACCES|permission denied/i);
+        expect(readdirSync(dir)).toContain(".narration.lock");
+      } finally {
+        chmodSync(lock.lockPath, 0o600);
+        rmSync(lock.lockPath, { force: true });
+      }
+    }
   });
 
-  it("validates selected page caches unconditionally and throws loudly on incomplete pages (F2)", () => {
+  it("validates selected page caches unconditionally, preserves full page siblings under --chunks, and throws loudly on incomplete pages (F2)", () => {
     const dir = makeTempDir();
     const validWav = path.join(dir, "ok.wav");
+    const siblingWav = path.join(dir, "sibling.wav");
     const badWav = path.join(dir, "bad.wav");
     writeFileSync(validWav, makeValidWavBuffer());
+    writeFileSync(siblingWav, makeValidWavBuffer());
     writeFileSync(badWav, Buffer.from("corrupt"));
 
     const plans = [
-      { pdfPageNumber: 1, chunks: [{ id: "p0-b0-s0" }] },
+      { pdfPageNumber: 1, chunks: [{ id: "p0-b0-s0" }, { id: "p0-b1-s0" }] },
       { pdfPageNumber: 2, chunks: [{ id: "p1-b0-s0" }] },
     ];
-    const wavMap = (chunk: { id: string }) => (chunk.id === "p0-b0-s0" ? validWav : badWav);
-    expect(() => assertSelectedPagesCached(plans, new Set([1]), wavMap, isValidWavFile)).not.toThrow();
-    expect(() => assertSelectedPagesCached(plans, new Set([1, 2]), wavMap, isValidWavFile)).toThrow(
+    const wavMap = (chunk: { id: string }) => {
+      if (chunk.id === "p0-b0-s0") return validWav;
+      if (chunk.id === "p0-b1-s0") return badWav;
+      return badWav;
+    };
+    const pendingPartial = selectPendingChunksToSynth(plans, new Set([1]), ["p0-b1"], false, wavMap, isValidWavFile);
+    expect(pendingPartial.map((c) => c.id)).toEqual(["p0-b1-s0"]);
+    // Sibling chunk p0-b0-s0 remains in pagePlans, so missing p0-b1-s0 still fails page 1 assembly even with --chunks=p0-b0
+    expect(() => assertSelectedPagesCached(plans, new Set([1]), wavMap, isValidWavFile)).toThrow(
+      /Cannot assemble selected page 1: missing or invalid WAV cache for chunk\(s\) p0-b1-s0/,
+    );
+    const completeMap = (chunk: { id: string }) => (chunk.id === "p0-b0-s0" ? validWav : chunk.id === "p0-b1-s0" ? siblingWav : badWav);
+    expect(() => assertSelectedPagesCached(plans, new Set([1]), completeMap, isValidWavFile)).not.toThrow();
+    expect(() => assertSelectedPagesCached(plans, new Set([1, 2]), completeMap, isValidWavFile)).toThrow(
       /Cannot assemble selected page 2: missing or invalid WAV cache for chunk\(s\) p1-b0-s0/,
     );
   });
