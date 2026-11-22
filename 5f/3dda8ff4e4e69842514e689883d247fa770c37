@@ -1,0 +1,16 @@
+payments/src/settings_registry.ts
+  h_e6b68dcbbd0983 1196
+payments/test/landing_disclaimers.test.ts
+  h_e6b68dcbbd0983 57-58
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5f3dda8ff4e4e69842514e689883d247fa770c37",
+  "prompts": {},
+  "humans": {
+    "h_e6b68dcbbd0983": {
+      "author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
