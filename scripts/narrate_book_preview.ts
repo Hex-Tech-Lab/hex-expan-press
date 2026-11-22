@@ -17,6 +17,7 @@ import {
 import {
   applyNarrationLexicon,
   assemblePagePcm,
+  assertSelectedPagesCached,
   buildChunkDecodeFilter,
   decodeAudioToNativePcm,
   encodeLoudnormDualFormats,
@@ -27,6 +28,7 @@ import {
   parsePageSelection,
   probeDurationMs,
   replaceWholeTermInsensitive,
+  resolveTempoForVoice,
   resolveVoiceFromNarrationSettings,
   trimSilencePcm,
 } from "./narrate_book_preview_audio";
@@ -46,6 +48,7 @@ export {
   acquireNarrationLock,
   applyNarrationLexicon,
   assemblePagePcm,
+  assertSelectedPagesCached,
   buildChunkDecodeFilter,
   dedupeChunksByCachePath,
   formatChunkForSpeech,
@@ -53,6 +56,7 @@ export {
   isValidWavFile,
   parsePageSelection,
   replaceWholeTermInsensitive,
+  resolveTempoForVoice,
   resolveVoiceFromNarrationSettings,
   trimSilencePcm,
   type NarrationLock,
@@ -145,19 +149,10 @@ export async function synthesizeVcpChunk(
         throw new Error(`VCP audio download failed (${audioRes.status}) for job ${jobId}`);
       }
       const bytes = await readBoundedBytes(audioRes, MAX_AUDIO_DOWNLOAD_BYTES);
-      if (bytes.length === 0) {
-        throw new Error(`VCP audio download returned 0 bytes for job ${jobId}`);
-      }
-      const contentType = (audioRes.headers.get("content-type") ?? "").toLowerCase();
-      const isWavResponse =
-        contentType.includes("wav") ||
-        /\.wav(?:$|\?)/i.test(audioUrl) ||
-        bytes.subarray(0, 4).toString("ascii") === "RIFF";
       if (
-        isWavResponse &&
-        (bytes.length < MIN_WAV_HEADER_BYTES ||
-          bytes.subarray(0, 4).toString("ascii") !== "RIFF" ||
-          bytes.subarray(8, 12).toString("ascii") !== "WAVE")
+        bytes.length < MIN_WAV_HEADER_BYTES ||
+        bytes.subarray(0, 4).toString("ascii") !== "RIFF" ||
+        bytes.subarray(8, 12).toString("ascii") !== "WAVE"
       ) {
         throw new Error(`VCP audio download for job ${jobId} is not a valid WAV payload (${bytes.length} bytes)`);
       }
@@ -221,12 +216,20 @@ async function main(): Promise<void> {
   });
   const model = getArg("--model") ?? narration.model;
   const tempoArg = getArg("--tempo");
-  const tempo = tempoArg !== undefined ? Number.parseFloat(tempoArg) : narration.tempo;
-  if (!Number.isFinite(tempo) || tempo < VOICE_NARRATION_LIMITS.tempo.min || tempo > VOICE_NARRATION_LIMITS.tempo.max) {
-    throw new Error(
-      `Invalid --tempo "${tempoArg}": must be in [${VOICE_NARRATION_LIMITS.tempo.min}, ${VOICE_NARRATION_LIMITS.tempo.max}]`,
-    );
+  let explicitTempo: number | undefined;
+  if (tempoArg !== undefined) {
+    explicitTempo = Number.parseFloat(tempoArg);
+    if (
+      !Number.isFinite(explicitTempo) ||
+      explicitTempo < VOICE_NARRATION_LIMITS.tempo.min ||
+      explicitTempo > VOICE_NARRATION_LIMITS.tempo.max
+    ) {
+      throw new Error(
+        `Invalid --tempo "${tempoArg}": must be in [${VOICE_NARRATION_LIMITS.tempo.min}, ${VOICE_NARRATION_LIMITS.tempo.max}]`,
+      );
+    }
   }
+  const tempo = resolveTempoForVoice(narration, voiceId, explicitTempo);
   const chunkPrefixes = parseChunkPrefixes(getArg("--chunks"));
   const concurrency = Math.min(Math.max(Number.parseInt(getArg("--concurrency") ?? "3", 10) || 3, 1), 3);
   const assembleOnly = hasFlag("--assemble-only");
@@ -326,8 +329,8 @@ async function main(): Promise<void> {
     const chunkCachePath = (chunk: SpeechChunkPlan) => {
       const hash = createHash("sha256").update(`${voiceId}|${model}|${chunk.spokenText}`).digest("hex").slice(0, 16);
       return {
-        wav: path.join(cacheDir, `${chunk.id}_${hash}.wav`),
-        meta: path.join(cacheDir, `${chunk.id}_${hash}.json`),
+        wav: path.join(cacheDir, `${hash}.wav`),
+        meta: path.join(cacheDir, `${hash}.json`),
       };
     };
 
@@ -392,12 +395,14 @@ async function main(): Promise<void> {
       console.log(`[vcp] 0 new chunks to synthesize (cached=${pagePlans.flatMap((plan) => plan.chunks).length}, assembleOnly=${assembleOnly}).`);
     }
 
+    assertSelectedPagesCached(pagePlans, selectedPages, (chunk) => chunkCachePath(chunk).wav, isValidWavFile);
+
     const pagesManifest: Record<string, PreviewAudioPageTrack> = {};
     for (const plan of pagePlans) {
-      const allCached = plan.chunks.length > 0 && plan.chunks.every((chunk) => isValidWavFile(chunkCachePath(chunk).wav));
-      if (!allCached) {
-        console.log(`[assemble] Skipping page ${plan.pdfPageNumber} (incomplete cache)`);
-        continue;
+      if (plan.chunks.length === 0) continue;
+      if (!selectedPages.has(plan.pdfPageNumber)) {
+        const allCached = plan.chunks.every((chunk) => isValidWavFile(chunkCachePath(chunk).wav));
+        if (!allCached) continue;
       }
       const entries = plan.chunks.map((chunk) => {
         const paths = chunkCachePath(chunk);

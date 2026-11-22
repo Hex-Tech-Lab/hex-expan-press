@@ -483,6 +483,23 @@ describe("useReadAloud pre-baked audio manifest + timings sync + Web Speech fall
     expect(speak).toHaveBeenCalledTimes(1);
     expect((speak.mock.calls[0][0] as FakeUtterance).text).toBe("Third chunk on page.");
     expect(latest.activeChunkId).toBe("p1-b2-s0");
+
+    // P3: even if audio.onerror fires before the next ontimeupdate, error-time currentTime resolves the active chunk
+    speak.mockClear();
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+    MockAudioElement.instances = [];
+    await mount(true, threeChunkManifest);
+    await act(async () => latest.handlePlayPauseResume());
+    const audioP3 = MockAudioElement.instances[0];
+    await act(async () => {
+      audioP3.currentTime = 2.2; // inside chunk 1 (1700..3500ms) with NO ontimeupdate fired
+      audioP3.onerror?.();
+    });
+    expect(speak).toHaveBeenCalledTimes(1);
+    expect((speak.mock.calls[0][0] as FakeUtterance).text).toBe("Second chunk on page.");
   });
 
   it("rejects corrupt timing manifests (negative startMs, endMs <= startMs, durationMs <= 0, duplicate chunk ids, malformed words)", () => {

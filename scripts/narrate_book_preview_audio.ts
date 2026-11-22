@@ -74,6 +74,37 @@ export function resolveVoiceFromNarrationSettings(
   };
 }
 
+/** Resolves effective tempo for a voice: explicit override -> per-voice map -> fallback default tempo. */
+export function resolveTempoForVoice(
+  narration: VoiceNarrationSettings,
+  voiceId: string,
+  explicitTempo?: number,
+): number {
+  if (explicitTempo !== undefined) return explicitTempo;
+  if (Object.prototype.hasOwnProperty.call(narration.voice_tempos, voiceId)) {
+    return narration.voice_tempos[voiceId];
+  }
+  return narration.tempo;
+}
+
+/** Fails loudly before assembly if any selected non-empty page still lacks valid cached WAV chunks. */
+export function assertSelectedPagesCached<T extends { id: string }>(
+  pagePlans: ReadonlyArray<{ pdfPageNumber: number; chunks: ReadonlyArray<T> }>,
+  selectedPages: ReadonlySet<number>,
+  getWavPath: (chunk: T) => string,
+  isValidWav: (wavPath: string) => boolean,
+): void {
+  for (const plan of pagePlans) {
+    if (!selectedPages.has(plan.pdfPageNumber) || plan.chunks.length === 0) continue;
+    const missing = plan.chunks.filter((chunk) => !isValidWav(getWavPath(chunk))).map((chunk) => chunk.id);
+    if (missing.length > 0) {
+      throw new Error(
+        `Cannot assemble selected page ${plan.pdfPageNumber}: missing or invalid WAV cache for chunk(s) ${missing.join(", ")}`,
+      );
+    }
+  }
+}
+
 /** Derives whether an extracted PDF page is discrete cover/TOC/back-cover metadata rather than flowing prose. */
 export function isMetadataBookPage(blocks: ReadonlyArray<AccessibleBlock>): boolean {
   if (blocks.length === 0) return false;

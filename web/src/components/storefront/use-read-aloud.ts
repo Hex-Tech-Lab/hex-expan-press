@@ -332,9 +332,10 @@ export function useReadAloud(
             return;
           }
           console.warn("[read-aloud] Audio playback error, falling back to Web Speech:", reason);
+          const timedIdx = chunkIndexForTrackTime(track, audio.currentTime, chunks);
           const fallbackIdx = chunks.findIndex((chunk) => chunk.pageIndex === track.pageIndex);
           if (detectSpeechSynthesisSupport()) {
-            speakFromIndex(currentChunkIdx ?? (fallbackIdx >= 0 ? fallbackIdx : 0), 0, rateRef.current);
+            speakFromIndex(timedIdx ?? currentChunkIdx ?? (fallbackIdx >= 0 ? fallbackIdx : 0), 0, rateRef.current);
           } else {
             stopReadAloud();
           }

@@ -368,7 +368,11 @@ describe("loadBookIdentity optional media fields", () => {
     expect(DEFAULT_GLOBAL.voice_narration.opus_codec).toBe("libopus");
     expect(DEFAULT_GLOBAL.voice_narration.opus_bitrate_kbps).toBe(32);
     expect(DEFAULT_GLOBAL.voice_narration.opus_vbr).toBe("on");
-    expect(DEFAULT_GLOBAL.voice_narration.tempo).toBe(1.16);
+    expect(DEFAULT_GLOBAL.voice_narration.tempo).toBe(1.0);
+    expect(DEFAULT_GLOBAL.voice_narration.voice_tempos).toEqual({
+      "c9f39b88-235b-4c2a-851c-3734ce1203be": 1.16,
+      "3e5cd61a-bacf-4fe3-94b9-751bd1597ae9": 1.0,
+    });
     expect(DEFAULT_GLOBAL.voice_narration.sentence_gap_ms).toBe(220);
     expect(DEFAULT_GLOBAL.voice_narration.paragraph_gap_ms).toBe(680);
     expect(DEFAULT_GLOBAL.voice_narration.section_gap_ms).toBe(1200);
@@ -378,13 +382,14 @@ describe("loadBookIdentity optional media fields", () => {
     expect(DEFAULT_GLOBAL.voice_narration.silence_fade_ms).toBe(18);
     expect(DEFAULT_GLOBAL.voice_narration.lexicon).toEqual([
       { pattern: "ExpanPress", flags: "gi", replacement: "Expan Press" },
-      { pattern: "Elias", flags: "gi", replacement: "Eliyas" },
+      { pattern: "Elias", flags: "gi", replacement: "Ilaias" },
     ]);
     expect(loadVoiceNarrationSection(undefined)).toEqual(DEFAULT_GLOBAL.voice_narration);
     const vnCustom = loadVoiceNarrationSection({
       opus_bitrate_kbps: 48,
       opus_vbr: "constrained",
-      tempo: 1.1,
+      tempo: 1.05,
+      voice_tempos: { "custom-voice": 1.12 },
       section_gap_ms: 1500,
       silence_fade_ms: 20,
       master_filter: "",
@@ -392,7 +397,8 @@ describe("loadBookIdentity optional media fields", () => {
     });
     expect(vnCustom.opus_bitrate_kbps).toBe(48);
     expect(vnCustom.opus_vbr).toBe("constrained");
-    expect(vnCustom.tempo).toBe(1.1);
+    expect(vnCustom.tempo).toBe(1.05);
+    expect(vnCustom.voice_tempos).toEqual({ "custom-voice": 1.12 });
     expect(vnCustom.section_gap_ms).toBe(1500);
     expect(vnCustom.silence_fade_ms).toBe(20);
     expect(vnCustom.master_filter).toBe("");
@@ -404,6 +410,7 @@ describe("loadBookIdentity optional media fields", () => {
       opus_bitrate_kbps: 500,
       opus_vbr: "invalid",
       tempo: 2.5,
+      voice_tempos: { bad: 3.0 },
       section_gap_ms: -50,
       silence_fade_ms: 250,
       master_filter: "highpass=f=80\nrm -rf /",
@@ -417,6 +424,14 @@ describe("loadBookIdentity optional media fields", () => {
       DEFAULT_GLOBAL.voice_narration.lexicon,
     );
     expect(warn).toHaveBeenCalledTimes(1);
+
+    for (const badTempos of ["invalid", [], { "": 1.1 }, { v: Number.NaN }, JSON.parse('{"__proto__":1.1}')]) {
+      warn.mockClear();
+      expect(loadVoiceNarrationSection({ voice_tempos: badTempos }).voice_tempos).toEqual(
+        DEFAULT_GLOBAL.voice_narration.voice_tempos,
+      );
+      expect(warn).toHaveBeenCalledTimes(1);
+    }
 
     for (const badSection of ["invalid", 42, true, [], null]) {
       warn.mockClear();

@@ -8,6 +8,7 @@ import {
   acquireNarrationLock,
   applyNarrationLexicon,
   assemblePagePcm,
+  assertSelectedPagesCached,
   buildChunkDecodeFilter,
   dedupeChunksByCachePath,
   formatChunkForSpeech,
@@ -15,6 +16,7 @@ import {
   isValidWavFile,
   parsePageSelection,
   replaceWholeTermInsensitive,
+  resolveTempoForVoice,
   resolveVoiceFromNarrationSettings,
   synthesizeVcpChunk,
   trimSilencePcm,
@@ -42,7 +44,7 @@ describe("narrate_book_preview helpers", () => {
   it("normalizes sparse cover, metadata, tracked headings, and back cover details without altering prose pages", () => {
     expect(
       formatChunkForSpeech("ELIAS HARTWELL", "paragraph", { isMetadataPage: true, authorName: "Elias Hartwell" }),
-    ).toBe("By Eliyas Hartwell.");
+    ).toBe("By Ilaias Hartwell.");
     expect(
       formatChunkForSpeech("EXPANPRESS", "paragraph", { isMetadataPage: true, authorName: "Elias Hartwell" }),
     ).toBe("Expan Press.");
@@ -64,7 +66,7 @@ describe("narrate_book_preview helpers", () => {
       "Expan Press, 2026.",
     );
     expect(formatChunkForSpeech("Elias Hartwell is a pen name.", "paragraph", { isMetadataPage: true })).toBe(
-      "Eliyas Hartwell is a pen name.",
+      "Ilaias Hartwell is a pen name.",
     );
     // Mid-sentence interior paragraph on page 8 of a longer book keeps open syntax without adding a synthetic period
     expect(
@@ -74,15 +76,19 @@ describe("narrate_book_preview helpers", () => {
     ).toBe("If you use a lamp, place it so that its light falls across the work from the side");
   });
 
-  it("applies whole-term narration lexicon without dynamic RegExp and preserves non-matching words", () => {
-    expect(replaceWholeTermInsensitive("Elias, Elias's, and Eliasing.", "Elias", "Eliyas")).toBe(
-      "Eliyas, Eliyas's, and Eliasing.",
+  it("applies whole-term narration lexicon without dynamic RegExp and resolves per-voice tempos", () => {
+    expect(replaceWholeTermInsensitive("Elias, Elias's, and Eliasing.", "Elias", "Ilaias")).toBe(
+      "Ilaias, Ilaias's, and Eliasing.",
     );
     expect(
       applyNarrationLexicon("Published by ExpanPress and Elias.", DEFAULT_GLOBAL.voice_narration.lexicon),
-    ).toBe("Published by Expan Press and Eliyas.");
+    ).toBe("Published by Expan Press and Ilaias.");
     expect(buildChunkDecodeFilter({ masterFilter: "highpass=f=80", tempo: 1.16 })).toBe("highpass=f=80,atempo=1.16");
     expect(buildChunkDecodeFilter({ masterFilter: "", tempo: 1.0 })).toBeNull();
+    expect(resolveTempoForVoice(DEFAULT_GLOBAL.voice_narration, "c9f39b88-235b-4c2a-851c-3734ce1203be")).toBe(1.16);
+    expect(resolveTempoForVoice(DEFAULT_GLOBAL.voice_narration, "3e5cd61a-bacf-4fe3-94b9-751bd1597ae9")).toBe(1.0);
+    expect(resolveTempoForVoice(DEFAULT_GLOBAL.voice_narration, "unlisted-voice")).toBe(1.0);
+    expect(resolveTempoForVoice(DEFAULT_GLOBAL.voice_narration, "3e5cd61a-bacf-4fe3-94b9-751bd1597ae9", 1.12)).toBe(1.12);
   });
 
   it("derives metadata page roles from extracted blocks and selects male/female presets from settings", () => {
@@ -218,18 +224,65 @@ describe("narrate_book_preview cache integrity, locking, and atomic synthesis", 
     const reacquired = acquireNarrationLock(dir);
     reacquired.release();
 
-    // Dead PID stale lock is reclaimed cleanly
+    // Dead PID stale lock is reclaimed cleanly with fresh unique token
     const exited = spawnSync(process.execPath, ["-e", ""], { stdio: "ignore" });
     expect(typeof exited.pid).toBe("number");
     writeFileSync(
       lock.lockPath,
-      JSON.stringify({ pid: exited.pid, startedAt: new Date(Date.now() - 60_000).toISOString() }),
+      JSON.stringify({ pid: exited.pid, token: "stale-token", startedAt: new Date(Date.now() - 60_000).toISOString() }),
       "utf8",
     );
     const reclaimed = acquireNarrationLock(dir);
-    const reclaimedJson = JSON.parse(readFileSync(reclaimed.lockPath, "utf8")) as { pid: number };
+    const reclaimedJson = JSON.parse(readFileSync(reclaimed.lockPath, "utf8")) as { pid: number; token: string };
     expect(reclaimedJson.pid).toBe(process.pid);
+    expect(typeof reclaimedJson.token).toBe("string");
+    expect(reclaimedJson.token).not.toBe("stale-token");
+
+    // F1: release() verifies token ownership so an old owner never unlinks a successor's lock
+    writeFileSync(
+      reclaimed.lockPath,
+      JSON.stringify({ pid: process.pid, token: "successor-token", startedAt: new Date().toISOString() }),
+      "utf8",
+    );
     reclaimed.release();
+    expect((JSON.parse(readFileSync(reclaimed.lockPath, "utf8")) as { token: string }).token).toBe("successor-token");
+    rmSync(reclaimed.lockPath, { force: true });
+
+    // F1: 2-contender stale lock reclamation — if .reclaim mutex is already held, second contender fails closed non-destructively
+    const stalePayload = JSON.stringify({
+      pid: exited.pid,
+      token: "race-stale-token",
+      startedAt: new Date(Date.now() - 60_000).toISOString(),
+    });
+    writeFileSync(lock.lockPath, stalePayload, "utf8");
+    const reclaimMutexPath = `${lock.lockPath}.reclaim`;
+    writeFileSync(reclaimMutexPath, "held-by-winner", "utf8");
+    expect(() => acquireNarrationLock(dir)).toThrow(/reclamation already in progress/);
+    expect(readFileSync(lock.lockPath, "utf8")).toBe(stalePayload);
+    rmSync(reclaimMutexPath, { force: true });
+
+    // Once winner releases .reclaim mutex, single contender reclaims cleanly and cleans .reclaim up
+    const winner = acquireNarrationLock(dir);
+    expect(readdirSync(dir)).not.toContain(".narration.lock.reclaim");
+    winner.release();
+  });
+
+  it("validates selected page caches unconditionally and throws loudly on incomplete pages (F2)", () => {
+    const dir = makeTempDir();
+    const validWav = path.join(dir, "ok.wav");
+    const badWav = path.join(dir, "bad.wav");
+    writeFileSync(validWav, makeValidWavBuffer());
+    writeFileSync(badWav, Buffer.from("corrupt"));
+
+    const plans = [
+      { pdfPageNumber: 1, chunks: [{ id: "p0-b0-s0" }] },
+      { pdfPageNumber: 2, chunks: [{ id: "p1-b0-s0" }] },
+    ];
+    const wavMap = (chunk: { id: string }) => (chunk.id === "p0-b0-s0" ? validWav : badWav);
+    expect(() => assertSelectedPagesCached(plans, new Set([1]), wavMap, isValidWavFile)).not.toThrow();
+    expect(() => assertSelectedPagesCached(plans, new Set([1, 2]), wavMap, isValidWavFile)).toThrow(
+      /Cannot assemble selected page 2: missing or invalid WAV cache for chunk\(s\) p1-b0-s0/,
+    );
   });
 
   it("deduplicates pending chunks by WAV cache path while preserving order", () => {
@@ -259,14 +312,14 @@ describe("narrate_book_preview cache integrity, locking, and atomic synthesis", 
           JSON.stringify({
             status: "succeeded",
             tokens_charged: 12,
-            result: { audio_url: "https://cdn.vcp.test/out.wav" },
+            result: { audio_url: "https://cdn.vcp.test/download/opaque-blob" },
           }),
           { status: 200 },
         );
       }
       return new Response(Buffer.from("not-a-wav"), {
         status: 200,
-        headers: { "content-type": "audio/wav" },
+        headers: { "content-type": "application/octet-stream" },
       });
     });
     vi.stubGlobal("fetch", fetchMock);

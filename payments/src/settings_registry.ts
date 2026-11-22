@@ -322,6 +322,7 @@ export interface VoiceNarrationSettings {
   opus_vbr: "on" | "off" | "constrained";
   loudnorm_lufs: number;
   tempo: number;
+  voice_tempos: Record<string, number>;
   master_filter: string;
   sentence_gap_ms: number;
   paragraph_gap_ms: number;
@@ -805,7 +806,11 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     opus_bitrate_kbps: 32,
     opus_vbr: "on",
     loudnorm_lufs: -16,
-    tempo: 1.16,
+    tempo: 1.0,
+    voice_tempos: {
+      "c9f39b88-235b-4c2a-851c-3734ce1203be": 1.16,
+      "3e5cd61a-bacf-4fe3-94b9-751bd1597ae9": 1.0,
+    },
     master_filter:
       "highpass=f=80,equalizer=f=160:t=q:w=1.2:g=2,equalizer=f=3200:t=q:w=1.4:g=2.5,acompressor=threshold=-20dB:ratio=2.2:attack=12:release=140",
     sentence_gap_ms: 220,
@@ -819,7 +824,7 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     silence_fade_ms: 18,
     lexicon: [
       { pattern: "ExpanPress", flags: "gi", replacement: "Expan Press" },
-      { pattern: "Elias", flags: "gi", replacement: "Eliyas" },
+      { pattern: "Elias", flags: "gi", replacement: "Ilaias" },
     ],
     poll_wait_seconds: 60,
     max_poll_attempts: 6,
@@ -2699,12 +2704,42 @@ export const VOICE_NARRATION_LIMITS = {
   silence_pad_end_ms: { min: 0, max: 500 },
   silence_fade_ms: { min: 0, max: 100 },
   lexicon_max_entries: 200,
+  voice_tempos_max_entries: 100,
   poll_wait_seconds: { min: 1, max: 60 },
   max_poll_attempts: { min: 1, max: 30 },
   request_timeout_ms: { min: 5000, max: 180000 },
 } as const;
 
-type VoiceNarrationNumericKey = Exclude<keyof typeof VOICE_NARRATION_LIMITS, "lexicon_max_entries">;
+type VoiceNarrationNumericKey = Exclude<
+  keyof typeof VOICE_NARRATION_LIMITS,
+  "lexicon_max_entries" | "voice_tempos_max_entries"
+>;
+
+function parseVoiceTempos(
+  raw: unknown,
+  fallback: Record<string, number>,
+): { entries: Record<string, number>; valid: boolean } {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return { entries: fallback, valid: false };
+  }
+  const keys = Object.keys(raw);
+  if (keys.length > VOICE_NARRATION_LIMITS.voice_tempos_max_entries) {
+    return { entries: fallback, valid: false };
+  }
+  const { min, max } = VOICE_NARRATION_LIMITS.tempo;
+  const parsed: Record<string, number> = {};
+  for (const key of keys) {
+    if (key.trim() === "" || key === "__proto__" || key === "constructor" || key === "prototype") {
+      return { entries: fallback, valid: false };
+    }
+    const val = (raw as Record<string, unknown>)[key];
+    if (typeof val !== "number" || !Number.isFinite(val) || val < min || val > max) {
+      return { entries: fallback, valid: false };
+    }
+    parsed[key.trim()] = val;
+  }
+  return { entries: parsed, valid: true };
+}
 
 function parseVoiceNarrationLexicon(
   raw: unknown,
@@ -2785,6 +2820,15 @@ export function loadVoiceNarrationSection(raw: unknown): VoiceNarrationSettings 
       fallbacks.push("lexicon");
     }
   }
+  let voiceTempos = defaults.voice_tempos;
+  if ("voice_tempos" in rec) {
+    const parsedTempos = parseVoiceTempos(rec.voice_tempos, defaults.voice_tempos);
+    if (parsedTempos.valid) {
+      voiceTempos = parsedTempos.entries;
+    } else {
+      fallbacks.push("voice_tempos");
+    }
+  }
   const numField = (key: VoiceNarrationNumericKey, intOnly: boolean): number => {
     if (!(key in rec)) return defaults[key];
     const v = rec[key];
@@ -2808,6 +2852,7 @@ export function loadVoiceNarrationSection(raw: unknown): VoiceNarrationSettings 
     opus_vbr: opusVbr,
     loudnorm_lufs: numField("loudnorm_lufs", false),
     tempo: numField("tempo", false),
+    voice_tempos: voiceTempos,
     master_filter: masterFilter,
     sentence_gap_ms: numField("sentence_gap_ms", true),
     paragraph_gap_ms: numField("paragraph_gap_ms", true),

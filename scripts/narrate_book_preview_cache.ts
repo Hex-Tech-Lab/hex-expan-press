@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import {
   closeSync,
   existsSync,
@@ -122,92 +123,146 @@ export function isValidWavFile(filePath: string): boolean {
   }
 }
 
-/** Acquires an exclusive per-cacheDir lockfile before paid VCP calls or assembly, reclaiming stale dead-PID locks once. */
+function readLockMetadata(lockPath: string): {
+  pid?: number;
+  token?: string;
+  startedAt?: string;
+  parseable: boolean;
+  ino: number;
+  mtimeMs: number;
+} {
+  const stat = statSync(lockPath);
+  try {
+    const raw = readFileSync(lockPath, "utf8");
+    const parsed = JSON.parse(raw) as { pid?: unknown; token?: unknown; startedAt?: unknown };
+    return {
+      pid: typeof parsed.pid === "number" && Number.isInteger(parsed.pid) ? parsed.pid : undefined,
+      token: typeof parsed.token === "string" ? parsed.token : undefined,
+      startedAt: typeof parsed.startedAt === "string" ? parsed.startedAt : undefined,
+      parseable: true,
+      ino: stat.ino,
+      mtimeMs: stat.mtimeMs,
+    };
+  } catch (readErr) {
+    console.warn("[vcp] Unparseable narration lockfile:", readErr instanceof Error ? readErr.message : String(readErr));
+    return { parseable: false, ino: stat.ino, mtimeMs: stat.mtimeMs };
+  }
+}
+
+function buildLockHandle(lockPath: string, ownerToken: string): NarrationLock {
+  let released = false;
+  return {
+    lockPath,
+    release: () => {
+      if (released) return;
+      released = true;
+      try {
+        if (!existsSync(lockPath)) return;
+        const raw = readFileSync(lockPath, "utf8");
+        const parsed = JSON.parse(raw) as { token?: unknown };
+        if (parsed.token !== ownerToken) return;
+        unlinkSync(lockPath);
+      } catch (err) {
+        console.warn("[vcp] Lock cleanup warning:", err instanceof Error ? err.message : String(err));
+      }
+    },
+  };
+}
+
+function writeExclusiveLock(lockPath: string, ownerToken: string): NarrationLock {
+  const payload = JSON.stringify({ pid: process.pid, token: ownerToken, startedAt: new Date().toISOString() });
+  const fd = openSync(lockPath, "wx");
+  try {
+    writeFileSync(fd, `${payload}\n`, "utf8");
+  } finally {
+    closeSync(fd);
+  }
+  return buildLockHandle(lockPath, ownerToken);
+}
+
+/** Acquires an exclusive per-cacheDir lockfile before paid VCP calls or assembly, using a mutex to reclaim dead-PID locks safely. */
 export function acquireNarrationLock(cacheDir: string): NarrationLock {
   mkdirSync(cacheDir, { recursive: true });
   const lockPath = path.join(cacheDir, ".narration.lock");
-  const payload = JSON.stringify({ pid: process.pid, startedAt: new Date().toISOString() });
+  const reclaimPath = `${lockPath}.reclaim`;
+  const ownerToken = randomUUID();
 
-  for (let attempt = 0; attempt < 2; attempt++) {
+  try {
+    return writeExclusiveLock(lockPath, ownerToken);
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException | null)?.code;
+    if (code !== "EEXIST") {
+      throw err instanceof Error ? err : new Error(String(err));
+    }
+
+    let snapshot: ReturnType<typeof readLockMetadata>;
     try {
-      const fd = openSync(lockPath, "wx");
-      try {
-        writeFileSync(fd, `${payload}\n`, "utf8");
-      } finally {
-        closeSync(fd);
+      snapshot = readLockMetadata(lockPath);
+    } catch (statErr) {
+      const statCode = (statErr as NodeJS.ErrnoException | null)?.code;
+      if (statCode === "ENOENT") {
+        return writeExclusiveLock(lockPath, ownerToken);
       }
-      let released = false;
-      return {
-        lockPath,
-        release: () => {
-          if (released) return;
-          released = true;
-          try {
-            if (existsSync(lockPath)) unlinkSync(lockPath);
-          } catch (err) {
-            console.warn("[vcp] Lock cleanup warning:", err instanceof Error ? err.message : String(err));
-          }
-        },
-      };
-    } catch (err) {
-      const code = (err as NodeJS.ErrnoException | null)?.code;
-      if (code !== "EEXIST") {
-        throw err instanceof Error ? err : new Error(String(err));
-      }
+      throw statErr instanceof Error ? statErr : new Error(String(statErr));
+    }
 
-      let existingPid: number | undefined;
-      let existingStartedAt: string | undefined;
-      let parseable = false;
-      try {
-        const raw = readFileSync(lockPath, "utf8");
-        const parsed = JSON.parse(raw) as { pid?: unknown; startedAt?: unknown };
-        parseable = true;
-        if (typeof parsed.pid === "number" && Number.isInteger(parsed.pid)) existingPid = parsed.pid;
-        if (typeof parsed.startedAt === "string") existingStartedAt = parsed.startedAt;
-      } catch (readErr) {
-        console.warn("[vcp] Unparseable narration lockfile:", readErr instanceof Error ? readErr.message : String(readErr));
-      }
-
-      if (existingPid !== undefined && isPidAlive(existingPid)) {
-        throw new Error(
-          `Narration lock already held at ${lockPath} by active pid=${existingPid} (startedAt=${existingStartedAt ?? "unknown"})`,
-        );
-      }
-
-      if (attempt === 0) {
-        if (!parseable) {
-          try {
-            if (Date.now() - statSync(lockPath).mtimeMs < 2000) {
-              throw new Error(`Narration lock already held at ${lockPath} (concurrent initialization in progress)`);
-            }
-          } catch (statErr) {
-            const statCode = (statErr as NodeJS.ErrnoException | null)?.code;
-            console.warn("[vcp] Lock stat check:", statErr instanceof Error ? statErr.message : String(statErr));
-            if (statCode !== "ENOENT") {
-              throw statErr instanceof Error ? statErr : new Error(String(statErr));
-            }
-            continue;
-          }
-        }
-        console.warn(`[vcp] Reclaiming stale narration lock at ${lockPath} (pid=${existingPid ?? "unknown"})`);
-        try {
-          unlinkSync(lockPath);
-        } catch (unlinkErr) {
-          const unlinkCode = (unlinkErr as NodeJS.ErrnoException | null)?.code;
-          console.warn("[vcp] Stale lock unlink:", unlinkErr instanceof Error ? unlinkErr.message : String(unlinkErr));
-          if (unlinkCode !== "ENOENT") {
-            throw unlinkErr instanceof Error ? unlinkErr : new Error(String(unlinkErr));
-          }
-        }
-        continue;
-      }
-
+    if (snapshot.pid !== undefined && isPidAlive(snapshot.pid)) {
       throw new Error(
-        `Narration lock already held at ${lockPath} (pid=${existingPid ?? "unknown"}, startedAt=${existingStartedAt ?? "unknown"})`,
+        `Narration lock already held at ${lockPath} by active pid=${snapshot.pid} (startedAt=${snapshot.startedAt ?? "unknown"})`,
       );
     }
+    if (!snapshot.parseable && Date.now() - snapshot.mtimeMs < 2000) {
+      throw new Error(`Narration lock already held at ${lockPath} (concurrent initialization in progress)`);
+    }
+
+    let reclaimFd: number;
+    try {
+      reclaimFd = openSync(reclaimPath, "wx");
+    } catch (reclaimErr) {
+      const reclaimCode = (reclaimErr as NodeJS.ErrnoException | null)?.code;
+      if (reclaimCode === "EEXIST") {
+        throw new Error(`Narration lock reclamation already in progress at ${lockPath}`);
+      }
+      throw reclaimErr instanceof Error ? reclaimErr : new Error(String(reclaimErr));
+    }
+
+    try {
+      let current: ReturnType<typeof readLockMetadata>;
+      try {
+        current = readLockMetadata(lockPath);
+      } catch (recheckErr) {
+        const recheckCode = (recheckErr as NodeJS.ErrnoException | null)?.code;
+        if (recheckCode === "ENOENT") {
+          return writeExclusiveLock(lockPath, ownerToken);
+        }
+        throw recheckErr instanceof Error ? recheckErr : new Error(String(recheckErr));
+      }
+
+      if (current.pid !== undefined && isPidAlive(current.pid)) {
+        throw new Error(
+          `Narration lock already held at ${lockPath} by active pid=${current.pid} (startedAt=${current.startedAt ?? "unknown"})`,
+        );
+      }
+      if (current.token !== snapshot.token || current.ino !== snapshot.ino) {
+        throw new Error(`Narration lock at ${lockPath} changed owner during reclamation; refusing reclaim`);
+      }
+
+      console.warn(`[vcp] Reclaiming stale narration lock at ${lockPath} (pid=${current.pid ?? "unknown"})`);
+      unlinkSync(lockPath);
+      return writeExclusiveLock(lockPath, ownerToken);
+    } finally {
+      try {
+        closeSync(reclaimFd);
+      } catch (closeErr) {
+        console.warn("[vcp] Reclaim fd close warning:", closeErr instanceof Error ? closeErr.message : String(closeErr));
+      }
+      try {
+        if (existsSync(reclaimPath)) unlinkSync(reclaimPath);
+      } catch (unlinkErr) {
+        console.warn("[vcp] Reclaim lock cleanup warning:", unlinkErr instanceof Error ? unlinkErr.message : String(unlinkErr));
+      }
+    }
   }
-  throw new Error(`Failed to acquire narration lock at ${lockPath}`);
 }
 
 /** Deduplicates pending chunks by their WAV cache path so identical spoken chunks are never double-synthesized. */
