@@ -14,6 +14,7 @@ describe("safeEmailFontStack: accepted stacks pass through unchanged", () => {
     "\"Helvetica Neue\", Arial, sans-serif",
     "system-ui",
     "-apple-system, BlinkMacSystemFont",
+    "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
     "Arial,sans-serif",
   ])("accepts %j", (stack) => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
@@ -47,6 +48,8 @@ describe("safeEmailFontStack: hostile values fall back to the default with a war
     ["an empty name between commas", "Arial,,serif"],
     ["an ampersand", "Arial&amp;serif"],
     ["an at-rule", "@import url(x)"],
+    ["an unquoted digit-led name", "1Password"],
+    ["an unquoted digit-led word", "Segoe 3D, sans-serif"],
     ["whitespace only", "   "],
     ["an empty string", ""],
   ])("rejects %s (%j)", (_label, hostile) => {

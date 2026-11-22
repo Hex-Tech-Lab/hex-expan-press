@@ -261,10 +261,11 @@ export type DeliveryOutcome = "sent" | "duplicate" | "no_email" | "no_release_fi
 
 const esc = (s: string): string => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
-// A font-family list for the buyer email's inline style: font names of letters, digits, spaces and hyphens, each optionally
-// quoted, separated by commas. Nothing else (no ; { } < > outside a quoted name, no parentheses, no backslashes).
-const FONT_NAME = `(?:[A-Za-z0-9-]+(?: [A-Za-z0-9-]+)*|'[A-Za-z0-9 -]+'|"[A-Za-z0-9 -]+")`;
-const EMAIL_FONT_STACK_RE = new RegExp(`^${FONT_NAME}(?:\\s*,\\s*${FONT_NAME})*$`);
+// A font-family list for the buyer email's inline style: unquoted words start with an optional single leading hyphen + ASCII
+// letter (rejecting digit-led CSS tokens), or single/double-quoted font names, separated by commas. Nothing else (no ; { }
+// < > outside a quoted name, no parentheses, no backslashes).
+const EMAIL_FONT_STACK_RE =
+  /^(?:-?[A-Za-z][A-Za-z0-9-]*(?: -?[A-Za-z][A-Za-z0-9-]*)*|'[A-Za-z0-9 -]+'|"[A-Za-z0-9 -]+")(?:\s*,\s*(?:-?[A-Za-z][A-Za-z0-9-]*(?: -?[A-Za-z][A-Za-z0-9-]*)*|'[A-Za-z0-9 -]+'|"[A-Za-z0-9 -]+"))*$/;
 
 /** Returns the trimmed stack when it matches the grammar; otherwise the registry default, with a warning that names the key only. */
 export function safeEmailFontStack(value: string): string {

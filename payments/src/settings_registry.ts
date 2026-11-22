@@ -1198,11 +1198,14 @@ export function loadLandingSection(raw: Record<string, unknown> | undefined): Gl
   const defaults = DEFAULT_GLOBAL.landing;
   const required = defaults.disclaimer_required_terms;
   const candidate = raw?.disclaimers;
-  const usable =
+  const hasStrings =
     Array.isArray(candidate) &&
     candidate.length > 0 &&
-    candidate.every((line) => typeof line === "string" && line.trim() !== "") &&
-    required.every((term) => new RegExp(`\\b${term}\\b`, "i").test((candidate as string[]).join(" ")));
+    candidate.every((line) => typeof line === "string" && line.trim() !== "");
+  // Check category-word presence against disclaimer_required_terms using tokenized lowercase words (no dynamic RegExp),
+  // so legacy partial overrides (e.g. financial-only) fall back to the reviewed DEFAULT_GLOBAL.landing.disclaimers.
+  const tokens = hasStrings ? new Set((candidate as string[]).join(" ").toLowerCase().match(/[a-z]+/g) ?? []) : null;
+  const usable = Boolean(tokens && required.every((term) => tokens.has(term.toLowerCase())));
   if (candidate !== undefined && !usable) {
     warnFallback("global.json", `landing.disclaimers must be non-empty text naming every required category (${required.join(", ")})`);
   }
