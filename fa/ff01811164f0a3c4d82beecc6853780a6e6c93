@@ -1,0 +1,16 @@
+scripts/qa-intel/engine/rules/__tests__/lessons-20261123.test.ts
+  h_e6b68dcbbd0983 31,42,45-46,52-72,123-152,167-176,191,194-195,198,202,206,208-210
+scripts/qa-intel/engine/rules/lessons-20261123.ts
+  h_e6b68dcbbd0983 57-62,70-123,125-127,149,194-195,203,205-206,213,217-223,226-227,251-256,286-287,301-304,307,313,319-320,322,358-372,374,378-380,408
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "faff01811164f0a3c4d82beecc6853780a6e6c93",
+  "prompts": {},
+  "humans": {
+    "h_e6b68dcbbd0983": {
+      "author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
