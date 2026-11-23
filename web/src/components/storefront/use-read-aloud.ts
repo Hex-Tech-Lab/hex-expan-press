@@ -10,8 +10,9 @@ import {
   cancelSpeechSynthesisIfBusy,
   detectAudioSupport,
   detectSpeechSynthesisSupport,
-  fetchPreviewAudioManifest,
   matchedTimingChunk,
+  parsePreviewAudioManifest,
+  resolveSafeAudioManifestUrl,
   resolveSpreadAudioTracks,
   subscribeNoop,
   type PreviewAudioManifest,
@@ -21,6 +22,7 @@ import {
   clampedChunkSeekSec,
   locateChunkInTracks,
   resolveNextSpreadStart,
+  resolveRateSelection,
   type LiveSpreadPosition,
   type ReadAloudWord,
   type SavedSpreadPosition,
@@ -55,16 +57,9 @@ export function useReadAloud(
   const chunkKey = useMemo(() => chunks.map((chunk) => chunk.id).join("|"), [chunks]);
   const activeChunkIdx = activeChunk && activeChunk.key === chunkKey ? activeChunk.idx : null;
   const [activeWord, setActiveWord] = useState<ReadAloudWord | null>(null);
-  const [rateIdx, setRateIdx] = useState(() => {
-    const idx = raSettings.rates.indexOf(raSettings.default_rate);
-    return idx >= 0 ? idx : 0;
-  });
+  const [rateIdx, setRateIdx] = useState(() => Math.max(0, raSettings.rates.indexOf(raSettings.default_rate)));
   const [speechAnnouncement, setSpeechAnnouncement] = useState("");
-  const [loadedManifest, setLoadedManifest] = useState<{
-    url: string;
-    basePath: string;
-    manifest: PreviewAudioManifest;
-  } | null>(null);
+  const [loadedManifest, setLoadedManifest] = useState<{ url: string; basePath: string; manifest: PreviewAudioManifest } | null>(null);
 
   const speechSessionRef = useRef(0);
   const pausedAtRateRef = useRef<number | null>(null);
@@ -82,30 +77,35 @@ export function useReadAloud(
 
   const speechSupported = useSyncExternalStore(subscribeNoop, detectSpeechSynthesisSupport, () => false);
   const audioElementSupported = useSyncExternalStore(subscribeNoop, detectAudioSupport, () => false);
-
-  const raRates = useMemo(
-    () => (raSettings.rates.length > 0 ? raSettings.rates : [raSettings.default_rate]),
-    [raSettings.rates, raSettings.default_rate],
+  const { raRates, safeRateIdx, currentRate } = useMemo(
+    () => resolveRateSelection(raSettings.rates, raSettings.default_rate, rateIdx),
+    [raSettings.rates, raSettings.default_rate, rateIdx],
   );
-  const safeRateIdx = Math.min(Math.max(0, rateIdx), raRates.length - 1);
-  const currentRate = raRates[safeRateIdx] ?? raSettings.default_rate;
   const rateRef = useRef(currentRate);
-
   useEffect(() => { rateRef.current = currentRate; }, [currentRate]);
   useEffect(() => { chunkKeyRef.current = chunkKey; }, [chunkKey]);
   useEffect(() => { onRequestNextPageRef.current = options?.onRequestNextPage; }, [options?.onRequestNextPage]);
 
   useEffect(() => {
-    if (!raSettings.enabled || !audioManifestUrl) return;
-    return fetchPreviewAudioManifest(audioManifestUrl, audioBasePath, (loaded) => {
-      setLoadedManifest({ url: audioManifestUrl, basePath: audioBasePath, manifest: loaded });
-    });
+    if (!raSettings.enabled || !audioManifestUrl || typeof fetch !== "function" || !resolveSafeAudioManifestUrl(audioManifestUrl, audioBasePath)) return;
+    const controller = new AbortController();
+    let cancelled = false;
+    fetch(audioManifestUrl, { signal: controller.signal })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((raw) => {
+        if (cancelled) return;
+        const parsed = parsePreviewAudioManifest(raw, audioBasePath);
+        if (parsed) setLoadedManifest({ url: audioManifestUrl, basePath: audioBasePath, manifest: parsed });
+      })
+      .catch((err) => {
+        if (!cancelled && (err as { name?: string } | null)?.name !== "AbortError") {
+          console.warn("[read-aloud] Audio manifest fetch failed, using Web Speech fallback:", err);
+        }
+      });
+    return () => { cancelled = true; controller.abort(); };
   }, [raSettings.enabled, audioManifestUrl, audioBasePath]);
 
-  const manifest =
-    audioManifestUrl && loadedManifest?.url === audioManifestUrl && loadedManifest.basePath === audioBasePath
-      ? loadedManifest.manifest
-      : null;
+  const manifest = audioManifestUrl && loadedManifest?.url === audioManifestUrl && loadedManifest.basePath === audioBasePath ? loadedManifest.manifest : null;
   const prebakedTracks = useMemo(() => resolveSpreadAudioTracks(manifest, chunks), [manifest, chunks]);
   const preferredGender = manifest?.voiceGender ?? (audioManifestUrl ? "male" : null);
   const audioSupported = Boolean(audioElementSupported && prebakedTracks);
@@ -120,9 +120,7 @@ export function useReadAloud(
 
   const stopAudioEngine = useCallback((clearSrc: boolean) => {
     audioQueueRef.current = null;
-    teardownAudioElement(audioRef.current, clearSrc, () => {
-      currentAudioSourceRef.current = null;
-    });
+    teardownAudioElement(audioRef.current, clearSrc, () => { currentAudioSourceRef.current = null; });
   }, []);
 
   const cancelSpeechEngine = useCallback(() => {

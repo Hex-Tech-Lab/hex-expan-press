@@ -64,34 +64,6 @@ export function resolveSafeAudioManifestUrl(url: string, basePath: string): stri
   return null;
 }
 
-/** Fetches and validates a pre-baked preview audio manifest with AbortController cancellation. */
-export function fetchPreviewAudioManifest(
-  url: string,
-  basePath: string,
-  onLoaded: (manifest: PreviewAudioManifest) => void,
-): () => void {
-  const safeUrl = resolveSafeAudioManifestUrl(url, basePath);
-  if (!safeUrl || typeof fetch !== "function") return () => {};
-  const controller = new AbortController();
-  let cancelled = false;
-  fetch(safeUrl, { signal: controller.signal })
-    .then((res) => (res.ok ? res.json() : null))
-    .then((raw) => {
-      if (cancelled) return;
-      const parsed = parsePreviewAudioManifest(raw, basePath);
-      if (parsed) onLoaded(parsed);
-    })
-    .catch((err) => {
-      if (!cancelled && (err as { name?: string } | null)?.name !== "AbortError") {
-        console.warn("[read-aloud] Audio manifest fetch failed, using Web Speech fallback:", err);
-      }
-    });
-  return () => {
-    cancelled = true;
-    controller.abort();
-  };
-}
-
 export function detectSpeechSynthesisSupport(): boolean {
   return (
     typeof window !== "undefined" &&

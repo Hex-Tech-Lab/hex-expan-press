@@ -145,3 +145,14 @@ export function captureSpreadPlaybackPosition(
   }
   return null;
 }
+
+/** Resolves the clamped playback rate list, current index, and active multiplier. */
+export function resolveRateSelection(
+  rates: ReadonlyArray<number>,
+  defaultRate: number,
+  rateIdx: number,
+): { raRates: ReadonlyArray<number>; safeRateIdx: number; currentRate: number } {
+  const raRates = rates.length > 0 ? rates : [defaultRate];
+  const safeRateIdx = Math.min(Math.max(0, rateIdx), raRates.length - 1);
+  return { raRates, safeRateIdx, currentRate: raRates[safeRateIdx] ?? defaultRate };
+}
