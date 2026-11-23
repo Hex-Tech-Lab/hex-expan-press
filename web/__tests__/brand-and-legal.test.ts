@@ -60,7 +60,7 @@ describe("legal pages brand chrome and B2B footer accuracy", () => {
     }
   });
 
-  it("B2C legal pages preserve founder-review <mark class=\"review\"> highlights intact", () => {
+  it("B2C legal pages have zero unresolved <mark class=\"review\"> draft highlights", () => {
     let totalMarks = 0;
     for (const rel of [
       "public/books/legal/terms.html",
@@ -70,7 +70,7 @@ describe("legal pages brand chrome and B2B footer accuracy", () => {
     ]) {
       totalMarks += readWeb(rel).match(/<mark class="review">/g)?.length ?? 0;
     }
-    expect(totalMarks).toBe(19);
+    expect(totalMarks).toBe(0);
   });
 });
 

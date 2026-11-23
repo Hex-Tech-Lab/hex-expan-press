@@ -64,8 +64,8 @@ for (const viewport of [
       expect(b2cRes?.status()).toBe(200);
       await expect(page.locator("header .wordmark")).toHaveText("{expanpress}");
       await expect(page.locator("footer")).toContainText("© 2026 ExpanPress");
-      // Founder-review draft highlights stay intact until founder sign-off.
-      expect(await page.locator("mark.review").count()).toBeGreaterThan(0);
+      // Founder sign-off finalized: no unapproved draft highlights remain in shipped buyer legal copy.
+      expect(await page.locator("mark.review").count()).toBe(0);
     });
 
     test("Creator portal pages have non-zero card padding, unified chrome, and review back-to-dashboard link", async ({ page }) => {
