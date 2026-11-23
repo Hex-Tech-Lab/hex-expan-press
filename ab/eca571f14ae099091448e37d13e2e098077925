@@ -1,0 +1,16 @@
+web/src/components/storefront/read-aloud-state.ts
+  h_e6b68dcbbd0983 148-158
+web/src/components/storefront/use-read-aloud.ts
+  h_e6b68dcbbd0983 14-15,25,60,62,80-82,90-105,108,123
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "abeca571f14ae099091448e37d13e2e098077925",
+  "prompts": {},
+  "humans": {
+    "h_e6b68dcbbd0983": {
+      "author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
