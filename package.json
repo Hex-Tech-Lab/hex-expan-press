@@ -13,6 +13,7 @@
     "registry-report": "tsx registry_report.ts",
     "transcribe": "tsx transcribe.ts",
     "certify": "tsx certify_asset.ts",
+    "audio:qa": "tsx scripts/audio_qa.ts",
     "freeze:check": "tsx scripts/verify_freeze.ts",
     "lint": "eslint src payments",
     "qa:intel": "tsx scripts/qa-intel.ts --mode diff --base origin/main --compare",

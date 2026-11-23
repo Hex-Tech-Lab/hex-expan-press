@@ -174,6 +174,15 @@ describe("narrate_book_preview helpers", () => {
       { id: "p0-b3-s0", blockIndex: 3, text: "Section Two", spokenText: "Section Two.", tokensCharged: 30, startMs: 5900, endMs: 6400 },
     ]);
     expect(out.rawDurationMs).toBe(6550);
+
+    const thesisOut = assemblePagePcm(
+      [
+        { id: "p4-b0-s0", blockIndex: 0, blockKind: "paragraph", text: "A workshop does not need a room.", spokenText: "A workshop does not need a room.", pcm: a },
+        { id: "p4-b0-s1", blockIndex: 0, blockKind: "paragraph", text: "It needs a place.", spokenText: "It needs a place.", pcm: a },
+      ],
+      { sampleRate: sr, pageLeadMs: 120, pageTailMs: 180, sentenceGapMs: 220, openingStatementGapMs: 460, paragraphGapMs: 680 },
+    );
+    expect(thesisOut.chunks[1].startMs - thesisOut.chunks[0].endMs).toBe(460);
   });
 });
 

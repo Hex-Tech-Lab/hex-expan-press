@@ -389,6 +389,20 @@ describe("loadBookIdentity optional media fields", () => {
     });
     expect(invalid.text_structure).toEqual(DEFAULT_GLOBAL.book_preview.text_structure);
 
+    expect(DEFAULT_GLOBAL.book_preview.text_structure.page_landmarks).toEqual({
+      front_cover: "Front cover",
+      title_page: "Title page",
+      table_of_contents: "Table of contents",
+      part_opener: "Part opener",
+      chapter_opener: "Chapter opener",
+      back_cover: "Back cover",
+    });
+
+    const invalidLandmarks = loadBookPreviewSection({
+      text_structure: { page_landmarks: { front_cover: "  ", back_cover: 42 } },
+    });
+    expect(invalidLandmarks.text_structure.page_landmarks).toEqual(DEFAULT_GLOBAL.book_preview.text_structure.page_landmarks);
+
     expect(DEFAULT_GLOBAL.voice_narration.default_voice_id).toBe("c9f39b88-235b-4c2a-851c-3734ce1203be");
     expect(DEFAULT_GLOBAL.voice_narration.fallback_female_voice_id).toBe("84394fa8-60a1-40d9-9a4e-f86738f6b12c");
     expect(DEFAULT_GLOBAL.voice_narration.opus_codec).toBe("libopus");
@@ -400,6 +414,7 @@ describe("loadBookIdentity optional media fields", () => {
       "3e5cd61a-bacf-4fe3-94b9-751bd1597ae9": 1.0,
     });
     expect(DEFAULT_GLOBAL.voice_narration.sentence_gap_ms).toBe(220);
+    expect(DEFAULT_GLOBAL.voice_narration.opening_statement_gap_ms).toBe(460);
     expect(DEFAULT_GLOBAL.voice_narration.paragraph_gap_ms).toBe(680);
     expect(DEFAULT_GLOBAL.voice_narration.section_gap_ms).toBe(1200);
     expect(DEFAULT_GLOBAL.voice_narration.silence_threshold_db).toBe(-54);

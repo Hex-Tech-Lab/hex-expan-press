@@ -7,31 +7,31 @@
   "model": "qwen3-tts",
   "sampleRateHz": 48000,
   "loudnormLufs": -16,
-  "generatedAt": "2026-11-22T21:25:39.987Z",
+  "generatedAt": "2026-11-23T14:08:14.139Z",
   "pages": {
     "1": {
       "pageIndex": 0,
       "pdfPageNumber": 1,
       "bookPageLabel": "1",
       "audioUrl": "/books/audio/sample_the_quiet_workshop/page-01.webm",
-      "durationMs": 9907,
+      "durationMs": 11607,
       "chunks": [
         {
           "id": "p0-b0-s0",
           "blockIndex": 0,
           "text": "The Quiet Workshop",
-          "spokenText": "The Quiet Workshop.",
+          "spokenText": "Front cover. The Quiet Workshop.",
           "startMs": 120,
-          "endMs": 1367,
-          "tokensCharged": 26
+          "endMs": 3084,
+          "tokensCharged": 45
         },
         {
           "id": "p0-b1-s0",
           "blockIndex": 1,
           "text": "Twelve practical projects for a small home bench",
           "spokenText": "Twelve practical projects for a small home bench.",
-          "startMs": 2567,
-          "endMs": 5671,
+          "startMs": 4284,
+          "endMs": 7388,
           "tokensCharged": 50
         },
         {
@@ -39,8 +39,8 @@
           "blockIndex": 2,
           "text": "ELIAS HARTWELL",
           "spokenText": "By Ilaias Hartwell.",
-          "startMs": 6351,
-          "endMs": 7609,
+          "startMs": 8068,
+          "endMs": 9327,
           "tokensCharged": 25
         },
         {
@@ -48,8 +48,8 @@
           "blockIndex": 3,
           "text": "EXPANPRESS",
           "spokenText": "Expan Press.",
-          "startMs": 8289,
-          "endMs": 9633,
+          "startMs": 10007,
+          "endMs": 11351,
           "tokensCharged": 25
         }
       ]
@@ -59,24 +59,24 @@
       "pdfPageNumber": 2,
       "bookPageLabel": "2",
       "audioUrl": "/books/audio/sample_the_quiet_workshop/page-02.webm",
-      "durationMs": 17207,
+      "durationMs": 18407,
       "chunks": [
         {
           "id": "p1-b0-s0",
           "blockIndex": 0,
           "text": "The Quiet Workshop",
-          "spokenText": "The Quiet Workshop.",
+          "spokenText": "Title page. The Quiet Workshop.",
           "startMs": 120,
-          "endMs": 1367,
-          "tokensCharged": 26
+          "endMs": 2592,
+          "tokensCharged": 40
         },
         {
           "id": "p1-b1-s0",
           "blockIndex": 1,
           "text": "Twelve practical projects for a small home bench",
           "spokenText": "Twelve practical projects for a small home bench.",
-          "startMs": 2567,
-          "endMs": 5671,
+          "startMs": 3792,
+          "endMs": 6896,
           "tokensCharged": 50
         },
         {
@@ -84,8 +84,8 @@
           "blockIndex": 2,
           "text": "Elias Hartwell",
           "spokenText": "By Ilaias Hartwell.",
-          "startMs": 6871,
-          "endMs": 8129,
+          "startMs": 8096,
+          "endMs": 9355,
           "tokensCharged": 25
         },
         {
@@ -93,8 +93,8 @@
           "blockIndex": 3,
           "text": "Sample: Chapter 1 of 12",
           "spokenText": "Sample: Chapter 1 of 12.",
-          "startMs": 8809,
-          "endMs": 11299,
+          "startMs": 10035,
+          "endMs": 12525,
           "tokensCharged": 46
         },
         {
@@ -102,8 +102,8 @@
           "blockIndex": 4,
           "text": "Elias Hartwell is a pen name.",
           "spokenText": "Ilaias Hartwell is a pen name.",
-          "startMs": 11979,
-          "endMs": 14552,
+          "startMs": 13205,
+          "endMs": 15777,
           "tokensCharged": 40
         },
         {
@@ -111,8 +111,8 @@
           "blockIndex": 4,
           "text": "Published by ExpanPress.",
           "spokenText": "Published by Expan Press.",
-          "startMs": 14772,
-          "endMs": 16979,
+          "startMs": 15997,
+          "endMs": 18205,
           "tokensCharged": 33
         }
       ]
@@ -275,7 +275,7 @@
       "pdfPageNumber": 5,
       "bookPageLabel": "5",
       "audioUrl": "/books/audio/sample_the_quiet_workshop/page-05.webm",
-      "durationMs": 80207,
+      "durationMs": 79807,
       "chunks": [
         {
           "id": "p4-b0-s0",
@@ -283,7 +283,7 @@
           "text": "A workshop does not need a room.",
           "spokenText": "A workshop does not need a room.",
           "startMs": 120,
-          "endMs": 2023,
+          "endMs": 1883,
           "tokensCharged": 36
         },
         {
@@ -291,8 +291,8 @@
           "blockIndex": 0,
           "text": "It needs a place where you can leave a project half finished without losing it, and where the tools you use most are within reach.",
           "spokenText": "It needs a place where you can leave a project half finished without losing it, and where the tools you use most are within reach.",
-          "startMs": 2243,
-          "endMs": 8871,
+          "startMs": 2343,
+          "endMs": 8509,
           "tokensCharged": 103
         },
         {
@@ -300,8 +300,8 @@
           "blockIndex": 0,
           "text": "Most people who begin woodworking at home start with a kitchen table and a borrowed clamp, and that is a fine way to start.",
           "spokenText": "Most people who begin woodworking at home start with a kitchen table and a borrowed clamp, and that is a fine way to start.",
-          "startMs": 9091,
-          "endMs": 15393,
+          "startMs": 8729,
+          "endMs": 15030,
           "tokensCharged": 99
         },
         {
@@ -309,8 +309,8 @@
           "blockIndex": 0,
           "text": "This chapter is about making the small, sensible choices that will make every later project easier.",
           "spokenText": "This chapter is about making the small, sensible choices that will make every later project easier.",
-          "startMs": 15613,
-          "endMs": 21418,
+          "startMs": 15250,
+          "endMs": 21056,
           "tokensCharged": 87
         },
         {
@@ -318,8 +318,8 @@
           "blockIndex": 1,
           "text": "Choosing a Corner",
           "spokenText": "Choosing a Corner.",
-          "startMs": 22618,
-          "endMs": 23843,
+          "startMs": 22256,
+          "endMs": 23480,
           "tokensCharged": 20
         },
         {
@@ -327,8 +327,8 @@
           "blockIndex": 2,
           "text": "Look for a corner that gets steady light for most of the day.",
           "spokenText": "Look for a corner that gets steady light for most of the day.",
-          "startMs": 25043,
-          "endMs": 28532,
+          "startMs": 24680,
+          "endMs": 28170,
           "tokensCharged": 52
         },
         {
@@ -336,8 +336,8 @@
           "blockIndex": 2,
           "text": "Natural light is pleasant, but what matters more is that you can see the line you are cutting or sanding without moving your head into an awkward angle.",
           "spokenText": "Natural light is pleasant, but what matters more is that you can see the line you are cutting or sanding without moving your head into an awkward angle.",
-          "startMs": 28752,
-          "endMs": 36087,
+          "startMs": 28390,
+          "endMs": 35725,
           "tokensCharged": 115
         },
         {
@@ -345,8 +345,8 @@
           "blockIndex": 2,
           "text": "A sturdy bench at a comfortable height will do more for your accuracy than any single tool.",
           "spokenText": "A sturdy bench at a comfortable height will do more for your accuracy than any single tool.",
-          "startMs": 36307,
-          "endMs": 41276,
+          "startMs": 35945,
+          "endMs": 40914,
           "tokensCharged": 76
         },
         {
@@ -354,8 +354,8 @@
           "blockIndex": 2,
           "text": "If you stand to work, the bench top should sit a little below your elbow.",
           "spokenText": "If you stand to work, the bench top should sit a little below your elbow.",
-          "startMs": 41496,
-          "endMs": 45883,
+          "startMs": 41134,
+          "endMs": 45521,
           "tokensCharged": 66
         },
         {
@@ -363,8 +363,8 @@
           "blockIndex": 2,
           "text": "If you sit, it should be lower.",
           "spokenText": "If you sit, it should be lower.",
-          "startMs": 46103,
-          "endMs": 48279,
+          "startMs": 45741,
+          "endMs": 47916,
           "tokensCharged": 32
         },
         {
@@ -372,8 +372,8 @@
           "blockIndex": 3,
           "text": "The corner should also let you keep dust and offcuts in one place.",
           "spokenText": "The corner should also let you keep dust and offcuts in one place.",
-          "startMs": 48959,
-          "endMs": 52569,
+          "startMs": 48596,
+          "endMs": 52206,
           "tokensCharged": 59
         },
         {
@@ -381,8 +381,8 @@
           "blockIndex": 3,
           "text": "A fold-down bench or a simple plywood top on two trestles is enough.",
           "spokenText": "A fold-down bench or a simple plywood top on two trestles is enough.",
-          "startMs": 52789,
-          "endMs": 56758,
+          "startMs": 52426,
+          "endMs": 56395,
           "tokensCharged": 60
         },
         {
@@ -390,8 +390,8 @@
           "blockIndex": 3,
           "text": "Put a sheet of cheap hardboard or a moving blanket on the floor under it, so that spilled glue and sawdust are easy to sweep up.",
           "spokenText": "Put a sheet of cheap hardboard or a moving blanket on the floor under it, so that spilled glue and sawdust are easy to sweep up.",
-          "startMs": 56978,
-          "endMs": 63953,
+          "startMs": 56615,
+          "endMs": 63591,
           "tokensCharged": 108
         },
         {
@@ -399,8 +399,8 @@
           "blockIndex": 4,
           "text": "Plan for power as well as light.",
           "spokenText": "Plan for power as well as light.",
-          "startMs": 64633,
-          "endMs": 66665,
+          "startMs": 64271,
+          "endMs": 66303,
           "tokensCharged": 36
         },
         {
@@ -408,8 +408,8 @@
           "blockIndex": 4,
           "text": "Two or three sockets within a few steps of the bench will save you from running a long cable across the floor, which is both untidy and a tripping hazard.",
           "spokenText": "Two or three sockets within a few steps of the bench will save you from running a long cable across the floor, which is both untidy and a tripping hazard.",
-          "startMs": 66885,
-          "endMs": 75236,
+          "startMs": 66523,
+          "endMs": 74873,
           "tokensCharged": 130
         },
         {
@@ -417,8 +417,8 @@
           "blockIndex": 4,
           "text": "If you use a lamp, place it so that its light falls across the work from the side",
           "spokenText": "If you use a lamp, place it so that its light falls across the work from the side",
-          "startMs": 75456,
-          "endMs": 79940,
+          "startMs": 75093,
+          "endMs": 79578,
           "tokensCharged": 69
         }
       ]
@@ -563,7 +563,7 @@
       "pdfPageNumber": 7,
       "bookPageLabel": "8",
       "audioUrl": "/books/audio/sample_the_quiet_workshop/page-07.webm",
-      "durationMs": 49127,
+      "durationMs": 49327,
       "chunks": [
         {
           "id": "p6-b0-s0",
@@ -579,8 +579,8 @@
           "blockIndex": 0,
           "text": "Put a jar of offcuts beside the bench for small pieces, and a bin for shavings.",
           "spokenText": "Put a jar of offcuts beside the bench for small pieces, and a bin for shavings.",
-          "startMs": 1542,
-          "endMs": 6379,
+          "startMs": 1782,
+          "endMs": 6619,
           "tokensCharged": 76
         },
         {
@@ -588,8 +588,8 @@
           "blockIndex": 0,
           "text": "Find out where the light switch is, and where your phone can be charged without leaving the bench.",
           "spokenText": "Find out where the light switch is, and where your phone can be charged without leaving the bench.",
-          "startMs": 6599,
-          "endMs": 11388,
+          "startMs": 6839,
+          "endMs": 11628,
           "tokensCharged": 77
         },
         {
@@ -597,8 +597,8 @@
           "blockIndex": 1,
           "text": "This is the least exciting part of woodworking, and it is the part most beginners skip.",
           "spokenText": "This is the least exciting part of woodworking, and it is the part most beginners skip.",
-          "startMs": 12068,
-          "endMs": 16878,
+          "startMs": 12308,
+          "endMs": 17118,
           "tokensCharged": 77
         },
         {
@@ -606,8 +606,8 @@
           "blockIndex": 1,
           "text": "But a bench that is set up well makes every later chapter feel calmer.",
           "spokenText": "But a bench that is set up well makes every later chapter feel calmer.",
-          "startMs": 17098,
-          "endMs": 21479,
+          "startMs": 17338,
+          "endMs": 21719,
           "tokensCharged": 66
         },
         {
@@ -615,8 +615,8 @@
           "blockIndex": 1,
           "text": "You will know where things are, you will trust your tools, and you will not need to stop halfway through a cut to look for a clamp.",
           "spokenText": "You will know where things are, you will trust your tools, and you will not need to stop halfway through a cut to look for a clamp.",
-          "startMs": 21699,
-          "endMs": 28338,
+          "startMs": 21939,
+          "endMs": 28578,
           "tokensCharged": 105
         },
         {
@@ -624,8 +624,8 @@
           "blockIndex": 2,
           "text": "What to Do Next",
           "spokenText": "What to Do Next.",
-          "startMs": 29538,
-          "endMs": 31046,
+          "startMs": 29778,
+          "endMs": 31286,
           "tokensCharged": 26
         },
         {
@@ -633,8 +633,8 @@
           "blockIndex": 3,
           "text": "In the next chapter you will learn to measure and mark.",
           "spokenText": "In the next chapter you will learn to measure and mark.",
-          "startMs": 32246,
-          "endMs": 35437,
+          "startMs": 32486,
+          "endMs": 35677,
           "tokensCharged": 47
         },
         {
@@ -642,8 +642,8 @@
           "blockIndex": 3,
           "text": "Those two skills decide how well almost everything else turns out.",
           "spokenText": "Those two skills decide how well almost everything else turns out.",
-          "startMs": 35657,
-          "endMs": 38997,
+          "startMs": 35897,
+          "endMs": 39237,
           "tokensCharged": 56
         },
         {
@@ -651,8 +651,8 @@
           "blockIndex": 3,
           "text": "Before you turn the page, gather a scrap board, a square, a pencil and a marking knife.",
           "spokenText": "Before you turn the page, gather a scrap board, a square, a pencil and a marking knife.",
-          "startMs": 39217,
-          "endMs": 45931,
+          "startMs": 39457,
+          "endMs": 46171,
           "tokensCharged": 102
         },
         {
@@ -660,8 +660,8 @@
           "blockIndex": 3,
           "text": "You will use them all in the first exercise.",
           "spokenText": "You will use them all in the first exercise.",
-          "startMs": 46151,
-          "endMs": 48854,
+          "startMs": 46391,
+          "endMs": 49094,
           "tokensCharged": 45
         }
       ]
@@ -671,24 +671,24 @@
       "pdfPageNumber": 8,
       "bookPageLabel": "9",
       "audioUrl": "/books/audio/sample_the_quiet_workshop/page-08.webm",
-      "durationMs": 30607,
+      "durationMs": 31807,
       "chunks": [
         {
           "id": "p7-b0-s0",
           "blockIndex": 0,
           "text": "A calm, practical start to home woodworking",
-          "spokenText": "A calm, practical start to home woodworking.",
+          "spokenText": "Back cover. A calm, practical start to home woodworking.",
           "startMs": 120,
-          "endMs": 3133,
-          "tokensCharged": 49
+          "endMs": 4515,
+          "tokensCharged": 71
         },
         {
           "id": "p7-b1-s0",
           "blockIndex": 1,
           "text": "Sample: Chapter 1 of 12",
           "spokenText": "Sample: Chapter 1 of 12.",
-          "startMs": 4333,
-          "endMs": 6823,
+          "startMs": 5715,
+          "endMs": 8205,
           "tokensCharged": 46
         },
         {
@@ -696,8 +696,8 @@
           "blockIndex": 2,
           "text": "“A workshop does not need a room.",
           "spokenText": "A workshop does not need a room.",
-          "startMs": 7503,
-          "endMs": 9407,
+          "startMs": 8885,
+          "endMs": 10648,
           "tokensCharged": 36
         },
         {
@@ -705,8 +705,8 @@
           "blockIndex": 2,
           "text": "It needs a place where you can leave a project half finished without losing it.”",
           "spokenText": "It needs a place where you can leave a project half finished without losing it.",
-          "startMs": 9627,
-          "endMs": 13151,
+          "startMs": 10868,
+          "endMs": 14392,
           "tokensCharged": 57
         },
         {
@@ -714,8 +714,8 @@
           "blockIndex": 3,
           "text": "D E TA I L S",
           "spokenText": "Details.",
-          "startMs": 13831,
-          "endMs": 15050,
+          "startMs": 15072,
+          "endMs": 16292,
           "tokensCharged": 19
         },
         {
@@ -723,8 +723,8 @@
           "blockIndex": 4,
           "text": "Trim 6 × 9 in Language English",
           "spokenText": "Trim: 6 by 9 inches. Language: English.",
-          "startMs": 15730,
-          "endMs": 19869,
+          "startMs": 16972,
+          "endMs": 21110,
           "tokensCharged": 63
         },
         {
@@ -732,8 +732,8 @@
           "blockIndex": 5,
           "text": "A B O U T T H E A U T H O R",
           "spokenText": "About the author.",
-          "startMs": 20549,
-          "endMs": 21512,
+          "startMs": 21790,
+          "endMs": 22753,
           "tokensCharged": 27
         },
         {
@@ -741,8 +741,8 @@
           "blockIndex": 6,
           "text": "Elias Hartwell is a pen name.",
           "spokenText": "Ilaias Hartwell is a pen name.",
-          "startMs": 22192,
-          "endMs": 24764,
+          "startMs": 23433,
+          "endMs": 26005,
           "tokensCharged": 40
         },
         {
@@ -750,8 +750,8 @@
           "blockIndex": 6,
           "text": "Published by ExpanPress.",
           "spokenText": "Published by Expan Press.",
-          "startMs": 24984,
-          "endMs": 27191,
+          "startMs": 26225,
+          "endMs": 28432,
           "tokensCharged": 33
         },
         {
@@ -759,8 +759,8 @@
           "blockIndex": 7,
           "text": "ExpanPress | MMXXVI",
           "spokenText": "Expan Press, 2026.",
-          "startMs": 27871,
-          "endMs": 30321,
+          "startMs": 29112,
+          "endMs": 31562,
           "tokensCharged": 48
         }
       ]

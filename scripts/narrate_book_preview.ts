@@ -15,6 +15,11 @@ import {
   type PreviewAudioPageTrack,
 } from "../web/src/components/storefront/book-previewer-text";
 import {
+  classifyPageLandmarkKind,
+  prependSpokenLandmark,
+  shouldSpeakPageLandmark,
+} from "../web/src/components/storefront/book-preview-landmarks";
+import {
   applyNarrationLexicon,
   assemblePagePcm,
   assertSelectedPagesCached,
@@ -252,24 +257,30 @@ async function main(): Promise<void> {
   }> = [];
 
   for (let pageIndex = 0; pageIndex < pageCount; pageIndex++) {
-    const isMetadataPage = isMetadataBookPage(pageBlocks[pageIndex] ?? []);
+    const blocks = pageBlocks[pageIndex] ?? [];
+    const isMetadataPage = isMetadataBookPage(blocks);
+    const landmarkKind = classifyPageLandmarkKind(pageIndex, pageCount, blocks, GLOBAL.book_preview.show_cover);
+    const landmarkLabel = landmarkKind ? GLOBAL.book_preview.text_structure.page_landmarks[landmarkKind] : null;
+    const speakLandmark = shouldSpeakPageLandmark(landmarkKind);
     const modelForPage = buildSpreadAccessibleModel([pageIndex], pageBlocks, GLOBAL.book_preview.read_aloud.max_chunk_chars);
     const pageGroup = modelForPage.pages.at(0);
     const chunks: SpeechChunkPlan[] = [];
     if (pageGroup) {
       for (const blockGroup of pageGroup.blocks) {
         for (const chunk of blockGroup.chunks) {
+          const baseSpoken = formatChunkForSpeech(chunk.text, blockGroup.block.kind, {
+            isMetadataPage,
+            authorName: book.author,
+            lexicon: narration.lexicon,
+          });
+          const spokenText = chunks.length === 0 ? prependSpokenLandmark(baseSpoken, landmarkLabel, speakLandmark) : baseSpoken;
           chunks.push({
             id: chunk.id,
             pageIndex,
             blockIndex: chunk.blockIndex,
             blockKind: blockGroup.block.kind,
             text: chunk.text,
-            spokenText: formatChunkForSpeech(chunk.text, blockGroup.block.kind, {
-              isMetadataPage,
-              authorName: book.author,
-              lexicon: narration.lexicon,
-            }),
+            spokenText,
           });
         }
       }
@@ -425,6 +436,7 @@ async function main(): Promise<void> {
         pageLeadMs: narration.page_lead_ms,
         pageTailMs: narration.page_tail_ms,
         sentenceGapMs: narration.sentence_gap_ms,
+        openingStatementGapMs: narration.opening_statement_gap_ms,
         paragraphGapMs: narration.paragraph_gap_ms,
         sectionGapMs: narration.section_gap_ms,
       });

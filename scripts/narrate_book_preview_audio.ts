@@ -310,6 +310,7 @@ export function assemblePagePcm(
     pageLeadMs: number;
     pageTailMs: number;
     sentenceGapMs: number;
+    openingStatementGapMs?: number;
     paragraphGapMs: number;
     sectionGapMs?: number;
   },
@@ -317,6 +318,9 @@ export function assemblePagePcm(
   const leadSamples = Math.round((opts.pageLeadMs / 1000) * opts.sampleRate);
   const tailSamples = Math.round((opts.pageTailMs / 1000) * opts.sampleRate);
   const sentenceGapSamples = Math.round((opts.sentenceGapMs / 1000) * opts.sampleRate);
+  const openingStatementGapSamples = Math.round(
+    ((opts.openingStatementGapMs ?? opts.sentenceGapMs) / 1000) * opts.sampleRate,
+  );
   const paragraphGapSamples = Math.round((opts.paragraphGapMs / 1000) * opts.sampleRate);
   const sectionGapSamples = Math.round(((opts.sectionGapMs ?? opts.paragraphGapMs) / 1000) * opts.sampleRate);
 
@@ -342,7 +346,12 @@ export function assemblePagePcm(
     if (i + 1 < entries.length) {
       const next = entries[i + 1];
       if (next.blockIndex === entry.blockIndex) {
-        cursor += sentenceGapSamples;
+        const isShortOpeningStatement =
+          i === 0 &&
+          entry.blockIndex === 0 &&
+          (entry.blockKind === undefined || entry.blockKind === "paragraph") &&
+          entry.text.trim().length <= 45;
+        cursor += isShortOpeningStatement ? openingStatementGapSamples : sentenceGapSamples;
       } else if (entry.blockKind === "heading" || next.blockKind === "heading") {
         cursor += sectionGapSamples;
       } else {

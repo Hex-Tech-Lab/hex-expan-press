@@ -4,6 +4,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState, type FormEven
 import type { Orientation, PageFlip } from "page-flip";
 import type { BookPreviewSettings } from "../../../../payments/src/settings_registry";
 import { BookPreviewAccessibleCard, type ReadAloudState } from "./book-preview-accessible-card";
+import { enrichSpreadWithLandmarks } from "./book-preview-landmarks";
 import { BookPreviewToolbar } from "./book-preview-toolbar";
 import {
   buildSpreadAccessibleModel,
@@ -24,19 +25,9 @@ import {
 import { useReadAloud } from "./use-read-aloud";
 
 export {
-  buildSpreadAccessibleModel,
-  buildSpreadGroups,
-  extractStructuredPageBlocks,
-  formatSpreadLabel,
-  parseTargetPageInput,
-  resolveZoomIndex,
-  splitIntoSentenceChunks,
-  spreadIndexForPage,
-  type AccessibleBlock,
-  type PdfTextItemLike,
-  type PreviewZoomAction,
-  type ReadAloudChunk,
-  type ReadAloudState,
+  buildSpreadAccessibleModel, buildSpreadGroups, extractStructuredPageBlocks, formatSpreadLabel,
+  parseTargetPageInput, resolveZoomIndex, splitIntoSentenceChunks, spreadIndexForPage,
+  type AccessibleBlock, type PdfTextItemLike, type PreviewZoomAction, type ReadAloudChunk, type ReadAloudState,
 };
 
 export interface BookPreviewerProps {
@@ -91,15 +82,27 @@ export default function BookPreviewer({
   );
   const spreadIdx = spreadIndexForPage(spreads, pageIndex);
   const currentSpread = useMemo(() => spreads[spreadIdx] ?? [], [spreads, spreadIdx]);
-  const spreadAccessible = useMemo(
-    () => buildSpreadAccessibleModel(currentSpread, pageBlocks, settings.read_aloud.max_chunk_chars),
-    [currentSpread, pageBlocks, settings.read_aloud.max_chunk_chars],
-  );
+  const spreadAccessible = useMemo(() => {
+    const raw = buildSpreadAccessibleModel(currentSpread, pageBlocks, settings.read_aloud.max_chunk_chars);
+    return { ...raw, ...enrichSpreadWithLandmarks(currentSpread, pageBlocks, totalPages, settings.show_cover, settings.text_structure.page_landmarks, raw.chunks) };
+  }, [currentSpread, pageBlocks, totalPages, settings.show_cover, settings.text_structure.page_landmarks, settings.read_aloud.max_chunk_chars]);
 
   const expandTextPanel = useCallback(() => setTextOpen(true), []);
   const continueOnPageTurn = settings.read_aloud.continue_on_page_turn;
-  const { readAloudSupported, usingFallbackVoice, playbackState, activeChunkId, activeWord, currentRate, speechAnnouncement, stopReadAloud, clearAnnouncement, handlePlayPauseResume, handleCycleSpeed } =
-    useReadAloud(spreadAccessible.chunks, settings.read_aloud, expandTextPanel, previewAudioManifestUrl, audioBasePath);
+  const canFlipNextValue = status === "ready" && spreadIdx < spreads.length - 1;
+  const canFlipNextRef = useRef(false);
+  useEffect(() => {
+    canFlipNextRef.current = canFlipNextValue;
+  }, [canFlipNextValue]);
+  const requestNextPage = useCallback(() => {
+    if (!flipRef.current || !canFlipNextRef.current) return false;
+    flipRef.current.flipNext();
+    return true;
+  }, []);
+  const { readAloudSupported, usingFallbackVoice, playbackState, activeChunkId, activeWord, currentRate, speechAnnouncement, stopReadAloud, clearAnnouncement, playFromChunk, handlePlayPauseResume, handleCycleSpeed } =
+    useReadAloud(spreadAccessible.chunks, settings.read_aloud, expandTextPanel, previewAudioManifestUrl, audioBasePath, {
+      onRequestNextPage: requestNextPage,
+    });
 
   useEffect(() => {
     const el = sectionRef.current;
@@ -228,8 +231,10 @@ export default function BookPreviewer({
 
         pf.on("changeOrientation", (e) => {
           if (disposed) return;
-          stopReadAloud();
-          clearAnnouncement();
+          if (!settings.read_aloud.continue_on_page_turn) {
+            stopReadAloud();
+            clearAnnouncement();
+          }
           if (e.data === "portrait" || e.data === "landscape") setOrientation(e.data);
         });
 
@@ -476,10 +481,12 @@ export default function BookPreviewer({
           speechAnnouncement={speechAnnouncement}
           readAloudSettings={settings.read_aloud}
           textStructureSettings={settings.text_structure}
+          pageLandmarks={spreadAccessible.pageLandmarks}
           onTogglePanel={handleToggleTextPanel}
           onPlayPauseResume={handlePlayPauseResume}
           onStop={stopReadAloud}
           onCycleSpeed={handleCycleSpeed}
+          onSelectChunk={playFromChunk}
         />
       )}
     </section>
