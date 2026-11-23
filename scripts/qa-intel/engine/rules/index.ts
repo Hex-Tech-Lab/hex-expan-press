@@ -60,3 +60,4 @@ export { AdvisoryLockIsolationGuardRule, IpHeaderSinkRule, LaunchPathIsolationLi
 export { SilentDefaultOnExternalResponseRule, ServerFetchWithoutTimeoutRule, ErrorPathAsymmetryRule, SuccessGuardedPersistenceRule } from "./reliability-lessons-20260924";
 export { UnconsumedStreamLeakRule, UnboundedBodyReadRule, NonIdempotentRetryRule, FailOpenUndefinedFilterRule } from "./artas-rules";
 export { StreamReaderWithoutFinallyRule, UnregisteredSettingsKeyRule } from "./lessons-20261009";
+export { UnguardedInOperatorRule, SqlSecurityDefinerCurrentUserRule, DotenvWithoutOverrideRule, ReplaceWithDynamicDollarReplacementRule } from "./lessons-20261123";
