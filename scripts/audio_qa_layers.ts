@@ -234,14 +234,18 @@ export function evaluateThesisPairProsody(
   const tailSlice = s0Vals.slice(-Math.min(5, s0Vals.length));
   const s0TailMinHz = tailSlice.length > 0 ? Math.min(...tailSlice) : 0;
 
-  if (s0Vals.length >= 6 && s0TailMinHz >= s0MedianHz * 0.96 && s0TailMinHz > 85) {
+  if (s0Vals.length < 6) {
+    failures.push(`Page ${pageKey} (${s0Id}) insufficient voiced F0 frames (${s0Vals.length} < 6) to validate terminal inflection`);
+  } else if (s0TailMinHz >= s0MedianHz * 0.96 && s0TailMinHz > 85) {
     failures.push(`Page ${pageKey} (${s0Id}) non-final terminal inflection: tailMin=${s0TailMinHz.toFixed(1)}Hz >= median=${s0MedianHz.toFixed(1)}Hz`);
   }
 
   const onsetFrames = s1Frames.filter((f) => f.timeSec <= 1.5);
   const smoothedOnset = smoothedF0Values(onsetFrames);
   const s1OnsetMaxHz = smoothedOnset.length > 0 ? Math.max(...smoothedOnset) : 0;
-  if (s1OnsetMaxHz > 175) {
+  if (onsetFrames.length === 0) {
+    failures.push(`Page ${pageKey} (${s1Id}) insufficient voiced F0 frames (0) in 0..1.5s onset window`);
+  } else if (s1OnsetMaxHz > 175) {
     failures.push(`Page ${pageKey} (${s1Id}) onset F0 spike ${s1OnsetMaxHz.toFixed(1)}Hz > 175Hz ceiling`);
   }
 

@@ -49,6 +49,27 @@ export function locateChunkInTracks(
   return null;
 }
 
+/** Computes outer spacer and CSS transform styles when preview zoom > 1. */
+export function computeZoomViewportStyles(zoom: number, stageSize: { w: number; h: number }) {
+  if (zoom <= 1) return { isZoomed: false, spacerStyle: undefined, innerStyle: undefined };
+  const hasSize = stageSize.w > 0 && stageSize.h > 0;
+  return {
+    isZoomed: true,
+    spacerStyle: hasSize ? { width: `${Math.round(stageSize.w * zoom)}px`, height: `${Math.round(stageSize.h * zoom)}px` } : undefined,
+    innerStyle: { transform: `scale(${zoom})`, transformOrigin: "top left" as const, ...(hasSize ? { width: `${stageSize.w}px`, height: `${stageSize.h}px` } : {}) },
+  };
+}
+
+/** Returns the pageIndex of the active chunk while playback is active or paused, or null when idle. */
+export function resolveActiveChunkPageIndex(
+  chunks: ReadonlyArray<ReadAloudChunk>,
+  activeChunkId: string | null,
+  playbackState: "idle" | "playing" | "paused",
+): number | null {
+  if (!activeChunkId || playbackState === "idle") return null;
+  return chunks.find((chunk) => chunk.id === activeChunkId)?.pageIndex ?? null;
+}
+
 /**
  * Resolves where playback should stand when the visible chunk set changes:
  * 1) If the currently active chunk still exists in the new spread (e.g. orientation shift), carry it over.

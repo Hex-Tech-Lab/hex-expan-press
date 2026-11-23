@@ -165,7 +165,7 @@ function setAudioTimeSafely(audio: HTMLAudioElement, timeSec: number): void {
 export function runPrebakedTrackQueue(cb: AudioTrackSessionCallbacks): void {
   const { audio, tracks, startTrackIdx, initialSeekSec, initialChunkIdx, chunks, raSettings } = cb;
 
-  const startTrack = (trackIdx: number, candidateIdx = 0) => {
+  const startTrack = (trackIdx: number, candidateIdx = 0, retrySeekSec?: number) => {
     if (cb.isStale()) return;
     const track = tracks[trackIdx];
     if (!track) {
@@ -174,9 +174,14 @@ export function runPrebakedTrackQueue(cb: AudioTrackSessionCallbacks): void {
     }
     const candidates = selectTrackAudioCandidates(track, audio);
     const sourceUrl = candidates[candidateIdx];
-    const seekSec = trackIdx === startTrackIdx ? Math.max(0, initialSeekSec) : 0;
+    const seekSec =
+      retrySeekSec !== undefined
+        ? Math.max(0, retrySeekSec)
+        : trackIdx === startTrackIdx
+          ? Math.max(0, initialSeekSec)
+          : 0;
     const initialIdx =
-      trackIdx === startTrackIdx && initialChunkIdx !== undefined
+      retrySeekSec === undefined && trackIdx === startTrackIdx && initialChunkIdx !== undefined
         ? initialChunkIdx
         : chunkIndexForTrackTime(track, seekSec, chunks);
     let currentChunkIdx: number | null = initialIdx;
@@ -204,13 +209,19 @@ export function runPrebakedTrackQueue(cb: AudioTrackSessionCallbacks): void {
     const handleSourceFailure = (reason: unknown) => {
       if (cb.isStale() || handledFailure) return;
       handledFailure = true;
+      const resumeSeekSec =
+        pendingSeekSec !== null
+          ? pendingSeekSec
+          : audio.currentTime > 0
+            ? audio.currentTime
+            : seekSec;
       if (candidateIdx + 1 < candidates.length) {
         console.warn("[read-aloud] Audio source failed, falling back to secondary codec:", sourceUrl, reason);
-        startTrack(trackIdx, candidateIdx + 1);
+        startTrack(trackIdx, candidateIdx + 1, resumeSeekSec);
         return;
       }
       console.warn("[read-aloud] Audio playback error, falling back to Web Speech:", reason);
-      const timedIdx = chunkIndexForTrackTime(track, audio.currentTime, chunks);
+      const timedIdx = pendingSeekSec === null ? chunkIndexForTrackTime(track, audio.currentTime, chunks) : null;
       const fallbackIdx = chunks.findIndex((chunk) => chunk.pageIndex === track.pageIndex);
       if (detectSpeechSynthesisSupport()) {
         cb.onFallbackSpeech(timedIdx ?? currentChunkIdx ?? (fallbackIdx >= 0 ? fallbackIdx : 0));
@@ -242,7 +253,7 @@ export function runPrebakedTrackQueue(cb: AudioTrackSessionCallbacks): void {
       syncWordForTime(audio.currentTime);
     };
     audio.onended = () => {
-      if (!cb.isStale()) startTrack(trackIdx + 1, 0);
+      if (!cb.isStale()) startTrack(trackIdx + 1, 0, 0);
     };
     audio.onerror = () => handleSourceFailure("HTMLAudioElement error event");
 
@@ -250,7 +261,9 @@ export function runPrebakedTrackQueue(cb: AudioTrackSessionCallbacks): void {
     applyAudioPlaybackRate(audio, cb.getRate());
     if (sameLoadedTrack) {
       pendingSeekSec = null;
-      setAudioTimeSafely(audio, seekSec);
+      if (Math.abs(audio.currentTime - seekSec) > 0.05) {
+        setAudioTimeSafely(audio, seekSec);
+      }
     } else {
       audio.preload = "none";
       audio.src = sourceUrl;

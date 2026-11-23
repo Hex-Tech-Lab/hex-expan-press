@@ -11,7 +11,7 @@ import {
   runLayer2ThesisGap,
   runLayer4MasteringTiming,
 } from "../audio_qa_layers";
-import { runLayer5PersonaScorecard } from "../audio_qa";
+import { resolvePreviewTotalPages, runLayer5PersonaScorecard } from "../audio_qa";
 
 const tmpDirs: string[] = [];
 afterEach(() => {
@@ -157,6 +157,50 @@ describe("5-layer Onion Audio QA Gate", () => {
     );
     expect(badRes.failures.some((f) => f.includes("onset F0 spike"))).toBe(true);
     expect(badRes.failures.some((f) => f.includes("non-final terminal inflection"))).toBe(true);
+
+    // PRRT_kwDOUrokqs665SeE: silent/unvoiced audio must fail L3 instead of slipping through with empty F0 contours
+    const silent = new Float32Array(24000);
+    const silentRes = evaluateThesisPairProsody(
+      "5",
+      "p4-b0-s0",
+      "p4-b0-s1",
+      extractF0Contour(silent),
+      extractF0Contour(silent),
+    );
+    expect(silentRes.failures.length).toBe(2);
+    expect(silentRes.failures.every((f) => f.includes("insufficient voiced F0 frames"))).toBe(true);
+  });
+
+  it("L1 resolves preview totalPages from PDF count even when blank pages are omitted from manifest", () => {
+    // PRRT_kwDOUrokqs665SeO: 5-page preview with blank page 3 omitted must yield totalPages=5 (not manifest key count 4)
+    const sparseManifest: PreviewAudioManifest = {
+      ...BASE_MANIFEST,
+      pages: {
+        "1": BASE_MANIFEST.pages["1"],
+        "2": BASE_MANIFEST.pages["2"],
+        "4": {
+          pageIndex: 3,
+          pdfPageNumber: 4,
+          audioUrl: "/books/audio/test_book/page-04.webm",
+          durationMs: 3000,
+          chunks: [{ id: "p3-b0-s0", blockIndex: 0, text: "Chapter 1: Bench", startMs: 120, endMs: 2500 }],
+        },
+      },
+    };
+    expect(resolvePreviewTotalPages(sparseManifest, 5)).toBe(5);
+    const l1 = runLayer1TextLexicon(
+      sparseManifest,
+      {
+        "1": [{ kind: "heading", level: 3, text: "The Quiet Workshop" }],
+        "2": [{ kind: "heading", level: 3, text: "The Quiet Workshop" }],
+        "4": [{ kind: "heading", level: 3, text: "Chapter 1: Bench" }],
+      },
+      resolvePreviewTotalPages(sparseManifest, 5),
+      true,
+      DEFAULT_GLOBAL.book_preview.text_structure,
+      DEFAULT_GLOBAL.voice_narration,
+    );
+    expect(l1.passed).toBe(true);
   });
 
   it("L4 flags stale MP3 files and missing WebM tracks, and L5 produces 3-persona readiness scorecard", () => {

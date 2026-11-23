@@ -352,9 +352,19 @@ export function useReadAloud(
     (rate: number) => {
       const pos = positionRef.current;
       const idx = pos?.idx ?? activeChunkIdx ?? 0;
+      const live = livePositionRef.current;
+      if (activeEngineRef.current !== "speech" && prebakedTracks && detectAudioSupport()) {
+        const chunk = chunks[idx];
+        const loc = chunk ? locateChunkInTracks(prebakedTracks, chunk.id) : null;
+        if (loc) {
+          const seekSec = live && live.chunkId === chunk.id ? clampedChunkSeekSec(loc.timingChunk, live.timeSec) : loc.timingChunk.startMs / 1000;
+          playPrebakedTracks(prebakedTracks, loc.trackIdx, rate, seekSec, idx);
+          return;
+        }
+      }
       speakFromIndex(idx, pos && pos.idx === idx ? pos.charIndex : 0, rate);
     },
-    [activeChunkIdx, speakFromIndex],
+    [activeChunkIdx, chunks, prebakedTracks, playPrebakedTracks, speakFromIndex],
   );
 
   const playFromChunk = useCallback(
@@ -430,7 +440,7 @@ export function useReadAloud(
   const onChunkSetChanged = useEffectEvent((prevKey: string) => {
     if (!raSettings.continue_on_page_turn || playbackState === "idle") return;
     const prevLive = livePositionRef.current;
-    if (playbackState === "playing" && activeEngineRef.current === "audio" && audioRef.current && prevLive?.key === prevKey) {
+    if (activeEngineRef.current === "audio" && audioRef.current && prevLive?.key === prevKey) {
       const liveTime = audioRef.current.currentTime;
       savedPositionsRef.current.set(prevKey, { chunkId: prevLive.chunkId, chunkIdx: prevLive.chunkIdx, timeSec: liveTime, charIndex: prevLive.charIndex });
       prevLive.timeSec = liveTime;
@@ -440,27 +450,12 @@ export function useReadAloud(
       return;
     }
     const res = resolveNextSpreadStart(chunks, prevLive, savedPositionsRef.current.get(chunkKey));
-    if (res.source === "carryover") {
-      recordPosition(chunkKey, res.chunkId, res.chunkIdx, res.timeSec, res.charIndex);
+    if (res.source === "carryover" || res.source === "saved") {
       if (playbackState === "playing") {
-        const loc = prebakedTracks ? locateChunkInTracks(prebakedTracks, res.chunkId) : null;
-        const curTrack = audioQueueRef.current?.tracks[audioQueueRef.current.trackIdx];
-        if (activeEngineRef.current === "audio" && audioQueueRef.current && loc && curTrack?.audioUrl === loc.track.audioUrl) {
-          audioQueueRef.current = { ...audioQueueRef.current, tracks: prebakedTracks!, trackIdx: loc.trackIdx };
-          setActiveChunk({ idx: res.chunkIdx, key: chunkKey });
-          return;
-        }
+        recordPosition(chunkKey, res.chunkId, res.chunkIdx, res.timeSec, res.charIndex);
         startAtChunk(res.chunkIdx, res.timeSec, res.charIndex, rateRef.current);
       } else {
-        positionRef.current = { idx: res.chunkIdx, charIndex: res.charIndex };
-        setActiveChunk({ idx: res.chunkIdx, key: chunkKey });
-      }
-      return;
-    }
-    if (res.source === "saved") {
-      if (playbackState === "playing") {
-        startAtChunk(res.chunkIdx, res.timeSec, res.charIndex, rateRef.current);
-      } else {
+        // Invalidate the old paused engine session so Resume starts fresh on the new spread's chunks/tracks.
         cancelSpeechEngine();
         recordPosition(chunkKey, res.chunkId, res.chunkIdx, res.timeSec, res.charIndex);
         positionRef.current = { idx: res.chunkIdx, charIndex: res.charIndex };

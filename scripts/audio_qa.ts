@@ -151,19 +151,31 @@ export function runLayer5PersonaScorecard(
   return { layer, personas };
 }
 
-async function loadPdfPageBlocks(pdfDiskPath: string, totalLimit: number): Promise<Record<string, AccessibleBlock[]>> {
+async function loadPdfPageBlocks(
+  pdfDiskPath: string,
+  totalLimit: number,
+): Promise<{ pageBlocksByNum: Record<string, AccessibleBlock[]>; previewPageCount: number }> {
   const data = new Uint8Array(readFileSync(pdfDiskPath));
   const doc = await pdfjs.getDocument({ data, verbosity: 0 }).promise;
-  const out: Record<string, AccessibleBlock[]> = {};
-  const count = Math.min(doc.numPages, totalLimit);
-  for (let p = 1; p <= count; p++) {
+  const pageBlocksByNum: Record<string, AccessibleBlock[]> = {};
+  const previewPageCount = Math.min(doc.numPages, totalLimit);
+  for (let p = 1; p <= previewPageCount; p++) {
     const page = await doc.getPage(p);
     const vp = page.getViewport({ scale: 1 });
     const tc = await page.getTextContent();
-    out[String(p)] = extractStructuredPageBlocks(tc.items as PdfTextItemLike[], GLOBAL.book_preview.text_structure, vp.height);
+    pageBlocksByNum[String(p)] = extractStructuredPageBlocks(tc.items as PdfTextItemLike[], GLOBAL.book_preview.text_structure, vp.height);
   }
   await doc.destroy();
-  return out;
+  return { pageBlocksByNum, previewPageCount };
+}
+
+/** Resolves total preview page count from PDF page count (or highest manifest page index + 1 when no PDF is loaded). */
+export function resolvePreviewTotalPages(manifest: PreviewAudioManifest, previewPageCount: number | null): number {
+  const manifestSpan = Object.values(manifest.pages).reduce((max, page) => Math.max(max, page.pageIndex + 1), 0);
+  if (previewPageCount !== null && previewPageCount > 0) {
+    return Math.max(previewPageCount, manifestSpan);
+  }
+  return Math.max(Object.keys(manifest.pages).length, manifestSpan);
 }
 
 export async function runAudioQa(bookArg: string, repoRoot: string): Promise<AudioQaReport> {
@@ -180,10 +192,11 @@ export async function runAudioQa(bookArg: string, repoRoot: string): Promise<Aud
   const home = process.env.HOME ?? "";
   const ffmpegBin = expandHome(GLOBAL.tool_paths.ffmpeg, home);
   const ffprobeBin = expandHome(GLOBAL.tool_paths.ffprobe, home);
-  const pageBlocksByNum = book.preview_pdf
+  const loadedPdf = book.preview_pdf
     ? await loadPdfPageBlocks(path.join(webPublicDir, book.preview_pdf.replace(/^\//, "")), GLOBAL.book_preview.max_preview_pages)
-    : {};
-  const totalPages = Object.keys(manifest.pages).length;
+    : null;
+  const pageBlocksByNum = loadedPdf?.pageBlocksByNum ?? {};
+  const totalPages = resolvePreviewTotalPages(manifest, loadedPdf?.previewPageCount ?? null);
 
   const l1 = runLayer1TextLexicon(manifest, pageBlocksByNum, totalPages, GLOBAL.book_preview.show_cover, GLOBAL.book_preview.text_structure, GLOBAL.voice_narration);
   const l2 = runLayer2ThesisGap(manifest, GLOBAL.voice_narration);

@@ -22,6 +22,7 @@ import {
   type PreviewZoomAction,
   type ReadAloudChunk,
 } from "./book-previewer-text";
+import { computeZoomViewportStyles, resolveActiveChunkPageIndex } from "./read-aloud-state";
 import { useReadAloud } from "./use-read-aloud";
 
 export {
@@ -91,18 +92,17 @@ export default function BookPreviewer({
   const continueOnPageTurn = settings.read_aloud.continue_on_page_turn;
   const canFlipNextValue = status === "ready" && spreadIdx < spreads.length - 1;
   const canFlipNextRef = useRef(false);
-  useEffect(() => {
-    canFlipNextRef.current = canFlipNextValue;
-  }, [canFlipNextValue]);
+  useEffect(() => { canFlipNextRef.current = canFlipNextValue; }, [canFlipNextValue]);
   const requestNextPage = useCallback(() => {
     if (!flipRef.current || !canFlipNextRef.current) return false;
     flipRef.current.flipNext();
     return true;
   }, []);
   const { readAloudSupported, usingFallbackVoice, playbackState, activeChunkId, activeWord, currentRate, speechAnnouncement, stopReadAloud, clearAnnouncement, playFromChunk, handlePlayPauseResume, handleCycleSpeed } =
-    useReadAloud(spreadAccessible.chunks, settings.read_aloud, expandTextPanel, previewAudioManifestUrl, audioBasePath, {
-      onRequestNextPage: requestNextPage,
-    });
+    useReadAloud(spreadAccessible.chunks, settings.read_aloud, expandTextPanel, previewAudioManifestUrl, audioBasePath, { onRequestNextPage: requestNextPage });
+  const activeChunkPage = useMemo(() => resolveActiveChunkPageIndex(spreadAccessible.chunks, activeChunkId, playbackState), [spreadAccessible.chunks, activeChunkId, playbackState]);
+  const activeChunkPageRef = useRef<number | null>(null);
+  useEffect(() => { activeChunkPageRef.current = activeChunkPage; }, [activeChunkPage]);
 
   useEffect(() => {
     const el = sectionRef.current;
@@ -234,6 +234,13 @@ export default function BookPreviewer({
           if (!settings.read_aloud.continue_on_page_turn) {
             stopReadAloud();
             clearAnnouncement();
+          } else {
+            const activePage = activeChunkPageRef.current;
+            if (activePage !== null && pf && activePage !== pf.getCurrentPageIndex()) {
+              setPageIndex(activePage);
+              setDraftPageInput(null);
+              pf.turnToPage(activePage);
+            }
           }
           if (e.data === "portrait" || e.data === "landscape") setOrientation(e.data);
         });
@@ -370,18 +377,7 @@ export default function BookPreviewer({
     });
   }, [stopReadAloud, clearAnnouncement]);
 
-  const isZoomed = zoom > 1;
-  const scaledSpacerStyle =
-    isZoomed && stageSize.w > 0 && stageSize.h > 0
-      ? { width: `${Math.round(stageSize.w * zoom)}px`, height: `${Math.round(stageSize.h * zoom)}px` }
-      : undefined;
-  const scaledInnerStyle = isZoomed
-    ? {
-        transform: `scale(${zoom})`,
-        transformOrigin: "top left",
-        ...(stageSize.w > 0 && stageSize.h > 0 ? { width: `${stageSize.w}px`, height: `${stageSize.h}px` } : {}),
-      }
-    : undefined;
+  const { isZoomed, spacerStyle: scaledSpacerStyle, innerStyle: scaledInnerStyle } = computeZoomViewportStyles(zoom, stageSize);
 
   return (
     <section
