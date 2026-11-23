@@ -1,0 +1,28 @@
+scripts/__tests__/audio_qa.test.ts
+  h_e6b68dcbbd0983 14,160-203
+scripts/audio_qa.ts
+  h_e6b68dcbbd0983 154-157,160-162,166,169-178,195,197-199
+scripts/audio_qa_layers.ts
+  h_e6b68dcbbd0983 237-239,246-248
+web/__tests__/read-aloud-coderabbit-regressions.test.ts
+  h_e6b68dcbbd0983 1-403
+web/src/components/storefront/book-previewer.tsx
+  h_e6b68dcbbd0983 25,95,102-105,237-243,380
+web/src/components/storefront/read-aloud-engines.ts
+  h_e6b68dcbbd0983 168,177-182,184,212-217,220,224,256,264-266
+web/src/components/storefront/read-aloud-state.ts
+  h_e6b68dcbbd0983 52-72
+web/src/components/storefront/use-read-aloud.ts
+  h_e6b68dcbbd0983 355-364,367,443,453,455,458
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0c97662dca36b15b090eefb9654371ffa4f64cd4",
+  "prompts": {},
+  "humans": {
+    "h_e6b68dcbbd0983": {
+      "author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
