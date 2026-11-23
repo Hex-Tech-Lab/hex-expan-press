@@ -1,0 +1,22 @@
+web/__tests__/read-aloud-coderabbit-regressions.test.ts
+  h_e6b68dcbbd0983 7-11,14,448-516
+web/src/components/storefront/read-aloud-audio.ts
+  h_e6b68dcbbd0983 48-66,73-74,77,271
+web/src/components/storefront/read-aloud-engines.ts
+  h_e6b68dcbbd0983 14,21,221-234,274,283,303,310
+web/src/components/storefront/read-aloud-state.ts
+  h_e6b68dcbbd0983 23-28,131,134-136
+web/src/components/storefront/use-read-aloud.ts
+  h_e6b68dcbbd0983 14,170-172,433-439
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "cc4cf0237fbbb6cec6cf15c4e95750e8f5c15123",
+  "prompts": {},
+  "humans": {
+    "h_e6b68dcbbd0983": {
+      "author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
