@@ -157,6 +157,7 @@ export interface ReadAloudChunk {
   pageIndex: number;
   blockIndex: number;
   text: string;
+  spokenText?: string;
 }
 
 export type {

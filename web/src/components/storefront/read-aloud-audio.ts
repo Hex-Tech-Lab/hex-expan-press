@@ -45,6 +45,25 @@ export function subscribeNoop(): () => void {
   return () => {};
 }
 
+/** Validates and reconstructs a safe manifest URL under an allowed relative `/books/*` path or `https://` origin. */
+export function resolveSafeAudioManifestUrl(url: string, basePath: string): string | null {
+  if (typeof url !== "string" || url.trim() === "") return null;
+  const trimmed = url.trim();
+  if (trimmed.includes("..") || trimmed.includes("\\")) return null;
+  const cleanBase = basePath.replace(/\/+$/, "");
+  if (/^\/[a-z0-9/_-]+$/i.test(cleanBase) && trimmed.startsWith(`${cleanBase}/`)) {
+    const match = /^([a-z0-9/_-]+\.json)$/i.exec(trimmed.slice(cleanBase.length + 1));
+    return match ? `${cleanBase}/${match[1]}` : null;
+  }
+  if (trimmed.startsWith("https://") && URL.canParse(trimmed)) {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol !== "https:" || parsed.username || parsed.password) return null;
+    if (!/\.json$/i.test(parsed.pathname)) return null;
+    return `${parsed.origin}${parsed.pathname}${parsed.search}`;
+  }
+  return null;
+}
+
 export function detectSpeechSynthesisSupport(): boolean {
   return (
     typeof window !== "undefined" &&
@@ -57,6 +76,13 @@ export function detectSpeechSynthesisSupport(): boolean {
 /** True while Web Speech has speech queued, in flight, or paused. */
 export function isSpeechEngineBusy(synth: SpeechSynthesis): boolean {
   return Boolean(synth.speaking || synth.pending || synth.paused);
+}
+
+/** Cancels queued or active browser Web Speech synthesis safely when busy. */
+export function cancelSpeechSynthesisIfBusy(): void {
+  if (detectSpeechSynthesisSupport() && isSpeechEngineBusy(window.speechSynthesis)) {
+    window.speechSynthesis.cancel?.();
+  }
 }
 
 /** End offset of the word that starts at charIndex. */
@@ -119,6 +145,7 @@ export function parsePreviewAudioManifest(raw: unknown, audioBasePath = "/books/
     return null;
   }
   const pages: Record<string, PreviewAudioPageTrack> = {};
+  const seenIds = new Set<string>();
   for (const [pageKey, entry] of Object.entries(rec.pages as Record<string, unknown>)) {
     if (!/^\d+$/.test(pageKey) || !entry || typeof entry !== "object" || Array.isArray(entry)) continue;
     const trackRec = entry as Record<string, unknown>;
@@ -137,7 +164,6 @@ export function parsePreviewAudioManifest(raw: unknown, audioBasePath = "/books/
       continue;
     }
     const validChunks: PreviewAudioTimingChunk[] = [];
-    const seenIds = new Set<string>();
     let chunksOk = true;
     for (const chunkRaw of trackRec.chunks) {
       if (!chunkRaw || typeof chunkRaw !== "object" || Array.isArray(chunkRaw)) {
@@ -214,7 +240,7 @@ function normalizeChunkText(text: string): string {
   return text.replace(/\s+/g, " ").trim();
 }
 
-function matchedTimingChunk(track: PreviewAudioPageTrack, timeSec: number): PreviewAudioTimingChunk | null {
+export function matchedTimingChunk(track: PreviewAudioPageTrack, timeSec: number): PreviewAudioTimingChunk | null {
   if (track.chunks.length === 0) return null;
   const posMs = Math.max(0, timeSec * 1000);
   let matched = track.chunks[0];

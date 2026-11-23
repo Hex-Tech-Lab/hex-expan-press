@@ -80,10 +80,12 @@ export interface BookPreviewAccessibleCardProps {
   speechAnnouncement: string;
   readAloudSettings: BookPreviewReadAloudSettings;
   textStructureSettings: BookPreviewTextStructureSettings;
+  pageLandmarks?: Record<number, string>;
   onTogglePanel: () => void;
   onPlayPauseResume: () => void;
   onStop: () => void;
   onCycleSpeed: () => void;
+  onSelectChunk?: (chunkId: string) => void;
 }
 
 /** WAI-ARIA APG disclosure panel rendering structured page blocks with optional Web Speech Read Aloud controls. */
@@ -101,10 +103,12 @@ export function BookPreviewAccessibleCard({
   speechAnnouncement,
   readAloudSettings,
   textStructureSettings,
+  pageLandmarks,
   onTogglePanel,
   onPlayPauseResume,
   onStop,
   onCycleSpeed,
+  onSelectChunk,
 }: BookPreviewAccessibleCardProps) {
   const raLabels = readAloudSettings.labels;
   const readAloudActionLabel =
@@ -113,6 +117,12 @@ export function BookPreviewAccessibleCard({
       : playbackState === "paused"
         ? raLabels.resume
         : raLabels.play;
+  const readAloudActionTooltip =
+    playbackState === "playing"
+      ? raLabels.pause_tooltip
+      : playbackState === "paused"
+        ? raLabels.resume_tooltip
+        : raLabels.play_tooltip;
   const readAloudActionText =
     playbackState === "playing"
       ? raLabels.pause_text
@@ -124,6 +134,7 @@ export function BookPreviewAccessibleCard({
     chunks.map((chunk, idx) => {
       const isActive = activeChunkId === chunk.id;
       const word = isActive && activeWord?.chunkId === chunk.id ? activeWord : null;
+      const interactive = showReadAloudControls && Boolean(onSelectChunk);
       return (
         <Fragment key={chunk.id}>
           {idx > 0 ? " " : null}
@@ -131,10 +142,25 @@ export function BookPreviewAccessibleCard({
             data-testid="read-aloud-sentence"
             data-chunk-id={chunk.id}
             data-active={isActive ? "true" : "false"}
+            role={interactive ? "button" : undefined}
+            tabIndex={interactive ? 0 : undefined}
+            onClick={interactive ? () => onSelectChunk?.(chunk.id) : undefined}
+            onKeyDown={
+              interactive
+                ? (e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      onSelectChunk?.(chunk.id);
+                    }
+                  }
+                : undefined
+            }
             className={
               isActive
                 ? "bg-[#fff2e4] text-gray-950 rounded px-1 ring-1 ring-[#FF9E80] transition-colors duration-200 motion-reduce:transition-none"
-                : "transition-colors duration-200 motion-reduce:transition-none"
+                : interactive
+                  ? "hover:bg-[#fff2e4]/70 cursor-pointer rounded px-0.5 transition-colors duration-200 motion-reduce:transition-none"
+                  : "transition-colors duration-200 motion-reduce:transition-none"
             }
           >
             {word ? (
@@ -161,6 +187,14 @@ export function BookPreviewAccessibleCard({
       data-testid="book-preview-accessible-card"
       className="text-xs text-gray-700 rounded-2xl border border-[#e8dacb] bg-white/70 px-4 py-3"
     >
+      {showReadAloudControls && (
+        <p
+          data-testid="read-aloud-usage-hint"
+          className="mb-1.5 ml-auto text-right text-[11px] font-medium leading-snug text-[#9a4a1a]"
+        >
+          {raLabels.usage_hint}
+        </p>
+      )}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <button
           type="button"
@@ -189,7 +223,7 @@ export function BookPreviewAccessibleCard({
               type="button"
               onClick={onPlayPauseResume}
               aria-label={readAloudActionLabel}
-              title={readAloudActionLabel}
+              title={readAloudActionTooltip}
               data-testid="read-aloud-toggle"
               data-playback-state={playbackState}
               className={`inline-flex items-center justify-center gap-1.5 h-11 w-11 px-0 py-0 sm:h-auto sm:w-auto sm:min-h-[44px] sm:min-w-[44px] sm:px-3.5 sm:py-2 touch-manipulation rounded-full text-xs font-semibold transition-colors cursor-pointer ${
@@ -207,7 +241,7 @@ export function BookPreviewAccessibleCard({
                 type="button"
                 onClick={onStop}
                 aria-label={raLabels.stop}
-                title={raLabels.stop}
+                title={raLabels.stop_tooltip}
                 data-testid="read-aloud-stop"
                 className="inline-flex items-center justify-center gap-1.5 h-11 w-11 px-0 py-0 sm:h-auto sm:w-auto sm:min-h-[44px] sm:min-w-[44px] sm:px-3 sm:py-2 touch-manipulation rounded-full border border-[#dcc7b4] bg-white text-xs font-semibold text-gray-900 hover:bg-[#faf5ee] transition-colors cursor-pointer"
               >
@@ -305,14 +339,26 @@ export function BookPreviewAccessibleCard({
           }
           flushList(`ul-${page.pageIndex}-end`);
 
+          const landmark = pageLandmarks?.[page.pageIndex];
+          const regionLabel = landmark
+            ? `${textStructureSettings.page_label_prefix} ${page.pageIndex + 1}, ${landmark}`
+            : `${textStructureSettings.page_label_prefix} ${page.pageIndex + 1}`;
           return (
             <div
               key={page.pageIndex}
+              role="region"
+              aria-label={regionLabel}
               data-testid={`accessible-page-${page.pageIndex + 1}`}
               className="space-y-2 pt-2 first:pt-0 border-t border-[#e8dacb]/60 first:border-t-0"
             >
               <p className="font-mono text-[11px] font-medium uppercase tracking-wider text-gray-500">
                 {`${textStructureSettings.page_label_prefix} ${page.pageIndex + 1}`}
+                {landmark && (
+                  <>
+                    {" · "}
+                    <span data-testid={`accessible-page-landmark-${page.pageIndex + 1}`}>{landmark}</span>
+                  </>
+                )}
               </p>
               {renderedNodes}
             </div>

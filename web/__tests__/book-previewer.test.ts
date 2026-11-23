@@ -823,17 +823,33 @@ describe("BookPreviewer Read Aloud controls and lifecycle", () => {
     expect(playBtn.getAttribute("aria-label")).toBe(labels.pause);
     expect(speech.resumeCount).toBe(1);
 
-    // Finish remaining utterances -> polite status announcement
+    // Finish remaining utterances on Page 1 -> auto-advances to Pages 2-3 and keeps playing
     await act(async () => {
       speech.spoken[2].instance.onend?.();
     });
     await act(async () => {
       speech.spoken[3].instance.onend?.();
     });
+    expect(container!.querySelector('[data-testid="book-preview-page-label"]')?.textContent).toBe("Pages 2–3 of 6");
+    expect(playBtn.getAttribute("aria-label")).toBe(labels.pause);
+
+    // Jump to final page (Back cover, page 6) and finish its utterances -> goes idle and announces completion
+    await act(async () => {
+      flipMocks.instances[0].turnToPage(5);
+    });
+    let safety = 0;
+    while (playBtn.getAttribute("aria-label") === labels.pause && safety++ < 10) {
+      await act(async () => {
+        speech.spoken[speech.spoken.length - 1].instance.onend?.();
+      });
+    }
     expect(playBtn.getAttribute("aria-label")).toBe(labels.play);
     expect(container!.querySelector('[data-testid="read-aloud-status"]')?.textContent).toBe(labels.finished_announcement);
 
-    // Restart, then verify stop on collapse, pagehide, page flip, and unmount
+    // Return to Page 1, then verify stop on collapse, pagehide, page flip, and unmount
+    await act(async () => {
+      flipMocks.instances[0].turnToPage(0);
+    });
     await act(async () => {
       playBtn.click();
     });

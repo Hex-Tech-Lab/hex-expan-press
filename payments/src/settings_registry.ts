@@ -325,6 +325,7 @@ export interface VoiceNarrationSettings {
   voice_tempos: Record<string, number>;
   master_filter: string;
   sentence_gap_ms: number;
+  opening_statement_gap_ms: number;
   paragraph_gap_ms: number;
   section_gap_ms: number;
   page_lead_ms: number;
@@ -370,6 +371,11 @@ export interface BookPreviewReadAloudLabels {
   pause: string;
   resume: string;
   stop: string;
+  play_tooltip: string;
+  pause_tooltip: string;
+  resume_tooltip: string;
+  stop_tooltip: string;
+  usage_hint: string;
   play_text: string;
   pause_text: string;
   resume_text: string;
@@ -407,6 +413,15 @@ export interface BookPreviewReadAloudSettings {
   labels: BookPreviewReadAloudLabels;
 }
 
+export interface BookPreviewPageLandmarkLabels {
+  front_cover: string;
+  title_page: string;
+  table_of_contents: string;
+  part_opener: string;
+  chapter_opener: string;
+  back_cover: string;
+}
+
 export interface BookPreviewTextStructureSettings {
   line_y_tolerance: number;
   heading_scale_ratio: number;
@@ -430,6 +445,7 @@ export interface BookPreviewTextStructureSettings {
   toggle_single: string;
   toggle_plural: string;
   page_label_prefix: string;
+  page_landmarks: BookPreviewPageLandmarkLabels;
 }
 
 export interface BookPreviewSettings {
@@ -482,6 +498,7 @@ export const VOICE_NARRATION_LIMITS = {
   loudnorm_lufs: { min: -30, max: -5 },
   tempo: { min: 0.8, max: 1.4 },
   sentence_gap_ms: { min: 0, max: 2000 },
+  opening_statement_gap_ms: { min: 0, max: 3000 },
   paragraph_gap_ms: { min: 0, max: 3000 },
   section_gap_ms: { min: 0, max: 5000 },
   page_lead_ms: { min: 0, max: 2000 },
@@ -670,6 +687,12 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
         pause: "Pause reading aloud",
         resume: "Resume reading aloud",
         stop: "Stop reading aloud",
+        play_tooltip: "Read aloud from your current place",
+        pause_tooltip: "Pause reading aloud (keeps your place)",
+        resume_tooltip: "Resume reading aloud from where you paused",
+        stop_tooltip: "Stop reading aloud and reset to top of page",
+        usage_hint:
+          "Tip: Click any sentence below to read from there · Pause or turn pages to carry over · Stop resets to page top",
         play_text: "Read aloud",
         pause_text: "Pause",
         resume_text: "Resume",
@@ -699,6 +722,14 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
       toggle_single: "Accessible text for visible preview page",
       toggle_plural: "Accessible text for visible preview pages",
       page_label_prefix: "Page",
+      page_landmarks: {
+        front_cover: "Front cover",
+        title_page: "Title page",
+        table_of_contents: "Table of contents",
+        part_opener: "Part opener",
+        chapter_opener: "Chapter opener",
+        back_cover: "Back cover",
+      },
     },
   },
   // Our handle rules, not a platform's (Instagram allows 1-30, Facebook requires 5). Reserved words are never assignable.
@@ -854,6 +885,7 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     master_filter:
       "highpass=f=80,equalizer=f=160:t=q:w=1.2:g=2,equalizer=f=3200:t=q:w=1.4:g=2.5,acompressor=threshold=-20dB:ratio=2.2:attack=12:release=140",
     sentence_gap_ms: 220,
+    opening_statement_gap_ms: 460,
     paragraph_gap_ms: 680,
     section_gap_ms: 1200,
     page_lead_ms: 120,
@@ -2097,6 +2129,11 @@ export function loadBookPreviewSection(raw: Record<string, unknown> | undefined)
             pause: raLabelField("pause"),
             resume: raLabelField("resume"),
             stop: raLabelField("stop"),
+            play_tooltip: raLabelField("play_tooltip"),
+            pause_tooltip: raLabelField("pause_tooltip"),
+            resume_tooltip: raLabelField("resume_tooltip"),
+            stop_tooltip: raLabelField("stop_tooltip"),
+            usage_hint: raLabelField("usage_hint"),
             play_text: raLabelField("play_text"),
             pause_text: raLabelField("pause_text"),
             resume_text: raLabelField("resume_text"),
@@ -2237,6 +2274,31 @@ export function loadBookPreviewSection(raw: Record<string, unknown> | undefined)
         }
       }
 
+      let pageLandmarks: BookPreviewPageLandmarkLabels = defaults.text_structure.page_landmarks;
+      if ("page_landmarks" in rec) {
+        const plRaw = rec.page_landmarks;
+        if (plRaw && typeof plRaw === "object" && !Array.isArray(plRaw)) {
+          const plRec = plRaw as Record<string, unknown>;
+          const plField = (landmarkKey: keyof BookPreviewPageLandmarkLabels): string => {
+            if (!(landmarkKey in plRec)) return defaults.text_structure.page_landmarks[landmarkKey];
+            const rawLandmark = plRec[landmarkKey];
+            if (typeof rawLandmark === "string" && rawLandmark.trim() !== "") return rawLandmark.trim();
+            fallbacks.push(`text_structure.page_landmarks.${landmarkKey}`);
+            return defaults.text_structure.page_landmarks[landmarkKey];
+          };
+          pageLandmarks = {
+            front_cover: plField("front_cover"),
+            title_page: plField("title_page"),
+            table_of_contents: plField("table_of_contents"),
+            part_opener: plField("part_opener"),
+            chapter_opener: plField("chapter_opener"),
+            back_cover: plField("back_cover"),
+          };
+        } else {
+          fallbacks.push("text_structure.page_landmarks");
+        }
+      }
+
       textStructure = {
         line_y_tolerance: tsFloat("line_y_tolerance", "text_line_y_tolerance"),
         heading_scale_ratio: headingRatio,
@@ -2253,6 +2315,7 @@ export function loadBookPreviewSection(raw: Record<string, unknown> | undefined)
         toggle_single: tsStr("toggle_single"),
         toggle_plural: tsStr("toggle_plural"),
         page_label_prefix: tsStr("page_label_prefix"),
+        page_landmarks: pageLandmarks,
       };
     } else {
       fallbacks.push("text_structure");
@@ -2884,6 +2947,7 @@ export function loadVoiceNarrationSection(raw: unknown): VoiceNarrationSettings 
     voice_tempos: voiceTempos,
     master_filter: masterFilter,
     sentence_gap_ms: numField("sentence_gap_ms", true),
+    opening_statement_gap_ms: numField("opening_statement_gap_ms", true),
     paragraph_gap_ms: numField("paragraph_gap_ms", true),
     section_gap_ms: numField("section_gap_ms", true),
     page_lead_ms: numField("page_lead_ms", true),

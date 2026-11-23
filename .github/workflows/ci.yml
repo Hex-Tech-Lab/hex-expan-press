@@ -63,6 +63,12 @@ jobs:
           fi
       # vitest does not collect scripts/latency/*.test.mjs (node:test files), so run them here explicitly.
       - run: node --test scripts/latency/*.test.mjs
+      - name: Verify FFmpeg and run 5-layer Audio QA merge gate
+        run: |
+          if ! command -v ffprobe >/dev/null 2>&1 || ! command -v ffmpeg >/dev/null 2>&1; then
+            sudo apt-get update && sudo apt-get install -y ffmpeg
+          fi
+          pnpm run audio:qa
       - run: pnpm --dir web run build
         env:
           NEXT_TELEMETRY_DISABLED: 1
