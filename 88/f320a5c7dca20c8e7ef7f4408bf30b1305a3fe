@@ -1,0 +1,38 @@
+.github/workflows/ci.yml
+  h_e6b68dcbbd0983 66-71
+payments/test/book_preview_settings.test.ts
+  h_e6b68dcbbd0983 541-558
+scripts/__tests__/audio_qa.test.ts
+  h_e6b68dcbbd0983 225-252
+scripts/audio_qa.ts
+  h_e6b68dcbbd0983 2,181-217,230-231,240
+scripts/audio_qa_layers.ts
+  h_e6b68dcbbd0983 55,79-82
+web/__tests__/book-preview-landmarks.test.ts
+  h_e6b68dcbbd0983 225-226
+web/__tests__/read-aloud-coderabbit-regressions.test.ts
+  h_e6b68dcbbd0983 401-441
+web/__tests__/read-aloud-ux-continuity.test.ts
+  h_e6b68dcbbd0983 443-500
+web/src/components/storefront/book-preview-accessible-card.tsx
+  h_e6b68dcbbd0983 343-345,349-350
+web/src/components/storefront/read-aloud-audio.ts
+  h_e6b68dcbbd0983 48-74,89-95,156
+web/src/components/storefront/read-aloud-engines.ts
+  h_e6b68dcbbd0983 47-63,71,80-85,170,247,249-250
+web/src/components/storefront/read-aloud-state.ts
+  h_e6b68dcbbd0983 2,116-137
+web/src/components/storefront/use-read-aloud.ts
+  h_e6b68dcbbd0983 10,13,19,80,93-95,98-101,134,147-149,168-173,175-183,186,188,198,200,221-222,235,247,269,271-272,299,307-308,389-391,399,413,437-448,451
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "88f320a5c7dca20c8e7ef7f4408bf30b1305a3fe",
+  "prompts": {},
+  "humans": {
+    "h_e6b68dcbbd0983": {
+      "author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
