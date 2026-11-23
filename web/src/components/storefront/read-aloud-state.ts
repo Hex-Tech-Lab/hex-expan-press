@@ -1,5 +1,5 @@
 import type { ReadAloudChunk } from "./book-previewer-text";
-import type { PreviewAudioPageTrack, PreviewAudioTimingChunk } from "./read-aloud-audio";
+import { chunkIndexForTrackTime, type PreviewAudioPageTrack, type PreviewAudioTimingChunk } from "./read-aloud-audio";
 
 /** The word being spoken, as char offsets into its sentence chunk. Only set when highlight_words is on. */
 export interface ReadAloudWord {
@@ -112,4 +112,26 @@ export function resolveNextSpreadStart(
     timeSec: 0,
     charIndex: 0,
   };
+}
+
+/** Resolves the current audio or speech playback snapshot for persistence across Pause or tab backgrounding. */
+export function captureSpreadPlaybackPosition(
+  engine: "none" | "audio" | "speech",
+  audio: HTMLAudioElement | null,
+  activeTrack: PreviewAudioPageTrack | null,
+  speechPos: { idx: number; charIndex: number } | null,
+  activeChunkIdx: number | null,
+  chunks: ReadonlyArray<ReadAloudChunk>,
+): SavedSpreadPosition | null {
+  if (engine === "audio" && audio) {
+    const resolvedIdx = (activeTrack ? chunkIndexForTrackTime(activeTrack, audio.currentTime, chunks) : activeChunkIdx) ?? activeChunkIdx ?? 0;
+    const chunk = chunks[resolvedIdx];
+    return chunk ? { chunkId: chunk.id, chunkIdx: resolvedIdx, timeSec: audio.currentTime, charIndex: 0 } : null;
+  }
+  if (engine === "speech") {
+    const resolvedIdx = speechPos?.idx ?? activeChunkIdx ?? 0;
+    const chunk = chunks[resolvedIdx];
+    return chunk ? { chunkId: chunk.id, chunkIdx: resolvedIdx, timeSec: 0, charIndex: speechPos?.charIndex ?? 0 } : null;
+  }
+  return null;
 }

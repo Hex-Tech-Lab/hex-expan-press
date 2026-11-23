@@ -440,4 +440,62 @@ describe("Read Aloud UX continuity, click-to-read, spread resume memory, and hin
     expect(onRequestNextPage).toHaveBeenCalledTimes(1);
     expect(hook.playbackState).toBe("playing");
   });
+
+  it("blocks stale spread completion, settles cleanly across blank spreads, and preserves position on visibilitychange hide", async () => {
+    const utterances: Array<{ text: string; onstart: (() => void) | null; onend: (() => void) | null; onerror: (() => void) | null }> = [];
+    class FakeUtterance {
+      text: string;
+      rate = 1;
+      onstart: (() => void) | null = null;
+      onend: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      constructor(text: string) {
+        this.text = text;
+        utterances.push(this);
+      }
+    }
+    Object.defineProperty(window, "SpeechSynthesisUtterance", { value: FakeUtterance, configurable: true });
+    Object.defineProperty(window, "speechSynthesis", {
+      value: { paused: false, speaking: false, pending: false, speak: vi.fn(), cancel: vi.fn(), pause: vi.fn(), resume: vi.fn(), getVoices: () => [] },
+      configurable: true,
+    });
+
+    const page1: ReadAloudChunk[] = [{ id: "p1-c0", pageIndex: 0, blockIndex: 0, text: "First." }];
+    const page2: ReadAloudChunk[] = [{ id: "p2-c0", pageIndex: 1, blockIndex: 0, text: "Second." }];
+    const onRequestNextPage = vi.fn(() => false);
+    let hook!: ReturnType<typeof useReadAloud>;
+    function Harness({ activeChunks }: { activeChunks: ReadAloudChunk[] }) {
+      hook = useReadAloud(activeChunks, DEFAULT_GLOBAL.book_preview.read_aloud, () => {}, null, "/books/audio", {
+        onRequestNextPage,
+      });
+      return null;
+    }
+
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    await act(async () => root!.render(React.createElement(Harness, { activeChunks: page1 })));
+    await act(async () => hook.playFromChunk("p1-c0"));
+    const staleUtterance = utterances[0];
+
+    // Switch to page2, then fire stale onend from page1 before user finishes page2 -> must NOT advance page2
+    await act(async () => root!.render(React.createElement(Harness, { activeChunks: page2 })));
+    await act(async () => staleUtterance.onend?.());
+    expect(onRequestNextPage).not.toHaveBeenCalled();
+    expect(hook.activeChunkId).toBe("p2-c0");
+
+    // visibilitychange hidden suspends playback to idle while preserving saved position for resume
+    Object.defineProperty(document, "visibilityState", { value: "hidden", configurable: true });
+    await act(async () => document.dispatchEvent(new Event("visibilitychange")));
+    expect(hook.playbackState).toBe("idle");
+    Object.defineProperty(document, "visibilityState", { value: "visible", configurable: true });
+    await act(async () => hook.handlePlayPauseResume());
+    expect(hook.playbackState).toBe("playing");
+    expect(hook.activeChunkId).toBe("p2-c0");
+
+    // Flip onto a blank spread (chunks = []) with no further pages -> settles cleanly to idle (never stuck playing)
+    await act(async () => root!.render(React.createElement(Harness, { activeChunks: [] })));
+    expect(onRequestNextPage).toHaveBeenCalledTimes(1);
+    expect(hook.playbackState).toBe("idle");
+  });
 });

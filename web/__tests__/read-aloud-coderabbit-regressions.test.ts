@@ -398,6 +398,46 @@ describe("PR #162 CodeRabbit regressions for Read-Aloud engine and orientation c
       onHardStop: () => {},
     });
     preMetaAudio.onerror?.();
-    expect(onFallbackSpeech).toHaveBeenCalledWith(1);
+    expect(onFallbackSpeech).toHaveBeenCalledWith(1, 0);
+
+    // Phase 2 recovery: failing >0.4s inside a landmark-prefixed chunk skips the landmark cue on fallback
+    const lmChunk: ReadAloudChunk = { id: "lm0", pageIndex: 0, blockIndex: 0, text: "Title.", spokenText: "Front cover. Title." };
+    const lmAudio = {
+      ...preMetaAudio,
+      currentTime: 1.2,
+      onloadedmetadata: null as (() => void) | null,
+      ontimeupdate: null as (() => void) | null,
+      onended: null as (() => void) | null,
+      onerror: null as (() => void) | null,
+    };
+    const onLandmarkFallback = vi.fn();
+    let lmSrc: string | null = null;
+    runPrebakedTrackQueue({
+      audio: lmAudio as unknown as HTMLAudioElement,
+      tracks: [{
+        pageIndex: 0,
+        pdfPageNumber: 1,
+        audioUrl: "/books/audio/test_book/page-01.webm",
+        durationMs: 4000,
+        chunks: [{ id: "lm0", blockIndex: 0, text: "Title.", spokenText: "Front cover. Title.", startMs: 0, endMs: 3500 }],
+      }],
+      startTrackIdx: 0,
+      initialSeekSec: 0,
+      chunks: [lmChunk],
+      raSettings: DEFAULT_GLOBAL.book_preview.read_aloud,
+      getRate: () => 1,
+      getCurrentSource: () => lmSrc,
+      setCurrentSource: (u) => { lmSrc = u; },
+      setQueue: () => {},
+      isStale: () => false,
+      onChunkActive: () => {},
+      onWordChange: () => {},
+      onFinishSpread: () => {},
+      onFallbackSpeech: onLandmarkFallback,
+      onHardStop: () => {},
+    });
+    lmAudio.currentTime = 1.2;
+    lmAudio.onerror?.();
+    expect(onLandmarkFallback).toHaveBeenCalledWith(0, "Front cover. ".length);
   });
 });

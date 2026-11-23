@@ -45,6 +45,33 @@ export function subscribeNoop(): () => void {
   return () => {};
 }
 
+/** Fetches and validates a pre-baked preview audio manifest with AbortController cancellation. */
+export function fetchPreviewAudioManifest(
+  url: string,
+  basePath: string,
+  onLoaded: (manifest: PreviewAudioManifest) => void,
+): () => void {
+  if (typeof fetch !== "function") return () => {};
+  const controller = new AbortController();
+  let cancelled = false;
+  fetch(url, { signal: controller.signal })
+    .then((res) => (res.ok ? res.json() : null))
+    .then((raw) => {
+      if (cancelled) return;
+      const parsed = parsePreviewAudioManifest(raw, basePath);
+      if (parsed) onLoaded(parsed);
+    })
+    .catch((err) => {
+      if (!cancelled && (err as { name?: string } | null)?.name !== "AbortError") {
+        console.warn("[read-aloud] Audio manifest fetch failed, using Web Speech fallback:", err);
+      }
+    });
+  return () => {
+    cancelled = true;
+    controller.abort();
+  };
+}
+
 export function detectSpeechSynthesisSupport(): boolean {
   return (
     typeof window !== "undefined" &&
@@ -57,6 +84,13 @@ export function detectSpeechSynthesisSupport(): boolean {
 /** True while Web Speech has speech queued, in flight, or paused. */
 export function isSpeechEngineBusy(synth: SpeechSynthesis): boolean {
   return Boolean(synth.speaking || synth.pending || synth.paused);
+}
+
+/** Cancels queued or active browser Web Speech synthesis safely when busy. */
+export function cancelSpeechSynthesisIfBusy(): void {
+  if (detectSpeechSynthesisSupport() && isSpeechEngineBusy(window.speechSynthesis)) {
+    window.speechSynthesis.cancel?.();
+  }
 }
 
 /** End offset of the word that starts at charIndex. */
@@ -119,6 +153,7 @@ export function parsePreviewAudioManifest(raw: unknown, audioBasePath = "/books/
     return null;
   }
   const pages: Record<string, PreviewAudioPageTrack> = {};
+  const seenIds = new Set<string>();
   for (const [pageKey, entry] of Object.entries(rec.pages as Record<string, unknown>)) {
     if (!/^\d+$/.test(pageKey) || !entry || typeof entry !== "object" || Array.isArray(entry)) continue;
     const trackRec = entry as Record<string, unknown>;
@@ -137,7 +172,6 @@ export function parsePreviewAudioManifest(raw: unknown, audioBasePath = "/books/
       continue;
     }
     const validChunks: PreviewAudioTimingChunk[] = [];
-    const seenIds = new Set<string>();
     let chunksOk = true;
     for (const chunkRaw of trackRec.chunks) {
       if (!chunkRaw || typeof chunkRaw !== "object" || Array.isArray(chunkRaw)) {

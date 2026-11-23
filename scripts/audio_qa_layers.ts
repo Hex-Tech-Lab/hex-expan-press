@@ -52,6 +52,7 @@ export function runLayer1TextLexicon(
   let totalChunks = 0;
   let requiredLandmarks = 0;
   let presentLandmarks = 0;
+  const seenChunkIds = new Set<string>();
 
   for (const [pageKey, track] of Object.entries(manifest.pages)) {
     const blocks = pageBlocksByNum[pageKey] ?? [];
@@ -75,6 +76,10 @@ export function runLayer1TextLexicon(
 
     for (const chunk of track.chunks) {
       totalChunks += 1;
+      if (seenChunkIds.has(chunk.id)) {
+        failures.push(`Page ${pageKey} duplicate chunk ID "${chunk.id}" across manifest`);
+      }
+      seenChunkIds.add(chunk.id);
       const text = chunk.text.trim();
       const spoken = (chunk.spokenText ?? chunk.text).trim();
       if (BARE_FOLIO_RE.test(text)) {

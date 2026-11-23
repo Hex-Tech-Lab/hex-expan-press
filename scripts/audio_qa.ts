@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import * as pdfjs from "../web/node_modules/pdfjs-dist/legacy/build/pdf.mjs";
@@ -178,6 +178,43 @@ export function resolvePreviewTotalPages(manifest: PreviewAudioManifest, preview
   return Math.max(Object.keys(manifest.pages).length, manifestSpan);
 }
 
+/** Resolves configured binary path or falls back to PATH binary name when absent (e.g., CI runners). */
+function resolveToolBinary(configured: string, fallbackName: string, home: string): string {
+  const expanded = expandHome(configured, home);
+  if (expanded.includes("/") && !existsSync(expanded)) return fallbackName;
+  return expanded;
+}
+
+/** Verifies decoded PCM inside each L2 thesis gap window is silent (RMS < -36 dB). */
+function appendThesisGapSilenceChecks(
+  l2: OnionLayerResult,
+  manifest: PreviewAudioManifest,
+  webPublicDir: string,
+  ffmpegBin: string,
+): void {
+  let gapSilenceVerified = 0;
+  for (const [pageKey, track] of Object.entries(manifest.pages)) {
+    const diskPath = path.join(webPublicDir, track.audioUrl.replace(/^\//, ""));
+    if (!existsSync(diskPath)) continue;
+    for (const { s0, s1 } of findOpeningThesisPairs(track)) {
+      const winStart = s0.endMs + 25;
+      const winEnd = s1.startMs - 25;
+      if (winEnd <= winStart) continue;
+      const pcmGap = decodeAudioSegmentPcm(ffmpegBin, diskPath, winStart, winEnd);
+      if (pcmGap.length === 0) continue;
+      let sumSq = 0;
+      for (let i = 0; i < pcmGap.length; i++) sumSq += pcmGap[i] * pcmGap[i];
+      const rms = Math.sqrt(sumSq / pcmGap.length);
+      gapSilenceVerified += 1;
+      if (rms >= 0.016) {
+        l2.failures.push(`Page ${pageKey} (${s0.id}->${s1.id}) thesis gap audio not silent (rms=${rms.toFixed(4)})`);
+      }
+    }
+  }
+  l2.passed = l2.failures.length === 0;
+  l2.metrics.gapSilenceVerified = gapSilenceVerified;
+}
+
 export async function runAudioQa(bookArg: string, repoRoot: string): Promise<AudioQaReport> {
   const bookPath = path.isAbsolute(bookArg) ? bookArg : path.join(repoRoot, bookArg);
   const book = JSON.parse(readFileSync(bookPath, "utf8")) as { id: string; preview_pdf?: string | null; preview_audio_manifest?: string | null };
@@ -190,8 +227,8 @@ export async function runAudioQa(bookArg: string, repoRoot: string): Promise<Aud
   const manifest = JSON.parse(readFileSync(timingsPath, "utf8")) as PreviewAudioManifest;
 
   const home = process.env.HOME ?? "";
-  const ffmpegBin = expandHome(GLOBAL.tool_paths.ffmpeg, home);
-  const ffprobeBin = expandHome(GLOBAL.tool_paths.ffprobe, home);
+  const ffmpegBin = resolveToolBinary(GLOBAL.tool_paths.ffmpeg, "ffmpeg", home);
+  const ffprobeBin = resolveToolBinary(GLOBAL.tool_paths.ffprobe, "ffprobe", home);
   const loadedPdf = book.preview_pdf
     ? await loadPdfPageBlocks(path.join(webPublicDir, book.preview_pdf.replace(/^\//, "")), GLOBAL.book_preview.max_preview_pages)
     : null;
@@ -200,6 +237,7 @@ export async function runAudioQa(bookArg: string, repoRoot: string): Promise<Aud
 
   const l1 = runLayer1TextLexicon(manifest, pageBlocksByNum, totalPages, GLOBAL.book_preview.show_cover, GLOBAL.book_preview.text_structure, GLOBAL.voice_narration);
   const l2 = runLayer2ThesisGap(manifest, GLOBAL.voice_narration);
+  appendThesisGapSilenceChecks(l2, manifest, webPublicDir, ffmpegBin);
   const l3 = runLayer3AcousticF0(manifest, webPublicDir, ffmpegBin);
   const l4 = runLayer4MasteringTiming(manifest, audioDir, webPublicDir, ffprobeBin);
   const { layer: l5, personas } = runLayer5PersonaScorecard(manifest, [l1, l2, l3, l4]);

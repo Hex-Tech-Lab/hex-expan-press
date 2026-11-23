@@ -44,6 +44,23 @@ export function teardownAudioElement(
   }
 }
 
+/** Computes Web Speech fallback character offset, skipping any already-spoken landmark prefix past 0.4s into the chunk. */
+function computeFallbackCharOffset(
+  track: PreviewAudioPageTrack | undefined,
+  chunkIdx: number,
+  chunks: ReadonlyArray<ReadAloudChunk>,
+  currentTimeSec: number,
+): number {
+  const chunk = chunks[chunkIdx];
+  if (!track || !chunk) return 0;
+  const spokenText = chunk.spokenText ?? chunk.text;
+  const prefixLen = spokenText.endsWith(chunk.text) ? spokenText.length - chunk.text.length : 0;
+  if (prefixLen <= 0) return 0;
+  const timingChunk = track.chunks.find((c) => c.id === chunk.id);
+  if (!timingChunk) return 0;
+  return currentTimeSec > timingChunk.startMs / 1000 + 0.4 ? prefixLen : 0;
+}
+
 /** Resumes a paused HTMLAudioElement at `rate`, falling back to Web Speech at the active chunk on error. */
 export function resumeAudioElement(
   audio: HTMLAudioElement,
@@ -51,7 +68,7 @@ export function resumeAudioElement(
   chunks: ReadonlyArray<ReadAloudChunk>,
   rate: number,
   isStale: () => boolean,
-  onFallbackSpeech: (chunkIdx: number) => void,
+  onFallbackSpeech: (chunkIdx: number, charOffset?: number) => void,
   onHardStop: () => void,
 ): void {
   applyAudioPlaybackRate(audio, rate);
@@ -60,8 +77,12 @@ export function resumeAudioElement(
     const track = queue.tracks[queue.trackIdx];
     const timedIdx = track ? chunkIndexForTrackTime(track, audio.currentTime, chunks) : null;
     const fallbackIdx = track ? chunks.findIndex((chunk) => chunk.pageIndex === track.pageIndex) : 0;
-    if (detectSpeechSynthesisSupport()) onFallbackSpeech(timedIdx ?? (fallbackIdx >= 0 ? fallbackIdx : 0));
-    else onHardStop();
+    const resolvedIdx = timedIdx ?? (fallbackIdx >= 0 ? fallbackIdx : 0);
+    if (detectSpeechSynthesisSupport()) {
+      onFallbackSpeech(resolvedIdx, computeFallbackCharOffset(track, resolvedIdx, chunks, audio.currentTime));
+    } else {
+      onHardStop();
+    }
   });
 }
 
@@ -146,7 +167,7 @@ export interface AudioTrackSessionCallbacks {
   onChunkActive: (idx: number, timeSec: number) => void;
   onWordChange: (word: ReadAloudWord | null) => void;
   onFinishSpread: () => void;
-  onFallbackSpeech: (chunkIdx: number) => void;
+  onFallbackSpeech: (chunkIdx: number, charOffset?: number) => void;
   onHardStop: () => void;
 }
 
@@ -223,8 +244,10 @@ export function runPrebakedTrackQueue(cb: AudioTrackSessionCallbacks): void {
       console.warn("[read-aloud] Audio playback error, falling back to Web Speech:", reason);
       const timedIdx = pendingSeekSec === null ? chunkIndexForTrackTime(track, audio.currentTime, chunks) : null;
       const fallbackIdx = chunks.findIndex((chunk) => chunk.pageIndex === track.pageIndex);
+      const resolvedIdx = timedIdx ?? currentChunkIdx ?? (fallbackIdx >= 0 ? fallbackIdx : 0);
       if (detectSpeechSynthesisSupport()) {
-        cb.onFallbackSpeech(timedIdx ?? currentChunkIdx ?? (fallbackIdx >= 0 ? fallbackIdx : 0));
+        const refTimeSec = pendingSeekSec === null ? audio.currentTime : pendingSeekSec;
+        cb.onFallbackSpeech(resolvedIdx, computeFallbackCharOffset(track, resolvedIdx, chunks, refTimeSec));
       } else {
         cb.onHardStop();
       }

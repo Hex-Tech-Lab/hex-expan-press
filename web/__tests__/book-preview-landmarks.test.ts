@@ -222,6 +222,8 @@ describe("structural book landmarks (visual headers + spoken Web Speech cues)", 
     });
 
     // Page 1 (Front cover)
+    expect(container.querySelector('[data-testid="accessible-page-1"]')?.getAttribute("role")).toBe("region");
+    expect(container.querySelector('[data-testid="accessible-page-1"]')?.getAttribute("aria-label")).toBe("Page 1, Front cover");
     expect(container.querySelector('[data-testid="accessible-page-landmark-1"]')?.textContent).toBe("Front cover");
     await act(async () => {
       (container!.querySelector('[data-testid="read-aloud-toggle"]') as HTMLButtonElement).click();

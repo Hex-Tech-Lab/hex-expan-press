@@ -7,16 +7,16 @@ import type { ReadAloudState } from "./book-preview-accessible-card";
 import { rankVoice } from "./read-aloud-voice";
 import {
   applyAudioPlaybackRate,
-  chunkIndexForTrackTime,
+  cancelSpeechSynthesisIfBusy,
   detectAudioSupport,
   detectSpeechSynthesisSupport,
-  isSpeechEngineBusy,
-  parsePreviewAudioManifest,
+  fetchPreviewAudioManifest,
   resolveSpreadAudioTracks,
   subscribeNoop,
   type PreviewAudioManifest,
 } from "./read-aloud-audio";
 import {
+  captureSpreadPlaybackPosition,
   clampedChunkSeekSec,
   locateChunkInTracks,
   resolveNextSpreadStart,
@@ -77,6 +77,7 @@ export function useReadAloud(
   const onRequestNextPageRef = useRef(options?.onRequestNextPage);
   const savedPositionsRef = useRef<Map<string, SavedSpreadPosition>>(new Map());
   const livePositionRef = useRef<LiveSpreadPosition | null>(null);
+  const emptySpreadSkipsRef = useRef(0);
 
   const speechSupported = useSyncExternalStore(subscribeNoop, detectSpeechSynthesisSupport, () => false);
   const audioElementSupported = useSyncExternalStore(subscribeNoop, detectAudioSupport, () => false);
@@ -89,36 +90,15 @@ export function useReadAloud(
   const currentRate = raRates[safeRateIdx] ?? raSettings.default_rate;
   const rateRef = useRef(currentRate);
 
-  useEffect(() => {
-    rateRef.current = currentRate;
-  }, [currentRate]);
-  useEffect(() => {
-    chunkKeyRef.current = chunkKey;
-  }, [chunkKey]);
-  useEffect(() => {
-    onRequestNextPageRef.current = options?.onRequestNextPage;
-  }, [options?.onRequestNextPage]);
+  useEffect(() => { rateRef.current = currentRate; }, [currentRate]);
+  useEffect(() => { chunkKeyRef.current = chunkKey; }, [chunkKey]);
+  useEffect(() => { onRequestNextPageRef.current = options?.onRequestNextPage; }, [options?.onRequestNextPage]);
 
   useEffect(() => {
-    if (!raSettings.enabled || !audioManifestUrl || typeof fetch !== "function") return;
-    const controller = new AbortController();
-    let cancelled = false;
-    fetch(audioManifestUrl, { signal: controller.signal })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((raw) => {
-        if (cancelled) return;
-        const parsed = parsePreviewAudioManifest(raw, audioBasePath);
-        if (parsed) setLoadedManifest({ url: audioManifestUrl, basePath: audioBasePath, manifest: parsed });
-      })
-      .catch((err) => {
-        if (!cancelled && (err as { name?: string } | null)?.name !== "AbortError") {
-          console.warn("[read-aloud] Audio manifest fetch failed, using Web Speech fallback:", err);
-        }
-      });
-    return () => {
-      cancelled = true;
-      controller.abort();
-    };
+    if (!raSettings.enabled || !audioManifestUrl) return;
+    return fetchPreviewAudioManifest(audioManifestUrl, audioBasePath, (loaded) => {
+      setLoadedManifest({ url: audioManifestUrl, basePath: audioBasePath, manifest: loaded });
+    });
   }, [raSettings.enabled, audioManifestUrl, audioBasePath]);
 
   const manifest =
@@ -151,9 +131,7 @@ export function useReadAloud(
     activeEngineRef.current = "none";
     setUsingFallbackVoice(false);
     stopAudioEngine(false);
-    if (detectSpeechSynthesisSupport() && isSpeechEngineBusy(window.speechSynthesis)) {
-      window.speechSynthesis.cancel?.();
-    }
+    cancelSpeechSynthesisIfBusy();
   }, [stopAudioEngine]);
 
   const stopReadAloud = useCallback(() => {
@@ -166,7 +144,9 @@ export function useReadAloud(
     setActiveWord(null);
   }, [cancelSpeechEngine]);
 
-  const finishSpreadPlayback = useCallback(() => {
+  const finishSpreadPlayback = useCallback((expectedKey?: string) => {
+    if (expectedKey !== undefined && expectedKey !== chunkKeyRef.current) return;
+    emptySpreadSkipsRef.current = 0;
     savedPositionsRef.current.delete(chunkKeyRef.current);
     livePositionRef.current = null;
     pausedAtRateRef.current = null;
@@ -185,12 +165,27 @@ export function useReadAloud(
     setSpeechAnnouncement(raSettings.labels.finished_announcement);
   }, [raSettings.continue_on_page_turn, raSettings.labels.finished_announcement]);
 
+  const saveCurrentSpreadPosition = useCallback(() => {
+    const track = audioQueueRef.current?.tracks[audioQueueRef.current.trackIdx] ?? null;
+    const snap = captureSpreadPlaybackPosition(activeEngineRef.current, audioRef.current, track, positionRef.current, activeChunkIdx, chunks);
+    if (snap) recordPosition(chunkKeyRef.current, snap.chunkId, snap.chunkIdx, snap.timeSec, snap.charIndex);
+  }, [activeChunkIdx, chunks, recordPosition]);
+
   const clearAnnouncement = useCallback(() => setSpeechAnnouncement(""), []);
+  const handleDocumentHidden = useEffectEvent(() => {
+    saveCurrentSpreadPosition();
+    cancelSpeechEngine();
+    setUsingFallbackVoice(false);
+    setPlaybackState("idle");
+    setActiveChunk(null);
+    setActiveWord(null);
+  });
+  const handlePageHide = useEffectEvent(() => stopReadAloud());
 
   useEffect(() => {
-    const onStop = () => stopReadAloud();
+    const onStop = () => handlePageHide();
     const onVis = () => {
-      if (document.visibilityState === "hidden") stopReadAloud();
+      if (document.visibilityState === "hidden") handleDocumentHidden();
     };
     document.addEventListener("visibilitychange", onVis);
     window.addEventListener("pagehide", onStop);
@@ -200,11 +195,9 @@ export function useReadAloud(
       speechSessionRef.current += 1;
       activeEngineRef.current = "none";
       stopAudioEngine(true);
-      if (detectSpeechSynthesisSupport() && isSpeechEngineBusy(window.speechSynthesis)) {
-        window.speechSynthesis.cancel?.();
-      }
+      cancelSpeechSynthesisIfBusy();
     };
-  }, [stopReadAloud, stopAudioEngine]);
+  }, [stopAudioEngine]);
 
   useEffect(() => {
     if (!detectSpeechSynthesisSupport()) return;
@@ -225,6 +218,8 @@ export function useReadAloud(
       }
       stopAudioEngine(false);
       const session = ++speechSessionRef.current;
+      const originChunkKey = chunkKey;
+      emptySpreadSkipsRef.current = 0;
       activeEngineRef.current = "speech";
       setUsingFallbackVoice(Boolean(audioManifestUrl));
       pausedAtRateRef.current = null;
@@ -237,7 +232,7 @@ export function useReadAloud(
         rate,
         voice,
         highlightWords: raSettings.highlight_words,
-        isStale: () => speechSessionRef.current !== session,
+        isStale: () => speechSessionRef.current !== session || originChunkKey !== chunkKeyRef.current,
         onStartChunk: (idx, fromChar) => {
           positionRef.current = { idx, charIndex: fromChar };
           if (chunks[idx]) recordPosition(chunkKey, chunks[idx].id, idx, 0, fromChar);
@@ -249,7 +244,7 @@ export function useReadAloud(
           if (chunks[idx]) recordPosition(chunkKey, chunks[idx].id, idx, 0, charIndex);
           if (word) setActiveWord(word);
         },
-        onFinishSpread: finishSpreadPlayback,
+        onFinishSpread: () => finishSpreadPlayback(originChunkKey),
         onError: () => {
           pausedAtRateRef.current = null;
           positionRef.current = null;
@@ -271,10 +266,10 @@ export function useReadAloud(
         else stopReadAloud();
         return;
       }
-      if (detectSpeechSynthesisSupport() && isSpeechEngineBusy(window.speechSynthesis)) {
-        window.speechSynthesis.cancel?.();
-      }
+      cancelSpeechSynthesisIfBusy();
       const session = ++speechSessionRef.current;
+      const originChunkKey = chunkKey;
+      emptySpreadSkipsRef.current = 0;
       const audio = audioRef.current ?? new window.Audio();
       audioRef.current = audio;
       pausedAtRateRef.current = null;
@@ -301,7 +296,7 @@ export function useReadAloud(
             setUsingFallbackVoice(false);
           }
         },
-        isStale: () => speechSessionRef.current !== session,
+        isStale: () => speechSessionRef.current !== session || originChunkKey !== chunkKeyRef.current,
         onChunkActive: (idx, timeSec) => {
           if (chunks[idx]) recordPosition(chunkKey, chunks[idx].id, idx, timeSec, 0);
           setActiveChunk((prev) => (prev?.key === chunkKey && prev.idx === idx ? prev : { idx, key: chunkKey }));
@@ -309,8 +304,8 @@ export function useReadAloud(
         onWordChange: (nextWord) => {
           setActiveWord((prev) => (prev?.chunkId === nextWord?.chunkId && prev?.start === nextWord?.start && prev?.end === nextWord?.end ? prev : nextWord));
         },
-        onFinishSpread: finishSpreadPlayback,
-        onFallbackSpeech: (idx) => speakFromIndex(idx, 0, rateRef.current),
+        onFinishSpread: () => finishSpreadPlayback(originChunkKey),
+        onFallbackSpeech: (idx, charOffset = 0) => speakFromIndex(idx, charOffset, rateRef.current),
         onHardStop: stopReadAloud,
       });
     },
@@ -391,17 +386,9 @@ export function useReadAloud(
     if (playbackState === "playing") {
       setPlaybackState("paused");
       pausedAtRateRef.current = currentRate;
-      if (activeEngineRef.current === "audio" && audioRef.current) {
-        const audio = audioRef.current;
-        const track = audioQueueRef.current?.tracks[audioQueueRef.current.trackIdx] ?? null;
-        const resolvedIdx = (track ? chunkIndexForTrackTime(track, audio.currentTime, chunks) : activeChunkIdx) ?? activeChunkIdx ?? 0;
-        if (chunks[resolvedIdx]) recordPosition(chunkKey, chunks[resolvedIdx].id, resolvedIdx, audio.currentTime, 0);
-        audio.pause();
-      } else {
-        const idx = positionRef.current?.idx ?? activeChunkIdx ?? 0;
-        if (chunks[idx]) recordPosition(chunkKey, chunks[idx].id, idx, 0, positionRef.current?.charIndex ?? 0);
-        window.speechSynthesis.pause?.();
-      }
+      saveCurrentSpreadPosition();
+      if (activeEngineRef.current === "audio") audioRef.current?.pause();
+      else window.speechSynthesis?.pause?.();
       return;
     }
     if (activeEngineRef.current === "audio" && audioRef.current && audioQueueRef.current) {
@@ -409,7 +396,7 @@ export function useReadAloud(
       setPlaybackState("playing");
       pausedAtRateRef.current = null;
       rateRef.current = currentRate;
-      resumeAudioElement(audioRef.current, audioQueueRef.current, chunks, currentRate, () => speechSessionRef.current !== session, (idx) => speakFromIndex(idx, 0, currentRate), stopReadAloud);
+      resumeAudioElement(audioRef.current, audioQueueRef.current, chunks, currentRate, () => speechSessionRef.current !== session || chunkKeyRef.current !== chunkKey, (idx, charOffset = 0) => speakFromIndex(idx, charOffset, currentRate), stopReadAloud);
       return;
     }
     if (activeEngineRef.current === "none") {
@@ -423,7 +410,7 @@ export function useReadAloud(
       return;
     }
     resumeFromPosition(currentRate);
-  }, [raSettings.enabled, readAloudSupported, chunks, chunkKey, activeChunkIdx, playbackState, startFromSavedOrTop, currentRate, onExpandPanel, recordPosition, speakFromIndex, stopReadAloud, resumeFromPosition]);
+  }, [raSettings.enabled, readAloudSupported, playbackState, startFromSavedOrTop, currentRate, onExpandPanel, saveCurrentSpreadPosition, speakFromIndex, stopReadAloud, resumeFromPosition, chunks, chunkKey]);
 
   const handleCycleSpeed = useCallback(() => {
     const nextIdx = (safeRateIdx + 1) % raRates.length;
@@ -447,8 +434,21 @@ export function useReadAloud(
     }
     if (chunks.length === 0) {
       cancelSpeechEngine();
+      setActiveChunk(null);
+      setActiveWord(null);
+      if (playbackState === "playing" && raSettings.continue_on_page_turn && emptySpreadSkipsRef.current < 3) {
+        emptySpreadSkipsRef.current += 1;
+        if (onRequestNextPageRef.current?.()) {
+          setSpeechAnnouncement("");
+          return;
+        }
+        setSpeechAnnouncement(raSettings.labels.finished_announcement);
+      }
+      setUsingFallbackVoice(false);
+      setPlaybackState("idle");
       return;
     }
+    emptySpreadSkipsRef.current = 0;
     const res = resolveNextSpreadStart(chunks, prevLive, savedPositionsRef.current.get(chunkKey));
     if (res.source === "carryover" || res.source === "saved") {
       if (playbackState === "playing") {

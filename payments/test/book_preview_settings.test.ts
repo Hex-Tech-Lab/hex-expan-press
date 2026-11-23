@@ -538,4 +538,22 @@ describe("loadBookIdentity optional media fields", () => {
       errSpy.mockRestore();
     }
   });
+
+  it("falls back cleanly for legacy configs omitting opening_statement_gap_ms and page_landmarks, and rejects out-of-range gaps", () => {
+    const warn = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const legacyBp = loadBookPreviewSection({ show_cover: true });
+    expect(legacyBp.text_structure.page_landmarks).toEqual(DEFAULT_GLOBAL.book_preview.text_structure.page_landmarks);
+    const legacyVn = loadVoiceNarrationSection({ tempo: 1.1 });
+    expect(legacyVn.opening_statement_gap_ms).toBe(DEFAULT_GLOBAL.voice_narration.opening_statement_gap_ms);
+    expect(warn).not.toHaveBeenCalled();
+
+    for (const badGap of [-5, 99999, "fast"]) {
+      warn.mockClear();
+      expect(loadVoiceNarrationSection({ opening_statement_gap_ms: badGap }).opening_statement_gap_ms).toBe(
+        DEFAULT_GLOBAL.voice_narration.opening_statement_gap_ms,
+      );
+      expect(warn).toHaveBeenCalledTimes(1);
+    }
+    warn.mockRestore();
+  });
 });

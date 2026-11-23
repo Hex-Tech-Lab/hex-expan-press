@@ -222,4 +222,32 @@ describe("5-layer Onion Audio QA Gate", () => {
     expect(l5.personas).toHaveLength(3);
     expect(l5.layer.metrics.landmarkClarityPct).toBe(100);
   });
+
+  it("L1 rejects duplicate chunk IDs across manifest pages", () => {
+    const dupManifest: PreviewAudioManifest = {
+      ...BASE_MANIFEST,
+      pages: {
+        ...BASE_MANIFEST.pages,
+        "2": {
+          ...BASE_MANIFEST.pages["2"],
+          chunks: [
+            { id: "p0-b0-s0", blockIndex: 0, text: "The Quiet Workshop", spokenText: "Title page. The Quiet Workshop.", startMs: 120, endMs: 3000 },
+          ],
+        },
+      },
+    };
+    const l1 = runLayer1TextLexicon(
+      dupManifest,
+      {
+        "1": [{ kind: "heading", level: 3, text: "The Quiet Workshop" }],
+        "2": [{ kind: "heading", level: 3, text: "The Quiet Workshop" }],
+      },
+      3,
+      true,
+      DEFAULT_GLOBAL.book_preview.text_structure,
+      DEFAULT_GLOBAL.voice_narration,
+    );
+    expect(l1.passed).toBe(false);
+    expect(l1.failures.some((f) => f.includes('duplicate chunk ID "p0-b0-s0"'))).toBe(true);
+  });
 });

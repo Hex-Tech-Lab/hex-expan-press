@@ -340,9 +340,14 @@ export function BookPreviewAccessibleCard({
           flushList(`ul-${page.pageIndex}-end`);
 
           const landmark = pageLandmarks?.[page.pageIndex];
+          const regionLabel = landmark
+            ? `${textStructureSettings.page_label_prefix} ${page.pageIndex + 1}, ${landmark}`
+            : `${textStructureSettings.page_label_prefix} ${page.pageIndex + 1}`;
           return (
             <div
               key={page.pageIndex}
+              role="region"
+              aria-label={regionLabel}
               data-testid={`accessible-page-${page.pageIndex + 1}`}
               className="space-y-2 pt-2 first:pt-0 border-t border-[#e8dacb]/60 first:border-t-0"
             >
