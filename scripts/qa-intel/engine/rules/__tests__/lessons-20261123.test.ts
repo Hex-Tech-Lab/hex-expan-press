@@ -28,7 +28,7 @@ describe("UnguardedInOperatorRule (PR #138 & #159)", () => {
     expect(findings[0].title).toContain("Unguarded 'in' operator");
   });
 
-  test("passes when typeof raw !== 'object' guard narrows before 'in'", () => {
+  test("passes when typeof raw !== 'object' and null guard narrow before 'in'", () => {
     const findings = run(
       UnguardedInOperatorRule,
       `export function loadSection(raw: unknown) {
@@ -39,15 +39,36 @@ describe("UnguardedInOperatorRule (PR #138 & #159)", () => {
     expect(findings).toHaveLength(0);
   });
 
-  test("ignores browser global feature detection and typed React props", () => {
+  test("ignores browser global feature detection, typed React props, and non-optional Record", () => {
     const findings = run(
       UnguardedInOperatorRule,
-      `export function checkUi(props: { href?: string } | { onClick: () => void }) {
-        if ("speechSynthesis" in window && "href" in props) return true;
+      `export function checkUi(props: { href?: string } | { onClick: () => void }, map: Record<string, unknown>) {
+        if ("speechSynthesis" in window && "href" in props && "k" in map) return true;
         return false;
       }`,
     );
     expect(findings).toHaveLength(0);
+  });
+
+  test("flags typeof raw === 'object' without null check or guard appearing after the in-expression", () => {
+    const missingNull = run(
+      UnguardedInOperatorRule,
+      `export function badNull(raw: unknown) {
+        if (typeof raw !== "object") return {};
+        return "model" in raw ? raw : {};
+      }`,
+    );
+    expect(missingNull).toHaveLength(1);
+
+    const lateGuard = run(
+      UnguardedInOperatorRule,
+      `export function lateDirect(raw: unknown) {
+        const hit = "model" in raw;
+        if (!raw || typeof raw !== "object") return hit;
+        return hit;
+      }`,
+    );
+    expect(lateGuard).toHaveLength(1);
   });
 });
 
@@ -99,6 +120,36 @@ describe("SqlSecurityDefinerCurrentUserRule (PR #138)", () => {
     );
     expect(findings).toHaveLength(0);
   });
+
+  test("flags single-quoted SECURITY DEFINER function checking current_user and rejects non-service dual check", () => {
+    const sqFindings = run(
+      SqlSecurityDefinerCurrentUserRule,
+      `create or replace function public.sq_only() returns void
+       language plpgsql security definer as '
+       begin
+         if current_user <> ''service_role'' then
+           raise exception ''forbidden'';
+         end if;
+       end;
+       ';`,
+      "supabase/migrations/20261124000003_sq_definer.sql",
+    );
+    expect(sqFindings).toHaveLength(1);
+
+    const authFindings = run(
+      SqlSecurityDefinerCurrentUserRule,
+      `create or replace function public.bad_dual() returns void
+       language plpgsql security definer as $$
+       declare
+         ok boolean := (auth.role() = 'authenticated' or current_user = 'postgres');
+       begin
+         if not ok then raise exception 'forbidden'; end if;
+       end;
+       $$;`,
+      "supabase/migrations/20261124000004_bad_dual.sql",
+    );
+    expect(authFindings).toHaveLength(1);
+  });
 });
 
 describe("DotenvWithoutOverrideRule (PR #136)", () => {
@@ -113,9 +164,16 @@ describe("DotenvWithoutOverrideRule (PR #136)", () => {
     expect(findings[0].title).toContain("override: true");
   });
 
-  test("flags bare dotenv/config import", () => {
-    const findings = run(DotenvWithoutOverrideRule, `import "dotenv/config";`, "scripts/ops/check.ts");
-    expect(findings).toHaveLength(1);
+  test("flags bare dotenv/config import and namespace import without override", () => {
+    expect(run(DotenvWithoutOverrideRule, `import "dotenv/config";`, "scripts/ops/check.ts")).toHaveLength(1);
+    expect(
+      run(
+        DotenvWithoutOverrideRule,
+        `import * as dotenv from "dotenv";
+         dotenv.config();`,
+        "scripts/ops/check.ts",
+      ),
+    ).toHaveLength(1);
   });
 
   test("passes when dotenv.config passes override: true", () => {
@@ -130,24 +188,26 @@ describe("DotenvWithoutOverrideRule (PR #136)", () => {
 });
 
 describe("ReplaceWithDynamicDollarReplacementRule (PR #142)", () => {
-  test("flags placeholder .replace('{title}', bookTitle) with dynamic string argument", () => {
-    const findings = run(
-      ReplaceWithDynamicDollarReplacementRule,
-      `export function label(tmpl: string, bookTitle: string) {
-        return tmpl.replace("{title}", bookTitle);
-      }`,
-    );
-    expect(findings).toHaveLength(1);
-    expect(findings[0].title).toContain("without function replacer");
-  });
-
-  test("passes when using a function replacer or encodeURIComponent", () => {
+  test("flags placeholder .replace('{title}', bookTitle) and encodeURIComponent concatenation", () => {
     const findings = run(
       ReplaceWithDynamicDollarReplacementRule,
       `export function label(tmpl: string, bookTitle: string, handle: string) {
+        return tmpl.replace("{title}", bookTitle) + tmpl.replace("{handle}", encodeURIComponent(handle) + bookTitle);
+      }`,
+    );
+    expect(findings).toHaveLength(2);
+    expect(findings[0].title).toContain("without function replacer");
+  });
+
+  test("passes when using a function replacer, callable identifier, or standalone encodeURIComponent", () => {
+    const findings = run(
+      ReplaceWithDynamicDollarReplacementRule,
+      `export function label(tmpl: string, bookTitle: string, handle: string) {
+        const replacer = () => bookTitle;
         const a = tmpl.replace("{title}", () => bookTitle);
-        const b = tmpl.replace("{handle}", encodeURIComponent(handle));
-        return a + b;
+        const b = tmpl.replace("{title}", replacer);
+        const c = tmpl.replace("{handle}", encodeURIComponent(handle));
+        return a + b + c;
       }`,
     );
     expect(findings).toHaveLength(0);

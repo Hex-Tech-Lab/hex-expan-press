@@ -54,7 +54,12 @@ function isUncertainRecordTarget(node: Node): boolean {
     for (const param of fn.getParameters()) {
       if (param.getName() !== targetName) continue;
       const typeText = param.getTypeNode()?.getText() ?? "";
-      if (/\bunknown\b/.test(typeText) || /Record\s*<\s*string\s*,\s*unknown\s*>\s*\|\s*undefined/.test(typeText)) {
+      const unionMembers = typeText.split("|").map((part) => part.trim());
+      const hasUnknownTopLevel = unionMembers.includes("unknown");
+      const hasOptionalRecord =
+        unionMembers.some((part) => /^Record\s*<\s*string\s*,/.test(part)) &&
+        unionMembers.some((part) => part === "undefined" || part === "null");
+      if (hasUnknownTopLevel || hasOptionalRecord) {
         return true;
       }
     }
@@ -62,11 +67,64 @@ function isUncertainRecordTarget(node: Node): boolean {
   return false;
 }
 
+function collectGuardTextsBefore(node: Node, boundary: Node): string[] {
+  const texts: string[] = [];
+  let current: Node | undefined = node;
+  while (current && current !== boundary) {
+    const parent = current.getParent();
+    if (!parent) break;
+    if (Node.isBinaryExpression(parent) && parent.getRight() === current) {
+      const op = parent.getOperatorToken().getText();
+      if (op === "&&" || op === "||") {
+        texts.push(parent.getLeft().getText());
+      }
+    } else if (Node.isIfStatement(parent)) {
+      if (parent.getThenStatement() === current) {
+        texts.push(parent.getExpression().getText());
+      }
+    } else if (Node.isConditionalExpression(parent) && parent.getWhenTrue() === current) {
+      texts.push(parent.getCondition().getText());
+    } else if (Node.isBlock(parent) || Node.isSourceFile(parent)) {
+      const stmts = parent.getStatements();
+      const idx = stmts.indexOf(current as never);
+      for (let i = 0; i < idx; i++) {
+        const stmt = stmts[i];
+        // Ignore nested function declarations/expressions whose internal checks do not guard the outer scope.
+        if (!Node.isFunctionDeclaration(stmt)) {
+          texts.push(stmt.getText());
+        }
+      }
+    }
+    current = parent;
+  }
+  return texts;
+}
+
+function hasObjectAndNonNullGuard(node: Node, fn: Node, targetName: string): boolean {
+  const escaped = escapeRegExp(targetName);
+  const objectHelperRe = new RegExp(`\\b(?:isPlainObject|isRecord|isObject)\\s*\\(\\s*${escaped}\\s*\\)`);
+  const typeofRe = new RegExp(`typeof\\s+${escaped}\\s*(?:===|!==)\\s*['"\`]object['"\`]`);
+  const nonNullRe = new RegExp(
+    `(?:!\\s*${escaped}\\b|\\b${escaped}\\s*(?:!==|!=|===|==)\\s*null\\b|\\bnull\\s*(?:!==|!=|===|==)\\s*${escaped}\\b|Boolean\\s*\\(\\s*${escaped}\\s*\\)|\\b${escaped}\\s*&&)`,
+  );
+
+  let hasObjectCheck = false;
+  let hasNullCheck = false;
+  for (const snippet of collectGuardTextsBefore(node, fn)) {
+    // Strip nested closures/arrows before checking outer guards.
+    const clean = snippet.replace(/\([^)]*\)\s*=>\s*\{[\s\S]*?\}/g, " ");
+    if (objectHelperRe.test(clean)) return true;
+    if (typeofRe.test(clean)) hasObjectCheck = true;
+    if (nonNullRe.test(clean)) hasNullCheck = true;
+    if (hasObjectCheck && hasNullCheck) return true;
+  }
+  return false;
+}
+
 /**
- * Flags `'key' in raw` when `raw` is typed as `unknown` or optional
- * `Record<string, unknown> | undefined` without an explicit `typeof raw === "object"`
- * (or helper) narrowing check in the enclosing scope. `if (!raw)` alone passes
- * truthy primitives such as strings or numbers, causing `in` to throw TypeError.
+ * Flags `'key' in raw` when `raw` is typed as top-level `unknown` or optional
+ * `Record<string, ...> | undefined` without both `typeof raw === "object"` and
+ * non-null narrowing on a dominating branch before the `in` expression.
  */
 export const UnguardedInOperatorRule: Rule = {
   name: "lessons-20261123-unguarded-in-operator",
@@ -88,12 +146,7 @@ export const UnguardedInOperatorRule: Rule = {
       if (!isUncertainRecordTarget(right)) return;
 
       const fn = findEnclosingFunction(node);
-      const scopeText = (fn ?? source).getText();
-      const escaped = escapeRegExp(targetText);
-      const hasObjectGuard =
-        new RegExp(`typeof\\s+${escaped}\\s*(?:===|!==)\\s*['"\`]object['"\`]`).test(scopeText) ||
-        new RegExp(`\\b(?:isPlainObject|isRecord|isObject)\\s*\\(\\s*${escaped}\\s*\\)`).test(scopeText);
-      if (hasObjectGuard) return;
+      if (fn && hasObjectAndNonNullGuard(node, fn, targetText)) return;
 
       const dedupeKey = `${filePath}:${targetText}`;
       if (reported.has(dedupeKey)) return;
@@ -138,8 +191,8 @@ function stripSqlStringsPreservingStructure(sql: string): string {
   return sql.replace(/'(?:''|[^'])*'/g, "''");
 }
 
-function extractSqlCreateFunctionBlocks(sql: string): Array<{ name: string; fullBlock: string }> {
-  const out: Array<{ name: string; fullBlock: string }> = [];
+function extractSqlCreateFunctionBlocks(sql: string): Array<{ name: string; fullBlock: string; bodyText: string }> {
+  const out: Array<{ name: string; fullBlock: string; bodyText: string }> = [];
   const createRe = /\bcreate\s+(?:or\s+replace\s+)?function\s+([a-zA-Z0-9_."]+)\s*\(/gi;
   let match: RegExpExecArray | null;
   while ((match = createRe.exec(sql)) !== null) {
@@ -147,22 +200,31 @@ function extractSqlCreateFunctionBlocks(sql: string): Array<{ name: string; full
     const name = match[1];
     const rest = sql.slice(start);
     const semiIdx = rest.search(/;\s*(?:\n|$)/);
-    // Find the $$ or $tag$ delimiter closing if present so inner `;` statements don't truncate the block.
+    // Match either a $tag$...$tag$ dollar-quoted body or a single-quoted AS '...' body.
     const tagMatch = /\$[A-Za-z0-9_]*\$/.exec(rest);
-    if (tagMatch) {
+    const singleQuoteMatch = /\bas\s+'((?:''|[^'])*)'/i.exec(rest);
+    if (tagMatch && (!singleQuoteMatch || tagMatch.index < singleQuoteMatch.index)) {
       const tag = tagMatch[0];
       const openIdx = tagMatch.index + tag.length;
       const closeIdx = rest.indexOf(tag, openIdx);
       if (closeIdx !== -1) {
         const afterClose = rest.indexOf(";", closeIdx + tag.length);
         const end = afterClose !== -1 ? start + afterClose + 1 : start + closeIdx + tag.length;
-        out.push({ name, fullBlock: sql.slice(start, end) });
+        out.push({ name, fullBlock: sql.slice(start, end), bodyText: rest.slice(openIdx, closeIdx) });
         createRe.lastIndex = end;
         continue;
       }
+    } else if (singleQuoteMatch) {
+      const afterQuote = rest.indexOf(";", singleQuoteMatch.index + singleQuoteMatch[0].length);
+      const end = afterQuote !== -1 ? start + afterQuote + 1 : start + singleQuoteMatch.index + singleQuoteMatch[0].length;
+      const decodedBody = singleQuoteMatch[1].replace(/''/g, "'");
+      out.push({ name, fullBlock: sql.slice(start, end), bodyText: decodedBody });
+      createRe.lastIndex = end;
+      continue;
     }
     const fallbackEnd = semiIdx !== -1 ? start + semiIdx + 1 : sql.length;
-    out.push({ name, fullBlock: sql.slice(start, fallbackEnd) });
+    const fullBlock = sql.slice(start, fallbackEnd);
+    out.push({ name, fullBlock, bodyText: fullBlock });
   }
   return out;
 }
@@ -186,9 +248,12 @@ export const SqlSecurityDefinerCurrentUserRule: Rule = {
 
     for (const block of extractSqlCreateFunctionBlocks(noComments)) {
       if (!/\bsecurity\s+definer\b/i.test(block.fullBlock)) continue;
-      // Preserve explicit `auth.role() = 'service_role' or current_user = 'service_role'` dual service checks
-      const stripped = stripSqlStringsPreservingStructure(block.fullBlock)
-        .replace(/auth\.role\(\)[\s\S]{0,60}?\bor\s+current_user\s*=\s*''/gi, "");
+      // Preserve only explicit dual service_role checks BEFORE stripping SQL strings.
+      const withoutDualServiceCheck = stripComments(block.bodyText, "sql").replace(
+        /\(\s*(?:coalesce\s*\(\s*\(?\s*select\s+auth\.role\(\)\s*\)?\s*=\s*'service_role'\s*,\s*false\s*\)|auth\.role\(\)\s*=\s*'service_role')\s+or\s+current_user\s*=\s*'service_role'\s*\)/gi,
+        "",
+      );
+      const stripped = stripSqlStringsPreservingStructure(withoutDualServiceCheck);
       if (!/\bcurrent_user\b/i.test(stripped)) continue;
 
       findings.push({
@@ -218,8 +283,8 @@ export const DotenvWithoutOverrideRule: Rule = {
     const filePath = normalizePosixPath(ctx.filePath);
     if (isTestFile(filePath)) return findings;
 
-    let dotenvDefaultName: string | undefined;
-    let dotenvConfigNamed: string | undefined;
+    const dotenvNamespaces = new Set<string>();
+    const dotenvConfigNamed = new Set<string>();
 
     for (const imp of source.getImportDeclarations()) {
       const mod = imp.getModuleSpecifierValue();
@@ -233,26 +298,28 @@ export const DotenvWithoutOverrideRule: Rule = {
         });
       }
       if (mod === "dotenv") {
-        dotenvDefaultName = imp.getDefaultImport()?.getText();
+        const def = imp.getDefaultImport()?.getText();
+        if (def) dotenvNamespaces.add(def);
+        const ns = imp.getNamespaceImport()?.getText();
+        if (ns) dotenvNamespaces.add(ns);
         for (const named of imp.getNamedImports()) {
           if (named.getName() === "config") {
-            dotenvConfigNamed = (named.getAliasNode() ?? named.getNameNode()).getText();
+            dotenvConfigNamed.add((named.getAliasNode() ?? named.getNameNode()).getText());
           }
         }
       }
     }
 
-    if (!dotenvDefaultName && !dotenvConfigNamed) return findings;
+    if (dotenvNamespaces.size === 0 && dotenvConfigNamed.size === 0) return findings;
 
     source.forEachDescendant((node) => {
       if (!Node.isCallExpression(node)) return;
       const expr = node.getExpression();
       const isDotenvCall =
-        (dotenvDefaultName &&
-          Node.isPropertyAccessExpression(expr) &&
-          expr.getExpression().getText() === dotenvDefaultName &&
+        (Node.isPropertyAccessExpression(expr) &&
+          dotenvNamespaces.has(expr.getExpression().getText()) &&
           expr.getName() === "config") ||
-        (dotenvConfigNamed && Node.isIdentifier(expr) && expr.getText() === dotenvConfigNamed);
+        (Node.isIdentifier(expr) && dotenvConfigNamed.has(expr.getText()));
       if (!isDotenvCall) return;
 
       const args = node.getArguments();
@@ -288,13 +355,29 @@ function isLiteralPlaceholder(node: Node): boolean {
   return false;
 }
 
-function isSafeReplacementArg(node: Node): boolean {
+function isCallableIdentifier(node: Node, source: SourceFile): boolean {
+  if (!Node.isIdentifier(node)) return false;
+  const name = node.getText();
+  if (source.getFunction(name)) return true;
+  for (const decl of source.getDescendantsOfKind(SyntaxKind.VariableDeclaration)) {
+    if (decl.getName() !== name) continue;
+    const init = decl.getInitializer();
+    if (init && (Node.isArrowFunction(init) || Node.isFunctionExpression(init))) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function isSafeReplacementArg(node: Node, source: SourceFile): boolean {
   if (Node.isArrowFunction(node) || Node.isFunctionExpression(node)) return true;
+  if (isCallableIdentifier(node, source)) return true;
   if (Node.isStringLiteral(node) || Node.isNoSubstitutionTemplateLiteral(node)) {
     return !node.getLiteralText().includes("$");
   }
-  const text = node.getText();
-  if (/^encodeURIComponent\s*\(/.test(text)) return true;
+  if (Node.isCallExpression(node) && node.getExpression().getText() === "encodeURIComponent") {
+    return true;
+  }
   return false;
 }
 
@@ -322,7 +405,7 @@ export const ReplaceWithDynamicDollarReplacementRule: Rule = {
       const args = node.getArguments();
       if (args.length < 2) return;
       if (!isLiteralPlaceholder(args[0])) return;
-      if (isSafeReplacementArg(args[1])) return;
+      if (isSafeReplacementArg(args[1], source)) return;
 
       findings.push({
         file: filePath,
