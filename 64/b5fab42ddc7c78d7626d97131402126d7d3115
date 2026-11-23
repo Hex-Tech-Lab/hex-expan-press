@@ -1,0 +1,32 @@
+web/__tests__/brand-and-legal.test.ts
+  h_e6b68dcbbd0983 63,73
+web/e2e/consistency-high.spec.ts
+  h_e6b68dcbbd0983 67-68
+web/public/books/legal/privacy.html
+  h_e6b68dcbbd0983 20,23-24,27-28,32,35,41-45,49,52,55,58,61,66-67
+web/public/books/legal/providers.html
+  h_e6b68dcbbd0983 21,23,26,32,35-39,53
+web/public/books/legal/refund-policy.html
+  h_e6b68dcbbd0983 20,22,26,28-29,32,35,38
+web/public/books/legal/terms.html
+  h_e6b68dcbbd0983 20,23,26,28-29,31-32,34-35,38,41,44,46-47,50,53,55-56,58-59
+web/public/legal/providers.html
+  h_e6b68dcbbd0983 2,21,23,31-32,36-37
+web/public/privacy.html
+  h_e6b68dcbbd0983 19,22,24-25,29-33,39-42,44,48,51,54,56-57,60,65-66
+web/public/refund-policy.html
+  h_e6b68dcbbd0983 2,20,22,26,28-29,32,35
+web/public/terms.html
+  h_e6b68dcbbd0983 19,21-22,24-25,27-28,30-31,33-35,37-38,40-41,43-44,46-47,49
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "64b5fab42ddc7c78d7626d97131402126d7d3115",
+  "prompts": {},
+  "humans": {
+    "h_e6b68dcbbd0983": {
+      "author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
