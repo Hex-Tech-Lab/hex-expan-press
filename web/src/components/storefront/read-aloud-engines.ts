@@ -11,13 +11,14 @@ import {
   wordEndAt,
   type PreviewAudioPageTrack,
 } from "./read-aloud-audio";
-import type { ReadAloudWord } from "./read-aloud-state";
+import type { PendingSeekPosition, ReadAloudWord } from "./read-aloud-state";
 
 export interface AudioQueueState {
   tracks: PreviewAudioPageTrack[];
   trackIdx: number;
   candidates: string[];
   candidateIdx: number;
+  pendingSeek?: PendingSeekPosition | null;
 }
 
 /** Stops HTMLAudioElement playback cleanly and optionally clears src + cached source URL. */
@@ -217,16 +218,26 @@ export function runPrebakedTrackQueue(cb: AudioTrackSessionCallbacks): void {
       return;
     }
 
-    cb.setQueue({ tracks, trackIdx, candidates, candidateIdx });
+    let handledFailure = false;
+    let pendingSeekSec: number | null = seekSec > 0 ? seekSec : null;
+    const pendingChunk = initialIdx !== null ? chunks[initialIdx] : undefined;
+    const queueState: AudioQueueState = {
+      tracks,
+      trackIdx,
+      candidates,
+      candidateIdx,
+      pendingSeek:
+        pendingSeekSec !== null && initialIdx !== null && pendingChunk
+          ? { chunkId: pendingChunk.id, chunkIdx: initialIdx, timeSec: pendingSeekSec }
+          : null,
+    };
+    cb.setQueue(queueState);
     if (initialIdx !== null) cb.onChunkActive(initialIdx, seekSec);
 
     const syncWordForTime = (timeSec: number) => {
       cb.onWordChange(raSettings.highlight_words ? activeWordForTrackTime(track, timeSec) : null);
     };
     syncWordForTime(seekSec);
-
-    let handledFailure = false;
-    let pendingSeekSec: number | null = seekSec > 0 ? seekSec : null;
     const handleSourceFailure = (reason: unknown) => {
       if (cb.isStale() || handledFailure) return;
       handledFailure = true;
@@ -260,6 +271,7 @@ export function runPrebakedTrackQueue(cb: AudioTrackSessionCallbacks): void {
         const target = pendingSeekSec;
         pendingSeekSec = null;
         setAudioTimeSafely(audio, target);
+        if (Math.abs(audio.currentTime - target) <= 0.15) queueState.pendingSeek = null;
       }
     };
     audio.ontimeupdate = () => {
@@ -268,6 +280,7 @@ export function runPrebakedTrackQueue(cb: AudioTrackSessionCallbacks): void {
         if (audio.currentTime < pendingSeekSec - 0.15) return;
         pendingSeekSec = null;
       }
+      queueState.pendingSeek = null;
       const nextIdx = chunkIndexForTrackTime(track, audio.currentTime, chunks);
       if (nextIdx !== null) {
         currentChunkIdx = nextIdx;
@@ -287,12 +300,14 @@ export function runPrebakedTrackQueue(cb: AudioTrackSessionCallbacks): void {
       if (Math.abs(audio.currentTime - seekSec) > 0.05) {
         setAudioTimeSafely(audio, seekSec);
       }
+      if (Math.abs(audio.currentTime - seekSec) <= 0.15) queueState.pendingSeek = null;
     } else {
       audio.preload = "none";
       audio.src = sourceUrl;
       cb.setCurrentSource(sourceUrl);
       applyAudioPlaybackRate(audio, cb.getRate());
       setAudioTimeSafely(audio, seekSec);
+      if (Math.abs(audio.currentTime - seekSec) <= 0.15) queueState.pendingSeek = null;
     }
     playAudioWithErrorHandler(audio, (err) => handleSourceFailure(err));
   };

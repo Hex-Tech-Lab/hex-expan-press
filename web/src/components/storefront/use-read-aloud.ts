@@ -11,6 +11,7 @@ import {
   detectAudioSupport,
   detectSpeechSynthesisSupport,
   fetchPreviewAudioManifest,
+  matchedTimingChunk,
   resolveSpreadAudioTracks,
   subscribeNoop,
   type PreviewAudioManifest,
@@ -166,8 +167,9 @@ export function useReadAloud(
   }, [raSettings.continue_on_page_turn, raSettings.labels.finished_announcement]);
 
   const saveCurrentSpreadPosition = useCallback(() => {
-    const track = audioQueueRef.current?.tracks[audioQueueRef.current.trackIdx] ?? null;
-    const snap = captureSpreadPlaybackPosition(activeEngineRef.current, audioRef.current, track, positionRef.current, activeChunkIdx, chunks);
+    const queue = audioQueueRef.current;
+    const track = queue?.tracks[queue.trackIdx] ?? null;
+    const snap = captureSpreadPlaybackPosition(activeEngineRef.current, audioRef.current, track, positionRef.current, activeChunkIdx, chunks, queue?.pendingSeek);
     if (snap) recordPosition(chunkKeyRef.current, snap.chunkId, snap.chunkIdx, snap.timeSec, snap.charIndex);
   }, [activeChunkIdx, chunks, recordPosition]);
 
@@ -428,8 +430,13 @@ export function useReadAloud(
     if (!raSettings.continue_on_page_turn || playbackState === "idle") return;
     const prevLive = livePositionRef.current;
     if (activeEngineRef.current === "audio" && audioRef.current && prevLive?.key === prevKey) {
-      const liveTime = audioRef.current.currentTime;
-      savedPositionsRef.current.set(prevKey, { chunkId: prevLive.chunkId, chunkIdx: prevLive.chunkIdx, timeSec: liveTime, charIndex: prevLive.charIndex });
+      const queue = audioQueueRef.current;
+      const track = queue?.tracks[queue.trackIdx] ?? null;
+      const pending = queue?.pendingSeek;
+      const liveTime = pending ? pending.timeSec : audioRef.current.currentTime;
+      const resolvedChunkId = pending ? pending.chunkId : ((track ? matchedTimingChunk(track, liveTime)?.id : null) ?? prevLive.chunkId);
+      savedPositionsRef.current.set(prevKey, { chunkId: resolvedChunkId, chunkIdx: prevLive.chunkIdx, timeSec: liveTime, charIndex: prevLive.charIndex });
+      prevLive.chunkId = resolvedChunkId;
       prevLive.timeSec = liveTime;
     }
     if (chunks.length === 0) {

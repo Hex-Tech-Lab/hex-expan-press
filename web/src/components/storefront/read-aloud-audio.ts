@@ -45,16 +45,36 @@ export function subscribeNoop(): () => void {
   return () => {};
 }
 
+/** Validates and reconstructs a safe manifest URL under an allowed relative `/books/*` path or `https://` origin. */
+export function resolveSafeAudioManifestUrl(url: string, basePath: string): string | null {
+  if (typeof url !== "string" || url.trim() === "") return null;
+  const trimmed = url.trim();
+  if (trimmed.includes("..") || trimmed.includes("\\")) return null;
+  const cleanBase = basePath.replace(/\/+$/, "");
+  if (/^\/[a-z0-9/_-]+$/i.test(cleanBase) && trimmed.startsWith(`${cleanBase}/`)) {
+    const match = /^([a-z0-9/_-]+\.json)$/i.exec(trimmed.slice(cleanBase.length + 1));
+    return match ? `${cleanBase}/${match[1]}` : null;
+  }
+  if (trimmed.startsWith("https://") && URL.canParse(trimmed)) {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol !== "https:" || parsed.username || parsed.password) return null;
+    if (!/\.json$/i.test(parsed.pathname)) return null;
+    return `${parsed.origin}${parsed.pathname}${parsed.search}`;
+  }
+  return null;
+}
+
 /** Fetches and validates a pre-baked preview audio manifest with AbortController cancellation. */
 export function fetchPreviewAudioManifest(
   url: string,
   basePath: string,
   onLoaded: (manifest: PreviewAudioManifest) => void,
 ): () => void {
-  if (typeof fetch !== "function") return () => {};
+  const safeUrl = resolveSafeAudioManifestUrl(url, basePath);
+  if (!safeUrl || typeof fetch !== "function") return () => {};
   const controller = new AbortController();
   let cancelled = false;
-  fetch(url, { signal: controller.signal })
+  fetch(safeUrl, { signal: controller.signal })
     .then((res) => (res.ok ? res.json() : null))
     .then((raw) => {
       if (cancelled) return;
@@ -248,7 +268,7 @@ function normalizeChunkText(text: string): string {
   return text.replace(/\s+/g, " ").trim();
 }
 
-function matchedTimingChunk(track: PreviewAudioPageTrack, timeSec: number): PreviewAudioTimingChunk | null {
+export function matchedTimingChunk(track: PreviewAudioPageTrack, timeSec: number): PreviewAudioTimingChunk | null {
   if (track.chunks.length === 0) return null;
   const posMs = Math.max(0, timeSec * 1000);
   let matched = track.chunks[0];

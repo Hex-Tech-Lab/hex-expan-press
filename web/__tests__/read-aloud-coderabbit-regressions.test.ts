@@ -4,9 +4,14 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_GLOBAL } from "../../payments/src/settings_registry";
-import type { PreviewAudioManifest, PreviewAudioPageTrack } from "../src/components/storefront/read-aloud-audio";
+import {
+  resolveSafeAudioManifestUrl,
+  type PreviewAudioManifest,
+  type PreviewAudioPageTrack,
+} from "../src/components/storefront/read-aloud-audio";
 import type { ReadAloudChunk } from "../src/components/storefront/book-previewer-text";
 import { runPrebakedTrackQueue } from "../src/components/storefront/read-aloud-engines";
+import { captureSpreadPlaybackPosition } from "../src/components/storefront/read-aloud-state";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -439,5 +444,74 @@ describe("PR #162 CodeRabbit regressions for Read-Aloud engine and orientation c
     lmAudio.currentTime = 1.2;
     lmAudio.onerror?.();
     expect(onLandmarkFallback).toHaveBeenCalledWith(0, "Front cover. ".length);
+  });
+
+  it("validates manifest URLs safely, preserves pending seek before metadata, and syncs chunkId with currentTime across orientation change", async () => {
+    expect(resolveSafeAudioManifestUrl("/books/audio/sample/timings.json", "/books/audio")).toBe(
+      "/books/audio/sample/timings.json",
+    );
+    expect(resolveSafeAudioManifestUrl("https://cdn.example.com/books/timings.json", "/books/audio")).toBe(
+      "https://cdn.example.com/books/timings.json",
+    );
+    expect(resolveSafeAudioManifestUrl("http://insecure.example/timings.json", "/books/audio")).toBeNull();
+    expect(resolveSafeAudioManifestUrl("/books/audio/../secret.json", "/books/audio")).toBeNull();
+    expect(resolveSafeAudioManifestUrl("https://user:pass@cdn.example.com/timings.json", "/books/audio")).toBeNull();
+
+    // PRRT_kwDOUrokqs668azv: pendingSeek overrides stale audio.currentTime=0 before metadata loads
+    const seekChunks: ReadAloudChunk[] = [
+      { id: "c0", pageIndex: 0, blockIndex: 0, text: "First." },
+      { id: "c1", pageIndex: 0, blockIndex: 0, text: "Second." },
+    ];
+    const seekTrack: PreviewAudioPageTrack = {
+      pageIndex: 0,
+      pdfPageNumber: 1,
+      audioUrl: "/books/audio/test_book/page-01.webm",
+      durationMs: 10000,
+      chunks: [
+        { id: "c0", blockIndex: 0, text: "First.", startMs: 0, endMs: 4000 },
+        { id: "c1", blockIndex: 0, text: "Second.", startMs: 5000, endMs: 9000 },
+      ],
+    };
+    const zeroClockAudio = { currentTime: 0 } as unknown as HTMLAudioElement;
+    expect(
+      captureSpreadPlaybackPosition("audio", zeroClockAudio, seekTrack, null, 1, seekChunks, {
+        chunkId: "c1",
+        chunkIdx: 1,
+        timeSec: 5,
+      }),
+    ).toEqual({ chunkId: "c1", chunkIdx: 1, timeSec: 5, charIndex: 0 });
+
+    // PRRT_kwDOUrokqs668az5: currentTime advancing into next chunk without timeupdate carries over matching chunkId & timeSec
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    await act(async () => {
+      root!.render(
+        React.createElement(BookPreviewer, {
+          previewPdfUrl: "/books/previews/test.pdf",
+          previewAudioManifestUrl: "/books/audio/test_book/timings.json",
+          bookTitle: "Test Book",
+          settings: DEFAULT_GLOBAL.book_preview,
+        }),
+      );
+    });
+    await flush();
+    await flush();
+    await act(async () => {
+      (container!.querySelector('button[aria-label="Next preview page"]') as HTMLButtonElement).click();
+    });
+    await act(async () => {
+      (container!.querySelector('[data-testid="book-preview-accessible-toggle"]') as HTMLButtonElement).click();
+    });
+    await act(async () => {
+      (container!.querySelector('[data-testid="read-aloud-sentence"][data-chunk-id="p2-b1-s0"]') as HTMLElement).click();
+    });
+    const audio = MockAudioElement.instances[0];
+    audio.currentTime = 3.2; // Inside p2-b1-s1 (2720..3900ms) without firing ontimeupdate
+    await act(async () => flipMocks.instances[0].emitOrientation("portrait"));
+    await flush();
+    expect(
+      container.querySelector('[data-testid="read-aloud-sentence"][data-chunk-id="p2-b1-s1"]')?.getAttribute("data-active"),
+    ).toBe("true");
   });
 });

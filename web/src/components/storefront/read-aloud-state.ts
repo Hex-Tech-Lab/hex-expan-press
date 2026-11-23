@@ -20,6 +20,12 @@ export interface SavedSpreadPosition {
   charIndex: number;
 }
 
+export interface PendingSeekPosition {
+  chunkId: string;
+  chunkIdx: number;
+  timeSec: number;
+}
+
 export interface LiveSpreadPosition extends SavedSpreadPosition {
   key: string;
 }
@@ -122,8 +128,12 @@ export function captureSpreadPlaybackPosition(
   speechPos: { idx: number; charIndex: number } | null,
   activeChunkIdx: number | null,
   chunks: ReadonlyArray<ReadAloudChunk>,
+  pendingSeek?: PendingSeekPosition | null,
 ): SavedSpreadPosition | null {
   if (engine === "audio" && audio) {
+    if (pendingSeek) {
+      return { chunkId: pendingSeek.chunkId, chunkIdx: pendingSeek.chunkIdx, timeSec: pendingSeek.timeSec, charIndex: 0 };
+    }
     const resolvedIdx = (activeTrack ? chunkIndexForTrackTime(activeTrack, audio.currentTime, chunks) : activeChunkIdx) ?? activeChunkIdx ?? 0;
     const chunk = chunks[resolvedIdx];
     return chunk ? { chunkId: chunk.id, chunkIdx: resolvedIdx, timeSec: audio.currentTime, charIndex: 0 } : null;
