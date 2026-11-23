@@ -1,0 +1,18 @@
+scripts/qa-intel/engine/rules/__tests__/lessons-20261123.test.ts
+  h_e6b68dcbbd0983 1-165
+scripts/qa-intel/engine/rules/index.ts
+  h_e6b68dcbbd0983 63
+scripts/qa-intel/engine/rules/lessons-20261123.ts
+  h_e6b68dcbbd0983 1-339
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "77449f9a5d5615f0d57cf0d461187f89758cc83b",
+  "prompts": {},
+  "humans": {
+    "h_e6b68dcbbd0983": {
+      "author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
