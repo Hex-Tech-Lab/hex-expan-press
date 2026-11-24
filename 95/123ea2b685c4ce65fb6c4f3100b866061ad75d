@@ -1,0 +1,18 @@
+scripts/__tests__/test_commit_guard.py
+  h_e6b68dcbbd0983 185-194
+scripts/install_commit_guard.sh
+  h_e6b68dcbbd0983 3,5-22,25-28,31
+scripts/jev.py
+  h_e6b68dcbbd0983 15,23-39,43-52
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "95123ea2b685c4ce65fb6c4f3100b866061ad75d",
+  "prompts": {},
+  "humans": {
+    "h_e6b68dcbbd0983": {
+      "author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
