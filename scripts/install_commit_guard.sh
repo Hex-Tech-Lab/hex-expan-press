@@ -8,6 +8,7 @@ TOP="$(git -C "$LOCAL_REPO" rev-parse --show-toplevel 2>/dev/null || echo "$LOCA
 COMMON_DIR="$(git -C "$TOP" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
 FALLBACK_REPO="$LOCAL_REPO"
 [ -n "$COMMON_DIR" ] && FALLBACK_REPO="$(cd "$(dirname "$COMMON_DIR")" && pwd)"
+INSTALL_COMMON="${COMMON_DIR:-$TOP/.git}"
 
 CORE_HP="$(git -C "$TOP" config --get core.hooksPath 2>/dev/null || true)"
 if [ -n "$CORE_HP" ]; then
@@ -22,6 +23,8 @@ HOOK="$(git -C "$TOP" rev-parse --git-path hooks/pre-commit 2>/dev/null || echo 
 
 BODY="#!/usr/bin/env bash
 # T37-W1c commit guard (I8+I9). Blocks staged secrets / business-sensitive text / forbidden paths.
+RUNTIME_COMMON=\"\$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)\"
+[ \"\$RUNTIME_COMMON\" = '$INSTALL_COMMON' ] || exit 0
 TOP=\"\$(git rev-parse --show-toplevel 2>/dev/null || printf '%s' '$FALLBACK_REPO')\"
 GUARD=\"\$TOP/scripts/commit_guard.py\"
 [ -f \"\$GUARD\" ] || GUARD='$FALLBACK_REPO/scripts/commit_guard.py'

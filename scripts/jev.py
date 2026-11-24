@@ -47,7 +47,12 @@ def _key():
     for env in candidates:
         if not env.exists():
             continue
-        for line in env.read_text().splitlines():
+        try:
+            content = env.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as exc:
+            print(f"jev: could not read {env.name}: {type(exc).__name__}", file=sys.stderr)
+            continue
+        for line in content.splitlines():
             if line.startswith("OPENROUTER_API_KEY="):
                 return line.split("=", 1)[1].strip().strip('"')
     return None
