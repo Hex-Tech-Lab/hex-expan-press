@@ -12,6 +12,7 @@ Requires OPENROUTER_API_KEY in .env and "TypeSafe" in the account's allowed prov
 import json
 import os
 import pathlib
+import subprocess
 import sys
 import urllib.request
 
@@ -19,15 +20,41 @@ URL = "https://openrouter.ai/api/alpha/decisions"
 MODEL = "~typesafe/jev-latest"
 
 
+def _common_env():
+    """Return the main repo .env when running inside a linked git worktree."""
+    try:
+        common_dir = subprocess.check_output(
+            ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
+            cwd=pathlib.Path(__file__).resolve().parent.parent,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            timeout=2,
+        ).strip()
+        if common_dir:
+            return pathlib.Path(common_dir).parent / ".env"
+    except Exception as exc:
+        print(f"jev: common-dir .env lookup skipped: {exc}", file=sys.stderr)
+    return None
+
+
 def _key():
     if os.environ.get("OPENROUTER_API_KEY"):
         return os.environ["OPENROUTER_API_KEY"]
-    env = pathlib.Path(__file__).resolve().parent.parent / ".env"
-    if not env.exists():  # CI / fresh clone: no key -> callers fall back to UNCHECKED
-        return None
-    for line in env.read_text().splitlines():
-        if line.startswith("OPENROUTER_API_KEY="):
-            return line.split("=", 1)[1].strip().strip('"')
+    candidates = [pathlib.Path(__file__).resolve().parent.parent / ".env"]
+    common_env = _common_env()
+    if common_env and common_env not in candidates:
+        candidates.append(common_env)
+    for env in candidates:
+        if not env.exists():
+            continue
+        try:
+            content = env.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as exc:
+            print(f"jev: could not read {env.name}: {type(exc).__name__}", file=sys.stderr)
+            continue
+        for line in content.splitlines():
+            if line.startswith("OPENROUTER_API_KEY="):
+                return line.split("=", 1)[1].strip().strip('"')
     return None
 
 
