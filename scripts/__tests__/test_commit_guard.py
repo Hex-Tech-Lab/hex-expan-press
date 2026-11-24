@@ -182,6 +182,16 @@ class JevClientTests(unittest.TestCase):
                 mock.patch.object(jev.urllib.request, "urlopen", return_value=resp):
             self.assertEqual(jev.decide("x", {}), {"q": {"noul": 0.1}})
 
+    def test_key_falls_back_to_common_dir_env_in_worktree(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            common_root = Path(tmp) / "main"
+            common_root.mkdir()
+            (common_root / ".env").write_text('OPENROUTER_API_KEY="worktree-test-key"\n')
+            with mock.patch.dict(os.environ, {}, clear=True), \
+                    mock.patch.object(jev, "__file__", str(Path(tmp) / "wt" / "scripts" / "jev.py")), \
+                    mock.patch.object(jev, "_common_env", return_value=common_root / ".env"):
+                self.assertEqual(jev._key(), "worktree-test-key")
+
 
 if __name__ == "__main__":
     unittest.main()
