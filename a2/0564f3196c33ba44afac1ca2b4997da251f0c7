@@ -1,0 +1,23 @@
+.gitignore
+  s_0c865bbd36aa90::t_12d2dc34b1fb46 103-110
+scripts/__tests__/test_commit_guard.py
+  s_0c865bbd36aa90::t_6acaa7f2e0e13c 48-64
+scripts/commit_guard.py
+  s_0c865bbd36aa90::t_039bf21ae564c8 8-9,30-32
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a20564f3196c33ba44afac1ca2b4997da251f0c7",
+  "prompts": {},
+  "sessions": {
+    "s_0c865bbd36aa90": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e91868c0-df8b-453c-a369-daac76d67031",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
