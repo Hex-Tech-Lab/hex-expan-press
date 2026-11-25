@@ -5,7 +5,8 @@ Reads `git diff --cached` (read-only git) or a synthetic diff via --diff-file (f
 Deterministic layer (any hit sets a BLOCK verdict; the remaining files are still checked):
   - key-like strings: sk-..., Bearer <token>, AKIA..., 32+ char hex/base64 on a line near key/token/secret
   - .env content: added lines that are dotenv-style assignments for secret-ish variable names
-  - forbidden paths: any added file under data/, adr/, manuscript/book/, docs/history/ (Rule #0)
+  - forbidden paths: any added file under data/, adr/, manuscript/book/, docs/history/, and the private
+    working folders docs/handover/, handover/, docs/ops/, docs/plans/, docs/intel/, docs/templates/ (Rule #0)
 Jev layer on added TEXT hunks (<=60 lines each): two noul questions per hunk:
   business_sensitive - pricing strategy, revenue split, contract terms, council decisions,
                        creator financial details, legal strategy
@@ -26,7 +27,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from jev import decide  # noqa: E402
 
 LO, HI = 0.5, 0.8
-FORBIDDEN_DIRS = ("data/", "adr/", "manuscript/book/", "docs/history/", "typst_prototype/img_v3/")
+# Private working material lives in the private repo (hex-expan-private); public gets final releases only.
+FORBIDDEN_DIRS = ("data/", "adr/", "manuscript/book/", "docs/history/", "typst_prototype/img_v3/",
+                  "docs/handover/", "handover/", "docs/ops/", "docs/plans/", "docs/intel/", "docs/templates/")
 QUESTIONS = {
     "business_sensitive": {"type": "noul",
         "instructions": "Does this diff hunk expose business-sensitive material: pricing strategy, revenue split, "

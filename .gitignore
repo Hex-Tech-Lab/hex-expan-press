@@ -100,3 +100,11 @@ docs/handover/B2B_B2C_COMPARISON.html
 
 # code-review-graph machine-local DB (build-graph skill)
 .code-review-graph/
+
+# Private working material (Rule #0): lives in hex-expan-private, never here.
+/docs/handover
+/handover
+/docs/ops/
+/docs/plans/
+/docs/intel/
+/docs/templates/

@@ -45,6 +45,23 @@ def run_guard(diff, *, decide_result, env=None, extra_args=()):
         raise AssertionError("commit_guard.main() did not exit")
 
 
+class PrivateFolderTests(unittest.TestCase):
+    """Private working material (handovers, ops notes, plans) must never be added to the public repo."""
+
+    def test_each_private_folder_is_blocked(self):
+        for path in ("docs/handover/x.md", "handover/x.md", "docs/ops/x.html", "docs/plans/x.md",
+                     "docs/intel/x.md", "docs/templates/x.md"):
+            with self.subTest(path=path):
+                code, out, _ = run_guard(diff_adding(["hello"], path=path), decide_result=CLEAN)
+                self.assertEqual(code, 1)
+                self.assertIn(f"BLOCK: forbidden path staged: {path}", out)
+
+    def test_similar_public_path_is_not_blocked(self):
+        code, out, _ = run_guard(diff_adding(["hello"], path="docs/handover-guide.md"), decide_result=CLEAN)
+        self.assertNotIn("forbidden path", out)
+        self.assertEqual(code, 0)
+
+
 class ChunkingTests(unittest.TestCase):
     def test_hunk_over_60_lines_is_split_and_no_line_is_dropped(self):
         lines = [f"line {i}" for i in range(1, 131)]
