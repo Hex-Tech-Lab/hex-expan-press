@@ -1,5 +1,5 @@
 import { Resend } from "resend";
-import { GLOBAL } from "./settings_registry.ts";
+import { GLOBAL, isSingleMailbox, mailboxAddress } from "./settings_registry.ts";
 
 export interface SendEmailInput {
   to: string;
@@ -54,12 +54,13 @@ export const isRetryableError = (
   return false;
 };
 
-/** Extracts the address from `Name <addr>` or a bare address. */
-const addressOf = (from: string): string => (from.match(/<([^>]+)>/)?.[1] ?? from).trim().toLowerCase();
+// The From parser and the single-mailbox rule live in the registry, so config load and send share one rule.
+const addressOf = mailboxAddress;
 
-/** True when `from` is on the configured sending domain or one of its subdomains. */
+/** True when `from` is on the configured sending domain or one of its subdomains. The host is taken after the last `@`. */
 export const isOnSendingDomain = (from: string, domain: string = GLOBAL.email.streams.buyer_delivery.domain): boolean => {
-  const host = addressOf(from).split("@")[1] ?? "";
+  if (!isSingleMailbox(from)) return false;
+  const host = addressOf(from).split("@").pop() ?? "";
   const d = domain.toLowerCase();
   return host === d || host.endsWith(`.${d}`);
 };

@@ -1734,12 +1734,32 @@ export function jwtSkewRetryDelayMs(): number {
  * Vercel preview builds run with NODE_ENV=production, so the guard keys on VERCEL_ENV, not NODE_ENV alone.
  */
 
-// Preview hosts are scoped to this project (hex-expan-press.vercel.app or hex-expan-press-*.vercel.app), the same scope the sign-in origin uses.
-const DOWNLOAD_ORIGIN_ALLOWED_HOST = /^(([a-z0-9-]+\.)*expanpress\.com|hex-expan-press(-[a-z0-9-]+)?\.vercel\.app)$/i;
+// Preview hosts must carry this team's suffix (hex-expan-press[-branch]-techhypexps-projects.vercel.app). An unscoped *.vercel.app name can be claimed by anyone.
+// Subdomains of expanpress.com only: the apex is the production origin, and a preview must never mint links there.
+const DOWNLOAD_ORIGIN_ALLOWED_HOST = /^(([a-z0-9-]+\.)+expanpress\.com|hex-expan-press(-[a-z0-9-]+)?-techhypexps-projects\.vercel\.app)$/i;
+/** Extracts the address from `Name <addr>` or a bare address, lower-cased. One rule for config load and for send. */
+export const mailboxAddress = (from: string): string => (from.match(/<([^>]+)>/)?.[1] ?? from).trim().toLowerCase();
+
+/**
+ * True when `from` names exactly one mailbox: one address, no comma, no second `<`, no spaces in the address.
+ * Resend receives the whole header, so a second mailbox smuggled in after the first would be sent.
+ */
+export const isSingleMailbox = (from: string): boolean => {
+  if (from.includes(",") || from.split("<").length > 2) return false;
+  const bare = mailboxAddress(from);
+  return bare.split("@").length === 2 && !/\s/.test(bare);
+};
+
+// Root and reserved domains never send mail (buyer and ops streams are subdomains).
+const RESERVED_STREAM_DOMAINS = ["expanpress.com", "esign.expanpress.com"];
 export function downloadOriginOverride(rawOrigin: string): string | null {
+  // Fail closed: allowed only on a Vercel preview or development build, or a local test/development run with no Vercel env.
   const vercelEnv = process.env.VERCEL_ENV;
-  if (vercelEnv === "production") return null;
-  if (process.env.NODE_ENV === "production" && vercelEnv === undefined) return null;
+  const allowedEnv =
+    vercelEnv === "preview" ||
+    vercelEnv === "development" ||
+    (vercelEnv === undefined && (process.env.NODE_ENV === "test" || process.env.NODE_ENV === "development"));
+  if (!allowedEnv) return null;
   let url: URL;
   try {
     url = new URL(rawOrigin.trim());
@@ -1761,10 +1781,20 @@ export function loadDeliverySection(raw: Record<string, unknown> | undefined): G
   const isSection = !!raw && typeof raw === "object" && !Array.isArray(raw);
   if (!isSection && envOrigin === undefined) return defaults;
   const record = { ...(isSection ? raw : {}) } as Partial<GlobalSettings["delivery"]> & Record<string, unknown>;
-  if (envOrigin !== undefined && envOrigin.trim() !== "") {
+  if (envOrigin !== undefined) {
     const allowed = downloadOriginOverride(envOrigin);
-    if (allowed) record.download_origin = allowed;
-    else warnFallback("env", "DELIVERY_DOWNLOAD_ORIGIN refused: production, non-https, or host not allowlisted");
+    if (allowed) {
+      record.download_origin = allowed;
+    } else {
+      // On a production build a bad override is ignored (the production origin is correct there).
+      // On any other build it was meant to apply, so it fails loudly instead of silently linking buyers to production.
+      const onProduction =
+        process.env.VERCEL_ENV === "production" || (process.env.VERCEL_ENV === undefined && process.env.NODE_ENV === "production");
+      if (!onProduction) {
+        throw new Error("DELIVERY_DOWNLOAD_ORIGIN refused on a non-production build: must be an https subdomain of expanpress.com or the team-scoped hex-expan-press preview host");
+      }
+      warnFallback("env", "DELIVERY_DOWNLOAD_ORIGIN refused on production; the registry origin is used");
+    }
   }
   const fallbacks: string[] = [];
   const str = (
@@ -1887,8 +1917,6 @@ export function loadEmailSection(raw: Record<string, unknown> | undefined): Glob
   }
   if (rawSender !== undefined && rawFrom === undefined && isAddr(merged.sender)) {
     merged.from = merged.sender;
-  } else if (rawFrom !== undefined && rawSender === undefined && isAddr(merged.from)) {
-    merged.sender = merged.from;
   }
   // Each outbound stream needs a valid From address and its verified subdomain. A partial override keeps the default for the other stream.
   const streamsRaw = rawEmail.streams;
@@ -1905,7 +1933,12 @@ export function loadEmailSection(raw: Record<string, unknown> | undefined): Glob
     // A `sending_domain` override (the older alias) still sets the buyer stream's domain when the stream does not set one.
     const domainOverride = key === "buyer_delivery" && perKey.domain === undefined && typeof rawEmail.sending_domain === "string" ? { domain: rawEmail.sending_domain } : {};
     const candidate = { ...defaults.streams[key], ...perKey, ...senderOverride, ...domainOverride };
-    const valid = isAddr(candidate.from) && typeof candidate.domain === "string" && candidate.domain.includes(".") && !candidate.domain.includes("@");
+    // A stream domain must be a subdomain (never the root or the reserved esign domain), and its From address must sit on that domain.
+    const domainText = typeof candidate.domain === "string" ? candidate.domain.trim().toLowerCase() : "";
+    const fromHost = isAddr(candidate.from) ? (mailboxAddress(candidate.from).split("@").pop() ?? "") : "";
+    const reserved = RESERVED_STREAM_DOMAINS.includes(domainText);
+    const fromOnDomain = fromHost === domainText || fromHost.endsWith(`.${domainText}`);
+    const valid = isAddr(candidate.from) && isSingleMailbox(candidate.from) && domainText.includes(".") && !domainText.includes("@") && !reserved && fromOnDomain;
     if (!valid) {
       warnFallback("global.json", `invalid email stream values for ${key}`);
       merged.streams[key] = defaults.streams[key];

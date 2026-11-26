@@ -391,12 +391,12 @@ describe("settings registry: paddle.overlay, storefront, and provider display na
     const e = loadEmailSection({
       support: "help@expanpress.com",
       billing: "invalid-no-at",
-      sender: "ExpanPress <mailer@expanpress.com>",
+      sender: "ExpanPress <mailer@mail.expanpress.com>",
     });
     expect(e.support).toBe("help@expanpress.com");
     expect(e.billing).toBe("billing@expanpress.com");
-    expect(e.sender).toBe("ExpanPress <mailer@expanpress.com>");
-    expect(e.from).toBe("ExpanPress <mailer@expanpress.com>");
+    expect(e.sender).toBe("ExpanPress <mailer@mail.expanpress.com>");
+    expect(e.from).toBe("ExpanPress <mailer@mail.expanpress.com>");
     warn.mockRestore();
   });
 });
