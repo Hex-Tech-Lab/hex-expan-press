@@ -32,6 +32,8 @@ const PAY_ALLOWED_EXACT_API = ["/api/billing/checkout"];
 // Buyer legal set only (B2C). The creator (B2B) set at /terms.html, /privacy.html, /refund-policy.html and
 // /legal/providers.html governs the creator relationship and is NOT served on pay.
 const PAY_ALLOWED_EXACT = [
+  // Paddle's default checkout page for transaction links (`/checkout?_ptxn=txn_...`).
+  "/checkout",
   "/books/legal/terms.html",
   "/books/legal/privacy.html",
   "/books/legal/refund-policy.html",
