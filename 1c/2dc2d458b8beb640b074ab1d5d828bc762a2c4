@@ -1,0 +1,39 @@
+payments/test/email_stream_loader.test.ts
+  s_0c865bbd36aa90::t_90f4582b312c51 1-34,40-59
+  s_0c865bbd36aa90::t_ee0698c2ac6d23 35-39
+payments/src/email.ts
+  s_0c865bbd36aa90::t_6337001a6862ac 2
+  s_0c865bbd36aa90::t_209aac7d166e98 57-58
+  s_0c865bbd36aa90::t_d48bc622f26085 60,62-63
+payments/test/settings_registry_runtime.test.ts
+  s_0c865bbd36aa90::t_74130d8c438ec0 394,398-399
+payments/src/settings_registry.ts
+  s_0c865bbd36aa90::t_164bd3e42c1ff6 1740-1752
+  s_0c865bbd36aa90::t_e84f669352d0c0 1739
+  s_0c865bbd36aa90::t_b0316b0608cb88 1936-1937,1939-1940
+  s_0c865bbd36aa90::t_39fe84cbf95423 1938,1941
+  s_0c865bbd36aa90::t_725749c9f80701 1756,1758-1762
+  s_0c865bbd36aa90::t_9c67c70134e1da 1738,1753-1754
+  s_0c865bbd36aa90::t_19ef2a6e16f706 1784
+  s_0c865bbd36aa90::t_162f8addb38b72 1737
+  s_0c865bbd36aa90::t_be1708e9e18779 1786-1797
+payments/test/download_origin_override.test.ts
+  s_0c865bbd36aa90::t_cd5279d5e113be 2,5-6,22-24,31-37,44-50,57-64,75-80,106
+  s_0c865bbd36aa90::t_a904be5af28bb9 85-102
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1c2dc2d458b8beb640b074ab1d5d828bc762a2c4",
+  "prompts": {},
+  "sessions": {
+    "s_0c865bbd36aa90": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e91868c0-df8b-453c-a369-daac76d67031",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
