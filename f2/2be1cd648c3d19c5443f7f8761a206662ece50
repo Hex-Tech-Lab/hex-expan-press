@@ -1,0 +1,35 @@
+payments/src/settings_registry.ts
+  s_0c865bbd36aa90::t_12433eda45a520 1890-1892
+  s_0c865bbd36aa90::t_44e15507a3f7f3 103-108,118-127,129,132
+  s_0c865bbd36aa90::t_64b766c957c8df 1730-1735,1737-1751,1754-1761
+  s_0c865bbd36aa90::t_83813b94a34b81 1885-1889,1893-1904
+  s_0c865bbd36aa90::t_89c139d0d85ee2 823-830
+  s_0c865bbd36aa90::t_cee37abd87151b 1736
+payments/test/download_origin_override.test.ts
+  s_0c865bbd36aa90::t_cf826f4ec139f8 1-59
+web/__tests__/email-roles.test.ts
+  s_0c865bbd36aa90::t_eea88af8c33ddf 15-26
+payments/src/email.ts
+  s_0c865bbd36aa90::t_75402a7e88572c 61
+  s_0c865bbd36aa90::t_4c81727df6a16e 67
+  s_0c865bbd36aa90::t_e53e6efea44a3a 76-81
+  s_0c865bbd36aa90::t_154e6fe39b51de 11-12
+payments/test/email.test.ts
+  s_0c865bbd36aa90::t_48945a22a026dc 72,76-91
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "f22be1cd648c3d19c5443f7f8761a206662ece50",
+  "prompts": {},
+  "sessions": {
+    "s_0c865bbd36aa90": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e91868c0-df8b-453c-a369-daac76d67031",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
