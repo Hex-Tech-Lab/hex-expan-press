@@ -32,8 +32,32 @@ describe("email stream loader (global.json overrides)", () => {
     expect(loadEmailSection([] as never).streams).toEqual(DEFAULT_GLOBAL.email.streams);
   });
 
+  it("refuses a double-bracket From with a second mailbox, at load and at send", () => {
+    const from = "A <x@mail.expanpress.com> <y@evil.example>";
+    expect(isOnSendingDomain(from, "mail.expanpress.com")).toBe(false);
+    const email = loadEmailSection({ streams: { buyer_delivery: { from, domain: "mail.expanpress.com" } } });
+    expect(email.streams.buyer_delivery).toEqual(DEFAULT_BUYER);
+  });
+
   it("refuses a two-mailbox From at load, so it never reaches send", () => {
     const email = loadEmailSection({ streams: { buyer_delivery: { from: "Support <x@mail.expanpress.com>, Bad <y@mail.expanpress.com>", domain: "mail.expanpress.com" } } });
+    expect(email.streams.buyer_delivery).toEqual(DEFAULT_BUYER);
+  });
+
+  it("refuses text after the closing bracket of a From, which Resend would send as part of the header", () => {
+    const from = "ExpanPress <delivery@mail.expanpress.com> evil@attacker.com";
+    const email = loadEmailSection({ streams: { buyer_delivery: { from, domain: "mail.expanpress.com" } } });
+    expect(email.streams.buyer_delivery).toEqual(DEFAULT_BUYER);
+  });
+
+  it("refuses a line break in the display name (header injection)", () => {
+    const from = "\"ExpanPress\r\nBcc: spy@evil.example\" <delivery@mail.expanpress.com>";
+    const email = loadEmailSection({ streams: { buyer_delivery: { from, domain: "mail.expanpress.com" } } });
+    expect(email.streams.buyer_delivery).toEqual(DEFAULT_BUYER);
+  });
+
+  it("refuses the root domain written with a trailing dot", () => {
+    const email = loadEmailSection({ streams: { buyer_delivery: { from: "ExpanPress <d@expanpress.com.>", domain: "expanpress.com." } } });
     expect(email.streams.buyer_delivery).toEqual(DEFAULT_BUYER);
   });
 

@@ -66,20 +66,25 @@ describe("DELIVERY_DOWNLOAD_ORIGIN override (fail closed)", () => {
     ["a bare vercel.app", "https://vercel.app"],
     ["a non-allowlisted host", "https://evil.example.com"],
     ["a suffix-spoofed host", "https://expanpress.com.evil.test"],
+    ["the bare production alias of the project", "https://hex-expan-press-techhypexps-projects.vercel.app"],
+    ["a look-alike project name with the team suffix", "https://hex-expan-press-evil-techhypexps-projects.vercel.app"],
+    ["a branch alias with a trailing label", "https://hex-expan-press-git-test-techhypexps-projects.vercel.app.evil.test"],
+    ["the production apex", "https://expanpress.com"],
+    ["the www host", "https://www.expanpress.com"],
+    ["the checkout host", "https://pay.expanpress.com"],
+    ["a delivery host", "https://go.expanpress.com"],
+    ["a test subdomain of expanpress.com", "https://test.expanpress.com"],
     ["not a URL", "not a url"],
   ])("refuses %s", (_label, origin) => {
     process.env.VERCEL_ENV = "preview";
     expect(downloadOriginOverride(origin)).toBeNull();
   });
 
-  it("refuses the production apex on a preview (the apex is the production origin)", () => {
-    process.env.VERCEL_ENV = "preview";
-    expect(downloadOriginOverride("https://expanpress.com")).toBeNull();
-  });
-
-  it("accepts a subdomain of expanpress.com on a preview build", () => {
-    process.env.VERCEL_ENV = "preview";
-    expect(downloadOriginOverride("https://test.expanpress.com")).toBe("https://test.expanpress.com");
+  it("refuses a production host on a test build too (NODE_ENV=test, no VERCEL_ENV)", () => {
+    delete process.env.VERCEL_ENV;
+    process.env.NODE_ENV = "test";
+    expect(downloadOriginOverride("https://pay.expanpress.com")).toBeNull();
+    expect(downloadOriginOverride(PREVIEW)).toBe(PREVIEW);
   });
 
   it("throws on a preview build when the override is refused (no silent fall-back to the production origin)", () => {

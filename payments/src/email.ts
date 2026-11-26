@@ -80,8 +80,9 @@ export async function sendEmail({ to, subject, html, text, replyTo, stream, idem
   if (!streamSettings) {
     throw new EmailSendError(`Unknown email stream "${String(streamKey)}"`, false, undefined, true);
   }
-  // EMAIL_FROM overrides only the buyer stream; the ops stream always uses its registry address.
-  const from = streamKey === "buyer_delivery" ? process.env.EMAIL_FROM || streamSettings.from : streamSettings.from;
+  // EMAIL_FROM overrides only the buyer stream; a blank value counts as unset. The ops stream always uses its registry address.
+  const envFrom = process.env.EMAIL_FROM?.trim();
+  const from = streamKey === "buyer_delivery" ? envFrom || streamSettings.from : streamSettings.from;
   if (!isOnSendingDomain(from, streamSettings.domain)) {
     throw new EmailSendError(`From address ${addressOf(from)} is not on ${streamSettings.domain}`, false, undefined, true);
   }

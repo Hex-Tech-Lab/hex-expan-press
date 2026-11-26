@@ -1730,25 +1730,24 @@ export function jwtSkewRetryDelayMs(): number {
 /**
  * DELIVERY_DOWNLOAD_ORIGIN override for a test deployment, so a test link validates against the test database and never production.
  * Returns the origin when allowed, otherwise null. Refused on Vercel production, on non-Vercel production (NODE_ENV=production
- * without VERCEL_ENV), for anything but a bare https origin, and for any host outside expanpress.com, its subdomains and *.vercel.app.
+ * without VERCEL_ENV), for anything but a bare https origin, and for any host other than this project's branch preview alias.
  * Vercel preview builds run with NODE_ENV=production, so the guard keys on VERCEL_ENV, not NODE_ENV alone.
  */
 
-// Preview hosts must carry this team's suffix (hex-expan-press[-branch]-techhypexps-projects.vercel.app). An unscoped *.vercel.app name can be claimed by anyone.
-// Subdomains of expanpress.com only: the apex is the production origin, and a preview must never mint links there.
-const DOWNLOAD_ORIGIN_ALLOWED_HOST = /^(([a-z0-9-]+\.)+expanpress\.com|hex-expan-press(-[a-z0-9-]+)?-techhypexps-projects\.vercel\.app)$/i;
+// Only this project's Vercel branch alias (hex-expan-press-git-<branch>-techhypexps-projects.vercel.app) is a preview host.
+// It is anchored, so the bare production alias and look-alike names are refused, and no expanpress.com host is accepted:
+// a preview must never mint links on a production host (apex, www, pay, go, mail, ...).
+const DOWNLOAD_ORIGIN_ALLOWED_HOST = /^hex-expan-press-git-[a-z0-9-]+-techhypexps-projects\.vercel\.app$/i;
 /** Extracts the address from `Name <addr>` or a bare address, lower-cased. One rule for config load and for send. */
 export const mailboxAddress = (from: string): string => (from.match(/<([^>]+)>/)?.[1] ?? from).trim().toLowerCase();
 
 /**
- * True when `from` names exactly one mailbox: one address, no comma, no second `<`, no spaces in the address.
- * Resend receives the whole header, so a second mailbox smuggled in after the first would be sent.
+ * True when `from` is exactly one mailbox: `addr` or `Display Name <addr>`, nothing after the closing `>`.
+ * No comma, semicolon, quote, angle bracket or line break outside the address form, and no whitespace in the address.
+ * Resend receives the whole header, so anything smuggled beside the mailbox would be sent.
  */
-export const isSingleMailbox = (from: string): boolean => {
-  if (from.includes(",") || from.split("<").length > 2) return false;
-  const bare = mailboxAddress(from);
-  return bare.split("@").length === 2 && !/\s/.test(bare);
-};
+const SINGLE_MAILBOX = /^(?:[^<>,;"\r\n]*<[^<>,;"\s]+@[^<>,;"\s]+>|[^<>,;"\s]+@[^<>,;"\s]+)$/;
+export const isSingleMailbox = (from: string): boolean => SINGLE_MAILBOX.test(from.trim());
 
 // Root and reserved domains never send mail (buyer and ops streams are subdomains).
 const RESERVED_STREAM_DOMAINS = ["expanpress.com", "esign.expanpress.com"];
@@ -1934,7 +1933,8 @@ export function loadEmailSection(raw: Record<string, unknown> | undefined): Glob
     const domainOverride = key === "buyer_delivery" && perKey.domain === undefined && typeof rawEmail.sending_domain === "string" ? { domain: rawEmail.sending_domain } : {};
     const candidate = { ...defaults.streams[key], ...perKey, ...senderOverride, ...domainOverride };
     // A stream domain must be a subdomain (never the root or the reserved esign domain), and its From address must sit on that domain.
-    const domainText = typeof candidate.domain === "string" ? candidate.domain.trim().toLowerCase() : "";
+    // A trailing dot names the same zone (`expanpress.com.`), so it is stripped before the reserved check and the match.
+    const domainText = typeof candidate.domain === "string" ? candidate.domain.trim().toLowerCase().replace(/\.$/, "") : "";
     const fromHost = isAddr(candidate.from) ? (mailboxAddress(candidate.from).split("@").pop() ?? "") : "";
     const reserved = RESERVED_STREAM_DOMAINS.includes(domainText);
     const fromOnDomain = fromHost === domainText || fromHost.endsWith(`.${domainText}`);
@@ -1943,7 +1943,7 @@ export function loadEmailSection(raw: Record<string, unknown> | undefined): Glob
       warnFallback("global.json", `invalid email stream values for ${key}`);
       merged.streams[key] = defaults.streams[key];
     } else {
-      merged.streams[key] = { from: candidate.from.trim(), domain: candidate.domain.trim().toLowerCase() };
+      merged.streams[key] = { from: candidate.from.trim(), domain: domainText };
     }
   }
   // The buyer stream is the default sender; its aliases follow it.

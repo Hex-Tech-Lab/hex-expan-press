@@ -2,8 +2,15 @@
 // stuck-claim window. Each guard falls back to the default instead of widening what the code may do.
 import { describe, it, expect, vi } from "vitest";
 import {
-  loadUsageWatchSection,
+  loadAdminSection,
+  loadBookPreviewSection,
+  loadBrandingSection,
   loadDeliverySection,
+  loadEmailSection,
+  loadLandingSection,
+  loadPaymentsSection,
+  loadStorefrontSection,
+  loadUsageWatchSection,
   DEFAULT_GLOBAL,
   CONSENT_EVIDENCE_SEGMENT_CONTRACT,
 } from "../src/settings_registry";
@@ -70,6 +77,24 @@ describe("consent evidence segment contract is independent of registry overrides
     expect(envelopeId.test("x/y")).toBe(false);
     expect(envelopeId.test("env id")).toBe(false);
     expect(envelopeId.test("unknown/../../etc")).toBe(false);
+  });
+});
+
+// A scalar or array section in global.json must fall back to the defaults, never throw and never spread indices.
+describe("registry section guards: non-object input falls back to defaults", () => {
+  it.each([
+    ["loadPaymentsSection", () => loadPaymentsSection, () => DEFAULT_GLOBAL.payments],
+    ["loadStorefrontSection", () => loadStorefrontSection, () => DEFAULT_GLOBAL.storefront],
+    ["loadLandingSection", () => loadLandingSection, () => DEFAULT_GLOBAL.landing],
+    ["loadBrandingSection", () => loadBrandingSection, () => DEFAULT_GLOBAL.branding],
+    ["loadUsageWatchSection", () => loadUsageWatchSection, () => DEFAULT_GLOBAL.usage_watch],
+    ["loadAdminSection", () => loadAdminSection, () => DEFAULT_GLOBAL.admin],
+    ["loadBookPreviewSection", () => loadBookPreviewSection, () => DEFAULT_GLOBAL.book_preview],
+    ["loadDeliverySection", () => loadDeliverySection, () => DEFAULT_GLOBAL.delivery],
+    ["loadEmailSection", () => loadEmailSection, () => DEFAULT_GLOBAL.email],
+  ])("%s treats a scalar and an array as absent", (_name, load, defaults) => {
+    expect(load()("oops" as never)).toEqual(defaults());
+    expect(load()([] as never)).toEqual(defaults());
   });
 });
 

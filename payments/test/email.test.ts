@@ -73,6 +73,29 @@ describe("payments/src/email", () => {
     expect(sendMock).not.toHaveBeenCalled();
   });
 
+  it("sends the buyer stream from an on-domain EMAIL_FROM override", async () => {
+    process.env.RESEND_API_KEY = "test-key";
+    process.env.EMAIL_FROM = "ExpanPress <delivery@mail.expanpress.com>";
+    sendMock.mockResolvedValue({ data: { id: "buyer-1" }, error: null });
+    await sendEmail({ to: "a@b.c", subject: "s", html: "<p>hi</p>", text: "hi" });
+    expect(sendMock.mock.calls[0][0].from).toBe("ExpanPress <delivery@mail.expanpress.com>");
+  });
+
+  it("treats a blank EMAIL_FROM as unset and uses the registry buyer From", async () => {
+    process.env.RESEND_API_KEY = "test-key";
+    process.env.EMAIL_FROM = "   ";
+    sendMock.mockResolvedValue({ data: { id: "buyer-2" }, error: null });
+    await sendEmail({ to: "a@b.c", subject: "s", html: "<p>hi</p>", text: "hi" });
+    expect(sendMock.mock.calls[0][0].from).toBe(GLOBAL.email.streams.buyer_delivery.from);
+  });
+
+  it("refuses a buyer EMAIL_FROM with text after the mailbox, before any request", async () => {
+    process.env.RESEND_API_KEY = "test-key";
+    process.env.EMAIL_FROM = "ExpanPress <delivery@mail.expanpress.com> evil@attacker.com";
+    await expect(sendEmail({ to: "a@b.c", subject: "s", html: "<p>hi</p>", text: "hi" })).rejects.toThrow(/not on mail\.expanpress\.com/);
+    expect(sendMock).not.toHaveBeenCalled();
+  });
+
   it("sends the ops stream from its own address even when EMAIL_FROM is set", async () => {
     process.env.RESEND_API_KEY = "test-key";
     process.env.EMAIL_FROM = "Spoof <noreply@mail.expanpress.com>";
