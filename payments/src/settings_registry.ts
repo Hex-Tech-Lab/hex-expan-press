@@ -1746,7 +1746,7 @@ export const mailboxAddress = (from: string): string => (from.match(/<([^>]+)>/)
  * No comma, semicolon, quote, angle bracket or line break outside the address form, and no whitespace in the address.
  * Resend receives the whole header, so anything smuggled beside the mailbox would be sent.
  */
-const SINGLE_MAILBOX = /^(?:[^<>,;"\x00-\x1f]*<[^<>,;"\s@\x00-\x1f]+@[^<>,;"\s@\x00-\x1f]+>|[^<>,;"\s@\x00-\x1f]+@[^<>,;"\s@\x00-\x1f]+)$/;
+const SINGLE_MAILBOX = /^(?:[^<>,;"@\x00-\x1f]*<[^<>,;"\s@\x00-\x1f]+@[^<>,;"\s@\x00-\x1f]+>|[^<>,;"\s@\x00-\x1f]+@[^<>,;"\s@\x00-\x1f]+)$/;
 export const isSingleMailbox = (from: string): boolean => SINGLE_MAILBOX.test(from.trim());
 
 // Empty or whitespace-only VERCEL_ENV counts as unset, so the gate and the production check read the same value.
@@ -1922,6 +1922,10 @@ export function loadEmailSection(raw: Record<string, unknown> | undefined): Glob
   if (rawSender !== undefined && rawFrom === undefined && isAddr(merged.sender)) {
     merged.from = merged.sender;
   }
+  // When both are set and differ, `from` wins; say so instead of dropping `sender` silently.
+  if (isAddr(rawSender) && isAddr(rawFrom) && rawSender.trim() !== rawFrom.trim()) {
+    warnFallback("global.json", "email.sender and email.from differ; from is used");
+  }
   // Each outbound stream needs a valid From address and its verified subdomain. A partial override keeps the default for the other stream.
   const streamsRaw = rawEmail.streams;
   const isPlainObject = (value: unknown): value is Record<string, unknown> => !!value && typeof value === "object" && !Array.isArray(value);
@@ -1948,7 +1952,14 @@ export function loadEmailSection(raw: Record<string, unknown> | undefined): Glob
     const fromHost = isAddr(candidate.from) ? (mailboxAddress(candidate.from).split("@").pop() ?? "") : "";
     const reserved = RESERVED_STREAM_DOMAINS.includes(domainText);
     const fromOnDomain = fromHost === domainText || fromHost.endsWith(`.${domainText}`);
-    const valid = isAddr(candidate.from) && isSingleMailbox(candidate.from) && domainText.includes(".") && !domainText.includes("@") && !reserved && fromOnDomain;
+    // A stream lives under our own zone: a subdomain of expanpress.com, never another domain.
+    const valid =
+      isAddr(candidate.from) &&
+      isSingleMailbox(candidate.from) &&
+      domainText.endsWith(".expanpress.com") &&
+      !domainText.includes("@") &&
+      !reserved &&
+      fromOnDomain;
     if (!valid) {
       warnFallback("global.json", `invalid email stream values for ${key}`);
       merged.streams[key] = defaults.streams[key];

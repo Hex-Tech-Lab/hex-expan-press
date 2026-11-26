@@ -107,6 +107,14 @@ describe("DELIVERY_DOWNLOAD_ORIGIN override (fail closed)", () => {
     expect(loadDeliverySection(undefined).download_origin).toBe(DEFAULT_GLOBAL.delivery.download_origin);
   });
 
+  it("on a non-Vercel production build, the loader ignores a refused override and keeps the registry origin", () => {
+    delete process.env.VERCEL_ENV;
+    process.env.NODE_ENV = "production";
+    process.env.DELIVERY_DOWNLOAD_ORIGIN = "https://evil.example";
+    expect(() => loadDeliverySection(undefined)).not.toThrow();
+    expect(loadDeliverySection(undefined).download_origin).toBe(DEFAULT_GLOBAL.delivery.download_origin);
+  });
+
   it("treats an empty VERCEL_ENV as unset: a refused override on production is ignored, not thrown", () => {
     process.env.VERCEL_ENV = "";
     process.env.NODE_ENV = "production";
