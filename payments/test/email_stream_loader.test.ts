@@ -56,6 +56,18 @@ describe("email stream loader (global.json overrides)", () => {
     expect(email.streams.buyer_delivery).toEqual(DEFAULT_BUYER);
   });
 
+  it("refuses a From address with a second @ (the send-time host would be the wrong one)", () => {
+    const from = "attacker@evil.com@mail.expanpress.com";
+    expect(isOnSendingDomain(from, "mail.expanpress.com")).toBe(false);
+    const email = loadEmailSection({ streams: { buyer_delivery: { from, domain: "mail.expanpress.com" } } });
+    expect(email.streams.buyer_delivery).toEqual(DEFAULT_BUYER);
+  });
+
+  it("refuses the root domain written with a double trailing dot", () => {
+    const email = loadEmailSection({ streams: { buyer_delivery: { from: "a@expanpress.com..", domain: "expanpress.com.." } } });
+    expect(email.streams.buyer_delivery).toEqual(DEFAULT_BUYER);
+  });
+
   it("refuses the root domain written with a trailing dot", () => {
     const email = loadEmailSection({ streams: { buyer_delivery: { from: "ExpanPress <d@expanpress.com.>", domain: "expanpress.com." } } });
     expect(email.streams.buyer_delivery).toEqual(DEFAULT_BUYER);

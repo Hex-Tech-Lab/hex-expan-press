@@ -107,6 +107,13 @@ describe("DELIVERY_DOWNLOAD_ORIGIN override (fail closed)", () => {
     expect(loadDeliverySection(undefined).download_origin).toBe(DEFAULT_GLOBAL.delivery.download_origin);
   });
 
+  it("treats an empty VERCEL_ENV as unset: a refused override on production is ignored, not thrown", () => {
+    process.env.VERCEL_ENV = "";
+    process.env.NODE_ENV = "production";
+    process.env.DELIVERY_DOWNLOAD_ORIGIN = "https://evil.example";
+    expect(loadDeliverySection(undefined).download_origin).toBe(DEFAULT_GLOBAL.delivery.download_origin);
+  });
+
   it("treats an empty DELIVERY_DOWNLOAD_ORIGIN as unset", () => {
     process.env.VERCEL_ENV = "preview";
     process.env.DELIVERY_DOWNLOAD_ORIGIN = "   ";

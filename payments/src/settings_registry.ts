@@ -1746,14 +1746,17 @@ export const mailboxAddress = (from: string): string => (from.match(/<([^>]+)>/)
  * No comma, semicolon, quote, angle bracket or line break outside the address form, and no whitespace in the address.
  * Resend receives the whole header, so anything smuggled beside the mailbox would be sent.
  */
-const SINGLE_MAILBOX = /^(?:[^<>,;"\r\n]*<[^<>,;"\s]+@[^<>,;"\s]+>|[^<>,;"\s]+@[^<>,;"\s]+)$/;
+const SINGLE_MAILBOX = /^(?:[^<>,;"\x00-\x1f]*<[^<>,;"\s@\x00-\x1f]+@[^<>,;"\s@\x00-\x1f]+>|[^<>,;"\s@\x00-\x1f]+@[^<>,;"\s@\x00-\x1f]+)$/;
 export const isSingleMailbox = (from: string): boolean => SINGLE_MAILBOX.test(from.trim());
+
+// Empty or whitespace-only VERCEL_ENV counts as unset, so the gate and the production check read the same value.
+const deployVercelEnv = (): string | undefined => process.env.VERCEL_ENV?.trim() || undefined;
 
 // Root and reserved domains never send mail (buyer and ops streams are subdomains).
 const RESERVED_STREAM_DOMAINS = ["expanpress.com", "esign.expanpress.com"];
 export function downloadOriginOverride(rawOrigin: string): string | null {
   // Fail closed: allowed only on a Vercel preview or development build, or a local test/development run with no Vercel env.
-  const vercelEnv = process.env.VERCEL_ENV;
+  const vercelEnv = deployVercelEnv();
   const allowedEnv =
     vercelEnv === "preview" ||
     vercelEnv === "development" ||
@@ -1787,10 +1790,12 @@ export function loadDeliverySection(raw: Record<string, unknown> | undefined): G
     } else {
       // On a production build a bad override is ignored (the production origin is correct there).
       // On any other build it was meant to apply, so it fails loudly instead of silently linking buyers to production.
-      const onProduction =
-        process.env.VERCEL_ENV === "production" || (process.env.VERCEL_ENV === undefined && process.env.NODE_ENV === "production");
+      const vercelEnv = deployVercelEnv();
+      const onProduction = vercelEnv === "production" || (vercelEnv === undefined && process.env.NODE_ENV === "production");
       if (!onProduction) {
-        throw new Error("DELIVERY_DOWNLOAD_ORIGIN refused on a non-production build: must be an https subdomain of expanpress.com or the team-scoped hex-expan-press preview host");
+        throw new Error(
+          "DELIVERY_DOWNLOAD_ORIGIN refused on a non-production build: must be the team-scoped hex-expan-press branch preview host (https, no port, path, query or credentials)",
+        );
       }
       warnFallback("env", "DELIVERY_DOWNLOAD_ORIGIN refused on production; the registry origin is used");
     }
@@ -1934,7 +1939,7 @@ export function loadEmailSection(raw: Record<string, unknown> | undefined): Glob
     const candidate = { ...defaults.streams[key], ...perKey, ...senderOverride, ...domainOverride };
     // A stream domain must be a subdomain (never the root or the reserved esign domain), and its From address must sit on that domain.
     // A trailing dot names the same zone (`expanpress.com.`), so it is stripped before the reserved check and the match.
-    const domainText = typeof candidate.domain === "string" ? candidate.domain.trim().toLowerCase().replace(/\.$/, "") : "";
+    const domainText = typeof candidate.domain === "string" ? candidate.domain.trim().toLowerCase().replace(/\.+$/, "") : "";
     const fromHost = isAddr(candidate.from) ? (mailboxAddress(candidate.from).split("@").pop() ?? "") : "";
     const reserved = RESERVED_STREAM_DOMAINS.includes(domainText);
     const fromOnDomain = fromHost === domainText || fromHost.endsWith(`.${domainText}`);
