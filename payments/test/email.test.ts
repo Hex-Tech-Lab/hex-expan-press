@@ -69,15 +69,26 @@ describe("payments/src/email", () => {
   it("refuses a From address off the sending domain", async () => {
     process.env.RESEND_API_KEY = "test-key";
     process.env.EMAIL_FROM = "Spoof <noreply@expanpress.com.evil.test>";
-    await expect(sendEmail({ to: "a@b.c", subject: "s", html: "<p>hi</p>", text: "hi" })).rejects.toThrow(/not on expanpress.com/);
+    await expect(sendEmail({ to: "a@b.c", subject: "s", html: "<p>hi</p>", text: "hi" })).rejects.toThrow(/not on mail\.expanpress\.com/);
     expect(sendMock).not.toHaveBeenCalled();
   });
 
-  it("matches the sending domain and its subdomains only", () => {
-    expect(isOnSendingDomain("ExpanPress <signin@ops.expanpress.com>")).toBe(true);
-    expect(isOnSendingDomain("support@expanpress.com")).toBe(true);
-    expect(isOnSendingDomain("a@notexpanpress.com")).toBe(false);
-    expect(isOnSendingDomain("a@expanpress.com.evil.test")).toBe(false);
+  it("matches each stream's own subdomain and its subdomains only", () => {
+    const { buyer_delivery, ops_alerts } = GLOBAL.email.streams;
+    expect(isOnSendingDomain(buyer_delivery.from, buyer_delivery.domain)).toBe(true);
+    expect(isOnSendingDomain(ops_alerts.from, ops_alerts.domain)).toBe(true);
+    // A buyer address is not valid on the ops subdomain, and the other way round.
+    expect(isOnSendingDomain(buyer_delivery.from, ops_alerts.domain)).toBe(false);
+    expect(isOnSendingDomain(ops_alerts.from, buyer_delivery.domain)).toBe(false);
+    expect(isOnSendingDomain("a@notmail.expanpress.com", "mail.expanpress.com")).toBe(false);
+    expect(isOnSendingDomain("a@mail.expanpress.com.evil.test", "mail.expanpress.com")).toBe(false);
+  });
+
+  it("never sends from the root domain or from the reserved esign subdomain", () => {
+    const streamDomains = Object.values(GLOBAL.email.streams).map((s) => s.domain);
+    expect(streamDomains).not.toContain("expanpress.com");
+    expect(streamDomains).not.toContain("esign.expanpress.com");
+    expect(isOnSendingDomain("delivery@expanpress.com", GLOBAL.email.streams.buyer_delivery.domain)).toBe(false);
   });
 
   it.each([

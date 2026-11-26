@@ -8,6 +8,8 @@ export interface SendEmailInput {
   /** Plain-text part — required: HTML-only mail scores worse with spam filters. */
   text: string;
   replyTo?: string;
+  /** Which outbound stream sends it (`GLOBAL.email.streams`). Defaults to buyer delivery. */
+  stream?: "buyer_delivery" | "ops_alerts";
   /** Sent as Resend's Idempotency-Key: a retry with the same key and payload is not a second email (Resend keeps keys for 24 hours). */
   idempotencyKey?: string;
 }
@@ -56,13 +58,13 @@ export const isRetryableError = (
 const addressOf = (from: string): string => (from.match(/<([^>]+)>/)?.[1] ?? from).trim().toLowerCase();
 
 /** True when `from` is on the configured sending domain or one of its subdomains. */
-export const isOnSendingDomain = (from: string, domain: string = GLOBAL.email.sending_domain): boolean => {
+export const isOnSendingDomain = (from: string, domain: string = GLOBAL.email.streams.buyer_delivery.domain): boolean => {
   const host = addressOf(from).split("@")[1] ?? "";
   const d = domain.toLowerCase();
   return host === d || host.endsWith(`.${d}`);
 };
 
-export async function sendEmail({ to, subject, html, text, replyTo, idempotencyKey }: SendEmailInput): Promise<{ id: string }> {
+export async function sendEmail({ to, subject, html, text, replyTo, stream, idempotencyKey }: SendEmailInput): Promise<{ id: string }> {
   const apiKey = process.env.RESEND_API_KEY;
   // The checks below run before any request, so nothing can have been sent.
   if (!apiKey) {
@@ -71,9 +73,12 @@ export async function sendEmail({ to, subject, html, text, replyTo, idempotencyK
   if (!text.trim()) {
     throw new EmailSendError("Email text part is empty — send multipart (html + text)", false, undefined, true);
   }
-  const from = process.env.EMAIL_FROM || GLOBAL.email.sender;
-  if (!isOnSendingDomain(from)) {
-    throw new EmailSendError(`From address ${addressOf(from)} is not on ${GLOBAL.email.sending_domain}`, false, undefined, true);
+  const streamKey = stream ?? "buyer_delivery";
+  const streamSettings = GLOBAL.email.streams[streamKey];
+  // EMAIL_FROM overrides only the buyer stream; the ops stream always uses its registry address.
+  const from = streamKey === "buyer_delivery" ? process.env.EMAIL_FROM || streamSettings.from : streamSettings.from;
+  if (!isOnSendingDomain(from, streamSettings.domain)) {
+    throw new EmailSendError(`From address ${addressOf(from)} is not on ${streamSettings.domain}`, false, undefined, true);
   }
 
   const resend = new Resend(apiKey);

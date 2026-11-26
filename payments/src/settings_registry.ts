@@ -100,6 +100,12 @@ export interface BrandCheckoutSettings {
   button_border_radius_px: number;
 }
 
+/** One outbound mail stream: its From header and the subdomain Resend verifies for it. */
+export interface EmailStreamSettings {
+  from: string;
+  domain: string;
+}
+
 export interface EmailRolesSettings {
   /** General customer support and creator portal assistance. */
   support: string;
@@ -109,11 +115,21 @@ export interface EmailRolesSettings {
   privacy: string;
   /** Terms of service, DMCA, contract, and IP compliance. */
   legal: string;
-  /** Outbound transactional sender display name and address. */
+  /**
+   * Outbound streams. Each stream has its own subdomain so sender reputation stays separate.
+   * The root domain never sends mail. `esign.expanpress.com` is reserved for creator, publisher and
+   * agreement email and is not a stream here until it is verified in Resend.
+   */
+  streams: {
+    buyer_delivery: EmailStreamSettings;
+    ops_alerts: EmailStreamSettings;
+  };
+  /** Alias of `streams.buyer_delivery.from`, kept for existing callers. */
   sender: string;
-  /** Alias kept in sync with `sender` for existing callers/tests. */
+  /** Alias of `streams.buyer_delivery.from`, kept for existing callers and tests. */
   from: string;
   reply_to: string;
+  /** Alias of `streams.buyer_delivery.domain`, kept for existing callers. */
   sending_domain: string;
   retryable_error_names: string[];
   /** Resend HTTP status for a concurrent request with the same idempotency key: the original may still be accepted, so the outcome is unconfirmed. */
@@ -804,10 +820,14 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     billing: "billing@expanpress.com",
     privacy: "privacy@expanpress.com",
     legal: "legal@expanpress.com",
-    sender: "ExpanPress <delivery@expanpress.com>",
-    from: "ExpanPress <delivery@expanpress.com>",
-    reply_to: "support@expanpress.com", // has MX (registrar forwarding); the esign/ops subdomains do not
-    sending_domain: "expanpress.com",
+    streams: {
+      buyer_delivery: { from: "ExpanPress <delivery@mail.expanpress.com>", domain: "mail.expanpress.com" },
+      ops_alerts: { from: "ExpanPress Ops <alerts@ops.expanpress.com>", domain: "ops.expanpress.com" },
+    },
+    sender: "ExpanPress <delivery@mail.expanpress.com>",
+    from: "ExpanPress <delivery@mail.expanpress.com>",
+    reply_to: "support@expanpress.com", // has MX (registrar forwarding); the mail/ops/esign subdomains do not
+    sending_domain: "mail.expanpress.com",
     retryable_error_names: [
       "rate_limit_exceeded",
       "application_error",
@@ -1707,10 +1727,38 @@ export function jwtSkewRetryDelayMs(): number {
   return clampJwtSkewDelay(GLOBAL.portal?.jwt_clock_skew_retry_delay_ms);
 }
 
+/**
+ * DELIVERY_DOWNLOAD_ORIGIN override for a test deployment, so a test link validates against the test database and never production.
+ * Returns the origin when allowed, otherwise null. Refused on Vercel production, on non-Vercel production (NODE_ENV=production
+ * without VERCEL_ENV), for anything but a bare https origin, and for any host outside expanpress.com, its subdomains and *.vercel.app.
+ * Vercel preview builds run with NODE_ENV=production, so the guard keys on VERCEL_ENV, not NODE_ENV alone.
+ */
+const DOWNLOAD_ORIGIN_ALLOWED_HOST = /^(([a-z0-9-]+\.)*expanpress\.com|([a-z0-9-]+\.)+vercel\.app)$/i;
+export function downloadOriginOverride(rawOrigin: string): string | null {
+  const vercelEnv = process.env.VERCEL_ENV;
+  if (vercelEnv === "production") return null;
+  if (process.env.NODE_ENV === "production" && vercelEnv === undefined) return null;
+  let url: URL;
+  try {
+    url = new URL(rawOrigin.trim());
+  } catch {
+    return null;
+  }
+  if (url.protocol !== "https:" || url.pathname !== "/" || url.search !== "" || url.hash !== "") return null;
+  if (!DOWNLOAD_ORIGIN_ALLOWED_HOST.test(url.hostname)) return null;
+  return url.origin;
+}
+
 export function loadDeliverySection(raw: Record<string, unknown> | undefined): GlobalSettings["delivery"] {
   const defaults = DEFAULT_GLOBAL.delivery;
-  if (!raw) return defaults;
-  const record = raw as Partial<GlobalSettings["delivery"]> & Record<string, unknown>;
+  const envOrigin = process.env.DELIVERY_DOWNLOAD_ORIGIN;
+  if (!raw && envOrigin === undefined) return defaults;
+  const record = { ...((raw ?? {}) as Partial<GlobalSettings["delivery"]> & Record<string, unknown>) };
+  if (envOrigin !== undefined && envOrigin.trim() !== "") {
+    const allowed = downloadOriginOverride(envOrigin);
+    if (allowed) record.download_origin = allowed;
+    else warnFallback("env", "DELIVERY_DOWNLOAD_ORIGIN refused: production, non-https, or host not allowlisted");
+  }
   const fallbacks: string[] = [];
   const str = (
     key:
@@ -1834,6 +1882,26 @@ export function loadEmailSection(raw: Record<string, unknown> | undefined): Glob
   } else if (rawFrom !== undefined && rawSender === undefined && isAddr(merged.from)) {
     merged.sender = merged.from;
   }
+  // Each outbound stream needs a valid From address and its verified subdomain. A partial override keeps the default for the other stream.
+  const rawStreams = (rawEmail.streams ?? {}) as Partial<Record<"buyer_delivery" | "ops_alerts", Partial<EmailStreamSettings>>>;
+  const streamKeys = ["buyer_delivery", "ops_alerts"] as const;
+  merged.streams = { ...defaults.streams };
+  for (const key of streamKeys) {
+    // A `sender`/`from` override (already aligned above) still sets the buyer stream's From address, so existing overrides keep working.
+    const senderOverride = key === "buyer_delivery" && rawStreams.buyer_delivery?.from === undefined ? { from: merged.from } : {};
+    const candidate = { ...defaults.streams[key], ...(rawStreams[key] ?? {}), ...senderOverride };
+    const valid = isAddr(candidate.from) && typeof candidate.domain === "string" && candidate.domain.includes(".") && !candidate.domain.includes("@");
+    if (!valid) {
+      warnFallback("global.json", `invalid email stream values for ${key}`);
+      merged.streams[key] = defaults.streams[key];
+    } else {
+      merged.streams[key] = { from: candidate.from.trim(), domain: candidate.domain.trim().toLowerCase() };
+    }
+  }
+  // The buyer stream is the default sender; its aliases follow it.
+  merged.sender = merged.streams.buyer_delivery.from;
+  merged.from = merged.streams.buyer_delivery.from;
+  merged.sending_domain = merged.streams.buyer_delivery.domain;
   const names = rawEmail.retryable_error_names;
   if (names !== undefined && !(Array.isArray(names) && names.length > 0 && names.every((entry) => typeof entry === "string" && entry !== "" && entry === entry.trim()))) {
     warnFallback("global.json", "invalid email values for retryable_error_names");

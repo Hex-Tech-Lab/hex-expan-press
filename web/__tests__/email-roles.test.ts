@@ -12,7 +12,18 @@ describe("Email roles registry and listed locations (EMAIL_ADDRESS_MAP)", () => 
     expect(GLOBAL.email.billing).toBe("billing@expanpress.com");
     expect(GLOBAL.email.privacy).toBe("privacy@expanpress.com");
     expect(GLOBAL.email.legal).toBe("legal@expanpress.com");
-    expect(GLOBAL.email.sender).toBe("ExpanPress <delivery@expanpress.com>");
+    expect(GLOBAL.email.sender).toBe("ExpanPress <delivery@mail.expanpress.com>");
+  });
+
+  it("registers each outbound stream with its own subdomain (buyer delivery, ops alerts)", () => {
+    expect(GLOBAL.email.streams.buyer_delivery).toEqual({
+      from: "ExpanPress <delivery@mail.expanpress.com>",
+      domain: "mail.expanpress.com",
+    });
+    expect(GLOBAL.email.streams.ops_alerts).toEqual({
+      from: "ExpanPress Ops <alerts@ops.expanpress.com>",
+      domain: "ops.expanpress.com",
+    });
   });
 
   it("every static legal page and Supabase auth template matches its GLOBAL.email role key", () => {
