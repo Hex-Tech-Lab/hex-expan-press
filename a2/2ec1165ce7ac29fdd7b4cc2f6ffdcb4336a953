@@ -1,0 +1,27 @@
+web/src/lib/paddle-transaction-id.ts
+  s_0c865bbd36aa90::t_1c277820db62f1 1-11
+web/src/components/billing/paddle-transaction-checkout.tsx
+  s_0c865bbd36aa90::t_1c277820db62f1 1-57
+web/proxy.ts
+  s_0c865bbd36aa90::t_6bac03151fcb16 35-36
+web/app/checkout/page.tsx
+  s_0c865bbd36aa90::t_1c277820db62f1 1-32
+web/__tests__/paddle-transaction-id.test.ts
+  s_0c865bbd36aa90::t_1c277820db62f1 1-20
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a22ec1165ce7ac29fdd7b4cc2f6ffdcb4336a953",
+  "prompts": {},
+  "sessions": {
+    "s_0c865bbd36aa90": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e91868c0-df8b-453c-a369-daac76d67031",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
