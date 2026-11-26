@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { DEFAULT_GLOBAL, downloadOriginOverride, loadDeliverySection } from "../src/settings_registry.ts";
+import { DEFAULT_GLOBAL, downloadOriginOverride, loadDeliverySection, loadEmailSection } from "../src/settings_registry.ts";
 
 const ENV_KEYS = ["DELIVERY_DOWNLOAD_ORIGIN", "VERCEL_ENV", "NODE_ENV"] as const;
 const PREVIEW = "https://hex-expan-press-git-test.vercel.app";
@@ -46,6 +46,9 @@ describe("DELIVERY_DOWNLOAD_ORIGIN override (test deployments only)", () => {
     ["a query", "https://hex-expan-press-git-test.vercel.app/?x=1"],
     ["a vercel.app host outside the project", "https://some-other-app.vercel.app"],
     ["a bare vercel.app", "https://vercel.app"],
+    ["a project name without a hyphen boundary", "https://hex-expan-pressX.vercel.app"],
+    ["an explicit non-443 port", "https://expanpress.com:8443"],
+    ["user credentials", "https://user:pass@expanpress.com"],
     ["a non-allowlisted host", "https://evil.example.com"],
     ["a suffix-spoofed host", "https://expanpress.com.evil.test"],
     ["not a URL", "not a url"],
@@ -58,6 +61,18 @@ describe("DELIVERY_DOWNLOAD_ORIGIN override (test deployments only)", () => {
     process.env.VERCEL_ENV = "preview";
     expect(downloadOriginOverride("https://expanpress.com")).toBe("https://expanpress.com");
     expect(downloadOriginOverride("https://test.expanpress.com")).toBe("https://test.expanpress.com");
+  });
+
+  it("keeps a sending_domain override as the buyer stream's domain", () => {
+    const email = loadEmailSection({ sending_domain: "custom.expanpress.com" });
+    expect(email.sending_domain).toBe("custom.expanpress.com");
+    expect(email.streams.buyer_delivery.domain).toBe("custom.expanpress.com");
+    expect(email.streams.ops_alerts.domain).toBe("ops.expanpress.com");
+  });
+
+  it("treats an empty DELIVERY_DOWNLOAD_ORIGIN as unset", () => {
+    process.env.DELIVERY_DOWNLOAD_ORIGIN = "   ";
+    expect(loadDeliverySection(undefined)).toEqual(DEFAULT_GLOBAL.delivery);
   });
 
   it("treats a scalar or array delivery section as absent instead of throwing", () => {

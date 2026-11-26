@@ -84,6 +84,7 @@ describe("payments/src/email", () => {
   it("rejects an unknown stream with EmailSendError, not a TypeError", async () => {
     process.env.RESEND_API_KEY = "test-key";
     await expect(sendEmail({ to: "a@b.c", subject: "s", html: "<p>hi</p>", text: "hi", stream: "nope" as never })).rejects.toBeInstanceOf(EmailSendError);
+    await expect(sendEmail({ to: "a@b.c", subject: "s", html: "<p>hi</p>", text: "hi", stream: "toString" as never })).rejects.toBeInstanceOf(EmailSendError);
     expect(sendMock).not.toHaveBeenCalled();
   });
 

@@ -74,7 +74,8 @@ export async function sendEmail({ to, subject, html, text, replyTo, stream, idem
     throw new EmailSendError("Email text part is empty — send multipart (html + text)", false, undefined, true);
   }
   const streamKey = stream ?? "buyer_delivery";
-  const streamSettings = GLOBAL.email.streams[streamKey] as (typeof GLOBAL.email.streams)[keyof typeof GLOBAL.email.streams] | undefined;
+  // hasOwn, not a plain index: "toString" or "__proto__" must not reach a prototype value.
+  const streamSettings = Object.hasOwn(GLOBAL.email.streams, streamKey) ? GLOBAL.email.streams[streamKey] : undefined;
   if (!streamSettings) {
     throw new EmailSendError(`Unknown email stream "${String(streamKey)}"`, false, undefined, true);
   }

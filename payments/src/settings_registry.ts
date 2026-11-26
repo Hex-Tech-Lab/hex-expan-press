@@ -1734,8 +1734,8 @@ export function jwtSkewRetryDelayMs(): number {
  * Vercel preview builds run with NODE_ENV=production, so the guard keys on VERCEL_ENV, not NODE_ENV alone.
  */
 
-// Preview hosts are scoped to this project (hex-expan-press-*.vercel.app), the same scope the sign-in origin uses.
-const DOWNLOAD_ORIGIN_ALLOWED_HOST = /^(([a-z0-9-]+\.)*expanpress\.com|hex-expan-press[a-z0-9-]*\.vercel\.app)$/i;
+// Preview hosts are scoped to this project (hex-expan-press.vercel.app or hex-expan-press-*.vercel.app), the same scope the sign-in origin uses.
+const DOWNLOAD_ORIGIN_ALLOWED_HOST = /^(([a-z0-9-]+\.)*expanpress\.com|hex-expan-press(-[a-z0-9-]+)?\.vercel\.app)$/i;
 export function downloadOriginOverride(rawOrigin: string): string | null {
   const vercelEnv = process.env.VERCEL_ENV;
   if (vercelEnv === "production") return null;
@@ -1747,13 +1747,16 @@ export function downloadOriginOverride(rawOrigin: string): string | null {
     return null;
   }
   if (url.protocol !== "https:" || url.pathname !== "/" || url.search !== "" || url.hash !== "") return null;
+  // Standard HTTPS origins only: no explicit port and no user:pass@ credentials.
+  if (url.port !== "" || url.username !== "" || url.password !== "") return null;
   if (!DOWNLOAD_ORIGIN_ALLOWED_HOST.test(url.hostname)) return null;
   return url.origin;
 }
 
 export function loadDeliverySection(raw: Record<string, unknown> | undefined): GlobalSettings["delivery"] {
   const defaults = DEFAULT_GLOBAL.delivery;
-  const envOrigin = process.env.DELIVERY_DOWNLOAD_ORIGIN;
+  // An empty or whitespace-only value counts as unset.
+  const envOrigin = process.env.DELIVERY_DOWNLOAD_ORIGIN?.trim() || undefined;
   // Only a plain object is a section. A scalar or array in global.json would make `key in record` throw, so it falls back to the defaults.
   const isSection = !!raw && typeof raw === "object" && !Array.isArray(raw);
   if (!isSection && envOrigin === undefined) return defaults;
@@ -1899,7 +1902,9 @@ export function loadEmailSection(raw: Record<string, unknown> | undefined): Glob
     const senderOverride = key === "buyer_delivery" && (rawStreams.buyer_delivery as Partial<EmailStreamSettings> | undefined)?.from === undefined ? { from: merged.from } : {};
     const keyRaw = rawStreams[key];
     const perKey = (keyRaw && typeof keyRaw === "object" && !Array.isArray(keyRaw) ? keyRaw : {}) as Partial<EmailStreamSettings>;
-    const candidate = { ...defaults.streams[key], ...perKey, ...senderOverride };
+    // A `sending_domain` override (the older alias) still sets the buyer stream's domain when the stream does not set one.
+    const domainOverride = key === "buyer_delivery" && perKey.domain === undefined && typeof rawEmail.sending_domain === "string" ? { domain: rawEmail.sending_domain } : {};
+    const candidate = { ...defaults.streams[key], ...perKey, ...senderOverride, ...domainOverride };
     const valid = isAddr(candidate.from) && typeof candidate.domain === "string" && candidate.domain.includes(".") && !candidate.domain.includes("@");
     if (!valid) {
       warnFallback("global.json", `invalid email stream values for ${key}`);
