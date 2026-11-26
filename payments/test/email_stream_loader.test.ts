@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { isOnSendingDomain } from "../src/email.ts";
 import { DEFAULT_GLOBAL, loadEmailSection } from "../src/settings_registry.ts";
 
@@ -25,6 +25,18 @@ describe("email stream loader (global.json overrides)", () => {
   it("refuses the reserved esign domain as a stream domain", () => {
     const email = loadEmailSection({ streams: { ops_alerts: { from: "ExpanPress <a@esign.expanpress.com>", domain: "esign.expanpress.com" } } });
     expect(email.streams.ops_alerts).toEqual(DEFAULT_GLOBAL.email.streams.ops_alerts);
+  });
+
+  it("warns, not silently, when a stream entry or the streams map is a scalar", () => {
+    // warnFallback reports through console.error.
+    const report = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      expect(loadEmailSection({ streams: "oops" as never }).streams).toEqual(DEFAULT_GLOBAL.email.streams);
+      expect(loadEmailSection({ streams: { buyer_delivery: "oops" as never } }).streams.buyer_delivery).toEqual(DEFAULT_BUYER);
+      expect(report).toHaveBeenCalledTimes(2);
+    } finally {
+      report.mockRestore();
+    }
   });
 
   it("treats a scalar or array email section as absent", () => {

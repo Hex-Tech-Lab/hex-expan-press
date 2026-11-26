@@ -1924,16 +1924,21 @@ export function loadEmailSection(raw: Record<string, unknown> | undefined): Glob
   }
   // Each outbound stream needs a valid From address and its verified subdomain. A partial override keeps the default for the other stream.
   const streamsRaw = rawEmail.streams;
-  const rawStreams = (streamsRaw && typeof streamsRaw === "object" && !Array.isArray(streamsRaw) ? streamsRaw : {}) as Partial<
-    Record<"buyer_delivery" | "ops_alerts", unknown>
-  >;
+  const isPlainObject = (value: unknown): value is Record<string, unknown> => !!value && typeof value === "object" && !Array.isArray(value);
+  if (streamsRaw !== undefined && !isPlainObject(streamsRaw)) {
+    warnFallback("global.json", "invalid email values for streams");
+  }
+  const rawStreams = (isPlainObject(streamsRaw) ? streamsRaw : {}) as Partial<Record<"buyer_delivery" | "ops_alerts", unknown>>;
   const streamKeys = ["buyer_delivery", "ops_alerts"] as const;
   merged.streams = { ...defaults.streams };
   for (const key of streamKeys) {
     // A `sender`/`from` override (already aligned above) still sets the buyer stream's From address, so existing overrides keep working.
     const senderOverride = key === "buyer_delivery" && (rawStreams.buyer_delivery as Partial<EmailStreamSettings> | undefined)?.from === undefined ? { from: merged.from } : {};
     const keyRaw = rawStreams[key];
-    const perKey = (keyRaw && typeof keyRaw === "object" && !Array.isArray(keyRaw) ? keyRaw : {}) as Partial<EmailStreamSettings>;
+    if (keyRaw !== undefined && !isPlainObject(keyRaw)) {
+      warnFallback("global.json", `invalid email values for ${key}`);
+    }
+    const perKey = (isPlainObject(keyRaw) ? keyRaw : {}) as Partial<EmailStreamSettings>;
     // A `sending_domain` override (the older alias) still sets the buyer stream's domain when the stream does not set one.
     const domainOverride = key === "buyer_delivery" && perKey.domain === undefined && typeof rawEmail.sending_domain === "string" ? { domain: rawEmail.sending_domain } : {};
     const candidate = { ...defaults.streams[key], ...perKey, ...senderOverride, ...domainOverride };
