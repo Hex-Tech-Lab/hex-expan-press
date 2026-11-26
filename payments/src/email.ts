@@ -74,7 +74,10 @@ export async function sendEmail({ to, subject, html, text, replyTo, stream, idem
     throw new EmailSendError("Email text part is empty — send multipart (html + text)", false, undefined, true);
   }
   const streamKey = stream ?? "buyer_delivery";
-  const streamSettings = GLOBAL.email.streams[streamKey];
+  const streamSettings = GLOBAL.email.streams[streamKey] as (typeof GLOBAL.email.streams)[keyof typeof GLOBAL.email.streams] | undefined;
+  if (!streamSettings) {
+    throw new EmailSendError(`Unknown email stream "${String(streamKey)}"`, false, undefined, true);
+  }
   // EMAIL_FROM overrides only the buyer stream; the ops stream always uses its registry address.
   const from = streamKey === "buyer_delivery" ? process.env.EMAIL_FROM || streamSettings.from : streamSettings.from;
   if (!isOnSendingDomain(from, streamSettings.domain)) {

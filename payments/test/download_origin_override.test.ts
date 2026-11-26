@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_GLOBAL, downloadOriginOverride, loadDeliverySection } from "../src/settings_registry.ts";
 
 const ENV_KEYS = ["DELIVERY_DOWNLOAD_ORIGIN", "VERCEL_ENV", "NODE_ENV"] as const;
+const PREVIEW = "https://hex-expan-press-git-test.vercel.app";
 let saved: Record<string, string | undefined> = {};
 
 beforeEach(() => {
@@ -22,27 +23,29 @@ describe("DELIVERY_DOWNLOAD_ORIGIN override (test deployments only)", () => {
     // Vercel preview builds run with NODE_ENV=production, so the guard must allow them.
     process.env.NODE_ENV = "production";
     process.env.VERCEL_ENV = "preview";
-    process.env.DELIVERY_DOWNLOAD_ORIGIN = "https://hex-expan-test.vercel.app";
-    expect(loadDeliverySection(undefined).download_origin).toBe("https://hex-expan-test.vercel.app");
+    process.env.DELIVERY_DOWNLOAD_ORIGIN = PREVIEW;
+    expect(loadDeliverySection(undefined).download_origin).toBe(PREVIEW);
   });
 
   it("refuses the override on Vercel production and falls back to the registry default", () => {
     process.env.VERCEL_ENV = "production";
     process.env.NODE_ENV = "production";
-    process.env.DELIVERY_DOWNLOAD_ORIGIN = "https://hex-expan-test.vercel.app";
+    process.env.DELIVERY_DOWNLOAD_ORIGIN = PREVIEW;
     expect(loadDeliverySection(undefined).download_origin).toBe(DEFAULT_GLOBAL.delivery.download_origin);
   });
 
   it("refuses the override when NODE_ENV is production and VERCEL_ENV is unset (non-Vercel production)", () => {
     delete process.env.VERCEL_ENV;
     process.env.NODE_ENV = "production";
-    expect(downloadOriginOverride("https://hex-expan-test.vercel.app")).toBeNull();
+    expect(downloadOriginOverride(PREVIEW)).toBeNull();
   });
 
   it.each([
-    ["plain http", "http://hex-expan-test.vercel.app"],
-    ["a path", "https://hex-expan-test.vercel.app/books"],
-    ["a query", "https://hex-expan-test.vercel.app/?x=1"],
+    ["plain http", "http://hex-expan-press-git-test.vercel.app"],
+    ["a path", "https://hex-expan-press-git-test.vercel.app/books"],
+    ["a query", "https://hex-expan-press-git-test.vercel.app/?x=1"],
+    ["a vercel.app host outside the project", "https://some-other-app.vercel.app"],
+    ["a bare vercel.app", "https://vercel.app"],
     ["a non-allowlisted host", "https://evil.example.com"],
     ["a suffix-spoofed host", "https://expanpress.com.evil.test"],
     ["not a URL", "not a url"],
@@ -51,16 +54,16 @@ describe("DELIVERY_DOWNLOAD_ORIGIN override (test deployments only)", () => {
     expect(downloadOriginOverride(origin)).toBeNull();
   });
 
+  it("accepts expanpress.com and its subdomains outside production", () => {
+    process.env.VERCEL_ENV = "preview";
+    expect(downloadOriginOverride("https://expanpress.com")).toBe("https://expanpress.com");
+    expect(downloadOriginOverride("https://test.expanpress.com")).toBe("https://test.expanpress.com");
+  });
+
   it("treats a scalar or array delivery section as absent instead of throwing", () => {
     delete process.env.DELIVERY_DOWNLOAD_ORIGIN;
     expect(() => loadDeliverySection("oops" as never)).not.toThrow();
     expect(loadDeliverySection("oops" as never)).toEqual(DEFAULT_GLOBAL.delivery);
     expect(loadDeliverySection([] as never)).toEqual(DEFAULT_GLOBAL.delivery);
-  });
-
-  it("accepts expanpress.com and its subdomains outside production", () => {
-    process.env.VERCEL_ENV = "preview";
-    expect(downloadOriginOverride("https://expanpress.com")).toBe("https://expanpress.com");
-    expect(downloadOriginOverride("https://test.expanpress.com")).toBe("https://test.expanpress.com");
   });
 });

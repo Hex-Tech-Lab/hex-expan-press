@@ -1734,7 +1734,8 @@ export function jwtSkewRetryDelayMs(): number {
  * Vercel preview builds run with NODE_ENV=production, so the guard keys on VERCEL_ENV, not NODE_ENV alone.
  */
 
-const DOWNLOAD_ORIGIN_ALLOWED_HOST = /^(([a-z0-9-]+\.)*expanpress\.com|([a-z0-9-]+\.)+vercel\.app)$/i;
+// Preview hosts are scoped to this project (hex-expan-press-*.vercel.app), the same scope the sign-in origin uses.
+const DOWNLOAD_ORIGIN_ALLOWED_HOST = /^(([a-z0-9-]+\.)*expanpress\.com|hex-expan-press[a-z0-9-]*\.vercel\.app)$/i;
 export function downloadOriginOverride(rawOrigin: string): string | null {
   const vercelEnv = process.env.VERCEL_ENV;
   if (vercelEnv === "production") return null;
@@ -1858,7 +1859,8 @@ function loadEmailAddressSection(raw: Record<string, unknown> | undefined): Glob
  *  `.includes` a substring match; a number would throw inside sendEmail's error path). */
 export function loadEmailSection(raw: Record<string, unknown> | undefined): GlobalSettings["email"] {
   const defaults = DEFAULT_GLOBAL.email;
-  const rawEmail = raw ?? {};
+  // Only a plain object is a section; a scalar or array falls back to the defaults, as in the other loaders.
+  const rawEmail: Record<string, unknown> = raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
   const merged = { ...defaults, ...rawEmail } as GlobalSettings["email"];
   const isAddr = (value: unknown): value is string => typeof value === "string" && value.trim() !== "" && value.includes("@");
   for (const roleKey of ["support", "billing", "privacy", "legal"] as const) {
@@ -1886,13 +1888,18 @@ export function loadEmailSection(raw: Record<string, unknown> | undefined): Glob
     merged.sender = merged.from;
   }
   // Each outbound stream needs a valid From address and its verified subdomain. A partial override keeps the default for the other stream.
-  const rawStreams = (rawEmail.streams ?? {}) as Partial<Record<"buyer_delivery" | "ops_alerts", Partial<EmailStreamSettings>>>;
+  const streamsRaw = rawEmail.streams;
+  const rawStreams = (streamsRaw && typeof streamsRaw === "object" && !Array.isArray(streamsRaw) ? streamsRaw : {}) as Partial<
+    Record<"buyer_delivery" | "ops_alerts", unknown>
+  >;
   const streamKeys = ["buyer_delivery", "ops_alerts"] as const;
   merged.streams = { ...defaults.streams };
   for (const key of streamKeys) {
     // A `sender`/`from` override (already aligned above) still sets the buyer stream's From address, so existing overrides keep working.
-    const senderOverride = key === "buyer_delivery" && rawStreams.buyer_delivery?.from === undefined ? { from: merged.from } : {};
-    const candidate = { ...defaults.streams[key], ...(rawStreams[key] ?? {}), ...senderOverride };
+    const senderOverride = key === "buyer_delivery" && (rawStreams.buyer_delivery as Partial<EmailStreamSettings> | undefined)?.from === undefined ? { from: merged.from } : {};
+    const keyRaw = rawStreams[key];
+    const perKey = (keyRaw && typeof keyRaw === "object" && !Array.isArray(keyRaw) ? keyRaw : {}) as Partial<EmailStreamSettings>;
+    const candidate = { ...defaults.streams[key], ...perKey, ...senderOverride };
     const valid = isAddr(candidate.from) && typeof candidate.domain === "string" && candidate.domain.includes(".") && !candidate.domain.includes("@");
     if (!valid) {
       warnFallback("global.json", `invalid email stream values for ${key}`);

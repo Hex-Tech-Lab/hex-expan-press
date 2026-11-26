@@ -73,6 +73,20 @@ describe("payments/src/email", () => {
     expect(sendMock).not.toHaveBeenCalled();
   });
 
+  it("sends the ops stream from its own address even when EMAIL_FROM is set", async () => {
+    process.env.RESEND_API_KEY = "test-key";
+    process.env.EMAIL_FROM = "Spoof <noreply@mail.expanpress.com>";
+    sendMock.mockResolvedValue({ data: { id: "ops-1" }, error: null });
+    await sendEmail({ to: "a@b.c", subject: "s", html: "<p>hi</p>", text: "hi", stream: "ops_alerts" });
+    expect(sendMock.mock.calls[0][0].from).toBe(GLOBAL.email.streams.ops_alerts.from);
+  });
+
+  it("rejects an unknown stream with EmailSendError, not a TypeError", async () => {
+    process.env.RESEND_API_KEY = "test-key";
+    await expect(sendEmail({ to: "a@b.c", subject: "s", html: "<p>hi</p>", text: "hi", stream: "nope" as never })).rejects.toBeInstanceOf(EmailSendError);
+    expect(sendMock).not.toHaveBeenCalled();
+  });
+
   it("matches each stream's own subdomain and its subdomains only", () => {
     const { buyer_delivery, ops_alerts } = GLOBAL.email.streams;
     expect(isOnSendingDomain(buyer_delivery.from, buyer_delivery.domain)).toBe(true);
