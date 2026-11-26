@@ -1,0 +1,23 @@
+payments/test/download_origin_override.test.ts
+  s_0c865bbd36aa90::t_021a3b97f20f9c 54-60
+payments/src/settings_registry.ts
+  s_0c865bbd36aa90::t_503d6e202b1483 1756,1758-1759
+  s_0c865bbd36aa90::t_a8d4a3dabd16cd 1736
+  s_0c865bbd36aa90::t_3a3dbebfc670a2 1007,1029,1251,1429,1531,1596,1757,1847,2010
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "1be30b0808a4defd726d843d70a3e644486019b1",
+  "prompts": {},
+  "sessions": {
+    "s_0c865bbd36aa90": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e91868c0-df8b-453c-a369-daac76d67031",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
