@@ -1,0 +1,24 @@
+payments/src/settings_registry.ts
+  s_0c865bbd36aa90::t_8c941d233e9157 1927-1931
+  s_0c865bbd36aa90::t_f109ecf2669c5a 1938-1941
+payments/test/email_stream_loader.test.ts
+  s_0c865bbd36aa90::t_4a0c22cad5adef 30,33-35,37,39-41
+  s_0c865bbd36aa90::t_c091b493271d29 1
+  s_0c865bbd36aa90::t_f0c97ba7add778 31-32,36,38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7b658dedbe18cfbe71d3b979c214550fab3f4da2",
+  "prompts": {},
+  "sessions": {
+    "s_0c865bbd36aa90": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e91868c0-df8b-453c-a369-daac76d67031",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
