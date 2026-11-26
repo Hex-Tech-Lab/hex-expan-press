@@ -1004,7 +1004,7 @@ function isHttpsUrl(value: unknown): value is string {
 /** paddle.overlay: each value is checked against its own shape. An invalid value falls back to its default and is reported. */
 function loadPaddleOverlay(raw: Record<string, unknown> | undefined, fallbacks: string[]): PaddleOverlaySettings {
   const defaults = DEFAULT_GLOBAL.payments.paddle.overlay;
-  if (!raw) return defaults;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return defaults;
   const pick = <K extends keyof PaddleOverlaySettings>(key: K, valid: (v: unknown) => boolean): PaddleOverlaySettings[K] => {
     if (!(key in raw)) return defaults[key];
     const candidate = raw[key];
@@ -1026,7 +1026,7 @@ function loadPaddleOverlay(raw: Record<string, unknown> | undefined, fallbacks: 
 
 export function loadPaymentsSection(raw: Record<string, unknown> | undefined): GlobalSettings["payments"] {
   const defaults = DEFAULT_GLOBAL.payments;
-  if (!raw) return defaults;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return defaults;
   const p = raw as Partial<GlobalSettings["payments"]> & Record<string, unknown>;
   const paddle = (p.paddle ?? {}) as Partial<GlobalSettings["payments"]["paddle"]>;
   const apiBase = (paddle.api_base ?? {}) as Partial<GlobalSettings["payments"]["paddle"]["api_base"]>;
@@ -1248,7 +1248,7 @@ function loadStorefrontProductLayout(
  *  asset paths, and product_layout; falls back per key on invalid input. publisher_label is derived from brand_name (one source). */
 export function loadStorefrontSection(raw: Record<string, unknown> | undefined): GlobalSettings["storefront"] {
   const defaults = DEFAULT_GLOBAL.storefront;
-  if (!raw) return defaults;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return defaults;
   const fallbacks: string[] = [];
   const strField = (
     key:
@@ -1426,7 +1426,7 @@ export function loadLandingSection(raw: Record<string, unknown> | undefined): Gl
 /** branding: validates version, theme_mode, font_family, logo URLs, hex colours, and button radius. */
 export function loadBrandingSection(raw: Record<string, unknown> | undefined): BrandCheckoutSettings {
   const defaults = DEFAULT_GLOBAL.branding;
-  if (!raw) return defaults;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return defaults;
   const fallbacks: string[] = [];
   const str = (value: unknown, fallback: string, key: string): string => {
     if (typeof value === "string" && value.trim() !== "") return value.trim();
@@ -1528,7 +1528,7 @@ export function loadEndpointsSection(raw: unknown): GlobalSettings["endpoints"] 
 
 function loadGlobal(): GlobalSettings {
   const raw = readRegistryFile("global.json");
-  if (!raw) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
     warnFallback("global.json", "missing/unreadable");
     // Production deploys no global.json: env overrides (ADMIN_USER_IDS) must still apply.
     return {
@@ -1593,7 +1593,7 @@ export const CONSENT_EVIDENCE_SEGMENT_CONTRACT = {
  *  to its default (with a warning) instead of disabling the watch. */
 export function loadUsageWatchSection(raw: Record<string, unknown> | undefined): UsageWatchSettings {
   const defaults = DEFAULT_GLOBAL.usage_watch;
-  if (!raw) return defaults;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return defaults;
   const fallbacks: string[] = [];
   const pick = (candidate: unknown, fallback: number, key: string, ok: (value: number) => boolean): number => {
     if (typeof candidate === "number" && Number.isFinite(candidate) && ok(candidate)) return candidate;
@@ -1733,6 +1733,7 @@ export function jwtSkewRetryDelayMs(): number {
  * without VERCEL_ENV), for anything but a bare https origin, and for any host outside expanpress.com, its subdomains and *.vercel.app.
  * Vercel preview builds run with NODE_ENV=production, so the guard keys on VERCEL_ENV, not NODE_ENV alone.
  */
+
 const DOWNLOAD_ORIGIN_ALLOWED_HOST = /^(([a-z0-9-]+\.)*expanpress\.com|([a-z0-9-]+\.)+vercel\.app)$/i;
 export function downloadOriginOverride(rawOrigin: string): string | null {
   const vercelEnv = process.env.VERCEL_ENV;
@@ -1752,8 +1753,10 @@ export function downloadOriginOverride(rawOrigin: string): string | null {
 export function loadDeliverySection(raw: Record<string, unknown> | undefined): GlobalSettings["delivery"] {
   const defaults = DEFAULT_GLOBAL.delivery;
   const envOrigin = process.env.DELIVERY_DOWNLOAD_ORIGIN;
-  if (!raw && envOrigin === undefined) return defaults;
-  const record = { ...((raw ?? {}) as Partial<GlobalSettings["delivery"]> & Record<string, unknown>) };
+  // Only a plain object is a section. A scalar or array in global.json would make `key in record` throw, so it falls back to the defaults.
+  const isSection = !!raw && typeof raw === "object" && !Array.isArray(raw);
+  if (!isSection && envOrigin === undefined) return defaults;
+  const record = { ...(isSection ? raw : {}) } as Partial<GlobalSettings["delivery"]> & Record<string, unknown>;
   if (envOrigin !== undefined && envOrigin.trim() !== "") {
     const allowed = downloadOriginOverride(envOrigin);
     if (allowed) record.download_origin = allowed;
@@ -1841,7 +1844,7 @@ export function loadDeliverySection(raw: Record<string, unknown> | undefined): G
 /** email_address: shallow merge, but typo_domains must be a non-empty list of hostnames (else the default, with a warning). */
 function loadEmailAddressSection(raw: Record<string, unknown> | undefined): GlobalSettings["email_address"] {
   const base = DEFAULT_GLOBAL.email_address;
-  if (!raw) return base;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return base;
   const domains = raw.typo_domains;
   const valid =
     Array.isArray(domains) &&
@@ -2004,7 +2007,7 @@ function isSafeBooksPrefix(prefixValue: unknown): prefixValue is string {
 
 export function loadBookPreviewSection(raw: Record<string, unknown> | undefined): BookPreviewSettings {
   const defaults = DEFAULT_GLOBAL.book_preview;
-  if (!raw) return defaults;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return defaults;
   const fallbacks: string[] = [];
   const intField = (
     key:

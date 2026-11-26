@@ -51,6 +51,13 @@ describe("DELIVERY_DOWNLOAD_ORIGIN override (test deployments only)", () => {
     expect(downloadOriginOverride(origin)).toBeNull();
   });
 
+  it("treats a scalar or array delivery section as absent instead of throwing", () => {
+    delete process.env.DELIVERY_DOWNLOAD_ORIGIN;
+    expect(() => loadDeliverySection("oops" as never)).not.toThrow();
+    expect(loadDeliverySection("oops" as never)).toEqual(DEFAULT_GLOBAL.delivery);
+    expect(loadDeliverySection([] as never)).toEqual(DEFAULT_GLOBAL.delivery);
+  });
+
   it("accepts expanpress.com and its subdomains outside production", () => {
     process.env.VERCEL_ENV = "preview";
     expect(downloadOriginOverride("https://expanpress.com")).toBe("https://expanpress.com");
