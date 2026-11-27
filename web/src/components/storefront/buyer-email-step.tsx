@@ -172,7 +172,8 @@ export function BuyerEmailStep({
             aria-invalid={showInvalid}
             aria-describedby="buyer-email-help"
           />
-          <p id="buyer-email-help" className="text-xs text-gray-600" role={showInvalid ? "alert" : undefined}>
+          {/* No role here: the blocker region (role=status) already announces the same reason, so a second live region would read it twice. */}
+          <p id="buyer-email-help" className="text-xs text-gray-600">
             {showInvalid ? "Enter a complete email address, such as name@example.com." : "The download link is sent to this address."}
           </p>
           {state.suggestion && (

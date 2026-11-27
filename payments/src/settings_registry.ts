@@ -1019,9 +1019,11 @@ function isHttpsUrl(value: unknown): value is string {
 function loadPaddleOverlay(raw: Record<string, unknown> | undefined, fallbacks: string[]): PaddleOverlaySettings {
   const defaults = DEFAULT_GLOBAL.payments.paddle.overlay;
   if (!sectionIsPlainObject("paddle_overlay", raw)) return defaults;
+  // Captured as a const: the narrowing from the guard does not survive into the closure below for a parameter.
+  const section: Record<string, unknown> = raw;
   const pick = <K extends keyof PaddleOverlaySettings>(key: K, valid: (v: unknown) => boolean): PaddleOverlaySettings[K] => {
-    if (!(key in raw)) return defaults[key];
-    const candidate = raw[key];
+    if (!(key in section)) return defaults[key];
+    const candidate = section[key];
     if (valid(candidate)) return candidate as PaddleOverlaySettings[K];
     fallbacks.push(`paddle.overlay.${key}`);
     return defaults[key];
@@ -1263,6 +1265,8 @@ function loadStorefrontProductLayout(
 export function loadStorefrontSection(raw: Record<string, unknown> | undefined): GlobalSettings["storefront"] {
   const defaults = DEFAULT_GLOBAL.storefront;
   if (!sectionIsPlainObject("storefront", raw)) return defaults;
+  // Explicit narrowing for the `in` checks below. The warning above already covered a scalar, so this adds no second report.
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return defaults;
   const fallbacks: string[] = [];
   const strField = (
     key:
@@ -1807,8 +1811,12 @@ export function isNonProductionRuntime(): boolean {
   return process.env.NODE_ENV === "development" || process.env.NODE_ENV === "test";
 }
 
-// Root and reserved domains never send mail (buyer and ops streams are subdomains).
-const RESERVED_STREAM_DOMAINS = ["expanpress.com", "esign.expanpress.com"];
+// The root never sends mail: only the exact root is refused, so the buyer and ops subdomains (mail., ops.) stay valid.
+// The esign zone is reserved with everything under it: a stream may not sit on esign.expanpress.com or any subdomain of it.
+const RESERVED_ROOT_DOMAIN = "expanpress.com";
+const RESERVED_ZONE_DOMAIN = "esign.expanpress.com";
+const isReservedStreamDomain = (domain: string): boolean =>
+  domain === RESERVED_ROOT_DOMAIN || domain === RESERVED_ZONE_DOMAIN || domain.endsWith(`.${RESERVED_ZONE_DOMAIN}`);
 export function downloadOriginOverride(rawOrigin: string): string | null {
   // Fail closed: allowed only on a Vercel preview or development build, or a local test/development run with no Vercel env.
   const vercelEnv = deployVercelEnv();
@@ -1835,6 +1843,7 @@ export function loadDeliverySection(raw: Record<string, unknown> | undefined): G
   // An empty or whitespace-only value counts as unset.
   const envOrigin = process.env.DELIVERY_DOWNLOAD_ORIGIN?.trim() || undefined;
   // Only a plain object is a section. A scalar or array in global.json would make `key in record` throw, so it falls back to the defaults.
+  if (raw !== undefined) sectionIsPlainObject("delivery", raw); // warns by name on a present non-object section
   const isSection = !!raw && typeof raw === "object" && !Array.isArray(raw);
   if (!isSection && envOrigin === undefined) return defaults;
   const record = { ...(isSection ? raw : {}) } as Partial<GlobalSettings["delivery"]> & Record<string, unknown>;
@@ -1939,6 +1948,7 @@ export function loadDeliverySection(raw: Record<string, unknown> | undefined): G
 /** email_address: shallow merge, but typo_domains must be a non-empty list of hostnames (else the default, with a warning). */
 function loadEmailAddressSection(raw: Record<string, unknown> | undefined): GlobalSettings["email_address"] {
   const base = DEFAULT_GLOBAL.email_address;
+  if (raw !== undefined) sectionIsPlainObject("email_address", raw); // warns by name on a present non-object section
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return base;
   const domains = raw.typo_domains;
   const valid =
@@ -1954,6 +1964,7 @@ function loadEmailAddressSection(raw: Record<string, unknown> | undefined): Glob
 export function loadEmailSection(raw: Record<string, unknown> | undefined): GlobalSettings["email"] {
   const defaults = DEFAULT_GLOBAL.email;
   // Only a plain object is a section; a scalar or array falls back to the defaults, as in the other loaders.
+  if (raw !== undefined) sectionIsPlainObject("email", raw); // warns by name on a present non-object section
   const rawEmail: Record<string, unknown> = raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
   const merged = { ...defaults, ...rawEmail } as GlobalSettings["email"];
   const isAddr = (value: unknown): value is string => typeof value === "string" && value.trim() !== "" && value.includes("@");
@@ -2012,7 +2023,7 @@ export function loadEmailSection(raw: Record<string, unknown> | undefined): Glob
     // A trailing dot names the same zone (`expanpress.com.`), so it is stripped before the reserved check and the match.
     const domainText = typeof candidate.domain === "string" ? candidate.domain.trim().toLowerCase().replace(/\.+$/, "") : "";
     const fromHost = isAddr(candidate.from) ? (mailboxAddress(candidate.from).split("@").pop() ?? "") : "";
-    const reserved = RESERVED_STREAM_DOMAINS.includes(domainText);
+    const reserved = isReservedStreamDomain(domainText);
     const fromOnDomain = fromHost === domainText || fromHost.endsWith(`.${domainText}`);
     // A stream lives under our own zone: a subdomain of expanpress.com, never another domain.
     const valid =
@@ -2135,6 +2146,8 @@ function isSafeBooksPrefix(prefixValue: unknown): prefixValue is string {
 export function loadBookPreviewSection(raw: Record<string, unknown> | undefined): BookPreviewSettings {
   const defaults = DEFAULT_GLOBAL.book_preview;
   if (!sectionIsPlainObject("book_preview", raw)) return defaults;
+  // Explicit narrowing for the `in` checks below. The warning above already covered a scalar, so this adds no second report.
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return defaults;
   const fallbacks: string[] = [];
   const intField = (
     key:
