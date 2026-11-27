@@ -1,0 +1,50 @@
+web/src/lib/sales-scope.ts
+  s_0c865bbd36aa90::t_0e6391c4f20683 1-6
+web/proxy.ts
+  s_0c865bbd36aa90::t_dfae3598f8467c 5
+  s_0c865bbd36aa90::t_977f9ffc872346 62
+web/src/components/storefront/storefront.tsx
+  s_0c865bbd36aa90::t_c7172fc5d3a234 214,216-217
+  s_0c865bbd36aa90::t_5cfcebc06fd98d 232,258,302
+  s_0c865bbd36aa90::t_f69b9d0a3da033 569-571
+  s_0c865bbd36aa90::t_cf3c9352fd6f18 11
+web/src/lib/sandbox-checkout.ts
+  s_0c865bbd36aa90::t_f65edbd64c34c4 1
+web/app/checkout/[productId]/page.tsx
+  s_0c865bbd36aa90::t_e85874338386b8 19
+  s_0c865bbd36aa90::t_282accca2f4566 71
+payments/src/settings_registry.ts
+  s_0c865bbd36aa90::t_f610a24aaa1bfa 1769-1773
+  s_0c865bbd36aa90::t_279ef8f24d1bd5 1996
+  s_0c865bbd36aa90::t_72bc9c28539ce1 1778-1788
+  s_0c865bbd36aa90::t_2b79aa4debb011 1958-1959
+web/src/lib/product-purchasable.ts
+  s_0c865bbd36aa90::t_b9501a75c3b861 35-44,51
+web/app/books/[handle]/[product]/page.tsx
+  s_0c865bbd36aa90::t_d81fbf85fa0c51 24
+  s_0c865bbd36aa90::t_8242b8cce47e72 75
+web/__tests__/proxy.test.ts
+  s_0c865bbd36aa90::t_91d78f54844988 771-780
+web/app/api/billing/checkout/checkout-helpers.ts
+  s_0c865bbd36aa90::t_00d59362cda32c 65
+  s_0c865bbd36aa90::t_d235aa0a941ef5 80
+payments/test/delivery_registry_keys.test.ts
+  s_0c865bbd36aa90::t_c152fb6c2d9f0c 5-6
+  s_0c865bbd36aa90::t_d67ad3fb125201 68-91
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "695dc05392d2b69beed58e6c75a5f650f05e1e39",
+  "prompts": {},
+  "sessions": {
+    "s_0c865bbd36aa90": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e91868c0-df8b-453c-a369-daac76d67031",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
