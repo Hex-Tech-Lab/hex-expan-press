@@ -1547,6 +1547,9 @@ function loadGlobal(): GlobalSettings {
     return {
       ...DEFAULT_GLOBAL,
       payments: withSandboxCheckoutEnv(loadPaymentsSection(undefined)),
+      // Without this, DELIVERY_DOWNLOAD_ORIGIN is ignored on every deploy that has no global.json (all of them): the buyer's
+      // link and the thank-you redirect would then point at the production origin, not the test preview.
+      delivery: loadDeliverySection(undefined),
       branding: loadBrandingSection(undefined),
       admin: loadAdminSection(undefined),
     };
