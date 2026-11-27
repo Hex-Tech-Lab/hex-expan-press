@@ -1,0 +1,103 @@
+payments/src/email.ts
+  s_0c865bbd36aa90::t_b6b509a37a9a3d 64-66
+payments/test/delivery_origin_runtime.pairwise.test.ts
+  s_0c865bbd36aa90::t_fe6955313b7b97 1-151
+docs/testing/pairwise/checkout_rails_resolver.rows.tsv
+  s_0c865bbd36aa90::t_fe6955313b7b97 1-16
+docs/testing/pairwise/storefront_listing_and_legal.rows.tsv
+  s_0c865bbd36aa90::t_fe6955313b7b97 1-17
+docs/testing/pairwise/settings_env_overrides.rows.tsv
+  s_0c865bbd36aa90::t_fe6955313b7b97 1-17
+web/app/books/[handle]/__tests__/house-bio.test.ts
+  s_0c865bbd36aa90::t_265930a2c18d7f 31-35
+payments/src/settings_registry.ts
+  s_0c865bbd36aa90::t_f770117d1d84d4 1988-1991
+  s_0c865bbd36aa90::t_a9130a94d15efd 60
+  s_0c865bbd36aa90::t_256538fdd92fbe 1021,1043,1265,1444,1632,2137
+  s_0c865bbd36aa90::t_a4b153c56d24e2 1553-1558
+  s_0c865bbd36aa90::t_eb3f7bc39ed6c5 1726-1728
+  s_0c865bbd36aa90::t_04eb6ceac8609d 56-59,61-66
+  s_0c865bbd36aa90::t_95169a63dcc173 1420
+  s_0c865bbd36aa90::t_bfc0c0a052a7be 1788-1790
+  s_0c865bbd36aa90::t_038f127aa31fa3 1791
+web/src/lib/__tests__/buyer-email.test.ts
+  s_0c865bbd36aa90::t_63667efa7f17b1 141-142
+  s_0c865bbd36aa90::t_fe6955313b7b97 126-140,143-150
+web/__tests__/buyer-email-step.controls.client.test.ts
+  s_0c865bbd36aa90::t_fe6955313b7b97 104,108-110,112-152
+  s_0c865bbd36aa90::t_09ebdc2aa97e9b 105-107,111
+web/__tests__/checkout_rails_resolver.pairwise.test.ts
+  s_0c865bbd36aa90::t_fe6955313b7b97 3,6-7,12-14,24,36,50-51,53-55,71-80,83,93-97,101-113,115,117-118,121,123
+web/src/components/storefront/buyer-email-step.tsx
+  s_0c865bbd36aa90::t_0be777b5406a30 100-101
+  s_0c865bbd36aa90::t_6402c3ca1edcea 122-125,127-128
+  s_0c865bbd36aa90::t_88429eb33b8bf2 227-230
+web/__tests__/checkout-rails.test.ts
+  s_0c865bbd36aa90::t_fe6955313b7b97 138-147
+docs/testing/pairwise/delivery_origin_runtime.rows.tsv
+  s_0c865bbd36aa90::t_fe6955313b7b97 1-17
+web/__tests__/storefront_listing_and_legal.pairwise.test.ts
+  s_0c865bbd36aa90::t_fe6955313b7b97 3,22-26,95,105,126,134,143,159,167,169,171,175-178,180,183-184,190
+docs/testing/pairwise/settings_env_overrides.model.txt
+  s_0c865bbd36aa90::t_fe6955313b7b97 1-21
+docs/testing/pairwise/delivery_origin_runtime.model.txt
+  s_0c865bbd36aa90::t_fe6955313b7b97 1-24
+docs/testing/pairwise/checkout_rails_resolver.model.txt
+  s_0c865bbd36aa90::t_fe6955313b7b97 1,7-15,18-23,29
+payments/test/delivery.test.ts
+  s_0c865bbd36aa90::t_fe6955313b7b97 4,139-175
+  s_0c865bbd36aa90::t_1001c826314f59 176
+web/src/components/storefront/storefront.tsx
+  s_0c865bbd36aa90::t_0ef63d3ebcc4af 201,203-204,206,208
+  s_0c865bbd36aa90::t_022b4cc1094b4d 245-255
+  s_0c865bbd36aa90::t_c8f12689028c7a 288
+  s_0c865bbd36aa90::t_ea80d1076fa2c8 360-374
+payments/test/settings_env_overrides.pairwise.test.ts
+  s_0c865bbd36aa90::t_fe6955313b7b97 1-130
+web/__tests__/storefront_sandbox_gate.test.ts
+  s_0c865bbd36aa90::t_fe6955313b7b97 1-31
+.qa-intel/baseline.json
+  s_0c865bbd36aa90::t_3b1edc6723b3f2 2880-2887
+docs/testing/pairwise/storefront_listing_and_legal.model.txt
+  s_0c865bbd36aa90::t_fe6955313b7b97 4,13
+web/__tests__/launch_gate.test.ts
+  s_0c865bbd36aa90::t_66c66cab0c7068 1-70
+payments/test/delivery_registry_keys.test.ts
+  s_0c865bbd36aa90::t_3b51a81d5e85ca 3,5-16,91-97,99-101,107-112,125-146
+payments/test/sandbox_checkout_env.test.ts
+  s_0c865bbd36aa90::t_2055ff178b7c4e 3-22,40,44,47,69-92
+web/src/lib/__tests__/sales-scope.test.ts
+  s_0c865bbd36aa90::t_04fe10e4b14ac3 1-27
+docs/testing/pairwise/checkout_rails_resolver.coverage.html
+  s_0c865bbd36aa90::t_03022c4759beec 1-49
+docs/testing/pairwise/checkout_rails_resolver.coverage.md
+  s_0c865bbd36aa90::t_c745de8d0c1574 1-39
+docs/testing/pairwise/delivery_origin_runtime.coverage.html
+  s_0c865bbd36aa90::t_4fd0a8efebbc1b 1-50
+docs/testing/pairwise/delivery_origin_runtime.coverage.md
+  s_0c865bbd36aa90::t_21eb4874626a60 1-40
+docs/testing/pairwise/settings_env_overrides.coverage.html
+  s_0c865bbd36aa90::t_eaeb45a81a9621 1-49
+docs/testing/pairwise/settings_env_overrides.coverage.md
+  s_0c865bbd36aa90::t_93a40ce0fb0070 1-39
+docs/testing/pairwise/storefront_listing_and_legal.coverage.html
+  s_0c865bbd36aa90::t_f770db7070a4c5 1-47
+docs/testing/pairwise/storefront_listing_and_legal.coverage.md
+  s_0c865bbd36aa90::t_f305a1a3839861 1-37
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "d77ec1e07d9a980e7eefe96add37a8c4302ad88d",
+  "prompts": {},
+  "sessions": {
+    "s_0c865bbd36aa90": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e91868c0-df8b-453c-a369-daac76d67031",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
