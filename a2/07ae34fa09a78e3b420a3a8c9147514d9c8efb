@@ -1,0 +1,29 @@
+payments/src/settings_registry.ts
+  s_0c865bbd36aa90::t_24b50eb3149fae 1814-1817,1819
+  s_0c865bbd36aa90::t_09555bf5b313a6 1846
+  s_0c865bbd36aa90::t_e32897ff6f8570 2026
+  s_0c865bbd36aa90::t_6cea883a757855 1022-1023,1025-1026
+  s_0c865bbd36aa90::t_67130c0298ca71 2149-2150
+  s_0c865bbd36aa90::t_109c5b0c95f0af 1268-1269
+  s_0c865bbd36aa90::t_e9ea698d95d048 1818
+  s_0c865bbd36aa90::t_7de2dd2ca02844 1967
+  s_0c865bbd36aa90::t_610330a06b3cc1 1951
+web/src/components/storefront/buyer-email-step.tsx
+  s_0c865bbd36aa90::t_1e5921f4927e7b 175-176
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a207ae34fa09a78e3b420a3a8c9147514d9c8efb",
+  "prompts": {},
+  "sessions": {
+    "s_0c865bbd36aa90": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e91868c0-df8b-453c-a369-daac76d67031",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
