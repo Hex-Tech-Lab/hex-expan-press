@@ -1,0 +1,29 @@
+payments/test/delivery_registry_keys.test.ts
+  s_0c865bbd36aa90::t_fbf0c0c3ae9c0e 31-43
+payments/test/delivery.test.ts
+  s_0c865bbd36aa90::t_7c7954a2d3167a 130,133-135,137-138
+  s_0c865bbd36aa90::t_84fff80dc49a38 131-132,136
+payments/src/delivery.ts
+  s_0c865bbd36aa90::t_fc62b3c898b7da 339-340
+payments/src/settings_registry.ts
+  s_0c865bbd36aa90::t_0b413176a0a150 1849
+  s_0c865bbd36aa90::t_4741f9e1e8df4a 1893
+  s_0c865bbd36aa90::t_051d217c6593dc 305-306
+  s_0c865bbd36aa90::t_67ff98d7a9114c 818
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "a31db3220cad4c52549a4cf282ec86c526736de7",
+  "prompts": {},
+  "sessions": {
+    "s_0c865bbd36aa90": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e91868c0-df8b-453c-a369-daac76d67031",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
