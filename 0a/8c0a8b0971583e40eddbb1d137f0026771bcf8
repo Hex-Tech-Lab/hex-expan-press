@@ -1,0 +1,23 @@
+payments/test/download_origin_default_path.test.ts
+  s_0c865bbd36aa90::t_405cc5a37fdf4c 1-47
+web/__tests__/buyer-email-step.controls.client.test.ts
+  s_0c865bbd36aa90::t_77b512183811f8 1-104
+payments/src/settings_registry.ts
+  s_0c865bbd36aa90::t_68326859c863ad 1550-1552
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "0a8c0a8b0971583e40eddbb1d137f0026771bcf8",
+  "prompts": {},
+  "sessions": {
+    "s_0c865bbd36aa90": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e91868c0-df8b-453c-a369-daac76d67031",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
