@@ -123,6 +123,31 @@ describe("buyerEmailBlocker", () => {
       expect(buyerEmailBlocker(email, confirm, max) !== undefined).toBe(disabled);
     }
   });
+
+  it("gives the Enter-your-email-address reason for a whitespace-only email", () => {
+    expect(buyerEmailBlocker("   \t ", "", max)).toContain("Enter your email address");
+    // Negative control: a valid email does not return the missing-email reason.
+    expect(buyerEmailBlocker("ann@example.com", "", max)).not.toContain("Enter your email address");
+  });
+
+  it("gives the complete-email-address reason when the email exceeds maxLength", () => {
+    const overMax = `${"a".repeat(max)}@x.io`;
+    expect(overMax.length).toBeGreaterThan(max);
+    expect(buyerEmailBlocker(overMax, overMax, max)).toContain("complete email address");
+    // Negative control: the same shape within maxLength is accepted.
+    expect(buyerEmailBlocker("ann@example.com", "ann@example.com", max)).toBeUndefined();
+  });
+
+  it("a letter-case difference gives the mismatch reason, matching buyerEmailsMatch (case-sensitive on main)", () => {
+    expect(buyerEmailBlocker("ann@example.com", "Ann@example.com", max)).toBe("The two email addresses do not match yet.");
+  });
+
+  it("gives the Type-the-same-address reason when confirm is empty", () => {
+    expect(buyerEmailBlocker("ann@example.com", "", max)).toContain("Type the same address");
+    expect(buyerEmailBlocker("ann@example.com", "   ", max)).toContain("Type the same address");
+    // Negative control: once confirm matches, no blocker reason is returned.
+    expect(buyerEmailBlocker("ann@example.com", "ann@example.com", max)).toBeUndefined();
+  });
 });
 
 describe("buyerConsentText", () => {

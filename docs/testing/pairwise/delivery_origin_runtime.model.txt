@@ -1,0 +1,24 @@
+# PICT pairwise model for DELIVERY_DOWNLOAD_ORIGIN runtime override and global.json presence.
+# Covers downloadOriginOverride, loadDeliverySection, and loadGlobal in payments/src/settings_registry.ts.
+# Run: /usr/local/bin/pict docs/testing/pairwise/delivery_origin_runtime.model.txt > docs/testing/pairwise/delivery_origin_runtime.rows.tsv
+#
+# Parameters:
+#   delivery_download_origin : process.env.DELIVERY_DOWNLOAD_ORIGIN
+#                              unset; branch_alias (allowed Vercel team-scoped branch preview URL);
+#                              production_apex ("https://expanpress.com"); non_allowed_host ("https://evil.example.com")
+#   vercel_env               : process.env.VERCEL_ENV (unset, preview, production, development); NODE_ENV pinned to "test"
+#   global_json              : presence of data/settings/global.json with delivery.download_origin override (present vs absent)
+#
+# Expected outcome (oracle in delivery_origin_runtime.pairwise.test.ts):
+#   downloadOriginOverride(raw):
+#     branch_alias on vercel_env in {unset (NODE_ENV=test), preview, development} -> branch_alias
+#     otherwise -> null
+#   loadDeliverySection / loadGlobal:
+#     delivery_download_origin = unset -> file origin when global_json = present, else DEFAULT_GLOBAL.delivery.download_origin
+#     delivery_download_origin = branch_alias & vercel_env != production -> branch_alias
+#     vercel_env = production & delivery_download_origin != unset -> ignored (warns), file origin when present else DEFAULT_GLOBAL
+#     vercel_env != production & delivery_download_origin in {production_apex, non_allowed_host} -> throws refused-on-non-production error
+
+delivery_download_origin: unset, branch_alias, production_apex, non_allowed_host
+vercel_env: unset, preview, production, development
+global_json: present, absent

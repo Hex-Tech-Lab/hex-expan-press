@@ -198,11 +198,14 @@ function withResolvedAssets<T extends { id?: string | null; slug: string | null;
 /** Storefront checkout modes queried on /books: always "live", plus registry-allowed non-live modes when sample listing is enabled. */
 export function allowedStorefrontCheckoutModes(
   storefront: Pick<typeof GLOBAL.storefront, "show_non_live_samples" | "allowed_non_live_sample_modes"> = GLOBAL.storefront,
+  sandboxOpen = false,
 ): string[] {
+  // "sandbox" is fetched only when the sandbox launch gate is open, so the SQL filter and isVisibleStorefrontProduct agree.
+  const sandbox = sandboxOpen ? ["sandbox"] : [];
   if (!storefront.show_non_live_samples || storefront.allowed_non_live_sample_modes.length === 0) {
-    return ["live"];
+    return Array.from(new Set(["live", ...sandbox]));
   }
-  return Array.from(new Set(["live", ...storefront.allowed_non_live_sample_modes]));
+  return Array.from(new Set(["live", ...storefront.allowed_non_live_sample_modes, ...sandbox]));
 }
 
 /** Shared storefront shelf visibility rule for /books and /books/[handle]: live products are always listed;
@@ -239,18 +242,21 @@ export const fetchCreatorHub = cache(async function fetchCreatorHub(handle: stri
   if (!supabase) {
     throw new Error("storefront: Supabase admin client unavailable — hub cannot render (fail closed)");
   }
-  const { data, error } = await supabase
-    .from("creators")
-    .select(
-      "handle, display_name, platform_handles, bio, photo, is_house, products(id, store_product_id, slug, title, price_usd, currency, working_note, description, disclaimers, checkout_mode, inside, book_registry, product_rails(provider, weight, checkout_url, active))",
-    )
-    .eq("handle", handle)
-    .maybeSingle();
+  // The hub row and the site origin do not depend on each other, so they run in parallel (was two sequential round trips).
+  const [{ data, error }, origin] = await Promise.all([
+    supabase
+      .from("creators")
+      .select(
+        "handle, display_name, platform_handles, bio, photo, is_house, products(id, store_product_id, slug, title, price_usd, currency, working_note, description, disclaimers, checkout_mode, inside, book_registry, product_rails(provider, weight, checkout_url, active))",
+      )
+      .eq("handle", handle)
+      .maybeSingle(),
+    fetchSiteOrigin(supabase),
+  ]);
   if (error) throw new Error(`storefront: creator hub query failed for '${handle}': ${error.message}`);
   const creator = data as HubCreator | null;
   const commercial = commercialProducts(creator?.products);
   if (!creator || commercial.length === 0) return null;
-  const origin = await fetchSiteOrigin(supabase);
   // Keep creator hubs consistent with /books: live products plus allowed non-live SAMPLE products only.
   // storefrontRobots depends only on whether a live product exists, so its result stays NOINDEX for sample-only hubs.
   const products = commercial
@@ -279,7 +285,7 @@ export const fetchB2cLanding = cache(async function fetchB2cLanding(): Promise<L
   if (!supabase) {
     throw new Error("storefront: Supabase admin client unavailable — B2C landing cannot render (fail closed)");
   }
-  const modes = allowedStorefrontCheckoutModes();
+  const modes = allowedStorefrontCheckoutModes(GLOBAL.storefront, sandboxAllowed());
   const baseQuery = supabase
     .from("creators")
     .select(
@@ -351,13 +357,21 @@ export const fetchCheckoutProduct = cache(async function fetchCheckoutProduct(
   if (!supabase) {
     throw new Error("storefront: Supabase admin client unavailable — checkout page cannot render (fail closed)");
   }
-  const { data, error } = await supabase
-    .from("products")
-    .select(
-      "id, store_product_id, slug, title, price_usd, currency, working_note, description, disclaimers, checkout_mode, paddle_price_id, inside, creators(handle, display_name, is_house)",
-    )
-    .eq("id", productId)
-    .maybeSingle();
+  // The product and its rails both key on productId, so they run in parallel (was two sequential round trips).
+  const [{ data, error }, { data: railRows, error: railErr }] = await Promise.all([
+    supabase
+      .from("products")
+      .select(
+        "id, store_product_id, slug, title, price_usd, currency, working_note, description, disclaimers, checkout_mode, paddle_price_id, inside, creators(handle, display_name, is_house)",
+      )
+      .eq("id", productId)
+      .maybeSingle(),
+    supabase
+      .from("product_rails")
+      .select("provider, weight, checkout_url, active")
+      .eq("product_id", productId)
+      .order("weight", { ascending: false }),
+  ]);
   if (error) throw new Error(`storefront: checkout product query failed for '${productId}': ${error.message}`);
   if (!data) return null;
   const row = data as unknown as StoreProduct & {
@@ -365,11 +379,6 @@ export const fetchCheckoutProduct = cache(async function fetchCheckoutProduct(
   };
   const creator = Array.isArray(row.creators) ? row.creators[0] : row.creators;
   if (!creator || commercialProducts([row]).length === 0) return null;
-  const { data: railRows, error: railErr } = await supabase
-    .from("product_rails")
-    .select("provider, weight, checkout_url, active")
-    .eq("product_id", productId)
-    .order("weight", { ascending: false });
   if (railErr) throw new Error(`storefront: checkout rails query failed for '${productId}': ${railErr.message}`);
   // The same usable rails the checkout route counts (shared resolver). The first is the highest-weight usable rail (the page names it only when exactly one is usable); the count
   // drives the rail-aware rule: none is "Coming soon", more than one is no merchant of record and no overlay.

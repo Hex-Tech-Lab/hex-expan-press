@@ -61,7 +61,9 @@ const addressOf = mailboxAddress;
 export const isOnSendingDomain = (from: string, domain: string = GLOBAL.email.streams.buyer_delivery.domain): boolean => {
   if (!isSingleMailbox(from)) return false;
   const host = addressOf(from).split("@").pop() ?? "";
-  const d = domain.toLowerCase();
+  const d = domain.trim().toLowerCase();
+  // An empty domain matches nothing, and a trailing dot names a different (rooted) form: both are refused, never matched.
+  if (d === "" || d.endsWith(".") || host.endsWith(".")) return false;
   return host === d || host.endsWith(`.${d}`);
 };
 

@@ -28,7 +28,11 @@ vi.mock("../../../../../payments/src/supabase_admin", () => ({
       select: (cols: string) => {
         selects.set(table, [...(selects.get(table) ?? []), cols]);
         return {
-          eq: () => ({ maybeSingle: async () => ({ data: null, error: null }) }),
+          // Both shapes the storefront uses: products (maybeSingle) and product_rails (order), which runs in parallel with it.
+          eq: () => ({
+            maybeSingle: async () => ({ data: null, error: null }),
+            order: async () => ({ data: [], error: null }),
+          }),
         };
       },
     }),

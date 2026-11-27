@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { deliverSale, deliverSaleForWebhook, createDubShortLink, tokenHash, newToken, TOKEN_RE, StaleFenceError, type DeliveryDeps } from "../src/delivery";
-import { GLOBAL } from "../src/settings_registry";
+import { GLOBAL, loadDeliverySection } from "../src/settings_registry";
 import { EmailSendError } from "../src/email";
 
 // A definite rejection: the provider refused the request, so no email was accepted.
@@ -134,6 +134,44 @@ describe("deliverSale", () => {
     expect(await deliverSale(sale, f.deps)).toBe("sent");
     const mail = arg<{ subject: string }>(f.sendEmail);
     expect(mail.subject).toBe(`Your download: ${PRODUCT.title} (ref 8A652ABF)`);
+  });
+
+  it("changes the subject reference when two purchases mint different tokens", async () => {
+    const tokens = ["T".repeat(43), "U".repeat(43)];
+    const f = fakes();
+    f.deps.newToken = () => tokens.shift() as string;
+    expect(await deliverSale({ ...sale, saleId: "s-diff-1" }, f.deps)).toBe("sent");
+    expect(await deliverSale({ ...sale, saleId: "s-diff-2" }, f.deps)).toBe("sent");
+    const subject1 = arg<{ subject: string }>(f.sendEmail, 0).subject;
+    const subject2 = arg<{ subject: string }>(f.sendEmail, 1).subject;
+    expect(subject1).not.toBe(subject2);
+
+    // Negative control: identical tokens across two sales give identical subjects.
+    const fSame = fakes();
+    fSame.deps.newToken = () => "T".repeat(43);
+    expect(await deliverSale({ ...sale, saleId: "s-same-1" }, fSame.deps)).toBe("sent");
+    expect(await deliverSale({ ...sale, saleId: "s-same-2" }, fSame.deps)).toBe("sent");
+    expect(arg<{ subject: string }>(fSame.sendEmail, 0).subject).toBe(arg<{ subject: string }>(fSame.sendEmail, 1).subject);
+  });
+
+  it("sizes the subject reference from GLOBAL.delivery.subject_ref_chars via loadDeliverySection", async () => {
+    const prevRefChars = GLOBAL.delivery.subject_ref_chars;
+    GLOBAL.delivery.subject_ref_chars = loadDeliverySection({ subject_ref_chars: 12 }).subject_ref_chars;
+    try {
+      const f = fakes();
+      expect(await deliverSale(sale, f.deps)).toBe("sent");
+      const subject = arg<{ subject: string }>(f.sendEmail).subject;
+      const match = subject.match(/\(ref ([0-9A-F]+)\)$/);
+      expect(match?.[1]).toHaveLength(12);
+    } finally {
+      GLOBAL.delivery.subject_ref_chars = prevRefChars;
+    }
+
+    // Negative control: with the default registry length restored, the ref is 8 characters (not 12).
+    const fDefault = fakes();
+    expect(await deliverSale({ ...sale, saleId: "s-default-ref" }, fDefault.deps)).toBe("sent");
+    const defaultMatch = arg<{ subject: string }>(fDefault.sendEmail).subject.match(/\(ref ([0-9A-F]+)\)$/);
+    expect(defaultMatch?.[1]).toHaveLength(8);
   });
 
   it("is a no-op on a second webhook for the same sale once its delivery is confirmed", async () => {

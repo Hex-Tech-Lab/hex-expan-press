@@ -1,7 +1,7 @@
 # PICT pairwise model for storefront listing visibility and buyer legal-links visibility.
 # Covers:
 #   1. Storefront shelf listing filter (/books and /books/[handle]) via isVisibleStorefrontProduct & allowedStorefrontCheckoutModes
-#   2. Buyer legal-links visibility (LV-03) on product & checkout pages via storefront.always_show_buyer_legal
+#   2. Buyer legal-links visibility (LV-03) on product & checkout pages via storefront.always_show_buyer_legal and isLaunchOpen(product, sandboxOpen)
 # Run: /usr/local/bin/pict docs/testing/pairwise/storefront_listing_and_legal.model.txt > docs/testing/pairwise/storefront_listing_and_legal.rows.tsv
 
 show_non_live_samples: true, false
@@ -10,3 +10,4 @@ is_sample: true, false
 checkout_mode: live, gated, sandbox, paddle, null
 always_show_buyer_legal: true, false
 buyer_surface: product_page, checkout_page
+sandboxOpen: true, false

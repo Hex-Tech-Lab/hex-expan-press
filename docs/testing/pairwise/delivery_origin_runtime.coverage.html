@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Pairwise Coverage: Delivery Origin Runtime Override (DELIVERY_DOWNLOAD_ORIGIN x VERCEL_ENV x global.json)</title>
+<style>body{margin:0 auto;max-width:72rem;padding:2rem;font-family:system-ui,-apple-system,sans-serif;line-height:1.5;color:#1a1a1a;background:#fdfdfd}code{font-family:ui-monospace,monospace;font-size:.9em;background:#f4f4f5;padding:.1em .3em;border-radius:3px}table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.9em}th,td{border:1px solid #d4d4d8;padding:.4rem .6rem;text-align:left}th{background:#f4f4f5}</style>
+</head>
+<body>
+<h1>Pairwise Coverage: Delivery Origin Runtime Override (DELIVERY_DOWNLOAD_ORIGIN x VERCEL_ENV x global.json)</h1>
+<ul>
+<li><strong>Branch:</strong> <code>fix/email-streams-registry</code></li>
+<li><strong>Model:</strong> <code>docs/testing/pairwise/delivery_origin_runtime.model.txt</code></li>
+<li><strong>Generated rows:</strong> <code>docs/testing/pairwise/delivery_origin_runtime.rows.tsv</code> (<strong>16 rows</strong>, order 2, 3 factors)</li>
+<li><strong>PICT binary:</strong> <code>/usr/local/bin/pict</code></li>
+<li><strong>Pairwise coverage:</strong> <strong>32 / 32 pairs (100.0%)</strong> — 0 uncovered pairs</li>
+<li><strong>Asserted by:</strong> <code>payments/test/delivery_origin_runtime.pairwise.test.ts</code> (17 tests: 1 drift check + 16 per-row assertions)</li>
+</ul>
+<h2>Factors</h2>
+<ul>
+<li><code>delivery_download_origin</code>: <code>unset</code>, <code>branch_alias</code> (<code>https://hex-expan-press-git-fix-email-strea-b16b58-techhypexps-projects.vercel.app</code>), <code>production_apex</code> (<code>https://expanpress.com</code>), <code>non_allowed_host</code> (<code>https://evil.example.com</code>)</li>
+<li><code>vercel_env</code>: <code>unset</code>, <code>preview</code>, <code>production</code>, <code>development</code> (<code>NODE_ENV</code> pinned to <code>"test"</code> in harness)</li>
+<li><code>global_json</code>: <code>present</code> (<code>data/settings/global.json</code> sets <code>delivery.download_origin = "https://mail.expanpress.com"</code>), <code>absent</code></li>
+</ul>
+<h2>Row mapping</h2>
+<table><thead><tr><th>#</th><th>delivery_download_origin</th><th>vercel_env</th><th>global_json</th><th><code>downloadOriginOverride()</code></th><th><code>loadDeliverySection</code> / <code>GLOBAL.delivery.download_origin</code></th><th>Asserted by</th></tr></thead><tbody>
+<tr><td>1</td><td><code>production_apex</code></td><td><code>preview</code></td><td><code>present</code></td><td><code>null</code></td><td>Throws refused-on-non-production error</td><td>delivery_origin_runtime.pairwise.test.ts row #1</td></tr>
+<tr><td>2</td><td><code>branch_alias</code></td><td><code>production</code></td><td><code>present</code></td><td><code>null</code></td><td><code>"https://mail.expanpress.com"</code> (file)</td><td>delivery_origin_runtime.pairwise.test.ts row #2</td></tr>
+<tr><td>3</td><td><code>production_apex</code></td><td><code>unset</code></td><td><code>absent</code></td><td><code>null</code></td><td>Throws refused-on-non-production error</td><td>delivery_origin_runtime.pairwise.test.ts row #3</td></tr>
+<tr><td>4</td><td><code>production_apex</code></td><td><code>production</code></td><td><code>absent</code></td><td><code>null</code></td><td><code>"https://expanpress.com"</code> (default)</td><td>delivery_origin_runtime.pairwise.test.ts row #4</td></tr>
+<tr><td>5</td><td><code>non_allowed_host</code></td><td><code>production</code></td><td><code>absent</code></td><td><code>null</code></td><td><code>"https://expanpress.com"</code> (default)</td><td>delivery_origin_runtime.pairwise.test.ts row #5</td></tr>
+<tr><td>6</td><td><code>unset</code></td><td><code>development</code></td><td><code>absent</code></td><td><code>null</code></td><td><code>"https://expanpress.com"</code> (default)</td><td>delivery_origin_runtime.pairwise.test.ts row #6</td></tr>
+<tr><td>7</td><td><code>unset</code></td><td><code>production</code></td><td><code>present</code></td><td><code>null</code></td><td><code>"https://mail.expanpress.com"</code> (file)</td><td>delivery_origin_runtime.pairwise.test.ts row #7</td></tr>
+<tr><td>8</td><td><code>production_apex</code></td><td><code>development</code></td><td><code>present</code></td><td><code>null</code></td><td>Throws refused-on-non-production error</td><td>delivery_origin_runtime.pairwise.test.ts row #8</td></tr>
+<tr><td>9</td><td><code>unset</code></td><td><code>preview</code></td><td><code>absent</code></td><td><code>null</code></td><td><code>"https://expanpress.com"</code> (default)</td><td>delivery_origin_runtime.pairwise.test.ts row #9</td></tr>
+<tr><td>10</td><td><code>branch_alias</code></td><td><code>development</code></td><td><code>absent</code></td><td><code>branch_alias</code></td><td><code>branch_alias</code></td><td>delivery_origin_runtime.pairwise.test.ts row #10</td></tr>
+<tr><td>11</td><td><code>non_allowed_host</code></td><td><code>unset</code></td><td><code>present</code></td><td><code>null</code></td><td>Throws refused-on-non-production error</td><td>delivery_origin_runtime.pairwise.test.ts row #11</td></tr>
+<tr><td>12</td><td><code>non_allowed_host</code></td><td><code>preview</code></td><td><code>present</code></td><td><code>null</code></td><td>Throws refused-on-non-production error</td><td>delivery_origin_runtime.pairwise.test.ts row #12</td></tr>
+<tr><td>13</td><td><code>branch_alias</code></td><td><code>preview</code></td><td><code>absent</code></td><td><code>branch_alias</code></td><td><code>branch_alias</code></td><td>delivery_origin_runtime.pairwise.test.ts row #13</td></tr>
+<tr><td>14</td><td><code>unset</code></td><td><code>unset</code></td><td><code>absent</code></td><td><code>null</code></td><td><code>"https://expanpress.com"</code> (default)</td><td>delivery_origin_runtime.pairwise.test.ts row #14</td></tr>
+<tr><td>15</td><td><code>branch_alias</code></td><td><code>unset</code></td><td><code>present</code></td><td><code>branch_alias</code></td><td><code>branch_alias</code></td><td>delivery_origin_runtime.pairwise.test.ts row #15</td></tr>
+<tr><td>16</td><td><code>non_allowed_host</code></td><td><code>development</code></td><td><code>present</code></td><td><code>null</code></td><td>Throws refused-on-non-production error</td><td>delivery_origin_runtime.pairwise.test.ts row #16</td></tr>
+</tbody></table>
+<h2>Uncovered combinations note</h2>
+<ul>
+<li>Pairwise (order 2) pair coverage is <strong>100.0% (32/32 pairs)</strong>; no pair was omitted.</li>
+<li><code>vercel_env = unset</code> with <code>NODE_ENV = "production"</code> (non-Vercel production build) is outside the 3-factor model and covered explicitly in <code>payments/test/download_origin_override.test.ts</code>.</li>
+</ul>
+</body>
+</html>

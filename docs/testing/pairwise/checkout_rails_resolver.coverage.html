@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Pairwise Coverage: Checkout Rails Resolver (rev 2)</title>
+<style>body{margin:0 auto;max-width:72rem;padding:2rem;font-family:system-ui,-apple-system,sans-serif;line-height:1.5;color:#1a1a1a;background:#fdfdfd}code{font-family:ui-monospace,monospace;font-size:.9em;background:#f4f4f5;padding:.1em .3em;border-radius:3px}table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.9em}th,td{border:1px solid #d4d4d8;padding:.4rem .6rem;text-align:left}th{background:#f4f4f5}</style>
+</head>
+<body>
+<h1>Pairwise Coverage: Checkout Rails Resolver (rev 2)</h1>
+<ul>
+<li><strong>Branch:</strong> <code>fix/email-streams-registry</code></li>
+<li><strong>Model:</strong> <code>docs/testing/pairwise/checkout_rails_resolver.model.txt</code></li>
+<li><strong>Seed:</strong> <code>docs/testing/pairwise/checkout_rails_resolver.seed.tsv</code></li>
+<li><strong>Generated rows:</strong> <code>docs/testing/pairwise/checkout_rails_resolver.rows.tsv</code> (<strong>15 rows</strong>, order 2, 5 factors)</li>
+<li><strong>PICT binary:</strong> <code>/usr/local/bin/pict</code></li>
+<li><strong>Pairwise coverage:</strong> <strong>75 / 75 pairs (100.0%)</strong> — 0 uncovered pairs</li>
+<li><strong>Asserted by:</strong> <code>web/__tests__/checkout_rails_resolver.pairwise.test.ts</code> (20 tests: 1 drift check + 4 factor/seed/sandbox invariants + 15 per-row assertions)</li>
+</ul>
+<h2>Factors updated in rev 2</h2>
+<ul>
+<li>Added <code>sandboxAllowed</code> (<code>true</code>, <code>false</code>) alongside <code>checkout_mode</code> (<code>live</code>, <code>gated</code>, <code>sandbox</code>, <code>paddle</code>, <code>null</code>), <code>rails</code> (<code>zero</code>, <code>one</code>, <code>two</code>), <code>provider</code> (<code>paddle</code>, <code>creem</code>), and <code>price</code> (<code>set</code>, <code>null</code>).</li>
+<li>Rule asserted per row: <code>checkout_mode = sandbox</code> is purchasable only when <code>sandboxAllowed = true</code>, <code>price = set</code>, and <code>rails != zero</code> (and names <code>merchantOfRecordProvider</code> only when <code>rails = one</code>).</li>
+</ul>
+<h2>Row mapping</h2>
+<table><thead><tr><th>#</th><th>rails</th><th>provider</th><th>price</th><th>checkout_mode</th><th>sandboxAllowed</th><th>Expected purchasable</th><th>Expected MoR</th><th>Asserted by</th></tr></thead><tbody>
+<tr><td>1</td><td><code>one</code></td><td><code>creem</code></td><td><code>set</code></td><td><code>live</code></td><td><code>true</code></td><td><code>true</code></td><td><code>creem</code></td><td>checkout_rails_resolver.pairwise.test.ts row #1 (seed)</td></tr>
+<tr><td>2</td><td><code>zero</code></td><td><code>paddle</code></td><td><code>null</code></td><td><code>sandbox</code></td><td><code>false</code></td><td><code>false</code></td><td><code>null</code></td><td>checkout_rails_resolver.pairwise.test.ts row #2</td></tr>
+<tr><td>3</td><td><code>one</code></td><td><code>paddle</code></td><td><code>set</code></td><td><code>gated</code></td><td><code>false</code></td><td><code>false</code></td><td><code>null</code></td><td>checkout_rails_resolver.pairwise.test.ts row #3</td></tr>
+<tr><td>4</td><td><code>one</code></td><td><code>creem</code></td><td><code>null</code></td><td><code>paddle</code></td><td><code>true</code></td><td><code>false</code></td><td><code>null</code></td><td>checkout_rails_resolver.pairwise.test.ts row #4</td></tr>
+<tr><td>5</td><td><code>one</code></td><td><code>creem</code></td><td><code>set</code></td><td><code>sandbox</code></td><td><code>true</code></td><td><code>true</code></td><td><code>creem</code></td><td>checkout_rails_resolver.pairwise.test.ts row #5</td></tr>
+<tr><td>6</td><td><code>two</code></td><td><code>paddle</code></td><td><code>set</code></td><td><code>paddle</code></td><td><code>false</code></td><td><code>false</code></td><td><code>null</code></td><td>checkout_rails_resolver.pairwise.test.ts row #6</td></tr>
+<tr><td>7</td><td><code>zero</code></td><td><code>creem</code></td><td><code>set</code></td><td><code>null</code></td><td><code>true</code></td><td><code>false</code></td><td><code>null</code></td><td>checkout_rails_resolver.pairwise.test.ts row #7</td></tr>
+<tr><td>8</td><td><code>two</code></td><td><code>creem</code></td><td><code>null</code></td><td><code>gated</code></td><td><code>true</code></td><td><code>false</code></td><td><code>null</code></td><td>checkout_rails_resolver.pairwise.test.ts row #8</td></tr>
+<tr><td>9</td><td><code>two</code></td><td><code>creem</code></td><td><code>set</code></td><td><code>sandbox</code></td><td><code>false</code></td><td><code>false</code></td><td><code>null</code></td><td>checkout_rails_resolver.pairwise.test.ts row #9</td></tr>
+<tr><td>10</td><td><code>one</code></td><td><code>paddle</code></td><td><code>null</code></td><td><code>null</code></td><td><code>false</code></td><td><code>false</code></td><td><code>null</code></td><td>checkout_rails_resolver.pairwise.test.ts row #10</td></tr>
+<tr><td>11</td><td><code>two</code></td><td><code>paddle</code></td><td><code>null</code></td><td><code>null</code></td><td><code>true</code></td><td><code>false</code></td><td><code>null</code></td><td>checkout_rails_resolver.pairwise.test.ts row #11</td></tr>
+<tr><td>12</td><td><code>zero</code></td><td><code>paddle</code></td><td><code>null</code></td><td><code>gated</code></td><td><code>false</code></td><td><code>false</code></td><td><code>null</code></td><td>checkout_rails_resolver.pairwise.test.ts row #12</td></tr>
+<tr><td>13</td><td><code>two</code></td><td><code>paddle</code></td><td><code>null</code></td><td><code>live</code></td><td><code>false</code></td><td><code>false</code></td><td><code>null</code></td><td>checkout_rails_resolver.pairwise.test.ts row #13</td></tr>
+<tr><td>14</td><td><code>zero</code></td><td><code>paddle</code></td><td><code>set</code></td><td><code>paddle</code></td><td><code>true</code></td><td><code>false</code></td><td><code>null</code></td><td>checkout_rails_resolver.pairwise.test.ts row #14</td></tr>
+<tr><td>15</td><td><code>zero</code></td><td><code>paddle</code></td><td><code>null</code></td><td><code>live</code></td><td><code>false</code></td><td><code>false</code></td><td><code>null</code></td><td>checkout_rails_resolver.pairwise.test.ts row #15</td></tr>
+</tbody></table>
+<h2>Uncovered combinations note</h2>
+<ul>
+<li>Pairwise (order 2) pair coverage is <strong>100.0% (75/75 pairs)</strong>; no pair was omitted.</li>
+<li>Higher-order (3-way+) combinations such as <code>rails = two</code> + <code>checkout_mode = live</code> + <code>price = set</code> (POST fallback without a single MoR) are not forced by order-2 generation alone and are covered explicitly in <code>web/app/api/billing/checkout/__tests__/rails_page_route_agreement.pairwise.test.ts</code>.</li>
+</ul>
+</body>
+</html>

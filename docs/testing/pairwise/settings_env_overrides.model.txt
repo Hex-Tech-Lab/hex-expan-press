@@ -1,0 +1,21 @@
+# PICT pairwise model for SANDBOX_CHECKOUT_ENABLED, global.json file value, and VERCEL_ENV runtime trimming.
+# Covers withSandboxCheckoutEnv, loadPaymentsSection, deployVercelEnv, and isNonProductionRuntime in payments/src/settings_registry.ts.
+# Run: /usr/local/bin/pict docs/testing/pairwise/settings_env_overrides.model.txt > docs/testing/pairwise/settings_env_overrides.rows.tsv
+#
+# Parameters:
+#   sandbox_checkout_env : process.env.SANDBOX_CHECKOUT_ENABLED (unset; "true"; "false"; "yes" = invalid, ignored)
+#   file_value           : payments.sandbox_checkout_enabled in global.json (true; false; absent = no global.json file)
+#   vercel_env           : process.env.VERCEL_ENV (unset; "preview"; "production"; preview_padded = " preview ", trimmed to "preview")
+#
+# Expected outcome (oracle in settings_env_overrides.pairwise.test.ts):
+#   sandbox_checkout_enabled:
+#     sandbox_checkout_env = "true"  -> true
+#     sandbox_checkout_env = "false" -> false
+#     sandbox_checkout_env = unset | "yes" -> file_value === "true" (false when file_value is false or absent)
+#   isNonProductionRuntime() (under Vitest NODE_ENV="test"):
+#     vercel_env = "production" -> false
+#     vercel_env = "preview" | " preview " | unset -> true
+
+sandbox_checkout_env: unset, true, false, yes
+file_value: true, false, absent
+vercel_env: unset, preview, production, preview_padded

@@ -53,6 +53,17 @@ function warnFallback(file: string, why: string): void {
   console.error(`[settings-registry] ${file} ${why} — inline fallbacks in effect (expected at ${CANDIDATE_DIRS[0]})`);
 }
 
+/**
+ * A section that is absent (undefined) takes the defaults by design. A section that is present but not a plain object
+ * (null, a scalar, an array) is refused LOUDLY with a named warning, then the defaults apply. Never a silent fallback.
+ */
+function sectionIsPlainObject(name: string, raw: unknown): raw is Record<string, unknown> {
+  if (raw === undefined) return false;
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) return true;
+  warnFallback("global.json", `invalid ${name} section (expected a JSON object)`);
+  return false;
+}
+
 /** Paddle.js overlay checkout on pay.expanpress.com (the buyer email step opens it). The two *_env fields are the NAMES of
  *  environment variables, never values. The client token and the environment are read on the server with these names, because
  *  a NEXT_PUBLIC_* value is only inlined into the client bundle when it is referenced by its literal name. */
@@ -1007,7 +1018,7 @@ function isHttpsUrl(value: unknown): value is string {
 /** paddle.overlay: each value is checked against its own shape. An invalid value falls back to its default and is reported. */
 function loadPaddleOverlay(raw: Record<string, unknown> | undefined, fallbacks: string[]): PaddleOverlaySettings {
   const defaults = DEFAULT_GLOBAL.payments.paddle.overlay;
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return defaults;
+  if (!sectionIsPlainObject("paddle_overlay", raw)) return defaults;
   const pick = <K extends keyof PaddleOverlaySettings>(key: K, valid: (v: unknown) => boolean): PaddleOverlaySettings[K] => {
     if (!(key in raw)) return defaults[key];
     const candidate = raw[key];
@@ -1029,7 +1040,7 @@ function loadPaddleOverlay(raw: Record<string, unknown> | undefined, fallbacks: 
 
 export function loadPaymentsSection(raw: Record<string, unknown> | undefined): GlobalSettings["payments"] {
   const defaults = DEFAULT_GLOBAL.payments;
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return defaults;
+  if (!sectionIsPlainObject("payments", raw)) return defaults;
   const p = raw as Partial<GlobalSettings["payments"]> & Record<string, unknown>;
   const paddle = (p.paddle ?? {}) as Partial<GlobalSettings["payments"]["paddle"]>;
   const apiBase = (paddle.api_base ?? {}) as Partial<GlobalSettings["payments"]["paddle"]["api_base"]>;
@@ -1251,7 +1262,7 @@ function loadStorefrontProductLayout(
  *  asset paths, and product_layout; falls back per key on invalid input. publisher_label is derived from brand_name (one source). */
 export function loadStorefrontSection(raw: Record<string, unknown> | undefined): GlobalSettings["storefront"] {
   const defaults = DEFAULT_GLOBAL.storefront;
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return defaults;
+  if (!sectionIsPlainObject("storefront", raw)) return defaults;
   const fallbacks: string[] = [];
   const strField = (
     key:
@@ -1406,6 +1417,7 @@ export function loadStorefrontSection(raw: Record<string, unknown> | undefined):
  *  text and names every required category; otherwise the default set wins, with a warning. */
 export function loadLandingSection(raw: Record<string, unknown> | undefined): GlobalSettings["landing"] {
   const defaults = DEFAULT_GLOBAL.landing;
+  if (!sectionIsPlainObject("landing", raw)) return defaults;
   const required = defaults.disclaimer_required_terms;
   const candidate = raw?.disclaimers;
   const hasStrings =
@@ -1429,7 +1441,7 @@ export function loadLandingSection(raw: Record<string, unknown> | undefined): Gl
 /** branding: validates version, theme_mode, font_family, logo URLs, hex colours, and button radius. */
 export function loadBrandingSection(raw: Record<string, unknown> | undefined): BrandCheckoutSettings {
   const defaults = DEFAULT_GLOBAL.branding;
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return defaults;
+  if (!sectionIsPlainObject("branding", raw)) return defaults;
   const fallbacks: string[] = [];
   const str = (value: unknown, fallback: string, key: string): string => {
     if (typeof value === "string" && value.trim() !== "") return value.trim();
@@ -1538,7 +1550,12 @@ const SANDBOX_CHECKOUT_ENV = "SANDBOX_CHECKOUT_ENABLED";
  */
 function withSandboxCheckoutEnv(payments: GlobalSettings["payments"]): GlobalSettings["payments"] {
   const v = process.env[SANDBOX_CHECKOUT_ENV]?.trim().toLowerCase();
-  if (v !== "true" && v !== "false") return payments;
+  if (v === undefined || v === "") return payments;
+  if (v !== "true" && v !== "false") {
+    // An unrecognised value is refused loudly; the file value (or the default) stays in effect.
+    console.error(`[settings-registry] ${SANDBOX_CHECKOUT_ENV}="${v}" is not true or false; ignored, file value in effect`);
+    return payments;
+  }
   return { ...payments, sandbox_checkout_enabled: v === "true" };
 }
 
@@ -1612,7 +1629,7 @@ export const CONSENT_EVIDENCE_SEGMENT_CONTRACT = {
  *  to its default (with a warning) instead of disabling the watch. */
 export function loadUsageWatchSection(raw: Record<string, unknown> | undefined): UsageWatchSettings {
   const defaults = DEFAULT_GLOBAL.usage_watch;
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return defaults;
+  if (!sectionIsPlainObject("usage_watch", raw)) return defaults;
   const fallbacks: string[] = [];
   const pick = (candidate: unknown, fallback: number, key: string, ok: (value: number) => boolean): number => {
     if (typeof candidate === "number" && Number.isFinite(candidate) && ok(candidate)) return candidate;
@@ -1706,7 +1723,9 @@ export const PORTAL_JWT_SKEW_LIMITS = { min: 250, max: 500 } as const;
  *  ADMIN_USER_IDS (comma-separated), ADMIN_AUDIT_LOG_PAGE_SIZE. */
 export function loadAdminSection(raw: Record<string, unknown> | undefined): GlobalSettings["admin"] {
   const defaults = DEFAULT_GLOBAL.admin;
-  const r = (raw ?? {}) as Partial<GlobalSettings["admin"]> & Record<string, unknown>;
+  // A present but non-object section is named in a warning; the env override below still applies (production has no file).
+  if (raw !== undefined) sectionIsPlainObject("admin", raw);
+  const r = (raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {}) as Partial<GlobalSettings["admin"]> & Record<string, unknown>;
   const fallbacks: string[] = [];
   let userIds = defaults.admin_user_ids;
   // Env wins over global.json (production deploys no global.json; the env is the operator's override).
@@ -1766,8 +1785,10 @@ export const mailboxAddress = (from: string): string => (from.match(/<([^>]+)>/)
  * Resend receives the whole header, so anything smuggled beside the mailbox would be sent.
  */
 const SINGLE_MAILBOX = /^(?:[^<>,;"@\x00-\x1f]*<[^<>,;"\s@\x00-\x1f]+@[^<>,;"\s@\x00-\x1f]+>|[^<>,;"\s@\x00-\x1f]+@[^<>,;"\s@\x00-\x1f]+)$/;
-// A control character (CR, LF, NUL, tab) anywhere in the address is refused before trimming, so a trailing "\r\n" cannot pass.
-export const isSingleMailbox = (from: string): boolean => !/[\x00-\x1f]/.test(from) && SINGLE_MAILBOX.test(from.trim());
+// Refused anywhere in the address, before trimming: C0 controls and DEL, the C1 NEL, the Unicode line and paragraph separators
+// (a trailing "\r\n" or U+2028 cannot pass), and the ":", "(" and ")" that start group or comment syntax in a From header.
+export const isSingleMailbox = (from: string): boolean =>
+  !/[\x00-\x1f\x7f\u0085\u2028\u2029:()]/.test(from) && SINGLE_MAILBOX.test(from.trim());
 
 // A stream domain is one or more DNS labels under expanpress.com. An empty or malformed label (".expanpress.com") is refused.
 const DOMAIN_UNDER_OUR_ZONE = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+expanpress\.com$/;
@@ -1964,6 +1985,10 @@ export function loadEmailSection(raw: Record<string, unknown> | undefined): Glob
     warnFallback("global.json", "email.sender and email.from differ; from is used");
   }
   // Each outbound stream needs a valid From address and its verified subdomain. A partial override keeps the default for the other stream.
+  // The older sending_domain alias must be a string; anything else is refused loudly, never ignored silently.
+  if (rawEmail.sending_domain !== undefined && typeof rawEmail.sending_domain !== "string") {
+    warnFallback("global.json", "invalid email values for sending_domain");
+  }
   const streamsRaw = rawEmail.streams;
   const isPlainObject = (value: unknown): value is Record<string, unknown> => !!value && typeof value === "object" && !Array.isArray(value);
   if (streamsRaw !== undefined && !isPlainObject(streamsRaw)) {
@@ -2109,7 +2134,7 @@ function isSafeBooksPrefix(prefixValue: unknown): prefixValue is string {
 
 export function loadBookPreviewSection(raw: Record<string, unknown> | undefined): BookPreviewSettings {
   const defaults = DEFAULT_GLOBAL.book_preview;
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return defaults;
+  if (!sectionIsPlainObject("book_preview", raw)) return defaults;
   const fallbacks: string[] = [];
   const intField = (
     key:

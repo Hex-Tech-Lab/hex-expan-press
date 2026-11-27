@@ -1,0 +1,17 @@
+delivery_download_origin	vercel_env	global_json
+production_apex	preview	present
+branch_alias	production	present
+production_apex	unset	absent
+production_apex	production	absent
+non_allowed_host	production	absent
+unset	development	absent
+unset	production	present
+production_apex	development	present
+unset	preview	absent
+branch_alias	development	absent
+non_allowed_host	unset	present
+non_allowed_host	preview	present
+branch_alias	preview	absent
+unset	unset	absent
+branch_alias	unset	present
+non_allowed_host	development	present

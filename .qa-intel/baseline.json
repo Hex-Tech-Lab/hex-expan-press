@@ -2877,5 +2877,13 @@
     "why": "Using 'type' as a variable/test name causes parse errors. JavaScript reserves this keyword.",
     "fix": "Rename to a non-reserved alternative: 'typetest', 'testType', etc.",
     "reason": "false positive: 'type' is a contextual keyword, not reserved; flagged identifier is the callback parameter (type: string) at line 79, not the 'import type' modifier"
+  },
+  {
+    "file": "payments/src/delivery.ts",
+    "severity": "low",
+    "title": "Data Quality: String truncation without ellipsis indicator",
+    "why": "The buyer subject reference is the first delivery.subject_ref_chars hex characters of the link's SHA-256 token hash. It is an identifier prefix, not truncated user text, so an ellipsis would make the reference invalid.",
+    "fix": "None required.",
+    "reason": "false positive: slice(0, subject_ref_chars) of a hex digest (a reference, not text the buyer typed); an ellipsis would corrupt the reference. Re-open if the slice is applied to user-entered text."
   }
 ]

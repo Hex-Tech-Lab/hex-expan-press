@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Pairwise Coverage: Settings Env Overrides (SANDBOX_CHECKOUT_ENABLED x global.json x VERCEL_ENV)</title>
+<style>body{margin:0 auto;max-width:72rem;padding:2rem;font-family:system-ui,-apple-system,sans-serif;line-height:1.5;color:#1a1a1a;background:#fdfdfd}code{font-family:ui-monospace,monospace;font-size:.9em;background:#f4f4f5;padding:.1em .3em;border-radius:3px}table{border-collapse:collapse;width:100%;margin:1rem 0;font-size:.9em}th,td{border:1px solid #d4d4d8;padding:.4rem .6rem;text-align:left}th{background:#f4f4f5}</style>
+</head>
+<body>
+<h1>Pairwise Coverage: Settings Env Overrides (SANDBOX_CHECKOUT_ENABLED x global.json x VERCEL_ENV)</h1>
+<ul>
+<li><strong>Branch:</strong> <code>fix/email-streams-registry</code></li>
+<li><strong>Model:</strong> <code>docs/testing/pairwise/settings_env_overrides.model.txt</code></li>
+<li><strong>Generated rows:</strong> <code>docs/testing/pairwise/settings_env_overrides.rows.tsv</code> (<strong>16 rows</strong>, order 2, 3 factors)</li>
+<li><strong>PICT binary:</strong> <code>/usr/local/bin/pict</code></li>
+<li><strong>Pairwise coverage:</strong> <strong>40 / 40 pairs (100.0%)</strong> — 0 uncovered pairs</li>
+<li><strong>Asserted by:</strong> <code>payments/test/settings_env_overrides.pairwise.test.ts</code> (17 tests: 1 drift check + 16 per-row assertions)</li>
+</ul>
+<h2>Factors</h2>
+<ul>
+<li><code>sandbox_checkout_env</code>: <code>unset</code>, <code>true</code> (<code>"true"</code>), <code>false</code> (<code>"false"</code>), <code>yes</code> (<code>"yes"</code>, invalid and ignored)</li>
+<li><code>file_value</code>: <code>true</code>, <code>false</code>, <code>absent</code> (<code>payments.sandbox_checkout_enabled</code> in <code>data/settings/global.json</code>)</li>
+<li><code>vercel_env</code>: <code>unset</code>, <code>preview</code>, <code>production</code>, <code>preview_padded</code> (<code>" preview "</code>, trimmed by <code>deployVercelEnv</code>)</li>
+</ul>
+<h2>Row mapping</h2>
+<table><thead><tr><th>#</th><th>sandbox_checkout_env</th><th>file_value</th><th>vercel_env</th><th>Expected <code>sandbox_checkout_enabled</code></th><th>Expected <code>isNonProductionRuntime()</code></th><th>Asserted by</th></tr></thead><tbody>
+<tr><td>1</td><td><code>yes</code></td><td><code>absent</code></td><td><code>preview</code></td><td><code>false</code></td><td><code>true</code></td><td>settings_env_overrides.pairwise.test.ts row #1</td></tr>
+<tr><td>2</td><td><code>yes</code></td><td><code>true</code></td><td><code>production</code></td><td><code>true</code></td><td><code>false</code></td><td>settings_env_overrides.pairwise.test.ts row #2</td></tr>
+<tr><td>3</td><td><code>yes</code></td><td><code>false</code></td><td><code>unset</code></td><td><code>false</code></td><td><code>true</code></td><td>settings_env_overrides.pairwise.test.ts row #3</td></tr>
+<tr><td>4</td><td><code>yes</code></td><td><code>absent</code></td><td><code>preview_padded</code></td><td><code>false</code></td><td><code>true</code></td><td>settings_env_overrides.pairwise.test.ts row #4</td></tr>
+<tr><td>5</td><td><code>true</code></td><td><code>absent</code></td><td><code>unset</code></td><td><code>true</code></td><td><code>true</code></td><td>settings_env_overrides.pairwise.test.ts row #5</td></tr>
+<tr><td>6</td><td><code>false</code></td><td><code>absent</code></td><td><code>production</code></td><td><code>false</code></td><td><code>false</code></td><td>settings_env_overrides.pairwise.test.ts row #6</td></tr>
+<tr><td>7</td><td><code>false</code></td><td><code>true</code></td><td><code>preview_padded</code></td><td><code>false</code></td><td><code>true</code></td><td>settings_env_overrides.pairwise.test.ts row #7</td></tr>
+<tr><td>8</td><td><code>false</code></td><td><code>false</code></td><td><code>preview</code></td><td><code>false</code></td><td><code>true</code></td><td>settings_env_overrides.pairwise.test.ts row #8</td></tr>
+<tr><td>9</td><td><code>unset</code></td><td><code>false</code></td><td><code>production</code></td><td><code>false</code></td><td><code>false</code></td><td>settings_env_overrides.pairwise.test.ts row #9</td></tr>
+<tr><td>10</td><td><code>false</code></td><td><code>true</code></td><td><code>unset</code></td><td><code>false</code></td><td><code>true</code></td><td>settings_env_overrides.pairwise.test.ts row #10</td></tr>
+<tr><td>11</td><td><code>unset</code></td><td><code>false</code></td><td><code>preview_padded</code></td><td><code>false</code></td><td><code>true</code></td><td>settings_env_overrides.pairwise.test.ts row #11</td></tr>
+<tr><td>12</td><td><code>true</code></td><td><code>true</code></td><td><code>production</code></td><td><code>true</code></td><td><code>false</code></td><td>settings_env_overrides.pairwise.test.ts row #12</td></tr>
+<tr><td>13</td><td><code>unset</code></td><td><code>true</code></td><td><code>preview</code></td><td><code>true</code></td><td><code>true</code></td><td>settings_env_overrides.pairwise.test.ts row #13</td></tr>
+<tr><td>14</td><td><code>true</code></td><td><code>false</code></td><td><code>preview_padded</code></td><td><code>true</code></td><td><code>true</code></td><td>settings_env_overrides.pairwise.test.ts row #14</td></tr>
+<tr><td>15</td><td><code>unset</code></td><td><code>absent</code></td><td><code>unset</code></td><td><code>false</code></td><td><code>true</code></td><td>settings_env_overrides.pairwise.test.ts row #15</td></tr>
+<tr><td>16</td><td><code>true</code></td><td><code>absent</code></td><td><code>preview</code></td><td><code>true</code></td><td><code>true</code></td><td>settings_env_overrides.pairwise.test.ts row #16</td></tr>
+</tbody></table>
+<h2>Uncovered combinations note</h2>
+<ul>
+<li>Pairwise (order 2) pair coverage is <strong>100.0% (40/40 pairs)</strong>; no pair was omitted.</li>
+</ul>
+</body>
+</html>

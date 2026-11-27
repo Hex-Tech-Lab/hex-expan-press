@@ -101,4 +101,53 @@ describe("buy form email controls", () => {
     expect(container!.textContent).not.toContain("to continue.");
     expect(container!.textContent).not.toContain("do not match");
   });
+
+  it("mounts #buyer-email-blocker on the first render and states the disabled-button reason (WCAG 4.1.3)", () => {
+    // The region is always in the DOM so a screen reader announces each change. The first-paint reason is deliberate:
+    // the founder asked that a disabled buy button always says why.
+    mount();
+    const region = container!.querySelector("#buyer-email-blocker");
+    expect(region).not.toBeNull();
+    expect(region!.textContent).toBe("Enter your email address to continue.");
+  });
+
+  it("sets the invalid-email blocker text and aria-describedby on the button after typing an invalid email", () => {
+    mount();
+    typeInto("buyer-email", "not-an-email");
+    const region = container!.querySelector("#buyer-email-blocker");
+    expect(region?.textContent).toBe("Enter a complete email address, such as name@example.com.");
+    expect(buyButton().getAttribute("aria-describedby")).toBe("buyer-email-blocker");
+
+    // Negative control: when the blocker clears, aria-describedby clears while #buyer-email-blocker stays mounted in the DOM.
+    typeInto("buyer-email", "kellybakri@gmail.com");
+    typeInto("buyer-email-confirm", "kellybakri@gmail.com");
+    expect(buyButton().getAttribute("aria-describedby")).toBeNull();
+    const mountedAfterClear = container!.querySelector("#buyer-email-blocker");
+    expect(mountedAfterClear).not.toBeNull();
+    expect(mountedAfterClear!.textContent).toBe("");
+  });
+
+  it("moves focus to #buyer-email on a blocked submit with an invalid email", () => {
+    mount();
+    typeInto("buyer-email", "not-an-email");
+    // Negative control: before submit, #buyer-email does not hold focus.
+    expect(document.activeElement?.id).not.toBe("buyer-email");
+    act(() => {
+      container!.querySelector("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+    expect(document.activeElement?.id).toBe("buyer-email");
+  });
+
+  it("moves focus to #buyer-email-confirm on a blocked submit when email is valid and confirm mismatches", () => {
+    mount();
+    typeInto("buyer-email", "kellybakri@gmail.com");
+    typeInto("buyer-email-confirm", "kellybakri@gmail.co");
+    // Negative control: focus starts elsewhere (e.g. #buyer-email), so focus movement to #buyer-email-confirm is proven.
+    container!.querySelector<HTMLInputElement>("#buyer-email")!.focus();
+    expect(document.activeElement?.id).toBe("buyer-email");
+    act(() => {
+      container!.querySelector("form")!.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+    });
+    expect(document.activeElement?.id).toBe("buyer-email-confirm");
+  });
 });

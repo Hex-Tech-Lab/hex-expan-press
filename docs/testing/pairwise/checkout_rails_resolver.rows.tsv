@@ -1,16 +1,16 @@
-rails	provider	price	checkout_mode
-one	creem	set	live
-two	paddle	null	gated
-two	paddle	set	live
-one	creem	null	null
-zero	creem	set	sandbox
-two	creem	null	paddle
-zero	paddle	set	null
-one	paddle	set	paddle
-one	paddle	null	sandbox
-zero	creem	null	paddle
-one	creem	set	gated
-two	paddle	null	sandbox
-zero	creem	null	gated
-two	paddle	set	null
-zero	paddle	null	live
+rails	provider	price	checkout_mode	sandboxAllowed
+one	creem	set	live	true
+zero	paddle	null	sandbox	false
+one	paddle	set	gated	false
+one	creem	null	paddle	true
+one	creem	set	sandbox	true
+two	paddle	set	paddle	false
+zero	creem	set	null	true
+two	creem	null	gated	true
+two	creem	set	sandbox	false
+one	paddle	null	null	false
+two	paddle	null	null	true
+zero	paddle	null	gated	false
+two	paddle	null	live	false
+zero	paddle	set	paddle	true
+zero	paddle	null	live	false

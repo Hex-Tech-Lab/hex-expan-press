@@ -1,8 +1,19 @@
 // PR 136 review MEDIUM (G) and the new delivery/email registry keys: the buyer link origin is read from the settings registry,
 // and each new key falls back to its default when its value is invalid (never silently to a weaker value).
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { productionDeps } from "../src/delivery";
-import { DEFAULT_GLOBAL, GLOBAL, isSingleMailbox, loadDeliverySection, loadEmailSection } from "../src/settings_registry";
+import {
+  DEFAULT_GLOBAL,
+  GLOBAL,
+  isSingleMailbox,
+  loadAdminSection,
+  loadBrandingSection,
+  loadDeliverySection,
+  loadEmailSection,
+  loadLandingSection,
+  loadPaymentsSection,
+  loadStorefrontSection,
+} from "../src/settings_registry";
 import { isOnSendingDomain } from "../src/email";
 
 describe("buyer link origin comes from the settings registry (G)", () => {
@@ -77,15 +88,28 @@ describe("email stream domain and mailbox validation (review hardening)", () => 
   it("refuses a mailbox with a control character, such as a trailing CRLF, and accepts the same address with spaces", () => {
     expect(isSingleMailbox("delivery@mail.expanpress.com\r\n")).toBe(false);
     expect(isSingleMailbox("delivery@mail.expanpress.com\n")).toBe(false);
+    expect(isSingleMailbox("delivery@mail.expanpress.com\u2028")).toBe(false);
+    expect(isSingleMailbox("delivery@mail.expanpress.com\u0085")).toBe(false);
+    expect(isSingleMailbox("\u0085")).toBe(false);
+    expect(isSingleMailbox("delivery@mail.expanpress.com\u007f")).toBe(false);
+    expect(isSingleMailbox("\u007f")).toBe(false);
+    expect(isSingleMailbox("delivery(c)@mail.expanpress.com")).toBe(false);
+    expect(isSingleMailbox("a:b@mail.expanpress.com")).toBe(false);
     expect(isOnSendingDomain("delivery@mail.expanpress.com\r\n")).toBe(false);
+    expect(isOnSendingDomain("delivery@mail.expanpress.com", "")).toBe(false);
+    expect(isOnSendingDomain("delivery@mail.expanpress.com.")).toBe(false);
+    // Negative control: a clean mailbox on the sending domain stays accepted.
     expect(isSingleMailbox("  delivery@mail.expanpress.com  ")).toBe(true);
     expect(isOnSendingDomain("delivery@mail.expanpress.com")).toBe(true);
   });
 
   it("uses a valid sender when from is invalid, the same as when from is unset", () => {
-    const sender = "ExpanPress <delivery@mail.expanpress.com>";
-    const unset = loadEmailSection({ sender }).from;
-    expect(loadEmailSection({ sender, from: "not an address" }).from).toBe(unset);
+    const sender = "ExpanPress <receipts@mail.expanpress.com>";
+    expect(loadEmailSection({ sender, from: "not an address" }).from).toBe(sender);
+    expect(loadEmailSection({ sender }).from).toBe(sender);
+
+    // Negative control: with invalid from and no sender, the default must be returned.
+    expect(loadEmailSection({ from: "not an address" }).from).toBe(DEFAULT_GLOBAL.email.from);
   });
 });
 
@@ -96,5 +120,27 @@ describe("email.concurrent_request_* registry keys", () => {
     expect(ok.concurrent_request_error_name).toBe("concurrent_idempotent_requests");
     expect(loadEmailSection({ concurrent_request_status: 200 }).concurrent_request_status).toBe(409);
     expect(loadEmailSection({ concurrent_request_error_name: "  " }).concurrent_request_error_name).toBe("concurrent_idempotent_requests");
+  });
+});
+
+describe("non-object sections warn and fall back to defaults", () => {
+  it.each([
+    ["loadPaymentsSection", () => loadPaymentsSection("oops" as never), () => loadPaymentsSection(undefined)],
+    ["loadStorefrontSection", () => loadStorefrontSection([] as never), () => loadStorefrontSection(undefined)],
+    ["loadBrandingSection", () => loadBrandingSection(null as never), () => loadBrandingSection(undefined)],
+    ["loadLandingSection", () => loadLandingSection("x" as never), () => loadLandingSection(undefined)],
+    ["loadAdminSection", () => loadAdminSection(5 as never), () => loadAdminSection(undefined)],
+  ])("%s warns with 'expected a JSON object' and falls back to default-argument output", (_name, loadBad, loadDefault) => {
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      const expected = loadDefault();
+      // Negative control: undefined input must NOT warn.
+      expect(errSpy).not.toHaveBeenCalled();
+
+      expect(loadBad()).toEqual(expected);
+      expect(errSpy).toHaveBeenCalledWith(expect.stringContaining("expected a JSON object"));
+    } finally {
+      errSpy.mockRestore();
+    }
   });
 });

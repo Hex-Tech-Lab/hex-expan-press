@@ -1,6 +1,6 @@
 // Pairwise (PICT) test for storefront listing filter and buyer legal-links visibility.
 // Model: docs/testing/pairwise/storefront_listing_and_legal.model.txt
-// Rows:  docs/testing/pairwise/storefront_listing_and_legal.rows.tsv (15 PICT rows, every row asserted below)
+// Rows:  docs/testing/pairwise/storefront_listing_and_legal.rows.tsv (16 PICT rows, every row asserted below)
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -19,6 +19,11 @@ vi.mock("next/navigation", () => ({
 const mockStore = vi.hoisted(() => ({
   checkoutMode: "live" as string | null,
   isSample: false,
+  sandboxOpen: false,
+}));
+
+vi.mock("../src/lib/sandbox-checkout", () => ({
+  sandboxAllowed: () => mockStore.sandboxOpen,
 }));
 
 vi.mock("../src/components/storefront/storefront", async (importOriginal) => {
@@ -87,7 +92,7 @@ const MODEL_PATH = fileURLToPath(
 const ROWS_PATH = fileURLToPath(
   new URL("../../docs/testing/pairwise/storefront_listing_and_legal.rows.tsv", import.meta.url),
 );
-const EXPECTED_ROW_COUNT = 15;
+const EXPECTED_ROW_COUNT = 16;
 
 interface ListingLegalRow {
   rowNum: number;
@@ -97,6 +102,7 @@ interface ListingLegalRow {
   checkout_mode: "live" | "gated" | "sandbox" | "paddle" | "null";
   always_show_buyer_legal: "true" | "false";
   buyer_surface: "product_page" | "checkout_page";
+  sandboxOpen: "true" | "false";
 }
 
 function parseRows(tsv: string): ListingLegalRow[] {
@@ -117,6 +123,7 @@ const MODES_BY_TOKEN: Record<ListingLegalRow["allowed_modes"], string[]> = {
 
 function oracleListingVisible(row: ListingLegalRow): boolean {
   if (row.checkout_mode === "live") return true;
+  if (row.checkout_mode === "sandbox" && row.sandboxOpen === "true") return true;
   if (row.show_non_live_samples !== "true") return false;
   if (row.is_sample !== "true") return false;
   return MODES_BY_TOKEN[row.allowed_modes].includes(row.checkout_mode);
@@ -124,7 +131,7 @@ function oracleListingVisible(row: ListingLegalRow): boolean {
 
 function oracleLegalVisible(row: ListingLegalRow): boolean {
   if (row.always_show_buyer_legal === "true") return true;
-  return row.checkout_mode === "live";
+  return row.checkout_mode === "live" || (row.checkout_mode === "sandbox" && row.sandboxOpen === "true");
 }
 
 const ROWS_TSV = readFileSync(ROWS_PATH, "utf8");
@@ -133,6 +140,7 @@ const origAlwaysShowBuyerLegal = GLOBAL.storefront.always_show_buyer_legal;
 
 afterEach(() => {
   GLOBAL.storefront.always_show_buyer_legal = origAlwaysShowBuyerLegal;
+  mockStore.sandboxOpen = false;
 });
 
 describe("storefront listing filter & legal-links visibility: PICT pairwise", () => {
@@ -148,7 +156,7 @@ describe("storefront listing filter & legal-links visibility: PICT pairwise", ()
   });
 
   it.each(ROWS)(
-    "row $rowNum: show=$show_non_live_samples modes=$allowed_modes sample=$is_sample mode=$checkout_mode alwaysLegal=$always_show_buyer_legal surface=$buyer_surface",
+    "row $rowNum: show=$show_non_live_samples modes=$allowed_modes sample=$is_sample mode=$checkout_mode alwaysLegal=$always_show_buyer_legal surface=$buyer_surface sandboxOpen=$sandboxOpen",
     async (row) => {
       const storefrontCfg = {
         show_non_live_samples: row.show_non_live_samples === "true",
@@ -156,27 +164,30 @@ describe("storefront listing filter & legal-links visibility: PICT pairwise", ()
       };
       const checkoutMode = row.checkout_mode === "null" ? null : row.checkout_mode;
       const isSample = row.is_sample === "true";
+      const sandboxOpen = row.sandboxOpen === "true";
 
-      // 1. Listing visibility oracle vs storefront helpers
+      // 1. Listing visibility oracle vs storefront helpers (third argument sandboxOpen + second argument sandboxOpen)
       const wantListed = oracleListingVisible(row);
-      expect(isVisibleStorefrontProduct({ checkout_mode: checkoutMode, is_sample: isSample }, storefrontCfg)).toBe(
+      expect(isVisibleStorefrontProduct({ checkout_mode: checkoutMode, is_sample: isSample }, storefrontCfg, sandboxOpen)).toBe(
         wantListed,
       );
 
-      const allowedQueryModes = allowedStorefrontCheckoutModes(storefrontCfg);
-      expect(allowedQueryModes).toContain("live");
-      if (row.show_non_live_samples === "true" && MODES_BY_TOKEN[row.allowed_modes].length > 0) {
+      const allowedQueryModes = allowedStorefrontCheckoutModes(storefrontCfg, sandboxOpen);
+      const expectedQueryModes = new Set<string>(["live"]);
+      if (sandboxOpen) expectedQueryModes.add("sandbox");
+      if (row.show_non_live_samples === "true") {
         for (const m of MODES_BY_TOKEN[row.allowed_modes]) {
-          expect(allowedQueryModes).toContain(m);
+          expectedQueryModes.add(m);
         }
-      } else {
-        expect(allowedQueryModes).toEqual(["live"]);
       }
+      expect(new Set(allowedQueryModes)).toEqual(expectedQueryModes);
+      expect(allowedQueryModes).toHaveLength(expectedQueryModes.size);
 
       // 2. Buyer legal-links visibility oracle vs rendered product/checkout page
       GLOBAL.storefront.always_show_buyer_legal = row.always_show_buyer_legal === "true";
       mockStore.checkoutMode = checkoutMode;
       mockStore.isSample = isSample;
+      mockStore.sandboxOpen = sandboxOpen;
       const wantLegal = oracleLegalVisible(row);
 
       const tree =

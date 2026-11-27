@@ -1,0 +1,17 @@
+sandbox_checkout_env	file_value	vercel_env
+yes	absent	preview
+yes	true	production
+yes	false	unset
+yes	absent	preview_padded
+true	absent	unset
+false	absent	production
+false	true	preview_padded
+false	false	preview
+unset	false	production
+false	true	unset
+unset	false	preview_padded
+true	true	production
+unset	true	preview
+true	false	preview_padded
+unset	absent	unset
+true	absent	preview

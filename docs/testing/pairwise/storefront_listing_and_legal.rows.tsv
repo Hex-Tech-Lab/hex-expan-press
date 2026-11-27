@@ -1,16 +1,17 @@
-show_non_live_samples	allowed_modes	is_sample	checkout_mode	always_show_buyer_legal	buyer_surface
-false	gated_only	true	null	true	product_page
-true	gated_only	false	gated	false	checkout_page
-true	gated_only	true	live	false	product_page
-false	empty	false	sandbox	true	checkout_page
-true	empty	true	null	false	checkout_page
-false	gated_and_sandbox	false	null	false	product_page
-true	gated_only	true	sandbox	false	product_page
-false	empty	false	live	true	checkout_page
-true	gated_and_sandbox	true	gated	true	checkout_page
-false	empty	true	gated	true	product_page
-true	gated_and_sandbox	false	paddle	true	checkout_page
-true	gated_and_sandbox	true	live	false	product_page
-false	empty	true	paddle	false	product_page
-false	gated_only	true	paddle	true	product_page
-false	gated_and_sandbox	true	sandbox	false	checkout_page
+show_non_live_samples	allowed_modes	is_sample	checkout_mode	always_show_buyer_legal	buyer_surface	sandboxOpen
+true	empty	true	sandbox	false	checkout_page	true
+false	empty	false	null	true	product_page	false
+true	gated_only	false	null	false	product_page	true
+false	gated_and_sandbox	true	paddle	true	checkout_page	false
+true	gated_only	true	live	true	checkout_page	false
+false	gated_and_sandbox	false	null	false	checkout_page	true
+false	gated_only	true	sandbox	true	product_page	false
+true	gated_and_sandbox	false	sandbox	true	product_page	true
+true	gated_and_sandbox	false	gated	false	checkout_page	false
+false	empty	false	live	false	product_page	true
+false	gated_only	true	gated	true	product_page	true
+false	gated_and_sandbox	false	live	false	product_page	false
+false	empty	true	gated	false	checkout_page	true
+true	gated_only	false	paddle	false	product_page	true
+false	empty	true	null	true	product_page	false
+true	empty	true	paddle	true	checkout_page	false

@@ -97,6 +97,8 @@ export function BuyerEmailStep({
     // Enter in a field can submit even when the button is disabled; the guard keeps an incomplete form from navigating.
     if (!state.canBuy) {
       event.preventDefault();
+      // Move focus to the first field that needs attention, so a blocked Enter is never silent (WCAG 3.3.1).
+      document.getElementById(state.valid ? "buyer-email-confirm" : "buyer-email")?.focus();
       return;
     }
     if (!paddleClient) return;
@@ -117,8 +119,13 @@ export function BuyerEmailStep({
           ...attribution,
         }),
       });
-      const data = (await res.json().catch(() => null)) as CheckoutJsonResponse | null;
+      const data = (await res.json().catch((err: unknown) => {
+        console.error("[buyer-email-step] checkout response was not JSON:", err instanceof Error ? err.message : String(err));
+        return null;
+      })) as CheckoutJsonResponse | null;
       if (!res.ok || !data || !data.ok) {
+        // Every failed checkout is logged with its status and name (for example 422 Unprocessable Entity), never only shown.
+        console.error(`[buyer-email-step] checkout refused: ${res.status} ${res.statusText || "(no status text)"}`);
         setErrorMessage((data && !data.ok && data.error) || "Checkout could not be started. Please try again.");
         return;
       }
@@ -217,11 +224,10 @@ export function BuyerEmailStep({
           </p>
         )}
 
-        {hydrated && blocker && !submitting ? (
-          <p id="buyer-email-blocker" role="status" className="text-sm text-gray-800">
-            {blocker}
-          </p>
-        ) : null}
+        {/* Always mounted: a live region must exist before its text changes, or screen readers miss the announcement (WCAG 4.1.3). */}
+        <p id="buyer-email-blocker" role="status" className="text-sm text-gray-800">
+          {hydrated && blocker && !submitting ? blocker : null}
+        </p>
 
         <BrandButton
           type="submit"

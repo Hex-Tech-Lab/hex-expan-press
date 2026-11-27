@@ -135,6 +135,16 @@ describe("checkoutRailView", () => {
   it("is not purchasable with zero rails", () => {
     expect(checkoutRailView(live, [])).toEqual({ purchasable: false, merchantOfRecordProvider: null });
   });
+
+  it("allows a sandbox product with one usable rail only when sandboxAllowed is true", () => {
+    const sandbox = { checkout_mode: "sandbox", price_usd: "9" };
+    const one = usableRailsOf(resolveCheckoutRails([rail("creem")], ALL_ON));
+    expect(checkoutRailView(sandbox, one, true)).toEqual({ purchasable: true, merchantOfRecordProvider: "creem" });
+
+    // Negative control: the default (sandboxAllowed = false) must stay false.
+    expect(checkoutRailView(sandbox, one)).toEqual({ purchasable: false, merchantOfRecordProvider: null });
+    expect(checkoutRailView(sandbox, one, false)).toEqual({ purchasable: false, merchantOfRecordProvider: null });
+  });
 });
 
 describe("isPurchasableProduct", () => {
