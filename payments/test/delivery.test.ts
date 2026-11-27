@@ -127,6 +127,15 @@ describe("deliverSale", () => {
     expect(mail.text).not.toMatch(/instant/i);
   });
 
+  it("gives each purchase its own subject reference, so Gmail does not thread separate sales together", async () => {
+    // Pinned digest: sha256 of 43 "T" characters, first 8 hex, uppercased (verified with sha256sum). A literal, not a recompute,
+    // so a changed formula fails here instead of matching itself.
+    const f = fakes();
+    expect(await deliverSale(sale, f.deps)).toBe("sent");
+    const mail = arg<{ subject: string }>(f.sendEmail);
+    expect(mail.subject).toBe(`Your download: ${PRODUCT.title} (ref 8A652ABF)`);
+  });
+
   it("is a no-op on a second webhook for the same sale once its delivery is confirmed", async () => {
     const f = fakes({ inserted: false, confirmed: true });
     expect(await deliverSale(sale, f.deps)).toBe("duplicate");

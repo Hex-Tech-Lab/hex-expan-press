@@ -336,7 +336,8 @@ function buildBuyerMessage(args: {
     `</td></tr></table></body></html>`;
   return {
     to,
-    subject: `Your download: ${title}`,
+    // Per-link reference (token hash prefix): Gmail threads identical subjects, so each link needs its own.
+    subject: `Your download: ${title} (ref ${hash.slice(0, GLOBAL.delivery.subject_ref_chars).toUpperCase()})`,
     text:
       `Thank you for your purchase of ${title}.\n\n` +
       `Download your copy here (the link is valid for ${days} days):\n${link}\n\n` +

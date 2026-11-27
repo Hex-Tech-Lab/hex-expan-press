@@ -28,6 +28,19 @@ describe("delivery.link_key_id registry key", () => {
   });
 });
 
+describe("delivery.subject_ref_chars registry key", () => {
+  it("defaults to 8 hex characters, the subject reference length the buyer email uses", () => {
+    expect(DEFAULT_GLOBAL.delivery.subject_ref_chars).toBe(8);
+    expect(loadDeliverySection({ subject_ref_chars: 12 }).subject_ref_chars).toBe(12);
+  });
+
+  it("falls back to the default for a length below 4, above 32, or not an integer", () => {
+    for (const bad of [0, 3, 33, 8.5, "8"]) {
+      expect(loadDeliverySection({ subject_ref_chars: bad }).subject_ref_chars).toBe(DEFAULT_GLOBAL.delivery.subject_ref_chars);
+    }
+  });
+});
+
 describe("delivery.stored_message_since registry key", () => {
   it("is a parseable instant, and an unparseable value falls back to the default", () => {
     expect(Number.isFinite(Date.parse(GLOBAL.delivery.stored_message_since))).toBe(true);

@@ -302,6 +302,8 @@ product_slug: { min_length: number; max_length: number; separator: string };
      * the support address (email.reply_to), and support sends it by hand. Replaces the retired six-hour delivery promise.
      */
     buyer_support_after_hours: number;
+    /** Hex characters of the link's token hash shown as the buyer email subject reference (Gmail threads identical subjects). */
+    subject_ref_chars: number;
     /** Checkout metadata key that carries the buyer's consent (true or false) on a provider whose checkout link documents metadata. */
     buyer_consent_metadata_key: string;
   };
@@ -813,6 +815,7 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     // The buyer consent line promises a usual delay of 2 minutes, and a support route after 1 hour without the e-book.
     buyer_typical_minutes: 2,
     buyer_support_after_hours: 1,
+    subject_ref_chars: 8,
     buyer_consent_metadata_key: "buyer_email_consent",
   },
   email: {
@@ -1843,6 +1846,7 @@ export function loadDeliverySection(raw: Record<string, unknown> | undefined): G
       | "stored_message_resend_max_age_hours"
       | "buyer_typical_minutes"
       | "buyer_support_after_hours"
+      | "subject_ref_chars"
       | "terminal_reject_lookback_hours"
       | "terminal_reject_list_limit",
     min: number,
@@ -1886,6 +1890,7 @@ export function loadDeliverySection(raw: Record<string, unknown> | undefined): G
     stored_message_resend_max_age_hours: posInt("stored_message_resend_max_age_hours", 1, 24),
     buyer_typical_minutes: posInt("buyer_typical_minutes", 1, 60),
     buyer_support_after_hours: posInt("buyer_support_after_hours", 1, 24),
+    subject_ref_chars: posInt("subject_ref_chars", 4, 32),
     // A metadata key name, not a value: the charset keeps it a plain key in a checkout link query. Invalid falls back.
     buyer_consent_metadata_key: /^[a-z][a-z0-9_]{0,63}$/.test(str("buyer_consent_metadata_key"))
       ? str("buyer_consent_metadata_key")
