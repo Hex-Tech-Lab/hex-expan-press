@@ -1,0 +1,23 @@
+web/app/api/billing/checkout/checkout-helpers.ts
+  s_0c865bbd36aa90::t_f03111da49fe9f 67
+web/public/books/legal/terms.html
+  s_0c865bbd36aa90::t_877603864ec1b6 44
+web/proxy.ts
+  s_0c865bbd36aa90::t_d854d424749179 61
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4d5f4cf3f014d3f7d677f8cbb1ed98020b7d3084",
+  "prompts": {},
+  "sessions": {
+    "s_0c865bbd36aa90": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e91868c0-df8b-453c-a369-daac76d67031",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
