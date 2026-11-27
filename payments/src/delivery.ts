@@ -329,7 +329,7 @@ function buildBuyerMessage(args: {
     `<a href="${safeLink}" style="color:${colors.charcoal};text-decoration:underline;">${safeLink}</a>` +
     `</td></tr>` +
     `<tr><td style="border-top:1px solid ${colors.border};padding-top:16px;font-size:12px;line-height:1.5;color:${colors.subtle};">` +
-    `Questions? Reply to this email or write to ${safeReplyTo}${billingHtml}.<br>` +
+    `Questions? Write to ${safeReplyTo}${billingHtml}.<br>` +
     `&copy; ${year} ${safeBrand}` +
     `</td></tr>` +
     `</table>` +
@@ -341,7 +341,7 @@ function buildBuyerMessage(args: {
     text:
       `Thank you for your purchase of ${title}.\n\n` +
       `Download your copy here (the link is valid for ${days} days):\n${link}\n\n` +
-      `Questions? Reply to this email or write to ${replyTo}${billingNote}.\n`,
+      `Questions? Write to ${replyTo}${billingNote}.\n`,
     html,
     replyTo,
     tokenHash: hash,
