@@ -101,7 +101,7 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ token: 
   const hash = tokenHash(token);
   const { data: link, error: linkErr } = await sb
     .from("download_events")
-    .select("sale_id, product_id, expires_at")
+    .select("sale_id, product_id, expires_at, link_generation")
     .eq("token_hash", hash)
     .eq("event_type", "link_issued")
     .maybeSingle();
@@ -142,16 +142,32 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ token: 
     return unavailableDownload(request, errorId);
   }
 
-  const { error: logErr } = await sb.from("download_events").insert({
-    sale_id: link.sale_id,
-    product_id: link.product_id,
-    token_hash: hash,
-    event_type: "download_completed",
-    expires_at: link.expires_at,
-  });
-  if (logErr) {
-    console.error(`[delivery] download log failed: ${logErr.message}`);
+  // One download_completed row per link: the first successful redirect for this token is the one logged.
+  // limit(1), not maybeSingle(): earlier per-request rows already exist, and maybeSingle would error on more than one.
+  const { data: priorRows, error: priorErr } = await sb
+    .from("download_events")
+    .select("id")
+    .eq("token_hash", hash)
+    .eq("event_type", "download_completed")
+    .limit(1);
+  if (priorErr) {
+    console.error(`[delivery] download log lookup failed: ${priorErr.message}`);
     return unavailableDownload(request);
+  }
+  if (!priorRows?.length) {
+    const { error: logErr } = await sb.from("download_events").insert({
+      sale_id: link.sale_id,
+      product_id: link.product_id,
+      token_hash: hash,
+      event_type: "download_completed",
+      expires_at: link.expires_at,
+      // The issued link's generation, so each download is attributable to the link it used (not a sequence value).
+      link_generation: link.link_generation,
+    });
+    if (logErr) {
+      console.error(`[delivery] download log failed: ${logErr.message}`);
+      return unavailableDownload(request);
+    }
   }
 
   const res = NextResponse.redirect(signedUrl, 302);

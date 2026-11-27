@@ -4,6 +4,8 @@ import { GET, HEAD } from "../route";
 import { tokenHash } from "../../../../../../payments/src/delivery";
 
 const maybeSingleMock = vi.fn();
+// The prior-download check: no row by default, so the first download for a link is logged.
+const limitMock = vi.fn(async () => ({ data: [] as unknown[], error: null }));
 const insertMock = vi.fn();
 const createSignedUrlMock = vi.fn();
 const listMock = vi.fn();
@@ -16,6 +18,7 @@ const fromMock = vi.fn((table: string) => {
         eq: vi.fn(() => ({
           eq: vi.fn(() => ({
             maybeSingle: maybeSingleMock,
+            limit: limitMock,
           })),
         })),
       })),
@@ -179,7 +182,7 @@ describe("GET /books/d/[token] (Buyer delivery route)", () => {
     const future = new Date(Date.now() + 100000).toISOString();
     // 1. download_events query
     maybeSingleMock.mockResolvedValueOnce({
-      data: { sale_id: "s1", product_id: "p1", expires_at: future },
+      data: { sale_id: "s1", product_id: "p1", expires_at: future, link_generation: 1795798946386 },
       error: null,
     });
     // 2. products query
@@ -203,9 +206,28 @@ describe("GET /books/d/[token] (Buyer delivery route)", () => {
         product_id: "p1",
         event_type: "download_completed",
         token_hash: tokenHash(validToken),
+        link_generation: 1795798946386,
       }),
     );
     expect(JSON.stringify(insertMock.mock.calls)).not.toContain(validToken);
+  });
+
+  it("logs only the first download per link: a later request redirects with no second download_completed row", async () => {
+    const future = new Date(Date.now() + 100000).toISOString();
+    maybeSingleMock.mockResolvedValueOnce({
+      data: { sale_id: "s1", product_id: "p1", expires_at: future, link_generation: 1795798946386 },
+      error: null,
+    });
+    maybeSingleMock.mockResolvedValueOnce({ data: { release_path: "books/test.pdf" }, error: null });
+    createSignedUrlMock.mockResolvedValueOnce({
+      data: { signedUrl: "https://supabase.example/signed/books/test.pdf" },
+      error: null,
+    });
+    // A download_completed row already exists for this token.
+    limitMock.mockResolvedValueOnce({ data: [{ id: 4 }], error: null });
+
+    await expectRedirectTo(validToken, "https://supabase.example/signed/books/test.pdf");
+    expect(insertMock).not.toHaveBeenCalled();
   });
 
   it("redirects 302 to Cloudflare R2 presigned URL when R2 is configured (0% egress)", async () => {
