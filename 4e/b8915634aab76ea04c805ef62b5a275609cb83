@@ -1,0 +1,23 @@
+web/__tests__/r2-delivery-fallback.integration.test.ts
+  s_0c865bbd36aa90::t_21873e0ea104af 19-20
+web/__tests__/download_link.pairwise.test.ts
+  s_0c865bbd36aa90::t_38598bb93622ba 23,29-30
+web/__tests__/consistency_surfaces.pairwise.test.ts
+  s_0c865bbd36aa90::t_722de61629b45c 50-51
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "4eb8915634aab76ea04c805ef62b5a275609cb83",
+  "prompts": {},
+  "sessions": {
+    "s_0c865bbd36aa90": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e91868c0-df8b-453c-a369-daac76d67031",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
