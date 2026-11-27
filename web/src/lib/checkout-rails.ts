@@ -88,8 +88,9 @@ export function usableRailsOf(resolution: RailResolution): UsableRail[] {
 export function checkoutRailView(
   product: { checkout_mode?: string | null; price_usd?: unknown },
   usable: ReadonlyArray<UsableRail>,
+  sandboxAllowed = false,
 ): { purchasable: boolean; merchantOfRecordProvider: string | null } {
-  const purchasable = isPurchasableProduct(product, usable.length);
+  const purchasable = isPurchasableProduct(product, usable.length, sandboxAllowed);
   const merchantOfRecordProvider = purchasable && usable.length === 1 ? usable[0]!.provider : null;
   return { purchasable, merchantOfRecordProvider };
 }

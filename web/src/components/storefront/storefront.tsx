@@ -9,6 +9,7 @@ import { guidSchema, productSlugSchema } from "../../lib/zod-rules";
 import { resolveProductBookAssets } from "../../lib/book-assets";
 import { isHouseCreator } from "../../lib/house";
 import { isPurchasableProduct, productPriceUsd } from "../../lib/product-purchasable";
+import { sandboxAllowed } from "../../lib/sandbox-checkout";
 import { resolveCheckoutRails, usableRailsOf, type RailResolution, type UsableRail } from "../../lib/checkout-rails";
 import { verifiedProviderNames } from "../../../app/api/billing/webhook/verifiers";
 import { checkoutUrlProblem } from "../../../app/api/billing/checkout/checkout-helpers";
@@ -564,8 +565,8 @@ export function BookCard({
   const { formatted, currency } = formatProductPrice(price, product.currency);
   const Heading = headingLevel === 3 ? "h3" : "h2";
   const isNonLive = typeof product.checkout_mode === "string" && product.checkout_mode !== "live";
-  // Same rule as the product and checkout pages: live, priced, and at least one usable rail. Otherwise "Coming soon".
-  const purchasable = isPurchasableProduct(product, product.usable_rail_count ?? 0);
+  // Same rule as the product and checkout pages: priced, at least one usable rail, and live (or sandbox when the route allows it).
+  const purchasable = isPurchasableProduct(product, product.usable_rail_count ?? 0, sandboxAllowed());
   const productHref = `/books/${creatorHandle}/${slug}`;
   return (
     <article className="glass-card card-shadow rounded-[32px] border-[1.5px] border-[#fff2e4] p-5 sm:p-6 h-full flex flex-col gap-5">

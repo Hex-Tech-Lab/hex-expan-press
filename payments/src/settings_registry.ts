@@ -1526,6 +1526,19 @@ export function loadEndpointsSection(raw: unknown): GlobalSettings["endpoints"] 
   };
 }
 
+/** Env name that overrides payments.sandbox_checkout_enabled. Only the values "true" and "false" count. */
+const SANDBOX_CHECKOUT_ENV = "SANDBOX_CHECKOUT_ENABLED";
+
+/**
+ * Env override for sandbox_checkout_enabled, applied after the file value. It is set per preview deployment and never in
+ * production; sandboxAllowed() still refuses sandbox outside preview and development, so a stray value cannot open production.
+ */
+function withSandboxCheckoutEnv(payments: GlobalSettings["payments"]): GlobalSettings["payments"] {
+  const v = process.env[SANDBOX_CHECKOUT_ENV]?.trim().toLowerCase();
+  if (v !== "true" && v !== "false") return payments;
+  return { ...payments, sandbox_checkout_enabled: v === "true" };
+}
+
 function loadGlobal(): GlobalSettings {
   const raw = readRegistryFile("global.json");
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
@@ -1533,7 +1546,7 @@ function loadGlobal(): GlobalSettings {
     // Production deploys no global.json: env overrides (ADMIN_USER_IDS) must still apply.
     return {
       ...DEFAULT_GLOBAL,
-      payments: loadPaymentsSection(undefined),
+      payments: withSandboxCheckoutEnv(loadPaymentsSection(undefined)),
       branding: loadBrandingSection(undefined),
       admin: loadAdminSection(undefined),
     };
@@ -1547,7 +1560,7 @@ function loadGlobal(): GlobalSettings {
     tool_paths: { ...DEFAULT_GLOBAL.tool_paths, ...(g.tool_paths ?? {}) },
     server: { ...DEFAULT_GLOBAL.server, ...(g.server ?? {}) },
     defaults: { ...DEFAULT_GLOBAL.defaults, ...(g.defaults ?? {}) },
-    payments: loadPaymentsSection(g.payments as Record<string, unknown> | undefined),
+    payments: withSandboxCheckoutEnv(loadPaymentsSection(g.payments as Record<string, unknown> | undefined)),
     delivery: loadDeliverySection(g.delivery as Record<string, unknown> | undefined),
     landing: loadLandingSection(g.landing as Record<string, unknown> | undefined),
     storefront: loadStorefrontSection(g.storefront as Record<string, unknown> | undefined),

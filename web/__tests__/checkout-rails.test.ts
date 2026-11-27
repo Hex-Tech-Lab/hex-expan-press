@@ -144,4 +144,16 @@ describe("isPurchasableProduct", () => {
     expect(isPurchasableProduct({ checkout_mode: "live", price_usd: null }, 2)).toBe(false);
     expect(isPurchasableProduct({ checkout_mode: "gated", price_usd: "9" }, 1)).toBe(false);
   });
+
+  it("a sandbox product is purchasable only when the route allows sandbox", () => {
+    expect(isPurchasableProduct({ checkout_mode: "sandbox", price_usd: "9" }, 1)).toBe(false);
+    expect(isPurchasableProduct({ checkout_mode: "sandbox", price_usd: "9" }, 1, false)).toBe(false);
+    expect(isPurchasableProduct({ checkout_mode: "sandbox", price_usd: "9" }, 1, true)).toBe(true);
+    expect(isPurchasableProduct({ checkout_mode: "sandbox", price_usd: "9" }, 0, true)).toBe(false);
+    expect(isPurchasableProduct({ checkout_mode: "sandbox", price_usd: null }, 1, true)).toBe(false);
+  });
+
+  it("the sandbox flag never makes a gated product purchasable", () => {
+    expect(isPurchasableProduct({ checkout_mode: "gated", price_usd: "9" }, 1, true)).toBe(false);
+  });
 });

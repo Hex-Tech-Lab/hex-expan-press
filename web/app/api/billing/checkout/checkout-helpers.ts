@@ -80,17 +80,9 @@ export function creatorHandleOf(product: ProductRow, productRef: string): string
   return undefined;
 }
 
-function isNonProductionRuntime(): boolean {
-  const v = process.env.VERCEL_ENV;
-  if (v === "preview" || v === "development") return true;
-  if (v) return false;
-  return process.env.NODE_ENV === "development" || process.env.NODE_ENV === "test";
-}
+import { sandboxAllowed } from "../../../../src/lib/sandbox-checkout";
 
-export function sandboxAllowed(): boolean {
-  if (!isNonProductionRuntime()) return false;
-  return GLOBAL.payments?.sandbox_checkout_enabled === true;
-}
+export { sandboxAllowed };
 
 function providerCapabilities(provider: string): PaymentProviderSetting | undefined {
   const defaults = DEFAULT_PAYMENT_PROVIDERS as Record<string, PaymentProviderSetting>;

@@ -12,7 +12,8 @@ vi.mock("@supabase/supabase-js", () => ({
     }),
   }),
 }));
-vi.mock("../../../../../../payments/src/settings_registry.ts", () => ({
+vi.mock("../../../../../../payments/src/settings_registry.ts", async (importOriginal) => ({
+  ...(await importOriginal()),
   GLOBAL: {
     paths: { sales_ledger: "/tmp/transient-classification-ledger/sales.jsonl" },
     defaults: { currency: "USD" },

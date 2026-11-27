@@ -34,7 +34,8 @@ vi.mock("../../../../../../payments/src/terms.ts", () => ({
   effectiveCreatorSplitPct: () => 50,
   effectiveCreatorSplitPctAsync: () => Promise.resolve(50),
 }));
-vi.mock("../../../../../../payments/src/settings_registry.ts", () => ({
+vi.mock("../../../../../../payments/src/settings_registry.ts", async (importOriginal) => ({
+  ...(await importOriginal()),
   GLOBAL: {
     paths: { sales_ledger: `${ledgerDir}/sales.jsonl` },
     defaults: { currency: "USD" },

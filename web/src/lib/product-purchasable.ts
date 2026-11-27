@@ -31,10 +31,15 @@ export function productPriceUsd(raw: unknown): number | null {
   return Number.isFinite(n) && n > 0 ? n : null;
 }
 
-/** Buy form only for a live, priced product with at least one usable active rail (0 rails is "Coming soon"). */
+/**
+ * Buy form only for a priced product with at least one usable active rail (0 rails is "Coming soon"). A live product always
+ * qualifies; a sandbox product qualifies only when sandboxAllowed is true, the same rule the checkout route applies.
+ */
 export function isPurchasableProduct(
   product: { checkout_mode?: string | null; price_usd?: unknown },
   usableRailCount: number,
+  sandboxAllowed = false,
 ): boolean {
-  return product.checkout_mode === "live" && productPriceUsd(product.price_usd) !== null && usableRailCount >= 1;
+  const modeOk = product.checkout_mode === "live" || (product.checkout_mode === "sandbox" && sandboxAllowed);
+  return modeOk && productPriceUsd(product.price_usd) !== null && usableRailCount >= 1;
 }
