@@ -16,13 +16,6 @@ on:
         required: true
         type: boolean
         default: true
-  schedule:
-    # Day 3: Mon Nov 9 @ 17:58 UTC (19:58 Cairo - tight 2-min buffer before 20:00)
-    - cron: '58 17 9 11 *'
-    # Day 4: Tue Nov 10 @ 17:58 UTC (19:58 Cairo)
-    - cron: '58 17 10 11 *'
-    # Day 5: Sun Nov 15 @ 17:58 UTC (19:58 Cairo)
-    - cron: '58 17 15 11 *'
 
 permissions:
   contents: write
