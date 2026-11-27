@@ -16,6 +16,8 @@ const fromMock = vi.fn((table: string) => {
         eq: vi.fn(() => ({
           eq: vi.fn(() => ({
             maybeSingle: maybeSingleMock,
+            // The prior download_completed check: no prior row, so the route logs the first download.
+            limit: vi.fn(async () => ({ data: [], error: null })),
           })),
         })),
       })),

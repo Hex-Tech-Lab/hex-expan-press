@@ -47,6 +47,8 @@ vi.mock("../../payments/src/supabase_admin", () => ({
             eq: () => ({
               eq: () => ({
                 maybeSingle: downloadMock.maybeSingle,
+                // The prior download_completed check: no prior row, so the route logs the first download.
+                limit: async () => ({ data: [], error: null }),
               }),
             }),
           }),

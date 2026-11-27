@@ -20,12 +20,14 @@ const insertMock = vi.hoisted(() => vi.fn(async () => ({ error: null })));
 const createSignedUrlMock = vi.hoisted(() => vi.fn());
 const listMock = vi.hoisted(() => vi.fn());
 
-type Chain = { select: () => Chain; eq: () => Chain; maybeSingle: () => Promise<unknown> };
+type Chain = { select: () => Chain; eq: () => Chain; maybeSingle: () => Promise<unknown>; limit: () => Promise<unknown> };
 function chain(result: () => unknown): Chain {
   const c: Chain = {
     select: () => c,
     eq: () => c,
     maybeSingle: async () => result(),
+    // The prior download_completed check (limit(1)): no prior row, so the route logs the first download.
+    limit: async () => ({ data: [], error: null }),
   };
   return c;
 }
