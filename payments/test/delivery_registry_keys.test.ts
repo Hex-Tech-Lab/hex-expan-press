@@ -2,7 +2,8 @@
 // and each new key falls back to its default when its value is invalid (never silently to a weaker value).
 import { describe, it, expect } from "vitest";
 import { productionDeps } from "../src/delivery";
-import { DEFAULT_GLOBAL, GLOBAL, loadDeliverySection, loadEmailSection } from "../src/settings_registry";
+import { DEFAULT_GLOBAL, GLOBAL, isSingleMailbox, loadDeliverySection, loadEmailSection } from "../src/settings_registry";
+import { isOnSendingDomain } from "../src/email";
 
 describe("buyer link origin comes from the settings registry (G)", () => {
   it("productionDeps uses delivery.download_origin, whose default is the production origin", () => {
@@ -61,6 +62,30 @@ describe("delivery.stored_message_resend_max_age_hours registry key", () => {
         DEFAULT_GLOBAL.delivery.stored_message_resend_max_age_hours,
       );
     }
+  });
+});
+
+describe("email stream domain and mailbox validation (review hardening)", () => {
+  it("refuses a stream domain with an empty or malformed label under expanpress.com", () => {
+    const defaultStream = DEFAULT_GLOBAL.email.streams.buyer_delivery;
+    for (const domain of [".expanpress.com", "a..expanpress.com", "-x.expanpress.com", "x-.expanpress.com"]) {
+      const stream = loadEmailSection({ streams: { buyer_delivery: { from: `ExpanPress <delivery@${domain.replace(/^\.+/, "")}>`, domain } } }).streams.buyer_delivery;
+      expect(stream).toEqual(defaultStream);
+    }
+  });
+
+  it("refuses a mailbox with a control character, such as a trailing CRLF, and accepts the same address with spaces", () => {
+    expect(isSingleMailbox("delivery@mail.expanpress.com\r\n")).toBe(false);
+    expect(isSingleMailbox("delivery@mail.expanpress.com\n")).toBe(false);
+    expect(isOnSendingDomain("delivery@mail.expanpress.com\r\n")).toBe(false);
+    expect(isSingleMailbox("  delivery@mail.expanpress.com  ")).toBe(true);
+    expect(isOnSendingDomain("delivery@mail.expanpress.com")).toBe(true);
+  });
+
+  it("uses a valid sender when from is invalid, the same as when from is unset", () => {
+    const sender = "ExpanPress <delivery@mail.expanpress.com>";
+    const unset = loadEmailSection({ sender }).from;
+    expect(loadEmailSection({ sender, from: "not an address" }).from).toBe(unset);
   });
 });
 

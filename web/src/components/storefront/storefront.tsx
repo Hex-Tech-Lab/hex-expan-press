@@ -8,7 +8,7 @@ import { GLOBAL, isEnabledPaymentProvider } from "../../../../payments/src/setti
 import { guidSchema, productSlugSchema } from "../../lib/zod-rules";
 import { resolveProductBookAssets } from "../../lib/book-assets";
 import { isHouseCreator } from "../../lib/house";
-import { isPurchasableProduct, productPriceUsd } from "../../lib/product-purchasable";
+import { isLaunchOpen, isPurchasableProduct, productPriceUsd } from "../../lib/product-purchasable";
 import { sandboxAllowed } from "../../lib/sandbox-checkout";
 import { resolveCheckoutRails, usableRailsOf, type RailResolution, type UsableRail } from "../../lib/checkout-rails";
 import { verifiedProviderNames } from "../../../app/api/billing/webhook/verifiers";
@@ -211,8 +211,10 @@ export function allowedStorefrontCheckoutModes(
 export function isVisibleStorefrontProduct(
   product: Pick<StoreProduct, "checkout_mode" | "is_sample">,
   storefront: Pick<typeof GLOBAL.storefront, "show_non_live_samples" | "allowed_non_live_sample_modes"> = GLOBAL.storefront,
+  sandboxOpen = false,
 ): boolean {
-  if (product.checkout_mode === "live") return true;
+  // A launch-open product (live, or sandbox where the route accepts sandbox) is listed like any live product.
+  if (isLaunchOpen(product, sandboxOpen)) return true;
   return (
     storefront.show_non_live_samples === true &&
     product.is_sample === true &&
@@ -227,7 +229,7 @@ export function isVisibleStorefrontProduct(
 export function isPublishedCreatorHub(hub: { creator: Pick<HubCreator, "is_house" | "products"> }): boolean {
   if (!GLOBAL.storefront.hide_empty_creator_hubs) return true;
   if (isHouseCreator(hub.creator)) return true;
-  return hub.creator.products.some((storeProduct) => isVisibleStorefrontProduct(storeProduct));
+  return hub.creator.products.some((storeProduct) => isVisibleStorefrontProduct(storeProduct, GLOBAL.storefront, sandboxAllowed()));
 }
 
 // cache(): generateMetadata and the page share one query set per request.
@@ -253,7 +255,7 @@ export const fetchCreatorHub = cache(async function fetchCreatorHub(handle: stri
   // storefrontRobots depends only on whether a live product exists, so its result stays NOINDEX for sample-only hubs.
   const products = commercial
     .map((storeProduct) => withResolvedAssets(withRailCount(storeProduct), creator.is_house))
-    .filter((storeProduct) => isVisibleStorefrontProduct(storeProduct));
+    .filter((storeProduct) => isVisibleStorefrontProduct(storeProduct, GLOBAL.storefront, sandboxAllowed()));
   return { creator: { ...creator, products }, origin };
 });
 
@@ -297,7 +299,7 @@ export const fetchB2cLanding = cache(async function fetchB2cLanding(): Promise<L
       ...c,
       products: commercialProducts(c.products)
         .map((storeProduct) => withResolvedAssets(withRailCount(storeProduct), c.is_house))
-        .filter((storeProduct) => isVisibleStorefrontProduct(storeProduct)),
+        .filter((storeProduct) => isVisibleStorefrontProduct(storeProduct, GLOBAL.storefront, sandboxAllowed())),
     }))
     .filter((c) => c.products.length > 0);
 });
@@ -564,8 +566,9 @@ export function BookCard({
   const price = priceOf(product);
   const { formatted, currency } = formatProductPrice(price, product.currency);
   const Heading = headingLevel === 3 ? "h3" : "h2";
-  const isNonLive = typeof product.checkout_mode === "string" && product.checkout_mode !== "live";
-  // Same rule as the product and checkout pages: priced, at least one usable rail, and live (or sandbox when the route allows it).
+  // Same launch gate as the product and checkout pages (isLaunchOpen, sandbox only when the route allows it).
+  const isNonLive = typeof product.checkout_mode === "string" && !isLaunchOpen(product, sandboxAllowed());
+  // Same rule as the product and checkout pages: priced, at least one usable rail, and launch-open.
   const purchasable = isPurchasableProduct(product, product.usable_rail_count ?? 0, sandboxAllowed());
   const productHref = `/books/${creatorHandle}/${slug}`;
   return (

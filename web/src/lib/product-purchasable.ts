@@ -32,14 +32,21 @@ export function productPriceUsd(raw: unknown): number | null {
 }
 
 /**
- * Buy form only for a priced product with at least one usable active rail (0 rails is "Coming soon"). A live product always
- * qualifies; a sandbox product qualifies only when sandboxAllowed is true, the same rule the checkout route applies.
+ * The launch gate every buyer surface and the checkout route share: a live product is open; a sandbox product is open only when
+ * sandboxAllowed is true. Pages, storefront cards and isPurchasableProduct all read this, so they cannot disagree.
+ */
+export function isLaunchOpen(product: { checkout_mode?: string | null }, sandboxAllowed = false): boolean {
+  return product.checkout_mode === "live" || (product.checkout_mode === "sandbox" && sandboxAllowed);
+}
+
+/**
+ * Buy form only for a priced product with at least one usable active rail (0 rails is "Coming soon"). The launch gate is
+ * isLaunchOpen; the route applies the same rule.
  */
 export function isPurchasableProduct(
   product: { checkout_mode?: string | null; price_usd?: unknown },
   usableRailCount: number,
   sandboxAllowed = false,
 ): boolean {
-  const modeOk = product.checkout_mode === "live" || (product.checkout_mode === "sandbox" && sandboxAllowed);
-  return modeOk && productPriceUsd(product.price_usd) !== null && usableRailCount >= 1;
+  return isLaunchOpen(product, sandboxAllowed) && productPriceUsd(product.price_usd) !== null && usableRailCount >= 1;
 }

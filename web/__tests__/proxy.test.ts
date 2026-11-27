@@ -768,6 +768,16 @@ describe("B2C/B2B routing matrix: host x path", () => {
       headers: new Headers({ "x-vercel-ip-country": "DE" }),
     } as never);
     expect(blocked.status).toBe(403);
+    // The shared sales-scope copy (web/src/lib/sales-scope.ts) is the buyer-facing text on the API path.
+    const { COUNTRY_RESTRICTION_MESSAGE } = await import("../src/lib/sales-scope");
+    const blockedApi = await proxy({
+      cookies: { getAll: () => [], set: () => {} },
+      url: "https://pay.expanpress.com/api/billing/checkout?product=abc",
+      method: "POST",
+      headers: new Headers({ "x-vercel-ip-country": "DE" }),
+    } as never);
+    expect(blockedApi.status).toBe(403);
+    expect(await blockedApi.json()).toEqual({ ok: false, error: COUNTRY_RESTRICTION_MESSAGE, code: "country_not_supported" });
 
     const allowed = await proxy({
       cookies: { getAll: () => [], set: () => {} },

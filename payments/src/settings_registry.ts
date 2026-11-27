@@ -1766,10 +1766,25 @@ export const mailboxAddress = (from: string): string => (from.match(/<([^>]+)>/)
  * Resend receives the whole header, so anything smuggled beside the mailbox would be sent.
  */
 const SINGLE_MAILBOX = /^(?:[^<>,;"@\x00-\x1f]*<[^<>,;"\s@\x00-\x1f]+@[^<>,;"\s@\x00-\x1f]+>|[^<>,;"\s@\x00-\x1f]+@[^<>,;"\s@\x00-\x1f]+)$/;
-export const isSingleMailbox = (from: string): boolean => SINGLE_MAILBOX.test(from.trim());
+// A control character (CR, LF, NUL, tab) anywhere in the address is refused before trimming, so a trailing "\r\n" cannot pass.
+export const isSingleMailbox = (from: string): boolean => !/[\x00-\x1f]/.test(from) && SINGLE_MAILBOX.test(from.trim());
+
+// A stream domain is one or more DNS labels under expanpress.com. An empty or malformed label (".expanpress.com") is refused.
+const DOMAIN_UNDER_OUR_ZONE = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+expanpress\.com$/;
 
 // Empty or whitespace-only VERCEL_ENV counts as unset, so the gate and the production check read the same value.
 const deployVercelEnv = (): string | undefined => process.env.VERCEL_ENV?.trim() || undefined;
+
+/**
+ * True for a non-production runtime: a Vercel preview or development deploy, or, outside Vercel, a local dev or test process.
+ * Shared by the sandbox checkout rule (web/src/lib/sandbox-checkout.ts) so the runtime gate is defined once.
+ */
+export function isNonProductionRuntime(): boolean {
+  const v = deployVercelEnv();
+  if (v === "preview" || v === "development") return true;
+  if (v) return false;
+  return process.env.NODE_ENV === "development" || process.env.NODE_ENV === "test";
+}
 
 // Root and reserved domains never send mail (buyer and ops streams are subdomains).
 const RESERVED_STREAM_DOMAINS = ["expanpress.com", "esign.expanpress.com"];
@@ -1940,7 +1955,8 @@ export function loadEmailSection(raw: Record<string, unknown> | undefined): Glob
     warnFallback("global.json", "invalid email values for from");
     merged.from = defaults.from;
   }
-  if (rawSender !== undefined && rawFrom === undefined && isAddr(merged.sender)) {
+  // A valid sender is used when `from` is unset or invalid (the invalid `from` already fell back to its default above).
+  if (rawSender !== undefined && (rawFrom === undefined || !isAddr(rawFrom)) && isAddr(merged.sender)) {
     merged.from = merged.sender;
   }
   // When both are set and differ, `from` wins; say so instead of dropping `sender` silently.
@@ -1977,8 +1993,7 @@ export function loadEmailSection(raw: Record<string, unknown> | undefined): Glob
     const valid =
       isAddr(candidate.from) &&
       isSingleMailbox(candidate.from) &&
-      domainText.endsWith(".expanpress.com") &&
-      !domainText.includes("@") &&
+      DOMAIN_UNDER_OUR_ZONE.test(domainText) &&
       !reserved &&
       fromOnDomain;
     if (!valid) {

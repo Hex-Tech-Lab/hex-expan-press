@@ -16,7 +16,7 @@ import {
 import { ATTRIBUTION_KEYS } from "../../../src/lib/attribution";
 import { buyerConsentText } from "../../../src/lib/buyer-email";
 import { checkoutRailView } from "../../../src/lib/checkout-rails";
-import { productPriceUsd } from "../../../src/lib/product-purchasable";
+import { isLaunchOpen, productPriceUsd } from "../../../src/lib/product-purchasable";
 import { sandboxAllowed } from "../../../src/lib/sandbox-checkout";
 import { paddleOverlayConfig, paddleOverlayUsable } from "../../../src/lib/paddle-overlay-server";
 import { GLOBAL, paymentProviderDisplayName } from "../../../../payments/src/settings_registry";
@@ -68,7 +68,7 @@ export default async function CheckoutPage({
   }
   const price = priceOf(p);
   const priceDisplay = formatProductPrice(price, p.currency, "—");
-  const live = p.checkout_mode === "live";
+  const live = isLaunchOpen(p, sandboxAllowed());
   // The one buyer rule (checkoutRailView, shared with the route's rails): the buy form needs at least one usable rail, and the
   // merchant of record (and so the overlay) only with exactly one. No selection logic lives on this page.
   const { purchasable, merchantOfRecordProvider: activeProvider } = checkoutRailView(p, usableRails, sandboxAllowed());

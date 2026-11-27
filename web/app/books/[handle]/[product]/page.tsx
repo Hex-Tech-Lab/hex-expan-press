@@ -21,7 +21,7 @@ import {
   resolveCreatorOr404,
 } from "../../../../src/components/storefront/storefront";
 import { GLOBAL } from "../../../../../payments/src/settings_registry";
-import { isPurchasableProduct } from "../../../../src/lib/product-purchasable";
+import { isLaunchOpen, isPurchasableProduct } from "../../../../src/lib/product-purchasable";
 import { sandboxAllowed } from "../../../../src/lib/sandbox-checkout";
 
 /**
@@ -72,7 +72,7 @@ export default async function StoreProductPage({
 
   const price = priceOf(p);
   const priceDisplay = formatProductPrice(price, p.currency, "—");
-  const live = p.checkout_mode === "live";
+  const live = isLaunchOpen(p, sandboxAllowed());
   // A live product with no price is not for sale: no buy form, the same non-purchasable state as a gated product.
   const purchasable = isPurchasableProduct(p, p.usable_rail_count ?? 0, sandboxAllowed());
   const title = p.title ?? productSlugOf(p);

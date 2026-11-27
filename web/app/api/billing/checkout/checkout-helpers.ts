@@ -62,11 +62,7 @@ export function jsonError(status: number, error: string, code?: string): NextRes
 export function buyerCountryError(request: NextRequest): NextResponse | null {
   const ipCountry = request.headers.get("x-vercel-ip-country")?.trim().toUpperCase();
   if (!ipCountry || GLOBAL.payments.allowed_buyer_countries.includes(ipCountry)) return null;
-  return jsonError(
-    403,
-    "We currently sell only to buyers in the United States, its territories, and the District of Columbia.",
-    "country_not_supported",
-  );
+  return jsonError(403, COUNTRY_RESTRICTION_MESSAGE, "country_not_supported");
 }
 
 export function creatorHandleOf(product: ProductRow, productRef: string): string | undefined {
@@ -81,6 +77,7 @@ export function creatorHandleOf(product: ProductRow, productRef: string): string
 }
 
 import { sandboxAllowed } from "../../../../src/lib/sandbox-checkout";
+import { COUNTRY_RESTRICTION_MESSAGE } from "../../../../src/lib/sales-scope";
 
 export { sandboxAllowed };
 
