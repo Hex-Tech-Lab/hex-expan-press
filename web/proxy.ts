@@ -58,7 +58,7 @@ function buyerCountryBlocked(request: NextRequest, path: string): NextResponse |
   if (!ipCountry || GLOBAL.payments.allowed_buyer_countries.includes(ipCountry)) return null;
   // 403 Forbidden: HEAD stays bodyless, API stays JSON, browser HTML requests get the branded 403 Forbidden page.
   if (request.method === "HEAD") return new NextResponse(null, { status: 403 });
-  const msg = "At launch we sell only to buyers in the United States, its territories, and the District of Columbia.";
+  const msg = "We currently sell only to buyers in the United States, its territories, and the District of Columbia.";
   if (isPayCheckoutApi(path)) {
     return NextResponse.json({ ok: false, error: msg, code: "country_not_supported" }, { status: 403 });
   }

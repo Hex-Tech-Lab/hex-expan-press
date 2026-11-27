@@ -64,7 +64,7 @@ export function buyerCountryError(request: NextRequest): NextResponse | null {
   if (!ipCountry || GLOBAL.payments.allowed_buyer_countries.includes(ipCountry)) return null;
   return jsonError(
     403,
-    "At launch we sell only to buyers in the United States, its territories, and the District of Columbia.",
+    "We currently sell only to buyers in the United States, its territories, and the District of Columbia.",
     "country_not_supported",
   );
 }
