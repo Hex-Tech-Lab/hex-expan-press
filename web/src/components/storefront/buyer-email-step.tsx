@@ -3,7 +3,7 @@
 import { useMemo, useState, useSyncExternalStore, type FormEvent } from "react";
 import { ArrowIcon, BrandButton, BrandField } from "../brand/brand";
 import { ATTRIBUTION_KEYS } from "../../lib/attribution";
-import { buyerEmailState, storedAttributionParams } from "../../lib/buyer-email";
+import { buyerEmailBlocker, buyerEmailState, storedAttributionParams } from "../../lib/buyer-email";
 import { openPaddleOverlay, type PaddleOverlayClient, type PaddleOverlayPayload } from "../../lib/paddle-overlay";
 import { AttributionCapture } from "./buy-link";
 
@@ -91,6 +91,7 @@ export function BuyerEmailStep({
   const state = buyerEmailState(email, confirm, { domains, maxLength: maxEmailLength });
   const showInvalid = email.trim() !== "" && !state.valid;
   const showMismatch = confirm.trim() !== "" && !state.matches;
+  const blocker = buyerEmailBlocker(email, confirm, maxEmailLength);
 
   const onSubmit = async (event: FormEvent<HTMLFormElement>) => {
     // Enter in a field can submit even when the button is disabled; the guard keeps an incomplete form from navigating.
@@ -216,9 +217,16 @@ export function BuyerEmailStep({
           </p>
         )}
 
+        {hydrated && blocker && !submitting ? (
+          <p id="buyer-email-blocker" role="status" className="text-sm text-gray-800">
+            {blocker}
+          </p>
+        ) : null}
+
         <BrandButton
           type="submit"
           disabled={(hydrated && !state.canBuy) || submitting}
+          aria-describedby={hydrated && blocker && !submitting ? "buyer-email-blocker" : undefined}
           data-checkout-slot="primary"
           data-checkout-mode="live"
         >

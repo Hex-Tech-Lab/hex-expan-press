@@ -32,7 +32,7 @@ describe("thank-you page (/books/{handle}/thanks)", () => {
     expect(GLOBAL.delivery.buyer_support_after_hours).toBe(1);
     expect(GLOBAL.email.reply_to).toBe("support@expanpress.com");
     expect(html).toContain(
-      "Your e-book is on its way to the email you used at checkout, usually within 2 minutes. If it has not arrived within 1 hour, email support@expanpress.com and we will send it by hand.",
+      "Your secure download link is on its way to the email you used at checkout, usually within 2 minutes. If the link has not arrived within 1 hour, email support@expanpress.com, and a support agent will send it to you manually. Support messages are answered in the order they are received.",
     );
     expect(html.toLowerCase()).not.toContain("spam");
     expect(html).toContain(GLOBAL.email.support);

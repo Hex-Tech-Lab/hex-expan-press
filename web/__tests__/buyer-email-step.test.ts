@@ -43,7 +43,7 @@ describe("BuyerEmailStep initial render (Option A single-hop POST)", () => {
 
   it("shows the consent line verbatim, with the registry delivery promise", () => {
     expect(render()).toContain(
-      "ExpanPress will email your e-book to this address, usually within 2 minutes. If it has not arrived within 1 hour, email support@expanpress.com and we will send it by hand. We may also email you about this purchase and related updates. You can unsubscribe at any time.",
+      "ExpanPress emails a secure download link for your e-book to this address, usually within 2 minutes. If the link has not arrived within 1 hour, email support@expanpress.com, and a support agent will send it to you manually. Support messages are answered in the order they are received. We may also email you about this purchase and related updates. You can unsubscribe at any time.",
     );
   });
 

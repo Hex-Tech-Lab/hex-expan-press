@@ -4,6 +4,7 @@ import { ATTRIBUTION_KEYS } from "../attribution";
 import {
   buyerCheckoutHref,
   buyerConsentText,
+  buyerEmailBlocker,
   buyerEmailState,
   buyerEmailsMatch,
   isValidBuyerEmail,
@@ -94,17 +95,52 @@ describe("buyerEmailState", () => {
   });
 });
 
+describe("buyerEmailBlocker", () => {
+  const max = 254;
+
+  it("is undefined when the button can be used (valid address, confirm matches)", () => {
+    expect(buyerEmailBlocker("ann@example.com", "ann@example.com", max)).toBeUndefined();
+  });
+
+  it("names the one missing step for every disabled state, so a disabled button is never silent", () => {
+    expect(buyerEmailBlocker("", "", max)).toBe("Enter your email address to continue.");
+    expect(buyerEmailBlocker("not-an-email", "not-an-email", max)).toBe("Enter a complete email address, such as name@example.com.");
+    expect(buyerEmailBlocker("ann@example.com", "", max)).toBe("Type the same address in Confirm email to continue.");
+    expect(buyerEmailBlocker("ann@example.com", "ann@example.co", max)).toBe("The two email addresses do not match yet.");
+  });
+
+  it("agrees with buyerEmailState.canBuy: a reason exists exactly when the button is disabled", () => {
+    const opts = { domains: [], maxLength: max };
+    const cases: Array<[string, string]> = [
+      ["", ""],
+      ["ann@example.com", ""],
+      ["ann@example.com", "ann@example.com"],
+      ["ann@example.com", "ann@example.co"],
+      ["not-an-email", "not-an-email"],
+    ];
+    for (const [email, confirm] of cases) {
+      const disabled = !buyerEmailState(email, confirm, opts).canBuy;
+      expect(buyerEmailBlocker(email, confirm, max) !== undefined).toBe(disabled);
+    }
+  });
+});
+
 describe("buyerConsentText", () => {
-  it("renders the founder's consent line verbatim with the registry delivery promise and support address", () => {
+  it("states a secure download link is emailed, support sends it manually, and support queue order", () => {
     expect(buyerConsentText(2, 1, "support@expanpress.com")).toBe(
-      "ExpanPress will email your e-book to this address, usually within 2 minutes. If it has not arrived within 1 hour, email support@expanpress.com and we will send it by hand. We may also email you about this purchase and related updates. You can unsubscribe at any time.",
+      "ExpanPress emails a secure download link for your e-book to this address, usually within 2 minutes. If the link has not arrived within 1 hour, email support@expanpress.com, and a support agent will send it to you manually. Support messages are answered in the order they are received. We may also email you about this purchase and related updates. You can unsubscribe at any time.",
     );
   });
 
   it("takes the timing and the support address from the arguments, not from fixed text", () => {
     const line = buyerConsentText(5, 12, "help@example.com");
     expect(line).toContain("usually within 5 minutes.");
-    expect(line).toContain("If it has not arrived within 12 hours, email help@example.com and we will send it by hand.");
+    expect(line).toContain("If the link has not arrived within 12 hours, email help@example.com, and a support agent will send it to you manually.");
+  });
+
+  it("never says the e-book itself is mailed or sent by hand", () => {
+    const line = buyerConsentText(2, 1, "support@expanpress.com");
+    expect(line).not.toMatch(/by hand|email your e-book to this address, usually/);
   });
 
   it("never states the retired six-hour promise", () => {

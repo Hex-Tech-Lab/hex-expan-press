@@ -44,13 +44,25 @@ export function buyerEmailState(
 }
 
 /**
- * The consent line, verbatim, with the promise from the registry: the usual delay (delivery.buyer_typical_minutes), the hour
- * after which the buyer is sent to support (delivery.buyer_support_after_hours), and the support address (email.reply_to).
- * The wording is the founder's text and must not be reworded.
+ * The one reason the buy button is disabled, or undefined when it can be used. Shown beside the button so a disabled button
+ * is never silent. Order matches buyerEmailState.canBuy (valid AND matches), so the reason and the button always agree.
+ */
+export function buyerEmailBlocker(email: string, confirm: string, maxLength: number): string | undefined {
+  if (email.trim() === "") return "Enter your email address to continue.";
+  if (!isValidBuyerEmail(email, maxLength)) return "Enter a complete email address, such as name@example.com.";
+  if (confirm.trim() === "") return "Type the same address in Confirm email to continue.";
+  if (!buyerEmailsMatch(email, confirm)) return "The two email addresses do not match yet.";
+  return undefined;
+}
+
+/**
+ * The consent line, with the promise from the registry: the usual delay (delivery.buyer_typical_minutes), the hour after
+ * which the buyer is sent to support (delivery.buyer_support_after_hours), and the support address (email.reply_to).
+ * Wording reviewed by the founder 2026-11-27: the buyer receives a secure link, and support sends it manually.
  */
 export function buyerConsentText(typicalMinutes: number, supportAfterHours: number, supportEmail: string): string {
   const window = supportAfterHours === 1 ? "1 hour" : `${supportAfterHours} hours`;
-  return `ExpanPress will email your e-book to this address, usually within ${typicalMinutes} minutes. If it has not arrived within ${window}, email ${supportEmail} and we will send it by hand. We may also email you about this purchase and related updates. You can unsubscribe at any time.`;
+  return `ExpanPress emails a secure download link for your e-book to this address, usually within ${typicalMinutes} minutes. If the link has not arrived within ${window}, email ${supportEmail}, and a support agent will send it to you manually. Support messages are answered in the order they are received. We may also email you about this purchase and related updates. You can unsubscribe at any time.`;
 }
 
 /**
@@ -59,7 +71,7 @@ export function buyerConsentText(typicalMinutes: number, supportAfterHours: numb
 export function buyerDeliveryPromiseText(typicalMinutes: number, supportAfterHours: number, supportEmail: string): string {
   const mins = typicalMinutes === 1 ? "1 minute" : `${typicalMinutes} minutes`;
   const window = supportAfterHours === 1 ? "1 hour" : `${supportAfterHours} hours`;
-  return `Your e-book is on its way to the email you used at checkout, usually within ${mins}. If it has not arrived within ${window}, email ${supportEmail} and we will send it by hand.`;
+  return `Your secure download link is on its way to the email you used at checkout, usually within ${mins}. If the link has not arrived within ${window}, email ${supportEmail}, and a support agent will send it to you manually. Support messages are answered in the order they are received.`;
 }
 
 /** Attribution parameters read from storage (with optional query-param fallback). The storage key for each parameter comes from ATTRIBUTION_KEYS (attribution.ts). */
