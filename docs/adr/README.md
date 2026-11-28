@@ -17,3 +17,4 @@ New ADRs use [`TEMPLATE.md`](TEMPLATE.md) and take the next free number.
 | [0062](0062-payment-rail-launch-switch.md) | Payment rail launch switch (rails stay defined, enabled by settings) |
 | [0063](0063-r2-sync-freshness-contract.md) | R2 sync freshness and overwrite contract (source-ETag marker, conditional writes) |
 | [0064](0064-remove-immutable-cover-cache.md) | Remove the immutable cover cache rule (reinstatement conditions recorded) |
+| [0066](0066-release-delivery-storage-cascade.md) | Release delivery storage cascade: R2, then Upstash Blob, then Supabase Storage (Upstash tier not yet built) |
