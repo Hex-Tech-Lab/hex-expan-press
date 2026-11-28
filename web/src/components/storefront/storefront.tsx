@@ -336,7 +336,7 @@ export const fetchStoreProduct = cache(async function fetchStoreProduct(
 });
 
 /** The single provider-agnostic checkout origin (ADR 0061). Buy links and the checkout page live here. */
-export const PAY_ORIGIN = "https://pay.expanpress.com";
+export const PAY_ORIGIN = GLOBAL.storefront.pay_origin;
 
 
 /** Checkout page lookup by product UUID (ADR 0061). Commercial products only, same rule as the storefront. */

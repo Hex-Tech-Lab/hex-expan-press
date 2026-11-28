@@ -1,4 +1,5 @@
 import * as Sentry from "@sentry/nextjs";
+import { sentryScrubHooks } from "./src/lib/sentry-scrub";
 
 Sentry.init({
   dsn: process.env.SENTRY_DSN,
@@ -6,4 +7,6 @@ Sentry.init({
   environment: process.env.VERCEL_ENV ?? "development",
   tracesSampleRate: 0.1,
   sendDefaultPii: false,
+  // Download tokens are bearer credentials; they must never leave the process inside an event.
+  ...sentryScrubHooks,
 });

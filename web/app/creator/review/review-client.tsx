@@ -528,7 +528,7 @@ export default function ReviewClient({ items, saved, pdfUrl, bookTitle, supportE
                   type="button"
                   onClick={() => setZoom((z) => Math.max(0.5, +(z - 0.15).toFixed(2)))}
                   aria-label="Zoom out"
-                  className="min-h-8 px-2.5 py-1"
+                  className="min-h-11 min-w-11 px-2.5 py-1"
                 >
                   −
                 </BrandButton>
@@ -536,7 +536,7 @@ export default function ReviewClient({ items, saved, pdfUrl, bookTitle, supportE
                   variant="secondary"
                   type="button"
                   onClick={() => setZoom(1)}
-                  className="min-h-8 px-2.5 py-1 text-xs"
+                  className="min-h-11 px-2.5 py-1 text-xs"
                 >
                   Reset
                 </BrandButton>
@@ -545,7 +545,7 @@ export default function ReviewClient({ items, saved, pdfUrl, bookTitle, supportE
                   type="button"
                   onClick={() => setZoom((z) => Math.min(3, +(z + 0.15).toFixed(2)))}
                   aria-label="Zoom in"
-                  className="min-h-8 px-2.5 py-1"
+                  className="min-h-11 min-w-11 px-2.5 py-1"
                 >
                   +
                 </BrandButton>
@@ -594,7 +594,7 @@ export default function ReviewClient({ items, saved, pdfUrl, bookTitle, supportE
                   type="button"
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                   disabled={page <= 1}
-                  className="min-h-9 px-3 py-1"
+                  className="min-h-11 px-3 py-1"
                 >
                   ‹ Prev
                 </BrandButton>
@@ -606,7 +606,7 @@ export default function ReviewClient({ items, saved, pdfUrl, bookTitle, supportE
                   type="button"
                   onClick={() => setPage((p) => Math.min(total, p + 1))}
                   disabled={page >= total}
-                  className="min-h-9 px-3 py-1"
+                  className="min-h-11 px-3 py-1"
                 >
                   Next ›
                 </BrandButton>

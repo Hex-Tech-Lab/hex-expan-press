@@ -47,7 +47,7 @@ vi.mock("../../../../../../payments/src/terms.ts", () => ({
   effectiveCreatorSplitPctAsync: () => Promise.resolve(50),
 }));
 // Delivery is stubbed: this file asserts ledger recording and the webhook status, not mail or Dub.
-vi.mock("../../../../../../payments/src/delivery.ts", () => ({ deliverSaleForWebhook: async () => undefined, saleDeliveryConfirmed: async () => false }));
+vi.mock("../../../../../../payments/src/delivery.ts", () => ({ deliverSaleForWebhook: async () => undefined, saleDeliveryConfirmed: async () => false, setDeliveryFailureReporter: () => undefined }));
 vi.mock("../../../../../../payments/src/settings_registry.ts", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../../../../../payments/src/settings_registry")>();
   return {

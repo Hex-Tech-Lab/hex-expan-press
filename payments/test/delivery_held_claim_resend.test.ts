@@ -1,7 +1,7 @@
 // PR 136 H1: a held delivery claim resends the identical buyer email under the same Resend idempotency key.
 // The provider fake behaves like Resend: a request whose key was already accepted returns the original and sends nothing.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { deliverSale, deliverSaleForWebhook, type DeliveryDb, type DeliveryDeps } from "../src/delivery";
+import { deliverSale, deliverSaleForWebhook, setDeliveryFailureReporter, type DeliveryDb, type DeliveryDeps } from "../src/delivery";
 import { DeliveryBlockedError, DeliveryPendingError, StaleFenceError } from "../src/delivery_errors";
 import { decryptClaimMessage, encryptClaimMessage } from "../src/delivery_link_crypto";
 import { EmailSendError, sendEmail as realSendEmail } from "../src/email";
@@ -461,12 +461,20 @@ describe("resend age cap and re-check: a stored message resends only inside the 
     ageClaim(claims, 25 * HOUR_MS);
 
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const report = vi.fn();
+    setDeliveryFailureReporter(report);
     try {
       await expect(deliverSale(SALE, deps)).rejects.toBeInstanceOf(DeliveryPendingError);
       expect(provider.send).toHaveBeenCalledTimes(1); // the first attempt only: no resend
       expect(claims.get(CLAIM)?.message).not.toBeNull();
       expect(errSpy.mock.calls.some((c) => String(c[0]).includes("MANUAL RECONCILE sale=sale-h1 provider=paddle"))).toBe(true);
+      // The same flag reaches the registered reporter (Sentry in the web app) with ids only.
+      expect(report).toHaveBeenCalledWith(
+        "delivery needs manual reconciliation",
+        expect.objectContaining({ surface: "delivery", provider: "paddle", sale_id: "sale-h1" }),
+      );
     } finally {
+      setDeliveryFailureReporter(() => undefined);
       errSpy.mockRestore();
     }
   });

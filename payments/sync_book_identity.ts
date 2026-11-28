@@ -11,7 +11,8 @@ import { GLOBAL } from "./src/settings_registry.ts";
 const here = dirname(fileURLToPath(import.meta.url));
 
 export const loadDotenvForCli = (): void => {
-  dotenv.config({ path: join(here, "..", ".env") });
+  // override: true makes the repo .env the source of truth for this script; an inherited shell value must not win silently.
+  dotenv.config({ path: join(here, "..", ".env"), override: true });
 };
 
 export interface SyncConfig {

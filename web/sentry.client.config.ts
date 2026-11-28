@@ -1,4 +1,5 @@
 import * as Sentry from "@sentry/nextjs";
+import { sentryScrubHooks } from "./src/lib/sentry-scrub";
 
 Sentry.init({
   dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
@@ -11,4 +12,6 @@ Sentry.init({
   tracesSampleRate: 0.1,
   // Wave 3: errors first, keep the footprint minimal
   sendDefaultPii: false,
+  // A buyer's download page URL carries the token; scrub it before any browser event is sent.
+  ...sentryScrubHooks,
 });

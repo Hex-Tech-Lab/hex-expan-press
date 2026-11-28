@@ -117,7 +117,7 @@ export function BookPreviewToolbar({
             disabled={status !== "ready" || totalPages <= 0}
             title={labels.go_to_page}
             data-testid="book-preview-goto-input"
-            className="min-h-[44px] min-w-[44px] w-11 sm:min-h-0 sm:min-w-0 bg-transparent text-center font-mono text-base sm:text-xs tabular-nums font-medium text-gray-900 focus:outline-none disabled:opacity-45"
+            className="min-h-[44px] min-w-[44px] w-11 sm:min-h-0 sm:min-w-0 bg-transparent text-center font-mono text-base sm:text-xs tabular-nums font-medium text-gray-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b3401e] disabled:opacity-45"
           />
           <span className="whitespace-nowrap font-mono text-xs tabular-nums text-gray-500 select-none pr-1" aria-hidden="true">
             {`/ ${totalPages || "—"}`}
@@ -136,7 +136,7 @@ export function BookPreviewToolbar({
         </form>
       </div>
 
-      <div className="flex items-center gap-1 sm:gap-2" role="group" aria-label={labels.navigation_aria_label.replace("{title}", bookTitle)}>
+      <div className="flex items-center gap-1 sm:gap-2" role="group" aria-label={labels.navigation_aria_label.replace("{title}", () => bookTitle)}>
         <button
           type="button"
           onClick={onFlipPrev}

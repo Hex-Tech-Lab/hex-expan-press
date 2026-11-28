@@ -27,11 +27,12 @@ const EASE = [0.16, 1, 0.3, 1] as const;
    the inset pair or the bevel disappears during the animation. */
 const WOBBLE = { type: "spring" as const, stiffness: 320, damping: 12 };
 
-function Step3SubmitButton({ children }: { children: React.ReactNode }) {
+function Step3SubmitButton({ children, label }: { children: React.ReactNode; label: string }) {
   const { pending } = useFormStatus();
   return (
     <m.button
       type="submit"
+      aria-label={label}
       disabled={pending}
       whileTap={{ scale: 1.01, transition: WOBBLE }}
       className="block w-full text-left disabled:cursor-not-allowed disabled:opacity-60"
@@ -198,7 +199,7 @@ export default function DashboardClient({
             aria-hidden
             className="h-2 w-2 rounded-full"
             style={{ background: hasC3 ? "#2E7D5B" : "#E8622C" }}
-            animate={{ scale: [1, 1.3, 1], opacity: [1, 0.7, 1] }}
+            animate={reduced ? { scale: 1, opacity: 1 } : { scale: [1, 1.3, 1], opacity: [1, 0.7, 1] }}
             transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
           />
           <span>{hasC3 ? "Publication Status: Agreement Signed — Ready for Release" : "Publication Status: Pending Review & Release"}</span>
@@ -263,7 +264,7 @@ export default function DashboardClient({
           {steps.map((step, idx) => {
             const body = (
               <>
-                <div className="mb-2.5 flex items-center justify-between">
+                <span className="mb-2.5 flex items-center justify-between">
                   <span className="text-[11px] font-mono font-bold uppercase tracking-[0.12em] text-[#b3401e]">
                     {step.num}
                   </span>
@@ -276,12 +277,12 @@ export default function DashboardClient({
                     )}
                     {step.status}
                   </span>
-                </div>
-                <p className="text-lg font-bold text-gray-900">{step.title}</p>
-                <p className="mt-1 text-sm leading-relaxed text-gray-700">{step.desc}</p>
-                <p className="mt-2.5 inline-flex items-center gap-1 text-sm font-semibold text-[#296E50]">
+                </span>
+                <span className="block text-lg font-bold text-gray-900">{step.title}</span>
+                <span className="mt-1 block text-sm leading-relaxed text-gray-700">{step.desc}</span>
+                <span className="mt-2.5 inline-flex items-center gap-1 text-sm font-semibold text-[#296E50]">
                   {step.cta}
-                </p>
+                </span>
               </>
             );
 
@@ -296,7 +297,7 @@ export default function DashboardClient({
                   transition={{ duration: 0.5, ease: EASE, delay: 0.34 + idx * 0.09 }}
                   className="neu-card mb-4 block rounded-[32px] p-6 transition-shadow hover:shadow-[0_4px_12px_rgba(43,37,32,0.05)]"
                 >
-                  <Step3SubmitButton>{body}</Step3SubmitButton>
+                  <Step3SubmitButton label={step.cta}>{body}</Step3SubmitButton>
                   <a
                     href={step.href}
                     className="mt-2 inline-flex items-center gap-1 text-sm text-gray-600 no-underline hover:text-gray-900 hover:underline"

@@ -49,7 +49,7 @@ vi.mock("../../../../../../payments/src/terms.ts", () => ({
   effectiveCreatorSplitPctAsync: () => Promise.resolve(50),
 }));
 // Only the receipt send is controlled here; the budget race itself runs in the real use case.
-vi.mock("../../../../../../payments/src/delivery.ts", () => ({
+vi.mock("../../../../../../payments/src/delivery.ts", () => ({ setDeliveryFailureReporter: () => undefined,
   deliverSaleForWebhook: (input: unknown) => deliver.fn(input),
   saleDeliveryConfirmed: async () => false,
 }));

@@ -23,11 +23,12 @@ import { COUNTRY_RESTRICTION_MESSAGE } from "./src/lib/sales-scope";
  * serves checkout pages, the checkout API, the legal pages and its own robots
  * file, and nothing else. expanpress.com sends checkout paths to pay.
  */
-const PAY_HOST = "pay.expanpress.com";
+// The pay origin comes from the settings registry (ADR 0061), so the host guard and the redirect target cannot drift apart.
+const PAY_ORIGIN = GLOBAL.storefront.pay_origin;
+const PAY_HOST = new URL(PAY_ORIGIN).host;
 const MAIN_HOST = "expanpress.com";
 // www is the B2B host (founder, 2026-11-15). It must not serve checkout either: ADR 0061 makes pay the only checkout origin.
 const WWW_HOST = "www.expanpress.com";
-const PAY_ORIGIN = "https://pay.expanpress.com";
 const PAY_ALLOWED_PREFIXES = ["/checkout/", "/api/billing/checkout/", "/_next/", "/assets/"];
 const PAY_ALLOWED_EXACT_API = ["/api/billing/checkout"];
 // Buyer legal set only (B2C). The creator (B2B) set at /terms.html, /privacy.html, /refund-policy.html and

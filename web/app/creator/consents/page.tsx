@@ -84,7 +84,7 @@ function ConsentNotice({ title, body }: { title: string; body: string }) {
       <main className="mx-auto w-full max-w-[680px] glass-card card-shadow rounded-[32px] border-[1.5px] border-[#fff2e4] p-6 sm:p-8" role="alert">
         <h1 className="text-2xl font-bold text-gray-900">{title}</h1>
         <p className="mt-2 text-base text-gray-700">{body}</p>
-        <BrandButton variant="secondary" href="/creator/dashboard" className="mt-5 px-4 py-2">
+        <BrandButton variant="secondary" href="/creator/dashboard" className="mt-5 min-h-11 px-4 py-2">
           Back to dashboard
         </BrandButton>
       </main>

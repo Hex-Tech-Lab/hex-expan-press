@@ -215,6 +215,8 @@ export interface GlobalSettings {
   storefront: {
     b2c_landing_url: string;
     brand_name: string;
+    /** Provider-agnostic checkout origin (ADR 0061). Buy links and the checkout page are built from it. */
+    pay_origin: string;
     publisher_label: string;
     thanks_path_template: string;
     house_title_note: string;
@@ -519,6 +521,8 @@ export interface UsageWatchSettings {
 
 /** The publisher name, one literal. storefront.brand_name and storefront.publisher_label both read it. */
 const STOREFRONT_BRAND = "ExpanPress";
+/** The one provider-agnostic checkout origin (ADR 0061). Every checkout URL is built from this value. */
+const STOREFRONT_PAY_ORIGIN = "https://pay.expanpress.com";
 
 export const VOICE_NARRATION_LIMITS = {
   sample_rate_hz: { min: 16000, max: 48000 },
@@ -614,6 +618,7 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
   storefront: {
     b2c_landing_url: "https://expanpress.com/books",
     brand_name: STOREFRONT_BRAND,
+    pay_origin: STOREFRONT_PAY_ORIGIN,
     publisher_label: STOREFRONT_BRAND,
     thanks_path_template: "/books/{handle}/thanks",
     house_title_note: `House title. Published by ${STOREFRONT_BRAND}. No creator revenue split.`,
@@ -1391,6 +1396,8 @@ export function loadStorefrontSection(raw: Record<string, unknown> | undefined):
   return {
     b2c_landing_url: b2cLanding,
     brand_name: brandName,
+    // Not read from global.json: the checkout origin is a trust boundary (ADR 0061), so a config value must not redirect buyers.
+    pay_origin: STOREFRONT_PAY_ORIGIN,
     publisher_label: brandName,
     thanks_path_template: thanksTpl,
     house_title_note: houseNote,

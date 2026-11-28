@@ -368,7 +368,7 @@ function DetailSlide({
               type="button"
               onClick={onClose}
               aria-label="Close details"
-              className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
+              className="w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
             >
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.4} strokeLinecap="round">
                 <path d="M6 6l12 12M18 6L6 18" />
@@ -378,7 +378,7 @@ function DetailSlide({
           {children}
           <Link
             href={SIGNIN}
-            className="group inline-flex items-center gap-3 text-sm font-semibold text-white hover:text-peach transition-colors self-start"
+            className="group inline-flex min-h-11 items-center gap-3 text-sm font-semibold text-white hover:text-peach transition-colors self-start"
           >
             <span>Start this journey</span>
             <span className="group-hover:translate-x-1 transition-transform">&rarr;</span>

@@ -130,7 +130,7 @@ export default async function DashboardPage({
           <p className="mt-2 text-sm text-gray-700">
             This looks like a temporary problem on our side — your work is safe. Please reload in a moment.
           </p>
-          <BrandButton variant="secondary" href="/creator/dashboard" className="mt-5 px-4 py-2">
+          <BrandButton variant="secondary" href="/creator/dashboard" className="mt-5 min-h-11 px-4 py-2">
             Reload dashboard
           </BrandButton>
         </main>

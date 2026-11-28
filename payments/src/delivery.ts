@@ -48,6 +48,16 @@ import { bounded, budgetLeftMs, requestSignal, webhookDeadlineAt } from "./webho
 
 export { StaleFenceError, DeliveryPendingError, type DeliverySendClaim };
 
+/**
+ * Receives delivery failures that need an operator. Payments has no monitoring dependency of its own: the web app
+ * registers its Sentry reporter once at load (setDeliveryFailureReporter). Messages carry ids and reasons only.
+ */
+export type DeliveryFailureReporter = (message: string, tags: Record<string, string>) => void;
+let deliveryFailureReporter: DeliveryFailureReporter = () => {};
+export function setDeliveryFailureReporter(reporter: DeliveryFailureReporter): void {
+  deliveryFailureReporter = reporter;
+}
+
 export const TOKEN_RE = /^[A-Za-z0-9_-]{43}$/;
 
 /** download_events.event_type values. The database column holds these strings; every reader and writer uses this map. */
@@ -227,6 +237,13 @@ function flagForManualReconciliation(provider: string, saleId: string, sendKind:
     `[delivery] MANUAL RECONCILE sale=${saleId} provider=${provider} send_kind=${sendKind}: ${reason}. ` +
       "The sale stays unresolved until an operator reconciles it.",
   );
+  deliveryFailureReporter("delivery needs manual reconciliation", {
+    surface: "delivery",
+    provider,
+    send_kind: sendKind,
+    sale_id: saleId,
+    reason,
+  });
 }
 
 /**

@@ -1,9 +1,18 @@
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-const mockPort = Number(process.env.E2E_MOCK_PORT || 54399);
-const firmaTlsPort = Number(process.env.E2E_FIRMA_TLS_PORT || 54400);
-const appPort = Number(process.env.E2E_APP_PORT || 3100);
+/** A port from the environment. Unset or empty uses the fallback; a set but invalid value fails loudly, never NaN. */
+function portFromEnv(name: string, fallback: number): number {
+  const raw = process.env[name];
+  if (raw === undefined || raw === "") return fallback;
+  const port = Number(raw);
+  if (!Number.isInteger(port) || port <= 0 || port > 65535) throw new Error(`${name} must be a TCP port, got "${raw}"`);
+  return port;
+}
+
+const mockPort = portFromEnv("E2E_MOCK_PORT", 54399);
+const firmaTlsPort = portFromEnv("E2E_FIRMA_TLS_PORT", 54400);
+const appPort = portFromEnv("E2E_APP_PORT", 3100);
 
 /** Single source for every E2E port, id and timeout (no scattered magic numbers). */
 export const E2E = {

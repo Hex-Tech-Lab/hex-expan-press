@@ -446,7 +446,7 @@ export default function BookPreviewer({
                 ref={hostRef}
                 tabIndex={status === "ready" ? 0 : -1}
                 role="region"
-                aria-label={settings.toolbar_labels.region_aria_label.replace("{title}", bookTitle)}
+                aria-label={settings.toolbar_labels.region_aria_label.replace("{title}", () => bookTitle)}
                 data-orientation={orientation}
                 className={`w-full flex justify-center ${status === "loading" ? "invisible" : ""}`}
               />

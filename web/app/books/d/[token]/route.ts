@@ -213,16 +213,25 @@ export async function HEAD(_request: NextRequest, ctx: { params: Promise<{ token
   const bare = (status: number) => new NextResponse(null, { status, headers: downloadHeaders() });
   if (!TOKEN_RE.test(token)) return bare(404);
   const sb = await getSupabaseAdmin();
-  if (!sb) return bare(500);
+  if (!sb) {
+    reportDownloadFailure("admin_client_missing", "HEAD probe: Supabase admin client unavailable");
+    return bare(500);
+  }
   const { data: link, error } = await sb
     .from("download_events")
     .select("sale_id, product_id, expires_at")
     .eq("token_hash", tokenHash(token))
     .eq("event_type", DOWNLOAD_EVENT.linkIssued)
     .maybeSingle();
-  if (error) return bare(500);
+  if (error) {
+    reportDownloadFailure("link_lookup_failed", `HEAD probe: ${error.message}`);
+    return bare(500);
+  }
   if (!link) return bare(404);
-  if (!link.expires_at) return bare(500);
+  if (!link.expires_at) {
+    reportDownloadFailure("link_without_expiry", `HEAD probe: sale ${link.sale_id as string}`);
+    return bare(500);
+  }
   if (new Date(link.expires_at as string).getTime() <= Date.now()) return bare(410);
   return bare(200);
 }

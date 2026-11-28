@@ -1,10 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createHash } from "node:crypto";
+import * as Sentry from "@sentry/nextjs";
 import { processBillingWebhookUseCase } from "../../../../../src/use_cases/billing/process_billing_webhook";
 import { WebhookValidationError } from "../../../../../src/domain/webhook/webhook_errors";
 import { OrderSchemaError } from "../../../../../payments/src/ledger";
 import { GLOBAL } from "../../../../../payments/src/settings_registry";
 import { budgetLeftMs, webhookDeadlineAt } from "../../../../../payments/src/webhook_budget";
+import { setDeliveryFailureReporter } from "../../../../../payments/src/delivery";
+
+// Registered at module load: every manual-reconcile flag from delivery reaches Sentry. Payments has no Sentry of its own.
+setDeliveryFailureReporter((message, tags) => {
+  Sentry.captureException(new Error(message), { tags });
+});
 
 /**
  * Best-effort audit trail for 503 retry responses (event WEBHOOK_503_RETRYING).
@@ -170,6 +177,13 @@ async function handleWebhook(request: NextRequest, adapters: WebhookAdapters, sw
     const httpStatus = typeof rawStatus === "number" && rawStatus >= 400 && rawStatus < 600 ? rawStatus : undefined;
     // httpStatus is a number or undefined here, so a validation error without an adapter hint maps to 400 and anything else to 500.
     const status = httpStatus ?? (isValidationErr ? 400 : 500);
+    // Server faults make the provider retry, so they must alert. Expected 4xx noise (bad signatures, validation) does not.
+    // Error name only: the message can carry buyer data (for example an email lookup failure).
+    if (status >= 500) {
+      Sentry.captureException(new Error(`billing webhook ${status}: ${err instanceof Error ? err.name : "unknown"}`), {
+        tags: { surface: "billing_webhook", status: String(status) },
+      });
+    }
     const error = status === 401 ? "Unauthorized" : status === 503 ? "Temporarily unavailable — retry" : status === 500 ? "Internal Server Error" : "Bad Request";
     if (status === 503) {
       // Error name only: messages can carry buyer data (e.g. an email lookup failure).

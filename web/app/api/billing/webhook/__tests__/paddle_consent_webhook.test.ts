@@ -61,7 +61,7 @@ vi.mock("../../../../../../payments/src/terms.ts", () => ({
   effectiveCreatorSplitPctAsync: () => Promise.resolve(50),
 }));
 
-vi.mock("../../../../../../payments/src/delivery.ts", () => ({
+vi.mock("../../../../../../payments/src/delivery.ts", () => ({ setDeliveryFailureReporter: () => undefined,
   deliverSaleForWebhook: async () => undefined,
   saleDeliveryConfirmed: async () => false,
 }));

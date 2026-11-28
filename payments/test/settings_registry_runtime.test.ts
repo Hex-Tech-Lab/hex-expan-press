@@ -349,6 +349,11 @@ describe("settings registry: paddle.overlay, storefront, and provider display na
     warn.mockRestore();
   });
 
+  it("ignores a pay_origin override in global.json: the checkout origin is an ADR 0061 trust boundary", () => {
+    expect(loadStorefrontSection({ pay_origin: "https://evil.example" }).pay_origin).toBe("https://pay.expanpress.com");
+    expect(DEFAULT_GLOBAL.storefront.pay_origin).toBe("https://pay.expanpress.com");
+  });
+
   it("validates storefront brand_name and thanks_path_template, and exposes provider display names", () => {
     const warn = vi.spyOn(console, "error").mockImplementation(() => {});
     const HOUSE_NOTE = "House title. Published by ExpanPress. No creator revenue split.";

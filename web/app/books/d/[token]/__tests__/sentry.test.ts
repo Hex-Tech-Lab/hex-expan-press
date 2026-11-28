@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
-import { GET } from "../route";
+import { GET, HEAD } from "../route";
 
 // A buyer-facing failure must reach Sentry, not only the console: a missing admin client is a full outage.
 const captureException = vi.hoisted(() => vi.fn());
@@ -20,6 +20,20 @@ describe("download route failures reach Sentry", () => {
   it("a missing admin client returns 500 and sends a Sentry event tagged download_route / admin_client_missing", async () => {
     const token = "A".repeat(43);
     const res = await GET(new NextRequest(`https://expanpress.com/books/d/${token}`), {
+      params: Promise.resolve({ token }),
+    });
+    expect(res.status).toBe(500);
+    expect(captureException).toHaveBeenCalledWith(
+      expect.any(Error),
+      expect.objectContaining({
+        tags: expect.objectContaining({ surface: "download_route", reason: "admin_client_missing" }),
+      }),
+    );
+  });
+
+  it("the HEAD probe reports a missing admin client to Sentry and answers a bodyless 500", async () => {
+    const token = "B".repeat(43);
+    const res = await HEAD(new NextRequest(`https://expanpress.com/books/d/${token}`, { method: "HEAD" }), {
       params: Promise.resolve({ token }),
     });
     expect(res.status).toBe(500);

@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import nextConfig from "../next.config";
+import { GLOBAL } from "../../payments/src/settings_registry";
 
 type Redirect = { source: string; destination: string; statusCode?: number; missing?: Array<{ type: string; value?: string }> };
 
@@ -14,12 +15,12 @@ function declaredPayHost(file: string): string | undefined {
 }
 
 describe("legacy redirects never answer on the pay host (F-05, ADR 0061)", () => {
-  it("next.config.ts and proxy.ts declare the same pay host, so the redirect exclusion cannot drift from the host gate", () => {
+  it("next.config.ts and proxy.ts agree on the pay host, so the redirect exclusion cannot drift from the host gate", () => {
     const configHost = declaredPayHost("next.config.ts");
-    const proxyHost = declaredPayHost("proxy.ts");
     expect(configHost, "next.config.ts must declare PAY_HOST").toBeDefined();
-    expect(proxyHost, "proxy.ts must declare PAY_HOST").toBeDefined();
-    expect(configHost).toBe(proxyHost);
+    // proxy.ts derives PAY_HOST from the registry origin (ADR 0061), so the value is checked against the registry.
+    expect(readFileSync(join(WEB, "proxy.ts"), "utf8")).toMatch(/const PAY_HOST = new URL\(PAY_ORIGIN\)\.host;/);
+    expect(configHost).toBe(new URL(GLOBAL.storefront.pay_origin).host);
     expect(configHost).toBe("pay.expanpress.com");
   });
 
