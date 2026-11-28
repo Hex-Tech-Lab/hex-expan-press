@@ -1186,8 +1186,10 @@ export function loadPaymentsSection(raw: Record<string, unknown> | undefined): G
     rail_label_log_max_chars: railLabelLogMaxChars,
     paddle: { api_base: { production: apiProduction, sandbox: apiSandbox }, js_cdn_url: jsCdn, overlay },
     routing,
-    creem_accept_test_mode: p.creem_accept_test_mode === true,
-    creem_test_database_ref: typeof p.creem_test_database_ref === "string" ? p.creem_test_database_ref.trim() : "",
+    // A preview test ref turns test-mode acceptance on for that build only; the gate still checks SUPABASE_URL exactly.
+    creem_accept_test_mode: p.creem_accept_test_mode === true || readPreviewOverrides().creemTestDatabaseRef !== "",
+    creem_test_database_ref:
+      readPreviewOverrides().creemTestDatabaseRef || (typeof p.creem_test_database_ref === "string" ? p.creem_test_database_ref.trim() : ""),
     sandbox_checkout_enabled: sandboxCheckoutEnabled,
     allowed_buyer_countries: allowedBuyerCountries,
   };
@@ -2872,7 +2874,41 @@ export function parsePaymentProviders(payments: Record<string, unknown>): Record
   return out;
 }
 
-function loadPaymentProviders(): Record<string, PaymentProviderSetting> {
+/** Preview-only overrides for the test host. Read only when VERCEL_ENV is "preview", so production never sees them.
+ *  PREVIEW_ENABLED_PROVIDERS: comma list of registered providers to switch on for that preview build.
+ *  PREVIEW_CREEM_TEST_DATABASE_REF: the test branch ref that Creem test-mode events may write to. The gate in
+ *  creem.adapter.ts still requires SUPABASE_URL's host to equal `${ref}.supabase.co`, so a wrong URL fails closed. */
+export interface PreviewOverrides {
+  enabledProviders: string[];
+  creemTestDatabaseRef: string;
+}
+
+export function readPreviewOverrides(env: NodeJS.ProcessEnv = process.env): PreviewOverrides {
+  if (env.VERCEL_ENV !== "preview") return { enabledProviders: [], creemTestDatabaseRef: "" };
+  return {
+    enabledProviders: (env.PREVIEW_ENABLED_PROVIDERS ?? "").split(",").map((s) => s.trim()).filter((s) => s.length > 0),
+    creemTestDatabaseRef: (env.PREVIEW_CREEM_TEST_DATABASE_REF ?? "").trim(),
+  };
+}
+
+/** Returns a copy with the named registered providers switched on. An unregistered name is logged and ignored. */
+export function applyPreviewProviderOverrides(
+  providers: Record<string, PaymentProviderSetting>,
+  names: string[],
+): Record<string, PaymentProviderSetting> {
+  const out: Record<string, PaymentProviderSetting> = { ...providers };
+  for (const name of names) {
+    if (!Object.prototype.hasOwnProperty.call(out, name)) {
+      console.error(`[settings-registry] PREVIEW_ENABLED_PROVIDERS names '${name}', which is not a registered provider; ignored`);
+      continue;
+    }
+    out[name] = { ...out[name], enabled: true };
+    console.warn(`[settings-registry] preview override: provider '${name}' is ON for this preview deployment only`);
+  }
+  return out;
+}
+
+function loadPaymentProvidersFromFile(): Record<string, PaymentProviderSetting> {
   const read = readRegistryResult("providers.json");
   if (read.kind === "missing") {
     warnFallback("providers.json", "missing");
@@ -2888,6 +2924,10 @@ function loadPaymentProviders(): Record<string, PaymentProviderSetting> {
     return allProvidersOff();
   }
   return parsePaymentProviders(payments as Record<string, unknown>);
+}
+
+function loadPaymentProviders(): Record<string, PaymentProviderSetting> {
+  return applyPreviewProviderOverrides(loadPaymentProvidersFromFile(), readPreviewOverrides().enabledProviders);
 }
 
 export const PAYMENT_PROVIDERS: Record<string, PaymentProviderSetting> = loadPaymentProviders();
