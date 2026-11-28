@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "../../../../../payments/src/supabase_admin";
 import { GLOBAL } from "../../../../../payments/src/settings_registry";
 import { TOKEN_RE, tokenHash } from "../../../../../payments/src/delivery";
+import { releaseDownloadFilename } from "../../../../../payments/src/release_filename";
 import { getDeliveryStorageAdapter } from "../../../../../src/adapters/storage/r2.adapter";
 import { acceptsHtml, renderBrandedB2cHtml } from "../../../../src/lib/branded-html";
 
@@ -122,7 +123,7 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ token: 
 
   const { data: product, error: prodErr } = await sb
     .from("products")
-    .select("release_path")
+    .select("release_path, slug, release_year, creators(display_name)")
     .eq("id", link.product_id as string)
     .maybeSingle();
   if (prodErr || !product?.release_path) {
@@ -130,10 +131,23 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ token: 
     return unavailableDownload(request);
   }
 
+  // The buyer's saved filename follows the release convention, never the storage key (a UUID path).
+  // A product missing a part is still served (the buyer is not blocked), and the gap is logged for follow-up.
+  const creator = Array.isArray(product.creators) ? product.creators[0] : product.creators;
+  const downloadName = releaseDownloadFilename(GLOBAL.storefront.brand_name, {
+    slug: product.slug as string | null,
+    creatorDisplayName: (creator as { display_name?: string } | null | undefined)?.display_name,
+    releaseYear: product.release_year as number | null,
+  });
+  if (!downloadName) {
+    console.error(`[delivery] release filename incomplete for product ${link.product_id as string}; serving under the storage key name`);
+  }
+
   const storage = getDeliveryStorageAdapter(sb, GLOBAL.delivery.bucket);
   const signedUrl = await storage.createSignedDownloadUrl(
     product.release_path as string,
     GLOBAL.delivery.signed_url_seconds,
+    { downloadName: downloadName ?? undefined },
   );
   if (!signedUrl) {
     // The id is quoted in the server log so a buyer report can be matched to this failure.

@@ -230,6 +230,54 @@ describe("GET /books/d/[token] (Buyer delivery route)", () => {
     expect(insertMock).not.toHaveBeenCalled();
   });
 
+  it("names the saved file by the release convention, not the storage key (UUID path)", async () => {
+    const future = new Date(Date.now() + 100000).toISOString();
+    maybeSingleMock.mockResolvedValueOnce({
+      data: { sale_id: "s1", product_id: "9a3b37eb-3aca-4bb9-b320-bafa3efdfbbc", expires_at: future, link_generation: 1 },
+      error: null,
+    });
+    maybeSingleMock.mockResolvedValueOnce({
+      data: {
+        release_path: "release/9a3b37eb-3aca-4bb9-b320-bafa3efdfbbc_release.pdf",
+        slug: "sample_the_quiet_workshop",
+        release_year: 2026,
+        creators: { display_name: "ExpanPress" },
+      },
+      error: null,
+    });
+    createSignedUrlMock.mockResolvedValueOnce({
+      data: { signedUrl: "https://supabase.example/signed/release/x.pdf?token=t&download=ExpanPress_SampleTheQuietWorkshop_ExpanPress_2026.pdf" },
+      error: null,
+    });
+    insertMock.mockResolvedValueOnce({ error: null });
+
+    await expectRedirectTo(validToken, "https://supabase.example/signed/release/x.pdf");
+    expect(createSignedUrlMock).toHaveBeenCalledWith(
+      "release/9a3b37eb-3aca-4bb9-b320-bafa3efdfbbc_release.pdf",
+      expect.any(Number),
+      { download: "ExpanPress_SampleTheQuietWorkshop_ExpanPress_2026.pdf" },
+    );
+  });
+
+  it("still serves, and logs the gap, when the product has no release-filename parts", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const future = new Date(Date.now() + 100000).toISOString();
+    maybeSingleMock.mockResolvedValueOnce({
+      data: { sale_id: "s1", product_id: "p1", expires_at: future, link_generation: 1 },
+      error: null,
+    });
+    maybeSingleMock.mockResolvedValueOnce({ data: { release_path: "books/bare.pdf", slug: null, release_year: null, creators: null }, error: null });
+    createSignedUrlMock.mockResolvedValueOnce({
+      data: { signedUrl: "https://supabase.example/signed/books/bare.pdf" },
+      error: null,
+    });
+    insertMock.mockResolvedValueOnce({ error: null });
+
+    await expectRedirectTo(validToken, "https://supabase.example/signed/books/bare.pdf");
+    expect(createSignedUrlMock).toHaveBeenCalledWith("books/bare.pdf", expect.any(Number));
+    expect(console.error).toHaveBeenCalledWith(expect.stringContaining("release filename incomplete"));
+  });
+
   it("redirects 302 to Cloudflare R2 presigned URL when R2 is configured (0% egress)", async () => {
     vi.stubEnv("R2_ACCOUNT_ID", "r2-acc-test");
     vi.stubEnv("R2_ACCESS_KEY_ID", "r2-key-test");

@@ -1,5 +1,5 @@
 import { createHash, createHmac } from "node:crypto";
-import type { StoragePort } from "../../domain/storage/storage.port";
+import type { SignedDownloadOptions, StoragePort } from "../../domain/storage/storage.port";
 import { GLOBAL } from "../../../payments/src/settings_registry";
 
 export interface R2Config {
@@ -101,6 +101,13 @@ export interface GeneratePresignedUrlOptions {
   method?: string;
   /** Headers the caller will send unchanged; they are signed so R2 authenticates them. */
   signHeaders?: Record<string, string>;
+  /** Value of the response-content-disposition query parameter, signed into the URL (sets the saved filename). */
+  responseContentDisposition?: string;
+}
+
+/** Content-Disposition for a saved filename. Quotes, backslashes and line breaks are replaced so the header stays well-formed. */
+export function attachmentDisposition(filename: string): string {
+  return `attachment; filename="${filename.replace(/["\\\r\n]/g, "_")}"`;
 }
 
 /**
@@ -120,6 +127,7 @@ export function generateR2PresignedUrl(options: GeneratePresignedUrlOptions): st
     date = new Date(),
     method = "GET",
     signHeaders = {},
+    responseContentDisposition,
   } = options;
 
   const url = new URL(endpoint);
@@ -151,6 +159,8 @@ export function generateR2PresignedUrl(options: GeneratePresignedUrlOptions): st
     "X-Amz-Date": amzDate,
     "X-Amz-Expires": expiresInSeconds.toString(),
     "X-Amz-SignedHeaders": canonicalHeaderBlock(host, signHeaders).signedHeaders,
+    // Signed with the rest of the query, so the saved filename cannot be changed without invalidating the URL.
+    ...(responseContentDisposition ? { "response-content-disposition": responseContentDisposition } : {}),
   };
 
   const sortedParamKeys = Object.keys(queryParams).sort();
@@ -472,6 +482,7 @@ export class R2StorageAdapter implements StoragePort {
   async createSignedDownloadUrl(
     path: string,
     expiresInSeconds: number,
+    options: SignedDownloadOptions = {},
     now: Date = new Date(),
   ): Promise<string | null> {
     try {
@@ -513,6 +524,7 @@ export class R2StorageAdapter implements StoragePort {
         region: this.region,
         expiresInSeconds,
         date: now,
+        responseContentDisposition: options.downloadName ? attachmentDisposition(options.downloadName) : undefined,
       });
     } catch (err) {
       // Serving falls back to Supabase, so the buyer is not blocked. The id is local to this log line: the route's buyer ref is not passed here.
@@ -525,7 +537,7 @@ export class R2StorageAdapter implements StoragePort {
 export interface SupabaseStorageAdmin {
   storage: {
     from: (bucket: string) => {
-      createSignedUrl: (path: string, expiresIn: number) => Promise<{
+      createSignedUrl: (path: string, expiresIn: number, options?: { download?: string | boolean }) => Promise<{
         data: { signedUrl: string } | null;
         error: { message?: string } | null;
       }>;
@@ -593,9 +605,17 @@ export class SupabaseStorageAdapter implements StoragePort {
     private readonly bucket: string,
   ) {}
 
-  async createSignedDownloadUrl(path: string, expiresInSeconds: number): Promise<string | null> {
+  async createSignedDownloadUrl(
+    path: string,
+    expiresInSeconds: number,
+    options: SignedDownloadOptions = {},
+  ): Promise<string | null> {
     try {
-      const { data, error } = await this.sbAdmin.storage.from(this.bucket).createSignedUrl(path, expiresInSeconds);
+      const storage = this.sbAdmin.storage.from(this.bucket);
+      // Supabase appends the saved filename as the download query parameter. Without a name, the call stays the two-argument form.
+      const { data, error } = options.downloadName
+        ? await storage.createSignedUrl(path, expiresInSeconds, { download: options.downloadName })
+        : await storage.createSignedUrl(path, expiresInSeconds);
       if (error || !data?.signedUrl) {
         console.error("[supabase-storage] createSignedUrl failed:", error?.message ?? "no signedUrl");
         return null;
@@ -618,11 +638,15 @@ export class CompositeStorageAdapter implements StoragePort {
     private readonly fallback: StoragePort,
   ) {}
 
-  async createSignedDownloadUrl(path: string, expiresInSeconds: number): Promise<string | null> {
-    const url = await this.primary.createSignedDownloadUrl(path, expiresInSeconds);
+  async createSignedDownloadUrl(
+    path: string,
+    expiresInSeconds: number,
+    options: SignedDownloadOptions = {},
+  ): Promise<string | null> {
+    const url = await this.primary.createSignedDownloadUrl(path, expiresInSeconds, options);
     if (url) return url;
     console.warn("[delivery-storage] Primary storage returned null; falling back to secondary storage");
-    return this.fallback.createSignedDownloadUrl(path, expiresInSeconds);
+    return this.fallback.createSignedDownloadUrl(path, expiresInSeconds, options);
   }
 }
 

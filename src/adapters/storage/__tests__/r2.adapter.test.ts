@@ -218,6 +218,45 @@ describe("R2StorageAdapter", () => {
     expect(url).toBeNull();
   });
 
+  it("signs the saved filename into the URL as response-content-disposition", async () => {
+    const adapter = new R2StorageAdapter({
+      accountId: "acc-123",
+      accessKeyId: "ak-123",
+      secretAccessKey: "sk-123",
+      bucket: "books-bucket",
+      fetchImpl: vi.fn().mockResolvedValue(
+        new Response(null, { status: 200, headers: { "x-amz-meta-supabase-etag": '"src-1"' } }),
+      ) as unknown as typeof fetch,
+      resolveSourceEtag: async () => '"src-1"',
+    });
+
+    const url = await adapter.createSignedDownloadUrl("release/abc_release.pdf", 300, {
+      downloadName: "ExpanPress_SampleTheQuietWorkshop_ExpanPress_2026.pdf",
+    });
+    expect(url).not.toBeNull();
+    const parsed = new URL(url as string);
+    expect(parsed.searchParams.get("response-content-disposition")).toBe(
+      'attachment; filename="ExpanPress_SampleTheQuietWorkshop_ExpanPress_2026.pdf"',
+    );
+    expect(parsed.searchParams.get("X-Amz-Signature")).not.toBeNull();
+  });
+
+  it("omits response-content-disposition when no download name is given", async () => {
+    const adapter = new R2StorageAdapter({
+      accountId: "acc-123",
+      accessKeyId: "ak-123",
+      secretAccessKey: "sk-123",
+      bucket: "books-bucket",
+      fetchImpl: vi.fn().mockResolvedValue(
+        new Response(null, { status: 200, headers: { "x-amz-meta-supabase-etag": '"src-1"' } }),
+      ) as unknown as typeof fetch,
+      resolveSourceEtag: async () => '"src-1"',
+    });
+
+    const url = await adapter.createSignedDownloadUrl("release.epub", 600);
+    expect(new URL(url as string).searchParams.has("response-content-disposition")).toBe(false);
+  });
+
   it("returns null if generation throws on invalid endpoint", async () => {
     const adapter = new R2StorageAdapter({
       accountId: "acc-123",
@@ -251,6 +290,23 @@ describe("SupabaseStorageAdapter", () => {
     expect(fakeSb.storage.from).toHaveBeenCalledWith("release-files");
     expect(createSignedUrlMock).toHaveBeenCalledWith("file.pdf", 300);
     expect(result).toBe("https://supabase.co/storage/v1/object/sign/file.pdf?token=abc");
+  });
+
+  it("passes the saved filename to createSignedUrl as the download option", async () => {
+    const createSignedUrlMock = vi.fn().mockResolvedValue({
+      data: { signedUrl: "https://supabase.co/storage/v1/object/sign/file.pdf?token=abc&download=ExpanPress.pdf" },
+      error: null,
+    });
+    const fakeSb = {
+      storage: {
+        from: vi.fn(() => ({ createSignedUrl: createSignedUrlMock })),
+      },
+    };
+
+    const adapter = new SupabaseStorageAdapter(fakeSb as never, "release-files");
+    await adapter.createSignedDownloadUrl("release/abc.pdf", 300, { downloadName: "ExpanPress_X_Y_2026.pdf" });
+
+    expect(createSignedUrlMock).toHaveBeenCalledWith("release/abc.pdf", 300, { download: "ExpanPress_X_Y_2026.pdf" });
   });
 
   it("returns null on storage error", async () => {
