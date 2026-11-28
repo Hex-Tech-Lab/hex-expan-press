@@ -1,0 +1,23 @@
+payments/test/preview_provider_override.test.ts
+  s_0c865bbd36aa90::t_70ae1e1992d690 1-57
+payments/src/settings_registry.ts
+  s_0c865bbd36aa90::t_339caaab5086d8 2929-2932
+  s_0c865bbd36aa90::t_c7dca4a8e267a2 1189-1192
+  s_0c865bbd36aa90::t_33516e3f3fb1ed 2877-2911
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "888355a2fb9f61cc41b9ffba9d84d06fe59648e0",
+  "prompts": {},
+  "sessions": {
+    "s_0c865bbd36aa90": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e91868c0-df8b-453c-a369-daac76d67031",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
