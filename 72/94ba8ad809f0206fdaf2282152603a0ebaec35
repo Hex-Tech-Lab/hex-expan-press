@@ -1,0 +1,136 @@
+web/sentry.server.config.ts
+  s_0c865bbd36aa90::t_96e55192e4f7b6 3-4
+  s_0c865bbd36aa90::t_b659a39330963c 15-22
+web/src/lib/creator-consents.ts
+  s_0c865bbd36aa90::t_520bf1d1958ba8 3,5-6
+payments/src/release_filename.ts
+  s_0c865bbd36aa90::t_28fc575d55128f 7,10
+  s_0c865bbd36aa90::t_1e16a3f415b002 53
+web/app/page.tsx
+  s_0c865bbd36aa90::t_31a25c819c78ea 10,17
+web/app/error.tsx
+  s_0c865bbd36aa90::t_1161ed613871dc 19-20
+  s_0c865bbd36aa90::t_c85088d2e1f923 21-22
+payments/src/settings_registry.ts
+  s_0c865bbd36aa90::t_0c91736b55650b 224
+  s_0c865bbd36aa90::t_a8f637fd544abe 386-387
+  s_0c865bbd36aa90::t_9f88059833704e 189-194
+  s_0c865bbd36aa90::t_1709690dd5ced5 2209
+  s_0c865bbd36aa90::t_8197fedbbf1ae6 155-188,195-196
+  s_0c865bbd36aa90::t_0021a6a67da9a1 594-596
+  s_0c865bbd36aa90::t_9702e030741199 731
+  s_0c865bbd36aa90::t_0cd0786632ecad 202-223
+  s_0c865bbd36aa90::t_47e55d4f755e35 947-948
+  s_0c865bbd36aa90::t_2e89076a637acc 637-654,657
+  s_0c865bbd36aa90::t_c34e2324d0bcf9 675-677
+  s_0c865bbd36aa90::t_d3156a097d20d4 1744-1769,1773-1778,1781-1786,1812
+  s_0c865bbd36aa90::t_7068f2f424026c 1651,1663-1669,1675-1680,1684-1707,1710,1712,1721-1743,1787-1807,1809-1811
+  s_0c865bbd36aa90::t_8e1ed3864d692b 1808
+  s_0c865bbd36aa90::t_6f2528a6676a3c 1855
+  s_0c865bbd36aa90::t_75ae21ef211fc0 655-656
+  s_0c865bbd36aa90::t_cbc12ac0e8b79f 1853-1854
+  s_0c865bbd36aa90::t_ebf98d7fcfc027 658-674
+  s_0c865bbd36aa90::t_f0ad2388f23b7e 1770-1772
+  s_0c865bbd36aa90::t_e394bbe3320160 979-980
+  s_0c865bbd36aa90::t_f547c315a24957 1779-1780
+  s_0c865bbd36aa90::t_633414f84b05a0 2165-2166
+  s_0c865bbd36aa90::t_8b0c0768922af6 937
+  s_0c865bbd36aa90::t_a37c3076b54cff 225-226
+  s_0c865bbd36aa90::t_42ea4962b9fd57 1708-1709,1711,1713-1720
+  s_0c865bbd36aa90::t_8ae67fb9432286 1813
+payments/src/provider_router.ts
+  s_0c865bbd36aa90::t_520bf1d1958ba8 3,26
+web/next.config.ts
+  s_0c865bbd36aa90::t_8a5a6a9d101750 24-27
+  s_0c865bbd36aa90::t_b42df0bacdcbbb 103-104
+  s_0c865bbd36aa90::t_90018086c890ff 7-8
+  s_0c865bbd36aa90::t_c708a8f016bbbf 77
+  s_0c865bbd36aa90::t_7c988b9ce1cd93 4-5
+  s_0c865bbd36aa90::t_1c4b8d6fb25ec2 9-12
+web/app/creator/consents/page.tsx
+  s_0c865bbd36aa90::t_ae41973a7ec0b7 74
+scripts/lessons/gh_payload.ts
+  s_0c865bbd36aa90::t_cab1ab7e132af4 9-10,13-15,30-31
+  s_0c865bbd36aa90::t_682fe1261fe944 5,7
+  s_0c865bbd36aa90::t_c0db7837ec8157 8
+src/adapters/esign/firma.adapter.ts
+  s_0c865bbd36aa90::t_4d667271958630 124
+  s_0c865bbd36aa90::t_45d038bd542fb1 162,303,310,397,527
+  s_0c865bbd36aa90::t_7044df8df72977 10
+  s_0c865bbd36aa90::t_0c14c05a0b8d62 562
+web/app/api/esign/webhook/route.ts
+  s_0c865bbd36aa90::t_520bf1d1958ba8 13
+web/app/api/billing/webhook/handler.ts
+  s_0c865bbd36aa90::t_520bf1d1958ba8 66
+src/infrastructure/redis/redis.client.ts
+  s_0c865bbd36aa90::t_98dc0826de074f 4
+  s_0c865bbd36aa90::t_940c01092f6f83 8-9
+  s_0c865bbd36aa90::t_cf5644ba66ffec 30
+  s_0c865bbd36aa90::t_520bf1d1958ba8 31
+web/app/api/billing/webhook/__tests__/lock_contention_503.test.ts
+  s_0c865bbd36aa90::t_fb93d492cd4cde 42-43
+payments/src/delivery_sends_store.ts
+  s_0c865bbd36aa90::t_520bf1d1958ba8 152
+web/src/components/storefront/storefront.tsx
+  s_0c865bbd36aa90::t_2b4637e4b67eef 171
+src/adapters/storage/r2.adapter.ts
+  s_0c865bbd36aa90::t_3278887e8339a2 510-511
+  s_0c865bbd36aa90::t_8920dadf47d1c8 549-556
+  s_0c865bbd36aa90::t_b98a5a17d18ac3 5-15
+  s_0c865bbd36aa90::t_195b9fb0b9d401 520,523,526,529,532
+  s_0c865bbd36aa90::t_04495ddfc319b2 475
+  s_0c865bbd36aa90::t_45d038bd542fb1 137,240,255,314,336,393,429,582
+web/app/creator/signin/actions.ts
+  s_0c865bbd36aa90::t_7a483317347bb9 67
+  s_0c865bbd36aa90::t_30c3d38b8107f8 7
+  s_0c865bbd36aa90::t_f20b9b7c5d4cb0 47
+  s_0c865bbd36aa90::t_c73c18f5264f67 21
+payments/src/delivery.ts
+  s_0c865bbd36aa90::t_a92f21c419c8d6 702
+src/adapters/storage/__tests__/r2.fault_reporting.test.ts
+  s_0c865bbd36aa90::t_10bbf364f3f939 1-75
+src/adapters/payments/paddle.adapter.ts
+  s_0c865bbd36aa90::t_c4fe4f07a5b18a 373
+src/infrastructure/matrix_router/matrix_router.ts
+  s_0c865bbd36aa90::t_520bf1d1958ba8 4,36
+payments/sync_book_identity.ts
+  s_0c865bbd36aa90::t_520bf1d1958ba8 36
+web/proxy.ts
+  s_0c865bbd36aa90::t_c88b247fb4415b 29-32
+  s_0c865bbd36aa90::t_3aa6d62c49d9ba 127
+web/app/creator/consents/consent-cards.tsx
+  s_0c865bbd36aa90::t_e06ef5873e9604 118,153,168,197
+  s_0c865bbd36aa90::t_9e4f4dfdba1c57 25-26,29,34,39
+payments/test/settings_registry_runtime.test.ts
+  s_0c865bbd36aa90::t_6463c60caffe2a 6
+  s_0c865bbd36aa90::t_414cd1fe848dbe 408-462
+web/app/api/billing/webhook/__tests__/transient_classification.test.ts
+  s_0c865bbd36aa90::t_829c5608b18c8a 20-21
+web/__tests__/next-config-redirects.test.ts
+  s_0c865bbd36aa90::t_b750e81b0589da 13-15,17
+web/app/creator/dashboard/actions.ts
+  s_0c865bbd36aa90::t_e31e79decabe62 13
+  s_0c865bbd36aa90::t_adebf69374d41d 84
+src/adapters/payments/polar.adapter.ts
+  s_0c865bbd36aa90::t_7a245a1a6eadad 189
+web/__tests__/b2c-confinement.test.ts
+  s_0c865bbd36aa90::t_23ae7257cd4826 65,68-70
+web/app/api/billing/webhook/__tests__/unclaimed-provider.test.ts
+  s_0c865bbd36aa90::t_3f3d9a2fec8234 26-27
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "7294ba8ad809f0206fdaf2282152603a0ebaec35",
+  "prompts": {},
+  "sessions": {
+    "s_0c865bbd36aa90": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e91868c0-df8b-453c-a369-daac76d67031",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
