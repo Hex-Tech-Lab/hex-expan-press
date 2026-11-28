@@ -17,6 +17,9 @@ Buyer downloads are served from a signed URL for the release PDF. Cloudflare R2 
 4. **Upstash Blob is not built.** The current `getDeliveryStorageAdapter` composes R2 and Supabase only. Until an Upstash Blob adapter exists and is wired between them, the three-tier claim is not true in code. Building it is an open item, not a done item.
 5. **Locations come from the settings registry.** Tier order, bucket or store names, and signed-URL lifetimes are read from `payments/src/settings_registry.ts` (`GLOBAL.delivery`), not hard-coded in adapters.
 6. **Fail closed when every tier misses.** Delivery returns the existing 500 response and logs the error. It never serves an unlogged or unverified file.
+7. **Storage factory, same pattern as the payment factory.** Storage connectors (`r2`, `upstash_blob`, `supabase`) are registered in one factory (`StorageFactory`, `src/adapters/storage/storage.factory.ts`). Each connector is switched on or off, and ordered into the cascade, from the settings registry (`GLOBAL.delivery.storage_connectors`: `{ name, enabled, order }`). Adding a connector means one adapter and one settings entry, with no change to route code.
+8. **Name collision rule.** The storage fallback is "the storage factory's ordered fallback" in prose. It is not `pricing_tier_cascade.ts` or `provider_router.ts` (see AGENTS.md naming convention).
+9. **Schedule.** The Upstash Blob connector is built after the current quality gate (the founder's "after QIC") and before any further storage change. Until then, decision 4 stands.
 
 ## Consequences / Tradeoffs
 
