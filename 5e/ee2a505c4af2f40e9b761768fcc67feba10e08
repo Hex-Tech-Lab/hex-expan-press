@@ -1,0 +1,45 @@
+payments/test/release_filename.test.ts
+  s_0c865bbd36aa90::t_f2f18213b9cdd1 17-21,23-28
+  s_0c865bbd36aa90::t_727f56ae6d14fa 22
+web/app/books/d/[token]/route.ts
+  s_0c865bbd36aa90::t_77b44e61b77534 190
+  s_0c865bbd36aa90::t_210d0615108998 155-156
+  s_0c865bbd36aa90::t_1694b65b411f8f 168-169
+  s_0c865bbd36aa90::t_efee0e0b0c72f6 5
+  s_0c865bbd36aa90::t_e54c71440109bf 2,13-20,110-113,123,129,142,182,196
+  s_0c865bbd36aa90::t_743cfd928c4669 120,221
+  s_0c865bbd36aa90::t_a554b2d937165e 179
+  s_0c865bbd36aa90::t_ae00c8beab325b 12
+payments/src/release_filename.ts
+  s_0c865bbd36aa90::t_b35da33f7376fa 18-24,26-28,32
+payments/src/settings_registry.ts
+  s_0c865bbd36aa90::t_6a1a16422b2e00 2887
+  s_0c865bbd36aa90::t_bdcbbbb95629a3 1803
+payments/test/preview_provider_override.test.ts
+  s_0c865bbd36aa90::t_f4f66baafe2424 36-41
+payments/src/delivery.ts
+  s_0c865bbd36aa90::t_73cf341380affe 53-55
+  s_0c865bbd36aa90::t_87dbd49f704c71 819,838,850
+web/app/books/d/[token]/__tests__/sentry.test.ts
+  s_0c865bbd36aa90::t_478d8de5184d0e 1-42
+web/app/books/d/[token]/__tests__/route.test.ts
+  s_0c865bbd36aa90::t_130167f3e509c7 278-279
+docs/adr/0066-release-delivery-storage-cascade.md
+  s_0c865bbd36aa90::t_d83d35e74a7e17 22
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "5eee2a505c4af2f40e9b761768fcc67feba10e08",
+  "prompts": {},
+  "sessions": {
+    "s_0c865bbd36aa90": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e91868c0-df8b-453c-a369-daac76d67031",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
