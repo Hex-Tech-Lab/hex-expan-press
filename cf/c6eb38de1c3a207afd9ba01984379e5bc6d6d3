@@ -1,0 +1,100 @@
+web/__tests__/sentry-scrub.test.ts
+  s_0c865bbd36aa90::t_73399eb58c8a69 2-13,15,18-21,23-25,27,29-32,46-47
+  s_0c865bbd36aa90::t_8314215f70d7fa 1,14,16-17,22,26,28,33-45
+payments/src/delivery.ts
+  s_0c865bbd36aa90::t_0136b48691cf31 51-60
+  s_0c865bbd36aa90::t_bc6991a268b3b7 240-246
+web/src/components/landing/landing-page.tsx
+  s_0c865bbd36aa90::t_4b198d25fc7d29 381
+  s_0c865bbd36aa90::t_50715569a50ec0 371
+payments/test/delivery_held_claim_resend.test.ts
+  s_0c865bbd36aa90::t_20f879355fdd49 464-465,471-475,477
+  s_0c865bbd36aa90::t_e43acd1851c5ce 4
+web/app/creator/review/review-client.tsx
+  s_0c865bbd36aa90::t_d93d9b307ca192 597,609
+  s_0c865bbd36aa90::t_0ddd2e350dccc8 531,548
+  s_0c865bbd36aa90::t_f156306c2c2614 539
+web/e2e/constants.ts
+  s_0c865bbd36aa90::t_467f604bc000d7 4-15
+web/sentry.server.config.ts
+  s_0c865bbd36aa90::t_4dccf75eb5794f 10
+  s_0c865bbd36aa90::t_af99604b623f93 11
+  s_0c865bbd36aa90::t_bf3ef4ed653f90 2
+web/app/api/billing/webhook/__tests__/valid_signature_malformed_ledger.test.ts
+  s_0c865bbd36aa90::t_94c5f28c113443 50
+web/src/components/storefront/book-previewer.tsx
+  s_0c865bbd36aa90::t_281d168bf99c56 449
+web/app/api/billing/webhook/__tests__/paddle_consent_webhook.test.ts
+  s_0c865bbd36aa90::t_94c5f28c113443 64
+web/proxy.ts
+  s_0c865bbd36aa90::t_80fd20155400c6 26-28
+payments/test/settings_registry_runtime.test.ts
+  s_0c865bbd36aa90::t_7c87f97e1ee40e 352-356
+web/app/creator/review/page.tsx
+  s_0c865bbd36aa90::t_634f84c960c95b 157
+web/app/books/d/[token]/route.ts
+  s_0c865bbd36aa90::t_f510bc6ed8d567 216-219,226-229,231-234
+web/src/lib/sentry-scrub.ts
+  s_0c865bbd36aa90::t_ab187dabb6dc0b 1-7,11,15-16,27-28
+  s_0c865bbd36aa90::t_e991f4822f7c29 13-14
+  s_0c865bbd36aa90::t_1fce768486b4d6 8-10,12,17-26
+  s_0c865bbd36aa90::t_22725949bdd868 29-31
+web/sentry.client.config.ts
+  s_0c865bbd36aa90::t_55c666096c8d64 15
+  s_0c865bbd36aa90::t_a35e4a476e552d 16
+  s_0c865bbd36aa90::t_917a79a65abcfd 2
+payments/src/settings_registry.ts
+  s_0c865bbd36aa90::t_f2e5e48b6ffb98 218-219
+  s_0c865bbd36aa90::t_2496acbe4aebfc 524-525
+  s_0c865bbd36aa90::t_0800b12ececec8 1399
+  s_0c865bbd36aa90::t_a063ccdfadf421 1400
+  s_0c865bbd36aa90::t_1e27c4aa819c36 621
+web/app/creator/dashboard/dashboard-client.tsx
+  s_0c865bbd36aa90::t_9bac6d9c7c330b 300
+  s_0c865bbd36aa90::t_c5a34cba259485 267
+  s_0c865bbd36aa90::t_e075ba7269b33d 30,35
+  s_0c865bbd36aa90::t_2f5db5d0888a2d 202
+  s_0c865bbd36aa90::t_f8b7955fbf6f99 280-283,285
+web/__tests__/next-config-redirects.test.ts
+  s_0c865bbd36aa90::t_c4507f4253df72 18,21-23
+  s_0c865bbd36aa90::t_0435c420c4d03c 6
+web/app/books/d/[token]/__tests__/sentry.test.ts
+  s_0c865bbd36aa90::t_8c41443d3ffd8f 34-47
+  s_0c865bbd36aa90::t_dd6eaa851802d9 3
+web/app/api/billing/webhook/__tests__/total-budget.test.ts
+  s_0c865bbd36aa90::t_94c5f28c113443 52
+web/app/creator/consents/page.tsx
+  s_0c865bbd36aa90::t_931f2ad1ad9197 87
+web/src/components/storefront/book-preview-toolbar.tsx
+  s_0c865bbd36aa90::t_539753a9fe5efd 139
+  s_0c865bbd36aa90::t_332491ceb37ff4 120
+web/app/creator/dashboard/page.tsx
+  s_0c865bbd36aa90::t_795f761c54a008 133
+web/src/components/storefront/storefront.tsx
+  s_0c865bbd36aa90::t_465627956ff1bb 339
+payments/sync_book_identity.ts
+  s_0c865bbd36aa90::t_eec7b750a9b31c 14-15
+web/app/api/billing/webhook/handler.ts
+  s_0c865bbd36aa90::t_74e3555a338b4e 180-186
+  s_0c865bbd36aa90::t_89d54fc64844da 3,9-14
+web/sentry.edge.config.ts
+  s_0c865bbd36aa90::t_7273cc603760e6 10
+  s_0c865bbd36aa90::t_3aa4049fae862f 11
+  s_0c865bbd36aa90::t_6c295726b690ee 2
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "cfc6eb38de1c3a207afd9ba01984379e5bc6d6d3",
+  "prompts": {},
+  "sessions": {
+    "s_0c865bbd36aa90": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e91868c0-df8b-453c-a369-daac76d67031",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
