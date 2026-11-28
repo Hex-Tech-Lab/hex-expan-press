@@ -1,0 +1,21 @@
+docs/adr/README.md
+  s_0c865bbd36aa90::t_f3425fd1fa943f 20
+docs/adr/0066-release-delivery-storage-cascade.md
+  s_0c865bbd36aa90::t_e22a62d217c5df 1-33
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "e621dfce7d4852f580a9434f6904ce2dc55ea428",
+  "prompts": {},
+  "sessions": {
+    "s_0c865bbd36aa90": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e91868c0-df8b-453c-a369-daac76d67031",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
