@@ -1,0 +1,42 @@
+web/app/books/d/[token]/route.ts
+  s_0c865bbd36aa90::t_59cb1b69372af0 5
+  s_0c865bbd36aa90::t_09a01a8a60709b 126,134-145,150
+web/app/books/d/[token]/__tests__/route.test.ts
+  s_0c865bbd36aa90::t_1236a75dc275ff 233-280
+src/adapters/storage/r2.adapter.ts
+  s_0c865bbd36aa90::t_1bfed00ee75951 485
+  s_0c865bbd36aa90::t_474d7f68745746 104-110
+  s_0c865bbd36aa90::t_01d0e5ddc7ba87 540
+  s_0c865bbd36aa90::t_a7b280b45ed9e2 527
+  s_0c865bbd36aa90::t_c92be3cdf49b53 608-612,614-618
+  s_0c865bbd36aa90::t_eead36c1197936 641-646,649
+  s_0c865bbd36aa90::t_ab1f04d3fd6df7 2
+  s_0c865bbd36aa90::t_3a6c46e39fe2e4 162-163
+  s_0c865bbd36aa90::t_0fbeade488593b 130
+payments/src/release_filename.ts
+  s_0c865bbd36aa90::t_e0079484043008 1-37,40-44
+  s_0c865bbd36aa90::t_d163b77524b99d 38-39
+src/adapters/storage/__tests__/r2.adapter.test.ts
+  s_0c865bbd36aa90::t_384eefbae2d043 295-311
+  s_0c865bbd36aa90::t_fa85a86999903f 221-259
+src/domain/storage/storage.port.ts
+  s_0c865bbd36aa90::t_564aa5cdd2d7d1 1-9,18,21-25
+payments/test/release_filename.test.ts
+  s_0c865bbd36aa90::t_930c89903c13c9 1-61
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "97aceb7f69153dc66d58286e3a054c3e0c99c2c2",
+  "prompts": {},
+  "sessions": {
+    "s_0c865bbd36aa90": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "e91868c0-df8b-453c-a369-daac76d67031",
+        "model": "claude-haiku-5-5"
+      },
+      "human_author": "TechHypeXP <104952356+TechHypeXP@users.noreply.github.com>"
+    }
+  }
+}
