@@ -1,9 +1,15 @@
 import { withSentryConfig } from "@sentry/nextjs/config";
 import { join } from "node:path";
 import type { NextConfig } from "next";
+// Explicit .ts so Node's native import of this config resolves the registry (ESM needs the extension).
+import { GLOBAL } from "../payments/src/settings_registry.ts";
 
-// Same pay host as proxy.ts (ADR 0061). Kept in sync by the redirect test.
-const PAY_HOST = "pay.expanpress.com";
+// Same pay host as proxy.ts (ADR 0061), read from the same registry value (storefront.pay_origin).
+const PAY_HOST = new URL(GLOBAL.storefront.pay_origin).host;
+// The build fails when the registry has no B2C landing URL: the error page must never fall back silently to "/".
+if (!GLOBAL.storefront.b2c_landing_url) {
+  throw new Error("settings registry: storefront.b2c_landing_url is empty; the error page needs it");
+}
 
 // Legacy-URL preservation during the phased static->Next migration.
 // Directory-style URLs (trailing slash, no filename) were rewritten to static
@@ -15,6 +21,10 @@ const PAY_HOST = "pay.expanpress.com";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // Inlined at build time from the registry. The client error boundary (app/error.tsx) cannot import the registry, so it reads this.
+  env: {
+    NEXT_PUBLIC_B2C_LANDING_URL: GLOBAL.storefront.b2c_landing_url,
+  },
   // trailingSlash stays FALSE: /api/* webhook endpoints are called with exact
   // no-slash URLs registered at external providers (Firma, Polar). With true,
   // those POSTs 308-redirect to a slash variant and webhook senders that do
@@ -64,7 +74,7 @@ const nextConfig: NextConfig = {
         headers: [
           {
             key: "Cache-Control",
-            value: "public, max-age=86400, stale-while-revalidate=604800",
+            value: `public, max-age=${GLOBAL.limits.static_asset_max_age_seconds}, stale-while-revalidate=${GLOBAL.limits.static_asset_stale_seconds}`,
           },
         ],
       },
@@ -90,8 +100,8 @@ const nextConfig: NextConfig = {
 };
 
 export default withSentryConfig(nextConfig, {
-  org: process.env.SENTRY_ORG || "hex-org",
-  project: process.env.SENTRY_PROJECT || "hex-expan-press",
+  org: process.env.SENTRY_ORG || GLOBAL.project.sentry_org,
+  project: process.env.SENTRY_PROJECT || GLOBAL.project.sentry_project,
   // Uploads are skipped silently when no token is present (local dev)
   authToken: process.env.SENTRY_AUTH_TOKEN,
   silent: true,

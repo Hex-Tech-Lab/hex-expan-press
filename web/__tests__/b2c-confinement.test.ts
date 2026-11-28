@@ -62,10 +62,12 @@ describe("B2C side never links into B2B", () => {
     }
   });
 
-  it("the error page's pay-host home constant equals the registry's B2C landing", async () => {
+  it("the error page's pay-host home comes from the registry B2C landing, inlined at build time by next.config.ts", async () => {
     const { GLOBAL } = await import("../../payments/src/settings_registry");
     const errorSource = readFileSync(join(WEB, "app/error.tsx"), "utf8");
-    expect(errorSource).toContain(`const B2C_HOME = "${GLOBAL.storefront.b2c_landing_url}";`);
+    expect(errorSource).toContain("const B2C_HOME = process.env.NEXT_PUBLIC_B2C_LANDING_URL");
+    const { default: nextConfig } = await import("../next.config");
+    expect(nextConfig.env?.NEXT_PUBLIC_B2C_LANDING_URL).toBe(GLOBAL.storefront.b2c_landing_url);
   });
 
   it("the B2C landing home target is the B2C landing, not the B2B root", async () => {

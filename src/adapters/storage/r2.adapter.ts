@@ -2,6 +2,17 @@ import { createHash, createHmac } from "node:crypto";
 import type { SignedDownloadOptions, StoragePort } from "../../domain/storage/storage.port";
 import { GLOBAL } from "../../../payments/src/settings_registry";
 
+/**
+ * Receives every R2 tier fault that makes a download fall through to the next tier. Sentry is registered at server
+ * boot (web/sentry.server.config.ts). The default is a loud console line, so an unregistered caller is never silent.
+ * Messages are constant (grouping), and carry no buyer data.
+ */
+export type StorageFailureReporter = (message: string, tags: Record<string, string>) => void;
+let storageFailureReporter: StorageFailureReporter = (message, tags) => console.error(message, tags);
+export function setStorageFailureReporter(reporter: StorageFailureReporter): void {
+  storageFailureReporter = reporter;
+}
+
 export interface R2Config {
   accountId: string;
   accessKeyId: string;
@@ -123,7 +134,7 @@ export function generateR2PresignedUrl(options: GeneratePresignedUrlOptions): st
     accessKeyId,
     secretAccessKey,
     region = "auto",
-    expiresInSeconds = 300,
+    expiresInSeconds = GLOBAL.limits.r2_presign_seconds,
     date = new Date(),
     method = "GET",
     signHeaders = {},
@@ -226,7 +237,7 @@ export async function statR2Object(options: HeadR2ObjectOptions): Promise<StatR2
     secretAccessKey,
     region = "auto",
     fetchImpl = fetch,
-    timeoutMs = 5000,
+    timeoutMs = GLOBAL.limits.r2_head_timeout_ms,
   } = options;
 
   const parsedUrl = new URL(endpoint);
@@ -241,7 +252,7 @@ export async function statR2Object(options: HeadR2ObjectOptions): Promise<StatR2
     accessKeyId,
     secretAccessKey,
     region,
-    expiresInSeconds: 60,
+    expiresInSeconds: GLOBAL.limits.r2_head_presign_seconds,
     method: "HEAD",
   });
 
@@ -300,7 +311,7 @@ export async function putR2Object(options: PutR2ObjectOptions): Promise<boolean>
     body,
     contentType = "application/octet-stream",
     fetchImpl = fetch,
-    timeoutMs = 30000,
+    timeoutMs = GLOBAL.limits.r2_request_timeout_ms,
   } = options;
 
   let parsedUrl: URL;
@@ -322,7 +333,7 @@ export async function putR2Object(options: PutR2ObjectOptions): Promise<boolean>
       accessKeyId,
       secretAccessKey,
       region,
-      expiresInSeconds: 300,
+      expiresInSeconds: GLOBAL.limits.r2_presign_seconds,
       method: "PUT",
     });
 
@@ -379,7 +390,7 @@ export async function putR2ObjectIf(options: PutR2ObjectIfOptions): Promise<PutR
     body,
     contentType = "application/octet-stream",
     fetchImpl = fetch,
-    timeoutMs = 30000,
+    timeoutMs = GLOBAL.limits.r2_request_timeout_ms,
     metadata = {},
     ifMatch,
     ifNoneMatch,
@@ -415,7 +426,7 @@ export async function putR2ObjectIf(options: PutR2ObjectIfOptions): Promise<PutR
       accessKeyId,
       secretAccessKey,
       region,
-      expiresInSeconds: 300,
+      expiresInSeconds: GLOBAL.limits.r2_presign_seconds,
       method: "PUT",
       signHeaders: conditionalHeaders,
     });
@@ -461,7 +472,7 @@ export class R2StorageAdapter implements StoragePort {
     this.accessKeyId = config.accessKeyId;
     this.secretAccessKey = config.secretAccessKey;
     this.bucket = config.bucket;
-    this.endpoint = config.endpoint || `https://${this.accountId}.r2.cloudflarestorage.com`;
+    this.endpoint = config.endpoint || `https://${this.accountId}.${GLOBAL.endpoints.r2_s3_host_suffix}`;
     this.region = config.region || "auto";
     this.fetchImpl = config.fetchImpl || fetch;
     this.resolveSourceEtag = config.resolveSourceEtag;
@@ -496,6 +507,8 @@ export class R2StorageAdapter implements StoragePort {
         fetchImpl: this.fetchImpl,
       });
       if (!stat.exists) {
+        // Configured but not seeded: the buyer is served from the next tier, and the gap must reach Sentry.
+        storageFailureReporter("R2 copy not served (fell through to the next tier)", { surface: "r2_storage", reason: "not_seeded" });
         return null;
       }
 
@@ -504,14 +517,19 @@ export class R2StorageAdapter implements StoragePort {
       const sourceEtag = await this.resolveSourceEtag(path);
       if (!sourceEtag || !stat.sourceEtag || stat.sourceEtag !== sourceEtag) {
         let reason: string;
+        let tag: string;
         if (!sourceEtag) {
           reason = "source ETag unknown";
+          tag = "source_unknown";
         } else if (!stat.sourceEtag) {
           reason = "R2 object has no source ETag marker (legacy write)";
+          tag = "no_marker";
         } else {
           reason = "R2 copy is stale: stored marker differs from the source";
+          tag = "stale";
         }
         console.warn(`[r2-storage] Not serving R2 copy of ${path}: ${reason}`);
+        storageFailureReporter("R2 copy not served (fell through to the next tier)", { surface: "r2_storage", reason: tag });
         return null;
       }
 
@@ -528,7 +546,14 @@ export class R2StorageAdapter implements StoragePort {
       });
     } catch (err) {
       // Serving falls back to Supabase, so the buyer is not blocked. The id is local to this log line: the route's buyer ref is not passed here.
-      console.error(`[r2-storage] error=${globalThis.crypto.randomUUID().slice(0, 8)} presigned URL failed; serving the Supabase copy:`, err instanceof Error ? err.message : err);
+      const errorId = globalThis.crypto.randomUUID().slice(0, 8);
+      console.error(`[r2-storage] error=${errorId} presigned URL failed; serving the Supabase copy:`, err instanceof Error ? err.message : err);
+      // The error id stays in the console line: a per-request value in the message would split Sentry grouping.
+      storageFailureReporter("R2 presigned URL failed (fell through to the next tier)", {
+        surface: "r2_storage",
+        reason: "unavailable",
+        error_name: err instanceof Error ? err.name : "unknown",
+      });
       return null;
     }
   }
@@ -554,7 +579,7 @@ export interface SupabaseStorageAdmin {
 }
 
 /** Bound on the source listing. The buyer download path awaits it, so a hung listing must not hold the request. */
-export const SOURCE_LISTING_TIMEOUT_MS = 5000;
+export const SOURCE_LISTING_TIMEOUT_MS = GLOBAL.limits.r2_source_listing_timeout_ms;
 
 /**
  * Reads the current source ETag of a Supabase Storage object from its listing metadata.

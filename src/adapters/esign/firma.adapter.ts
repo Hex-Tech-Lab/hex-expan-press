@@ -7,6 +7,7 @@ function truncate(text: string, max: number): string {
   return text.length > max ? `${text.slice(0, max)}...` : text;
 }
 
+import { GLOBAL } from "../../../payments/src/settings_registry.ts";
 import { CreateEnvelopeCommand, CreateEnvelopeResult, EsignEvidencePort, EsignProviderPort, EsignWebhookPort, WebhookValidationResult } from "../../domain/esign/esign.port.ts";
 
 /** Host-resolution seam (sprint-12 closure, Cubic P2): injectable so hermetic
@@ -120,7 +121,7 @@ export class FirmaAdapter implements EsignProviderPort, EsignWebhookPort, EsignE
   ) {}
 
   private base(): string {
-    return process.env.FIRMA_API_BASE || "https://api.firma.dev/functions/v1/signing-request-api";
+    return process.env.FIRMA_API_BASE || GLOBAL.endpoints.firma_api_base;
   }
 
   private authHeaders(): Record<string, string> {
@@ -158,7 +159,7 @@ export class FirmaAdapter implements EsignProviderPort, EsignWebhookPort, EsignE
     if (!url || !key) throw new Error("SUPABASE_URL/SUPABASE_SECRET_KEY are not configured");
     const res = await this.fetchWithRelease(`${url}/storage/v1/object/${bucket}/${objectPath}`, {
       headers: { apikey: key, Authorization: `Bearer ${key}` },
-      signal: AbortSignal.timeout(15_000),
+      signal: AbortSignal.timeout(GLOBAL.limits.esign_request_timeout_ms),
     });
     if (!res.ok) throw new Error(`Agreement PDF fetch failed (${res.status}) for ${path}`);
     return new Uint8Array(await res.arrayBuffer());
@@ -299,14 +300,14 @@ export class FirmaAdapter implements EsignProviderPort, EsignWebhookPort, EsignE
    *  proven in layers: real-socket transport tests + gate unit tests +
    *  the existing cap/stream tests through the port with a valid pin. */
   private async downloadCapped(url: string, pin: Pin): Promise<Uint8Array | null> {
-    const MAX_EVIDENCE_BYTES = 20 * 1024 * 1024;
+    const MAX_EVIDENCE_BYTES = GLOBAL.limits.esign_max_evidence_bytes;
     assertDialIsSafe(url, pin, (h) => this.isForbiddenHost(h));
     const dispatcher = this.createPinnedDispatcher(pin);
     try {
       // Credential hygiene (sprint 12 B1): the signed URL is self-authorizing —
       // send NO headers at all and omit ambient credentials, so Firma API keys
       // can never leak to the storage host.
-      const res = await this.downloadFetch(url, { credentials: "omit", redirect: "manual", signal: AbortSignal.timeout(30_000) }, dispatcher);
+      const res = await this.downloadFetch(url, { credentials: "omit", redirect: "manual", signal: AbortSignal.timeout(GLOBAL.limits.esign_evidence_timeout_ms) }, dispatcher);
       if (!res.ok) {
         // Cancel the rejected body so the socket is released immediately —
         // abandoned bodies retain sockets until GC (Cubic P2, PR #82).
@@ -393,7 +394,7 @@ export class FirmaAdapter implements EsignProviderPort, EsignWebhookPort, EsignE
   async fetchCompletedDocument(envelopeId: string): Promise<Uint8Array> {
     const resourceRes = await this.fetchWithRelease(`${this.base()}/signing-requests/${encodeURIComponent(envelopeId)}`, {
       headers: this.authHeaders(),
-      signal: AbortSignal.timeout(30_000),
+      signal: AbortSignal.timeout(GLOBAL.limits.esign_evidence_timeout_ms),
     });
     if (!resourceRes.ok) throw new Error(`Firma completed-document resource fetch failed (${resourceRes.status}) for envelope ${envelopeId}`);
     const resource = await resourceRes.json().catch(() => null);
@@ -523,7 +524,7 @@ export class FirmaAdapter implements EsignProviderPort, EsignWebhookPort, EsignE
     const body: Record<string, unknown> = {
       name: `Creator Revenue-Split Agreement — ${command.metadata.creatorName ?? command.metadata.productId ?? ""}`.trim(),
       document: Buffer.from(pdf).toString("base64"),
-      expiration_hours: 168,
+      expiration_hours: GLOBAL.limits.esign_signing_expiration_hours,
       recipients,
       anchor_tags: anchorTags,
       settings: {
@@ -558,7 +559,7 @@ export class FirmaAdapter implements EsignProviderPort, EsignWebhookPort, EsignE
 
     return {
       envelopeId: data.id,
-      signUrl: `https://app.firma.dev/signing/${recipientId}`
+      signUrl: `${GLOBAL.endpoints.firma_signing_base}/${recipientId}`
     };
   }
 

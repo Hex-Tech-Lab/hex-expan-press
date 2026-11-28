@@ -1,10 +1,12 @@
 
 /**
  * Isolated Upstash Redis client with mandatory key-namespacing.
- * GUARANTEE: Prepends "expan:" to every key.
+ * GUARANTEE: Prepends the registry prefix (project.redis_key_prefix, default "expan:") to every key.
  * Never performs FLUSHDB or un-namespaced operations.
  * Protects hex-yt-intel (which uses budget:*, ci:*, relations:*).
  */
+import { GLOBAL } from "../../../payments/src/settings_registry.ts";
+
 /**
  * Redis REST credentials. Raw Upstash uses UPSTASH_REDIS_REST_*; the Vercel
  * KV / Marketplace integration injects KV_REST_API_*. Accept either so a
@@ -25,8 +27,8 @@ export function isRedisRestConfigured(): boolean {
 export class ExpanRedisClient {
   private url?: string;
   private token?: string;
-  private readonly prefix: string = "expan:";
-  private static readonly TIMEOUT_MS = 3000;
+  private readonly prefix: string = GLOBAL.project.redis_key_prefix;
+  private static readonly TIMEOUT_MS = GLOBAL.limits.redis_timeout_ms;
 
   constructor(url?: string, token?: string) {
     if (url) this.url = url.replace(/\/$/, "");

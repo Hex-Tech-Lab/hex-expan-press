@@ -168,7 +168,7 @@ export function commercialProducts<T extends { store_product_id: string | null }
 async function fetchSiteOrigin(supabase: NonNullable<Awaited<ReturnType<typeof getSupabaseAdmin>>>): Promise<string> {
   const { data, error } = await supabase.from("system_config").select("value").eq("key", "site.origin").maybeSingle();
   if (error) throw new Error(`storefront: site.origin lookup failed: ${error.message}`);
-  const origin = String((data as { value?: unknown } | null)?.value ?? "https://expanpress.com").replace(/\/$/, "");
+  const origin = String((data as { value?: unknown } | null)?.value ?? GLOBAL.site.origin).replace(/\/$/, "");
   return origin;
 }
 

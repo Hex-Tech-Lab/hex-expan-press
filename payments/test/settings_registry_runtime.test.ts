@@ -3,7 +3,7 @@
 // pure loader directly — they must NEVER move, rename or delete the real data/settings
 // directory (an earlier version renamed it and left it stranded on 2026-10-01).
 import { describe, expect, it, vi, afterEach } from "vitest";
-import { DEFAULT_GLOBAL, GLOBAL, loadPaymentsSection, loadDeliverySection, loadEmailSection, loadStorefrontSection, paymentProviderDisplayName, getPath } from "../src/settings_registry.ts";
+import { DEFAULT_GLOBAL, GLOBAL, loadPaymentsSection, loadDeliverySection, loadEmailSection, loadStorefrontSection, loadSiteSection, loadProjectSection, loadLimitsSection, loadEndpointsSection, paymentProviderDisplayName, getPath } from "../src/settings_registry.ts";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -403,5 +403,60 @@ describe("settings registry: paddle.overlay, storefront, and provider display na
     expect(e.sender).toBe("ExpanPress <mailer@mail.expanpress.com>");
     expect(e.from).toBe("ExpanPress <mailer@mail.expanpress.com>");
     warn.mockRestore();
+  });
+});
+
+describe("settings registry: hard-coded values moved to the registry", () => {
+  it("returns the inline defaults for site, project, endpoints, limits and the release year floor", () => {
+    expect(loadSiteSection(undefined)).toEqual(DEFAULT_GLOBAL.site);
+    expect(DEFAULT_GLOBAL.site).toEqual({
+      origin: "https://expanpress.com",
+      root_host: "expanpress.com",
+      www_host: "www.expanpress.com",
+      local_dev_origin: "http://localhost:3000",
+    });
+    expect(loadProjectSection(undefined)).toEqual(DEFAULT_GLOBAL.project);
+    expect(DEFAULT_GLOBAL.project).toEqual({
+      github_repo: "Hex-Tech-Lab/hex-expan-press",
+      sentry_org: "hex-org",
+      sentry_project: "hex-expan-press",
+      redis_key_prefix: "expan:",
+    });
+    expect(loadLimitsSection(undefined)).toEqual(DEFAULT_GLOBAL.limits);
+    expect(DEFAULT_GLOBAL.limits.rail_skip_ms).toBe(900_000);
+    expect(DEFAULT_GLOBAL.limits.webhook_max_body_bytes).toBe(1_048_576);
+    expect(DEFAULT_GLOBAL.limits.esign_signing_expiration_hours).toBe(168);
+    expect(DEFAULT_GLOBAL.endpoints.firma_signing_base).toBe("https://app.firma.dev/signing");
+    expect(DEFAULT_GLOBAL.endpoints.r2_s3_host_suffix).toBe("r2.cloudflarestorage.com");
+    expect(DEFAULT_GLOBAL.delivery.release_filename_min_year).toBe(1900);
+    expect(DEFAULT_GLOBAL.storefront.b2c_landing_url).toBe("https://expanpress.com/books");
+  });
+
+  it("ignores a raw override outside the allowed set and keeps the default", () => {
+    const warn = vi.spyOn(console, "error").mockImplementation(() => {});
+    // An origin that is not https or not on root_host is refused; the derived origin stays.
+    expect(loadSiteSection({ origin: "https://evil.example" }).origin).toBe("https://expanpress.com");
+    expect(loadSiteSection({ origin: "http://expanpress.com" }).origin).toBe("https://expanpress.com");
+    // A local dev origin that is not localhost or 127.0.0.1 is refused.
+    expect(loadSiteSection({ local_dev_origin: "https://evil.example" }).local_dev_origin).toBe("http://localhost:3000");
+    expect(loadProjectSection({ github_repo: "not a repo" }).github_repo).toBe("Hex-Tech-Lab/hex-expan-press");
+    expect(loadProjectSection({ redis_key_prefix: "no-colon" }).redis_key_prefix).toBe("expan:");
+    expect(loadLimitsSection({ webhook_max_body_bytes: 10 ** 12 }).webhook_max_body_bytes).toBe(1_048_576);
+    expect(loadLimitsSection({ rail_skip_ms: 0 }).rail_skip_ms).toBe(900_000);
+    expect(loadLimitsSection({ delivery_max_claim_attempts: 2.5 }).delivery_max_claim_attempts).toBe(2);
+    expect(loadLimitsSection({ esign_max_evidence_bytes: "20MB" }).esign_max_evidence_bytes).toBe(20 * 1024 * 1024);
+    expect(loadEndpointsSection({ firma_api_base: "http://insecure.example/api" }).firma_api_base).toBe(
+      "https://api.firma.dev/functions/v1/signing-request-api",
+    );
+    expect(loadEndpointsSection({ r2_s3_host_suffix: "evil.example/path" }).r2_s3_host_suffix).toBe("r2.cloudflarestorage.com");
+    expect(loadDeliverySection({ release_filename_min_year: 0 }).release_filename_min_year).toBe(1900);
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it("accepts a valid registry override within bounds", () => {
+    expect(loadLimitsSection({ rail_skip_ms: 60_000, consent_page_size: 250 }).rail_skip_ms).toBe(60_000);
+    expect(loadLimitsSection({ consent_page_size: 250 }).consent_page_size).toBe(250);
+    expect(loadProjectSection({ redis_key_prefix: "hex-yt:" }).redis_key_prefix).toBe("hex-yt:");
   });
 });

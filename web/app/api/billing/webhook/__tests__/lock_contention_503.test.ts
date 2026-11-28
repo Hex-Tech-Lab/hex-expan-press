@@ -39,6 +39,8 @@ vi.mock("../../../../../../payments/src/settings_registry.ts", async (importOrig
   GLOBAL: {
     paths: { sales_ledger: `${ledgerDir}/sales.jsonl` },
     defaults: { currency: "USD" },
+    project: { redis_key_prefix: "expan:" },
+    limits: { redis_timeout_ms: 3000, webhook_max_body_bytes: 1_048_576 },
     payments: {
       webhook_tolerance_seconds: 300,
       webhook_lock_ttl_seconds: 300,

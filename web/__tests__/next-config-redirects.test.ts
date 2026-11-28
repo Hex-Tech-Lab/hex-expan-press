@@ -9,19 +9,12 @@ type Redirect = { source: string; destination: string; statusCode?: number; miss
 
 const WEB = new URL("../", import.meta.url).pathname;
 
-/** The literal `const PAY_HOST = "..."` declared in a source file. proxy.ts owns the host gate; next.config.ts owns the redirects. */
-function declaredPayHost(file: string): string | undefined {
-  return readFileSync(join(WEB, file), "utf8").match(/const PAY_HOST = "([^"]+)";/)?.[1];
-}
-
 describe("legacy redirects never answer on the pay host (F-05, ADR 0061)", () => {
-  it("next.config.ts and proxy.ts agree on the pay host, so the redirect exclusion cannot drift from the host gate", () => {
-    const configHost = declaredPayHost("next.config.ts");
-    expect(configHost, "next.config.ts must declare PAY_HOST").toBeDefined();
-    // proxy.ts derives PAY_HOST from the registry origin (ADR 0061), so the value is checked against the registry.
+  it("next.config.ts and proxy.ts both derive PAY_HOST from the registry pay origin, so the redirect exclusion cannot drift from the host gate", () => {
+    // Both files read the same registry value (storefront.pay_origin, a fixed ADR 0061 trust value); no literal host is declared.
+    expect(readFileSync(join(WEB, "next.config.ts"), "utf8")).toMatch(/const PAY_HOST = new URL\(GLOBAL\.storefront\.pay_origin\)\.host;/);
     expect(readFileSync(join(WEB, "proxy.ts"), "utf8")).toMatch(/const PAY_HOST = new URL\(PAY_ORIGIN\)\.host;/);
-    expect(configHost).toBe(new URL(GLOBAL.storefront.pay_origin).host);
-    expect(configHost).toBe("pay.expanpress.com");
+    expect(new URL(GLOBAL.storefront.pay_origin).host).toBe("pay.expanpress.com");
   });
 
   it("scopes every /c and /d redirect with a missing pay-host condition", async () => {

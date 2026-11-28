@@ -6,12 +6,6 @@ import { WebhookValidationError } from "../../../../../src/domain/webhook/webhoo
 import { OrderSchemaError } from "../../../../../payments/src/ledger";
 import { GLOBAL } from "../../../../../payments/src/settings_registry";
 import { budgetLeftMs, webhookDeadlineAt } from "../../../../../payments/src/webhook_budget";
-import { setDeliveryFailureReporter } from "../../../../../payments/src/delivery";
-
-// Registered at module load: every manual-reconcile flag from delivery reaches Sentry. Payments has no Sentry of its own.
-setDeliveryFailureReporter((message, tags) => {
-  Sentry.captureException(new Error(message), { tags });
-});
 
 /**
  * Best-effort audit trail for 503 retry responses (event WEBHOOK_503_RETRYING).
@@ -69,7 +63,7 @@ async function audit503(details: { provider?: string; sale_id?: string; reason: 
 // Webhooks are small JSON bodies (KBs) — cap buffering at 1 MiB (the Wave 4
 // contract carried over from the shim era) so a flood of oversized POSTs
 // cannot create memory pressure.
-const MAX_BODY_BYTES = 1_048_576;
+const MAX_BODY_BYTES = GLOBAL.limits.webhook_max_body_bytes;
 
 /** Streams the request body with the byte cap enforced mid-read. */
 async function readBodyCapped(request: NextRequest): Promise<Buffer | null> {

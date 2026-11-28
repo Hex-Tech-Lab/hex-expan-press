@@ -370,7 +370,7 @@ export class PaddleAdapter implements PaymentProviderPort {
 
   async createCheckout(command: CheckoutCommand): Promise<CheckoutResult> {
     return {
-      checkoutUrl: `https://paddle.com/checkout/${command.productId}?email=${encodeURIComponent(command.buyerEmail)}`,
+      checkoutUrl: `${GLOBAL.endpoints.paddle_checkout_base}/${command.productId}?email=${encodeURIComponent(command.buyerEmail)}`,
       providerName: this.providerName
     };
   }

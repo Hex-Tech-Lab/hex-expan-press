@@ -1,8 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { PortalConsentRow } from "./consent-chain";
+import { GLOBAL } from "../../../payments/src/settings_registry";
 
-const PAGE_SIZE = 500;
-const SAFETY_CAP = 5000;
+const PAGE_SIZE = GLOBAL.limits.consent_page_size;
+const SAFETY_CAP = GLOBAL.limits.consent_safety_cap;
 
 export interface CreatorConsentsResult {
   rows: PortalConsentRow[];

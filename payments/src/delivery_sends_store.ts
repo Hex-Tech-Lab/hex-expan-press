@@ -149,7 +149,7 @@ export function createDeliverySendsStore(signal?: AbortSignal): DeliverySendsSto
       const sb = await getSupabaseAdmin();
       if (!sb) throw new Error("Supabase admin client unavailable");
       const newFence = fence ?? 0;
-      const MAX_CLAIM_ATTEMPTS = 2;
+      const MAX_CLAIM_ATTEMPTS = GLOBAL.limits.delivery_max_claim_attempts;
       for (let attempt = 0; attempt < MAX_CLAIM_ATTEMPTS; attempt++) {
         const { data: inserted, error: insertError } = await bounded(sb
           .from("delivery_sends")

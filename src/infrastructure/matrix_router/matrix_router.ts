@@ -1,6 +1,7 @@
 import { expanRedis, isRedisRestConfigured } from "../redis/redis.client.ts";
 import { ProviderRoute } from "../../domain/settings/settings.port.ts";
 import { MatrixRouterUnavailableError } from "./matrix_router_errors.ts";
+import { GLOBAL } from "../../../payments/src/settings_registry.ts";
 
 /**
  * Legacy single-key circuit-breaker shape (`matrix:${namespace}:${id}`), still read during rollout so any
@@ -32,7 +33,7 @@ interface NextIndexResult {
   error?: unknown;
 }
 
-const DEFAULT_DOWN_MS = 15 * 60 * 1000;
+const DEFAULT_DOWN_MS = GLOBAL.limits.rail_skip_ms;
 
 export class MatrixRouter {
 

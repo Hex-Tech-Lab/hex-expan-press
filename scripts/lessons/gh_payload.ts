@@ -2,13 +2,17 @@
  * GitHub payload fetch for the lessons harvester. Read-only: `gh api` GET calls only.
  */
 import { execFileSync } from "node:child_process";
+import { GLOBAL } from "../../payments/src/settings_registry.ts";
 
-export const REPO = "Hex-Tech-Lab/hex-expan-press";
+export const REPO = GLOBAL.project.github_repo;
+
+/** One GitHub REST item (comment, review). Parsed JSON is untyped; consumers narrow the fields they read. */
+export type GhItem = Record<string, unknown>;
 
 export interface RawPayload {
-  reviewComments: any[];
-  reviews: any[];
-  issueComments: any[];
+  reviewComments: GhItem[];
+  reviews: GhItem[];
+  issueComments: GhItem[];
 }
 
 export type Exec = (cmd: string, args: string[]) => string;
@@ -23,8 +27,8 @@ const defaultExec: Exec = (cmd, args) =>
  * gh 2.45 has no `--slurp`, so split the stream here. Brackets inside strings are
  * skipped. A truncated stream throws rather than returning a partial list.
  */
-export function parseConcatenatedJsonArrays(text: string): any[] {
-  const out: any[] = [];
+export function parseConcatenatedJsonArrays(text: string): GhItem[] {
+  const out: GhItem[] = [];
   let depth = 0;
   let start = -1;
   let inStr = false;

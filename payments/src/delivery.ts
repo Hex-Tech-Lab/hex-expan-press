@@ -699,7 +699,7 @@ export async function createDubShortLink(
   const key = process.env.DUB_API_KEY;
   if (!key) throw new Error("DUB_API_KEY is missing — cannot create the download short link");
   // Bounded by the webhook-internal budget: this call runs while the sale's idempotency lock is held.
-  const res = await fetchImpl("https://api.dub.co/links", {
+  const res = await fetchImpl(`${GLOBAL.endpoints.dub_api_base}/links`, {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
     body: JSON.stringify({ url: targetUrl, domain: GLOBAL.delivery.short_domain }),

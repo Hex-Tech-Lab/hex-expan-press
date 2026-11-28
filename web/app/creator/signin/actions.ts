@@ -4,7 +4,7 @@ import { headers } from "next/headers";
 import { redirect, unstable_rethrow } from "next/navigation";
 import { createSsrClient } from "../../../src/lib/supabase-ssr";
 import { emailSchema } from "../../../src/lib/zod-rules";
-import { AUTH_REDIRECT_HOSTS } from "../../../../payments/src/settings_registry";
+import { AUTH_REDIRECT_HOSTS, GLOBAL } from "../../../../payments/src/settings_registry";
 
 /**
  * Sign-in Server Actions (Wave 5): authentication lives entirely server-side.
@@ -18,7 +18,7 @@ import { AUTH_REDIRECT_HOSTS } from "../../../../payments/src/settings_registry"
 // canonical origin so the OAuth round-trip can never be steered to an
 // attacker-controlled domain. Extra internal hosts can be added via
 // ALLOWED_AUTH_HOSTS (comma-separated).
-const CANONICAL_PROD_HOSTS = ["expanpress.com", "www.expanpress.com"];
+const CANONICAL_PROD_HOSTS = [GLOBAL.site.root_host, GLOBAL.site.www_host];
 
 function allowedProdHosts(): Set<string> {
   return new Set([
@@ -44,7 +44,7 @@ async function resolveOrigin(): Promise<string> {
     // canonical origin (the OAuth provider allow-list and every deployed asset
     // expect one domain there). Always https.
     if (host && allowedProdHosts().has(host)) return `https://${host}`;
-    return process.env.NEXT_PUBLIC_SITE_ORIGIN ?? "https://expanpress.com";
+    return process.env.NEXT_PUBLIC_SITE_ORIGIN ?? GLOBAL.site.origin;
   }
 
   // Previews/local: bind the OAuth round-trip to the EXACT host the user is
@@ -64,7 +64,7 @@ async function resolveOrigin(): Promise<string> {
     return `${scheme}://${host}`;
   }
   if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
-  return "http://localhost:3000";
+  return GLOBAL.site.local_dev_origin;
 }
 
 /** Google OAuth via PKCE — the ssr client persists the verifier in a cookie. */

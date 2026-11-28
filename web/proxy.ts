@@ -26,9 +26,10 @@ import { COUNTRY_RESTRICTION_MESSAGE } from "./src/lib/sales-scope";
 // The pay origin comes from the settings registry (ADR 0061), so the host guard and the redirect target cannot drift apart.
 const PAY_ORIGIN = GLOBAL.storefront.pay_origin;
 const PAY_HOST = new URL(PAY_ORIGIN).host;
-const MAIN_HOST = "expanpress.com";
-// www is the B2B host (founder, 2026-11-15). It must not serve checkout either: ADR 0061 makes pay the only checkout origin.
-const WWW_HOST = "www.expanpress.com";
+// Apex and www hosts come from the registry (site.root_host, site.www_host). www is the B2B host (founder, 2026-11-15).
+// It must not serve checkout either: ADR 0061 makes pay the only checkout origin.
+const MAIN_HOST = GLOBAL.site.root_host;
+const WWW_HOST = GLOBAL.site.www_host;
 const PAY_ALLOWED_PREFIXES = ["/checkout/", "/api/billing/checkout/", "/_next/", "/assets/"];
 const PAY_ALLOWED_EXACT_API = ["/api/billing/checkout"];
 // Buyer legal set only (B2C). The creator (B2B) set at /terms.html, /privacy.html, /refund-policy.html and
@@ -123,7 +124,7 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
       const headers = {
         "content-type": "text/html; charset=utf-8",
         "x-robots-tag": "noindex, nofollow",
-        "cache-control": "public, max-age=300",
+        "cache-control": `public, max-age=${GLOBAL.limits.pay_root_max_age_seconds}`,
       };
       return new NextResponse(request.method === "HEAD" ? null : payRootHtml(), { status: 200, headers });
     }

@@ -71,6 +71,7 @@ export default async function ConsentsPage() {
       hasC2={state.hasC2}
       hasC3={state.hasC3}
       supportEmail={GLOBAL.email.support}
+      siteHost={GLOBAL.site.root_host}
     />
   );
 }

@@ -152,12 +152,78 @@ export interface EmailRolesSettings {
   address_rejected_status: number;
 }
 
+/** Runtime limits (milliseconds, bytes, seconds, hours, rows, attempts). Units are in each key name. */
+export interface RuntimeLimitsSettings {
+  /** How long a rail stays skipped after a provider is marked down (matrix router and provider router). */
+  rail_skip_ms: number;
+  /** Per-request budget for the Upstash Redis REST client. */
+  redis_timeout_ms: number;
+  /** Largest webhook request body accepted before it is refused (billing and e-sign webhooks). */
+  webhook_max_body_bytes: number;
+  /** Attempts the delivery sends store makes to claim a sale's send row before it gives up. */
+  delivery_max_claim_attempts: number;
+  /** Rows per page when reading creator consents. */
+  consent_page_size: number;
+  /** Upper bound on consent rows read in one request (a runaway loop guard). */
+  consent_safety_cap: number;
+  /** Lifetime of a presigned R2 GET or PUT URL (download and upload). */
+  r2_presign_seconds: number;
+  /** Lifetime of a presigned R2 HEAD probe URL. */
+  r2_head_presign_seconds: number;
+  /** Timeout of an R2 HEAD probe. */
+  r2_head_timeout_ms: number;
+  /** Timeout of an R2 request that moves object bytes. */
+  r2_request_timeout_ms: number;
+  /** Bound on the source listing the buyer download path awaits. */
+  r2_source_listing_timeout_ms: number;
+  /** Timeout of a Firma API call (lookup and envelope requests). */
+  esign_request_timeout_ms: number;
+  /** Timeout of a Firma evidence and signed-document download. */
+  esign_evidence_timeout_ms: number;
+  /** Largest evidence document accepted from Firma, in bytes. */
+  esign_max_evidence_bytes: number;
+  /** Hours a Firma signing request stays open before it expires. */
+  esign_signing_expiration_hours: number;
+  /** Rows the book identity sync reads from products. Reaching it fails closed (possible truncation). */
+  sync_products_query_limit: number;
+  /** Browser cache lifetime (seconds) of hashed static assets under /assets (next.config.ts headers). */
+  static_asset_max_age_seconds: number;
+  /** stale-while-revalidate window (seconds) for the static asset cache header. */
+  static_asset_stale_seconds: number;
+  /** Browser cache lifetime (seconds) of the pay host root page (proxy.ts). */
+  pay_root_max_age_seconds: number;
+}
+
 // ---------------------------------------------------------------------------
 // global.json — paths, endpoints, tool paths, server, shared defaults
 // ---------------------------------------------------------------------------
 export interface GlobalSettings {
   paths: { sales_ledger: string; reports_dir: string; cache_dir: string; env_file: string };
-  endpoints: { openrouter_chat: string; openrouter_stt: string; voicecreator_api: string };
+  endpoints: {
+    openrouter_chat: string;
+    openrouter_stt: string;
+    voicecreator_api: string;
+    /** Firma e-sign API base (the FIRMA_API_BASE env var overrides it). https, no query. */
+    firma_api_base: string;
+    /** Firma signing page base; the recipient id is appended as one path segment. */
+    firma_signing_base: string;
+    /** Dub API base for the buyer download short link (POST {base}/links). */
+    dub_api_base: string;
+    /** Paddle checkout page base used by the legacy Paddle adapter (product id appended). */
+    paddle_checkout_base: string;
+    /** Polar checkout page base used by the legacy Polar adapter (product id appended). */
+    polar_checkout_base: string;
+    /** Host suffix of the Cloudflare R2 S3 API endpoint: https://{account_id}.{suffix}. A bare DNS name, no scheme. */
+    r2_s3_host_suffix: string;
+  };
+  /** Public hosts and origins of the ExpanPress sites. Read by the host guard (web/proxy.ts), the page metadata, the sign-in
+   *  origin allow-list and the server-side origin fallbacks. The checkout origin is NOT here: storefront.pay_origin is a fixed
+   *  trust value (ADR 0061) that global.json cannot change. */
+  site: { origin: string; root_host: string; www_host: string; local_dev_origin: string };
+  /** Project identifiers used by operator scripts and error reporting (GitHub repo, Sentry organisation and project). */
+  project: { github_repo: string; sentry_org: string; sentry_project: string; redis_key_prefix: string };
+  /** Runtime timeouts, byte caps and counts used by server code. Each is validated by loadLimitsSection; out-of-range values fall back. */
+  limits: RuntimeLimitsSettings;
   tool_paths: { ffmpeg: string; ffprobe: string; typst_font_dirs: string[] };
   server: { bind_host: string; bind_port: number; max_body_bytes: number };
   user_agent: string;
@@ -317,6 +383,8 @@ product_slug: { min_length: number; max_length: number; separator: string };
     buyer_support_after_hours: number;
     /** Hex characters of the link's token hash shown as the buyer email subject reference (Gmail threads identical subjects). */
     subject_ref_chars: number;
+    /** Oldest release year (inclusive) a release download filename may carry (payments/src/release_filename.ts). */
+    release_filename_min_year: number;
     /** Checkout metadata key that carries the buyer's consent (true or false) on a provider whose checkout link documents metadata. */
     buyer_consent_metadata_key: string;
   };
@@ -523,6 +591,9 @@ export interface UsageWatchSettings {
 const STOREFRONT_BRAND = "ExpanPress";
 /** The one provider-agnostic checkout origin (ADR 0061). Every checkout URL is built from this value. */
 const STOREFRONT_PAY_ORIGIN = "https://pay.expanpress.com";
+/** The root site host and its https origin. The B2C landing, download origin and logo URLs derive from them. */
+const SITE_ROOT_HOST = "expanpress.com";
+const SITE_ORIGIN = `https://${SITE_ROOT_HOST}`;
 
 export const VOICE_NARRATION_LIMITS = {
   sample_rate_hz: { min: 16000, max: 48000 },
@@ -563,6 +634,47 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     openrouter_chat: "https://openrouter.ai/api/v1/chat/completions",
     openrouter_stt: "https://openrouter.ai/api/v1/audio/transcriptions",
     voicecreator_api: "https://api.vcp.name",
+    firma_api_base: "https://api.firma.dev/functions/v1/signing-request-api",
+    firma_signing_base: "https://app.firma.dev/signing",
+    dub_api_base: "https://api.dub.co",
+    paddle_checkout_base: "https://paddle.com/checkout",
+    polar_checkout_base: "https://polar.sh/checkout",
+    r2_s3_host_suffix: "r2.cloudflarestorage.com",
+  },
+  site: {
+    origin: SITE_ORIGIN,
+    root_host: SITE_ROOT_HOST,
+    www_host: `www.${SITE_ROOT_HOST}`,
+    // Local `next dev` origin used only when no request host is known (the sign-in origin fallback).
+    local_dev_origin: "http://localhost:3000",
+  },
+  project: {
+    github_repo: "Hex-Tech-Lab/hex-expan-press",
+    sentry_org: "hex-org",
+    sentry_project: "hex-expan-press",
+    // Every Upstash key the app writes starts with this prefix, so the app's keys never collide with another project's.
+    redis_key_prefix: "expan:",
+  },
+  limits: {
+    rail_skip_ms: 15 * 60 * 1000,
+    redis_timeout_ms: 3000,
+    webhook_max_body_bytes: 1_048_576,
+    delivery_max_claim_attempts: 2,
+    consent_page_size: 500,
+    consent_safety_cap: 5000,
+    r2_presign_seconds: 300,
+    r2_head_presign_seconds: 60,
+    r2_head_timeout_ms: 5000,
+    r2_request_timeout_ms: 30000,
+    r2_source_listing_timeout_ms: 5000,
+    esign_request_timeout_ms: 15000,
+    esign_evidence_timeout_ms: 30000,
+    esign_max_evidence_bytes: 20 * 1024 * 1024,
+    esign_signing_expiration_hours: 168,
+    sync_products_query_limit: 500,
+    static_asset_max_age_seconds: 86_400,
+    static_asset_stale_seconds: 604_800,
+    pay_root_max_age_seconds: 300,
   },
   tool_paths: {
     ffmpeg: "~/.local/bin/ffmpeg",
@@ -616,7 +728,7 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
   // Home target for every buyer-side logo and home link (thank-you page, checkout). Absolute, so a buyer on
   // pay.expanpress.com also lands on the B2C landing, never on the B2B root. The B2C landing is /books on the main site.
   storefront: {
-    b2c_landing_url: "https://expanpress.com/books",
+    b2c_landing_url: `${SITE_ORIGIN}/books`,
     brand_name: STOREFRONT_BRAND,
     pay_origin: STOREFRONT_PAY_ORIGIN,
     publisher_label: STOREFRONT_BRAND,
@@ -822,7 +934,7 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     link_key_env: "DELIVERY_LINK_KEY",
     // Key id for new encrypted claim messages. Bump it together with the key in link_key_env when the key is rotated.
     link_key_id: "k1",
-    download_origin: "https://expanpress.com",
+    download_origin: SITE_ORIGIN,
     // Cutover timestamp for migration 20261118120000_delivery_claim_link.sql.
     // NOTE: CCT must stamp the exact UTC deploy time at merge/deploy so pre-deploy held claims cannot be misclassified as post-cutover and resent twice.
     stored_message_since: "2026-11-19T05:00:00Z",
@@ -832,6 +944,8 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     buyer_typical_minutes: 2,
     buyer_support_after_hours: 1,
     subject_ref_chars: 8,
+    // Oldest release year a download filename may carry (the year is checked against it, not the clock).
+    release_filename_min_year: 1900,
     buyer_consent_metadata_key: "buyer_email_consent",
   },
   email: {
@@ -862,8 +976,8 @@ export const DEFAULT_GLOBAL: GlobalSettings = {
     theme_mode: "light",
     font_family: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
     email_font_stack: "ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif",
-    logo_url: "https://expanpress.com/assets/expanpress-logo.svg",
-    logo_square_url: "https://expanpress.com/assets/expanpress-logo.webp",
+    logo_url: `${SITE_ORIGIN}/assets/expanpress-logo.svg`,
+    logo_square_url: `${SITE_ORIGIN}/assets/expanpress-logo.webp`,
     colors: {
       canvas: "#F9F6F0",
       charcoal: "#181818",
@@ -1534,7 +1648,7 @@ export function loadEndpointsSection(raw: unknown): GlobalSettings["endpoints"] 
   }
   const rec = raw as Record<string, unknown>;
   const fallbacks: string[] = [];
-  const httpsEndpoint = (key: "openrouter_chat" | "openrouter_stt"): string => {
+  const httpsEndpoint = (key: HttpsEndpointKey): string => {
     if (!(key in rec)) return defaults[key];
     if (isHttpsUrl(rec[key])) return (rec[key] as string).trim();
     fallbacks.push(key);
@@ -1546,12 +1660,155 @@ export function loadEndpointsSection(raw: unknown): GlobalSettings["endpoints"] 
     if (approved) voicecreatorApi = approved;
     else fallbacks.push("voicecreator_api");
   }
+  // A bare DNS name (no scheme, path or port): the R2 account id is prepended to it, so anything else would make a malformed host.
+  let r2Suffix = defaults.r2_s3_host_suffix;
+  if ("r2_s3_host_suffix" in rec) {
+    const v = rec.r2_s3_host_suffix;
+    if (typeof v === "string" && /^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(v)) r2Suffix = v;
+    else fallbacks.push("r2_s3_host_suffix");
+  }
   if (fallbacks.length > 0) warnFallback("global.json", `invalid endpoints values for ${fallbacks.join(", ")}`);
   return {
     openrouter_chat: httpsEndpoint("openrouter_chat"),
     openrouter_stt: httpsEndpoint("openrouter_stt"),
     voicecreator_api: voicecreatorApi,
+    firma_api_base: httpsEndpoint("firma_api_base"),
+    firma_signing_base: httpsEndpoint("firma_signing_base"),
+    dub_api_base: httpsEndpoint("dub_api_base"),
+    paddle_checkout_base: httpsEndpoint("paddle_checkout_base"),
+    polar_checkout_base: httpsEndpoint("polar_checkout_base"),
+    r2_s3_host_suffix: r2Suffix,
   };
+}
+
+type HttpsEndpointKey =
+  | "openrouter_chat"
+  | "openrouter_stt"
+  | "firma_api_base"
+  | "firma_signing_base"
+  | "dub_api_base"
+  | "paddle_checkout_base"
+  | "polar_checkout_base";
+
+/** site: each host is a bare hostname, the origin is a bare https origin on root_host, www_host is under root_host, and
+ *  local_dev_origin is an http(s) origin on localhost or 127.0.0.1. Any invalid field falls back to its default (and warns). */
+export function loadSiteSection(raw: unknown): GlobalSettings["site"] {
+  const defaults = DEFAULT_GLOBAL.site;
+  if (raw === undefined) return defaults;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    warnFallback("global.json", "invalid site section (expected object)");
+    return defaults;
+  }
+  const rec = raw as Record<string, unknown>;
+  const HOSTNAME = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/;
+  const fallbacks: string[] = [];
+  const rootHost = typeof rec.root_host === "string" && HOSTNAME.test(rec.root_host) ? rec.root_host : null;
+  if (!rootHost && "root_host" in rec) fallbacks.push("root_host");
+  const root = rootHost ?? defaults.root_host;
+  // The origin is always https on root_host. An explicit origin is accepted only when it names exactly that bare origin.
+  let origin = `https://${root}`;
+  if ("origin" in rec) {
+    const parsed = typeof rec.origin === "string" && URL.canParse(rec.origin) ? new URL(rec.origin) : null;
+    const ok =
+      parsed !== null &&
+      parsed.protocol === "https:" &&
+      parsed.host === root &&
+      parsed.pathname === "/" &&
+      parsed.search === "" &&
+      parsed.hash === "" &&
+      parsed.username === "";
+    if (ok) origin = parsed.origin;
+    else fallbacks.push("origin");
+  }
+  let www = `www.${root}`;
+  if ("www_host" in rec) {
+    if (typeof rec.www_host === "string" && HOSTNAME.test(rec.www_host) && rec.www_host.endsWith(`.${root}`)) www = rec.www_host;
+    else fallbacks.push("www_host");
+  }
+  let localDev = defaults.local_dev_origin;
+  if ("local_dev_origin" in rec) {
+    const v = rec.local_dev_origin;
+    const parsed = typeof v === "string" && URL.canParse(v) ? new URL(v) : null;
+    const ok =
+      parsed !== null &&
+      (parsed.protocol === "http:" || parsed.protocol === "https:") &&
+      (parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1") &&
+      parsed.pathname === "/" && parsed.search === "" && parsed.hash === "" && !parsed.username;
+    if (ok) localDev = parsed.origin;
+    else fallbacks.push("local_dev_origin");
+  }
+  if (fallbacks.length > 0) warnFallback("global.json", `invalid site values for ${fallbacks.join(", ")}`);
+  return { origin, root_host: root, www_host: www, local_dev_origin: localDev };
+}
+
+/** limits: each value is an integer inside its own bounds. Anything else falls back to the default (and warns). */
+export function loadLimitsSection(raw: unknown): RuntimeLimitsSettings {
+  const defaults = DEFAULT_GLOBAL.limits;
+  if (raw === undefined) return defaults;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    warnFallback("global.json", "invalid limits section (expected object)");
+    return defaults;
+  }
+  const rec = raw as Record<string, unknown>;
+  const BOUNDS: Record<keyof RuntimeLimitsSettings, [number, number]> = {
+    rail_skip_ms: [1000, 86_400_000],
+    redis_timeout_ms: [100, 60_000],
+    webhook_max_body_bytes: [1024, 10_485_760],
+    delivery_max_claim_attempts: [1, 10],
+    consent_page_size: [1, 1000],
+    consent_safety_cap: [1, 100_000],
+    r2_presign_seconds: [1, 604_800],
+    r2_head_presign_seconds: [1, 604_800],
+    r2_head_timeout_ms: [100, 300_000],
+    r2_request_timeout_ms: [1000, 300_000],
+    r2_source_listing_timeout_ms: [100, 300_000],
+    esign_request_timeout_ms: [1000, 300_000],
+    esign_evidence_timeout_ms: [1000, 300_000],
+    esign_max_evidence_bytes: [1024, 104_857_600],
+    esign_signing_expiration_hours: [1, 8760],
+    sync_products_query_limit: [1, 1000],
+    static_asset_max_age_seconds: [0, 31_536_000],
+    static_asset_stale_seconds: [0, 31_536_000],
+    pay_root_max_age_seconds: [0, 31_536_000],
+  };
+  const fallbacks: string[] = [];
+  const out = { ...defaults };
+  for (const key of Object.keys(BOUNDS) as Array<keyof RuntimeLimitsSettings>) {
+    if (!(key in rec)) continue;
+    const [min, max] = BOUNDS[key];
+    const candidate = rec[key];
+    if (intInRange(candidate, min, max)) out[key] = candidate;
+    else fallbacks.push(key);
+  }
+  if (fallbacks.length > 0) warnFallback("global.json", `invalid limits values for ${fallbacks.join(", ")}`);
+  return out;
+}
+
+/** project: the GitHub repo is owner/name; the Sentry org and project are lowercase slugs. Invalid fields fall back (and warn). */
+export function loadProjectSection(raw: unknown): GlobalSettings["project"] {
+  const defaults = DEFAULT_GLOBAL.project;
+  if (raw === undefined) return defaults;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    warnFallback("global.json", "invalid project section (expected object)");
+    return defaults;
+  }
+  const rec = raw as Record<string, unknown>;
+  const fallbacks: string[] = [];
+  const pick = (key: keyof GlobalSettings["project"], re: RegExp): string => {
+    if (!(key in rec)) return defaults[key];
+    const v = rec[key];
+    if (typeof v === "string" && re.test(v)) return v;
+    fallbacks.push(key);
+    return defaults[key];
+  };
+  const out = {
+    github_repo: pick("github_repo", /^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})\/[A-Za-z0-9._-]{1,100}$/),
+    sentry_org: pick("sentry_org", /^[a-z0-9][a-z0-9-]{0,63}$/),
+    sentry_project: pick("sentry_project", /^[a-z0-9][a-z0-9-]{0,63}$/),
+    redis_key_prefix: pick("redis_key_prefix", /^[a-z][a-z0-9-]{0,31}:$/),
+  };
+  if (fallbacks.length > 0) warnFallback("global.json", `invalid project values for ${fallbacks.join(", ")}`);
+  return out;
 }
 
 /** Env name that overrides payments.sandbox_checkout_enabled. Only the values "true" and "false" count. */
@@ -1593,6 +1850,9 @@ function loadGlobal(): GlobalSettings {
     ...g,
     paths: { ...DEFAULT_GLOBAL.paths, ...(g.paths ?? {}) },
     endpoints: loadEndpointsSection(g.endpoints),
+    site: loadSiteSection(g.site),
+    project: loadProjectSection(g.project),
+    limits: loadLimitsSection(g.limits),
     tool_paths: { ...DEFAULT_GLOBAL.tool_paths, ...(g.tool_paths ?? {}) },
     server: { ...DEFAULT_GLOBAL.server, ...(g.server ?? {}) },
     defaults: { ...DEFAULT_GLOBAL.defaults, ...(g.defaults ?? {}) },
@@ -1902,7 +2162,8 @@ export function loadDeliverySection(raw: Record<string, unknown> | undefined): G
       | "buyer_support_after_hours"
       | "subject_ref_chars"
       | "terminal_reject_lookback_hours"
-      | "terminal_reject_list_limit",
+      | "terminal_reject_list_limit"
+      | "release_filename_min_year",
     min: number,
     max: number,
   ): number => {
@@ -1945,6 +2206,7 @@ export function loadDeliverySection(raw: Record<string, unknown> | undefined): G
     buyer_typical_minutes: posInt("buyer_typical_minutes", 1, 60),
     buyer_support_after_hours: posInt("buyer_support_after_hours", 1, 24),
     subject_ref_chars: posInt("subject_ref_chars", 4, 32),
+    release_filename_min_year: posInt("release_filename_min_year", 1000, 9999),
     // A metadata key name, not a value: the charset keeps it a plain key in a checkout link query. Invalid falls back.
     buyer_consent_metadata_key: /^[a-z][a-z0-9_]{0,63}$/.test(str("buyer_consent_metadata_key"))
       ? str("buyer_consent_metadata_key")

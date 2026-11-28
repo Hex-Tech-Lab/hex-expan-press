@@ -33,7 +33,7 @@ const loadSyncConfigFromDb = async (): Promise<SyncConfig> => {
   if (!supabase) {
     throw new Error("sync_book_identity: SUPABASE_URL/SUPABASE_SECRET_KEY not configured — the DB is the only source of the sync target (fail closed)");
   }
-  const PRODUCTS_QUERY_LIMIT = 500;
+  const PRODUCTS_QUERY_LIMIT = GLOBAL.limits.sync_products_query_limit;
   const { data, error } = await supabase
     .from("products")
     .select("id, store_product_id, book_registry, paddle_product_ref")

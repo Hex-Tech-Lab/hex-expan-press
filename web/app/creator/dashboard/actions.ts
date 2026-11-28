@@ -10,6 +10,7 @@ import { portalConsentState } from "../../../src/lib/consent-chain";
 import { loadCreatorConsentRows } from "../../../src/lib/creator-consents";
 import { toError } from "../../../src/lib/error-reporting";
 import { createEsignEnvelopeUseCase } from "../../../../src/use_cases/create_esign_envelope";
+import { GLOBAL } from "../../../../payments/src/settings_registry";
 
 /**
  * Server Action: sign out of the creator portal — revokes the session at
@@ -80,7 +81,7 @@ export async function startPublisherAgreementAction(): Promise<void> {
   }
 
   const productId = primary.id;
-  const siteOrigin = process.env.NEXT_PUBLIC_SITE_ORIGIN ?? "https://expanpress.com";
+  const siteOrigin = process.env.NEXT_PUBLIC_SITE_ORIGIN ?? GLOBAL.site.origin;
   try {
     const result = await createEsignEnvelopeUseCase(
       { productId, userId: user.id, userEmail: user.email ?? "", hostUrl: siteOrigin },

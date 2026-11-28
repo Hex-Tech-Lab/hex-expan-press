@@ -17,6 +17,8 @@ vi.mock("../../../../../../payments/src/settings_registry.ts", async (importOrig
   GLOBAL: {
     paths: { sales_ledger: "/tmp/transient-classification-ledger/sales.jsonl" },
     defaults: { currency: "USD" },
+    project: { redis_key_prefix: "expan:" },
+    limits: { redis_timeout_ms: 3000, webhook_max_body_bytes: 1_048_576 },
     payments: { webhook_tolerance_seconds: 300, webhook_lock_ttl_seconds: 300, http_timeout_ms: 5000, webhook_total_budget_ms: 3000, sync_http_timeout_ms: 30000, retry_after_seconds: 30 },
   },
   expandHome: (p: string) => p,

@@ -10,7 +10,7 @@ import { clientIp } from "../../../../src/lib/client-ip";
 export const runtime = "nodejs";
 
 // Same 1 MiB cap as the billing webhook (Wave 4 contract).
-const MAX_BODY_BYTES = 1_048_576;
+const MAX_BODY_BYTES = GLOBAL.limits.webhook_max_body_bytes;
 
 /** Best-effort terminal-reject quarantine insert (sha256 only — the raw body
  *  carries signer PII and audit_log must not hold it). Takes an AbortSignal so

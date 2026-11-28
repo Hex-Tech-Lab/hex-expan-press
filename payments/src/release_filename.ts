@@ -4,8 +4,10 @@
  * e.g. ExpanPress_SampleTheQuietWorkshop_ExpanPress_2026.pdf
  *
  * Pure: the publisher is passed in by the caller (GLOBAL.storefront.brand_name in the route), never a literal here.
+ * The oldest valid year comes from the settings registry (delivery.release_filename_min_year).
  * Output is ASCII-only, so it is safe in a Content-Disposition header.
  */
+import { GLOBAL } from "./settings_registry.ts";
 
 export interface ReleaseFilenameParts {
   slug: string | null | undefined;
@@ -48,6 +50,6 @@ export function releaseDownloadFilename(publisher: string, parts: ReleaseFilenam
   const creatorSegment = toCamelSegment(parts.creatorDisplayName ?? "");
   const year = parts.releaseYear;
   if (!publisherSegment || !slugSegment || !creatorSegment) return null;
-  if (typeof year !== "number" || !Number.isInteger(year) || year < 1900) return null;
+  if (typeof year !== "number" || !Number.isInteger(year) || year < GLOBAL.delivery.release_filename_min_year) return null;
   return `${publisherSegment}_${slugSegment}_${creatorSegment}_${year}.pdf`;
 }

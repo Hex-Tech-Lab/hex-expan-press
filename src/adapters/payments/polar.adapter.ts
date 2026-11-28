@@ -186,7 +186,7 @@ export class PolarAdapter implements PaymentProviderPort {
   }
 
   async createCheckout(command: CheckoutCommand): Promise<CheckoutResult> {
-    const url = new URL(`https://polar.sh/checkout/${command.productId}`);
+    const url = new URL(`${GLOBAL.endpoints.polar_checkout_base}/${command.productId}`);
     url.searchParams.set("email", command.buyerEmail);
     applyCheckoutUrlTheme(url, paymentProviderSetting(this.providerName)?.theme_param ?? "theme", GLOBAL.branding);
     return {

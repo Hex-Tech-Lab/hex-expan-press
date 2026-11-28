@@ -16,10 +16,10 @@ export default function Error({ error, reset }: { error: Error & { digest?: stri
   }, [error]);
   // A buyer on the B2C side (/books) recovers into B2C, never into the B2B root (B2C/B2B confinement).
   const pathname = usePathname();
-  // Pay host (/checkout) cannot serve /books, so its recovery link is the absolute B2C landing. Value must equal
-  // settings storefront.b2c_landing_url (checked by __tests__/b2c-confinement.test.ts). Not imported from the
-  // registry here: this is a client component and the registry reads process.env.
-  const B2C_HOME = "https://expanpress.com/books";
+  // Pay host (/checkout) cannot serve /books, so its recovery link is the absolute B2C landing. The value is
+  // storefront.b2c_landing_url, inlined at build time by next.config.ts (env). This client component never imports the registry.
+  // Injected from the settings registry by next.config.ts, which fails the build when it is empty: no silent fallback here.
+  const B2C_HOME = process.env.NEXT_PUBLIC_B2C_LANDING_URL as string;
   const home = pathname?.startsWith("/books") ? "/books" : pathname?.startsWith("/checkout") ? B2C_HOME : "/";
   return (
     <div className="min-h-screen bg-canvas text-charcoal flex flex-col items-center justify-center gap-5 p-8 font-sans">

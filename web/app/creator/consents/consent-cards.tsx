@@ -22,19 +22,21 @@ export interface ConsentCardsProps {
   hasC2: boolean;
   hasC3: boolean;
   supportEmail?: string;
+  /** Root site host shown in the legal link text (settings registry: site.root_host), passed from the server page. */
+  siteHost: string;
 }
 
-function LegalIncorporationClause() {
+function LegalIncorporationClause({ siteHost }: { siteHost: string }) {
   return (
     <>
       This agreement incorporates by reference the ExpanPress Terms of Service and Privacy Policy available at{" "}
       <a href="/terms.html" target="_blank" rel="noopener noreferrer" className="underline text-[#296E50] hover:text-gray-900">
-        expanpress.com/terms.html
+        {siteHost}/terms.html
         <span className="sr-only"> (opens in a new tab)</span>
       </a>{" "}
       and{" "}
       <a href="/privacy.html" target="_blank" rel="noopener noreferrer" className="underline text-[#296E50] hover:text-gray-900">
-        expanpress.com/privacy.html
+        {siteHost}/privacy.html
         <span className="sr-only"> (opens in a new tab)</span>
       </a>
       .
@@ -113,7 +115,7 @@ function ConsentFormCard({
   );
 }
 
-export default function ConsentCards({ bookTitle, hasC1, hasC2, hasC3, supportEmail }: ConsentCardsProps) {
+export default function ConsentCards({ bookTitle, hasC1, hasC2, hasC3, supportEmail, siteHost }: ConsentCardsProps) {
   const router = useRouter();
   const [c1State, c1Action] = useActionState(signConsentAction, EMPTY);
   const [c2State, c2Action] = useActionState(signConsentAction, EMPTY);
@@ -148,7 +150,7 @@ export default function ConsentCards({ bookTitle, hasC1, hasC2, hasC3, supportEm
           legal={
             <>
               I confirm that my answers to the review questions are true and accurate to the best of my knowledge.{" "}
-              <LegalIncorporationClause />
+              <LegalIncorporationClause siteHost={siteHost} />
             </>
           }
           done={!!hasC1}
@@ -163,7 +165,7 @@ export default function ConsentCards({ bookTitle, hasC1, hasC2, hasC3, supportEm
           legal={
             <>
               I approve the release of the final PDF for publication.{" "}
-              <LegalIncorporationClause />
+              <LegalIncorporationClause siteHost={siteHost} />
             </>
           }
           done={!!hasC2}
@@ -192,7 +194,7 @@ export default function ConsentCards({ bookTitle, hasC1, hasC2, hasC3, supportEm
                 <>
                   <p className="mt-1.5 text-sm sm:text-base leading-relaxed text-gray-700">
                     Sign the revenue split agreement electronically with our e-signature provider, Firma.{" "}
-                    <LegalIncorporationClause />
+                    <LegalIncorporationClause siteHost={siteHost} />
                   </p>
                   <form action={startPublisherAgreementAction} className="mt-4">
                     <SubmitButton idle="Open the agreement →" busy="Opening agreement…" />
