@@ -275,7 +275,8 @@ describe("GET /books/d/[token] (Buyer delivery route)", () => {
 
     await expectRedirectTo(validToken, "https://supabase.example/signed/books/bare.pdf");
     expect(createSignedUrlMock).toHaveBeenCalledWith("books/bare.pdf", expect.any(Number));
-    expect(console.error).toHaveBeenCalledWith(expect.stringContaining("release filename incomplete"));
+    // The gap reaches Sentry through reportDownloadFailure, which also writes this console line.
+    expect(console.error).toHaveBeenCalledWith(expect.stringContaining("release_filename_incomplete"));
   });
 
   it("redirects 302 to Cloudflare R2 presigned URL when R2 is configured (0% egress)", async () => {

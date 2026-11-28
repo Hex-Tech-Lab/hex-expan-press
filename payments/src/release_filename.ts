@@ -15,12 +15,21 @@ export interface ReleaseFilenameParts {
 
 const WORD_BREAK = /[^A-Za-z0-9]+/;
 
+/** Letters that NFKD cannot decompose into a base letter plus a mark. Without this table, "Søren" loses its "ø". */
+const TRANSLITERATIONS: Record<string, string> = {
+  ø: "o", Ø: "O", ß: "ss", ẞ: "SS", æ: "ae", Æ: "AE", œ: "oe", Œ: "OE", ł: "l", Ł: "L",
+  đ: "d", Đ: "D", ð: "d", Ð: "D", þ: "th", Þ: "Th", ı: "i", ŋ: "ng", Ŋ: "NG", ħ: "h", Ħ: "H", ŧ: "t", Ŧ: "T", ƒ: "f",
+};
+const TRANSLITERATION_PATTERN = new RegExp(`[${Object.keys(TRANSLITERATIONS).join("")}]`, "gu");
+
 /**
- * Folds accents to ASCII, splits on anything that is not a letter or digit, and capitalises each word.
- * "sample_the_quiet_workshop" -> "SampleTheQuietWorkshop"; "Jane Doe" -> "JaneDoe"; "Zoë Ångström" -> "ZoeAngstrom".
+ * Transliterates, folds accents to ASCII, splits on anything that is not a letter or digit, and capitalises each word.
+ * "sample_the_quiet_workshop" -> "SampleTheQuietWorkshop"; "Jane Doe" -> "JaneDoe"; "Zoë Ångström" -> "ZoeAngstrom";
+ * "Søren Kierkegaard" -> "SorenKierkegaard"; "Straße" -> "Strasse"; "Łukasz" -> "Lukasz".
  */
 export function toCamelSegment(text: string): string {
   return text
+    .replace(TRANSLITERATION_PATTERN, (ch) => TRANSLITERATIONS[ch] ?? ch)
     .normalize("NFKD")
     .replace(/\p{M}/gu, "")
     .split(WORD_BREAK)

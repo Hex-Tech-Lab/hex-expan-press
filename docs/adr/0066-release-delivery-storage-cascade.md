@@ -19,7 +19,7 @@ Buyer downloads are served from a signed URL for the release PDF. Cloudflare R2 
 6. **Fail closed when every tier misses.** Delivery returns the existing 500 response and logs the error. It never serves an unlogged or unverified file.
 7. **Storage factory, same pattern as the payment factory.** Storage connectors (`r2`, `upstash_blob`, `supabase`) are registered in one factory (`StorageFactory`, `src/adapters/storage/storage.factory.ts`). Each connector is switched on or off, and ordered into the cascade, from the settings registry (`GLOBAL.delivery.storage_connectors`: `{ name, enabled, order }`). Adding a connector means one adapter and one settings entry, with no change to route code.
 8. **Name collision rule.** The storage fallback is "the storage factory's ordered fallback" in prose. It is not `pricing_tier_cascade.ts` or `provider_router.ts` (see AGENTS.md naming convention).
-9. **Schedule.** The Upstash Blob connector is built after the current quality gate (the founder's "after QIC") and before any further storage change. Until then, decision 4 stands.
+9. **Schedule.** The Upstash Blob connector is built after KYC and before any further storage change. Until then, decision 4 stands.
 
 ## Consequences / Tradeoffs
 

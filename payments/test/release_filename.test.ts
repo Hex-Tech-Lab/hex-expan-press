@@ -14,6 +14,18 @@ describe("toCamelSegment", () => {
     expect(toCamelSegment("Zoë Ångström")).toBe("ZoeAngstrom");
   });
 
+  it.each([
+    ["Søren Kierkegaard", "SorenKierkegaard"],
+    ["Straße", "Strasse"],
+    ["Łukasz Żak", "LukaszZak"],
+    ["Đorđe", "Dorde"],
+    ["Ærø Œuvre", "AEroOEuvre"],
+    ["Þórður", "Thordur"],
+    ["Ħamid", "Hamid"],
+  ])("transliterates letters NFKD cannot decompose: %s -> %s", (input, expected) => {
+    expect(toCamelSegment(input)).toBe(expected);
+  });
+
   it("returns an empty string when nothing alphanumeric remains", () => {
     expect(toCamelSegment("--- ..."))
       .toBe("");

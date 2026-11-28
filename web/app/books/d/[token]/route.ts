@@ -1,12 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 import { getSupabaseAdmin } from "../../../../../payments/src/supabase_admin";
 import { GLOBAL } from "../../../../../payments/src/settings_registry";
-import { TOKEN_RE, tokenHash } from "../../../../../payments/src/delivery";
+import { DOWNLOAD_EVENT, TOKEN_RE, tokenHash } from "../../../../../payments/src/delivery";
 import { releaseDownloadFilename } from "../../../../../payments/src/release_filename";
 import { getDeliveryStorageAdapter } from "../../../../../src/adapters/storage/r2.adapter";
 import { acceptsHtml, renderBrandedB2cHtml } from "../../../../src/lib/branded-html";
 
 export const runtime = "nodejs";
+
+/**
+ * Every buyer-facing failure is logged and sent to Sentry, so a broken download is seen before a buyer reports it.
+ * Detail must never carry the raw token; callers pass ids and error messages only.
+ */
+function reportDownloadFailure(reason: string, detail: string): void {
+  console.error(`[delivery] ${reason}: ${detail}`);
+  Sentry.captureException(new Error(`download: ${reason}: ${detail}`), { tags: { surface: "download_route", reason } });
+}
 
 /**
  * Every response this route sends (HTML and plain-text error pages, the 302 redirect, and the HEAD probe)
@@ -97,24 +107,26 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ token: 
   if (!TOKEN_RE.test(token)) return notFoundDownload(request);
 
   const sb = await getSupabaseAdmin();
-  if (!sb) return unavailableDownload(request);
+  if (!sb) {
+    reportDownloadFailure("admin_client_missing", "Supabase admin client unavailable (SUPABASE_URL or SUPABASE_SECRET_KEY unset)");
+    return unavailableDownload(request);
+  }
 
   const hash = tokenHash(token);
   const { data: link, error: linkErr } = await sb
     .from("download_events")
     .select("sale_id, product_id, expires_at, link_generation")
     .eq("token_hash", hash)
-    .eq("event_type", "link_issued")
+    .eq("event_type", DOWNLOAD_EVENT.linkIssued)
     .maybeSingle();
   if (linkErr) {
-    console.error(`[delivery] link lookup failed: ${linkErr.message}`);
+    reportDownloadFailure("link_lookup_failed", linkErr.message);
     return unavailableDownload(request);
   }
   if (!link) return notFoundDownload(request);
   // Every issued link carries an expiry. A row without one is a data fault: fail closed, never serve it.
-  // (Before this guard, new Date(null) read as epoch and the row was refused only as "expired".)
   if (!link.expires_at) {
-    console.error(`[delivery] link row for sale ${link.sale_id as string} has no expiry`);
+    reportDownloadFailure("link_without_expiry", `sale ${link.sale_id as string}`);
     return unavailableDownload(request);
   }
   if (new Date(link.expires_at as string).getTime() <= Date.now()) {
@@ -127,7 +139,7 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ token: 
     .eq("id", link.product_id as string)
     .maybeSingle();
   if (prodErr || !product?.release_path) {
-    console.error(`[delivery] release file missing for sale ${link.sale_id as string}`);
+    reportDownloadFailure("release_file_missing", `sale ${link.sale_id as string}${prodErr ? `: ${prodErr.message}` : ""}`);
     return unavailableDownload(request);
   }
 
@@ -140,7 +152,8 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ token: 
     releaseYear: product.release_year as number | null,
   });
   if (!downloadName) {
-    console.error(`[delivery] release filename incomplete for product ${link.product_id as string}; serving under the storage key name`);
+    // The buyer is still served (under the storage key name), so this is a data gap to fix, not a blocked download; it still reaches Sentry.
+    reportDownloadFailure("release_filename_incomplete", `product ${link.product_id as string}; served under the storage key name`);
   }
 
   const storage = getDeliveryStorageAdapter(sb, GLOBAL.delivery.bucket);
@@ -152,7 +165,8 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ token: 
   if (!signedUrl) {
     // The id is quoted in the server log so a buyer report can be matched to this failure.
     const errorId = globalThis.crypto.randomUUID().slice(0, 8);
-    console.error(`[delivery] error=${errorId} signed URL failed for sale ${link.sale_id as string}`);
+    // The per-failure id lives in detail, not reason: reason is a Sentry tag, and a per-request value there splits alert grouping.
+    reportDownloadFailure("signed_url_failed", `sale ${link.sale_id as string} error=${errorId}`);
     return unavailableDownload(request, errorId);
   }
 
@@ -162,10 +176,10 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ token: 
     .from("download_events")
     .select("id")
     .eq("token_hash", hash)
-    .eq("event_type", "download_completed")
+    .eq("event_type", DOWNLOAD_EVENT.downloadCompleted)
     .limit(1);
   if (priorErr) {
-    console.error(`[delivery] download log lookup failed: ${priorErr.message}`);
+    reportDownloadFailure("download_log_lookup_failed", priorErr.message);
     return unavailableDownload(request);
   }
   if (!priorRows?.length) {
@@ -173,13 +187,13 @@ export async function GET(request: NextRequest, ctx: { params: Promise<{ token: 
       sale_id: link.sale_id,
       product_id: link.product_id,
       token_hash: hash,
-      event_type: "download_completed",
+      event_type: DOWNLOAD_EVENT.downloadCompleted,
       expires_at: link.expires_at,
       // The issued link's generation, so each download is attributable to the link it used (not a sequence value).
       link_generation: link.link_generation,
     });
     if (logErr) {
-      console.error(`[delivery] download log failed: ${logErr.message}`);
+      reportDownloadFailure("download_log_failed", logErr.message);
       return unavailableDownload(request);
     }
   }
@@ -204,7 +218,7 @@ export async function HEAD(_request: NextRequest, ctx: { params: Promise<{ token
     .from("download_events")
     .select("sale_id, product_id, expires_at")
     .eq("token_hash", tokenHash(token))
-    .eq("event_type", "link_issued")
+    .eq("event_type", DOWNLOAD_EVENT.linkIssued)
     .maybeSingle();
   if (error) return bare(500);
   if (!link) return bare(404);

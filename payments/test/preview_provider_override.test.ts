@@ -33,6 +33,12 @@ describe("readPreviewOverrides", () => {
       creemTestDatabaseRef: "wmagphohfsbjolssqctf",
     });
   });
+
+  it("matches preview with stray whitespace around VERCEL_ENV, and still reads nothing for other values", () => {
+    const overrides = { PREVIEW_ENABLED_PROVIDERS: "creem", PREVIEW_CREEM_TEST_DATABASE_REF: "ref" };
+    expect(readPreviewOverrides({ ...overrides, VERCEL_ENV: " preview " }).enabledProviders).toEqual(["creem"]);
+    expect(readPreviewOverrides({ ...overrides, VERCEL_ENV: " production " }).enabledProviders).toEqual([]);
+  });
 });
 
 describe("applyPreviewProviderOverrides", () => {

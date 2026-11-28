@@ -1800,7 +1800,7 @@ export const isSingleMailbox = (from: string): boolean =>
 const DOMAIN_UNDER_OUR_ZONE = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+expanpress\.com$/;
 
 // Empty or whitespace-only VERCEL_ENV counts as unset, so the gate and the production check read the same value.
-const deployVercelEnv = (): string | undefined => process.env.VERCEL_ENV?.trim() || undefined;
+const deployVercelEnv = (env: NodeJS.ProcessEnv = process.env): string | undefined => env.VERCEL_ENV?.trim() || undefined;
 
 /**
  * True for a non-production runtime: a Vercel preview or development deploy, or, outside Vercel, a local dev or test process.
@@ -2884,7 +2884,7 @@ export interface PreviewOverrides {
 }
 
 export function readPreviewOverrides(env: NodeJS.ProcessEnv = process.env): PreviewOverrides {
-  if (env.VERCEL_ENV !== "preview") return { enabledProviders: [], creemTestDatabaseRef: "" };
+  if (deployVercelEnv(env) !== "preview") return { enabledProviders: [], creemTestDatabaseRef: "" };
   return {
     enabledProviders: (env.PREVIEW_ENABLED_PROVIDERS ?? "").split(",").map((s) => s.trim()).filter((s) => s.length > 0),
     creemTestDatabaseRef: (env.PREVIEW_CREEM_TEST_DATABASE_REF ?? "").trim(),

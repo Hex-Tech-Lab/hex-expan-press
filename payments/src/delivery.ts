@@ -50,6 +50,9 @@ export { StaleFenceError, DeliveryPendingError, type DeliverySendClaim };
 
 export const TOKEN_RE = /^[A-Za-z0-9_-]{43}$/;
 
+/** download_events.event_type values. The database column holds these strings; every reader and writer uses this map. */
+export const DOWNLOAD_EVENT = { linkIssued: "link_issued", downloadCompleted: "download_completed" } as const;
+
 /** audit_log event written once a link's send is accepted. Its absence marks a sale as not yet delivered. */
 const DELIVERY_CONFIRMED_EVENT = "DELIVERY_LINK_SENT";
 
@@ -813,7 +816,7 @@ function supabaseDeliveryDb(signal?: AbortSignal): DeliveryDb {
         sale_id: row.saleId,
         product_id: row.productId,
         token_hash: row.tokenHash,
-        event_type: "link_issued",
+        event_type: DOWNLOAD_EVENT.linkIssued,
         expires_at: row.expiresAt.toISOString(),
       };
       if (row.linkGeneration !== undefined) {
@@ -832,7 +835,7 @@ function supabaseDeliveryDb(signal?: AbortSignal): DeliveryDb {
         .delete()
         .eq("sale_id", row.saleId)
         .eq("token_hash", row.tokenHash)
-        .eq("event_type", "link_issued"), signal);
+        .eq("event_type", DOWNLOAD_EVENT.linkIssued), signal);
       if (error) throw new Error(`link release failed: ${error.message}`);
     },
     async linkStillIssued(row) {
@@ -844,7 +847,7 @@ function supabaseDeliveryDb(signal?: AbortSignal): DeliveryDb {
         .select("token_hash")
         .eq("sale_id", row.saleId)
         .eq("token_hash", row.tokenHash)
-        .eq("event_type", "link_issued")
+        .eq("event_type", DOWNLOAD_EVENT.linkIssued)
         .gt("expires_at", row.now.toISOString())
         .limit(1), signal);
       if (error) throw new Error(`link lookup failed: ${error.message}`);
